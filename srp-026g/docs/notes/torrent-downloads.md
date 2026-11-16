@@ -27,7 +27,8 @@ corrections from the owner go here.
   box (the file goes again when the line cannot be written); from then on the line is what
   the player's tick says. Without the file the box is off, whatever the line. The updater takes the line only once that
   file is there (`check`); `Skhid-get.bat` says `torrent` (whoever runs it chose BitTorrent).
-- Turned on, it is used at once, without a restart; turned off, it stops at once (below).
+- Ticked or unticked while the updater runs, it takes effect at once, without a restart: the
+  update runs again with it (below).
 - The port: no setting. The updater picks a free port the first time it listens and keeps it
   (`game\torrent\port`), the same at every start after; if another program holds it,
   it takes another and keeps that. A port the launcher names (its 13th argument, then `21`)
@@ -67,8 +68,9 @@ corrections from the owner go here.
   PowerShell 5.1 and later) that anyone can pass around. Put beside an empty place and run, it
   asks once for administrator rights (one UAC prompt, a hidden elevated PowerShell) to add
   `Skhid-network-setup.cmd`'s firewall rules (the same names: its `--undo` removes them) and
-  `Skhid-defender-setup.cmd`'s Microsoft Defender exclusion of `game\binaries\x86` with its
-  marker (its `--undo` removes it); Defender and the firewall stay on. Each part says whether
+  `Skhid-defender-setup.cmd`'s Microsoft Defender exclusions of `game\binaries\x86` and
+  `game\torrent` (the bootstrap's copies are programs too) with its marker, the folders a line
+  each (its `--undo` removes them); Defender and the firewall stay on. Each part says whether
   it was added; declined: one line says Windows may block the game, and it goes on. Then it gets the Skhid
   updater, its `skhid_torrent.dll` and `7zr.exe` into `Survarium/game/binaries/x86/`, runs the
   updater (`updater_skhid.exe check torrent`, "Allow torrent" left as it is), which installs
@@ -125,12 +127,15 @@ corrections from the owner go here.
   upload limit (`1E`, which may only lower the cap below; the 0.26g launcher sends none), and
   shows the launcher's states (`08` checking the pieces already on disk, `09` downloading;
   `srp-026g/docs/notes/launcher_updater.md`).
-- `1A` on takes effect at once: while it watches (PLAY shown) it starts sharing; while a
-  download by HTTPS runs (the original game's archive, a patch) and the torrent has that file,
-  the rest of the download moves to the torrent, as the original updater's `restart_downloading`
-  did: what HTTPS got stays (a patch's part is the torrent's part, its pieces checked first; the
-  archive's bytes stay for HTTPS to go on from if the torrent gives nothing). `1A` off stops the
-  engine at once: sharing ends, a download by torrent goes on by HTTPS.
+- **A tick runs the update again** (the owner, 2026-11-16: "ticking should just restart the
+  download"): `1A`, on or off, in any state (downloading, after a pass that failed, watching with
+  PLAY on), stops the update's pass and runs it again from the start in the same window, as the
+  original updater's `switch_download_type` → `restart_downloading` did. On: the torrent, the DHT
+  when the site cannot be reached, HTTPS after; off: the engine stops at once (sharing ends),
+  HTTPS only. The launcher gets its usual states and progress, then PLAY or the error, then the
+  watch. What was checked stays (the torrent's parts, the archive's bytes for HTTPS to go on
+  from); a patch's HTTPS part goes, as on any stop. So a player whose site is blocked ticks it and
+  gets the game from peers without reopening the launcher.
 - The torrent is trusted by its signature alone: the release's Ed25519 key is built into the
   updater ("Signed releases"), and a torrent whose signature does not verify, or whose revision
   is lower than the highest it has taken (`game\torrent\revision`), than the

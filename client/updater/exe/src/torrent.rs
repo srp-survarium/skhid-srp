@@ -101,11 +101,6 @@ enum Offered {
     None,
 }
 
-/// Counts the launcher turning torrent on (`1A`), so an HTTPS download can
-/// see it happen.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Turn(u32);
-
 /// The launcher's torrent settings and the session that runs them.
 pub struct Torrents {
     mode: Mode,
@@ -124,7 +119,6 @@ pub struct Torrents {
     known: Vec<[u8; 32]>,
     /// Uploaded by this run's torrents already removed.
     sent: u64,
-    turn: Turn,
 }
 
 enum Mode {
@@ -415,7 +409,6 @@ impl Torrents {
             banned: Vec::new(),
             known: Vec::new(),
             sent: 0,
-            turn: Turn(0),
         };
         if on {
             torrents.turn_on(port);
@@ -431,8 +424,8 @@ impl Torrents {
         }
     }
 
-    /// `false`: the DLL did not load or make a session; torrent stays off.
-    fn turn_on(&mut self, port: Option<u16>) -> bool {
+    /// The DLL not loaded, or no session made: torrent stays off.
+    fn turn_on(&mut self, port: Option<u16>) {
         let want = self.want(port);
         let config = libtorrent::Config {
             port: want.port(),
@@ -454,18 +447,12 @@ impl Torrents {
                         job: Job::Idle,
                     }),
                 };
-                true
             }
             Err(why) => {
                 log!("torrent: {why}: HTTPS only");
                 self.mode = Mode::Off { port };
-                false
             }
         }
-    }
-
-    pub fn turn(&self) -> Turn {
-        self.turn
     }
 
     /// After the overlay changed the folder: the torrent is read again.
@@ -487,9 +474,7 @@ impl Torrents {
             FromLauncher::AllowTorrent(true) => {
                 if let Mode::Off { port } = self.mode {
                     log!("torrent: allowed by the launcher");
-                    if self.turn_on(port) {
-                        self.turn = Turn(self.turn.0.wrapping_add(1));
-                    }
+                    self.turn_on(port);
                 }
                 None
             }
@@ -1154,15 +1139,6 @@ fn trusted(layout: &Layout) -> Result<Signed, String> {
 
 pub fn offered(session: &mut Session, layout: &Layout) -> Option<Arc<Signed>> {
     session.torrents.offered(layout)
-}
-
-/// Whether an HTTPS download of `path`, started at `since`, hands over to
-/// torrent: it was turned on since and the run's torrent has the file. The
-/// bytes HTTPS got stay; torrent checks them first.
-pub fn takes_over(session: &mut Session, layout: &Layout, since: Turn, path: &str) -> bool {
-    !session.stopped
-        && session.torrents.turn() != since
-        && offered(session, layout).is_some_and(|offered| file_index(&offered.torrent, path).is_some())
 }
 
 pub enum Fetched {

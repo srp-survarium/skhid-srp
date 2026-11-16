@@ -265,12 +265,14 @@ class Bootstrap(Script):
         root = self.out.parent / 'Survarium'
         netsh = [line.split('\t')[1:] for line in done.stdout.splitlines() if line.startswith('netsh\t')]
         self.assertEqual(netsh, network_setup_commands(str(root / 'game' / 'binaries' / 'x86')))
-        x86 = root / 'game' / 'binaries' / 'x86'
-        # Skhid-defender-setup.cmd's exclusion, and its marker: its --undo removes it.
+        x86, torrent = root / 'game' / 'binaries' / 'x86', root / 'game' / 'torrent'
+        # Skhid-defender-setup.cmd's exclusions, and its marker: its --undo removes them.
         self.assertIn(f'excluded: {x86}\n', done.stdout)
+        self.assertIn(f'excluded: {torrent}\n', done.stdout)
         self.assertIn('Firewall rules: added.', done.stdout)
-        self.assertIn('Defender exclusion of game\\binaries\\x86: added.', done.stdout)
-        self.assertEqual((root / 'Skhid-network-setup.defender').read_text(encoding='utf-8-sig'), str(x86))
+        self.assertIn('Defender exclusion of game\\binaries\\x86 and game\\torrent: added.', done.stdout)
+        marker = (root / 'Skhid-network-setup.defender').read_text(encoding='utf-8-sig')
+        self.assertEqual(marker.splitlines(), [str(x86), str(torrent)])
 
     def test_defender_off_keeps_the_firewall_rules_and_says_which_failed(self):
         for path, data in FILES.items():

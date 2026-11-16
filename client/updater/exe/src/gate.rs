@@ -126,8 +126,8 @@ fn hex(sha256: &Option<[u8; 32]>) -> String {
 
 /// After the update's last message, until the launcher closes (PLAY starts
 /// the game and closes it too): the server asked every [`WATCH_MS`]; the
-/// launcher started anew when the update must run again (above). The pipe
-/// is closed at the end.
+/// launcher started anew when the update must run again (above). Ends also
+/// when "Allow torrent" changes: the pass runs again in this window.
 pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen) {
     log!(
         "watching {}: archive {}, least revision {:?}",
@@ -137,17 +137,9 @@ pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen)
     );
     let mut missed = 0;
     let mut down = false;
-    // Sharing starts at once when torrent is turned on, and again after
-    // each ask should it have stopped.
-    let mut turn = session.torrents.turn();
+    // Shares from the start, and again at each ask should it have stopped.
     share(session, layout);
-    let mut each = |session: &mut Session| {
-        if session.torrents.turn() != turn {
-            turn = session.torrents.turn();
-            share(session, layout);
-        }
-    };
-    while session.pipe.is_some() && session.pause_with(WATCH_MS, &mut each) {
+    while session.pipe.is_some() && session.pause(WATCH_MS) {
         share(session, layout);
         let result = http::get(&seen.server, "/api/client-files", 4096, &mut |_, _| {
             session.pump()
@@ -191,7 +183,6 @@ pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen)
             down = true;
         }
     }
-    session.leave();
 }
 
 /// While the launcher is there.

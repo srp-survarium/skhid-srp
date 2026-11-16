@@ -248,7 +248,7 @@ fn survey(
                 Local::Found(sha256)
             }
             Err(code) if win::is_missing(code) => Local::Missing,
-            Err(_) if session.as_deref().is_some_and(|session| session.stopped) => return None,
+            Err(_) if session.as_deref().is_some_and(|session| session.stopped()) => return None,
             Err(code) => {
                 log!("patches: {path} cannot be read ({})", win::error_text(code));
                 Local::Unreadable
@@ -376,19 +376,9 @@ enum Fail {
     Offline(String, String),
 }
 
-enum Got {
-    /// `true` when the file in place is known by its file ID to be the one
-    /// hashed (else it is hashed there again).
-    Placed(bool),
-    /// Torrent was turned on and has the patch; its part is kept for it.
-    ToTorrent,
-}
-
 /// Why one address did not give a patch's file.
 enum Miss {
     Stopped,
-    /// [`torrent::takes_over`].
-    ToTorrent,
     /// Here: the disk, a file that cannot be written. No other address
     /// would do better: the fetch ends.
     Here(Fail),
@@ -573,15 +563,13 @@ impl Run<'_> {
 
     /// Downloads one patch into its place, from the first of its addresses
     /// that gives it, unless the launcher turns torrent on meanwhile.
-    fn fetch(&mut self, patch: &Patch) -> Result<Got, Fail> {
+    fn fetch(&mut self, patch: &Patch) -> Result<bool, Fail> {
         let name = patch.file_name();
         let target = place(self.layout, &name);
         let part = format!("{target}{PART}");
         if let Some(at) = self.torrented.iter().position(|(number, _)| *number == patch.number) {
             let (_, identity) = self.torrented.remove(at);
-            return self
-                .put(patch, &part, &target, identity, "by torrent", 0)
-                .map(Got::Placed);
+            return self.put(patch, &part, &target, identity, "by torrent", 0);
         }
         if patch.addresses.is_empty() {
             return Err(Fail::Blocked(
@@ -631,19 +619,8 @@ impl Run<'_> {
                 let identity = match result {
                     Ok(identity) => identity,
                     Err(miss) => {
-                        // What came stays for the torrent, which checks it.
-                        if !matches!(miss, Miss::ToTorrent) {
-                            let _ = win::delete(&part);
-                        }
+                        let _ = win::delete(&part);
                         match miss {
-                            Miss::ToTorrent => {
-                                log!(
-                                    "patches: {name}: address {} of {count}: the launcher turned \
-                                     torrent on: the rest by torrent",
-                                    at + 1
-                                );
-                                return Ok(Got::ToTorrent);
-                            }
                             Miss::Stopped => return Err(Fail::Stopped),
                             Miss::Here(fail) => return Err(fail),
                             Miss::There {
@@ -668,9 +645,7 @@ impl Run<'_> {
                         }
                     }
                 };
-                return self
-                    .put(patch, &part, &target, identity, &address.text, at + 1)
-                    .map(Got::Placed);
+                return self.put(patch, &part, &target, identity, &address.text, at + 1);
             }
         }
         let (reason, miss, address) = first.expect("an address failed");
@@ -707,9 +682,6 @@ impl Run<'_> {
         let mut asked = false;
         let mut written = 0_u64;
         let session = &mut *self.session;
-        let layout = self.layout;
-        let turn = session.torrents.turn();
-        let path = format!("game/{name}");
         let result = http::get_file(
             &address.url,
             0,
@@ -737,7 +709,6 @@ impl Run<'_> {
                     }
                 }
                 session.progress(done, total.unwrap_or(0))
-                    && !torrent::takes_over(session, layout, turn, &path)
             },
         );
         if let Some((needed, free)) = no_room {
@@ -749,10 +720,6 @@ impl Run<'_> {
         }
         match result {
             Ok(()) => {}
-            Err(HttpError::Stopped) if torrent::takes_over(session, layout, turn, &path) => {
-                drop(output);
-                return Err(Miss::ToTorrent);
-            }
             Err(HttpError::Stopped) => return Err(Miss::Stopped),
             Err(HttpError::Network(WRITE_STEP, code))
                 if code == ERROR_DISK_FULL || code == ERROR_HANDLE_DISK_FULL =>
@@ -1008,11 +975,10 @@ impl Run<'_> {
             self.delete(name)?;
         }
         let wanted: Vec<&Patch> = todo.fetch.iter().map(|fetch| &fetch.patch).collect();
-        let mut turn = self.session.torrents.turn();
         self.by_torrent(&wanted)?;
         // Downloaded: whether known in place by the file ID.
         let mut downloaded: Vec<(u8, bool)> = Vec::new();
-        for (at, fetch) in todo.fetch.iter().enumerate() {
+        for fetch in &todo.fetch {
             if !self.session.pump() {
                 return Err(Fail::Stopped);
             }
@@ -1023,26 +989,7 @@ impl Run<'_> {
                 );
                 self.delete(&fetch.patch.file_name())?;
             }
-            let known = loop {
-                // Torrent turned on since: the rest by it first.
-                if self.session.torrents.turn() != turn {
-                    turn = self.session.torrents.turn();
-                    let rest: Vec<&Patch> = wanted[at..]
-                        .iter()
-                        .copied()
-                        .filter(|patch| {
-                            self.torrented
-                                .iter()
-                                .all(|(number, _)| *number != patch.number)
-                        })
-                        .collect();
-                    self.by_torrent(&rest)?;
-                }
-                match self.fetch(&fetch.patch)? {
-                    Got::Placed(known) => break known,
-                    Got::ToTorrent => {}
-                }
-            };
+            let known = self.fetch(&fetch.patch)?;
             downloaded.push((fetch.patch.number, known));
         }
         // The folder against the list, as `ready` checks it: no other patch
@@ -1219,7 +1166,7 @@ fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, 
         .map(|(number, index)| (*index, place(layout, &format!("{FILE_PREFIX}{number}"))))
         .collect();
     let Some(whole) = torrent::whole(session, &offered, &places) else {
-        return if session.stopped { Err(None) } else { Ok(None) };
+        return if session.stopped() { Err(None) } else { Ok(None) };
     };
     let missing: Vec<(usize, String)> = ours
         .iter()

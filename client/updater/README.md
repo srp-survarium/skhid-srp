@@ -397,13 +397,15 @@ off. With no port named, the updater listens on the one it keeps in
 `game\torrent\port`: picked free the first time, the same at
 every start after (peers that knew it find it again), another one, kept
 from then on, when another program holds it. While the updater
-runs, the launcher's `1A` turns it on or off at once: on, the watch starts
-sharing then (not at its next ask), and a download by HTTPS of a file the
-torrent has (the archive, a patch) leaves the rest to it (`torrent::takes_over`):
-a patch's part, what HTTPS wrote, is the torrent's part, its pieces checked
-first; the archive's bytes stay for HTTPS to go on from. Off stops the
-engine (the session freed): sharing ends, a download by torrent goes on by
-HTTPS. `21` sets the port (answered `15` once listened on, `14` busy; not
+runs, the launcher's `1A` turns it on or off and runs the update again
+(`main.rs` `Run::Again`, as the original updater's `restart_downloading`):
+whatever the pass was doing (a download, the box of a failure, the watch),
+it stops, and the pass runs from the start in the same process, with its
+states, PLAY or the error, and the watch. What was checked stays (the
+torrent's parts; the archive's bytes, which HTTPS goes on from); a
+patch's HTTPS part goes, as on any stop. Off stops the engine at once (the
+session freed): sharing ends. A tick that does not change it (on twice, or
+a DLL that does not load) does nothing. `21` sets the port (answered `15` once listened on, `14` busy; not
 kept; the Skhid launcher sends none), `1E` an
 upload limit, which may only lower the cap (below; the 0.26g launcher sends
 none). The port is
@@ -1142,15 +1144,17 @@ before), `test_play_gate.py` (9) and `test_game_download.py` (16, four
 skipped as before). Not run on Windows: Windows Security's errors 225 and
 226 cannot be made by a test, and the box was not seen.
 
-Run on 2026-11-15 (Linux, Wine 11.8, headless), with libtorrent in
-`skhid_torrent.dll`: the 129 unit tests of `logic/`; `test_torrent.py` (17,
+Run on 2026-11-16 (Linux, Wine 11.8, headless), with libtorrent in
+`skhid_torrent.dll`: the 130 unit tests of `logic/`; `test_torrent.py` (20,
 built with the tests' key, trackers and DHT; Python's libtorrent 2.0.12 as
 the other peers, `skhid-dht` for the release's item): a patch by torrent and
 the folder then shared, a second start sharing without hashing again, no
 peer then HTTPS, a peer lying about one piece banned (that piece never counted, HTTPS after), a newer release from the DHT, an item
 of another key or an older revision refused, the updater putting the item, the
 bootstrap shared from kept copies, a bare folder installed from the DHT
-without the site, `1A` on and off, the HTTPS download taken over, the kept
+without the site, a tick running the update again (during an HTTPS
+download, then by torrent; after a pass without the site, then from the DHT;
+while sharing, which an untick stops), the kept
 and the named port, no DLL, no torrent, torrent off; `test_seed.py` (6: the
 folder shared within the cap until the pipe closes, the ticks, a held port,
 "Allow torrent" off or never reset by the launcher: nothing shared, at once).

@@ -119,8 +119,7 @@ struct Session {
     /// `check quiet`: no message box either; the log and the exit code say
     /// it all.
     quiet: bool,
-    /// The launcher asked to stop, or is gone.
-    stopped: bool,
+    run: Run,
     last_progress: u64,
     started: u64,
     /// The launcher's line names a file ("Extracting file <name>") that the
@@ -137,7 +136,32 @@ struct Session {
     torrents: torrent::Torrents,
 }
 
+/// Whether the update pass goes on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Run {
+    Going,
+    /// "Allow torrent" changed: the pass stops and runs again from the
+    /// start, as the original updater's `restart_downloading` did.
+    Again,
+    /// The launcher asked to stop, or is gone, or this updater left it.
+    Stopped,
+}
+
 impl Session {
+    /// The pass is to stop: told to, or to run again.
+    fn stopped(&self) -> bool {
+        self.run != Run::Going
+    }
+
+    /// Whether the pass is to run again; it goes on from here.
+    fn again(&mut self) -> bool {
+        let again = self.run == Run::Again;
+        if again {
+            self.run = Run::Going;
+        }
+        again
+    }
+
     /// Notes how the update server answered a request: not reached
     /// (`updater_logic::network`), no secure connection (a wrong clock), or
     /// otherwise.
@@ -176,21 +200,26 @@ impl Session {
                 match message {
                     FromLauncher::Abort => {
                         log!("the launcher asks to stop");
-                        self.stopped = true;
+                        self.run = Run::Stopped;
                     }
                     message @ (FromLauncher::AllowTorrent(_)
                     | FromLauncher::Port(_)
                     | FromLauncher::UploadLimit(_)) => {
+                        let allowed = self.torrents.allowed();
                         if let Some(answer) = self.torrents.on_message(message) {
                             pipe.send(answer);
+                        }
+                        if self.torrents.allowed() != allowed && self.run == Run::Going {
+                            log!("\"Allow torrent\" changed: the update runs again");
+                            self.run = Run::Again;
                         }
                     }
                     other => log!("launcher message ignored: {other:?}"),
                 }
             }
-            if !pipe.is_open() && !self.stopped {
+            if !pipe.is_open() && self.run != Run::Stopped {
                 log!("the launcher closed the pipe");
-                self.stopped = true;
+                self.run = Run::Stopped;
             }
         }
         // A port asked for is answered once the session listens on it.
@@ -199,22 +228,16 @@ impl Session {
         {
             pipe.send(answer);
         }
-        !self.stopped
+        !self.stopped()
     }
 
     /// Sleeps, looking at the pipe meanwhile. `false` when told to stop.
     fn pause(&mut self, milliseconds: u32) -> bool {
-        self.pause_with(milliseconds, &mut |_| {})
-    }
-
-    /// [`Session::pause`], `each` run after every look at the pipe.
-    fn pause_with(&mut self, milliseconds: u32, each: &mut dyn FnMut(&mut Self)) -> bool {
         let until = win::ticks() + u64::from(milliseconds);
         while win::ticks() < until {
             if !self.pump() {
                 return false;
             }
-            each(self);
             win::sleep(100);
         }
         self.pump()
@@ -236,7 +259,7 @@ impl Session {
     fn progress(&mut self, done: u64, total: u64) -> bool {
         let now = win::ticks();
         if done < total && now < self.last_progress + 250 {
-            return !self.stopped;
+            return !self.stopped();
         }
         self.last_progress = now;
         let elapsed = now.saturating_sub(self.started).max(1);
@@ -276,17 +299,17 @@ impl Session {
 
     /// After the last message: stays until the launcher says stop or goes
     /// (as the original updater does; the launcher takes a closed pipe for
-    /// a failure), then closes the pipe.
+    /// a failure), or the pass is to run again.
     fn linger(&mut self) {
         while self.pipe.is_some() && self.pump() {
             win::sleep(100);
         }
-        self.leave();
     }
 
     /// Tells the launcher this updater is done for good, and closes the
     /// pipe. A launcher that did not ask for it closes itself on that.
     fn leave(&mut self) {
+        self.run = Run::Stopped;
         // Sharing ends with the launcher, before the next updater takes the port.
         self.torrents.close();
         if let Some(mut pipe) = self.pipe.take() {
@@ -903,7 +926,7 @@ fn torrent_overlay(session: &mut Session, layout: &Layout, installed: Option<&In
     let part = |index: usize| torrent::skhid_part(layout, &torrent.files[index].path);
     let places: Vec<(usize, String)> = skhid.iter().map(|&index| (index, layout.place(&torrent.files[index].path))).collect();
     let Some(whole) = torrent::whole(session, &signed, &places) else {
-        return if session.stopped { Some(Done::Stopped) } else { None };
+        return if session.stopped() { Some(Done::Stopped) } else { None };
     };
     let missing: Vec<(usize, String)> = skhid
         .iter()
@@ -1155,7 +1178,7 @@ fn run() -> u32 {
     let mut session = Session {
         pipe,
         quiet: options.quiet,
-        stopped: false,
+        run: Run::Going,
         last_progress: 0,
         started: 0,
         named_file: false,
@@ -1170,6 +1193,7 @@ fn run() -> u32 {
         // they are, so the copy is "done" at once.
         session.state(state::COPIED);
         session.linger();
+        session.leave();
         return exit::OK;
     }
 
@@ -1177,9 +1201,24 @@ fn run() -> u32 {
         .pipe_name
         .as_deref()
         .and_then(|name| name.strip_prefix(PIPE_PREFIX));
+    let code = loop {
+        let code = pass(&mut session, &layout, options.look, product);
+        if !session.again() {
+            break code;
+        }
+    };
+    session.leave();
+    log!("exit {code}");
+    code
+}
+
+/// The update, what the player is told of it and its last message, then
+/// the watch, until the launcher goes or the pass is to run again. The exit
+/// code.
+fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Option<&str>) -> u32 {
     // `watch`: PLAY's state stands on what the server said; while the
     // launcher stays open the server is watched (`gate::watch`).
-    let mut done = update(&mut session, &layout, options.look);
+    let mut done = update(session, layout, look);
     // Said in a box of the updater's own, in the launcher's language: the
     // launcher is not told it again.
     let mut said = false;
@@ -1188,7 +1227,7 @@ fn run() -> u32 {
     let log_path = log::path().unwrap_or_else(|| layout.exe_dir.clone());
     let antivirus = |name: &str, removal| {
         let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
-        let folder = file_error::exclusion_folder(name, &layout.exe_dir, &layout.game_dir);
+        let folder = file_error::exclusion_folder(name, &layout.exe_dir, &layout.torrent_dir, &layout.game_dir);
         Problem::Antivirus {
             file: file.into(),
             folder: folder.into(),
@@ -1229,7 +1268,7 @@ fn run() -> u32 {
                 if let Done::Failed(_) = done {
                     session.state(state::ERROR);
                 }
-                if session.quiet || session.stopped {
+                if session.quiet || session.stopped() {
                     break;
                 }
                 let problem = Problem::of(failed, || {
@@ -1242,7 +1281,7 @@ fn run() -> u32 {
             }
             _ => break,
         };
-        if session.quiet || session.stopped {
+        if session.quiet || session.stopped() {
             break;
         }
         if !retry_box(&caption, &message) || !session.pump() {
@@ -1250,7 +1289,7 @@ fn run() -> u32 {
             break;
         }
         log!("the player asks to try again");
-        done = update(&mut session, &layout, options.look);
+        done = update(session, layout, look);
     }
     // A program file was gone at the start and is back: the player is told
     // what removes it, before PLAY.
@@ -1260,7 +1299,7 @@ fn run() -> u32 {
     } = &done
     {
         log!("{name} was gone at the start and is put back: an antivirus may remove it again");
-        if !session.quiet && !session.stopped {
+        if !session.quiet && !session.stopped() {
             let problem = antivirus(name, Removal::PutBack);
             warning_box(&problem.caption(), &problem.message(language, &log_path));
         }
@@ -1275,7 +1314,7 @@ fn run() -> u32 {
                 log!("{} MB free in {folder}, {} MB needed: PLAY stays off", free >> 20, disk::NEEDED >> 20);
                 session.state(state::ERROR);
                 let mut free = free;
-                while free < disk::NEEDED && !session.quiet && !session.stopped
+                while free < disk::NEEDED && !session.quiet && !session.stopped()
                     && retry_box(text::TITLE, &disk::too_little(language, folder)) && session.pump()
                 {
                     free = win::free_space(folder).unwrap_or(0);
@@ -1307,14 +1346,13 @@ fn run() -> u32 {
             // updater: that one restores resources.db and does the patch
             // step.
             Some(product) if session.pipe.is_some() => {
-                restart_launcher(&mut session, &layout, product);
-                log!("exit 0");
+                restart_launcher(session, layout, product);
                 return exit::OK;
             }
             // No launcher to start again: the new updater is run here, and
             // its outcome is this one's. PLAY is never said before the
             // patch step ran.
-            _ => (finish_by_new(&mut session, &layout, options.quiet), false),
+            _ => (finish_by_new(session, layout), false),
         },
         Done::Installed { restart: false, .. } => {
             // "Checking" clears the launcher's file name line.
@@ -1361,16 +1399,15 @@ fn run() -> u32 {
         }
     };
     if code == exit::OK && watch && session.pipe.is_some()
-        && let Err(code) = replay_association::register(&layout) {
+        && let Err(code) = replay_association::register(layout) {
         log!("replay: file registration failed: {} (error {code})", win::error_text(code));
     }
     match (product, session.seen.take()) {
         (Some(product), Some(seen)) if watch && session.pipe.is_some() => {
-            gate::watch(&mut session, &layout, product, &seen);
+            gate::watch(session, layout, product, &seen);
         }
         _ => session.linger(),
     }
-    log!("exit {code}");
     code
 }
 
@@ -1396,11 +1433,11 @@ fn register_replays(arguments: &[String]) -> u32 {
 /// `check` by hand (no launcher) replaced this updater: the new one is run,
 /// as it was started, to finish the update (the restore and the patch step,
 /// which this one leaves to it); its exit code is this one's.
-fn finish_by_new(session: &mut Session, layout: &Layout, quiet: bool) -> u32 {
+fn finish_by_new(session: &mut Session, layout: &Layout) -> u32 {
     let exe = format!("{}\\{}", layout.exe_dir, layout.exe_name);
     let command = format!(
         "\"{exe}\" check{}{}",
-        if quiet { " quiet" } else { "" },
+        if session.quiet { " quiet" } else { "" },
         if session.torrents.allowed() { " torrent" } else { " direct" }
     );
     log!("this updater was replaced: the new one finishes the update ({command})");

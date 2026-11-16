@@ -699,18 +699,20 @@ class ReleaseTests(unittest.TestCase):
             elevated = self.elevated([line for line in undone if 'elevate:' in line][0], locale, ui)
             self.assertEqual(commands(elevated), commands(undone), '\n'.join(elevated))
 
-        # The Defender exclusion: game\binaries\x86 alone, never the folder
-        # above it; then the files Defender deleted.
+        # The Defender exclusions: game\binaries\x86 and game\torrent alone,
+        # never the folder above them; then the files Defender deleted.
         added = defender('--dry-run')
         self.assertIn(said('Исключение Skhid в Microsoft Defender', 'Skhid exclusion in Microsoft Defender'), added)
         shown([line for line in added if line.startswith(folder)], [f'{folder}"{top_windows}"'])
+        torrent = f'{top_windows}\\game\\torrent'
         expected = [f'[dry-run] powershell Add-MpPreference -ExclusionPath "{x86}"',
+                    f'[dry-run] powershell Add-MpPreference -ExclusionPath "{torrent}"',
                     f'[dry-run] write "{top_windows}\\Skhid-network-setup.defender":'] + restore(site)
         shown(commands(added), expected)
-        # What the marker would hold: the path as it is, by the line that
-        # writes it.
+        # What the marker would hold: the paths as they are, by the line
+        # that writes it.
         writes = next(i for i, line in enumerate(added) if line.startswith('[dry-run] write '))
-        shown(added[writes + 1:writes + 2], [x86])
+        shown(added[writes + 1:writes + 3], [x86, torrent])
         elevate = [line for line in added if 'elevate:' in line]
         shown(elevate, [f'[dry-run] elevate: cmd.exe /d /c ""{top_windows}\\Skhid-defender-setup.cmd" '
                         '--elevated --dry-run"'])
@@ -740,7 +742,7 @@ class ReleaseTests(unittest.TestCase):
         self.assertIn(pointer, setup('--dry-run', '--undo'))
         undone = defender('--dry-run', '--undo')
         shown(commands(undone),
-              [f'[dry-run] powershell Remove-MpPreference -ExclusionPath (the path in "{top_windows}'
+              [f'[dry-run] powershell Remove-MpPreference -ExclusionPath (each path in "{top_windows}'
                '\\Skhid-network-setup.defender")',
                f'[dry-run] delete "{top_windows}\\Skhid-network-setup.defender"'])
         if faithful:
@@ -771,7 +773,7 @@ class ReleaseTests(unittest.TestCase):
                       setup('--defender-yes'))
         # Without the updater's address, the server is skhid.link.
         exe.write_bytes(kept)
-        shown(commands(defender('--dry-run'))[2:], restore('https://skhid.link'))
+        shown(commands(defender('--dry-run'))[3:], restore('https://skhid.link'))
         # An address the updater would not take either (plain http elsewhere
         # than to this computer): skhid.link. (Once per Windows: it is not the
         # folder's.)
@@ -783,7 +785,7 @@ class ReleaseTests(unittest.TestCase):
                                   ('http://127.0.0.1:8080', 'http://127.0.0.1:8080'),
                                   ('https://other.example:8443', 'https://other.example:8443')):
                 url.write_bytes(written.encode() + b'\r\n')
-                shown(commands(defender('--dry-run'))[2:], restore(used))
+                shown(commands(defender('--dry-run'))[3:], restore(used))
 
     def powershell_of(self, word):
         """The PowerShell code of the shipped Defender script's powershell
@@ -800,16 +802,19 @@ class ReleaseTests(unittest.TestCase):
 
     @unittest.skipUnless(POWERSHELL, 'PowerShell (pwsh elsewhere than on Windows)')
     def test_the_defender_marker_keeps_every_letter(self):
-        """The marker of the exclusion, written by the add's PowerShell and
+        """The marker of the exclusions, written by the add's PowerShell and
         read by the undo's, with stand-ins for the Defender cmdlets (no
-        exclusion is made): a path's every letter, Ukrainian and Polish too,
-        which code page 866 has not; and a marker of the earlier script
-        (#453: the path in 866 and a line end) still read. What the undo says
-        is Russian on a Russian Windows (SKHID_RU), English on another."""
+        exclusion is made): the two folders a line each, a path's every
+        letter, Ukrainian and Polish too, which code page 866 has not; a
+        marker of an earlier run kept, a folder excluded already left alone;
+        and a marker of the earlier script (#453: the path in 866 and a line
+        end) still read. What the undo says is Russian on a Russian Windows
+        (SKHID_RU), English on another."""
         add, remove = self.powershell_of('Add-MpPreference'), self.powershell_of('Remove-MpPreference')
         stand_ins = (
             "$log = $env:SKHID_TEST_LOG; $utf8 = [Text.UTF8Encoding]::new($false); "
-            "function Get-MpPreference { [CmdletBinding()] param() [pscustomobject]@{ ExclusionPath = @() } }; "
+            "function Get-MpPreference { [CmdletBinding()] param() "
+            "[pscustomobject]@{ ExclusionPath = @(([string]$env:SKHID_TEST_HAD).Split([char]124) | Where-Object { $_ }) } }; "
             "function Add-MpPreference { [CmdletBinding()] param([string]$ExclusionPath) "
             "[IO.File]::AppendAllText($log, 'add|' + $ExclusionPath + [char]10, $utf8) }; "
             "function Remove-MpPreference { [CmdletBinding()] param([string]$ExclusionPath) "
@@ -817,9 +822,9 @@ class ReleaseTests(unittest.TestCase):
             "[IO.File]::AppendAllText($log, 'remove|' + $ExclusionPath + [char]10, $utf8) }; ")
         marker, log = self.root / 'marker.defender', self.root / 'defender.log'
 
-        def run(code, path, refuse=False, locale='en_US.UTF-8'):
-            env = dict(os.environ, SKHID_EXCLUDED=path, SKHID_MARKER=str(marker), SKHID_TEST_LOG=str(log),
-                       LANG=locale, LC_ALL=locale)
+        def run(code, path, refuse=False, locale='en_US.UTF-8', had=''):
+            env = dict(os.environ, SKHID_EXCLUDED=path, SKHID_TORRENT=torrent_of(path), SKHID_MARKER=str(marker),
+                       SKHID_TEST_LOG=str(log), SKHID_TEST_HAD=had, LANG=locale, LC_ALL=locale)
             env.pop('SKHID_TEST_REFUSE', None)
             if refuse:
                 env['SKHID_TEST_REFUSE'] = '1'
@@ -831,6 +836,14 @@ class ReleaseTests(unittest.TestCase):
             said = done.stdout.decode('oem' if os.name == 'nt' else 'utf-8', 'replace')
             return done.returncode, said.strip()
 
+        def torrent_of(path):
+            return path.removesuffix('binaries\\x86') + 'torrent'
+
+        def marked():
+            data = marker.read_bytes()
+            self.assertTrue(data.startswith(b'\xef\xbb\xbf'), data)
+            return data[3:].decode().splitlines()
+
         paths = ('C:\\Users\\Віталій\\Ігри & Fun!\\Survarium\\game\\binaries\\x86',
                  'D:\\Gry\\Café Łódź (x86)\\Survarium\\game\\binaries\\x86',
                  'C:\\Игры\\Мои игры! & (x86)\\Survarium\\game\\binaries\\x86')
@@ -839,22 +852,35 @@ class ReleaseTests(unittest.TestCase):
                 with self.subTest(locale=locale, path=path):
                     log.unlink(missing_ok=True)
                     marker.unlink(missing_ok=True)
+                    both = [path, torrent_of(path)]
                     self.assertEqual(run(add, path, locale=locale), (0, ''))
-                    self.assertEqual(marker.read_bytes(), b'\xef\xbb\xbf' + path.encode())
+                    self.assertEqual(marked(), both)
                     rc, said = run(remove, path, locale=locale)
                     self.assertEqual(rc, 0, said)
                     if os.name != 'nt':
-                        self.assertEqual(said, f'Defender: исключение "{path}" удалено.' if locale.startswith('ru')
-                                         else f'Defender: the exclusion "{path}" is removed.')
-                    self.assertEqual(log.read_text(encoding='utf-8').splitlines(), [f'add|{path}', f'remove|{path}'])
+                        self.assertEqual(said.splitlines(),
+                                         [f'Defender: исключение "{p}" удалено.' if locale.startswith('ru')
+                                          else f'Defender: the exclusion "{p}" is removed.' for p in both])
+                    self.assertEqual(log.read_text(encoding='utf-8').splitlines(),
+                                     [f'add|{p}' for p in both] + [f'remove|{p}' for p in both])
                     # Refused: said, and the marker stays (the script deletes
                     # it only after a removal).
                     rc, said = run(remove, path, refuse=True, locale=locale)
                     self.assertEqual(rc, 1, said)
                     if os.name != 'nt':
-                        self.assertEqual(said, f'Defender: исключение "{path}" удалить не удалось.'
-                                         if locale.startswith('ru')
-                                         else f'Defender: the exclusion "{path}" could not be removed.')
+                        self.assertEqual(said.splitlines(),
+                                         [f'Defender: исключение "{p}" удалить не удалось.' if locale.startswith('ru')
+                                          else f'Defender: the exclusion "{p}" could not be removed.' for p in both])
+                    # An earlier run's marker, game\binaries\x86 excluded: only
+                    # game\torrent added, the marker keeps both; both
+                    # excluded: nothing changed (3).
+                    log.unlink()
+                    marker.write_bytes(b'\xef\xbb\xbf' + path.encode())
+                    self.assertEqual(run(add, path, locale=locale, had=path), (0, ''))
+                    self.assertEqual(log.read_text(encoding='utf-8').splitlines(), [f'add|{both[1]}'])
+                    self.assertEqual(marked(), both)
+                    self.assertEqual(run(add, path, locale=locale, had='|'.join(both))[0], 3)
+                    marker.unlink()
             # The earlier script's marker: code page 866, a line end.
             path = paths[2]
             log.unlink(missing_ok=True)

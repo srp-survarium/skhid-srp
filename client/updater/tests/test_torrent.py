@@ -764,26 +764,31 @@ class TorrentTest(wine.WineTest):
         # And `ready` (play_skhid.bat's) lets the game start.
         self.assertEqual(self.run_ready(), 0)
 
-    def test_allow_torrent_while_watching_shares_at_once_and_off_stops_at_once(self):
+    def wait_again(self, latest_before):
+        """The update ran again on the tick and ended with PLAY."""
+        wait(lambda: self.states().count(LATEST) > latest_before, 180, "the update run again")
+
+    def test_ticking_while_watching_runs_the_update_again_and_unticking_stops_sharing(self):
         _, torrent, _, files = self.release(12)
         self.launch(allow="direct")
         self.wait_latest()
         self.assertNotIn("torrent: sharing", self.log())
-        # "Allow torrent" ticked: shared before the watch's next ask (10 s),
-        # on the launcher's port.
+        # Ticked: the update runs again, and shares before the watch's next
+        # ask (10 s), on the launcher's port.
         ticked = time.time()
         self.say(bytes([0x1A, 0]))
         wait(lambda: "torrent: sharing 3 of its 3 files" in self.log(), 30, "sharing")
-        self.assertLess(time.time() - ticked, 5, "sharing began only with the watch's next ask")
+        self.assertLess(time.time() - ticked, 10, "sharing began only with the watch's next ask")
+        self.wait_again(1)
         self.leech_from_updater(torrent, files)
-        # Unticked: nothing listens at once.
+        # Unticked: the update runs again, and nothing listens.
         self.say(bytes([0x1A, 1]))
-        wait(lambda: "torrent: not allowed by the launcher" in self.log(), 30, "torrent off")
-        time.sleep(0.5)
+        self.wait_again(2)
+        self.assertEqual(self.log().count('"Allow torrent" changed: the update runs again'), 2)
         with self.assertRaises(OSError):
             socket.create_connection(("127.0.0.1", self.port), timeout=5).close()
 
-    def test_allow_torrent_during_an_https_download_moves_the_rest_to_the_torrent(self):
+    def test_ticking_during_an_https_download_runs_the_update_again_by_torrent(self):
         # A patch of 64 pieces, slow by HTTPS (64 KiB every 0.3 s: about
         # 10 s), at a seed too.
         patches, torrent, seed_dir, _ = self.release(12, size=2 << 20)
@@ -797,16 +802,36 @@ class TorrentTest(wine.WineTest):
         self.wait_latest()
         self.assert_patches(patches)
         log = self.log()
-        self.assertIn("patches: resources.db.patch_12: address 1 of 1: the launcher turned torrent on: "
-                      "the rest by torrent", log)
+        self.assertIn('"Allow torrent" changed: the update runs again', log)
         self.assertIn("downloaded by torrent, checksum right", log)
         self.assertEqual(self.store_requests(), ["/store/patch_12"], "HTTPS asked once")
-        # What came by HTTPS was kept: the torrent found some of the pieces
-        # in the part, checked, and fetched only the others.
-        found = re.search(r"torrent: (\d+) of the (\d+) pieces to fetch are in the parts already", log)
-        self.assertIsNotNone(found, log[-3000:])
-        kept, wanted = int(found[1]), int(found[2])
-        self.assertTrue(0 < kept < wanted, found[0])
+        self.assertEqual(self.states().count(LATEST), 1)
+
+    @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
+    def test_ticking_after_a_pass_without_the_site_installs_from_the_dht(self):
+        # A bare folder, the site not answering, "Allow torrent" off: PLAY
+        # stays off. The newest release only on the DHT, its files at a seed.
+        self.site.manifest_status = 502
+        self.site.patch_list_status = 502
+        overlay = self.bundle()
+        patches = self.make_patches(12)
+        files = {**overlay, "game/resources.db.patch_12": patches[12]}
+        seed_dir = tempfile.mkdtemp(dir=self.peers_dir)
+        newest = make_torrent(seed_dir, files, self.tracker.urls, revision=61)
+        seed_port, _ = self.seed(newest, seed_dir)
+        self.tracker.peers = [("127.0.0.1", seed_port)]
+        put_newest(newest)
+        self.launch(allow="direct")
+        wait(lambda: ERROR in self.states(), 180, "the pass without the site")
+        self.assertNotIn(LATEST, self.states())
+        # Ticked: the update runs again, from the DHT and the seed, in the
+        # same window.
+        self.say(bytes([0x1A, 0]))
+        self.wait_again(0)
+        self.assertIn("torrent: the DHT names revision 61, signed by the release", self.log())
+        for name, data in files.items():
+            self.assertEqual(sha256(self.read(name)), sha256(data), name)
+        self.assertEqual(self.store_requests(), [])
 
     def test_check_with_nothing_saved_is_https(self):
         # No "Allow torrent" saved by the launcher: `check` is direct.

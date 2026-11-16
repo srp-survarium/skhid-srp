@@ -23,9 +23,10 @@ function Under($base, $relative) { [IO.Path]::Combine([string[]](@($base) + $rel
 function Quoted([string]$text) { "'" + ($text -replace "['‘-‛]", '$0$0') + "'" }
 
 # Run elevated: Skhid-network-setup.cmd's rules, and Skhid-defender-setup.cmd's
-# exclusion of game\binaries\x86 with its marker, so that their --undo removes
-# what this adds. Returns 1 when the rules failed, 2 when the exclusion did
-# (another antivirus, Defender off), 3 both.
+# exclusions of game\binaries\x86 and game\torrent with its marker (the folders
+# it added, a line each), so that their --undo removes what this adds. Returns
+# 1 when the rules failed, 2 when the exclusions did (another antivirus,
+# Defender off), 3 both.
 function AllowGame([string]$root, [string]$bin) {
     $failed = 0
     try {
@@ -38,10 +39,10 @@ function AllowGame([string]$root, [string]$bin) {
         }
     } catch { $failed += 1 }
     try {
-        if ((Get-MpPreference).ExclusionPath -notcontains $bin) {
-            Add-MpPreference -ExclusionPath $bin
-            [IO.File]::WriteAllText((Join-Path $root 'Skhid-network-setup.defender'), $bin, [Text.Encoding]::UTF8)
-        }
+        $had = (Get-MpPreference).ExclusionPath
+        $new = @($bin, [IO.Path]::Combine($root, 'game', 'torrent') | Where-Object { $had -notcontains $_ })
+        foreach ($path in $new) { Add-MpPreference -ExclusionPath $path }
+        if ($new) { [IO.File]::WriteAllLines((Join-Path $root 'Skhid-network-setup.defender'), [string[]]$new, [Text.Encoding]::UTF8) }
     } catch { $failed += 2 }
     $failed
 }
@@ -56,7 +57,7 @@ function AskToAllowGame {
         return
     }
     Say $(if ($run.ExitCode -band 1) { 'No firewall rules: Windows may block the game.' } else { 'Firewall rules: added.' })
-    Say $(if ($run.ExitCode -band 2) { 'No Defender exclusion of game\binaries\x86: Defender may take the game for a threat.' } else { 'Defender exclusion of game\binaries\x86: added.' })
+    Say $(if ($run.ExitCode -band 2) { 'No Defender exclusion of game\binaries\x86 and game\torrent: Defender may take the game for a threat.' } else { 'Defender exclusion of game\binaries\x86 and game\torrent: added.' })
 }
 
 # The torrent's v1 bytes: each file from a piece's start, zeros to the next one
