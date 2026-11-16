@@ -2235,9 +2235,12 @@ pub(super) fn guard_own_traps(
     // A route the guard holds at rest (no move key, the body slower than the lip guard's glide) past the longest think gap is one
     // the body cannot walk: it ends, and the noticed traps it ran into are shut for the bot's searches (the team's are already).
     const MOVE: u32 = super::key::FORWARD | super::key::BACK | super::key::LEFT | super::key::RIGHT | super::key::SPRINT;
-    let held = matches!(guard, OwnTrapGuard::Swapped(k) | OwnTrapGuard::Braked(k) if k & MOVE == 0)
-        && me.speed() < super::drive::LIP_GLIDE_MPS
-        && bot.route.is_some();
+    let at_rest = matches!(guard, OwnTrapGuard::Swapped(k) | OwnTrapGuard::Braked(k) if k & MOVE == 0) && me.speed() < super::drive::LIP_GLIDE_MPS;
+    #[cfg(test)]
+    if at_rest && bot.route.is_none() {
+        own_trap_counts::bump(own_trap_counts::HELD_WITHOUT_ROUTE);
+    }
+    let held = at_rest && bot.route.is_some();
     bot.features.traps.guard_stall = if held { Some(bot.features.traps.guard_stall.unwrap_or(now)) } else { None };
     if let Some(since) = bot.features.traps.guard_stall.filter(|&since| now.saturating_sub(since) >= tuning.think.think_ms.1) {
         let path = path_of(keys);
@@ -2310,8 +2313,24 @@ pub mod tight {
 pub mod own_trap_counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    pub const NAMES: [&str; 5] = ["route refused", "route dropped", "side step refused", "step apart refused", "keys guarded"];
-    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
+    pub const NAMES: [&str; 8] = [
+        "route refused",
+        "route dropped",
+        "side step refused",
+        "step apart refused",
+        "keys guarded",
+        "held route ended",
+        "noticed route dropped",
+        "held ticks without a route",
+    ];
+    /// [`NAMES`]' indices counted by [`bump`] rather than by a note.
+    pub const NOTICED_ROUTE_DROPPED: usize = 6;
+    pub const HELD_WITHOUT_ROUTE: usize = 7;
+    static COUNTS: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
+
+    pub fn bump(k: usize) {
+        COUNTS[k].fetch_add(1, Ordering::Relaxed);
+    }
 
     pub fn count(what: &str) {
         let k = if what.starts_with("a route of") {
@@ -2320,6 +2339,8 @@ pub mod own_trap_counts {
             1
         } else if what.starts_with("a side step") {
             2
+        } else if what.starts_with("the guard held") {
+            5
         } else if what.starts_with("the guard") {
             4
         } else {

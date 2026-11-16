@@ -1050,6 +1050,8 @@ fn refresh_private(bot: &mut Bot, due: &Due, others: &[(PlacedTrap, TrapKey, Vec
     if t.pass && !bot.features.traps.react.field.is_empty() {
         let field = bot.features.traps.react.field.clone();
         if super::traps::route_hits(bot, &field, due.me.feet) {
+            #[cfg(test)]
+            super::traps::own_trap_counts::bump(super::traps::own_trap_counts::NOTICED_ROUTE_DROPPED);
             bot.end_route(RouteEnd::TrapAhead, due.now);
         }
     }
