@@ -20,7 +20,7 @@ package
     // says stop; the button shows the exe's text, every dictionary's on one line with the font's glyphs;
     // hidden on the other tabs and asked again on the way back. And its "Microphone" list (voice-chat.md,
     // "Microphone"): none until the exe answers; Default first, then the devices by name; its place between
-    // the slider and the button; a pick pending for Apply, Cancel putting the saved one back, Apply
+    // "Use microphone" and the button; a pick pending for Apply, Cancel putting the saved one back, Apply
     // sending its id ("" the default); an unplugged device shown as Default; the list asked again as it
     // is pressed open (a pick not applied kept); every dictionary's two texts fitting. Prints "MICTEST ..." lines and "MICTEST RESULT pass" or "MICTEST RESULT
     // fail: ...", then shows each state of the button for check.sh's screenshots ("MICTEST SHOT
@@ -173,13 +173,16 @@ package
             require(getQualifiedClassName(b) == "SetingsButton", "it is the tab's own button");
             // the stock PTT checkbox hidden (the owner, 2026-11-14: "let's remove the button then")
             require(c._ptt != null && !c._ptt.visible, "the PTT checkbox is hidden");
-            // under the voice column's controls (the sensitivity slider, the Microphone list: checkMicrophone),
-            // from the column's left edge, clear of every other control
+            // and the stock sensitivity slider (the owner, 2026-11-16: the listeners' games level every speaker)
+            require(c._mic_sens != null && !c._mic_sens.visible, "the Microphone sensitivity slider is hidden");
+            // under the voice column's controls ("Use microphone", the Microphone list: checkMicrophone),
+            // from the column's left edge (the hidden slider's), clear of every other control
             var slider:Rectangle = c._mic_sens.getBounds(c);
+            var above:Rectangle = c._use_mik.getBounds(c);
             var at:Rectangle = b.getBounds(c);
             require(Math.abs(at.left - slider.left) <= 1 && Math.abs(at.left - c._use_mik.x) <= 1,
                 "its left edge is the voice column's (" + at.left + ", " + slider.left + ")");
-            require(at.top >= slider.bottom, "it is under the sensitivity slider (" + at.top + ", " + slider.bottom + ")");
+            require(at.top >= above.bottom, "it is under Use microphone (" + at.top + ", " + above.bottom + ")");
             require(at.right <= slider.right, "it ends within the column (" + at.right + ", " + slider.right + ")");
             for (var i:int = 0; i < c.numChildren; ++i)
             {
@@ -188,13 +191,13 @@ package
                 require(!at.intersects(other.getBounds(c)), "it lies over " + other.name + " (" + at + ", " + other.getBounds(c) + ")");
             }
             trace("MICTEST button " + Math.round(at.width) + "x" + Math.round(at.height) + " at " + Math.round(at.left) + "," + Math.round(at.top)
-                + ", the sensitivity slider ends at " + Math.round(slider.bottom));
+                + ", Use microphone ends at " + Math.round(above.bottom));
 
-            // a press: the two voice sliders as they stand; no change for Apply
+            // a press: the voice chat volume as it stands; no change for Apply
             require(!settings.btn_accept.enabled, "Apply is off before a press");
             calls = [];
             click(b);
-            require(calls.length == 1 && calls[0] == "100 50", "a press sends the sliders: " + calls);
+            require(calls.length == 1 && calls[0] == "100", "a press sends the volume: " + calls);
             require(!settings.btn_accept.enabled, "a press is no change of the tab");
             // the Settings window closed (its Exit, its cross, Esc): the exe is told to stop
             menu.show_settings(false);
@@ -204,13 +207,12 @@ package
             calls = [calls[0]];
             // moved and not accepted: the press sends what is on the screen
             c[VOLUME].selectedIndex = 35;
-            c._mic_sens.selectedIndex = 80;
             click(b);
-            require(calls.length == 2 && calls[1] == "35 80", "a press sends the sliders as they stand: " + calls);
+            require(calls.length == 2 && calls[1] == "35", "a press sends the volume as it stands: " + calls);
             // the button shows what the exe says, whatever it is, and keeps it until the next word
             shows(numbered(texts[0][RECORDING], 10), "english");
             click(b);
-            require(calls.length == 3 && calls[2] == "35 80" && b.label == numbered(texts[0][RECORDING], 10),
+            require(calls.length == 3 && calls[2] == "35" && b.label == numbered(texts[0][RECORDING], 10),
                 "a press while it records only tells the exe: " + calls + ", " + b.label);
 
             // every dictionary's five texts, the counted ones at their longest
@@ -251,6 +253,7 @@ package
             settings.selectIndex(3);
             require(b.visible && calls.length == 1 && calls[0] == null && b.label == word, "back on the sound tab it asks: " + calls + ", " + b.label);
             require(!content._ptt.visible, "back on the sound tab the PTT checkbox is still hidden");
+            require(!content._mic_sens.visible, "back on the sound tab the sensitivity slider is still hidden");
             word = texts[0][IDLE];
             menu.srp_mic_test(word);
         }
@@ -286,14 +289,17 @@ package
                 "Default first, then the devices by their names: " + names);
             require(m.selectedIndex == 0 && !settings.btn_accept.enabled, "none saved: Default, nothing pending");
 
-            // the column: the slider, the list's label in the PTT checkbox's row, the list, the button
+            // the column: Use microphone, the list's label and the list in the hidden slider's place, the button
             m.validateNow();
             var slider:Rectangle = c._mic_sens.getBounds(c);
+            var above:Rectangle = c._use_mik.getBounds(c);
             var label:Rectangle = new Rectangle(l.x, l.y, l.textWidth + 4, l.textHeight + 4);
             var box:Rectangle = m.getBounds(c);
             var at:Rectangle = b.getBounds(c);
-            require(label.top >= slider.bottom && box.top >= label.bottom - 1 && at.top >= box.bottom,
-                "top to bottom: the slider, the label, the list, the button (" + [slider.bottom, label.top, label.bottom, box.top, box.bottom, at.top] + ")");
+            require(label.top >= above.bottom && box.top >= label.bottom - 1 && at.top >= box.bottom,
+                "top to bottom: Use microphone, the label, the list, the button (" + [above.bottom, label.top, label.bottom, box.top, box.bottom, at.top] + ")");
+            require(Math.abs(label.top - c._mic_sens.textField.getBounds(c).top) <= 1,
+                "the label where the slider's label was (" + label.top + ", " + c._mic_sens.textField.getBounds(c).top + ")");
             require(Math.abs(box.left - at.left) <= 1 && Math.abs(l.x - c._mic_sens.textField.getBounds(c).left) <= 1,
                 "the list and the button at the column's edge, the label at the slider's label's (" + [box.left, at.left, l.x] + ")");
             require(box.right <= slider.right + 1, "the list ends within the column (" + box.right + ", " + slider.right + ")");

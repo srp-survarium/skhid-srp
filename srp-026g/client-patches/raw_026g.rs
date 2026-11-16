@@ -305,6 +305,22 @@ unsafe extern "C" {
     pub fn engine_battery_carry_state(battery: Option<VictoryItemCore>, room: *mut c_void, clips: Option<BatteryClips>) -> Option<BatteryState>;
     /// 0x322830 survarium::bullet_manager::emit_bullet: gun EDI, manager ESP+4, point ESP+8, velocity ESP+12, data ESP+16, time ESP+20, owner ESP+24, second ESP+28, unused ESP+32; pops 32; EAX
     pub fn engine_emit_bullet(gun: Option<Weapon>, manager: Option<BulletManager>, point: *const f32, velocity: *const f32, data: *const c_void, time: u32, owner: Option<BulletOwner>, second: *mut c_void, unused: u32) -> Option<Bullet>;
+    /// COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+    pub fn engine_swap_chain_get_buffer(chain: Option<SwapChain>, buffer: u32, iid: *const c_void, surface: *mut Option<HwResource>) -> u32;
+    /// COM ID3D11Texture2D+0x28 (stdcall through the interface's vtable): texture ESP+4, desc ESP+8; pops 8
+    pub fn engine_texture2d_get_desc(texture: Option<HwResource>, desc: *mut c_void);
+    /// COM ID3D11DeviceChild+0xc (stdcall through the interface's vtable): child ESP+4, device ESP+8; pops 8
+    pub fn engine_device_child_get_device(child: Option<HwResource>, device: *mut *mut c_void);
+    /// COM ID3D11Device+0x14 (stdcall through the interface's vtable): device ESP+4, desc ESP+8, initial ESP+12, texture ESP+16; pops 16; EAX
+    pub fn engine_device_create_texture2d(device: *mut c_void, desc: *const c_void, initial: *const c_void, texture: *mut Option<HwResource>) -> u32;
+    /// COM ID3D11DeviceContext+0xbc (stdcall through the interface's vtable): context ESP+4, destination ESP+8, source ESP+12; pops 12
+    pub fn engine_context_copy_resource(context: Option<ImmediateContext>, destination: Option<HwResource>, source: Option<HwResource>);
+    /// COM ID3D11DeviceContext+0x38 (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12, map_type ESP+16, flags ESP+20, mapped ESP+24; pops 24; EAX
+    pub fn engine_context_map(context: Option<ImmediateContext>, resource: Option<HwResource>, subresource: u32, map_type: u32, flags: u32, mapped: *mut c_void) -> u32;
+    /// COM IUnknown+0x8 (stdcall through the interface's vtable): resource ESP+4; pops 4; EAX
+    pub fn engine_d3d_resource_release(resource: Option<HwResource>) -> u32;
+    /// COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
+    pub fn engine_d3d_device_release(device: *mut c_void) -> u32;
 }
 
 #[allow(dead_code)]
@@ -789,6 +805,17 @@ pub unsafe fn engine_set_file_pointer(function: NonNull<c_void>, file: *mut c_vo
     unsafe { function(file, distance, high, method) }
 }
 
+/// a function at the address GetProcAddress gives (stdcall): unsigned int engine_create_process_w(const unsigned short *application, unsigned short *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const unsigned short *folder, void *startup, void *information)
+///
+/// # Safety
+/// `function` is that function (a GetProcAddress result of its name).
+#[allow(dead_code, clippy::too_many_arguments)]
+#[inline(always)]
+pub unsafe fn engine_create_process_w(function: NonNull<c_void>, application: *const u16, command: *mut u16, process_security: *mut c_void, thread_security: *mut c_void, inherit: u32, flags: u32, environment: *mut c_void, folder: *const u16, startup: *mut c_void, information: *mut c_void) -> u32 {
+    let function = unsafe { core::mem::transmute::<*mut c_void, unsafe extern "stdcall" fn(*const u16, *mut u16, *mut c_void, *mut c_void, u32, u32, *mut c_void, *const u16, *mut c_void, *mut c_void) -> u32>(function.as_ptr()) };
+    unsafe { function(application, command, process_security, thread_security, inherit, flags, environment, folder, startup, information) }
+}
+
 #[allow(dead_code, non_upper_case_globals)]
 unsafe extern "C" {
     /// the IAT slot 0x870048 (an import, stdcall): void *engine_create_file_a(const char *name, unsigned int access, unsigned int share, void *security, unsigned int disposition, unsigned int flags, void *template_file)
@@ -881,6 +908,8 @@ unsafe extern "C" {
     pub static engine_message_box_a: unsafe extern "stdcall" fn(*mut c_void, *const u8, *const u8, u32) -> u32;
     /// the IAT slot 0x87020c (an import, stdcall): void engine_exit_process(unsigned int code)
     pub static engine_exit_process: unsafe extern "stdcall" fn(u32);
+    /// the IAT slot 0x87005c (an import, stdcall): unsigned int engine_get_last_error(void)
+    pub static engine_get_last_error: unsafe extern "stdcall" fn() -> u32;
 }
 
 /// A survarium::player_input_handler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -17447,6 +17476,15 @@ impl KeyEvent {
         unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
     }
 
+    /// +0x4 (u32): DIDEVICEOBJECTDATA.dwData: bit 80h set, the key went down (execute's loop 0x3B9167: test byte [ecx],80h, ECX the event's +4; process 0x3B9B23 the same)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn data(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
     /// 0x14 bytes: a DIDEVICEOBJECTDATA (GetDeviceData's push 14h 0x3B9081; execute's add ecx,14h 0x3B91F2)
     pub const SIZE: usize = 0x14;
 
@@ -19939,6 +19977,24 @@ impl ResRenderOutput {
     #[inline(always)]
     pub unsafe fn window(self) -> *mut u32 {
         unsafe { self.0.byte_add(0xe4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xcc (ptr<dxgi::swap_chain>): its IDXGISwapChain (present 0x3CF8FF: mov esi,[esi+0CCh], Present through its vtable +20h; GetFullscreenState +2Ch at 0x3CF81C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn swap_chain(self) -> Option<SwapChain> {
+        unsafe { self.0.byte_add(0xcc).cast::<Option<SwapChain>>().read_volatile() }
+    }
+
+    /// +0xcc (ptr<dxgi::swap_chain>): its IDXGISwapChain (present 0x3CF8FF: mov esi,[esi+0CCh], Present through its vtable +20h; GetFullscreenState +2Ch at 0x3CF81C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_swap_chain(self, value: Option<SwapChain>) {
+        unsafe { self.0.byte_add(0xcc).cast::<Option<SwapChain>>().write_volatile(value) }
     }
 }
 
@@ -23791,6 +23847,72 @@ impl ClipSlotStorage {
     }
 }
 
+/// A vostok::render::flash_ui_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FlashUiFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FlashUiFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::render::render_output_window>): render_flash_ui's second argument at its start (0x13CED0, by the site's ESP): the output window (mov eax,[ebp+0Ch] 0x13CEE6, its flash renderer +30B0h tested at 0x13CEE9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn window(self) -> Option<RenderOutputWindow> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<RenderOutputWindow>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::render::render_output_window>): render_flash_ui's second argument at its start (0x13CED0, by the site's ESP): the output window (mov eax,[ebp+0Ch] 0x13CEE6, its flash renderer +30B0h tested at 0x13CEE9)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_window(self, value: Option<RenderOutputWindow>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<RenderOutputWindow>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::render_output_window (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RenderOutputWindow(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RenderOutputWindow {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x30ac (ptr<vostok::render::res_render_output>): its render output: the frame's draw presents with it (0x13DD3F: mov eax,[edx+30ACh] / call res_render_output::present 0x3CF7F0, EAX its receiver)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn output(self) -> Option<ResRenderOutput> {
+        unsafe { self.0.byte_add(0x30ac).cast::<Option<ResRenderOutput>>().read_volatile() }
+    }
+
+    /// +0x30ac (ptr<vostok::render::res_render_output>): its render output: the frame's draw presents with it (0x13DD3F: mov eax,[edx+30ACh] / call res_render_output::present 0x3CF7F0, EAX its receiver)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_output(self, value: Option<ResRenderOutput>) {
+        unsafe { self.0.byte_add(0x30ac).cast::<Option<ResRenderOutput>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::physics::bullet_physics_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -24129,6 +24251,21 @@ pub struct PanningLut(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl PanningLut {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A dxgi::swap_chain (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SwapChain(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SwapChain {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -28841,6 +28978,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn icon(machine: &impl Machine) -> u32 {
             machine.register(Register::Edx)
+        }
+    }
+
+    /// render.flash_ui (0x13ced0): renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window
+    pub mod render_flash_ui {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::flash_ui_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<FlashUiFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(FlashUiFrame)
         }
     }
 }

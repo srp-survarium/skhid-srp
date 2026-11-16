@@ -1760,10 +1760,10 @@ def test_voice(original, image, before):
     mic_test = here("flash", "main_menu", "src", "SrpMicTest.as")
     check("public function srp_mic_test(text:String)" in here("flash", "main_menu", "src", "MainMenu.as")
           and 'public static const NAME:String = "srp_mic_test";' in mic_test and "SrpExe.call(NAME, null);" in mic_test
-          and 'SrpExe.call(NAME, Math.round(volume.selectedIndex) + " " + Math.round(sensitivity.selectedIndex));' in mic_test
+          and 'SrpExe.call(NAME, String(Math.round(volume.selectedIndex)));' in mic_test
           and 'private static const STOP:String = "stop";' in mic_test and "SrpExe.call(NAME, STOP);" in mic_test,
           "the main menu has root.srp_mic_test; the sound tab's Test microphone button asks srp_mic_test, sends a "
-          "press with the two voice sliders' steps and says stop as the Settings window closes")
+          "press with the voice chat volume slider's steps and says stop as the Settings window closes")
     microphone = here("flash", "main_menu", "src", "SrpMicrophone.as")
     check("public function srp_microphone(... values)" in here("flash", "main_menu", "src", "MainMenu.as")
           and 'public static const NAME:String = "srp_microphone";' in microphone and "SrpExe.call(NAME, null);" in microphone
@@ -1782,10 +1782,13 @@ def test_voice(original, image, before):
           in here("flash", "main_menu", "src", "survarium", "menu", "Settings.as")
           and "this._hide_spam.enabled = true;" in timeline and "this._use_mik.enabled = true;" in timeline
           and "this._sound_сhat.slider.enabled = false;" not in timeline
-          and "this._mic_sens.slider.enabled = false;" not in timeline,
+          and ('var sensitivity:DisplayObject = this.settings_content["_mic_sens"] as DisplayObject;\n'
+               '         if(sensitivity)\n         {\n            sensitivity.visible = false;\n         }')
+          in here("flash", "main_menu", "src", "survarium", "menu", "Settings.as"),
           "the hud has root.srp_voice_talking and the Tab menu's root.srp_voice_menu and "
           "root.srp_voice_mute, its row menu asks srp_voice_menu and sends srp_voice_mute; the options enable "
-          "Disable voice chat (_hide_spam), Use microphone, the voice volume and the microphone's sensitivity")
+          "Disable voice chat (_hide_spam), Use microphone and the voice volume, and hide the microphone's "
+          "sensitivity")
 
 def test_hide_ui(original, image, before):
     """Check 62: the key that hides the interface (patch 62,

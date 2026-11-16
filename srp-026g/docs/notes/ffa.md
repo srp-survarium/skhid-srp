@@ -69,7 +69,7 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
     decided by the mode until then, `registry::VoiceChannel::of`). The Tab menu's voice mute and the
     talking list take every player (in Blackout the list still only on Tab). Since 2026-11-16
     there are two keys (voice-chat.md, "Two keys"): the radio's reaches every player of a
-    free-for-all at any distance (`registry::RadioChannel::Match`), the 10 m voice's those near.
+    free-for-all at any distance (`registry::RadioChannel::Match`), the nearby voice's those near (12 m since 2026-11-16).
   - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"); the chat
     goes by these sides, never by the seating:
     - The HUD offers no team tab ("The player's screens", below).

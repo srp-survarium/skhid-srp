@@ -299,6 +299,22 @@ unsafe extern "C" {
     pub fn engine_battery_carry_state(battery: *mut c_void, room: *mut c_void, clips: *const c_void) -> *mut c_void;
     /// 0x322830 survarium::bullet_manager::emit_bullet: gun EDI, manager ESP+4, point ESP+8, velocity ESP+12, data ESP+16, time ESP+20, owner ESP+24, second ESP+28, unused ESP+32; pops 32; EAX
     pub fn engine_emit_bullet(gun: *mut c_void, manager: *mut c_void, point: *const f32, velocity: *const f32, data: *const c_void, time: u32, owner: *mut c_void, second: *mut c_void, unused: u32) -> *mut c_void;
+    /// COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+    pub fn engine_swap_chain_get_buffer(chain: *mut c_void, buffer: u32, iid: *const c_void, surface: *mut *mut c_void) -> u32;
+    /// COM ID3D11Texture2D+0x28 (stdcall through the interface's vtable): texture ESP+4, desc ESP+8; pops 8
+    pub fn engine_texture2d_get_desc(texture: *mut c_void, desc: *mut c_void);
+    /// COM ID3D11DeviceChild+0xc (stdcall through the interface's vtable): child ESP+4, device ESP+8; pops 8
+    pub fn engine_device_child_get_device(child: *mut c_void, device: *mut *mut c_void);
+    /// COM ID3D11Device+0x14 (stdcall through the interface's vtable): device ESP+4, desc ESP+8, initial ESP+12, texture ESP+16; pops 16; EAX
+    pub fn engine_device_create_texture2d(device: *mut c_void, desc: *const c_void, initial: *const c_void, texture: *mut *mut c_void) -> u32;
+    /// COM ID3D11DeviceContext+0xbc (stdcall through the interface's vtable): context ESP+4, destination ESP+8, source ESP+12; pops 12
+    pub fn engine_context_copy_resource(context: *mut c_void, destination: *mut c_void, source: *mut c_void);
+    /// COM ID3D11DeviceContext+0x38 (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12, map_type ESP+16, flags ESP+20, mapped ESP+24; pops 24; EAX
+    pub fn engine_context_map(context: *mut c_void, resource: *mut c_void, subresource: u32, map_type: u32, flags: u32, mapped: *mut c_void) -> u32;
+    /// COM IUnknown+0x8 (stdcall through the interface's vtable): resource ESP+4; pops 4; EAX
+    pub fn engine_d3d_resource_release(resource: *mut c_void) -> u32;
+    /// COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
+    pub fn engine_d3d_device_release(device: *mut c_void) -> u32;
 }
 
 #[allow(dead_code)]
@@ -501,4 +517,6 @@ unsafe extern "C" {
     pub static engine_message_box_a: unsafe extern "stdcall" fn(*mut c_void, *const u8, *const u8, u32) -> u32;
     /// the IAT slot 0x87020c (an import, stdcall): void engine_exit_process(unsigned int code)
     pub static engine_exit_process: unsafe extern "stdcall" fn(u32);
+    /// the IAT slot 0x87005c (an import, stdcall): unsigned int engine_get_last_error(void)
+    pub static engine_get_last_error: unsafe extern "stdcall" fn() -> u32;
 }

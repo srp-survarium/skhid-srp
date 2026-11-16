@@ -17,22 +17,6 @@ const RECORD_FRAMES: usize = RECORD_MS as usize / 1000 * FRAMES_A_SECOND;
 /// How long the button says what is missing ("for a moment").
 pub const NOTICE_MS: u32 = 2_000;
 
-/// The options' "Voice chat" volume and "Microphone sensitivity" as their
-/// sliders stood at the press (each 0..1), accepted or not.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Sliders {
-    volume: f32,
-    sensitivity: f32,
-}
-impl Sliders {
-    pub fn new(volume: f32, sensitivity: f32) -> Self {
-        Self {
-            volume: unit(volume),
-            sensitivity: unit(sensitivity),
-        }
-    }
-}
-
 /// An open capture device. Dropped, it is closed.
 pub trait Microphone {
     /// Gives `frame` each 20 ms captured since the last call, oldest first.
@@ -50,8 +34,10 @@ pub trait Devices {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Event {
-    /// The options' button. `talking`: push-to-talk is held.
-    Press { sliders: Sliders, talking: bool },
+    /// The options' button, with the "Voice chat" volume as its slider
+    /// stood at the press (0..1), accepted or not. `talking`: push-to-talk
+    /// is held.
+    Press { volume: f32, talking: bool },
     /// The options closed or left their sound tab, a match loads or ends.
     Stop,
     /// Push-to-talk starts a transmission: talking wins, the capture device
@@ -80,7 +66,7 @@ pub enum Test<M> {
 pub struct Recording<M> {
     /// The capture device, the test's while it records.
     microphone: M,
-    sliders: Sliders,
+    volume: f32,
     /// When the 10 s are over.
     until: u32,
     preprocessor: Preprocessor,
@@ -129,10 +115,10 @@ impl<M: Microphone> Test<M> {
             (
                 Test::Idle | Test::Missing { .. },
                 Event::Press {
-                    sliders,
+                    volume,
                     talking: false,
                 },
-            ) => Self::start(sliders, now, devices),
+            ) => Self::start(unit(volume), now, devices),
             (_, Event::Stop) => Test::Idle,
             (Test::Recording(_) | Test::Playing(_), Event::Talk) => Test::Idle,
             (state @ (Test::Idle | Test::Missing { .. }), Event::Talk) => state,
@@ -155,7 +141,7 @@ impl<M: Microphone> Test<M> {
         (next, None)
     }
 
-    fn start(sliders: Sliders, now: u32, devices: &mut impl Devices<Microphone = M>) -> Self {
+    fn start(volume: f32, now: u32, devices: &mut impl Devices<Microphone = M>) -> Self {
         let Some(microphone) = devices.microphone() else {
             return missing(Missing::Microphone, now);
         };
@@ -169,7 +155,7 @@ impl<M: Microphone> Test<M> {
         };
         Test::Recording(Recording {
             microphone,
-            sliders,
+            volume,
             until: now.wrapping_add(RECORD_MS),
             preprocessor,
             encoder,
@@ -220,7 +206,6 @@ impl<M: Microphone> Recording<M> {
     fn pass(mut self, now: u32) -> Test<M> {
         let Recording {
             microphone,
-            sliders,
             preprocessor,
             encoder,
             frames,
@@ -231,7 +216,7 @@ impl<M: Microphone> Recording<M> {
             if frames.len() == RECORD_FRAMES {
                 return;
             }
-            preprocessor.run(&mut pcm, sliders.sensitivity);
+            preprocessor.run(&mut pcm);
             // As a transmission (`Sender::frame`): a frame that cannot be
             // encoded, or that the relay would not forward, is not sent.
             if let Ok(frame) = encoder.encode(&pcm)
@@ -248,7 +233,7 @@ impl<M: Microphone> Recording<M> {
             // The microphone closes here, with the rest of the recording's state.
             Ok(()) => match Direct::new() {
                 Ok(voice) => Test::Playing(Playing {
-                    volume: self.sliders.volume,
+                    volume: self.volume,
                     voice,
                     frames: self.frames.into_iter(),
                 }),
@@ -271,7 +256,8 @@ impl Playing {
 /// What the game asks of the test.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Ask {
-    Press(Sliders),
+    /// With the "Voice chat" volume (0..1).
+    Press(f32),
     Stop,
 }
 
@@ -321,7 +307,7 @@ mod tests {
     use super::*;
     use crate::{
         Core, Hearing, Stereo,
-        receiver::centred,
+        receiver::Master,
         tests::voiced,
         wire::Message,
     };
@@ -410,11 +396,8 @@ mod tests {
     }
 
     const START: u32 = u32::MAX - 4_000;
-    fn press(volume: f32, sensitivity: f32) -> Event {
-        Event::Press {
-            sliders: Sliders::new(volume, sensitivity),
-            talking: false,
-        }
+    fn press(volume: f32) -> Event {
+        Event::Press { volume, talking: false }
     }
     /// The worker's passes, one every 5 ms, until the clock is `to` past
     /// [`START`] (which wraps within a recording).
@@ -428,26 +411,27 @@ mod tests {
         test.shown(fake.clock.get())
     }
     /// A started test: pressed at [`START`].
-    fn started(microphone: Mic, volume: f32, sensitivity: f32) -> (Test<FakeMic>, Fake) {
+    fn started(microphone: Mic, volume: f32) -> (Test<FakeMic>, Fake) {
         let mut fake = Fake::new(Some(microphone));
         fake.clock.set(START);
         let mut test = Test::Idle;
-        test.apply(press(volume, sensitivity), START, &mut fake);
+        test.apply(press(volume), START, &mut fake);
         (test, fake)
     }
     /// The playback device's pulls until the test gives nothing more, as the
-    /// worker ends each frame ([`centred`]).
+    /// worker ends each frame ([`Master::centred`]).
     fn played(test: &mut Test<FakeMic>, fake: &mut Fake) -> Vec<Stereo> {
         let mut out = Vec::new();
+        let mut master = Master::new();
         while let Some(pcm) = test.apply(Event::Play, fake.clock.get(), fake) {
-            out.push(centred(&pcm));
+            out.push(master.centred(&pcm));
         }
         out
     }
-    /// What a teammate's game plays of the same microphone sent at
-    /// `sensitivity`, at its `volume`, near and centred: a transmission's
+    /// What a teammate's game plays of the same microphone, at its
+    /// `volume`, near and centred: a transmission's
     /// path, the relay's messages, the jitter buffer and the mix.
-    fn heard_by_a_teammate(volume: f32, sensitivity: f32) -> Vec<Stereo> {
+    fn heard_by_a_teammate(volume: f32) -> Vec<Stereo> {
         let mut preprocessor = Preprocessor::new().unwrap();
         let mut encoder = Encoder::new().unwrap();
         let mut core = Core::new().unwrap();
@@ -457,7 +441,7 @@ mod tests {
             let frames = [2 * pair, 2 * pair + 1]
                 .map(|frame| {
                     let mut pcm = voiced(frame, 8000., 8);
-                    preprocessor.run(&mut pcm, sensitivity);
+                    preprocessor.run(&mut pcm);
                     encoder.encode(&pcm).unwrap()
                 })
                 .to_vec();
@@ -502,7 +486,7 @@ mod tests {
 
     #[test]
     fn ten_seconds_are_recorded_then_played_back_once() {
-        let (mut test, mut fake) = started(Mic::Voice, 1., 0.5);
+        let (mut test, mut fake) = started(Mic::Voice, 1.);
         assert_eq!(shown(&test, &fake), Shown::Recording(10));
         assert_eq!(fake.open(), 1);
         // The seconds left, counted up, through the clock's wrap.
@@ -536,45 +520,43 @@ mod tests {
 
     #[test]
     fn the_playback_is_what_a_teammate_beside_the_player_hears() {
-        // Sample for sample, at the sliders of the press, whatever they are.
-        for (volume, sensitivity) in [(1., 0.5), (0.4, 1.), (1., 0.)] {
-            let (mut test, mut fake) = started(Mic::Voice, volume, sensitivity);
+        // Sample for sample, at the volume of the press, whatever it is.
+        for volume in [1., 0.4] {
+            let (mut test, mut fake) = started(Mic::Voice, volume);
             run(&mut test, &mut fake, RECORD_MS);
             let own = played(&mut test, &mut fake);
-            let theirs = heard_by_a_teammate(volume, sensitivity);
+            let theirs = heard_by_a_teammate(volume);
             assert_eq!(own.len(), RECORD_FRAMES);
-            assert!(own == theirs, "{volume} {sensitivity}");
-            assert!(rms(&own[250..]) > 0.005, "{volume} {sensitivity}: {}", rms(&own[250..]));
+            assert!(own == theirs, "{volume}");
+            assert!(rms(&own[250..]) > 0.005, "{volume}: {}", rms(&own[250..]));
         }
     }
 
     #[test]
-    fn the_sliders_of_the_press_set_the_level() {
-        let level = |volume, sensitivity| {
-            let (mut test, mut fake) = started(Mic::Voice, volume, sensitivity);
+    fn the_volume_of_the_press_sets_the_level() {
+        let level = |volume| {
+            let (mut test, mut fake) = started(Mic::Voice, volume);
             run(&mut test, &mut fake, RECORD_MS);
             20. * rms(&played(&mut test, &mut fake)[250..]).log10()
         };
-        let (quiet, default, loud) = (level(1., 0.), level(1., 0.5), level(1., 1.));
-        // The sensitivity's ends are 12 dB apart, the default between them.
-        assert!((10.0..14.0).contains(&(loud - quiet)), "{quiet} {default} {loud}");
-        assert!((5.0..7.0).contains(&(default - quiet)), "{quiet} {default} {loud}");
-        // Half the volume is 6 dB less; none is silence.
-        assert!((5.9..6.1).contains(&(default - level(0.5, 0.5))));
-        assert_eq!(level(0., 0.5), f32::NEG_INFINITY);
+        // Half the volume is 6 dB less (under the mix's ceiling, where its
+        // limiter is at rest); none is silence; past its ends, its ends.
+        assert!((5.9..6.1).contains(&(level(0.5) - level(0.25))));
+        assert_eq!(level(0.), f32::NEG_INFINITY);
+        assert_eq!(level(7.), level(1.));
     }
 
     #[test]
     fn a_press_stops_a_recording_and_a_playback() {
-        let (mut test, mut fake) = started(Mic::Voice, 1., 0.5);
+        let (mut test, mut fake) = started(Mic::Voice, 1.);
         run(&mut test, &mut fake, 3_000);
-        test.apply(press(1., 0.5), fake.clock.get(), &mut fake);
+        test.apply(press(1.), fake.clock.get(), &mut fake);
         assert!(test.is_idle());
         // The microphone is closed and what was recorded is gone.
         assert_eq!((fake.seen.opened.get(), fake.open()), (1, 0));
         assert!(test.apply(Event::Play, fake.clock.get(), &mut fake).is_none());
         // The next press is a new test, from its start.
-        test.apply(press(1., 0.5), fake.clock.get(), &mut fake);
+        test.apply(press(1.), fake.clock.get(), &mut fake);
         assert_eq!(shown(&test, &fake), Shown::Recording(10));
         run(&mut test, &mut fake, 13_000);
         assert_eq!(shown(&test, &fake), Shown::Playing(10));
@@ -582,7 +564,7 @@ mod tests {
             assert!(test.apply(Event::Play, fake.clock.get(), &mut fake).is_some());
         }
         assert_eq!(shown(&test, &fake), Shown::Playing(8));
-        test.apply(press(1., 0.5), fake.clock.get(), &mut fake);
+        test.apply(press(1.), fake.clock.get(), &mut fake);
         assert!(test.is_idle());
         assert!(test.apply(Event::Play, fake.clock.get(), &mut fake).is_none());
         assert_eq!((fake.seen.opened.get(), fake.open()), (2, 0));
@@ -593,22 +575,19 @@ mod tests {
         // Held, push-to-talk keeps the test from starting: no microphone opened.
         let mut fake = Fake::new(Some(Mic::Voice));
         let mut test = Test::Idle;
-        let held = Event::Press {
-            sliders: Sliders::new(1., 0.5),
-            talking: true,
-        };
+        let held = Event::Press { volume: 1., talking: true };
         test.apply(held, 0, &mut fake);
         assert!(test.is_idle());
         assert_eq!(fake.seen.opened.get(), 0);
         // Pressed while the test records: the test ends and its microphone
         // is closed, for the transmission to open.
-        let (mut test, mut fake) = started(Mic::Voice, 1., 0.5);
+        let (mut test, mut fake) = started(Mic::Voice, 1.);
         run(&mut test, &mut fake, 2_000);
         test.apply(Event::Talk, fake.clock.get(), &mut fake);
         assert!(test.is_idle());
         assert_eq!(fake.open(), 0);
         // And while it plays: nothing more of it is played.
-        let (mut test, mut fake) = started(Mic::Voice, 1., 0.5);
+        let (mut test, mut fake) = started(Mic::Voice, 1.);
         run(&mut test, &mut fake, RECORD_MS);
         assert!(test.apply(Event::Play, fake.clock.get(), &mut fake).is_some());
         test.apply(Event::Talk, fake.clock.get(), &mut fake);
@@ -619,7 +598,7 @@ mod tests {
         let mut test = Test::Idle;
         test.apply(Event::Talk, 0, &mut none);
         assert!(test.is_idle());
-        test.apply(press(1., 0.5), 0, &mut none);
+        test.apply(press(1.), 0, &mut none);
         test.apply(Event::Talk, 1, &mut none);
         assert_eq!(test.shown(1), Shown::NoMicrophone);
         // A press under the notice with push-to-talk held changes nothing either.
@@ -629,19 +608,19 @@ mod tests {
 
     #[test]
     fn it_stops_when_the_options_close_or_a_match_loads_or_ends() {
-        let (mut test, mut fake) = started(Mic::Voice, 1., 0.5);
+        let (mut test, mut fake) = started(Mic::Voice, 1.);
         run(&mut test, &mut fake, 500);
         test.apply(Event::Stop, fake.clock.get(), &mut fake);
         assert!(test.is_idle());
         assert_eq!(fake.open(), 0);
-        let (mut test, mut fake) = started(Mic::Voice, 1., 0.5);
+        let (mut test, mut fake) = started(Mic::Voice, 1.);
         run(&mut test, &mut fake, RECORD_MS);
         test.apply(Event::Stop, fake.clock.get(), &mut fake);
         assert!(test.is_idle());
         assert!(test.apply(Event::Play, fake.clock.get(), &mut fake).is_none());
         let mut none = Fake::new(None);
         let mut test = Test::Idle;
-        test.apply(press(1., 0.5), 0, &mut none);
+        test.apply(press(1.), 0, &mut none);
         test.apply(Event::Stop, 1, &mut none);
         assert!(test.is_idle());
         test.apply(Event::Stop, 2, &mut none);
@@ -654,20 +633,20 @@ mod tests {
         let mut fake = Fake::new(None);
         fake.clock.set(START);
         let mut test = Test::Idle;
-        test.apply(press(1., 0.5), START, &mut fake);
+        test.apply(press(1.), START, &mut fake);
         assert_eq!(shown(&test, &fake), Shown::NoMicrophone);
         run(&mut test, &mut fake, NOTICE_MS - 5);
         assert_eq!(shown(&test, &fake), Shown::NoMicrophone);
         run(&mut test, &mut fake, NOTICE_MS);
         assert!(test.is_idle());
         // A press under the notice tries again (a microphone plugged in since).
-        test.apply(press(1., 0.5), fake.clock.get(), &mut fake);
+        test.apply(press(1.), fake.clock.get(), &mut fake);
         assert_eq!(shown(&test, &fake), Shown::NoMicrophone);
         fake.microphone = Some(Mic::Voice);
-        test.apply(press(1., 0.5), fake.clock.get(), &mut fake);
+        test.apply(press(1.), fake.clock.get(), &mut fake);
         assert_eq!(shown(&test, &fake), Shown::Recording(10));
         // One that fails as it records.
-        let (mut test, mut fake) = started(Mic::Breaks, 1., 0.5);
+        let (mut test, mut fake) = started(Mic::Breaks, 1.);
         run(&mut test, &mut fake, 995);
         assert_eq!(shown(&test, &fake), Shown::Recording(10));
         run(&mut test, &mut fake, 1_020);
@@ -675,7 +654,7 @@ mod tests {
         assert_eq!(fake.open(), 0);
         assert!(test.apply(Event::Play, fake.clock.get(), &mut fake).is_none());
         // One that opens and gives nothing: none, after its 10 s.
-        let (mut test, mut fake) = started(Mic::Mute, 1., 0.5);
+        let (mut test, mut fake) = started(Mic::Mute, 1.);
         run(&mut test, &mut fake, RECORD_MS - 5);
         assert_eq!(shown(&test, &fake), Shown::Recording(1));
         run(&mut test, &mut fake, RECORD_MS);
@@ -692,17 +671,17 @@ mod tests {
         fake.playback = false;
         fake.clock.set(START);
         let mut test = Test::Idle;
-        test.apply(press(1., 0.5), START, &mut fake);
+        test.apply(press(1.), START, &mut fake);
         assert_eq!(shown(&test, &fake), Shown::NoPlayback);
         assert_eq!(fake.open(), 0);
         run(&mut test, &mut fake, NOTICE_MS);
         assert!(test.is_idle());
         // Without either it is the microphone the button names.
         fake.microphone = None;
-        test.apply(press(1., 0.5), fake.clock.get(), &mut fake);
+        test.apply(press(1.), fake.clock.get(), &mut fake);
         assert_eq!(shown(&test, &fake), Shown::NoMicrophone);
         // Lost while the recording plays: the rest is dropped.
-        let (mut test, mut fake) = started(Mic::Voice, 1., 0.5);
+        let (mut test, mut fake) = started(Mic::Voice, 1.);
         run(&mut test, &mut fake, RECORD_MS);
         assert!(test.apply(Event::Play, fake.clock.get(), &mut fake).is_some());
         fake.playback = false;
@@ -710,7 +689,7 @@ mod tests {
         assert_eq!(shown(&test, &fake), Shown::NoPlayback);
         assert!(test.apply(Event::Play, fake.clock.get(), &mut fake).is_none());
         // Lost while it records: said when the playback is due.
-        let (mut test, mut fake) = started(Mic::Voice, 1., 0.5);
+        let (mut test, mut fake) = started(Mic::Voice, 1.);
         fake.playback = false;
         run(&mut test, &mut fake, RECORD_MS);
         assert_eq!(shown(&test, &fake), Shown::Playing(10));
@@ -738,7 +717,7 @@ mod tests {
             }
         }
         let mut test = Test::Idle;
-        test.apply(press(1., 0.5), 0, &mut Floods);
+        test.apply(press(1.), 0, &mut Floods);
         for now in (5..=RECORD_MS).step_by(5) {
             test.apply(Event::Pass, now, &mut Floods);
         }
@@ -751,7 +730,7 @@ mod tests {
 
     #[test]
     fn an_ask_is_never_left_with_a_worker_that_has_gone() {
-        let press = Ask::Press(Sliders::new(1., 0.5));
+        let press = Ask::Press(1.);
         // A match's worker: its door stays open, the last ask stands.
         let mut door = Door::Open(None);
         assert_eq!(door.take(), None);
@@ -767,7 +746,5 @@ mod tests {
         assert!(!door.ask(press));
         assert_eq!(door.take(), None);
         assert_eq!(door, Door::Shut);
-        // The sliders are held to 0..1.
-        assert_eq!(Sliders::new(7., f32::NAN), Sliders::new(1., 0.));
     }
 }

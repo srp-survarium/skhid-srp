@@ -241,6 +241,15 @@ global engine_emit_bullet
 global engine_battery_state_finalize
 global engine_fsm_always
 global engine_take_deactivatable
+global engine_get_last_error
+global engine_swap_chain_get_buffer
+global engine_texture2d_get_desc
+global engine_device_child_get_device
+global engine_device_create_texture2d
+global engine_context_copy_resource
+global engine_context_map
+global engine_d3d_resource_release
+global engine_d3d_device_release
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -334,6 +343,7 @@ engine_fsm_append_transition equ 0x38c970   ; 0x38c970 vostok::ai::fsm::append_t
 engine_battery_state_finalize equ 0x3447f0   ; 0x3447f0 survarium::victory_item_core_animation_end_aware_state::finalize: state ECX; pops 0; thiscall, called directly
 engine_fsm_always equ 0x372420   ; 0x372420 survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition: buffer ESP+4; pops 0; AL; cdecl, called directly
 engine_take_deactivatable equ 0x397c20   ; 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
+engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall)
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
@@ -2833,6 +2843,157 @@ engine_emit_bullet:
     push dword [esp + 52]   ; manager -> 4
     mov edi, [esp + 52]   ; gun
     call 0x322830
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_swap_chain_get_buffer:
+    ; COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; surface -> 16
+    push dword [esp + 32]   ; iid -> 12
+    push dword [esp + 32]   ; buffer -> 8
+    push dword [esp + 32]   ; chain -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x24]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_texture2d_get_desc:
+    ; COM ID3D11Texture2D+0x28 (stdcall through the interface's vtable): texture ESP+4, desc ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; desc -> 8
+    push dword [esp + 24]   ; texture -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x28]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_device_child_get_device:
+    ; COM ID3D11DeviceChild+0xc (stdcall through the interface's vtable): child ESP+4, device ESP+8; pops 8
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; device -> 8
+    push dword [esp + 24]   ; child -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0xc]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_device_create_texture2d:
+    ; COM ID3D11Device+0x14 (stdcall through the interface's vtable): device ESP+4, desc ESP+8, initial ESP+12, texture ESP+16; pops 16; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; texture -> 16
+    push dword [esp + 32]   ; initial -> 12
+    push dword [esp + 32]   ; desc -> 8
+    push dword [esp + 32]   ; device -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x14]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_context_copy_resource:
+    ; COM ID3D11DeviceContext+0xbc (stdcall through the interface's vtable): context ESP+4, destination ESP+8, source ESP+12; pops 12
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; source -> 12
+    push dword [esp + 28]   ; destination -> 8
+    push dword [esp + 28]   ; context -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0xbc]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_context_map:
+    ; COM ID3D11DeviceContext+0x38 (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12, map_type ESP+16, flags ESP+20, mapped ESP+24; pops 24; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; mapped -> 24
+    push dword [esp + 40]   ; flags -> 20
+    push dword [esp + 40]   ; map_type -> 16
+    push dword [esp + 40]   ; subresource -> 12
+    push dword [esp + 40]   ; resource -> 8
+    push dword [esp + 40]   ; context -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x38]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_d3d_resource_release:
+    ; COM IUnknown+0x8 (stdcall through the interface's vtable): resource ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; resource -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x8]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_d3d_device_release:
+    ; COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; device -> 4
+    mov eax, [esp]                   ; this
+    mov eax, [eax]                   ; its vtable
+    call [eax + 0x8]
     pop edi
     pop esi
     pop ebx

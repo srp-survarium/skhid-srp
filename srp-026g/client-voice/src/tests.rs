@@ -21,11 +21,11 @@ fn packet_on(channel: Channel, seq: u16, frames: &[Vec<u8>]) -> Message {
         frames: frames.to_vec(),
     }
 }
-/// Slot 3's 10 m voice.
+/// Slot 3's nearby voice.
 fn packet(seq: u16, frames: &[Vec<u8>]) -> Message {
     packet_on(Channel::Near, seq, frames)
 }
-/// A frame mixed with every slot heard on both channels, its 10 m voice as
+/// A frame mixed with every slot heard on both channels, its nearby voice as
 /// decoded: both ears alike, the mono mix of before.
 fn mix(core: &mut Core, now: u32) -> [i16; FRAME] {
     let stereo = core.mix(1., &Hearing::UNITY, now);
@@ -185,7 +185,7 @@ fn the_radios_squelch_delays_its_words_the_10_m_voice_has_none() {
 fn a_key_let_go_for_the_other_has_the_squelch_of_the_radio_alone() {
     // Slot 3 talks on one key and at once on the other, the first utterance
     // still playing: the squelch that ends an utterance is the radio's, never
-    // the 10 m voice's, whatever the next one is.
+    // the nearby voice's, whatever the next one is.
     let frames = encoded(8);
     for (first, then, squelch_out) in [(Channel::Near, Channel::Radio, 0), (Channel::Radio, Channel::Near, 1)] {
         let mut core = Core::new().unwrap();
@@ -229,7 +229,7 @@ fn ear_sums(frames: &[Stereo]) -> [f64; 2] {
 }
 /// Heard near only, by these ears (an opponent's place).
 fn near(ears: Ears) -> Heard {
-    Heard { near: ears, radio: false }
+    Heard { near: ears, muffle: Muffle::NONE, radio: false }
 }
 #[test]
 fn the_10_m_voice_is_mixed_by_the_gains_it_is_given() {
@@ -249,16 +249,79 @@ fn the_10_m_voice_is_mixed_by_the_gains_it_is_given() {
     assert!(silent.iter().flatten().all(|ears| *ears == [0, 0]));
 }
 #[test]
+fn a_voice_behind_a_wall_is_quieter_and_dull() {
+    // A low tone and a high one from slot 3, heard in the open, half behind
+    // a wall and wholly: the wall takes 10 dB of both and the high one's
+    // rest (700 Hz and up, 12 dB an octave).
+    let level = |hz: f32, muffle: Muffle| {
+        let mut encoder = Encoder::new().unwrap();
+        let frames: Vec<Vec<u8>> = (0..24).map(|i| encoder.encode(&tone(i, hz, 2000.)).unwrap()).collect();
+        let mut core = Core::new().unwrap();
+        feed(&mut core, &frames);
+        let mut hearing = Hearing::UNITY;
+        hearing.set(3, Heard { near: Ears::UNITY, muffle, radio: false });
+        let played: Vec<Stereo> = (0..20).map(|tick| core.mix(0.25, &hearing, tick * 20)).collect();
+        let sums = ear_sums(&played[10..]);
+        assert_eq!(sums[0], sums[1]);
+        sums[0]
+    };
+    let half = Muffle::new(0.5);
+    let (low, high) = (level(200., Muffle::NONE), level(2800., Muffle::NONE));
+    let behind = level(200., Muffle::WHOLE);
+    assert!((0.28..0.34).contains(&(behind / low)), "{behind} {low}");
+    assert!(level(2800., Muffle::WHOLE) < high * 0.03, "{} {high}", level(2800., Muffle::WHOLE));
+    // Half a wall: half of the 10 dB.
+    assert!((0.5..0.62).contains(&(level(200., half) / low)), "{} {low}", level(200., half));
+}
+#[test]
+fn a_wall_comes_and_goes_over_a_third_of_a_second() {
+    // A steady low tone; the game says "behind a wall" from the tenth frame
+    // and "in the open" from the fortieth. The level falls and comes back
+    // evenly over fifteen frames each, no frame more than a dB from the
+    // last; an utterance that begins behind a wall is there at once.
+    let mut encoder = Encoder::new().unwrap();
+    let frames: Vec<Vec<u8>> = (0..70).map(|i| encoder.encode(&tone(i, 200., 2000.)).unwrap()).collect();
+    let play = |walls: &dyn Fn(u32) -> Muffle| {
+        let mut core = Core::new().unwrap();
+        (0..66u32)
+            .map(|tick| {
+                // (fed as they come: a ring holds 32 frames)
+                if tick % 2 == 0 {
+                    let at = tick as usize;
+                    core.receive(&packet((tick / 2) as u16, &frames[at..at + 2]), tick * 20);
+                }
+                let mut hearing = Hearing::UNITY;
+                hearing.set(3, Heard { near: Ears::UNITY, muffle: walls(tick), radio: false });
+                let frame = core.mix(0.25, &hearing, tick * 20);
+                20. * (frame.iter().map(|ears| f64::from(ears[0]).powi(2)).sum::<f64>() / FRAME as f64).sqrt().max(1e-9).log10()
+            })
+            .collect::<Vec<f64>>()
+    };
+    let open = play(&|_| Muffle::NONE);
+    let walled = play(&|tick| if (10..40).contains(&tick) { Muffle::WHOLE } else { Muffle::NONE });
+    let down: Vec<f64> = walled.iter().zip(&open).map(|(w, o)| w - o).collect();
+    assert!(down[4..10].iter().all(|d| d.abs() < 0.1), "{down:?}");
+    assert!(down[26..40].iter().all(|d| (-10.6..-9.4).contains(d)), "{down:?}");
+    assert!(down[56..].iter().all(|d| d.abs() < 0.1), "{down:?}");
+    for pair in down[4..].windows(2) {
+        assert!((pair[1] - pair[0]).abs() < 1.0, "{down:?}");
+    }
+    // Half way after half the time, in dB.
+    assert!((-6.2..-3.8).contains(&down[17]) && (-6.2..-3.8).contains(&down[47]), "{} {}", down[17], down[47]);
+    let from_the_start = play(&|_| Muffle::WHOLE);
+    assert!(from_the_start[4..].iter().zip(&open[4..]).all(|(w, o)| (-10.6..-9.4).contains(&(w - o))), "{from_the_start:?}");
+}
+#[test]
 fn an_utterance_is_heard_by_its_own_channel_alone() {
     let right = Ears::new(0., 1.);
-    let mate = Heard { near: right, radio: true };
+    let mate = Heard { near: right, muffle: Muffle::NONE, radio: true };
     let voice = ear_sums(&heard_tone(12, Channel::Near, |_| mate)[9..]);
     let radio = ear_sums(&heard_tone(12, Channel::Radio, |_| mate)[9..]);
-    // The 10 m voice from its side; the radio centred.
+    // The nearby voice from its side; the radio centred.
     assert!(voice[0] == 0. && voice[1] > 0. && radio[0] > 0. && radio[0] == radio[1], "{voice:?} {radio:?}");
-    // An opponent's radio is never heard, nor the 10 m voice of a mate far
+    // An opponent's radio is never heard, nor the nearby voice of a mate far
     // away or dead: no words, no static, no squelch.
-    let far = Heard { near: Ears::SILENT, radio: true };
+    let far = Heard { near: Ears::SILENT, muffle: Muffle::NONE, radio: true };
     assert_eq!(ear_sums(&heard_tone(12, Channel::Radio, |_| near(right))), [0., 0.]);
     assert_eq!(ear_sums(&heard_tone(12, Channel::Near, |_| far)), [0., 0.]);
     // And the talking list has a slot only while it is heard.
@@ -434,7 +497,7 @@ fn a_radio_voice_is_as_loud_as_a_direct_one() {
         let mut direct = Vec::new();
         for f in 0..500 {
             let mut pcm = voiced(f, 8000., harmonics);
-            pre.run(&mut pcm, 0.5);
+            pre.run(&mut pcm);
             let frame = encoder.encode(&pcm).unwrap();
             direct.extend(decoder.decode(Some(&frame)).unwrap());
         }
@@ -447,14 +510,14 @@ fn a_radio_voice_is_as_loud_as_a_direct_one() {
 }
 /// The level (dB of full scale) the preprocessor gives a speaker of this
 /// amplitude, over the last of 4 s.
-fn processed_db(amplitude: f32, sensitivity: f32) -> f32 {
+fn processed_db(amplitude: f32) -> f32 {
     let mut pre = Preprocessor::new().unwrap();
     let seconds = 4 * RATE / FRAME;
     let last = RATE / FRAME;
     let mut sum = 0.;
     for frame in 0..seconds {
         let mut pcm = syllables(frame, amplitude);
-        pre.run(&mut pcm, sensitivity);
+        pre.run(&mut pcm);
         if frame >= seconds - last {
             sum += pcm
                 .iter()
@@ -469,19 +532,12 @@ fn automatic_gain_levels_quiet_and_loud_microphones() {
     // Speakers from -60 to -13 dB of full scale (amplitudes 50..10000) all
     // come out at one level (-29 dB measured), within 3 dB (the quietest was
     // 8 dB under the others while the gain stopped at 30 dB).
-    let levels = [50., 150., 600., 2500., 10000.].map(|amplitude| processed_db(amplitude, 0.5));
+    let levels = [50., 150., 600., 2500., 10000.].map(processed_db);
     let (low, high) = levels
         .iter()
         .fold((f32::MAX, f32::MIN), |(l, h), &x| (l.min(x), h.max(x)));
     assert!(high - low < 3., "{levels:?}");
     assert!((-32.0..-26.0).contains(&low), "{levels:?}");
-    // The sensitivity slider moves it 6 dB either way.
-    let quiet = processed_db(2500., 0.);
-    let loud = processed_db(2500., 1.);
-    assert!((10.0..14.0).contains(&(loud - quiet)), "{quiet} {loud}");
-    assert_eq!(agc_level(0.5), AGC_LEVEL);
-    assert_eq!(agc_level(f32::NAN), AGC_LEVEL / 2.);
-    assert_eq!(agc_level(1.), AGC_LEVEL * 2.);
 }
 #[test]
 fn roster_replacement_resets_only_departed_speaker() {
@@ -695,7 +751,7 @@ fn the_encoder_makes_only_what_the_relay_takes() {
             for f in 0..250 {
                 let mut pcm: [i16; FRAME] = std::array::from_fn(|i| signal(f * FRAME + i));
                 if preprocessed {
-                    pre.run(&mut pcm, 1.);
+                    pre.run(&mut pcm);
                 }
                 let frame = encoder.encode(&pcm).unwrap();
                 assert!(wire::our_frame(&frame), "{frame:x?}");
@@ -882,9 +938,8 @@ fn the_host_argument_is_read_no_further_than_its_bound() {
     assert_eq!(radio::unit(f32::NAN), 0.);
     assert_eq!(radio::unit(f32::INFINITY), 1.);
     assert_eq!(radio::unit(f32::NEG_INFINITY), 0.);
-    assert!(agc_level(f32::INFINITY).is_finite());
 }
-/// Each frame's level as slot 3's 10 m voice plays `frames`, at a "Voice
+/// Each frame's level as slot 3's nearby voice plays `frames`, at a "Voice
 /// chat" volume low enough that the mix's own limiter stays at rest: the
 /// speaker's level alone.
 fn played(frames: &[Vec<u8>]) -> (Vec<f32>, Core) {
@@ -907,23 +962,15 @@ fn played(frames: &[Vec<u8>]) -> (Vec<f32>, Core) {
 }
 #[test]
 fn speech_through_the_automatic_gain_is_never_held() {
-    // Voices from -50 to 0 dB of full scale, at the lowest, the default and
-    // the highest sensitivity, and at the default a quiet voice that
+    // Voices from -50 to 0 dB of full scale, and a quiet voice that
     // suddenly shouts: the automatic gain keeps all of them under the
-    // ceiling, so the listener plays them as decoded.
+    // ceiling.
     let mut random = 0x2468_ace1u32;
     let mut hiss = move || {
         random = random.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
         (random >> 16) as i16 / 512
     };
-    for (sensitivity, before, after) in [
-        (0., 32000., 32000.),
-        (0.5, 150., 150.),
-        (0.5, 32000., 32000.),
-        (0.5, 600., 20000.),
-        (1., 2500., 2500.),
-        (1., 32000., 32000.),
-    ] {
+    for (before, after) in [(150., 150.), (2500., 2500.), (32000., 32000.), (600., 20000.)] {
         let mut pre = Preprocessor::new().unwrap();
         let mut encoder = Encoder::new().unwrap();
         let frames: Vec<Vec<u8>> = (0..500)
@@ -932,12 +979,15 @@ fn speech_through_the_automatic_gain_is_never_held() {
                 for sample in &mut pcm {
                     *sample = sample.saturating_add(hiss());
                 }
-                pre.run(&mut pcm, sensitivity);
+                pre.run(&mut pcm);
                 encoder.encode(&pcm).unwrap()
             })
             .collect();
         let (levels, core) = played(&frames);
-        assert_eq!(core.stats().limited, 0, "{sensitivity} {before} {after}");
+        // (The sudden shout: its first frames, raised as the quiet voice
+        // before it was, are held until the levels catch up.)
+        let most = if after > before { 4 } else { 0 };
+        assert!(core.stats().limited <= most, "{before} {after}: {}", core.stats().limited);
         assert!(levels.iter().any(|&db| db > -30.));
     }
 }
@@ -947,7 +997,7 @@ fn a_stream_that_skipped_the_automatic_gain_is_held_at_the_ceiling() {
     // speaker's level (the volume and any gain of its own).
     let mut encoder = Encoder::new().unwrap();
     let voice: Vec<Vec<u8>> = (0..100)
-        .map(|f| encoder.encode(&tone(f, 300., 6000.)).unwrap())
+        .map(|f| encoder.encode(&tone(f, 300., 4634.)).unwrap())
         .collect();
     let mean_db = |levels: &[f32]| {
         let power = levels.iter().map(|db| 10f32.powf(db / 10.)).sum::<f32>();
@@ -961,6 +1011,7 @@ fn a_stream_that_skipped_the_automatic_gain_is_held_at_the_ceiling() {
             10. * (pcm.iter().map(|x| x * x).sum::<f32>() / FRAME as f32).log10()
         })
         .collect();
+    // (A tone at the leveller's own level, so that it plays as decoded.)
     let (alone, core) = played(&voice);
     assert_eq!(core.stats().limited, 0);
     let mix_gain = mean_db(&alone[20..]) - mean_db(&decoded[10..]);
@@ -982,27 +1033,20 @@ fn a_stream_that_skipped_the_automatic_gain_is_held_at_the_ceiling() {
     let (levels, core) = played(&frames);
     let loudest = levels.iter().copied().fold(f32::MIN, f32::max) - mix_gain;
     assert!((-12.6..=-11.9).contains(&loudest), "{mix_gain} {levels:?}");
-    assert!(
-        levels[4..].iter().all(|&db| db - mix_gain > -15.),
-        "{levels:?}"
-    );
-    assert!(core.stats().limited >= 95, "{:?}", core.stats().limited);
-    // Then the voice from the same speaker comes back to its own level
-    // within half a second (0.5 dB a frame).
-    let mut after_square = frames[..50].to_vec();
-    after_square.extend(voice.iter().cloned());
-    let (after, _) = played(&after_square);
-    for (a, b) in alone[50..].iter().zip(&after[100..]) {
-        assert!((a - b).abs() < 0.5, "{a} {b}");
-    }
+    // Its first frames are held there; then the leveller, which has learnt
+    // how loud it is, turns it down as far as it turns anyone (12 dB), and
+    // the ceiling has nothing left to hold.
+    assert!((3..=10).contains(&core.stats().limited), "{:?}", core.stats().limited);
+    assert!(levels[20..].iter().all(|&db| db - mix_gain < -12.), "{levels:?}");
 }
 #[test]
-fn a_new_utterance_starts_at_unity() {
+fn a_new_utterance_is_not_held_by_the_last_ones_ceiling() {
     // A loud utterance held at the ceiling, then a quiet one: the quiet one
-    // plays as it would alone from its first frame, not at the gain the
-    // loud one left.
+    // is not played at the gain the ceiling left the loud one at (it would
+    // come back 0.5 dB a frame, 5 dB over these ten frames): the ceiling
+    // holds none of it, and it does not swell.
     let mut encoder = Encoder::new().unwrap();
-    let loud: Vec<Vec<u8>> = (0..20)
+    let loud: Vec<Vec<u8>> = (0..4)
         .map(|f| {
             let pcm = std::array::from_fn(|i| {
                 if ((f * FRAME + i) / 8).is_multiple_of(2) {
@@ -1018,9 +1062,9 @@ fn a_new_utterance_starts_at_unity() {
     let quiet: Vec<Vec<u8>> = (0..20)
         .map(|f| encoder.encode(&tone(f, 300., 6000.)).unwrap())
         .collect();
-    let (alone, _) = played(&quiet);
     let mut core = Core::new().unwrap();
     let mut now = 0;
+    let mut held = 0;
     for (utt, frames) in [(1, &loud), (2, &quiet)] {
         let mut levels = Vec::new();
         for (seq, pair) in frames.chunks(2).enumerate() {
@@ -1057,27 +1101,93 @@ fn a_new_utterance_starts_at_unity() {
             now += 20;
         }
         if utt == 1 {
-            assert!(core.stats().limited >= 15);
+            held = core.stats().limited;
+            assert!(held >= 3, "{held}");
         } else {
-            let played: Vec<f32> = levels.into_iter().filter(|&db| db > -100.).collect();
-            let alone: Vec<f32> = alone.iter().copied().filter(|&db| db > -100.).collect();
+            // (Its first played frame comes in from silence.)
+            let played: Vec<f32> = levels.into_iter().filter(|&db| db > -100.).skip(1).collect();
             assert!(played.len() >= 10);
-            for (a, b) in alone.iter().zip(&played) {
-                assert!((a - b).abs() < 0.1, "{a} {b}");
-            }
+            let (low, high) = played[..10].iter().fold((f32::MAX, f32::MIN), |(l, h), &db| (l.min(db), h.max(db)));
+            assert!(high - low < 0.5, "{played:?}");
+            assert_eq!(core.stats().limited, held);
         }
     }
 }
 #[test]
+fn every_speaker_is_played_at_one_loudness() {
+    // The same voice from three microphones 12 dB apart (as the talkers'
+    // sensitivity or their microphones leave them), each its own speaker:
+    // once each was heard for a moment, all play within 1 dB of the level.
+    let play = |amplitude: f32, noise: i16| {
+        let mut encoder = Encoder::new().unwrap();
+        let mut voice = receiver::Direct::new().unwrap();
+        let mut random = 7u32;
+        let mut power = 0f32;
+        for f in 0..200 {
+            let mut pcm = voiced(f, amplitude, 8);
+            for sample in &mut pcm {
+                random = random.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                *sample += ((random >> 16) as i16 >> 8) * noise / 128;
+            }
+            let played = voice.frame(&encoder.encode(&pcm).unwrap()).unwrap();
+            if f >= 100 {
+                power += played.iter().map(|x| x * x).sum::<f32>();
+            }
+        }
+        10. * (power / (100 * FRAME) as f32).log10()
+    };
+    let levels = [1000., 4000., 16000.].map(|amplitude| play(amplitude, 0));
+    let (low, high) = levels.iter().fold((f32::MAX, f32::MIN), |(l, h), &db| (l.min(db), h.max(db)));
+    assert!(high - low < 1., "{levels:?}");
+    // The pauses' room (a hiss 30 dB under the voice) does not move it: the
+    // leveller goes by the loudest third of the frames.
+    assert!((play(4000., 100) - levels[1]).abs() < 1., "{} {levels:?}", play(4000., 100));
+}
+#[test]
+fn what_is_learnt_of_a_speaker_stays_and_goes_with_its_slot() {
+    // A quiet speaker's second utterance is raised from its first frame;
+    // after another player takes the slot, nothing of it is left.
+    let mut encoder = Encoder::new().unwrap();
+    let frames: Vec<Vec<u8>> = (0..20).map(|f| encoder.encode(&tone(f, 300., 500.)).unwrap()).collect();
+    let utterance = |core: &mut Core, utt: u16, now: &mut u32| {
+        let mut levels = Vec::new();
+        for (seq, pair) in frames.chunks(2).enumerate() {
+            core.receive(&Message::RelayAudio { slot: 3, utt, channel: Channel::Near, seq: seq as u16, frames: pair.to_vec() }, *now);
+            for _ in 0..2 {
+                let pcm = core.mix(0.25, &Hearing::UNITY, *now);
+                levels.push(10. * (pcm.iter().map(|s| (f32::from(s[0]) / 32768.).powi(2)).sum::<f32>() / FRAME as f32).max(1e-12).log10());
+                *now += 20;
+            }
+        }
+        core.receive(&Message::RelayEnd { slot: 3, utt, reason: 0 }, *now);
+        for _ in 0..10 {
+            core.mix(0.25, &Hearing::UNITY, *now);
+            *now += 20;
+        }
+        levels.into_iter().filter(|&db| db > -100.).collect::<Vec<_>>()
+    };
+    let mut core = Core::new().unwrap();
+    let mut now = 0;
+    let first = utterance(&mut core, 1, &mut now);
+    let second = utterance(&mut core, 2, &mut now);
+    // The first begins as decoded and is raised as it goes (6 dB a second);
+    // the second begins where the first ended.
+    assert!(first[first.len() - 1] - first[1] > 1.5, "{first:?}");
+    assert!((second[1] - first[first.len() - 1]).abs() < 1., "{first:?} {second:?}");
+    core.reset_slot(3);
+    let other = utterance(&mut core, 1, &mut now);
+    assert!((other[1] - first[1]).abs() < 1., "{first:?} {other:?}");
+}
+#[test]
 fn a_mix_past_its_ceiling_is_turned_down_and_not_bent() {
-    // Three speakers with the same steady tone, each under its own ceiling:
+    // Six speakers with the same steady tone, each at the leveller's level:
     // together the mix would play them at more than twice full scale.
     let mut encoder = Encoder::new().unwrap();
     let frames: Vec<Vec<u8>> = (0..30).map(|i| encoder.encode(&tone(i, 500., 10000.)).unwrap()).collect();
     let play = |volume: f32| {
         let mut core = Core::new().unwrap();
         for (seq, pair) in frames.chunks(2).enumerate() {
-            for slot in 3..6 {
+            for slot in 3..9 {
                 core.receive(&Message::RelayAudio { slot, utt: 1, channel: Channel::Near, seq: seq as u16, frames: pair.to_vec() }, 0);
             }
         }
@@ -1191,4 +1301,90 @@ fn a_frame_that_did_not_come_is_played_from_the_next_ones_copy() {
     let mut plain = Encoder::with(BITRATE, 0).unwrap();
     let next = (0..=lost + 1).map(|f| plain.encode(&sound(f)).unwrap()).last().unwrap();
     assert!(energy(decoded_to(lost).recover(&next).unwrap()) < whole / 4.);
+}
+/// A speaker's leveller given frames of these levels (dB of full scale,
+/// white noise of that RMS): the gain each frame ended at, dB.
+fn levelled(leveller: &mut receiver::Leveller, levels: impl IntoIterator<Item = f32>) -> Vec<f32> {
+    let mut random = 0x1357_9bdfu32;
+    levels
+        .into_iter()
+        .map(|db| {
+            // Uniform noise of amplitude a has an RMS of a / sqrt(3).
+            let amplitude = 10f32.powf(db / 20.) * 3f32.sqrt();
+            let mut pcm: [f32; FRAME] = std::array::from_fn(|_| {
+                random = random.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                ((random >> 8) as f32 / 8_388_608. - 1.) * amplitude
+            });
+            leveller.apply(&mut pcm);
+            leveller.gain_db()
+        })
+        .collect()
+}
+/// The gain that brings a voice of this level to the leveller's.
+fn level_gain(db: f32) -> f32 {
+    receiver::LEVEL_TARGET_DB - db
+}
+#[test]
+fn a_room_before_the_first_word_is_hardly_raised_and_the_word_is_not_too_loud() {
+    // The key down half a second before the word, the room over the gate
+    // (the review of #2111: it was raised 20 dB at once, and the word after
+    // it came 14 dB over its level until the ceiling ducked it).
+    let mut leveller = receiver::Leveller::NEW;
+    let room = levelled(&mut leveller, [-54.; 25]);
+    assert!(room.iter().all(|&gain| (0.0..=3.1).contains(&gain)), "{room:?}");
+    let word = levelled(&mut leveller, [-26.; 50]);
+    // Never over what the word needs but for its first frames, and those by 3 dB.
+    assert!(word[..3].iter().all(|&gain| gain <= level_gain(-26.) + 0.1 && gain <= 3.4), "{word:?}");
+    assert!(word[3..].iter().all(|&gain| gain <= level_gain(-26.) + 0.1), "{word:?}");
+    // And it gets there: 6 dB up within a second.
+    assert!((word[49] - level_gain(-26.)).abs() < 0.5, "{word:?}");
+}
+#[test]
+fn a_key_held_without_a_word_does_not_make_the_room_the_voice() {
+    // Three seconds of a voice, five of its room 20 dB under it, the voice
+    // again: the gain stays the voice's (it went to the room's, 16 dB up).
+    let mut leveller = receiver::Leveller::NEW;
+    let voice = levelled(&mut leveller, [-24.; 150]);
+    let settled = voice[149];
+    assert!((settled - level_gain(-24.)).abs() < 0.5, "{settled}");
+    let room = levelled(&mut leveller, [-44.; 250]);
+    assert!(room.iter().all(|&gain| (gain - settled).abs() < 0.1), "{room:?}");
+    let again = levelled(&mut leveller, [-24.; 25]);
+    assert!(again.iter().all(|&gain| (gain - settled).abs() < 0.3), "{again:?}");
+    // A speaker who has really become that much quieter is learnt again,
+    // in its time: raised as far as anyone is after half a minute of
+    // nothing louder.
+    let quieter = levelled(&mut leveller, [-44.; 1500]);
+    assert!(quieter[1499] > 11.9, "{}", quieter[1499]);
+}
+#[test]
+fn a_voice_whose_own_gain_is_still_coming_up_is_not_raised_past_its_level() {
+    // A quiet microphone's first utterance of a match: the talker's gain
+    // brings it from -52 to -26 dB at 24 dB a second, then it is steady.
+    // The leveller, which heard it quiet, must not still be raising it when
+    // it arrives (it was 8 dB too loud for half a second).
+    let mut leveller = receiver::Leveller::NEW;
+    let levels: Vec<f32> = (0..150).map(|frame| (-52. + 0.48 * frame as f32).min(-26.)).collect();
+    let gains = levelled(&mut leveller, levels.iter().copied());
+    for (frame, (&gain, &db)) in gains.iter().zip(&levels).enumerate() {
+        // (Its level is that of a quarter of its newest frames: 3 behind a rise.)
+        assert!(gain <= level_gain(db).max(0.) + 2., "frame {frame}: {gain} at {db}");
+    }
+    assert!((gains[149] - level_gain(-26.)).abs() < 0.5, "{}", gains[149]);
+}
+#[test]
+fn a_thump_does_not_keep_a_speaker_quiet() {
+    // 80 ms at full scale as a speaker's first frames, then its voice: at
+    // its own gain within half a second (it took 3 s and more).
+    let mut leveller = receiver::Leveller::NEW;
+    levelled(&mut leveller, [-1.; 4]);
+    let voice = levelled(&mut leveller, [-18.; 50]);
+    assert!(voice[..12].iter().all(|&gain| gain <= level_gain(-18.) + 0.1), "{voice:?}");
+    assert!(voice[25..].iter().all(|&gain| (gain - level_gain(-18.)).abs() < 0.5), "{voice:?}");
+    // And one in the middle of a known voice: down for its moment only.
+    let mut leveller = receiver::Leveller::NEW;
+    let settled = levelled(&mut leveller, [-18.; 100])[99];
+    levelled(&mut leveller, [-1.; 4]);
+    let after = levelled(&mut leveller, [-18.; 25]);
+    assert!(after[12..].iter().all(|&gain| (gain - settled).abs() < 0.5), "{after:?}");
 }

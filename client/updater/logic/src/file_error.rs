@@ -26,6 +26,7 @@
 
 use alloc::format;
 use alloc::string::String;
+use alloc::vec::Vec;
 
 pub const ERROR_FILE_NOT_FOUND: u32 = 2;
 pub const ERROR_PATH_NOT_FOUND: u32 = 3;
@@ -95,32 +96,38 @@ impl Stop {
 
 /// The folder Windows Security is to leave alone for a blocked `file` (its
 /// name, or its archive name or path): `programs` (`game\binaries\x86`,
-/// where the programs it flags are), or `game` (the game folder) for a patch
-/// of resources.db, which is kept there. Never the folder above the game,
-/// which may be the player's Downloads (`Skhid-defender-setup.cmd` excludes
-/// `game\binaries\x86` alone too).
-pub fn exclusion_folder<'a>(file: &str, programs: &'a str, game: &'a str) -> &'a str {
+/// where the programs it flags are), `torrent` (`game\torrent`, the
+/// bootstrap's copies), or `game` (the game folder) for a patch of
+/// resources.db, which is kept there. Never the folder above the game, which
+/// may be the player's Downloads (`Skhid-defender-setup.cmd` excludes the
+/// first two alone too).
+pub fn exclusion_folder<'a>(file: &str, programs: &'a str, torrent: &'a str, game: &'a str) -> &'a str {
     match Exclusion::of(file) {
         Exclusion::Programs => programs,
+        Exclusion::Torrent => torrent,
         Exclusion::Game => game,
     }
 }
 
 /// Which folder Windows Security is to leave alone for a blocked file:
-/// `game\binaries\x86`, which `Skhid-defender-setup.cmd` excludes, or the
-/// game folder (a patch of resources.db), which it does not.
+/// `game\binaries\x86` or `game\torrent`, which `Skhid-defender-setup.cmd`
+/// excludes, or the game folder (a patch of resources.db), which it does not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Exclusion {
     Programs,
+    Torrent,
     Game,
 }
 
 impl Exclusion {
     /// The folder of `file` (its name, or its archive name or path).
     pub fn of(file: &str) -> Self {
-        let name = file.rsplit(['/', '\\']).next().unwrap_or(file);
-        if name.starts_with(crate::patches::FILE_PREFIX) {
+        let parts: Vec<&str> = file.split(['/', '\\']).collect();
+        let torrent = |pair: &[&str]| pair[0].eq_ignore_ascii_case("game") && pair[1].eq_ignore_ascii_case("torrent");
+        if parts.last().is_some_and(|name| name.starts_with(crate::patches::FILE_PREFIX)) {
             Self::Game
+        } else if parts.windows(2).any(torrent) {
+            Self::Torrent
         } else {
             Self::Programs
         }
@@ -188,21 +195,28 @@ mod tests {
     }
 
     #[test]
-    fn the_folder_excluded_is_the_programs_or_for_a_patch_the_games() {
-        let (programs, game) = ("E:\\S\\game\\binaries\\x86", "E:\\S\\game");
+    fn the_folder_excluded_is_the_programs_the_torrents_or_for_a_patch_the_games() {
+        let (programs, torrent, game) = ("E:\\S\\game\\binaries\\x86", "E:\\S\\game\\torrent", "E:\\S\\game");
         for file in [
             "survarium_skhid.exe",
             "game/binaries/x86/bugtrap.dll",
             "E:\\S\\game\\binaries\\x86\\launcher_skhid.exe",
         ] {
-            assert_eq!(exclusion_folder(file, programs, game), programs, "{file}");
+            assert_eq!(exclusion_folder(file, programs, torrent, game), programs, "{file}");
             assert_eq!(Exclusion::of(file), Exclusion::Programs, "{file}");
+        }
+        for file in [
+            "game/torrent/bootstrap/updater_skhid.exe",
+            "E:\\S\\game\\torrent\\bootstrap\\7zr.exe",
+        ] {
+            assert_eq!(exclusion_folder(file, programs, torrent, game), torrent, "{file}");
+            assert_eq!(Exclusion::of(file), Exclusion::Torrent, "{file}");
         }
         for file in [
             "resources.db.patch_14",
             "E:\\S\\game\\resources.db.patch_33",
         ] {
-            assert_eq!(exclusion_folder(file, programs, game), game, "{file}");
+            assert_eq!(exclusion_folder(file, programs, torrent, game), game, "{file}");
             assert_eq!(Exclusion::of(file), Exclusion::Game, "{file}");
         }
     }

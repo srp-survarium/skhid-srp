@@ -189,7 +189,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first 300 ms), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (eleven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks, the Tab menu's voice mute and the options' microphone test (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
-| `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F11, the game's `toggle_replay_ui`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
+| `rust/patches/src/screenshot.rs`, `src/screenshot.toml`, `src/screenshot/png.rs`, `src/vostok/back_buffer.rs` | Patch 152: two keys save a screenshot as a PNG, F11 the screen and F12 the frame without the interface (`../docs/notes/screenshots.md`): three named lohooks (the keyboard's poll, `render.flash_ui`, the Present), the back buffer read back through Direct3D, the patch's own PNG encoder; `cargo test` in `rust/` checks the encoder (a decoder of its own in the tests) and the request's steps; the two actions' names, keys and Controls rows are patch 62's table (`hide_ui_026g.asm`, `check_hide_ui_026g.py`) |
+| `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F9 since patch 152, F11 before; the game's `toggle_replay_ui`, named `hide_interface`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `rust/patches/src/artefact_carry.rs`, `check_artefact_carry_026g.py` | Patch 78: H (the game's unused action `artefact`, default H, a controls row) + an artefact quick key lowers the weapon and raises the artefact above the right palm in both views; switching lowers the old item before raising the new one. Use takes an offered or death-dropped artefact into a free container, with the existing collection UI. Deterministic input/snapshots, native inventory ownership, model callbacks and matching damage poses. See [controls, architecture and validation](../docs/notes/held_artefact_transfer.md). |
@@ -3466,8 +3467,9 @@ and a 41st (19h, `st_hide_interface_action`, group 2, type 1), as `controls` in 
 needs nothing more: the binder's own `bind` command saves every bound action of its 48h bindings
 by name (0x207450) and reads them back (`bind_key` 0x207DC0). The label is content edit
 `localization/*.tsv` ("Hide interface", Скрыть интерфейс, Сховати інтерфейс, Oberfläche
-ausblenden, Ukryj interfejs). The default stays the action table's F11 (the options' reset sets
-the binder's defaults).
+ausblenden, Ukryj interfejs). The default was the action table's F11 (the options' reset sets
+the binder's defaults); since patch 152, whose screenshot key F11 is, the entry is named
+`hide_interface` and its default is F9 ("Two keys save a screenshot" below).
 
 **The match.** `on_keyboard_action` (0x25CD00) asks the binder for kind 1 (0x25CD5F) and switches
 on actions 11h..19h (0x25CE1C, the table 0x25CF30); case 19h at 0x25CED1 (`mov esi,[esp+10h] /
@@ -3600,8 +3602,10 @@ UDP) is loaded at the first match with `LoadLibraryA` (the exe's import), its ve
 without it, or of another version (unloaded), voice is off.
 
 **The sites** (names-only `voice.toml`, eleven lohooks; safe `voice.rs` over `vostok/voice.rs`):
-- `configs.start` (before user.cfg): `s_chat_volume` and `s_mic_sens` (`ConsoleFloat`, 0..100, the
-  float slider's steps are 1.0), `s_use_microphone` and `g_hide_spam` (the gameplay tab's dead
+- `configs.start` (before user.cfg): `s_chat_volume` (`ConsoleFloat`, 0..100, the
+  float slider's steps are 1.0; `s_mic_sens`, the stock "Microphone sensitivity", was registered
+  too until 2026-11-16: the listeners' games level every speaker now, the slider is hidden and
+  names no variable again), `s_use_microphone` and `g_hide_spam` (the gameplay tab's dead
   option 5, "Hide spam", now "Disable voice chat") (`ConsoleBool`), `srp_voice_mutes` and
   `srp_microphone` (`ConsoleString`); saved in user.cfg;
 - `match_client.connect` (0x27A1B0 at its start: the host, the port, the session; a replay's match
@@ -3610,7 +3614,8 @@ without it, or of another version (unloaded), voice is off.
 - `game_world.finish` (on_finish_match 0x1F96F0, EAX the world) and `game_world.deactivate`
   (on_deactivate 0x1F9520, ECX the world): push-to-talk let go, `sv_stop`, the hud's list emptied;
 - `game_world.after_move` (every frame of a match): the options to the DLL on a change, the muted
-  places, how each place is heard on its two channels (`sv_hear`: its radio when it is a teammate,
+  places, how much of each talking speaker is behind a wall (three lines of the level's ray between
+  the two heads: voice-chat.md, "Behind a wall"), how each place is heard on its two channels (`sv_hear`: its radio when it is a teammate,
   in a free-for-all any player, wherever it is; its 10 m voice, both alive and nearer than 10 m,
   plain in the world, its gains in the
   two ears the engine's own pan of a sound at its place, `sound_scene::calculate_3d_pan` 0x57D70,
@@ -3642,8 +3647,8 @@ plays it back"; `voice-chat.md`, "Microphone test"). The sound tab's "Test micro
 through a transmission's path, plays it back as a teammate beside the player would hear it, and
 is idle again; nothing of it is sent or kept. The DLL owns the test (ABI 3: `sv_test_press`,
 `sv_test_stop`, `sv_test_state`; with no match a worker of its own). The exe passes it on: the
-tab's ask `srp_mic_test` is answered `root.srp_mic_test(text)`, the button's text; with the two
-voice sliders' steps it is a press; every frame the button is told its text again when the DLL's
+tab's ask `srp_mic_test` is answered `root.srp_mic_test(text)`, the button's text; with the
+"Voice chat" slider's steps it is a press; every frame the button is told its text again when the DLL's
 state or its second changed; the test is stopped when the Settings window closes (the movie says
 `stop`) or changes tab, when the main menu closes (a match's loading and its end too) and at a
 match's connect. The DLL is loaded when the
@@ -4408,6 +4413,54 @@ fall's attacker is the victim) deals 1000 from there, so its share of pain (5 % 
 least, an arm's or a hip's) empties it, the game's own pain death (the kill feed's pain
 mark). A match's computation changes: every client of a match needs it.
 `check_hand_kill_026g.py` runs the chain from the game's site in the patched exe.
+## Two keys save a screenshot (patch 152, unreleased)
+
+F11 saves the picture on the screen and F12 the same frame without the interface, as PNG files
+in the game's folder `screenshots` (the owner, 2026-11-16; `../docs/notes/screenshots.md`). The
+game has no screenshot key of its own.
+
+**The keys.** The action table's two spare entries: `torch` (1Ah, 0xA74CBC) and `night_vision`
+(1Bh, 0xA74CD0), kinds 5 and no default key, which nothing reads (the game world's switch is
+11h..19h, 0x25CE1C; the player's input table 0xA746E0 has neither; 0.10b's source names them only
+in the table). `patch_026g.py`'s `SCREENSHOT_ACTIONS` names them `screenshot` and
+`screenshot_no_ui` with the default keys F11 and F12, and patch 62's `controls` gets their rows,
+the 44th and 45th (`st_screenshot_action`, `st_screenshot_no_ui_action`). F11 was patch 62's:
+its entry (19h, 0xA74CA8) is named `hide_interface` with the default key F9. The new name is what
+moves the key for a player who has a saved `user.cfg`: the binder binds each entry's default at
+its construction (set_default_controls 0x2078A0), then `user.cfg`'s lines run, and a bind takes
+its key from every other action of its kinds (bind_key 0x207DC0); the old line
+`bind toggle_replay_ui kF11` would take F11 back from `screenshot`. Under the new name that line
+names no action: action_name_to_ptr (0x207AD0) logs it and gives 0, bind_key returns, and the
+three defaults stand (`check_hide_ui_026g.py` runs that line through the game's bind_key). The
+lobby's replay texts, which named F11 for the replay's controls, say F9.
+
+**The press.** `keyboard.events` (keyboard::execute after GetDeviceData, 0x3B914B; after patch
+110's moved keys): each event that went down (its dwData bit 80h) is asked of the game's binder
+for kind 1 (the engine world's game, its binder +5344h), whatever screen is up; `screenshot` or
+`screenshot_no_ui` asks for a picture. The key is not taken.
+
+**The picture.** The frame's draw (0x13D010) writes the scene to the swap chain's back buffer,
+calls renderer::render_flash_ui (0x13CED0, at 0x13DB3D), which draws the interface's movies over
+it (flash_renderer::present 0x2AF0F0), draws the engine's own lines and presents
+(res_render_output::present 0x3CF7F0 at 0x13DD46). A picture without the interface is taken at
+render_flash_ui's start (`render.flash_ui`; the output window its second argument, the render
+output its +30ACh), one with it right before the swap chain's Present (`render_output.present`,
+after patches 83's and 125's handlers). There (`vostok/back_buffer.rs`) the swap chain's buffer 0
+(IDXGISwapChain::GetBuffer; the swap chain the render output's +0CCh) is copied to a staging
+texture of its size (its device's CreateTexture2D, the immediate context's CopyResource) and
+mapped for reading, which waits for the GPU; formats of four bytes a pixel and one sample are
+read (R8G8B8A8, the game's, and B8G8R8A8), any other is refused with a log line.
+`engine_026g.py` takes a COM row for IUnknown::Release (slot 8) for the two references.
+
+**The file.** `..\..\..\screenshots\<date>_<time>.png` from the working folder
+(`game\binaries\x86`), the folder made at each picture; a second's further pictures `_2` to `_9`;
+a name is taken only when no file has it. The PNG is the patch's own (`screenshot/png.rs`, safe
+Rust, no allocation: 57 KiB of the arena's state for one filtered row and one chunk): 24-bit, each
+row Paeth-filtered, one zlib stream with one dynamic Huffman code made from every 16th row, runs
+of a byte or of a pixel as its only matches, IDAT chunks of 32 KiB. Written on the thread that
+draws: the frame waits for the file. Each picture is a line of the patches' log (its name, size
+and time, or why none was taken). Presentation only: no simulation change.
+
 ## A gun-stock hit disarms a trap (patch 151, unreleased)
 
 A melee hit on an armed trap defuses it as a bullet does (the owner, 2026-11-15;
@@ -5932,6 +5985,28 @@ first and walked past the array's start. `GRASS_SORT_ORDER` swaps that copy's tw
 0x160430), so every copy computes the same distance. `check_grass_sort_026g.py` runs the game's
 `__linear_insert` on such a pair: the original reads before the array at 0x162085, the patched exe
 sorts it (needs Unicorn). See `docs/notes/client_patch.md`, "The grass sort's distance".
+
+## The game shares in the lobby (patch 150, unreleased)
+
+The original game was made to share its files by BitTorrent while a player sits on the login
+screen or in the lobby, never in a match: its updater started as Windows' "Survarium Update
+Service" with the word `seed`, talking to the game over a named pipe. It never ran (the game
+looked for a registry key under a garbled name and gave up). Now the game's own setting
+`enable_torrent_seeding` (user.cfg, "Allow torrent": the launcher's box writes it) decides, off by
+default (`LOBBY_SEEDING_DEFAULT`: the original's was on), and the game's own triggers do it:
+`switch_to_login` and `switch_to_lobby` start it while it is on, `switch_to_game_world` stops it
+(the pipe closed: the updater ends), a replay never does either. The Rust patch `lobby_seeding`
+(`rust/patches/src/lobby_seeding.rs`, sites `seeding.*`) names the pipe
+`\\.\pipe\skhid_seed-<process id>` and starts `updater_skhid.exe seed <pipe>` beside the exe
+(CreateProcessW, no window) where the game asked for the service. Its options stay hidden. The
+game writes every setting into user.cfg at its end, so a player who played before this patch has
+`enable_torrent_seeding on` there (the old default): the default alone does not turn it off for
+them. The updater's
+side (the 1 MB/s cap, the stats ticks) is `client/updater/README.md`; the rules
+`docs/notes/torrent-downloads.md`, "Sharing from the game". `check_lobby_seeding_026g.py` runs
+`start_seeding_impl`, `switch_to_lobby`, `switch_to_login` and the command's callback in both
+exes (needs Unicorn). See `docs/notes/client_patch.md`, "The game shares in the lobby". Not run
+in a game.
 
 ## Empty shots are not logged (patch 148, unreleased)
 

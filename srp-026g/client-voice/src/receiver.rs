@@ -1,15 +1,15 @@
 use crate::{
     Decoder, FRAME, Radio, SLOTS,
-    radio::unit,
+    radio::{Biquad, Kind, unit},
     sounds::{SQUELCH_IN, SQUELCH_OUT},
     wire::Message,
 };
-pub use voice_abi::{Channel, Ears, Heard};
+pub use voice_abi::{Channel, Ears, Heard, Muffle};
 const RING: usize = 32;
 /// A frame of the mix: each sample's left and right, as WinMM's 16-bit
 /// stereo takes them.
 pub type Stereo = [[i16; 2]; FRAME];
-/// What a speaker's frame is mixed by: its 10 m voice in each ear (the
+/// What a speaker's frame is mixed by: its nearby voice in each ear (the
 /// game's sound engine's gains for a sound at its place) or its radio, in
 /// both ears alike, by the channel of its utterance.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -27,13 +27,33 @@ impl Gains {
         }
     }
 }
+/// A voice behind a wall: what is left of it over this (Hz, 12 dB an octave
+/// down from it) is gone. A wall lets a voice's body through and takes its
+/// consonants.
+const MUFFLE_HZ: f32 = 700.;
+/// And how loud it is there of what it is in the open: 0.32, 10 dB down.
+const BEHIND_A_WALL: f32 = 0.316;
+/// How long a wall takes to come between a speaker and the listener, and to
+/// go, in frames of 20 ms: 0.3 s (the owner, 2026-11-16, of a first build
+/// that took 60 ms: "the transition ... sounds not smooth"). By the sound's
+/// own clock, so the game's frames a second do not change it.
+const WALL_FRAMES: f32 = 15.;
+/// How loud a voice is with `walled` of it (0..1) behind a wall: the same
+/// number of dB for each part of it, so a wall comes and goes evenly.
+fn through_a_wall(walled: f32) -> f32 {
+    BEHIND_A_WALL.powf(walled)
+}
+/// The filter a voice behind a wall is heard through, at rest.
+fn wall() -> Biquad {
+    Biquad::new(Kind::Low, MUFFLE_HZ, std::f32::consts::FRAC_1_SQRT_2, 0.)
+}
 /// How every slot is heard.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hearing([Heard; SLOTS]);
 impl Hearing {
-    /// Every slot heard on both channels: its 10 m voice as decoded in both
+    /// Every slot heard on both channels: its nearby voice as decoded in both
     /// ears, its radio on.
-    pub const UNITY: Self = Self([Heard { near: Ears::UNITY, radio: true }; SLOTS]);
+    pub const UNITY: Self = Self([Heard { near: Ears::UNITY, muffle: Muffle::NONE, radio: true }; SLOTS]);
     /// A slot past the 20 changes nothing.
     pub fn set(&mut self, slot: usize, heard: Heard) {
         if let Some(place) = self.0.get_mut(slot) {
@@ -147,13 +167,15 @@ pub struct Stats {
     /// Frames over [`CEILING`], held to it.
     pub limited: u32,
 }
-/// The loudest a speaker is played, as the RMS of a 20 ms frame (-12 dBFS).
-/// A game's microphone goes through automatic gain (`codec::Preprocessor`)
-/// and never reaches it held: decoded, its frames measured -13.6 dBFS at
-/// most at the highest sensitivity and a full-scale voice, -19 dBFS at the
-/// default. Only a stream that skipped the gain is held to it (a full-scale
-/// square wave decodes at -0.3 dBFS), and the gain's first fifth of a
-/// second after a sudden shout at the highest sensitivity (up to -8 dBFS).
+/// The loudest a speaker is played, as the RMS of a 20 ms frame (-12 dBFS),
+/// whatever its leveller made of it. A game's microphone goes through
+/// automatic gain (`codec::Preprocessor`): decoded, its frames measured
+/// -13.6 dBFS at most at the highest sensitivity and a full-scale voice,
+/// -19 dBFS at the default. Held to it are a stream that skipped the gain
+/// (a full-scale square wave decodes at -0.3 dBFS), the gain's first fifth
+/// of a second after a sudden shout (up to -8 dBFS), and a frame or two of
+/// a speaker the leveller had raised when it got louder at once. So a held
+/// frame ([`Stats::limited`]) is no sign of a changed game.
 const CEILING: f32 = 0.25;
 /// After a frame over [`CEILING`], the gain comes back 0.5 dB a frame.
 const RELEASE: f32 = 1.059_3;
@@ -184,17 +206,145 @@ impl Limiter {
         over
     }
 }
+/// The frames of a speaker's voice the leveller keeps: its last 3 s of them.
+const LEVEL_FRAMES: usize = 150;
+/// A frame quieter than this (dB of full scale, its RMS) is no voice: it
+/// is never counted.
+const LEVEL_GATE_DB: f32 = -55.;
+/// The frames counted before a speaker is levelled at all (100 ms).
+const LEVEL_LEARNT: usize = 5;
+/// The frames counted from which a speaker's voice is known (half a second
+/// of it): from then on a frame [`LEVEL_SPAN_DB`] under its level is its
+/// pause or its room, and is not counted.
+const LEVEL_KNOWN: usize = 25;
+const LEVEL_SPAN_DB: f32 = 12.;
+/// Each frame not counted so lets the next be this much quieter and still
+/// count (1 dB a second), until one is counted: a speaker who really has
+/// become that much quieter is learnt again, a key held without a word for
+/// a few seconds changes nothing.
+const LEVEL_LEAK_DB: f32 = 0.02;
+/// The newest counted frames the level also goes by, so that a voice that
+/// gets louder (the talker's own gain coming up, a first word after its
+/// room) is followed within a few frames.
+const LEVEL_RECENT: usize = 10;
+/// The level every speaker is brought to, dB of full scale (of the
+/// leveller's measure, [`Leveller::level`]): about a dB over where the
+/// automatic gain puts a usual microphone.
+pub(crate) const LEVEL_TARGET_DB: f32 = -20.;
+/// The most a speaker is raised and lowered to reach it, dB.
+const LEVEL_MOST_DB: f32 = 12.;
+const LEVEL_LEAST_DB: f32 = -12.;
+/// How fast a speaker is raised over its decoded level, dB a frame (6 dB a
+/// second): slower than the talker's own gain comes up (24), so the two do
+/// not overshoot together, and slow enough that what is not yet known to be
+/// a voice (a room before the first word) is hardly raised. Lowered, and
+/// brought back up to its decoded level, it is at once.
+const LEVEL_RISE_DB: f32 = 0.12;
+/// Every speaker at one loudness for the listener (the owner, 2026-11-16:
+/// "we should either way have a way to bring people with lower sensitivity
+/// to sound the same for receivers", "equalize everyone essentially"). The
+/// talker's own automatic gain does it only as far as its microphone lets
+/// it; here the listener's game measures each speaker's voice and plays it
+/// [`LEVEL_TARGET_DB`] loud, before the nearby voice's gains and the radio
+/// alike. What it has learnt of a speaker stays from one utterance to the
+/// next.
+///
+/// It goes by frames that are the speaker's voice, as far as levels can
+/// tell: louder than [`LEVEL_GATE_DB`] and, once the voice is known, not
+/// [`LEVEL_SPAN_DB`] under it. A room louder than that under a voice is
+/// counted with it (a microphone with less than 12 dB between them), and a
+/// key held without a word then raises it, [`LEVEL_MOST_DB`] at most.
+#[derive(Clone, Copy)]
+pub(crate) struct Leveller {
+    /// The counted frames' levels, dB: a ring of the last ones.
+    frames: [f32; LEVEL_FRAMES],
+    count: usize,
+    next: usize,
+    /// How much quieter than [`LEVEL_SPAN_DB`] under the level a frame may
+    /// be and count ([`LEVEL_LEAK_DB`]).
+    leak: f32,
+    /// The gain the last frame ended at, dB: the next ramps from it.
+    gain: f32,
+}
+impl Leveller {
+    pub(crate) const NEW: Self = Self { frames: [0.; LEVEL_FRAMES], count: 0, next: 0, leak: 0., gain: 0. };
+    /// The level a quarter of `frames` are at or over.
+    fn quarter(frames: &mut [f32]) -> f32 {
+        frames.sort_unstable_by(|a, b| b.total_cmp(a));
+        frames[(frames.len() - 1) / 4]
+    }
+    /// The level a quarter of the speaker's counted frames are at or over:
+    /// its voice's, which a few loud frames (a thump) do not make.
+    fn voice(&self) -> f32 {
+        let mut all = self.frames;
+        Self::quarter(&mut all[..self.count])
+    }
+    /// The speaker's level, once enough of its voice was heard: its
+    /// [`Leveller::voice`], or that of its newest frames when they are
+    /// louder.
+    fn level(&self) -> Option<f32> {
+        if self.count < LEVEL_LEARNT {
+            return None;
+        }
+        let mut recent = [0.; LEVEL_RECENT];
+        let recent = &mut recent[..self.count.min(LEVEL_RECENT)];
+        for (back, level) in recent.iter_mut().enumerate() {
+            *level = self.frames[(self.next + LEVEL_FRAMES - 1 - back) % LEVEL_FRAMES];
+        }
+        Some(self.voice().max(Self::quarter(recent)))
+    }
+    /// The gain the last frame ended at, dB.
+    #[cfg(test)]
+    pub(crate) fn gain_db(&self) -> f32 {
+        self.gain
+    }
+    pub(crate) fn apply(&mut self, pcm: &mut [f32; FRAME]) {
+        let power = pcm.iter().map(|x| x * x).sum::<f32>() / FRAME as f32;
+        let db = 10. * power.log10();
+        // (A frame of no number, or of silence, is no voice either.)
+        if db > LEVEL_GATE_DB {
+            // How far under the known voice it is; before the voice is
+            // known every frame over the gate is taken for it.
+            let under = if self.count >= LEVEL_KNOWN { self.voice() - LEVEL_SPAN_DB - db } else { 0. };
+            if under > self.leak {
+                self.leak += LEVEL_LEAK_DB;
+            } else {
+                self.frames[self.next] = db;
+                self.next = (self.next + 1) % LEVEL_FRAMES;
+                self.count = (self.count + 1).min(LEVEL_FRAMES);
+                // (Counted only by the leak: the leak stays, so that the
+                // frames after it count too.)
+                if under <= 0. {
+                    self.leak = 0.;
+                }
+            }
+        }
+        let want = self.level().map_or(0., |level| (LEVEL_TARGET_DB - level).clamp(LEVEL_LEAST_DB, LEVEL_MOST_DB));
+        let to = if want > self.gain { want.min(self.gain.max(0.) + LEVEL_RISE_DB) } else { want };
+        let from = std::mem::replace(&mut self.gain, to);
+        if from == 0. && to == 0. {
+            return;
+        }
+        let (from, to) = (10f32.powf(from / 20.), 10f32.powf(to / 20.));
+        let step = (to - from) / FRAME as f32;
+        for (i, sample) in pcm.iter_mut().enumerate() {
+            *sample *= from + step * (i + 1) as f32;
+        }
+    }
+}
 /// A voice heard directly, as [`Speaker::play`] decodes and holds one. The
 /// microphone test plays its recording through it (`mic_test`), so that what
 /// the player hears of itself is what a teammate beside it would.
 pub struct Direct {
     decoder: Decoder,
+    leveller: Leveller,
     limiter: Limiter,
 }
 impl Direct {
     pub fn new() -> Result<Self, String> {
         Ok(Self {
             decoder: Decoder::new()?,
+            leveller: Leveller::NEW,
             limiter: Limiter::UNITY,
         })
     }
@@ -205,6 +355,7 @@ impl Direct {
             .decode(Some(frame))
             .or_else(|_| self.decoder.decode(None))
             .ok()?;
+        self.leveller.apply(&mut pcm);
         self.limiter.apply(&mut pcm);
         Some(pcm)
     }
@@ -264,6 +415,8 @@ struct Speaker {
     effect: Option<Effect>,
     /// A radio utterance that played has closed, its squelch not yet begun.
     closing_effect: bool,
+    /// What its voice's level is, learnt over its utterances.
+    leveller: Leveller,
     limiter: Limiter,
     /// The channel of its utterance (of its last one, when none is open).
     channel: Channel,
@@ -272,6 +425,12 @@ struct Speaker {
     gains: Gains,
     /// Holds its own part of the mix under the mix's ceiling.
     rider: Rider,
+    /// Its nearby voice as heard through a wall ([`MUFFLE_HZ`]).
+    wall: Biquad,
+    /// How much of its utterance is behind a wall as it plays (0..1), which
+    /// follows what the game says over [`WALL_FRAMES`]; none before an
+    /// utterance's first frame, which is as the game says at once.
+    walled: Option<f32>,
 }
 impl Speaker {
     fn new() -> Result<Self, String> {
@@ -282,10 +441,13 @@ impl Speaker {
             heard: None,
             effect: None,
             closing_effect: false,
+            leveller: Leveller::NEW,
             limiter: Limiter::UNITY,
             channel: Channel::Near,
             gains: Gains::SILENT,
             rider: Rider::REST,
+            wall: wall(),
+            walled: None,
         })
     }
     /// The utterance `id` on `channel` is this speaker's open one (now, or
@@ -304,6 +466,10 @@ impl Speaker {
         // from silence.
         self.channel = channel;
         self.gains = Gains::SILENT;
+        // (at rest: it is run only behind a wall, and would begin an
+        // utterance there with what the last one left in it)
+        self.wall = wall();
+        self.walled = None;
         self.radio = Radio::new(
             0x9e3779b9u32
                 .wrapping_mul(u32::from(slot) + 1)
@@ -460,6 +626,7 @@ impl Speaker {
             self.close(stats);
         }
         pcm.map(|mut pcm| {
+            self.leveller.apply(&mut pcm);
             if self.limiter.apply(&mut pcm) {
                 stats.limited = stats.limited.saturating_add(1);
             }
@@ -497,6 +664,7 @@ impl Core {
         for s in &mut self.speakers {
             s.state = State::Closed(None);
             s.decoder.reset();
+            s.leveller = Leveller::NEW;
             s.limiter = Limiter::UNITY;
             s.heard = None;
             s.effect = None;
@@ -512,6 +680,7 @@ impl Core {
         s.close(&mut self.stats);
         s.state = State::Closed(None);
         s.decoder.reset();
+        s.leveller = Leveller::NEW;
         s.limiter = Limiter::UNITY;
         s.heard = None;
         s.effect = None;
@@ -597,7 +766,22 @@ impl Core {
                 sounds = true;
                 let ramp = |from: f32, to: f32, i: usize| from + (to - from) * (i + 1) as f32 / FRAME as f32;
                 if from.plain != [0., 0.] || to.plain != [0., 0.] {
+                    // How much of it is behind a wall, this frame's part of
+                    // the way to what the game says.
+                    let wall = heard.muffle.get();
+                    let was = s.walled.unwrap_or(wall);
+                    let now = was + (wall - was).clamp(-1. / WALL_FRAMES, 1. / WALL_FRAMES);
+                    s.walled = Some(now);
+                    let behind = was > 0. || now > 0.;
+                    let (loud_was, loud_now) = (through_a_wall(was), through_a_wall(now));
                     for (i, (a, p)) in own.iter_mut().zip(pcm).enumerate() {
+                        // So much of it its dull self, and quieter (the
+                        // filter runs only while any of it is).
+                        let p = if behind {
+                            (p + (s.wall.run(p) - p) * ramp(was, now, i)) * ramp(loud_was, loud_now, i)
+                        } else {
+                            p
+                        };
                         for ((ear, from), to) in a.iter_mut().zip(from.plain).zip(to.plain) {
                             *ear += p * plain * ramp(from, to, i);
                         }

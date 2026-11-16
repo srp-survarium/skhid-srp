@@ -23,6 +23,7 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod back_buffer;
 pub mod baker;
 pub mod breadcrumbs;
 pub mod bullet;
@@ -164,6 +165,7 @@ pub mod effect_presenter;
 pub mod match_message;
 pub mod packet_recovery;
 pub mod match_close;
+pub mod seeding;
 
 mod world_context;
 

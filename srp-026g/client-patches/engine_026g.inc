@@ -806,3 +806,31 @@ extern engine_fsm_always
 ; 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_take_deactivatable
+; unsigned int engine_get_last_error(void)
+; the IAT slot 0x87005c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_last_error
+; unsigned int engine_swap_chain_get_buffer(struct swap_chain *chain, unsigned int buffer, const void *iid, struct hw_resource **surface)
+; COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+extern engine_swap_chain_get_buffer
+; void engine_texture2d_get_desc(struct hw_resource *texture, void *desc)
+; COM ID3D11Texture2D+0x28 (stdcall through the interface's vtable): texture ESP+4, desc ESP+8; pops 8
+extern engine_texture2d_get_desc
+; void engine_device_child_get_device(struct hw_resource *child, struct d3d_device **device)
+; COM ID3D11DeviceChild+0xc (stdcall through the interface's vtable): child ESP+4, device ESP+8; pops 8
+extern engine_device_child_get_device
+; unsigned int engine_device_create_texture2d(struct d3d_device *device, const void *desc, const void *initial, struct hw_resource **texture)
+; COM ID3D11Device+0x14 (stdcall through the interface's vtable): device ESP+4, desc ESP+8, initial ESP+12, texture ESP+16; pops 16; EAX
+extern engine_device_create_texture2d
+; void engine_context_copy_resource(struct immediate_context *context, struct hw_resource *destination, struct hw_resource *source)
+; COM ID3D11DeviceContext+0xbc (stdcall through the interface's vtable): context ESP+4, destination ESP+8, source ESP+12; pops 12
+extern engine_context_copy_resource
+; unsigned int engine_context_map(struct immediate_context *context, struct hw_resource *resource, unsigned int subresource, unsigned int map_type, unsigned int flags, void *mapped)
+; COM ID3D11DeviceContext+0x38 (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12, map_type ESP+16, flags ESP+20, mapped ESP+24; pops 24; EAX
+extern engine_context_map
+; unsigned int engine_d3d_resource_release(struct hw_resource *resource)
+; COM IUnknown+0x8 (stdcall through the interface's vtable): resource ESP+4; pops 4; EAX
+extern engine_d3d_resource_release
+; unsigned int engine_d3d_device_release(struct d3d_device *device)
+; COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
+extern engine_d3d_device_release

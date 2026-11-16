@@ -1284,3 +1284,7 @@ vostok::resources::loaded_resource	size	0x2E0	size	a result's bytes
 survarium::battery_clips	clips	0x0	obj<survarium::clip_slot>	its six clips (a take's constructor references each, 0x3389FE, 0x338A6A)
 survarium::clip_slot	resource	0x0	u32	a clip resource (its reference count at +0DCh), 0 none
 survarium::clip_slot	size	0x4	size	a clip pointer
+vostok::render::flash_ui_frame	window	0x8	ptr<vostok::render::render_output_window>	render_flash_ui's second argument at its start (0x13CED0, by the site's ESP): the output window (mov eax,[ebp+0Ch] 0x13CEE6, its flash renderer +30B0h tested at 0x13CEE9)
+vostok::render::render_output_window	output	0x30AC	ptr<vostok::render::res_render_output>	its render output: the frame's draw presents with it (0x13DD3F: mov eax,[edx+30ACh] / call res_render_output::present 0x3CF7F0, EAX its receiver)
+vostok::render::res_render_output	swap_chain	0xCC	ptr<dxgi::swap_chain>	its IDXGISwapChain (present 0x3CF8FF: mov esi,[esi+0CCh], Present through its vtable +20h; GetFullscreenState +2Ch at 0x3CF81C)
+vostok::input::key_event	data	0x4	u32	DIDEVICEOBJECTDATA.dwData: bit 80h set, the key went down (execute's loop 0x3B9167: test byte [ecx],80h, ECX the event's +4; process 0x3B9B23 the same)

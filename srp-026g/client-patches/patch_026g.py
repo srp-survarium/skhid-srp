@@ -507,7 +507,8 @@ Patches:
   player's line in a match while it is on (channels 3 and 5 to 9);
 - one key hides the whole interface and shows it again, in a match and in
   the lobby (patch 62, with the late join; docs/notes/hide-ui-key.md): the
-  game's action toggle_replay_ui (19h, F11), which only worked in a replay.
+  game's action toggle_replay_ui (19h), which only worked in a replay; F11
+  until patch 152, which names it hide_interface and gives it F9.
   hide_ui_026g.asm (the arena's blocks hide_ui.code and .data): the game
   world's on_keyboard_action case 19h (0x25CED1) without the replay's movie
   asks the hud movie root.interface_hidden and gives it and the player icons'
@@ -2465,8 +2466,9 @@ HIDE_UI_HOOKS = (
 )
 # The options' controls (the same patch): the six functions of game_options
 # that read the table of 28h rows at 0xA9DB28 read `controls` (hide_ui.data,
-# 2Bh rows, the 29h toggle_replay_ui, the 2Ah patch 78's artefact, the 2Bh
-# patch 66's ptt_nearby) instead: (site, its bytes, where in
+# 2Dh rows, the 29h hide_interface, the 2Ah patch 78's artefact, the 2Bh
+# patch 66's ptt_nearby, the 2Ch and 2Dh patch 152's two screenshot keys)
+# instead: (site, its bytes, where in
 # them the address is, the row's field it names) and (site, its bytes, where
 # the count 28h is).
 HIDE_UI_TABLE = 0xA9DB28
@@ -2502,7 +2504,8 @@ def hide_ui_table_writes(linked):
 
 # The rows `controls` adds after the game's 28h: (action, label key).
 CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_action"),
-                  (0x37, "st_ptt_nearby_action"))
+                  (0x37, "st_ptt_nearby_action"), (0x1A, "st_screenshot_action"),
+                  (0x1B, "st_screenshot_no_ui_action"))
 # Patch 78's carry key (../docs/notes/held_artefact_transfer.md): the game's
 # own action `artefact` (23h, kinds 5; action table entry 0xA74D5C), which
 # nothing in the game reads and had no default key, gets H (the binder's
@@ -2510,6 +2513,34 @@ CONTROLS_ADDED = ((0x19, "st_hide_interface_action"), (0x23, "st_hold_artifact_a
 # before user.cfg; a key name the exe has, "kH" at 0x9FDCA8). Its row is the
 # 42nd of `controls`.
 ARTEFACT_KEY_DEFAULT = (0xA74D6C, bytes(4), struct.pack("<I", 0x9FDCA8))
+
+
+# The screenshot keys (patch 152, README "Two keys save a screenshot"; the
+# rules: ../docs/notes/screenshots.md): the safe Rust module screenshot.rs
+# and its named sites in screenshot.toml. Its two keys are the action
+# table's entries of 1Ah and 1Bh, the game's `torch` and `night_vision`
+# (kinds 5, no default key; nothing in the game reads either: the game
+# world's switch is 11h..19h, the player's input table 0xA746E0 has neither),
+# named `screenshot` and `screenshot_no_ui` with the default keys F11 and
+# F12. F11 was patch 62's: its action, the entry of 19h, is named
+# `hide_interface` with the default key F9. The new name is what moves that
+# key for every player: a saved user.cfg's `bind toggle_replay_ui kF11` names
+# no action now, so bind_key (0x207DC0) binds nothing and the three defaults
+# stand; with the old name it would take F11 back from `screenshot` (a key
+# has one action of a kind). Each: (the entry, its bytes {name, id, kinds,
+# toggle, default key}, the arena's name, the default key's name in the exe).
+SCREENSHOT_ACTIONS = (
+    (0xA74CA8, struct.pack("<5I", 0x9FDF24, 0x19, 5, 0, 0x9FDF1C), "hide_interface_action", 0x9FDC1C),    # kF9
+    (0xA74CBC, struct.pack("<5I", 0x9FDF14, 0x1A, 5, 0, 0), "screenshot_action", 0x9FDF1C),               # kF11
+    (0xA74CD0, struct.pack("<5I", 0x9FDF04, 0x1B, 5, 0, 0), "screenshot_no_ui_action", 0x9FDB60),         # kF12
+)
+
+
+def screenshot_action_writes(linked):
+    """[(VA, its bytes, the new bytes)] of the three entries: the name the
+    link's, the id, the kinds and the toggle as they were, the default key."""
+    return [(va, old, struct.pack("<I", linked.symbols[name]) + old[4:16] + struct.pack("<I", key))
+            for va, old, name, key in SCREENSHOT_ACTIONS]
 
 
 HIDE_UI_BACKS = (0x25CEDB, 0x25CF0D, 0x26CCAE, 0x26CDD2)
@@ -2575,6 +2606,16 @@ KILL_FEED_ARGUMENT = (0x23B6F0, bytes.fromhex("0fb65704"), bytes.fromhex("0fb757
 # the CRC-32 step 0x42050), and
 # game::exit's delete (0x1EC832) nops (BAKE_CACHE_KEEP).
 BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440000"))   # game::exit's delete
+
+# The lobby's sharing (patch 150, README; client_patch.md "The game shares in
+# the lobby"): the game's own enable_torrent_seeding (0xA712B6, a cc_bool of
+# user.cfg, read by game::switch_to_lobby 0x1ED206, switch_to_login 0x1ED296
+# and its callback 0x1EE59B) is "Allow torrent": off until the player turns it
+# on (the launcher's box writes its line). Its initial value, the byte in
+# .data, 1 in the original, is 0: a user.cfg without the line leaves it off.
+# The Rust patch lobby_seeding (sites_026g.tsv seeding.*) names the pipe and
+# starts the updater.
+LOBBY_SEEDING_DEFAULT = (0xA712B6, b"\x01", b"\x00")
 
 # The grass sort's one order of distance (patch 146, README; client_patch.md
 # "The grass sort's distance"). grass_world::process_culling (0x160470) sorts
@@ -4229,10 +4270,13 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                     patch(data, va, old, new)
                 patch_section_value(data, *ARTEFACT_KEY_DEFAULT)
                 patch_section_value(data, *voice_action_write(linked))
+                for write in screenshot_action_writes(linked):
+                    patch_section_value(data, *write)
                 for change in DETAIL_PATCHES:
                     patch(data, *change)
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
+                patch_section_value(data, *LOBBY_SEEDING_DEFAULT)
                 patch(data, *GRASS_SORT_ORDER)
                 patch(data, *EMPTY_SHOT_QUIET)
                 patch(data, *EXPAND_TEXT_UNBOUND)
@@ -4313,7 +4357,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before "
                      "they came or in their first 300 ms), "
                      "an option hides the other players' chat lines in a match, "
-                     "F11 (toggle_replay_ui) hides the interface in a match and in the lobby, "
+                     "F9 (hide_interface) hides the interface in a match and in the lobby, "
+                     "F11 and F12 save a screenshot, with the interface and without it, "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
                      "a Blackout match has no interface but its Tab view and the players' markers on Tab, "

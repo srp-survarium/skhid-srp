@@ -169,7 +169,7 @@ mod platform {
     use super::{DropLog, TalkAction, TalkState, host_arg};
     use crate::{
         Core, Encoder, FRAME, Heard, Hearing, Preprocessor, SLOTS, Sender,
-        mic_test::{Ask, Devices, Door, Event, Shown, Sliders, Test},
+        mic_test::{Ask, Devices, Door, Event, Shown, Test},
         microphone::{self, Device},
         radio::unit,
         receiver::Master,
@@ -202,7 +202,6 @@ mod platform {
         ptt: AtomicI32,
         mic: AtomicBool,
         volume: AtomicU32,
-        sensitivity: AtomicU32,
         /// How each slot is heard: a slot's whole state in one `sv_hear`.
         hearing: Mutex<Hearing>,
         muted: AtomicU32,
@@ -215,7 +214,6 @@ mod platform {
         ptt: AtomicI32::new(0),
         mic: AtomicBool::new(true),
         volume: AtomicU32::new(1.0_f32.to_bits()),
-        sensitivity: AtomicU32::new(0.5_f32.to_bits()),
         hearing: Mutex::new(Hearing::UNITY),
         muted: AtomicU32::new(0),
         hello: AtomicBool::new(false),
@@ -354,8 +352,8 @@ mod platform {
         // The door is not held while the test opens or closes a device.
         let asked = status.door().take();
         match asked {
-            Some(Ask::Press(sliders)) => {
-                test.apply(Event::Press { sliders, talking }, now, &mut devices);
+            Some(Ask::Press(volume)) => {
+                test.apply(Event::Press { volume, talking }, now, &mut devices);
             }
             Some(Ask::Stop) => {
                 test.apply(Event::Stop, now, &mut devices);
@@ -580,9 +578,8 @@ mod platform {
                 TalkAction::None => (),
             }
             if let Some(device) = &mut input {
-                let sensitivity = f32::from_bits(CONTROL.sensitivity.load(SeqCst));
                 let result = device.pump(|mut pcm| {
-                    preprocessor.run(&mut pcm, sensitivity);
+                    preprocessor.run(&mut pcm);
                     if let Ok(frame) = encoder.encode(&pcm)
                         && let Some(bytes) = sender.frame(&frame)
                     {
@@ -726,28 +723,25 @@ mod platform {
         CONTROL.ptt.store(held, SeqCst);
     }
     #[unsafe(no_mangle)]
-    pub extern "C" fn sv_settings(volume: f32, mic_on: i32, sensitivity: f32) {
+    pub extern "C" fn sv_settings(volume: f32, mic_on: i32) {
         let level = unit(volume);
         let previous = f32::from_bits(CONTROL.volume.swap(level.to_bits(), SeqCst));
-        CONTROL
-            .sensitivity
-            .store(unit(sensitivity).to_bits(), SeqCst);
         CONTROL.mic.store(mic_on != 0, SeqCst);
         if (previous > 0.0) != (level > 0.0) {
             CONTROL.hello.store(true, SeqCst);
         }
     }
     /// How the slot is heard from now on (`voice_abi::Hear`): its 10 m
-    /// voice's gain in each ear and whether its radio is heard. A slot past
-    /// the 20 changes nothing.
+    /// voice's gain in each ear, how muffled it is, and whether its radio
+    /// is heard. A slot past the 20 changes nothing.
     #[unsafe(no_mangle)]
-    pub extern "C" fn sv_hear(slot: i32, left: f32, right: f32, radio: i32) {
+    pub extern "C" fn sv_hear(slot: i32, left: f32, right: f32, muffle: f32, radio: i32) {
         if let Ok(slot) = usize::try_from(slot) {
             CONTROL
                 .hearing
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
-                .set(slot, Heard::of_call(left, right, radio));
+                .set(slot, Heard::of_call(left, right, muffle, radio));
         }
     }
     #[unsafe(no_mangle)]
@@ -870,11 +864,11 @@ mod platform {
         })
     }
     /// The options' "Test microphone" button, with the "Voice chat" volume
-    /// and the "Microphone sensitivity" as their sliders stand (each 0..1).
+    /// as its slider stands (0..1).
     /// The test is the worker's: a match's, or with no match one of its own.
     #[unsafe(no_mangle)]
-    pub extern "C" fn sv_test_press(volume: f32, sensitivity: f32) {
-        let ask = Ask::Press(Sliders::new(volume, sensitivity));
+    pub extern "C" fn sv_test_press(volume: f32) {
+        let ask = Ask::Press(unit(volume));
         let mut state = SESSION.lock().unwrap_or_else(|error| error.into_inner());
         let taken = match &*state {
             Lifecycle::Running(Session { status, .. }) | Lifecycle::Testing { status, .. } => {

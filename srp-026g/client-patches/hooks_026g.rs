@@ -3097,6 +3097,21 @@ pub extern "C" fn hook_module_report_on_present(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- screenshot (patch 152) ----
+
+/// The entry `screenshot_on_present` (0x3cf8ff, res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_present(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `screenshot_on_present` calls this, from the game's jump at 0x3cf8ff,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::screenshot::on_present(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_options (patch 83) ----
 
 /// The entry `hud_options_on_ddraw_probed` (0x105e8e, the engine's DirectDraw probe of the video memory (0x105DB0, the DirectX SDK's GetVideoMemoryViaDirectDraw, called by get_local_video_memory_size's 0x1060F0) after GetAvailableVidMem, before it releases the IDirectDraw7 (mov eax,[esp+14h] / mov edx,[eax]; then Release 0x105E98 and FreeLibrary(ddraw) 0x105E9A, which unloads the DirectDraw object's code): the DirectDraw object at [esp+18h], which the probe never releases) calls this with the saved machine.
@@ -3251,6 +3266,21 @@ pub extern "C" fn hook_key_remap_on_events(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::key_remap::on_events(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- screenshot (patch 152) ----
+
+/// The entry `screenshot_on_keys` (0x3b914b, keyboard::execute (0x3B8D20) after GetDeviceData filled the event buffer (every successful read joins at 0x3B9147: mov eax,[esp+14h] the count; here mov [edi+404h],eax): EDI the platform keyboard, its events at +408h, EAX their count (at most 40h); before the loop that sets each key's state and the Shift/Ctrl/Alt flags from them (0x3B9159) and process (0x3B9AF0), which hands them to the handlers) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_keys(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `screenshot_on_keys` calls this, from the game's jump at 0x3b914b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::screenshot::on_keys(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3850,6 +3880,41 @@ pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_seeding (patch 150) ----
+
+/// The entry `lobby_seeding_on_accept` (0x373cd9, start_seeding_impl's lea eax,[ebp-4B8h] (the game's wide pipe name, swprintf'd at 0x373CC6) before its call of win_utils::pipe::accept (0x373230 at 0x373CDF: ECX the pipe, EAX the wide name, [ESP] &error_code); a Skip with EAX set gives accept another name, read only by its CreateNamedPipeW (0x373262) (patch 150)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_seeding_on_accept(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_seeding_on_accept` calls this, from the game's jump at 0x373cd9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_seeding::on_accept(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_seeding (patch 150) ----
+
+/// The named exits of lobby_seeding::on_updater (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LobbySeedingOnUpdaterExit { Started }
+/// The entry `lobby_seeding_on_updater` (0x373d2d, start_seeding_impl after the pipe's accept and its message handler bound (0x373CE4..0x373D20, the temporary function destroyed), before the service's start (OpenSCManagerA 0x373D5B .. StartServiceW 0x373F4A): add esp,4 / mov edi,eax after the product name's call 0x373D28; started is the epilogue 0x37400E (patch 150)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_seeding_on_updater(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_seeding_on_updater` calls this, from the game's jump at 0x373d2d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_seeding::on_updater(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -4609,6 +4674,21 @@ pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> 
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::scaleform_capture::on_queue_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- screenshot (patch 152) ----
+
+/// The entry `screenshot_on_interface` (0x13ced0, renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_interface(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `screenshot_on_interface` calls this, from the game's jump at 0x13ced0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::screenshot::on_interface(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -5652,6 +5732,8 @@ pub extern "C" fn hook_hud_options_on_present_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_module_report_on_present(frame);
     if flow != 0 { return flow; }
+    let flow = hook_screenshot_on_present(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5673,6 +5755,15 @@ pub extern "C" fn hook_music_on_login_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_login(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_login(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_key_remap_on_events_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_key_remap_on_events(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_screenshot_on_keys(frame);
     if flow != 0 { return flow; }
     0
 }
