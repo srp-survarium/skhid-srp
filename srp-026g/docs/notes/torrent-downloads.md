@@ -120,7 +120,9 @@ corrections from the owner go here.
   torrents in their own folder too): the ZIP's torrents and bootstrap copies, and what the updater
   keeps (the found torrent, the check record, the port, the revision taken, an empty `none\`).
   The DLL stays beside the updater. An earlier build's copies beside the updater go: the ZIP's
-  with the install (a file the new archive has not), the updater's own at its start.
+  with the install (a file the new archive has not), the updater's own at its start. The logs
+  have a folder of their own beside it, `game\logs\` (run-logs.md): no file of a torrent or of
+  the ZIP, never hashed or deleted as one.
 - It answers the launcher's torrent messages instead of ignoring them: "Allow torrent" (its 4th
   argument, then `1A`), port (its 13th argument, then `21`, answered port ok `15` or busy `14`;
   none named: the kept one, above),
@@ -205,7 +207,7 @@ login screen and in the lobby, where the original developers had it (the game's 
   ends at once, sharing nothing. Then it shares the folder's revision torrent as the launcher's
   updater does while it watches (the same trust, the bootstrap, the DHT item; nothing fetched or installed),
   on the kept port (a free one, then kept, when none is), within the cap, until the pipe closes. A port another updater holds
-  is tried for 10 s, then it ends. No box, no lock; its own run logs (in `updater_skhid.seed-logs\` beside it).
+  is tried for 10 s, then it ends. No box, no lock; its own run logs (in `game\logs\seed\`, run-logs.md).
 - On the pipe the game sends its limit (`1E`, ignored) and its stats switch (`22`: the console's
   `lobby_torrent_stats`); while that is on, the updater sends a tick a second (`18`: `FF`, the
   bytes a second sent, the cap, the peers connected), and nothing else ever: the game reads

@@ -268,7 +268,7 @@ pub fn game_download_failed(failures: &str) -> String {
 /// Where to send the log, worded as the crash reporter's
 /// (`client/bugtrap/src/crash_text.rs`): said after every failure the
 /// player ends on ([`reported`]).
-pub const SEND_LOG: &str = "Send the newest game\\binaries\\x86\\updater_skhid.<date>.log to #bugreports in \
+pub const SEND_LOG: &str = "Send the newest game\\logs\\updater_skhid.<date>.log to #bugreports in \
                             Discord (tag: install): discord.gg/QUmJg3gBhg";
 
 /// The longest line the launcher shows (`updater_logic::pipe`).
@@ -387,7 +387,7 @@ pub fn patches_held(name: &str) -> String {
 pub fn patches_failed() -> String {
     format!(
         "Skhid could not finish updating the game's patches (game\\resources.db.patch_*); \
-         the reason is in the newest game\\binaries\\x86\\updater_skhid.<date>.log. Start the \
+         the reason is in the newest game\\logs\\updater_skhid.<date>.log. Start the \
          launcher again, or send that file to the server's operator.{PLAY_OFF}"
     )
 }
@@ -442,7 +442,7 @@ pub fn patches_offline(reason: &str) -> String {
 pub fn patches_not_ready() -> String {
     "Skhid has not finished updating the game's files (game\\resources.db.patch_*), so the \
      game is not started. Start Skhid.bat (the launcher): it finishes the update, or says \
-     what is in the way. Details: the newest game\\binaries\\x86\\updater_skhid.<date>.log."
+     what is in the way. Details: the newest game\\logs\\updater_skhid.<date>.log."
         .into()
 }
 

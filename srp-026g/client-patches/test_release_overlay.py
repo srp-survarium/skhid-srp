@@ -1111,13 +1111,19 @@ class ReleaseTests(unittest.TestCase):
         (x86 / 'updater_skhid.log').write_bytes(b'2026-11-02 10:00:00 patches: GET https://user:pa55@files.example/x\n'
                                                 b'2026-11-02 10:00:01 ok\n')
         (x86 / 'srp_patches.log').write_bytes(b'pid 7 pickup: refused, no drop to take\r\n')
-        # Each run's logs, named by its start (a second part of the patches' log too).
+        # Each run's logs, named by its start (a second part of the patches' log too), in game\logs
+        # with Skhid.sh's; one an older updater did not move, beside the exe.
         runs = {'documents/Survarium.2026-11-15_14-03-07.log': b'core <info>\t[14:03:07.000]\tstarted\r\n',
-                'game-x86/updater_skhid.2026-11-15_14-03-05.log': b'2026-11-15 14:03:05 ok\r\n',
-                'game-x86/srp_patches.2026-11-15_14-03-07.log': b'srp: a run\r\n',
-                'game-x86/srp_patches.2026-11-15_14-03-07_2.log': b'srp: its next part\r\n'}
+                'game-logs/updater_skhid.2026-11-15_14-03-05.log': b'2026-11-15 14:03:05 ok\r\n',
+                'game-logs/srp_patches.2026-11-15_14-03-07.log': b'srp: a run\r\n',
+                'game-logs/srp_patches.2026-11-15_14-03-07_2.log': b'srp: its next part\r\n',
+                'game-logs/skhid-wine.log': b'Wine runtime: wine-11.8\n',
+                'game-x86/srp_patches.2026-11-14_10-00-00.log': b'srp: an older run\r\n'}
+        places = {'documents': own, 'game-logs': top / 'game' / 'logs', 'game-x86': x86}
+        places['game-logs'].mkdir()
         for entry, data in runs.items():
-            ((own if entry.startswith('documents/') else x86) / entry.split('/', 1)[1]).write_bytes(data)
+            place, name = entry.split('/', 1)
+            (places[place] / name).write_bytes(data)
         (x86 / 'srp_patches.old.log').write_bytes(b'not a run')
         (x86 / 'SRP-crash-20261102-1.txt').write_bytes(b'Exception: 0xC0000005\r\n')
         (x86 / 'SRP-crash-20261102-1.dmp').write_bytes(b'MDMP dump-secret')

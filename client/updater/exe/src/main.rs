@@ -1313,7 +1313,7 @@ fn run() -> u32 {
             return exit::FAILED;
         }
     };
-    log::start(&layout.exe_dir);
+    log::start(&layout);
     log!(
         "---- updater {} started in {}",
         env!("CARGO_PKG_VERSION"),
@@ -1402,7 +1402,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
     let mut said = false;
     let documents = win::documents();
     let language = documents.as_deref().and_then(win::game_language);
-    let log_path = log::path().unwrap_or_else(|| layout.exe_dir.clone());
+    let log_path = log::path().unwrap_or_else(|| layout.logs_dir.clone());
     let antivirus = |name: &str, removal| {
         let file = name.rsplit(['/', '\\']).next().unwrap_or(name);
         let folder = file_error::exclusion_folder(name, &layout.exe_dir, &layout.torrent_dir, &layout.game_dir);
@@ -1595,7 +1595,7 @@ fn register_replays(arguments: &[String]) -> u32 {
     let result = (|| {
         if !arguments.is_empty() && !quiet { return Err(text::usage()); }
         let layout = Layout::find().map_err(|path| text::wrong_folder(&path))?;
-        log::start(&layout.exe_dir);
+        log::start(&layout);
         replay_association::register(&layout).map_err(win::error_text)
     })();
     match result {
