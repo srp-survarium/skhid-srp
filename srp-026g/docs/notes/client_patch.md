@@ -3955,6 +3955,41 @@ exe built by `patch_026g.py`, on a pair (x, y, z) / (y, x, z) whose two orders d
 word: the original faults at 0x162085, the patched exe puts the nearer patch first; a pair in order
 stays in both. Not played in a game.
 
+### Original 0.21 ambient and particle intensity (unreleased)
+
+`ambient_021_026g.c` and `.asm` restore original multiplicative ambient-light
+semantics for the ported School, Fort, Rudnya, Vostok and Mamayev day projects. Native
+`object_ambient_light::insert` at 0x290930 first linearizes packed ABGR;
+the six-byte hook at 0x290A3F runs after this and the intensity clamp, with
+EBX holding the object and original ESP+6Ch/+70h/+74h/+78h holding outgoing
+RGB/intensity. For an original project and intensity greater than 1, the
+hook folds intensity into RGB and sets outgoing intensity to 1, selecting
+the native multiplicative pass. It never mutates the authored object.
+
+The guard requires the object's actual scene to be its game's embedded
+world, then recognizes the five `v021d_level_0{1,2,3,5,6}/day_{2,4,8}` project
+names. No object names, positions or room measurements are consulted.
+The stub preserves flags, general registers and FPU/SSE state, replays
+`mov al,[ebx+16Dh]`, and resumes at 0x290A45. The arena linker owns its
+placement; existing arena blocks keep their addresses.
+
+The particle-light hook at 0x14F305 skips native `MULSS xmm0,[0xA2D73C]`
+(×3) for the same five day projects, restoring the unchanged authored
+intensity used by original 0xF2CE0. It first compares the particle engine's
+render scene (+8) with the active game world's render scene (game+1Ch).
+The game is read through the native engine-world global 0x1F1D310, +2D0.
+Null owners/scenes, other rendered scenes and other projects execute the
+original MULSS. No state is cached. The hook preserves machine state and
+resumes at 0x14F312; XMM0 receives the authored float (upper lanes cleared by native MOVSS).
+
+`tools/check ambient-021` checks the three generators, builds one exe and
+executes the ambient and particle hooks in Unicorn: original products,
+native gain, actual-scene isolation, name boundaries, load/teardown
+transitions, registers and caller frame. The rendering
+evidence, shader comparison, in-game validation status and remaining
+asset-specific exceptions are in
+[`three-maps-lighting-scope.md`](three-maps-lighting-scope.md).
+
 ### The game shares in the lobby (2026-11-15, patch 150; unreleased)
 
 The owner (2026-11-15): the game shares by BitTorrent on the login screen and in the lobby, never

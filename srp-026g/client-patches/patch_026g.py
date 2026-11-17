@@ -2849,6 +2849,14 @@ INSTALLS = {
     0x23814F: (INLINE, "on_player_killed's `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` before mastery_icon: row, "
                        "which sets penetration_icon, ricochet_icon and pain_icon and does the two moves", None, None),
 }
+# Original ambient/particle-light semantics for the five ported 0.21 day maps.
+AMBIENT_021_HOOKS = (
+    (0x290A3F, bytes.fromhex("8a836d010000"), "ambient_021_insert_hook", 0xE9),
+    (0x14F305, bytes.fromhex("f30f104564"), "particle_021_intensity_hook", 0xE9),
+)
+INSTALLS[0x290A3F] = (JUMP, "0.21 day-map ambient intensity uses original multiplicative semantics; preserve machine and replay mov al,[ebx+16Dh]", None, None)
+INSTALLS[0x14F305] = (JUMP, "load authored particle intensity; skip native x3 only in the actual render scene of a 0.21 day-map world", None, None)
+
 # Explain weight in the lobby; presentation only, no simulation changes.
 WEIGHT_UI_HOOKS = (
     (0x22110F, bytes.fromhex("8b8608010000"), "weight_ui_config", 0xE9),
@@ -3208,6 +3216,7 @@ ARENA = (
     ArenaBlock("module_watch.data", "data", 0x10, ("module_watch_026g.asm",)),
     ArenaBlock("detail.code", "code", 0x1000, ("detail_026g.asm",)),
     ArenaBlock("detail.data", "data", 0x10, ("detail_026g.asm",)),
+    ArenaBlock("ambient_021.code", "code", 0x10, ("ambient_021_026g.asm", "ambient_021_026g.c")),
 )
 
 
@@ -4271,7 +4280,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if linked is not None:
                 patch(data, *REPLAY_OPEN_RESULT)
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
+                        + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + AMBIENT_021_HOOKS + BULLET_BOUNDS_HOOKS \
                         + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + DETAIL_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):

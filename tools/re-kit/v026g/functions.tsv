@@ -400,7 +400,7 @@ va	status	ref_021d	name
 0x0014deb0	reviewed	0x000f2199	vostok::render::decal_instance::draw
 0x0014ef90	reviewed	0x000f2ac6	vostok::render::scene::particle_engine::create_render_emitter_instance
 0x0014f000	reviewed	0x000f2b1d	vostok::render::scene::particle_engine::destroy
-0x0014f080	reviewed	0x000f2b53	vostok::render::scene::particle_engine::get_scene
+0x0014f080	verified	0x000f2b53	vostok::render::scene::particle_engine::get_scene
 0x0014f200	reviewed	0x000f2c90	vostok::render::scene::particle_engine::add_light
 0x0014f260	reviewed	0x000f2ce0	vostok::render::scene::particle_engine::update_light
 0x0014f3a0	reviewed	0x000f2da6	vostok::render::scene::particle_engine::remove_light
@@ -2445,3 +2445,6 @@ va	status	ref_021d	name
 0x0034a450	reviewed		vostok::ui::ui_text_edit's make of a key binding to one of its methods
 0x0034b430	reviewed		vostok::ui::ui_text_edit key binding's test of the key's kind and modifiers
 0x0034b4c0	reviewed		vostok::ui::ui_text_edit method key binding's execute
+0x00181660	verified	0x0010efaa	vostok::render::stage_ambient_lighting::render_ambient_light_list
+0x001858e0	verified		vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity
+0x0034d9a0	verified	0x00215157	vostok::render::environment_properties::environment_properties

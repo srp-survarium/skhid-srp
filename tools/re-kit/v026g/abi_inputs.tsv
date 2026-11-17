@@ -1177,7 +1177,7 @@ va	name	location	role	basis
 0x0014ef90	vostok::render::scene::particle_engine::create_render_emitter_instance	stack+36	color float4 reference	inferred
 0x0014ef90	vostok::render::scene::particle_engine::create_render_emitter_instance	stack+40	final unsigned value, full semantics unverified	inferred
 0x0014f000	vostok::render::scene::particle_engine::destroy	stack+4	emitter pointer reference to destroy and clear	inferred
-0x0014f080	vostok::render::scene::particle_engine::get_scene	ECX	particle-engine receiver	inferred
+0x0014f080	vostok::render::scene::particle_engine::get_scene	ECX	particle-engine receiver; +8 is its render::scene pointer, copied directly and refcounted at scene+D0h	verified
 0x0014f080	vostok::render::scene::particle_engine::get_scene	stack+4	caller-provided resource-pointer result storage	inferred
 0x0014f200	vostok::render::scene::particle_engine::add_light	ECX	particle engine receiver	inferred
 0x0014f200	vostok::render::scene::particle_engine::add_light	stack+4	light ID	inferred
@@ -1192,7 +1192,7 @@ va	name	location	role	basis
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+8	float scalar property input	inferred
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+12	by-value float4 first component	inferred
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+28	by-value matrix16dwords start	inferred
-0x0014f260	vostok::render::scene::particle_engine::update_light	stack+96	scalar multiplied by3 before property write	inferred
+0x0014f260	vostok::render::scene::particle_engine::update_light	stack+96	authored particle-light intensity, multiplied by 3.0 at 0x14F30A into light_props+44h; fill_light passes it unchanged to light+210h	verified
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+108	first tail bool	inferred
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+112	second tail bool	inferred
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+116	tail float	inferred
@@ -6354,3 +6354,9 @@ va	name	location	role	basis
 0x003486a0	vostok::ui::ui_text_edit's delete of the selection	ESI	the text edit (kept): its selection [+2A8h, +2AAh) deleted; a typed character's binding (0x34B5D5) calls it before the insert (0x348000)	observed
 0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	ECX	the binding (+8 its key, +0Ch its kind, 0 any; +10h its modifiers; +14h the object, +18h the method)	observed
 0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	entry ESP+4	the key's kind (1 down, 2 up; unused): the keyboard action pushes it (0x348A75)	observed
+0x00290930	survarium::object_ambient_light::insert	ECX	ambient-light object; packed colour at +150h is ABGR (R low byte, G bits 8..15, B bits 16..23), extracted at 0x29094F..0x2909BC and linearized with pow 2.2 at 0x2909C0..0x290A06 before submitting render-light RGB	observed
+0x00290930	survarium::object_ambient_light::insert	ESP at 0x290A3F	outgoing linear RGB at +6Ch/+70h/+74h and clamped intensity at +78h; object in EBX, owning scene at object+108h, game at scene+9Ch; original 0.21 0x1A7008 uses the same object fields	observed
+0x001858e0	vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity	ECX	end of input pointer range	observed
+0x001858e0	vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity	entry ESP+4	pass selector: 0 retains intensity <= 1; 1 retains intensity > 1	observed
+0x0034d9a0	vostok::render::environment_properties::environment_properties	ESI	destination environment properties	observed
+0x0034d9a0	vostok::render::environment_properties::environment_properties	entry ESP+4	initialize-defaults boolean, tested at 0x34D9D0	observed

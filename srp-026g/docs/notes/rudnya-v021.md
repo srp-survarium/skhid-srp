@@ -5,8 +5,8 @@ Deathmatch), map number 29. They require the wide-map-ID change, exe patch 154
 (PR #2126). The donor bog, central terrain anomaly and team 0 base are retained;
 the base is 27 m from native Rudnya's, and its ammo crate follows that move.
 
-The owner chose the 0.21 look on 2026-11-17, allowing 0.26 sky, atmosphere and
-sun rendering. `maps-021d-rudnya@4` retains donor geometry, local lights, probe
+The owner chose the 0.21 look, original colours and intensities, and shared
+shader/engine compatibility rather than local lighting calibration. `maps-021d-rudnya@4` retains donor geometry, local lights, probe
 volumes and baked cubemaps with native material schemas. The porter binds each
 weather cubemap to every mode alias, including `day_4`, so native template
 textures cannot survive on TDM. Native School supplies a missing plain-light
@@ -23,27 +23,36 @@ unreviewed difference before modifying the pack.
 
 `release/content.tsv` pins the pack and applies:
 
-- `v021d-rudnya-environment-1.json`: native sky, atmosphere, distance fog and sun
-  shading; donor sun angles, height ambient and local lights remain.
-- `v021d-rudnya-lighting-1.json`: the tractor-station ambient light at
-  (-48.76, 25.447, -84.614) retains its position, radius and colour, with
-  intensity 1.1 instead of 2.7. The corridor comparison changed from luma
-  50.3 to 14.5, against the donor's 20.5, without comparison flags. Native
-  intensity 1 was too dark (9.2). The remaining distant haze differs with
-  the chosen native atmosphere. Both day mode copies receive the correction.
-  The northern corridor ambient_light(58), at (-46.635, 26.084, -102.738),
-  takes intensity 1.5 instead of 1: its floor recovers detail, with luma
-  30.3 vs the donor 27.3 (previously 12.3). Its position, radius and colour
-  remain authored; its reach covers this view and the later team 1 spawn view.
+- `v021d-rudnya-environment-1.json`: selects the original shader path,
+  converts cloud coordinates/defaults, and restores omitted height-ambient
+  defaults to black/white, as initialized by the original engine. The port
+  previously inherited native blue/purple values. Authored sun intensity 3,
+  fog, probe multipliers and blueshift remain unchanged.
+- `three-maps-021-lighting@4`: shared guarded shader adapters, described in
+  the scope inventory.
+
+The room-specific `v021d-rudnya-lighting-1.json` overrides were removed in
+favor of the shared engine compatibility rule. Every ambient light in these
+projects uses the original multiplicative semantics even above intensity 1.
+The tractor-station fill retains authored intensity 2.7 and RGB 216/229/255;
+the northern corridor retains intensity 1 and RGB 76/76/76. No individual
+light is retinted or retuned. See [the scope inventory](three-maps-lighting-scope.md)
+for the engine evidence, remaining asset-specific exceptions and validation
+status. Ambient-light packed colours are ABGR, with red in the low byte;
+`object_ambient_light::insert` at 0x290930 confirms the extraction and gamma
+conversion, recorded in the re-kit ABI inputs and `renderer-026g.md`.
 
 ## Appearance review
 
 The rig reuses all 100 saved donor viewpoints and captures only the port,
 one pose at a time. Each substantive flag is inspected before advancing.
-The report includes automatic flags and notes for retained differences,
-including cooler native sky fill and darker sun shadows. Church panels and
-ceiling, and the team 0 base interior, remain visibly darker/cooler than the
-donor; they are explicit owner-review items, not exact appearance matches. Captures use a
+The report includes automatic flags and notes for retained differences.
+The owner approved the current @3 hall, northern corridor and church
+comparisons as the desired standard on 2026-11-17: a close match with stock
+0.21 values and minimal rendering changes, not pixel identity. All three
+interior views and the exterior horizon have no serious comparison flags.
+The rest of the sweep remains pending; prior calibration shots are historical.
+Captures use a
 headless display, zero game volumes and null Wine/OpenAL/ALSA audio; the
 running client is checked for PipeWire output streams.
 

@@ -1,5 +1,13 @@
 # Client patches for 0.26g (build 2777)
 
+The unreleased five-map lighting preview also restores 0.21 ambient and particle-light intensity
+semantics for the ported School, Fort, Rudnya, Vostok and Mamayev day projects. It preserves
+authored lights through the multiplicative pass, without room-specific
+overrides, and removes the newer engine's ×3 particle-light gain only in those
+maps' actual render scenes. Other projects and lobby scenes keep native behavior. See
+[`three-maps-lighting-scope.md`](../docs/notes/three-maps-lighting-scope.md)
+for scope, evidence, remaining resource exceptions and validation status.
+
 What a copy of the **original** Survarium 0.26g needs to play on this server:
 a patched `survarium.exe` and the login certificate. The game is not here;
 the tools below work on your own copy. The patched exe itself is never
