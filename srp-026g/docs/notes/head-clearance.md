@@ -42,5 +42,13 @@ not let camera clip in in similar situations".
 - **Not covered:**
   - geometry with no shot collision at all (bushes, grass, foliage): they are meant to be walked
     through;
+  - drawn surfaces that stand off their collision. At the owner's second spot (level_06/day_8,
+    `where` 14.681 35.905 142.948, crouched in a wedge under a bank), the terrain's blend layer
+    `ground_02_s_alpha_vc` of `level/06_v1/terain1` hangs up to 0.24 m off the terrain's
+    collision. The eye was 0.20 m from that drawn lip and 0.43 m from any collision, so no
+    collision test sees it. Elsewhere around that spot the layer lies on the collision (median
+    0, 90 % within 1.3 cm). Fixing these needs content: collision where the lip is drawn. A test
+    in every direction around the eye was tried and dropped: it would not have caught this lip,
+    and no real case needed it;
   - a scope's zoom (the near plane is 0.05 m times the zoom, so up to about 0.2 m when aiming).
 - **Not played:** run with Unicorn only (`check_head_clearance_026g.py`).
