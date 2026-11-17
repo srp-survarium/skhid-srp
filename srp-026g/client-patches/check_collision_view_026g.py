@@ -80,11 +80,13 @@ EYE = (10.0, 1.7, 20.0)                      # the game's frame; Bullet's (10, 1
 GREEN, MAGENTA, WHITE = 0xFF00FF00, 0xFFFF00FF, 0xFFFFFFFF
 TURNED = ((0.0, 0.0, 1.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0))     # a quarter turn about y
 IDENTITY = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
-MOST = 65536
+MOST = 131072                                # lines: a room's 256Ki vertices
+DRAW_TRIANGLES = 0x11E370
 HELP = ["  collision walk    - what stops walking (green + white)",
         "  collision shot    - what stops bullets and the camera (magenta + white)",
         "  collision solid   - what stops both (white)",
         "  collision anomaly - anomaly damage zones (red, dim when off)",
+        "  ... fill          - after any of these (or alone): surfaces filled, to find holes",
         "  collision         - again to turn off"]
 ON = ["collision: on, all (walk green, shot magenta, solid white, anomaly red)"] + HELP
 RED, DIM_RED = 0xFF0000FF, 0xFF000060
@@ -102,7 +104,7 @@ class Run(where.Run):
         emu.mem_map(STUB, 0x200000, UC_PROT_ALL)
         emu.mem_map(hide.STACK - 0x100000, 0x100000, UC_PROT_ALL)
         emu.mem_write(STUB, STUB_CODE)
-        emu.mem_map(ROOM, 0x800000, UC_PROT_ALL)
+        emu.mem_map(ROOM, 0x1000000, UC_PROT_ALL)
         self.room, self.allocations = ROOM, []
         self.word(VIRTUAL_ALLOC_SLOT, STUB + 0x100)
         emu.mem_write(STUB + 0x100, b"\xC2\x10\x00")
@@ -110,6 +112,8 @@ class Run(where.Run):
         self.word(SYSTEM_RENDERER_SLOT, SYSTEM_RENDERER)
         self.draws, self.queries, self.shapes = [], [], 0
         emu.hook_add(UC_HOOK_CODE, self.draw_lines, begin=DRAW_LINES, end=DRAW_LINES)
+        self.fills = []
+        emu.hook_add(UC_HOOK_CODE, self.draw_triangles, begin=DRAW_TRIANGLES, end=DRAW_TRIANGLES)
         emu.hook_add(UC_HOOK_CODE, self.process_all_triangles, begin=PROCESS_ALL_TRIANGLES, end=PROCESS_ALL_TRIANGLES)
 
     def run(self, start, stops, sp, regs):
@@ -135,6 +139,15 @@ class Run(where.Run):
         indices = list(struct.unpack(f"<{(last - first) // 2}H", emu.mem_read(first, last - first)))
         self.draws.append(dict(renderer=renderer, technique=technique, vertices=vertices, indices=indices, first=first))
         self.ret(0x14)
+
+    def draw_triangles(self, emu, *_):
+        """draw_triangles(renderer, vertices, their end, indices, their end, override byte), `ret 18h`."""
+        sp = emu.reg_read(UC_X86_REG_ESP)
+        renderer, begin, end, first, last, override = (self.read(sp + 4 * i) for i in range(1, 7))
+        vertices = [struct.unpack("<3fI", emu.mem_read(at, 16)) for at in range(begin, end, 16)]
+        indices = list(struct.unpack(f"<{(last - first) // 2}H", emu.mem_read(first, last - first)))
+        self.fills.append(dict(renderer=renderer, override=override & 0xFF, vertices=vertices, indices=indices))
+        self.ret(0x18)
 
     def process_all_triangles(self, emu, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -354,10 +367,10 @@ def main():
           "four options' lines")
     lines = new.frame()
     old.frame()
-    check(new.allocations == [2 * MOST * 16, 2 * MOST * 16, 32768 * 2] and old.allocations == [],
-          "turned on: the lines' two rooms (shown and spare, 2 MiB of vertices each) and their shared indices (64 KiB), "
-          "VirtualAlloc'd once, outside the lock")
-    check(lines == ["collision: the level's static collision within 20 m (less where that is over 65536 lines):",
+    check(new.allocations == [2 * MOST * 16, 2 * MOST * 16, 32768 * 2, 32766 * 2 * 2] and old.allocations == [],
+          "turned on: the two rooms (shown and spare, 4 MiB of vertices each) and their shared indices (64 KiB for the "
+          "lines, 128 KiB for the fill), VirtualAlloc'd once, outside the lock")
+    check(lines == ["collision: the level's static collision within 20 m (less where that is over 131072 lines):",
                     "collision: walk (green) 3 in the world: stops walkers only",
                     "collision: shot (magenta) 1 in the world: stops bullets and the camera only",
                     "collision: solid (white) 1 in the world: stops walkers, bullets and the camera",
@@ -459,7 +472,7 @@ def main():
                          "collision: solid (white) 1 in the world: stops walkers, bullets and the camera"]
           and colours() == {MAGENTA: 122, WHITE: 6},
           "collision shot: what stops bullets and the camera, the shot compound and the solid mesh; the census of those")
-    check(new.said("collision 8") == ["collision: collision [walk | shot | solid | anomaly]"] + HELP
+    check(new.said("collision 8") == ["collision: collision [walk | shot | solid | anomaly] [fill]"] + HELP
           and new.frame() == [] and colours() == {MAGENTA: 122, WHITE: 6},
           "collision 8: the usage with the options, nothing changed")
     check(new.said("collision walk") == ["collision: on, walk (green + white)"] and len(new.frame()) == 3
@@ -480,6 +493,32 @@ def main():
           and new.said("collision") == ON and len(new.frame()) == 5
           and new.said("collision") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == [],
           "collision from anomaly: off; again: on (all, its census five lines); again: off")
+
+    # fill: the walk box's twelve faces' triangles and the solid mesh's near two, translucent, under the lines
+    check(new.said("collision walk fill") == ["collision: on, walk (green + white), filled"],
+          "collision walk fill: \"collision: on, walk (green + white), filled\"")
+    census = new.frame()
+    new.fills = []
+    draws, _ = new.debug_lines()
+    fills = list(new.fills)
+    tris = [v for f in fills for v in f["vertices"]]
+    alphas = {v[3] >> 24 for v in tris}
+    green_shades = {(v[3] >> 8) & 0xFF for v in tris if v[3] & 0xFF == 0}
+    check(len(census) == 3 and Counter(c for c, _, _ in segments(draws)) == {GREEN: 12, WHITE: 6} and len(fills) == 1
+          and fills[0]["renderer"] == SYSTEM_RENDERER and fills[0]["override"] == 0 and len(tris) == 3 * (12 + 2)
+          and fills[0]["indices"] == [3 * t + k for t in range(14) for k in (0, 1, 2, 0, 2, 1)]
+          and alphas == {77} and green_shades == {102, 255},
+          f"the fill: one draw_triangles (the system renderer, override 0: the blended technique) of 14 triangles "
+          f"(the walk box's 12, the solid mesh's 2), each both ways round, alpha 77, the box's top and bottom full "
+          f"green, its sides 0.4 ({sorted(green_shades)}, {len(tris) // 3} triangles); the lines over them as before")
+    new.fills = []
+    said, census = new.said("collision fill"), new.frame()
+    framed, (draws, _) = len(new.fills), new.debug_lines()
+    check(said == [ON[0] + ", filled"] + HELP and len(census) == 5 and framed == 0 and draws and len(new.fills) == 1,
+          f"collision fill: every group filled, switched from walk ({said}, {len(census)} census lines, "
+          f"{framed} fills read, {len(draws)} line draws, {len(new.fills)} fill draws)")
+    check(new.said("collision fill") == ["collision: off"] and new.frame() == [] and new.debug_lines()[0] == [],
+          "collision fill again: off")
 
 
 if __name__ == "__main__":
