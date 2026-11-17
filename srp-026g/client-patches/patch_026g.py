@@ -860,7 +860,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 63
+REVISION = 64
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -2630,6 +2630,23 @@ LOBBY_SEEDING_DEFAULT = (0xA712B6, b"\x01", b"\x00")
 # of the patch. No relocation is under the site; 0x1603B0 has no other caller.
 GRASS_SORT_ORDER = (0x160430, bytes.fromhex("f30f58f2" "f30f58f0"), bytes.fromhex("f30f58f0" "f30f58f2"))
 
+# A maps_dict id over a byte (patch 154, README "Map ids over a byte";
+# client_patch.md, the same). match_options::deserialize (0x1F0E70) stores the
+# map as one byte at +577B4h (0x1F0EAD), and these six read it as one:
+# initialize_match's game type 0x234CFD, query_players 0x27AFA7,
+# process_static_match_info's log 0x27BC26 and its level loading 0x27BE8B,
+# refresh_quest_ui_data 0x2A3603 and game_world_core's constructor 0x2D01F3
+# (each `movzx r32, byte [r+577B4h]`; nothing else names the field but the
+# store). Each reads the dword +577B8h instead (`mov r32, [r+577B8h]`, a nop
+# after it: the same modrm, the same length), the game's "match maker id",
+# logged only (0x27BB57) and written by nothing else, which map_id.rs fills at
+# the options' read with the whole id. No relocation is under the sites.
+MAP_ID_READERS = tuple(
+    (va, bytes.fromhex("0fb6") + bytes([modrm]) + bytes.fromhex("b4770500"),
+     bytes.fromhex("8b") + bytes([modrm]) + bytes.fromhex("b877050090"))
+    for va, modrm in ((0x234CFD, 0xB8), (0x27AFA7, 0xBE), (0x27BC26, 0x8E),
+                      (0x27BE8B, 0x96), (0x2A3603, 0xB8), (0x2D01F3, 0xB8)))
+
 # An empty shot is not logged (patch 148, README; docs/notes/fire-queue-assert.md).
 # weapon_core_fire_state_base::on_shot_event (0x30EBF0) fires nothing for a
 # "shoot" mark that comes with the queue (+13Ch) spent; it asserts
@@ -2832,6 +2849,14 @@ INSTALLS = {
     0x23814F: (INLINE, "on_player_killed's `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` before mastery_icon: row, "
                        "which sets penetration_icon, ricochet_icon and pain_icon and does the two moves", None, None),
 }
+# Original ambient/particle-light semantics for the five ported 0.21 day maps.
+AMBIENT_021_HOOKS = (
+    (0x290A3F, bytes.fromhex("8a836d010000"), "ambient_021_insert_hook", 0xE9),
+    (0x14F305, bytes.fromhex("f30f104564"), "particle_021_intensity_hook", 0xE9),
+)
+INSTALLS[0x290A3F] = (JUMP, "0.21 day-map ambient intensity uses original multiplicative semantics; preserve machine and replay mov al,[ebx+16Dh]", None, None)
+INSTALLS[0x14F305] = (JUMP, "load authored particle intensity; skip native x3 only in the actual render scene of a 0.21 day-map world", None, None)
+
 # Explain weight in the lobby; presentation only, no simulation changes.
 WEIGHT_UI_HOOKS = (
     (0x22110F, bytes.fromhex("8b8608010000"), "weight_ui_config", 0xE9),
@@ -3191,6 +3216,7 @@ ARENA = (
     ArenaBlock("module_watch.data", "data", 0x10, ("module_watch_026g.asm",)),
     ArenaBlock("detail.code", "code", 0x1000, ("detail_026g.asm",)),
     ArenaBlock("detail.data", "data", 0x10, ("detail_026g.asm",)),
+    ArenaBlock("ambient_021.code", "code", 0x10, ("ambient_021_026g.asm", "ambient_021_026g.c")),
 )
 
 
@@ -4254,7 +4280,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if linked is not None:
                 patch(data, *REPLAY_OPEN_RESULT)
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
+                        + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + AMBIENT_021_HOOKS + BULLET_BOUNDS_HOOKS \
                         + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + DETAIL_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
@@ -4278,6 +4304,10 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch(data, *BAKE_CACHE_KEEP)
                 patch_section_value(data, *LOBBY_SEEDING_DEFAULT)
                 patch(data, *GRASS_SORT_ORDER)
+                for change in MAP_ID_READERS:
+                    patch(data, *change)
+                if neutralize_relocs(data, [(va, va + len(old)) for va, old, _ in MAP_ID_READERS]):
+                    sys.exit("a base relocation under a reader of the options' map")
                 patch(data, *EMPTY_SHOT_QUIET)
                 patch(data, *EXPAND_TEXT_UNBOUND)
                 for change in BATTERY_COOK_REQUESTS:
@@ -4359,6 +4389,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "an option hides the other players' chat lines in a match, "
                      "F9 (hide_interface) hides the interface in a match and in the lobby, "
                      "F11 and F12 save a screenshot, with the interface and without it, "
+                     "a map id over a byte loaded whole (srp's block's tag 4), "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
                      "a Blackout match has no interface but its Tab view and the players' markers on Tab, "

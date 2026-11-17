@@ -2180,6 +2180,16 @@ The owner, 2026-11-17: "I also wish scrolling in console was supported".
 - **Not tried:** a game. The tick itself is not run (the log file).
 - **Other patches on the console:** patch 157 (Ctrl+V, `console_paste.paste` in ui_text_edit) touches none of these functions; patch 107's console text (#2146) hooks game_console::on_activate and on_deactivate at other bytes (0x1C77E, 0x1C7D3): the two lohooks in on_activate do not overlap.
 
+### 3.86 Map ids over a byte (written 2026-11-16, README patch 154, the next release's revision) — PROVEN in the code, both options reads and the six readers run with Unicorn in both exes (`check_map_id_026g.py`); not run in a game
+
+The owner, 2026-11-16: maps_dict ids wider than one byte (14 of 0..254 were free). The dictionary is 32-bit (`maps_dict[].id` a T_INT; `items_dictionary::map_descriptor_by_id` 0x21F910 compares a dword), but the match options carry the map as one byte.
+
+- **The byte** (PROVEN). `match_options::deserialize` (0x1F0E70: EAX the reader, entry ESP+4 the options, ESP+8 the items dictionary; `ret 8`; called only at 0x27B928 and 0x1F096C) stores it at +577B4h (0x1F0EAD). Besides that store the field is named by six instructions, each `movzx r32, byte [r+577B4h]` (7 bytes): `game_world_ui::initialize_match` 0x234CFD, `network_client::query_players` 0x27AFA7, `process_static_match_info` 0x27BC26 (the "Map : %s (%d)" log) and 0x27BE8B (the id pushed to switch_to_level_loading), `refresh_quest_ui_data` 0x2A3603, `game_world_core::game_world_core` 0x2D01F3 (its map_descriptor_by_id call 0x2D01FA). A scan of `.text` for the displacement finds nothing else.
+- **The word** (PROVEN). +577B8h, a dword before the score weights, is the game's "match maker id": read once, by the static info's log (0x27BB57, `mov ecx,[esi+577B8h]`), written by nothing (no displacement but that read; the options are copied whole or not at all).
+- **The patch.** `patch_026g.py`'s `MAP_ID_READERS` turns each reader into `mov r32, [r+577B8h]` and a nop (the same modrm, the same length; no relocation under them). `map_id.rs` fills the word at both options reads (`static_info.options_read`, `replay.options_read`, order -1: before patches 65, 86, 83, 88 and 142, so the breadcrumbs and `where` read the whole id too): srp's block's tag 4, a u16 over 255 whose low byte is the options' byte, else the options' byte. An old server's match and an old replay (no tag) load as before.
+- **The server** (`survarium::v026g::dictionary::MapId`, a u16) writes the low byte and, for an id over a byte only, the tag before the mode's entry; ids of a byte send the same bytes as before. `srp_validate::messages::options` checks the whole id. A client without the patch would load `id & 0xFF`: the release that ships it raises the minimum revision, so no older client plays a map over 255.
+- **Not changed.** The lobby's rows are decimal text (`int()` in the movies); the PvB choice's start (`size × 1000 + map`, the movie's PVB_SIZE_STEP) names ids up to 999, and the server refuses to list a bot map over it. A room's pool holds 256 entries at most (its bitmap, `lobby::rooms::POOL_BITS`), a limit of its own. The crash breadcrumbs' header keeps the id's low byte (version 1; the match entry has it whole).
+
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]
@@ -3944,6 +3954,41 @@ Validation: `check_grass_sort_026g.py` (Unicorn) runs the game's `__linear_inser
 exe built by `patch_026g.py`, on a pair (x, y, z) / (y, x, z) whose two orders differ, after a null
 word: the original faults at 0x162085, the patched exe puts the nearer patch first; a pair in order
 stays in both. Not played in a game.
+
+### Original 0.21 ambient and particle intensity (unreleased)
+
+`ambient_021_026g.c` and `.asm` restore original multiplicative ambient-light
+semantics for the ported School, Fort, Rudnya, Vostok and Mamayev day projects. Native
+`object_ambient_light::insert` at 0x290930 first linearizes packed ABGR;
+the six-byte hook at 0x290A3F runs after this and the intensity clamp, with
+EBX holding the object and original ESP+6Ch/+70h/+74h/+78h holding outgoing
+RGB/intensity. For an original project and intensity greater than 1, the
+hook folds intensity into RGB and sets outgoing intensity to 1, selecting
+the native multiplicative pass. It never mutates the authored object.
+
+The guard requires the object's actual scene to be its game's embedded
+world, then recognizes the five `v021d_level_0{1,2,3,5,6}/day_{2,4,8}` project
+names. No object names, positions or room measurements are consulted.
+The stub preserves flags, general registers and FPU/SSE state, replays
+`mov al,[ebx+16Dh]`, and resumes at 0x290A45. The arena linker owns its
+placement; existing arena blocks keep their addresses.
+
+The particle-light hook at 0x14F305 skips native `MULSS xmm0,[0xA2D73C]`
+(×3) for the same five day projects, restoring the unchanged authored
+intensity used by original 0xF2CE0. It first compares the particle engine's
+render scene (+8) with the active game world's render scene (game+1Ch).
+The game is read through the native engine-world global 0x1F1D310, +2D0.
+Null owners/scenes, other rendered scenes and other projects execute the
+original MULSS. No state is cached. The hook preserves machine state and
+resumes at 0x14F312; XMM0 receives the authored float (upper lanes cleared by native MOVSS).
+
+`tools/check ambient-021` checks the three generators, builds one exe and
+executes the ambient and particle hooks in Unicorn: original products,
+native gain, actual-scene isolation, name boundaries, load/teardown
+transitions, registers and caller frame. The rendering
+evidence, shader comparison, in-game validation status and remaining
+asset-specific exceptions are in
+[`three-maps-lighting-scope.md`](three-maps-lighting-scope.md).
 
 ### The game shares in the lobby (2026-11-15, patch 150; unreleased)
 

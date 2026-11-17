@@ -10,7 +10,7 @@ use survarium::v026g::match_msgs::snapshot;
 fn main() {
     let dir = std::env::args().nth(1).expect("directory");
     let matches = std::fs::read_to_string(std::env::args().nth(2).expect("matches")).unwrap();
-    let matches: HashMap<String, (usize, u8)> = matches
+    let matches: HashMap<String, (usize, maps::MapId)> = matches
         .lines()
         .filter_map(|line| {
             let mut fields = line.split('\t');

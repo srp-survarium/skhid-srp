@@ -31,7 +31,7 @@ use std::time::{Duration, Instant};
 
 use session::SessionStore;
 use session::persist::MemoryRepository;
-use survarium::v026g::dictionary::Dictionary;
+use survarium::v026g::dictionary::{Dictionary, MapId};
 use survarium::v026g::match_msgs::static_info::{MatchItem, MatchKit, NO_PROTECTION};
 
 use super::game::Game;
@@ -43,8 +43,8 @@ use super::{
 use client::Client;
 
 /// Modes 2 (batteries) and 4 (Team Deathmatch) on level_01.
-pub const MAP_BATTERIES: u8 = 61;
-pub const MAP_TDM: u8 = 117;
+pub const MAP_BATTERIES: MapId = MapId::new(61);
+pub const MAP_TDM: MapId = MapId::new(117);
 
 pub fn session_of(place: usize) -> u32 {
     0x1000 + place as u32
@@ -72,7 +72,7 @@ fn profile(name: &str, team: u8) -> MatchProfile {
     }
 }
 
-pub fn setup(players: usize, map_id: u8) -> MatchSetup {
+pub fn setup(players: usize, map_id: MapId) -> MatchSetup {
     MatchSetup {
         played: survarium::v026g::twist::Played::plain(
             survarium::v026g::maps::MatchMap::of(map_id).expect("a playable map"),
@@ -145,30 +145,30 @@ pub struct Bench {
 impl Bench {
     /// A match of `players` made, nobody connected yet. All clients are
     /// patched unless a test says otherwise.
-    pub fn new(players: usize, map_id: u8, settings: Settings) -> Self {
+    pub fn new(players: usize, map_id: MapId, settings: Settings) -> Self {
         Self::with_bots(players, map_id, settings, &[])
     }
 
     /// As [`Bench::new`], with the places of `bots` marked as test bots'
     /// (`MatchPlayer::bot`) and given clients that simulate nothing
     /// (`Client::idle`, what `srp-bot` runs).
-    pub fn with_bots(players: usize, map_id: u8, settings: Settings, bots: &[usize]) -> Self {
+    pub fn with_bots(players: usize, map_id: MapId, settings: Settings, bots: &[usize]) -> Self {
         Self::with_dialect(players, map_id, settings, bots, &[], false)
     }
 
     /// With the server's own bots ([`MatchPlayer::driven`]) at `driven`.
-    pub fn with_driven(players: usize, map_id: u8, settings: Settings, driven: &[usize]) -> Self {
+    pub fn with_driven(players: usize, map_id: MapId, settings: Settings, driven: &[usize]) -> Self {
         Self::with_dialect(players, map_id, settings, &[], driven, false)
     }
 
-    pub fn growing(players: usize, map_id: u8, settings: Settings) -> Self {
+    pub fn growing(players: usize, map_id: MapId, settings: Settings) -> Self {
         Self::with_dialect(players, map_id, settings, &[], &[], true)
     }
 
     /// A match of growing rosters with the server's own bots at `driven`.
     pub fn growing_with_driven(
         players: usize,
-        map_id: u8,
+        map_id: MapId,
         settings: Settings,
         driven: &[usize],
     ) -> Self {
@@ -177,7 +177,7 @@ impl Bench {
 
     /// A room's match (growing rosters) of places on `teams`, the room
     /// needing `minimum` players (`MatchSetup::room_minimum`).
-    pub fn room(teams: &[u8], map_id: u8, settings: Settings, minimum: u8) -> Self {
+    pub fn room(teams: &[u8], map_id: MapId, settings: Settings, minimum: u8) -> Self {
         let mut setup = setup(teams.len(), map_id);
         for (player, &team) in setup.players.iter_mut().zip(teams) {
             player.profile.team = team;
@@ -188,7 +188,7 @@ impl Bench {
 
     /// A match of one player against the server's own bots at `driven`
     /// ("Player vs Bots": `MatchSetup::vs_bots`), of growing rosters.
-    pub fn vs_bots(players: usize, map_id: u8, settings: Settings, driven: &[usize]) -> Self {
+    pub fn vs_bots(players: usize, map_id: MapId, settings: Settings, driven: &[usize]) -> Self {
         let mut setup = setup(players, map_id);
         setup.vs_bots = true;
         Self::with_setup(setup, settings, &[], driven, true)
@@ -196,7 +196,7 @@ impl Bench {
 
     fn with_dialect(
         players: usize,
-        map_id: u8,
+        map_id: MapId,
         settings: Settings,
         bots: &[usize],
         driven: &[usize],
@@ -438,7 +438,7 @@ pub struct Net {
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
 
 impl Net {
-    pub fn new(players: usize, map_id: u8, settings: Settings) -> Self {
+    pub fn new(players: usize, map_id: MapId, settings: Settings) -> Self {
         log_to_stderr();
         let socket = UdpSocket::bind("127.0.0.1:0").expect("a free port");
         let server = socket.local_addr().expect("its address");

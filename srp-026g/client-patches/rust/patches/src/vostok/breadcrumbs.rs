@@ -15,6 +15,7 @@
 use core::cell::UnsafeCell;
 
 use super::clock;
+use super::options::MapId;
 use super::hook::Thread;
 
 /// Entries kept: the last 1024 events (32 KiB).
@@ -55,7 +56,7 @@ pub struct Match {
     /// The match id the server sends (its seed).
     pub id: u32,
     /// The maps_dict id (the map and its mode).
-    pub map: u8,
+    pub map: MapId,
     pub places: u8,
     pub level: u16,
     pub blackout: bool,
@@ -150,6 +151,7 @@ struct Header {
     /// The last match's options ([`Match`]): `flags` bit 0 Blackout, bit 1
     /// a replay, bit 31 set once there is one.
     match_id: u32,
+    /// The map id's low byte (the match entry has it whole).
     map: u8,
     places: u8,
     level: u16,
@@ -208,7 +210,7 @@ static RING: Cell = Cell(UnsafeCell::new(Ring {
 fn encode(crumb: Crumb) -> (u8, u8, u16, [u32; 4]) {
     match crumb {
         Crumb::Match { replay, context: m } => {
-            (1, u8::from(replay), m.level, [m.id, u32::from(m.map), u32::from(m.places), u32::from(m.blackout)])
+            (1, u8::from(replay), m.level, [m.id, u32::from(m.map.get()), u32::from(m.places), u32::from(m.blackout)])
         }
         Crumb::World { time, bytes, packed, local, loaded } => {
             (2, u8::from(packed) | u8::from(loaded) << 1, local.map_or(0, |p| u16::from(p) + 1), [time, bytes, 0, 0])
@@ -249,7 +251,7 @@ fn write(_: &Thread, counter: u64, frequency: impl FnOnce() -> u64, crumb: Crumb
         match crumb {
             Crumb::Match { replay, context: m } => {
                 (*header).match_id = m.id;
-                (*header).map = m.map;
+                (*header).map = m.map.low_byte();
                 (*header).places = m.places;
                 (*header).level = m.level;
                 (*header).local = 0;
@@ -276,7 +278,7 @@ mod tests {
 
     #[test]
     fn each_crumb_is_its_kind_and_values() {
-        let m = Match { id: 77, map: 12, places: 8, level: 5, blackout: true };
+        let m = Match { id: 77, map: MapId::new(12), places: 8, level: 5, blackout: true };
         assert_eq!(encode(Crumb::Match { replay: false, context: m }), (1, 0, 5, [77, 12, 8, 1]));
         assert_eq!(
             encode(Crumb::World { time: 4500, bytes: 900, packed: true, local: Some(3), loaded: true }),
@@ -294,7 +296,7 @@ mod tests {
     fn the_ring_keeps_the_last_entries_and_the_match() {
         // SAFETY: the test is the only thread.
         let thread = unsafe { Thread::new() };
-        let m = Match { id: 9, map: 3, places: 2, level: 1, blackout: false };
+        let m = Match { id: 9, map: MapId::new(3), places: 2, level: 1, blackout: false };
         write(&thread, 5, || 1000, Crumb::Match { replay: true, context: m });
         for place in 0..(CAPACITY as u32 + 5) {
             write(&thread, 5, || 1000, Crumb::PlayerGone { place: place as u8 });

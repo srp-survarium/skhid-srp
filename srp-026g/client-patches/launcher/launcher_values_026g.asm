@@ -611,15 +611,16 @@ reload_language:
         test    eax, eax
         jz      .english
         call    eax                     ; GetUserDefaultLCID
-        and     eax, 0x3FF              ; its primary language
-        xor     ecx, ecx
-.each:  cmp     ecx, LANGUAGE_COUNT
-        jae     .english
-        cmp     ax, [ebx + language_windows + ecx*2]
+        lea     esi, [ebx + language_windows]
+        mov     ecx, WINDOWS_RULE_COUNT
+.each:  movzx   edx, word [esi]          ; exact LANGID first, then primary
+        and     edx, eax
+        cmp     dx, [esi + 2]
         je      .this
-        inc     ecx
-        jmp     .each
-.this:  mov     eax, ecx
+        add     esi, 6
+        loop    .each
+        jmp     .english
+.this:  movzx   eax, word [esi + 4]      ; registered language index
         jmp     .set
 .english:
         xor     eax, eax

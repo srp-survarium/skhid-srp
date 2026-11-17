@@ -105,6 +105,26 @@ class MapEditorEdits(unittest.TestCase):
             ce.set_vector(data, 'bounding_box/max', [2, 1, 1], [0, 0, 0])
         self.assertEqual(data, before)
 
+    def test_set_vector_preserves_native_float2_and_float4(self):
+        for original, target in [((1.0, 2.0), [3.0, 4.0]),
+                                 ((0.25, 0.25, 0.25, 1.0), [1.0, 1.0, 1.0, 1.0])]:
+            with self.subTest(dimensions=len(original)):
+                data = config({'vector': original, 'neighbor': 'unchanged'})
+                before_type = ce.rec(data, ce.find(data, 'vector'))[3]
+                ce.set_vector(data, 'vector', list(original), target)
+                at, _, _, kind, _ = ce.rec(data, ce.find(data, 'vector'))
+                self.assertEqual(kind, before_type)
+                self.assertEqual(struct.unpack_from('<%df' % len(target), data, at), tuple(target))
+                self.assertEqual(value(data, 'neighbor'), 'unchanged')
+                before = bytes(data)
+                with self.assertRaises(ValueError):
+                    ce.set_vector(data, 'vector', list(original), target)
+                self.assertEqual(data, before)
+                for frm, to in [(target[:-1], target), (target, target[:-1])]:
+                    with self.assertRaises(TypeError):
+                        ce.set_vector(data, 'vector', frm, to)
+                    self.assertEqual(data, before)
+
     def test_nested_copy_does_not_change_the_model(self):
         data = fixture()
         ce.add_entry(data, 'objects', {'full_name': 'first'}, {'full_name': 'first'},
