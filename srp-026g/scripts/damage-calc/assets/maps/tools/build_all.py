@@ -38,19 +38,19 @@ NATIVE = {
 # frame; the renders use the same frames (no native play-area outline: the
 # native bitmaps show the 0.26g layout, not 0.21d's).
 PACK = Path('/mnt/hdd/Projects/release-20/packs/maps-021d-7/files')
-PACK_RUDNYA = Path('/home/sheep/Projects/survarium/work-rudnya-v021/probe-modes-build/maps-021d-rudnya-3/files')
+PACK_RUDNYA = Path('/home/sheep/Projects/survarium/work-rudnya-v021/probe-modes-build/maps-021d-rudnya-4/files')
 PACK_SCHOOL_FORT = Path('/home/sheep/Projects/survarium/v021d-rig-data/school-fort-work/probe-modes-build/maps-021d-school-fort-4/files')
 PORTED = {
     'v021d_level_03': dict(size=100, posX=14, posY=-42.196, bitmap=None, name='Vostok Radar Station (v0.21)',
                            name_key='st_level_10_name', project_name='level_03', map_ids={166: 2, 152: 4}),
     'v021d_level_06': dict(size=100, posX=30, posY=109, bitmap=None, name='Mamayev Kurgan (v0.21)',
                            name_key='st_level_11_name', project_name='level_06', map_ids={175: 2, 153: 4}),
-    # Rudnya (pack maps-021d-rudnya@3): project_name level_01, so the HUD draws native Rudnya's minimap in
+    # Rudnya (pack maps-021d-rudnya@4): project_name level_01, so the HUD draws native Rudnya's minimap in
     # its frame; the layout is the same (the importer's layout offset is 0). Its shared ported/v021d files
-    # are patch 20's.
+    # are supplied by patch 20 and maps-021d-school-fort@4; render from the composed content patch.
     'v021d_level_01': dict(size=130, posX=12.558, posY=-25.774, bitmap=None, name='Rudnya (v0.21)',
                            name_key='st_level_29_name', project_name='level_01', map_ids={260: 2, 261: 4},
-                           pack=PACK_RUDNYA, pack_name='maps-021d-rudnya@3'),
+                           pack=PACK_RUDNYA, pack_name='maps-021d-rudnya@4'),
     # School and Tarakanovsky Fort (pack maps-021d-school-fort@4): project_name level_02 / level_05, so the
     # HUD draws native School's and the Fort's minimaps in their frames; the layouts are the same (the
     # importer's layout offset is 0; the Fort's 0.26 bitmap under its frame shows the same world as
