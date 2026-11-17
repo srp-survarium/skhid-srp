@@ -26,7 +26,7 @@ impl<'a> Path<'a> {
         bytes.contains(&0).then_some(Path(bytes))
     }
 
-    pub fn ptr(self) -> *const u8 {
+    fn ptr(self) -> *const u8 {
         self.0.as_ptr()
     }
 }

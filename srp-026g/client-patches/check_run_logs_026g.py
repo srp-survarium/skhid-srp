@@ -20,13 +20,12 @@ appends; the local time is 2026-11-15 14:03:07. Checked:
 - a first run: new_log_file is given `..\\..\\logs\\Survarium_tester.2026-11-15_14-03-07.log`
   (game\\logs; the string's end and NUL as assign makes them, its room
   as it was); nothing deleted;
-- the user's run logs an earlier exe left in Documents\\Survarium moved to
-  game\\logs (MoveFileExA by GetProcAddress, MOVEFILE_COPY_ALLOWED), but one
-  whose name game\\logs has and one Windows does not move; the unstamped log moved too;
+- the user's run logs and old unstamped log an earlier exe left in
+  Documents\\Survarium deleted, but one Windows does not delete;
   another user's runs, user.cfg and the launcher's log untouched; the patches' log a new file made with
   CREATE_NEW, `..\\..\\logs\\srp_patches.2026-11-15_14-03-07.log` (game\\logs, made
   first with CreateDirectoryA), holding the patch's line;
-- a folder with 100 of the user's run logs, the old `Survarium_tester.log`,
+- a folder with 100 of the user's run logs,
   another user's run logs and other files: the oldest run log alone deleted
   (100 with the new one), nothing else touched;
 - 600 MiB in three run logs: the oldest deleted (400 MiB left, under 500);
@@ -65,7 +64,7 @@ KERNEL32 = {   # IAT slot: (name, stdcall argument count)
     0x870108: ("WriteFile", 5), 0x870040: ("CloseHandle", 1), 0x870118: ("GetCurrentThreadId", 0),
     0x87003C: ("GetModuleHandleA", 1), 0x870084: ("GetProcAddress", 2), 0x870220: ("CreateDirectoryA", 2),
 }
-DYNAMIC = {"IsDBCSLeadByte": 1, "MoveFileExA": 3}   # kernel32's, by GetProcAddress (vostok::run_log::kernel32)
+DYNAMIC = {"IsDBCSLeadByte": 1}           # kernel32's, by GetProcAddress (vostok::run_log::lead_byte)
 KERNEL32_MODULE = 0x7C800000
 RETURN = 0x30000F00                       # where a made-up call of ours returns
 STUBS, STACK, HEAP = 0x30000000, 0x31000000, 0x32000000
@@ -101,7 +100,7 @@ class Disk:
         self.written.update(written or {})
         self.stuck = set(stuck)
         self.bytes = {}
-        self.deleted, self.made, self.folders, self.moved = [], [], [], []
+        self.deleted, self.made, self.folders = [], [], []
 
     def folder(self, path):
         """Up to the last separator, as Windows reads a Shift-JIS path (a lead byte's trail
@@ -205,11 +204,12 @@ class Game:
             result = int(self.finds.pop(a[0], None) is not None)
         elif name == "DeleteFileA":
             path = self.text(a[0])
-            if path in self.disk.stuck:
+            if path in self.disk.stuck or path not in self.disk.sizes:   # read-only, or no such file
                 result = 0
             else:
                 self.disk.deleted.append(path)
-                result = int(self.disk.sizes.pop(path, None) is not None)
+                del self.disk.sizes[path]
+                result = 1
         elif name == "CreateFileA":
             path, disposition = self.text(a[0]), a[4]
             if disposition == 1 and path in self.disk.sizes:      # CREATE_NEW on a name there
@@ -238,15 +238,6 @@ class Game:
                 if a[0] == KERNEL32_MODULE else 0
         elif name == "CreateDirectoryA":
             self.disk.folders.append(self.text(a[0]))
-        elif name == "MoveFileExA":   # MOVEFILE_COPY_ALLOWED alone: never over a name there
-            source, target = self.text(a[0]), self.text(a[1])
-            result = int(a[2] == 2 and source in self.disk.sizes and target not in self.disk.sizes
-                         and source not in self.disk.stuck)
-            if result:
-                self.disk.moved.append((source, target))
-                self.disk.sizes[target] = self.disk.sizes.pop(source)
-                if source in self.disk.written:
-                    self.disk.written[target] = self.disk.written.pop(source)
         elif name == "IsDBCSLeadByte":
             result = int(self.lead(a[0] & 0xFF))
         emu.reg_write(UC_X86_REG_EAX, result)
@@ -341,24 +332,22 @@ def main():
     check(made == [(new_patches, 1)] and not disk.deleted,
           f"the patches' log: {new_patches} made with CREATE_NEW, nothing deleted ({made}, {disk.deleted})")
     check(disk.folders and set(disk.folders) == {LOGS[:-1]}, f"game\\logs made first ({disk.folders})")
-    check(logs.get(new_patches) == b"srp: run_logs: the game's log is the run's, 0 earlier ones moved from its folder, "
+    check(logs.get(new_patches) == b"srp: run_logs: the game's log is the run's, 0 in its old folder and "
                                    b"0 old ones deleted\r\n", f"its line ({logs.get(new_patches)!r})")
 
-    print("the runs an earlier exe left in Documents\\Survarium")
-    left = {DOCS + f"Survarium_tester.2026-10-0{day}_00-00-00.log": day for day in (1, 2, 3, 4)}
-    taken, held = DOCS + "Survarium_tester.2026-10-03_00-00-00.log", DOCS + "Survarium_tester.2026-10-04_00-00-00.log"
-    old_log = {DOCS + "Survarium_tester.log": 50}   # of before the runs were named: moved too
-    stay = {DOCS + "Survarium_other.2026-10-01_00-00-00.log": 60,
+    print("the logs an earlier exe left in Documents\\Survarium")
+    left = {DOCS + f"Survarium_tester.2026-10-0{day}_00-00-00.log": day for day in (1, 2, 3)}
+    left[DOCS + "Survarium_tester.log"] = 50     # of before the runs were named
+    held = DOCS + "Survarium_tester.2026-10-04_00-00-00.log"
+    stay = {held: 4, DOCS + "Survarium_other.2026-10-01_00-00-00.log": 60,
             DOCS + "user.cfg": 70, DOCS + "survarium_launcher_tester.log": 80}
-    there = {LOGS + "Survarium_tester.2026-10-03_00-00-00.log": 90}
-    disk, named, fault = run(built, {**left, **old_log, **stay, **there}, stuck=[held])
+    disk, named, fault = run(built, {**left, **stay}, stuck=[held])
     _, logs = patches_log(disk)
-    moved = {LOGS + p[len(DOCS):]: n for p, n in {**left, **old_log}.items() if p not in (taken, held)}
-    check(fault is None and named == (new_engine, True, True) and sorted(t for _, t in disk.moved) == sorted(moved)
-          and all(disk.sizes.get(p) == n for p, n in {**moved, **there, **stay}.items())
-          and taken in disk.sizes and held in disk.sizes and not disk.deleted,
-          f"the kind's two runs and its old unstamped log moved to game\\logs; a name there and a held one stay, the rest untouched ({disk.moved})")
-    check(logs.get(new_patches, b"").endswith(b", 3 earlier ones moved from its folder, 0 old ones deleted\r\n"),
+    check(fault is None and named == (new_engine, True, True) and sorted(disk.deleted) == sorted(left)
+          and all(disk.sizes.get(p) == n for p, n in stay.items()),
+          f"the kind's runs and its old unstamped log deleted; a held one, another user's, user.cfg and the "
+          f"launcher's log stay ({disk.deleted})")
+    check(logs.get(new_patches, b"").endswith(b", 4 in its old folder and 0 old ones deleted\r\n"),
           f"the line counts them ({logs})")
     access = [(a, s) for p, _, a, s in disk.made]
     check(access == [(4, 7)], f"appends only, every sharing ({access})")
@@ -376,7 +365,7 @@ def main():
     check(len(kept) == 99 and all(p in disk.sizes for p in others),
           f"99 kept (100 with the new one), the others untouched ({len(kept)})")
     _, logs = patches_log(disk)
-    check(logs.get(new_patches, b"").endswith(b", 1 old ones deleted\r\n"), f"the line counts it ({logs})")
+    check(logs.get(new_patches, b"").endswith(b", 0 in its old folder and 1 old ones deleted\r\n"), f"the line counts it ({logs})")
 
     print("600 MiB in three")
     big = {LOGS + f"Survarium_tester.2026-10-0{day}_00-00-00.log": 200 * MB for day in (1, 2, 3)}
@@ -446,9 +435,8 @@ def main():
     disk, named, fault = run(built, full, folder + user + ".log", lead=shift_jis)
     check(fault is None and named and named[0] == LOGS + user + f".{STAMP}.log",
           f"the run's name in game\\logs ({fault or named and named[0]!a})")
-    check(len(disk.moved) == 100 and disk.deleted == [LOGS + user + ".2026-10-01_01-00-00.log"]
-          and old_run not in disk.deleted,
-          f"its kind's 100 moved, the oldest deleted ({[d.encode('latin-1') for d in disk.deleted]})")
+    check(sorted(disk.deleted) == sorted(full) and old_run not in disk.deleted,
+          f"its kind's 100 in its old folder deleted ({len(disk.deleted)})")
 
     print("patch 100's C log line")
     ad_log = linked.symbols.get("ad_log")

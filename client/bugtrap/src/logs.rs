@@ -21,10 +21,6 @@ use windows_sys::Win32::{
 
 pub const COUNT: usize = 32;
 pub const MAX_MEMBERS: usize = COUNT + 5; // whole sources, patch log, dump, crash.txt, breadcrumbs, summary
-/// The client patches' log of before the runs were named (vostok/log.rs),
-/// beside the exe: the crashed run's when no `srp_patches.<stamp>.log` is
-/// in `game\logs`.
-pub const PATCH_LOG: &str = "srp_patches.log";
 /// The crashed run's patch log can be long (8 MiB a part), so the ZIP takes
 /// its last [`PATCH_LOG_BYTES`].
 pub const PATCH_LOG_BYTES: u64 = 2 * 1024 * 1024;
@@ -94,8 +90,8 @@ impl Candidate {
     };
     /// The crashed run's patch log of the exe's folder `exe` (`folders()[1]`,
     /// or dump::folder's), its tail: the newest (last written)
-    /// `srp_patches.<stamp>[_<n>].log` in `game\logs` ([`game_logs`]), else
-    /// the old `srp_patches.log` there (the updater moved it), else beside the exe.
+    /// `srp_patches.<stamp>[_<n>].log` in `game\logs` ([`game_logs`]); `len`
+    /// 0 when there is none.
     pub unsafe fn patch_log(exe: &[u16]) -> Self {
         let mut log = Self::EMPTY;
         log.scope = LOGS_SCOPE;
@@ -132,40 +128,14 @@ impl Candidate {
                 FindClose(find);
             }
         }
-        if log.run.is_none() {
-            // the old one where the updater moved it, else beside the exe
-            let mut moved = Wide::<1100>::new();
-            let in_logs = logs.len != 0
-                && moved.wide(&logs.buf[..logs.len]).is_ok()
-                && write!(moved, "{PATCH_LOG}").is_ok()
-                && GetFileAttributesW(moved.ptr()) != INVALID_FILE_ATTRIBUTES;
-            log.scope = if in_logs { LOGS_SCOPE } else { EXE_SCOPE };
-            log.name = [0; 260];
-            for (slot, b) in log.name.iter_mut().zip(PATCH_LOG.bytes()) {
-                *slot = b as u16;
-            }
-            log.len = PATCH_LOG.len();
-        }
         log
     }
-    /// The folder [`Candidate::patch_log`] found the log in, of the exe's
-    /// folder `exe`: `game\logs\` or the exe's own.
-    pub fn patch_log_folder(&self, exe: &[u16]) -> Wide<1024> {
-        if self.scope == LOGS_SCOPE {
-            return game_logs(exe);
-        }
-        let mut folder = Wide::new();
-        if folder.wide(exe).is_err() {
-            folder.truncate(0);
-        }
-        folder
-    }
     /// The file name (no folder) as text, for a name of ours alone: the
-    /// patch log's (parsed, or the fixed old one).
+    /// patch log's, parsed (nothing when none was found: `len` 0).
     pub fn patch_log_name(&self, out: &mut dyn Write) -> fmt::Result {
         match self.run {
             Some(run) => write!(out, "srp_patches.{}.log", run.stamp()),
-            None => out.write_str(PATCH_LOG),
+            None => Ok(()),
         }
     }
     fn same_file(&self, scope: usize, name: &[u16]) -> bool {

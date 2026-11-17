@@ -129,15 +129,15 @@ srp: ...
   deserialize reads them in one function), so a section is not named.
 - Dump: saved, or why not, with the Windows error.
 - Game log: the last 20 lines of the newest (last written) run's `Survarium*.log`
-  in `game\logs` (else the newest `Survarium*.log` in Documents\Survarium), the crashed run's `Survarium_<user>.<stamp>.log`
+  in `game\logs` (none there: none), the crashed run's `Survarium_<user>.<stamp>.log`
   (see Recent logs) (its last 8 KiB), from the first line that starts a
   record (a cut inside a sensitive record's continuation lines would not be
   caught), through the same credential filter as the ZIP's logs; the file
   name is not written (it holds the account name).
 - Patch log: the last 100 lines of the crashed run's client patches' log
   in `game\logs` (`vostok/log.rs`; its last 24 KiB), the same way, and its
-  name: the newest (last written) `srp_patches.<stamp>[_<n>].log`, else the
-  `srp_patches.log` of before the runs were named beside the exe; each of its `srp: ` lines
+  name: the newest (last written) `srp_patches.<stamp>[_<n>].log` (none there:
+  none); each of its `srp: ` lines
   is a record of its own for the filter.
 - Every read of the game's memory goes through `ReadProcessMemory`: a
   damaged pointer gives no line, not a second crash. The stack scan reads
@@ -308,9 +308,9 @@ pointers; not yet measured on Windows: see Dump contents).
   runs' before it, newest first, within the bounds below.
 - The client patches' log of the crashed run: the newest (last written)
   `srp_patches.<stamp>[_<n>].log` in `game\logs` (`vostok/log.rs`), or, when
-  there is none, `srp_patches.log` beside the EXE (the one of before the runs were named,
-  which also gets the lines logged before a run's start: none in the game).
-  It comes first, as `logs/game-logs/<its name>` (`logs/game-exe/srp_patches.log`), whatever its age: its last
+  there is none, none is taken (never the old `srp_patches.log`, which the
+  updater deletes).
+  It comes first, as `logs/game-logs/<its name>` whatever its age: its last
   2 MiB, from the first whole line in them (`collection.txt` says from which
   byte), under the same filter and budgets. Its `srp: ` lines are each a
   record of their own for the filter. The earlier runs' `srp_patches.<stamp>.log`
@@ -622,8 +622,8 @@ other two, the game's two runs (a user name holding a synthetic secret), the
 updater's run in `game\logs` and an older run's patches' log left beside the
 exe as sources named `source-NN.<kind>.<stamp>.txt` in newest order, the old
 `updater_skhid.log` as `source-NN.txt`, `srp_patches.old.log` and the old
-`srp_patches.log` not; with no run's patch log in `game\logs` the old
-`srp_patches.log` is the crashed run's.
+`srp_patches.log` not; with no run's patch log in `game\logs` none is
+taken.
 A short successful read followed by premature EOF must also roll back the
 source even though filtered output has a different size. Host-only boundary,
 encoding and read-failure tests, and the runs' names (each kind, `_<n>`,

@@ -234,24 +234,18 @@ fn file_name_at(path: &[u8], lead: impl Fn(u8) -> bool) -> usize {
 /// IsDBCSLeadByte of the ANSI code page (kernel32's, by GetProcAddress:
 /// the exe does not import it); no byte is one when kernel32 does not say.
 pub fn lead_byte() -> impl Fn(u8) -> bool {
-    let function = kernel32(c"IsDBCSLeadByte");
-    // SAFETY: IsDBCSLeadByte, that export (the library's dynamic row), a byte.
-    move |byte| function.is_some_and(|f| unsafe { raw::engine_is_dbcs_lead_byte(f, u32::from(byte)) } != 0)
-}
-
-/// kernel32's export `name`, by GetProcAddress (for those the exe does not
-/// import); none when kernel32 does not give it.
-fn kernel32(name: &core::ffi::CStr) -> Option<core::ptr::NonNull<core::ffi::c_void>> {
     // SAFETY: kernel32 is in every process; GetModuleHandleA and
     // GetProcAddress through the exe's import slots, NUL-terminated names.
-    unsafe {
+    let function = unsafe {
         let kernel32 = (raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
         if kernel32.is_null() {
             None
         } else {
-            core::ptr::NonNull::new((raw::engine_get_proc_address)(kernel32, name.as_ptr().cast()))
+            core::ptr::NonNull::new((raw::engine_get_proc_address)(kernel32, c"IsDBCSLeadByte".as_ptr().cast()))
         }
-    }
+    };
+    // SAFETY: IsDBCSLeadByte, that export (the library's dynamic row), a byte.
+    move |byte| function.is_some_and(|f| unsafe { raw::engine_is_dbcs_lead_byte(f, u32::from(byte)) } != 0)
 }
 
 /// Where a file of a kind stands in the order of deletion: the least
@@ -278,38 +272,27 @@ impl<'a> Kind<'a> {
         Kind { folder: Kind::LOGS, stem: self.stem }
     }
 
-    /// The kind's run files, and its unstamped `<stem>.log` of before the
-    /// runs were named (written no more), moved into the folder of `to`
-    /// (the same kind elsewhere, [`Kind::in_logs`]) under their names, by
-    /// MoveFileExA, a copy when that is another disk: how many moved. A
-    /// name `to` has already, or a file Windows does not move (open), stays
-    /// where it is.
-    pub fn move_runs(&self, to: &Kind) -> u32 {
-        const MOVEFILE_COPY_ALLOWED: u32 = 2;
-        let Some(move_file) = kernel32(c"MoveFileExA") else { return 0 };
-        let move_one = |name: &[u8], extension: &[u8]| {
-            let (Some(from), Some(into)) = (Name::of(&[self.folder, name, extension]), Name::of(&[to.folder, name, extension]))
-            else {
-                return false;
-            };
-            let (Some(from), Some(into)) = (from.path(), into.path()) else { return false };
-            // SAFETY: MoveFileExA, that export (the library's dynamic row),
-            // two NUL-ended paths of ours.
-            unsafe { raw::engine_move_file_ex_a(move_file, from.ptr(), into.ptr(), MOVEFILE_COPY_ALLOWED) != 0 }
+    /// The kind's run files and its unstamped `<stem>.log` of before the
+    /// runs were named, all deleted (the engine's old place: their history
+    /// is not kept): how many went. One Windows does not delete (open)
+    /// stays.
+    pub fn delete_all(&self) -> u32 {
+        let delete = |name: &[u8], extension: &[u8]| {
+            Name::of(&[self.folder, name, extension]).is_some_and(|path| path.path().is_some_and(files::delete))
         };
-        let mut moved = u32::from(move_one(self.stem, b".log"));
-        let Some(pattern) = Name::of(&[self.folder, self.stem, b".*.log"]) else { return moved };
+        let mut deleted = u32::from(delete(self.stem, b".log"));
+        let Some(pattern) = Name::of(&[self.folder, self.stem, b".*.log"]) else { return deleted };
         let mut data = FindData::new();
-        let Some(mut find) = pattern.path().and_then(|pattern| Find::first(pattern, &mut data)) else { return moved };
+        let Some(mut find) = pattern.path().and_then(|pattern| Find::first(pattern, &mut data)) else { return deleted };
         loop {
-            if !data.is_folder() && self.run_of(data.name()).is_some() && move_one(data.name(), b"") {
-                moved += 1;
+            if !data.is_folder() && self.run_of(data.name()).is_some() && delete(data.name(), b"") {
+                deleted += 1;
             }
             if !find.next(&mut data) {
                 break;
             }
         }
-        moved
+        deleted
     }
 
     /// The kind's folder made when it is not there (none of its parents;

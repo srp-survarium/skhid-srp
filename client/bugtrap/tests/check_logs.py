@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
             # A source's ID (a run's log adds its kind and stamp); the crashed run's patch log, its own name.
             stamp = r"[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}(_[1-9][0-9]?)?"
             member = (rf"logs/[a-z-]+/source-[0-9]{{2}}(\.(game|srp_patches|updater_skhid)\.{stamp})?\.txt"
-                      rf"|logs/game-(exe|logs)/srp_patches(\.{stamp})?\.log")
+                      rf"|logs/game-logs/srp_patches\.{stamp}\.log")
             assert all(re.fullmatch(member, n) for n in logs), list(logs)
             for name in members:
                 assert name in logs, (name, list(logs))
@@ -283,16 +283,10 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
         "logs/documents/source-05.game.2026-11-15_12-00-00.txt",
         "logs/game-exe/source-06.srp_patches.2026-11-14_10-00-00.txt",
         "logs/game-exe/source-07.txt"))
-    # No run's patch log in game\logs: the old srp_patches.log is the crashed run's.
+    # No run's patch log in game\logs: none is taken, never the old srp_patches.log beside the exe.
     for path in run_logs.glob("srp_patches.2026-*.log"):
         path.unlink()
     expected = {k: v for k, v in expected.items() if not k.startswith("logs/game-logs/srp_patches.2026")}
-    expected["logs/game-exe/srp_patches.log"] = b"srp: the log before runs were named\r\n"
-    check(expected, members=("logs/game-exe/srp_patches.log",))
-    # The old srp_patches.log where the updater moved it, in game\logs.
-    (game / "srp_patches.log").rename(run_logs / "srp_patches.log")
-    expected = {k: v for k, v in expected.items() if k != "logs/game-exe/srp_patches.log"}
-    expected["logs/game-logs/srp_patches.log"] = b"srp: the log before runs were named\r\n"
-    check(expected, members=("logs/game-logs/srp_patches.log",))
+    check(expected)
     print("PASS run logs: the crashed run's patch log first by its stamp, earlier runs' by kind and stamp, "
-          "no user name; the old srp_patches.log when no run's is there", flush=True)
+          "no user name; none when no run's is in game\\logs", flush=True)

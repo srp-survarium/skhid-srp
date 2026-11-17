@@ -39,47 +39,45 @@ pub fn start_seeding(layout: &Layout) {
     start_in(layout, &format!("{}\\{}", layout.logs_dir, run_log::SEED_FOLDER));
 }
 
-/// Makes `folder`, moves into the `logs` folder the run files earlier
-/// updaters and games left beside the updater ([`gather`]), then starts
-/// this run's file in `folder`. Once a run.
+/// Makes `folder`, deletes the logs earlier updaters and games left beside
+/// the updater ([`clear_old`]), then starts this run's file in `folder`.
+/// Once a run.
 fn start_in(layout: &Layout, folder: &str) {
     if !matches!(unsafe { &*LOG.0.get() }, State::Off) {
         return;
     }
     let _ = win::create_folders(folder);
-    let moved = gather(layout);
+    let deleted = clear_old(layout);
     start_file(folder);
-    if moved > 0 {
-        line(&format!("moved {moved} earlier runs' logs from {} into {}", layout.exe_dir, layout.logs_dir));
+    if deleted > 0 {
+        line(&format!("deleted {deleted} old logs in {}", layout.exe_dir));
     }
 }
 
-/// The run files beside the updater (`run_log::moves_to_folder`) and in
-/// its old seeding folder, moved into the `logs` folder and its seeding
-/// folder, the old seeding folder removed once empty: how many moved. A
-/// file that does not move (its name taken there, held without sharing)
-/// stays where it is.
-fn gather(layout: &Layout) -> usize {
-    let mut moved = 0;
-    let mut bring = |from: &str, to: &str, name: &str| {
-        if win::rename(&format!("{from}\\{name}"), &format!("{to}\\{name}"), false).is_ok() {
-            moved += 1;
+/// The logs beside the updater from before they went to the `logs` folder
+/// (`run_log::old_beside_updater`) and its old seeding folder's runs,
+/// deleted, the folder removed once empty: how many went. One Windows does
+/// not delete (open) stays.
+fn clear_old(layout: &Layout) -> usize {
+    let mut deleted = 0;
+    let mut delete = |folder: &str, name: &str| {
+        let path = format!("{folder}\\{name}");
+        if win::delete(&path).is_ok() {
+            deleted += 1;
         }
     };
     let x86 = &layout.exe_dir;
-    for name in win::list(x86, "*.log").iter().filter(|name| run_log::moves_to_folder(name)) {
-        bring(x86, &layout.logs_dir, name);
+    for name in win::list(x86, "*.log").iter().filter(|name| run_log::old_beside_updater(name)) {
+        delete(x86, name);
     }
     let old_seed = format!("{x86}\\{}", run_log::OLD_SEED_FOLDER);
     if win::is_folder(&old_seed) {
-        let seed = format!("{}\\{}", layout.logs_dir, run_log::SEED_FOLDER);
-        let _ = win::create_folders(&seed);
         for name in win::list(&old_seed, run_log::PATTERN).iter().filter(|name| RunName::parse(name).is_some()) {
-            bring(&old_seed, &seed, name);
+            delete(&old_seed, name);
         }
         win::remove_dir(&old_seed);
     }
-    moved
+    deleted
 }
 
 /// Starts this run's file in `folder` (the log [`State::Off`]): the least

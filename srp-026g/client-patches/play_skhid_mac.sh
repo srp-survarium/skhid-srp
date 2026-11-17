@@ -322,10 +322,10 @@ main() {
     shlock -f .skhid-launcher.lock -p $$ || die 'This launcher is already running.'
     trap 'rm -f .skhid-launcher.lock' EXIT
 
-    # game/logs, with the updater's and the game's; an earlier script's log beside this one moves there
+    # game/logs, with the updater's and the game's; an earlier script's log beside this one goes
     log="${PWD%/*/*}/logs/skhid-wine.log"
     mkdir -p "${log%/*}"
-    if [[ -f skhid-wine.log && ! -e $log ]]; then mv skhid-wine.log "$log"; fi
+    rm -f skhid-wine.log
     RUNTIME=$(runtime_dir)
     WINE_ROOT="$RUNTIME/Survarium.app/Contents"
     install_runtime

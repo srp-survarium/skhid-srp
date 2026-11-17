@@ -495,19 +495,13 @@ impl Source for Bytes<'_> {
 
 /// The game's log of the crashed run, its last lines, without
 /// credential-bearing records (`sanitize.rs`): the newest run's
-/// `Survarium[_<user>].<stamp>.log` in `game\logs`, else the newest
-/// `Survarium*.log` in Documents\Survarium (an exe before the logs went to
-/// `game\logs`, or a run whose name kept the engine's; then the old one the exe moved to `game\logs`). Its name holds the
+/// `Survarium[_<user>].<stamp>.log` in `game\logs`. Its name holds the
 /// player's account name, so it is not written.
 unsafe fn log_tail(w: &mut dyn Write) {
     let folders = crate::logs::folders();
-    let (logs, docs) = (&folders[crate::logs::LOGS_SCOPE], &folders[0]);
-    let found = newest_game_log(logs, true)
-        .map(|name| (logs, name, "game\\logs"))
-        .or_else(|| newest_game_log(docs, false).map(|name| (docs, name, "Documents\\Survarium")))
-        .or_else(|| newest_game_log(logs, false).map(|name| (logs, name, "game\\logs")));
-    let Some((folder, name, place)) = found else {
-        let _ = w.write_str("Game log:  none found\r\n");
+    let folder = &folders[crate::logs::LOGS_SCOPE];
+    let Some(name) = newest_game_log(folder) else {
+        let _ = w.write_str("Game log:  none found in game\\logs\r\n");
         return;
     };
     let name_len = name.iter().position(|&c| c == 0).unwrap_or(0);
@@ -522,13 +516,13 @@ unsafe fn log_tail(w: &mut dyn Write) {
         "Game log:  ",
         LOG_LINES,
         LOG_BYTES,
-        format_args!("Game log:  last {LOG_LINES} lines of the newest Survarium*.log in {place}\r\n"),
+        format_args!("Game log:  last {LOG_LINES} lines of the newest Survarium*.log in game\\logs\r\n"),
     );
 }
 
-/// The last written `Survarium*.log` of `folder` (only a run's,
-/// `run_name::Kind::Game`, when `runs`); none in a folder unknown or empty.
-unsafe fn newest_game_log(folder: &Wide<1024>, runs: bool) -> Option<[u16; 260]> {
+/// The last written run's `Survarium*.log` of `folder`
+/// (`run_name::Kind::Game`); none in a folder unknown or without one.
+unsafe fn newest_game_log(folder: &Wide<1024>) -> Option<[u16; 260]> {
     let mut pattern = Wide::<1100>::new();
     if folder.len == 0
         || pattern.wide(&folder.buf[..folder.len]).is_err()
@@ -547,9 +541,8 @@ unsafe fn newest_game_log(folder: &Wide<1024>, runs: bool) -> Option<[u16; 260]>
         let time = (found.ftLastWriteTime.dwHighDateTime as u64) << 32
             | found.ftLastWriteTime.dwLowDateTime as u64;
         let n = found.cFileName.iter().position(|&c| c == 0).unwrap_or(0);
-        let wanted = !runs
-            || crate::run_name::parse(&found.cFileName[..n])
-                .is_some_and(|run| run.kind == crate::run_name::Kind::Game);
+        let wanted = crate::run_name::parse(&found.cFileName[..n])
+            .is_some_and(|run| run.kind == crate::run_name::Kind::Game);
         if found.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT) == 0
             && wanted
             && (newest.is_none() || time >= newest_time)
@@ -566,20 +559,21 @@ unsafe fn newest_game_log(folder: &Wide<1024>, runs: bool) -> Option<[u16; 260]>
 }
 
 /// The crashed run's client patch log (vostok/log.rs): the newest
-/// `srp_patches.<stamp>.log` in `game\logs`, else `srp_patches.log` beside
-/// the exe (logs::Candidate::patch_log), what the client patches said last.
+/// `srp_patches.<stamp>.log` in `game\logs` (logs::Candidate::patch_log),
+/// what the client patches said last.
 unsafe fn patch_tail(w: &mut dyn Write) {
     // The exe's folder from GetModuleFileNameW alone (logs::folders would
     // ask the shell for Documents too).
     let exe = crate::dump::folder();
     let log = crate::logs::Candidate::patch_log(&exe.buf[..exe.len]);
-    let folder = log.patch_log_folder(&exe.buf[..exe.len]);
+    let folder = crate::logs::game_logs(&exe.buf[..exe.len]);
     let mut path = Wide::<1400>::new();
     if folder.len == 0
+        || log.len == 0
         || path.wide(&folder.buf[..folder.len]).is_err()
         || path.wide(&log.name[..log.len]).is_err()
     {
-        let _ = w.write_str("Patch log: no game folder\r\n");
+        let _ = w.write_str("Patch log: none in game\\logs\r\n");
         return;
     }
     let _ = tail(
@@ -592,7 +586,7 @@ unsafe fn patch_tail(w: &mut dyn Write) {
     );
 }
 
-/// The patch log's file name (ours: parsed, or the old fixed one).
+/// The patch log's file name (ours: parsed).
 struct Name<'a>(&'a crate::logs::Candidate);
 impl core::fmt::Display for Name<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {

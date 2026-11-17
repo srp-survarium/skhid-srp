@@ -4,8 +4,8 @@
 //! the same second made that name first. A run's file is made new and only
 //! appended to; an old run's file is only ever deleted, never written over:
 //! when a run starts, the oldest go while 100 or more, or 500 MiB or more,
-//! are there. The legacy `updater_skhid.log` is not a run's: never read,
-//! written or deleted here (it is moved, once, with the runs).
+//! are there. The legacy `updater_skhid.log` is not a run's: never read or
+//! written, deleted once with the old runs beside the updater ([`old_beside_updater`]).
 
 use alloc::{format, string::String, vec::Vec};
 
@@ -15,7 +15,7 @@ pub const FOLDER: &str = "logs";
 /// runs at every lobby and would push the launcher's updater's runs out of
 /// the kept 100.
 pub const SEED_FOLDER: &str = "seed";
-/// Where the seeding updater's runs were before, beside the updater.
+/// Where the seeding updater's runs were before, beside the updater: deleted.
 pub const OLD_SEED_FOLDER: &str = "updater_skhid.seed-logs";
 /// Every run file's name starts with this.
 pub const PREFIX: &str = "updater_skhid.";
@@ -128,14 +128,14 @@ impl RunName {
 }
 
 /// The logs of before the runs were named, beside the updater: written no
-/// more, they move into [`FOLDER`] too.
+/// more.
 const OLD_LOGS: [&str; 3] = ["updater_skhid.log", "srp_patches.log", "srp_patches.old.log"];
 
 /// Whether `name`, a file beside the updater, is a log an earlier updater
 /// or game wrote there before the logs went to [`FOLDER`]: the updater's
 /// or the client patches' `<kind>.<stamp>[_<n>].log`, or one of the
-/// unstamped [`OLD_LOGS`]. It moves into [`FOLDER`].
-pub fn moves_to_folder(name: &str) -> bool {
+/// unstamped [`OLD_LOGS`]. It is deleted (their history is not kept).
+pub fn old_beside_updater(name: &str) -> bool {
     OLD_LOGS.iter().any(|old| old.eq_ignore_ascii_case(name))
         || [PREFIX, PATCHES_PREFIX].iter().any(|kind| RunName::parse_of(kind, name).is_some())
 }
@@ -218,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    fn the_run_files_beside_the_updater_move() {
+    fn the_old_logs_beside_the_updater_go() {
         for name in [
             "updater_skhid.2026-11-15_14-03-07.log",
             "updater_skhid.2026-11-15_14-03-07_12.log",
@@ -228,7 +228,7 @@ mod tests {
             "srp_patches.log",
             "srp_patches.old.log",
         ] {
-            assert!(moves_to_folder(name), "{name}");
+            assert!(old_beside_updater(name), "{name}");
         }
         for name in [
             "updater_skhid.resources.journal",
@@ -237,7 +237,7 @@ mod tests {
             "Survarium_a.2026-11-15_14-03-07.log",
             "srp_patches.2026-11-15_14-03-07_1.log",
         ] {
-            assert!(!moves_to_folder(name), "{name}");
+            assert!(!old_beside_updater(name), "{name}");
         }
     }
 
