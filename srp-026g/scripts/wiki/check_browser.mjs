@@ -167,6 +167,12 @@ try {
   // The simulators: one or two weapons' recoil and spread.
   const sim = selector => `document.querySelector('#recoil-sim ${selector}')`;
   const choose = (selector, value) => evaluate(`{const s=${sim(selector)};s.value='${value}';s.dispatchEvent(new Event('change'))}`);
+  // A side's setup row (`key`): a button by its value, its strongest, none.
+  const row = (side, key) => `.sim-setup[data-side="${side}"] .gmrow[data-key="${key}"]`;
+  const setRow = (side, key, value) => evaluate(`document.querySelector('${row(side, key)} .gstep[data-v="${value}"]').click()`);
+  const strongest = (side, key) => evaluate(`{const b=[...document.querySelectorAll('${row(side, key)} .gstep')].at(-1);if(b.getAttribute('aria-pressed')!=='true')b.click()}`);
+  const clearRow = (side, key) => evaluate(`document.querySelector('${row(side, key)} .gstep[aria-pressed=true]')?.click()`);
+  const rowKeys = async side => JSON.parse(await evaluate(`JSON.stringify([...document.querySelectorAll('.sim-setup[data-side="${side}"] .gmrow')].map(r=>r.dataset.key))`));
   await navigate('/wiki/simulators?a=wpn_ak_74m&b=wpn_pm');
   await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
   assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false);
@@ -251,91 +257,97 @@ try {
   assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).includes('°'), 'the spread in the legend');
   await evaluate("document.querySelector('#recoil-sim .sim-sight').scrollIntoView()");
   await screenshot('simulators-hip');
-  await choose('.sim-stance', 'walk');
+  await setRow(0, 'stance', 'walk');
   assert.equal(await parts(), '0.2° 10° 2° 30.2°', 'walking');
-  await evaluate("for (const s of document.querySelectorAll('#recoil-sim .sim-source')) {s.selectedIndex=s.options.length-1;s.dispatchEvent(new Event('change'))}");
-  await choose('.sim-arms', '2');
+  // Every skill and modification at its strongest: the gloves' and the body
+  // armour's dispersion add up (−10% each), as the pieces' sum does.
+  for (const key of await rowKeys(0)) if (/^(skill|mod)-/.test(key)) await strongest(0, key);
+  await setRow(0, 'arms', '2');
   const hipAll = await parts();
-  assert.notEqual(hipAll, '0.2° 10° 2° 30.2°', 'skills, gloves and arms change the spread from the hip');
-  assert.equal(hipAll, `0.2° ${+((10 * .76 + 10 * .4) * .9).toFixed(2)}° 1.8° ${+(0.2 + (10 * .76 + 10 * .4) * .9 + 20).toFixed(2)}°`, 'walking from the hip with all of them');
-  await choose('.sim-aim', 'aiming');
-  assert.equal(await parts(), `0.2° ${+((10 * .88 + 10 * .4) * .9).toFixed(2)}° 1.8° ${+(0.2 + (10 * .88 + 10 * .4) * .9 + 20).toFixed(2)}°`, 'aiming in: the aimed values, no Accuracy');
-  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-view path').length > 0 && !document.querySelector('#recoil-sim').hidden"), true);
-  await choose('.sim-aim', 'aimed');
+  assert.equal(hipAll, `0.2° ${+((10 * .76 + 10 * .4) * .8).toFixed(2)}° 1.6° ${+(0.2 + (10 * .76 + 10 * .4) * .8 + 20).toFixed(2)}°`, 'walking from the hip with all of them');
+  await setRow(0, 'aim', 'aiming');
+  assert.equal(await parts(), `0.2° ${+((10 * .88 + 10 * .4) * .8).toFixed(2)}° 1.6° ${+(0.2 + (10 * .88 + 10 * .4) * .8 + 20).toFixed(2)}°`, 'aiming in: the aimed values, no Accuracy');
+  await setRow(0, 'aim', 'aimed');
   for (const stance of ['idle', 'walk', 'crouch', 'crouch_walk', 'run', 'jump']) {
-    await choose('.sim-stance', stance);
+    await setRow(0, 'stance', stance);
     assert.equal(await parts(), '0.2° 0° 0° 0.2°', `fully aimed, ${stance}: the base only, whatever else`);
   }
   await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
   await screenshot('simulators-aimed');
-  // Recoil: the weapon's modification scales its kick ranges, the gloves' the
-  // kick a shot; neither changes the spread.
+  // Each side its own setup, the same weapon on both: the recoil pieces and
+  // the weapon's modification lower B's climb, and A's aim leaves B's spread.
   {
-    const upAtLast = async () => {
+    await navigate('/wiki/simulators?a=wpn_ak_74m&b=wpn_ak_74m');
+    const ups = async () => {
       await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
-      return Number((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).match(/up (-?[\d.]+)/)[1]);
+      return [...(await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).matchAll(/up (-?[\d.]+)/g)].map(m => Number(m[1]));
     };
-    await evaluate("for (const s of document.querySelectorAll('#recoil-sim .sim-source,#recoil-sim .sim-kick')) {s.selectedIndex=0;s.dispatchEvent(new Event('change'))}");
-    await choose('.sim-aim', 'hip'); await choose('.sim-stance', 'idle');
-    const plain = await upAtLast(), spreadParts = await parts();
-    assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-kick').length"), 1, 'one weapon recoil chooser');
-    assert.match(await evaluate("[...document.querySelectorAll('#recoil-sim .sim-kick option')].map(o=>o.textContent).join()"), /^None,−2%,.*,−10%$/, 'none and the five strengths, no defect');
-    await evaluate("{const s=document.querySelector('#recoil-sim .sim-kick');s.selectedIndex=s.options.length-1;s.dispatchEvent(new Event('change'))}");
-    const weapon = await upAtLast();
-    assert.ok(weapon < plain, `the weapon's modification lowers the climb (${weapon} < ${plain})`);
-    const gloves = "[...document.querySelectorAll('#recoil-sim .sim-source')].find(s=>s.options[1].dataset.effects.includes('recoil'))";
-    await evaluate(`{const s=document.querySelector('#recoil-sim .sim-kick');s.selectedIndex=0;s.dispatchEvent(new Event('change'));const g=${gloves};g.selectedIndex=g.options.length-1;g.dispatchEvent(new Event('change'))}`);
-    const kit = await upAtLast();
-    assert.ok(kit < plain, `the gloves' modification lowers the climb (${kit} < ${plain})`);
-    assert.equal(await parts(), spreadParts, 'recoil leaves the spread');
-    await evaluate(`{const g=${gloves};g.selectedIndex=0;g.dispatchEvent(new Event('change'))}`);
+    const [a0, b0] = await ups();
+    assert.equal(a0, b0, 'the same weapon and setup, the same climb');
+    assert.match(await evaluate("[...document.querySelectorAll('.sim-setup[data-side=\"1\"] .gmrow[data-key=\"mod-9-weapon\"] .gstep')].map(b=>b.textContent).join()"), /^−2%,.*,−10%$/, 'the five strengths, no defect');
+    await strongest(1, 'mod-9-weapon');
+    const [a1, weapon] = await ups();
+    assert.ok(a1 === a0 && weapon < b0, `the weapon's modification lowers B's climb only (${weapon} < ${b0})`);
+    await clearRow(1, 'mod-9-weapon');
+    const pieces = (await rowKeys(1)).filter(key => key.startsWith('mod-27-'));
+    assert.ok(pieces.includes('mod-27-gloves') && pieces.length > 1, `recoil on more than one piece (${pieces})`);
+    await strongest(1, 'mod-27-gloves');
+    const [, gloves] = await ups();
+    for (const key of pieces) await strongest(1, key);
+    const [, both] = await ups();
+    assert.ok(both < gloves && gloves < b0, `the pieces add up (${both} < ${gloves} < ${b0})`);
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.2° 5° 2° 25.2°', 'recoil leaves the spread');
+    await setRow(0, 'aim', 'aimed');
+    assert.equal(await parts(), '0.2° 0° 0° 0.2° 0.2° 5° 2° 25.2°', 'A\'s aim is A\'s');
+    await screenshot('simulators-same-weapon');
   }
-  // Help: a mark per skill and modification, its line on hover, keyboard focus or a tap.
+  // A row's card (what it does): on hover, keyboard focus or a tap.
   {
-    const helps = await evaluate("document.querySelectorAll('#recoil-sim .sim-help').length");
-    assert.equal(helps, await evaluate("document.querySelectorAll('#recoil-sim .sim-source,#recoil-sim .sim-kick').length"), 'a help mark per choice');
-    const shown = i => evaluate(`getComputedStyle(document.querySelectorAll('#recoil-sim .sim-tip')[${i}]).display !== 'none'`);
-    assert.equal(await shown(0), false, 'closed at first');
-    await evaluate("document.querySelector('#recoil-sim .sim-help').scrollIntoView({block:'center'})");
-    const at = JSON.parse(await evaluate("(()=>{const r=document.querySelector('#recoil-sim .sim-help').getBoundingClientRect();return JSON.stringify([Math.round(r.x+r.width/2),Math.round(r.y+r.height/2)])})()"));
+    const label = "document.querySelector('.sim-setup[data-side=\"0\"] .gmrow[data-key=\"skill-106\"] .glabel')";
+    const shown = () => evaluate(`getComputedStyle(${label}.querySelector('.gamemods')).display !== 'none'`);
+    assert.equal(await shown(), false, 'closed at first');
+    await evaluate(`${label}.scrollIntoView({block:'center'})`);
+    const at = JSON.parse(await evaluate(`(()=>{const r=${label}.getBoundingClientRect();return JSON.stringify([Math.round(r.x+8),Math.round(r.y+r.height/2)])})()`));
     const height = await evaluate("document.documentElement.scrollHeight");
     await send('input.performActions', {context, actions: [{type: 'pointer', id: 'mouse', actions: [{type: 'pointerMove', x: at[0], y: at[1]}]}]});
-    // Only where the pointer can hover (a phone's touch would leave it stuck open); headless Firefox cannot.
+    // Headless Firefox has no hovering pointer unless its prefs give one.
     const hover = await evaluate("matchMedia('(hover:hover)').matches");
-    assert.equal(await shown(0), hover, hover ? 'hover opens it' : 'no hover opening without a hovering pointer');
+    if (hover) assert.equal(await shown(), true, 'hover opens it');
     assert.equal(await evaluate("document.documentElement.scrollHeight"), height, 'it shifts nothing');
     await send('input.performActions', {context, actions: [{type: 'pointer', id: 'mouse', actions: [{type: 'pointerMove', x: 5, y: 5}]}]});
-    assert.equal(await shown(0), false, 'leaving closes it');
-    await evaluate("document.querySelector('#recoil-sim .sim-seed').focus()");
+    assert.equal(await shown(), false, 'leaving closes it');
+    await evaluate("[...document.querySelectorAll('.sim-setup[data-side=\"0\"] .gmrow[data-key=\"arms\"] .gstep')].at(-1).focus()");
     await send('input.performActions', {context, actions: [{type: 'key', id: 'keyboard', actions: [{type: 'keyDown', value: ''}, {type: 'keyUp', value: ''}]}]});
-    assert.equal(await evaluate("document.activeElement.className"), 'sim-help');
-    assert.equal(await shown(0), true, 'keyboard focus opens it');
-    assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-tip').textContent")).includes('−4%'), 'the per-rank value from the data');
-    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'mouse', actions: [{type: 'pointerMove', x: 5, y: 5}]}]});
+    assert.equal(await evaluate(`document.activeElement === ${label}`), true, 'the label takes the keyboard');
+    assert.equal(await shown(), true, 'keyboard focus opens it');
+    assert.ok((await evaluate(`${label}.textContent`)).includes('−4%'), 'the per-rank value from the data');
+    await evaluate("document.activeElement.blur()");
   }
   await navigate('/wiki/simulators?lang=uk&a=wpn_ak_74m&b=wpn_pm');
   await send('browsingContext.setViewport', {context, viewport: {width:360,height:800}, devicePixelRatio:1});
   assert.equal(await evaluate('document.documentElement.lang'), 'uk');
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'the simulators fit 360 px');
-  assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-inputs label:nth-child(2)').textContent")).startsWith('Положення'));
-  await evaluate("document.querySelector('#recoil-sim .sim-skill').scrollIntoView()");
+  assert.ok((await evaluate("document.querySelector('.sim-setup .gmrow[data-key=\"stance\"] .glabel').textContent")).startsWith('Положення'));
+  await evaluate("document.querySelector('.sim-setup').scrollIntoView()");
   await screenshot('simulators-mobile-uk');
-  // At 360 px a tap opens a help line inside the screen; a tap elsewhere closes it.
-  for (let i = 0; i < await evaluate("document.querySelectorAll('#recoil-sim .sim-help').length"); i++) {
-    await evaluate(`document.querySelectorAll('#recoil-sim .sim-help')[${i}].scrollIntoView({block:'center'})`);
-    const at = JSON.parse(await evaluate(`(()=>{const r=document.querySelectorAll('#recoil-sim .sim-help')[${i}].getBoundingClientRect();return JSON.stringify([Math.round(r.x+r.width/2),Math.round(r.y+r.height/2)])})()`));
+  // At 360 px a tap opens a card inside the screen; a tap elsewhere closes it.
+  const cards = await evaluate("document.querySelectorAll('.sim-setup[data-side=\"0\"] .glabel.fxhint').length");
+  assert.ok(cards >= 5, `a card per skill and modification (${cards})`);
+  for (let i = 0; i < cards; i++) {
+    const label = `document.querySelectorAll('.sim-setup[data-side="0"] .glabel.fxhint')[${i}]`;
+    await evaluate(`${label}.scrollIntoView({block:'center'})`);
+    const at = JSON.parse(await evaluate(`(()=>{const r=${label}.getBoundingClientRect();return JSON.stringify([Math.round(r.x+8),Math.round(r.y+r.height/2)])})()`));
     await send('input.performActions', {context, actions: [{type: 'pointer', id: 'touch', parameters: {pointerType: 'touch'}, actions: [
       {type: 'pointerMove', x: at[0], y: at[1]}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}]}]});
-    assert.equal(await evaluate(`getComputedStyle(document.querySelectorAll('#recoil-sim .sim-tip')[${i}]).display`), 'block', `tap ${i} opens it`);
-    assert.equal(await evaluate(`(()=>{const r=document.querySelectorAll('#recoil-sim .sim-tip')[${i}].getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()`), true, `help ${i} fits 360 px`);
+    assert.equal(await evaluate(`getComputedStyle(${label}.querySelector('.gamemods')).display`), 'grid', `tap ${i} opens it`);
+    assert.equal(await evaluate(`(()=>{const r=${label}.querySelector('.gamemods').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()`), true, `card ${i} fits 360 px`);
     assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'no sideways scroll');
     if (i === 0) await screenshot('simulators-mobile-uk-help');
     await evaluate("document.querySelector('#recoil-sim .sim-parts caption').scrollIntoView({block:'center'})");
     const away = JSON.parse(await evaluate("(()=>{const r=document.querySelector('#recoil-sim .sim-parts caption').getBoundingClientRect();return JSON.stringify([Math.round(r.x+r.width/2),Math.round(r.y+r.height/2)])})()"));
     await send('input.performActions', {context, actions: [{type: 'pointer', id: 'touch', parameters: {pointerType: 'touch'}, actions: [
       {type: 'pointerMove', x: away[0], y: away[1]}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}]}]});
-    assert.equal(await evaluate("location.pathname"), '/wiki/simulators');
-    assert.equal(await evaluate(`getComputedStyle(document.querySelectorAll('#recoil-sim .sim-tip')[${i}]).display`), 'none', `a tap elsewhere closes ${i}`);
+    assert.equal(await evaluate(`getComputedStyle(${label}.querySelector('.gamemods')).display`), 'none', `a tap elsewhere closes ${i}`);
   }
   await evaluate("document.querySelector('#recoil-sim .sim-sight').scrollIntoView()");
   await screenshot('simulators-mobile-uk-sight');

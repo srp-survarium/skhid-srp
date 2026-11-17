@@ -203,7 +203,7 @@ mod tests {
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("id=\"compare-a\""));
             assert!(page.body.contains("class=\"sim-vertical\""));
-            assert!(page.body.contains("class=\"sim-stance\""));
+            assert!(page.body.contains("data-setup="));
             let script = page.body.split_once("/wiki/simulators.js?v=").unwrap().1;
             assert!(script.starts_with(|c: char| c.is_ascii_hexdigit()));
             assert!(file("/wiki/simulators.js").is_some_and(|(_, bytes)| !bytes.is_empty()));

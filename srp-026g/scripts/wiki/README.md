@@ -31,22 +31,25 @@ right draw minus the left draw, never their average. Its variability is the
 standard deviation of that difference for independent uniform draws.
 
 The simulators section (`simulators.js`) is the recoil and spread simulation of one
-or two weapons (A, B), each with a round, in the state its controls set: the aim
-(from the hip, aiming in, fully aimed), the stance (standing, walking, crouching,
-crouch-walking, sprinting, jumping), the ranks of the skills that change the
-spread or the kick, the modifications that do (a Skhid item has no defects:
-srp rolls none), and broken arms; each skill and modification with a help line
-(hover, keyboard focus or a tap). A weapon's recoil modification scales its
-kick ranges (the cook, type 2); the kit's recoil modifier (18, the gloves')
-scales each axis's step a shot, the camera shake's too (`recoil.js`). `spread.js` models the
-spread from the exe (its header has the formula and addresses): the stance's
-part held at its target, the shots' part run at the ticks; fully aimed, only the
-base counts. Every value comes from the calculator data's `simulators`
-(`gen_calc_data.py`: `default.player`'s stance spread and skill weights, the
-skills and modifications carrying the player modifiers the spread reads, each
-skill rank the sum of its levels) and each weapon's `dispersion` and
-`double_handed`; the skills' names and icons are the skills page's. Low
-stamina's floor is left out. A table gives each weapon's spread parts in degrees.
+or two weapons (A, B, the same one twice if wanted), each with a round and its own
+setup: a panel of the damage calculator's rows (`damage-calc/hud.js`, `hud.css`), each
+with its card (hover, keyboard focus or a tap). A setup is the aim (from the hip,
+aiming in, fully aimed), the stance (standing, walking, crouching, crouch-walking,
+sprinting, jumping), broken arms, the ranks of the skills that change the spread or
+the kick, and a row per modification kind and piece that can have it: the weapon's
+(its kick ranges, the cook's type 2), and each armour slot whose items roll it or come
+with it, the pieces adding up in the kit's player modifier (as `apply_modifier` takes
+the sum). A Skhid item has no defects: srp rolls none. The kit's recoil modifier (18)
+scales each axis's step a shot, the camera shake's too (`recoil.js`). `spread.js`
+models the spread from the exe (its header has the formula and addresses): the
+stance's part held at its target, the shots' part run at the ticks; fully aimed, only
+the base counts. Every value comes from the calculator data's `simulators`
+(`gen_calc_data.py`: `default.player`'s stance spread and skill weights, the skills
+and modifications carrying the player modifiers the spread and the kick read, each
+skill rank the sum of its levels, the slots that roll or come with each
+modification) and each weapon's `dispersion` and `double_handed`; the skills' names
+and icons are the skills page's, the modifications' the calculator's. Low stamina's
+floor is left out. A table gives each weapon's spread parts in degrees.
 
 `recoil.js` models the native shot, ramp and recovery operations at 50 ms ticks,
 matching the research reference in `match-server/.../bots/recoil.rs`. Weapon

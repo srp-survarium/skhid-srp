@@ -30,7 +30,8 @@ def number(value):
     return f"{value:.3f}".rstrip("0").rstrip(".")
 
 
-DOLL = HERE.parent / "damage-calc" / "assets" / "doll" / "doll_front.svg"
+CALC = HERE.parent / "damage-calc"
+DOLL = CALC / "assets" / "doll" / "doll_front.svg"
 
 
 def doll():
@@ -80,70 +81,64 @@ def skill_tip(skill, tr):
     return " ".join(lines + [tr("No effect fully aimed.", "Не діє при повному прицілюванні.")])
 
 
-def simulation(tr, sim, weapons):
-    """The simulation's controls and plots (simulators.js RecoilSim finds its
-    parts by class); `sim`: the calculator data's `simulators`. Its skills and
-    armour modifications are `.sim-source` choosers, each option with the kit
-    modifiers it adds (`data-effects`); the weapon's modifications
-    `.sim-kick` ones, each option with its scale of the kick ranges
-    (`data-kick`). Each with a help line."""
-    esc = html.escape
+def setup(tr, sim, weapons, mod_icons):
+    """What a weapon's setup offers (simulators.js draws a panel of it per
+    side with hud.js's rows, as the calculator draws its picks): the aim, the
+    stance and the broken arms; a row per skill, its ranks; a row per
+    modification kind a piece can have: the weapon's, scaling its kick
+    ranges (`kick`), and each armour piece's that rolls or comes with one,
+    adding to the kit's player modifiers (`effects`; the pieces' sum, as
+    apply_modifier takes it). Each a card of what it does."""
+    def pct(value):
+        return f'{"−" if value < 0 else "+"}{abs(value) * 100:g}%'
 
-    def control(key, name, tip, cls, options):
-        return (f'<label for="{key}"><span class="sim-skill sim-tipped">{name}'
-                f'<button type="button" class="sim-help" aria-label="{tr("What it does", "Що це дає")}" aria-describedby="{key}-tip">?</button>'
-                f'<span class="sim-tip" role="tooltip" id="{key}-tip">{esc(tip)}</span></span>'
-                f'<select id="{key}" class="{cls}" aria-labelledby="{key}-name">'
-                + "".join(f'<option {attr}="{esc(json.dumps(value))}">{esc(text)}</option>' for text, attr, value in options)
-                + '</select></label>')
-
-    def skill(s):
-        icon = SITE / "skills" / "icons" / f'{s["id"]}.webp'
-        url = f'/skills/icons/{s["id"]}.webp?v={hashlib.sha256(icon.read_bytes()).hexdigest()[:12]}'
-        key = f'sim-skill-{s["id"]}'
-        name = f'<img src="{url}" alt="" width="28" height="28"><span id="{key}-name">{esc(tr(s["name"], s["name_uk"] or s["name"]))}</span>'
-        return control(key, name, skill_tip(s, tr), "sim-source", [(str(n), "data-effects", e) for n, e in enumerate(s["ranks"])])
-
-    def modification(mods):
-        first = mods[0]
-        kick = "kick" in first
-        slots = ", ".join(tr(x["name"], x["name_uk"] or x["name"]) for x in {(x["name"], x["name_uk"]): x for m in mods for x in m["slots"]}.values())
-        key = f'sim-mod-{first["type"]}'
-        name = f'<span id="{key}-name">{esc(slots)}: {esc(tr(first["card"]["label"], first["card"]["label_uk"] or first["card"]["label"]))}</span>'
-        tip = tr(*MOD_TIPS["kick" if kick else tuple(sorted(first["kit"]))])
-        attr = "data-kick" if kick else "data-effects"
-        options = [(tr("None", "Немає"), attr, 0 if kick else {})]
-        options += [(tr(m["card"]["value"], m["card"]["value_uk"]), attr, m["kick"] if kick else m["kit"]) for m in mods]
-        return control(key, name, tip, "sim-kick" if kick else "sim-source", options)
-
+    rows = [{"key": "aim", "label": tr("Aim", "Приціл"), "required": True, "options": [[v, tr(en, uk)] for v, en, uk in
+             [("hip", "From the hip", "Від стегна"), ("aiming", "Aiming in", "Прицілювання"), ("aimed", "Fully aimed", "Повне прицілювання")]]},
+            {"key": "stance", "label": tr("Stance", "Положення"), "required": True, "options": [[v, tr(en, uk)] for v, en, uk in
+             [("idle", "Standing", "Стоячи"), ("walk", "Walking", "Ходьба"), ("crouch", "Crouching", "Присівши"),
+              ("crouch_walk", "Crouch-walking", "Ходьба присівши"), ("run", "Sprinting", "Біг"), ("jump", "Jumping", "Стрибок")]]},
+            {"key": "arms", "label": tr("Broken arms", "Зламані руки"), "required": True, "options": [[str(n), str(n)] for n in range(3)]}]
+    for sk in sim["skills"]:
+        icon = SITE / "skills" / "icons" / f'{sk["id"]}.webp'
+        name = tr(sk["name"], sk["name_uk"] or sk["name"])
+        rows.append({"key": f'skill-{sk["id"]}', "label": name, "card": [name, skill_tip(sk, tr)],
+                     "icon": f'/skills/icons/{sk["id"]}.webp?v={hashlib.sha256(icon.read_bytes()).hexdigest()[:12]}',
+                     "options": [[str(n), " ".join(pct(v) for v in rank.values())] for n, rank in enumerate(sk["ranks"]) if n],
+                     "effects": {str(n): rank for n, rank in enumerate(sk["ranks"])}})
     # The modifications a Skhid item can have: srp rolls no defect
-    # (crates/survarium/src/v026g/modifications.rs), one choice a kind.
-    kinds = {}
+    # (crates/survarium/src/v026g/modifications.rs). A row per kind and piece.
+    pieces = {}
     for m in sim["mods"]:
-        if m["kind"] == "mod":
-            assert "kit" in m or m["weapons"] == sorted(weapons), f'modification {m["id"]}: not every weapon takes it'
-            kinds.setdefault(m["type"], []).append(m)
-    for mods in kinds.values():
+        if m["kind"] != "mod":
+            continue
+        assert "kit" in m or m["weapons"] == sorted(weapons), f'modification {m["id"]}: not every weapon takes it'
+        for slot in m["slots"]:
+            pieces.setdefault((m["type"], slot["slot"]), (slot, []))[1].append(m)
+    for (kind, _), (slot, mods) in sorted(pieces.items(), key=lambda kv: (kv[0][1] != "weapon", kv[0][1], kv[0][0])):
         mods.sort(key=lambda m: abs(m["kick"] if "kick" in m else sum(m["kit"].values())))
-    aims = [("hip", "From the hip", "Від стегна"), ("aiming", "Aiming in", "Прицілювання"), ("aimed", "Fully aimed", "Повне прицілювання")]
-    stances = [("idle", "Standing", "Стоячи"), ("walk", "Walking", "Ходьба"), ("crouch", "Crouching", "Присівши"),
-               ("crouch_walk", "Crouch-walking", "Ходьба присівши"), ("run", "Sprinting", "Біг"), ("jump", "Jumping", "Стрибок")]
+        first = mods[0]
+        label = f'{tr(first["card"]["label"], first["card"]["label_uk"] or first["card"]["label"])}, {tr(slot["name"], slot["name_uk"] or slot["name"]).lower()}'
+        tip = tr(*MOD_TIPS["kick" if "kick" in first else tuple(sorted(first["kit"]))])
+        rows.append({"key": f'mod-{kind}-{slot["slot"]}', "label": label, "card": [label, tip], "icon": mod_icons.get(str(first["icon"])),
+                     "options": [[m["id"], tr(m["card"]["value"], m["card"]["value_uk"])] for m in mods],
+                     **({"kick": {m["id"]: m["kick"] for m in mods}} if "kick" in first else {"effects": {m["id"]: m["kit"] for m in mods}})})
+    return rows
+
+
+def simulation(tr):
+    """The simulation's own controls and plots (simulators.js RecoilSim finds
+    its parts by class); each weapon's setup is beside its slot."""
     parts = [tr(en, uk) for en, uk in [("Base", "Базовий"), ("Stance", "Положення"), ("A shot", "За постріл"), ("At most", "Найбільший")]]
     plots = "".join(
         f'<figure><figcaption>{tr(en, uk)} · {tr("game units", "одиниці гри")}</figcaption><svg class="sim-{axis}" viewBox="0 0 600 250" role="img" aria-label="{tr(en, uk)}"></svg></figure>'
         for axis, en, uk in [("vertical", "Vertical kick", "Вертикальний відбій"), ("horizontal", "Horizontal kick", "Бічний відбій")])
     return "".join([
         f'<p class="stat-note">{tr("Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.", "Модель поштовху, відновлення, розкиду й тремтіння камери (від стегна), без компенсації мишею. Графіки — в одиницях відбою зброї; приціл — у градусах огляду (вгору точно як у грі, убік приблизно), з влучанням кожної кулі та колом розкиду.")}</p>',
-        f'<div class="sim-inputs"><label>{tr("Aim", "Приціл")}<select class="sim-aim">'
-        + "".join(f'<option value="{v}">{tr(en, uk)}</option>' for v, en, uk in aims) + '</select></label>'
-        + f'<label>{tr("Stance", "Положення")}<select class="sim-stance">'
-        + "".join(f'<option value="{v}">{tr(en, uk)}</option>' for v, en, uk in stances) + '</select></label>'
+        f'<div class="sim-inputs">'
         f'<label>{tr("Trigger", "Спуск")}<select class="sim-trigger"><option value="0">{tr("Hold", "Утримувати")}</option>'
         + "".join(f'<option value="{1 / n:g}">{tr(f"Click, {n} a second", f"Клацати, {n} на секунду")}</option>' for n in (4, 2, 1))
         + f'</select></label><label>{tr("Sample seed", "Зерно вибірки")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div>',
         f'<p class="stat-note">{tr("A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.", "Повний магазин; для двох одиниць зброї стільки пострілів, скільки вміщує менший магазин, кожна у власному темпі. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.")}</p>',
-        '<div class="sim-inputs">' + "".join(skill(s) for s in sim["skills"]) + "".join(modification(m) for m in kinds.values())
-        + f'<label>{tr("Broken arms", "Зламані руки")}<select class="sim-arms">' + "".join(f'<option>{n}</option>' for n in range(3)) + '</select></label></div>',
         f'<table class="sim-parts"><caption>{tr("Spread", "Розкид")} · {tr("degrees", "градуси")}</caption><thead><tr><td></td>'
         + "".join(f'<th scope="col">{p}</th>' for p in parts) + '</tr></thead><tbody></tbody></table>',
         f'<div class="sim-buttons"><button class="sim-play" type="button">{tr("Play", "Відтворити")}</button><button class="sim-last" type="button">{tr("Last shot", "Останній постріл")}</button><button class="sim-reset" type="button">{tr("Reset", "Скинути")}</button></div>',
@@ -156,6 +151,8 @@ def simulation(tr, sim, weapons):
         f'<div class="sim-plots">{plots}</div>',
         f'<p class="sim-unavailable" hidden>{tr("Recoil parameters are unavailable for this selection.", "Параметри відбою для вибраної зброї недоступні.")}</p>',
     ])
+
+
 
 
 class Page:
@@ -222,14 +219,17 @@ class Page:
 def render_simulators(data, code, script_url):
     page = Page(data, code)
     tr, esc = page.tr, html.escape
-    out = [f'<p class="breadcrumb"><a href="/wiki?lang={code}">{tr("Wiki", "Вікі")}</a> / {tr("Simulators", "Симулятори")}</p>',
+    out = [f'<style>{(CALC / "hud.css").read_text()}</style>',
+           f'<p class="breadcrumb"><a href="/wiki?lang={code}">{tr("Wiki", "Вікі")}</a> / {tr("Simulators", "Симулятори")}</p>',
            f'<div class="wiki-heading"><h1>{tr("Simulators", "Симулятори")}</h1></div>',
            f'<section class="comparison" id="comparison" hidden aria-labelledby="sim-title"><h2 id="sim-title">{tr("Recoil and spread", "Відбій і розкид")}</h2>',
            page.slots(),
            f'<div class="compare-options"><button type="button" id="clear-comparison">{tr("Clear", "Очистити")}</button></div>',
            f'<p id="compare-empty">{tr("Choose a weapon; a second one to compare.", "Виберіть зброю; другу — для порівняння.")}</p>',
-           f'<section id="recoil-sim" class="recoil-sim" hidden data-player="{esc(json.dumps({k: data["simulators"][k] for k in ("stance", "skill_influence")}))}">'
-           + simulation(tr, data["simulators"], data["weapons"]) + '</section></section>',
+           '<div class="sim-setups">' + "".join(f'<div class="sim-setup" data-side="{n}" hidden><p class="sim-setup-name series-{n}"></p></div>' for n in range(2)) + '</div>',
+           f'<section id="recoil-sim" class="recoil-sim" hidden data-player="{esc(json.dumps({k: data["simulators"][k] for k in ("stance", "skill_influence")}))}" '
+           f'data-setup="{esc(json.dumps(setup(tr, data["simulators"], data["weapons"], data.get("mod_icons", {})), ensure_ascii=False))}">'
+           + simulation(tr) + '</section></section>',
            doll(), page.round_options(), '<div id="weapon-options" hidden>']
     for key, w in sorted(data["weapons"].items(), key=lambda kv: (kv[1]["item_level"], page.title(kv[1]).casefold())):
         rounds = [{"id": k, "name": page.round_name(k), "spread": data["ammo"][k]["dispersion"]} for k in page.round_keys(key)]
@@ -342,7 +342,9 @@ def build(calculator, out):
     shake = b"globalThis.CAMERA_SHAKE = " + json.dumps({k: clip[k] for k in ("period_frames", "pitch", "yaw")}, separators=(",", ":")).encode() + b";"
     script = b"\n".join((HERE / name).read_bytes() for name in ("picker.js", "slots.js", "weapons.js"))
     script_url = "/wiki/weapons.js?v=" + hashlib.sha256(script).hexdigest()[:12]
-    simulators = b"\n".join([shake] + [(HERE / name).read_bytes() for name in ("recoil.js", "spread.js", "picker.js", "slots.js", "simulators.js")])
+    # The setup panels are the calculator's rows (damage-calc/hud.js, hud.css).
+    simulators = b"\n".join([shake] + [path.read_bytes() for path in (HERE / "recoil.js", HERE / "spread.js", HERE / "picker.js",
+                                                                       HERE / "slots.js", CALC / "hud.js", HERE / "simulators.js")])
     simulators_url = "/wiki/simulators.js?v=" + hashlib.sha256(simulators).hexdigest()[:12]
     out.mkdir(parents=True, exist_ok=True)
     for code in ("en", "uk"):

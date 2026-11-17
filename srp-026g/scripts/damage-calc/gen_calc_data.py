@@ -485,12 +485,16 @@ weapon_cfgs = {key_of(f): load(f) for f in files("gameplay__items__weapons__wpn_
 armour_cfgs = {f: load(f) for f in files("gameplay__items__armour__")}
 
 
-def takers(cfgs, kind, m):
-    """The items of `cfgs` that may carry `m` (an item's mask character j is
-    type j + 1, item_mods) or come with it."""
+def rollers(cfgs, kind, m):
+    """The items of `cfgs` that may roll `m`: an item's mask character j is
+    type j + 1 (item_mods; srp's rolls, modifications.rs)."""
     mask, j = ("available_modifications_mask" if kind == "mod" else "available_defects_mask"), m["type_mask"].index("1")
-    return [k for k, cfg in cfgs.items() if cfg.get("parameters", {}).get(mask, "")[j - 1:j] == "1"
-            or m["id"] in cfg.get("default_modifications", [])]
+    return [k for k, cfg in cfgs.items() if cfg.get("parameters", {}).get(mask, "")[j - 1:j] == "1"]
+
+
+def takers(cfgs, kind, m):
+    """The items of `cfgs` that may roll `m` or come with it."""
+    return sorted(set(rollers(cfgs, kind, m)) | {k for k, cfg in cfgs.items() if m["id"] in cfg.get("default_modifications", [])})
 
 
 sim_mods = []
@@ -508,18 +512,22 @@ for kind, table in (("mod", mods_cfg["modifications"]), ("defect", mods_cfg["def
         if not kit and not kick:
             continue
         (prop,) = rows(m["ui_desc"]["props_list"])
-        row = {"id": str(m["id"]), "kind": kind, "type": m["type_mask"].index("1"),
+        row = {"id": str(m["id"]), "kind": kind, "type": m["type_mask"].index("1"), "icon": m["ui_desc"].get("icon"),
                "card": card_line(prop["prop_id"], prop["prop_value"], bonus=True)}
         if kit:
             if takers(weapon_cfgs, kind, m):
                 sys.exit(f"modification {m['id']} changes player modifiers on weapons: no route to the kit")
-            slots = sorted({f.split("__")[3] for f in takers(armour_cfgs, kind, m)})
-            row |= {"kit": kit, "slots": [{"name": text(SLOT_NAMES[x]), "name_uk": text_uk(SLOT_NAMES[x])} for x in slots]}
+            # Each armour piece adds its own (one a kind a piece): the slots
+            # whose items roll it, or come with it.
+            rolls = {f.split("__")[3] for f in rollers(armour_cfgs, kind, m)}
+            slots = sorted({f.split("__")[3] for f in takers(armour_cfgs, kind, m)}, key=list(SLOT_NAMES).index)
+            row |= {"kit": kit, "slots": [{"slot": x, "name": text(SLOT_NAMES[x]), "name_uk": text_uk(SLOT_NAMES[x]), "rolls": x in rolls}
+                                          for x in slots]}
         if kick:
             if kick.keys() != KICK or len(set(kick.values())) != 1 or kit:
                 sys.exit(f"modification {m['id']}: kick {kick}: not one scale of the six ranges")
-            row |= {"kick": next(iter(kick.values())), "weapons": sorted(takers(weapon_cfgs, kind, m)),
-                    "slots": [{"name": text("st_filter_weapons"), "name_uk": text_uk("st_filter_weapons")}]}
+            row |= {"kick": next(iter(kick.values())), "weapons": takers(weapon_cfgs, kind, m),
+                    "slots": [{"slot": "weapon", "name": text("st_filter_weapons"), "name_uk": text_uk("st_filter_weapons"), "rolls": True}]}
         sim_mods.append(row)
 simulators = {"stance": {k: r(v) for k, v in player["character_dispersion_params"].items()},
               "skill_influence": {k: r(v) for k, v in player["character_dispersion_skill_influence"].items()},

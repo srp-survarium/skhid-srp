@@ -83,16 +83,11 @@
   }
   // The simulation in `root`: its controls, plots and crosshair view, every
   // lookup inside `root`. `show(sides)` runs it for [{id, round, side}]
-  // (side 0 is A's colour, 1 B's).
-  function RecoilSim(root) {
+  // (side 0 is A's colour, 1 B's), each side firing in `stateOf(side)`'s
+  // state; `refresh()` after a state changes.
+  function RecoilSim(root, stateOf) {
     const find = selector => root.querySelector(selector);
     const timeInput = find('.sim-time'), seedInput = find('.sim-seed'), playButton = find('.sim-play');
-    // The firing state: the aim, the stance, the broken arms and the kit's
-    // sums of the skills and modifications chosen (each option's effects).
-    const sources = [...root.querySelectorAll('.sim-source')], kicks = [...root.querySelectorAll('.sim-kick')];
-    const state = () => ({aim: find('.sim-aim').value, stance: find('.sim-stance').value, arms: Number(find('.sim-arms').value),
-      kit: WeaponSpread.kitOf(sources.map(select => JSON.parse(select.selectedOptions[0].dataset.effects))),
-      kick: kicks.reduce((sum, select) => sum + JSON.parse(select.selectedOptions[0].dataset.kick), 0)});
     let simulation = {kind: 'empty'}, sides = [], playing = null;
     function lastShot() {
       return Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
@@ -244,8 +239,8 @@
     }
     function rebuild(time = 0) {
       stop(); simulation = {kind:'empty'};
-      const firing = state();
-      const valid = sides.length > 0 && sides.every(({id, round}) => model(id, round, firing.kick).recoil);
+      const firing = sides.map(({side}) => stateOf(side));
+      const valid = sides.length > 0 && sides.every(({id, round}, i) => model(id, round, firing[i].kick).recoil);
       for (const element of root.querySelectorAll('input,select,button')) element.disabled = !valid;
       find('.sim-plots').hidden = !valid;
       find('.sim-sight').hidden = !valid;
@@ -253,10 +248,10 @@
       if (!valid) { find('.sim-legend').replaceChildren(); find('.sim-parts tbody').replaceChildren(); return; }
       seedInput.value = Math.max(1, Math.min(999999, Math.floor(Number(seedInput.value) || 1)));
       // A full magazine; with two weapons, the smaller one's from each.
-      const shots = Math.min(...sides.map(({id, round}) => model(id, round, firing.kick).recoil.magazine));
-      const series = sides.map(({id, round, side}) => {
-        const {recoil, spread: weapon} = model(id, round, firing.kick), spread = weapon && WeaponSpread.condition(weapon, firing);
-        const result = WeaponRecoil.simulate(recoil, shots, Number(seedInput.value), {aim: firing.aim, spread, recoil: firing.kit.recoil},
+      const shots = Math.min(...sides.map(({id, round}, i) => model(id, round, firing[i].kick).recoil.magazine));
+      const series = sides.map(({id, round, side}, i) => {
+        const state = firing[i], {recoil, spread: weapon} = model(id, round, state.kick), spread = weapon && WeaponSpread.condition(weapon, state);
+        const result = WeaponRecoil.simulate(recoil, shots, Number(seedInput.value), {aim: state.aim, spread, recoil: state.kit.recoil},
           Number(find('.sim-trigger').value));
         // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
         result.frames.forEach(frame => {frame.time += .05;});
@@ -271,9 +266,6 @@
     }
     playButton.addEventListener('click', () => playing ? stop() : play());
     seedInput.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
-    for (const select of [find('.sim-aim'), find('.sim-stance'), find('.sim-arms'), ...sources, ...kicks]) {
-      select.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
-    }
     find('.sim-trigger').addEventListener('change', () => rebuild());
     find('.sim-reset').addEventListener('click', () => seek(0));
     // Last shot: the whole pattern at once.
@@ -283,28 +275,41 @@
     });
     find('.sim-target').addEventListener('change', draw);
     timeInput.addEventListener('input', () => seek(Number(timeInput.value)));
-    return {show(chosen) { sides = chosen; rebuild(); }};
+    return {show(chosen) { sides = chosen; rebuild(); }, refresh() { rebuild(simulation.kind === 'ready' ? simulation.time : 0); }};
   }
-  // A control's help: CSS opens its line on hover and keyboard focus, a tap
-  // (or click) toggles it, a press elsewhere or Escape closes it; each time it
-  // is kept inside the window.
-  const close = keep => { for (const open of sim.querySelectorAll('.sim-tipped.open')) if (open !== keep) open.classList.remove('open'); };
-  for (const help of sim.querySelectorAll('.sim-help')) {
-    const holder = help.parentElement, tip = help.nextElementSibling;
-    const place = () => requestAnimationFrame(() => {
-      tip.style.left = '';
-      const over = tip.getBoundingClientRect().right - (document.documentElement.clientWidth - 8);
-      if (over > 0) tip.style.left = `${-over}px`;
-    });
-    help.addEventListener('mouseenter', place); help.addEventListener('focus', place);
-    help.addEventListener('click', () => { close(holder); holder.classList.toggle('open'); place(); });
+  // Each side's setup, its own (the same weapon can be set up twice): a panel
+  // of hud.js's rows, as the calculator's, from build.py's `setup` rows. Its
+  // state: the aim, the stance, the broken arms, the kit's sums of the
+  // skills' and armour pieces' modifiers, and the weapon modifications' sum
+  // on its kick ranges.
+  const rows = JSON.parse(sim.dataset.setup);
+  const panels = [...document.querySelectorAll('.sim-setup')];
+  const picks = panels.map(() => ({aim: 'hip', stance: 'idle', arms: '0'}));
+  function stateOf(side) {
+    const pick = picks[side], chosen = rows.filter(row => pick[row.key]);
+    return {aim: pick.aim, stance: pick.stance, arms: Number(pick.arms),
+      kit: WeaponSpread.kitOf(chosen.filter(row => row.effects).map(row => row.effects[pick[row.key]])),
+      kick: chosen.filter(row => row.kick).reduce((sum, row) => sum + row.kick[pick[row.key]], 0)};
   }
-  document.addEventListener('pointerdown', event => { if (!event.target.closest?.('.sim-tipped')) close(); });
-  document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
-  const simulation = RecoilSim(sim), empty = document.querySelector('#compare-empty');
+  panels.forEach((panel, side) => {
+    const box = HUD.el('div', {class: 'gamemods rows'});
+    for (const row of rows) {
+      const icon = row.icon ? HUD.el('img', {class: 'gico', src: row.icon, alt: ''}) : HUD.el('span', {class: 'gico'});
+      const line = HUD.stepsRow(icon, row.label, row.options, picks[side], row.key, () => simulation.refresh(),
+        row.card && HUD.card(...row.card), row.required);
+      line.dataset.key = row.key; box.append(line);
+    }
+    panel.append(box);
+  });
+  const simulation = RecoilSim(sim, stateOf), empty = document.querySelector('#compare-empty');
   const slots = WikiWeaponSlots(weapons, roundsOf, tr, collator, () => {
     const sides = slots.sides().map((chosen, side) => ({...chosen, side})).filter(({id}) => id);
     sim.hidden = sides.length === 0; empty.hidden = sides.length !== 0;
+    panels.forEach((panel, side) => {
+      const id = slots.sides()[side].id;
+      panel.hidden = !id;
+      if (id) panel.querySelector('.sim-setup-name').textContent = `${side ? 'B' : 'A'} · ${name(id)}`;
+    });
     simulation.show(sides);
   });
   document.querySelector('#clear-comparison').addEventListener('click', () => slots.clear());
