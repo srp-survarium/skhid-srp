@@ -327,6 +327,8 @@ unsafe extern "C" {
     pub fn engine_draw_lines(vertex_end: *const c_void, renderer: *mut c_void, vertex_begin: *const c_void, index_begin: *const u16, index_end: *const u16, technique: u32);
     /// 0xa8660 btBvhTriangleMeshShape::processAllTriangles: shape ECX, callback ESP+4, aabb_min ESP+8, aabb_max ESP+12; pops 12
     pub fn engine_process_all_triangles(shape: *mut c_void, callback: *mut c_void, aabb_min: *const f32, aabb_max: *const f32);
+    /// 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24
+    pub fn engine_draw_triangles(renderer: *mut c_void, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
     /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
     pub fn engine_text_edit_delete_selection(edit: *mut c_void);
 }

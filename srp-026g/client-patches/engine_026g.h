@@ -905,6 +905,9 @@ void engine_process_all_triangles(struct bt_collision_shape *shape, struct trian
 /* 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly */
 void __attribute__((thiscall)) engine_triangle_process(struct triangle_callback *callback, const float *triangle, unsigned int part, unsigned int index);
 
+/* 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24 */
+void engine_draw_triangles(struct system_renderer *renderer, const void *vertex_begin, const void *vertex_end, const unsigned short *index_begin, const unsigned short *index_end, unsigned int override_flag);
+
 /* 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly */
 void __attribute__((thiscall)) engine_text_edit_set_text(struct ui_text_edit_text *part, const char *text);
 

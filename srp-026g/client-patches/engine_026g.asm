@@ -257,6 +257,7 @@ global engine_is_first_view
 global engine_draw_lines
 global engine_process_all_triangles
 global engine_triangle_process
+global engine_draw_triangles
 global engine_text_edit_set_text
 global engine_text_edit_set_caret
 global engine_text_edit_delete_selection
@@ -3125,6 +3126,26 @@ engine_process_all_triangles:
     push dword [esp + 32]   ; callback -> 4
     mov ecx, [esp + 32]   ; shape
     call 0xa8660
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_draw_triangles:
+    ; 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; override_flag -> 24
+    push dword [esp + 40]   ; index_end -> 20
+    push dword [esp + 40]   ; index_begin -> 16
+    push dword [esp + 40]   ; vertex_end -> 12
+    push dword [esp + 40]   ; vertex_begin -> 8
+    push dword [esp + 40]   ; renderer -> 4
+    call 0x11e370
     pop edi
     pop esi
     pop ebx

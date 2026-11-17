@@ -8,7 +8,8 @@
 //! - [`behind`]: after the overlay, the revision the installed game exe says
 //!   (`updater_logic::revision`) is compared with it. Lower: the server takes
 //!   a newer game than the archive it offers (a release half put in place):
-//!   PLAY stays off, with words that say so.
+//!   PLAY stays off, with words that say so. Without the site's answer, the
+//!   newest revision the release signed (its DHT item) is that number.
 //! - [`watch`]: while the launcher stays open after the update, the server is
 //!   asked again every few seconds. When it offers another archive or
 //!   another least revision than this run acted on, or answers again after
@@ -42,16 +43,38 @@ const WATCH_MS: u32 = 10_000;
 /// How many answers in a row the server must miss before PLAY is turned off.
 const MISSES: u32 = 2;
 
-/// What the server said that the update acted on.
-pub struct Seen {
-    pub server: Url,
-    /// The archive the game's Skhid files are from: the one the server
-    /// offered, or (the server could not be asked) the one installed last.
-    pub archive: Option<[u8; 32]>,
-    /// The least revision the server lets in, if it said one.
-    pub min_revision: Option<u8>,
-    /// The server answered: PLAY goes off while it does not.
-    pub online: bool,
+/// Who answered the update check, and what the update acted on: the one
+/// owner of "is there an update" and of PLAY's least revision.
+pub enum Seen {
+    /// The site: the archive it offers and the least revision it lets in,
+    /// if it said one. PLAY goes off while it stops answering.
+    Site {
+        server: Url,
+        archive: [u8; 32],
+        min_revision: Option<u8>,
+    },
+    /// Not the site (`why`: it could not be asked, or the DHT answered
+    /// first): the archive installed last, and the newest revision the
+    /// release signed (its DHT item), when the DHT named one.
+    Unasked {
+        server: Url,
+        archive: Option<[u8; 32]>,
+        signed: Option<u64>,
+        why: String,
+    },
+}
+
+impl Seen {
+    fn server(&self) -> &Url {
+        match self {
+            Self::Site { server, .. } | Self::Unasked { server, .. } => server,
+        }
+    }
+}
+
+/// The revision the installed game exe says, when it can be told.
+fn game_number(layout: &Layout) -> Option<u8> {
+    game_revision(layout).ok().and_then(|revision| revision.number())
 }
 
 fn read_exactly(file: &File, buffer: &mut [u8]) -> Result<(), String> {
@@ -82,19 +105,27 @@ pub fn game_revision(layout: &Layout) -> Result<Revision, String> {
     Ok(revision_of(&site))
 }
 
-/// Whether the installed game is older than the server lets in: the words
-/// for the player if so. What cannot be told (no least revision, an exe
-/// that cannot be read or is not one this updater knows) is logged and
-/// lets the update go on: the login server still decides.
-pub fn behind(layout: &Layout, min_revision: Option<u8>) -> Option<String> {
-    let need = min_revision.filter(|&need| need > 0)?;
+/// Whether the installed game is older than the server lets in, or (the
+/// site not asked) than the newest release signed: the words for the player
+/// if so. What cannot be told (no least revision, an exe that cannot be read
+/// or is not one this updater knows) is logged and lets the update go on:
+/// the login server still decides.
+pub fn behind(layout: &Layout, seen: &Seen) -> Option<String> {
+    let need = match seen {
+        Seen::Site { min_revision, .. } => *min_revision,
+        Seen::Unasked { signed, .. } => signed.and_then(|signed| u8::try_from(signed).ok()),
+    }
+    .filter(|&need| need > 0)?;
     match game_revision(layout) {
         Ok(revision) => match revision.number() {
             Some(have) if have < need => {
                 log!(
                     "{GAME_EXE} says revision {have}; the server lets in {need} and up: PLAY stays off"
                 );
-                Some(text::behind(have, need))
+                Some(match seen {
+                    Seen::Site { .. } => text::behind(have, need),
+                    Seen::Unasked { why, .. } => text::behind_signed(have, need, why),
+                })
             }
             Some(have) => {
                 log!("{GAME_EXE} says revision {have}; the server lets in {need} and up");
@@ -129,37 +160,47 @@ fn hex(sha256: &Option<[u8; 32]>) -> String {
 /// launcher started anew when the update must run again (above). Ends also
 /// when "Allow torrent" changes: the pass runs again in this window.
 pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen) {
-    log!(
-        "watching {}: archive {}, least revision {:?}",
-        seen.server.host,
-        hex(&seen.archive),
-        seen.min_revision
-    );
+    let server = seen.server();
+    match seen {
+        Seen::Site { archive, min_revision, .. } => log!(
+            "watching {}: archive {}, least revision {min_revision:?}",
+            server.host,
+            hex(&Some(*archive))
+        ),
+        Seen::Unasked { archive, signed, .. } => log!(
+            "watching {}: not asked at the start; archive {}, newest signed revision {signed:?}",
+            server.host,
+            hex(archive)
+        ),
+    }
     let mut missed = 0;
     let mut down = false;
     // Shares from the start, and again at each ask should it have stopped.
     share(session, layout);
     while session.pipe.is_some() && session.pause(WATCH_MS) {
         share(session, layout);
-        let result = http::get(&seen.server, "/api/client-files", 4096, &mut |_, _| {
+        let result = http::get(server, "/api/client-files", 4096, &mut |_, _| {
             session.pump()
         });
         let why = match result.as_ref().map(|body| parse_manifest(body)) {
             Ok(Ok(now)) => {
-                let again = if down {
-                    Some("the server answers again".into())
-                } else if Some(now.sha256) != seen.archive {
-                    Some(format!(
-                        "the server offers archive {}",
-                        hex(&Some(now.sha256))
-                    ))
-                } else if now.min_revision != seen.min_revision {
-                    Some(format!(
-                        "the server lets in revision {:?} and up",
-                        now.min_revision
-                    ))
-                } else {
-                    None
+                let offers = || format!("the server offers archive {}", hex(&Some(now.sha256)));
+                let lets_in = || format!("the server lets in revision {:?} and up", now.min_revision);
+                let again = match seen {
+                    _ if down => Some("the server answers again".into()),
+                    Seen::Site { archive, .. } if now.sha256 != *archive => Some(offers()),
+                    Seen::Site { min_revision, .. } if now.min_revision != *min_revision => Some(lets_in()),
+                    Seen::Site { .. } => None,
+                    // Checked against the release's signed revision: only a
+                    // newer game than this one is news (its own archive
+                    // replaces a torrent's at the next start the site wins).
+                    Seen::Unasked { signed: Some(_), .. } => now
+                        .min_revision
+                        .filter(|&need| game_number(layout).is_some_and(|have| have < need))
+                        .map(|_| lets_in()),
+                    Seen::Unasked { archive, .. } if Some(now.sha256) != *archive => Some(offers()),
+                    Seen::Unasked { .. } if now.min_revision.is_some() => Some(lets_in()),
+                    Seen::Unasked { .. } => None,
                 };
                 if let Some(again) = again {
                     log!("{again}: the update runs again");
@@ -177,7 +218,7 @@ pub fn watch(session: &mut Session, layout: &Layout, product: &str, seen: &Seen)
         };
         missed += 1;
         log!("watch: /api/client-files: {why} ({missed} in a row)");
-        if seen.online && !down && missed >= MISSES {
+        if matches!(seen, Seen::Site { .. }) && !down && missed >= MISSES {
             log!("the server does not answer: PLAY off until it does");
             session.state(state::MAINTENANCE);
             down = true;
