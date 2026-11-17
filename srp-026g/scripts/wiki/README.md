@@ -1,6 +1,7 @@
-# Wiki: weapons
+# Wiki: weapons and simulators
 
-The wiki is `/wiki` (its index) and four sections: `/wiki/weapons`, built here;
+The wiki is `/wiki` (its index) and its sections: `/wiki/weapons` and
+`/wiki/simulators`, built here;
 `/wiki/modifiers`; and the damage calculator (`/wiki/calculator`,
 `scripts/damage-calc/`) and the maps (`/wiki/maps`, `scripts/maps-tab/`), each a
 page of its own look under a "Wiki / <page>" line. Their old addresses `/damage`
@@ -16,7 +17,8 @@ nothing.
 
 The weapons section is a searchable weapon catalogue with class filters,
 sorting and expandable weapon stats, in EN/UK.
-Two selected weapons share a stat comparison and recoil simulation. Comparison
+Two selected weapons share a stat comparison; it, and each weapon card, link to
+the simulators with the same weapons and rounds. Comparison
 colors follow each stat's direction, stay neutral for equal displayed values,
 unknown values and neutral traits, and can be turned off. Range comparisons
 require both endpoints to be no worse; crossed ranges stay neutral.
@@ -28,21 +30,34 @@ default. Wear rates and reliability remain omitted. Horizontal recoil is the
 right draw minus the left draw, never their average. Its variability is the
 standard deviation of that difference for independent uniform draws.
 
+The simulators section (`simulators.js`) is the recoil and spread simulation of one
+or two weapons (A, B), each with a round, in the state its controls set: the aim
+(from the hip, aiming in, fully aimed), the stance (standing, walking, crouching,
+crouch-walking, sprinting, jumping), the ranks of the skills that change the
+spread, a modification that does, and broken arms. `spread.js` models the
+spread from the exe (its header has the formula and addresses): the stance's
+part held at its target, the shots' part run at the ticks; fully aimed, only the
+base counts. Every value comes from the calculator data's `spread`
+(`gen_calc_data.py`: `default.player`'s stance spread and skill weights, the
+skills and modifications carrying the player modifiers the spread reads, each
+skill rank the sum of its levels) and each weapon's `dispersion` and
+`double_handed`; the skills' names and icons are the skills page's. Low
+stamina's floor is left out. A table gives each weapon's spread parts in degrees.
+
 `recoil.js` models the native shot, ramp and recovery operations at 50 ms ticks,
 matching the research reference in `match-server/.../bots/recoil.rs`. Weapon
 parameters all come from the dataset. The fixed animation normalization factors
 63.735 / 21.48 come from the executable. Random samples use a repeatable xorshift
 seed, not the native generator. This is a recoil model, not a bullet-impact
-prediction: no mouse compensation, spread, camera shake or confirmed horizontal
-screen projection. The UI states those limits. Next shot, reset and timeline
+prediction: no mouse compensation or confirmed horizontal screen projection. The UI states those limits. Next shot, reset and timeline
 scrubbing update the same simulation position. Changing weapons or the shot
 count resets the position; changing the random seed rebuilds both traces while
 preserving the current position.
 
-Both comparison slots use the calculator-style image chooser (`picker.js`),
+Both slots, on either page, are `slots.js`'s `WikiWeaponSlots` and use the calculator-style image chooser (`picker.js`),
 with class groups, level ordering, search and keyboard navigation; the chosen item's level shows on the right
-of its button (not on phones). The same
-selection drives stats and recoil and is restored from the page URL.
+of its button (not on phones). The
+selection is kept in and restored from the page URL.
 
 The weapon names, images and numbers come from the damage calculator's generated
 JSON literal in `servers/web-server/damage/calc.js`. `build.py` decodes JSON; it

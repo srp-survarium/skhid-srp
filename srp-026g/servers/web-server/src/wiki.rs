@@ -1,5 +1,6 @@
-//! The wiki: its index and a weapons catalogue generated from the same released
-//! dataset and images as the damage calculator. No separately maintained stats.
+//! The wiki: its index, and a weapons catalogue and the simulators (recoil and
+//! spread) generated from the same released dataset and images as the damage
+//! calculator. No separately maintained stats.
 //! The modifiers ([`crate::modifiers`]) and the equipment
 //! ([`crate::equipment`]) come from the server's game data.
 //! The calculator ([`crate::damage`]) and the maps ([`crate::maps`]) are its
@@ -13,9 +14,11 @@ use crate::{
 
 pub(crate) const PATH: &str = "/wiki";
 pub(crate) const WEAPONS: &str = "/wiki/weapons";
+pub(crate) const SIMULATORS: &str = "/wiki/simulators";
 pub(crate) const MODIFIERS: &str = "/wiki/modifiers";
 pub(crate) const EQUIPMENT: &str = "/wiki/equipment";
 const SCRIPT: &[u8] = include_bytes!("../wiki/weapons.js");
+const SIMULATORS_SCRIPT: &[u8] = include_bytes!("../wiki/simulators.js");
 const STYLE: &str = include_str!("../wiki/style.css");
 
 /// Where a page that moved into the wiki is now, for its old address.
@@ -38,10 +41,14 @@ fn section(lang: Lang, path: &str, name: &str, line: &str) -> String {
 }
 
 pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
-    (path == "/wiki/weapons.js")
-        .then_some(("text/javascript; charset=utf-8", SCRIPT))
-        .or_else(|| modifiers::file(path))
-        .or_else(|| equipment::file(path))
+    const JS: &str = "text/javascript; charset=utf-8";
+    match path {
+        "/wiki/weapons.js" => Some((JS, SCRIPT)),
+        "/wiki/simulators.js" => Some((JS, SIMULATORS_SCRIPT)),
+        _ => None,
+    }
+    .or_else(|| modifiers::file(path))
+    .or_else(|| equipment::file(path))
 }
 
 /// The wiki's page at `path` in `lang` under `header`; `query`: the
@@ -60,6 +67,12 @@ pub(crate) fn page(
             Lang::Uk => include_str!("../wiki/weapons.uk.html"),
         };
         (lang.tr("Weapons", "Зброя"), body.to_owned())
+    } else if path == SIMULATORS {
+        let body = match lang {
+            Lang::En => include_str!("../wiki/simulators.en.html"),
+            Lang::Uk => include_str!("../wiki/simulators.uk.html"),
+        };
+        (lang.tr("Simulators", "Симулятори"), body.to_owned())
     } else if path == skills::PATH {
         (lang.tr("Skills", "Навички"), skills::body(lang, now))
     } else if path == quests::PATH {
@@ -75,7 +88,7 @@ pub(crate) fn page(
         (
             lang.tr("Wiki", "Вікі"),
             format!(
-                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}</div>",
+                "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}{}</div>",
                 lang.tr("Wiki", "Вікі"),
                 section(
                     lang,
@@ -83,6 +96,13 @@ pub(crate) fn page(
                     &lang.tr("Weapons", "Зброя"),
                     &lang.tr("Browse weapons, compare base stats and explore their damage and handling.",
                         "Переглядайте зброю, порівнюйте базові характеристики, ушкодження та швидкість перезаряджання."),
+                ),
+                section(
+                    lang,
+                    SIMULATORS,
+                    &lang.tr("Simulators", "Симулятори"),
+                    &lang.tr("Recoil and spread of any weapon: aim, stance, skills, gear and injuries.",
+                        "Відбій і розкид будь-якої зброї: приціл, положення, навички, спорядження й травми."),
                 ),
                 section(
                     lang,
@@ -172,8 +192,30 @@ mod tests {
             assert!(page.body.contains("class=\"weapon-details\""));
             assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
             assert!(page.body.contains("id=\"compare-a\""));
+            assert!(page.body.contains("href=\"/wiki/simulators?lang="));
+        }
+    }
+
+    #[test]
+    fn both_languages_have_the_simulators_and_name_only_files_they_serve() {
+        for lang in [Lang::En, Lang::Uk] {
+            let page = page(SIMULATORS, "", lang, "site header", &skills::Now::default());
+            assert!(page.body.contains(&format!("lang=\"{}\"", lang.code())));
+            assert!(page.body.contains("id=\"compare-a\""));
             assert!(page.body.contains("class=\"sim-vertical\""));
-            assert!(page.body.contains("id=\"recoil-template\""));
+            assert!(page.body.contains("class=\"sim-stance\""));
+            let script = page.body.split_once("/wiki/simulators.js?v=").unwrap().1;
+            assert!(script.starts_with(|c: char| c.is_ascii_hexdigit()));
+            assert!(file("/wiki/simulators.js").is_some_and(|(_, bytes)| !bytes.is_empty()));
+            let icons: Vec<&str> = page
+                .body
+                .match_indices("/skills/icons/")
+                .map(|(at, _)| page.body[at..].split_once("?v=").unwrap().0)
+                .collect();
+            assert!(!icons.is_empty(), "the spread skills' icons");
+            for icon in icons {
+                assert!(skills::file(icon).is_some(), "{icon}");
+            }
         }
     }
 

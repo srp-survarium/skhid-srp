@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build only the wiki's weapons catalogue from the calculator's generated data.
+"""Build the wiki's weapons catalogue and simulators from the calculator's generated data.
 
 No item values live here. The calculator build calls this after writing calc.js,
 so both pages use exactly the same released configs, localizations and images.
@@ -43,19 +43,54 @@ def doll():
     return f'<svg class="doll-source" aria-hidden="true" focusable="false"><g id="doll-shape">{shape}</g></svg>'
 
 
-def simulation(tr):
-    """A recoil simulation's controls and plots, for the comparison and each
-    weapon card (weapons.js RecoilSim finds its parts by class)."""
+def simulation(tr, spread):
+    """The simulation's controls and plots (simulators.js RecoilSim finds its
+    parts by class); `spread`: the calculator data's, whose skills and
+    modifications are its `.sim-source` choosers, each option with the kit
+    modifiers it adds."""
+    esc = html.escape
+
+    def source(label, options):
+        return (f'<label>{label}<select class="sim-source">'
+                + "".join(f'<option data-effects="{esc(json.dumps(effects))}">{esc(text)}</option>' for text, effects in options)
+                + '</select></label>')
+
+    def skill(s):
+        icon = SITE / "skills" / "icons" / f'{s["id"]}.webp'
+        url = f'/skills/icons/{s["id"]}.webp?v={hashlib.sha256(icon.read_bytes()).hexdigest()[:12]}'
+        name = esc(tr(s["name"], s["name_uk"] or s["name"]))
+        return source(f'<span class="sim-skill"><img src="{url}" alt="" width="28" height="28">{name}</span>',
+                      [(str(n), effects) for n, effects in enumerate(s["ranks"])])
+
+    def modification(mods):
+        card = mods[0]["card"]
+        return source(esc(tr(card["label"], card["label_uk"] or card["label"])),
+                      [(tr("None", "Немає"), {})] + [(tr(m["card"]["value"], m["card"]["value_uk"]), m["effects"]) for m in mods])
+
+    kinds = {}
+    for m in spread["mods"]:
+        kinds.setdefault((m["kind"], m["type"]), []).append(m)
+    aims = [("hip", "From the hip", "Від стегна"), ("aiming", "Aiming in", "Прицілювання"), ("aimed", "Fully aimed", "Повне прицілювання")]
+    stances = [("idle", "Standing", "Стоячи"), ("walk", "Walking", "Ходьба"), ("crouch", "Crouching", "Присівши"),
+               ("crouch_walk", "Crouch-walking", "Ходьба присівши"), ("run", "Sprinting", "Біг"), ("jump", "Jumping", "Стрибок")]
+    parts = [tr(en, uk) for en, uk in [("Base", "Базовий"), ("Stance", "Положення"), ("A shot", "За постріл"), ("At most", "Найбільший")]]
     plots = "".join(
         f'<figure><figcaption>{tr(en, uk)} · {tr("game units", "одиниці гри")}</figcaption><svg class="sim-{axis}" viewBox="0 0 600 250" role="img" aria-label="{tr(en, uk)}"></svg></figure>'
         for axis, en, uk in [("vertical", "Vertical kick", "Вертикальний відбій"), ("horizontal", "Horizontal kick", "Бічний відбій")])
     return "".join([
-        f'<p class="stat-note">{tr("Modelled kick, recovery, spread and camera shake (from the hip), standing still, with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.", "Модель поштовху, відновлення, розкиду й тремтіння камери (від стегна), стоячи на місці, без компенсації мишею. Графіки — в одиницях відбою зброї; приціл — у градусах огляду (вгору точно як у грі, убік приблизно), з влучанням кожної кулі та колом розкиду.")}</p>',
-        f'<div class="sim-inputs"><label>{tr("Firing", "Стрільба")}<select class="sim-stance"><option value="aimed">{tr("Aimed", "Прицільно")}</option><option value="hip">{tr("From the hip", "Від стегна")}</option></select></label>'
+        f'<p class="stat-note">{tr("Modelled kick, recovery, spread and camera shake (from the hip), with no mouse compensation. The plots are in the weapons’ kick units; the crosshair view is in degrees of view (upward exactly as the game does, sideways estimated), with each bullet’s hit and the spread circle.", "Модель поштовху, відновлення, розкиду й тремтіння камери (від стегна), без компенсації мишею. Графіки — в одиницях відбою зброї; приціл — у градусах огляду (вгору точно як у грі, убік приблизно), з влучанням кожної кулі та колом розкиду.")}</p>',
+        f'<div class="sim-inputs"><label>{tr("Aim", "Приціл")}<select class="sim-aim">'
+        + "".join(f'<option value="{v}">{tr(en, uk)}</option>' for v, en, uk in aims) + '</select></label>'
+        + f'<label>{tr("Stance", "Положення")}<select class="sim-stance">'
+        + "".join(f'<option value="{v}">{tr(en, uk)}</option>' for v, en, uk in stances) + '</select></label>'
         f'<label>{tr("Trigger", "Спуск")}<select class="sim-trigger"><option value="0">{tr("Hold", "Утримувати")}</option>'
         + "".join(f'<option value="{1 / n:g}">{tr(f"Click, {n} a second", f"Клацати, {n} на секунду")}</option>' for n in (4, 2, 1))
         + f'</select></label><label>{tr("Sample seed", "Зерно вибірки")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div>',
         f'<p class="stat-note">{tr("A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.", "Повний магазин; для двох одиниць зброї стільки пострілів, скільки вміщує менший магазин, кожна у власному темпі. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.")}</p>',
+        '<div class="sim-inputs">' + "".join(skill(s) for s in spread["skills"]) + "".join(modification(m) for m in kinds.values())
+        + f'<label>{tr("Broken arms", "Зламані руки")}<select class="sim-arms">' + "".join(f'<option>{n}</option>' for n in range(3)) + '</select></label></div>',
+        f'<table class="sim-parts"><caption>{tr("Spread", "Розкид")} · {tr("degrees", "градуси")}</caption><thead><tr><td></td>'
+        + "".join(f'<th scope="col">{p}</th>' for p in parts) + '</tr></thead><tbody></tbody></table>',
         f'<div class="sim-buttons"><button class="sim-play" type="button">{tr("Play", "Відтворити")}</button><button class="sim-last" type="button">{tr("Last shot", "Останній постріл")}</button><button class="sim-reset" type="button">{tr("Reset", "Скинути")}</button></div>',
         f'<label class="sim-timeline">{tr("Timeline", "Шкала часу")} <output class="sim-time-label">0 s</output><input class="sim-time" type="range" min="0" max="1" step="0.01" value="0"></label>',
         '<div class="sim-legend" aria-live="polite"></div>',
@@ -68,42 +103,110 @@ def simulation(tr):
     ])
 
 
+class Page:
+    """What both pages say of the calculator data in one language."""
+
+    def __init__(self, data, code):
+        self.data, self.code = data, code
+
+    def tr(self, en, uk):
+        return en if self.code == "en" else uk
+
+    def title(self, w):
+        name = (w.get("name_uk") if self.code == "uk" else None) or w["name"]
+        return name + (self.tr(" (premium)", " (преміум)") if w.get("premium") else "")
+
+    def round_name(self, key):
+        ammo = self.data["ammo"][key]
+        return (ammo.get("name_uk") if self.code == "uk" else None) or ammo["name"]
+
+    def class_of(self, w):
+        return CLASSES[w["category"]][self.code == "uk"]
+
+    def round_keys(self, key):
+        """The weapon's rounds, its default first."""
+        default = self.data["default_ammo"][key]
+        keys = self.data["compat"][key]
+        assert default in keys, f"{key}: default ammo {default} not among {keys}"
+        return [default] + [k for k in keys if k != default]
+
+    def round_pick(self, name, fires=()):
+        """A round chooser: its label, the chooser picker.js fills, and the
+        hidden select that holds the choice."""
+        esc = html.escape
+        options = "".join(f'<option value="{esc(r["id"])}">{esc(r["name"])}</option>' for r in fires)
+        return (f'<div class="round-pick"><label id="{name}-label" for="{name}-btn">{self.tr("Round", "Набій")}</label>'
+                f'<div class="wpick" id="{name}-picker"></div><select id="{name}" class="round-select" autocomplete="off" hidden>{options}</select></div>')
+
+    def slots(self):
+        """The two weapon slots, A and B, with their rounds (picker.js WikiWeaponSlots)."""
+        tr, esc, out = self.tr, html.escape, ['<div class="compare-pickers">']
+        for side in ("a", "b"):
+            out.append(f'<div class="compare-field"><label id="compare-{side}-label" for="compare-{side}-btn">{tr("Weapon", "Зброя")} {side.upper()}</label><div class="wpick" id="compare-{side}-picker"></div><select id="compare-{side}" hidden><option value="">{tr("Choose a weapon…", "Виберіть зброю…")}</option>')
+            for key, w in sorted(self.data["weapons"].items(), key=lambda kv: self.title(kv[1])):
+                out.append(f'<option value="{esc(key)}">{esc(self.title(w))}</option>')
+            out.append('</select>' + self.round_pick(f"compare-{side}-round") + '</div>')
+        out.append('</div>')
+        return "".join(out)
+
+    def round_options(self):
+        """Every round once, for the round choosers (picker.js), with its lobby icon."""
+        esc, data, out = html.escape, self.data, ['<div id="round-options" hidden>']
+        for key in sorted({k for keys in data["compat"].values() for k in keys}):
+            ammo = data["ammo"][key]
+            icon = data.get("icons", {}).get(key)
+            out.append(f'<div id="{esc(key)}" data-class="{self.tr("Rounds", "Набої")}" data-level="{ammo["item_level"]}" data-title="{esc(self.round_name(key))}" data-search-name="{esc(ammo["name"])}">'
+                       + (f'<img src="{esc(icon)}" alt="">' if icon else '') + '</div>')
+        out.append('</div>')
+        return "".join(out)
+
+    def stamp(self):
+        return f'<p class="wiki-stamp">{html.escape(self.data.get("stamp_uk" if self.code == "uk" else "stamp", ""))}</p>'
+
+
+def render_simulators(data, code, script_url):
+    page = Page(data, code)
+    tr, esc = page.tr, html.escape
+    out = [f'<p class="breadcrumb"><a href="/wiki?lang={code}">{tr("Wiki", "Вікі")}</a> / {tr("Simulators", "Симулятори")}</p>',
+           f'<div class="wiki-heading"><h1>{tr("Simulators", "Симулятори")}</h1></div>',
+           f'<section class="comparison" id="comparison" hidden aria-labelledby="sim-title"><h2 id="sim-title">{tr("Recoil and spread", "Відбій і розкид")}</h2>',
+           page.slots(),
+           f'<div class="compare-options"><button type="button" id="clear-comparison">{tr("Clear", "Очистити")}</button></div>',
+           f'<p id="compare-empty">{tr("Choose a weapon; a second one to compare.", "Виберіть зброю; другу — для порівняння.")}</p>',
+           f'<section id="recoil-sim" class="recoil-sim" hidden data-player="{esc(json.dumps({k: data["spread"][k] for k in ("stance", "skill_influence")}))}">'
+           + simulation(tr, data["spread"]) + '</section></section>',
+           doll(), page.round_options(), '<div id="weapon-options" hidden>']
+    for key, w in sorted(data["weapons"].items(), key=lambda kv: (kv[1]["item_level"], page.title(kv[1]).casefold())):
+        rounds = [{"id": k, "name": page.round_name(k), "spread": data["ammo"][k]["dispersion"]} for k in page.round_keys(key)]
+        recoil = {"rpm": w["rounds_per_minute"], "magazine": w["magazine_capacity"], **w.get("recoil", {}),
+                  "dispersion": w.get("dispersion", {}), "double_handed": w["double_handed"]}
+        icon = data.get("icons", {}).get(key)
+        out.append(f'<div id="{esc(key)}" data-class="{esc(page.class_of(w))}" data-level="{w["item_level"]}" data-title="{esc(page.title(w))}" '
+                   f'data-search-name="{esc(w["name"])}" data-rounds="{esc(json.dumps(rounds, ensure_ascii=False))}" data-recoil="{esc(json.dumps(recoil))}">'
+                   + (f'<img src="{esc(icon)}" alt="">' if icon else '') + '</div>')
+    out.append('</div>')
+    out.append(page.stamp())
+    out.append(f'<script src="{script_url}" defer></script>')
+    return "\n".join(out)
+
+
 def render(data, code, script_url):
-    def tr(en, uk):
-        return en if code == "en" else uk
-
-    def title(w):
-        name = (w.get("name_uk") if code == "uk" else None) or w["name"]
-        return name + (tr(" (premium)", " (преміум)") if w.get("premium") else "")
-
+    page = Page(data, code)
+    tr, title, round_name, round_pick = page.tr, page.title, page.round_name, page.round_pick
     esc = html.escape
-
-    def round_name(key):
-        ammo = data["ammo"][key]
-        return (ammo.get("name_uk") if code == "uk" else None) or ammo["name"]
 
     def rounds(key):
         """The weapon's rounds, its default first, each with the rows it
         changes from the default's (weapons.js swaps them in)."""
-        default = data["default_ammo"][key]
-        keys = data["compat"][key]
-        assert default in keys, f"{key}: default ammo {default} not among {keys}"
-        keys = [default] + [k for k in keys if k != default]
+        default, *_ = keys = page.round_keys(key)
         base = {row["id"]: row for section in sections(data["weapons"][key], data["ammo"][default], code) for row in section["rows"]}
         out = []
         for k in keys:
             rows = {row["id"]: {"values": row["values"], "text": row["text"]}
                     for section in sections(data["weapons"][key], data["ammo"][k], code) for row in section["rows"]
                     if row["text"] != base[row["id"]]["text"]}
-            out.append({"id": k, "name": round_name(k), "spread": data["ammo"][k]["dispersion"], "rows": rows})
+            out.append({"id": k, "name": round_name(k), "rows": rows})
         return out
-
-    def round_pick(name, fires=()):
-        """A round chooser: its label, the chooser picker.js fills, and the
-        hidden select that holds the choice."""
-        options = "".join(f'<option value="{esc(r["id"])}">{esc(r["name"])}</option>' for r in fires)
-        return (f'<div class="round-pick"><label id="{name}-label" for="{name}-btn">{tr("Round", "Набій")}</label>'
-                f'<div class="wpick" id="{name}-picker"></div><select id="{name}" class="round-select" autocomplete="off" hidden>{options}</select></div>')
 
     classes = sorted({CLASSES[w["category"]][code == "uk"] for w in data["weapons"].values()})
     out = [f'<p class="breadcrumb"><a href="/wiki?lang={code}">{tr("Wiki", "Вікі")}</a> / {tr("Weapons", "Зброя")}</p>',
@@ -124,28 +227,11 @@ def render(data, code, script_url):
     out.extend(['</select></label></div>'])
 
     out.append(f'<section class="comparison" id="comparison" hidden aria-labelledby="compare-title"><h2 id="compare-title">{tr("Compare weapons", "Порівняння зброї")}</h2>')
-    out.append('<div class="compare-pickers">')
-    for side in ("a", "b"):
-        out.append(f'<div class="compare-field"><label id="compare-{side}-label" for="compare-{side}-btn">{tr("Weapon", "Зброя")} {side.upper()}</label><div class="wpick" id="compare-{side}-picker"></div><select id="compare-{side}" hidden><option value="">{tr("Choose a weapon…", "Виберіть зброю…")}</option>')
-        for key, w in sorted(data["weapons"].items(), key=lambda kv: title(kv[1])):
-            name = title(w)
-            out.append(f'<option value="{esc(key)}">{esc(name)}</option>')
-        out.append('</select>' + round_pick(f"compare-{side}-round") + '</div>')
-    out.append(f'</div><div class="compare-options"><label class="check"><input type="checkbox" id="only-differences">{tr("Only differences", "Лише відмінності")}</label><label class="check"><input type="checkbox" id="compare-colors" checked>{tr("Color better / worse values", "Позначати кращі / гірші значення")}</label><button type="button" id="clear-comparison">{tr("Clear", "Очистити")}</button><a href="#recoil-sim">{tr("Recoil simulation ↓", "Моделювання відбою ↓")}</a></div>')
-    out.append(f'<p id="compare-empty">{tr("Choose two weapons to compare; one is enough for its recoil simulation. Equal values and neutral traits keep their normal color.", "Виберіть дві одиниці зброї для порівняння; для моделювання відбою досить однієї. Однакові значення та нейтральні властивості зберігають звичайний колір.")}</p>')
-    out.append(f'<p id="compare-same" hidden>{tr("No differences in the displayed stats.", "Відмінностей у показаних характеристиках немає.")}</p><div id="compare-table"></div>')
-    out.append(f'<section id="recoil-sim" class="recoil-sim" hidden aria-labelledby="recoil-title"><h2 id="recoil-title">{tr("Recoil simulation", "Моделювання відбою")}</h2>{simulation(tr)}</section></section>')
-    # Each weapon card's own simulation is made from this when the card opens.
-    out.append(doll())
-    out.append(f'<template id="recoil-template"><h2>{tr("Recoil simulation", "Моделювання відбою")}</h2>{simulation(tr)}</template>')
-    # Every round once, for the round choosers (picker.js), with its lobby icon.
-    out.append('<div id="round-options" hidden>')
-    for key in sorted({k for keys in data["compat"].values() for k in keys}):
-        ammo = data["ammo"][key]
-        icon = data.get("icons", {}).get(key)
-        out.append(f'<div id="{esc(key)}" data-class="{tr("Rounds", "Набої")}" data-level="{ammo["item_level"]}" data-title="{esc(round_name(key))}" data-search-name="{esc(ammo["name"])}">'
-                   + (f'<img src="{esc(icon)}" alt="">' if icon else '') + '</div>')
-    out.append('</div>')
+    out.append(page.slots())
+    out.append(f'<div class="compare-options"><label class="check"><input type="checkbox" id="only-differences">{tr("Only differences", "Лише відмінності")}</label><label class="check"><input type="checkbox" id="compare-colors" checked>{tr("Color better / worse values", "Позначати кращі / гірші значення")}</label><button type="button" id="clear-comparison">{tr("Clear", "Очистити")}</button><a id="compare-simulate" href="/wiki/simulators?lang={code}">{tr("Recoil and spread →", "Відбій і розкид →")}</a></div>')
+    out.append(f'<p id="compare-empty">{tr("Choose two weapons to compare. Equal values and neutral traits keep their normal color.", "Виберіть дві одиниці зброї для порівняння. Однакові значення та нейтральні властивості зберігають звичайний колір.")}</p>')
+    out.append(f'<p id="compare-same" hidden>{tr("No differences in the displayed stats.", "Відмінностей у показаних характеристиках немає.")}</p><div id="compare-table"></div></section>')
+    out.append(page.round_options())
     out.append('<div id="weapon-list">')
 
     def stat(label, value, unit=""):
@@ -153,15 +239,13 @@ def render(data, code, script_url):
 
     for key, w in sorted(data["weapons"].items(), key=lambda kv: (kv[1]["item_level"], title(kv[1]).casefold())):
         name = title(w)
-        cls = CLASSES[w["category"]][code == "uk"]
+        cls = page.class_of(w)
         fired = sections(w, data["ammo"][data["default_ammo"][key]], code)
         damage = next(row for section in fired for row in section["rows"] if row["id"] == "bullet_damage")
         attrs = {"name": name.casefold(), "search-name": w["name"], "premium": int(bool(w.get("premium"))), "class": cls, "level": w["item_level"],
                  "damage": damage["values"][0], "rpm": w["rounds_per_minute"], "weight": w["weight"]}
         fires = rounds(key)
         attrs["rounds"] = json.dumps(fires, ensure_ascii=False)
-        attrs["recoil"] = json.dumps({"rpm": w["rounds_per_minute"], "magazine": w["magazine_capacity"], **w.get("recoil", {}),
-                                      "dispersion": w.get("dispersion", {}), "stance": data.get("character_dispersion", {})})
         out.append(f'<details class="weapon" id="{esc(key)}" ' + " ".join(f'data-{k}="{esc(str(v))}"' for k, v in attrs.items()) + '>')
         out.append('<summary>')
         icon = data.get("icons", {}).get(key)
@@ -185,11 +269,11 @@ def render(data, code, script_url):
             for row in section["rows"]:
                 out.append(f'<div data-stat="{row["id"]}" data-values="{esc(json.dumps(row["values"]))}" data-direction="{row["direction"]}"><dt>{esc(row["label"])}</dt><dd>{esc(row["text"])}</dd></div>')
             out.append('</dl></section>')
-        out.append('<div class="weapon-recoil recoil-sim"></div>')
+        out.append(f'<p class="weapon-simulate"><a href="/wiki/simulators?lang={code}&amp;a={esc(key)}">{tr("Recoil and spread →", "Відбій і розкид →")}</a></p>')
         out.append(f'<div class="compare-from-card" hidden><button type="button" data-compare-side="a">{tr("Set as weapon A", "Вибрати як зброю A")}</button><button type="button" data-compare-side="b">{tr("Set as weapon B", "Вибрати як зброю B")}</button></div>')
         out.append('</div></details>')
     out.append(f'</div><p id="weapons-empty" hidden>{tr("No weapons match. Try another name or class.", "Зброю не знайдено. Спробуйте іншу назву або клас.")}</p>')
-    out.append(f'<p class="wiki-stamp">{esc(data.get("stamp_uk" if code == "uk" else "stamp", ""))}</p>')
+    out.append(page.stamp())
     out.append(f'<script src="{script_url}" defer></script>')
     return "\n".join(out)
 
@@ -201,12 +285,16 @@ def build(calculator, out):
     # The stock camera shake clip (camerashake.json: its source and units).
     clip = json.loads((HERE / "camerashake.json").read_text())
     shake = b"globalThis.CAMERA_SHAKE = " + json.dumps({k: clip[k] for k in ("period_frames", "pitch", "yaw")}, separators=(",", ":")).encode() + b";"
-    script = b"\n".join([shake] + [(HERE / name).read_bytes() for name in ("recoil.js", "picker.js", "weapons.js")])
+    script = b"\n".join((HERE / name).read_bytes() for name in ("picker.js", "slots.js", "weapons.js"))
     script_url = "/wiki/weapons.js?v=" + hashlib.sha256(script).hexdigest()[:12]
+    simulators = b"\n".join([shake] + [(HERE / name).read_bytes() for name in ("recoil.js", "spread.js", "picker.js", "slots.js", "simulators.js")])
+    simulators_url = "/wiki/simulators.js?v=" + hashlib.sha256(simulators).hexdigest()[:12]
     out.mkdir(parents=True, exist_ok=True)
     for code in ("en", "uk"):
         (out / f"weapons.{code}.html").write_text(render(data, code, script_url))
+        (out / f"simulators.{code}.html").write_text(render_simulators(data, code, simulators_url))
     (out / "weapons.js").write_bytes(script)
+    (out / "simulators.js").write_bytes(simulators)
     # The modifiers page is the web server's (servers/web-server/src/modifiers.rs);
     # its script is the same chooser and its own part.
     (out / "modifiers.js").write_bytes(b"\n".join((HERE / name).read_bytes() for name in ("picker.js", "modifiers.js")))
