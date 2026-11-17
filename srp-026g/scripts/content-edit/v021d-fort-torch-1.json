@@ -1,0 +1,689 @@
+{
+  "_about": "Fort v0.21: retain the authored torch light radius (5.047268 m, native 2.5 m) and shadow settings. Copy the stock 0.26 effect for its required schema fields, restoring the donor radius curve and shadow controls. Only Fort v0.21 uses this private copy; native maps keep their torch. The radius-restored light takes half power in 0.26: two captured flicker phases were 32-38% brighter than the original; preserve the flicker timing and colour while correcting its intensity.",
+  "copy": [
+    {
+      "files": "particles/fx/lights/torch.particle",
+      "from": "particles/fx/lights/torch.particle",
+      "to": "particles/srp/v021d/torch.particle"
+    }
+  ],
+  "set_bool": [
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/EnableShadows",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/StaticShadows",
+      "from": false,
+      "to": true
+    }
+  ],
+  "set": [
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/ShadowMapSizeIndex",
+      "from": 4,
+      "to": 2
+    }
+  ],
+  "replace_string": [
+    {
+      "files": "projects/v021d_level_05/day_*/client_project",
+      "from": "fx/lights/torch",
+      "to": "srp/v021d/torch"
+    }
+  ],
+  "set_vector": [
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Radius/source/data/curve0/key0/left_tangent",
+      "from": [
+        -1.6447096,
+        2.4360433
+      ],
+      "to": [
+        -1.6447096,
+        4.983311
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Radius/source/data/curve0/key0/position",
+      "from": [
+        -1.563596,
+        2.5
+      ],
+      "to": [
+        -1.563596,
+        5.047268
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Radius/source/data/curve0/key0/right_tangent",
+      "from": [
+        -1.3113762,
+        2.6988707
+      ],
+      "to": [
+        -1.3113762,
+        5.2461386
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float63/source/data/curve0/key0/left_tangent",
+      "from": [
+        -1.6447096,
+        2.4360433
+      ],
+      "to": [
+        -1.6447096,
+        4.983311
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float63/source/data/curve0/key0/position",
+      "from": [
+        -1.563596,
+        2.5
+      ],
+      "to": [
+        -1.563596,
+        5.047268
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float63/source/data/curve0/key0/right_tangent",
+      "from": [
+        -1.3113762,
+        2.6988707
+      ],
+      "to": [
+        -1.3113762,
+        5.2461386
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key5/left_tangent",
+      "from": [
+        0.66253096,
+        0.21434315
+      ],
+      "to": [
+        0.66253096,
+        0.107171575
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key5/right_tangent",
+      "from": [
+        0.7720135,
+        0.21622242
+      ],
+      "to": [
+        0.7720135,
+        0.10811121
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key5/position",
+      "from": [
+        0.7047441,
+        0.21506773
+      ],
+      "to": [
+        0.7047441,
+        0.107533865
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key1/left_tangent",
+      "from": [
+        0.09165824,
+        0.2092771
+      ],
+      "to": [
+        0.09165824,
+        0.10463855
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key1/right_tangent",
+      "from": [
+        0.18686269,
+        0.21540333
+      ],
+      "to": [
+        0.18686269,
+        0.107701665
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key1/position",
+      "from": [
+        0.13748735,
+        0.21222611
+      ],
+      "to": [
+        0.13748735,
+        0.106113055
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key0/left_tangent",
+      "from": [
+        -1e-06,
+        0.22527583
+      ],
+      "to": [
+        -1e-06,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key0/right_tangent",
+      "from": [
+        0.04582912,
+        0.22527583
+      ],
+      "to": [
+        0.04582912,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key0/position",
+      "from": [
+        0.0,
+        0.22527583
+      ],
+      "to": [
+        0.0,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key4/left_tangent",
+      "from": [
+        0.533141,
+        0.230957
+      ],
+      "to": [
+        0.533141,
+        0.1154785
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key4/right_tangent",
+      "from": [
+        0.6203178,
+        0.23740728
+      ],
+      "to": [
+        0.6203178,
+        0.11870364
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key4/position",
+      "from": [
+        0.5781047,
+        0.23428391
+      ],
+      "to": [
+        0.5781047,
+        0.117141955
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key6/left_tangent",
+      "from": [
+        0.83928293,
+        0.2377694
+      ],
+      "to": [
+        0.83928293,
+        0.1188847
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key6/right_tangent",
+      "from": [
+        0.9377015,
+        0.24091841
+      ],
+      "to": [
+        0.9377015,
+        0.120459205
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key6/position",
+      "from": [
+        0.9065523,
+        0.23992176
+      ],
+      "to": [
+        0.9065523,
+        0.11996088
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key2/left_tangent",
+      "from": [
+        0.23623803,
+        0.24178676
+      ],
+      "to": [
+        0.23623803,
+        0.12089338
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key2/right_tangent",
+      "from": [
+        0.3381468,
+        0.24564181
+      ],
+      "to": [
+        0.3381468,
+        0.122820905
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key2/position",
+      "from": [
+        0.2856134,
+        0.24365455
+      ],
+      "to": [
+        0.2856134,
+        0.121827275
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key3/left_tangent",
+      "from": [
+        0.39068022,
+        0.2254743
+      ],
+      "to": [
+        0.39068022,
+        0.11273715
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key3/right_tangent",
+      "from": [
+        0.48817733,
+        0.22235076
+      ],
+      "to": [
+        0.48817733,
+        0.11117538
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key3/position",
+      "from": [
+        0.44321364,
+        0.22379127
+      ],
+      "to": [
+        0.44321364,
+        0.111895635
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key7/left_tangent",
+      "from": [
+        0.9688508,
+        0.22527583
+      ],
+      "to": [
+        0.9688508,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key7/right_tangent",
+      "from": [
+        1.000001,
+        0.22527583
+      ],
+      "to": [
+        1.000001,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Intensity/source/data/curve0/key7/position",
+      "from": [
+        1.0,
+        0.22527583
+      ],
+      "to": [
+        1.0,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key5/left_tangent",
+      "from": [
+        0.66253096,
+        0.21434315
+      ],
+      "to": [
+        0.66253096,
+        0.107171575
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key5/right_tangent",
+      "from": [
+        0.7720135,
+        0.21622242
+      ],
+      "to": [
+        0.7720135,
+        0.10811121
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key5/position",
+      "from": [
+        0.7047441,
+        0.21506773
+      ],
+      "to": [
+        0.7047441,
+        0.107533865
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key1/left_tangent",
+      "from": [
+        0.09165824,
+        0.2092771
+      ],
+      "to": [
+        0.09165824,
+        0.10463855
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key1/right_tangent",
+      "from": [
+        0.18686269,
+        0.21540333
+      ],
+      "to": [
+        0.18686269,
+        0.107701665
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key1/position",
+      "from": [
+        0.13748735,
+        0.21222611
+      ],
+      "to": [
+        0.13748735,
+        0.106113055
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key0/left_tangent",
+      "from": [
+        -1e-06,
+        0.22527583
+      ],
+      "to": [
+        -1e-06,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key0/right_tangent",
+      "from": [
+        0.04582912,
+        0.22527583
+      ],
+      "to": [
+        0.04582912,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key0/position",
+      "from": [
+        0.0,
+        0.22527583
+      ],
+      "to": [
+        0.0,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key4/left_tangent",
+      "from": [
+        0.533141,
+        0.230957
+      ],
+      "to": [
+        0.533141,
+        0.1154785
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key4/right_tangent",
+      "from": [
+        0.6203178,
+        0.23740728
+      ],
+      "to": [
+        0.6203178,
+        0.11870364
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key4/position",
+      "from": [
+        0.5781047,
+        0.23428391
+      ],
+      "to": [
+        0.5781047,
+        0.117141955
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key6/left_tangent",
+      "from": [
+        0.83928293,
+        0.2377694
+      ],
+      "to": [
+        0.83928293,
+        0.1188847
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key6/right_tangent",
+      "from": [
+        0.9377015,
+        0.24091841
+      ],
+      "to": [
+        0.9377015,
+        0.120459205
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key6/position",
+      "from": [
+        0.9065523,
+        0.23992176
+      ],
+      "to": [
+        0.9065523,
+        0.11996088
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key2/left_tangent",
+      "from": [
+        0.23623803,
+        0.24178676
+      ],
+      "to": [
+        0.23623803,
+        0.12089338
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key2/right_tangent",
+      "from": [
+        0.3381468,
+        0.24564181
+      ],
+      "to": [
+        0.3381468,
+        0.122820905
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key2/position",
+      "from": [
+        0.2856134,
+        0.24365455
+      ],
+      "to": [
+        0.2856134,
+        0.121827275
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key3/left_tangent",
+      "from": [
+        0.39068022,
+        0.2254743
+      ],
+      "to": [
+        0.39068022,
+        0.11273715
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key3/right_tangent",
+      "from": [
+        0.48817733,
+        0.22235076
+      ],
+      "to": [
+        0.48817733,
+        0.11117538
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key3/position",
+      "from": [
+        0.44321364,
+        0.22379127
+      ],
+      "to": [
+        0.44321364,
+        0.111895635
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key7/left_tangent",
+      "from": [
+        0.9688508,
+        0.22527583
+      ],
+      "to": [
+        0.9688508,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key7/right_tangent",
+      "from": [
+        1.000001,
+        0.22527583
+      ],
+      "to": [
+        1.000001,
+        0.112637915
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float66/source/data/curve0/key7/position",
+      "from": [
+        1.0,
+        0.22527583
+      ],
+      "to": [
+        1.0,
+        0.112637915
+      ]
+    }
+  ]
+}
