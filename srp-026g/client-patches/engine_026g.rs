@@ -431,6 +431,8 @@ unsafe extern "thiscall" {
     pub fn engine_translate_query(cook: *mut c_void, query: *mut c_void);
     /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
     pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
+    /// 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly
+    pub fn engine_key_text(keyboard: *mut c_void, key: u32, text: *mut u16) -> u8;
     /// 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, block ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
     pub fn engine_mt_free(allocator: *mut c_void, block: *mut c_void, function: *const u8, file: *const u8, line: u32);
     /// 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
@@ -441,6 +443,10 @@ unsafe extern "thiscall" {
     pub fn engine_take_deactivatable(state: *mut c_void) -> u8;
     /// 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
     pub fn engine_triangle_process(callback: *mut c_void, triangle: *const f32, part: u32, index: u32);
+    /// 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly
+    pub fn engine_scroll_view_set_follow(view: *mut c_void, follow: u32);
+    /// 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly
+    pub fn engine_scroll_set_position(source: *mut c_void, position: f32);
     /// 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly
     pub fn engine_text_edit_set_text(part: *mut c_void, text: *const u8);
     /// 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly

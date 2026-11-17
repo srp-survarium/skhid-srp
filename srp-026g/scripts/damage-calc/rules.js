@@ -161,31 +161,8 @@ const RULES = (() => {
     }
     return box;
   }
-  // A tile with its card; a card with nothing to say leaves the tile as it is.
-  // A click puts the card away until the pointer comes back, as a tooltip goes.
-  function hinted(tile, box) {
-    if (!box.children.length) return tile;
-    tile.removeAttribute("title");
-    const wrap = el("span", { class: "fxhint" }, tile, box);
-    tile.addEventListener("click", () => wrap.classList.add("quiet"));
-    wrap.addEventListener("mouseleave", () => wrap.classList.remove("quiet"));
-    return wrap;
-  }
-  // A bonus row as the lobby draws it: icon, "<label>:", a button per option
-  // [value, text] of picks[key], the picked one again clears it. With a card,
-  // its icon and name show it on hover.
-  function stepsRow(icon, label, options, picks, key, onChange, box) {
-    const group = el("span", { class: "gsteps", role: "group", "aria-label": label });
-    const paint = () => { for (const b of group.children) b.setAttribute("aria-pressed", String(b.dataset.v === String(picks[key] || ""))); };
-    for (const [v, text] of options) {
-      const b = el("button", { type: "button", class: "gstep", text });
-      b.dataset.v = v;
-      b.addEventListener("click", () => { picks[key] = String(picks[key] || "") === String(v) ? "" : v; paint(); onChange(); });
-      group.append(b);
-    }
-    paint();
-    return el("div", { class: "gmrow" }, icon, el("span", { class: box ? "glabel fxhint" : "glabel" }, `${label}:`, box), group);
-  }
+  // The shared rows and cards (hud.js).
+  const { hinted, stepsRow } = HUD;
   // A skill's row (null when the game has no such skill): its lobby icon, its
   // name with its card (the lobby tooltip's line for a rank), a button per
   // rank saying what that many give.

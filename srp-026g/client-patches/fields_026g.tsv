@@ -379,6 +379,12 @@ vostok::input::keyboard	keys	0x4	obj<vostok::input::key_state>	each key's state 
 vostok::input::key_state	state	0x0	u8	bit 80h: the key is down (is_key_down 0x3B8D00: movsx / shr 7 / and 1)
 vostok::input::key_state	size	0x4	size	a key's state is a u32 (is_key_down 0x3B8D00 indexes key x 4)
 survarium::image	keyboard_vtable	0xA25478	u32	vostok::input::platform::keyboard's vtable (its ctor 0x3B8BDC writes it; slot 0 is_key_down 0x3B8D00)
+vostok::ui::insert_char_action	key	0x8	u32	the key it types, a DirectInput code (create_char_action 0x34A4F6; execute asks the key's name with it, 0x34B54C)
+vostok::ui::insert_char_action	input	0x14	ptr<vostok::input::input_world>	the input world its text edit's ui world has (create_char_action 0x34A51B, from [[text edit+264h]+4]); execute asks it for the keyboard (vtable+24h, 0x34B538) to read the key's name; 0 for none (0x34B505)
+vostok::ui::insert_char_frame	typed	0x8	u8	the character insert_char_action::execute types (by the site's ESP, ESI and EDI pushed: written at 0x34B4EE, 0x34B4F7, 0x34B5CE; pushed at 0x34B5DA for 0x348000)
+vostok::input::input_world	vtable	0x0	u32	its vtable: INPUT_WORLD_VTABLE (its ctor 0x3B7B3C writes it)
+vostok::input::input_world	keyboard	0x24	ptr<vostok::input::keyboard>	its keyboard (vtable+24h 0x79E40: mov eax,[ecx+24h]; create_devices 0x3B8414)
+survarium::image	input_world_vtable	0xA252D4	u32	vostok::input::input_world's vtable (RTTI; its ctor 0x3B7B3C writes it; +24h 0x79E40 the keyboard)
 vostok::mutable_buffer	begin	0x4	ptr<u8>	a growable buffer of bytes {allocator, begin, capacity, size} (mutable_buffer::resize 0x7AB30 reads +8h, writes +0Ch; with a null allocator reallocate 0x7AB70 asserts): the first byte
 vostok::mutable_buffer	size	0xC	u32	the bytes used, from begin
 survarium::dynamic_info_frame	unpacked	-0x24	obj<vostok::mutable_buffer>	process_dynamic_match_info's buffer of an unpacked world (by EBP; on the 0xF000 stack bytes it takes at 0x27C05E (0x8000 in the original exe; patch 98), its allocator null, 0x27C06D..0x27C084; sized by resize at 0x27C0A8)
@@ -1365,6 +1371,16 @@ survarium::image	foot_step_return	0x2A6577	u8	on_foot_step's return from on_step
 survarium::image	landing_step_return	0x23FC31	u8	the landing step's (0x23FBE0) return from on_step (call 0x23FC2C)
 survarium::on_step_frame	caller_player	0x0	ptr<survarium::player>	caller_edi as on_landing's player: only when the return address is landing_step_return
 vostok::physics::step_down_cache_entry	hit	0x24	u8	the step-down sweep's cached answer met something (0x8504A); a cached miss is a sweep that touched nothing
+vostok::console_impl	view	0x18	ptr<vostok::ui::ui_scroll_view>	its output's scroll view (m_ui_view, made by ui_world::create_scroll_view 0x3466A0 in console_impl::console_impl 0x1C930): console_impl::tick 0x1D179 asks it for its v scroll's position and its follow flag and fills it with the log's lines
+vostok::console_input	console	-0x268	obj<vostok::console_impl>	the game console whose input handler (its +268h, vtable 0x9DC030) this is: the handler's slots reach the console at ecx-268h (0x1C7FE, 0x1C840) and its dialog at ecx-254h (0x1C810)
+vostok::console_key_frame	key	0x8	u32	console_impl::on_keyboard_action's second stack argument at its start (0x1EAA0, by the site's ESP): the key, a DirectInput code
+vostok::console_mouse_frame	z	0x10	u32	game_console::on_mouse_move's fourth stack argument at its start (0x1C810): the wheel's turn since the last poll, a signed dword (DIMOUSESTATE's lZ: 120 a notch, forward positive)
+vostok::ui::ui_scroll_view	flags	0x44	u16	its flags: bit 1 (2) follow the last line, as the ctor sets it (0x3495B2); get_follow_last_line 0x349520, set_follow_last_line 0x349C60
+vostok::ui::ui_scroll_view	height	0x18	f32	its height: its window (+4, w() 0x349CF0) size's y (+10h, get_size 0x346480); console_impl::tick takes the visible lines from it (0x1D2B1)
+vostok::ui::ui_scroll_view	pad_top	0x54	f32	its pad's (+48h, vtable 0xA1DED4) position y (+8, get_position 0x38990): 0 at the top, -(pad_length - height) at the end; the v scroll's get_position reads it (0x349C90)
+vostok::ui::ui_scroll_view	pad_length	0x5C	f32	its pad's size y (+10h): the items' heights added (recalc); the v scroll's get_length reads it (0x349C80)
+vostok::ui::ui_scroll_view	source	0x1C8	obj<vostok::ui::scroll_source>	its v scroll, a ui_scroll_v_source (vtable 0xA1DCB0; get_v_scroll 0x349530 returns it)
+vostok::ui::scroll_source	step	0x8	f32	its step (get_step_size 0x349500): 0 from the ctor (0x349623), 20 (the line's height, 0xA2D7E4) after console_impl::tick filled the view (set_step_size, 0x1D5A4)
 vostok::ui::ui_text_edit	text	0x4	obj<vostok::ui::ui_text_edit_text>	its ui_text part (vtable 0xA1DAF8; its +4 the window, 0xA1DB2C): ui_text_edit's set_text 0x3479D0 takes it as ECX and reaches the text edit at its -4
 vostok::ui::ui_text_edit	line	0x48	obj<vostok::buffer_string>	the line's text: its begin the inline buffer at +54h, its capacity_end 200h past it (the base ctor 0x348CF0..0x348CFE); set_text assigns it (0x127C0)
 vostok::ui::ui_text_edit	max_length	0x2A4	u16	the line's most bytes: 0FFh from the ctor (0x34779C), set_max_length 0x3479C0; set_text cuts a longer text there (0x347A11)
