@@ -2676,3 +2676,8 @@ va	name	source	ret_cleanup	result
 0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	manual	16	void
 0x000a8660	btBvhTriangleMeshShape::processAllTriangles	manual	12	void
 0x000c5600	btConvexTriangleCallback::processTriangle	manual	12	void
+0x003482c0	vostok::ui::ui_text_edit::paste_from_clipboard	manual	0	none; the engine's stub: it logs "ui_text_edit::paste_from_clipboard not implemented" (channel ui, 0x9EEFDC) and pastes nothing (0.21d's 0x21152B the same)
+0x003479d0	vostok::ui::ui_text_edit::set_text	manual	4	none; a text equal to the line (_stricmp 0x426F29) changes nothing; else the line is the text cut at the max length, text-changed event 5 (0x346FA0), the caret clamped to the length, an undo step pushed (unless an undo or redo runs, +2ADh, +2AEh) and the redo steps dropped
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	manual	8	none; the caret (+2A6h) clamped to the line's length; when it moved, the selection (+2A8h, +2AAh) collapsed to it, or with select and Shift held (+2ACh & 30h) one end of it moved
+0x003486a0	vostok::ui::ui_text_edit's delete of the selection	manual	0	none; the line without [+2A8h, +2AAh) (set_text), the caret and both ends of the selection at its start
+0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	manual	4	AL 1 (the key taken); calls its method (+18h) with its object (+14h) as ECX, no argument

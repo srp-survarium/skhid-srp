@@ -3306,6 +3306,48 @@ collision_view_on_debug_lines_replay:
 ; 0x9e4f94 btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box: vtable -> collision_view_on_triangle (wraps engine_triangle_process 0xc5600)
     RUST_THISCALL collision_view_on_triangle, hook_collision_view_on_triangle, 3
 
+; 0x3482c0 ui_text_edit::paste_from_clipboard's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,28h), the engine's stub that logs "not implemented": ECX the text edit (thiscall, no argument; Ctrl+V's and Shift+Insert's key binding, init_internals 0x34AA5C, calls it through 0x34B4C0, on the game's thread); pasted is its `ret` (0x34838F), the stack as at the site: lohook -> console_paste_on_paste
+global console_paste_on_paste
+extern hook_console_paste_on_paste
+console_paste_on_paste:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_paste_on_paste
+    mov edx, console_paste_on_paste_replay
+    cmp eax, 0
+    je console_paste_on_paste_go
+    mov edx, 0x3482c9
+    cmp eax, 1
+    je console_paste_on_paste_go
+    mov edx, 0x34838f
+    cmp eax, 2
+    je console_paste_on_paste_go
+    ud2
+console_paste_on_paste_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_paste_on_paste_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x28
+    jmp 0x3482c9
+
 ; 0x9e7c10 cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found: vtable -> console_where_on_execute (wraps engine_cc_delegate_execute 0xec830)
     RUST_THISCALL console_where_on_execute, hook_console_where_on_execute, 1
 
