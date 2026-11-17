@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Writes content-edit/v021d-school-fort-modes-1.json: Blackout and Free for All on School and
-Tarakanovsky Fort v0.21 (pack maps-021d-school-fort@1), as Vostok and Mamayev Kurgan v0.21 have
+Tarakanovsky Fort v0.21 (pack maps-021d-school-fort@4), as Vostok and Mamayev Kurgan v0.21 have
 them, in one list after every other row, so it can wait for its maps_dict ids:
 
     python3 make_school_fort_modes.py --live <folder> \\
@@ -69,7 +69,7 @@ def edits(live, blackout, ffa):
         raise ValueError(f'ids {wanted}: each its own, a byte below 255 (none), none of a live row')
     points = authored()
     out = {'_about': (
-        'Blackout and Free for All on School and Tarakanovsky Fort v0.21 (maps-021d-school-fort@1), as Vostok and '
+        'Blackout and Free for All on School and Tarakanovsky Fort v0.21 (maps-021d-school-fort@4), as Vostok and '
         'Mamayev Kurgan v0.21 have them: Blackout as blackout-mode-1 (each battery config under blackout/, '
         f'srp_variant blackout, st_srp_mode_blackout; maps_dict {", ".join(f"{m} {blackout[m]}" for m in MAPS)}); Free '
         'for All as ffa-projects-1, ffa-ported-1, no-ammo-crates-1, ffa-radius-1 and ffa-protection-ms-1 made it '
