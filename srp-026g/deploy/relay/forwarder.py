@@ -69,7 +69,7 @@ class Peers:
 
 class Budget:
     """Bounded per-IP token buckets, used before allocating a UDP peer."""
-    def __init__(self, rate=1000, burst=2000):
+    def __init__(self, rate=2000, burst=4000):
         self.rate, self.burst = rate, burst
         self.buckets = OrderedDict()
 

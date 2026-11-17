@@ -12,6 +12,10 @@ use udp_transport::relay::{HEADER_SIZE, Protocol, forward_header, forwarded_data
 const MAX_PACKET: usize = 4096;
 const MAX_PEERS: usize = 8192;
 const IDLE: Duration = Duration::from_secs(120);
+// At least the voice server's per-IP allowance: carrier NAT can put forty
+// players (under 1,400 voice packets/s together) behind the same address.
+const UDP_RATE: f64 = 2000.0;
+const UDP_BURST: f64 = 4000.0;
 
 #[derive(Clone, Copy)]
 struct Config {
@@ -173,7 +177,7 @@ fn udp(config: Config, port: u16) -> io::Result<()> {
         .name(format!("udp-{port}-forward"))
         .spawn(move || {
             let mut buffer = [0; HEADER_SIZE + MAX_PACKET + 1];
-            let mut budget = Budget::new(1000.0, 2000.0);
+            let mut budget = Budget::new(UDP_RATE, UDP_BURST);
             loop {
                 let Ok((n, client)) = front.recv_from(&mut buffer[HEADER_SIZE..]) else {
                     continue;
@@ -295,6 +299,17 @@ fn main() -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_shared_exit_can_carry_forty_voice_clients_continuously() {
+        let mut budget = Budget::new(UDP_RATE, UDP_BURST);
+        let start = Instant::now();
+        for packet in 0..14_000 {
+            let peer = SocketAddr::from(([198, 51, 100, 9], 20_000 + (packet % 40) as u16));
+            let now = start + Duration::from_micros(packet * 1_000_000 / 1400);
+            assert!(budget.take(peer, now), "shared exit dropped packet {packet}");
+        }
+    }
+
     #[test]
     fn peer_refresh_and_expiry_keep_exactly_one_entry() {
         let mut peers = Peers::default();
