@@ -48,7 +48,7 @@ static COMMAND: Command = Command::new();
 static STATE: YieldingLock<Collision> = YieldingLock::new(Collision { view: View::Off, rooms: Rooms::Unmade });
 
 /// The radii a read tries (m), the largest whose lines fit the room drawn.
-const RADII: [f32; 3] = [20.0, 10.0, 5.0];
+const RADII: [f32; 5] = [40.0, 30.0, 20.0, 10.0, 5.0];
 /// The vertices a room holds (4 MiB; two rooms, made the first time the view
 /// is turned on and kept): lines take two, filled triangles three.
 const VERTICES: usize = 256 * 1024;
@@ -938,12 +938,12 @@ mod tests {
             (read.lines.count(), start)
         };
         let shown = |start| Previous::Shown(Fit { at: at(0.0, 1), start });
-        let cut_at_20 = |r: f32| if r > 15.0 { MOST + 1 } else { 50_000 };
-        assert_eq!(fit(Previous::Start, cut_at_20), (50_000, 1), "20 m cut: 10 m's");
-        assert_eq!(fit(Previous::Start, |_| MOST), (MOST, 0), "exactly the room at 20 m: it fits, not cut");
-        assert_eq!(fit(Previous::Start, |_| 200_000), (MOST, 2), "cut at 5 m too: the room's");
-        assert_eq!(fit(shown(1), |_| 50_000), (50_000, 1), "from the last fit, 10 m: one pass");
-        assert_eq!(fit(shown(1), |_| 1_000), (1_000, 0), "under a quarter of the room: the next starts larger");
+        let cut_over_20 = |r: f32| if r > 25.0 { MOST + 1 } else { 50_000 };
+        assert_eq!(fit(Previous::Start, cut_over_20), (50_000, 2), "40 and 30 m cut: 20 m's");
+        assert_eq!(fit(Previous::Start, |_| MOST), (MOST, 0), "exactly the room at 40 m: it fits, not cut");
+        assert_eq!(fit(Previous::Start, |_| 200_000), (MOST, 4), "cut at 5 m too: the room's");
+        assert_eq!(fit(shown(2), |_| 50_000), (50_000, 2), "from the last fit, 20 m: one pass");
+        assert_eq!(fit(shown(2), |_| 1_000), (1_000, 1), "under a quarter of the room: the next starts larger");
     }
 
     #[test]
@@ -1099,7 +1099,7 @@ mod tests {
             })
             .collect();
         assert_eq!(census, [
-            "collision: the level's static collision within 20 m (less where that is over 131072 lines):",
+            "collision: the level's static collision within 40 m (less where that is over 131072 lines):",
             "collision: walk (green) 541 in the world: stops walkers only",
             "collision: shot (magenta) 511 in the world: stops bullets and the camera only",
             "collision: solid (white) 105 in the world: stops walkers, bullets and the camera",

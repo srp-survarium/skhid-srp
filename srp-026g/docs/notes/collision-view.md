@@ -5,7 +5,8 @@ collisions and collisions in general in the game?", "different groups with diffe
 right?". After playing the first build (boxes): "i am not sure showing bbs like that is correct,
 since this doesn't give people idea on what is collision and where": draw the collision itself.
 2026-11-17, after playing revision 63: "can we make variation which fills in collision? so it is
-easier to find holes", and "just slightly bigger buffers for all meshes".
+easier to find holes", and "just slightly bigger buffers for all meshes"; then larger radii on
+top (40 and 30 m) where the room allows.
 
 ## The command
 
@@ -62,11 +63,11 @@ easier to find holes", and "just slightly bigger buffers for all meshes".
   near the camera (as below), its real shapes (spheres, boxes, cylinders, capsules) where
   they stand: **red while it damages** (its anomaly has it on), **dim red while it is off**. A zone
   going on or off is read again at once.
-- **Near the camera**: within 20 m of where the eye was when the lines were read (a mesh's
+- **Near the camera**: within 40 m of where the eye was when the lines were read (a mesh's
   triangles, and each box, sphere, capsule or cylinder whose bounds come that near). The room is
   **262144 vertices** (4 MiB): a line takes two, a filled triangle three, so it holds **131072
   lines**, or fewer with the fill (the lines fill it from its start, the triangles from its end,
-  and it is full where they meet). Where that does not fit, the read takes 10 m, then 5 m; where
+  and it is full where they meet). Where that does not fit, the read takes 30 m, then 20, 10 and 5 m; where
   even 5 m does not fit, what was found first is kept and the rest is not (the damage zones are
   read first, so they are always kept; which part of the rest is missing is the world's order, not
   the distance). The next read starts at the radius that fitted, one larger when it used under a
@@ -79,14 +80,15 @@ easier to find holes", and "just slightly bigger buffers for all meshes".
   shown (the lobby, loading); a view turned on there starts, with its legend, in the next match.
 - **What to expect** (the edges of the maps' collision triangles around every spawn, three a
   triangle, counted on the local map data of level_01, 07 and 09, 2026-11-16; medians, so a little
-  less with the strips' shared edges; filled, 1.5 times the room):
+  less with the strips' shared edges; filled, 1.5 times the room; at 30 and 40 m estimated as 2.25
+  and 4 times 20 m's, the maps being flat):
 
   | shown | lines within 20 m | within 10 m | the view | the view filled |
   |---|---|---|---|---|
   | all | 142 000 to 239 000 | 52 000 to 71 000 | 10 m | 10 m |
-  | walk (walk + solid) | 49 000 to 72 000 | 18 000 to 22 000 | 20 m | 20 m |
-  | shot (shot + solid) | 97 000 to 206 000 | 35 000 to 56 000 | 20 m (10 m where over 131 000) | 10 m |
-  | solid | 3 900 to 29 000 | 1 300 to 7 500 | 20 m | 20 m |
+  | walk (walk + solid) | 49 000 to 72 000 | 18 000 to 22 000 | 20 to 30 m | 20 m |
+  | shot (shot + solid) | 97 000 to 206 000 | 35 000 to 56 000 | 10 to 20 m | 10 m |
+  | solid | 3 900 to 29 000 | 1 300 to 7 500 | 40 m | 30 to 40 m |
 
 - **Behind walls hidden, on walls shown**: the lines are depth-tested, drawn with the game's own
   debug lines, so what stands in front of a surface hides its lines; each end is drawn 1 cm or 0.5 %
@@ -102,7 +104,7 @@ easier to find holes", and "just slightly bigger buffers for all meshes".
 ## The legend
 
 - The first frame after it is turned on, the console gets the head
-  `collision: the level's static collision within 20 m (less where that is over 131072 lines):` and a
+  `collision: the level's static collision within 40 m (less where that is over 131072 lines):` and a
   line for each group shown, for example `collision: walk (green) 541 in the world: stops walkers
   only`, the count of objects over the whole map. The lines go to `srp_patches.<date>.log` too.
 
@@ -113,7 +115,10 @@ easier to find holes", and "just slightly bigger buffers for all meshes".
   are taken from Windows the first time the view is turned on (pages of its own, not an engine arena) and kept until the game closes. If Windows has
   no room, the console says `collision: no room for its lines, still off`.
 - A read (on a start, a filter's change, 0.5 m of movement): a walk of the world's objects (750 to
-  2500) and, for each mesh near the camera, one query of its BVH a radius tried (at most three).
+  2500) and, for each mesh near the camera, one query of its BVH a radius tried (at most five, on a
+  start; after it, the radius that fitted, and one larger first when it used under a quarter of the
+  room). A read's work is bounded by the room (131072 lines), so a larger radius costs more only in
+  the BVH's walk of the box, not in lines.
 - Every frame while on: at most eight draw calls of lines (32768 vertices each) and, filled, of
   triangles (32766 vertices each; the game draws each twice, filled and as its own wireframe).
 
