@@ -457,6 +457,26 @@ pub fn behind(have: u8, need: u8) -> String {
     )
 }
 
+/// The site was not asked or not reached (`reason`), and the newest release
+/// the DHT named, signed by the release, is `need`; the game exe says
+/// `have`, and the update to it could not be had from peers.
+pub fn behind_signed(have: u8, need: u8, reason: &str) -> String {
+    format!(
+        "Game revision {need} is out; this game is revision {have}, and the update to it \
+         could not be downloaded: no peer gave it, and {reason} Click OK: the launcher keeps \
+         looking and starts anew with the update.{PLAY_OFF}"
+    )
+}
+
+/// The site had not answered when the DHT named revision `revision`, signed
+/// by the release: the update was checked without it.
+pub fn signed_first(server: &Url, revision: u64) -> String {
+    format!(
+        "{} was not waited for: the DHT named revision {revision}, signed by the release, first.",
+        server.host
+    )
+}
+
 /// `check` by hand replaced this updater, and the new one could not be run
 /// to finish the update.
 pub fn replaced_not_run(reason: &str) -> String {
