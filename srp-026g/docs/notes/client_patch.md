@@ -2996,12 +2996,12 @@ config change to `parameters/reload_time` is negative. The native type-2 operato
 at 0x358010 sums percentages, clamps `1 + sum` at zero, then multiplies the base.
 Values are copied before modification and comparisons use the resulting values.
 
-Existing data issue, deliberately not masked by UI: recoil modifications
-2080..2084 and defect 3060 target `max_first_shoot_*` / `*_queue_shoot_*` fields,
-absent from current weapons' recoil blocks. `find_modifier_target` 0x2F1430
-returns null for missing paths; the cook skips them at 0x2F1ABF. Current recoil
-loads `min_top_recoil`, `max_top_recoil` and the left/right ranges at 0x331840.
-The card therefore does not invent a recoil reduction. Likewise a base-dispersion
+Recoil modifications 2080..2084 and defect 3060 once targeted
+`max_first_shoot_*` / `*_queue_shoot_*` fields, absent from current weapons'
+recoil blocks (`find_modifier_target` 0x2F1430 returns null for missing paths;
+the cook skips them at 0x2F1ABF). The content edit (`weapon-rolls.md`) retargets
+them to the six keys recoil loads at 0x331840 (`min/max_top_recoil` and the
+left/right ranges, type 2), and the card's kick rows show the change. Likewise a base-dispersion
 upgrade (property 2) does not change shot spread, growth or recovery. The scope's
 separate view FOV does not change the explicitly labelled base aim-zoom parameter.
 
