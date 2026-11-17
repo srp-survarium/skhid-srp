@@ -192,6 +192,7 @@ global engine_ray_callback
 global engine_ray_needs_collision
 global engine_ray_test_single
 global engine_key_name
+global engine_key_text
 global engine_activate_keyboard_layout
 global engine_get_window_long_a
 global engine_set_window_long_a
@@ -335,6 +336,7 @@ engine_mt_free_memory equ 0x1c410   ; 0x1c410 vostok::memory::mt_free: memory ES
 engine_allocate_save_descriptor equ 0x109f30   ; 0x109f30 vostok::resources::allocate_save_descriptor: physical ESP+4, virtual_path ESP+8; pops 0; EAX; cdecl, called directly
 engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
 engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
+engine_key_text equ 0x3b92d0   ; 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly
 engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
 engine_get_window_long_a equ 0xaefe8c   ; the IAT slot 0xaefe8c (an import, stdcall)
 engine_set_window_long_a equ 0xaeff44   ; the IAT slot 0xaeff44 (an import, stdcall)
