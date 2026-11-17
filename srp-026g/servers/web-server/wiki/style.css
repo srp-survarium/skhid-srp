@@ -141,6 +141,15 @@ main.wiki { max-width: 1160px; gap: 0; margin-top: 28px }
 .sim-cross.series-1 { stroke:#3684bd; fill:#3684bd }
 .sim-skill { display:flex; align-items:center; gap:6px }
 .sim-skill img { width:28px; height:28px; flex:none }
+/* A control's help: a mark that opens its line on hover, focus or a tap (simulators.js), over the page. */
+.sim-tipped { position:relative }
+.sim-help { flex:none; width:18px; height:18px; margin:0; padding:0; border:1px solid var(--rule); border-radius:50%; background:var(--panel);
+  color:var(--accent); font:700 .7rem/16px var(--body); letter-spacing:0; text-transform:none; text-align:center }
+.sim-tip { display:none; position:absolute; z-index:5; left:0; top:calc(100% + 6px); width:max-content; max-width:min(280px,calc(100vw - 48px));
+  background:var(--panel); border:1px solid var(--rule); box-shadow:0 8px 28px rgba(0,0,0,.28); padding:8px;
+  font:400 .875rem/1.3 var(--body); color:var(--ink-2); letter-spacing:normal; text-transform:none }
+.sim-help:focus-visible+.sim-tip,.sim-tipped.open .sim-tip { display:block }
+@media(hover:hover) { .sim-help:hover+.sim-tip { display:block } }
 .sim-parts { width:100%; table-layout:fixed; margin:12px 0 0; border:1px solid var(--rule); background:var(--bg) }
 .sim-parts caption { text-align:left; font:700 .8rem var(--display); margin-bottom:8px; text-transform:uppercase; letter-spacing:.06em }
 .sim-parts th,.sim-parts td { padding:6px 8px; font:.8rem var(--data); text-align:right; hyphens:auto }

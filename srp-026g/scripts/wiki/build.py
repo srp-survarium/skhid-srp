@@ -43,33 +43,88 @@ def doll():
     return f'<svg class="doll-source" aria-hidden="true" focusable="false"><g id="doll-shape">{shape}</g></svg>'
 
 
-def simulation(tr, spread):
+# What each spread modifier a skill can carry does (spread.js, from the exe);
+# `{v}` its value a rank. None of them changes the fully aimed spread.
+SKILL_TIPS = {
+    "dispersion_from_hip": ("Spread from the hip {v} per rank, sprinting and jumping included. Not while aiming.",
+                            "Розкид від стегна {v} за ранг, зокрема в бігу й у стрибку. Не під час прицілювання."),
+    "dispersion_movement_influence": ("Spread while walking {v} per rank, from the hip or aiming in. Not crouch-walking.",
+                                      "Розкид під час ходьби {v} за ранг, від стегна й під час прицілювання. Не в ходьбі присівши."),
+    "injury_penalty": ("Spread from broken arms {v} per rank.", "Розкид від зламаних рук {v} за ранг."),
+    "recoil": ("Each shot's kick {v} per rank: up, sideways and the camera shake.",
+               "Поштовх кожного пострілу {v} за ранг: угору, убік і тремтіння камери."),
+}
+# What a modification of each kind does: of the kit's player modifiers, or
+# the weapon's kick ranges.
+MOD_TIPS = {
+    ("dispersion",): ("The stance's spread and each shot's. No effect sprinting, jumping or fully aimed.",
+                      "Розкид від положення й від кожного пострілу. Не діє в бігу, у стрибку й при повному прицілюванні."),
+    ("recoil",): ("Each shot's kick with any weapon: up, sideways and the camera shake.",
+                  "Поштовх кожного пострілу з будь-якої зброї: угору, убік і тремтіння камери."),
+    "kick": ("This weapon's kick ranges, up and sideways. Not the camera shake.",
+             "Межі поштовху цієї зброї, угору й убік. Не тремтіння камери."),
+}
+
+
+def skill_tip(skill, tr):
+    """A spread skill's help line: what each of its modifiers does a rank (its
+    ranks the sums of equal levels), then that fully aimed it does nothing."""
+    first, *rest = skill["ranks"][1:]
+    for n, rank in enumerate(rest, 2):
+        assert rank == {m: round(v * n, 6) for m, v in first.items()}, f'skill {skill["id"]}: ranks not equal steps'
+    lines = []
+    for modifier, value in first.items():
+        en, uk = SKILL_TIPS[modifier]
+        v = f'{"−" if value < 0 else "+"}{abs(value) * 100:g}%'
+        lines.append(tr(en, uk).format(v=v))
+    return " ".join(lines + [tr("No effect fully aimed.", "Не діє при повному прицілюванні.")])
+
+
+def simulation(tr, sim, weapons):
     """The simulation's controls and plots (simulators.js RecoilSim finds its
-    parts by class); `spread`: the calculator data's, whose skills and
-    modifications are its `.sim-source` choosers, each option with the kit
-    modifiers it adds."""
+    parts by class); `sim`: the calculator data's `simulators`. Its skills and
+    armour modifications are `.sim-source` choosers, each option with the kit
+    modifiers it adds (`data-effects`); the weapon's modifications
+    `.sim-kick` ones, each option with its scale of the kick ranges
+    (`data-kick`). Each with a help line."""
     esc = html.escape
 
-    def source(label, options):
-        return (f'<label>{label}<select class="sim-source">'
-                + "".join(f'<option data-effects="{esc(json.dumps(effects))}">{esc(text)}</option>' for text, effects in options)
+    def control(key, name, tip, cls, options):
+        return (f'<label for="{key}"><span class="sim-skill sim-tipped">{name}'
+                f'<button type="button" class="sim-help" aria-label="{tr("What it does", "Що це дає")}" aria-describedby="{key}-tip">?</button>'
+                f'<span class="sim-tip" role="tooltip" id="{key}-tip">{esc(tip)}</span></span>'
+                f'<select id="{key}" class="{cls}" aria-labelledby="{key}-name">'
+                + "".join(f'<option {attr}="{esc(json.dumps(value))}">{esc(text)}</option>' for text, attr, value in options)
                 + '</select></label>')
 
     def skill(s):
         icon = SITE / "skills" / "icons" / f'{s["id"]}.webp'
         url = f'/skills/icons/{s["id"]}.webp?v={hashlib.sha256(icon.read_bytes()).hexdigest()[:12]}'
-        name = esc(tr(s["name"], s["name_uk"] or s["name"]))
-        return source(f'<span class="sim-skill"><img src="{url}" alt="" width="28" height="28">{name}</span>',
-                      [(str(n), effects) for n, effects in enumerate(s["ranks"])])
+        key = f'sim-skill-{s["id"]}'
+        name = f'<img src="{url}" alt="" width="28" height="28"><span id="{key}-name">{esc(tr(s["name"], s["name_uk"] or s["name"]))}</span>'
+        return control(key, name, skill_tip(s, tr), "sim-source", [(str(n), "data-effects", e) for n, e in enumerate(s["ranks"])])
 
     def modification(mods):
-        card = mods[0]["card"]
-        return source(esc(tr(card["label"], card["label_uk"] or card["label"])),
-                      [(tr("None", "Немає"), {})] + [(tr(m["card"]["value"], m["card"]["value_uk"]), m["effects"]) for m in mods])
+        first = mods[0]
+        kick = "kick" in first
+        slots = ", ".join(tr(x["name"], x["name_uk"] or x["name"]) for x in {(x["name"], x["name_uk"]): x for m in mods for x in m["slots"]}.values())
+        key = f'sim-mod-{first["type"]}'
+        name = f'<span id="{key}-name">{esc(slots)}: {esc(tr(first["card"]["label"], first["card"]["label_uk"] or first["card"]["label"]))}</span>'
+        tip = tr(*MOD_TIPS["kick" if kick else tuple(sorted(first["kit"]))])
+        attr = "data-kick" if kick else "data-effects"
+        options = [(tr("None", "Немає"), attr, 0 if kick else {})]
+        options += [(tr(m["card"]["value"], m["card"]["value_uk"]), attr, m["kick"] if kick else m["kit"]) for m in mods]
+        return control(key, name, tip, "sim-kick" if kick else "sim-source", options)
 
+    # The modifications a Skhid item can have: srp rolls no defect
+    # (crates/survarium/src/v026g/modifications.rs), one choice a kind.
     kinds = {}
-    for m in spread["mods"]:
-        kinds.setdefault((m["kind"], m["type"]), []).append(m)
+    for m in sim["mods"]:
+        if m["kind"] == "mod":
+            assert "kit" in m or m["weapons"] == sorted(weapons), f'modification {m["id"]}: not every weapon takes it'
+            kinds.setdefault(m["type"], []).append(m)
+    for mods in kinds.values():
+        mods.sort(key=lambda m: abs(m["kick"] if "kick" in m else sum(m["kit"].values())))
     aims = [("hip", "From the hip", "Від стегна"), ("aiming", "Aiming in", "Прицілювання"), ("aimed", "Fully aimed", "Повне прицілювання")]
     stances = [("idle", "Standing", "Стоячи"), ("walk", "Walking", "Ходьба"), ("crouch", "Crouching", "Присівши"),
                ("crouch_walk", "Crouch-walking", "Ходьба присівши"), ("run", "Sprinting", "Біг"), ("jump", "Jumping", "Стрибок")]
@@ -87,7 +142,7 @@ def simulation(tr, spread):
         + "".join(f'<option value="{1 / n:g}">{tr(f"Click, {n} a second", f"Клацати, {n} на секунду")}</option>' for n in (4, 2, 1))
         + f'</select></label><label>{tr("Sample seed", "Зерно вибірки")}<input class="sim-seed" type="number" min="1" max="999999" value="1"></label></div>',
         f'<p class="stat-note">{tr("A full magazine; with two weapons, as many shots as the smaller magazine holds, each at its own fire rate. Random samples use the same seed for comparison; they are not recorded game shots.", "Повний магазин; для двох одиниць зброї стільки пострілів, скільки вміщує менший магазин, кожна у власному темпі. Для порівняння використано однакове зерно випадковості; це не запис пострілів із гри.")}</p>',
-        '<div class="sim-inputs">' + "".join(skill(s) for s in spread["skills"]) + "".join(modification(m) for m in kinds.values())
+        '<div class="sim-inputs">' + "".join(skill(s) for s in sim["skills"]) + "".join(modification(m) for m in kinds.values())
         + f'<label>{tr("Broken arms", "Зламані руки")}<select class="sim-arms">' + "".join(f'<option>{n}</option>' for n in range(3)) + '</select></label></div>',
         f'<table class="sim-parts"><caption>{tr("Spread", "Розкид")} · {tr("degrees", "градуси")}</caption><thead><tr><td></td>'
         + "".join(f'<th scope="col">{p}</th>' for p in parts) + '</tr></thead><tbody></tbody></table>',
@@ -173,8 +228,8 @@ def render_simulators(data, code, script_url):
            page.slots(),
            f'<div class="compare-options"><button type="button" id="clear-comparison">{tr("Clear", "Очистити")}</button></div>',
            f'<p id="compare-empty">{tr("Choose a weapon; a second one to compare.", "Виберіть зброю; другу — для порівняння.")}</p>',
-           f'<section id="recoil-sim" class="recoil-sim" hidden data-player="{esc(json.dumps({k: data["spread"][k] for k in ("stance", "skill_influence")}))}">'
-           + simulation(tr, data["spread"]) + '</section></section>',
+           f'<section id="recoil-sim" class="recoil-sim" hidden data-player="{esc(json.dumps({k: data["simulators"][k] for k in ("stance", "skill_influence")}))}">'
+           + simulation(tr, data["simulators"], data["weapons"]) + '</section></section>',
            doll(), page.round_options(), '<div id="weapon-options" hidden>']
     for key, w in sorted(data["weapons"].items(), key=lambda kv: (kv[1]["item_level"], page.title(kv[1]).casefold())):
         rounds = [{"id": k, "name": page.round_name(k), "spread": data["ammo"][k]["dispersion"]} for k in page.round_keys(key)]

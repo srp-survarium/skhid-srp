@@ -5,6 +5,9 @@
 //   [min_shake_recoil, max_shake_recoil] per shot, the same PID back to 0)
 //   weighting the stock clip camerashake_v2 (CAMERA_SHAKE, degrees), which
 //   only plays while firing from the hip, at shake_time_scale x 30 frames/s;
+// - each axis's step a shot (the kick and the shake) times max(0, 1 + S18),
+//   the kit's recoil modifier (apply_modifier, index 12h, weight 1, at
+//   0x331DC7, 0x331EA5 and 0x331F5A); the ramp follows it, the recovery not;
 // - the spread (spread.js: the state's parts, and the shots' part run here
 //   at the ticks); a bullet tilts 0.5 x D x frac(N(0, 0.5)) degrees at a
 //   uniform angle (get_dispersed_bullet_direction 0x2E1D50).
@@ -45,14 +48,15 @@
     const n = clip.period_frames, at = ((frame % n) + n) % n, i = Math.floor(at), f = at - i, j = (i + 1) % n;
     return [clip.yaw[i] + (clip.yaw[j] - clip.yaw[i]) * f, clip.pitch[i] + (clip.pitch[j] - clip.pitch[i]) * f];
   }
-  // `firing`: `aim` (WeaponSpread.AIMS; the shake plays from the hip only)
-  // and `spread` (WeaponSpread.condition, or null for none). `click`:
+  // `firing`: `aim` (WeaponSpread.AIMS; the shake plays from the hip only),
+  // `spread` (WeaponSpread.condition, or null for none) and `recoil`, the
+  // kit's recoil modifier sum (S18). `click`:
   // seconds between clicks for single shots (never faster than the weapon
   // fires), 0 to hold the trigger. The modes share every rule (the configs
   // have none per mode): only the shots' pace differs; a shot's kick still
   // ramps over 60/rpm.
-  function simulate(model, requestedShots, seed = 1, {aim = 'aimed', spread = null} = {}, click = 0) {
-    const hip = aim === 'hip';
+  function simulate(model, requestedShots, seed = 1, {aim = 'aimed', spread = null, recoil = 0} = {}, click = 0) {
+    const hip = aim === 'hip', step = Math.max(0, 1 + recoil);
     const spacing = Math.max(model.interval, click * 1000);
     const shots = Math.min(model.magazine, Math.max(1, Math.floor(requestedShots)));
     const random = generator(seed), extra = generator((seed ^ 0x9e3779b9) >>> 0);
@@ -91,9 +95,9 @@
         const top = draw(model.top) / TOP, right = draw(model.right), left = draw(model.left);
         const side = (right - left) / SIDE;
         const shake = model.shake ? model.shake.range[0] + (model.shake.range[1] - model.shake.range[0]) * extra() : 0;
-        const target = [clamp(at[0] + side * (1 - Math.abs(at[0]) ** model.power), -1, 1),
-          clamp(at[1] + top * (1 - Math.max(at[1], 0) ** model.power), -1, 1),
-          clamp(at[2] + shake * (1 - at[2] ** model.power), 0, 1)];
+        const target = [clamp(at[0] + step * side * (1 - Math.abs(at[0]) ** model.power), -1, 1),
+          clamp(at[1] + step * top * (1 - Math.max(at[1], 0) ** model.power), -1, 1),
+          clamp(at[2] + step * shake * (1 - at[2] ** model.power), 0, 1)];
         for (let axis = 0; axis < 3; axis++) {
           speed[axis] = (target[axis] - at[axis]) / (model.interval / 1000);
           error[axis] = 0; integral[axis] = 0;

@@ -69,6 +69,15 @@ close(spreadOf('hip', 'idle', skills, 2, pistol).stance, (2 * 5 * .88 + 10 * .4)
 close(spreadOf('hip', 'idle', WeaponSpread.kitOf([{dispersion_from_hip:-2}])).stance, 0, 'a sum never below nothing');
 assert.throws(() => spreadOf('prone'), 'no such state');
 assert.equal(WeaponSpread.parse(ak, {stance:{idle_dispersion:5}, skill_influence:{}}, true), null, 'missing stances never become zeroes');
+// The kit's recoil modifier (18) scales each axis's step a shot, the shake's too (0x331DC7, 0x331EA5, 0x331F5A).
+{
+  const first = run => run.frames.find(frame => frame.shots === 1 && frame.time >= full.interval / 1000);
+  const base = WeaponRecoil.simulate(full,1,7,{aim:'hip'}), less = WeaponRecoil.simulate(full,1,7,{aim:'hip',recoil:-.1});
+  close(first(less).vertical, first(base).vertical * .9, 'the first kick, 10% less');
+  close(first(less).horizontal, first(base).horizontal * .9, 'the first side kick, 10% less');
+  close(first(less).z, first(base).z * .9, 'the first shake step, 10% less');
+  assert.ok(WeaponRecoil.simulate(full,10,7,{aim:'hip',recoil:-2}).frames.every(frame=>frame.vertical===0&&frame.z===0), 'a sum never below nothing');
+}
 // Clicking: the same rules at a slower pace, so the climb recovers between shots.
 const held = WeaponRecoil.simulate(model,10,7), clicked = WeaponRecoil.simulate(model,10,7,{},.5);
 assert.ok(Math.abs(clicked.events[1].time-clicked.events[0].time-.5)<.051, 'a click every half second');
@@ -80,7 +89,7 @@ if (process.argv[2]) {
   const data=JSON.parse(source.match(/^const DATA = (.+);$/m)[1]);
   for (const [id,weapon] of Object.entries(data.weapons)) {
     const parsed=WeaponRecoil.parse({rpm:weapon.rounds_per_minute,magazine:weapon.magazine_capacity,...weapon.recoil});
-    const spread=WeaponSpread.parse(weapon.dispersion,data.spread,weapon.double_handed);
+    const spread=WeaponSpread.parse(weapon.dispersion,data.simulators,weapon.double_handed);
     assert.ok(parsed,`${id}: complete recoil data`);
     assert.ok(spread&&parsed.shake,`${id}: spread and shake data`);
     for (const stance of WeaponSpread.STANCES) {

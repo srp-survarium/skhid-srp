@@ -268,6 +268,51 @@ try {
   }
   await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
   await screenshot('simulators-aimed');
+  // Recoil: the weapon's modification scales its kick ranges, the gloves' the
+  // kick a shot; neither changes the spread.
+  {
+    const upAtLast = async () => {
+      await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+      return Number((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).match(/up (-?[\d.]+)/)[1]);
+    };
+    await evaluate("for (const s of document.querySelectorAll('#recoil-sim .sim-source,#recoil-sim .sim-kick')) {s.selectedIndex=0;s.dispatchEvent(new Event('change'))}");
+    await choose('.sim-aim', 'hip'); await choose('.sim-stance', 'idle');
+    const plain = await upAtLast(), spreadParts = await parts();
+    assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-kick').length"), 1, 'one weapon recoil chooser');
+    assert.match(await evaluate("[...document.querySelectorAll('#recoil-sim .sim-kick option')].map(o=>o.textContent).join()"), /^None,−2%,.*,−10%$/, 'none and the five strengths, no defect');
+    await evaluate("{const s=document.querySelector('#recoil-sim .sim-kick');s.selectedIndex=s.options.length-1;s.dispatchEvent(new Event('change'))}");
+    const weapon = await upAtLast();
+    assert.ok(weapon < plain, `the weapon's modification lowers the climb (${weapon} < ${plain})`);
+    const gloves = "[...document.querySelectorAll('#recoil-sim .sim-source')].find(s=>s.options[1].dataset.effects.includes('recoil'))";
+    await evaluate(`{const s=document.querySelector('#recoil-sim .sim-kick');s.selectedIndex=0;s.dispatchEvent(new Event('change'));const g=${gloves};g.selectedIndex=g.options.length-1;g.dispatchEvent(new Event('change'))}`);
+    const kit = await upAtLast();
+    assert.ok(kit < plain, `the gloves' modification lowers the climb (${kit} < ${plain})`);
+    assert.equal(await parts(), spreadParts, 'recoil leaves the spread');
+    await evaluate(`{const g=${gloves};g.selectedIndex=0;g.dispatchEvent(new Event('change'))}`);
+  }
+  // Help: a mark per skill and modification, its line on hover, keyboard focus or a tap.
+  {
+    const helps = await evaluate("document.querySelectorAll('#recoil-sim .sim-help').length");
+    assert.equal(helps, await evaluate("document.querySelectorAll('#recoil-sim .sim-source,#recoil-sim .sim-kick').length"), 'a help mark per choice');
+    const shown = i => evaluate(`getComputedStyle(document.querySelectorAll('#recoil-sim .sim-tip')[${i}]).display !== 'none'`);
+    assert.equal(await shown(0), false, 'closed at first');
+    await evaluate("document.querySelector('#recoil-sim .sim-help').scrollIntoView({block:'center'})");
+    const at = JSON.parse(await evaluate("(()=>{const r=document.querySelector('#recoil-sim .sim-help').getBoundingClientRect();return JSON.stringify([Math.round(r.x+r.width/2),Math.round(r.y+r.height/2)])})()"));
+    const height = await evaluate("document.documentElement.scrollHeight");
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'mouse', actions: [{type: 'pointerMove', x: at[0], y: at[1]}]}]});
+    // Only where the pointer can hover (a phone's touch would leave it stuck open); headless Firefox cannot.
+    const hover = await evaluate("matchMedia('(hover:hover)').matches");
+    assert.equal(await shown(0), hover, hover ? 'hover opens it' : 'no hover opening without a hovering pointer');
+    assert.equal(await evaluate("document.documentElement.scrollHeight"), height, 'it shifts nothing');
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'mouse', actions: [{type: 'pointerMove', x: 5, y: 5}]}]});
+    assert.equal(await shown(0), false, 'leaving closes it');
+    await evaluate("document.querySelector('#recoil-sim .sim-seed').focus()");
+    await send('input.performActions', {context, actions: [{type: 'key', id: 'keyboard', actions: [{type: 'keyDown', value: ''}, {type: 'keyUp', value: ''}]}]});
+    assert.equal(await evaluate("document.activeElement.className"), 'sim-help');
+    assert.equal(await shown(0), true, 'keyboard focus opens it');
+    assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-tip').textContent")).includes('−4%'), 'the per-rank value from the data');
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'mouse', actions: [{type: 'pointerMove', x: 5, y: 5}]}]});
+  }
   await navigate('/wiki/simulators?lang=uk&a=wpn_ak_74m&b=wpn_pm');
   await send('browsingContext.setViewport', {context, viewport: {width:360,height:800}, devicePixelRatio:1});
   assert.equal(await evaluate('document.documentElement.lang'), 'uk');
@@ -275,6 +320,23 @@ try {
   assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-inputs label:nth-child(2)').textContent")).startsWith('Положення'));
   await evaluate("document.querySelector('#recoil-sim .sim-skill').scrollIntoView()");
   await screenshot('simulators-mobile-uk');
+  // At 360 px a tap opens a help line inside the screen; a tap elsewhere closes it.
+  for (let i = 0; i < await evaluate("document.querySelectorAll('#recoil-sim .sim-help').length"); i++) {
+    await evaluate(`document.querySelectorAll('#recoil-sim .sim-help')[${i}].scrollIntoView({block:'center'})`);
+    const at = JSON.parse(await evaluate(`(()=>{const r=document.querySelectorAll('#recoil-sim .sim-help')[${i}].getBoundingClientRect();return JSON.stringify([Math.round(r.x+r.width/2),Math.round(r.y+r.height/2)])})()`));
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'touch', parameters: {pointerType: 'touch'}, actions: [
+      {type: 'pointerMove', x: at[0], y: at[1]}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}]}]});
+    assert.equal(await evaluate(`getComputedStyle(document.querySelectorAll('#recoil-sim .sim-tip')[${i}]).display`), 'block', `tap ${i} opens it`);
+    assert.equal(await evaluate(`(()=>{const r=document.querySelectorAll('#recoil-sim .sim-tip')[${i}].getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()`), true, `help ${i} fits 360 px`);
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'no sideways scroll');
+    if (i === 0) await screenshot('simulators-mobile-uk-help');
+    await evaluate("document.querySelector('#recoil-sim .sim-parts caption').scrollIntoView({block:'center'})");
+    const away = JSON.parse(await evaluate("(()=>{const r=document.querySelector('#recoil-sim .sim-parts caption').getBoundingClientRect();return JSON.stringify([Math.round(r.x+r.width/2),Math.round(r.y+r.height/2)])})()"));
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'touch', parameters: {pointerType: 'touch'}, actions: [
+      {type: 'pointerMove', x: away[0], y: away[1]}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}]}]});
+    assert.equal(await evaluate("location.pathname"), '/wiki/simulators');
+    assert.equal(await evaluate(`getComputedStyle(document.querySelectorAll('#recoil-sim .sim-tip')[${i}]).display`), 'none', `a tap elsewhere closes ${i}`);
+  }
   await evaluate("document.querySelector('#recoil-sim .sim-sight').scrollIntoView()");
   await screenshot('simulators-mobile-uk-sight');
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
@@ -327,7 +389,7 @@ try {
   await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'equipment fits mobile');
   await screenshot('equipment-mobile-uk');
-  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, EN/UK, 360 px and CSP.`);
+  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK, 360 px and CSP.`);
   await send('session.end');
 } finally {
   await send('session.end').catch(() => {});

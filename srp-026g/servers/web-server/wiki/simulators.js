@@ -6,6 +6,9 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
 //   [min_shake_recoil, max_shake_recoil] per shot, the same PID back to 0)
 //   weighting the stock clip camerashake_v2 (CAMERA_SHAKE, degrees), which
 //   only plays while firing from the hip, at shake_time_scale x 30 frames/s;
+// - each axis's step a shot (the kick and the shake) times max(0, 1 + S18),
+//   the kit's recoil modifier (apply_modifier, index 12h, weight 1, at
+//   0x331DC7, 0x331EA5 and 0x331F5A); the ramp follows it, the recovery not;
 // - the spread (spread.js: the state's parts, and the shots' part run here
 //   at the ticks); a bullet tilts 0.5 x D x frac(N(0, 0.5)) degrees at a
 //   uniform angle (get_dispersed_bullet_direction 0x2E1D50).
@@ -46,14 +49,15 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
     const n = clip.period_frames, at = ((frame % n) + n) % n, i = Math.floor(at), f = at - i, j = (i + 1) % n;
     return [clip.yaw[i] + (clip.yaw[j] - clip.yaw[i]) * f, clip.pitch[i] + (clip.pitch[j] - clip.pitch[i]) * f];
   }
-  // `firing`: `aim` (WeaponSpread.AIMS; the shake plays from the hip only)
-  // and `spread` (WeaponSpread.condition, or null for none). `click`:
+  // `firing`: `aim` (WeaponSpread.AIMS; the shake plays from the hip only),
+  // `spread` (WeaponSpread.condition, or null for none) and `recoil`, the
+  // kit's recoil modifier sum (S18). `click`:
   // seconds between clicks for single shots (never faster than the weapon
   // fires), 0 to hold the trigger. The modes share every rule (the configs
   // have none per mode): only the shots' pace differs; a shot's kick still
   // ramps over 60/rpm.
-  function simulate(model, requestedShots, seed = 1, {aim = 'aimed', spread = null} = {}, click = 0) {
-    const hip = aim === 'hip';
+  function simulate(model, requestedShots, seed = 1, {aim = 'aimed', spread = null, recoil = 0} = {}, click = 0) {
+    const hip = aim === 'hip', step = Math.max(0, 1 + recoil);
     const spacing = Math.max(model.interval, click * 1000);
     const shots = Math.min(model.magazine, Math.max(1, Math.floor(requestedShots)));
     const random = generator(seed), extra = generator((seed ^ 0x9e3779b9) >>> 0);
@@ -92,9 +96,9 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
         const top = draw(model.top) / TOP, right = draw(model.right), left = draw(model.left);
         const side = (right - left) / SIDE;
         const shake = model.shake ? model.shake.range[0] + (model.shake.range[1] - model.shake.range[0]) * extra() : 0;
-        const target = [clamp(at[0] + side * (1 - Math.abs(at[0]) ** model.power), -1, 1),
-          clamp(at[1] + top * (1 - Math.max(at[1], 0) ** model.power), -1, 1),
-          clamp(at[2] + shake * (1 - at[2] ** model.power), 0, 1)];
+        const target = [clamp(at[0] + step * side * (1 - Math.abs(at[0]) ** model.power), -1, 1),
+          clamp(at[1] + step * top * (1 - Math.max(at[1], 0) ** model.power), -1, 1),
+          clamp(at[2] + step * shake * (1 - at[2] ** model.power), 0, 1)];
         for (let axis = 0; axis < 3; axis++) {
           speed[axis] = (target[axis] - at[axis]) / (model.interval / 1000);
           error[axis] = 0; integral[axis] = 0;
@@ -168,9 +172,10 @@ globalThis.CAMERA_SHAKE = {"period_frames":225,"pitch":[-0.252,-0.238,-0.189,-0.
       : arms === 2 ? p.injury_penalty_for_one_handed : 0;
     return scale(penalty, kit.injury_penalty);
   }
-  // A kit's sums of the player modifiers, from its sources' {name: value}.
+  // A kit's sums of the player modifiers (the spread's, and recoil's: 18, a
+  // shot's kick, recoil.js), from its sources' {name: value}.
   function kitOf(sources) {
-    const kit = {dispersion: 0, aiming_speed: 0, dispersion_movement_influence: 0, dispersion_from_hip: 0, injury_penalty: 0};
+    const kit = {dispersion: 0, aiming_speed: 0, dispersion_movement_influence: 0, dispersion_from_hip: 0, injury_penalty: 0, recoil: 0};
     for (const source of sources) for (const [name, value] of Object.entries(source)) if (name in kit) kit[name] += value;
     return Object.freeze(kit);
   }
@@ -376,16 +381,20 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
   }
   // The player's stance spread and its skill weights (default.player).
   const player = JSON.parse(sim.dataset.player);
-  // A weapon's models firing a round: its recoil, and its spread, whose base
-  // is times the round's `dispersion` (get_static_dispersion 0x331220).
+  // A weapon's models firing a round with its modifications' `kick` (their
+  // sum): its recoil, whose kick ranges are times max(0, 1 + kick) (the
+  // cook's type 2, 0x358010), and its spread, whose base is times the round's
+  // `dispersion` (get_static_dispersion 0x331220).
   const raws = new Map(weapons.map(element => [element.id, JSON.parse(element.dataset.recoil)]));
+  const RANGES = ['top', 'left', 'right'].flatMap(axis => [`min_${axis}_recoil`, `max_${axis}_recoil`]);
   const models = new Map();
-  function model(id, roundId) {
-    const round = roundOf(id, roundId), key = `${id} ${round.id}`;
+  function model(id, roundId, kick = 0) {
+    const round = roundOf(id, roundId), key = `${id} ${round.id} ${kick}`;
     if (!models.has(key)) {
-      const raw = raws.get(id), dispersion = raw.dispersion;
+      const raw = raws.get(id), dispersion = raw.dispersion, scale = Math.max(0, 1 + kick);
       const base = typeof dispersion.base_dispersion === 'number' ? dispersion.base_dispersion * round.spread : undefined;
-      models.set(key, {recoil: WeaponRecoil.parse(raw),
+      const ranges = Object.fromEntries(RANGES.filter(k => typeof raw[k] === 'number').map(k => [k, raw[k] * scale]));
+      models.set(key, {recoil: WeaponRecoil.parse({...raw, ...ranges}),
         spread: WeaponSpread.parse({...dispersion, base_dispersion: base}, player, raw.double_handed)});
     }
     return models.get(key);
@@ -445,9 +454,10 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
     const timeInput = find('.sim-time'), seedInput = find('.sim-seed'), playButton = find('.sim-play');
     // The firing state: the aim, the stance, the broken arms and the kit's
     // sums of the skills and modifications chosen (each option's effects).
-    const sources = [...root.querySelectorAll('.sim-source')];
+    const sources = [...root.querySelectorAll('.sim-source')], kicks = [...root.querySelectorAll('.sim-kick')];
     const state = () => ({aim: find('.sim-aim').value, stance: find('.sim-stance').value, arms: Number(find('.sim-arms').value),
-      kit: WeaponSpread.kitOf(sources.map(select => JSON.parse(select.selectedOptions[0].dataset.effects)))});
+      kit: WeaponSpread.kitOf(sources.map(select => JSON.parse(select.selectedOptions[0].dataset.effects))),
+      kick: kicks.reduce((sum, select) => sum + JSON.parse(select.selectedOptions[0].dataset.kick), 0)});
     let simulation = {kind: 'empty'}, sides = [], playing = null;
     function lastShot() {
       return Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
@@ -599,7 +609,8 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
     }
     function rebuild(time = 0) {
       stop(); simulation = {kind:'empty'};
-      const valid = sides.length > 0 && sides.every(({id, round}) => model(id, round).recoil);
+      const firing = state();
+      const valid = sides.length > 0 && sides.every(({id, round}) => model(id, round, firing.kick).recoil);
       for (const element of root.querySelectorAll('input,select,button')) element.disabled = !valid;
       find('.sim-plots').hidden = !valid;
       find('.sim-sight').hidden = !valid;
@@ -607,11 +618,10 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
       if (!valid) { find('.sim-legend').replaceChildren(); find('.sim-parts tbody').replaceChildren(); return; }
       seedInput.value = Math.max(1, Math.min(999999, Math.floor(Number(seedInput.value) || 1)));
       // A full magazine; with two weapons, the smaller one's from each.
-      const shots = Math.min(...sides.map(({id, round}) => model(id, round).recoil.magazine));
-      const firing = state();
+      const shots = Math.min(...sides.map(({id, round}) => model(id, round, firing.kick).recoil.magazine));
       const series = sides.map(({id, round, side}) => {
-        const {recoil, spread: weapon} = model(id, round), spread = weapon && WeaponSpread.condition(weapon, firing);
-        const result = WeaponRecoil.simulate(recoil, shots, Number(seedInput.value), {aim: firing.aim, spread},
+        const {recoil, spread: weapon} = model(id, round, firing.kick), spread = weapon && WeaponSpread.condition(weapon, firing);
+        const result = WeaponRecoil.simulate(recoil, shots, Number(seedInput.value), {aim: firing.aim, spread, recoil: firing.kit.recoil},
           Number(find('.sim-trigger').value));
         // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
         result.frames.forEach(frame => {frame.time += .05;});
@@ -626,7 +636,7 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
     }
     playButton.addEventListener('click', () => playing ? stop() : play());
     seedInput.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
-    for (const select of [find('.sim-aim'), find('.sim-stance'), find('.sim-arms'), ...sources]) {
+    for (const select of [find('.sim-aim'), find('.sim-stance'), find('.sim-arms'), ...sources, ...kicks]) {
       select.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
     }
     find('.sim-trigger').addEventListener('change', () => rebuild());
@@ -640,6 +650,22 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
     timeInput.addEventListener('input', () => seek(Number(timeInput.value)));
     return {show(chosen) { sides = chosen; rebuild(); }};
   }
+  // A control's help: CSS opens its line on hover and keyboard focus, a tap
+  // (or click) toggles it, a press elsewhere or Escape closes it; each time it
+  // is kept inside the window.
+  const close = keep => { for (const open of sim.querySelectorAll('.sim-tipped.open')) if (open !== keep) open.classList.remove('open'); };
+  for (const help of sim.querySelectorAll('.sim-help')) {
+    const holder = help.parentElement, tip = help.nextElementSibling;
+    const place = () => requestAnimationFrame(() => {
+      tip.style.left = '';
+      const over = tip.getBoundingClientRect().right - (document.documentElement.clientWidth - 8);
+      if (over > 0) tip.style.left = `${-over}px`;
+    });
+    help.addEventListener('mouseenter', place); help.addEventListener('focus', place);
+    help.addEventListener('click', () => { close(holder); holder.classList.toggle('open'); place(); });
+  }
+  document.addEventListener('pointerdown', event => { if (!event.target.closest?.('.sim-tipped')) close(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
   const simulation = RecoilSim(sim), empty = document.querySelector('#compare-empty');
   const slots = WikiWeaponSlots(weapons, roundsOf, tr, collator, () => {
     const sides = slots.sides().map((chosen, side) => ({...chosen, side})).filter(({id}) => id);

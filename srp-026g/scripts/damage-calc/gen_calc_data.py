@@ -451,58 +451,84 @@ walls.sort(key=lambda w: w["armor"])
 level_names = {k.removeprefix("st_").removesuffix("_name"): {"en": v.strip(), "uk": text_uk(k)}
                for k, v in strings.items() if k.startswith("st_level_") and k.endswith("_name")}
 
-# Spread (the wiki's simulators, scripts/wiki/spread.js): the player's
-# stance spread and its skill weights (default.player), and what changes
-# them, the kit's player modifiers the spread reads (dispersion_calculator
-# 0x331330, 0x331150, 0x331560, 0x3317C0): the skills, each rank's
-# modifiers (a rank is the sum of the levels up to it), and the
-# modifications, which add to an armour piece's parameter (type 1) and reach
-# the kit from it (armor::add_modifiers 0x33F3A0).
-SPREAD = ("dispersion", "aiming_speed", "dispersion_movement_influence", "dispersion_from_hip", "injury_penalty")
+# The wiki's simulators (scripts/wiki/spread.js, recoil.js): the player's
+# stance spread and its skill weights (default.player), and what changes the
+# spread and the kick. The kit's player modifiers they read: the spread's
+# (dispersion_calculator 0x331330, 0x331150, 0x331560, 0x3317C0) and recoil,
+# 18, each axis's kick a shot (weapon_recoil_calculator::on_shot 0x331C50).
+# They come from the skills, each rank's modifiers (a rank is the sum of the
+# levels up to it), and from modifications that add to an armour piece's
+# parameter (type 1) and reach the kit from it (armor::add_modifiers
+# 0x33F3A0); a weapon's own parameters do not (weapon_core::initialize
+# 0x2E2A30 adds its movement node only). A weapon's modifications scale its
+# kick ranges instead (type 2, base x max(0, 1 + sum), the cook's 0x358010).
+KIT = ("dispersion", "aiming_speed", "dispersion_movement_influence", "dispersion_from_hip", "injury_penalty", "recoil")
+KICK = {f"recoil/{end}_{axis}_recoil" for end in ("min", "max") for axis in ("top", "left", "right")}
+# The lobby's name for the items of an armour folder (its shop filter).
+SLOT_NAMES = {"helmet": "st_filter_helmet", "mask": "st_filter_mask", "torso": "st_filter_body_armor", "back": "st_backpack",
+              "gloves": "st_filter_gloves", "legs": "st_filter_pants", "boots": "st_filter_boots"}
 
 
-def spread_effects(params):
-    return {m: r(params[f"{m}_modifier"]) for m in SPREAD if params.get(f"{m}_modifier")}
+def kit_effects(params):
+    return {m: r(params[f"{m}_modifier"]) for m in KIT if params.get(f"{m}_modifier")}
 
 
 player = load("gameplay__players__default.player.json")["player"]
-spread_skills = []
+sim_skills = []
 for s in sorted(skills_tree, key=lambda s: s["id"]):
-    levels = [spread_effects(level) for level in rows(s.get("modifiers") or [])]
+    levels = [kit_effects(level) for level in rows(s.get("modifiers") or [])]
     if any(levels):
         assert len(levels) == s["levels_amount"], f"skill {s['id']}: {len(levels)} levels, {s['levels_amount']} ranks"
         ranks = [{m: r(sum(level.get(m, 0) for level in levels[:n])) for m in set().union(*levels[:n])} for n in range(len(levels) + 1)]
-        spread_skills.append({"id": s["id"], "name": text(s["ui"]["name"]), "name_uk": text_uk(s["ui"]["name"]), "ranks": ranks})
+        sim_skills.append({"id": s["id"], "name": text(s["ui"]["name"]), "name_uk": text_uk(s["ui"]["name"]), "ranks": ranks})
 weapon_cfgs = {key_of(f): load(f) for f in files("gameplay__items__weapons__wpn_")}
-spread_mods = []
+armour_cfgs = {f: load(f) for f in files("gameplay__items__armour__")}
+
+
+def takers(cfgs, kind, m):
+    """The items of `cfgs` that may carry `m` (an item's mask character j is
+    type j + 1, item_mods) or come with it."""
+    mask, j = ("available_modifications_mask" if kind == "mod" else "available_defects_mask"), m["type_mask"].index("1")
+    return [k for k, cfg in cfgs.items() if cfg.get("parameters", {}).get(mask, "")[j - 1:j] == "1"
+            or m["id"] in cfg.get("default_modifications", [])]
+
+
+sim_mods = []
 for kind, table in (("mod", mods_cfg["modifications"]), ("defect", mods_cfg["defects"])):
     for m in rows(table):
-        effects = {}
+        kit, kick = {}, {}
         for e in rows(m.get("modifiers") or []):
-            name = e["path"][-1].removesuffix("_modifier")
-            if e["path"][0] == "parameters" and len(e["path"]) == 2 and name in SPREAD:
+            path, name = "/".join(e["path"]), e["path"][-1].removesuffix("_modifier")
+            if e["path"][0] == "parameters" and len(e["path"]) == 2 and name in KIT:
                 assert e["type"] == 1, f"modification {m['id']}: {name} type {e['type']}, not added"
-                effects[name] = r(effects.get(name, 0) + e["value"])
-        if not effects:
+                kit[name] = r(kit.get(name, 0) + e["value"])
+            elif path in KICK:
+                assert e["type"] == 2, f"modification {m['id']}: {path} type {e['type']}, not a scale"
+                kick[path] = r(e["value"])
+        if not kit and not kick:
             continue
-        kind_of = m["type_mask"].index("1")
-        # Only armour reaches the kit this way: a weapon's own parameters
-        # (weapon_core::initialize 0x2E2A30 adds its movement node only) do not.
-        mask = "available_modifications_mask" if kind == "mod" else "available_defects_mask"
-        on_weapons = [k for k, cfg in weapon_cfgs.items() if cfg["parameters"].get(mask, "")[kind_of:kind_of + 1] == "1"
-                      or m["id"] in cfg.get("default_modifications", [])]
-        if on_weapons:
-            sys.exit(f"modification {m['id']} changes the spread on weapons {on_weapons}: the model has no weapon route")
         (prop,) = rows(m["ui_desc"]["props_list"])
-        spread_mods.append({"id": str(m["id"]), "kind": kind, "type": kind_of, "effects": effects,
-                            "card": card_line(prop["prop_id"], prop["prop_value"], bonus=True)})
-spread = {"stance": {k: r(v) for k, v in player["character_dispersion_params"].items()},
-          "skill_influence": {k: r(v) for k, v in player["character_dispersion_skill_influence"].items()},
-          "skills": spread_skills, "mods": sorted(spread_mods, key=lambda m: (m["kind"], m["type"], -sum(m["effects"].values())))}
+        row = {"id": str(m["id"]), "kind": kind, "type": m["type_mask"].index("1"),
+               "card": card_line(prop["prop_id"], prop["prop_value"], bonus=True)}
+        if kit:
+            if takers(weapon_cfgs, kind, m):
+                sys.exit(f"modification {m['id']} changes player modifiers on weapons: no route to the kit")
+            slots = sorted({f.split("__")[3] for f in takers(armour_cfgs, kind, m)})
+            row |= {"kit": kit, "slots": [{"name": text(SLOT_NAMES[x]), "name_uk": text_uk(SLOT_NAMES[x])} for x in slots]}
+        if kick:
+            if kick.keys() != KICK or len(set(kick.values())) != 1 or kit:
+                sys.exit(f"modification {m['id']}: kick {kick}: not one scale of the six ranges")
+            row |= {"kick": next(iter(kick.values())), "weapons": sorted(takers(weapon_cfgs, kind, m)),
+                    "slots": [{"name": text("st_filter_weapons"), "name_uk": text_uk("st_filter_weapons")}]}
+        sim_mods.append(row)
+simulators = {"stance": {k: r(v) for k, v in player["character_dispersion_params"].items()},
+              "skill_influence": {k: r(v) for k, v in player["character_dispersion_skill_influence"].items()},
+              "skills": sim_skills,
+              "mods": sorted(sim_mods, key=lambda m: (m["kind"], m["type"], -abs(sum(m.get("kit", {}).values()) + m.get("kick", 0))))}
 
 out = {
     "source": "Survarium 0.26g resources.db (build 0.26g0)",
-    "spread": spread,
+    "simulators": simulators,
     "level_names": level_names,
     "mods": mods,
     "drugs": drugs,

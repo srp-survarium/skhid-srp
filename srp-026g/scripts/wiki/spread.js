@@ -49,9 +49,10 @@
       : arms === 2 ? p.injury_penalty_for_one_handed : 0;
     return scale(penalty, kit.injury_penalty);
   }
-  // A kit's sums of the player modifiers, from its sources' {name: value}.
+  // A kit's sums of the player modifiers (the spread's, and recoil's: 18, a
+  // shot's kick, recoil.js), from its sources' {name: value}.
   function kitOf(sources) {
-    const kit = {dispersion: 0, aiming_speed: 0, dispersion_movement_influence: 0, dispersion_from_hip: 0, injury_penalty: 0};
+    const kit = {dispersion: 0, aiming_speed: 0, dispersion_movement_influence: 0, dispersion_from_hip: 0, injury_penalty: 0, recoil: 0};
     for (const source of sources) for (const [name, value] of Object.entries(source)) if (name in kit) kit[name] += value;
     return Object.freeze(kit);
   }

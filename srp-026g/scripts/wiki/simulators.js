@@ -16,16 +16,20 @@
   }
   // The player's stance spread and its skill weights (default.player).
   const player = JSON.parse(sim.dataset.player);
-  // A weapon's models firing a round: its recoil, and its spread, whose base
-  // is times the round's `dispersion` (get_static_dispersion 0x331220).
+  // A weapon's models firing a round with its modifications' `kick` (their
+  // sum): its recoil, whose kick ranges are times max(0, 1 + kick) (the
+  // cook's type 2, 0x358010), and its spread, whose base is times the round's
+  // `dispersion` (get_static_dispersion 0x331220).
   const raws = new Map(weapons.map(element => [element.id, JSON.parse(element.dataset.recoil)]));
+  const RANGES = ['top', 'left', 'right'].flatMap(axis => [`min_${axis}_recoil`, `max_${axis}_recoil`]);
   const models = new Map();
-  function model(id, roundId) {
-    const round = roundOf(id, roundId), key = `${id} ${round.id}`;
+  function model(id, roundId, kick = 0) {
+    const round = roundOf(id, roundId), key = `${id} ${round.id} ${kick}`;
     if (!models.has(key)) {
-      const raw = raws.get(id), dispersion = raw.dispersion;
+      const raw = raws.get(id), dispersion = raw.dispersion, scale = Math.max(0, 1 + kick);
       const base = typeof dispersion.base_dispersion === 'number' ? dispersion.base_dispersion * round.spread : undefined;
-      models.set(key, {recoil: WeaponRecoil.parse(raw),
+      const ranges = Object.fromEntries(RANGES.filter(k => typeof raw[k] === 'number').map(k => [k, raw[k] * scale]));
+      models.set(key, {recoil: WeaponRecoil.parse({...raw, ...ranges}),
         spread: WeaponSpread.parse({...dispersion, base_dispersion: base}, player, raw.double_handed)});
     }
     return models.get(key);
@@ -85,9 +89,10 @@
     const timeInput = find('.sim-time'), seedInput = find('.sim-seed'), playButton = find('.sim-play');
     // The firing state: the aim, the stance, the broken arms and the kit's
     // sums of the skills and modifications chosen (each option's effects).
-    const sources = [...root.querySelectorAll('.sim-source')];
+    const sources = [...root.querySelectorAll('.sim-source')], kicks = [...root.querySelectorAll('.sim-kick')];
     const state = () => ({aim: find('.sim-aim').value, stance: find('.sim-stance').value, arms: Number(find('.sim-arms').value),
-      kit: WeaponSpread.kitOf(sources.map(select => JSON.parse(select.selectedOptions[0].dataset.effects)))});
+      kit: WeaponSpread.kitOf(sources.map(select => JSON.parse(select.selectedOptions[0].dataset.effects))),
+      kick: kicks.reduce((sum, select) => sum + JSON.parse(select.selectedOptions[0].dataset.kick), 0)});
     let simulation = {kind: 'empty'}, sides = [], playing = null;
     function lastShot() {
       return Math.max(...simulation.series.flatMap(series => series.events).map(event => event.time));
@@ -239,7 +244,8 @@
     }
     function rebuild(time = 0) {
       stop(); simulation = {kind:'empty'};
-      const valid = sides.length > 0 && sides.every(({id, round}) => model(id, round).recoil);
+      const firing = state();
+      const valid = sides.length > 0 && sides.every(({id, round}) => model(id, round, firing.kick).recoil);
       for (const element of root.querySelectorAll('input,select,button')) element.disabled = !valid;
       find('.sim-plots').hidden = !valid;
       find('.sim-sight').hidden = !valid;
@@ -247,11 +253,10 @@
       if (!valid) { find('.sim-legend').replaceChildren(); find('.sim-parts tbody').replaceChildren(); return; }
       seedInput.value = Math.max(1, Math.min(999999, Math.floor(Number(seedInput.value) || 1)));
       // A full magazine; with two weapons, the smaller one's from each.
-      const shots = Math.min(...sides.map(({id, round}) => model(id, round).recoil.magazine));
-      const firing = state();
+      const shots = Math.min(...sides.map(({id, round}) => model(id, round, firing.kick).recoil.magazine));
       const series = sides.map(({id, round, side}) => {
-        const {recoil, spread: weapon} = model(id, round), spread = weapon && WeaponSpread.condition(weapon, firing);
-        const result = WeaponRecoil.simulate(recoil, shots, Number(seedInput.value), {aim: firing.aim, spread},
+        const {recoil, spread: weapon} = model(id, round, firing.kick), spread = weapon && WeaponSpread.condition(weapon, firing);
+        const result = WeaponRecoil.simulate(recoil, shots, Number(seedInput.value), {aim: firing.aim, spread, recoil: firing.kit.recoil},
           Number(find('.sim-trigger').value));
         // An initial un-fired frame makes Reset/Next shot unambiguous in the UI.
         result.frames.forEach(frame => {frame.time += .05;});
@@ -266,7 +271,7 @@
     }
     playButton.addEventListener('click', () => playing ? stop() : play());
     seedInput.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
-    for (const select of [find('.sim-aim'), find('.sim-stance'), find('.sim-arms'), ...sources]) {
+    for (const select of [find('.sim-aim'), find('.sim-stance'), find('.sim-arms'), ...sources, ...kicks]) {
       select.addEventListener('change', () => rebuild(simulation.kind === 'ready' ? simulation.time : 0));
     }
     find('.sim-trigger').addEventListener('change', () => rebuild());
@@ -280,6 +285,22 @@
     timeInput.addEventListener('input', () => seek(Number(timeInput.value)));
     return {show(chosen) { sides = chosen; rebuild(); }};
   }
+  // A control's help: CSS opens its line on hover and keyboard focus, a tap
+  // (or click) toggles it, a press elsewhere or Escape closes it; each time it
+  // is kept inside the window.
+  const close = keep => { for (const open of sim.querySelectorAll('.sim-tipped.open')) if (open !== keep) open.classList.remove('open'); };
+  for (const help of sim.querySelectorAll('.sim-help')) {
+    const holder = help.parentElement, tip = help.nextElementSibling;
+    const place = () => requestAnimationFrame(() => {
+      tip.style.left = '';
+      const over = tip.getBoundingClientRect().right - (document.documentElement.clientWidth - 8);
+      if (over > 0) tip.style.left = `${-over}px`;
+    });
+    help.addEventListener('mouseenter', place); help.addEventListener('focus', place);
+    help.addEventListener('click', () => { close(holder); holder.classList.toggle('open'); place(); });
+  }
+  document.addEventListener('pointerdown', event => { if (!event.target.closest?.('.sim-tipped')) close(); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
   const simulation = RecoilSim(sim), empty = document.querySelector('#compare-empty');
   const slots = WikiWeaponSlots(weapons, roundsOf, tr, collator, () => {
     const sides = slots.sides().map((chosen, side) => ({...chosen, side})).filter(({id}) => id);

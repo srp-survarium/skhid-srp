@@ -34,10 +34,14 @@ The simulators section (`simulators.js`) is the recoil and spread simulation of 
 or two weapons (A, B), each with a round, in the state its controls set: the aim
 (from the hip, aiming in, fully aimed), the stance (standing, walking, crouching,
 crouch-walking, sprinting, jumping), the ranks of the skills that change the
-spread, a modification that does, and broken arms. `spread.js` models the
+spread or the kick, the modifications that do (a Skhid item has no defects:
+srp rolls none), and broken arms; each skill and modification with a help line
+(hover, keyboard focus or a tap). A weapon's recoil modification scales its
+kick ranges (the cook, type 2); the kit's recoil modifier (18, the gloves')
+scales each axis's step a shot, the camera shake's too (`recoil.js`). `spread.js` models the
 spread from the exe (its header has the formula and addresses): the stance's
 part held at its target, the shots' part run at the ticks; fully aimed, only the
-base counts. Every value comes from the calculator data's `spread`
+base counts. Every value comes from the calculator data's `simulators`
 (`gen_calc_data.py`: `default.player`'s stance spread and skill weights, the
 skills and modifications carrying the player modifiers the spread reads, each
 skill rank the sum of its levels) and each weapon's `dispersion` and
