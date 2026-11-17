@@ -3958,7 +3958,8 @@ stays in both. Not played in a game.
 ### Original 0.21 ambient and particle intensity (unreleased)
 
 `ambient_021_026g.c` and `.asm` restore original multiplicative ambient-light
-semantics for the ported School, Fort, Rudnya, Vostok and Mamayev day projects. Native
+semantics for the ported School, Fort, Rudnya, Vostok and Mamayev day, rain
+and evening projects. Native
 `object_ambient_light::insert` at 0x290930 first linearizes packed ABGR;
 the six-byte hook at 0x290A3F runs after this and the intensity clamp, with
 EBX holding the object and original ESP+6Ch/+70h/+74h/+78h holding outgoing
@@ -3967,14 +3968,16 @@ hook folds intensity into RGB and sets outgoing intensity to 1, selecting
 the native multiplicative pass. It never mutates the authored object.
 
 The guard requires the object's actual scene to be its game's embedded
-world, then recognizes the five `v021d_level_0{1,2,3,5,6}/day_{2,4,8}` project
-names. No object names, positions or room measurements are consulted.
+world, then recognizes `v021d_level_0{1,2,3,5,6}/day_{2,4,8}`,
+`v021d_level_0{1,2,3,5,6}/rain_{2,4}` and
+`v021d_level_0{1,2,3,5,6}/evening_{2,4}`: 35 exact aliases of fifteen
+map/weather profiles. No object names, positions or room measurements are consulted.
 The stub preserves flags, general registers and FPU/SSE state, replays
 `mov al,[ebx+16Dh]`, and resumes at 0x290A45. The arena linker owns its
 placement; existing arena blocks keep their addresses.
 
 The particle-light hook at 0x14F305 skips native `MULSS xmm0,[0xA2D73C]`
-(×3) for the same five day projects, restoring the unchanged authored
+(×3) for the same exact project aliases, restoring the unchanged authored
 intensity used by original 0xF2CE0. It first compares the particle engine's
 render scene (+8) with the active game world's render scene (game+1Ch).
 The game is read through the native engine-world global 0x1F1D310, +2D0.

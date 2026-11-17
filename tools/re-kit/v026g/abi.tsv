@@ -2693,3 +2693,4 @@ va	name	source	ret_cleanup	result
 0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	manual	4	AL 1 (the key taken); calls its method (+18h) with its object (+14h) as ECX, no argument
 0x00290930	survarium::object_ambient_light::insert	manual	0	result not established
 0x001858e0	vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity	manual	0	EAX end of retained pointer range
+0x0034e1e0	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >	manual	0	void; fills supplied environment properties

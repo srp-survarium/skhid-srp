@@ -2448,3 +2448,4 @@ va	status	ref_021d	name
 0x00181660	verified	0x0010efaa	vostok::render::stage_ambient_lighting::render_ambient_light_list
 0x001858e0	verified		vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity
 0x0034d9a0	verified	0x00215157	vostok::render::environment_properties::environment_properties
+0x0034e1e0	observed	0x002157f7	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >

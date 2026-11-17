@@ -100,7 +100,7 @@ def build(base, research_pack):
                              for e in previous]
     edits['append_entry'].append({'file': 'gameplay/db_static_dictionaries', 'list': 'maps_dict',
                                   # Includes the six stalker-maps@6 TDM registrations and Fire Station's (stalker-maps-2).
-                                  'expected_count': 167, 'unique_key': 'id',
+                                  'expected_count': 187, 'unique_key': 'id',
                                   'value': {'cfg_mode_name': 'v011e_level_03_day_5.options', 'id': MAP_ID}})
     return edits
 
