@@ -258,6 +258,14 @@ global engine_draw_lines
 global engine_process_all_triangles
 global engine_triangle_process
 global engine_draw_triangles
+global engine_text_edit_set_text
+global engine_text_edit_set_caret
+global engine_text_edit_delete_selection
+global engine_open_clipboard
+global engine_get_clipboard_data
+global engine_close_clipboard
+global engine_global_lock
+global engine_global_unlock
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -353,6 +361,13 @@ engine_fsm_always equ 0x372420   ; 0x372420 survarium::weapon_core_throw_grenade
 engine_take_deactivatable equ 0x397c20   ; 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
 engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall)
 engine_triangle_process equ 0xc5600   ; 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
+engine_text_edit_set_text equ 0x3479d0   ; 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly
+engine_text_edit_set_caret equ 0x3488a0   ; 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly
+engine_open_clipboard equ 0xaefedc   ; the IAT slot 0xaefedc (an import, stdcall)
+engine_get_clipboard_data equ 0xaefed8   ; the IAT slot 0xaefed8 (an import, stdcall)
+engine_close_clipboard equ 0xaefed4   ; the IAT slot 0xaefed4 (an import, stdcall)
+engine_global_lock equ 0x870078   ; the IAT slot 0x870078 (an import, stdcall)
+engine_global_unlock equ 0x87007c   ; the IAT slot 0x87007c (an import, stdcall)
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
@@ -3131,6 +3146,21 @@ engine_draw_triangles:
     push dword [esp + 40]   ; vertex_begin -> 8
     push dword [esp + 40]   ; renderer -> 4
     call 0x11e370
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_text_edit_delete_selection:
+    ; 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; edit
+    call 0x3486a0
     pop edi
     pop esi
     pop ebx

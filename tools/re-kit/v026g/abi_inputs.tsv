@@ -6317,3 +6317,12 @@ va	name	location	role	basis
 0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+4	the triangle: three btVector3 of 10h bytes, the shape's local space (processNode passes its +10h)	observed
 0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+8	the part (the mesh's subpart)	observed
 0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+12	the triangle's index in its part	observed
+0x003482c0	vostok::ui::ui_text_edit::paste_from_clipboard	ECX	the text edit (this; unused by the stub): Ctrl+V's and Shift+Insert's key binding (init_internals 0x34AA5C) calls it through 0x34B4C0	observed
+0x003479d0	vostok::ui::ui_text_edit::set_text	ECX	the text edit's ui_text part (the text edit + 4; its -4 the text edit): the line's text at its +44h, the max length +2A0h, the caret +2A2h	observed
+0x003479d0	vostok::ui::ui_text_edit::set_text	entry ESP+4	the new text, a C string (the line is it cut at the max length; the line's buffer ends at +4Ch, 200h bytes)	observed
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	ECX	the text edit	observed
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	entry ESP+4	the caret's new position (its low word), clamped to the line's length	observed
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	entry ESP+8	select (its low byte): nonzero with Shift held moves one end of the selection with the caret; zero collapses the selection to the caret	observed
+0x003486a0	vostok::ui::ui_text_edit's delete of the selection	ESI	the text edit (kept): its selection [+2A8h, +2AAh) deleted; a typed character's binding (0x34B5D5) calls it before the insert (0x348000)	observed
+0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	ECX	the binding (+8 its key, +0Ch its kind, 0 any; +10h its modifiers; +14h the object, +18h the method)	observed
+0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	entry ESP+4	the key's kind (1 down, 2 up; unused): the keyboard action pushes it (0x348A75)	observed
