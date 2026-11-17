@@ -2159,6 +2159,7 @@ va	name	location	role	basis
 0x001ddd50	vostok::render::effect_gstage_default_materials::compile	entry ESP+4	effect compiler object	observed
 0x001ddd50	vostok::render::effect_gstage_default_materials::compile	entry ESP+8	config tree inspected by literal keys and optionally forwarded to material helper	observed
 0x001ddd50	vostok::render::effect_gstage_default_materials::compile	entry ESP+12	options record forwarded to material helper	observed
+0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1DF764..0x1DF99C	vertex_blend_parameters float3 = (constant_vertex_blended_falloff, constant_vertex_blended_strength, constant_vertex_blended_textures_tile); stack +140h/+144h/+148h before set_constant at 1DF98F; G-buffer RDEF cb0 bytes224/228/232	observed
 0x001e1f70	vostok::render::effect_fstage_fake_translucency_materials::compile	entry ESP+4	effect compiler object	observed
 0x001e1f70	vostok::render::effect_fstage_fake_translucency_materials::compile	entry ESP+8	config tree inspected by literal keys and optionally forwarded to material helper	observed
 0x001e1f70	vostok::render::effect_fstage_fake_translucency_materials::compile	entry ESP+12	options record forwarded to material helper	observed
