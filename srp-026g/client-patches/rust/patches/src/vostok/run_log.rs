@@ -278,27 +278,31 @@ impl<'a> Kind<'a> {
         Kind { folder: Kind::LOGS, stem: self.stem }
     }
 
-    /// The kind's run files moved into the folder of `to` (the same kind
-    /// elsewhere, [`Kind::in_logs`]) under their names, by MoveFileExA, a
-    /// copy when that is another disk: how many moved. A name `to` has
-    /// already, or a file Windows does not move (open), stays where it is.
+    /// The kind's run files, and its unstamped `<stem>.log` of before the
+    /// runs were named (written no more), moved into the folder of `to`
+    /// (the same kind elsewhere, [`Kind::in_logs`]) under their names, by
+    /// MoveFileExA, a copy when that is another disk: how many moved. A
+    /// name `to` has already, or a file Windows does not move (open), stays
+    /// where it is.
     pub fn move_runs(&self, to: &Kind) -> u32 {
         const MOVEFILE_COPY_ALLOWED: u32 = 2;
         let Some(move_file) = kernel32(c"MoveFileExA") else { return 0 };
-        let Some(pattern) = Name::of(&[self.folder, self.stem, b".*.log"]) else { return 0 };
+        let move_one = |name: &[u8], extension: &[u8]| {
+            let (Some(from), Some(into)) = (Name::of(&[self.folder, name, extension]), Name::of(&[to.folder, name, extension]))
+            else {
+                return false;
+            };
+            let (Some(from), Some(into)) = (from.path(), into.path()) else { return false };
+            // SAFETY: MoveFileExA, that export (the library's dynamic row),
+            // two NUL-ended paths of ours.
+            unsafe { raw::engine_move_file_ex_a(move_file, from.ptr(), into.ptr(), MOVEFILE_COPY_ALLOWED) != 0 }
+        };
+        let mut moved = u32::from(move_one(self.stem, b".log"));
+        let Some(pattern) = Name::of(&[self.folder, self.stem, b".*.log"]) else { return moved };
         let mut data = FindData::new();
-        let Some(mut find) = pattern.path().and_then(|pattern| Find::first(pattern, &mut data)) else { return 0 };
-        let mut moved = 0;
+        let Some(mut find) = pattern.path().and_then(|pattern| Find::first(pattern, &mut data)) else { return moved };
         loop {
-            if !data.is_folder()
-                && self.run_of(data.name()).is_some()
-                && let Some(from) = Name::of(&[self.folder, data.name()])
-                && let Some(into) = Name::of(&[to.folder, data.name()])
-                && let (Some(from), Some(into)) = (from.path(), into.path())
-                // SAFETY: MoveFileExA, that export (the library's dynamic
-                // row), two NUL-ended paths of ours.
-                && unsafe { raw::engine_move_file_ex_a(move_file, from.ptr(), into.ptr(), MOVEFILE_COPY_ALLOWED) } != 0
-            {
+            if !data.is_folder() && self.run_of(data.name()).is_some() && move_one(data.name(), b"") {
                 moved += 1;
             }
             if !find.next(&mut data) {

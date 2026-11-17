@@ -111,11 +111,11 @@ file; a text written in advance says "the newest
 
 Before its file is made, every run moves into `game\logs` the run files the
 updaters and games before kept beside the updater: the stamped
-`updater_skhid.<stamp>.log` and `srp_patches.<stamp>.log` of
+`updater_skhid.<stamp>.log` and `srp_patches.<stamp>.log` and the unstamped `updater_skhid.log`, `srp_patches.log` and `srp_patches.old.log` (written no more) of
 `game\binaries\x86`, and the seeding runs of `updater_skhid.seed-logs\` into
 `game\logs\seed\` (the old folder removed once empty). A file whose name is
-taken there, or that a program holds without sharing, stays; the unstamped
-old logs stay where they are. The engine's runs in `Documents\Survarium` the game moves there itself (`srp-026g/docs/notes/run-logs.md`). The updater does nothing else with `game\logs`: it
+taken there, or that a program holds without sharing, stays.
+The engine's runs and its old log in `Documents\Survarium` the game moves there itself (`srp-026g/docs/notes/run-logs.md`). The updater does nothing else with `game\logs`: it
 is no file of the ZIP or of a torrent, never hashed, checked or deleted as
 one.
 

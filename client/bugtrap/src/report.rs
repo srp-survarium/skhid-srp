@@ -497,14 +497,15 @@ impl Source for Bytes<'_> {
 /// credential-bearing records (`sanitize.rs`): the newest run's
 /// `Survarium[_<user>].<stamp>.log` in `game\logs`, else the newest
 /// `Survarium*.log` in Documents\Survarium (an exe before the logs went to
-/// `game\logs`, or a run whose name kept the engine's). Its name holds the
+/// `game\logs`, or a run whose name kept the engine's; then the old one the exe moved to `game\logs`). Its name holds the
 /// player's account name, so it is not written.
 unsafe fn log_tail(w: &mut dyn Write) {
     let folders = crate::logs::folders();
     let (logs, docs) = (&folders[crate::logs::LOGS_SCOPE], &folders[0]);
     let found = newest_game_log(logs, true)
         .map(|name| (logs, name, "game\\logs"))
-        .or_else(|| newest_game_log(docs, false).map(|name| (docs, name, "Documents\\Survarium")));
+        .or_else(|| newest_game_log(docs, false).map(|name| (docs, name, "Documents\\Survarium")))
+        .or_else(|| newest_game_log(logs, false).map(|name| (logs, name, "game\\logs")));
     let Some((folder, name, place)) = found else {
         let _ = w.write_str("Game log:  none found\r\n");
         return;

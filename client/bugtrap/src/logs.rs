@@ -95,7 +95,7 @@ impl Candidate {
     /// The crashed run's patch log of the exe's folder `exe` (`folders()[1]`,
     /// or dump::folder's), its tail: the newest (last written)
     /// `srp_patches.<stamp>[_<n>].log` in `game\logs` ([`game_logs`]), else
-    /// the old `srp_patches.log` beside the exe.
+    /// the old `srp_patches.log` there (the updater moved it), else beside the exe.
     pub unsafe fn patch_log(exe: &[u16]) -> Self {
         let mut log = Self::EMPTY;
         log.scope = LOGS_SCOPE;
@@ -133,7 +133,13 @@ impl Candidate {
             }
         }
         if log.run.is_none() {
-            log.scope = EXE_SCOPE;
+            // the old one where the updater moved it, else beside the exe
+            let mut moved = Wide::<1100>::new();
+            let in_logs = logs.len != 0
+                && moved.wide(&logs.buf[..logs.len]).is_ok()
+                && write!(moved, "{PATCH_LOG}").is_ok()
+                && GetFileAttributesW(moved.ptr()) != INVALID_FILE_ATTRIBUTES;
+            log.scope = if in_logs { LOGS_SCOPE } else { EXE_SCOPE };
             log.name = [0; 260];
             for (slot, b) in log.name.iter_mut().zip(PATCH_LOG.bytes()) {
                 *slot = b as u16;

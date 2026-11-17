@@ -289,5 +289,10 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
     expected = {k: v for k, v in expected.items() if not k.startswith("logs/game-logs/srp_patches.2026")}
     expected["logs/game-exe/srp_patches.log"] = b"srp: the log before runs were named\r\n"
     check(expected, members=("logs/game-exe/srp_patches.log",))
+    # The old srp_patches.log where the updater moved it, in game\logs.
+    (game / "srp_patches.log").rename(run_logs / "srp_patches.log")
+    expected = {k: v for k, v in expected.items() if k != "logs/game-exe/srp_patches.log"}
+    expected["logs/game-logs/srp_patches.log"] = b"srp: the log before runs were named\r\n"
+    check(expected, members=("logs/game-logs/srp_patches.log",))
     print("PASS run logs: the crashed run's patch log first by its stamp, earlier runs' by kind and stamp, "
           "no user name; the old srp_patches.log when no run's is there", flush=True)

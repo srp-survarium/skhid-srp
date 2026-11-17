@@ -22,8 +22,8 @@ more info and history on what crashes or not."
   - The running run's files (its stamp's: a long run's earlier parts) count but are never deleted.
   - A file Windows does not delete (read-only, open) is passed over; the next one goes.
 - **The old names** (`Survarium_<user>.log`, `srp_patches.log`, `srp_patches.old.log`,
-  `updater_skhid.log`) are no longer written; the files a player has under them stay as they are
-  (never parsed as runs, never deleted). Tools and texts that looked for the old name now take the
+  `updater_skhid.log`) are no longer written; the files a player has under them move once into
+  `game\logs` with the runs (below), never parsed as runs, never deleted. Tools and texts that looked for the old name now take the
   newest run file of that kind (below).
 - **No change** for the game servers, for what a match computes or for replays.
 
@@ -37,13 +37,14 @@ in `game\logs\` now, the folder beside `game\torrent\`:
 
 ```
 game\
-  binaries\x86\     the programs (and the old unstamped logs, left as they were)
+  binaries\x86\     the programs
   logs\             Survarium_<user>.<stamp>.log, srp_patches.<stamp>.log,
-                    updater_skhid.<stamp>.log, skhid-wine.log
+                    updater_skhid.<stamp>.log, skhid-wine.log, and the old unstamped
+                    Survarium_<user>.log, srp_patches.log, srp_patches.old.log, updater_skhid.log
     seed\           the seeding updater's updater_skhid.<stamp>.log
   torrent\          the torrents and their state
-Documents\Survarium\  user.cfg, replays, ... and the old unstamped Survarium_<user>.log,
-                    survarium_launcher_<user>.log, left as they were
+Documents\Survarium\  user.cfg, replays, ... and survarium_launcher_<user>.log (the original
+                    launcher still rewrites it), left as they were
 ```
 
 - **Who makes it:** whichever writes first. The updater (`Layout::logs_dir`) makes it at its every
@@ -68,8 +69,9 @@ Documents\Survarium\  user.cfg, replays, ... and the old unstamped Survarium_<us
   so a game on another disk than Documents gets a copy and the original goes), then prunes; the
   patches' line says how many moved. The game, not the updater: it is the one that knows the
   engine's folder and its user's stem, local clients have no updater, and the updater's tests
-  run with the tester's own Documents. Only names of the kind move: the unstamped
-  `Survarium_<user>.log`, the journal, `survarium_launcher_<user>.log`, another user's logs,
+  run with the tester's own Documents. Its unstamped `Survarium_<user>.log` (written no more
+  since #1964) moves the same way. Only these move: the journal, `survarium_launcher_<user>.log`,
+  another user's logs,
   user.cfg, the replays and the rest of Documents stay. A name `game\logs` has already, or a file
   Windows does not move, stays where it is.
 - **What a player has moves once.** The updater runs first at every start (the launcher, `ready`
@@ -79,7 +81,8 @@ Documents\Survarium\  user.cfg, replays, ... and the old unstamped Survarium_<us
   (the old folder removed once empty), then logs how many moved. A rename on the same disk, no
   copy; a name `game\logs` has already, or a file held without sharing, stays where it is (the
   crash reporter and Skhid-collect-logs still take it there). The unstamped `srp_patches.log`,
-  `srp_patches.old.log` and `updater_skhid.log` stay where #1964 left them. `Skhid.sh` moves its
+  `srp_patches.old.log` and `updater_skhid.log` (written no more since #1964) move the same way;
+  the crash reporter's fallback is `game\logs\srp_patches.log`, then the exe's. `Skhid.sh` moves its
   `skhid-wine.log` (one file, appended to) once, when `game\logs` has none.
 - **Not a game file.** Nothing the updater installs, checks or deletes is in `game\logs`: the ZIP
   and the torrents name their files (`release/build-torrent`'s list, the ZIP's own), the install

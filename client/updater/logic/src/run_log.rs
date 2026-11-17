@@ -5,7 +5,7 @@
 //! appended to; an old run's file is only ever deleted, never written over:
 //! when a run starts, the oldest go while 100 or more, or 500 MiB or more,
 //! are there. The legacy `updater_skhid.log` is not a run's: never read,
-//! written or deleted here.
+//! written or deleted here (it is moved, once, with the runs).
 
 use alloc::{format, string::String, vec::Vec};
 
@@ -127,12 +127,17 @@ impl RunName {
     }
 }
 
-/// Whether `name`, a file beside the updater, is a run file an earlier
-/// updater or game wrote there before the runs went to [`FOLDER`]: the
-/// updater's or the client patches' `<kind>.<stamp>[_<n>].log`. It moves
-/// into [`FOLDER`]; the old unstamped logs stay.
+/// The logs of before the runs were named, beside the updater: written no
+/// more, they move into [`FOLDER`] too.
+const OLD_LOGS: [&str; 3] = ["updater_skhid.log", "srp_patches.log", "srp_patches.old.log"];
+
+/// Whether `name`, a file beside the updater, is a log an earlier updater
+/// or game wrote there before the logs went to [`FOLDER`]: the updater's
+/// or the client patches' `<kind>.<stamp>[_<n>].log`, or one of the
+/// unstamped [`OLD_LOGS`]. It moves into [`FOLDER`].
 pub fn moves_to_folder(name: &str) -> bool {
-    [PREFIX, PATCHES_PREFIX].iter().any(|kind| RunName::parse_of(kind, name).is_some())
+    OLD_LOGS.iter().any(|old| old.eq_ignore_ascii_case(name))
+        || [PREFIX, PATCHES_PREFIX].iter().any(|kind| RunName::parse_of(kind, name).is_some())
 }
 
 /// A file of a folder that matches [`PATTERN`]: its name, size and when it
@@ -219,14 +224,16 @@ mod tests {
             "updater_skhid.2026-11-15_14-03-07_12.log",
             "srp_patches.2026-11-15_14-03-07.log",
             "SRP_PATCHES.2026-11-15_14-03-07_2.LOG",
+            "updater_skhid.log",
+            "srp_patches.log",
+            "srp_patches.old.log",
         ] {
             assert!(moves_to_folder(name), "{name}");
         }
         for name in [
-            "updater_skhid.log",
-            "srp_patches.log",
-            "srp_patches.old.log",
             "updater_skhid.resources.journal",
+            "updater_skhid.url",
+            "launcher_skhid.log",
             "Survarium_a.2026-11-15_14-03-07.log",
             "srp_patches.2026-11-15_14-03-07_1.log",
         ] {

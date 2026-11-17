@@ -22,7 +22,7 @@ appends; the local time is 2026-11-15 14:03:07. Checked:
   as it was); nothing deleted;
 - the user's run logs an earlier exe left in Documents\\Survarium moved to
   game\\logs (MoveFileExA by GetProcAddress, MOVEFILE_COPY_ALLOWED), but one
-  whose name game\\logs has and one Windows does not move; the unstamped log,
+  whose name game\\logs has and one Windows does not move; the unstamped log moved too;
   another user's runs, user.cfg and the launcher's log untouched; the patches' log a new file made with
   CREATE_NEW, `..\\..\\logs\\srp_patches.2026-11-15_14-03-07.log` (game\\logs, made
   first with CreateDirectoryA), holding the patch's line;
@@ -347,17 +347,18 @@ def main():
     print("the runs an earlier exe left in Documents\\Survarium")
     left = {DOCS + f"Survarium_tester.2026-10-0{day}_00-00-00.log": day for day in (1, 2, 3, 4)}
     taken, held = DOCS + "Survarium_tester.2026-10-03_00-00-00.log", DOCS + "Survarium_tester.2026-10-04_00-00-00.log"
-    stay = {DOCS + "Survarium_tester.log": 50, DOCS + "Survarium_other.2026-10-01_00-00-00.log": 60,
+    old_log = {DOCS + "Survarium_tester.log": 50}   # of before the runs were named: moved too
+    stay = {DOCS + "Survarium_other.2026-10-01_00-00-00.log": 60,
             DOCS + "user.cfg": 70, DOCS + "survarium_launcher_tester.log": 80}
     there = {LOGS + "Survarium_tester.2026-10-03_00-00-00.log": 90}
-    disk, named, fault = run(built, {**left, **stay, **there}, stuck=[held])
+    disk, named, fault = run(built, {**left, **old_log, **stay, **there}, stuck=[held])
     _, logs = patches_log(disk)
-    moved = {LOGS + p[len(DOCS):]: n for p, n in left.items() if p not in (taken, held)}
+    moved = {LOGS + p[len(DOCS):]: n for p, n in {**left, **old_log}.items() if p not in (taken, held)}
     check(fault is None and named == (new_engine, True, True) and sorted(t for _, t in disk.moved) == sorted(moved)
           and all(disk.sizes.get(p) == n for p, n in {**moved, **there, **stay}.items())
           and taken in disk.sizes and held in disk.sizes and not disk.deleted,
-          f"the kind's two moved to game\\logs; a name there and a held one stay, the rest untouched ({disk.moved})")
-    check(logs.get(new_patches, b"").endswith(b", 2 earlier ones moved from its folder, 0 old ones deleted\r\n"),
+          f"the kind's two runs and its old unstamped log moved to game\\logs; a name there and a held one stay, the rest untouched ({disk.moved})")
+    check(logs.get(new_patches, b"").endswith(b", 3 earlier ones moved from its folder, 0 old ones deleted\r\n"),
           f"the line counts them ({logs})")
     access = [(a, s) for p, _, a, s in disk.made]
     check(access == [(4, 7)], f"appends only, every sharing ({access})")
@@ -365,7 +366,7 @@ def main():
     print("100 run logs of the user's, and others")
     old = {LOGS + f"Survarium_tester.2026-10-{day:02}_{hour:02}-00-00.log": 1000
            for day in range(1, 26) for hour in (1, 2, 3, 4)}
-    others = {DOCS + "Survarium_tester.log": 5000, DOCS + f"Survarium_other.2026-09-01_00-00-00.log": 10,
+    others = {DOCS + f"Survarium_other.2026-09-01_00-00-00.log": 10,
               DOCS + "user.cfg": 10, DOCS + "Survarium_tester.2026-09-01_00-00-00.txt": 10}
     disk, named, fault = run(built, {**old, **others})
     oldest = LOGS + "Survarium_tester.2026-10-01_01-00-00.log"
