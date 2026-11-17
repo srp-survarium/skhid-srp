@@ -17,11 +17,14 @@ timer of a key's repeat (0x106A00: 0.0), the log line of the engine's stubs
 GetProcAddress, user32's OpenClipboard, GetClipboardData, CloseClipboard,
 kernel32's GlobalLock, GlobalUnlock and GlobalSize over a made-up clipboard.
 
-Checked, the same keys in both exes:
-- typing (W H E R E, Shift, Ctrl+A, Ctrl+Z, Ctrl+Shift+V, Ctrl+C, Ctrl+X,
-  plain V) does the same in both; Ctrl+V and Shift+Insert reach
-  paste_from_clipboard in both, the only references to it;
-- the original's Ctrl+V logs "not implemented" and leaves the line;
+Checked:
+- paste_from_clipboard's one reference in .text is init_internals's binding
+  of it (Ctrl+V and Shift+Insert);
+- the other keys do the same in both exes: W H E R E, V, Shift+V,
+  Ctrl+Shift+V (nothing), Ctrl+C and Ctrl+X (their stubs' log line), Ctrl+A,
+  Ctrl+Z (the paste one step in the build), End;
+- the original's Ctrl+V logs "not implemented" and leaves the line, and calls
+  no Windows function;
 - the build's pastes the clipboard's text at the caret as typed: one
   set_text (one text-changed event, one undo step), the caret after it, the
   selection replaced (deleted first, as a typed character's); the first line
