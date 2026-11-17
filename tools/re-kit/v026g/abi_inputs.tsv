@@ -890,7 +890,7 @@ va	name	location	role	basis
 0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+12	vertex-end pointer	observed
 0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+16	index-begin pointer	observed
 0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+20	index-end pointer	observed
-0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+24 low byte	technique override flag	observed
+0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+24 low byte	technique override flag: set, technique 3 (cover); clear, 2 while the color write +150h is off, else 1 in grid mode +140h, else 0 (alpha-blended, the default); then always a second pass with technique 4 (wireframe, blended) at 0x11E4BC	observed
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	entry ESP+4	owner	observed
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	entry ESP+8	input TL vertices	observed
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	entry ESP+12	vertex count reference	observed
