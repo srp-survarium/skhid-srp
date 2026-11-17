@@ -160,8 +160,9 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
   (`pgrep -f '...survarium_skhid.*\.exe'`): other sweeps' `flock` and `--exe` arguments
   and local srp servers match too, and the queue waits forever (2026-11-16: a sweep held
   the GPU lock six hours on its own and its neighbours' command lines).
-- One capture at a time on the machine: every capture session holds
-  `flock ~/.cache/skhid-gpu.lock`.
+- Up to three captures at once on the machine (owner, 2026-11-17: "we have enough GPU for
+  both at the same time"): every capture session runs under `~/.cache/skhid-gpu-slot.sh`,
+  which holds one of three slot locks while at least 2.5 GB of VRAM is free.
 - Captures are silent (owner, 2026-11-17): start each capture client with
   `. ~/.cache/skhid-capture-env.sh` (Wine without its audio drivers);
   `~/.cache/skhid-mute-captures.sh` also mutes any capture stream it finds. The rig waits by itself and stops
