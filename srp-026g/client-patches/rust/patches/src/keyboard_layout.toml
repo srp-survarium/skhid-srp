@@ -1,6 +1,6 @@
-# Patch 107: chat text follows the keyboard layout the window was last told
-# of (docs/notes/keyboard_layout.md). The sites are sites_026g.tsv's; the
-# logic is keyboard_layout.rs and vostok/keyboard_layout.rs.
+# Patch 107: chat and console text follow the keyboard layout the window was
+# last told of (docs/notes/keyboard_layout.md). The sites are sites_026g.tsv's;
+# the logic is keyboard_layout.rs and vostok/keyboard_layout.rs.
 name = "keyboard_layout"
 patch = 107
 
@@ -18,3 +18,23 @@ handler = "on_change"
 [[hook]]
 site = "keyboard.text_layout"
 handler = "on_text"
+
+# message_processor's call of the text-focus check for a request: the
+# console counts as a text input.
+[[hook]]
+site = "window.lang_focus"
+handler = "on_request_focus"
+
+# The game console shown and hidden.
+[[hook]]
+site = "console.opened"
+handler = "on_console_opened"
+
+[[hook]]
+site = "console.closed"
+handler = "on_console_closed"
+
+# A key the console's text edit types: the keyboard's text, as the chat's.
+[[hook]]
+site = "console.char_typed"
+handler = "on_console_char"

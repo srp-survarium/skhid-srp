@@ -2131,6 +2131,51 @@ pub extern "C" fn hook_console_paste_on_paste(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- console_scroll (patch 159) ----
+
+/// The entry `console_scroll_on_key` (0x1eaa0, console_impl::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,14h; called only by game_console's input handler slot 0, 0x1C7F0): ECX the console, EAX the key's kind (1 down, 2 up, 3 held), ESP+4 the input world, +8 the key (DirectInput); every key of the open console (input priority 5, before the game world's 7 and the player's 10), which it takes on every path (AL 1), on the game's thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_scroll_on_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_scroll_on_key` calls this, from the game's jump at 0x1eaa0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_scroll::on_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- console_scroll (patch 159) ----
+
+/// The entry `console_scroll_on_wheel` (0x1c810, game_console::on_mouse_move's start (its input handler's slot 3, vtable 0x9DC030 +0Ch; mov ecx,[ecx-254h], the console's dialog): ECX the console's input handler (the console's +268h), ESP+4 the input world, +8 x, +0Ch y, +10h z (the wheel); every mouse move of the open console, which it takes (AL 1), on the game's thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_scroll_on_wheel(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_scroll_on_wheel` calls this, from the game's jump at 0x1c810,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_scroll::on_wheel(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- console_scroll (patch 159) ----
+
+/// The entry `console_scroll_on_activate` (0x1c760, game_console::on_activate's start (push esi / mov esi,ecx / mov ecx,[esi+1Ch]; vtable 0x9DC030 +24h through 0x1C840): ECX the console, about to be shown (its text edit focused, +264h set, its input handler added to the input world), on the game's thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_scroll_on_activate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_scroll_on_activate` calls this, from the game's jump at 0x1c760,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_scroll::on_activate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_execute` (0x9e7c10, cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found) calls this with
@@ -3073,6 +3118,36 @@ pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- ragdoll (patch 76) ----
+
+/// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_eye(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_eye` calls this, from the game's jump at 0x1f3643,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_eye(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- head_clearance (patch 158) ----
+
+/// The entry `head_clearance_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_head_clearance_on_eye(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `head_clearance_on_eye` calls this, from the game's jump at 0x1f3643,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::head_clearance::on_eye(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_cursor (patch 113) ----
 
 /// The named exits of hud_cursor::on_cursor_shown (the order the shim's Flow code
@@ -3450,6 +3525,76 @@ pub extern "C" fn hook_keyboard_layout_on_text(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The named exits of keyboard_layout::on_request_focus (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KeyboardLayoutOnRequestFocusExit { Focused }
+/// The entry `keyboard_layout_on_request_focus` (0x18365, message_processor's WM_INPUTLANGCHANGEREQUEST case at its call of the game's text-focus check (mov eax,[ecx] / mov edx,[eax+44h] / call edx; ECX the game, survarium::game slot 44h 0x1EE7C0, after window.lang_request); focused 0x18374, where a focused request goes to DefWindowProc (pop edi/esi/ebx, jmp [DefWindowProcA]), the stack as at the site; a false check drops it at 0x18272) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_request_focus(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_request_focus` calls this, from the game's jump at 0x18365,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_request_focus(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_console_opened` (0x1c77e, game_console::on_activate (0x1C760, vtable 0x9DC020 slot 4) marking the console shown (mov byte [esi+264h],1), after it focused the text edit; the logic thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_opened(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_opened` calls this, from the game's jump at 0x1c77e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_opened(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_console_closed` (0x1c7d3, game_console::on_deactivate (0x1C7A0, slot 8) marking it hidden (mov byte [esi+264h],0), after it unfocused the text edit and the tips; the logic thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_closed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_closed` calls this, from the game's jump at 0x1c7d3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_closed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The named exits of keyboard_layout::on_console_char (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KeyboardLayoutOnConsoleCharExit { Typed }
+/// The entry `keyboard_layout_on_console_char` (0x34b4da, insert_char_action::execute (0x34B4D0, vtable 0xA1DEBC slot 4: a ui_text_edit's key that types a character, the console's letters, digits and punctuation, made by create_char_action 0x34A4C0) after mov edi,ecx, before its Shift test (mov eax,[edi+4] / test byte [eax+2ACh],30h): EDI the action; the character it types is [esp+8], its own (+19h, Shift +1Ah) or, for a key made named (+18h), the first letter of the key's DirectInput name (get_dik_name through the input world's keyboard, 0x34B533..0x34B5CE); typed 0x34B5D2, where it deletes the selection (0x3486A0) and inserts [esp+8] (0x348000), EDI the action, the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_char(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_char` calls this, from the game's jump at 0x34b4da,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_char(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -4500,21 +4645,6 @@ pub extern "C" fn hook_ragdoll_on_bones(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::ragdoll::on_bones(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- ragdoll (patch 76) ----
-
-/// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_ragdoll_on_eye(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_eye` calls this, from the game's jump at 0x1f3643,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::ragdoll::on_eye(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -5655,6 +5785,26 @@ pub extern "C" fn hook_weapon_pickup_on_load_ordinal(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_load_record (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnLoadRecordExit { Skip }
+/// The entry `weapon_pickup_on_load_record` (0x321ca0, bullet_manager::deserialize's loop over the records (mov esi,[edi+80h], before the bullet's allocation and its constructor 0x32BBC0): EDI the manager, EBX the section's reader at the record; skip 0x321CFC is the loop's count (sub ebp,1 / jne), no bullet made) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_load_record(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_load_record` calls this, from the game's jump at 0x321ca0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_load_record(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- world_check (patch 87) ----
 
 /// The named exits of world_check::on_unpacked (the order the shim's Flow code
@@ -5916,6 +6066,15 @@ pub extern "C" fn hook_hand_kill_on_hit_chain(frame: &mut Frame) -> u32 {
     let flow = hook_hand_kill_on_hit(frame);
     if flow != 0 { return flow; }
     let flow = hook_medical_skills_on_hit(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_eye_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_ragdoll_on_eye(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_head_clearance_on_eye(frame);
     if flow != 0 { return flow; }
     0
 }

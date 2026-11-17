@@ -61,7 +61,7 @@ pub fn run(arguments: &[String], quiet: bool) -> u32 {
             return FAILED;
         }
     };
-    crate::log::start(&layout.exe_dir);
+    crate::log::start(&layout);
     log!(
         "---- updater {} replay started in {}{}",
         env!("CARGO_PKG_VERSION"),
@@ -124,7 +124,7 @@ pub fn run_local(arguments: &[String], quiet: bool) -> u32 {
             return FAILED;
         }
     };
-    crate::log::start(&layout.exe_dir);
+    crate::log::start(&layout);
     log!("---- updater local replay started{}", if quiet { " (quiet)" } else { "" });
     let language = win::documents().as_deref().and_then(win::game_language);
     let Some(file) = updater_logic::local_replay::LocalReplay::parse(arguments) else {

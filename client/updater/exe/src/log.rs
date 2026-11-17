@@ -1,13 +1,15 @@
-//! The updater's log: a file of its own each run beside it,
-//! `updater_skhid.<start>.log` (`updater_logic::run_log`), one line per
-//! step, so a player can send it when something went wrong. It holds no
+//! The updater's log: a file of its own each run in the game's `logs`
+//! folder, `updater_skhid.<start>.log` (`updater_logic::run_log`), one line
+//! per step, so a player can send it when something went wrong. It holds no
 //! account name and no password; it does hold the folder the game is in.
 
+use alloc::format;
 use alloc::string::String;
 use core::cell::UnsafeCell;
 
 use updater_logic::run_log::{self, RunName};
 
+use crate::install::Layout;
 use crate::win;
 
 /// This run's log.
@@ -26,14 +28,63 @@ struct Log(UnsafeCell<State>);
 unsafe impl Sync for Log {}
 static LOG: Log = Log(UnsafeCell::new(State::Off));
 
-/// Starts this run's file in `folder` (the updater's): the least recently
-/// written runs' files deleted first (`run_log::to_delete`), then the next
-/// name of this second made. Once a run; a later call keeps the first file.
-pub fn start(folder: &str) {
-    let state = unsafe { &mut *LOG.0.get() };
-    if !matches!(state, State::Off) {
+/// Starts this run's file in the game's `logs` folder.
+pub fn start(layout: &Layout) {
+    start_in(layout, &layout.logs_dir);
+}
+
+/// Starts a seeding run's file in the `logs` folder's own folder of them
+/// (`run_log::SEED_FOLDER`).
+pub fn start_seeding(layout: &Layout) {
+    start_in(layout, &format!("{}\\{}", layout.logs_dir, run_log::SEED_FOLDER));
+}
+
+/// Makes `folder`, deletes the logs earlier updaters and games left beside
+/// the updater ([`clear_old`]), then starts this run's file in `folder`.
+/// Once a run.
+fn start_in(layout: &Layout, folder: &str) {
+    if !matches!(unsafe { &*LOG.0.get() }, State::Off) {
         return;
     }
+    let _ = win::create_folders(folder);
+    let deleted = clear_old(layout);
+    start_file(folder);
+    if deleted > 0 {
+        line(&format!("deleted {deleted} old logs in {}", layout.exe_dir));
+    }
+}
+
+/// The logs beside the updater from before they went to the `logs` folder
+/// (`run_log::old_beside_updater`) and its old seeding folder's runs,
+/// deleted, the folder removed once empty: how many went. One Windows does
+/// not delete (open) stays.
+fn clear_old(layout: &Layout) -> usize {
+    let mut deleted = 0;
+    let mut delete = |folder: &str, name: &str| {
+        let path = format!("{folder}\\{name}");
+        if win::delete(&path).is_ok() {
+            deleted += 1;
+        }
+    };
+    let x86 = &layout.exe_dir;
+    for name in win::list(x86, "*.log").iter().filter(|name| run_log::old_beside_updater(name)) {
+        delete(x86, name);
+    }
+    let old_seed = format!("{x86}\\{}", run_log::OLD_SEED_FOLDER);
+    if win::is_folder(&old_seed) {
+        for name in win::list(&old_seed, run_log::PATTERN).iter().filter(|name| RunName::parse(name).is_some()) {
+            delete(&old_seed, name);
+        }
+        win::remove_dir(&old_seed);
+    }
+    deleted
+}
+
+/// Starts this run's file in `folder` (the log [`State::Off`]): the least
+/// recently written runs' files deleted first (`run_log::to_delete`), then
+/// the next name of this second made.
+fn start_file(folder: &str) {
+    let state = unsafe { &mut *LOG.0.get() };
     let stamp = win::local_stamp();
     let files = win::list_run_files(folder, run_log::PATTERN);
     // one Windows refuses is passed over: the next is tried

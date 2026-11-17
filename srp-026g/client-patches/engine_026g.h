@@ -24,6 +24,7 @@ struct buffer_string;
 struct buffer_writer;
 struct bullet;
 struct bullet_manager;
+struct bullet_manager_engine;
 struct bullet_owner;
 struct bullet_physics_world;
 struct camouflage_decal_texture_type_baker_cook;
@@ -119,6 +120,7 @@ struct scene_model;
 struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
+struct scroll_source;
 struct simple_game_project;
 struct sound_emitter;
 struct sound_instance_proxy;
@@ -136,6 +138,7 @@ struct swap_chain;
 struct system_renderer;
 struct text_translator;
 struct triangle_callback;
+struct ui_scroll_view;
 struct ui_text_edit;
 struct ui_text_edit_text;
 struct usable_list;
@@ -316,6 +319,9 @@ struct match_options *engine_match_options(struct network_client *client);
 
 /* virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX */
 struct player **engine_active_player(struct network_client *client, struct player **out, unsigned int place);
+
+/* virtual survarium::bullet_manager_engine+0x24 (1 vtables of vtables.tsv: 0x1f7660): engine ECX, place ESP+4; pops 4; EAX */
+struct player *engine_bullet_player(struct bullet_manager_engine *engine, unsigned int place);
 
 /* the IAT slot 0x870158 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_query_performance_counter)(unsigned int * count);
@@ -710,6 +716,9 @@ void __attribute__((cdecl)) engine_ray_test_single(struct bt_transform *from, st
 /* 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly */
 unsigned char __attribute__((thiscall)) engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size);
 
+/* 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_key_text(struct keyboard *keyboard, unsigned int key, unsigned short *text);
+
 /* the IAT slot 0xaeff20 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_layout)(unsigned int layout, unsigned int flags);
 
@@ -904,6 +913,12 @@ void engine_process_all_triangles(struct bt_collision_shape *shape, struct trian
 
 /* 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly */
 void __attribute__((thiscall)) engine_triangle_process(struct triangle_callback *callback, const float *triangle, unsigned int part, unsigned int index);
+
+/* 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_scroll_view_set_follow(struct ui_scroll_view *view, unsigned int follow);
+
+/* 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_scroll_set_position(struct scroll_source *source, float position);
 
 /* 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24 */
 void engine_draw_triangles(struct system_renderer *renderer, const void *vertex_begin, const void *vertex_end, const unsigned short *index_begin, const unsigned short *index_end, unsigned int override_flag);

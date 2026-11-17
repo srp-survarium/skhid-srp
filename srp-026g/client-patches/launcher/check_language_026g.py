@@ -288,6 +288,13 @@ def check(data, delta):
         ({CFG: b'localizations czech\r\n# localization german\r\n'}, 0x0405, 'czech'),
         ({CFG: b'a 1\nlocalization hungarian\n'}, 0x0409, 'hungarian'),
         ({}, 0x081A, 'serbian'),
+        ({}, 0x0C1A, 'serbian'),
+        ({}, 0x141A, 'serbian'),
+        ({}, 0x041A, 'croatian'),
+        ({}, 0x101A, 'croatian'),
+        ({}, 0x1041A, 'croatian'),
+        ({CFG: b'localization croatian\r\n'}, 0x081A, 'croatian'),
+        ({CFG: b'localization serbian\r\n'}, 0x041A, 'serbian'),
         ({}, 0x0C07, 'german'),
         ({}, 0x0411, 'english'),
     ]
