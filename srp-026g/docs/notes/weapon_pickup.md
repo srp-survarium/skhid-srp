@@ -680,6 +680,17 @@ cooked gun).
   (`bullet.load_ordinal`) an ordinal at or past the loading gun's ammo
   count is that count, its own none (+53Ch). A record is one byte longer
   for a one-pellet ammo; the server keeps the bullets' section opaque.
+- **A record whose slot is empty** (the 0x2E2753 crash, rev62,
+  2026-11-17): the slot a record names is the gun's own (+254h) at the
+  save, so a bullet in flight when a swap moved its gun into a cooked
+  inventory names that inventory's slot (the donor's 10), which the shooter
+  may have empty; the loader read a null gun. `bullets.load_record` (the
+  deserialize loop, 0x321CA0) looks the record's shooter up as the loader
+  does (the engine's get_player, 0x1F7660) and passes a record with no gun
+  in its slot over (69 bytes, no bullet made, a log line). That game then
+  lacks one bullet the others have until it lands, so its world hash may
+  differ for that while (a resync). The gun itself outlives its bullets: a
+  copy once in hands is kept until its holder is destroyed.
 - **The bound** (the owner's): 20 places x 3 kits x 2 weapon slots = 120
   recipes at most (40..60 in practice); another copy of a recipe only while
   all of its copies are in use, at most 60 at once (two held a player, one

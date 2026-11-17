@@ -2246,8 +2246,8 @@ va	name	location	role	basis
 0x001f48a0	vostok::network_core::buffer_writer::w<unsigned int>	stack+20	diagnostic value label	observed
 0x001f6d50	survarium::game_world::register_cooks	EDI	game-world receiver	inferred
 0x001f7620	survarium::game_world::on_after_tick	ECX	game-world receiver	inferred
-0x001f7660	survarium::game_world::get_player	ECX	game-world interface receiver, complete-world+0xec	inferred
-0x001f7660	survarium::game_world::get_player	stack+4	requested player ID	inferred
+0x001f7660	survarium::game_world::get_player	ECX	the bullet manager's engine: the game world's interface (complete world+0ECh; this-50h read, 0x1F7660)	observed
+0x001f7660	survarium::game_world::get_player	stack+4	the place (passed on to the client's get_player, 0x1F7673)	observed
 0x001f77e0	survarium::game_world::tick	byte [ESP+0Fh] at 0x1F7C3C	the join after game_world_core::move (0x1F7C37; je targets 0x1F7C24, 0x1F7C2D): the simulation stepped, before the place loop; EBX the game world, [ESP+1Ch] not yet the match options (0x1F79C6 set it); no relocation in 0x1F7C3C..0x1F7C40	observed
 0x001f8190	survarium::game_world::switch_to_warmup_camera	EDX	game-world receiver	inferred
 0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver: input +4D58h; camera interface input+4 passed at 1F824B..1F8254	observed

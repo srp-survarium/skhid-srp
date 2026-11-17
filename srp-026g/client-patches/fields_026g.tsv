@@ -47,7 +47,7 @@ survarium::bullet	quiet	0x80	u8	set: no hit sound (process_front_face_piercing 0
 survarium::bullet	segment	0x84	u32	its segments past the first (pierces and ricochets; change_trajectory 0x32EE20)
 survarium::bullet_owner	place	0x4	u8	the shooter's place (add_shootmark's table index, 0x32E562)
 survarium::ammo_data	mass	0x14	f32	the ammo config's data.mass (ammo_data::load 0x33251F)
-survarium::bullet_manager	renderer	0x90	u32	the renderer (0: no effects; play_particle 0x3223EB)
+survarium::bullet_manager	engine	0x90	ptr<survarium::bullet_manager_engine>	the game world's interface (the world's +0ECh; its slot +24h get_player, bullet::bullet 0x32BD3E); 0: no effects (play_particle 0x3223EB)
 survarium::bullet_manager	materials	0x94	ptr<survarium::game_material_manager>	the game material manager (check_collision 0x32D845)
 survarium::game_material	id	0x64	u16	its id (the material pair's index, 0x306D50)
 survarium::material_pair	sound	0x18	u32	its sound's resource slot (process_front_face_piercing 0x32E6BA)
