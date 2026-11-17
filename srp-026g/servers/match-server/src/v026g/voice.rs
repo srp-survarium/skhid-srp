@@ -1326,10 +1326,13 @@ pub fn run(
     socket.set_read_timeout(Some(RECEIVE_WAIT))?;
     log::info!("Voice relay on UDP {}", socket.local_addr()?);
     let mut relay = Relay::new(seats, Instant::now()).with_id_key(id_key);
+    let mut socket = udp_transport::relay::Datagrams::new(
+        socket, udp_transport::relay::Relays::from_env()?,
+    )?;
     let mut buffer = [0; 2048];
     while !stop.load(Ordering::Relaxed) {
         let sends = match socket.recv_from(&mut buffer) {
-            Ok((len, addr)) => relay.receive(addr, &buffer[..len], Instant::now()),
+            Ok((len, peer)) => relay.receive(peer.address, &buffer[..len], Instant::now()),
             Err(error)
                 if matches!(
                     error.kind(),

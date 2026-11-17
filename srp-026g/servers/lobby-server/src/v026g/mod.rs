@@ -572,10 +572,13 @@ impl Lobby {
         );
         core.packet_log = PacketLog::from_env();
         core.replays = self.replays.as_deref();
+        let mut socket = udp_transport::relay::Datagrams::new(
+            &self.socket, udp_transport::relay::Relays::from_env()?,
+        )?;
         let mut buffer = [0_u8; 2048];
         while !self.inbox.stopped() {
-            match self.socket.recv_from(&mut buffer) {
-                Ok((len, from)) => core.datagram(from, &buffer[..len], Instant::now()),
+            match socket.recv_from(&mut buffer) {
+                Ok((len, peer)) => core.datagram_via(peer, &buffer[..len], Instant::now()),
                 Err(error)
                     if matches!(
                         error.kind(),
@@ -592,7 +595,7 @@ impl Lobby {
                 }
             }
             for (to, datagram) in core.step(Instant::now()) {
-                if let Err(error) = self.socket.send_to(&datagram, to) {
+                if let Err(error) = socket.send_to(&datagram, to) {
                     log::debug!("A lobby datagram to {to} was not sent: {error}");
                 }
             }

@@ -1,0 +1,29 @@
+[Unit]
+Description=Skhid fixed-origin HTTPS relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/skhid-relay/relay.env
+ExecStart=/usr/bin/python3 /opt/skhid-relay/forwarder.py --https-only --public ${RELAY_PUBLIC} --backend ${RELAY_BACKEND}
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_UNIX AF_INET6
+CapabilityBoundingSet=
+MemoryMax=192M
+TasksMax=16
+LimitNOFILE=4096
+CPUWeight=20
+
+[Install]
+WantedBy=multi-user.target

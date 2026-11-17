@@ -1,0 +1,106 @@
+"""Automatic PLAY selection through real Windows sockets under Wine."""
+import socket
+import threading
+import time
+
+
+def check(run, updater, x86, started, log, win):
+    stop = threading.Event()
+    enabled = [threading.Event(), threading.Event()]
+    for event in enabled:
+        event.set()
+    sockets = []
+    # One direct and one relay endpoint, with matching consecutive ports.
+    for _ in range(100):
+        first = socket.socket()
+        first.bind(('127.0.0.1', 0))
+        port = first.getsockname()[1]
+        sockets = [first]
+        if port > 65532:
+            first.close()
+            continue
+        try:
+            other = socket.socket()
+            sockets.append(other)
+            other.bind(('127.0.0.2', port))
+            for host in ['127.0.0.1', '127.0.0.2']:
+                for p in [port+1, port+2]:
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    sockets.append(s)
+                    s.bind((host, p))
+            break
+        except OSError:
+            for s in sockets:
+                s.close()
+    else:
+        raise AssertionError('could not reserve probe endpoints')
+    threads = []
+    def tcp(listener):
+        while not stop.is_set():
+            try:
+                client, _ = listener.accept()
+            except (TimeoutError, OSError):
+                continue
+            with client:
+                client.settimeout(2)
+                data = b''
+                while len(data) < 22:
+                    part = client.recv(22-len(data))
+                    if not part:
+                        break
+                    data += part
+                if data.startswith(b'SKHID-ROUTE-1:') and len(data) == 22:
+                    client.sendall(data)
+    def udp(s, event):
+        while not stop.is_set():
+            try:
+                data, peer = s.recvfrom(64)
+            except (TimeoutError, OSError):
+                continue
+            if event.is_set():
+                s.sendto(data, peer)
+    for s in sockets:
+        s.settimeout(.1)
+    for s in sockets[:2]:
+        s.listen()
+        t = threading.Thread(target=tcp, args=(s,), daemon=True)
+        t.start()
+        threads.append(t)
+    for index, s in enumerate(sockets[2:]):
+        t = threading.Thread(target=udp, args=(s, enabled[index//2]), daemon=True)
+        t.start()
+        threads.append(t)
+    config = x86 / 'updater_skhid.relay'
+    config.write_text(f'127.0.0.1:{port}\n127.0.0.2:{port}\n')
+    def expect(host):
+        for _ in range(100):
+            if started.exists():
+                lines = started.read_bytes().decode('utf-16').splitlines()
+                if len(lines) >= 2:
+                    command, folder = lines[:2]
+                    assert f'-server={host}' in command, command
+                    assert '-minimum_resources_memory_size=768' in command, command
+                    assert ' quiet' not in command, command
+                    assert folder.lower().rstrip('\\') == win(x86).lower(), folder
+                    started.unlink()
+                    return
+            time.sleep(.05)
+        raise AssertionError('PLAY did not start stand-in game: '+log())
+    try:
+        run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
+        expect(f'127.0.0.1:{port}')
+        enabled[0].clear()
+        run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
+        expect(f'127.0.0.2:{port}')
+        enabled[1].clear()
+        run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768', expected=1)
+        assert not started.exists(), 'unreachable routes must not launch the game'
+        run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768', '-server=127.0.0.9:1234')
+        expect('127.0.0.9:1234')
+    finally:
+        config.unlink(missing_ok=True)
+        stop.set()
+        for s in sockets:
+            s.close()
+        for t in threads:
+            t.join(timeout=2)
