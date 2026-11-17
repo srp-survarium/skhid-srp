@@ -25,13 +25,6 @@ not let camera clip in in similar situations".
     drawn (the lobby camera's filter: not players, not invisible walk-only walls).
   - A hit puts the eye 0.12 m short of it on that way, at once, so the inside is never shown.
   - When the way clears, the eye eases back (95 % in 0.5 s).
-  - Then all around (the owner, 2026-11-17, after the first build: "this is still possible in
-    other places"): rays from the eye in 14 directions (the six axes and the cube's eight
-    corners), 0.12 m long. The nearest hit pushes the eye straight back from it to 0.12 m, at
-    once and up to three times a frame, never through what is behind. This catches a bank, a
-    slope or a wall beside or in front of the eye, which the way never meets.
-  - The way's own surface, already 0.12 m off, never pushes, so the first spot plays as the
-    first build (the owner: fixed).
   - A wall a player stands against never comes into it: the capsule keeps the eye 0.25 m from
     walls.
 - **What it does not change:**
@@ -49,11 +42,5 @@ not let camera clip in in similar situations".
 - **Not covered:**
   - geometry with no shot collision at all (bushes, grass, foliage): they are meant to be walked
     through;
-  - drawn surfaces that stand off their collision. At the owner's second spot (level_06/day_8,
-    `where` 14.681 35.905 142.948, crouched in a wedge under a bank), the terrain's blend layer
-    `ground_02_s_alpha_vc` of `level/06_v1/terain1` hangs up to 0.24 m off the terrain's
-    collision. The eye was 0.20 m from that drawn lip and 0.43 m from any collision, so no
-    collision test sees it. Elsewhere around that spot the layer lies on the collision (median
-    0, 90 % within 1.3 cm). Fixing these needs content: collision where the drawn lip is.
   - a scope's zoom (the near plane is 0.05 m times the zoom, so up to about 0.2 m when aiming).
 - **Not played:** run with Unicorn only (`check_head_clearance_026g.py`).

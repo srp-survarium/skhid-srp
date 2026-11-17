@@ -11,19 +11,13 @@
 //! capsule walks into it and the eye with it.
 //!
 //! At update_camera's eye (`camera.eye`), for a living player's own eye (a
-//! ragdoll's, patch 76's, is left as it is), against the level's collision
-//! that bullets hit (the drawn walls, the lobby camera's filter):
-//! - the way: one ray from a point inside the capsule, `BELOW_EYE` under the
-//!   eye on the body's up, to the eye and `CLEARANCE` past it. A hit puts the
-//!   eye `CLEARANCE` short of it on that way, at once; when the way clears the
-//!   eye goes back at `OUT_RATE`;
-//! - around: from there, rays in `AROUND`'s 14 directions, `CLEARANCE` long;
-//!   the nearest hit pushes the eye straight back from it to `CLEARANCE`
-//!   (as far as the way back is free), up to `PUSHES` times: a bank, a slope
-//!   or a wall beside or in front of the eye, which the way never meets.
-//!
-//! Only the view moves: the eyes' transform, the shots, the hit models and
-//! the controller are the game's. Nothing a match computes.
+//! ragdoll's, patch 76's, is left as it is): one ray from a point inside the
+//! capsule, `BELOW_EYE` under the eye on the body's up, to the eye and
+//! `CLEARANCE` past it, against the level's collision that bullets hit (the
+//! drawn walls, the lobby camera's filter). A hit puts the eye `CLEARANCE`
+//! short of it on that way, at once; when the way clears the eye goes back
+//! at `OUT_RATE`. Only the view moves: the eyes' transform, the shots, the
+//! hit models and the controller are the game's. Nothing a match computes.
 
 #![forbid(unsafe_code)]
 
@@ -50,22 +44,6 @@ const OUT_RATE: f32 = 6.0;
 const LONGEST_FRAME: f32 = 0.1;
 /// A pull below this (m) with none wanted is none.
 const NO_PULL: f32 = 0.001;
-/// The directions around the eye a ray tests: the six axes and the eight
-/// corners of a cube (unit), at most 35 degrees from any direction.
-const AROUND: [Vec3; 14] = {
-    const C: f32 = 0.577_350_3;
-    [
-        Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, -1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 0.0, -1.0),
-        Vec3::new(C, C, C), Vec3::new(C, C, -C), Vec3::new(C, -C, C), Vec3::new(C, -C, -C),
-        Vec3::new(-C, C, C), Vec3::new(-C, C, -C), Vec3::new(-C, -C, C), Vec3::new(-C, -C, -C),
-    ]
-};
-/// The most pushes a frame.
-const PUSHES: usize = 3;
-/// A hit this much inside `CLEARANCE` or less is none (m): the way's own
-/// surface, left at `CLEARANCE`, never pushes.
-const SLACK: f32 = 0.001;
 
 /// The eye's pull, between frames.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -91,51 +69,23 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
         PULL.set(thread, Pull::Off);
         return Flow::Continue;
     };
-    let Some(world) = player.physics_world() else {
-        PULL.set(thread, Pull::Off);
-        return Flow::Continue;
-    };
-    let ray = |from: Vec3, along: Vec3, length: f32| {
+    let hit = player.physics_world().and_then(|world| {
+        let (from, along) = (way.from, way.along);
         world
-            .ray_test([from.x, from.y, from.z], [along.x, along.y, along.z], length, GROUP, MASK)
+            .ray_test([from.x, from.y, from.z], [along.x, along.y, along.z], way.length + CLEARANCE, GROUP, MASK)
             .map(|hit| (Vec3::new(hit.point[0], hit.point[1], hit.point[2]) - from).dot(along))
-    };
-    let hit = ray(way.from, way.along, way.length + CLEARANCE);
+    });
     let next = step(PULL.get(thread), player.id(), wanted_pull(way.length, hit), clock::milliseconds(thread));
     PULL.set(thread, next);
-    let pull = match next {
-        Pull::On { pull, .. } => pull,
-        Pull::Off => 0.0,
-    };
-    let pulled = if pull > 0.0 { way.from + way.along * (way.length - pull) } else { place(&eye) };
-    let moved = clear_around(pulled, ray);
-    if pull > 0.0 || moved != pulled {
+    if let Pull::On { pull, .. } = next
+        && pull > 0.0
+    {
+        let moved = way.from + way.along * (way.length - pull);
         let mut view = eye;
         view[12..15].copy_from_slice(&[moved.x, moved.y, moved.z]);
         camera::look_from(ctx, view);
     }
     Flow::Continue
-}
-
-/// `at` pushed out of what the rays around it meet within `CLEARANCE`: the
-/// nearest hit's way back, to `CLEARANCE` from it or half the free room
-/// behind, at most `PUSHES` times. `ray(from, unit along, length)` is the
-/// level's first hit that far, in metres along.
-fn clear_around(mut at: Vec3, ray: impl Fn(Vec3, Vec3, f32) -> Option<f32>) -> Vec3 {
-    for _ in 0..PUSHES {
-        let nearest = AROUND
-            .iter()
-            .filter_map(|&along| ray(at, along, CLEARANCE).filter(|h| h.is_finite() && *h < CLEARANCE - SLACK).map(|h| (h, along)))
-            .min_by(|a, b| a.0.total_cmp(&b.0));
-        let Some((hit, along)) = nearest else { break };
-        let want = CLEARANCE - hit.max(0.0);
-        let room = ray(at, -along, want).map_or(want, |free| free.max(0.0) * 0.5);
-        if room <= SLACK {
-            break;
-        }
-        at -= along * room.min(want);
-    }
-    at
 }
 
 /// The ray's way: from inside the capsule to the eye.
@@ -243,65 +193,6 @@ mod tests {
         assert_eq!(pull(s), 0.0);
         let other = Pull::On { player: player(2), pull: 0.3, at: 0 };
         assert_eq!(pull(step(other, player(1), 0.0, 16)), 0.0);
-    }
-
-    /// The level as planes (a point, its unit normal facing the free side).
-    fn planes(planes: &[(Vec3, Vec3)]) -> impl Fn(Vec3, Vec3, f32) -> Option<f32> + '_ {
-        move |from, along, length| {
-            planes
-                .iter()
-                .filter_map(|&(point, normal)| {
-                    let towards = along.dot(normal);
-                    if towards >= 0.0 {
-                        return None;
-                    }
-                    let t = (point - from).dot(normal) / towards;
-                    (0.0..=length).contains(&t).then_some(t)
-                })
-                .min_by(|a, b| a.total_cmp(b))
-        }
-    }
-
-    #[test]
-    fn nothing_near_leaves_the_eye() {
-        let eye = Vec3::new(1.0, 2.0, 3.0);
-        assert_eq!(clear_around(eye, planes(&[])), eye);
-        let far = [(Vec3::new(1.0, 2.0, 3.2), Vec3::new(0.0, 0.0, -1.0))];
-        assert_eq!(clear_around(eye, planes(&far)), eye);
-    }
-
-    #[test]
-    fn a_bank_in_front_pushes_the_eye_back() {
-        let eye = Vec3::new(0.0, 1.0, 0.0);
-        // a wall 5 cm ahead (+z), facing the eye
-        let wall = [(Vec3::new(0.0, 1.0, 0.05), Vec3::new(0.0, 0.0, -1.0))];
-        let moved = clear_around(eye, planes(&wall));
-        assert!((moved.z - (0.05 - CLEARANCE)).abs() < 2e-3 && moved.x == 0.0 && moved.y == 1.0, "{moved:?}");
-        // a slope (45 degrees) 5 cm from the eye
-        let n = Vec3::new(0.0, 1.0, -1.0).direction().unwrap();
-        let slope = [(eye - n * 0.05, n)];
-        let moved = clear_around(eye, planes(&slope));
-        let away = (moved - (eye - n * 0.05)).dot(n);
-        assert!(away > CLEARANCE * 0.8 && away <= CLEARANCE + 1e-4, "{away}");
-    }
-
-    #[test]
-    fn a_push_stops_short_of_what_is_behind() {
-        let eye = Vec3::new(0.0, 1.0, 0.0);
-        let both = [
-            (Vec3::new(0.0, 1.0, 0.05), Vec3::new(0.0, 0.0, -1.0)),
-            (Vec3::new(0.0, 1.0, -0.07), Vec3::new(0.0, 0.0, 1.0)),
-        ];
-        let moved = clear_around(eye, planes(&both));
-        assert!(moved.z < 0.05 && moved.z > -0.07, "{moved:?}");
-    }
-
-    #[test]
-    fn the_ways_own_surface_never_pushes() {
-        // after the way's pull the eye is CLEARANCE short of a ceiling along the way
-        let ceiling = [(Vec3::new(0.0, 1.0 + CLEARANCE, 0.0), Vec3::new(0.0, -1.0, 0.0))];
-        let eye = Vec3::new(0.0, 1.0, 0.0);
-        assert_eq!(clear_around(eye, planes(&ceiling)), eye);
     }
 
     #[test]

@@ -19,15 +19,11 @@ eye 1.06 m over the feet and 0.13 m ahead.
 - The first person (0), nothing in the way: the view is the original's, bit
   for bit; one ray, from 0.4 m under the eye on the body's up over its feet
   toward the eye, the way 0.12 m longer, on the player's physics world with
-  the lobby camera's filter (group 10h, mask 8, no delegate); then 14 rays
-  around the eye, 0.12 m long, the same filter.
+  the lobby camera's filter (group 10h, mask 8, no delegate).
 - A surface across the way: the view's turn is the original's, its eye at
-  once 0.12 m short of it on the way, the rays around pushing nothing; one
-  nearer than 0.12 m to the start puts the eye at the start and pushes it on
-  out of the surface's 0.1 m; one past the eye and its clearance leaves the
-  original's view.
-- A bank 5 cm in front of the eye, which the way does not meet: the eye
-  pushed back out of it to 0.1 m or more, at once.
+  once 0.12 m short of it on the way (a surface nearer than 0.12 m to the
+  start puts the eye at the start); one past the eye and its clearance
+  leaves the original's view.
 - It goes: the eye back by 1 - e^(-6 t) of the way in t s, then the
   original's view again, bit for bit.
 - A spectator (4): the same as the first person.
@@ -131,7 +127,7 @@ class Game:
 
     def ray_test(self, emu, *_):
         """bullet_physics_world::ray_test (thiscall, `ret 20h`): the wall, a
-        plane through `point` facing `normal` (met from its front), or nothing."""
+        plane through `point` facing `normal`, or nothing."""
         esp = emu.reg_read(UC_X86_REG_ESP)
         ret, result, origin, direction = (self.u32(esp + 4 * i) for i in range(4))
         length = struct.unpack("<f", emu.mem_read(esp + 16, 4))[0]
@@ -141,8 +137,7 @@ class Game:
         emu.mem_write(result, bytes(0x28))
         if self.wall is not None:
             point, normal = self.wall
-            towards = dot(d, normal)
-            t = dot(sub(point, o), normal) / towards if towards < 0 else -1
+            t = dot(sub(point, o), normal) / dot(d, normal)
             if 0 <= t <= length:
                 hit = tuple(a + b * t for a, b in zip(o, d))
                 emu.mem_write(result, struct.pack("<3f", *hit))
@@ -212,36 +207,18 @@ def main():
         check(s_regs[UC_X86_REG_EIP] == VIEWED and not s_rays and s_view[12:15] == eye32,
               f"mode {mode}, the original: the eyes' view, no ray")
         check(o_view == s_view and o_regs == s_regs, f"mode {mode}, nothing in the way: the original's view and registers")
-        check(len(rays) == 15 and all(r[0] == PHYSICS and r[4:] == (0x10, 0x08, 0) for r in rays)
+        check(len(rays) == 1 and rays[0][0] == PHYSICS and rays[0][4:] == (0x10, 0x08, 0)
               and math.dist(rays[0][1], START) < 1e-4 and math.dist(rays[0][2], way) < 1e-4
-              and abs(rays[0][3] - (length + CLEARANCE)) < 1e-4
-              and all(math.dist(r[1], eye32) < 1e-4 and abs(math.sqrt(dot(r[2], r[2])) - 1) < 1e-4
-                      and abs(r[3] - CLEARANCE) < 1e-6 for r in rays[1:])
-              and len({tuple(round(x, 3) for x in r[2]) for r in rays[1:]}) == 14,
+              and abs(rays[0][3] - (length + CLEARANCE)) < 1e-4,
               f"mode {mode}: one ray from 0.4 m under the eye over the feet toward the eye, 0.12 m past it, "
-              "then 14 around the eye 0.12 m long, group 10h mask 8 on its world")
-        for at in (length + 0.05, length - 0.1):
-            expect = at - CLEARANCE
+              "group 10h mask 8 on its world")
+        for at in (length + 0.05, length - 0.1, 0.05):
+            expect = max(0.0, at - CLEARANCE)
             o_view, o_regs, rays = ours.update_camera(mode, wall=surface_at(at))
             check(o_view[:12] == s_view[:12] and o_view[15] == s_view[15] and abs(eye_out(o_view) - expect) < 1e-4
-                  and on_way(o_view) and o_regs == s_regs and len(rays) == 15,
+                  and (expect == 0 or on_way(o_view)) and o_regs == s_regs and len(rays) == 1,
                   f"mode {mode}, a surface {at:.3f} m out: the eye at once {expect:.3f} m out on the way, "
-                  "its turn the original's, nothing pushed")
-        point, normal = surface_at(0.05)
-        o_view, o_regs, _ = ours.update_camera(mode, wall=(point, normal))
-        clear = dot(sub(o_view[12:15], point), normal)
-        check(o_view[:12] == s_view[:12] and 0.1 <= clear <= CLEARANCE + 1e-4 and o_regs == s_regs,
-              f"mode {mode}, a surface 0.05 m from the start: the eye at the start, pushed on to {clear:.3f} m from it")
-        ahead = (S, 0.0, C)
-        bank = (tuple(e + a * 0.05 for e, a in zip(EYE_AT, ahead)), tuple(-a for a in ahead))
-        for n in range(100):
-            ours.update_camera(mode)
-        o_view, o_regs, rays = ours.update_camera(mode, wall=bank)
-        clear = dot(sub(o_view[12:15], bank[0]), bank[1])
-        check(o_view[:12] == s_view[:12] and 0.1 <= clear <= CLEARANCE + 1e-4 and o_regs == s_regs
-              and abs(o_view[13] - eye32[1]) < 1e-4,
-              f"mode {mode}, a bank 5 cm ahead the way does not meet: the eye pushed back to {clear:.3f} m, "
-              "at once, its height kept")
+                  "its turn the original's")
         for n in range(100):
             o_view, _, _ = ours.update_camera(mode)
         check(o_view == s_view, f"mode {mode}: after a while with nothing in the way, the original's view again")
