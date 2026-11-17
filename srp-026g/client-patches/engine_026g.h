@@ -119,6 +119,7 @@ struct scene_model;
 struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
+struct scroll_source;
 struct simple_game_project;
 struct sound_emitter;
 struct sound_instance_proxy;
@@ -136,6 +137,7 @@ struct swap_chain;
 struct system_renderer;
 struct text_translator;
 struct triangle_callback;
+struct ui_scroll_view;
 struct usable_list;
 struct usable_object;
 struct usable_user;
@@ -902,5 +904,11 @@ void engine_process_all_triangles(struct bt_collision_shape *shape, struct trian
 
 /* 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly */
 void __attribute__((thiscall)) engine_triangle_process(struct triangle_callback *callback, const float *triangle, unsigned int part, unsigned int index);
+
+/* 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_scroll_view_set_follow(struct ui_scroll_view *view, unsigned int follow);
+
+/* 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_scroll_set_position(struct scroll_source *source, float position);
 
 #endif

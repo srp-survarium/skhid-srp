@@ -2676,3 +2676,9 @@ va	name	source	ret_cleanup	result
 0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	manual	16	void
 0x000a8660	btBvhTriangleMeshShape::processAllTriangles	manual	12	void
 0x000c5600	btConvexTriangleCallback::processTriangle	manual	12	void
+0x0001eaa0	vostok::console_impl::on_keyboard_action	manual	8	AL 1 on every path: the open console takes every key (a pressed Esc or ~ closes it with m_self_deactivate +4, Up, Down and Tab its tips +260h, Caps Lock moves the focus between the line and the view; every other key, and every key's up and held kinds, to its dialog's input handler, 0x1EDFC)
+0x0001c810	vostok::engine::game_console::on_mouse_move	manual	16	AL 1: the move given to the console's dialog's input handler (vtable+0Ch) and taken, the wheel too: no later handler (the game world's, the player's) gets it
+0x0001c760	vostok::engine::game_console::on_activate	manual	0	none; the text edit focused (+1Ch, w() vtable+14h, set_focused +34h), m_active +264h 1, the console's input handler (+268h) added to the input world (+26Ch, vtable+10h)
+0x0001d0d0	vostok::console_impl::tick	manual	8	none; under the log file's transaction (g_log_file 0x1F1D608, its lines +4438h): the view (+18h) not following and its v scroll's |position| as last time (+0Ch, within 1e-5): only a new line's room added to the last item (0x1D209); else, the lines changed or the position moved, the view cleared and filled again: a spacer of the position's height (following: lines x 20 - the view's height + the text edit's height), floor(height / 20) lines from the log (goto_line floor(position / 20), at most lines - shown), a tail; the count (+34h), the position (+0Ch) and the step 20 kept
+0x00349c60	vostok::ui::ui_scroll_view::set_follow_last_line	manual	4	none; bit 1 of the flags (+44h) set (follow) or cleared
+0x00349ca0	vostok::ui::ui_scroll_v_source::set_position	manual	4	none; the pad's position y set (its window's set_position, vtable+0), x kept

@@ -257,6 +257,8 @@ global engine_is_first_view
 global engine_draw_lines
 global engine_process_all_triangles
 global engine_triangle_process
+global engine_scroll_view_set_follow
+global engine_scroll_set_position
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -352,6 +354,8 @@ engine_fsm_always equ 0x372420   ; 0x372420 survarium::weapon_core_throw_grenade
 engine_take_deactivatable equ 0x397c20   ; 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
 engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall)
 engine_triangle_process equ 0xc5600   ; 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
+engine_scroll_view_set_follow equ 0x349c60   ; 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly
+engine_scroll_set_position equ 0x349ca0   ; 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX

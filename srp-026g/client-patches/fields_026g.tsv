@@ -1365,3 +1365,13 @@ survarium::image	foot_step_return	0x2A6577	u8	on_foot_step's return from on_step
 survarium::image	landing_step_return	0x23FC31	u8	the landing step's (0x23FBE0) return from on_step (call 0x23FC2C)
 survarium::on_step_frame	caller_player	0x0	ptr<survarium::player>	caller_edi as on_landing's player: only when the return address is landing_step_return
 vostok::physics::step_down_cache_entry	hit	0x24	u8	the step-down sweep's cached answer met something (0x8504A); a cached miss is a sweep that touched nothing
+vostok::console_impl	view	0x18	ptr<vostok::ui::ui_scroll_view>	its output's scroll view (m_ui_view, made by ui_world::create_scroll_view 0x3466A0 in console_impl::console_impl 0x1C930): console_impl::tick 0x1D179 asks it for its v scroll's position and its follow flag and fills it with the log's lines
+vostok::console_input	console	-0x268	obj<vostok::console_impl>	the game console whose input handler (its +268h, vtable 0x9DC030) this is: the handler's slots reach the console at ecx-268h (0x1C7FE, 0x1C840) and its dialog at ecx-254h (0x1C810)
+vostok::console_key_frame	key	0x8	u32	console_impl::on_keyboard_action's second stack argument at its start (0x1EAA0, by the site's ESP): the key, a DirectInput code
+vostok::console_mouse_frame	z	0x10	u32	game_console::on_mouse_move's fourth stack argument at its start (0x1C810): the wheel's turn since the last poll, a signed dword (DIMOUSESTATE's lZ: 120 a notch, forward positive)
+vostok::ui::ui_scroll_view	flags	0x44	u16	its flags: bit 1 (2) follow the last line, as the ctor sets it (0x3495B2); get_follow_last_line 0x349520, set_follow_last_line 0x349C60
+vostok::ui::ui_scroll_view	height	0x18	f32	its height: its window (+4, w() 0x349CF0) size's y (+10h, get_size 0x346480); console_impl::tick takes the visible lines from it (0x1D2B1)
+vostok::ui::ui_scroll_view	pad_top	0x54	f32	its pad's (+48h, vtable 0xA1DED4) position y (+8, get_position 0x38990): 0 at the top, -(pad_length - height) at the end; the v scroll's get_position reads it (0x349C90)
+vostok::ui::ui_scroll_view	pad_length	0x5C	f32	its pad's size y (+10h): the items' heights added (recalc); the v scroll's get_length reads it (0x349C80)
+vostok::ui::ui_scroll_view	source	0x1C8	obj<vostok::ui::scroll_source>	its v scroll, a ui_scroll_v_source (vtable 0xA1DCB0; get_v_scroll 0x349530 returns it)
+vostok::ui::scroll_source	step	0x8	f32	its step (get_step_size 0x349500): 0 from the ctor (0x349623), 20 (the line's height, 0xA2D7E4) after console_impl::tick filled the view (set_step_size, 0x1D5A4)

@@ -443,6 +443,10 @@ unsafe extern "thiscall" {
     pub fn engine_take_deactivatable(state: Option<BatteryState>) -> u8;
     /// 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
     pub fn engine_triangle_process(callback: Option<TriangleCallback>, triangle: *const f32, part: u32, index: u32);
+    /// 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly
+    pub fn engine_scroll_view_set_follow(view: Option<UiScrollView>, follow: u32);
+    /// 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly
+    pub fn engine_scroll_set_position(source: Option<ScrollSource>, position: f32);
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_instance(const void *info, const void *allocator, void **instance)
@@ -25340,6 +25344,195 @@ impl StepDownCacheEntry {
     }
 }
 
+/// A vostok::console_impl (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConsoleImpl(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ConsoleImpl {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x18 (ptr<vostok::ui::ui_scroll_view>): its output's scroll view (m_ui_view, made by ui_world::create_scroll_view 0x3466A0 in console_impl::console_impl 0x1C930): console_impl::tick 0x1D179 asks it for its v scroll's position and its follow flag and fills it with the log's lines
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view(self) -> Option<UiScrollView> {
+        unsafe { self.0.byte_add(0x18).cast::<Option<UiScrollView>>().read_volatile() }
+    }
+
+    /// +0x18 (ptr<vostok::ui::ui_scroll_view>): its output's scroll view (m_ui_view, made by ui_world::create_scroll_view 0x3466A0 in console_impl::console_impl 0x1C930): console_impl::tick 0x1D179 asks it for its v scroll's position and its follow flag and fills it with the log's lines
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_view(self, value: Option<UiScrollView>) {
+        unsafe { self.0.byte_add(0x18).cast::<Option<UiScrollView>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::console_input (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConsoleInput(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ConsoleInput {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x268 (obj<vostok::console_impl>): the game console whose input handler (its +268h, vtable 0x9DC030) this is: the handler's slots reach the console at ecx-268h (0x1C7FE, 0x1C840) and its dialog at ecx-254h (0x1C810)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn console(self) -> ConsoleImpl {
+        ConsoleImpl(unsafe { self.0.byte_sub(0x268) })
+    }
+}
+
+/// A vostok::console_key_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConsoleKeyFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ConsoleKeyFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): console_impl::on_keyboard_action's second stack argument at its start (0x1EAA0, by the site's ESP): the key, a DirectInput code
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn key(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::console_mouse_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConsoleMouseFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ConsoleMouseFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (u32): game_console::on_mouse_move's fourth stack argument at its start (0x1C810): the wheel's turn since the last poll, a signed dword (DIMOUSESTATE's lZ: 120 a notch, forward positive)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn z(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::ui::ui_scroll_view (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UiScrollView(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UiScrollView {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x44 (u16): its flags: bit 1 (2) follow the last line, as the ctor sets it (0x3495B2); get_follow_last_line 0x349520, set_follow_last_line 0x349C60
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn flags(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x44).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x18 (f32): its height: its window (+4, w() 0x349CF0) size's y (+10h, get_size 0x346480); console_impl::tick takes the visible lines from it (0x1D2B1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn height(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x18).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x54 (f32): its pad's (+48h, vtable 0xA1DED4) position y (+8, get_position 0x38990): 0 at the top, -(pad_length - height) at the end; the v scroll's get_position reads it (0x349C90)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pad_top(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x54).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x5c (f32): its pad's size y (+10h): the items' heights added (recalc); the v scroll's get_length reads it (0x349C80)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pad_length(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x5c).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x1c8 (obj<vostok::ui::scroll_source>): its v scroll, a ui_scroll_v_source (vtable 0xA1DCB0; get_v_scroll 0x349530 returns it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn source(self) -> ScrollSource {
+        ScrollSource(unsafe { self.0.byte_add(0x1c8) })
+    }
+}
+
+/// A vostok::ui::scroll_source (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScrollSource(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ScrollSource {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (f32): its step (get_step_size 0x349500): 0 from the ctor (0x349623), 20 (the line's height, 0xA2D7E4) after console_impl::tick filled the view (set_step_size, 0x1D5A4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn step(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x8).cast::<f32>().as_ptr() }
+    }
+}
+
 /// A survarium::game_material_manager (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -30550,6 +30743,78 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn entry(machine: &impl Machine) -> Option<StepDownCacheEntry> {
             NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(StepDownCacheEntry)
+        }
+    }
+
+    /// console.key (0x1eaa0): console_impl::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,14h; called only by game_console's input handler slot 0, 0x1C7F0): ECX the console, EAX the key's kind (1 down, 2 up, 3 held), ESP+4 the input world, +8 the key (DirectInput); every key of the open console (input priority 5, before the game world's 7 and the player's 10), which it takes on every path (AL 1), on the game's thread
+    pub mod console_key {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a vostok::console_impl (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn console(machine: &impl Machine) -> Option<ConsoleImpl> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(ConsoleImpl)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn kind(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+
+        /// the site's ESP: a vostok::console_key_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ConsoleKeyFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ConsoleKeyFrame)
+        }
+    }
+
+    /// console.wheel (0x1c810): game_console::on_mouse_move's start (its input handler's slot 3, vtable 0x9DC030 +0Ch; mov ecx,[ecx-254h], the console's dialog): ECX the console's input handler (the console's +268h), ESP+4 the input world, +8 x, +0Ch y, +10h z (the wheel); every mouse move of the open console, which it takes (AL 1), on the game's thread
+    pub mod console_wheel {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a vostok::console_input (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn input(machine: &impl Machine) -> Option<ConsoleInput> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(ConsoleInput)
+        }
+
+        /// the site's ESP: a vostok::console_mouse_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<ConsoleMouseFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(ConsoleMouseFrame)
+        }
+    }
+
+    /// console.activate (0x1c760): game_console::on_activate's start (push esi / mov esi,ecx / mov ecx,[esi+1Ch]; vtable 0x9DC030 +24h through 0x1C840): ECX the console, about to be shown (its text edit focused, +264h set, its input handler added to the input world), on the game's thread
+    pub mod console_activate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a vostok::console_impl (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn console(machine: &impl Machine) -> Option<ConsoleImpl> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(ConsoleImpl)
         }
     }
 }

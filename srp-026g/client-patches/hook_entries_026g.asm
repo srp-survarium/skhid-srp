@@ -3306,6 +3306,123 @@ collision_view_on_debug_lines_replay:
 ; 0x9e4f94 btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box: vtable -> collision_view_on_triangle (wraps engine_triangle_process 0xc5600)
     RUST_THISCALL collision_view_on_triangle, hook_collision_view_on_triangle, 3
 
+; 0x1eaa0 console_impl::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,14h; called only by game_console's input handler slot 0, 0x1C7F0): ECX the console, EAX the key's kind (1 down, 2 up, 3 held), ESP+4 the input world, +8 the key (DirectInput); every key of the open console (input priority 5, before the game world's 7 and the player's 10), which it takes on every path (AL 1), on the game's thread: lohook -> console_scroll_on_key
+global console_scroll_on_key
+extern hook_console_scroll_on_key
+console_scroll_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_scroll_on_key
+    mov edx, console_scroll_on_key_replay
+    cmp eax, 0
+    je console_scroll_on_key_go
+    mov edx, 0x1eaa9
+    cmp eax, 1
+    je console_scroll_on_key_go
+    ud2
+console_scroll_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_scroll_on_key_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x14
+    jmp 0x1eaa9
+
+; 0x1c810 game_console::on_mouse_move's start (its input handler's slot 3, vtable 0x9DC030 +0Ch; mov ecx,[ecx-254h], the console's dialog): ECX the console's input handler (the console's +268h), ESP+4 the input world, +8 x, +0Ch y, +10h z (the wheel); every mouse move of the open console, which it takes (AL 1), on the game's thread: lohook -> console_scroll_on_wheel
+global console_scroll_on_wheel
+extern hook_console_scroll_on_wheel
+console_scroll_on_wheel:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_scroll_on_wheel
+    mov edx, console_scroll_on_wheel_replay
+    cmp eax, 0
+    je console_scroll_on_wheel_go
+    mov edx, 0x1c816
+    cmp eax, 1
+    je console_scroll_on_wheel_go
+    ud2
+console_scroll_on_wheel_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_scroll_on_wheel_replay:
+    db 0x8b, 0x89, 0xac, 0xfd, 0xff, 0xff
+    jmp 0x1c816
+
+; 0x1c760 game_console::on_activate's start (push esi / mov esi,ecx / mov ecx,[esi+1Ch]; vtable 0x9DC030 +24h through 0x1C840): ECX the console, about to be shown (its text edit focused, +264h set, its input handler added to the input world), on the game's thread: lohook -> console_scroll_on_activate
+global console_scroll_on_activate
+extern hook_console_scroll_on_activate
+console_scroll_on_activate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_scroll_on_activate
+    mov edx, console_scroll_on_activate_replay
+    cmp eax, 0
+    je console_scroll_on_activate_go
+    mov edx, 0x1c766
+    cmp eax, 1
+    je console_scroll_on_activate_go
+    ud2
+console_scroll_on_activate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_scroll_on_activate_replay:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x1c
+    jmp 0x1c766
+
 ; 0x9e7c10 cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found: vtable -> console_where_on_execute (wraps engine_cc_delegate_execute 0xec830)
     RUST_THISCALL console_where_on_execute, hook_console_where_on_execute, 1
 

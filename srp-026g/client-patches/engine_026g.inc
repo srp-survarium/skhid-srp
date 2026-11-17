@@ -856,3 +856,11 @@ extern engine_process_all_triangles
 ; 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_triangle_process
+; void engine_scroll_view_set_follow(struct ui_scroll_view *view, unsigned int follow)
+; 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_scroll_view_set_follow
+; void engine_scroll_set_position(struct scroll_source *source, float position)
+; 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_scroll_set_position
