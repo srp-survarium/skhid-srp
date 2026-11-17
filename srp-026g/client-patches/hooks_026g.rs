@@ -2111,6 +2111,26 @@ pub unsafe extern "C" fn hook_collision_view_on_triangle(a0: Option<raw::Triangl
     { crate::collision_view::on_triangle(&orig, &mut callback, &triangle, part, index); 0 }
 }
 
+// ---- console_paste (patch 157) ----
+
+/// The named exits of console_paste::on_paste (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ConsolePasteOnPasteExit { Pasted }
+/// The entry `console_paste_on_paste` (0x3482c0, ui_text_edit::paste_from_clipboard's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,28h), the engine's stub that logs "not implemented": ECX the text edit (thiscall, no argument; Ctrl+V's and Shift+Insert's key binding, init_internals 0x34AA5C, calls it through 0x34B4C0, on the game's thread); pasted is its `ret` (0x34838F), the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_paste_on_paste(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_paste_on_paste` calls this, from the game's jump at 0x3482c0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_paste::on_paste(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_execute` (0x9e7c10, cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found) calls this with
