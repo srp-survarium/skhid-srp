@@ -1,0 +1,69 @@
+{
+  "_about": "Rudnya v0.21 tractor-station corridor: retain the authored ambient light position, radius and colour, with intensity 1.1 instead of 2.7. The retained 0.21 value overbrightened in_00_wall (mean luma 50.3 vs 20.5); native intensity 1 was too dark (9.2), so the local fill is tuned against the saved donor view. Both day modes. The northern tractor-station corridor retains ambient_light(58) with intensity 1.5 instead of 1 to keep the floor readable under the native atmosphere (in_18_wall was luma 12.3 vs 27.3).",
+  "set_entry": [
+    {
+      "file": "projects/v021d_level_01/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/ambient/ambient_light"
+      },
+      "from": {
+        "intensity": 2.7
+      },
+      "to": {
+        "intensity": 1.1
+      }
+    },
+    {
+      "file": "projects/v021d_level_01/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/ambient/ambient_light"
+      },
+      "from": {
+        "intensity": 2.7
+      },
+      "to": {
+        "intensity": 1.1
+      }
+    },
+    {
+      "file": "projects/v021d_level_01/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/ambient/ambient_light(58)"
+      },
+      "from": {
+        "intensity": 1.5
+      },
+      "to": {}
+    },
+    {
+      "file": "projects/v021d_level_01/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/ambient/ambient_light(58)"
+      },
+      "from": {
+        "intensity": 1.5
+      },
+      "to": {}
+    }
+  ],
+  "set": [
+    {
+      "file": "projects/v021d_level_01/day_2/client_project",
+      "path": "client_objects[45]/intensity",
+      "from": 1,
+      "to": 1.5,
+      "as_float": true
+    },
+    {
+      "file": "projects/v021d_level_01/day_4/client_project",
+      "path": "client_objects[45]/intensity",
+      "from": 1,
+      "to": 1.5,
+      "as_float": true
+    }
+  ]
+}

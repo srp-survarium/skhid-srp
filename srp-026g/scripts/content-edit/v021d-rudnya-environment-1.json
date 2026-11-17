@@ -1,0 +1,223 @@
+{
+  "_about": "Rudnya v0.21 day: native 0.26 atmosphere, fog and sun shading avoid the yellow indoor haze caused by donor fog settings in the 0.26 renderer. Preserve donor local lights, probes, height ambient and sun direction. Both Protective device and Team Deathmatch.",
+  "set_entry": [
+    {
+      "file": "projects/v021d_level_01/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "game_object_type": "environment"
+      },
+      "from": {
+        "properties/atmosphere_miePi_multiplier": 75.09,
+        "properties/atmosphere_mieSun_multiplier": 3.99,
+        "properties/atmosphere_rayleighSun_multiplier": 4.67,
+        "properties/god_rays_attenuation": 1.92,
+        "properties/god_rays_color_1": [
+          0.996,
+          0.891,
+          0.815,
+          1.0
+        ],
+        "properties/god_rays_color_2": [
+          1.0,
+          0.828,
+          0.483,
+          1.0
+        ],
+        "properties/god_rays_intensity": 1.02,
+        "properties/mie_fog_color": [
+          1.232,
+          1.195,
+          1.022,
+          1.0
+        ],
+        "properties/mie_fog_density": 7.65,
+        "properties/mie_fog_far_distance": 514.91,
+        "properties/mie_fog_near_distance": 0,
+        "properties/rayleigh_fog_far_distance": 374.29,
+        "properties/rayleigh_fog_near_distance": 0,
+        "properties/sky_clouds_rotation": 316.74,
+        "properties/sky_clouds_texture": "ported/v021d/sky/sky2",
+        "properties/sky_shadows_moving_x": 0.03,
+        "properties/sun_color": [
+          1.0,
+          0.889,
+          0.703,
+          1.0
+        ],
+        "properties/sun_intensity": 3
+      },
+      "to": {
+        "properties/atmosphere_miePi_multiplier": 40.93,
+        "properties/atmosphere_mieSun_multiplier": 1,
+        "properties/atmosphere_rayleighSun_multiplier": 5,
+        "properties/god_rays_attenuation": 10,
+        "properties/god_rays_color_1": [
+          0.837,
+          0.549,
+          0.082,
+          1.0
+        ],
+        "properties/god_rays_color_2": [
+          0.845,
+          0.626,
+          0.486,
+          1.0
+        ],
+        "properties/god_rays_intensity": 5,
+        "properties/mie_fog_color": [
+          0.131,
+          0.133,
+          0.308,
+          1.0
+        ],
+        "properties/mie_fog_density": 0.2,
+        "properties/mie_fog_far_distance": 3000,
+        "properties/mie_fog_near_distance": 50,
+        "properties/rayleigh_fog_far_distance": 300,
+        "properties/rayleigh_fog_near_distance": 10,
+        "properties/sky_clouds_rotation": 316.36,
+        "properties/sky_clouds_texture": "sky/sky2",
+        "properties/sky_shadows_moving_x": 0.05,
+        "properties/sun_color": [
+          1.0,
+          0.917,
+          0.823,
+          1.0
+        ],
+        "properties/sun_intensity": 2
+      }
+    },
+    {
+      "file": "projects/v021d_level_01/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "game_object_type": "environment"
+      },
+      "from": {
+        "properties/atmosphere_miePi_multiplier": 75.09,
+        "properties/atmosphere_mieSun_multiplier": 3.99,
+        "properties/atmosphere_rayleighSun_multiplier": 4.67,
+        "properties/god_rays_attenuation": 1.92,
+        "properties/god_rays_color_1": [
+          0.996,
+          0.891,
+          0.815,
+          1.0
+        ],
+        "properties/god_rays_color_2": [
+          1.0,
+          0.828,
+          0.483,
+          1.0
+        ],
+        "properties/god_rays_intensity": 1.02,
+        "properties/mie_fog_color": [
+          1.232,
+          1.195,
+          1.022,
+          1.0
+        ],
+        "properties/mie_fog_density": 7.65,
+        "properties/mie_fog_far_distance": 514.91,
+        "properties/mie_fog_near_distance": 0,
+        "properties/rayleigh_fog_far_distance": 374.29,
+        "properties/rayleigh_fog_near_distance": 0,
+        "properties/sky_clouds_rotation": 316.74,
+        "properties/sky_clouds_texture": "ported/v021d/sky/sky2",
+        "properties/sky_shadows_moving_x": 0.03,
+        "properties/sun_color": [
+          1.0,
+          0.889,
+          0.703,
+          1.0
+        ],
+        "properties/sun_intensity": 3
+      },
+      "to": {
+        "properties/atmosphere_miePi_multiplier": 40.93,
+        "properties/atmosphere_mieSun_multiplier": 1,
+        "properties/atmosphere_rayleighSun_multiplier": 5,
+        "properties/god_rays_attenuation": 10,
+        "properties/god_rays_color_1": [
+          0.837,
+          0.549,
+          0.082,
+          1.0
+        ],
+        "properties/god_rays_color_2": [
+          0.845,
+          0.626,
+          0.486,
+          1.0
+        ],
+        "properties/god_rays_intensity": 5,
+        "properties/mie_fog_color": [
+          0.131,
+          0.133,
+          0.308,
+          1.0
+        ],
+        "properties/mie_fog_density": 0.2,
+        "properties/mie_fog_far_distance": 3000,
+        "properties/mie_fog_near_distance": 50,
+        "properties/rayleigh_fog_far_distance": 300,
+        "properties/rayleigh_fog_near_distance": 10,
+        "properties/sky_clouds_rotation": 316.36,
+        "properties/sky_clouds_texture": "sky/sky2",
+        "properties/sky_shadows_moving_x": 0.05,
+        "properties/sun_color": [
+          1.0,
+          0.917,
+          0.823,
+          1.0
+        ],
+        "properties/sun_intensity": 2
+      }
+    }
+  ],
+  "set": [
+    {
+      "file": "projects/v021d_level_01/day_2/client_project",
+      "path": "client_objects[74]/properties/god_rays_color_blend_power",
+      "from": 1,
+      "to": 0.35,
+      "as_float": true
+    },
+    {
+      "file": "projects/v021d_level_01/day_2/client_project",
+      "path": "client_objects[74]/properties/mie_fog_bias",
+      "from": 2,
+      "to": 0.5,
+      "as_float": true
+    },
+    {
+      "file": "projects/v021d_level_01/day_2/client_project",
+      "path": "client_objects[74]/properties/sky_shadows_tiling",
+      "from": 2,
+      "to": 0.5,
+      "as_float": true
+    },
+    {
+      "file": "projects/v021d_level_01/day_4/client_project",
+      "path": "client_objects[74]/properties/god_rays_color_blend_power",
+      "from": 1,
+      "to": 0.35,
+      "as_float": true
+    },
+    {
+      "file": "projects/v021d_level_01/day_4/client_project",
+      "path": "client_objects[74]/properties/mie_fog_bias",
+      "from": 2,
+      "to": 0.5,
+      "as_float": true
+    },
+    {
+      "file": "projects/v021d_level_01/day_4/client_project",
+      "path": "client_objects[74]/properties/sky_shadows_tiling",
+      "from": 2,
+      "to": 0.5,
+      "as_float": true
+    }
+  ]
+}
