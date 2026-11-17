@@ -860,3 +860,37 @@ extern engine_process_all_triangles
 ; 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_triangle_process
+; void engine_draw_triangles(struct system_renderer *renderer, const void *vertex_begin, const void *vertex_end, const unsigned short *index_begin, const unsigned short *index_end, unsigned int override_flag)
+; 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24
+extern engine_draw_triangles
+; void engine_text_edit_set_text(struct ui_text_edit_text *part, const char *text)
+; 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_text_edit_set_text
+; void engine_text_edit_set_caret(struct ui_text_edit *edit, unsigned int position, unsigned int select)
+; 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_text_edit_set_caret
+; void engine_text_edit_delete_selection(struct ui_text_edit *edit)
+; 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
+extern engine_text_edit_delete_selection
+; unsigned int engine_open_clipboard(void *window)
+; the IAT slot 0xaefedc (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_open_clipboard
+; void *engine_get_clipboard_data(unsigned int format)
+; the IAT slot 0xaefed8 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_clipboard_data
+; unsigned int engine_close_clipboard(void)
+; the IAT slot 0xaefed4 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_close_clipboard
+; void *engine_global_lock(void *memory)
+; the IAT slot 0x870078 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_global_lock
+; unsigned int engine_global_unlock(void *memory)
+; the IAT slot 0x87007c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_global_unlock
