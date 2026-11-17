@@ -122,6 +122,8 @@ pub mod console_where;
 pub mod collision_view;
 // patch 157: Ctrl+V pastes into the console's line
 pub mod console_paste;
+// patch 158: the first-person eye stays out of the level's surfaces
+pub mod head_clearance;
 
 pub mod replay_file;
 pub mod free_for_all;
