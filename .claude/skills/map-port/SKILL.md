@@ -160,6 +160,16 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     miss is checked from the port alone.
   - Fix what it flags at its cause, rebuild, rerun, until nothing serious is flagged.
 
+## Local recordings
+
+Every port capture match must record worlds into the main checkout's
+`private/world-corpus/local/<map-config>/`: set `SRP_RECORD_DIR` to that folder
+and `SRP_RECORD_MIN_PLAYERS=1` on the server process, not only in the shell that
+starts the rig. Confirm a recording was written. After the local match, run
+`tools/check world-check` with the candidate's composed game data and the whole
+corpus; record any historical refusals separately from the new map's worlds.
+A screenshot sweep without a recording does not satisfy the map's world check.
+
 ## The machine
 
 - No capture while the owner's game runs: wait until `~/.cache/skhid-owner-game.sh`
