@@ -2412,6 +2412,9 @@ va	status	ref_021d	name
 0x000a86a0	reviewed		btBvhTriangleMeshShape::processAllTriangles::MyNodeOverlapCallback::processNode
 0x000c26c0	reviewed		btQuantizedBvh::reportAabbOverlappingNodex
 0x00298ab0	reviewed		survarium::damage_zone::~damage_zone
+0x0001c760	observed		vostok::engine::game_console::on_activate
+0x0001c7a0	observed		vostok::engine::game_console::on_deactivate
+0x0034b4d0	observed		vostok::ui::insert_char_action::execute
 0x0001eaa0	reviewed	0x0001924f	vostok::console_impl::on_keyboard_action
 0x00348120	observed		vostok::ui::ui_text_edit::copy_to_clipboard
 0x003481f0	observed		vostok::ui::ui_text_edit::cut_to_clipboard
@@ -2425,4 +2428,3 @@ va	status	ref_021d	name
 0x0034a450	reviewed		vostok::ui::ui_text_edit's make of a key binding to one of its methods
 0x0034b430	reviewed		vostok::ui::ui_text_edit key binding's test of the key's kind and modifiers
 0x0034b4c0	reviewed		vostok::ui::ui_text_edit method key binding's execute
-0x0034b4d0	reviewed		vostok::ui::ui_text_edit character key binding's execute

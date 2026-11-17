@@ -635,6 +635,10 @@ extern engine_ray_test_single
 ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_key_name
+; unsigned char engine_key_text(struct keyboard *keyboard, unsigned int key, unsigned short *text)
+; 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_key_text
 ; unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
 ; the IAT slot 0xaeff20 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
