@@ -42,4 +42,4 @@ v021d_level_05/day_4	ported_17	-11.125	4.910189	3.1640015	0	0.5890486	0	30	2	kep
 v021d_level_05/day_4	ported_18	-35.375	4.453579	-6.8359985	0	5.8904862	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first; inside established spawn footprint
 v021d_level_05/day_4	ported_19	25.875	8.50851	-6.8359985	0	5.8904862	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first; inside established spawn footprint
 v021d_level_05/day_4	ported_20	-68.375	7.723945	3.1640015	0	5.301438	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first; inside established spawn footprint
-v021d_level_05/day_4	ported_21	47.625	5.2772965	9.164001	0	4.1233406	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first; inside established spawn footprint
+v021d_level_05/day_4	ported_21	-17.875	10.321541	-35.836	0	5.8904862	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spread farthest-first; inside established spawn footprint

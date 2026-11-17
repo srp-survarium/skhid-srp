@@ -72,13 +72,13 @@
   {"files": "projects/v021d_level_05/day_8/client_project", "list": "server_objects/respawn_points", "after": {"point_id": 37}, "like": {"point_id": 0}, "values": {"name": "ffa_ported_18", "full_name": "logic/modes/ffa/respawn/ffa_ported_18", "point_id": 38, "team": 2, "priority": 1, "is_temporary": false, "position": [-35.375, 4.453579, -6.8359985], "rotation": [0.0, 5.8904862, 0.0], "invulnerability_time": 0, "enemy_check_radius": 20.0, "ally_check_radius": 1.0}},
   {"files": "projects/v021d_level_05/day_8/client_project", "list": "server_objects/respawn_points", "after": {"point_id": 38}, "like": {"point_id": 0}, "values": {"name": "ffa_ported_19", "full_name": "logic/modes/ffa/respawn/ffa_ported_19", "point_id": 39, "team": 2, "priority": 1, "is_temporary": false, "position": [25.875, 8.50851, -6.8359985], "rotation": [0.0, 5.8904862, 0.0], "invulnerability_time": 0, "enemy_check_radius": 20.0, "ally_check_radius": 1.0}},
   {"files": "projects/v021d_level_05/day_8/client_project", "list": "server_objects/respawn_points", "after": {"point_id": 39}, "like": {"point_id": 0}, "values": {"name": "ffa_ported_20", "full_name": "logic/modes/ffa/respawn/ffa_ported_20", "point_id": 40, "team": 2, "priority": 1, "is_temporary": false, "position": [-68.375, 7.723945, 3.1640015], "rotation": [0.0, 5.301438, 0.0], "invulnerability_time": 0, "enemy_check_radius": 20.0, "ally_check_radius": 1.0}},
-  {"files": "projects/v021d_level_05/day_8/client_project", "list": "server_objects/respawn_points", "after": {"point_id": 40}, "like": {"point_id": 0}, "values": {"name": "ffa_ported_21", "full_name": "logic/modes/ffa/respawn/ffa_ported_21", "point_id": 41, "team": 2, "priority": 1, "is_temporary": false, "position": [47.625, 5.2772965, 9.164001], "rotation": [0.0, 4.1233406, 0.0], "invulnerability_time": 0, "enemy_check_radius": 20.0, "ally_check_radius": 1.0}}
+  {"files": "projects/v021d_level_05/day_8/client_project", "list": "server_objects/respawn_points", "after": {"point_id": 40}, "like": {"point_id": 0}, "values": {"name": "ffa_ported_21", "full_name": "logic/modes/ffa/respawn/ffa_ported_21", "point_id": 41, "team": 2, "priority": 1, "is_temporary": false, "position": [-17.875, 10.321541, -35.836], "rotation": [0.0, 5.8904862, 0.0], "invulnerability_time": 0, "enemy_check_radius": 20.0, "ally_check_radius": 1.0}}
  ],
  "append_entry": [
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 198, "unique_key": "id", "value": {"cfg_mode_name": "blackout/v021d_level_02_day_2.options", "id": 9}},
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 199, "unique_key": "id", "value": {"cfg_mode_name": "blackout/v021d_level_05_day_2.options", "id": 10}},
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 200, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_02_day_8.options", "id": 111}},
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 201, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_05_day_8.options", "id": 112}}
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 200, "unique_key": "id", "value": {"cfg_mode_name": "blackout/v021d_level_02_day_2.options", "id": 9}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 201, "unique_key": "id", "value": {"cfg_mode_name": "blackout/v021d_level_05_day_2.options", "id": 10}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 202, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_02_day_8.options", "id": 111}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 203, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_05_day_8.options", "id": 112}}
  ],
  "add_value": [
   {"files": ["gameplay/game_modes/blackout/v021d_level_02_day_2.options"], "table": "mode", "key": "srp_variant", "value": "blackout"},
@@ -159,8 +159,8 @@
   {"file": "projects/v021d_level_02/day_8/client_project", "list": "client_objects", "where": {"game_object_type": "resupply_zone", "full_name": "logic/fill/team2/resupply/resupply_zone"}},
   {"file": "projects/v021d_level_02/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [28.319, 15.588, 172.484]}},
   {"file": "projects/v021d_level_02/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [28.319, 15.588, 172.484]}},
-  {"file": "projects/v021d_level_02/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [31.036, 18.627, 37.789]}},
-  {"file": "projects/v021d_level_02/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [31.036, 18.627, 37.789]}},
+  {"file": "projects/v021d_level_02/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [30.47, 18.628, 37.223]}},
+  {"file": "projects/v021d_level_02/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [30.47, 18.628, 37.223]}},
   {"file": "projects/v021d_level_05/day_8/client_project", "list": "server_objects/respawn_points[20]/ally_zones/collision_geometries", "where": {"name": "logical/team_2/allies_collision/collision_geometry(4)"}},
   {"file": "projects/v021d_level_05/day_8/client_project", "list": "server_objects/respawn_points[21]/ally_zones/collision_geometries", "where": {"name": "logical/team_2/allies_collision/collision_geometry(4)"}},
   {"file": "projects/v021d_level_05/day_8/client_project", "list": "server_objects/respawn_points[22]/ally_zones/collision_geometries", "where": {"name": "logical/team_2/allies_collision/collision_geometry(4)"}},
@@ -193,13 +193,13 @@
   {"file": "projects/v021d_level_05/day_8/client_project", "list": "client_objects", "where": {"game_object_type": "decal", "full_name": "logic/fill/team_2/resupply/ammo_decal(2)"}},
   {"file": "projects/v021d_level_05/day_8/client_project", "list": "client_objects", "where": {"game_object_type": "decal", "full_name": "logic/fill/team_2/resupply/ammo_decal(1)"}},
   {"file": "projects/v021d_level_05/day_8/client_project", "list": "client_objects", "where": {"game_object_type": "resupply_zone", "full_name": "logic/fill/team_2/resupply/resupply_zone"}},
-  {"file": "projects/v021d_level_05/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [46.46, 5.25, 7.57]}},
-  {"file": "projects/v021d_level_05/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [46.46, 5.25, 7.57]}},
-  {"file": "projects/v021d_level_05/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [46.525, 5.884, 7.461]}},
-  {"file": "projects/v021d_level_05/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [46.525, 5.884, 7.461]}},
-  {"file": "projects/v021d_level_05/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [-49.024, 5.009, 1.617]}},
-  {"file": "projects/v021d_level_05/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [-49.024, 5.009, 1.617]}},
-  {"file": "projects/v021d_level_05/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [-49.184, 5.64, 1.618]}},
-  {"file": "projects/v021d_level_05/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [-49.184, 5.64, 1.618]}}
+  {"file": "projects/v021d_level_05/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [47.291, 5.22, 7.914]}},
+  {"file": "projects/v021d_level_05/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [47.291, 5.22, 7.914]}},
+  {"file": "projects/v021d_level_05/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [47.4072, 5.8533, 7.8551]}},
+  {"file": "projects/v021d_level_05/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [47.4072, 5.8533, 7.8551]}},
+  {"file": "projects/v021d_level_05/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [-49.66, 4.961, 0.981]}},
+  {"file": "projects/v021d_level_05/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [-49.66, 4.961, 0.981]}},
+  {"file": "projects/v021d_level_05/day_8/client_project", "list": "render_visuals", "where": {"lib_name": "item/quest/container_closed", "position": [-49.7625, 5.6037, 0.9967]}},
+  {"file": "projects/v021d_level_05/day_8/client_project", "list": "collision_objects", "where": {"lib_name": "resources/models/item/quest/container_closed.model/collision", "position": [-49.7625, 5.6037, 0.9967]}}
  ]
 }

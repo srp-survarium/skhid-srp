@@ -38,7 +38,7 @@ NATIVE = {
 # frame; the renders use the same frames (no native play-area outline: the
 # native bitmaps show the 0.26g layout, not 0.21d's).
 PACK = Path('/mnt/hdd/Projects/release-20/packs/maps-021d-7/files')
-PACK_SCHOOL_FORT = Path('/mnt/hdd/Projects/v021d-rain/school-fort-build/maps-021d-school-fort-1/files')
+PACK_SCHOOL_FORT = Path('/home/sheep/Projects/survarium/v021d-rig-data/school-fort-work/build/maps-021d-school-fort-1/files')
 PORTED = {
     'v021d_level_03': dict(size=100, posX=14, posY=-42.196, bitmap=None, name='Vostok Radar Station (v0.21)',
                            name_key='st_level_10_name', project_name='level_03', map_ids={166: 2, 152: 4}),
