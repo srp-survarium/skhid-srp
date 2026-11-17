@@ -71,7 +71,7 @@ Events:    1530 recorded, the last 1024 kept: match 2 world 61 started 1 death 1
            the last 200, seconds before the crash:
   -2.036 s  world: 4500 ms, 900 bytes packed, loaded, local place 3
   -1.536 s  death: place 4, life 2, at 61000 ms
-Game log:  last 20 lines of the newest Survarium*.log in Documents\Survarium
+Game log:  last 20 lines of the newest Survarium*.log in game\logs
 ...
 Patch log: last 100 lines of srp_patches.2026-11-15_14-03-07.log
 srp: ...
@@ -128,8 +128,8 @@ srp: ...
   The world's sections have no hook of their own (game_world_core's
   deserialize reads them in one function), so a section is not named.
 - Dump: saved, or why not, with the Windows error.
-- Game log: the last 20 lines of the newest (last written) `Survarium*.log`
-  in Documents\Survarium, the crashed run's `Survarium_<user>.<stamp>.log`
+- Game log: the last 20 lines of the newest (last written) run's `Survarium*.log`
+  in `game\logs` (else the newest `Survarium*.log` in Documents\Survarium), the crashed run's `Survarium_<user>.<stamp>.log`
   (see Recent logs) (its last 8 KiB), from the first line that starts a
   record (a cut inside a sensitive record's continuation lines would not be
   caught), through the same credential filter as the ZIP's logs; the file
@@ -296,7 +296,7 @@ pointers; not yet measured on Windows: see Dump contents).
   files are excluded. Directories and reparse points are excluded when Windows
   reports them as such; Wine may expose host symlinks as ordinary files.
 - Every run's logs: since the runs' logs are named (2026-11-15), each start of
-  the game writes `Survarium_<user>.<stamp>.log` (Documents\Survarium) and
+  the game writes `Survarium_<user>.<stamp>.log` (in `game\logs`; Documents\Survarium before 2026-11-17) and
   `srp_patches.<stamp>.log` (in `game\logs`; beside the EXE before 2026-11-17), each start of the updater
   `updater_skhid.<stamp>.log` (in `game\logs` too); `<stamp>` is the start in local time,
   `YYYY-MM-DD_HH-MM-SS`, with `_<n>` (2 to 99) for a further file of the same
@@ -652,8 +652,8 @@ or not (the scan once hung there), and checks the report beside the ZIP and in i
 exception line, the address inside the faulting function as module+offset,
 the caller on the stack scan, the other lines, and the log tail with a
 password's record and its continuation removed and the records after it kept.
-The game log is the newest of a run's `Survarium_tester.<stamp>.log` and an
-older `Survarium_tester.log`. It also puts a 3 MB
+The game log is the run's `Survarium_tester.<stamp>.log` in `game\logs`, not a later-written
+unstamped `Survarium_tester.log` in Documents. It also puts a 3 MB
 `srp_patches.2026-11-15_14-03-07.log` in `game\logs` (the probe in
 `game\binaries\x86`), with an older run's there and an old `srp_patches.log`
 beside the probe, and checks the UTC header with its offset, the

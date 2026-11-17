@@ -13,7 +13,7 @@ rem What it takes (the PowerShell code at the end of this file):
 rem - the logs: the updater's and the client patches' of each run
 rem   (updater_skhid.<time>.log, srp_patches.<time>.log in game\logs, and
 rem   the updater_skhid.log and srp_patches.log of before the runs were
-rem   named), the launcher's, the game's own (Documents\Survarium\Survarium*.log,
+rem   named), the launcher's, the game's own (game\logs and Documents\Survarium\Survarium*.log,
 rem   one a run), DXVK's, skhid-wine.log (game\logs) of Skhid.sh,
 rem   skhid-download.log of Skhid-without-updater.bat; each through a filter
 rem   that removes every line naming a password, a digest, a token, a key, a

@@ -8,8 +8,8 @@
 //! - A log of a kind is `<folder><stem>.<stamp>.log`, a further file of the
 //!   same stamp (a second game started in the same second, or a log's next
 //!   part) `<stem>.<stamp>_<n>.log`, n from 2 to [`Seq::LAST`]: the engine's
-//!   `Survarium_<user>.2026-11-15_14-03-07.log` in Documents\Survarium, the
-//!   patches' `srp_patches.2026-11-15_14-03-07.log` in `game\logs`.
+//!   `Survarium_<user>.2026-11-15_14-03-07.log` and the
+//!   patches' `srp_patches.2026-11-15_14-03-07.log`, both in `game\logs`.
 //! - A name of a stamp is never taken twice: a further file is past the
 //!   highest the stamp has ([`Kind::next_name`]).
 //! - Deletion goes by the files' last writes, the least recent first (not
@@ -234,18 +234,24 @@ fn file_name_at(path: &[u8], lead: impl Fn(u8) -> bool) -> usize {
 /// IsDBCSLeadByte of the ANSI code page (kernel32's, by GetProcAddress:
 /// the exe does not import it); no byte is one when kernel32 does not say.
 pub fn lead_byte() -> impl Fn(u8) -> bool {
+    let function = kernel32(c"IsDBCSLeadByte");
+    // SAFETY: IsDBCSLeadByte, that export (the library's dynamic row), a byte.
+    move |byte| function.is_some_and(|f| unsafe { raw::engine_is_dbcs_lead_byte(f, u32::from(byte)) } != 0)
+}
+
+/// kernel32's export `name`, by GetProcAddress (for those the exe does not
+/// import); none when kernel32 does not give it.
+fn kernel32(name: &core::ffi::CStr) -> Option<core::ptr::NonNull<core::ffi::c_void>> {
     // SAFETY: kernel32 is in every process; GetModuleHandleA and
     // GetProcAddress through the exe's import slots, NUL-terminated names.
-    let function = unsafe {
+    unsafe {
         let kernel32 = (raw::engine_get_module_handle_a)(c"kernel32.dll".as_ptr().cast());
         if kernel32.is_null() {
             None
         } else {
-            core::ptr::NonNull::new((raw::engine_get_proc_address)(kernel32, c"IsDBCSLeadByte".as_ptr().cast()))
+            core::ptr::NonNull::new((raw::engine_get_proc_address)(kernel32, name.as_ptr().cast()))
         }
-    };
-    // SAFETY: IsDBCSLeadByte, that export (the library's dynamic row), a byte.
-    move |byte| function.is_some_and(|f| unsafe { raw::engine_is_dbcs_lead_byte(f, u32::from(byte)) } != 0)
+    }
 }
 
 /// Where a file of a kind stands in the order of deletion: the least
@@ -265,6 +271,42 @@ impl<'a> Kind<'a> {
 
     /// `game\logs`, from the working folder, with its separator.
     const LOGS: &'static [u8] = b"..\\..\\logs\\";
+
+    /// The same kind in the game's `logs` folder (the engine's log, which
+    /// the engine names in Documents\Survarium).
+    pub fn in_logs(&self) -> Kind<'a> {
+        Kind { folder: Kind::LOGS, stem: self.stem }
+    }
+
+    /// The kind's run files moved into the folder of `to` (the same kind
+    /// elsewhere, [`Kind::in_logs`]) under their names, by MoveFileExA, a
+    /// copy when that is another disk: how many moved. A name `to` has
+    /// already, or a file Windows does not move (open), stays where it is.
+    pub fn move_runs(&self, to: &Kind) -> u32 {
+        const MOVEFILE_COPY_ALLOWED: u32 = 2;
+        let Some(move_file) = kernel32(c"MoveFileExA") else { return 0 };
+        let Some(pattern) = Name::of(&[self.folder, self.stem, b".*.log"]) else { return 0 };
+        let mut data = FindData::new();
+        let Some(mut find) = pattern.path().and_then(|pattern| Find::first(pattern, &mut data)) else { return 0 };
+        let mut moved = 0;
+        loop {
+            if !data.is_folder()
+                && self.run_of(data.name()).is_some()
+                && let Some(from) = Name::of(&[self.folder, data.name()])
+                && let Some(into) = Name::of(&[to.folder, data.name()])
+                && let (Some(from), Some(into)) = (from.path(), into.path())
+                // SAFETY: MoveFileExA, that export (the library's dynamic
+                // row), two NUL-ended paths of ours.
+                && unsafe { raw::engine_move_file_ex_a(move_file, from.ptr(), into.ptr(), MOVEFILE_COPY_ALLOWED) } != 0
+            {
+                moved += 1;
+            }
+            if !find.next(&mut data) {
+                break;
+            }
+        }
+        moved
+    }
 
     /// The kind's folder made when it is not there (none of its parents;
     /// what Windows says is not asked: the open after it fails or not).

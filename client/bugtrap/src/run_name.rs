@@ -9,7 +9,7 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     /// The engine's `Survarium.<stamp>.log` or `Survarium_<user>.<stamp>.log`
-    /// (Documents\Survarium).
+    /// (in `game\logs`; Documents\Survarium before).
     Game,
     /// The client patches' `srp_patches.<stamp>.log` in `game\logs`.
     Patches,

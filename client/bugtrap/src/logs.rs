@@ -42,7 +42,7 @@ pub const SCOPES: [&str; 6] = [
 /// The scope of the exe's folder, `game\binaries\x86\`.
 const EXE_SCOPE: usize = 1;
 /// The scope of the run logs' folder, `game\logs\` (beside `game\torrent`).
-const LOGS_SCOPE: usize = 5;
+pub const LOGS_SCOPE: usize = 5;
 
 pub struct Manifest {
     pub buf: [u8; 32768],

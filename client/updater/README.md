@@ -115,7 +115,7 @@ updaters and games before kept beside the updater: the stamped
 `game\binaries\x86`, and the seeding runs of `updater_skhid.seed-logs\` into
 `game\logs\seed\` (the old folder removed once empty). A file whose name is
 taken there, or that a program holds without sharing, stays; the unstamped
-old logs stay where they are. Nothing else reads or writes `game\logs`: it
+old logs stay where they are. The engine's runs in `Documents\Survarium` the game moves there itself (`srp-026g/docs/notes/run-logs.md`). The updater does nothing else with `game\logs`: it
 is no file of the ZIP or of a torrent, never hashed, checked or deleted as
 one.
 
@@ -237,7 +237,7 @@ the box of "The player's boxes" below:
 Game files removed by antivirus: survarium_skhid.exe
 Windows Security or another antivirus took it for a threat (a false positive). PLAY stays off until it is let through.
 Run Skhid-defender-setup.cmd (beside Skhid.bat); with another antivirus, exclude this folder: E:\Survarium_SkhidSRP_0_26\game\binaries\x86
-Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.2026-11-15_14-03-07.log
+Log: E:\Survarium_SkhidSRP_0_26\game\logs\updater_skhid.2026-11-15_14-03-07.log
 ```
 
 ```text
@@ -287,7 +287,7 @@ blocked.
 Blocked on this network: skhid.link did not answer (timed out)
 Other sites answer: this network blocks it (the internet provider, or the VPN in use).
 Use a VPN with launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe in its split tunnelling, or turn the VPN off (see VPN.txt). Then try again.
-Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.2026-11-15_14-03-07.log
+Log: E:\Survarium_SkhidSRP_0_26\game\logs\updater_skhid.2026-11-15_14-03-07.log
 ```
 
 The box is shown when the run ends in an error, or in PLAY without an

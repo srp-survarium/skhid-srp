@@ -49,11 +49,12 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
         shutil.copy2(build / name, game / name)
     docs = root / "Documents"
     (docs / "Survarium").mkdir(parents=True)
-    # The game's log of this run (the newest), and one of before the runs were named.
+    # The game's log of this run in game\logs, and in Documents one of before
+    # the runs were named (written later: the run's is taken all the same).
     older = docs / "Survarium" / "Survarium_tester.log"
     older.write_bytes(b"game <INFO>\t[11:00:00.000]\trecord of an earlier run\r\n")
-    os.utime(older, (time.time() - 3600, time.time() - 3600))
-    (docs / "Survarium" / "Survarium_tester.2026-11-15_14-03-07.log").write_bytes(LOG)
+    os.utime(older, (time.time() + 60, time.time() + 60))
+    (logs / "Survarium_tester.2026-11-15_14-03-07.log").write_bytes(LOG)
     # The crashed run's patch log is the newest srp_patches.<stamp>.log in
     # game\logs, not an earlier run's nor the old srp_patches.log of before
     # the runs were named, beside the exe.
@@ -128,6 +129,7 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
         assert crumbs.decode().startswith("Match:     0x1092") and crumbs.decode().count(" s  ") == 3, crumbs
         # The game log's last 20 lines, the password's record removed.
         tail = text.split("\r\nGame log:  ", 1)[1]
+        assert tail.startswith("last 20 lines of the newest Survarium*.log in game\\logs\r\n"), tail[:100]
         assert all(f"record {n}\r\n" in tail for n in (12, 24, 26, 27, 30)), tail
         assert "record 11\r\n" not in tail, tail  # 31 lines: the 20 last start at record 12
         assert "earlier run" not in tail, tail
