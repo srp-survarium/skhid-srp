@@ -83,6 +83,7 @@ engine_play_sound	0x3222f0	ESP+4:manager ESP+8:sound ESP+12:position	void engine
 engine_user_data_directory	0x018bd0	-	const char *engine_user_data_directory(void)	thunk	
 engine_match_options	survarium::base_network_client+0x34	ECX:client	struct match_options *engine_match_options(struct network_client *client)	virtual
 engine_active_player	survarium::base_network_client+0x50	ECX:client ESP+4:out ESP+8:place	struct player **engine_active_player(struct network_client *client, struct player **out, unsigned int place)	virtual
+engine_bullet_player	survarium::bullet_manager_engine+0x24	ECX:engine ESP+4:place	struct player *engine_bullet_player(struct bullet_manager_engine *engine, unsigned int place)	virtual
 engine_query_performance_counter	0x870158	-	unsigned int engine_query_performance_counter(unsigned int *count)	import	
 engine_query_performance_frequency	0x870150	-	unsigned int engine_query_performance_frequency(unsigned int *frequency)	import	
 engine_get_current_thread_id	0x870118	-	unsigned int engine_get_current_thread_id(void)	import	

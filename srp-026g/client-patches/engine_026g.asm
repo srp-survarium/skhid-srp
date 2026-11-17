@@ -61,6 +61,7 @@ global engine_play_sound
 global engine_user_data_directory
 global engine_match_options
 global engine_active_player
+global engine_bullet_player
 global engine_query_performance_counter
 global engine_query_performance_frequency
 global engine_get_current_thread_id
@@ -1147,6 +1148,23 @@ engine_active_player:
     mov ecx, [esp + 28]   ; client
     mov eax, [ecx]                   ; this's vtable
     call [eax + 0x50]
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_bullet_player:
+    ; virtual survarium::bullet_manager_engine+0x24 (1 vtables of vtables.tsv: 0x1f7660): engine ECX, place ESP+4; pops 4; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; place -> 4
+    mov ecx, [esp + 24]   ; engine
+    mov eax, [ecx]                   ; this's vtable
+    call [eax + 0x24]
     pop edi
     pop esi
     pop ebx

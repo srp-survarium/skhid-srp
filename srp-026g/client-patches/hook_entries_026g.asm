@@ -10241,6 +10241,48 @@ weapon_pickup_on_load_ordinal_replay:
     db 0x8b, 0x47, 0x0c, 0x85, 0xc0
     jmp 0x32bdbf
 
+; 0x321ca0 bullet_manager::deserialize's loop over the records (mov esi,[edi+80h], before the bullet's allocation and its constructor 0x32BBC0): EDI the manager, EBX the section's reader at the record; skip 0x321CFC is the loop's count (sub ebp,1 / jne), no bullet made: lohook -> weapon_pickup_on_load_record
+global weapon_pickup_on_load_record
+extern hook_weapon_pickup_on_load_record
+weapon_pickup_on_load_record:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_load_record
+    mov edx, weapon_pickup_on_load_record_replay
+    cmp eax, 0
+    je weapon_pickup_on_load_record_go
+    mov edx, 0x321ca6
+    cmp eax, 1
+    je weapon_pickup_on_load_record_go
+    mov edx, 0x321cfc
+    cmp eax, 2
+    je weapon_pickup_on_load_record_go
+    ud2
+weapon_pickup_on_load_record_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_load_record_replay:
+    db 0x8b, 0xb7, 0x80, 0x00, 0x00, 0x00
+    jmp 0x321ca6
+
 ; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
 global world_check_on_unpacked
 extern hook_world_check_on_unpacked
