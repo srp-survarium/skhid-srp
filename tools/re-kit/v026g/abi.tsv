@@ -914,7 +914,7 @@ va	name	source	ret_cleanup	result
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
 0x001f2720	survarium::player::insert	manual	4	none; base_player::insert 0x2DA850 (+33Fh := 1; alive: activate_physics 0x2D9930; link 1: the world's tick lists +18860h/+18880h), then the 3D icon's and models' part (+0F4E0h := 1, 0x1F2300 with link 1); the respawn rule calls it through vtable+20h with 1 (0x316EA9)
 0x001f28e0	survarium::player::on_player_death	manual	4	none; remove_alive(this, 1), then the inventory, +33Eh := 1, +33Dh := 0
-0x001f3480	survarium::player::update_camera	manual	4	
+0x001f3480	survarium::player::update_camera	manual	4	none; for the camera's player (its +0F470h handler) the view (+48h) from update_inverted_view 0x2422B0, given in modes 0 and 4 the eyes' transform +44Ch (bone Item: 1.06 m over the feet crouched, 1.5 m standing, 0.13 m ahead; EAX at 0x1F3643), else the orbit; camera_director::apply 0x243440 takes it (head-clearance.md)
 0x001f37a0	survarium::player::set_head_visibility	manual	4	
 0x001f3740	survarium::player::set_effect_presenter	manual	0	void; the old holder's presenter cleared (vfn +4), the new one's set_player (vfn +20h) to ESI, and on a change the effect player's presenter (+390h) and its effects presented again (0x2DE560)
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
@@ -2676,6 +2676,10 @@ va	name	source	ret_cleanup	result
 0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	manual	16	void
 0x000a8660	btBvhTriangleMeshShape::processAllTriangles	manual	12	void
 0x000c5600	btConvexTriangleCallback::processTriangle	manual	12	void
+0x0001c760	vostok::engine::game_console::on_activate	manual	0	
+0x0001c7a0	vostok::engine::game_console::on_deactivate	manual	0	
+0x0034b4d0	vostok::ui::insert_char_action::execute	manual	4	AL: 1
+0x0034a4c0	vostok::ui::create_char_action	manual	0	EAX: the new insert_char_action (vtable 0xA1DEBC), 0 when the allocation failed
 0x003482c0	vostok::ui::ui_text_edit::paste_from_clipboard	manual	0	none; the engine's stub: it logs "ui_text_edit::paste_from_clipboard not implemented" (channel ui, 0x9EEFDC) and pastes nothing (0.21d's 0x21152B the same)
 0x003479d0	vostok::ui::ui_text_edit::set_text	manual	4	none; a text equal to the line (_stricmp 0x426F29) changes nothing; else the line is the text cut at the max length, text-changed event 5 (0x346FA0), the caret clamped to the length, an undo step pushed (unless an undo or redo runs, +2ADh, +2AEh) and the redo steps dropped
 0x003488a0	vostok::ui::ui_text_edit::set_caret_position	manual	8	none; the caret (+2A6h) clamped to the line's length; when it moved, the selection (+2A8h, +2AAh) collapsed to it, or with select and Shift held (+2ACh & 30h) one end of it moved

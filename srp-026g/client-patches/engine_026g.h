@@ -714,6 +714,9 @@ void __attribute__((cdecl)) engine_ray_test_single(struct bt_transform *from, st
 /* 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly */
 unsigned char __attribute__((thiscall)) engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size);
 
+/* 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly */
+unsigned char __attribute__((thiscall)) engine_key_text(struct keyboard *keyboard, unsigned int key, unsigned short *text);
+
 /* the IAT slot 0xaeff20 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_activate_keyboard_layout)(unsigned int layout, unsigned int flags);
 
