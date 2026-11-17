@@ -22,7 +22,7 @@ bash tools/checks/build_content.sh >"$CHECK_WORK/build-content.log" 2>&1 || {
     tail -n 20 "$CHECK_WORK/build-content.log"
     exit 1
 }
-nix develop ./srp-026g --command bash -c '
+nix develop ./srp-026g --command bash -euo pipefail -c '
     cargo build --manifest-path srp-026g/Cargo.toml -p survarium --lib --message-format=json >"$CHECK_WORK/cargo.json"
     library=$(python3 -c '\''import json, os
 from pathlib import Path
@@ -31,7 +31,7 @@ files = [p for r in rows if r.get("reason") == "compiler-artifact" and r["target
 assert len(files) == 1
 print(files[0])'\'')
     rustc --edition=2024 srp-026g/scripts/v021d-weather/check_data.rs \
-        -L "dependency=$(dirname "$library")" --extern "survarium=$library" -o "$CHECK_WORK/check-weather-data"
+        -L "dependency=$(dirname "$library")/deps" --extern "survarium=$library" -o "$CHECK_WORK/check-weather-data"
     "$CHECK_WORK/check-weather-data" "$CHECK_WORK/content/server-game-data.db"
 '
 # Follow every model, collision, material, particle and texture reference from
