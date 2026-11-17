@@ -47,15 +47,18 @@ static COMMAND: Command = Command::new();
 /// Held by the render thread through its draws: a yielding lock.
 static STATE: YieldingLock<Collision> = YieldingLock::new(Collision { view: View::Off, rooms: Rooms::Unmade });
 
-/// The radii a read tries (m), the largest whose lines fit the cap drawn.
+/// The radii a read tries (m), the largest whose lines fit the room drawn.
 const RADII: [f32; 3] = [20.0, 10.0, 5.0];
-/// The most lines a frame draws (2 MiB of vertices, made the first time
-/// the view is turned on and kept).
-const MOST: usize = 64 * 1024;
+/// The vertices a room holds (4 MiB; two rooms, made the first time the view
+/// is turned on and kept): lines take two, filled triangles three.
+const VERTICES: usize = 256 * 1024;
+const MOST: usize = VERTICES / 2;
 /// A circle's segments.
 const CIRCLE: usize = 12;
 /// The eye moved this far (m) since the last read: read again.
 const MOVE: f32 = 0.5;
+/// A filled surface's alpha (of 255): translucent, the scene seen through it.
+const FILL_ALPHA: u8 = 77;
 
 /// A group of the level's collision.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -139,29 +142,70 @@ fn level_group(group: u16, motion: Motion) -> Option<LevelGroup> {
     }
 }
 
+/// Lines only, or the surfaces filled under them too.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Fill {
+    Lines,
+    Filled,
+}
+
+/// What is shown: the groups (none: every group) and how.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Filter {
+    only: Option<LevelGroup>,
+    fill: Fill,
+}
+
+impl Filter {
+    const ALL: Filter = Filter { only: None, fill: Fill::Lines };
+}
+
 /// What the command was given.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Request {
     /// No argument.
     Toggle,
-    Only(LevelGroup),
+    /// A group's name, `fill`, or both (the name first).
+    Show(Filter),
     Unknown,
 }
 
 impl Request {
     fn parse(text: &[u8]) -> Request {
-        let text = text.trim_ascii();
-        if text.is_empty() {
-            return Request::Toggle;
+        let mut words = text.split(u8::is_ascii_whitespace).filter(|word| !word.is_empty());
+        let group = |word: &[u8]| GROUPS.into_iter().find(|group| word.eq_ignore_ascii_case(group.name().as_bytes()));
+        let fill = |word: &[u8]| word.eq_ignore_ascii_case(b"fill");
+        match (words.next(), words.next(), words.next()) {
+            (None, ..) => Request::Toggle,
+            (Some(word), None, _) if fill(word) => Request::Show(Filter { only: None, fill: Fill::Filled }),
+            (Some(word), None, _) => group(word).map_or(Request::Unknown, |g| {
+                Request::Show(Filter { only: Some(g), fill: Fill::Lines })
+            }),
+            (Some(word), Some(second), None) if fill(second) => group(word).map_or(Request::Unknown, |g| {
+                Request::Show(Filter { only: Some(g), fill: Fill::Filled })
+            }),
+            _ => Request::Unknown,
         }
-        GROUPS.into_iter().find(|group| text.eq_ignore_ascii_case(group.name().as_bytes()))
-            .map_or(Request::Unknown, Request::Only)
     }
 }
 
-/// A line of Bullet's frame into `lines`, in the game's (z negated).
-fn push(lines: &mut LineBuffer, [ax, ay, az]: [f32; 3], [bx, by, bz]: [f32; 3], color: LineColor) {
-    lines.push([ax, ay, -az], [bx, by, -bz], color);
+/// A point of Bullet's frame in the game's (z negated).
+fn game([x, y, z]: [f32; 3]) -> [f32; 3] {
+    [x, y, -z]
+}
+
+/// A line of Bullet's frame into `lines`, in the game's.
+fn push(lines: &mut LineBuffer, a: [f32; 3], b: [f32; 3], color: LineColor) {
+    lines.push(game(a), game(b), color);
+}
+
+/// A filled triangle of Bullet's frame into `lines`, in the game's: `color`
+/// translucent, brighter the more it faces up or down.
+fn push_triangle(lines: &mut LineBuffer, corners: [[f32; 3]; 3], color: LineColor) {
+    let [a, b, c] = corners.map(game);
+    let (u, v) = (Vec3::new(b[0] - a[0], b[1] - a[1], b[2] - a[2]), Vec3::new(c[0] - a[0], c[1] - a[1], c[2] - a[2]));
+    let up = u.cross(v).direction().map_or(0.0, |n| n.y.abs());
+    lines.push_triangle([a, b, c], color.shaded(0.4 + 0.6 * up, FILL_ALPHA));
 }
 
 /// `p` where `pose` puts it.
@@ -214,11 +258,11 @@ enum View {
     Off,
     /// On, waiting for a match's camera to read (just turned on, or its
     /// filter changed).
-    Starting { only: Option<LevelGroup> },
+    Starting { filter: Filter },
     /// Its lines read, drawn every frame until a read is stale.
-    On { only: Option<LevelGroup>, fit: Fit },
+    On { filter: Filter, fit: Fit },
     /// A read out on the camera's thread, the spare room lent to it.
-    Reading { only: Option<LevelGroup>, after: Previous },
+    Reading { filter: Filter, after: Previous },
 }
 
 /// The two rooms for lines, made the first time the view is turned on.
@@ -238,7 +282,7 @@ struct Collision {
 
 /// A read the camera's thread makes outside the lock, into the spare room.
 struct Read {
-    only: Option<LevelGroup>,
+    filter: Filter,
     after: Previous,
     at: ReadAt,
     lines: LineBuffer,
@@ -247,7 +291,7 @@ struct Read {
 /// What the console is told of a command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Reply {
-    On(Option<LevelGroup>),
+    On(Filter),
     Off,
     Usage,
     /// No room for the lines: still off.
@@ -257,9 +301,8 @@ enum Reply {
 /// What a read reads: the level near the eye.
 trait Level {
     fn census(&self) -> Census;
-    /// The lines of the objects of `only` (or every level group) within
-    /// `reach` of the eye.
-    fn outline(&self, reach: f32, only: Option<LevelGroup>, lines: &mut LineBuffer);
+    /// The lines (and filled surfaces) `filter` shows within `reach` of the eye.
+    fn outline(&self, reach: f32, filter: Filter, lines: &mut LineBuffer);
 }
 
 impl Collision {
@@ -270,16 +313,16 @@ impl Collision {
 
     /// `rooms`, made by the caller when unmade, are taken when the view turns on.
     fn command(&mut self, request: Request, rooms: Option<(LineBuffer, LineBuffer)>) -> Reply {
-        let only = match self.view {
+        let shown = match self.view {
             View::Off => None,
-            View::Starting { only } | View::On { only, .. } | View::Reading { only, .. } => Some(only),
+            View::Starting { filter } | View::On { filter, .. } | View::Reading { filter, .. } => Some(filter),
         };
-        let view = match (only, request) {
+        let view = match (shown, request) {
             (_, Request::Unknown) => return Reply::Usage,
-            (None, Request::Toggle) => View::Starting { only: None },
+            (None, Request::Toggle) => View::Starting { filter: Filter::ALL },
             (Some(_), Request::Toggle) => View::Off,
-            (Some(Some(shown)), Request::Only(group)) if shown == group => View::Off,
-            (_, Request::Only(group)) => View::Starting { only: Some(group) },
+            (Some(shown), Request::Show(filter)) if shown == filter => View::Off,
+            (_, Request::Show(filter)) => View::Starting { filter },
         };
         if view != View::Off && self.unmade() {
             let Some((shown, spare)) = rooms else { return Reply::NoRoom };
@@ -287,7 +330,7 @@ impl Collision {
         }
         self.view = view;
         match view {
-            View::Starting { only } => Reply::On(only),
+            View::Starting { filter } => Reply::On(filter),
             _ => Reply::Off,
         }
     }
@@ -295,17 +338,17 @@ impl Collision {
     /// The read a match's camera at `at` makes: after a start or a filter's
     /// change, or when the last read is stale; none while one is out.
     fn next_read(&mut self, at: ReadAt) -> Option<Read> {
-        let (only, after) = match self.view {
+        let (filter, after) = match self.view {
             View::Off | View::Reading { .. } => return None,
-            View::Starting { only } => (only, Previous::Start),
-            View::On { only, fit } if fit.at.stale(at) => (only, Previous::Shown(fit)),
+            View::Starting { filter } => (filter, Previous::Start),
+            View::On { filter, fit } if fit.at.stale(at) => (filter, Previous::Shown(fit)),
             View::On { .. } => return None,
         };
         match core::mem::replace(&mut self.rooms, Rooms::Unmade) {
             Rooms::Home { shown, spare } => {
                 self.rooms = Rooms::Lent { shown };
-                self.view = View::Reading { only, after };
-                Some(Read { only, after, at, lines: spare })
+                self.view = View::Reading { filter, after };
+                Some(Read { filter, after, at, lines: spare })
             }
             other => {
                 self.rooms = other;
@@ -320,12 +363,12 @@ impl Collision {
         let Rooms::Lent { shown } = core::mem::replace(&mut self.rooms, Rooms::Unmade) else {
             unreachable!("a read out lends the spare");
         };
-        if self.view != (View::Reading { only: read.only, after: read.after }) {
+        if self.view != (View::Reading { filter: read.filter, after: read.after }) {
             self.rooms = Rooms::Home { shown, spare: read.lines };
             return None;
         }
         self.rooms = Rooms::Home { shown: read.lines, spare: shown };
-        self.view = View::On { only: read.only, fit: Fit { at: read.at, start } };
+        self.view = View::On { filter: read.filter, fit: Fit { at: read.at, start } };
         census
     }
 
@@ -339,15 +382,17 @@ impl Collision {
             View::On { .. } | View::Reading { after: Previous::Shown(_), .. } => Some(shown),
             _ => None,
         }
-        .filter(|lines| lines.count() > 0)
+        .filter(|lines| lines.used() > 0)
     }
 }
 
 /// `read`'s lines from the level, from the radius it starts at to the first
-/// whose lines fit (the smallest's, cut, when none does), each end moved
-/// toward the eye by 1 cm or 0.5 % of its distance (so a line on a surface
-/// is drawn over it): the radius the next read starts at (one larger when
-/// these used under a quarter of the room), and the census for a start's.
+/// whose lines fit (the smallest's, cut, when none does), each line's end
+/// moved toward the eye by 1 cm or 0.5 % of its distance and each filled
+/// corner by half that (so a line on a surface is drawn over it, the fill
+/// over the surface and under the line): the radius the next read starts at
+/// (one larger when these used under a quarter of the room), and the census
+/// for a start's.
 fn fill(level: &impl Level, read: &mut Read) -> (usize, Option<Census>) {
     let mut index = match read.after {
         Previous::Start => 0,
@@ -355,26 +400,26 @@ fn fill(level: &impl Level, read: &mut Read) -> (usize, Option<Census>) {
     };
     loop {
         read.lines.clear();
-        level.outline(RADII[index], read.only, &mut read.lines);
+        level.outline(RADII[index], read.filter, &mut read.lines);
         if !read.lines.is_cut() || index + 1 == RADII.len() {
             break;
         }
         index += 1;
     }
-    let start = if !read.lines.is_cut() && read.lines.count() < MOST / 4 { index.saturating_sub(1) } else { index };
+    let start = if !read.lines.is_cut() && read.lines.used() < VERTICES / 4 { index.saturating_sub(1) } else { index };
     let eye = read.at.eye.coordinates();
-    read.lines.move_points(|p| toward(p, eye));
+    read.lines.move_points(|p| toward(p, eye, 1.0), |p| toward(p, eye, 0.5));
     (start, (read.after == Previous::Start).then(|| level.census()))
 }
 
-/// `p` moved toward `eye` by 1 cm or 0.5 % of its distance, the more.
-fn toward(p: [f32; 3], eye: [f32; 3]) -> [f32; 3] {
+/// `p` moved toward `eye` by `scale` times 1 cm or 0.5 % of its distance, the more.
+fn toward(p: [f32; 3], eye: [f32; 3], scale: f32) -> [f32; 3] {
     let d: [f32; 3] = core::array::from_fn(|k| eye[k] - p[k]);
     let distance = sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
     if distance == 0.0 {
         return p;
     }
-    let step = (0.01f32).max(0.005 * distance).min(distance) / distance;
+    let step = (scale * (0.01f32).max(0.005 * distance)).min(distance) / distance;
     core::array::from_fn(|k| p[k] + d[k] * step)
 }
 
@@ -398,10 +443,10 @@ impl Level for LiveLevel<'_, '_> {
         census
     }
 
-    /// The damage zones first, so the cap never drops them for the level.
-    fn outline(&self, reach: f32, only: Option<LevelGroup>, lines: &mut LineBuffer) {
-        let near = Near { eye: self.eye, reach, triangles: self.triangles };
-        if shows(only, LevelGroup::Anomaly) {
+    /// The damage zones first, so the room never drops them for the level.
+    fn outline(&self, reach: f32, filter: Filter, lines: &mut LineBuffer) {
+        let near = Near { eye: self.eye, reach, fill: filter.fill, triangles: self.triangles };
+        if shows(filter.only, LevelGroup::Anomaly) {
             for_each_damage_zone(self.thread, |zone| {
                 let color = match zone.state() {
                     ZoneState::Active => ACTIVE_ZONE,
@@ -414,7 +459,7 @@ impl Level for LiveLevel<'_, '_> {
         let (Some(eye), Some(distance)) = (WorldPoint::parse([x, y, -z]), Distance::parse(reach)) else { return };
         self.world.for_each_object(|object| {
             let Some(group) = level_group(object.group, object.motion) else { return };
-            if lines.is_full() || !shows(only, group) || !object.aabb.within(eye, distance) {
+            if lines.is_full() || !shows(filter.only, group) || !object.aabb.within(eye, distance) {
                 return;
             }
             if let Some(shape) = object.shape() {
@@ -424,10 +469,11 @@ impl Level for LiveLevel<'_, '_> {
     }
 }
 
-/// Where lines are wanted: within `reach` of `eye` (Bullet's frame).
+/// Where lines are wanted: within `reach` of `eye` (Bullet's frame); filled or not.
 struct Near {
     eye: [f32; 3],
     reach: f32,
+    fill: Fill,
     triangles: TriangleMethods,
 }
 
@@ -446,6 +492,9 @@ fn outline(shape: Shape<'_>, pose: &Pose, color: LineColor, near: &Near, lines: 
                 if lines.is_full() || !triangle_near(triangle, eye, near.reach) {
                     return;
                 }
+                if near.fill == Fill::Filled {
+                    push_triangle(lines, triangle.map(|p| place(pose, p)), color);
+                }
                 for (a, b) in new_edges(triangle, previous) {
                     push(lines, place(pose, a), place(pose, b), color);
                 }
@@ -458,7 +507,7 @@ fn outline(shape: Shape<'_>, pose: &Pose, color: LineColor, near: &Near, lines: 
         primitive => {
             let away = (pose.position - Vec3::new(near.eye[0], near.eye[1], near.eye[2])).length();
             if away - extent(primitive) <= near.reach {
-                primitive_lines(primitive, pose, color, lines);
+                primitive_lines(primitive, pose, color, near.fill, lines);
             }
         }
     }
@@ -482,8 +531,12 @@ fn new_edges([a, b, c]: [[f32; 3]; 3], previous: Option<[[f32; 3]; 3]>) -> impl 
     [(a, b), (b, c), (c, a)].into_iter().filter(move |&(p, q)| !shared(p, q))
 }
 
-/// A box's, sphere's, capsule's or cylinder's outline where `pose` puts it.
-fn primitive_lines(shape: Shape<'_>, pose: &Pose, color: LineColor, lines: &mut LineBuffer) {
+/// A box's, sphere's, capsule's or cylinder's outline where `pose` puts it;
+/// a box's faces filled too when `fill` asks (the round ones are outlines only).
+fn primitive_lines(shape: Shape<'_>, pose: &Pose, color: LineColor, fill: Fill, lines: &mut LineBuffer) {
+    if let (Shape::Box { half }, Fill::Filled) = (shape, fill) {
+        box_triangles(half, &mut |corners| push_triangle(lines, corners.map(|p| place(pose, p)), color));
+    }
     let mut line = |a: [f32; 3], b: [f32; 3]| push(lines, place(pose, a), place(pose, b), color);
     match shape {
         Shape::Box { half } => box_lines(half, &mut line),
@@ -509,6 +562,25 @@ fn box_lines(half: [f32; 3], line: &mut impl FnMut([f32; 3], [f32; 3])) {
             if i >> k & 1 == 0 {
                 line(corner(i), corner(i | 1 << k));
             }
+        }
+    }
+}
+
+/// The twelve triangles of a box's six faces (two a face).
+fn box_triangles(half: [f32; 3], triangle: &mut impl FnMut([[f32; 3]; 3])) {
+    for axis in 0..3 {
+        let (u, v) = ((axis + 1) % 3, (axis + 2) % 3);
+        for side in [-1.0, 1.0] {
+            let corner = |a: f32, b: f32| -> [f32; 3] {
+                let mut p = [0.0; 3];
+                p[axis] = side * half[axis];
+                p[u] = a * half[u];
+                p[v] = b * half[v];
+                p
+            };
+            let quad = [corner(-1.0, -1.0), corner(1.0, -1.0), corner(1.0, 1.0), corner(-1.0, 1.0)];
+            triangle([quad[0], quad[1], quad[2]]);
+            triangle([quad[0], quad[2], quad[3]]);
         }
     }
 }
@@ -584,11 +656,12 @@ pub fn on_execute(_: &OrigCcDelegateExecute, command: &mut ConsoleCommand<'_>, a
     let thread = command.thread();
     let request = Request::parse(arguments.text().map_or(&[][..], CStr::to_bytes));
     let make = request != Request::Unknown && STATE.with(thread, |state| state.unmade());
-    let rooms = if make { LineBuffer::make_pair(thread, MOST) } else { None };
+    let rooms = if make { LineBuffer::make_pair(thread, VERTICES) } else { None };
     let reply = STATE.with(thread, |state| state.command(request, rooms));
-    for text in reply_lines(reply) {
+    for (text, suffix) in reply_lines(reply) {
         let mut line = Line::new();
         line.push(text);
+        line.push(suffix);
         tell(thread, &line);
     }
 }
@@ -610,7 +683,7 @@ pub fn on_viewed(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let level =
         LiveLevel { thread, world: &world, eye: [x, y, -z], triangles: collision_view_triangles_vtable_handle() };
     let (start, census) = fill(&level, &mut read);
-    let only = read.only;
+    let only = read.filter.only;
     if let Some(census) = STATE.with(thread, |state| state.finish(read, start, census)) {
         let shown = GROUPS.into_iter().filter(|&group| shows(only, group));
         for group in core::iter::once(None).chain(shown.map(Some)) {
@@ -658,27 +731,36 @@ fn tell(thread: &Thread, line: &Line) {
 }
 
 /// The options, after `collision` turns the view on and after a wrong argument.
-const HELP: [&str; 5] = [
+const HELP: [&str; 6] = [
     "  collision walk    - what stops walking (green + white)",
     "  collision shot    - what stops bullets and the camera (magenta + white)",
     "  collision solid   - what stops both (white)",
     "  collision anomaly - anomaly damage zones (red, dim when off)",
+    "  ... fill          - after any of these (or alone): surfaces filled, to find holes",
     "  collision         - again to turn off",
 ];
 
-/// What the console is told of a command, a line each.
-fn reply_lines(reply: Reply) -> impl Iterator<Item = &'static str> {
-    let (first, help): (&str, &[&str]) = match reply {
-        Reply::On(None) => ("collision: on, all (walk green, shot magenta, solid white, anomaly red)", &HELP),
-        Reply::On(Some(LevelGroup::Walk)) => ("collision: on, walk (green + white)", &[]),
-        Reply::On(Some(LevelGroup::Shot)) => ("collision: on, shot (magenta + white)", &[]),
-        Reply::On(Some(LevelGroup::Solid)) => ("collision: on, solid (white)", &[]),
-        Reply::On(Some(LevelGroup::Anomaly)) => ("collision: on, anomaly (red, dim when off)", &[]),
-        Reply::Off => ("collision: off", &[]),
-        Reply::Usage => ("collision: collision [walk | shot | solid | anomaly]", &HELP),
-        Reply::NoRoom => ("collision: no room for its lines, still off", &[]),
+/// What the console is told of a command, a line each (its text and a suffix).
+fn reply_lines(reply: Reply) -> impl Iterator<Item = (&'static str, &'static str)> {
+    let filled = |filter: Filter| if filter.fill == Fill::Filled { ", filled" } else { "" };
+    let (first, help): ((&str, &str), &[&str]) = match reply {
+        Reply::On(filter @ Filter { only: None, .. }) => {
+            (("collision: on, all (walk green, shot magenta, solid white, anomaly red)", filled(filter)), &HELP)
+        }
+        Reply::On(filter @ Filter { only: Some(group), .. }) => {
+            let text = match group {
+                LevelGroup::Walk => "collision: on, walk (green + white)",
+                LevelGroup::Shot => "collision: on, shot (magenta + white)",
+                LevelGroup::Solid => "collision: on, solid (white)",
+                LevelGroup::Anomaly => "collision: on, anomaly (red, dim when off)",
+            };
+            ((text, filled(filter)), &[])
+        }
+        Reply::Off => (("collision: off", ""), &[]),
+        Reply::Usage => (("collision: collision [walk | shot | solid | anomaly] [fill]", ""), &HELP),
+        Reply::NoRoom => (("collision: no room for its lines, still off", ""), &[]),
     };
-    core::iter::once(first).chain(help.iter().copied())
+    core::iter::once(first).chain(help.iter().map(|text| (*text, "")))
 }
 
 /// The census's head (`None`) or a group's line.
@@ -716,8 +798,8 @@ mod tests {
         fn census(&self) -> Census {
             self.census
         }
-        fn outline(&self, reach: f32, only: Option<LevelGroup>, lines: &mut LineBuffer) {
-            if !shows(only, LevelGroup::Walk) {
+        fn outline(&self, reach: f32, filter: Filter, lines: &mut LineBuffer) {
+            if !shows(filter.only, LevelGroup::Walk) {
                 return;
             }
             for i in 0..(self.lines)(reach) {
@@ -727,9 +809,7 @@ mod tests {
     }
 
     fn buffer(lines: usize) -> LineBuffer {
-        let vertices = Box::leak(vec![LineVertex::default(); 2 * lines].into_boxed_slice());
-        let indices = Box::leak((0..32 * 1024).map(|i| i as u16).collect::<Vec<_>>().into_boxed_slice());
-        LineBuffer::over(vertices, indices)
+        LineBuffer::over(Box::leak(vec![LineVertex::default(); 2 * lines].into_boxed_slice()))
     }
 
     fn state() -> Collision {
@@ -761,18 +841,22 @@ mod tests {
     }
 
     fn read(after: Previous, size: usize) -> Read {
-        Read { only: None, after, at: at(0.0, 1), lines: buffer(size) }
+        Read { filter: Filter::ALL, after, at: at(0.0, 1), lines: buffer(size) }
     }
 
     #[test]
     fn requests_as_typed() {
+        let show = |only, fill| Request::Show(Filter { only, fill });
         assert_eq!(Request::parse(b""), Request::Toggle);
         assert_eq!(Request::parse(b"  "), Request::Toggle);
-        assert_eq!(Request::parse(b"walk"), Request::Only(LevelGroup::Walk));
-        assert_eq!(Request::parse(b" shot "), Request::Only(LevelGroup::Shot));
-        assert_eq!(Request::parse(b"SOLID"), Request::Only(LevelGroup::Solid));
-        assert_eq!(Request::parse(b"anomaly"), Request::Only(LevelGroup::Anomaly));
-        for other in [&b"2"[..], b"0x8", b"a", b"walker", b"walk shot", b"all"] {
+        assert_eq!(Request::parse(b"walk"), show(Some(LevelGroup::Walk), Fill::Lines));
+        assert_eq!(Request::parse(b" shot "), show(Some(LevelGroup::Shot), Fill::Lines));
+        assert_eq!(Request::parse(b"SOLID"), show(Some(LevelGroup::Solid), Fill::Lines));
+        assert_eq!(Request::parse(b"anomaly"), show(Some(LevelGroup::Anomaly), Fill::Lines));
+        assert_eq!(Request::parse(b"fill"), show(None, Fill::Filled));
+        assert_eq!(Request::parse(b"walk  fill"), show(Some(LevelGroup::Walk), Fill::Filled));
+        assert_eq!(Request::parse(b"Shot FILL"), show(Some(LevelGroup::Shot), Fill::Filled));
+        for other in [&b"2"[..], b"0x8", b"a", b"walker", b"walk shot", b"all", b"fill walk", b"walk fill x"] {
             assert_eq!(Request::parse(other), Request::Unknown, "{other:?}");
         }
     }
@@ -780,18 +864,20 @@ mod tests {
     #[test]
     fn the_command_turns_it_on_and_off() {
         let mut s = state();
-        assert_eq!(s.command(Request::Toggle, rooms()), Reply::On(None));
-        assert_eq!(s.view, View::Starting { only: None });
+        let lines = |group| Filter { only: Some(group), fill: Fill::Lines };
+        assert_eq!(s.command(Request::Toggle, rooms()), Reply::On(Filter::ALL));
+        assert_eq!(s.view, View::Starting { filter: Filter::ALL });
         assert_eq!(s.command(Request::Unknown, None), Reply::Usage);
-        assert_eq!(s.view, View::Starting { only: None });
+        assert_eq!(s.view, View::Starting { filter: Filter::ALL });
         frame(&mut s, at(0.0, 1), &fake(|_| 3));
-        assert_eq!(s.command(Request::Only(LevelGroup::Shot), None), Reply::On(Some(LevelGroup::Shot)));
-        assert_eq!(s.view, View::Starting { only: Some(LevelGroup::Shot) });
+        assert_eq!(s.command(Request::Show(lines(LevelGroup::Shot)), None), Reply::On(lines(LevelGroup::Shot)));
+        assert_eq!(s.view, View::Starting { filter: lines(LevelGroup::Shot) });
         frame(&mut s, at(0.0, 1), &fake(|_| 3));
-        assert_eq!(s.command(Request::Only(LevelGroup::Walk), None), Reply::On(Some(LevelGroup::Walk)), "switched");
-        assert_eq!(s.command(Request::Only(LevelGroup::Walk), None), Reply::Off, "the shown name again: off");
+        let walk = lines(LevelGroup::Walk);
+        assert_eq!(s.command(Request::Show(walk), None), Reply::On(walk), "switched");
+        assert_eq!(s.command(Request::Show(lines(LevelGroup::Walk)), None), Reply::Off, "the shown name again: off");
         assert_eq!((s.view, drawn(&s)), (View::Off, 0));
-        assert_eq!(s.command(Request::Toggle, None), Reply::On(None), "the rooms kept");
+        assert_eq!(s.command(Request::Toggle, None), Reply::On(Filter::ALL), "the rooms kept");
         assert_eq!(s.command(Request::Toggle, None), Reply::Off);
     }
 
@@ -801,7 +887,7 @@ mod tests {
         assert!(s.unmade());
         assert_eq!(s.command(Request::Toggle, None), Reply::NoRoom);
         assert_eq!(s.view, View::Off);
-        assert_eq!(s.command(Request::Toggle, rooms()), Reply::On(None));
+        assert_eq!(s.command(Request::Toggle, rooms()), Reply::On(Filter::ALL));
         assert!(!s.unmade(), "made once, kept");
     }
 
@@ -821,7 +907,7 @@ mod tests {
         let zone_off = ReadAt { zones: 2, ..at(0.6, 2) };
         assert_eq!(frame(&mut s, zone_off, &level), (true, None), "a damage zone went on or off");
         assert_eq!(frame(&mut s, zone_off, &level), (false, None));
-        s.command(Request::Only(LevelGroup::Walk), None);
+        s.command(Request::Show(Filter { only: Some(LevelGroup::Walk), fill: Fill::Lines }), None);
         assert_eq!(drawn(&s), 0, "a filter's change: nothing until its read");
         assert_eq!(frame(&mut s, at(0.6, 2), &level), (true, Some(Census([541, 511, 105, 12]))), "its census too");
         assert_eq!(drawn(&s), 3, "drawn every frame until the next read");
@@ -839,7 +925,7 @@ mod tests {
         s.command(Request::Toggle, None);
         s.command(Request::Toggle, None);
         assert_eq!(s.finish(out, start, census), None, "turned off and on meanwhile: dropped");
-        assert_eq!(s.view, View::Starting { only: None }, "the start still due, its census with it");
+        assert_eq!(s.view, View::Starting { filter: Filter::ALL }, "the start still due, its census with it");
         assert_eq!(frame(&mut s, at(5.0, 1), &fake(|_| 7)), (true, Some(Census([541, 511, 105, 12]))));
         assert_eq!(drawn(&s), 7);
     }
@@ -852,22 +938,25 @@ mod tests {
             (read.lines.count(), start)
         };
         let shown = |start| Previous::Shown(Fit { at: at(0.0, 1), start });
-        assert_eq!(fit(Previous::Start, |r| if r > 15.0 { MOST + 1 } else { 40_000 }), (40_000, 1), "20 m cut: 10 m's");
-        assert_eq!(fit(Previous::Start, |_| MOST), (MOST, 0), "exactly the cap at 20 m: it fits, not cut");
-        assert_eq!(fit(Previous::Start, |_| 100_000), (MOST, 2), "cut at 5 m too: the cap's");
-        assert_eq!(fit(shown(1), |_| 40_000), (40_000, 1), "from the last fit, 10 m: one pass");
+        let cut_at_20 = |r: f32| if r > 15.0 { MOST + 1 } else { 50_000 };
+        assert_eq!(fit(Previous::Start, cut_at_20), (50_000, 1), "20 m cut: 10 m's");
+        assert_eq!(fit(Previous::Start, |_| MOST), (MOST, 0), "exactly the room at 20 m: it fits, not cut");
+        assert_eq!(fit(Previous::Start, |_| 200_000), (MOST, 2), "cut at 5 m too: the room's");
+        assert_eq!(fit(shown(1), |_| 50_000), (50_000, 1), "from the last fit, 10 m: one pass");
         assert_eq!(fit(shown(1), |_| 1_000), (1_000, 0), "under a quarter of the room: the next starts larger");
     }
 
     #[test]
     fn lines_drawn_over_their_surface() {
         let eye = [0.0, 0.0, 0.0];
-        let near = toward([1.0, 0.0, 0.0], eye);
+        let near = toward([1.0, 0.0, 0.0], eye, 1.0);
         assert!((near[0] - 0.99).abs() < 1e-6, "1 m away: 1 cm nearer");
-        let far = toward([0.0, 0.0, 20.0], eye);
+        let far = toward([0.0, 0.0, 20.0], eye, 1.0);
         assert!((far[2] - 19.9).abs() < 1e-5, "20 m away: 0.5 % nearer");
-        assert_eq!(toward(eye, eye), eye);
-        assert_eq!(toward([0.005, 0.0, 0.0], eye), eye, "nearer than the step: at the eye, not past it");
+        let fill = toward([0.0, 0.0, 20.0], eye, 0.5);
+        assert!((fill[2] - 19.95).abs() < 1e-5, "a filled corner half as near: under its lines");
+        assert_eq!(toward(eye, eye, 1.0), eye);
+        assert_eq!(toward([0.005, 0.0, 0.0], eye, 1.0), eye, "nearer than the step: at the eye, not past it");
         let mut read = read(Previous::Start, 4);
         push(&mut read.lines, [2.0, 1.0, -3.0], [4.0, 5.0, -6.0], LevelGroup::Solid.color());
         let v = read.lines.vertices()[0].at;
@@ -959,13 +1048,18 @@ mod tests {
         let child = Pose::new(::ragdoll::math::Quat::IDENTITY, Vec3::new(1.0, 0.0, 0.0));
         assert!(close(place(&pose.then(child), [0.0; 3]), [10.0, 0.0, 4.0]));
         let mut lines = buffer(64);
-        primitive_lines(Shape::Box { half: [1.0, 1.0, 1.0] }, &pose, LevelGroup::Walk.color(), &mut lines);
+        primitive_lines(Shape::Box { half: [1.0, 1.0, 1.0] }, &pose, LevelGroup::Walk.color(), Fill::Lines, &mut lines);
         assert_eq!(lines.count(), 12);
         assert!(lines.vertices().iter().all(|v| [9.0f32, 11.0].iter().any(|x| (x - v.at[0]).abs() < 1e-5)
                                               && [-4.0f32, -6.0].iter().any(|z| (z - v.at[2]).abs() < 1e-5)),
                 "in the game's frame, z negated");
-        primitive_lines(Shape::Other(24), &pose, LevelGroup::Walk.color(), &mut lines);
+        primitive_lines(Shape::Other(24), &pose, LevelGroup::Walk.color(), Fill::Filled, &mut lines);
         assert_eq!(lines.count(), 12, "another shape type draws nothing");
+        let walk = LevelGroup::Walk.color();
+        primitive_lines(Shape::Box { half: [1.0, 2.0, 3.0] }, &pose, walk, Fill::Filled, &mut lines);
+        assert_eq!((lines.count(), lines.triangles()), (24, 12), "a filled box: its edges and its faces' 12 triangles");
+        primitive_lines(Shape::Sphere { radius: 1.0 }, &pose, LevelGroup::Walk.color(), Fill::Filled, &mut lines);
+        assert_eq!(lines.triangles(), 12, "a round primitive: its outline alone");
     }
 
     #[test]
@@ -979,21 +1073,21 @@ mod tests {
 
     #[test]
     fn what_the_console_is_told() {
-        let said = |reply| reply_lines(reply).collect::<Vec<_>>();
-        assert_eq!(said(Reply::On(None)), [
-            "collision: on, all (walk green, shot magenta, solid white, anomaly red)",
-            "  collision walk    - what stops walking (green + white)",
-            "  collision shot    - what stops bullets and the camera (magenta + white)",
-            "  collision solid   - what stops both (white)",
-            "  collision anomaly - anomaly damage zones (red, dim when off)",
-            "  collision         - again to turn off",
-        ]);
-        assert_eq!(said(Reply::On(Some(LevelGroup::Anomaly))), ["collision: on, anomaly (red, dim when off)"]);
-        assert_eq!(said(Reply::On(Some(LevelGroup::Walk))), ["collision: on, walk (green + white)"]);
-        assert_eq!(said(Reply::On(Some(LevelGroup::Shot))), ["collision: on, shot (magenta + white)"]);
-        assert_eq!(said(Reply::On(Some(LevelGroup::Solid))), ["collision: on, solid (white)"]);
+        let said = |reply| reply_lines(reply).map(|(text, suffix)| format!("{text}{suffix}")).collect::<Vec<_>>();
+        let on = |only, fill| Reply::On(Filter { only, fill });
+        let mut all = vec!["collision: on, all (walk green, shot magenta, solid white, anomaly red)".to_string()];
+        all.extend(HELP.map(String::from));
+        assert_eq!(said(Reply::On(Filter::ALL)), all);
+        assert_eq!(HELP[4], "  ... fill          - after any of these (or alone): surfaces filled, to find holes");
+        assert_eq!(said(on(None, Fill::Filled))[0],
+                   "collision: on, all (walk green, shot magenta, solid white, anomaly red), filled");
+        assert_eq!(said(on(Some(LevelGroup::Anomaly), Fill::Lines)), ["collision: on, anomaly (red, dim when off)"]);
+        assert_eq!(said(on(Some(LevelGroup::Walk), Fill::Lines)), ["collision: on, walk (green + white)"]);
+        assert_eq!(said(on(Some(LevelGroup::Walk), Fill::Filled)), ["collision: on, walk (green + white), filled"]);
+        assert_eq!(said(on(Some(LevelGroup::Shot), Fill::Lines)), ["collision: on, shot (magenta + white)"]);
+        assert_eq!(said(on(Some(LevelGroup::Solid), Fill::Lines)), ["collision: on, solid (white)"]);
         assert_eq!(said(Reply::Off), ["collision: off"]);
-        assert_eq!(said(Reply::Usage)[0], "collision: collision [walk | shot | solid | anomaly]");
+        assert_eq!(said(Reply::Usage)[0], "collision: collision [walk | shot | solid | anomaly] [fill]");
         assert_eq!(said(Reply::Usage)[1..], HELP);
         assert_eq!(said(Reply::NoRoom), ["collision: no room for its lines, still off"]);
         let census: Vec<_> = core::iter::once(None)
@@ -1005,7 +1099,7 @@ mod tests {
             })
             .collect();
         assert_eq!(census, [
-            "collision: the level's static collision within 20 m (less where that is over 65536 lines):",
+            "collision: the level's static collision within 20 m (less where that is over 131072 lines):",
             "collision: walk (green) 541 in the world: stops walkers only",
             "collision: shot (magenta) 511 in the world: stops bullets and the camera only",
             "collision: solid (white) 105 in the world: stops walkers, bullets and the camera",

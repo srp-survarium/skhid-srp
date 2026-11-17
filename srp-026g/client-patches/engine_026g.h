@@ -136,6 +136,8 @@ struct swap_chain;
 struct system_renderer;
 struct text_translator;
 struct triangle_callback;
+struct ui_text_edit;
+struct ui_text_edit_text;
 struct usable_list;
 struct usable_object;
 struct usable_user;
@@ -902,5 +904,32 @@ void engine_process_all_triangles(struct bt_collision_shape *shape, struct trian
 
 /* 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly */
 void __attribute__((thiscall)) engine_triangle_process(struct triangle_callback *callback, const float *triangle, unsigned int part, unsigned int index);
+
+/* 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24 */
+void engine_draw_triangles(struct system_renderer *renderer, const void *vertex_begin, const void *vertex_end, const unsigned short *index_begin, const unsigned short *index_end, unsigned int override_flag);
+
+/* 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly */
+void __attribute__((thiscall)) engine_text_edit_set_text(struct ui_text_edit_text *part, const char *text);
+
+/* 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly */
+void __attribute__((thiscall)) engine_text_edit_set_caret(struct ui_text_edit *edit, unsigned int position, unsigned int select);
+
+/* 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0 */
+void engine_text_edit_delete_selection(struct ui_text_edit *edit);
+
+/* the IAT slot 0xaefedc (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_open_clipboard)(void * window);
+
+/* the IAT slot 0xaefed8 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_get_clipboard_data)(unsigned int format);
+
+/* the IAT slot 0xaefed4 (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_close_clipboard)(void);
+
+/* the IAT slot 0x870078 (an import, stdcall) */
+extern void * (__attribute__((stdcall)) *const engine_global_lock)(void * memory);
+
+/* the IAT slot 0x87007c (an import, stdcall) */
+extern unsigned int (__attribute__((stdcall)) *const engine_global_unlock)(void * memory);
 
 #endif
