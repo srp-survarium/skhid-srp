@@ -145,7 +145,7 @@ pub struct Config {
     pub max_rooms: usize,
     /// `SRP_ROOMS_EXTRA_MAPS`: playable ids a pool may hold besides the
     /// match pool.
-    pub extra_maps: Vec<u8>,
+    pub extra_maps: Vec<maps::MapId>,
 }
 
 impl Default for Config {
@@ -184,13 +184,13 @@ impl Config {
 }
 
 /// `SRP_ROOMS_EXTRA_MAPS`: playable ids, comma-separated; empty is none.
-fn parse_extra(value: &str) -> Option<Vec<u8>> {
+fn parse_extra(value: &str) -> Option<Vec<maps::MapId>> {
     value
         .split(',')
         .map(str::trim)
         .filter(|id| !id.is_empty())
         .map(|id| {
-            let id: u8 = id.parse().ok()?;
+            let id: maps::MapId = id.parse().ok()?;
             maps::map_mode(id)
                 .filter(|map| map.is_playable())
                 .map(|_| id)
@@ -865,7 +865,7 @@ impl Core<'_> {
         bots: bool,
         now: Instant,
     ) -> Result<u32, Refused> {
-        let entries: Vec<u8> = self
+        let entries: Vec<maps::MapId> = self
             .room_entries()
             .iter()
             .map(|entry| entry.map_id)
@@ -873,7 +873,7 @@ impl Core<'_> {
         // The whole pool but the experimental maps: the match pool,
         // Blackout's maps with it (the owner's of 2026-10-25: Blackout
         // is part of the standard pool).
-        let default: Vec<u8> = self
+        let default: Vec<maps::MapId> = self
             .room_entries()
             .iter()
             .filter(|entry| !entry.extra)
@@ -1583,7 +1583,7 @@ impl Core<'_> {
                     Stage::InMatch { .. } => room.last,
                     _ => room.leading(),
                 };
-                let map_id = shown.map_or(0, |played| played.map().id);
+                let map_id = shown.map(|played| played.map().id);
                 RoomRow {
                     key: room.key,
                     level: self.room_level(room),
@@ -2588,7 +2588,7 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.max_rooms, wire::rules().rooms_most);
         assert_eq!(parse_extra(""), Some(vec![]));
-        assert_eq!(parse_extra("61, 117"), Some(vec![61, 117]));
+        assert_eq!(parse_extra("61, 117"), Some(vec![maps::MapId::new(61), maps::MapId::new(117)]));
         // 107: level_08 night, which has no project.
         assert_eq!(parse_extra("107"), None);
         assert_eq!(parse_extra("x"), None);

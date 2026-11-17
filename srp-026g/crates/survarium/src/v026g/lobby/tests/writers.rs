@@ -7,6 +7,7 @@ use super::{assert_bytes, bytes, h};
 use crate::v026g::lobby::client_model::{Client, Decoded};
 use crate::v026g::prices::PriceItem;
 use crate::v026g::skills::MODIFIERS;
+use crate::v026g::dictionary::MapId;
 
 /// The TT-33 (no stack) and its ammo (a stack): 0.26g dict ids 18 and 50.
 const PISTOL: u16 = 18;
@@ -610,13 +611,14 @@ fn player_vs_bots_rows_are_ranking_rows_at_their_starts() {
         assert!(RESERVED_START < PVB_STATUS_START);
         assert!(PVB_STATUS_START + PVB_MAP_ROWS as u32 + 1 < PVB_CHOOSE_BASE);
     }
-    assert_eq!(pvb_choice_start(8, 61), 2_051_008_061);
-    assert_eq!(pvb_choice(2_051_008_061), Some((8, 61)));
-    assert_eq!(pvb_choice(2_051_010_138), Some((10, 138)));
+    assert_eq!(pvb_choice_start(8, MapId::new(61)), Some(2_051_008_061));
+    assert_eq!(pvb_choice(2_051_008_061), Some((8, MapId::new(61))));
+    assert_eq!(pvb_choice(2_051_010_138), Some((10, MapId::new(138))));
     assert_eq!(pvb_choice(PVB_CHOOSE_BASE - 1), None);
     assert_eq!(pvb_choice(PVB_CHOOSE_LAST + 1), None);
     assert_eq!(pvb_choice(PVB_CHOOSE_BASE + 256_000), None);
-    assert_eq!(pvb_choice(PVB_CHOOSE_BASE + 1_256), None);
+    assert_eq!(pvb_choice(PVB_CHOOSE_BASE + 1_256), Some((1, MapId::new(256))));
+    assert_eq!(pvb_choice_start(8, MapId::new(1000)), None);
 
     let widest = PvbNumbers {
         gear: u8::MAX,
@@ -634,17 +636,17 @@ fn player_vs_bots_rows_are_ranking_rows_at_their_starts() {
         },
         sizes: vec![6, 8, 10],
         default_size: 8,
-        default_map: 61,
+        default_map: MapId::new(61),
     };
     let maps = [
         PvbMap {
-            map_id: 61,
+            map_id: MapId::new(61),
             level: 1,
             mode: 2,
             free: 4,
         },
         PvbMap {
-            map_id: 138,
+            map_id: MapId::new(138),
             level: 8,
             mode: 4,
             free: 0,
@@ -677,14 +679,14 @@ fn player_vs_bots_rows_are_ranking_rows_at_their_starts() {
         numbers: widest,
         code: PvbCode::UnknownChoice,
         default_size: u8::MAX,
-        default_map: u8::MAX,
+        default_map: MapId::new(u16::MAX),
         ..status.clone()
     };
     let header = &read(&mut client, pvb_status(&wide, &[], 1).unwrap())[0].0;
     assert!(header.len() <= limits::NAME, "{header}");
 
     assert_eq!(
-        read(&mut client, pvb_choose_ok(8, 61).unwrap()),
+        read(&mut client, pvb_choose_ok(8, MapId::new(61)).unwrap()),
         vec![("B2;ok;8;61".into(), 2_051_008_061, 0, 0)]
     );
     assert_eq!(

@@ -3145,8 +3145,6 @@ va	status	ref_021d	name
 0x000ddff0	inferred-high		vostok::command_line::key::initialize(pcstr)
 0x000de0c0	inferred-high		vostok::command_line::key_initializator::operator()
 0x000df020	inferred-high		vostok::command_line::iterate_keys<key_initializator>
-0x00181660	inferred-medium	0x0010efaa	vostok::render::stage_ambient_lighting::render_ambient_light_list
-0x001858e0	inferred-medium		vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity
 0x003cd440	inferred-high		vostok::render::options::use_ssdo
 0x00290930	inferred-high	0x001a7008	survarium::object_ambient_light::insert
 0x001c3c90	inferred-medium		vostok::render::environment_probe_properties::operator=
@@ -3513,6 +3511,7 @@ va	status	ref_021d	name
 0x002f9f40	inferred-medium		survarium::victory_item_core_cook::new_victory_item_core [descriptive]
 0x002f9fa0	inferred-medium		survarium::victory_item_core_cook::create_resource [descriptive]
 0x003fe260	inferred-medium		boost::function2::operator() [descriptive]
+0x001f0e70	inferred-high		survarium::match_options::deserialize
 0x000842e0	inferred-medium		vostok::physics::character_step_down_sweep_test_callback::character_step_down_sweep_test_callback [descriptive]
 0x00084420	inferred-medium		vostok::physics::character_step_down_sweep_test_callback::addSingleResult [descriptive]
 0x00084fe0	inferred-medium		vostok::physics::bullet_character_controller::step_down_sweep [descriptive]

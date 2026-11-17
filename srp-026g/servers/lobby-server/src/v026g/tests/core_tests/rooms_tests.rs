@@ -4,6 +4,7 @@
 //! a late joiner; and no room for an older game.
 
 use session::v026g::rooms::Stage;
+use survarium::v026g::maps::MapId;
 use session::v026g::{matchmaking, quests};
 use survarium::v026g::lobby::rooms::{
     ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE,
@@ -132,7 +133,7 @@ pub(super) fn create(world: &mut World, index: usize, spec: RoomSpec, pin: Optio
 }
 
 /// The cards of a state: their maps.
-fn cards(state: &[String]) -> Vec<u8> {
+fn cards(state: &[String]) -> Vec<MapId> {
     state
         .iter()
         .filter(|row| row.starts_with("C;"))
@@ -1221,7 +1222,7 @@ fn an_older_game_plays_in_no_room() {
 
 /// The create window's answer: its header's fields and the `maps_dict` ids
 /// it puts in (tile in, mode not out).
-fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<u8>) {
+fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<MapId>) {
     let rows = rows(world, index, ROOM_FORM, 1);
     let header = header(&rows);
     let modes_off: Vec<u8> = header[7]
@@ -1256,7 +1257,7 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let entries = world.core.room_entries();
-    let regular: Vec<u8> = entries
+    let regular: Vec<MapId> = entries
         .iter()
         .filter(|entry| !entry.extra)
         .map(|entry| entry.map_id)
@@ -1292,7 +1293,7 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     assert_eq!(fields, ["1", "9", "2", "3", "45"]);
     // The pool as made: the window's tiles and modes give it back (an entry
     // of the same map, weather and mode would come with it).
-    let made: Vec<u8> = world
+    let made: Vec<MapId> = world
         .core
         .rooms
         .of(world.ids[alice].0)
@@ -2382,7 +2383,7 @@ fn a_private_room_with_bots_fills_its_teams_with_them() {
     assert_eq!(refused, ["S1;N;8;0;0"], "no bots' maps: no room");
 
     let entries = world.core.room_entries();
-    let bot_maps: Vec<u8> = entries
+    let bot_maps: Vec<MapId> = entries
         .iter()
         .filter(|entry| entry.mode == 2 && !entry.extra)
         .map(|entry| entry.map_id)
@@ -2394,7 +2395,7 @@ fn a_private_room_with_bots_fills_its_teams_with_them() {
     let pool = rows(&mut world, alice, ROOM_POOL_BASE, 255);
     for row in &pool[1..] {
         let fields: Vec<&str> = row.split(';').collect();
-        let map_id: u8 = fields[1].parse().unwrap();
+        let map_id: MapId = fields[1].parse().unwrap();
         let bots = if bot_maps.contains(&map_id) { "1" } else { "0" };
         assert_eq!(fields[6], bots, "{row}");
     }
@@ -2779,7 +2780,7 @@ fn blackout_is_a_mode_of_the_standard_pool() {
     // Rudnya's day: batteries (61), chargers (62), Team Deathmatch (117)
     // and Blackout (its battery map's twin, `blackout-mode-1.json`).
     let twin = maps::find(1, maps::weather::DAY, maps::GameMode::Blackout).unwrap().id;
-    settings.maps = vec![61, 62, 117, twin];
+    settings.maps = vec![MapId::new(61), MapId::new(62), MapId::new(117), twin];
     let mut world = World::with_settings(settings);
     let entries = world.core.room_entries();
     let blackout = maps::GameMode::Blackout.lobby_number();
@@ -2848,7 +2849,7 @@ fn a_rooms_match_with_bots_is_always_8_v_8() {
     use survarium::v026g::lobby::rooms::ROOM_CREATE_BOTS;
 
     let mut world = World::new();
-    let bot_maps: Vec<u8> = world
+    let bot_maps: Vec<MapId> = world
         .core
         .room_entries()
         .iter()

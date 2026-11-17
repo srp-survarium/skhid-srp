@@ -43,7 +43,7 @@ pub const INITIAL_MS: u32 = 50;
 pub struct Sim {
     pub players: usize,
     pub snapshot_players: usize,
-    pub map_id: u8,
+    pub map_id: maps::MapId,
     /// The timelimit rule as the last snapshot gave it, or as the match
     /// was made ready.
     base: TimelimitRule,
@@ -99,7 +99,7 @@ pub struct Sim {
 }
 
 impl Sim {
-    pub fn new(players: usize, map_id: u8) -> Self {
+    pub fn new(players: usize, map_id: maps::MapId) -> Self {
         let map = maps::map_mode(map_id).expect("a map of the tests");
         let mut base = TimelimitRule::new(TimelimitParams::of(map, players as u8));
         base.on_match_ready(INITIAL_MS);
@@ -641,7 +641,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(session: u32, patched: bool, players: usize, map_id: u8) -> Self {
+    pub fn new(session: u32, patched: bool, players: usize, map_id: maps::MapId) -> Self {
         Self {
             session,
             model: ClientModel::new(patched),
@@ -719,7 +719,7 @@ impl Client {
         client
     }
 
-    pub fn growing(session: u32, players: usize, map_id: u8) -> Self {
+    pub fn growing(session: u32, players: usize, map_id: maps::MapId) -> Self {
         let mut client = Self::new(session, true, players, map_id);
         client.model.growing_roster = true;
         client.sim.snapshot_players = 20;

@@ -22,8 +22,8 @@ Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
                                                        be the live value (a stale base is refused); the
                                                        path's `name[i]` is item i of an indexed table
-  "set_vector":     [{"file", "path", "from", "to"}]   a float3 (a model's `bounding_box/min`): `from` the
-                                                       live three numbers, `to` the new ones, in place
+  "set_vector":     [{"file", "path", "from", "to"}]   a float2/3/4 (e.g. a model's `bounding_box/min`): `from` the
+                                                       live components, `to` the new ones, in place
   "set_bool":       [{"file", "path", "from", "to"}]   a native boolean; both values must be JSON booleans,
                                                        type and every other byte are preserved
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
@@ -270,14 +270,16 @@ def set_number(buf, path, frm, to, as_float=False):
 
 
 def set_vector(buf, path, frm, to):
-    """A float3 value's three numbers, in place."""
+    """A native float2, float3 or float4, preserving its type and dimensions."""
     at, _, _, t, _ = rec(buf, find(buf, path))
-    if t != 7 or len(frm) != 3 or len(to) != 3:
-        raise TypeError('%s: a float3 and three numbers each' % path)
-    old = struct.unpack_from('<3f', buf, at)
+    dimensions = {6: 2, 7: 3, 8: 4}.get(t)
+    if dimensions is None or len(frm) != dimensions or len(to) != dimensions:
+        raise TypeError('%s: a float2/3/4 and matching numbers each' % path)
+    fmt = '<%df' % dimensions
+    old = struct.unpack_from(fmt, buf, at)
     if any(abs(a - b) > 1e-6 for a, b in zip(old, frm)):
         raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
-    struct.pack_into('<3f', buf, at, *to)
+    struct.pack_into(fmt, buf, at, *to)
 
 
 def set_bool(buf, path, frm, to):
