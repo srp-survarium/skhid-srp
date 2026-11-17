@@ -1,9 +1,9 @@
-# Patch 158: the console's output scrolls: the wheel, Page Up and Page Down;
+# Patch 159: the console's output scrolls: the wheel, Page Up and Page Down;
 # End, Enter and opening the console go back to the newest line
 # (console_scroll.rs; docs/notes/console-scroll.md). Only the decisions: the
 # sites and the handlers.
 name = "console_scroll"
-patch = 158
+patch = 159
 
 # console_impl::on_keyboard_action's start: every key of the open console
 [[hook]]

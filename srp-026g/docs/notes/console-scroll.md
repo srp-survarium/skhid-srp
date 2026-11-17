@@ -20,8 +20,8 @@ The owner, 2026-11-17: "I also wish scrolling in console was supported".
 
 ## How
 
-- Exe patch 158 (`client-patches/rust/patches/src/console_scroll.rs`, `client_patch.md` section
-  3.84, `check_console_scroll_026g.py`, `tools/check console-scroll`). The engine's console already
+- Exe patch 159 (`client-patches/rust/patches/src/console_scroll.rs`, `client_patch.md` section
+  3.85, `check_console_scroll_026g.py`, `tools/check console-scroll`). The engine's console already
   draws its lines through a scroll view, whose "follow the last line" flag the stock console never
   clears; the patch moves that view and sets or clears the flag, on the console's own keys
   (`console_impl::on_keyboard_action`), its mouse moves (`game_console::on_mouse_move`) and its

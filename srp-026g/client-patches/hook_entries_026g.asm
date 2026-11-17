@@ -5055,6 +5055,45 @@ hand_kill_on_hit_replay:
     db 0x8d, 0x4c, 0x24, 0x10, 0x51
     jmp 0x2e50cc
 
+; 0x1f3643 update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player): lohook -> ragdoll_on_eye
+global ragdoll_on_eye
+extern hook_ragdoll_on_eye_chain
+ragdoll_on_eye:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_eye_chain
+    mov edx, ragdoll_on_eye_replay
+    cmp eax, 0
+    je ragdoll_on_eye_go
+    mov edx, 0x1f3649
+    cmp eax, 1
+    je ragdoll_on_eye_go
+    ud2
+ragdoll_on_eye_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_eye_replay:
+    db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
+    jmp 0x1f3649
+
 ; 0x23a992 show_cursor's show (mov eax,[edi+18h] / lea esi,[edi+0Ch], then the call of base_game_scene::show_movie 0x23DC00 at 0x23A998): kept skips the movie, the flag (+2DCh) still written at 0x23A9A1: lohook -> hud_cursor_on_cursor_shown
 global hud_cursor_on_cursor_shown
 extern hook_hud_cursor_on_cursor_shown
@@ -7763,45 +7802,6 @@ ragdoll_on_bones_go:
 ragdoll_on_bones_replay:
     db 0x8b, 0x8b, 0x90, 0xf2, 0x00, 0x00
     jmp 0x24771c
-
-; 0x1f3643 update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player): lohook -> ragdoll_on_eye
-global ragdoll_on_eye
-extern hook_ragdoll_on_eye
-ragdoll_on_eye:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_eye
-    mov edx, ragdoll_on_eye_replay
-    cmp eax, 0
-    je ragdoll_on_eye_go
-    mov edx, 0x1f3649
-    cmp eax, 1
-    je ragdoll_on_eye_go
-    ud2
-ragdoll_on_eye_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_eye_replay:
-    db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
-    jmp 0x1f3649
 
 ; 0x24754f mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player): lohook -> ragdoll_on_held_item
 global ragdoll_on_held_item

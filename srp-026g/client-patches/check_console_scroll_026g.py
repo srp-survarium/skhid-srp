@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Patch 158 (the Rust patch console_scroll, rust/patches/src/console_scroll.rs):
+"""Patch 159 (the Rust patch console_scroll, rust/patches/src/console_scroll.rs):
 the console's output scrolls (docs/notes/console-scroll.md, client_patch.md
-section 3.84).
+section 3.85).
 
     python check_console_scroll_026g.py <original survarium.exe>
 
@@ -289,7 +289,7 @@ def main():
     assert fresh.wheel(120) == (True, 0.0), "a view the tick never filled (no step): nothing"
     assert fresh.activate() == (True, 0.0)
     print("ok a log the view holds, and a view never filled: nothing to scroll")
-    print("patch 158: all checks passed")
+    print("patch 159: all checks passed")
 
 
 if __name__ == "__main__":

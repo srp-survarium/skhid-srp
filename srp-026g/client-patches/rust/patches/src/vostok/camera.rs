@@ -17,6 +17,15 @@ pub fn eye_player<'t>(ctx: &'t Context<'_>) -> Option<(Player<'t>, bool)> {
     Some((player, ctx.reg(Reg::Eax) == player.eye_address()))
 }
 
+/// The eye the view is given at `camera.eye` (EAX's 16 floats, a row-vector
+/// 4x4: the player's +44Ch, or the eye an earlier hook gave instead).
+pub fn given_eye(ctx: &Context<'_>) -> [f32; 16] {
+    // SAFETY: at this site EAX is the transform update_camera hands the
+    // view (its +44Ch, or EYE after look_from): 16 floats, alive and not
+    // written while the hook runs on the game's render thread.
+    unsafe { floats(ctx.reg(Reg::Eax) as usize as *mut f32) }
+}
+
 /// The eye the view is given instead, a row-vector 4x4: kept in [`EYE`],
 /// which the view reads after the hook (until the next frame's).
 pub fn look_from(ctx: &mut Context<'_>, eye: [f32; 16]) {

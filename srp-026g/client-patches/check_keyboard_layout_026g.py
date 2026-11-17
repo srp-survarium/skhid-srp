@@ -119,7 +119,7 @@ class Run:
         self.word(SINK, SINK + 0x100)
         for slot in (0x10, 0x14, 0x34):
             self.word(SINK + 0x100 + slot, takes_one)
-        # +18h is the console's output, a scroll view, which patch 158 puts at its newest line when it
+        # +18h is the console's output, a scroll view, which patch 159 puts at its newest line when it
         # opens: its v scroll's pad (+1CCh), whose position (vtable +4) and set_position (+0) it uses
         pad, pad_position = GETTER + 0x400, OBJECT_CODE + 0x20
         emu.mem_write(pad_position, b"\xb8" + struct.pack("<I", pad + 0x200) + b"\xc3")   # mov eax,pad+200h / ret

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Patch 158: the console's output scrolls (the wheel, Page Up, Page Down; End, Enter and opening go back
+# Patch 159: the console's output scrolls (the wheel, Page Up, Page Down; End, Enter and opening go back
 # to the newest line); the original never moves the view.
 set -euo pipefail
 main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')

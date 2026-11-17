@@ -2131,7 +2131,7 @@ pub extern "C" fn hook_console_paste_on_paste(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- console_scroll (patch 158) ----
+// ---- console_scroll (patch 159) ----
 
 /// The entry `console_scroll_on_key` (0x1eaa0, console_impl::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,14h; called only by game_console's input handler slot 0, 0x1C7F0): ECX the console, EAX the key's kind (1 down, 2 up, 3 held), ESP+4 the input world, +8 the key (DirectInput); every key of the open console (input priority 5, before the game world's 7 and the player's 10), which it takes on every path (AL 1), on the game's thread) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2146,7 +2146,7 @@ pub extern "C" fn hook_console_scroll_on_key(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- console_scroll (patch 158) ----
+// ---- console_scroll (patch 159) ----
 
 /// The entry `console_scroll_on_wheel` (0x1c810, game_console::on_mouse_move's start (its input handler's slot 3, vtable 0x9DC030 +0Ch; mov ecx,[ecx-254h], the console's dialog): ECX the console's input handler (the console's +268h), ESP+4 the input world, +8 x, +0Ch y, +10h z (the wheel); every mouse move of the open console, which it takes (AL 1), on the game's thread) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2161,7 +2161,7 @@ pub extern "C" fn hook_console_scroll_on_wheel(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- console_scroll (patch 158) ----
+// ---- console_scroll (patch 159) ----
 
 /// The entry `console_scroll_on_activate` (0x1c760, game_console::on_activate's start (push esi / mov esi,ecx / mov ecx,[esi+1Ch]; vtable 0x9DC030 +24h through 0x1C840): ECX the console, about to be shown (its text edit focused, +264h set, its input handler added to the input world), on the game's thread) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -3112,6 +3112,36 @@ pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::medical_skills::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- ragdoll (patch 76) ----
+
+/// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_eye(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_eye` calls this, from the game's jump at 0x1f3643,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_eye(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- head_clearance (patch 158) ----
+
+/// The entry `head_clearance_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_head_clearance_on_eye(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `head_clearance_on_eye` calls this, from the game's jump at 0x1f3643,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::head_clearance::on_eye(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4623,21 +4653,6 @@ pub extern "C" fn hook_ragdoll_on_bones(frame: &mut Frame) -> u32 {
 
 // ---- ragdoll (patch 76) ----
 
-/// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_ragdoll_on_eye(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_eye` calls this, from the game's jump at 0x1f3643,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::ragdoll::on_eye(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- ragdoll (patch 76) ----
-
 /// The named exits of ragdoll::on_held_item (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]
@@ -6031,6 +6046,15 @@ pub extern "C" fn hook_hand_kill_on_hit_chain(frame: &mut Frame) -> u32 {
     let flow = hook_hand_kill_on_hit(frame);
     if flow != 0 { return flow; }
     let flow = hook_medical_skills_on_hit(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_eye_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_ragdoll_on_eye(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_head_clearance_on_eye(frame);
     if flow != 0 { return flow; }
     0
 }

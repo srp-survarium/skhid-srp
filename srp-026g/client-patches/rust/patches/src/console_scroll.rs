@@ -1,4 +1,4 @@
-//! Patch 158: the console's output scrolls (docs/notes/console-scroll.md).
+//! Patch 159: the console's output scrolls (docs/notes/console-scroll.md).
 //!
 //! The console shows the game's log, every line of it since the game
 //! started, through the engine's scroll view, which the stock console never
