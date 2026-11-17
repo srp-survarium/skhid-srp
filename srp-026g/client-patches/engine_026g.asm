@@ -192,6 +192,7 @@ global engine_ray_callback
 global engine_ray_needs_collision
 global engine_ray_test_single
 global engine_key_name
+global engine_key_text
 global engine_activate_keyboard_layout
 global engine_get_window_long_a
 global engine_set_window_long_a
@@ -259,6 +260,15 @@ global engine_process_all_triangles
 global engine_triangle_process
 global engine_scroll_view_set_follow
 global engine_scroll_set_position
+global engine_draw_triangles
+global engine_text_edit_set_text
+global engine_text_edit_set_caret
+global engine_text_edit_delete_selection
+global engine_open_clipboard
+global engine_get_clipboard_data
+global engine_close_clipboard
+global engine_global_lock
+global engine_global_unlock
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -328,6 +338,7 @@ engine_mt_free_memory equ 0x1c410   ; 0x1c410 vostok::memory::mt_free: memory ES
 engine_allocate_save_descriptor equ 0x109f30   ; 0x109f30 vostok::resources::allocate_save_descriptor: physical ESP+4, virtual_path ESP+8; pops 0; EAX; cdecl, called directly
 engine_ray_test_single equ 0xa02d0   ; 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
 engine_key_name equ 0x3b9c00   ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
+engine_key_text equ 0x3b92d0   ; 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly
 engine_activate_keyboard_layout equ 0xaeff20   ; the IAT slot 0xaeff20 (an import, stdcall)
 engine_get_window_long_a equ 0xaefe8c   ; the IAT slot 0xaefe8c (an import, stdcall)
 engine_set_window_long_a equ 0xaeff44   ; the IAT slot 0xaeff44 (an import, stdcall)
@@ -356,6 +367,13 @@ engine_get_last_error equ 0x87005c   ; the IAT slot 0x87005c (an import, stdcall
 engine_triangle_process equ 0xc5600   ; 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
 engine_scroll_view_set_follow equ 0x349c60   ; 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly
 engine_scroll_set_position equ 0x349ca0   ; 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly
+engine_text_edit_set_text equ 0x3479d0   ; 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly
+engine_text_edit_set_caret equ 0x3488a0   ; 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly
+engine_open_clipboard equ 0xaefedc   ; the IAT slot 0xaefedc (an import, stdcall)
+engine_get_clipboard_data equ 0xaefed8   ; the IAT slot 0xaefed8 (an import, stdcall)
+engine_close_clipboard equ 0xaefed4   ; the IAT slot 0xaefed4 (an import, stdcall)
+engine_global_lock equ 0x870078   ; the IAT slot 0x870078 (an import, stdcall)
+engine_global_unlock equ 0x87007c   ; the IAT slot 0x87007c (an import, stdcall)
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
@@ -3114,6 +3132,41 @@ engine_process_all_triangles:
     push dword [esp + 32]   ; callback -> 4
     mov ecx, [esp + 32]   ; shape
     call 0xa8660
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_draw_triangles:
+    ; 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 40]   ; override_flag -> 24
+    push dword [esp + 40]   ; index_end -> 20
+    push dword [esp + 40]   ; index_begin -> 16
+    push dword [esp + 40]   ; vertex_end -> 12
+    push dword [esp + 40]   ; vertex_begin -> 8
+    push dword [esp + 40]   ; renderer -> 4
+    call 0x11e370
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_text_edit_delete_selection:
+    ; 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov esi, [esp + 20]   ; edit
+    call 0x3486a0
     pop edi
     pop esi
     pop ebx

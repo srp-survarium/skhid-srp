@@ -174,3 +174,9 @@ vtable	slot	va	class	base	basis
 0x00a1dcb0	0x08	0x00349ca0	vostok::ui::ui_scroll_v_source	vostok::ui::scroll_source	observed: set_position, the pad's position y (the pad's window vtable+0)
 0x00a1dcb0	0x0c	0x00349500	vostok::ui::ui_scroll_v_source	vostok::ui::scroll_source	observed: get_step_size (+8)
 0x00a1dcb0	0x10	0x00349510	vostok::ui::ui_scroll_v_source	vostok::ui::scroll_source	observed: set_step_size (+8); console_impl::tick sets 20 (0x1D5A4)
+0x00a252d4	0x24	0x00079e40	vostok::input::input_world	vostok::input::input_world	observed: RTTI; mov eax,[ecx+24h]: its keyboard (create_devices 0x3B8414), asked by swf_input_translator::process_keyboard (0x1FDD79) and insert_char_action::execute (0x34B538)
+0x00a25478	0x4	0x003b9c00	vostok::input::platform::keyboard	vostok::input::keyboard	observed: RTTI; get_dik_name, which insert_char_action::execute calls for a named key (0x34B552)
+0x00a25478	0x8	0x003b92d0	vostok::input::platform::keyboard	vostok::input::keyboard	observed: RTTI; translate_text, the chat's text (swf_input_translator::process_keyboard 0x1FDDE1, a key's press)
+0x00a1debc	0x4	0x0034b4d0	vostok::ui::insert_char_action	vostok::ui::base_edit_action	observed: RTTI (base_edit_action 0xA1DEA4: the slot _purecall); the ui_text_edit's key action that types one character
+0x009dc020	0x4	0x0001c760	vostok::engine::game_console	vostok::engine::console	observed: RTTI; on_activate, the console shown
+0x009dc020	0x8	0x0001c7a0	vostok::engine::game_console	vostok::engine::console	observed: RTTI; on_deactivate, the console hidden

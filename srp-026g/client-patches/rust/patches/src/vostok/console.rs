@@ -260,9 +260,61 @@ impl Default for Line {
     }
 }
 
+/// A character the console's text edit can show: a byte of its font, the
+/// 256 glyphs of ui_font_arial_21_1024 (ui_font::init_font 0x346270, the
+/// table 0xAA3598), laid out as Windows-1251. Printable ASCII, and the
+/// Russian, Ukrainian and Belarusian letters and № (the font has no Ґ ґ).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConsoleChar(u8);
+
+impl ConsoleChar {
+    /// The console's byte for a UTF-16 character, if its font draws it.
+    pub fn of(character: u16) -> Option<ConsoleChar> {
+        let byte = match character {
+            0x20..=0x7E => character as u8,
+            0x0410..=0x044F => (character - 0x0410 + 0xC0) as u8,
+            0x0401 => 0xA8, // Ё
+            0x0451 => 0xB8, // ё
+            0x0404 => 0xAA, // Є
+            0x0454 => 0xBA, // є
+            0x0406 => 0xB2, // І
+            0x0456 => 0xB3, // і
+            0x0407 => 0xAF, // Ї
+            0x0457 => 0xBF, // ї
+            0x040E => 0xA1, // Ў
+            0x045E => 0xA2, // ў
+            0x2116 => 0xB9, // №
+            _ => return None,
+        };
+        Some(ConsoleChar(byte))
+    }
+
+    pub fn byte(self) -> u8 {
+        self.0
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn console_characters_are_the_fonts_windows_1251() {
+        let byte = |c: char| ConsoleChar::of(c as u16).map(ConsoleChar::byte);
+        assert_eq!(byte('w'), Some(b'w'));
+        assert_eq!(byte('~'), Some(b'~'));
+        assert_eq!(byte('А'), Some(0xC0));
+        assert_eq!(byte('я'), Some(0xFF));
+        assert_eq!(byte('ц'), Some(0xF6));
+        assert_eq!(byte('ё'), Some(0xB8));
+        assert_eq!(byte('Ї'), Some(0xAF));
+        assert_eq!(byte('ў'), Some(0xA2));
+        assert_eq!(byte('№'), Some(0xB9));
+        assert_eq!(byte('ґ'), None, "no glyph");
+        assert_eq!(byte('ω'), None);
+        assert_eq!(ConsoleChar::of(0x16), None, "Ctrl+V's control character");
+        assert_eq!(ConsoleChar::of(0x7F), None);
+    }
 
     #[test]
     fn numbers_as_written() {

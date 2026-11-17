@@ -2411,10 +2411,7 @@ va	status	ref_021d	name
 0x000a86a0	reviewed		btBvhTriangleMeshShape::processAllTriangles::MyNodeOverlapCallback::processNode
 0x000c26c0	reviewed		btQuantizedBvh::reportAabbOverlappingNodex
 0x00298ab0	reviewed		survarium::damage_zone::~damage_zone
-0x0001eaa0	reviewed	0x0001924f	vostok::console_impl::on_keyboard_action
 0x0001d0d0	reviewed	0x00018037	vostok::console_impl::tick
-0x0001c760	reviewed		vostok::engine::game_console::on_activate
-0x0001c7a0	reviewed		vostok::engine::game_console::on_deactivate
 0x0001c7f0	reviewed		vostok::engine::game_console::on_keyboard_action
 0x0001c8b0	reviewed		vostok::engine::game_console::on_gamepad_action
 0x0001c8e0	reviewed		vostok::engine::game_console::on_mouse_key_action
@@ -2431,3 +2428,19 @@ va	status	ref_021d	name
 0x00349ca0	reviewed		vostok::ui::ui_scroll_v_source::set_position
 0x00349500	reviewed		vostok::ui::ui_scroll_v_source::get_step_size
 0x00349510	reviewed		vostok::ui::ui_scroll_v_source::set_step_size
+0x0001c760	observed		vostok::engine::game_console::on_activate
+0x0001c7a0	observed		vostok::engine::game_console::on_deactivate
+0x0034b4d0	observed		vostok::ui::insert_char_action::execute
+0x0001eaa0	reviewed	0x0001924f	vostok::console_impl::on_keyboard_action
+0x00348120	observed		vostok::ui::ui_text_edit::copy_to_clipboard
+0x003481f0	observed		vostok::ui::ui_text_edit::cut_to_clipboard
+0x003482c0	observed		vostok::ui::ui_text_edit::paste_from_clipboard
+0x003479d0	reviewed	0x00210e30	vostok::ui::ui_text_edit::set_text
+0x003488a0	reviewed	0x00211990	vostok::ui::ui_text_edit::set_caret_position
+0x0034a5e0	reviewed	0x00212f52	vostok::ui::ui_text_edit::init_internals
+0x00348000	reviewed		vostok::ui::ui_text_edit's insert of a typed character at the caret
+0x003486a0	reviewed		vostok::ui::ui_text_edit's delete of the selection
+0x00348a10	reviewed		vostok::ui::ui_text_edit's keyboard action (its key bindings, by key and modifiers)
+0x0034a450	reviewed		vostok::ui::ui_text_edit's make of a key binding to one of its methods
+0x0034b430	reviewed		vostok::ui::ui_text_edit key binding's test of the key's kind and modifiers
+0x0034b4c0	reviewed		vostok::ui::ui_text_edit method key binding's execute

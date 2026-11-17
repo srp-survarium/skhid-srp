@@ -16,9 +16,11 @@
 //! it always did.
 //!
 //! It asks its configured server for Skhid updates. Missing original game
-//! files come from a separate HTTPS mirror with compiled-in SHA-256 pins, and,
-//! when the launcher allows torrent, from the release's torrent, shared while
-//! the launcher is open (`torrent.rs`). No crash upload, no administrator
+//! files come from a separate HTTPS mirror with compiled-in SHA-256 pins. When
+//! the launcher allows torrent, the release's signed newest revision is asked
+//! of the DHT beside the site ([`check`]); a run the site does not answer
+//! updates from the release's torrent, which is shared while the launcher is
+//! open (`torrent.rs`). No crash upload, no administrator
 //! rights. Successful launcher updates
 //! register Skhid Replay for .sur files in this user's Open With choices.
 #![windows_subsystem = "windows"]
@@ -45,6 +47,7 @@ mod win;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
+use std::sync::mpsc;
 
 use updater_logic::disk;
 use updater_logic::file_error::{self, Exclusion, Kind, Stop};
@@ -398,15 +401,66 @@ fn read_installed(layout: &Layout) -> Option<Installed> {
     parse_installed(&bytes)
 }
 
-/// Asks the server which archive it offers, several times if need be.
-/// `Err(None)`: told to stop.
-fn ask(session: &mut Session, server: &Url) -> Result<Manifest, Option<String>> {
-    let mut last = String::new();
-    for attempt in 1..=CHECK_TRIES {
+/// The site's half of the update check: `GET /api/client-files`, tried
+/// [`CHECK_TRIES`] times, each try on a thread of its own, so the pipe and
+/// the DHT ([`check`]) go on while it waits.
+struct Asking {
+    server: Url,
+    tries: u32,
+    now: Ask,
+}
+
+enum Ask {
+    Waiting(mpsc::Receiver<Result<Vec<u8>, HttpError>>),
+    /// After a failed try, until this tick.
+    Pausing(u64),
+    Done(Result<Manifest, String>),
+}
+
+impl Asking {
+    fn start(session: &mut Session, server: &Url) -> Self {
+        let mut asking = Self {
+            server: server.clone(),
+            tries: 0,
+            now: Ask::Pausing(0),
+        };
+        asking.poll(session);
+        asking
+    }
+
+    fn poll(&mut self, session: &mut Session) {
+        let result = match &self.now {
+            Ask::Done(_) => return,
+            Ask::Pausing(until) => {
+                if win::ticks() >= *until {
+                    self.send(session);
+                }
+                return;
+            }
+            Ask::Waiting(answer) => match answer.try_recv() {
+                Ok(result) => result,
+                Err(mpsc::TryRecvError::Empty) => return,
+                Err(mpsc::TryRecvError::Disconnected) => Err(HttpError::Stopped),
+            },
+        };
+        self.tried(session, result);
+    }
+
+    fn send(&mut self, session: &mut Session) {
+        self.tries += 1;
         session.state(state::CHECKING);
-        let result = http::get(server, "/api/client-files", 4096, &mut |_, _| true);
+        let (sender, answer) = mpsc::channel();
+        let server = self.server.clone();
+        std::thread::spawn(move || {
+            let _ = sender.send(http::get(&server, "/api/client-files", 4096, &mut |_, _| true));
+        });
+        self.now = Ask::Waiting(answer);
+    }
+
+    fn tried(&mut self, session: &mut Session, result: Result<Vec<u8>, HttpError>) {
+        let server = &self.server;
         session.reached(server, result.as_ref().map(|_| ()));
-        match result {
+        let failed = match result {
             Ok(body) => match parse_manifest(&body) {
                 Ok(manifest) => {
                     log!(
@@ -414,29 +468,83 @@ fn ask(session: &mut Session, server: &Url) -> Result<Manifest, Option<String>> 
                         core::str::from_utf8(&to_hex(&manifest.sha256)).unwrap_or(""),
                         manifest.size
                     );
-                    return Ok(manifest);
+                    self.now = Ask::Done(Ok(manifest));
+                    return;
                 }
-                Err(ManifestError::NewerFormat) => return Err(Some(text::newer_format(server))),
-                Err(ManifestError::TooLarge) => return Err(Some(text::archive_too_large(server))),
-                Err(error) => last = text::not_the_server(server, &format!("{error:?}")),
+                Err(ManifestError::NewerFormat) => Err(text::newer_format(server)),
+                Err(ManifestError::TooLarge) => Err(text::archive_too_large(server)),
+                Err(error) => Ok(text::not_the_server(server, &format!("{error:?}"))),
             },
             // The server runs but has no client files to offer: nothing to
             // wait for.
-            Err(HttpError::Status(404)) => return Err(Some(text::nothing_offered(server))),
-            Err(error) => last = text::http(server, "/api/client-files", &error),
-        }
-        log!("check {attempt} of {CHECK_TRIES} failed: {last}");
-        if !session.pump() {
-            return Err(None);
-        }
-        if attempt < CHECK_TRIES {
-            session.state(state::CHECK_FAILED);
-            if !session.pause(RETRY_PAUSE_MS) {
+            Err(HttpError::Status(404)) => Err(text::nothing_offered(server)),
+            Err(error) => Ok(text::http(server, "/api/client-files", &error)),
+        };
+        // `Ok`: worth another try.
+        self.now = match failed {
+            Ok(last) => {
+                log!("check {} of {CHECK_TRIES} failed: {last}", self.tries);
+                if self.tries < CHECK_TRIES {
+                    session.state(state::CHECK_FAILED);
+                    Ask::Pausing(win::ticks() + u64::from(RETRY_PAUSE_MS))
+                } else {
+                    Ask::Done(Err(last))
+                }
+            }
+            Err(last) => Ask::Done(Err(last)),
+        };
+    }
+
+    /// Whether the site has given its answer (not a failure).
+    fn answered(&mut self, session: &mut Session) -> bool {
+        self.poll(session);
+        matches!(self.now, Ask::Done(Ok(_)))
+    }
+
+    /// The site's answer, waited for. `Err(None)`: told to stop.
+    fn wait(mut self, session: &mut Session) -> Result<Manifest, Option<String>> {
+        loop {
+            self.poll(session);
+            if let Ask::Done(answer) = self.now {
+                return answer.map_err(Some);
+            }
+            if !session.pump() {
                 return Err(None);
             }
+            win::sleep(50);
         }
     }
-    Err(Some(last))
+}
+
+/// Who answered the update check.
+enum Answer {
+    /// The site, whenever it answered before the DHT did: the update is
+    /// the site's (HTTPS), and the folder is shared as ever.
+    Site(Manifest),
+    /// The release's signed DHT item named this revision before the site
+    /// answered (torrent on). The site, still asked, is the fallback.
+    Signed(u64, Asking),
+    /// Neither: why the site could not be asked.
+    Neither(String),
+}
+
+/// The update check: the site and, with torrent on, the DHT at once
+/// (`torrent::discover`), so a site that does not answer never holds up
+/// the DHT's answer. `None`: told to stop.
+fn check(session: &mut Session, layout: &Layout, server: &Url) -> Option<Answer> {
+    let mut asking = Asking::start(session, server);
+    let signed = torrent::discover(session, layout, &mut |session| !asking.answered(session));
+    if session.stopped() {
+        return None;
+    }
+    match signed {
+        Some(revision) if !asking.answered(session) => Some(Answer::Signed(revision, asking)),
+        _ => match asking.wait(session) {
+            Ok(manifest) => Some(Answer::Site(manifest)),
+            Err(None) => None,
+            Err(Some(why)) => Some(Answer::Neither(why)),
+        },
+    }
 }
 
 /// Downloads the archive the server offers and checks it against
@@ -539,9 +647,10 @@ enum Done {
         restart: bool,
         put_back: Option<String>,
     },
-    /// The server could not be asked (why), and what is installed is whole:
-    /// the game can be started with it (the words for the player).
-    Offline(String, String),
+    /// The server could not be asked (why: [`gate::Seen::Unasked`]), and
+    /// what is installed is whole: the game can be started with it (the
+    /// words for the player).
+    Offline(String),
     Stopped,
     Failed(String),
     /// The game exe says an older revision than the server lets in (the
@@ -584,9 +693,8 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
     // played after, with the server only when the server answered. When this
     // updater or the launcher was replaced, the new ones start at once and
     // do them.
-    let server = match &done {
-        Done::UpToDate | Done::Installed { restart: false, .. } => Ok(&server),
-        Done::Offline(_, reason) => Err(reason.as_str()),
+    match &done {
+        Done::UpToDate | Done::Installed { restart: false, .. } | Done::Offline(_) => {}
         Done::Installed { restart: true, .. } => {
             log!(
                 "the updater or the launcher was replaced: the rest of the update is done by the new one"
@@ -594,17 +702,22 @@ fn update(session: &mut Session, layout: &Layout, patch_look: patches::Look) -> 
             return done;
         }
         Done::Stopped | Done::Failed(_) | Done::Behind(_) | Done::Stop(..) => return done,
-    };
-    // A game older than the server lets in is not played, whatever its
-    // patches: the server's update is not all offered yet.
-    if server.is_ok()
-        && let Some(message) = gate::behind(
-            layout,
-            session.seen.as_ref().and_then(|seen| seen.min_revision),
-        )
+    }
+    // A game older than the server lets in (or, the site not asked, than
+    // the newest release signed) is not played, whatever its patches.
+    if let Some(seen) = &session.seen
+        && let Some(message) = gate::behind(layout, seen)
     {
         return Done::Behind(message);
     }
+    let unasked = match &session.seen {
+        Some(gate::Seen::Unasked { why, .. }) => Some(why.clone()),
+        _ => None,
+    };
+    let server = match &unasked {
+        None => Ok(&server),
+        Some(why) => Err(why.as_str()),
+    };
     // Best effort: what an earlier updater wrote into resources.db in place
     // gets its stock bytes back, once.
     match resources::run(session, layout, server.ok()) {
@@ -637,88 +750,48 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
             .iter()
             .flat_map(|installed| installed.files.iter().map(|file| file.name.as_str())),
     );
-    let mut manifest = match ask(session, server) {
+    let site = match check(session, layout, server) {
+        None => return Done::Stopped,
+        Some(Answer::Site(manifest)) => Ok(manifest),
+        Some(Answer::Neither(why)) => Err((why, None)),
+        Some(Answer::Signed(revision, asking)) => {
+            session.seen = Some(gate::Seen::Unasked {
+                server: server.clone(),
+                archive: installed.as_ref().map(|installed| installed.archive),
+                signed: Some(revision),
+                why: text::signed_first(server, revision),
+            });
+            if let Some(done) = signed_overlay(session, layout, installed.as_ref(), revision) {
+                return done;
+            }
+            log!("revision {revision} cannot be had without the site: its answer is waited for");
+            match asking.wait(session) {
+                Ok(manifest) => Ok(manifest),
+                Err(None) => return Done::Stopped,
+                Err(Some(why)) => Err((why, Some(revision))),
+            }
+        }
+    };
+    let mut manifest = match site {
         Ok(manifest) => {
             torrent::remove_skhid_parts(layout);
-            session.seen = Some(gate::Seen {
+            session.seen = Some(gate::Seen::Site {
                 server: server.clone(),
-                archive: Some(manifest.sha256),
+                archive: manifest.sha256,
                 min_revision: manifest.min_revision,
-                online: true,
             });
             manifest
         }
-        Err(None) => return Done::Stopped,
-        Err(Some(message)) => {
-            session.seen = Some(gate::Seen {
-                server: server.clone(),
-                archive: installed.as_ref().map(|installed| installed.archive),
-                min_revision: None,
-                online: false,
-            });
-            torrent::discover(session, layout);
-            if let Some(done) = torrent_overlay(session, layout, installed.as_ref()) {
-                // Nothing installed (stopped, failed): no game download either.
-                let Done::Installed { restart, .. } = done else { return done };
-                if !game::present(layout) {
-                    match game::ensure(session, layout, None) {
-                        Ok(_) => {}
-                        Err(None) => return Done::Stopped,
-                        Err(Some(why)) => return Done::Failed(why),
-                    }
-                }
-                if restart {
-                    return done;
-                }
-                // Still without the server: the rest of the run is offline.
-                patches::overlay_changed(layout);
-                return Done::Offline(text::offline(&message), message);
-            }
-            // The original game from the addresses built into this updater
-            // (a provider that blocks the server need not block them).
-            if !game::present(layout) {
-                log!(
-                    "the original game is missing and the update server cannot be reached: the \
-                     addresses built in"
-                );
-                match game::ensure(session, layout, None) {
-                    Ok(_) => {}
-                    Err(None) => return Done::Stopped,
-                    Err(Some(why)) => {
-                        return Done::Failed(format!(
-                            "The original game is not installed and the update server cannot be reached. {message} {why}"
-                        ));
-                    }
-                }
-            }
-            // No answer. What is installed and whole may still be played,
-            // and so may files this updater never installed (copied by
-            // hand, the first start): it knows nothing against them. Files
-            // it installed and now finds damaged may not.
-            return match &installed {
-                None => Done::Offline(text::offline_unchecked(&message), message),
-                Some(installed) => match damage(installed, |file| look(layout, file)) {
-                    None => Done::Offline(text::offline(&message), message),
-                    Some(Reason::Missing(name) | Reason::Changed(name)) => {
-                        Done::Failed(text::offline_damaged(&message, &name))
-                    }
-                    Some(Reason::Unreadable(name, code)) => {
-                        Done::Failed(text::offline_unreadable(&message, &name, code))
-                    }
-                    Some(Reason::Stop(stop, name)) => Done::Stop(stop, name),
-                    Some(_) => Done::Failed(message),
-                },
-            };
+        Err((message, signed)) => {
+            return unasked(session, layout, server, installed.as_ref(), message, signed);
         }
     };
     // The original game is unpacked with 7zr.exe, a file of the Skhid
     // archive. With that file in place the game comes first, as a player's
     // own copy of it would be there first. Without it (deleted, damaged, the
     // archive only half unpacked) the Skhid files come first, which brings
-    // it, and the game after them. So do they when torrent is allowed: the
-    // torrent is a file of the archive.
-    let game_after = !game::present(layout)
-        && (!game::extractor_ready(layout) || session.torrents.allowed());
+    // it, and the game after them.
+    let game_after = !game::present(layout) && !game::extractor_ready(layout);
     let game_added = if game_after {
         log!("the original game is missing: the Skhid files first (its extractor, its torrent)");
         false
@@ -773,10 +846,11 @@ fn overlay(session: &mut Session, layout: &Layout, server: &Url) -> Done {
     };
     // The server may have been given another archive meanwhile: this one is
     // what the run acts on.
-    if let Some(seen) = &mut session.seen {
-        seen.archive = Some(manifest.sha256);
-        seen.min_revision = manifest.min_revision;
-    }
+    session.seen = Some(gate::Seen::Site {
+        server: server.clone(),
+        archive: manifest.sha256,
+        min_revision: manifest.min_revision,
+    });
     session.state(state::DOWNLOADED);
     let files = match unpack(&archive) {
         Ok(files) => files,
@@ -905,6 +979,110 @@ fn put_in_place(
         files.len()
     );
     Ok(outcome)
+}
+
+/// The DHT named the newest release, `revision`, before the site answered:
+/// the folder found whole at it, or brought to it from its signed torrent,
+/// without the site. `None`: not without the site.
+fn signed_overlay(session: &mut Session, layout: &Layout, installed: Option<&Installed>, revision: u64) -> Option<Done> {
+    if crate::signed::game_number(layout) >= revision {
+        if !game::present(layout) {
+            return None;
+        }
+        return match damage(installed?, |file| look(layout, file)) {
+            None => {
+                log!("revision {revision}, the newest the release signed, is installed and whole: up to date");
+                Some(Done::UpToDate)
+            }
+            Some(Reason::Stop(stop, name)) => Some(Done::Stop(stop, name)),
+            Some(_) => None,
+        };
+    }
+    if torrent::offered(session, layout).is_none_or(|signed| signed.revision < revision) {
+        return None;
+    }
+    by_torrent(session, layout, installed)
+}
+
+/// The site could not be asked (`message`): the folder from the run's
+/// signed torrent when that is newer, else as it is when whole. `signed`:
+/// the newest revision the DHT named.
+fn unasked(
+    session: &mut Session,
+    layout: &Layout,
+    server: &Url,
+    installed: Option<&Installed>,
+    message: String,
+    signed: Option<u64>,
+) -> Done {
+    session.seen = Some(gate::Seen::Unasked {
+        server: server.clone(),
+        archive: installed.map(|installed| installed.archive),
+        signed,
+        why: message.clone(),
+    });
+    if let Some(done) = by_torrent(session, layout, installed) {
+        return match done {
+            // Still without the server: the rest of the run is offline.
+            Done::Installed { restart: false, .. } => {
+                patches::overlay_changed(layout);
+                Done::Offline(text::offline(&message))
+            }
+            done => done,
+        };
+    }
+    // The original game from the addresses built into this updater
+    // (a provider that blocks the server need not block them).
+    if !game::present(layout) {
+        log!(
+            "the original game is missing and the update server cannot be reached: the \
+             addresses built in"
+        );
+        match game::ensure(session, layout, None) {
+            Ok(_) => {}
+            Err(None) => return Done::Stopped,
+            Err(Some(why)) => {
+                return Done::Failed(format!(
+                    "The original game is not installed and the update server cannot be reached. {message} {why}"
+                ));
+            }
+        }
+    }
+    // No answer. What is installed and whole may still be played, and so
+    // may files this updater never installed (copied by hand, the first
+    // start): it knows nothing against them. Files it installed and now
+    // finds damaged may not.
+    match installed {
+        None => Done::Offline(text::offline_unchecked(&message)),
+        Some(installed) => match damage(installed, |file| look(layout, file)) {
+            None => Done::Offline(text::offline(&message)),
+            Some(Reason::Missing(name) | Reason::Changed(name)) => {
+                Done::Failed(text::offline_damaged(&message, &name))
+            }
+            Some(Reason::Unreadable(name, code)) => {
+                Done::Failed(text::offline_unreadable(&message, &name, code))
+            }
+            Some(Reason::Stop(stop, name)) => Done::Stop(stop, name),
+            Some(_) => Done::Failed(message),
+        },
+    }
+}
+
+/// The Skhid files from the run's signed torrent ([`torrent_overlay`]),
+/// then the original game when it is missing. `None`: not by torrent.
+fn by_torrent(session: &mut Session, layout: &Layout, installed: Option<&Installed>) -> Option<Done> {
+    let done = torrent_overlay(session, layout, installed)?;
+    // Nothing installed (stopped, failed): no game download either.
+    if let Done::Installed { .. } = done
+        && !game::present(layout)
+    {
+        match game::ensure(session, layout, None) {
+            Ok(_) => {}
+            Err(None) => return Some(Done::Stopped),
+            Err(Some(why)) => return Some(Done::Failed(why)),
+        }
+    }
+    Some(done)
 }
 
 /// When the server cannot be asked: the Skhid files from the signed
@@ -1263,7 +1441,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
             // this network blocks) and what to run; Retry runs the update
             // again. Cancel: what the run came to (an error, or PLAY with
             // the files installed).
-            (Done::Failed(_) | Done::Offline(..), Some(failed)) => {
+            (Done::Failed(_) | Done::Offline(_), Some(failed)) => {
                 log!("every address failed: {failed:?}");
                 if let Done::Failed(_) = done {
                     session.state(state::ERROR);
@@ -1306,7 +1484,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
     }
     // The game keeps up to 3 GB of baked textures in Documents: with less
     // than disk::NEEDED free on its drive PLAY stays off; Retry asks again.
-    if matches!(done, Done::UpToDate | Done::Installed { restart: false, .. } | Done::Offline(..)) {
+    if matches!(done, Done::UpToDate | Done::Installed { restart: false, .. } | Done::Offline(_)) {
         match documents.as_deref().map(|folder| (folder, win::free_space(folder))) {
             None => log!("the Documents folder is not known: its free space not checked"),
             Some((folder, None)) => log!("the free space of {folder} is not known: not checked"),
@@ -1360,7 +1538,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
             session.state(state::LATEST);
             (exit::OK, true)
         }
-        Done::Offline(message, _) => {
+        Done::Offline(message) => {
             log!("the server could not be asked: {message}");
             if session.named_file {
                 session.state(state::CHECKING);

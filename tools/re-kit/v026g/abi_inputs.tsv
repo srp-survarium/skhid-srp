@@ -890,7 +890,7 @@ va	name	location	role	basis
 0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+12	vertex-end pointer	observed
 0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+16	index-begin pointer	observed
 0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+20	index-end pointer	observed
-0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+24 low byte	technique override flag	observed
+0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+24 low byte	technique override flag: set, technique 3 (cover); clear, 2 while the color write +150h is off, else 1 in grid mode +140h, else 0 (alpha-blended, the default); then always a second pass with technique 4 (wireframe, blended) at 0x11E4BC	observed
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	entry ESP+4	owner	observed
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	entry ESP+8	input TL vertices	observed
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	entry ESP+12	vertex count reference	observed
@@ -6326,10 +6326,28 @@ va	name	location	role	basis
 0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+8	x, the mouse's move	observed
 0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+12	y, the mouse's move	observed
 0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+16	z, the wheel's turn since the last poll (signed; 120 a notch, forward positive)	observed
-0x0001c760	vostok::engine::game_console::on_activate	ECX	the game console (this)	observed
 0x0001d0d0	vostok::console_impl::tick	entry ESP+4	the console (this, on the stack: game_console::tick 0x1C74B pushes it)	observed
 0x0001d0d0	vostok::console_impl::tick	entry ESP+8	the scene view the dialog is drawn with	observed
 0x00349c60	vostok::ui::ui_scroll_view::set_follow_last_line	ECX	the scroll view (this: its scroll_view interface at +0, its window at +4)	observed
 0x00349c60	vostok::ui::ui_scroll_view::set_follow_last_line	entry ESP+4	follow (its low byte): nonzero follows the last line, 0 stops	observed
 0x00349ca0	vostok::ui::ui_scroll_v_source::set_position	ECX	the scroll source (the scroll view's +1C8h; its pad at +4)	observed
 0x00349ca0	vostok::ui::ui_scroll_v_source::set_position	entry ESP+4	float: the new position, the pad's y (0 at the top, -(length - height) at the end)	observed
+0x0001c760	vostok::engine::game_console::on_activate	ECX	the game console (vtable 0x9DC020; console_impl's +1Ch text edit focused, +264h set to 1 at 0x1C77E, +26Ch the input world it adds +268h to)	observed
+0x0001c7a0	vostok::engine::game_console::on_deactivate	ECX	the game console (its text edit and tips +1Ch, +18h unfocused, +264h cleared at 0x1C7D3, +268h removed from the input world +26Ch)	observed
+0x0034b4d0	vostok::ui::insert_char_action::execute	ECX	the action (+4 its ui_text_edit, Shift and Caps Lock at its +2ACh bits 30h; +8 the key, a DirectInput code; +14h the input world, 0 for none; +18h named: the character is the first letter of the key's DirectInput name, get_dik_name 0x34B552, when the text edit's locale says it is a letter, lowercased; +19h its character, +1Ah with Shift); the character typed at [esp+8] after its two pushes, inserted at 0x34B5E2 (0x348000)	observed
+0x0034b4d0	vostok::ui::insert_char_action::execute	entry ESP+4	not read	observed
+0x0034a4c0	vostok::ui::create_char_action	EDI	the ui_text_edit (its allocator +0Ch)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+4	the key, a DirectInput code (+8)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+8	the character (+19h)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+12	the character with Shift (+1Ah)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+16	named (+18h): 1 for the letters and the punctuation keys, 0 for the digits, the numeric keypad, Space and the grave key (ui_text_edit::init_internals 0x34A5E0)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+20	the input world (+14h, [[text edit+264h]+4])	observed
+0x003482c0	vostok::ui::ui_text_edit::paste_from_clipboard	ECX	the text edit (this; unused by the stub): Ctrl+V's and Shift+Insert's key binding (init_internals 0x34AA5C) calls it through 0x34B4C0	observed
+0x003479d0	vostok::ui::ui_text_edit::set_text	ECX	the text edit's ui_text part (the text edit + 4; its -4 the text edit): the line's text at its +44h, the max length +2A0h, the caret +2A2h	observed
+0x003479d0	vostok::ui::ui_text_edit::set_text	entry ESP+4	the new text, a C string (the line is it cut at the max length; the line's buffer ends at +4Ch, 200h bytes)	observed
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	ECX	the text edit	observed
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	entry ESP+4	the caret's new position (its low word), clamped to the line's length	observed
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	entry ESP+8	select (its low byte): nonzero with Shift held moves one end of the selection with the caret; zero collapses the selection to the caret	observed
+0x003486a0	vostok::ui::ui_text_edit's delete of the selection	ESI	the text edit (kept): its selection [+2A8h, +2AAh) deleted; a typed character's binding (0x34B5D5) calls it before the insert (0x348000)	observed
+0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	ECX	the binding (+8 its key, +0Ch its kind, 0 any; +10h its modifiers; +14h the object, +18h the method)	observed
+0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	entry ESP+4	the key's kind (1 down, 2 up; unused): the keyboard action pushes it (0x348A75)	observed

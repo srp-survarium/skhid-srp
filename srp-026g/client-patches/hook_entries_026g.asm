@@ -3306,6 +3306,48 @@ collision_view_on_debug_lines_replay:
 ; 0x9e4f94 btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box: vtable -> collision_view_on_triangle (wraps engine_triangle_process 0xc5600)
     RUST_THISCALL collision_view_on_triangle, hook_collision_view_on_triangle, 3
 
+; 0x3482c0 ui_text_edit::paste_from_clipboard's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,28h), the engine's stub that logs "not implemented": ECX the text edit (thiscall, no argument; Ctrl+V's and Shift+Insert's key binding, init_internals 0x34AA5C, calls it through 0x34B4C0, on the game's thread); pasted is its `ret` (0x34838F), the stack as at the site: lohook -> console_paste_on_paste
+global console_paste_on_paste
+extern hook_console_paste_on_paste
+console_paste_on_paste:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_paste_on_paste
+    mov edx, console_paste_on_paste_replay
+    cmp eax, 0
+    je console_paste_on_paste_go
+    mov edx, 0x3482c9
+    cmp eax, 1
+    je console_paste_on_paste_go
+    mov edx, 0x34838f
+    cmp eax, 2
+    je console_paste_on_paste_go
+    ud2
+console_paste_on_paste_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_paste_on_paste_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x28
+    jmp 0x3482c9
+
 ; 0x1eaa0 console_impl::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,14h; called only by game_console's input handler slot 0, 0x1C7F0): ECX the console, EAX the key's kind (1 down, 2 up, 3 held), ESP+4 the input world, +8 the key (DirectInput); every key of the open console (input priority 5, before the game world's 7 and the player's 10), which it takes on every path (AL 1), on the game's thread: lohook -> console_scroll_on_key
 global console_scroll_on_key
 extern hook_console_scroll_on_key
@@ -5570,6 +5612,168 @@ keyboard_layout_on_text_go:
 keyboard_layout_on_text_replay:
     db 0x8b, 0xf8, 0x8d, 0x44, 0x24, 0x20
     jmp 0x3b92e8
+
+; 0x18365 message_processor's WM_INPUTLANGCHANGEREQUEST case at its call of the game's text-focus check (mov eax,[ecx] / mov edx,[eax+44h] / call edx; ECX the game, survarium::game slot 44h 0x1EE7C0, after window.lang_request); focused 0x18374, where a focused request goes to DefWindowProc (pop edi/esi/ebx, jmp [DefWindowProcA]), the stack as at the site; a false check drops it at 0x18272: lohook -> keyboard_layout_on_request_focus
+global keyboard_layout_on_request_focus
+extern hook_keyboard_layout_on_request_focus
+keyboard_layout_on_request_focus:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_request_focus
+    mov edx, keyboard_layout_on_request_focus_replay
+    cmp eax, 0
+    je keyboard_layout_on_request_focus_go
+    mov edx, 0x1836c
+    cmp eax, 1
+    je keyboard_layout_on_request_focus_go
+    mov edx, 0x18374
+    cmp eax, 2
+    je keyboard_layout_on_request_focus_go
+    ud2
+keyboard_layout_on_request_focus_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_request_focus_replay:
+    db 0x8b, 0x01, 0x8b, 0x50, 0x44, 0xff, 0xd2
+    jmp 0x1836c
+
+; 0x1c77e game_console::on_activate (0x1C760, vtable 0x9DC020 slot 4) marking the console shown (mov byte [esi+264h],1), after it focused the text edit; the logic thread: lohook -> keyboard_layout_on_console_opened
+global keyboard_layout_on_console_opened
+extern hook_keyboard_layout_on_console_opened
+keyboard_layout_on_console_opened:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_console_opened
+    mov edx, keyboard_layout_on_console_opened_replay
+    cmp eax, 0
+    je keyboard_layout_on_console_opened_go
+    mov edx, 0x1c785
+    cmp eax, 1
+    je keyboard_layout_on_console_opened_go
+    ud2
+keyboard_layout_on_console_opened_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_console_opened_replay:
+    db 0xc6, 0x86, 0x64, 0x02, 0x00, 0x00, 0x01
+    jmp 0x1c785
+
+; 0x1c7d3 game_console::on_deactivate (0x1C7A0, slot 8) marking it hidden (mov byte [esi+264h],0), after it unfocused the text edit and the tips; the logic thread: lohook -> keyboard_layout_on_console_closed
+global keyboard_layout_on_console_closed
+extern hook_keyboard_layout_on_console_closed
+keyboard_layout_on_console_closed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_console_closed
+    mov edx, keyboard_layout_on_console_closed_replay
+    cmp eax, 0
+    je keyboard_layout_on_console_closed_go
+    mov edx, 0x1c7da
+    cmp eax, 1
+    je keyboard_layout_on_console_closed_go
+    ud2
+keyboard_layout_on_console_closed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_console_closed_replay:
+    db 0xc6, 0x86, 0x64, 0x02, 0x00, 0x00, 0x00
+    jmp 0x1c7da
+
+; 0x34b4da insert_char_action::execute (0x34B4D0, vtable 0xA1DEBC slot 4: a ui_text_edit's key that types a character, the console's letters, digits and punctuation, made by create_char_action 0x34A4C0) after mov edi,ecx, before its Shift test (mov eax,[edi+4] / test byte [eax+2ACh],30h): EDI the action; the character it types is [esp+8], its own (+19h, Shift +1Ah) or, for a key made named (+18h), the first letter of the key's DirectInput name (get_dik_name through the input world's keyboard, 0x34B533..0x34B5CE); typed 0x34B5D2, where it deletes the selection (0x3486A0) and inserts [esp+8] (0x348000), EDI the action, the stack as at the site: lohook -> keyboard_layout_on_console_char
+global keyboard_layout_on_console_char
+extern hook_keyboard_layout_on_console_char
+keyboard_layout_on_console_char:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_console_char
+    mov edx, keyboard_layout_on_console_char_replay
+    cmp eax, 0
+    je keyboard_layout_on_console_char_go
+    mov edx, 0x34b4e4
+    cmp eax, 1
+    je keyboard_layout_on_console_char_go
+    mov edx, 0x34b5d2
+    cmp eax, 2
+    je keyboard_layout_on_console_char_go
+    ud2
+keyboard_layout_on_console_char_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_console_char_replay:
+    db 0x8b, 0x47, 0x04, 0xf6, 0x80, 0xac, 0x02, 0x00, 0x00, 0x30
+    jmp 0x34b4e4
 
 ; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
 global lamps_on_bind

@@ -217,6 +217,7 @@ engine_ray_callback	0x075b40	EAX:this ESI:from EDX:to ESP+4:group ESP+8:mask ESP
 engine_ray_needs_collision	0x075bd0	ECX:this ESP+4:proxy	unsigned char engine_ray_needs_collision(struct closest_ray_result_callback *callback, struct bt_broadphase_proxy *proxy)	thunk	
 engine_ray_test_single	0x0a02d0	ESP+4:rayFromTrans ESP+8:rayToTrans ESP+12:object ESP+16:shape ESP+20:transform ESP+24:callback	void engine_ray_test_single(struct bt_transform *from, struct bt_transform *to, struct bt_collision_object *object, struct bt_collision_shape *shape, struct bt_transform *transform, struct closest_ray_result_callback *callback)	cdecl	
 engine_key_name	0x3b9c00	ECX:keyboard ESP+4:key ESP+8:buffer ESP+12:size	unsigned char engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size)	thiscall	
+engine_key_text	0x3b92d0	ECX:keyboard ESP+4:key ESP+8:WCHAR	unsigned char engine_key_text(struct keyboard *keyboard, unsigned int key, unsigned short *text)	thiscall	
 engine_activate_keyboard_layout	0xaeff20	-	unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)	import	
 engine_get_window_long_a	0xaefe8c	-	unsigned int engine_get_window_long_a(void *window, unsigned int index)	import	
 engine_set_window_long_a	0xaeff44	-	unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)	import	
@@ -289,3 +290,13 @@ engine_process_all_triangles	0x0a8660	ECX:shape ESP+4:callback ESP+8:aabbMin ESP
 engine_triangle_process	0x0c5600	ECX:callback ESP+4:triangle ESP+8:part ESP+12:index	void engine_triangle_process(struct triangle_callback *callback, const float *triangle, unsigned int part, unsigned int index)	thiscall	callback: TriangleSink, triangle: Triangle, part: u32, index: u32 ->
 engine_scroll_view_set_follow	0x349c60	ECX:view ESP+4:follow	void engine_scroll_view_set_follow(struct ui_scroll_view *view, unsigned int follow)	thiscall
 engine_scroll_set_position	0x349ca0	ECX:source ESP+4:position	void engine_scroll_set_position(struct scroll_source *source, float position)	thiscall
+engine_draw_triangles	0x11e370	ESP+4:renderer ESP+8:vertex-begin ESP+12:vertex-end ESP+16:index-begin ESP+20:index-end ESP+24:override	void engine_draw_triangles(struct system_renderer *renderer, const void *vertex_begin, const void *vertex_end, const unsigned short *index_begin, const unsigned short *index_end, unsigned int override_flag)	thunk	
+engine_text_edit_set_text	0x3479d0	ECX:part ESP+4:new	void engine_text_edit_set_text(struct ui_text_edit_text *part, const char *text)	thiscall
+engine_text_edit_set_caret	0x3488a0	ECX:edit ESP+4:position ESP+8:select	void engine_text_edit_set_caret(struct ui_text_edit *edit, unsigned int position, unsigned int select)	thiscall
+engine_text_edit_delete_selection	0x3486a0	ESI:edit	void engine_text_edit_delete_selection(struct ui_text_edit *edit)	thunk
+engine_open_clipboard	0xaefedc	-	unsigned int engine_open_clipboard(void *window)	import
+engine_get_clipboard_data	0xaefed8	-	void *engine_get_clipboard_data(unsigned int format)	import
+engine_close_clipboard	0xaefed4	-	unsigned int engine_close_clipboard(void)	import
+engine_global_lock	0x870078	-	void *engine_global_lock(void *memory)	import
+engine_global_unlock	0x87007c	-	unsigned int engine_global_unlock(void *memory)	import
+engine_global_size	-	-	unsigned int engine_global_size(void *memory)	dynamic

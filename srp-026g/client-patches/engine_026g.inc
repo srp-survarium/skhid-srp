@@ -635,6 +635,10 @@ extern engine_ray_test_single
 ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_key_name
+; unsigned char engine_key_text(struct keyboard *keyboard, unsigned int key, unsigned short *text)
+; 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_key_text
 ; unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
 ; the IAT slot 0xaeff20 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
@@ -864,3 +868,37 @@ extern engine_scroll_view_set_follow
 ; 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_scroll_set_position
+; void engine_draw_triangles(struct system_renderer *renderer, const void *vertex_begin, const void *vertex_end, const unsigned short *index_begin, const unsigned short *index_end, unsigned int override_flag)
+; 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24
+extern engine_draw_triangles
+; void engine_text_edit_set_text(struct ui_text_edit_text *part, const char *text)
+; 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_text_edit_set_text
+; void engine_text_edit_set_caret(struct ui_text_edit *edit, unsigned int position, unsigned int select)
+; 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_text_edit_set_caret
+; void engine_text_edit_delete_selection(struct ui_text_edit *edit)
+; 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
+extern engine_text_edit_delete_selection
+; unsigned int engine_open_clipboard(void *window)
+; the IAT slot 0xaefedc (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_open_clipboard
+; void *engine_get_clipboard_data(unsigned int format)
+; the IAT slot 0xaefed8 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_clipboard_data
+; unsigned int engine_close_clipboard(void)
+; the IAT slot 0xaefed4 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_close_clipboard
+; void *engine_global_lock(void *memory)
+; the IAT slot 0x870078 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_global_lock
+; unsigned int engine_global_unlock(void *memory)
+; the IAT slot 0x87007c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_global_unlock

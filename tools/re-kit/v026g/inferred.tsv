@@ -3517,3 +3517,5 @@ va	status	ref_021d	name
 0x000842e0	inferred-medium		vostok::physics::character_step_down_sweep_test_callback::character_step_down_sweep_test_callback [descriptive]
 0x00084420	inferred-medium		vostok::physics::character_step_down_sweep_test_callback::addSingleResult [descriptive]
 0x00084fe0	inferred-medium		vostok::physics::bullet_character_controller::step_down_sweep [descriptive]
+0x00348000	inferred-medium		vostok::ui::ui_text_edit::insert_char [descriptive]
+0x003486a0	inferred-medium		vostok::ui::ui_text_edit::delete_selection [descriptive]
