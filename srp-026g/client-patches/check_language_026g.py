@@ -24,7 +24,7 @@ counted):
   (the engine's buffer_string 0x21E75E0, as its initializer 0x84E3E0 leaves
   it, or as -localization= sets it) and the saved value give: a registered
   flag wins (unchanged, no locale call), else the saved choice, else the
-  language of Windows' user locale by its primary language (asked only
+  language of Windows' user locale (exact locale, else primary; asked only
   then), else English; a changed language gets the
   locale sequence of core::preinitialize (C, .ACP, its code page if any, C);
   the saved value is the language after; eax the original's;
@@ -230,13 +230,22 @@ def main():
         ("no flag, no choice, Windows 0x0415", None, "", 0x0415, "polish", page(".1250"), asked),
         ("no flag, no choice, Windows 0x0405", None, "", 0x0405, "czech", [c, acp, c_numeric], asked),
         ("no flag, no choice, Windows 0x0411", None, "", 0x0411, "english", page(".1252"), asked),
-        ("no flag, unknown choice, Windows 0x101A (Croatian, Bosnia)", None, "klingon", 0x101A, "serbian",
+        ("no flag, unknown choice, Windows 0x101A (Croatian, Bosnia)", None, "klingon", 0x101A, "croatian",
          [c, acp, c_numeric], asked),
         ("no flag, no choice, Windows 0x0C07 (German, Austria)", None, "", 0x0C07, "german",
          [c, acp, c_numeric], asked),
         ("no flag, no choice, Windows 0x10407 (German, phone book sort)", None, "", 0x10407, "german",
          [c, acp, c_numeric], asked),
         ("no flag, no choice, Windows 0x0C00 (a custom locale)", None, "", 0x0C00, "english", page(".1252"), asked),
+    ]
+    cases += [
+        ("Croatian flag wins", "croatian", "serbian", 0x081A, "croatian", [], []),
+        ("saved Croatian wins", None, "croatian", 0x081A, "croatian", [c, acp, c_numeric], []),
+        ("saved Serbian stays", None, "serbian", 0x041A, "serbian", [c, acp, c_numeric], []),
+        ("Croatian Windows", None, "", 0x041A, "croatian", [c, acp, c_numeric], asked),
+        ("Croatian LCID with sort bits", None, "", 0x1041A, "croatian", [c, acp, c_numeric], asked),
+        ("Serbian Windows", None, "", 0x081A, "serbian", [c, acp, c_numeric], asked),
+        ("Bosnian Windows fallback", None, "", 0x141A, "serbian", [c, acp, c_numeric], asked),
     ]
     for label, flag, choice, windows, language, locales, kernel_calls in cases:
         for r in (stock, ours):
