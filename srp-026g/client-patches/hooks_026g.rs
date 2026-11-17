@@ -5655,6 +5655,26 @@ pub extern "C" fn hook_weapon_pickup_on_load_ordinal(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_load_record (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnLoadRecordExit { Skip }
+/// The entry `weapon_pickup_on_load_record` (0x321ca0, bullet_manager::deserialize's loop over the records (mov esi,[edi+80h], before the bullet's allocation and its constructor 0x32BBC0): EDI the manager, EBX the section's reader at the record; skip 0x321CFC is the loop's count (sub ebp,1 / jne), no bullet made) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_load_record(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_load_record` calls this, from the game's jump at 0x321ca0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_load_record(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- world_check (patch 87) ----
 
 /// The named exits of world_check::on_unpacked (the order the shim's Flow code

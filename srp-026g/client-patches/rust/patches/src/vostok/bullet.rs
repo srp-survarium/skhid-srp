@@ -171,7 +171,7 @@ impl<'t> BulletRay<'t> {
             let (Some(materials), Some(material)) = (manager.materials(), bullet.material()) else {
                 return;
             };
-            if read(manager.renderer()) == 0 {
+            if manager.engine().is_none() {
                 return;
             }
             let first = u32::from(read(material.id()));
@@ -283,7 +283,7 @@ impl<'t> SurfaceBreakEffects<'t> {
         // SAFETY: the manager and its material table own these resources
         // until the worker joins (the caller's word for the manager).
         unsafe {
-            if read(manager.renderer()) == 0 { return None; }
+            manager.engine()?;
             let pair = raw::engine_material_pair(Some(manager.materials()?), source.0, target.0)?;
             let particle = pair.particles().filter(|first| Some(*first) != pair.particles_end())
                 .map(|slot| ParticleEffect { slot, orientation: ParticleOrientation::parse(read(pair.parameter())) });

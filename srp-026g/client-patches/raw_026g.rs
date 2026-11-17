@@ -107,6 +107,8 @@ unsafe extern "C" {
     pub fn engine_match_options(client: Option<NetworkClient>) -> Option<MatchOptions>;
     /// virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX
     pub fn engine_active_player(client: Option<NetworkClient>, out: *mut Option<Player>, place: u32) -> *mut Option<Player>;
+    /// virtual survarium::bullet_manager_engine+0x24 (1 vtables of vtables.tsv: 0x1f7660): engine ECX, place ESP+4; pops 4; EAX
+    pub fn engine_bullet_player(engine: Option<BulletManagerEngine>, place: u32) -> Option<Player>;
     /// 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
     pub fn engine_update_skeleton(scene_renderer: Option<SceneRenderer>, instance: Option<RenderModelInstance>, bones: *const f32, second: *const f32, count: u32);
     /// 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
@@ -3081,13 +3083,22 @@ impl BulletManager {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x90 (u32): the renderer (0: no effects; play_particle 0x3223EB)
+    /// +0x90 (ptr<survarium::bullet_manager_engine>): the game world's interface (the world's +0ECh; its slot +24h get_player, bullet::bullet 0x32BD3E); 0: no effects (play_particle 0x3223EB)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
-    pub unsafe fn renderer(self) -> *mut u32 {
-        unsafe { self.0.byte_add(0x90).cast::<u32>().as_ptr() }
+    pub unsafe fn engine(self) -> Option<BulletManagerEngine> {
+        unsafe { self.0.byte_add(0x90).cast::<Option<BulletManagerEngine>>().read_volatile() }
+    }
+
+    /// +0x90 (ptr<survarium::bullet_manager_engine>): the game world's interface (the world's +0ECh; its slot +24h get_player, bullet::bullet 0x32BD3E); 0: no effects (play_particle 0x3223EB)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_engine(self, value: Option<BulletManagerEngine>) {
+        unsafe { self.0.byte_add(0x90).cast::<Option<BulletManagerEngine>>().write_volatile(value) }
     }
 
     /// +0x94 (ptr<survarium::game_material_manager>): the game material manager (check_collision 0x32D845)
@@ -25462,6 +25473,21 @@ impl UiTextEditText {
     }
 }
 
+/// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BulletManagerEngine(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BulletManagerEngine {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
 /// A survarium::game_material_manager (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -26904,6 +26930,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn bullet(machine: &impl Machine) -> Option<Bullet> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Bullet)
+        }
+    }
+
+    /// bullets.load_record (0x321ca0): bullet_manager::deserialize's loop over the records (mov esi,[edi+80h], before the bullet's allocation and its constructor 0x32BBC0): EDI the manager, EBX the section's reader at the record; skip 0x321CFC is the loop's count (sub ebp,1 / jne), no bullet made
+    pub mod bullets_load_record {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::bullet_manager (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn manager(machine: &impl Machine) -> Option<BulletManager> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BulletManager)
+        }
+
+        /// EBX: a vostok::buffer_reader (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn reader(machine: &impl Machine) -> Option<BufferReader> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(BufferReader)
         }
     }
 

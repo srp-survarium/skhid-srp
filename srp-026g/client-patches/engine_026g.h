@@ -24,6 +24,7 @@ struct buffer_string;
 struct buffer_writer;
 struct bullet;
 struct bullet_manager;
+struct bullet_manager_engine;
 struct bullet_owner;
 struct bullet_physics_world;
 struct camouflage_decal_texture_type_baker_cook;
@@ -316,6 +317,9 @@ struct match_options *engine_match_options(struct network_client *client);
 
 /* virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX */
 struct player **engine_active_player(struct network_client *client, struct player **out, unsigned int place);
+
+/* virtual survarium::bullet_manager_engine+0x24 (1 vtables of vtables.tsv: 0x1f7660): engine ECX, place ESP+4; pops 4; EAX */
+struct player *engine_bullet_player(struct bullet_manager_engine *engine, unsigned int place);
 
 /* the IAT slot 0x870158 (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_query_performance_counter)(unsigned int * count);

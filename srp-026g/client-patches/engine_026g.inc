@@ -185,6 +185,9 @@ extern engine_match_options
 ; struct player **engine_active_player(struct network_client *client, struct player **out, unsigned int place)
 ; virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX
 extern engine_active_player
+; struct player *engine_bullet_player(struct bullet_manager_engine *engine, unsigned int place)
+; virtual survarium::bullet_manager_engine+0x24 (1 vtables of vtables.tsv: 0x1f7660): engine ECX, place ESP+4; pops 4; EAX
+extern engine_bullet_player
 ; unsigned int engine_query_performance_counter(unsigned int *count)
 ; the IAT slot 0x870158 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
