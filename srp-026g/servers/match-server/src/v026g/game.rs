@@ -710,6 +710,8 @@ struct Peer {
     /// `Carrier::key`): each once, however often the client resends it.
     reports_heard: BTreeSet<(u8, u8, u8)>,
     executable: super::executable::Receiver,
+    /// Its game's code blocks (client patch 125), after the executable.
+    code: super::executable::Blocks,
     /// The sync generation of the last 0xE5/0xE8 sent to it: 0xFF once it
     /// is ready, as the client's own.
     generation: Generation,
@@ -1411,6 +1413,7 @@ impl Game {
             world_receipts: WorldReceipts::default(),
             reports_heard: BTreeSet::new(),
             executable: super::executable::Receiver::default(),
+            code: super::executable::Blocks::default(),
             generation: Generation::AT_READY,
             set_times: VecDeque::new(),
             time_confirmed: false,
@@ -1528,11 +1531,20 @@ impl Game {
         let Some(carrier) = Carrier::parse(payload) else { return true };
         if carrier.match_id != super::registry::static_id(self.id) { return true; }
         let (Some(peer), Some(place)) = (self.peers.get_mut(index).and_then(Option::as_mut), self.formed.places.get(index)) else { return true };
-        if matches!(peer.stage, Stage::Gone | Stage::Connecting) { peer.executable.cancel(); return true; }
+        if matches!(peer.stage, Stage::Gone | Stage::Connecting) { peer.executable.cancel(); peer.code.cancel(); return true; }
         if peer.executable.identity().is_none() && let Upload::Offer(identity) = carrier.upload {
             log::info!(target: super::client_report::MODULES, "{} (account {}), match {:#x}, executable sha256 {} size {}", place.name, place.account_id, self.id, identity, identity.size());
         }
-        if let Some((sha256, answer)) = peer.executable.receive(carrier.upload, now, self.settings.released_executable) {
+        if peer.code.starts(&carrier.upload) && let Upload::Code(identity) = carrier.upload {
+            log::info!(target: super::client_report::MODULES, "{} (account {}), match {:#x}, code sha256 {} size {}", place.name, place.account_id, self.id, identity, identity.size());
+        }
+        let code = match carrier.upload {
+            Upload::Code(_) => true,
+            Upload::Data { sha256, .. } => peer.code.holds(sha256),
+            Upload::Offer(_) => false,
+        };
+        let answer = if code { peer.code.receive(carrier.upload, now) } else { peer.executable.receive(carrier.upload, now, self.settings.released_executable) };
+        if let Some((sha256, answer)) = answer {
             let reply = Reply { match_id: carrier.match_id, sha256, answer };
             // Only a peer that offered this protocol ever receives its E4 reply.
             // Lost application replies are retried by the client's next offer.
@@ -5014,6 +5026,7 @@ impl Game {
                 ));
         peer.stage = Stage::Gone;
         peer.executable.cancel();
+        peer.code.cancel();
         peer.held.clear();
         peer.reassembler.clear();
         log::info!(
@@ -5478,7 +5491,7 @@ impl Game {
     /// Advance the match, and return the datagrams to send.
     pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
         for peer in self.peers.iter_mut().flatten() {
-            if peer.stage == Stage::Gone { peer.executable.cancel(); } else { peer.executable.expire(now); }
+            if peer.stage == Stage::Gone { peer.executable.cancel(); peer.code.cancel(); } else { peer.executable.expire(now); peer.code.expire(now); }
         }
         self.poll_roster(now);
         let clock = self.clock(now);
