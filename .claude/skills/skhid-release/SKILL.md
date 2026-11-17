@@ -121,7 +121,11 @@ resources.db.patch_<n> (error 2). Please run the Skhid launcher again."
 `release.sh` and `deploy` refuse a ZIP whose exe requires other patches
 than the server data offers. So a patch removed from the list is no longer
 required by the next release's exe, and every patch a release offers must
-be downloadable by every player (add the Drive mirror at publish time).
+be downloadable by every player. New releases use the patches server without
+Google Drive (owner, 2026-11-17). A Drive mirror is optional: add or configure
+one only when the owner requests it. Do not delay a release or ask for a Drive
+exception merely because no Drive uploader is configured. Keep existing
+committed mirror URLs unless the owner asks to remove them.
 
 **Replays, and a change of what a match computes.** A game is given a
 replay only when every game of its recording was of the oldest replayable
@@ -171,10 +175,10 @@ The files players get are an explicit, committed list:
 `release/patches.tsv` (live) and `release/patches-test.tsv` (test), one
 `<name> <sha256> <size> <urls>` row per file, tabs between, the patches in
 revision order. `<urls>` is the file's URLs, one space apart, in the order
-the players' updater tries them: Google Drive's first (the owner's rule,
-2026-11-01), then the patches server's (`$SKHID_PATCHES_URL/<name>`: every
-patch row has it, the release downloads and builds from it), then the
-rest; 1 to 8, none twice. The server data is built of exactly those rows and `/patches` offers
+the players' updater tries them. New rows use the patches server's URL
+(`$SKHID_PATCHES_URL/<name>`: every patch row has it, the release downloads
+and builds from it). Existing rows retain their mirror order; add new
+mirrors only when requested. There are 1 to 8 URLs, none twice. The server data is built of exactly those rows and `/patches` offers
 exactly those (with the mirrors of `mirrors.tsv`, below); a file on the
 patches server that is not listed is offered to no one.
 `release/upload-patch` (and `release.sh --resources`) adds the row when it
@@ -209,8 +213,8 @@ and sha256, and, under the release lock and after a y/N, puts the row
 host through the jump host; `--test` the test environment): srp reads it
 again when it changes and adds its rows to the release's URLs of the file,
 in their order, each after the URLs so far or as the n-th (`--first`, `--at
-<n>`: the place among all the file's URLs, the release's too: a new Google
-Drive link goes `--first`; 8 URLs a file in all). A bad row (a file the release has not, a URL the
+<n>`: the place among all the file's URLs, the release's too; use the requested
+priority for a new mirror, with 8 URLs a file in all). A bad row (a file the release has not, a URL the
 updater would refuse, past 8) is logged by srp and skipped; it never breaks
 `/patches`. `release/add-mirror --remove <file> <url>` takes a row out.
 To build a URL into the next release too (the updater's and the .bat's own
