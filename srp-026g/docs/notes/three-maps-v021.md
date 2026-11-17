@@ -27,16 +27,37 @@ The complete local review starts at:
 `/home/sheep/Projects/survarium/skhid-srp/private/v021d-review/index.html`
 
 Captures reuse saved donor views, run headlessly and silently, and record local
-worlds under `private/world-corpus/local/v021d-<map>_day/`. Final owner appearance
-review remains pending. No player release or revision increment is part of this
+worlds under `private/world-corpus/local/v021d-<map>_day/`. On 2026-11-17 the owner
+accepted the shown corrected comparisons and requested a release. The final
+particle candidate has partial fresh sweep coverage, recorded below; approval
+does not turn earlier captures into validation of that correction.
+No player release or revision increment is part of this
 change; local builds are quick builds that the release script refuses to ship.
 
 ## Rendering compatibility refinement
 
 The engine candidate and the precise scope of every appearance change are
 listed in [the lighting scope inventory](three-maps-lighting-scope.md). It
-removes the two room-specific ambient edit lists. Its visual validation is
-pending; the results below describe the preceding candidate.
+removes the two room-specific ambient edit lists. The results under
+"Validation of the combined tree" describe the preceding candidate.
+
+The owner-approved final lighting candidate has 99/103 Mamayev views reviewed
+(two buried/intersecting cameras excluded from lighting-fidelity conclusions),
+49/91 Fort views and 19/117 Vostok views. School and Rudnya retain their earlier
+captures, explicitly labelled as preceding the particle-intensity correction.
+The two native School controls pass without flags. The gallery and per-pose
+notes retain differences from cloud/fire animation, mode effects, and the
+native rendering passes listed in the scope inventory. This is partial fresh
+coverage, not a claim of a completed five-map sweep.
+
+The final full-corpus check covered 48,787 worlds: 47,906 passed and 881
+were refused, with none unchecked, unread or skipped. All 44,117 live worlds
+and all 3,098 worlds from this work passed (Fort 506, Mamayev 450, Rudnya 940,
+School 846, Vostok 144, native controls 56, owner preview 156). The refusals
+belong to other local test sets: 802 earlier spawn-count mismatches, 15 earlier
+Training Camp player-ID failures, and 64 Training Ground anomaly-test worlds
+with object event-mask/slot failures. The whole-corpus check remains red;
+these are not hidden or bypassed by weakening the parser.
 
 ## Validation of the combined tree
 

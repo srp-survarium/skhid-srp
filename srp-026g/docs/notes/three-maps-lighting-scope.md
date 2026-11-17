@@ -13,8 +13,9 @@ close match with stock 0.21 values and as few renderer changes as practical,
 not pixel identity. On 2026-11-17 the owner approved the @3 Rudnya hall,
 northern corridor and church comparisons as the desired standard. Keep this
 rendering scope unless another view exposes a noticeable compatibility defect;
-do not tune away small residual differences. Final five-map review remains
-pending; native-map controls are recorded below. Room-specific ambient
+do not tune away small residual differences. The owner accepted the corrected
+comparisons and requested release on 2026-11-17; fresh five-map coverage remains
+partial (see `three-maps-v021.md`). Native-map controls are recorded below. Room-specific ambient
 overrides, global artistic calibration and the half-power Fort torch change
 are removed. The original fog/tone pilot reduced Rudnya tractor-hall image
 error from 9.25 to 3.09 (luma 20.2 versus reference 20.5), but still had the
@@ -109,7 +110,7 @@ Both have no flags: the interior's full-frame MAE is 0.81/255, brightness
 40.44/40.80; the horizon's brightness is 101.32/101.26, with the visible
 difference concentrated in animated clouds (MAE 5.88). These are focused
 visual controls alongside the broader instruction/scene-isolation checks.
-The final five-map in-game sweep is pending. An independent check preserves
+The final five-map in-game sweep is partial. An independent check preserves
 all 88 shaders' instructions for the three @3 profiles. Archive comparison
 found 8,893 identical files; only those 88 shaders and Vostok day projects
 changed, with original probe textures and Mamayev day projects added. This
