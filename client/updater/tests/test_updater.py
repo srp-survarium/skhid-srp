@@ -38,6 +38,7 @@ UPDATER = os.path.join(HERE, "..", "exe", RELEASE, "updater_skhid.exe")
 TORRENT_DLL = os.path.join(os.path.dirname(UPDATER), "skhid_torrent.dll")
 FAKE_EXE = os.path.join(HERE, "fake_exe", RELEASE, "fake-exe.exe")
 X86 = os.path.join("game", "binaries", "x86")
+LOGS = "game/logs"
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 kernel32.CreateMutexW.restype = ctypes.c_void_p
@@ -110,6 +111,7 @@ class Site:
         self.archive = b""
         self.manifest = None            # bytes to answer instead of the true manifest
         self.manifest_status = 200
+        self.manifest_delay = 0.0       # seconds before /api/client-files answers (a site that hangs)
         self.download_statuses = []     # statuses for the next downloads, then 200
         self.cut_downloads = 0          # the next N downloads end half way
         self.slow = 0.0                 # seconds between pieces of a download
@@ -148,6 +150,7 @@ class Site:
             def do_GET(self):
                 site.requests.append(self.path)
                 if self.path == "/api/client-files":
+                    time.sleep(site.manifest_delay)
                     body = site.manifest if site.manifest is not None else site.true_manifest()
                     self.answer(site.manifest_status, body if site.manifest_status == 200 else b"no\n")
                 elif self.path == "/download":
@@ -487,7 +490,7 @@ class UpdaterTest(unittest.TestCase):
         return launcher
 
     def log(self):
-        return run_logs.read(self.path(X86)).decode("utf-8", "replace")
+        return run_logs.read(self.path(LOGS)).decode("utf-8", "replace")
 
     # --- the normal runs -------------------------------------------------
 

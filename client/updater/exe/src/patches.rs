@@ -974,8 +974,11 @@ impl Run<'_> {
         for name in &todo.delete {
             self.delete(name)?;
         }
-        let wanted: Vec<&Patch> = todo.fetch.iter().map(|fetch| &fetch.patch).collect();
-        self.by_torrent(&wanted)?;
+        // The site answered: its addresses, as with torrent off.
+        if !matches!(self.source, Source::Server(_)) {
+            let wanted: Vec<&Patch> = todo.fetch.iter().map(|fetch| &fetch.patch).collect();
+            self.by_torrent(&wanted)?;
+        }
         // Downloaded: whether known in place by the file ID.
         let mut downloaded: Vec<(u8, bool)> = Vec::new();
         for fetch in &todo.fetch {

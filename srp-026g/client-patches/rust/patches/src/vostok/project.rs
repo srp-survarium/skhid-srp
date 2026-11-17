@@ -64,6 +64,11 @@ impl PhysicsId {
     pub(super) fn of(physics: raw::BulletPhysicsWorld) -> Self {
         Self(NonZeroU32::new(physics.address()).expect("non-null native handle"))
     }
+    /// A made-up world's (the tests').
+    #[cfg(test)]
+    pub fn made_up(id: u32) -> Self {
+        Self(NonZeroU32::new(id).expect("a made-up world's id is not 0"))
+    }
 }
 
 /// Index in the authored render-visual array, distinct from a lamp id.

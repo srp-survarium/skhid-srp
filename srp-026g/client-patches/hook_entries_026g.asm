@@ -3224,7 +3224,7 @@ language_on_configs_start_replay:
 
 ; 0x1f3650 update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player): lohook -> console_where_on_viewed
 global console_where_on_viewed
-extern hook_console_where_on_viewed
+extern hook_console_where_on_viewed_chain
 console_where_on_viewed:
     lea esp, [esp - 4]
     pushfd
@@ -3242,7 +3242,7 @@ console_where_on_viewed:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_console_where_on_viewed
+    call hook_console_where_on_viewed_chain
     mov edx, console_where_on_viewed_replay
     cmp eax, 0
     je console_where_on_viewed_go
@@ -3260,6 +3260,210 @@ console_where_on_viewed_go:
 console_where_on_viewed_replay:
     db 0x8b, 0x93, 0x78, 0xf4, 0x00, 0x00
     jmp 0x1f3656
+
+; 0x13d9c1 renderer::render 0x13D010 at its depth-tested debug lines (taken while the cc_bool 0xA71DB7, on by default, is set; 0x13D97E), right after the scene's on_draw_scene(true) (boost function 0x205E0 at 0x13D9BC) and before the scene's own queued lines go to system_renderer::draw_lines with technique 0 (0x13DA08): mov edi,[esp+1Ch] / mov edx,[edi+6334C4h]; the render thread, the depth target and the view the scene's, so a draw_aabb there is drawn as the game's own debug lines: lohook -> collision_view_on_debug_lines
+global collision_view_on_debug_lines
+extern hook_collision_view_on_debug_lines
+collision_view_on_debug_lines:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_collision_view_on_debug_lines
+    mov edx, collision_view_on_debug_lines_replay
+    cmp eax, 0
+    je collision_view_on_debug_lines_go
+    mov edx, 0x13d9cb
+    cmp eax, 1
+    je collision_view_on_debug_lines_go
+    ud2
+collision_view_on_debug_lines_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+collision_view_on_debug_lines_replay:
+    db 0x8b, 0x7c, 0x24, 0x1c, 0x8b, 0x97, 0xc4, 0x34, 0x63, 0x00
+    jmp 0x13d9cb
+
+; 0x9e7c10 cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found: vtable -> collision_view_on_execute (wraps engine_cc_delegate_execute 0xec830)
+    RUST_THISCALL collision_view_on_execute, hook_collision_view_on_execute, 1
+
+; 0x9e4f94 btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box: vtable -> collision_view_on_triangle (wraps engine_triangle_process 0xc5600)
+    RUST_THISCALL collision_view_on_triangle, hook_collision_view_on_triangle, 3
+
+; 0x3482c0 ui_text_edit::paste_from_clipboard's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,28h), the engine's stub that logs "not implemented": ECX the text edit (thiscall, no argument; Ctrl+V's and Shift+Insert's key binding, init_internals 0x34AA5C, calls it through 0x34B4C0, on the game's thread); pasted is its `ret` (0x34838F), the stack as at the site: lohook -> console_paste_on_paste
+global console_paste_on_paste
+extern hook_console_paste_on_paste
+console_paste_on_paste:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_paste_on_paste
+    mov edx, console_paste_on_paste_replay
+    cmp eax, 0
+    je console_paste_on_paste_go
+    mov edx, 0x3482c9
+    cmp eax, 1
+    je console_paste_on_paste_go
+    mov edx, 0x34838f
+    cmp eax, 2
+    je console_paste_on_paste_go
+    ud2
+console_paste_on_paste_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_paste_on_paste_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x28
+    jmp 0x3482c9
+
+; 0x1eaa0 console_impl::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,14h; called only by game_console's input handler slot 0, 0x1C7F0): ECX the console, EAX the key's kind (1 down, 2 up, 3 held), ESP+4 the input world, +8 the key (DirectInput); every key of the open console (input priority 5, before the game world's 7 and the player's 10), which it takes on every path (AL 1), on the game's thread: lohook -> console_scroll_on_key
+global console_scroll_on_key
+extern hook_console_scroll_on_key
+console_scroll_on_key:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_scroll_on_key
+    mov edx, console_scroll_on_key_replay
+    cmp eax, 0
+    je console_scroll_on_key_go
+    mov edx, 0x1eaa9
+    cmp eax, 1
+    je console_scroll_on_key_go
+    ud2
+console_scroll_on_key_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_scroll_on_key_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8, 0x83, 0xec, 0x14
+    jmp 0x1eaa9
+
+; 0x1c810 game_console::on_mouse_move's start (its input handler's slot 3, vtable 0x9DC030 +0Ch; mov ecx,[ecx-254h], the console's dialog): ECX the console's input handler (the console's +268h), ESP+4 the input world, +8 x, +0Ch y, +10h z (the wheel); every mouse move of the open console, which it takes (AL 1), on the game's thread: lohook -> console_scroll_on_wheel
+global console_scroll_on_wheel
+extern hook_console_scroll_on_wheel
+console_scroll_on_wheel:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_scroll_on_wheel
+    mov edx, console_scroll_on_wheel_replay
+    cmp eax, 0
+    je console_scroll_on_wheel_go
+    mov edx, 0x1c816
+    cmp eax, 1
+    je console_scroll_on_wheel_go
+    ud2
+console_scroll_on_wheel_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_scroll_on_wheel_replay:
+    db 0x8b, 0x89, 0xac, 0xfd, 0xff, 0xff
+    jmp 0x1c816
+
+; 0x1c760 game_console::on_activate's start (push esi / mov esi,ecx / mov ecx,[esi+1Ch]; vtable 0x9DC030 +24h through 0x1C840): ECX the console, about to be shown (its text edit focused, +264h set, its input handler added to the input world), on the game's thread: lohook -> console_scroll_on_activate
+global console_scroll_on_activate
+extern hook_console_scroll_on_activate
+console_scroll_on_activate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_console_scroll_on_activate
+    mov edx, console_scroll_on_activate_replay
+    cmp eax, 0
+    je console_scroll_on_activate_go
+    mov edx, 0x1c766
+    cmp eax, 1
+    je console_scroll_on_activate_go
+    ud2
+console_scroll_on_activate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+console_scroll_on_activate_replay:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x1c
+    jmp 0x1c766
 
 ; 0x9e7c10 cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found: vtable -> console_where_on_execute (wraps engine_cc_delegate_execute 0xec830)
     RUST_THISCALL console_where_on_execute, hook_console_where_on_execute, 1
@@ -4851,6 +5055,45 @@ hand_kill_on_hit_replay:
     db 0x8d, 0x4c, 0x24, 0x10, 0x51
     jmp 0x2e50cc
 
+; 0x1f3643 update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player): lohook -> ragdoll_on_eye
+global ragdoll_on_eye
+extern hook_ragdoll_on_eye_chain
+ragdoll_on_eye:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_eye_chain
+    mov edx, ragdoll_on_eye_replay
+    cmp eax, 0
+    je ragdoll_on_eye_go
+    mov edx, 0x1f3649
+    cmp eax, 1
+    je ragdoll_on_eye_go
+    ud2
+ragdoll_on_eye_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_eye_replay:
+    db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
+    jmp 0x1f3649
+
 ; 0x23a992 show_cursor's show (mov eax,[edi+18h] / lea esi,[edi+0Ch], then the call of base_game_scene::show_movie 0x23DC00 at 0x23A998): kept skips the movie, the flag (+2DCh) still written at 0x23A9A1: lohook -> hud_cursor_on_cursor_shown
 global hud_cursor_on_cursor_shown
 extern hook_hud_cursor_on_cursor_shown
@@ -5408,6 +5651,168 @@ keyboard_layout_on_text_go:
 keyboard_layout_on_text_replay:
     db 0x8b, 0xf8, 0x8d, 0x44, 0x24, 0x20
     jmp 0x3b92e8
+
+; 0x18365 message_processor's WM_INPUTLANGCHANGEREQUEST case at its call of the game's text-focus check (mov eax,[ecx] / mov edx,[eax+44h] / call edx; ECX the game, survarium::game slot 44h 0x1EE7C0, after window.lang_request); focused 0x18374, where a focused request goes to DefWindowProc (pop edi/esi/ebx, jmp [DefWindowProcA]), the stack as at the site; a false check drops it at 0x18272: lohook -> keyboard_layout_on_request_focus
+global keyboard_layout_on_request_focus
+extern hook_keyboard_layout_on_request_focus
+keyboard_layout_on_request_focus:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_request_focus
+    mov edx, keyboard_layout_on_request_focus_replay
+    cmp eax, 0
+    je keyboard_layout_on_request_focus_go
+    mov edx, 0x1836c
+    cmp eax, 1
+    je keyboard_layout_on_request_focus_go
+    mov edx, 0x18374
+    cmp eax, 2
+    je keyboard_layout_on_request_focus_go
+    ud2
+keyboard_layout_on_request_focus_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_request_focus_replay:
+    db 0x8b, 0x01, 0x8b, 0x50, 0x44, 0xff, 0xd2
+    jmp 0x1836c
+
+; 0x1c77e game_console::on_activate (0x1C760, vtable 0x9DC020 slot 4) marking the console shown (mov byte [esi+264h],1), after it focused the text edit; the logic thread: lohook -> keyboard_layout_on_console_opened
+global keyboard_layout_on_console_opened
+extern hook_keyboard_layout_on_console_opened
+keyboard_layout_on_console_opened:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_console_opened
+    mov edx, keyboard_layout_on_console_opened_replay
+    cmp eax, 0
+    je keyboard_layout_on_console_opened_go
+    mov edx, 0x1c785
+    cmp eax, 1
+    je keyboard_layout_on_console_opened_go
+    ud2
+keyboard_layout_on_console_opened_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_console_opened_replay:
+    db 0xc6, 0x86, 0x64, 0x02, 0x00, 0x00, 0x01
+    jmp 0x1c785
+
+; 0x1c7d3 game_console::on_deactivate (0x1C7A0, slot 8) marking it hidden (mov byte [esi+264h],0), after it unfocused the text edit and the tips; the logic thread: lohook -> keyboard_layout_on_console_closed
+global keyboard_layout_on_console_closed
+extern hook_keyboard_layout_on_console_closed
+keyboard_layout_on_console_closed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_console_closed
+    mov edx, keyboard_layout_on_console_closed_replay
+    cmp eax, 0
+    je keyboard_layout_on_console_closed_go
+    mov edx, 0x1c7da
+    cmp eax, 1
+    je keyboard_layout_on_console_closed_go
+    ud2
+keyboard_layout_on_console_closed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_console_closed_replay:
+    db 0xc6, 0x86, 0x64, 0x02, 0x00, 0x00, 0x00
+    jmp 0x1c7da
+
+; 0x34b4da insert_char_action::execute (0x34B4D0, vtable 0xA1DEBC slot 4: a ui_text_edit's key that types a character, the console's letters, digits and punctuation, made by create_char_action 0x34A4C0) after mov edi,ecx, before its Shift test (mov eax,[edi+4] / test byte [eax+2ACh],30h): EDI the action; the character it types is [esp+8], its own (+19h, Shift +1Ah) or, for a key made named (+18h), the first letter of the key's DirectInput name (get_dik_name through the input world's keyboard, 0x34B533..0x34B5CE); typed 0x34B5D2, where it deletes the selection (0x3486A0) and inserts [esp+8] (0x348000), EDI the action, the stack as at the site: lohook -> keyboard_layout_on_console_char
+global keyboard_layout_on_console_char
+extern hook_keyboard_layout_on_console_char
+keyboard_layout_on_console_char:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_keyboard_layout_on_console_char
+    mov edx, keyboard_layout_on_console_char_replay
+    cmp eax, 0
+    je keyboard_layout_on_console_char_go
+    mov edx, 0x34b4e4
+    cmp eax, 1
+    je keyboard_layout_on_console_char_go
+    mov edx, 0x34b5d2
+    cmp eax, 2
+    je keyboard_layout_on_console_char_go
+    ud2
+keyboard_layout_on_console_char_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+keyboard_layout_on_console_char_replay:
+    db 0x8b, 0x47, 0x04, 0xf6, 0x80, 0xac, 0x02, 0x00, 0x00, 0x30
+    jmp 0x34b4e4
 
 ; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
 global lamps_on_bind
@@ -7397,45 +7802,6 @@ ragdoll_on_bones_go:
 ragdoll_on_bones_replay:
     db 0x8b, 0x8b, 0x90, 0xf2, 0x00, 0x00
     jmp 0x24771c
-
-; 0x1f3643 update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player): lohook -> ragdoll_on_eye
-global ragdoll_on_eye
-extern hook_ragdoll_on_eye
-ragdoll_on_eye:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_eye
-    mov edx, ragdoll_on_eye_replay
-    cmp eax, 0
-    je ragdoll_on_eye_go
-    mov edx, 0x1f3649
-    cmp eax, 1
-    je ragdoll_on_eye_go
-    ud2
-ragdoll_on_eye_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_eye_replay:
-    db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
-    jmp 0x1f3649
 
 ; 0x24754f mt_draw's read of the held item (mov esi,[ebx+128h]; the je after it skips every bone update when it is 0; EBX the player): lohook -> ragdoll_on_held_item
 global ragdoll_on_held_item
@@ -9875,6 +10241,48 @@ weapon_pickup_on_load_ordinal_replay:
     db 0x8b, 0x47, 0x0c, 0x85, 0xc0
     jmp 0x32bdbf
 
+; 0x321ca0 bullet_manager::deserialize's loop over the records (mov esi,[edi+80h], before the bullet's allocation and its constructor 0x32BBC0): EDI the manager, EBX the section's reader at the record; skip 0x321CFC is the loop's count (sub ebp,1 / jne), no bullet made: lohook -> weapon_pickup_on_load_record
+global weapon_pickup_on_load_record
+extern hook_weapon_pickup_on_load_record
+weapon_pickup_on_load_record:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_pickup_on_load_record
+    mov edx, weapon_pickup_on_load_record_replay
+    cmp eax, 0
+    je weapon_pickup_on_load_record_go
+    mov edx, 0x321ca6
+    cmp eax, 1
+    je weapon_pickup_on_load_record_go
+    mov edx, 0x321cfc
+    cmp eax, 2
+    je weapon_pickup_on_load_record_go
+    ud2
+weapon_pickup_on_load_record_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_pickup_on_load_record_replay:
+    db 0x8b, 0xb7, 0x80, 0x00, 0x00, 0x00
+    jmp 0x321ca6
+
 ; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
 global world_check_on_unpacked
 extern hook_world_check_on_unpacked
@@ -9976,6 +10384,27 @@ battery_hit_swing_vtable:
     dd 0x338b20
     dd 0x344c90
     dd 0x338ef0
+
+section .rodata
+align 4
+global collision_view_methods_vtable
+collision_view_methods_vtable:
+    dd 0xa3e110
+    dd 0xec7e0
+    dd collision_view_on_execute
+    dd 0xec4b0
+    dd 0xec800
+    dd 0xec500
+    dd 0x75af0
+    dd 0x15a4b0
+
+section .rodata
+align 4
+global collision_view_triangles_vtable
+collision_view_triangles_vtable:
+    dd 0xa3d4dc
+    dd 0xc55b0
+    dd collision_view_on_triangle
 
 section .rodata
 align 4

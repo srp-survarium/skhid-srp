@@ -224,6 +224,7 @@ class Game:
         emu.hook_add(UC_HOOK_CODE, self.write_file, begin=STUBS + 0x30, end=STUBS + 0x30)
         emu.hook_add(UC_HOOK_CODE, self.user_data, begin=USER_DATA, end=USER_DATA)
         emu.hook_add(UC_HOOK_CODE, self.ray_test, begin=RAY_TEST, end=RAY_TEST)
+        self.eye_rays = 0
         self.particles, self.sounds = [], []
         # update_skeleton (EDI the scene renderer; the instance, the bones
         # twice, the count; pops 16): records its arguments and the matrices
@@ -313,6 +314,14 @@ class Game:
         length = struct.unpack("<f", emu.mem_read(esp + 16, 4))[0]
         group, mask, delegate, unflipped = (self.u32(esp + 20 + 4 * i) for i in range(4))
         assert emu.reg_read(UC_X86_REG_ECX) == PHYSICS, "ray_test on the player's physics world"
+        if (group, mask, delegate) == (0x10, 0x8, 0):
+            # patch 158's eye ray at the same site (check_head_clearance_026g.py): nothing in its way
+            self.eye_rays += 1
+            emu.mem_write(result + 0x1C, struct.pack("<I", 0))
+            emu.reg_write(UC_X86_REG_EAX, result)
+            emu.reg_write(UC_X86_REG_ESP, esp + 4 + 32)
+            emu.reg_write(UC_X86_REG_EIP, ret)
+            return
         assert (group, mask, delegate) == (0x414, 0x20A, 0), f"the level's filter: {group:#x} {mask:#x} {delegate}"
         o = self.floats(origin, 3)
         d = self.floats(direction, 3)

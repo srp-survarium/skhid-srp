@@ -482,8 +482,9 @@ fn by_torrent(session: &mut Session, layout: &Layout) -> Result<Option<bool>, Op
 /// Installs only missing original files. Every extraction and check finishes
 /// before promotion; failed promotions undo only files added by this attempt.
 ///
-/// `server`: the update server, when it answered this run; else the
-/// archive's addresses built into this updater are used.
+/// `server`: the update server, when it answered this run (HTTPS, as with
+/// torrent off); else the torrent first, then the archive's addresses built
+/// into this updater.
 pub fn ensure(
     session: &mut Session,
     layout: &Layout,
@@ -492,7 +493,9 @@ pub fn ensure(
     if present(layout) {
         return Ok(false);
     }
-    if let Some(added) = by_torrent(session, layout)? {
+    if server.is_none()
+        && let Some(added) = by_torrent(session, layout)?
+    {
         return Ok(added);
     }
     log!("original game files missing; downloading the pinned 0.26g archive");
@@ -573,7 +576,7 @@ pub fn ensure(
         if code != 0 {
             return Err(Some(format!(
                 "The game extractor failed (exit {code}). Nothing was installed. What it \
-                 printed is in updater_skhid.<date>.log beside the updater."
+                 printed is in game\\logs\\updater_skhid.<date>.log."
             )));
         }
         for (name, expected) in game::FILES {
