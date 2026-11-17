@@ -6317,6 +6317,21 @@ va	name	location	role	basis
 0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+4	the triangle: three btVector3 of 10h bytes, the shape's local space (processNode passes its +10h)	observed
 0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+8	the part (the mesh's subpart)	observed
 0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+12	the triangle's index in its part	observed
+0x0001eaa0	vostok::console_impl::on_keyboard_action	EAX	the key's kind: 1 down, 2 up, 3 held (game_console's slot 0x1C7F0 moves its third argument here)	observed
+0x0001eaa0	vostok::console_impl::on_keyboard_action	ECX	the console (this: the game console, its input handler at +268h)	observed
+0x0001eaa0	vostok::console_impl::on_keyboard_action	entry ESP+4	the input world	observed
+0x0001eaa0	vostok::console_impl::on_keyboard_action	entry ESP+8	the key, a DirectInput code (29h ~, 1 Esc, C8h Up, D0h Down, 0Fh Tab, 3Ah Caps Lock)	observed
+0x0001c810	vostok::engine::game_console::on_mouse_move	ECX	the console's input handler (this: the game console's +268h; its dialog at -254h)	observed
+0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+4	the input world	observed
+0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+8	x, the mouse's move	observed
+0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+12	y, the mouse's move	observed
+0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+16	z, the wheel's turn since the last poll (signed; 120 a notch, forward positive)	observed
+0x0001d0d0	vostok::console_impl::tick	entry ESP+4	the console (this, on the stack: game_console::tick 0x1C74B pushes it)	observed
+0x0001d0d0	vostok::console_impl::tick	entry ESP+8	the scene view the dialog is drawn with	observed
+0x00349c60	vostok::ui::ui_scroll_view::set_follow_last_line	ECX	the scroll view (this: its scroll_view interface at +0, its window at +4)	observed
+0x00349c60	vostok::ui::ui_scroll_view::set_follow_last_line	entry ESP+4	follow (its low byte): nonzero follows the last line, 0 stops	observed
+0x00349ca0	vostok::ui::ui_scroll_v_source::set_position	ECX	the scroll source (the scroll view's +1C8h; its pad at +4)	observed
+0x00349ca0	vostok::ui::ui_scroll_v_source::set_position	entry ESP+4	float: the new position, the pad's y (0 at the top, -(length - height) at the end)	observed
 0x0001c760	vostok::engine::game_console::on_activate	ECX	the game console (vtable 0x9DC020; console_impl's +1Ch text edit focused, +264h set to 1 at 0x1C77E, +26Ch the input world it adds +268h to)	observed
 0x0001c7a0	vostok::engine::game_console::on_deactivate	ECX	the game console (its text edit and tips +1Ch, +18h unfocused, +264h cleared at 0x1C7D3, +268h removed from the input world +26Ch)	observed
 0x0034b4d0	vostok::ui::insert_char_action::execute	ECX	the action (+4 its ui_text_edit, Shift and Caps Lock at its +2ACh bits 30h; +8 the key, a DirectInput code; +14h the input world, 0 for none; +18h named: the character is the first letter of the key's DirectInput name, get_dik_name 0x34B552, when the text edit's locale says it is a letter, lowercased; +19h its character, +1Ah with Shift); the character typed at [esp+8] after its two pushes, inserted at 0x34B5E2 (0x348000)	observed
