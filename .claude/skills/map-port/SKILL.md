@@ -172,7 +172,7 @@ A screenshot sweep without a recording does not satisfy the map's world check.
 
 ## The machine
 
-- No capture while the owner's game runs: wait until `~/.cache/skhid-owner-game.sh`
+- Unless the owner explicitly allows captures alongside their game, wait until `~/.cache/skhid-owner-game.sh`
   prints nothing. It matches a game exe's argv[0] only. Never match whole command lines
   (`pgrep -f '...survarium_skhid.*\.exe'`): other sweeps' `flock` and `--exe` arguments
   and local srp servers match too, and the queue waits forever (2026-11-16: a sweep held
@@ -188,8 +188,8 @@ A screenshot sweep without a recording does not satisfy the map's world check.
   game volumes to zero too. Do not overwrite these settings
   in the launcher. Verify the running capture has no audible PipeWire stream; ALSA
   nodes can keep the process id on their `client.id` object, not on the node itself.
-  `~/.cache/skhid-mute-captures.sh` also mutes any capture stream it finds. The rig waits by itself and stops
-  a session the moment the owner starts a game; after such a stop it starts again only
+  `~/.cache/skhid-mute-captures.sh` also mutes any capture stream it finds. By default the rig waits by itself and stops
+  a session the moment the owner starts a game; an explicit owner allowance for concurrent captures overrides that guard; after such a stop it starts again only
   after 10 minutes with no game ("waiting for 10 quiet minutes": test games come in
   bursts, and each one killed a session that takes minutes to load). When the coordinator says no captures,
   start none at all.
