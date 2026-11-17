@@ -9,6 +9,26 @@ release that made it what it is now.
 
 ---
 
+## 17 Nov, 16:28 — TODO: the owner's words (update required)
+
+<!-- Revision 64 (026g-rev64), released 2026-11-17 16:28 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2142 AKMSU optics stay on the gun: weapons-069@19, scope-fits@13
+- TODO: #2143 Patch 157: Ctrl+V pastes into the console's line
+- TODO: #2145 Patch 156: collision fill (translucent surfaces) and room for 131072 lines
+- TODO: #2144 Patch 125: the game sends its code blocks that are no module
+- TODO: #2150 Updater: with torrent on, don't wait on an unreachable site; HTTPS whenever it answers
+- TODO: #2151 Vostok v0.21: no sky seam where the mountains meet the terrain
+- TODO: #2146 Patch 107: the console types the keyboard layout's text, as the chat
+- TODO: #2148 Patch 158: the first-person eye stays out of the level's surfaces
+- TODO: #2152 Wiki: Simulators section (recoil and spread by aim, stance, skills, gloves, arms)
+- TODO: #2149 Patch 159: the console's output scrolls
+- TODO: #2153 Patch 85: a bullet record whose shooter has no gun in its slot is not made
+- TODO: #2141 Run logs in game\logs; the old ones deleted
+- TODO: #2154 Add Croatian game localization
+- TODO: #2157 Port three 0.21 maps and preserve original lighting across five day maps
+- TODO: #2158 Use the patch server by default for releases
+
 ## 17 Nov, 00:33 — TODO: the owner's words (update required)
 
 <!-- Revision 63 (026g-rev63), released 2026-11-17 00:33 UTC. To be worded for players; what it shipped: -->
