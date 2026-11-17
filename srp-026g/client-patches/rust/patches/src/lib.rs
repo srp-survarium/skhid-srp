@@ -120,6 +120,8 @@ pub mod replay_map;
 pub mod console_where;
 // patch 156: the console command `collision`
 pub mod collision_view;
+// patch 157: Ctrl+V pastes into the console's line
+pub mod console_paste;
 
 pub mod replay_file;
 pub mod free_for_all;
