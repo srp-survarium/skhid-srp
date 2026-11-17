@@ -140,10 +140,13 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
       a map's pose keys stable across builds of the port, so the store keeps matching.
     - `--fresh` drops the port's shots alone. Never delete or re-take reference shots;
       a wrong one is replaced only on the owner's word.
-    - The port is re-shot per picture (owner, 2026-11-17: "no need to re-shoot everything
-      all the time"): after a fix, re-shoot only the poses it can change, the flagged ones
-      and those that see what the fix touched, and keep every other port shot. The
-      report compares each pose's newest port shot with its reference.
+    - The port goes pose by pose (owner, 2026-11-17: "just get a single shot, compare it,
+      fix, iterate until that single shot is done, then go to the next one"). Keep one port
+      session running (`ref026.py start`) and for each pose in turn: shoot it, compare it
+      with its reference, and when it is flagged, fix the cause, rebuild, restart the
+      session if the fix needs it, and shoot that pose again until it is clean. Only then
+      the next pose. No batch re-runs; a pose already clean is not shot again unless a
+      later fix can change it.
     - Rudnya's 0.69d shots (`ref-sweep/ref-<project>/`, `sweep-ref/<project>/`) predate
       the store and stay where they are.
   - **Rudnya's reference is closed** (owner, 2026-10-31): 0.69d never starts again for
