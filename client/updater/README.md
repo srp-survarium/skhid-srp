@@ -81,8 +81,10 @@ only when torrent is on ("BitTorrent" below).
   prevents simultaneous installs in the same folder. The patch step writes
   its own files beside it too (listed under "Patches").
 - With the launcher's "Allow torrent" on (off until the player turns it
-  on), also downloads the original game's files and missing patches from
-  the revision's signed torrent, and shares
+  on), asks the DHT for the release's signed newest revision while it asks
+  the site; when the site does not answer, updates from the revision's
+  signed torrent (the Skhid files, the original game's files, missing
+  patches) without waiting for it; and shares
   every file of it the folder has while the launcher is open, on a port
   it picks once and keeps ("BitTorrent" below); off, none of it. The DHT, no
   PEX, UPnP or uTP, no service, no crash upload, no administrator rights (its manifest says `asInvoker`;
@@ -159,7 +161,10 @@ the patch step. That is a server whose ZIP is older than its setting: a
 release half put in place. An exe whose site is neither (another program, a
 build whose site moved) or that cannot be read is logged and let through:
 the login server still decides. A server that says no `min-revision` (srp
-before it) is not checked.
+before it) is not checked. A run the site did not answer, with torrent on,
+takes the newest revision the release signed (its DHT item, "The update
+check" under "BitTorrent") as that number: an exe that says an older one
+keeps PLAY off ("Game revision R is out; ... could not be downloaded").
 
 **The watch.** After its last message to the launcher (PLAY on, or off with
 the gate's words) the updater stays, as the launcher wants, and asks
@@ -173,6 +178,7 @@ game and closes it):
 | answered at the start, then misses two answers in a row (no connection, a status but 503) | state 22: the launcher says "Server maintenance..." and turns PLAY (and Enter) off (`srp-026g/docs/notes/launcher.md` 5.4) |
 | answers again after that | starts the launcher anew |
 | did not answer at the start (PLAY with what was checked, "No update check: ...") | PLAY stays on while it does not answer; once it does, the launcher starts anew when its ZIP is not the one installed or it says a `min-revision` |
+| was not waited for: the DHT named the newest signed revision first | the same, but only a `min-revision` newer than the game exe's starts the launcher anew (its ZIP over a torrent's waits for a start the site answers first) |
 | answers 503 (busy, or reading a new ZIP) | no news |
 
 So a launcher left open over a release turns PLAY off while the server is
@@ -431,9 +437,10 @@ on as its `info`, `piece layers` and `skhid` only (`logic/src/torrent.rs`
 with the updater's trackers in place of the torrent's (its web seeds
 dropped), and checks every piece against its hashes.
 
-**What it fetches**, when the launcher allows it: the original game's files
-that are missing (in the place of the 7z from the mirrors; the Skhid files
-come first then, as they bring the torrent), each finished file also against
+**What it fetches**, when the launcher allows it and the site did not
+answer the run's update check (it answered: HTTPS, as with torrent off, and
+the folder is shared all the same): the original game's files
+that are missing (in the place of the 7z from the mirrors), each finished file also against
 its build-2777 pin (`logic/src/game.rs` `FILES`) before it is put in place;
 and the listed patches that are missing or damaged, each against the list's
 SHA-256 before it is renamed into place. A part (`<file>.skhid-torrent` for
@@ -487,9 +494,20 @@ is copied again). The release's ZIP brings there the pinned files that are
 not the live ones (the updater changes at every release); the overlay's
 restart rule counts only the programs in `game/binaries/x86/`.
 
+**The update check** (`main.rs` `check`; the spec's "The update check"):
+with torrent on, the site's `/api/client-files` (each try on a thread of its
+own, `Asking`) and the DHT (`torrent::discover`, below) at once. The site's
+answer wins whenever it comes first: the run is then the site's, by HTTPS.
+When the DHT names revision R first, the site is not waited for if the game
+exe says R or later and its files are whole (up to date), or the run's
+torrent is R (installed from it, below); else its answer is waited for after
+all. Who answered is one value, `gate::Seen` (`Site`, or `Unasked` with the
+newest revision the release signed, if one was named): the patch step's
+source, PLAY's least revision (the site's `min-revision`, else the signed
+revision) and the watch's rules follow from it. Torrent off: the site alone.
+
 **Without our site** (a bare bootstrap folder, a blocked network after a
-release): when the update server cannot be asked, the DHT is asked
-(below), and when the run's torrent is newer than what is installed, or
+release): when the update server is not asked, and the run's torrent is newer than what is installed, or
 nothing is, every file of it but the original game's and the patches (the
 Skhid files: the updater, its DLL and the launcher too) comes from it, each
 checked piece by piece, one already whole kept, installed as an archive's files are
@@ -510,11 +528,12 @@ release"): the release's signed BEP 46 item on the DHT, under the release's
 key, salt `skhid-newest 1`, its sequence number the revision, its value the
 facts of the torrent's signature (v2 info hash, revision, signature); its
 BEP 44 signature is the torrent's `skhid.dht`. While it shares, the updater
-puts it again as it is (at once, then every 30 minutes). An updater that
-cannot reach the update server asks the DHT for it for 20 s (again every
-5 s; a higher one waited for 3 s after one came), takes it only when its
-signature verifies with the built-in key and its revision is higher than
-the run's torrent (none: not lower than the folder's), fetches that
+puts it again as it is (at once, then every 30 minutes). The update check
+asks the DHT for it for 20 s, or until the site answered (again every 5 s;
+a higher one waited for 3 s after one came), takes it only when its
+signature verifies with the built-in key and its revision is not lower
+than the folder's (the game's, the highest taken, the updater's own) and,
+when it is newer than the run's torrent, fetches that
 torrent's `info` from its swarm (a torrent of its v2 info hash alone,
 libtorrent's `ut_metadata`, 60 s at most), checks it is the item's, and
 keeps the signed torrent made of the two (`info` and `skhid`) as

@@ -552,23 +552,24 @@ class TorrentTest(wine.WineTest):
             files[name] = dll
         return files
 
-    def test_a_missing_patch_comes_by_torrent_and_the_folder_is_then_shared(self):
+    def test_with_the_site_answering_patches_come_by_https_and_the_folder_is_then_shared(self):
+        # A seed has them, but the site answers: its addresses, as with
+        # torrent off.
         patches, torrent, seed_dir, files = self.release(12, 14)
         seed_port, _ = self.seed(torrent, seed_dir)
         self.tracker.peers = [("127.0.0.1", seed_port)]
         self.launch()
         self.wait_latest()
         self.assert_patches(patches)
-        self.assertEqual(self.store_requests(), [], "nothing by HTTPS")
+        self.assertEqual(sorted(self.store_requests()), ["/store/patch_12", "/store/patch_14"])
         log = self.log()
-        self.assertIn("patches: 2 by torrent", log)
-        self.assertIn("downloaded by torrent, checksum right", log)
+        self.assertNotIn("by torrent", log)
         self.assertIn("torrent: skhid.torrent: signed by the release, revision 60", log)
         # Both trackers asked, with the port the launcher gave (the seed
         # asks them too).
         wait(lambda: {("udp", self.port), ("http", self.port)} <= set(self.tracker.asked), 30, f"both trackers ({self.tracker.asked})")
         # The seed goes; the updater, its launcher open, shares the folder:
-        # the patches it got by torrent and the ZIP's files.
+        # the patches it got by HTTPS and the ZIP's files.
         for lt_session in self.sessions:
             lt_session.pause()
         wait(lambda: "torrent: sharing 4 of its 4 files" in self.log(), 60, "sharing")
@@ -592,22 +593,34 @@ class TorrentTest(wine.WineTest):
         wait(lambda: self.log().count("checked whole") >= 3, 60, "the third check")
         self.assertIn("(2 checked before)", self.log())
 
-    def test_no_peer_downloads_by_https_and_what_came_so_is_shared(self):
-        # The first players of a revision: no peer yet.
-        patches, torrent, _, files = self.release(12)
+    def site_gone_and_patch_missing(self, patch):
+        """The folder updated, then the site gone (502) and `patch` deleted:
+        the next start gets it from the torrent."""
+        self.launch()
+        self.wait_latest()
+        self.stop()
+        os.remove(self.path(f"game/resources.db.patch_{patch}"))
+        self.site.manifest_status = 502
+        self.site.patch_list_status = 502
+        self.site.requests.clear()
+
+    def test_without_the_site_a_missing_patch_comes_by_torrent(self):
+        patches, torrent, seed_dir, files = self.release(12, 14, exe=game_exe(60))
+        self.site_gone_and_patch_missing(14)
+        seed_port, _ = self.seed(torrent, seed_dir)
+        self.tracker.peers = [("127.0.0.1", seed_port)]
         self.launch()
         self.wait_latest()
         self.assert_patches(patches)
-        self.assertEqual(self.store_requests(), ["/store/patch_12"])
-        self.assertIn("patches: by torrent: no peer in 20 s: from their addresses", self.log())
-        wait(lambda: "torrent: sharing 3 of its 3 files" in self.log(), 60, "sharing")
-        self.leech_from_updater(torrent, files)
+        self.assertEqual(self.store_requests(), [], "nothing by HTTPS")
+        self.assertIn("patches: 1 of the torrent's to fetch by it", self.log())
 
     def test_a_peer_that_sends_a_wrong_last_piece_is_banned_and_nothing_wrong_counts(self):
         # The only peer: right bytes but for the patch's last piece. That
-        # piece fails its hash, the peer is banned, and the download is left
-        # for HTTPS: the blocks it sent never count as done.
-        patches, torrent, seed_dir, _ = self.release(12, size=5 * PIECE)
+        # piece fails its hash, the peer is banned, and the patch is not put
+        # in place: the blocks it sent never count as done.
+        patches, torrent, seed_dir, _ = self.release(12, size=5 * PIECE, exe=game_exe(60))
+        self.site_gone_and_patch_missing(12)
         info = lt.torrent_info(lt.bdecode(torrent))
         files = info.files()
         patch = next(i for i in range(files.num_files()) if files.file_path(i).endswith("resources.db.patch_12"))
@@ -615,13 +628,13 @@ class TorrentTest(wine.WineTest):
         liar = WrongPeer(bytes.fromhex(str(info.info_hashes().v1)), info.num_pieces(), v1_stream(torrent, seed_dir), {last})
         self.tracker.peers = [("127.0.0.1", liar.port)]
         self.launch()
-        self.wait_latest(300)
-        self.assert_patches(patches)
+        wait(lambda: ERROR in self.states(), 300, "the patch step without the site")
         log = self.log()
         self.assertIn(f"torrent: piece {last} failed its hash", log)
         self.assertIn("banned for this run", log)
-        self.assertRegex(log, r"patches: by torrent: no (peer in 20|piece for 60) s: from their addresses")
-        self.assertEqual(self.store_requests(), ["/store/patch_12"])
+        self.assertRegex(log, r"patches: the torrent did not give its patches: no (peer in 20|piece for 60) s")
+        self.assertFalse(self.exists("game/resources.db.patch_12"))
+        self.assertNotIn(LATEST, self.states())
 
     @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
     def test_a_newer_release_comes_from_the_dht_when_the_site_cannot_be_reached(self):
@@ -635,18 +648,57 @@ class TorrentTest(wine.WineTest):
         seed_port, _ = self.seed(newer, newer_dir)
         self.tracker.peers = [("127.0.0.1", seed_port)]
         put_newest(newer)
-        # The update server cannot be asked.
-        self.site.manifest_status = 502
+        # The update server does not answer: not waited for.
+        self.site.manifest_delay = 100
         self.site.patch_list_status = 502
+        started = time.time()
         self.launch()
         self.wait_latest()
+        self.assertLess(time.time() - started, 60, "the site was waited for")
+        self.assertEqual(self.read("game/new.txt"), b"new")
         log = self.log()
         self.assertIn("torrent: the DHT names revision 61, signed by the release", log)
         self.assertIn("torrent: revision 61's info came from its swarm", log)
+        self.assertNotIn("check 1 of 3 failed", log)
         # Kept as the release signed it, without what is outside the
         # signature (its trackers).
         self.assertEqual(self.read(f"{TORRENT}/found.torrent"), found(newer))
         self.assertNotIn(b"announce", found(newer))
+
+    @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
+    def test_the_dht_naming_the_installed_release_is_play_without_waiting_for_the_site(self):
+        _, torrent, _, _ = self.release(12, exe=game_exe(60))
+        self.launch()
+        self.wait_latest()
+        self.stop()
+        put_newest(torrent)
+        self.site.manifest_delay = 100
+        started = time.time()
+        self.launch()
+        self.wait_latest()
+        self.assertLess(time.time() - started, 60, "the site was waited for")
+        log = self.log()
+        self.assertIn("revision 60, the newest the release signed, is installed and whole: up to date", log)
+        self.assertNotIn(ERROR, self.states())
+
+    @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
+    def test_a_newer_signed_release_no_peer_gives_keeps_play_off_without_the_site(self):
+        self.release(12, exe=game_exe(60))
+        self.launch()
+        self.wait_latest()
+        self.stop()
+        # Revision 61 named on the DHT; no peer has it, and the site is gone.
+        newer = make_torrent(tempfile.mkdtemp(dir=self.peers_dir), {"README.txt": b"newer"}, self.tracker.urls,
+                             revision=61)
+        put_newest(newer)
+        self.site.manifest_status = 502
+        self.site.patch_list_status = 502
+        self.launch()
+        wait(lambda: ERROR in self.states(), 300, "the update without the site")
+        self.assertNotIn(LATEST, self.states())
+        log = self.log()
+        self.assertIn("torrent: the DHT names revision 61, signed by the release", log)
+        self.assertIn("says revision 60; the server lets in 61 and up: PLAY stays off", log)
 
     @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
     def test_an_item_of_another_key_or_an_older_revision_is_not_taken(self):
@@ -788,9 +840,9 @@ class TorrentTest(wine.WineTest):
         with self.assertRaises(OSError):
             socket.create_connection(("127.0.0.1", self.port), timeout=5).close()
 
-    def test_ticking_during_an_https_download_runs_the_update_again_by_torrent(self):
+    def test_ticking_during_an_https_download_runs_the_update_again_still_by_https(self):
         # A patch of 64 pieces, slow by HTTPS (64 KiB every 0.3 s: about
-        # 10 s), at a seed too.
+        # 10 s), at a seed too. The site answers: HTTPS, ticked or not.
         patches, torrent, seed_dir, _ = self.release(12, size=2 << 20)
         seed_port, _ = self.seed(torrent, seed_dir)
         self.tracker.peers = [("127.0.0.1", seed_port)]
@@ -803,8 +855,8 @@ class TorrentTest(wine.WineTest):
         self.assert_patches(patches)
         log = self.log()
         self.assertIn('"Allow torrent" changed: the update runs again', log)
-        self.assertIn("downloaded by torrent, checksum right", log)
-        self.assertEqual(self.store_requests(), ["/store/patch_12"], "HTTPS asked once")
+        self.assertNotIn("by torrent", log)
+        self.assertEqual(self.store_requests(), ["/store/patch_12"] * 2)
         self.assertEqual(self.states().count(LATEST), 1)
 
     @unittest.skipUnless(DHT_TOOL, "SKHID_DHT_TOOL: release/publish-dht's skhid-dht")
@@ -882,7 +934,7 @@ class TorrentTest(wine.WineTest):
                 self.wait_latest()
                 self.assert_patches(patches)
                 self.assertEqual(self.store_requests(), ["/store/patch_12"])
-                self.assertIn(why, self.log())
+                wait(lambda: why in self.log(), 30, why)
                 self.stop()
                 self.assertEqual(self.tracker.asked, [])
 
