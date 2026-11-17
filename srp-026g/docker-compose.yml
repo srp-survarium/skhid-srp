@@ -216,7 +216,7 @@ services:
       - sh
       - -c
       - >-
-        printf '%s {\n\thandle /Skhid-get.bat {\n\t\troot * /data/skhid-downloads\n\t\theader Content-Disposition "attachment; filename=Skhid-get.bat"\n\t\tfile_server\n\t}\n\thandle {\n\t\treverse_proxy srp26:8088\n\t}\n}\n' "$$SRP_WEB_NAMES" > /tmp/Caddyfile
+        printf '%s {\n\t@get_script {\n\t\tpath /Skhid-get.bat\n\t\tfile {\n\t\t\troot /data/skhid-downloads\n\t\t}\n\t}\n\thandle @get_script {\n\t\troot * /data/skhid-downloads\n\t\theader Content-Disposition "attachment; filename=Skhid-get.bat"\n\t\tfile_server\n\t}\n\thandle {\n\t\treverse_proxy srp26:8088\n\t}\n}\n' "$$SRP_WEB_NAMES" > /tmp/Caddyfile
         && exec caddy run --config /tmp/Caddyfile --adapter caddyfile
     ports:
       - "${SRP26_HTTPS_PORT:-443}:443/tcp"

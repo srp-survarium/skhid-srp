@@ -9,7 +9,19 @@ function Format-TorrentEvent([string]$line) {
         $script:trackerRequestPath = $null
         return $message
     }
-    if ($line -match '^HTTP/1\.[01] [0-9]{3}') { return 'Tracker HTTP response: ' + $line }
+    if ($line -match '(CUID#[0-9]+) - Response received:') {
+        $script:trackerResponseConnection = $matches[1]
+        return $null
+    }
+    if ($line -match 'HTTP Server sends') {
+        $script:trackerResponseConnection = $null
+        return $null
+    }
+    if ($line -match '^HTTP/1\.[01] [0-9]{3}' -and $script:trackerResponseConnection) {
+        $message = 'Tracker HTTP response: ' + $line + ' (' + $script:trackerResponseConnection + ')'
+        $script:trackerResponseConnection = $null
+        return $message
+    }
     if ($line -match 'HttpServer\.cc') { return $null }
     # Never echo RPC request bodies (which contain the local authentication token).
     if ($line -match 'UDPT (?:send|resend|received|timeout|fail) (?:CONNECT|ANNOUNCE|ERROR)') {
@@ -97,7 +109,14 @@ function Invoke-TorrentDownload([string]$program, [string[]]$arguments, [string]
                 if ($lastState -eq 'removed') { throw 'Download was removed.' }
                 if ($lastState -eq 'complete') { $null = Rpc 'shutdown'; break }
                 if ($lastState -eq 'active') {
-                    $peers = @(Rpc 'getPeers' @($gid))
+                    try {
+                        $peers = @(Rpc 'getPeers' @($gid))
+                    } catch {
+                        # It may finish between tellStatus and getPeers. The next
+                        # status poll decides completion; diagnostics must not stop it.
+                        Report 'Peer details temporarily unavailable; checking download status again.'
+                        continue
+                    }
                     if ($peers.Count -eq 0) { Report 'Connected: none yet. Tracker counts do not prove reachability.' }
                     foreach ($peer in $peers) {
                         $kind = if ($peer.seeder -eq 'true') { 'seed' } else { 'partial peer' }
