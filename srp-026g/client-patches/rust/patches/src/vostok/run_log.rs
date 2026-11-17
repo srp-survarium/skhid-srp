@@ -9,7 +9,7 @@
 //!   same stamp (a second game started in the same second, or a log's next
 //!   part) `<stem>.<stamp>_<n>.log`, n from 2 to [`Seq::LAST`]: the engine's
 //!   `Survarium_<user>.2026-11-15_14-03-07.log` in Documents\Survarium, the
-//!   patches' `srp_patches.2026-11-15_14-03-07.log` beside the exe.
+//!   patches' `srp_patches.2026-11-15_14-03-07.log` in `game\logs`.
 //! - A name of a stamp is never taken twice: a further file is past the
 //!   highest the stamp has ([`Kind::next_name`]).
 //! - Deletion goes by the files' last writes, the least recent first (not
@@ -259,8 +259,24 @@ struct Age {
 }
 
 impl<'a> Kind<'a> {
-    /// The client patches' log beside the exe (the game's working folder).
-    pub const PATCHES: Kind<'static> = Kind { folder: b"", stem: b"srp_patches" };
+    /// The client patches' log in the game's `logs` folder, two up from the
+    /// game's working folder (the exe's, `game\binaries\x86`).
+    pub const PATCHES: Kind<'static> = Kind { folder: Kind::LOGS, stem: b"srp_patches" };
+
+    /// `game\logs`, from the working folder, with its separator.
+    const LOGS: &'static [u8] = b"..\\..\\logs\\";
+
+    /// The kind's folder made when it is not there (none of its parents;
+    /// what Windows says is not asked: the open after it fails or not).
+    pub fn make_folder(&self) {
+        let folder = self.folder.strip_suffix(b"\\").unwrap_or(self.folder);
+        if !folder.is_empty()
+            && let Some(name) = Name::of(&[folder])
+            && let Some(path) = name.path()
+        {
+            files::create_folder(path);
+        }
+    }
 
     /// The kind of a log the game named `<folder><stem>.log` (the engine's
     /// `...\Survarium_<user>.log`), its folder's end found as `lead` (the
@@ -522,9 +538,9 @@ mod tests {
         assert_eq!(engine.stem, b"Survarium_a");
         assert_eq!(engine.name(stamp(7), Seq::FIRST).unwrap().bytes(),
                    b"c:\\users\\a\\documents\\survarium\\Survarium_a.2026-11-15_14-03-07.log");
-        assert_eq!(Kind::PATCHES.name(stamp(7), Seq(2)).unwrap().bytes(), b"srp_patches.2026-11-15_14-03-07_2.log");
-        assert_eq!(Kind::PATCHES.name(stamp(7), Seq(10)).unwrap().bytes(), b"srp_patches.2026-11-15_14-03-07_10.log");
-        assert_eq!(Kind::PATCHES.name(stamp(7), Seq::LAST).unwrap().bytes(), b"srp_patches.2026-11-15_14-03-07_99.log");
+        assert_eq!(Kind::PATCHES.name(stamp(7), Seq(2)).unwrap().bytes(), b"..\\..\\logs\\srp_patches.2026-11-15_14-03-07_2.log");
+        assert_eq!(Kind::PATCHES.name(stamp(7), Seq(10)).unwrap().bytes(), b"..\\..\\logs\\srp_patches.2026-11-15_14-03-07_10.log");
+        assert_eq!(Kind::PATCHES.name(stamp(7), Seq::LAST).unwrap().bytes(), b"..\\..\\logs\\srp_patches.2026-11-15_14-03-07_99.log");
         assert!(Kind::of_log(b"x/Survarium.log", single).is_some());
         assert!(Kind::of_log(b"x\\.log", single).is_none());
         assert!(Kind::of_log(b"x\\Survarium.txt", single).is_none());
@@ -562,9 +578,10 @@ mod tests {
                     b"srp_patchesX.2026-11-15_14-03-07.log", b"Survarium_a.2026-11-15_14-03-07.log"] {
             assert_eq!(run(not), None, "{:?}", core::str::from_utf8(not));
         }
-        // the name a kind writes is the one it reads
+        // the name a kind writes (in its folder) is the one it reads
         for seq in [Seq::FIRST, Seq(2), Seq(9), Seq(10), Seq::LAST] {
-            assert_eq!(run(kind.name(stamp(7), seq).unwrap().bytes()), Some((stamp(7), seq)));
+            let name = kind.name(stamp(7), seq).unwrap();
+            assert_eq!(run(name.bytes().strip_prefix(kind.folder).unwrap()), Some((stamp(7), seq)));
         }
     }
 

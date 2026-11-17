@@ -3,7 +3,7 @@
 //!
 //! The run starts at the process's first hook (`memory.allocate_arenas`):
 //! its stamp, the local time to the second. The client patches' log
-//! (vostok::log) then writes `srp_patches.<stamp>.log` beside the exe, and
+//! (vostok::log) then writes `srp_patches.<stamp>.log` in `game\logs`, and
 //! the engine's log, which logging_initialize named
 //! `<Documents>\Survarium\Survarium_<user>.log` and made anew at every start,
 //! is `Survarium_<user>.<stamp>.log` there. Before a file is made the oldest

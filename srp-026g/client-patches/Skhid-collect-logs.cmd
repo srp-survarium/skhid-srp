@@ -11,10 +11,10 @@ rem   Skhid-collect-logs.cmd --dry-run       say what it would collect, collect 
 rem
 rem What it takes (the PowerShell code at the end of this file):
 rem - the logs: the updater's and the client patches' of each run
-rem   (updater_skhid.<time>.log, srp_patches.<time>.log, and the
-rem   updater_skhid.log and srp_patches.log of before the runs were named),
-rem   the launcher's, the game's own (Documents\Survarium\Survarium*.log,
-rem   one a run), DXVK's,
+rem   (updater_skhid.<time>.log, srp_patches.<time>.log in game\logs, and
+rem   the updater_skhid.log and srp_patches.log of before the runs were
+rem   named), the launcher's, the game's own (Documents\Survarium\Survarium*.log,
+rem   one a run), DXVK's, skhid-wine.log (game\logs) of Skhid.sh,
 rem   skhid-download.log of Skhid-without-updater.bat; each through a filter
 rem   that removes every line naming a password, a digest, a token, a key, a
 rem   cookie, a command line or a URL with a user in it (the crash
@@ -120,7 +120,7 @@ goto end
 %RU% Пробный запуск: ничего не собирается, только выводится, что было бы собрано.
 %EN% Dry run: nothing is collected, only what would be is printed.
 echo.
-echo [dry-run] logs: Documents\Survarium, "%X86%", "%TOP%\game", "%TOP%", "%TOP%\temp"
+echo [dry-run] logs: Documents\Survarium, "%TOP%\game\logs", "%X86%", "%TOP%\game", "%TOP%", "%TOP%\temp"
 echo [dry-run] crash reports: SRP-crash-*.txt in "%X86%" and the temporary folder, the text of the newest 5 SRP-crash-*.zip
 echo [dry-run] sha256: game\binaries\x86 programs, the certificate, game\resources.db, game\resources.db.patch_*
 echo [dry-run] servers: updater_skhid.url's (else https://skhid.link) /api/client-files, /patches, /game and their hosts
@@ -149,10 +149,10 @@ goto end
 :no_powershell
 %RU% Не найден PowerShell, без него собрать логи нельзя. Отправьте сами
 %RU% новейшие файлы updater_skhid.*.log и srp_patches.*.log из папки
-%RU% game\binaries\x86 и логи из папки Документы\Survarium.
+%RU% game\logs и логи из папки Документы\Survarium.
 %EN% PowerShell is not found, and the logs cannot be collected without it.
 %EN% Send the newest updater_skhid.*.log and srp_patches.*.log of the folder
-%EN% game\binaries\x86 and the logs in the folder
+%EN% game\logs and the logs in the folder
 %EN% Documents\Survarium yourself.
 set "RC=1"
 goto end
@@ -525,7 +525,7 @@ try {
         # A run's log: <kind>.<its start, YYYY-MM-DD_HH-MM-SS>[_<n>].log (client/bugtrap/src/run_name.rs).
         $run = '(\.\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d(_\d{1,2})?)?'
         $name = '^(survarium(_.*)?' + $run + '\.(log|journal)|(updater_skhid|srp_patches)' + $run + '\.log|launcher(_skhid)?\.log|skhid-download\.log|skhid-wine\.log)$'
-        $places = @(@('documents', $gameDocuments), @('game-x86', $x86), @('game', $game), @('game-folder', $top), @('game-folder-temp', (Under $top @('temp'))))
+        $places = @(@('documents', $gameDocuments), @('game-logs', (Under $game @('logs'))), @('game-x86', $x86), @('game', $game), @('game-folder', $top), @('game-folder-temp', (Under $top @('temp'))))
         $found = @()
         foreach ($place in $places) {
             if (-not $place[1] -or -not [IO.Directory]::Exists($place[1])) { Line ('  ' + $place[0] + ': no folder'); continue }

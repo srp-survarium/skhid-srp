@@ -194,7 +194,7 @@ class ReplayTest(unittest.TestCase):
             with open(game, "rb") as file, open(FAKE_EXE, "rb") as fake:
                 if file.read() != fake.read():
                     raise AssertionError("refused: the game exe of the test folder is not the stand-in")
-        run_logs.remove(self.x86)
+        run_logs.remove(os.path.join(self.game, "logs"))
         process = subprocess.Popen([os.path.join(self.x86, "updater_skhid.exe"), *arguments], cwd=self.x86)
         try:
             until = time.time() + seconds
@@ -230,7 +230,7 @@ class ReplayTest(unittest.TestCase):
         return sorted(os.listdir(folder)) if os.path.isdir(folder) else []
 
     def log(self):
-        return run_logs.read(self.x86).decode("utf-8", "replace")
+        return run_logs.read(os.path.join(self.game, "logs")).decode("utf-8", "replace")
 
     def assertSaid(self, line, problem, *values):
         self.assertIsNotNone(line, f"no problem logged for {problem}")

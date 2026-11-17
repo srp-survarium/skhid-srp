@@ -62,7 +62,10 @@ configure_wine() {
     # win64 alone selects a prefix architecture, not the loader used for 32-bit EXEs.
     export WINEARCH=wow64
     unset WINELOADER
-    log="$PWD/skhid-wine.log"
+    # game/logs, with the updater's and the game's; an earlier script's log beside this one moves there
+    log="${PWD%/*/*}/logs/skhid-wine.log"
+    mkdir -p "${log%/*}"
+    if [[ -f skhid-wine.log && ! -e $log ]]; then mv skhid-wine.log "$log"; fi
 
     version=$(LC_ALL=C "$WINE" --version 2>&1) || die "Cannot query Wine: $version
 Install Wine 11.0 or newer with modern WoW64 support (tested: 11.8 Staging WoW64).
@@ -236,7 +239,7 @@ start_game() {
         && ! "$WINE" updater_skhid.exe ready quiet >>"$log" 2>&1; then
         die "Skhid has not finished updating the game's files (game/resources.db.patch_*), so the game is not started.
 Start the launcher (bash Skhid.sh launcher, or bash play_skhid.sh launcher): it finishes the update.
-Details: the newest game/binaries/x86/updater_skhid.<date>.log"
+Details: the newest game/logs/updater_skhid.<date>.log"
     fi
     echo "Starting Survarium. Log: $log"
     args=(-minimum_resources_memory_size=768)

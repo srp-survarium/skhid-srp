@@ -550,18 +550,18 @@ unsafe fn log_tail(w: &mut dyn Write) {
     );
 }
 
-/// The crashed run's client patch log beside the exe (vostok/log.rs; the
-/// game's working folder is the exe's): the newest
-/// `srp_patches.<stamp>.log`, else `srp_patches.log` (logs::Candidate::patch_log),
-/// what the client patches said last.
+/// The crashed run's client patch log (vostok/log.rs): the newest
+/// `srp_patches.<stamp>.log` in `game\logs`, else `srp_patches.log` beside
+/// the exe (logs::Candidate::patch_log), what the client patches said last.
 unsafe fn patch_tail(w: &mut dyn Write) {
     // The exe's folder from GetModuleFileNameW alone (logs::folders would
     // ask the shell for Documents too).
     let exe = crate::dump::folder();
     let log = crate::logs::Candidate::patch_log(&exe.buf[..exe.len]);
+    let folder = log.patch_log_folder(&exe.buf[..exe.len]);
     let mut path = Wide::<1400>::new();
-    if exe.len == 0
-        || path.wide(&exe.buf[..exe.len]).is_err()
+    if folder.len == 0
+        || path.wide(&folder.buf[..folder.len]).is_err()
         || path.wide(&log.name[..log.len]).is_err()
     {
         let _ = w.write_str("Patch log: no game folder\r\n");

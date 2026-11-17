@@ -35,6 +35,8 @@ pub struct Layout {
     pub game_dir: String,
     /// `...\game\torrent`: the torrents and their state.
     pub torrent_dir: String,
+    /// `...\game\logs`: the run logs (`updater_logic::run_log::FOLDER`).
+    pub logs_dir: String,
     /// The archive's top folder: the one that holds the game folder when
     /// that is named `game` (as it is unpacked), else the game folder itself.
     pub top_dir: String,
@@ -73,6 +75,7 @@ impl Layout {
         Some(Self {
             exe_dir: exe_dir.into(),
             torrent_dir: format!("{game_dir}\\torrent"),
+            logs_dir: format!("{game_dir}\\{}", updater_logic::run_log::FOLDER),
             game_dir: game_dir.into(),
             top_dir: top_dir.into(),
             exe_name: exe_name.into(),

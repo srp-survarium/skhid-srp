@@ -91,7 +91,8 @@ only when torrent is on ("BitTorrent" below).
 
 ## The log
 
-Each run of the updater writes its own file beside it,
+Each run of the updater writes its own file in the game's `logs` folder
+(`game\logs`, beside `game\torrent`; made when missing),
 `updater_skhid.<start>.log`, `<start>` the run's start in local time
 (`updater_skhid.2026-11-15_14-03-07.log`), with `_2` .. `_99` past the
 highest a run of the same second made (`logic/src/run_log.rs`,
@@ -105,8 +106,18 @@ over. Only names of
 exactly that form count; the `updater_skhid.log` of the updaters before is
 not read, written or deleted. A box that names the log gives that run's
 file; a text written in advance says "the newest
-`game\binaries\x86\updater_skhid.<date>.log`". The crash reporter
+`game\logs\updater_skhid.<date>.log`". The crash reporter
 (`client/bugtrap`) takes the recent ones.
+
+Before its file is made, every run moves into `game\logs` the run files the
+updaters and games before kept beside the updater: the stamped
+`updater_skhid.<stamp>.log` and `srp_patches.<stamp>.log` of
+`game\binaries\x86`, and the seeding runs of `updater_skhid.seed-logs\` into
+`game\logs\seed\` (the old folder removed once empty). A file whose name is
+taken there, or that a program holds without sharing, stays; the unstamped
+old logs stay where they are. Nothing else reads or writes `game\logs`: it
+is no file of the ZIP or of a torrent, never hashed, checked or deleted as
+one.
 
 ## How it is started
 
@@ -135,7 +146,7 @@ says so and does nothing.
 | `logic/` | Everything that needs no Windows, as a library whose one dependency is Ed25519 (`ed25519-compact`, the torrent's signature): SHA-256, DEFLATE and CRC-32, bencoding, the torrent (its files), its signature, the release's DHT item (`newest.rs`), the record of what was checked (`shared.rs`), the upload cap, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
 | `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-pc-windows-msvc` with `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource; `src/libtorrent.rs` is the one caller of the DLL |
 | `torrent-dll/` | `skhid_torrent.dll`: libtorrent-rasterbar 2.0.12 behind a small C API (`skt.h`, `skt.cpp`), and `skhid-dht`, the same API on Linux for the release (`release/publish-dht`); `default.nix`, built by `srp-026g/flake.nix` (`skhid-torrent-dll`, `skhid-dht`) |
-| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_torrent.py`: BitTorrent (the updater with its DLL) against a local tracker, a local DHT and libtorrent peers, Windows or Wine; `test_seed.py`: the game's sharing. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
+| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_run_logs.py`: the run logs moved into `game\logs`, Windows or Wine. `test_torrent.py`: BitTorrent (the updater with its DLL) against a local tracker, a local DHT and libtorrent peers, Windows or Wine; `test_seed.py`: the game's sharing. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
 ## PLAY and the server's revision
 
@@ -541,7 +552,7 @@ torrent as the launcher's updater does while it watches (`torrent::share_while`,
 call into the engine: the trusted torrent's files the folder has, the
 bootstrap's, the DHT item; nothing fetched), on the port the updaters keep
 (`game\torrent\port`; a free one, then kept, when none is), and ends when the pipe closes: the game entering a match,
-or ending. It takes no lock and shows no box; its run logs go in `updater_skhid.seed-logs\` (a seed runs at every lobby: beside the others it would push them out). A port that
+or ending. It takes no lock and shows no box; its run logs go in `game\logs\seed\` (a seed runs at every lobby: beside the others it would push them out). A port that
 is held (another updater shares on it, or is closing) is tried for 10 s,
 then the run ends, logged. On the pipe (the launcher's framing) the game
 says its upload limit (`1E`: ignored, the cap holds) and its stats switch
@@ -603,7 +614,7 @@ remains: the last one is waited for, however slow), `cut short at byte <n> of
 <size>`, `larger than the file`, `wrong SHA-256`, `more than 5 redirects`.
 When every address failed the player is told each one's host and reason,
 then where to send the log (`text::reported`, as the crash reporter words
-it: `Send the newest game\binaries\x86\updater_skhid.<date>.log to #bugreports in Discord
+it: `Send the newest game\logs\updater_skhid.<date>.log to #bugreports in Discord
 (tag: install): discord.gg/QUmJg3gBhg`; the reason is cut to leave it room
 in the launcher's 255 characters, the log has the whole). So does every
 other failure the run ends on.
@@ -931,7 +942,7 @@ done." after it:
 | resources.db is held (the game runs) and a patch file is to change | "The game is running, so Skhid could not update the game's patches ... Close the game, then start the launcher again." |
 | A patch file stays held by another program | "Another program holds game\resources.db.patch_<n>, so Skhid could not update the game's patches. An antivirus may be scanning it: wait a minute, then start the launcher again." |
 | The server could not be asked and the patches were not checked in place | "The game's patches could not be checked: <why the server could not be asked>" |
-| Anything else (a file that cannot be written or deleted, the ZIP bringing a `resources.db.patch_*` anywhere) | "Skhid could not finish updating the game's patches ...; the reason is in the newest game\binaries\x86\updater_skhid.<date>.log. ..." |
+| Anything else (a file that cannot be written or deleted, the ZIP bringing a `resources.db.patch_*` anywhere) | "Skhid could not finish updating the game's patches ...; the reason is in the newest game\logs\updater_skhid.<date>.log. ..." |
 
 The next start tries again. A file that is never half written in place:
 what the game mounts is a checked file or nothing.
@@ -961,6 +972,7 @@ python tests/test_play_gate.py               # Windows or Wine (PLAY and the ser
 python tests/test_replay.py                  # Windows; the replay, in its no-window mode only
 python tests/test_game_download.py           # Windows or Wine
 python tests/test_unreadable.py              # Windows or Wine (a Skhid file that cannot be read)
+python tests/test_run_logs.py                # Windows or Wine (the run logs moved into game\logs)
 SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) \
     SKHID_TEST_TRACKERS="$(python tests/test_torrent.py --trackers)" \
     SKHID_TEST_DHT=$(python tests/test_torrent.py --dht) ./build.sh   # the tests' key, trackers and DHT

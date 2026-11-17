@@ -11,9 +11,9 @@ pub enum Kind {
     /// The engine's `Survarium.<stamp>.log` or `Survarium_<user>.<stamp>.log`
     /// (Documents\Survarium).
     Game,
-    /// The client patches' `srp_patches.<stamp>.log` beside the exe.
+    /// The client patches' `srp_patches.<stamp>.log` in `game\logs`.
     Patches,
-    /// The updater's `updater_skhid.<stamp>.log` beside it.
+    /// The updater's `updater_skhid.<stamp>.log`, there too.
     Updater,
 }
 

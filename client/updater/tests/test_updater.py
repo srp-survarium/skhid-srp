@@ -38,6 +38,7 @@ UPDATER = os.path.join(HERE, "..", "exe", RELEASE, "updater_skhid.exe")
 TORRENT_DLL = os.path.join(os.path.dirname(UPDATER), "skhid_torrent.dll")
 FAKE_EXE = os.path.join(HERE, "fake_exe", RELEASE, "fake-exe.exe")
 X86 = os.path.join("game", "binaries", "x86")
+LOGS = "game/logs"
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 kernel32.CreateMutexW.restype = ctypes.c_void_p
@@ -487,7 +488,7 @@ class UpdaterTest(unittest.TestCase):
         return launcher
 
     def log(self):
-        return run_logs.read(self.path(X86)).decode("utf-8", "replace")
+        return run_logs.read(self.path(LOGS)).decode("utf-8", "replace")
 
     # --- the normal runs -------------------------------------------------
 

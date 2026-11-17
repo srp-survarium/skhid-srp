@@ -4379,7 +4379,7 @@ before patch 83's at the same site): its stamp, the local time to the second (`2
 The engine's log, which logging_initialize named `Documents\Survarium\Survarium_<user>.log` and made
 anew at every start (create_always), is `Survarium_<user>.<stamp>.log` there (`logging.log_named`, a
 lohook at 0xE31F8 between generate_log_file_name and new_log_file); the client patches' log
-(`vostok/log.rs`) is `srp_patches.<stamp>.log` beside the exe, made with CREATE_NEW and kept open, and
+(`vostok/log.rs`) is `srp_patches.<stamp>.log` in `game\logs` (beside the exe until 2026-11-17; the folder made when missing, CreateDirectoryA), made with CREATE_NEW and kept open, and
 past 8 MiB the run goes on in `srp_patches.<stamp>_2.log` (no more `srp_patches.old.log`); patch
 100's C `ad_log` writes through it (the entry `log.c_line`). A name of a stamp is never taken twice
 (`_2` .. `_99`, past the stamp's highest); before a file is made its kind's least recently written

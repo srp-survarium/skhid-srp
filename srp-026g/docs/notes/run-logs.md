@@ -27,13 +27,53 @@ more info and history on what crashes or not."
   newest run file of that kind (below).
 - **No change** for the game servers, for what a match computes or for replays.
 
+## Their folder: `game\logs`
+
+The owner, 2026-11-17: "logs are now spammed in x86 folder", "this should be like torrents in its
+own folder". The run files of the client patches and the updater, first written beside the exe in
+`game\binaries\x86` (up to 100 of each kind there), are in `game\logs\` now, the folder beside
+`game\torrent\`:
+
+```
+game\
+  binaries\x86\     the programs (and the old unstamped logs, left as they were)
+  logs\             srp_patches.<stamp>.log, updater_skhid.<stamp>.log, skhid-wine.log
+    seed\           the seeding updater's updater_skhid.<stamp>.log
+  torrent\          the torrents and their state
+```
+
+- **Who makes it:** whichever writes first. The updater (`Layout::logs_dir`) makes it at its every
+  start; the game makes it before each patches' file (`Kind::make_folder`, CreateDirectoryA through
+  the exe's import, `..\..\logs` from its working folder), so a game started without the updater
+  (local clients, `run.py`) writes there too. `Skhid.sh` makes it for `skhid-wine.log`.
+- **The seeding updater** (`updater_skhid.exe seed`, at every lobby) keeps its runs in
+  `game\logs\seed\` (they were in `game\binaries\x86\updater_skhid.seed-logs\`): in `game\logs`
+  with the launcher's updater's, they would push those out of the kept 100.
+- **Pruning** is as before, per kind and per folder: 100 runs or 500 MiB of `srp_patches`, of
+  `updater_skhid`, and of the seeding runs. Files of a kind beside the exe no longer count.
+- **What a player has moves once.** The updater runs first at every start (the launcher, `ready`
+  in `play_skhid.bat` / `Skhid.sh`, a replay link, a seed); before its own file is made it moves
+  into `game\logs` the stamped `srp_patches.<stamp>[_<n>].log` and `updater_skhid.<stamp>[_<n>].log`
+  of `game\binaries\x86`, and the seeding runs of `updater_skhid.seed-logs\` into `game\logs\seed\`
+  (the old folder removed once empty), then logs how many moved. A rename on the same disk, no
+  copy; a name `game\logs` has already, or a file held without sharing, stays where it is (the
+  crash reporter and Skhid-collect-logs still take it there). The unstamped `srp_patches.log`,
+  `srp_patches.old.log` and `updater_skhid.log` stay where #1964 left them. `Skhid.sh` moves its
+  `skhid-wine.log` (one file, appended to) once, when `game\logs` has none.
+- **Not a game file.** Nothing the updater installs, checks or deletes is in `game\logs`: the ZIP
+  and the torrents name their files (`release/build-torrent`'s list, the ZIP's own), the install
+  replaces and removes only the files of the archive it installed (its record), the check hashes
+  only those, and libtorrent sees only the torrent's files. The folder is never hashed, seeded or
+  deleted as unknown.
+
 ## Which logs
 
 | Log | Before | Now |
 |---|---|---|
 | The engine's log, `Documents\Survarium` | `Survarium_<user>.log`, made anew (create_always) at every start | `Survarium_<user>.<stamp>.log` |
-| The client patches' log, beside the exe | `srp_patches.log`, appended to; past 8 MiB renamed `srp_patches.old.log` (the one before replaced) | `srp_patches.<stamp>.log`, made new; past 8 MiB the run goes on in `_2`, `_3`, ... |
-| The updater's log, beside it | `updater_skhid.log`, appended to; past 256 KiB begun anew (emptied) | `updater_skhid.<stamp>.log` per updater process; past 16 MiB one last line says it is full |
+| The client patches' log | `srp_patches.log` beside the exe, appended to; past 8 MiB renamed `srp_patches.old.log` (the one before replaced) | `srp_patches.<stamp>.log` in `game\logs`, made new; past 8 MiB the run goes on in `_2`, `_3`, ... |
+| The updater's log | `updater_skhid.log` beside it, appended to; past 256 KiB begun anew (emptied) | `updater_skhid.<stamp>.log` in `game\logs` per updater process (a seed's in `game\logs\seed`); past 16 MiB one last line says it is full |
+| `Skhid.sh`'s (Linux, macOS) | `skhid-wine.log` beside the exe, appended to | the same file in `game\logs` |
 | The engine's journal, `Documents\Survarium` | `Survarium_<user>.journal`, recorded only with `-record_journal=1` since patch revision 4 (client_patch.md 3.10) | unchanged: off by default, a developer's switch |
 | The launcher's | the patched Vostok launcher's own logs; their names are built from the user name, the build and a time stamp (launcher.md 12.2, launcher_updater.md: LIKELY, partly traced, not seen on a player's disk); the Rust launcher is not merged | unchanged (not our code to rename) |
 | The crash reporter's | no log of its own: each crash's `SRP-crash-<time>-p<pid>-t<tid>-<n>.zip` / `.dmp` / `.txt`, never over an existing file | unchanged |
@@ -58,15 +98,19 @@ more info and history on what crashes or not."
   the updater process's start; its file is made new once per process (CREATE_NEW), the oldest
   deleted first. Every message that names the log names this run's file; texts that cannot (the
   Linux and macOS scripts, Skhid.bat, LINUX.txt / MACOS.txt) say the newest `updater_skhid.*.log`
-  in `game\binaries\x86`. A launcher start is one updater run (two when the updater replaces
+  in `game\logs`. A launcher start is one updater run (two when the updater replaces
   itself), `play_skhid.bat` / `Skhid.sh` add a `ready` run, a replay link is one: 100 updater
   files are about 50 to 100 game starts.
 
 ## The crash reporter
 
 - **The crashed run's patches' log first:** the newest (last written) `srp_patches.<stamp>[_<n>].log`
-  beside the exe (else the old `srp_patches.log`), its last 2 MiB from the first whole line, as
-  `logs/game-exe/<that name>`. crash.txt's "Patch log" tail is the same file and names it.
+  in `game\logs` (else the old `srp_patches.log` beside the exe), its last 2 MiB from the first
+  whole line, as `logs/game-logs/<that name>` (`logs/game-exe/srp_patches.log`). crash.txt's
+  "Patch log" tail is the same file and names it.
+- **Where it looks:** Documents\Survarium, the exe's folder, and for the standard layout
+  `game\`, `game\logs\` (the scope `game-logs`), the install folder and its `temp\`; never
+  recursively (the seeding runs in `game\logs\seed\` are not taken).
 - **The game log tail** in crash.txt: the newest-written `Survarium*.log` in Documents\Survarium,
   which is the crashed run's.
 - **Earlier runs' logs** (the engine's, the patches', the updater's run files) are collected whole,
@@ -78,7 +122,8 @@ more info and history on what crashes or not."
 
 ## The tools
 
-- **Skhid-collect-logs.cmd** takes the run files of each kind as well as the old names.
+- **Skhid-collect-logs.cmd** takes the run files of each kind as well as the old names, from
+  `game\logs` (`logs/game-logs/` in its ZIP) and, for what was not moved, the exe's folder.
 - **Reading a player's logs:** the run's engine log, patches' log and updater log share the stamp
   of their start (the updater's is its own process's, a few seconds before the game's).
   "srp_patches.log" in the other notes means the run's `srp_patches.<stamp>.log` now.
@@ -93,6 +138,11 @@ more info and history on what crashes or not."
 - After it, a player's folder holds both: the old files from before, untouched, and the run files
   from then on. A crash report from an older exe has the old names, which the new reporter still
   takes.
+- `game\logs` (2026-11-17): again a new exe (patch 147's `vostok/run_log.rs`, `vostok/log.rs`),
+  updater, crash reporter, `play_skhid.bat` / `Skhid.sh` texts and Skhid-collect-logs.cmd, one
+  revision. The updater of that revision moves the files at its first start (the old updater
+  starts it as it replaces itself); a run log an old exe writes beside itself after that (a game
+  started before the update) moves at the next updater start. No server, content or `simulation_changes.tsv` change.
 
 ## Checked
 
@@ -108,7 +158,14 @@ more info and history on what crashes or not."
   100's `ad_log` line in the run's file.
 - `check_hud_options_026g.py` with the process's start now running the run's start first.
 - The updater's and the crash reporter's own tests (their READMEs).
+- `game\logs` (2026-11-17): `check_run_logs_026g.py` with the patches' files in `..\..\logs\`
+  (CreateDirectoryA asked first, files of the kind beside the exe kept); `test_run_logs.py` under
+  Wine (the moves, a name taken, the unstamped kept, the seed folder gone, nothing moved twice);
+  bugtrap's `check_logs.py` and `check_report.py` under Wine (the crashed run's log from
+  `game\logs`, an unmoved one beside the exe an earlier run's); the collect-logs test of
+  `test_release_overlay.py` (its `game-logs` entries; its listing's "other files beside game"
+  count fails on main too).
 - **Not run in a game.** To see it: start the game twice, then look in `Documents\Survarium` and
-  `game\binaries\x86` for two `Survarium_<user>.<stamp>.log`, `srp_patches.<stamp>.log` and
-  `updater_skhid.<stamp>.log` files each, and make a crash report (`SKHID_CRASH_DUMP` is not
-  needed) to see the earlier run's files in its ZIP.
+  `game\logs` for two `Survarium_<user>.<stamp>.log`, `srp_patches.<stamp>.log` and
+  `updater_skhid.<stamp>.log` files each (and none new in `game\binaries\x86`), and make a crash
+  report (`SKHID_CRASH_DUMP` is not needed) to see the earlier run's files in its ZIP.
