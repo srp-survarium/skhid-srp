@@ -41,7 +41,7 @@ def main():
     status.write_text('ready\r\n')
     started = x86 / 'survarium_skhid.exe.started.txt'
     def log():
-        return run_logs.read(x86).decode('utf-8', 'replace')
+        return run_logs.read(game / 'logs').decode('utf-8', 'replace')
 
     def win(path):
         return 'Z:' + str(path).replace('/', '\\')

@@ -1,16 +1,26 @@
 //! The updater's log, a file of its own each run: `updater_skhid.<stamp>.log`
-//! beside the updater, `<stamp>` the run's start in local time
-//! (`2026-11-15_14-03-07`), `_2` .. `_99` after it when a run of the same
-//! second made that name first. A run's file is made new and only appended
-//! to; an old run's file is only ever deleted, never written over: when a
-//! run starts, the oldest go while 100 or more, or 500 MiB or more, are
-//! there. The legacy `updater_skhid.log` is not a run's: never read,
-//! written or deleted here.
+//! in the game's `logs` folder ([`FOLDER`]), `<stamp>` the run's start in
+//! local time (`2026-11-15_14-03-07`), `_2` .. `_99` after it when a run of
+//! the same second made that name first. A run's file is made new and only
+//! appended to; an old run's file is only ever deleted, never written over:
+//! when a run starts, the oldest go while 100 or more, or 500 MiB or more,
+//! are there. The legacy `updater_skhid.log` is not a run's: never read or
+//! written, deleted once with the old runs beside the updater ([`old_beside_updater`]).
 
 use alloc::{format, string::String, vec::Vec};
 
+/// The logs' folder in the game folder: `game\logs`, beside `game\torrent`.
+pub const FOLDER: &str = "logs";
+/// The seeding updater's runs, a folder of their own in [`FOLDER`]: a seed
+/// runs at every lobby and would push the launcher's updater's runs out of
+/// the kept 100.
+pub const SEED_FOLDER: &str = "seed";
+/// Where the seeding updater's runs were before, beside the updater: deleted.
+pub const OLD_SEED_FOLDER: &str = "updater_skhid.seed-logs";
 /// Every run file's name starts with this.
 pub const PREFIX: &str = "updater_skhid.";
+/// The client patches' run files (the game's `srp_patches.<stamp>.log`).
+const PATCHES_PREFIX: &str = "srp_patches.";
 /// FindFirstFileW's pattern for the candidates (each parsed before use).
 pub const PATTERN: &str = "updater_skhid.*.log";
 /// The runs kept with the new one, at most.
@@ -81,10 +91,14 @@ impl RunName {
     /// A name as [`RunName::file_name`] writes it (the prefix and `.log` in
     /// any case, as Windows matches them); none for any other name.
     pub fn parse(name: &str) -> Option<RunName> {
+        Self::parse_of(PREFIX, name)
+    }
+
+    fn parse_of(kind: &str, name: &str) -> Option<RunName> {
         let name = name.as_bytes();
-        let (prefix, rest) = name.split_at_checked(PREFIX.len())?;
+        let (prefix, rest) = name.split_at_checked(kind.len())?;
         let (rest, extension) = rest.split_at_checked(rest.len().checked_sub(4)?)?;
-        if !prefix.eq_ignore_ascii_case(PREFIX.as_bytes()) || !extension.eq_ignore_ascii_case(b".log") {
+        if !prefix.eq_ignore_ascii_case(kind.as_bytes()) || !extension.eq_ignore_ascii_case(b".log") {
             return None;
         }
         let (stamp, suffix) = rest.split_at_checked(19)?;
@@ -111,6 +125,19 @@ impl RunName {
             .unwrap_or(0);
         (highest + 1..=LAST).map(move |n| RunName { stamp, n })
     }
+}
+
+/// The logs of before the runs were named, beside the updater: written no
+/// more.
+const OLD_LOGS: [&str; 3] = ["updater_skhid.log", "srp_patches.log", "srp_patches.old.log"];
+
+/// Whether `name`, a file beside the updater, is a log an earlier updater
+/// or game wrote there before the logs went to [`FOLDER`]: the updater's
+/// or the client patches' `<kind>.<stamp>[_<n>].log`, or one of the
+/// unstamped [`OLD_LOGS`]. It is deleted (their history is not kept).
+pub fn old_beside_updater(name: &str) -> bool {
+    OLD_LOGS.iter().any(|old| old.eq_ignore_ascii_case(name))
+        || [PREFIX, PATCHES_PREFIX].iter().any(|kind| RunName::parse_of(kind, name).is_some())
 }
 
 /// A file of a folder that matches [`PATTERN`]: its name, size and when it
@@ -187,6 +214,30 @@ mod tests {
             "",
         ] {
             assert_eq!(RunName::parse(name), None, "{name}");
+        }
+    }
+
+    #[test]
+    fn the_old_logs_beside_the_updater_go() {
+        for name in [
+            "updater_skhid.2026-11-15_14-03-07.log",
+            "updater_skhid.2026-11-15_14-03-07_12.log",
+            "srp_patches.2026-11-15_14-03-07.log",
+            "SRP_PATCHES.2026-11-15_14-03-07_2.LOG",
+            "updater_skhid.log",
+            "srp_patches.log",
+            "srp_patches.old.log",
+        ] {
+            assert!(old_beside_updater(name), "{name}");
+        }
+        for name in [
+            "updater_skhid.resources.journal",
+            "updater_skhid.url",
+            "launcher_skhid.log",
+            "Survarium_a.2026-11-15_14-03-07.log",
+            "srp_patches.2026-11-15_14-03-07_1.log",
+        ] {
+            assert!(!old_beside_updater(name), "{name}");
         }
     }
 

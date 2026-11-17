@@ -1,21 +1,23 @@
-//! Patch 153: a step whose body stands on something sounds
+//! Patch 153: a step sounds on what the body stands on, as 0.69d does
 //! (docs/notes/footsteps.md, "Silent ground"; the owner, 2026-11-16: "even
 //! right now when walking on rails, sometimes no sound is heard at all").
 //!
 //! on_step's one ray (from 1 m above the foot, 2 m down) meets only the
-//! collision bullets hit, so a step on a walker-only floor (a wagon's top,
-//! a loading station, a wall top) whose hittable surface is more than 1 m
-//! under it meets nothing and is silent. 0.69d keeps the material the
-//! character controller stands on and steps on it when the ray misses;
-//! 0.26g's controller keeps none, so this asks the same question when the ray
-//! misses: what the body stands on, the walker collision within the ray's
-//! reach. Its face's material when it has one (a wagon's walker top is metal,
-//! a wall's brick); when it has none (most walker faces), the hittable surface
-//! under it, up to 4 m under the foot (the station's metal floor, the
-//! school's concrete); else `default`, as material_pair steps a face without
-//! a material. The sound is at the foot, as 0.69d places it. Nothing under the
-//! foot at all: the body is in the air, silent as before. A step the game's
-//! ray found is the game's, byte for byte.
+//! collision bullets hit, so a step on a walker-only floor (a wagon's top, a
+//! wall top) or beside a thin one (the Chemical Plant's loading station
+//! walkway: a 32 cm walker strip over an 8 cm metal beam, the foot's ray past
+//! both) meets nothing and is silent. 0.69d starts from the material its
+//! character controller touched (+612Eh, from its step-down sweep), lets the
+//! ray's hit replace it, and is silent when it has neither. So here:
+//! [`crate::vostok::contact`] keeps what each controller's step-down sweep
+//! touched (the sweep's own hit, read where its callback takes it); a step
+//! whose ray met nothing steps on that, at the foot. A touched face without a
+//! material (most walker faces: `walker_col_s`, `coll_restrictSG`; 0.69d's
+//! too, which is silent there) takes the hittable surface at the touch's
+//! height beside it, its model's own collision (the strip's beam, a stair's
+//! stringer), else `default`, as material_pair steps it. No touch (the sweep
+//! met nothing: in the air): silent. A step the game's ray found is the
+//! game's, byte for byte.
 //!
 //! A step in water wades (the owner, 2026-11-16, of the pond in the middle of
 //! Rudnya: "I want them there"): the map's drawn water surfaces are collision
@@ -26,22 +28,48 @@
 //! deep_water; 0.26g's own Rudnya has mud there.
 //!
 //! With SKHID_STEP_LOG=on (read once, at the first step) each step writes a
-//! line to the run's log: whose, its caller's movement id, the foot, what
-//! each ray met, the ground and what its pair plays.
+//! line to the run's log: whose, its caller's movement id, the foot, the body
+//! (its root, the foot's offset from it, the controller's support normal,
+//! velocity, on_ground and what it touched), what each ray met, the ground and
+//! what its pair plays; `footsteps` writes a line for each step event at its
+//! guard.
 
 #![forbid(unsafe_code)]
 
+use crate::vostok::contact::{self, Touch};
 use crate::vostok::log::{parts, Piece, Piece::*};
 use crate::vostok::memory_profile::environment;
-use crate::vostok::step::{Caller, Hit, Look, Next, OnStep, PairSound, Placed, View};
-use crate::vostok::{Context, Flow, GameCell, StepGroundOnGroundExit, Thread};
+use crate::vostok::step::{Body, Caller, Hit, Look, Next, OnStep, PairSound, Placed, View};
+use crate::vostok::{Context, Flow, GameCell, NoExit, StepGroundOnGroundExit, Thread};
 
-/// How far under the foot the look under a walker-only floor reaches: a
-/// storey. on_step's own ray reaches 1 m. Under the walker-only standing
-/// room of the eight measured maps the hittable surface is 1 to 4 m down on
-/// 2,180 m², 4 to 10 m on 1,378 m² (a storey or more: another floor's
-/// material, or the ground's).
-const BELOW: f32 = 4.0;
+/// How far under a touched face without a material its own surface may lie,
+/// metres. Walk 3 (the owner, 2026-11-16, Chemical Plant: "sometimes when
+/// walking on rail I hear sound of ground which is 5 meters at least below
+/// me"): the loading station's and the admin building's walker faces lie 3 cm
+/// under to 25 cm over the metal of their own models (the walkway's beams and
+/// cross members); under the walkway the next surface is 54 cm down (its
+/// stairs), then its floor (1 m) and the ground (1.3 to 2.65 m), which are
+/// not what the body stands on.
+const NEAR_BELOW: f32 = 0.3;
+
+/// How far beside the touch the look for its surface goes, metres: rings
+/// every 5 cm to 30 cm (walk 3: the model's metal within 26 cm across),
+/// nearest first.
+const ACROSS: [f32; 6] = [0.05, 0.10, 0.15, 0.20, 0.25, 0.30];
+
+/// The ring's directions (x, z).
+const DIRECTIONS: [[f32; 2]; 8] = {
+    const D: f32 = core::f32::consts::FRAC_1_SQRT_2;
+    [[1.0, 0.0], [D, D], [0.0, 1.0], [-D, D], [-1.0, 0.0], [-D, -D], [0.0, -1.0], [D, -D]]
+};
+
+/// The surface found near a touched face without a material: the hit, and
+/// how far across from the touch (0: under it).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Near {
+    hit: Hit,
+    across: f32,
+}
 
 /// How deep water over the ground under the foot makes a step wade, metres:
 /// a film over the ground (a puddle's, the shallow edge of a pond) is the
@@ -58,22 +86,20 @@ enum Ground {
     Wading(Hit),
     /// on_step's own ray met it: the game's path.
     Game,
-    /// on_step's ray met nothing; the walker collision under the foot, its
-    /// face's material.
-    Walker(Hit),
-    /// The walker face has no material: the hittable surface under it.
-    Below { walker: Hit, below: Hit },
-    /// Neither: the walker face's (none), which material_pair steps as
-    /// `default`.
-    Unnamed(Hit),
-    /// Nothing under the foot: the game's silent return.
+    /// on_step's ray met nothing: what the controller touched, and for a
+    /// face without a material the named surface near the touch (None: none
+    /// within [`NEAR_BELOW`] and [`ACROSS`]).
+    Touched { touch: Touch, near: Option<Near> },
+    /// Neither: the game's silent return.
     Air,
 }
 
 /// The ground of a step: `armed` a patch's own, `game` how far under the
-/// foot on_step's ray met something (None: nothing), `look` our looks (each
-/// taken only when needed).
-fn ground(armed: Option<Placed>, game: Option<f32>, mut look: impl FnMut(Look) -> Option<Hit>) -> Ground {
+/// foot on_step's ray met something (None: nothing), `touch` what the
+/// stepping body's controller touched (None: nothing, or no body), `look` our
+/// looks (each taken only when needed).
+fn ground(armed: Option<Placed>, game: Option<f32>, touch: Option<Touch>, mut look: impl FnMut(Look) -> Option<Hit>)
+    -> Ground {
     if let Some(placed) = armed {
         return Ground::Armed(placed);
     }
@@ -86,16 +112,29 @@ fn ground(armed: Option<Placed>, game: Option<f32>, mut look: impl FnMut(Look) -
     if game.is_some() {
         return Ground::Game;
     }
-    let Some(walker) = look(Look::Walker) else {
+    let Some(touch) = touch else {
         return Ground::Air;
     };
-    if walker.material.named() {
-        return Ground::Walker(walker);
+    let near = if touch.material.named() { None } else { near(touch.at, look) };
+    Ground::Touched { touch, near }
+}
+
+/// The named hittable surface nearest a touch at `at` (its model's own
+/// collision beside a walker face): under it, else on the nearest ring
+/// ([`ACROSS`]) that meets one, the hit nearest the touch's height there.
+fn near(at: [f32; 3], mut look: impl FnMut(Look) -> Option<Hit>) -> Option<Near> {
+    let [x, y, z] = at;
+    let mut met = |at| look(Look::Under { at, reach: NEAR_BELOW }).filter(|hit| hit.material.named());
+    if let Some(hit) = met(at) {
+        return Some(Near { hit, across: 0.0 });
     }
-    match look(Look::Below { reach: BELOW }) {
-        Some(below) => Ground::Below { walker, below },
-        None => Ground::Unnamed(walker),
-    }
+    ACROSS.iter().find_map(|&across| {
+        DIRECTIONS
+            .iter()
+            .filter_map(|[dx, dz]| met([x + dx * across, y, z + dz * across]))
+            .reduce(|best, hit| if hit.depth.abs() < best.depth.abs() { hit } else { best })
+            .map(|hit| Near { hit, across })
+    })
 }
 
 /// How on_step goes on with `ground`, a found one's sound at `foot`.
@@ -107,9 +146,10 @@ fn next(ground: Ground, foot: [f32; 3]) -> Next {
             let [x, y, z] = foot;
             Next::Ground(Placed { material: water.material, at: [x, y - water.depth, z], normal: water.normal })
         }
-        Ground::Walker(hit) | Ground::Unnamed(hit) | Ground::Below { below: hit, .. } => {
-            Next::Ground(Placed { material: hit.material, at: foot, normal: hit.normal })
-        }
+        Ground::Touched { touch, near } => match near {
+            Some(Near { hit, .. }) => Next::Ground(Placed { material: hit.material, at: foot, normal: hit.normal }),
+            None => Next::Ground(Placed { material: touch.material, at: foot, normal: [0.0, 1.0, 0.0] }),
+        },
     }
 }
 
@@ -135,7 +175,8 @@ impl Switch {
 
 static LOG: GameCell<Switch> = GameCell::new(Switch::Unread);
 
-fn log_on(thread: &Thread) -> bool {
+/// SKHID_STEP_LOG: the steps' lines here and the step events' (`footsteps`).
+pub(crate) fn log_on(thread: &Thread) -> bool {
     let switch = match LOG.get(thread) {
         Switch::Unread => {
             let mut value = [0u8; 8];
@@ -154,8 +195,9 @@ pub fn on_ground(ctx: &mut Context<'_>) -> Flow<StepGroundOnGroundExit> {
         return Flow::Continue;
     };
     let thread = ctx.thread();
+    let body = step.body(thread);
     let mut water = None;
-    let ground = ground(step.armed(thread), step.game_depth(), |look| {
+    let ground = ground(step.armed(thread), step.game_depth(), body.and_then(|body| body.touch), |look| {
         let hit = step.look(thread, look);
         if look == Look::Water {
             water = Some(hit);
@@ -163,10 +205,34 @@ pub fn on_ground(ctx: &mut Context<'_>) -> Flow<StepGroundOnGroundExit> {
         hit
     });
     if log_on(thread) {
-        log(thread, &step, ground, water);
+        log(thread, &step, ground, water, body);
     }
     let next = next(ground, step.foot());
     step.go_on(ctx, next)
+}
+
+/// The step-down sweep's callback takes a hit as its first (`step_down.first`).
+pub fn on_sweep_first(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    contact::first(ctx);
+    Flow::Continue
+}
+
+/// The same, as its second (`step_down.second`).
+pub fn on_sweep_second(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    contact::second(ctx);
+    Flow::Continue
+}
+
+/// The step-down sweep's answer (`step_down.result`).
+pub fn on_sweep_result(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    contact::result(ctx);
+    Flow::Continue
+}
+
+/// The step-down sweep answered from its cache (`step_down.cached`).
+pub fn on_sweep_cached(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    contact::cached(ctx);
+    Flow::Continue
 }
 
 /// Signed centimetres: the sign, then the magnitude.
@@ -193,9 +259,9 @@ fn ray<'a, 'o>(name: &'a str, hit: Option<Hit>, out: &'o mut [Piece<'a>; 8]) -> 
 }
 
 /// One line: `step: <whose> <caller> <view>, foot <material> at x y z cm;
-/// game ...; water ...; walker ...; below ...; ground <material> (<how>):
+/// <body>; game ...; water ...; [near the touch ...; ]ground <material> (<how>):
 /// <pair>`. `water` the water look's (None: not taken).
-fn log(thread: &Thread, step: &OnStep, ground: Ground, water: Option<Option<Hit>>) {
+fn log(thread: &Thread, step: &OnStep, ground: Ground, water: Option<Option<Hit>>, body: Option<Body>) {
     let (whose, caller, movement) = match step.caller(thread) {
         Caller::Foot { own, movement: Some(id) } => (Some(own), "foot, movement ", Some(id)),
         Caller::Foot { own, movement: None } => (Some(own), "foot, no logic state", None),
@@ -222,40 +288,30 @@ fn log(thread: &Thread, step: &OnStep, ground: Ground, water: Option<Option<Hit>
         Dec(u32::from(step.foot_material().id())),
         Text(" at "), xs, xv, Text(" "), ys, yv, Text(" "), zs, zv, Text(" cm"),
     ];
-    // each ray: on_step's, then the looks the ground needed after the water's (none for a hit or an armed one)
-    let (game_ray, walker_ray, below_ray) = match ground {
-        Ground::Armed(_) => (None, None, None),
-        Ground::Wading(_) => (Some(step.game_hit(thread)), None, None),
-        Ground::Game => (Some(step.game_hit(thread)), None, None),
-        Ground::Air => (Some(None), Some(None), None),
-        Ground::Walker(walker) => (Some(None), Some(Some(walker)), None),
-        Ground::Below { walker, below } => (Some(None), Some(Some(walker)), Some(Some(below))),
-        Ground::Unnamed(walker) => (Some(None), Some(Some(walker)), Some(None)),
+    let mut body_text = [Text(""); BODY_PIECES];
+    let body: &[Piece] = match body {
+        Some(found) => body_pieces(found, step.foot(), &mut body_text),
+        None => &[Text("; no body")],
     };
-    let (mut game, mut walker, mut below, mut wet) = ([Text(""); 8], [Text(""); 8], [Text(""); 8], [Text(""); 8]);
-    let game: &[Piece] = match game_ray {
-        Some(hit) => ray("game", hit, &mut game),
-        None => &[Text("; armed")],
+    let (mut game, mut wet, mut near) = ([Text(""); 8], [Text(""); 8], [Text(""); 11]);
+    let game: &[Piece] = match ground {
+        Ground::Armed(_) => &[Text("; armed")],
+        _ => ray("game", step.game_hit(thread), &mut game),
     };
     let water: &[Piece] = match water {
         Some(hit) => ray("water", hit, &mut wet),
         None => &[],
     };
-    let walker: &[Piece] = match walker_ray {
-        Some(hit) => ray("walker", hit, &mut walker),
-        None => &[],
-    };
-    let below: &[Piece] = match below_ray {
-        Some(hit) => ray("below", hit, &mut below),
-        None => &[],
+    let near: &[Piece] = match ground {
+        Ground::Touched { touch, near: found } if !touch.material.named() => near_pieces(found, &mut near),
+        _ => &[],
     };
     let (material, how) = match ground {
         Ground::Armed(placed) => (Some(placed.material), "armed"),
         Ground::Wading(hit) => (Some(hit.material), "wading"),
         Ground::Game => (step.game_hit(thread).map(|hit| hit.material), "game"),
-        Ground::Walker(hit) => (Some(hit.material), "walker"),
-        Ground::Below { below, .. } => (Some(below.material), "below"),
-        Ground::Unnamed(hit) => (Some(hit.material), "walker, no material"),
+        Ground::Touched { near: Some(Near { hit, .. }), .. } => (Some(hit.material), "near the touch"),
+        Ground::Touched { touch, near: None } => (Some(touch.material), "touched"),
         Ground::Air => (None, "air"),
     };
     let tail = match material {
@@ -271,9 +327,64 @@ fn log(thread: &Thread, step: &OnStep, ground: Ground, water: Option<Option<Hit>
                 PairSound::NoPair => "silent, no pair",
             }),
         ],
-        None => [Text("; nothing under the foot: silent"), Text(""), Text(""), Text(""), Text(""), Text("")],
+        None => [Text("; nothing under the foot, no contact: silent"), Text(""), Text(""), Text(""), Text(""), Text("")],
     };
-    parts(&[&head, movement.as_slice(), &foot, game, water, walker, below, &tail]);
+    parts(&[&head, movement.as_slice(), &foot, body, game, water, near, &tail]);
+}
+
+/// `; near the touch met <material> at <depth> cm, <across> cm across`, or
+/// missed.
+fn near_pieces<'o>(found: Option<Near>, out: &'o mut [Piece<'static>; 11]) -> &'o [Piece<'static>] {
+    let mut met = [Text(""); 8];
+    let ray = ray("near the touch", found.map(|near| near.hit), &mut met);
+    let n = ray.len();
+    out[..n].copy_from_slice(ray);
+    match found {
+        Some(near) => {
+            out[n..n + 3].copy_from_slice(&[Text(", "), Dec((near.across * 100.0 + 0.5) as u32), Text(" cm across")]);
+            &out[..n + 3]
+        }
+        None => &out[..n],
+    }
+}
+
+/// The step log's body's pieces.
+const BODY_PIECES: usize = 39;
+
+/// The step log's body: `; root x y z cm, foot-root dx dy dz cm; support y
+/// <x100>, velocity y <cm/s>, [jump flag, ]on_ground|off the ground; contact
+/// <material> at x y z cm|no contact` (`jump flag, ` only while the
+/// controller's +203h is set).
+fn body_pieces<'o>(body: Body, foot: [f32; 3], out: &'o mut [Piece<'static>; BODY_PIECES]) -> &'o [Piece<'static>] {
+    let [rx, ry, rz] = body.root;
+    let ([a, b], [c, d], [e, f]) = (centimetres(rx), centimetres(ry), centimetres(rz));
+    let ([g, h], [i, j], [k, l]) = (centimetres(foot[0] - rx), centimetres(foot[1] - ry), centimetres(foot[2] - rz));
+    let [m, n] = centimetres(body.support[1]);
+    let [o, p] = centimetres(body.rising);
+    *out = [
+        Text("; root "), a, b, Text(" "), c, d, Text(" "), e, f,
+        Text(" cm, foot-root "), g, h, Text(" "), i, j, Text(" "), k, l,
+        Text(" cm; support y x100 "), m, n,
+        Text(", velocity y "), o, p,
+        Text(" cm/s, "),
+        Text(if body.jump_flag { "jump flag, " } else { "" }),
+        Text(if body.on_ground() { "on_ground" } else { "off the ground" }),
+        Text(""), Text(""), Text(""), Text(""), Text(""), Text(""), Text(""), Text(""), Text(""), Text(""), Text(""),
+        Text(""),
+    ];
+    match body.touch {
+        Some(touch) => {
+            let [tx, ty, tz] = touch.at;
+            let ([a, b], [c, d], [e, f]) = (centimetres(tx), centimetres(ty), centimetres(tz));
+            out[27..].copy_from_slice(&[Text("; contact "), Dec(u32::from(touch.material.id())), Text(" at "), a, b,
+                                        Text(" "), c, d, Text(" "), e, f, Text(" cm")]);
+            &out[..]
+        }
+        None => {
+            out[27] = Text("; no contact");
+            &out[..28]
+        }
+    }
 }
 
 #[cfg(test)]
@@ -287,122 +398,141 @@ mod tests {
         Hit { material: GroundMaterial::of(material), depth, normal: [0.0, 1.0, 0.0] }
     }
 
-    /// The looks a step takes, in order, each answered from `answers`; no
-    /// water.
-    fn decide(armed: Option<Placed>, met: bool, walker: Option<Hit>, below: Option<Hit>) -> (Ground, [bool; 2]) {
-        let mut asked = [false; 2];
-        let game = met.then_some(0.1);
-        let ground = ground(armed, game, |look| match look {
+    fn touched(material: u16) -> Touch {
+        Touch { material: GroundMaterial::of(material), at: [1.1, 1.9, 3.0] }
+    }
+
+    /// A step on dry ground (no water), `game` on_step's ray, `touch` the
+    /// controller's, `surface` what a look near the touch meets at an offset
+    /// (x, z) from it: the ground and the number of looks.
+    fn step(game: Option<f32>, touch: Option<Touch>, surface: impl Fn([f32; 2]) -> Option<Hit>) -> (Ground, u32) {
+        let mut looks = 0;
+        let ground = ground(None, game, touch, |look| match look {
             Look::Water => None,
-            Look::Walker => {
-                asked[0] = true;
-                walker
-            }
-            Look::Below { reach } => {
-                assert_eq!(reach, BELOW);
-                assert!(asked[0], "below only after the walker look");
-                asked[1] = true;
-                below
+            Look::Under { at: [x, y, z], reach } => {
+                let [tx, ty, tz] = touch.expect("a touch").at;
+                assert_eq!((y, reach), (ty, NEAR_BELOW));
+                looks += 1;
+                surface([x - tx, z - tz])
             }
         });
-        (ground, asked)
+        (ground, looks)
+    }
+
+    fn nothing(_: [f32; 2]) -> Option<Hit> {
+        None
     }
 
     #[test]
-    fn a_ray_that_met_the_ground_is_the_games_and_looks_no_more() {
-        let (ground, asked) = decide(None, true, Some(hit(18, 0.1)), Some(hit(9, 2.0)));
-        assert_eq!(ground, Ground::Game);
-        assert_eq!(asked, [false, false]);
-        assert_eq!(next(ground, FOOT), Next::Game);
+    fn a_ray_that_met_the_ground_is_the_games_whatever_was_touched() {
+        assert_eq!(step(Some(0.1), Some(touched(18)), nothing), (Ground::Game, 0));
+        assert_eq!(step(Some(0.1), None, nothing), (Ground::Game, 0));
     }
 
     #[test]
-    fn a_named_walker_face_is_the_ground_at_the_foot() {
-        // a hopper wagon's walker top, metall_thick, the hittable body 2 m under it
-        let (ground, asked) = decide(None, false, Some(hit(18, 0.1)), Some(hit(9, 2.0)));
-        assert_eq!(ground, Ground::Walker(hit(18, 0.1)));
-        assert_eq!(asked, [true, false], "a named face needs no look under it");
-        assert_eq!(next(ground, FOOT), Next::Ground(Placed { material: GroundMaterial::of(18), at: FOOT, normal: [0.0, 1.0, 0.0] }));
+    fn a_miss_steps_on_the_named_face_the_controller_touched() {
+        // a hopper wagon's walker top given metall_thick
+        let (ground, looks) = step(None, Some(touched(18)), |_| Some(hit(9, 0.0)));
+        assert_eq!((ground, looks), (Ground::Touched { touch: touched(18), near: None }, 0));
+        assert_eq!(next(ground, FOOT), Next::Ground(Placed { material: GroundMaterial::of(18), at: FOOT,
+                                                            normal: [0.0, 1.0, 0.0] }),
+                   "at the foot");
     }
 
     #[test]
-    fn an_unnamed_walker_face_takes_the_hittable_surface_under_it() {
-        let (ground, asked) = decide(None, false, Some(hit(0x3FFF, 0.1)), Some(hit(18, 2.5)));
-        assert_eq!(ground, Ground::Below { walker: hit(0x3FFF, 0.1), below: hit(18, 2.5) });
-        assert_eq!(asked, [true, true]);
-        assert_eq!(next(ground, FOOT), Next::Ground(Placed { material: GroundMaterial::of(18), at: FOOT, normal: [0.0, 1.0, 0.0] }),
-                   "the sound at the foot, not 2.5 m under it");
+    fn an_unnamed_touch_takes_the_named_surface_under_it() {
+        // the loading station's walker strip (no material) over its metal beam
+        let (ground, looks) = step(None, Some(touched(0x3FFF)), |_| Some(hit(18, 0.01)));
+        assert_eq!((ground, looks),
+                   (Ground::Touched { touch: touched(0x3FFF), near: Some(Near { hit: hit(18, 0.01), across: 0.0 }) }, 1));
+        assert_eq!(next(ground, FOOT), Next::Ground(Placed { material: GroundMaterial::of(18), at: FOOT,
+                                                            normal: [0.0, 1.0, 0.0] }));
     }
 
     #[test]
-    fn nothing_under_an_unnamed_face_steps_as_its_default() {
-        let (ground, _) = decide(None, false, Some(hit(0xFFFF, 0.2)), None);
-        assert_eq!(ground, Ground::Unnamed(hit(0xFFFF, 0.2)));
-        let Next::Ground(placed) = next(ground, FOOT) else { panic!("a ground") };
-        assert_eq!(placed.material, GroundMaterial::of(0xFFFF), "material_pair makes it default");
+    fn else_the_nearest_ring_beside_it_and_there_the_hit_nearest_its_height() {
+        // the strip's edge: its beam 10 cm across (+x), a cross member 2 cm
+        // lower 10 cm toward -x, metal 5 cm across but behind the strip (+z)
+        // a ring further
+        let surface = |[dx, dz]: [f32; 2]| {
+            let at = |x: f32, z: f32| (dx - x).abs() < 0.01 && (dz - z).abs() < 0.01;
+            if at(0.10, 0.0) {
+                Some(hit(18, 0.01))
+            } else if at(-0.10, 0.0) {
+                Some(hit(17, 0.03))
+            } else if at(0.0, 0.15) {
+                Some(hit(19, 0.0))
+            } else {
+                None
+            }
+        };
+        let (ground, looks) = step(None, Some(touched(0x3FFF)), surface);
+        assert_eq!(ground, Ground::Touched { touch: touched(0x3FFF), near: Some(Near { hit: hit(18, 0.01), across: 0.10 }) });
+        assert_eq!(looks, 1 + 2 * 8, "under it, then the rings of 5 and 10 cm");
+        // an unnamed hittable surface is no better
+        let (ground, _) = step(None, Some(touched(0x3FFF)), |_| Some(hit(0x3FFF, 0.0)));
+        assert_eq!(ground, Ground::Touched { touch: touched(0x3FFF), near: None });
     }
 
     #[test]
-    fn nothing_under_the_foot_is_the_games_silent_step() {
-        let (ground, asked) = decide(None, false, None, Some(hit(9, 3.0)));
-        assert_eq!(ground, Ground::Air);
-        assert_eq!(asked, [true, false]);
-        assert_eq!(next(ground, FOOT), Next::Game);
+    fn nothing_near_the_touch_is_its_own_material_not_the_ground_far_below() {
+        // the walkway 2 m over the ground: the looks reach 30 cm, nothing
+        let (ground, looks) = step(None, Some(touched(0x3FFF)), nothing);
+        assert_eq!((ground, looks), (Ground::Touched { touch: touched(0x3FFF), near: None }, 1 + 6 * 8));
+        assert_eq!(next(ground, FOOT), Next::Ground(Placed { material: GroundMaterial::of(0x3FFF), at: FOOT,
+                                                            normal: [0.0, 1.0, 0.0] }),
+                   "the face's own, which material_pair steps as default");
     }
 
     #[test]
-    fn an_armed_ground_wins_over_any_ray() {
-        let placed = Placed { material: GroundMaterial::of(17), at: [5.0, 6.0, 7.0], normal: [0.0, 0.0, 1.0] };
-        for met in [false, true] {
-            let (ground, asked) = decide(Some(placed), met, Some(hit(18, 0.1)), None);
-            assert_eq!(ground, Ground::Armed(placed));
-            assert_eq!(asked, [false, false]);
-            assert_eq!(next(ground, FOOT), Next::Ground(placed));
-        }
-    }
-
-    /// A step whose water look meets `water`, on_step's ray `game` metres
-    /// under the foot (None: nothing); the walker look meets a metal floor.
-    fn wade(water: Option<Hit>, game: Option<f32>) -> Ground {
-        ground(None, game, |look| match look {
-            Look::Water => water,
-            Look::Walker => Some(hit(18, 0.1)),
-            Look::Below { .. } => None,
-        })
+    fn no_touch_and_no_hit_is_silent() {
+        // in the air (the sweep met nothing), whatever is near: a handrail,
+        // a ledge, a beam beside the foot
+        assert_eq!(step(None, None, |_| Some(hit(18, 0.0))), (Ground::Air, 0));
+        assert_eq!(next(Ground::Air, FOOT), Next::Game);
     }
 
     #[test]
     fn water_over_the_ground_wades_at_its_surface() {
-        // the pond's bed 0.1 m under the foot, the water 0.4 m over it
         let water = hit(32, -0.4);
-        let ground = wade(Some(water), Some(0.1));
+        let ground = ground(None, Some(0.1), Some(touched(9)), |look| match look {
+            Look::Water => Some(water),
+            other => panic!("{other:?} taken"),
+        });
         assert_eq!(ground, Ground::Wading(water));
         assert_eq!(next(ground, FOOT), Next::Ground(Placed { material: GroundMaterial::of(32), at: [1.0, 2.4, 3.0],
-                                                            normal: [0.0, 1.0, 0.0] }),
-                   "the surface over the foot");
+                                                            normal: [0.0, 1.0, 0.0] }));
         // over a walker-only bed the ray missed: the foot's height is the ground
-        assert_eq!(wade(Some(water), None), Ground::Wading(water));
+        let wades = super::ground(None, None, None, |look| match look {
+            Look::Water => Some(water),
+            other => panic!("{other:?} taken"),
+        });
+        assert_eq!(wades, Ground::Wading(water));
     }
 
     #[test]
     fn a_film_of_water_or_water_under_the_ground_is_the_grounds() {
-        // 0.15 m of water over the ground: its step
+        let wade = |water: Option<Hit>, game: Option<f32>| {
+            ground(None, game, Some(touched(18)), |look| match look {
+                Look::Water => water,
+                other => panic!("{other:?} taken"),
+            })
+        };
         assert_eq!(wade(Some(hit(32, -0.05)), Some(0.1)), Ground::Game);
-        // a plank over the pond: the water 0.5 m under the foot
         assert_eq!(wade(Some(hit(32, 0.5)), Some(0.0)), Ground::Game);
-        // a stock water plane the game's ray meets itself
         assert_eq!(wade(Some(hit(32, 0.0)), Some(0.0)), Ground::Game);
-        // no water: as without it, the walker look after a miss
         assert_eq!(wade(None, Some(0.1)), Ground::Game);
-        assert_eq!(wade(None, None), Ground::Walker(hit(18, 0.1)));
-        assert_eq!(wade(Some(hit(32, 0.3)), None), Ground::Walker(hit(18, 0.1)));
+        assert_eq!(wade(None, None), Ground::Touched { touch: touched(18), near: None });
     }
 
     #[test]
-    fn an_armed_ground_takes_no_water_look() {
+    fn an_armed_ground_takes_no_look() {
         let placed = Placed { material: GroundMaterial::of(17), at: [5.0, 6.0, 7.0], normal: [0.0, 0.0, 1.0] };
-        let ground = ground(Some(placed), Some(0.1), |look| panic!("{look:?} taken"));
-        assert_eq!(ground, Ground::Armed(placed));
+        for game in [None, Some(0.1)] {
+            let ground = ground(Some(placed), game, Some(touched(18)), |look| panic!("{look:?} taken"));
+            assert_eq!(ground, Ground::Armed(placed));
+            assert_eq!(next(ground, FOOT), Next::Ground(placed));
+        }
     }
 
     #[test]

@@ -737,6 +737,7 @@ impl Web {
                 request.path.as_str(),
                 wiki::PATH
                     | wiki::WEAPONS
+                    | wiki::SIMULATORS
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
                     | skills::PATH
@@ -1010,6 +1011,7 @@ impl Web {
                     maps::PATH => return maps_page(request.lang),
                     path @ (wiki::PATH
                     | wiki::WEAPONS
+                    | wiki::SIMULATORS
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
                     | skills::PATH

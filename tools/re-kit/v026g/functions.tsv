@@ -862,6 +862,7 @@ va	status	ref_021d	name
 0x001f1930	reviewed	0x00155f89	survarium::player::inflicted_damage_collector::serialize
 0x001f2720	observed	0x00156ad2	survarium::player::insert
 0x001f2870	reviewed	0x00156be1	survarium::player::remove
+0x001f3480	observed	0x00157440	survarium::player::update_camera
 0x001f3de0	reviewed	0x00157d77	vostok::network_core::buffer_writer::w<unsigned char>
 0x001f48a0	reviewed	0x00158564	vostok::network_core::buffer_writer::w<unsigned int>
 0x001f6d50	reviewed	0x0015a3f2	survarium::game_world::register_cooks
@@ -2402,3 +2403,45 @@ va	status	ref_021d	name
 0x002a63c0	observed		survarium::player_equipment_sound_effect::update_feet
 0x002a6410	observed		survarium::player_equipment_sound_effect::set_feet
 0x003917d0	reviewed		vostok::animation::animation_player::tick
+0x0009ff40	reviewed		btCollisionWorld::updateSingleAabb
+0x000a01e0	reviewed		btCollisionWorld::updateAabbs
+0x00094c00	reviewed		btAxisSweep3Internal<unsigned short>::setAabb
+0x000205e0	reviewed		boost::function1<void,bool>::operator() (the renderer's on_draw_scene, 0x13D9BC and 0x13DC78)
+0x000a8660	reviewed		btBvhTriangleMeshShape::processAllTriangles
+0x000c5600	reviewed		btConvexTriangleCallback::processTriangle
+0x000a86a0	reviewed		btBvhTriangleMeshShape::processAllTriangles::MyNodeOverlapCallback::processNode
+0x000c26c0	reviewed		btQuantizedBvh::reportAabbOverlappingNodex
+0x00298ab0	reviewed		survarium::damage_zone::~damage_zone
+0x0001d0d0	reviewed	0x00018037	vostok::console_impl::tick
+0x0001c7f0	reviewed		vostok::engine::game_console::on_keyboard_action
+0x0001c8b0	reviewed		vostok::engine::game_console::on_gamepad_action
+0x0001c8e0	reviewed		vostok::engine::game_console::on_mouse_key_action
+0x0001c810	reviewed		vostok::engine::game_console::on_mouse_move
+0x0001c8a0	reviewed		vostok::engine::game_console::get_active
+0x0001c740	reviewed		vostok::engine::game_console::tick
+0x00349540	reviewed		vostok::ui::ui_scroll_view::ui_scroll_view
+0x00349520	reviewed		vostok::ui::ui_scroll_view::get_follow_last_line
+0x00349c60	reviewed		vostok::ui::ui_scroll_view::set_follow_last_line
+0x00349530	reviewed		vostok::ui::ui_scroll_view::get_v_scroll
+0x00349cf0	reviewed		vostok::ui::ui_scroll_view::w
+0x00349c80	reviewed		vostok::ui::ui_scroll_v_source::get_length
+0x00349c90	reviewed		vostok::ui::ui_scroll_v_source::get_position
+0x00349ca0	reviewed		vostok::ui::ui_scroll_v_source::set_position
+0x00349500	reviewed		vostok::ui::ui_scroll_v_source::get_step_size
+0x00349510	reviewed		vostok::ui::ui_scroll_v_source::set_step_size
+0x0001c760	observed		vostok::engine::game_console::on_activate
+0x0001c7a0	observed		vostok::engine::game_console::on_deactivate
+0x0034b4d0	observed		vostok::ui::insert_char_action::execute
+0x0001eaa0	reviewed	0x0001924f	vostok::console_impl::on_keyboard_action
+0x00348120	observed		vostok::ui::ui_text_edit::copy_to_clipboard
+0x003481f0	observed		vostok::ui::ui_text_edit::cut_to_clipboard
+0x003482c0	observed		vostok::ui::ui_text_edit::paste_from_clipboard
+0x003479d0	reviewed	0x00210e30	vostok::ui::ui_text_edit::set_text
+0x003488a0	reviewed	0x00211990	vostok::ui::ui_text_edit::set_caret_position
+0x0034a5e0	reviewed	0x00212f52	vostok::ui::ui_text_edit::init_internals
+0x00348000	reviewed		vostok::ui::ui_text_edit's insert of a typed character at the caret
+0x003486a0	reviewed		vostok::ui::ui_text_edit's delete of the selection
+0x00348a10	reviewed		vostok::ui::ui_text_edit's keyboard action (its key bindings, by key and modifiers)
+0x0034a450	reviewed		vostok::ui::ui_text_edit's make of a key binding to one of its methods
+0x0034b430	reviewed		vostok::ui::ui_text_edit key binding's test of the key's kind and modifiers
+0x0034b4c0	reviewed		vostok::ui::ui_text_edit method key binding's execute

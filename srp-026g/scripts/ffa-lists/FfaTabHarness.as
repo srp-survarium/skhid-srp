@@ -239,13 +239,26 @@ package
         private function namesOnly():void
         {
             var mixed:Array = players(5, 3);
+            var long:String = "[Axe] bobthebuilder2121";
             for each (var p:Object in mixed)
-                p.name = {C: "[Axe] bob", E: "[BOT] zed"}[p.name] || p.name;
+                p.name = {C: long, E: "[BOT] zed"}[p.name] || p.name;
             list.addPlayersList(mixed);
             list.namesOnly = true;
-            expect(["[Axe] bob", "A", "B", "Me", "[BOT] zed"], [], "names only");
+            expect([long, "A", "B", "Me", "[BOT] zed"], [], "names only");
+            require(shownName(0) == long, "names only: a long name whole, not " + shownName(0));
             list.namesOnly = false;
-            expect(["A", "B", "[Axe] bob", "Me", "[BOT] zed"], [], "names only off");
+            expect(["A", "B", long, "Me", "[BOT] zed"], [], "names only off");
+            require(shownName(2) != long, "scores shown: a long name cut beside them");
+        }
+
+        // The text the left column's row `index` shows.
+        private function shownName(index:int):String
+        {
+            draw(list.team1list);
+            var row:* = list.team1list.getRendererAt(index);
+            draw(row);
+            draw(row.ui_name);
+            return row.ui_name.textField.text;
         }
 
         private function teams():void

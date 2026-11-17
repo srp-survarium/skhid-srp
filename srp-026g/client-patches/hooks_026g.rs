@@ -2013,6 +2013,21 @@ pub extern "C" fn hook_game_volume_on_configs(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- collision_view (patch 156) ----
+
+/// The entry `collision_view_on_configs` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_collision_view_on_configs(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `collision_view_on_configs` calls this, from the game's jump at 0x1ea210,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::collision_view::on_configs(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)) calls this with the saved machine.
@@ -2028,7 +2043,37 @@ pub extern "C" fn hook_console_where_on_viewed(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- console_where (patch 133) ----
+// ---- collision_view (patch 156) ----
+
+/// The entry `collision_view_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_collision_view_on_viewed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `collision_view_on_viewed` calls this, from the game's jump at 0x1f3650,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::collision_view::on_viewed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- collision_view (patch 156) ----
+
+/// The entry `collision_view_on_debug_lines` (0x13d9c1, renderer::render 0x13D010 at its depth-tested debug lines (taken while the cc_bool 0xA71DB7, on by default, is set; 0x13D97E), right after the scene's on_draw_scene(true) (boost function 0x205E0 at 0x13D9BC) and before the scene's own queued lines go to system_renderer::draw_lines with technique 0 (0x13DA08): mov edi,[esp+1Ch] / mov edx,[edi+6334C4h]; the render thread, the depth target and the view the scene's, so a draw_aabb there is drawn as the game's own debug lines) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_collision_view_on_debug_lines(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `collision_view_on_debug_lines` calls this, from the game's jump at 0x13d9c1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::collision_view::on_debug_lines(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- collision_view (patch 156) ----
 
 /// engine_cc_delegate_execute (0xec830), as the vtable hook at 0x9e7c10 wraps it.
 pub struct OrigCcDelegateExecute;
@@ -2041,6 +2086,127 @@ impl OrigCcDelegateExecute {
         unsafe { raw::engine_cc_delegate_execute(Some(command.raw()), arguments.raw()) }
     }
 }
+
+/// The entry `collision_view_on_execute` (0x9e7c10, cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found) calls this with
+/// engine_cc_delegate_execute's 2 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `collision_view_on_execute`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_collision_view_on_execute(a0: Option<raw::CcDelegate>, a1: *const u8) -> u32 {
+    // SAFETY: only the entry `collision_view_on_execute` calls this, from the game's call at
+    // 0x9e7c10, on the game's thread; a0.. are engine_cc_delegate_execute's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut command) = (unsafe { ConsoleCommand::from_raw(&thread, a0) }) else {
+        // a null ConsoleCommand never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_cc_delegate_execute(a0, a1) }; 0 };
+    };
+    let arguments = unsafe { ConsoleArguments::from_raw(&thread, a1) };
+    let orig = OrigCcDelegateExecute;
+    { crate::collision_view::on_execute(&orig, &mut command, &arguments); 0 }
+}
+
+// ---- collision_view (patch 156) ----
+
+/// engine_triangle_process (0xc5600), as the vtable hook at 0x9e4f94 wraps it.
+pub struct OrigTriangleProcess;
+
+impl OrigTriangleProcess {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, callback: &mut TriangleSink, triangle: &Triangle, part: u32, index: u32) {
+        // SAFETY: engine_triangle_process at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_triangle_process(Some(callback.raw()), triangle.raw(), part, index) }
+    }
+}
+
+/// The entry `collision_view_on_triangle` (0x9e4f94, btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box) calls this with
+/// engine_triangle_process's 4 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `collision_view_on_triangle`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_collision_view_on_triangle(a0: Option<raw::TriangleCallback>, a1: *const f32, a2: u32, a3: u32) -> u32 {
+    // SAFETY: only the entry `collision_view_on_triangle` calls this, from the game's call at
+    // 0x9e4f94, on the game's thread; a0.. are engine_triangle_process's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut callback) = (unsafe { TriangleSink::from_raw(&thread, a0) }) else {
+        // a null TriangleSink never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_triangle_process(a0, a1, a2, a3) }; 0 };
+    };
+    let triangle = unsafe { Triangle::from_raw(&thread, a1) };
+    let part = a2;
+    let index = a3;
+    let orig = OrigTriangleProcess;
+    { crate::collision_view::on_triangle(&orig, &mut callback, &triangle, part, index); 0 }
+}
+
+// ---- console_paste (patch 157) ----
+
+/// The named exits of console_paste::on_paste (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ConsolePasteOnPasteExit { Pasted }
+/// The entry `console_paste_on_paste` (0x3482c0, ui_text_edit::paste_from_clipboard's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,28h), the engine's stub that logs "not implemented": ECX the text edit (thiscall, no argument; Ctrl+V's and Shift+Insert's key binding, init_internals 0x34AA5C, calls it through 0x34B4C0, on the game's thread); pasted is its `ret` (0x34838F), the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_paste_on_paste(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_paste_on_paste` calls this, from the game's jump at 0x3482c0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_paste::on_paste(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- console_scroll (patch 159) ----
+
+/// The entry `console_scroll_on_key` (0x1eaa0, console_impl::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,14h; called only by game_console's input handler slot 0, 0x1C7F0): ECX the console, EAX the key's kind (1 down, 2 up, 3 held), ESP+4 the input world, +8 the key (DirectInput); every key of the open console (input priority 5, before the game world's 7 and the player's 10), which it takes on every path (AL 1), on the game's thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_scroll_on_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_scroll_on_key` calls this, from the game's jump at 0x1eaa0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_scroll::on_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- console_scroll (patch 159) ----
+
+/// The entry `console_scroll_on_wheel` (0x1c810, game_console::on_mouse_move's start (its input handler's slot 3, vtable 0x9DC030 +0Ch; mov ecx,[ecx-254h], the console's dialog): ECX the console's input handler (the console's +268h), ESP+4 the input world, +8 x, +0Ch y, +10h z (the wheel); every mouse move of the open console, which it takes (AL 1), on the game's thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_scroll_on_wheel(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_scroll_on_wheel` calls this, from the game's jump at 0x1c810,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_scroll::on_wheel(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- console_scroll (patch 159) ----
+
+/// The entry `console_scroll_on_activate` (0x1c760, game_console::on_activate's start (push esi / mov esi,ecx / mov ecx,[esi+1Ch]; vtable 0x9DC030 +24h through 0x1C840): ECX the console, about to be shown (its text edit focused, +264h set, its input handler added to the input world), on the game's thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_scroll_on_activate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_scroll_on_activate` calls this, from the game's jump at 0x1c760,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_scroll::on_activate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_execute` (0x9e7c10, cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found) calls this with
 /// engine_cc_delegate_execute's 2 arguments, typed by its row (the `raw` layer's).
@@ -2982,6 +3148,36 @@ pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- ragdoll (patch 76) ----
+
+/// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_eye(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_eye` calls this, from the game's jump at 0x1f3643,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_eye(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- head_clearance (patch 158) ----
+
+/// The entry `head_clearance_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_head_clearance_on_eye(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `head_clearance_on_eye` calls this, from the game's jump at 0x1f3643,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::head_clearance::on_eye(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- hud_cursor (patch 113) ----
 
 /// The named exits of hud_cursor::on_cursor_shown (the order the shim's Flow code
@@ -3359,6 +3555,76 @@ pub extern "C" fn hook_keyboard_layout_on_text(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The named exits of keyboard_layout::on_request_focus (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KeyboardLayoutOnRequestFocusExit { Focused }
+/// The entry `keyboard_layout_on_request_focus` (0x18365, message_processor's WM_INPUTLANGCHANGEREQUEST case at its call of the game's text-focus check (mov eax,[ecx] / mov edx,[eax+44h] / call edx; ECX the game, survarium::game slot 44h 0x1EE7C0, after window.lang_request); focused 0x18374, where a focused request goes to DefWindowProc (pop edi/esi/ebx, jmp [DefWindowProcA]), the stack as at the site; a false check drops it at 0x18272) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_request_focus(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_request_focus` calls this, from the game's jump at 0x18365,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_request_focus(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_console_opened` (0x1c77e, game_console::on_activate (0x1C760, vtable 0x9DC020 slot 4) marking the console shown (mov byte [esi+264h],1), after it focused the text edit; the logic thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_opened(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_opened` calls this, from the game's jump at 0x1c77e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_opened(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_console_closed` (0x1c7d3, game_console::on_deactivate (0x1C7A0, slot 8) marking it hidden (mov byte [esi+264h],0), after it unfocused the text edit and the tips; the logic thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_closed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_closed` calls this, from the game's jump at 0x1c7d3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_closed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The named exits of keyboard_layout::on_console_char (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KeyboardLayoutOnConsoleCharExit { Typed }
+/// The entry `keyboard_layout_on_console_char` (0x34b4da, insert_char_action::execute (0x34B4D0, vtable 0xA1DEBC slot 4: a ui_text_edit's key that types a character, the console's letters, digits and punctuation, made by create_char_action 0x34A4C0) after mov edi,ecx, before its Shift test (mov eax,[edi+4] / test byte [eax+2ACh],30h): EDI the action; the character it types is [esp+8], its own (+19h, Shift +1Ah) or, for a key made named (+18h), the first letter of the key's DirectInput name (get_dik_name through the input world's keyboard, 0x34B533..0x34B5CE); typed 0x34B5D2, where it deletes the selection (0x3486A0) and inserts [esp+8] (0x348000), EDI the action, the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_char(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_char` calls this, from the game's jump at 0x34b4da,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_char(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -4417,21 +4683,6 @@ pub extern "C" fn hook_ragdoll_on_bones(frame: &mut Frame) -> u32 {
 
 // ---- ragdoll (patch 76) ----
 
-/// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_ragdoll_on_eye(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_eye` calls this, from the game's jump at 0x1f3643,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::ragdoll::on_eye(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- ragdoll (patch 76) ----
-
 /// The named exits of ragdoll::on_held_item (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]
@@ -4852,6 +5103,66 @@ pub extern "C" fn hook_step_ground_on_ground(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_first` (0x846a1, character_step_down_sweep_test_callback::addSingleResult (0x84420) taking a hit as its first (fld dword [ebx+30h] / mov eax,[esp+0Ch]; both of its ways in, 0x845ED and 0x84695, reach here; the stores of the fraction, normal, object and point follow): EBX the hit, ESI the callback) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_first(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_first` calls this, from the game's jump at 0x846a1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_first(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_second` (0x845a8, the same taking a hit as its second (mov byte [esi+0C4h],1; its fraction and point stored after): EBX the hit, ESI the callback) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_second(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_second` calls this, from the game's jump at 0x845a8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_second(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_result` (0x852ef, the step-down sweep 0x84FE0 after its sweep, before it caches the result (lea eax,[esp+40h] / lea ecx,[esp+20h]; both ways, a hit 0x852AD and none 0x852E2, join here): ESI the controller's sweep helper (+210h), ESP+80h the callback; BL the hit) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_result(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_result` calls this, from the game's jump at 0x852ef,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_result(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_cached` (0x85083, the same answered from its cache (mov al,[eax+24h] / pop edi / pop esi): ESI the helper, EAX the cached entry (+24h its hit)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_cached(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_cached` calls this, from the game's jump at 0x85083,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_cached(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
     }
 }
 
@@ -5504,6 +5815,26 @@ pub extern "C" fn hook_weapon_pickup_on_load_ordinal(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_load_record (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnLoadRecordExit { Skip }
+/// The entry `weapon_pickup_on_load_record` (0x321ca0, bullet_manager::deserialize's loop over the records (mov esi,[edi+80h], before the bullet's allocation and its constructor 0x32BBC0): EDI the manager, EBX the section's reader at the record; skip 0x321CFC is the loop's count (sub ebp,1 / jne), no bullet made) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_load_record(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_load_record` calls this, from the game's jump at 0x321ca0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_load_record(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- world_check (patch 87) ----
 
 /// The named exits of world_check::on_unpacked (the order the shim's Flow code
@@ -5682,6 +6013,17 @@ pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_game_volume_on_configs(frame);
     if flow != 0 { return flow; }
+    let flow = hook_collision_view_on_configs(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_where_on_viewed_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_console_where_on_viewed(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_collision_view_on_viewed(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5758,6 +6100,15 @@ pub extern "C" fn hook_hand_kill_on_hit_chain(frame: &mut Frame) -> u32 {
     let flow = hook_hand_kill_on_hit(frame);
     if flow != 0 { return flow; }
     let flow = hook_medical_skills_on_hit(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_eye_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_ragdoll_on_eye(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_head_clearance_on_eye(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -5946,6 +6297,18 @@ unsafe extern "C" { static battery_hit_swing_vtable: [u32; 13]; }
 pub fn battery_hit_swing_vtable_handle() -> super::project::NativeVtable<raw::TakeStateMethods> {
     // SAFETY: the generated immutable table lives for the executable's lifetime.
     unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(battery_hit_swing_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static collision_view_methods_vtable: [u32; 8]; }
+pub fn collision_view_methods_vtable_handle() -> super::project::NativeVtable<raw::CcDelegateMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(collision_view_methods_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static collision_view_triangles_vtable: [u32; 3]; }
+pub fn collision_view_triangles_vtable_handle() -> super::project::NativeVtable<raw::TriangleCallbackMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(collision_view_triangles_vtable).cast::<u32>().add(1) as usize as u32) }
 }
 
 unsafe extern "C" { static console_where_methods_vtable: [u32; 8]; }

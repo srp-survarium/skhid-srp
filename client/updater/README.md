@@ -81,8 +81,10 @@ only when torrent is on ("BitTorrent" below).
   prevents simultaneous installs in the same folder. The patch step writes
   its own files beside it too (listed under "Patches").
 - With the launcher's "Allow torrent" on (off until the player turns it
-  on), also downloads the original game's files and missing patches from
-  the revision's signed torrent, and shares
+  on), asks the DHT for the release's signed newest revision while it asks
+  the site; when the site does not answer, updates from the revision's
+  signed torrent (the Skhid files, the original game's files, missing
+  patches) without waiting for it; and shares
   every file of it the folder has while the launcher is open, on a port
   it picks once and keeps ("BitTorrent" below); off, none of it. The DHT, no
   PEX, UPnP or uTP, no service, no crash upload, no administrator rights (its manifest says `asInvoker`;
@@ -91,7 +93,8 @@ only when torrent is on ("BitTorrent" below).
 
 ## The log
 
-Each run of the updater writes its own file beside it,
+Each run of the updater writes its own file in the game's `logs` folder
+(`game\logs`, beside `game\torrent`; made when missing),
 `updater_skhid.<start>.log`, `<start>` the run's start in local time
 (`updater_skhid.2026-11-15_14-03-07.log`), with `_2` .. `_99` past the
 highest a run of the same second made (`logic/src/run_log.rs`,
@@ -105,8 +108,19 @@ over. Only names of
 exactly that form count; the `updater_skhid.log` of the updaters before is
 not read, written or deleted. A box that names the log gives that run's
 file; a text written in advance says "the newest
-`game\binaries\x86\updater_skhid.<date>.log`". The crash reporter
+`game\logs\updater_skhid.<date>.log`". The crash reporter
 (`client/bugtrap`) takes the recent ones.
+
+Before its file is made, every run deletes the logs the updaters and games
+before kept beside the updater (their history is not kept): the stamped
+`updater_skhid.<stamp>.log` and `srp_patches.<stamp>.log`, the unstamped
+`updater_skhid.log`, `srp_patches.log` and `srp_patches.old.log` (written no
+more), and the seeding runs of `updater_skhid.seed-logs\` (the folder removed
+once empty). A file a program holds is skipped. The engine's old logs in
+`Documents\Survarium` the game deletes itself (`srp-026g/docs/notes/run-logs.md`).
+The updater does nothing else with `game\logs`: it
+is no file of the ZIP or of a torrent, never hashed, checked or deleted as
+one.
 
 ## How it is started
 
@@ -135,7 +149,7 @@ says so and does nothing.
 | `logic/` | Everything that needs no Windows, as a library whose one dependency is Ed25519 (`ed25519-compact`, the torrent's signature): SHA-256, DEFLATE and CRC-32, bencoding, the torrent (its files), its signature, the release's DHT item (`newest.rs`), the record of what was checked (`shared.rs`), the upload cap, the ZIP reader and its name rules, the text formats (the server's answer, the installed state, the earlier updaters' record of resources.db, the list of resources.db's patches, the quick check's record) and what the restore and the patch step decide, the launcher's pipe messages, command-line splitting, the server address and a patch's. `cargo test` there runs on any host |
 | `exe/` | The program: WinHTTP, files, the pipe, the install with its undo, the texts a player sees. Built for `i686-pc-windows-msvc` with `rust-lld` and Microsoft's C runtime, as `../bugtrap`; `res/` holds its icon and version resource; `src/libtorrent.rs` is the one caller of the DLL |
 | `torrent-dll/` | `skhid_torrent.dll`: libtorrent-rasterbar 2.0.12 behind a small C API (`skt.h`, `skt.cpp`), and `skhid-dht`, the same API on Linux for the release (`release/publish-dht`); `default.nix`, built by `srp-026g/flake.nix` (`skhid-torrent-dll`, `skhid-dht`) |
-| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_torrent.py`: BitTorrent (the updater with its DLL) against a local tracker, a local DHT and libtorrent peers, Windows or Wine; `test_seed.py`: the game's sharing. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
+| `tests/` | `test_updater.py`: the real exe against a web server on 127.0.0.1, with the test in the launcher's place on a real named pipe (Windows only). `test_db_patches.py`: the patch step and the restore, Windows or Wine. `test_play_gate.py`: PLAY against the server's revision and the watch while the launcher stays open, Windows or Wine. `test_game_download.py`: the original game's download. `test_unreadable.py`: a Skhid file that cannot be read, Windows or Wine. `test_run_logs.py`: the run logs in `game\logs`, the old ones beside the updater deleted, Windows or Wine. `test_torrent.py`: BitTorrent (the updater with its DLL) against a local tracker, a local DHT and libtorrent peers, Windows or Wine; `test_seed.py`: the game's sharing. `fake_exe/`: a stand-in for the game and the launcher that writes down how it was started; it also holds a file as the game or an antivirus does, and is the launcher's end of its pipe, for the tests under Wine |
 
 ## PLAY and the server's revision
 
@@ -159,7 +173,10 @@ the patch step. That is a server whose ZIP is older than its setting: a
 release half put in place. An exe whose site is neither (another program, a
 build whose site moved) or that cannot be read is logged and let through:
 the login server still decides. A server that says no `min-revision` (srp
-before it) is not checked.
+before it) is not checked. A run the site did not answer, with torrent on,
+takes the newest revision the release signed (its DHT item, "The update
+check" under "BitTorrent") as that number: an exe that says an older one
+keeps PLAY off ("Game revision R is out; ... could not be downloaded").
 
 **The watch.** After its last message to the launcher (PLAY on, or off with
 the gate's words) the updater stays, as the launcher wants, and asks
@@ -173,6 +190,7 @@ game and closes it):
 | answered at the start, then misses two answers in a row (no connection, a status but 503) | state 22: the launcher says "Server maintenance..." and turns PLAY (and Enter) off (`srp-026g/docs/notes/launcher.md` 5.4) |
 | answers again after that | starts the launcher anew |
 | did not answer at the start (PLAY with what was checked, "No update check: ...") | PLAY stays on while it does not answer; once it does, the launcher starts anew when its ZIP is not the one installed or it says a `min-revision` |
+| was not waited for: the DHT named the newest signed revision first | the same, but only a `min-revision` newer than the game exe's starts the launcher anew (its ZIP over a torrent's waits for a start the site answers first) |
 | answers 503 (busy, or reading a new ZIP) | no news |
 
 So a launcher left open over a release turns PLAY off while the server is
@@ -226,7 +244,7 @@ the box of "The player's boxes" below:
 Game files removed by antivirus: survarium_skhid.exe
 Windows Security or another antivirus took it for a threat (a false positive). PLAY stays off until it is let through.
 Run Skhid-defender-setup.cmd (beside Skhid.bat); with another antivirus, exclude this folder: E:\Survarium_SkhidSRP_0_26\game\binaries\x86
-Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.2026-11-15_14-03-07.log
+Log: E:\Survarium_SkhidSRP_0_26\game\logs\updater_skhid.2026-11-15_14-03-07.log
 ```
 
 ```text
@@ -276,7 +294,7 @@ blocked.
 Blocked on this network: skhid.link did not answer (timed out)
 Other sites answer: this network blocks it (the internet provider, or the VPN in use).
 Use a VPN with launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe in its split tunnelling, or turn the VPN off (see VPN.txt). Then try again.
-Log: E:\Survarium_SkhidSRP_0_26\game\binaries\x86\updater_skhid.2026-11-15_14-03-07.log
+Log: E:\Survarium_SkhidSRP_0_26\game\logs\updater_skhid.2026-11-15_14-03-07.log
 ```
 
 The box is shown when the run ends in an error, or in PLAY without an
@@ -431,9 +449,10 @@ on as its `info`, `piece layers` and `skhid` only (`logic/src/torrent.rs`
 with the updater's trackers in place of the torrent's (its web seeds
 dropped), and checks every piece against its hashes.
 
-**What it fetches**, when the launcher allows it: the original game's files
-that are missing (in the place of the 7z from the mirrors; the Skhid files
-come first then, as they bring the torrent), each finished file also against
+**What it fetches**, when the launcher allows it and the site did not
+answer the run's update check (it answered: HTTPS, as with torrent off, and
+the folder is shared all the same): the original game's files
+that are missing (in the place of the 7z from the mirrors), each finished file also against
 its build-2777 pin (`logic/src/game.rs` `FILES`) before it is put in place;
 and the listed patches that are missing or damaged, each against the list's
 SHA-256 before it is renamed into place. A part (`<file>.skhid-torrent` for
@@ -487,9 +506,20 @@ is copied again). The release's ZIP brings there the pinned files that are
 not the live ones (the updater changes at every release); the overlay's
 restart rule counts only the programs in `game/binaries/x86/`.
 
+**The update check** (`main.rs` `check`; the spec's "The update check"):
+with torrent on, the site's `/api/client-files` (each try on a thread of its
+own, `Asking`) and the DHT (`torrent::discover`, below) at once. The site's
+answer wins whenever it comes first: the run is then the site's, by HTTPS.
+When the DHT names revision R first, the site is not waited for if the game
+exe says R or later and its files are whole (up to date), or the run's
+torrent is R (installed from it, below); else its answer is waited for after
+all. Who answered is one value, `gate::Seen` (`Site`, or `Unasked` with the
+newest revision the release signed, if one was named): the patch step's
+source, PLAY's least revision (the site's `min-revision`, else the signed
+revision) and the watch's rules follow from it. Torrent off: the site alone.
+
 **Without our site** (a bare bootstrap folder, a blocked network after a
-release): when the update server cannot be asked, the DHT is asked
-(below), and when the run's torrent is newer than what is installed, or
+release): when the update server is not asked, and the run's torrent is newer than what is installed, or
 nothing is, every file of it but the original game's and the patches (the
 Skhid files: the updater, its DLL and the launcher too) comes from it, each
 checked piece by piece, one already whole kept, installed as an archive's files are
@@ -510,11 +540,12 @@ release"): the release's signed BEP 46 item on the DHT, under the release's
 key, salt `skhid-newest 1`, its sequence number the revision, its value the
 facts of the torrent's signature (v2 info hash, revision, signature); its
 BEP 44 signature is the torrent's `skhid.dht`. While it shares, the updater
-puts it again as it is (at once, then every 30 minutes). An updater that
-cannot reach the update server asks the DHT for it for 20 s (again every
-5 s; a higher one waited for 3 s after one came), takes it only when its
-signature verifies with the built-in key and its revision is higher than
-the run's torrent (none: not lower than the folder's), fetches that
+puts it again as it is (at once, then every 30 minutes). The update check
+asks the DHT for it for 20 s, or until the site answered (again every 5 s;
+a higher one waited for 3 s after one came), takes it only when its
+signature verifies with the built-in key and its revision is not lower
+than the folder's (the game's, the highest taken, the updater's own) and,
+when it is newer than the run's torrent, fetches that
 torrent's `info` from its swarm (a torrent of its v2 info hash alone,
 libtorrent's `ut_metadata`, 60 s at most), checks it is the item's, and
 keeps the signed torrent made of the two (`info` and `skhid`) as
@@ -541,7 +572,7 @@ torrent as the launcher's updater does while it watches (`torrent::share_while`,
 call into the engine: the trusted torrent's files the folder has, the
 bootstrap's, the DHT item; nothing fetched), on the port the updaters keep
 (`game\torrent\port`; a free one, then kept, when none is), and ends when the pipe closes: the game entering a match,
-or ending. It takes no lock and shows no box; its run logs go in `updater_skhid.seed-logs\` (a seed runs at every lobby: beside the others it would push them out). A port that
+or ending. It takes no lock and shows no box; its run logs go in `game\logs\seed\` (a seed runs at every lobby: beside the others it would push them out). A port that
 is held (another updater shares on it, or is closing) is tried for 10 s,
 then the run ends, logged. On the pipe (the launcher's framing) the game
 says its upload limit (`1E`: ignored, the cap holds) and its stats switch
@@ -603,7 +634,7 @@ remains: the last one is waited for, however slow), `cut short at byte <n> of
 <size>`, `larger than the file`, `wrong SHA-256`, `more than 5 redirects`.
 When every address failed the player is told each one's host and reason,
 then where to send the log (`text::reported`, as the crash reporter words
-it: `Send the newest game\binaries\x86\updater_skhid.<date>.log to #bugreports in Discord
+it: `Send the newest game\logs\updater_skhid.<date>.log to #bugreports in Discord
 (tag: install): discord.gg/QUmJg3gBhg`; the reason is cut to leave it room
 in the launcher's 255 characters, the log has the whole). So does every
 other failure the run ends on.
@@ -931,7 +962,7 @@ done." after it:
 | resources.db is held (the game runs) and a patch file is to change | "The game is running, so Skhid could not update the game's patches ... Close the game, then start the launcher again." |
 | A patch file stays held by another program | "Another program holds game\resources.db.patch_<n>, so Skhid could not update the game's patches. An antivirus may be scanning it: wait a minute, then start the launcher again." |
 | The server could not be asked and the patches were not checked in place | "The game's patches could not be checked: <why the server could not be asked>" |
-| Anything else (a file that cannot be written or deleted, the ZIP bringing a `resources.db.patch_*` anywhere) | "Skhid could not finish updating the game's patches ...; the reason is in the newest game\binaries\x86\updater_skhid.<date>.log. ..." |
+| Anything else (a file that cannot be written or deleted, the ZIP bringing a `resources.db.patch_*` anywhere) | "Skhid could not finish updating the game's patches ...; the reason is in the newest game\logs\updater_skhid.<date>.log. ..." |
 
 The next start tries again. A file that is never half written in place:
 what the game mounts is a checked file or nothing.
@@ -961,6 +992,7 @@ python tests/test_play_gate.py               # Windows or Wine (PLAY and the ser
 python tests/test_replay.py                  # Windows; the replay, in its no-window mode only
 python tests/test_game_download.py           # Windows or Wine
 python tests/test_unreadable.py              # Windows or Wine (a Skhid file that cannot be read)
+python tests/test_run_logs.py                # Windows or Wine (game\logs; the old logs deleted)
 SKHID_TEST_PUBLIC_KEY=$(python tests/test_torrent.py --key) \
     SKHID_TEST_TRACKERS="$(python tests/test_torrent.py --trackers)" \
     SKHID_TEST_DHT=$(python tests/test_torrent.py --dht) ./build.sh   # the tests' key, trackers and DHT

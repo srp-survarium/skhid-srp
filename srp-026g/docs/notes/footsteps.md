@@ -118,16 +118,13 @@ the hit. 0.26g's controller keeps the normal alone (+2C710h), no material.
 
 One lohook after the ray (`step.ground` 0x248B5A, `mov ecx,[esp+4Ch]` / `test ecx,ecx`), the Rust
 patch `step_ground` over `vostok/step.rs`. A ray that met something: the game's own path, byte for
-byte. A miss asks 0.69d's question with the same `ray_test` (0x75E20), into a result of its own:
-
-1. **What the body stands on**: the ray again with the walker collision too (group 34h, mask 0Ah),
-   as far as the game's (1 m under the foot). Its face's material, when the face was given one
-   (a wagon's walker top is metall_thick, a wall's brick).
-2. **A walker face without a material** (0FFFFh at the cook, 3FFFh after the mask; most walker
-   faces: `walker_col_s`, `walker_coll`, the editor's boxes): the hittable surface under it, the
-   game's filter, to 4 m under the foot (a station's metal floor, the School's concrete). None
-   there: the face's own (3FFFh), which `material_pair` steps as `default`, the dirt step.
-3. **Nothing under the foot within 1 m**: the body is in the air; the game's silent return.
+byte. A miss steps as 0.69d does (below, "The contact"): on what the player's character controller
+touched at its last step-down sweep; a touched face without a material (3FFFh: most walker faces,
+`walker_col_s`, `coll_restrictSG`, the editor's boxes) takes the named hittable surface at its
+height near the touch (the game's filter, from 10 cm over the touch to 30 cm under it, under it and
+then on rings every 5 cm to 30 cm across: its model's own collision, the walkway's beam), else its
+own, which `material_pair` steps as `default`; nothing touched (the sweep met nothing: in the air):
+the game's silent return.
 
 A found ground goes on at the exit past the hit object's material (0x248B77, EAX the material),
 the result's point the foot (0.69d's place: the sound is not put 4 m under the player) and its
@@ -136,7 +133,8 @@ surface below is another material on 42.8 m² of the Chemical Plant (the wagons'
 ground and grass) and 56.1 m² of the Fort (brick wall tops over grass and gravel); the face's is
 the right one.
 
-What each look gives, on the standing room where on_step's ray meets nothing (m², the census
+What the first rule's looks (#2128's walker look, then the surface under it to 4 m) gave, on the
+standing room where on_step's ray meets nothing (m², the census
 `steps.py` of each map's `day_4` project, the body's centre, the foot 0.1 m above the walker face;
 "miss" includes wall tops and border boxes no one stands on):
 
@@ -168,7 +166,89 @@ game's drawn bones, patch 101). No `simulation_changes.tsv` row.
 `check_step_ground_026g.py` runs `on_step` whole in both exes over made-up ground (the rays,
 materials, pair and sound stubbed and recorded): a hit is the original's calls and memory; a
 walker floor, an unnamed one over metal, an unnamed one alone and the air as above, own and third
-person; the log off reads the switch once and writes nothing, on writes each line.
+person; the log off reads the switch once and writes nothing, on writes each line. The contact's
+choices are the crate's tests (`step_ground::tests`); the check's made-up player has no
+controller, so its contact looks meet nothing.
+
+### The contact: what the capsule rests on (PROVEN by two walks)
+
+The owner's report ("rails are not heard at all"), walked with a diagnostic build and the log on
+(Chemical Plant, FFA `level_04/evening_8`, 2026-11-16: rails, tracks, gravel, a wagon top and the
+loading station): 53 of 153 steps silent, every one `game missed; walker missed`, the body on the
+ground (`on_ground`, support normal y 0.88 to 0.95), the foot 10 to 25 cm from the root.
+
+- **Where:** 50 of the 53 on `level/04/loading_station_01.model`, the walkway along its top at
+  y 11.19 m (x 19.2 to 19.8, z 20 to 90). Its walker collision there is a strip **32 cm wide**
+  (x 19.314..19.635, 2/4, `walker_col_s`, no material); its bullet collision an **8 cm metal beam**
+  (x 19.33..19.41, 8/16, metall_thick) at the same height; nothing else within 9 m under it. The
+  capsule rests on the strip, its centre up to 12 cm beyond the strip's edge; a foot 10 to 25 cm
+  aside casts its vertical ray beside the strip and the beam: nothing within 1 m, either filter.
+  A thin floor, as the rails of the report: no shape skipped, no one-sided mesh, no group missing.
+  The other 22 steps there met the strip under the foot (16383) and went 1 to 2.6 m down to the
+  ground or the station's frame: the wrong sound on a metal walkway.
+- **0.26g keeps no contact:** the controller's `step_down` sweep (0x7EA80 -> 0x84FE0) hands back
+  the point, normal and fraction, no object or triangle; the support normal (+2C710h) alone stays.
+  0.69d keeps the material (+612Eh, its `step_down` 0x2005F408C) and steps on it on a miss.
+- **The first rule (#2128, walk 2's build):** looks around the body's root, 50 rays on three
+  rings. Replaced by 0.69d's way below; the review after its merge found a handrail or a crate top
+  within 1 m over the feet could be taken for the support, and a foot event in the air near a ledge
+  could step.
+- **0.69d's way (this rule):** the step-down sweep's callback,
+  `character_step_down_sweep_test_callback::addSingleResult` (0x84420, vtable 0x9E3F34, made at
+  0x842E0 with the controller's filter, group 4 / mask 2), sees each hit's LocalConvexResult: its
+  collision object (+0; its +0F8h the game's object, whose get_triangle_material 0x3570A0 gives the
+  material), its shape info (+4: the triangle +4, the primitive flag +8) and point (+20h, Bullet
+  frame). Hooks note the hit it takes as its first (`step_down.first` 0x846A1) and its second
+  (`step_down.second` 0x845A8); the sweep (0x84FE0) answers with the second when it is taken and
+  not further than the first, else the first when one was taken (0x85212..0x85269), and
+  `step_down.result` (0x852EF) keeps that hit's material and point for the controller (keyed by its
+  helper, controller +210h), or nothing; `step_down.cached` (0x85083) clears it on a cached miss
+  (a cached hit keeps it). A step whose ray met nothing steps on it: a named one as it is, an
+  unnamed one by the look under the touch. 0.69d's own order (its controller's material, the ray's
+  hit replacing it, silent with neither). **Read only:** the hooks read the callback, the hit and
+  the shape's material table; the sweep, the callback and the controller are as the game leaves
+  them (`check_step_ground_026g.py` runs each site in both exes and compares the callback, its
+  frame, the controller and the registers). No `simulation_changes.tsv` row.
+- **The review's findings are gone by construction:** a handrail or a crate top beside the feet is
+  not what the capsule's sweep touches under it, and in the air the sweep touches nothing, so a
+  foot event there is silent as before.
+- **Walk 3** (the owner, 2026-11-16, Chemical Plant, this rule with the look under the touch to 4 m):
+  "sometimes when walking on rail I hear sound of ground which is 5 meters at least below me", "not
+  just metal". Of 72 log lines (each step is logged twice) on an unnamed touch whose look met something, it met
+  ground_walkable 1.3 to 2.65 m down (16, the ground under the walkway and its stairs), metall_thick
+  54 to 102 cm down (26: the stairs and the floor under the walkway), and metall_thick 0 to 8 cm down
+  (30: the walkway's own beam); 40 met nothing named (`default`).
+- **What the owner stood on (walk 3's 56 distinct unnamed touches):** two walker meshes, both
+  without a material in 0.26g and 0.69d alike (0.69d's foot ray misses at 55 of the 56 steps too:
+  silent there):
+  - `loading_station_01.model/walker_collision` (face `coll_restrictSG`; 47 touches): the loading
+    station's walkway (x 19.2..19.4, y 11.19, z 27..89) and its stairs down to the east (x 20..35,
+    y 11.2 to 4.0). Its own `collision` (metall_thick 6,778 faces, metall_thin 667) lies 3 cm over
+    to 25 cm under the strip, within 26 cm across.
+  - `admin_building.model/walker_collision` (face `walker_col_s`; 9 touches): the admin building's
+    stair (x 57.7..59.5, y 3.1..4.7, z 85..90), over its metall_thick steps within 10 cm.
+  No other unnamed surface was touched where the ray missed; every other step was the game's ray
+  (log lines, each step twice: ground_walkable 111, metall_thick 49, metall_tank 38, mud 16, ground 15).
+- **This rule (after walk 3):** the named surface near the touch, from 10 cm over it to 30 cm
+  under it (the strip's own metal: 3 cm over to 25 cm under; the next surfaces under the walkway
+  54 cm and more), under the touch and then on rings of 5 to 30 cm across in eight directions, the
+  nearest ring that meets one, there the hit nearest the touch's height. Over walk 3's 56
+  touches (these looks over the level's collision, offline): metall_thick 52 (the loading
+  station's 43, the admin building's 9: 17 under the touch, 35 beside it), metall_thin 3 (the
+  walkway's cross members), `default` 1 (a touch our data puts 1.8 m off the strip). Nothing far
+  under the walkway plays. The touched model is not checked (the hit objects carry no model): the
+  nearest surface at the touch's height stands for it, which walk 3's data bears out (the nearest
+  named game face is the touched model's own at every touch). 0.69d is silent at these spots; here
+  they play their models' metal. Not yet walked with this build.
+- **Walk 2** (the same walk with it): 5 of 127 steps silent, all in the air (falling 2.5 to
+  7.3 m/s, jumps off the station); 62 found their ground by the contact: metall_thick 58,
+  metall_thin 2, rabitz 1, 16383 (`default`) 1. The owner: "now it works".
+- **Each step plays twice (stock, not changed here).** In both walks every foot event reaches
+  `on_player_sound_event` twice in the same frame with the same time and the same effect (walk 2:
+  one effect, 0x7C2F1B34, for all 616 events; 120 of the 122 played foot events came twice, both
+  past `maximum_time`), so `on_step` runs twice and the step is two sounds at once (+6 dB, two
+  voices). The original's guard passes both, patch 101's too. Patch 101's rule could drop a copy
+  of the same foot and time; not done: it changes how loud every step is, the owner's ears first.
 
 ### step-sounds-1: the empty pairs
 
@@ -216,29 +296,36 @@ limbs). Nothing calls `play` yet.
 
 A diagnostic, never players': a game started with `SKHID_STEP_LOG=on` (or `1`; read once, at the
 first step) writes a line a step to the run's patch log. Off, the hook reads one cell more.
-Two lines as the check writes them:
+Lines of walk 2 (the event at patch 101's guard, before its time test; the step at `step.ground`;
+walk 2's build had no water look):
 
 ```
-srp: step: own foot, movement 2, first person, foot 42 at 1000 550 -300 cm; game missed; water missed; walker met 16383 at 25 cm; below met 18 at 150 cm; ground 18 (below): plays
-srp: step: own foot, movement 2, first person, foot 42 at 1000 550 -300 cm; game met 9 at 25 cm; water met 32 at -50 cm; ground 32 (wading): plays
+srp: step event: own, effect 0x7c2f1b34, domain 1 (right foot), time 38557 (max 38553), movement 3, feet read: plays
+srp: step: own foot, movement 3, first person, foot 56 at 5910 347 8984 cm; root 5921 333 8978 cm, foot-root -11 13 5 cm; support y x100 84, velocity y 0 cm/s, on_ground; game missed; contact top met 16383 at -21 cm; named met 18 at 0 cm (16 of 50 looks); ground 18 (contact): plays
 ```
+
+The event line: whose, the effect, the domain (0 and 1 the feet, 2..4 the rustles), the event's
+time and the core's `maximum_time`, the logic state's movement id, whether the feet were read, and
+what the guard did (`plays`, `skipped (a re-simulated copy)`, `the game's test`). The step line's
+body: the root (the player's simulated feet), the foot's offset from it, the controller's support
+normal's y (x100), its vertical velocity and `on_ground` (0x7EF90's test).
 
 Whose (own: the local player's), the caller (`foot, movement <id>` from `on_foot_step`'s logic
 state, `landing, movement 2|4`, `a patch's step`), the view, the foot material (an odd value with
 movement 0 is path 6), the foot in centimetres (the game's frame), each ray (`game`, `water`,
-`walker`, `below`: the triangle's material id and how far under the foot, negative over it, or
-`missed`), the ground and how it was found (`game`, `wading`, `walker`, `below`, `walker, no
-material`, `armed`), and what its pair plays
+`walker`, `below`, `contact top` and `named`: the triangle's material id and how far under the
+foot (the contact's: under the root), negative over it, or `missed`), the ground and how it was
+found (`game`, `wading`, `walker`, `below`, `walker, no material`, `contact`, `armed`), and what
+its pair plays
 (`plays`, `silent, the pair has no sound`, `silent, no pair`), or `nothing under the foot:
 silent`. Material ids are game.materials' (`step-sounds-research.md` 2.1; 16383 is a face without
 a material). A played step can still be culled (path 7): the log says what `on_step` asks for.
 
-### In-game check (not done)
+### In-game check
 
-Nothing of patch 153 or step-sounds-1 has been heard. With the log on: the Chemical Plant's
-hopper wagons and loading stations, the Fort's wall tops, Cologne's ICE cars (their foliage step),
-sprinting on mud, others walking on stumps: each step heard and its line `plays`. And the rails
-of the owner's report, to name what was silent there.
+Played by the owner, 2026-11-16, on a diagnostic build of this rule with the log on: the Chemical
+Plant's rails, tracks, gravel, a wagon top and the loading station's walkway (walk 2 above). Not
+yet heard: the Fort's wall tops, Cologne's ICE cars, sprinting on mud, others walking on stumps.
 
 ## Wading (patch 153 and the pack water-steps)
 

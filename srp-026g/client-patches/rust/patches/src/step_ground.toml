@@ -11,3 +11,21 @@ patch = 153
 [[hook]]
 site = "step.ground"
 handler = "on_ground"
+
+# The step-down sweep's hits and answer (character controller, 0x84420 and
+# 0x84FE0): what the controller touched, kept for the step (vostok::contact).
+[[hook]]
+site = "step_down.first"
+handler = "on_sweep_first"
+
+[[hook]]
+site = "step_down.second"
+handler = "on_sweep_second"
+
+[[hook]]
+site = "step_down.result"
+handler = "on_sweep_result"
+
+[[hook]]
+site = "step_down.cached"
+handler = "on_sweep_cached"

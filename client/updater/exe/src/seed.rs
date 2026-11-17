@@ -2,8 +2,6 @@
 //! open (spec: `srp-026g/docs/notes/torrent-downloads.md`, "Sharing from the
 //! game"). No window, no lock, nothing fetched or installed.
 
-use alloc::format;
-
 use updater_logic::seed::{Event, FromGame, GamePipe, Meter, Stats, Tick, frame};
 
 use crate::install::Layout;
@@ -11,18 +9,12 @@ use crate::log::log;
 use crate::pipe::Pipe;
 use crate::{exit, log as logging, torrent, win};
 
-/// Its own: a seed runs at every lobby and would push the launcher's
-/// updater's logs out of the kept 100.
-const LOG_FOLDER: &str = "updater_skhid.seed-logs";
-
 /// `pipe`: `None` when the command line was not the game's.
 pub fn run(pipe: Option<GamePipe>) -> u32 {
     let Ok(layout) = Layout::find() else {
         return exit::FAILED;
     };
-    let logs = format!("{}\\{LOG_FOLDER}", layout.exe_dir);
-    let _ = win::create_folders(&logs);
-    logging::start(&logs);
+    logging::start_seeding(&layout);
     log!("---- updater {} seeding for the game, in {}", env!("CARGO_PKG_VERSION"), layout.exe_dir);
     let Some(pipe) = pipe else {
         log!("seed: not the game's command line: nothing done");

@@ -59,7 +59,8 @@ log across all games.
     loaded and then taken out of the list stays on record. The first 32;
   - **code**: each executable allocation that is no listed module (a DLL mapped by hand, JIT
     code, an overlay's trampolines): kind of memory, protection, sizes, a fingerprint of its
-    first 256 executable bytes, the PE marks of a header at its start.
+    first 256 executable bytes, the PE marks of a header at its start. Its bytes are sent too
+    when the server has not kept them yet ("The game's code that is no module" below).
 - **Times** are whole seconds since the game's start.
 
 ## How
@@ -146,7 +147,7 @@ The client now hashes the **file of the running executable**, located with
 `GetModuleFileNameW(NULL)`, using SHA-256. It opens that one Unicode path
 read-only, denying concurrent writes/deletes, and keeps that same handle through
 hashing and any upload. It does not select files by a server-provided path, scan
-folders, read DLL files, or upload process memory. A renamed executable is still
+folders or read DLL files. A renamed executable is still
 identified. The file includes all its bytes, including appended data; the hash
 is of the disk file, not of relocated/mutated process memory. A modified client
 can lie: this is a client report, not remote attestation.
@@ -201,6 +202,24 @@ Without the setting (a local server) the release's own executable is
 collected like any other. A rollback puts the line back as it was. Before
 this, the first players after each release (up to 16 at once) each uploaded
 the 14 MB executable the release had just given them.
+
+**The game's code that is no module** (the owner, 2026-11-17: it is in the game's own
+process, so it is ours to read). After the executable (stored, refused or not
+offered), the same connection offers each executable allocation of the game's own
+process that is no listed module, as the module report's `code` entries walk them at the
+first world (`vostok::modules::Blocks`): the first 32 in address order, each at most 1 MiB
+(`MAX_CODE`), one after another. A block is the whole allocation, from its base to its
+last committed region's end, read with `ReadProcessMemory` a page at a time; a page
+that cannot be read reads as zeros. Its offer is kind 2 (`Upload::Code`: size and
+SHA-256), hashed and sent as the executable is (8 KiB hashed a frame, the same windows
+and pacing). The server logs each block's first offer in `modules.log` as
+`code sha256 <hex> size <bytes>` and keeps it as `client-code/<sha256>.bin` (no `MZ`
+check; at most 512 MiB and 16,384 files), so a block another game sent already is
+answered `Stored` and sent once in all. A block that changed between its hash and its
+sending fails the server's SHA-256 and is refused. The fingerprint a report tells is
+FNV-1a of the 256 bytes at the block's first executable region, so a kept file is
+found from a report's entry by its size and that fingerprint at one of its page
+offsets. Nothing of another process is read.
 
 Implementation and validation are recorded below; this source change is not a
 release and has not collected a live player's executable.

@@ -1406,7 +1406,8 @@ mod tests {
 
     /// Built data with both FFA edit lists, including London and all five ports.
     /// Rudnya: all 56 of the owner's picks and 4 roof spawns (ffa-rudnya-picks-1);
-    /// London: his 50 picks (ffa-london-picks-1); the other maps the owner's
+    /// London: his 50 picks (ffa-london-picks-1); Chemical Plant: his 97
+    /// (ffa-chemical-plant-picks-1); the other maps the owner's
     /// picks or the spawn rule's (ffa-cover-maps-1; docs/notes/ffa.md);
     /// Fire Station of stalker-maps-2, level 23: his 42 picks
     /// (ffa-fire-station-picks-1; Dark Valley, Vehicle Station and Sports
@@ -1428,7 +1429,7 @@ mod tests {
         ]);
         // Levels 2 to 8, the same in each weather.
         for map in maps.iter().filter(|m| m.mode == GameMode::FreeForAll && (2..=8).contains(&m.level)) {
-            let twice = [49, 75, 60, 48, 68, 58, 46][usize::from(map.level) - 2];
+            let twice = [49, 75, 97, 48, 68, 58, 46][usize::from(map.level) - 2];
             assert_eq!(map.solo_respawn_points, twice, "{}", map.config);
         }
         let rudnya: Vec<_> = maps.iter()

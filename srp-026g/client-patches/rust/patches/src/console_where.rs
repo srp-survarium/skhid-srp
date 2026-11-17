@@ -25,7 +25,7 @@
 use ::ragdoll::math::{atan2, sqrt};
 
 use crate::vostok::camera::{self, CameraView};
-use crate::vostok::console::{self, Command, ConsoleArguments, ConsoleCommand};
+use crate::vostok::console::{self, Command, ConsoleArguments, ConsoleCommand, Line};
 use crate::vostok::files::tick_count;
 use crate::vostok::log::{self, Piece};
 use crate::vostok::world::{LoadedMap, loaded_map};
@@ -139,93 +139,6 @@ fn pitch_degrees([x, y, z]: [f32; 3]) -> f32 {
     atan2(y, sqrt(x * x + z * z)) * DEGREES
 }
 
-/// The longest line (a longer one is cut), its zero after it.
-const MOST: usize = 240;
-
-/// A line of text, ASCII, with room for its zero.
-struct Line {
-    bytes: [u8; MOST + 1],
-    len: usize,
-}
-
-impl Line {
-    fn new() -> Line {
-        Line { bytes: [0; MOST + 1], len: 0 }
-    }
-
-    fn byte(&mut self, byte: u8) {
-        if self.len < MOST {
-            self.bytes[self.len] = byte;
-            self.len += 1;
-        }
-    }
-
-    fn push(&mut self, text: &str) {
-        text.bytes().for_each(|b| self.byte(b));
-    }
-
-    /// ` x y z`, each to `decimals`.
-    fn point(&mut self, point: [f32; 3], decimals: u32) {
-        for value in point {
-            self.byte(b' ');
-            self.fixed(value, decimals);
-        }
-    }
-
-    /// `value` rounded to `decimals` (at most 3): `-51.899`; `nan`, `inf`,
-    /// or `big` past a million.
-    fn fixed(&mut self, value: f32, decimals: u32) {
-        if value.is_nan() {
-            return self.push("nan");
-        }
-        if value.is_infinite() {
-            return self.push(if value > 0.0 { "inf" } else { "-inf" });
-        }
-        if value.abs() >= 1_000_000.0 {
-            return self.push("big");
-        }
-        let scale = 10u32.pow(decimals.min(3));
-        let scaled = f64::from(value.abs()) * f64::from(scale) + 0.5;
-        let units = scaled as u32; // below 1e9: 1e6 x 1000
-        if value < 0.0 && units != 0 {
-            self.byte(b'-');
-        }
-        self.number(units / scale);
-        if decimals > 0 {
-            self.byte(b'.');
-            let fraction = units % scale;
-            let mut digit = scale / 10;
-            while digit > 0 {
-                self.byte(b'0' + (fraction / digit % 10) as u8);
-                digit /= 10;
-            }
-        }
-    }
-
-    fn number(&mut self, value: u32) {
-        let mut digits = [0u8; 10];
-        let mut n = 0;
-        let mut v = value;
-        loop {
-            digits[n] = b'0' + (v % 10) as u8;
-            n += 1;
-            v /= 10;
-            if v == 0 {
-                break;
-            }
-        }
-        digits[..n].iter().rev().for_each(|&d| self.byte(d));
-    }
-
-    fn text(&self) -> &str {
-        core::str::from_utf8(&self.bytes[..self.len]).unwrap_or("where: ?")
-    }
-
-    fn c_str(&self) -> &core::ffi::CStr {
-        core::ffi::CStr::from_bytes_until_nul(&self.bytes[..=self.len]).unwrap_or(c"where: ?")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -294,31 +207,6 @@ mod tests {
     fn an_old_view_says_how_old() {
         let text = line(view([0.0; 3], [0.0; 3], [0.0, 0.0, 2.0]), 5000 + 12_340);
         assert_eq!(text, "where: map - pos 0.000 0.000 0.000 dir 0.000 0.000 1.000 yaw 0.0 pitch 0.0 (12.3 s ago)");
-    }
-
-    #[test]
-    fn numbers_as_written() {
-        let fixed = |value: f32, decimals| {
-            let mut line = Line::new();
-            line.fixed(value, decimals);
-            line.text().to_string()
-        };
-        assert_eq!(fixed(-0.0004, 3), "0.000");
-        assert_eq!(fixed(-0.0006, 3), "-0.001");
-        assert_eq!(fixed(1234.5678, 3), "1234.568");
-        assert_eq!(fixed(359.96, 1), "360.0");
-        assert_eq!(fixed(f32::NAN, 3), "nan");
-        assert_eq!(fixed(f32::NEG_INFINITY, 3), "-inf");
-        assert_eq!(fixed(2e6, 3), "big");
-        assert_eq!(fixed(7.0, 0), "7");
-    }
-
-    #[test]
-    fn a_long_line_is_cut_with_its_zero() {
-        let mut line = Line::new();
-        line.push(&"x".repeat(500));
-        assert_eq!(line.text().len(), MOST);
-        assert_eq!(line.c_str().to_bytes().len(), MOST);
     }
 
     #[test]

@@ -132,3 +132,50 @@ impl Step {
         }
     }
 }
+
+
+/// The step log's view (SKHID_STEP_LOG) of a body sound event as the guard
+/// (`player_sound.step_guard`, 0x2A6485, before the time test) sees it,
+/// whatever the guard then does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EventLine {
+    /// The event's domain: 0 and 1 a foot, 2..4 the rustles.
+    pub domain: u8,
+    pub time: u32,
+    /// The core's `maximum_time`.
+    pub newest: u32,
+    /// The event's object is the effect's player.
+    pub ours: bool,
+    /// The effect's feet were read (+44h).
+    pub feet: bool,
+    /// The local player's.
+    pub own: bool,
+    /// The logic state's movement id now.
+    pub movement: Option<u32>,
+    /// The effect's address (the held item's +884h): two lines of one event
+    /// with two addresses are two effects.
+    pub effect: u32,
+}
+
+impl EventLine {
+    pub fn at_guard(ctx: &Context<'_>) -> Option<EventLine> {
+        use raw::site::player_sound_step_guard as site;
+        // SAFETY: the site's effect, event and core, alive for the call; the
+        // player's world, game and network client alive for a match.
+        unsafe {
+            let (effect, event, core) = (site::effect(ctx)?, site::event(ctx)?, site::core(ctx)?);
+            let player = effect.player()?;
+            let local = player.game_world().and_then(|world| world.game()?.network_client()?.local_player());
+            Some(EventLine {
+                domain: read(event.domain()),
+                time: read(event.time()),
+                newest: read(core.maximum_time()),
+                ours: read(event.object()) == player.address(),
+                feet: read(effect.feet()) != 0,
+                own: local == Some(player),
+                movement: effect.logic().and_then(|logic| logic.state()).map(|state| read(state.movement())),
+                effect: effect.address(),
+            })
+        }
+    }
+}

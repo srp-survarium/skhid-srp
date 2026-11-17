@@ -157,3 +157,26 @@ vtable	slot	va	class	base	basis
 0x00a13dbc	0x28	0x00075af0	survarium::victory_item_core	survarium::active_object	observed: the primary vtable (its locator at 0xA13DB8; the client's victory_item 0xA042AC holds the same slots): base_player::tick's call of the held item with the time (0x2DAAD1) is a `ret 4` for a battery
 0x00a13dbc	0x2c	0x00301240	survarium::victory_item_core	survarium::active_object	observed: the battery's tick (its state machine, fsm::tick 0x38CA20), called by tick_active_object alone (0x2D768A, 0x2D772F), so only when its user's animations are selected again (select_animations 0x2D96A1: +33Eh from a change of the action keys 0x2D899D, or an animation event that interrupts the tick, as a take state's clip end 0x344830 -> 0x338EF0)
 0x00a13dbc	0x34	0x003012a0	survarium::victory_item_core	survarium::active_object	observed: selected_animations, called by select_animations (0x2D96D9) right after tick_active_object: the current state's expression becomes the target at the time select_animations was given
+0x009dc030	0x00	0x0001c7f0	vostok::engine::game_console	vostok::input::handler	observed: on_keyboard_action (the kind in EAX, then console_impl::on_keyboard_action 0x1EAA0 on the console, this - 268h); create_game_console 0x1A6D5 writes this vtable at the console's +268h, on_activate adds that handler to the input world (0x1C791)
+0x009dc030	0x04	0x0001c8b0	vostok::engine::game_console	vostok::input::handler	observed: on_gamepad_action, given to the console's dialog (ecx-254h) and taken (AL 1)
+0x009dc030	0x08	0x0001c8e0	vostok::engine::game_console	vostok::input::handler	observed: on_mouse_key_action, given to the dialog and taken (AL 1)
+0x009dc030	0x0c	0x0001c810	vostok::engine::game_console	vostok::input::handler	observed: on_mouse_move (x, y, z: the wheel), given to the dialog and taken (AL 1)
+0x009dc030	0x10	0x002080c0	vostok::engine::game_console	vostok::input::handler	observed: input_priority, 5 (mov eax,5 / ret, game_options' too): before the game world's 7 and the player's 10 (add_handler inserts by it)
+0x009dc030	0x24	0x0001c840	vostok::engine::game_console	vostok::engine::console	observed: on_activate (sub ecx,268h / jmp 0x1C760)
+0x009dc030	0x28	0x0001c850	vostok::engine::game_console	vostok::engine::console	observed: on_deactivate (sub ecx,268h / jmp 0x1C7A0)
+0x009dc030	0x2c	0x0001c740	vostok::engine::game_console	vostok::engine::console	observed: tick (console_impl::tick 0x1D0D0 with the console, this - 268h, pushed)
+0x00a1dccc	0x0c	0x00349520	vostok::ui::ui_scroll_view	vostok::ui::scroll_view	observed: get_follow_last_line; the ctor 0x349598 writes this vtable at the view's +0 (its window's, 0xA1DCFC, at +4); console_impl::tick calls it (0x1D1AA)
+0x00a1dccc	0x10	0x00349c60	vostok::ui::ui_scroll_view	vostok::ui::scroll_view	observed: set_follow_last_line (bit 1 of +44h)
+0x00a1dccc	0x1c	0x00349530	vostok::ui::ui_scroll_view	vostok::ui::scroll_view	observed: get_v_scroll (lea eax,[ecx+1C8h]); console_impl::tick calls it (0x1D181)
+0x00a1dccc	0x24	0x00349cf0	vostok::ui::ui_scroll_view	vostok::ui::scroll_view	observed: w, its window (+4)
+0x00a1dcb0	0x00	0x00349c80	vostok::ui::ui_scroll_v_source	vostok::ui::scroll_source	observed: get_length, the pad's size y; the view's ctor writes this vtable at its +1C8h (0x34960F)
+0x00a1dcb0	0x04	0x00349c90	vostok::ui::ui_scroll_v_source	vostok::ui::scroll_source	observed: get_position, the pad's position y; console_impl::tick calls it (0x1D18E)
+0x00a1dcb0	0x08	0x00349ca0	vostok::ui::ui_scroll_v_source	vostok::ui::scroll_source	observed: set_position, the pad's position y (the pad's window vtable+0)
+0x00a1dcb0	0x0c	0x00349500	vostok::ui::ui_scroll_v_source	vostok::ui::scroll_source	observed: get_step_size (+8)
+0x00a1dcb0	0x10	0x00349510	vostok::ui::ui_scroll_v_source	vostok::ui::scroll_source	observed: set_step_size (+8); console_impl::tick sets 20 (0x1D5A4)
+0x00a252d4	0x24	0x00079e40	vostok::input::input_world	vostok::input::input_world	observed: RTTI; mov eax,[ecx+24h]: its keyboard (create_devices 0x3B8414), asked by swf_input_translator::process_keyboard (0x1FDD79) and insert_char_action::execute (0x34B538)
+0x00a25478	0x4	0x003b9c00	vostok::input::platform::keyboard	vostok::input::keyboard	observed: RTTI; get_dik_name, which insert_char_action::execute calls for a named key (0x34B552)
+0x00a25478	0x8	0x003b92d0	vostok::input::platform::keyboard	vostok::input::keyboard	observed: RTTI; translate_text, the chat's text (swf_input_translator::process_keyboard 0x1FDDE1, a key's press)
+0x00a1debc	0x4	0x0034b4d0	vostok::ui::insert_char_action	vostok::ui::base_edit_action	observed: RTTI (base_edit_action 0xA1DEA4: the slot _purecall); the ui_text_edit's key action that types one character
+0x009dc020	0x4	0x0001c760	vostok::engine::game_console	vostok::engine::console	observed: RTTI; on_activate, the console shown
+0x009dc020	0x8	0x0001c7a0	vostok::engine::game_console	vostok::engine::console	observed: RTTI; on_deactivate, the console hidden

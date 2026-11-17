@@ -9,6 +9,41 @@ release that made it what it is now.
 
 ---
 
+## 17 Nov, 00:33 — TODO: the owner's words (update required)
+
+<!-- Revision 63 (026g-rev63), released 2026-11-17 00:33 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2139 Tab list, names only: long names no longer cut
+- TODO: #2138 Mamayev Kurgan: the tunnel top open to players
+- TODO: #2130 Patch 156: console command `collision` draws the level's collision geometry
+
+## 16 Nov, 14:53 — TODO: the owner's words (update required)
+
+<!-- Revision 62 (026g-rev62), released 2026-11-16 14:53 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2093 Patch 151: a gun-stock hit disarms a trap
+- TODO: #2107 Voice: two push-to-talk keys, the radio's (team) and the 10 m voice's (everyone near)
+- TODO: #2108 Voice: steadier sound (quiet microphones raised, a limiter that turns the mix down, a deeper capture queue, Opus FEC)
+- TODO: #2111 Voice: the listener's game brings every speaker to one loudness
+- TODO: #2113 Patch 152: F11 saves a screenshot, F12 one without the interface
+- TODO: #2112 Voice: "Microphone sensitivity" is gone (the listeners' games level every speaker)
+- TODO: #1841 Torrent downloads: signed torrent in the ZIP, the site's links, the bootstrap, the updater's BitTorrent by libtorrent
+- TODO: #2115 Voice: a wall between two players makes the 10 m voice quieter and dull
+- TODO: #2117 Rank badges: end-game price ladder (Alpha 100M)
+- TODO: #2118 Voice: the nearby voice falls to nothing at 12 m
+- TODO: #1846 Battery hit: strike with a carried battery (ram and shove)
+- TODO: #1860 STALKER maps: Fire Station in Free for All (Dark Valley, Vehicle Station, Sports Center held)
+- TODO: #2119 London Free for All spawns at the owner's picks
+- TODO: #2121 Patch 153: a step in water wades (pack water-steps)
+- TODO: #2123 Fire Station Free for All spawns at the owner's picks
+- TODO: #2124 Snow-20: vest, pants and gloves match the Sniper set
+- TODO: #2125 Step sounds: dry leaves step as the default step, as 0.69d
+- TODO: #2128 Patch 153: a step finds what the capsule rests on (thin walkways, rails)
+- TODO: #2131 Patch 153: a step on a miss sounds on what the capsule touched, as 0.69d
+- TODO: #2132 Release: the torrents' signing public keys (live and test)
+- TODO: #2133 Chemical Plant Free for All spawns at the owner's picks
+- TODO: #2135 Dev shell: the Microsoft libraries' hash as Microsoft serves them now
+
 ## 15 Nov, 21:20 — TODO: the owner's words (update required)
 
 <!-- Revision 61 (026g-rev61), released 2026-11-15 21:20 UTC. To be worded for players; what it shipped: -->
