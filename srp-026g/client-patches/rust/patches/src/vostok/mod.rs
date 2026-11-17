@@ -42,6 +42,7 @@ pub mod text_edit;
 pub mod debug_lines;
 pub mod shape;
 pub mod contact;
+pub mod console_view;
 pub mod controller;
 pub mod crc32;
 mod context;

@@ -445,6 +445,10 @@ unsafe extern "thiscall" {
     pub fn engine_take_deactivatable(state: *mut c_void) -> u8;
     /// 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
     pub fn engine_triangle_process(callback: *mut c_void, triangle: *const f32, part: u32, index: u32);
+    /// 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly
+    pub fn engine_scroll_view_set_follow(view: *mut c_void, follow: u32);
+    /// 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly
+    pub fn engine_scroll_set_position(source: *mut c_void, position: f32);
     /// 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly
     pub fn engine_text_edit_set_text(part: *mut c_void, text: *const u8);
     /// 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly

@@ -2412,6 +2412,23 @@ va	status	ref_021d	name
 0x000a86a0	reviewed		btBvhTriangleMeshShape::processAllTriangles::MyNodeOverlapCallback::processNode
 0x000c26c0	reviewed		btQuantizedBvh::reportAabbOverlappingNodex
 0x00298ab0	reviewed		survarium::damage_zone::~damage_zone
+0x0001d0d0	reviewed	0x00018037	vostok::console_impl::tick
+0x0001c7f0	reviewed		vostok::engine::game_console::on_keyboard_action
+0x0001c8b0	reviewed		vostok::engine::game_console::on_gamepad_action
+0x0001c8e0	reviewed		vostok::engine::game_console::on_mouse_key_action
+0x0001c810	reviewed		vostok::engine::game_console::on_mouse_move
+0x0001c8a0	reviewed		vostok::engine::game_console::get_active
+0x0001c740	reviewed		vostok::engine::game_console::tick
+0x00349540	reviewed		vostok::ui::ui_scroll_view::ui_scroll_view
+0x00349520	reviewed		vostok::ui::ui_scroll_view::get_follow_last_line
+0x00349c60	reviewed		vostok::ui::ui_scroll_view::set_follow_last_line
+0x00349530	reviewed		vostok::ui::ui_scroll_view::get_v_scroll
+0x00349cf0	reviewed		vostok::ui::ui_scroll_view::w
+0x00349c80	reviewed		vostok::ui::ui_scroll_v_source::get_length
+0x00349c90	reviewed		vostok::ui::ui_scroll_v_source::get_position
+0x00349ca0	reviewed		vostok::ui::ui_scroll_v_source::set_position
+0x00349500	reviewed		vostok::ui::ui_scroll_v_source::get_step_size
+0x00349510	reviewed		vostok::ui::ui_scroll_v_source::set_step_size
 0x0001c760	observed		vostok::engine::game_console::on_activate
 0x0001c7a0	observed		vostok::engine::game_console::on_deactivate
 0x0034b4d0	observed		vostok::ui::insert_char_action::execute

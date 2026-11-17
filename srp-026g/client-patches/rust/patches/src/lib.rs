@@ -131,3 +131,5 @@ pub mod free_for_all;
 pub mod battery_hit;
 // patch 150: the game shares by BitTorrent in the login screen and the lobby
 pub mod lobby_seeding;
+// patch 159: the console's output scrolls
+pub mod console_scroll;

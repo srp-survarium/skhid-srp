@@ -66,6 +66,12 @@ impl Dik {
     pub const F6: Dik = Dik(0x40);
     pub const LEFT: Dik = Dik(0xCB);
     pub const RIGHT: Dik = Dik(0xCD);
+    /// DIK_RETURN: the main Enter, the console line's commit (the text edit's binding).
+    pub const RETURN: Dik = Dik(0x1C);
+    /// DIK_PRIOR, DIK_NEXT, DIK_END: the arrow block's Page Up, Page Down and End.
+    pub const PAGE_UP: Dik = Dik(0xC9);
+    pub const PAGE_DOWN: Dik = Dik(0xD1);
+    pub const END: Dik = Dik(0xCF);
 
     /// Its code.
     pub fn code(self) -> u8 {
@@ -78,7 +84,7 @@ impl Dik {
     }
 
     /// A key code as the game passes one (a u32): None past the 256 codes.
-    fn of(raw: u32) -> Option<Dik> {
+    pub(super) fn of(raw: u32) -> Option<Dik> {
         u8::try_from(raw).ok().map(Dik)
     }
 }
@@ -93,7 +99,7 @@ pub enum KeyKind {
 }
 
 impl KeyKind {
-    fn of(raw: u32) -> Option<KeyKind> {
+    pub(super) fn of(raw: u32) -> Option<KeyKind> {
         match raw {
             1 => Some(KeyKind::Down),
             2 => Some(KeyKind::Up),
