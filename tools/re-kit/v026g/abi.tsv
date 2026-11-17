@@ -2676,3 +2676,7 @@ va	name	source	ret_cleanup	result
 0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	manual	16	void
 0x000a8660	btBvhTriangleMeshShape::processAllTriangles	manual	12	void
 0x000c5600	btConvexTriangleCallback::processTriangle	manual	12	void
+0x0001c760	vostok::engine::game_console::on_activate	manual	0	
+0x0001c7a0	vostok::engine::game_console::on_deactivate	manual	0	
+0x0034b4d0	vostok::ui::insert_char_action::execute	manual	4	AL: 1
+0x0034a4c0	vostok::ui::create_char_action	manual	0	EAX: the new insert_char_action (vtable 0xA1DEBC), 0 when the allocation failed

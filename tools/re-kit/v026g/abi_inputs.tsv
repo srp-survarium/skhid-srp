@@ -6317,3 +6317,13 @@ va	name	location	role	basis
 0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+4	the triangle: three btVector3 of 10h bytes, the shape's local space (processNode passes its +10h)	observed
 0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+8	the part (the mesh's subpart)	observed
 0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+12	the triangle's index in its part	observed
+0x0001c760	vostok::engine::game_console::on_activate	ECX	the game console (vtable 0x9DC020; console_impl's +1Ch text edit focused, +264h set to 1 at 0x1C77E, +26Ch the input world it adds +268h to)	observed
+0x0001c7a0	vostok::engine::game_console::on_deactivate	ECX	the game console (its text edit and tips +1Ch, +18h unfocused, +264h cleared at 0x1C7D3, +268h removed from the input world +26Ch)	observed
+0x0034b4d0	vostok::ui::insert_char_action::execute	ECX	the action (+4 its ui_text_edit, Shift and Caps Lock at its +2ACh bits 30h; +8 the key, a DirectInput code; +14h the input world, 0 for none; +18h named: the character is the first letter of the key's DirectInput name, get_dik_name 0x34B552, when the text edit's locale says it is a letter, lowercased; +19h its character, +1Ah with Shift); the character typed at [esp+8] after its two pushes, inserted at 0x34B5E2 (0x348000)	observed
+0x0034b4d0	vostok::ui::insert_char_action::execute	entry ESP+4	not read	observed
+0x0034a4c0	vostok::ui::create_char_action	EDI	the ui_text_edit (its allocator +0Ch)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+4	the key, a DirectInput code (+8)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+8	the character (+19h)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+12	the character with Shift (+1Ah)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+16	named (+18h): 1 for the letters and the punctuation keys, 0 for the digits, the numeric keypad, Space and the grave key (ui_text_edit::init_internals 0x34A5E0)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+20	the input world (+14h, [[text edit+264h]+4])	observed

@@ -2411,3 +2411,6 @@ va	status	ref_021d	name
 0x000a86a0	reviewed		btBvhTriangleMeshShape::processAllTriangles::MyNodeOverlapCallback::processNode
 0x000c26c0	reviewed		btQuantizedBvh::reportAabbOverlappingNodex
 0x00298ab0	reviewed		survarium::damage_zone::~damage_zone
+0x0001c760	observed		vostok::engine::game_console::on_activate
+0x0001c7a0	observed		vostok::engine::game_console::on_deactivate
+0x0034b4d0	observed		vostok::ui::insert_char_action::execute

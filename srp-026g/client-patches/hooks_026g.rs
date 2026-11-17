@@ -3433,6 +3433,76 @@ pub extern "C" fn hook_keyboard_layout_on_text(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- keyboard_layout (patch 107) ----
+
+/// The named exits of keyboard_layout::on_request_focus (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KeyboardLayoutOnRequestFocusExit { Focused }
+/// The entry `keyboard_layout_on_request_focus` (0x18365, message_processor's WM_INPUTLANGCHANGEREQUEST case at its call of the game's text-focus check (mov eax,[ecx] / mov edx,[eax+44h] / call edx; ECX the game, survarium::game slot 44h 0x1EE7C0, after window.lang_request); focused 0x18374, where a focused request goes to DefWindowProc (pop edi/esi/ebx, jmp [DefWindowProcA]), the stack as at the site; a false check drops it at 0x18272) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_request_focus(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_request_focus` calls this, from the game's jump at 0x18365,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_request_focus(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_console_opened` (0x1c77e, game_console::on_activate (0x1C760, vtable 0x9DC020 slot 4) marking the console shown (mov byte [esi+264h],1), after it focused the text edit; the logic thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_opened(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_opened` calls this, from the game's jump at 0x1c77e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_opened(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_console_closed` (0x1c7d3, game_console::on_deactivate (0x1C7A0, slot 8) marking it hidden (mov byte [esi+264h],0), after it unfocused the text edit and the tips; the logic thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_closed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_closed` calls this, from the game's jump at 0x1c7d3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_closed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The named exits of keyboard_layout::on_console_char (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KeyboardLayoutOnConsoleCharExit { Typed }
+/// The entry `keyboard_layout_on_console_char` (0x34b4da, insert_char_action::execute (0x34B4D0, vtable 0xA1DEBC slot 4: a ui_text_edit's key that types a character, the console's letters, digits and punctuation, made by create_char_action 0x34A4C0) after mov edi,ecx, before its Shift test (mov eax,[edi+4] / test byte [eax+2ACh],30h): EDI the action; the character it types is [esp+8], its own (+19h, Shift +1Ah) or, for a key made named (+18h), the first letter of the key's DirectInput name (get_dik_name through the input world's keyboard, 0x34B533..0x34B5CE); typed 0x34B5D2, where it deletes the selection (0x3486A0) and inserts [esp+8] (0x348000), EDI the action, the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_char(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_char` calls this, from the game's jump at 0x34b4da,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_char(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_bind` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
