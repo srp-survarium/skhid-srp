@@ -172,6 +172,12 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
   which holds one of three slot locks while at least 2.5 GB of VRAM is free.
 - Captures are silent (owner, 2026-11-17): start each capture client with
   `. ~/.cache/skhid-capture-env.sh` (Wine without its audio drivers);
+  the final client environment must retain disabled Wine audio drivers and
+  `ALSOFT_DRIVERS=null` and the capture-only `ALSA_CONFIG_PATH` null-device config
+  (Wine can still open ALSA directly despite the driver/OpenAL settings). Set capture
+  game volumes to zero too. Do not overwrite these settings
+  in the launcher. Verify the running capture has no audible PipeWire stream; ALSA
+  nodes can keep the process id on their `client.id` object, not on the node itself.
   `~/.cache/skhid-mute-captures.sh` also mutes any capture stream it finds. The rig waits by itself and stops
   a session the moment the owner starts a game; after such a stop it starts again only
   after 10 minutes with no game ("waiting for 10 quiet minutes": test games come in
