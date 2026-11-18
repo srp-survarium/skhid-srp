@@ -940,3 +940,4 @@ pub(crate) fn a_stand_in_resupplies_at_its_own_teams_box_after_its_time() {
     let (put, counts) = run(std::f32::consts::PI, 1, Some(1_000));
     assert_eq!((put, counts.box_cut), (0, 1), "the key let go");
 }
+
