@@ -195,6 +195,14 @@ fn holder_need(cx: &Ctx, container: Vec3) -> Option<f32> {
 
 /// The container holder's candidate for our container `id` at `at`.
 fn holder_candidate(cx: &Ctx, id: u8, at: Vec3) -> Option<Candidate> {
+    // [fix-team 4 `mods.comeback`] Behind late, the team needs points: no bot is kept at home holding ours (16 local matches
+    // at 9694ea576: late and 2-8 behind, 7 of 113 living bots guarded their own container).
+    if let Some(rule) = cx.tuning.mods.comeback
+        && cx.sig.behind_late() >= rule.holder_off_behind_late
+    {
+        crate::v026g::bots::team::comeback_counts::add(crate::v026g::bots::team::comeback_counts::Count::HolderOffBehindLate, 1);
+        return None;
+    }
     let need = holder_need(cx, at)?;
     // Temporary, until the role budget (CG-13) gives the same and a test
     // pins it there: the last two never hold while a battery lies loose.

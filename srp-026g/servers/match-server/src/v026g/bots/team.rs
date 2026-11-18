@@ -232,6 +232,75 @@ impl Default for Bands {
     }
 }
 
+/// [fix-team 4 `mods.comeback`] A team's confidence: its living players over the enemy's (`MatchSignals::alive_ours`,
+/// `alive_theirs`), faded toward the present ratio with a time constant (Days Gone's kills and losses that fade), so a death
+/// or a respawn moves it a little, not at once.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Confidence {
+    /// Not read yet this match.
+    #[default]
+    Unread,
+    /// Its value, and when it was read.
+    Read { ratio: f32, at: u32 },
+}
+
+impl Confidence {
+    /// The confidence at `now`, `ours` and `theirs` alive, faded with `fade_s`; the first read is the ratio itself.
+    pub fn read(self, ours: usize, theirs: usize, now: u32, fade_s: f32) -> Self {
+        let raw = ours as f32 / theirs.max(1) as f32;
+        match self {
+            Confidence::Unread => Confidence::Read { ratio: raw, at: now },
+            Confidence::Read { ratio, at } => {
+                let dt = now.saturating_sub(at) as f32 / 1000.0;
+                let a = 1.0 - (-dt / fade_s).exp();
+                Confidence::Read { ratio: ratio + (raw - ratio) * a, at: now }
+            }
+        }
+    }
+
+    pub fn ratio(self) -> Option<f32> {
+        match self {
+            Confidence::Unread => None,
+            Confidence::Read { ratio, .. } => Some(ratio),
+        }
+    }
+}
+
+/// [fix-team 4 `mods.comeback`] The comeback's counts (the bench's; nothing live): attack candidates held back while the team
+/// was outnumbered, and container holders not offered behind late.
+pub mod comeback_counts {
+    #[derive(Clone, Copy, Debug)]
+    pub enum Count {
+        AttacksHeldBack,
+        HolderOffBehindLate,
+    }
+
+    pub const NAMES: [&str; 2] = ["attacks_held_back", "holder_off_behind_late"];
+
+    #[cfg(test)]
+    thread_local! {
+        static COUNTS: std::cell::Cell<[u64; 2]> = const { std::cell::Cell::new([0; 2]) };
+    }
+
+    #[cfg(test)]
+    pub fn add(c: Count, n: u64) {
+        COUNTS.with(|cell| {
+            let mut all = cell.get();
+            all[c as usize] += n;
+            cell.set(all);
+        });
+    }
+
+    #[cfg(not(test))]
+    pub fn add(_: Count, _: u64) {}
+
+    /// The counts so far on this thread, in [`NAMES`] order.
+    #[cfg(test)]
+    pub fn counted() -> [u64; 2] {
+        COUNTS.with(|cell| cell.get())
+    }
+}
+
 /// An attack on the enemy's container: what a team behind on points
 /// needs to win points back (the batteries home are taken only so).
 /// [A296 item 2, `mods.team_plan`] What a team sets out to do this commander tick, from its standing on points and the time
@@ -2022,6 +2091,27 @@ mod tests {
         assert_eq!([gang_factor(&rule, 0), gang_factor(&rule, 1)], [1.0, 1.0]);
         assert_eq!(gang_factor(&rule, 2), 0.5);
         assert_eq!(gang_factor(&rule, 9), 0.25);
+    }
+
+    /// [fix-team 4] The comeback's confidence: attacks while not outnumbered.
+    #[test]
+    fn a_team_attacks_only_while_it_is_not_outnumbered() {
+        use crate::v026g::bots::tuning::{AttackGate, Comeback};
+        let rule = Comeback::default();
+        assert_eq!(rule.gate(1.0), AttackGate::Open);
+        assert_eq!(rule.gate(0.8), AttackGate::NoStart, "outnumbered: none started, a running one goes on");
+        assert_eq!(rule.gate(0.5), AttackGate::Drop, "decimated: let go");
+        assert!(rule.check().is_ok() && Comeback { drop_confidence: 1.5, ..rule }.check().is_err());
+        // The confidence fades: one death of five moves it a little, not to 0.8 at once.
+        let c = Confidence::Unread.read(5, 5, 0, rule.fade_s);
+        assert_eq!(c.ratio(), Some(1.0));
+        let c = c.read(4, 5, 500, rule.fade_s).ratio().unwrap();
+        assert!(c > 0.99 && c < 1.0, "{c}");
+        let mut c = Confidence::Read { ratio: 1.0, at: 0 };
+        for t in (500..=60_000).step_by(500) {
+            c = c.read(4, 5, t, rule.fade_s);
+        }
+        assert!((c.ratio().unwrap() - 0.8).abs() < 0.01, "held long enough, it is the ratio");
     }
 
     /// [fix-team 2] A held play is kept against a far better play of its band and against a higher band that is no alarm;

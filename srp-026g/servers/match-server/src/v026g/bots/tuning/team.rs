@@ -20,8 +20,76 @@ pub struct ModTuning {
     pub team_plan: Option<TeamPlanRule>,
     /// [A296 item 4] A team behind opens its raids and late denials earlier ([`BehindOpen`]). Off: the plays' own windows.
     pub behind_open: Option<BehindOpen>,
-    /// [A296 item 5] A raider waits for a teammate near before it goes in ([`RaidRegroup`]). Off: it goes in alone.
+    /// [A296 item 5] A raider waits for a teammate near before it goes in ([`RaidRegroup`]). Off: it goes in alone. On by default
+    /// with [fix-team 4] as the comeback's gather (its own bench never ran alone: #1272 turned it on with `team_plan` and
+    /// `behind_open`, #1284 took all three off together).
     pub raid_regroup: Option<RaidRegroup>,
+    /// [fix-team 4] A comeback that gathers, then commits ([`Comeback`]): attacks only while the team is not outnumbered, and
+    /// no container holder behind late. The gather is `raid_regroup`, the commit `commit.hold_started`. Not `team_plan`: no
+    /// play is weighed up. Off: attacks at any strength, the holder at any score.
+    pub comeback: Option<Comeback>,
+}
+
+/// [fix-team 4] The comeback's rules (Days Gone's squad confidence, Killzone 3's decimated attack reported up): the team's
+/// confidence is its living bots and players against the enemy's (`MatchSignals::alive_ours`, `alive_theirs`: the kill feed
+/// and the respawn times, as the HUD gives them).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Comeback {
+    /// No new attack on the enemy's container (raid, sneak, late denial) while the team's confidence (its living players
+    /// over the enemy's, faded over `fade_s`) is under this: 1, outnumbered. A start value: Days Gone presses from
+    /// "confident" and falls back below "neutral", and no source gives a number.
+    pub start_confidence: f32,
+    /// A running attack is let go only under this: 0.67, decimated (Killzone 3's squads report a decimated attack). A start
+    /// value. Between the two a started attack goes on (hysteresis: a death or a respawn does not flip the team's attacks).
+    pub drop_confidence: f32,
+    /// The confidence fades toward the present ratio with this time constant, s (Days Gone's kills and losses that fade): a
+    /// start value, about the 8 s respawn twice over.
+    pub fade_s: f32,
+    /// The container holder is not offered from this `behind_late` on: 0.5, where the raid sends its second raider
+    /// (`raid.rs` `pair_behind`), so the team that pairs its raids keeps no bot at home.
+    pub holder_off_behind_late: f32,
+}
+
+impl Default for Comeback {
+    fn default() -> Self {
+        Self { start_confidence: 1.0, drop_confidence: 0.67, fade_s: 15.0, holder_off_behind_late: 0.5 }
+    }
+}
+
+impl Comeback {
+    pub fn check(&self) -> Result<(), String> {
+        if !((0.25..=4.0).contains(&self.start_confidence)
+            && (0.1..=self.start_confidence).contains(&self.drop_confidence)
+            && (0.5..=120.0).contains(&self.fade_s)
+            && (0.0..=1.0).contains(&self.holder_off_behind_late))
+        {
+            return Err("mods.comeback".into());
+        }
+        Ok(())
+    }
+
+    /// What the team's attacks may do at `confidence` (its faded ratio, `team::Confidence`).
+    pub fn gate(&self, confidence: f32) -> AttackGate {
+        if confidence < self.drop_confidence {
+            AttackGate::Drop
+        } else if confidence < self.start_confidence {
+            AttackGate::NoStart
+        } else {
+            AttackGate::Open
+        }
+    }
+}
+
+/// [fix-team 4] What a team's attacks on the enemy's container may do at its confidence ([`Comeback::gate`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AttackGate {
+    /// Started and kept.
+    Open,
+    /// None started; a running one goes on.
+    NoStart,
+    /// None at all: a running one is let go.
+    Drop,
 }
 
 /// [A296 item 2] A team plan from the HUD's score and the time left (the owner, 2026-11-04: "bots should give a challenge to
@@ -181,7 +249,8 @@ impl Default for ModTuning {
             // comeback takes the behind team off defence (Raid time +81 %, Raid deaths +36 %, its container unheld +58 %).
             team_plan: None,
             behind_open: None,
-            raid_regroup: None,
+            raid_regroup: Some(RaidRegroup::default()),
+            comeback: Some(Comeback::default()),
         }
     }
 }
