@@ -46,7 +46,7 @@ its own visual sweep; these pilot numbers are not final acceptance.
 | Clouds | 8 lit/unlit programs | Native bindings with coordinate/default conversion |
 | AO | 1 quality-1 generator, normalized for native application | Other qualities and filter/application |
 | God rays | 4 radial falloff programs | Mask, projection and application |
-| Sun composition | 4 direct diffuse/specular blocks | Foliage block, other permutations, shadow generation |
+| Sun composition | 4 direct diffuse/specular blocks and their foliage translucency (0.005 of the sun through a leaf; the native 0.02 and its sky term under the leaf stay for other maps; lighting@6) | Other permutations, shadow generation |
 | Particle fog | 24 supported batched variants | Particle lighting and other permutations |
 | Water fog | 8 supported variants | Surface lighting and other permutations |
 | Point/spot lights | All 32 native permutations use original diffuse/specular and shadow-sampling programs | Native shadow-map generation and screen-position input |
