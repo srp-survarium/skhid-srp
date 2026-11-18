@@ -1735,7 +1735,10 @@ pub const SENSOR_TOP_M: f32 = 0.22;
 
 /// [A324] Where a trap let go of from `eye` with the view `yaw`, `pitch` lies by the client's rule (`TrapRelease::Client`):
 /// the head ray meets `mesh` within [`PLACE_RAY_M`], on ground flat to [`PLACE_FLAT_Y`], not on the sensor of a trap at
-/// `traps`; else why the client places nothing.
+/// `traps`; else why the client places nothing. `mesh` is the map's walker mesh (`Tactics::trap_mesh`): the client's ray
+/// meets the walker's objects, not the bullet-only ones (0x3064B6). The ray starts at the head transform the bullet leaves
+/// along (`base_player+0x44C`: its place +0x47C, its forward +0x46C, 0x306401..0x306417), which `eye` and `pitch` model
+/// (`view::eye_height`, `pitch::PitchScale::Client`).
 pub fn client_landing(mesh: &mapdata::RayTree, eye: Vec3, yaw: f32, pitch: f32, traps: &[Vec3]) -> Result<Vec3, Why> {
     let d = dir(yaw);
     let ray = Vec3::new(d[0] * pitch.cos(), pitch.sin(), d[1] * pitch.cos());
