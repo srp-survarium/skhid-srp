@@ -1,2 +1,4 @@
 # Trailing spaces in translation fields separate concatenated message fragments.
 srp-026g/client-patches/localization/*.tsv whitespace=-blank-at-eol
+# Empty final map columns mean the authored projects have no such objects.
+srp-026g/scripts/content-edit/maps.tsv whitespace=-blank-at-eol
