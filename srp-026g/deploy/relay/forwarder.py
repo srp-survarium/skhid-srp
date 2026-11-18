@@ -124,18 +124,20 @@ class BackendUDP(asyncio.DatagramProtocol):
 
 
 async def tunnel(reader, writer, remote, upstream):
-    """Copy both ways until each side ends. Idle is the tunnel's, not one
-    direction's: a download sends nothing the other way for minutes."""
+    """Copy both ways until the server's side ends or the tunnel is idle.
+    Idle is the tunnel's, not one direction's: a download sends nothing the
+    other way for minutes."""
     active = time.monotonic()
 
     async def copy(source, target):
         nonlocal active
         while True:
+            left = active + IDLE - time.monotonic()
+            if left <= 0:
+                raise TimeoutError("idle tunnel")
             try:
-                data = await asyncio.wait_for(source.read(65536), IDLE)
+                data = await asyncio.wait_for(source.read(65536), left)
             except TimeoutError:
-                if time.monotonic() - active >= IDLE:
-                    raise
                 continue
             if not data:
                 break
@@ -145,10 +147,13 @@ async def tunnel(reader, writer, remote, upstream):
         if target.can_write_eof():
             target.write_eof()
 
-    # Both halves finish naturally on EOF; errors cancel the sibling.
+    # The client's half may end first. Once the server's half has ended nothing
+    # more can be answered: the tunnel ends, and a silent client does not hold
+    # its slot. An error in either half ends both.
     async with asyncio.TaskGroup() as group:
-        group.create_task(copy(reader, upstream))
-        group.create_task(copy(remote, writer))
+        asking = group.create_task(copy(reader, upstream))
+        await copy(remote, writer)
+        asking.cancel()
 
 
 class Login:

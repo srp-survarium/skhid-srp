@@ -273,9 +273,13 @@ fn main() -> io::Result<()> {
     for stream in login.incoming() {
         // One sign-in that fails (reset before it is accepted, no thread for
         // it) is dropped: the process also carries every relayed match.
-        let Ok(stream) = stream else {
-            std::thread::sleep(Duration::from_millis(50));
-            continue;
+        let stream = match stream {
+            Ok(stream) => stream,
+            Err(error) => {
+                eprintln!("login not accepted: {error}");
+                std::thread::sleep(Duration::from_millis(50));
+                continue;
+            }
         };
         let Ok(client) = stream.peer_addr() else {
             continue;

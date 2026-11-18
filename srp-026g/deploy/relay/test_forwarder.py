@@ -77,9 +77,9 @@ class SocketTests(unittest.IsolatedAsyncioTestCase):
     async def test_a_download_longer_than_the_idle_time_is_not_cut(self):
         from unittest.mock import patch
         async def origin(reader, writer):
-            for part in (b'a', b'b', b'c', b'd'):
-                await asyncio.sleep(0.2)
-                writer.write(part)
+            for part in b'abcdefgh':
+                await asyncio.sleep(0.1)
+                writer.write(bytes([part]))
                 await writer.drain()
             writer.close()
         backend = await asyncio.start_server(origin, '127.0.0.1', 0)
@@ -89,11 +89,11 @@ class SocketTests(unittest.IsolatedAsyncioTestCase):
         proxy = f.HTTPS('203.0.113.8', 'skhid.link', 443)
         server = await asyncio.start_server(proxy.accept, '127.0.0.1', 0, limit=4096)
         try:
-            with patch('forwarder.asyncio.open_connection', new=connect), patch('forwarder.IDLE', 0.3):
+            with patch('forwarder.asyncio.open_connection', new=connect), patch('forwarder.IDLE', 0.5):
                 reader, writer = await open_connection('127.0.0.1', server.sockets[0].getsockname()[1])
                 writer.write(b'CONNECT skhid.link:443 HTTP/1.1\r\n\r\n')
                 await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'), 2)
-                self.assertEqual(await asyncio.wait_for(reader.read(-1), 3), b'abcd')
+                self.assertEqual(await asyncio.wait_for(reader.read(-1), 3), b'abcdefgh')
                 writer.close()
                 await writer.wait_closed()
         finally:
