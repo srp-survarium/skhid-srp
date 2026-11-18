@@ -94,9 +94,11 @@ pub struct Feel {
     pub sprint_from_m: f32,
     /// … and stop sprinting with this little left before a corner.
     pub sprint_until_m: f32,
-    /// Facing the way within this for `sprint_after_s` before a sprint.
+    /// Facing the way within this for `sprint_after_s` before a sprint ([`SprintBy::Facing`]).
     pub sprint_facing: f32,
     pub sprint_after_s: f32,
+    /// [A416, human-steering part D] What a walk's sprint asks of the way faced ([`SprintBy`]).
+    pub sprint_by: SprintBy,
     /// A corner sharper than this ends a straight stretch, radians.
     pub corner: f32,
     /// The heading's sway: amplitude (radians) and period (seconds).
@@ -336,6 +338,24 @@ pub enum SprintGaits {
     RunAndCruise,
 }
 
+/// [A416, human-steering part D] What a walk's sprint asks of the way faced ([`Feel::sprint_by`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SprintBy {
+    /// As before: the plain walk sprints after facing the way within [`Feel::sprint_facing`] for [`Feel::sprint_after_s`]; the
+    /// aimed walk (the view held off the course) never sprints.
+    Facing,
+    /// The client's own predicate (`sprint_predicate` 0x2FBC90: SPRINT and FORWARD, none of BACK, FIRE, CROUCH; side keys allowed,
+    /// no angle test, no wait; human-steering `exe-movement-rules.md`): either walk sprints while its key set is W, W+A or W+D (the
+    /// way within [`SPRINT_KEYS_RAD`] of the view). Live humans sprint 36 % of their alive time and 32 % of their sprint on W+A/D;
+    /// the bots 5.9 % and 1 % (human-steering 2.1-2.2, 124 matches, 246 players).
+    #[default]
+    Keys,
+}
+
+/// [A416] The way within this of the view is a W, W+A or W+D key set ([`Motor::pick_keys`]'s nearest sector 0 or 1): 67.5 degrees.
+const SPRINT_KEYS_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
+
 impl Default for Feel {
     fn default() -> Self {
         Self {
@@ -352,6 +372,7 @@ impl Default for Feel {
             sprint_until_m: 3.5,
             sprint_facing: 0.17,
             sprint_after_s: 0.3,
+            sprint_by: SprintBy::Keys,
             corner: 0.6,
             sway: 0.025,
             sway_period_s: 3.7,
@@ -1937,7 +1958,11 @@ impl Motor {
         } else {
             link_time::Why::Lined
         };
-        let (low, turns, straight) = self.sprint_gate(route, pose, s, jump, SprintFacing::View { still });
+        let facing = match self.feel.sprint_by {
+            SprintBy::Facing => SprintFacing::View { still },
+            SprintBy::Keys => SprintFacing::Keys { forward: still <= SPRINT_KEYS_RAD },
+        };
+        let (low, turns, straight) = self.sprint_gate(route, pose, s, jump, facing);
         // A sprint jump is walked into at a sprint, on its line and facing its way, unless the bar is spent: a tired body
         // walks (the keys held through a lockout lengthen it, and the bar comes back walking).
         if let Some(j) = jump
@@ -2292,9 +2317,14 @@ impl Motor {
         // the way within 67.5 degrees of the view), not by facing the way: a human runs with the view off the course. It was
         // `sprinting = false` whenever the view was held: 5.9 % of the bots' alive time sprinted against the humans' 36 %
         // (human-steering 2.1). The client's own refusals (AIM, FIRE, CROUCH, a reload, the stagger) are the driver's strips.
-        self.sprint_gate(route, pose, s, jump, SprintFacing::Keys { forward: lined.is_none() && forward_set(keys) });
-        if self.sprinting && self.walking && lined.is_none() && forward_set(keys) {
-            keys |= key::SPRINT;
+        match self.feel.sprint_by {
+            SprintBy::Facing => self.sprinting = false,
+            SprintBy::Keys => {
+                self.sprint_gate(route, pose, s, jump, SprintFacing::Keys { forward: lined.is_none() && forward_set(keys) });
+                if self.sprinting && self.walking && lined.is_none() && forward_set(keys) {
+                    keys |= key::SPRINT;
+                }
+            }
         }
         if jump.is_some_and(|jump| jump.stand) {
             // [A386] A slow press's body comes to rest at its run-up point.
