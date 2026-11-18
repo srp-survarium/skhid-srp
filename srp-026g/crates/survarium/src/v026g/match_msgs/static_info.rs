@@ -1192,15 +1192,16 @@ struct SrpEntries {
     wide: Option<MapId>,
     /// The mode's entry.
     mode: SrpBlock,
-    /// Each place's face, when one is not 0; none: every face 0.
+    /// Each place's face, when the entry is there; none: every face 0.
     faces: Option<Vec<Face>>,
 }
 
 /// srp's block after the options, if any: as patches 65, 142, 154 and the
 /// faces patch read it, but strict (an unknown tag, a tag twice or a short
 /// entry is refused, so a test sees it; so is a faces entry of another
-/// length than the `roster`, of a face the data does not list or of none
-/// but face 0).
+/// length than the `roster` or of none but face 0). A face this data does
+/// not list is face 0 ([`Faces::recorded`]): a recording may be older or
+/// newer than the data it is read with.
 fn read_srp_block(reader: &mut Reader, roster: usize) -> Result<SrpEntries, StaticInfoError> {
     if reader.bytes.is_empty() {
         return Ok(SrpEntries { wide: None, mode: SrpBlock::Plain, faces: None });
@@ -1226,12 +1227,10 @@ fn read_srp_block(reader: &mut Reader, roster: usize) -> Result<SrpEntries, Stat
                     kills_to_win: u16::from_le_bytes([low, high]),
                 })
                 .is_none(),
-            (SRPX_FACES, entry) if entry.len() == roster => {
+            (SRPX_FACES, entry) if entry.len() == roster && entry.iter().any(|&index| index != 0) => {
                 let listed = Faces::shared();
-                let read: Option<Vec<Face>> =
-                    entry.iter().map(|&index| listed.face(u32::from(index))).collect();
-                read.filter(|read| read.iter().any(|&face| face != Face::DEFAULT))
-                    .is_some_and(|read| faces.replace(read).is_none())
+                let read: Vec<Face> = entry.iter().map(|&index| listed.recorded(index)).collect();
+                faces.replace(read).is_none()
             }
             _ => false,
         };
@@ -1476,12 +1475,16 @@ mod tests {
             b"SRPX\x02\x01\x01\x05\x02\x00\x02"[..]
         );
         assert_eq!(parse_options(&bytes, dictionary()), Ok(with_blackout));
-        // Another length than the roster's, a face the data does not list
-        // (the test data has three), twice, none but face 0: refused.
+        // A face the data does not list (the test data has three; a
+        // recording of a longer list): face 0.
+        let unlisted = [&without[..], b"SRPX\x05\x02\x01\x03"].concat();
+        let read = parse_options(&unlisted, dictionary()).unwrap();
+        assert_eq!(read.players[0].face, Faces::shared().face(1).unwrap());
+        assert_eq!(read.players[1].face, Face::DEFAULT);
+        // Another length than the roster's, twice, none but face 0: refused.
         for bad in [
             &b"SRPX\x05\x01\x02"[..],
             &b"SRPX\x05\x03\x00\x02\x01"[..],
-            &b"SRPX\x05\x02\x00\x03"[..],
             &b"SRPX\x05\x02\x00\x01\x05\x02\x00\x01"[..],
             &b"SRPX\x05\x02\x00\x00"[..],
         ] {
