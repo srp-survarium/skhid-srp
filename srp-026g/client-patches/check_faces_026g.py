@@ -14,7 +14,7 @@ and stops at its span's end (or the head's join, 0x2056F0, where the native
 head ends too). Checked:
 
 - the three sites of its own in place (`jmp` to its entry, the original's
-  bytes there); the two options reads its chain's;
+  bytes there); the two options reads and the match scene's end its chain's;
 - data without `heads`: the head the native makes (base_model, part_name,
   tag 0, the count, the skin's name), byte for byte as the original exe's;
 - with `heads`: a player srp said nothing of is face 0: heads[0], its helmet
@@ -27,11 +27,20 @@ head ends too). Checked:
 - a missing variant is the face's `data`;
 - `0x88`'s byte (`lobby_client.squad_member`, the profile in EDI): the
   member's face;
-- the match's options (`static_info.options_read`, srp's block entry 5): each
-  place's face by its name; a face the data does not list drawn as face 0,
-  with no suffix; the lobby's face asked first; a new match without the entry
-  forgets the old match's faces;
+- the match's options (`static_info.options_read`, srp's block entry 5): a
+  profile that is one of the options' places has its place's face, whatever
+  the lobby said of its name; a face the data does not list drawn as face 0,
+  with no suffix; a profile that is no place of the options (the lobby's)
+  still the lobby's face; an entry shorter than the roster (the places past
+  it face 0) and longer; a new match without the entry forgets the old
+  match's faces;
+- a replay's chunk 1 (`replay.options_read`): the same, its span replayed;
+- every record in use (the kit's 19 and the head): the hair gets none, the
+  count stays 20, logged;
 - a `0x87` without srp's byte: logged, nothing learnt.
+
+Not run: the match scene's end (`game_world.deactivate`, after patch 66's
+handler in its chain); the faces forgotten there are the crate's unit test.
 """
 import struct
 import sys
@@ -47,6 +56,8 @@ HEAD, MADE = 0x205662, 0x2056F0            # skin_cook.head and its join
 OWN, OWN_END = 0x27030B, 0x270313           # lobby_client.own_account, span 8
 MEMBER, MEMBER_END = 0x274C01, 0x274C07     # lobby_client.squad_member, span 6
 OPTIONS, OPTIONS_END = 0x27B92D, 0x27B932   # static_info.options_read, span 5
+REPLAY, REPLAY_END = 0x1F0971, 0x1F0976     # replay.options_read, span 5 (pop esi / pop ebx / add esp,34h)
+WORLD_LEFT = 0x1F9520                       # game_world.deactivate
 THREAD_SLOT, QPC_SLOT, QPF_SLOT = 0x870118, 0x870158, 0x870150
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870108, 0x870040
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
@@ -156,10 +167,12 @@ class Game:
         self.word(at + 4, room + len(text))
         self.word(at + 8, room + 0x104)
 
-    def cook(self, body_parts, name, tags, skin="105_0_0_207_0_0_0_"):
+    def cook(self, body_parts, name, tags, skin="105_0_0_207_0_0_0_", place=None):
         """on_configs_loaded at its head: its cook data with records 1.. tagged `tags` (records of the kit's
-        items), the frame's body_parts copy and skin name, the profile `name`'s. Run to the join; what it made:
-        each record's (base_model, part_name, material, tag), the skin's name."""
+        items), the frame's body_parts copy and skin name, the profile `name`'s: a profile of the lobby's, or
+        with `place` that place of the options. Run to the join; what it made: each record's (base_model,
+        part_name, material, tag), the skin's name."""
+        profile = PROFILE if place is None else OPTIONS_OBJECT + place * PLACE
         self.emu.mem_write(COOK, bytes(0xF328))
         for i in range(20):
             record = COOK + RECORDS + i * RECORD
@@ -171,8 +184,8 @@ class Game:
             self.string(record + 0x114, f"part_{i}")
             self.word(record + TAG, tag)
         self.emu.mem_write(COOK + COUNT, bytes([1 + len(tags)]))
-        self.emu.mem_write(PROFILE, bytes(0x100))
-        self.emu.mem_write(PROFILE + 8, name.encode() + b"\0")
+        self.emu.mem_write(profile, bytes(0x100))
+        self.emu.mem_write(profile + 8, name.encode() + b"\0")
         self.emu.mem_write(SP, bytes(0x500))
         self.word(SP + 0x1C, COOK)
         self.emu.mem_write(SP + 0xA8, body_parts)
@@ -180,7 +193,7 @@ class Game:
         self.emu.mem_write(SP + 0x354, skin.encode() + b"\0")
         self.word(SP + 0x34C, SP + 0x354 + len(skin))
         self.word(SP + 0x350, SP + 0x458)
-        self.word(BP + 0x10, PROFILE)
+        self.word(BP + 0x10, profile)
         regs = {r: 0x0A0A0A0A + i for i, r in enumerate(REGS)}
         regs[UC_X86_REG_EBP] = BP
         regs[UC_X86_REG_ESI] = self.read(SP + 0x1C)          # the span before the site: mov esi,[esp+1Ch]
@@ -216,14 +229,31 @@ class Game:
         self.word(MESSAGE + 0x88, 4 + len(srp))
         return MESSAGE + 0x80
 
-    def options(self, names, srp):
-        """process_static_match_info after its deserialize: the options (ESI) with places named `names`, the
-        frame's reader (EBP-2Ch) at srp's block."""
+    def roster(self, names, srp):
+        """The options with places named `names`, and the message's bytes after them: srp's block."""
         self.emu.mem_write(OPTIONS_OBJECT, bytes(0x578A0))
         for place, name in enumerate(names):
             self.emu.mem_write(OPTIONS_OBJECT + place * PLACE + 8, name.encode() + b"\0")
         self.emu.mem_write(OPTIONS_OBJECT + 0x577B5, bytes([len(names)]))
         self.emu.mem_write(MESSAGE, srp)
+
+    def replay_options(self, names, srp):
+        """A replay's chunk 1 after its deserialize: the options its first argument ([esp+40h]), its local
+        reader (esp+14h) at srp's block; the span's pops and its add to the `ret 8`."""
+        self.roster(names, srp)
+        self.emu.mem_write(SP, bytes(0x100))
+        self.word(SP, 0x55555555)
+        self.word(SP + 4, 0x66666666)
+        for i, value in enumerate((MESSAGE, MESSAGE, len(srp))):
+            self.word(SP + 0x14 + 4 * i, value)
+        self.word(SP + 0x40, OPTIONS_OBJECT)
+        regs = {r: 0x0A0A0A0A + i for i, r in enumerate(REGS)}
+        return self.go(REPLAY, REPLAY_END, regs, SP)
+
+    def options(self, names, srp):
+        """process_static_match_info after its deserialize: the options (ESI) with places named `names`, the
+        frame's reader (EBP-2Ch) at srp's block."""
+        self.roster(names, srp)
         self.word(BP - 0x2C, MESSAGE)
         self.word(BP - 0x28, MESSAGE)
         self.word(BP - 0x24, len(srp))
@@ -250,8 +280,8 @@ def main():
         new = base.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
         check(opcode == 0xE9 and original[at:at + len(old)] == old and built[at:at + len(new)] == new,
               f"{va:#x}: {old.hex()} in the original, `jmp {symbol}` here")
-    check(sorted(h["site"] for h in ours) == sorted([HEAD, OWN, MEMBER, OPTIONS, 0x1F0971]),
-          f"faces' five hooks: its three sites and the two options reads ({len(ours)})")
+    check(sorted(h["site"] for h in ours) == sorted([HEAD, OWN, MEMBER, OPTIONS, REPLAY, WORLD_LEFT]),
+          f"faces' six hooks: its three sites, the two options reads and the match scene's end ({len(ours)})")
 
     head = {"data": {"base_model": "character/human/base/base_character_head", "part_name": "black_market_01_head_s"}}
     plain = lambda game: game.node({"head": head, "bind_pose": "x"})
@@ -298,16 +328,44 @@ def main():
     made, skin = patched.cook(faces(patched), "mate", [2])
     check(made[0][:2] == ("head/face_1", "face_1") and skin.endswith("f1_"), "0x88's byte: the member's face")
 
+    face = lambda made: made[0][0][:2]
+    of = lambda n: (f"head/face_{n}", f"face_{n}")
     patched.options(["me", "you", "them"], b"SRPX\x02\x01\x01\x05\x03\x00\x01\x09")
-    you, them, me = (patched.cook(faces(patched), name, [2]) for name in ("you", "them", "me"))
-    check(you[0][0][:2] == ("head/face_1", "face_1") and you[1].endswith("f1_")
-          and them[0][0][:2] == ("head/face_0", "face_0") and them[1] == "105_0_0_207_0_0_0_"
-          and me[0][0][:2] == ("head/face_2", "face_2"),
-          "the match's faces by name (entry 5 after the Blackout one); face 9, not in the data, drawn as face 0, "
-          "no suffix; the lobby's face asked first")
+    me, you, them = (patched.cook(faces(patched), name, [2], place=place)
+                     for place, name in enumerate(("me", "you", "them")))
+    check(face(you) == of(1) and you[1].endswith("f1_") and face(them) == of(0) and them[1] == "105_0_0_207_0_0_0_"
+          and face(me) == of(0) and me[1] == "105_0_0_207_0_0_0_",
+          "the match's places by its options (entry 5 after the Blackout one): place 1 face 1; face 9, not in the "
+          "data, drawn as face 0, no suffix; the account's own place the match's face 0, not the lobby's 2")
+    check(face(patched.cook(faces(patched), "me", [2])) == of(2)
+          and face(patched.cook(faces(patched), "mate", [2])) == of(1)
+          and face(patched.cook(faces(patched), "you", [2])) == of(0),
+          "a profile that is no place of the options, the match shown: the lobby's own and squad faces by name, "
+          "a match's name face 0")
+    patched.options(["a", "b", "c"], b"SRPX\x05\x02\x02\x01")
+    short = [face(patched.cook(faces(patched), name, [2], place=place)) for place, name in enumerate("abc")]
+    patched.options(["a", "b", "c"], b"SRPX\x05\x05\x01\x02\x01\x02\x02")
+    long = [face(patched.cook(faces(patched), name, [2], place=place)) for place, name in enumerate("abc")]
+    check(short == [of(2), of(1), of(0)] and long == [of(1), of(2), of(1)],
+          "an entry shorter than the roster: the places past it face 0; a longer one: the roster's places theirs")
     patched.options(["you"], b"")
-    you = patched.cook(faces(patched), "you", [2])
-    check(you[0][0][:2] == ("head/face_0", "face_0"), "a match without the entry: every face 0, the old match's gone")
+    you = patched.cook(faces(patched), "you", [2], place=0)
+    check(face(you) == of(0), "a match without the entry: every face 0, the old match's gone")
+
+    after, esp = patched.replay_options(["seen", "me"], b"SRPX\x05\x02\x02\x01")
+    seen, me = (patched.cook(faces(patched), name, [2], place=place) for place, name in enumerate(("seen", "me")))
+    check(esp == SP + 0x3C and after[UC_X86_REG_ESI] == 0x55555555 and after[UC_X86_REG_EBX] == 0x66666666
+          and face(seen) == of(2) and face(me) == of(1) and face(patched.cook(faces(patched), "me", [2])) == of(2),
+          "a replay's chunk 1: the span replayed (pop esi / pop ebx / add esp,34h); its places by its options, "
+          "the viewer's own place the recorded face, the lobby's own character still the account's")
+    patched.replay_options(["you"], b"")
+
+    before = len(patched.logged)
+    made, skin = patched.cook(faces(patched), "me", [2] * 19)
+    check(len(made) == 20 and made[0][:2] == ("head/face_2", "face_2") and made[19] == ("models/item_19", "part_19", "", 2)
+          and skin.endswith("f2_") and b"no record left" in patched.logged[before:],
+          "every record in use (the kit's 19 and the head): the head made, its hair without a record, the count "
+          "still 20, logged")
 
     before = len(patched.logged)
     patched.own_account("me", b"")

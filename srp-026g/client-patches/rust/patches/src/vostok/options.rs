@@ -10,13 +10,8 @@ use super::context::Context;
 use super::hook::Thread;
 use super::breadcrumbs::Match;
 use super::parse::Reader;
-use super::ui::c_string;
 use super::world::read;
 use crate::raw;
-use core::ffi::CStr;
-
-/// A place's name: 64 bytes with its zero.
-const NAME_LIMIT: usize = 64;
 
 /// The bytes `reader` has not read: from its cursor to its end; none when the
 /// cursor is outside its bytes.
@@ -77,6 +72,33 @@ pub(in crate::vostok) unsafe fn map_id_of(options: raw::MatchOptions) -> MapId {
     MapId::new(unsafe { read(options.map_id()) } as u16)
 }
 
+/// A match's places: the options hold room for 20, whatever the roster.
+pub const PLACES: usize = 20;
+
+/// Where the places of a match's options are: a profile at one of them is
+/// that place's (a player object's profile is its place in the options;
+/// initialize_match 0x234EEF: place i at the options + i x 45FCh), any
+/// other profile is none of the match's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Places {
+    first: u32,
+}
+
+impl Places {
+    /// The places whose first is at `first`.
+    pub const fn at(first: u32) -> Places {
+        Places { first }
+    }
+
+    /// The place whose profile is at `address`, if it is one of these.
+    pub fn place_of(self, address: u32) -> Option<usize> {
+        let size = raw::MatchPlace::SIZE as u32;
+        let offset = address.checked_sub(self.first)?;
+        let place = (offset / size) as usize;
+        (offset % size == 0 && place < PLACES).then_some(place)
+    }
+}
+
 /// The options just read and the reader they were read from (its cursor
 /// where the options end).
 pub struct OptionsRead<'t> {
@@ -115,13 +137,11 @@ impl<'t> OptionsRead<'t> {
         unsafe { unread(self.reader) }
     }
 
-    /// The name of each of the match's places, place 0 first (none for a
-    /// name that is no C string in its 64 bytes).
-    pub fn place_names(&self) -> impl Iterator<Item = Option<&'t CStr>> + '_ {
-        // SAFETY: the options are alive for the hook; a place below the count
-        // is one of the array, its name a C string in its 64 bytes.
-        let places = unsafe { read(self.options.places()) };
-        (0..usize::from(places)).map(|place| unsafe { c_string(self.options.first_place().at(place).name(), NAME_LIMIT) })
+    /// Where these options' places are.
+    pub fn place_array(&self) -> Places {
+        // SAFETY: the options are alive for the hook; only the address of
+        // their first place is taken.
+        Places::at(unsafe { self.options.first_place() }.address())
     }
 
     /// The match's places' count: the roster the rules and the hud state are

@@ -2887,6 +2887,36 @@ pub extern "C" fn hook_faces_on_squad_member(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- voice (patch 66) ----
+
+/// The entry `voice_on_deactivate` (0x1f9520, game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_deactivate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_on_deactivate` calls this, from the game's jump at 0x1f9520,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::on_deactivate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_world_left` (0x1f9520, game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_world_left(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_world_left` calls this, from the game's jump at 0x1f9520,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_world_left(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- footsteps (patch 101) ----
 
 /// The named exits of footsteps::on_step_guard (the order the shim's Flow code
@@ -5872,21 +5902,6 @@ pub extern "C" fn hook_voice_on_finish(frame: &mut Frame) -> u32 {
 
 // ---- voice (patch 66) ----
 
-/// The entry `voice_on_deactivate` (0x1f9520, game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_voice_on_deactivate(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `voice_on_deactivate` calls this, from the game's jump at 0x1f9520,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::voice::on_deactivate(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- voice (patch 66) ----
-
 /// The entry `voice_on_mouse_key` (0x25cf70, game_world::on_mouse_key_action after it asked the input world for the keyboard (mov edi,eax / mov eax,[edi] / mov edx,[eax]; its first ten bytes are patch 31's jump, WARMUP_KEYS_HOOK, which comes back at 0x25CF6A for every button it does not take): ESI the game world's input handler (the keyboard's, the hud at +4: its cursor flag +2E0h is the hud's +2DCh), ESP+14h the button's key (151h + the button), +18h its kind; every mouse button of a match comes here before the player's handler (input priority 7, before 10)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_voice_on_mouse_key(frame: &mut Frame) -> u32 {
@@ -6474,6 +6489,15 @@ pub extern "C" fn hook_memory_report_on_close_chain(frame: &mut Frame) -> u32 {
     let flow = hook_memory_profile_on_close(frame);
     if flow != 0 { return flow; }
     let flow = hook_executable_report_on_close(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_deactivate_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_voice_on_deactivate(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_faces_on_world_left(frame);
     if flow != 0 { return flow; }
     0
 }

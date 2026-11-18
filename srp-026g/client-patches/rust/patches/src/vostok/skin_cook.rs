@@ -103,6 +103,12 @@ impl<'t> HeadCook<'t> {
         Some(HeadCook { frame, data, profile, thread: ctx.thread() })
     }
 
+    /// Where the cook's profile is: a place of a match's options
+    /// ([`super::options::Places::place_of`]) or a profile of the lobby's.
+    pub fn profile_address(&self) -> u32 {
+        self.profile.address()
+    }
+
     /// The player's name, the profile's.
     pub fn player_name(&self) -> Option<&'t CStr> {
         // SAFETY: the query's profile, alive while the cook runs; its name a

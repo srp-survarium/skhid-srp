@@ -2,7 +2,8 @@
 # (docs/notes/face-choice.md). Only the decisions: which sites, and the
 # handlers. The sites are sites_026g.tsv's; the logic is faces.rs. The
 # options reads are patches 154's, 65's, 86's, 83's, 88's and 142's too:
-# this patch's hooks run after theirs (order 5).
+# this patch's hooks run after theirs (order 5). The match scene's end is
+# patch 66's too (voice.toml, order 1).
 name = "faces"
 patch = 123
 
@@ -27,3 +28,8 @@ order = 5
 site = "replay.options_read"
 handler = "on_replay_options"
 order = 5
+
+[[hook]]
+site = "game_world.deactivate"
+handler = "on_world_left"
+order = 2

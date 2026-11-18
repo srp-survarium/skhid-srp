@@ -4605,6 +4605,45 @@ faces_on_squad_member_replay:
     db 0x8b, 0x93, 0xc0, 0x56, 0x1e, 0x00
     jmp 0x274c07
 
+; 0x1f9520 game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left: lohook -> voice_on_deactivate
+global voice_on_deactivate
+extern hook_voice_on_deactivate_chain
+voice_on_deactivate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_deactivate_chain
+    mov edx, voice_on_deactivate_replay
+    cmp eax, 0
+    je voice_on_deactivate_go
+    mov edx, 0x1f9525
+    cmp eax, 1
+    je voice_on_deactivate_go
+    ud2
+voice_on_deactivate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_deactivate_replay:
+    db 0x53, 0x56, 0x57, 0x8b, 0xf9
+    jmp 0x1f9525
+
 ; 0x2a6485 player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0: lohook -> footsteps_on_step_guard
 global footsteps_on_step_guard
 extern hook_footsteps_on_step_guard
@@ -10155,45 +10194,6 @@ voice_on_finish_go:
 voice_on_finish_replay:
     db 0x57, 0x8b, 0xf8, 0x8b, 0x87, 0x9c, 0x00, 0x00, 0x00
     jmp 0x1f96f9
-
-; 0x1f9520 game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left: lohook -> voice_on_deactivate
-global voice_on_deactivate
-extern hook_voice_on_deactivate
-voice_on_deactivate:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_voice_on_deactivate
-    mov edx, voice_on_deactivate_replay
-    cmp eax, 0
-    je voice_on_deactivate_go
-    mov edx, 0x1f9525
-    cmp eax, 1
-    je voice_on_deactivate_go
-    ud2
-voice_on_deactivate_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-voice_on_deactivate_replay:
-    db 0x53, 0x56, 0x57, 0x8b, 0xf9
-    jmp 0x1f9525
 
 ; 0x25cf70 game_world::on_mouse_key_action after it asked the input world for the keyboard (mov edi,eax / mov eax,[edi] / mov edx,[eax]; its first ten bytes are patch 31's jump, WARMUP_KEYS_HOOK, which comes back at 0x25CF6A for every button it does not take): ESI the game world's input handler (the keyboard's, the hud at +4: its cursor flag +2E0h is the hud's +2DCh), ESP+14h the button's key (151h + the button), +18h its kind; every mouse button of a match comes here before the player's handler (input priority 7, before 10): lohook -> voice_on_mouse_key
 global voice_on_mouse_key
