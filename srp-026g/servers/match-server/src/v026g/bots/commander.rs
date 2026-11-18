@@ -1070,7 +1070,7 @@ impl Bots {
         let rank_of = |kind: plays::PlayKind| tuning.plays.get(&kind).map_or_else(|| plays::default_tuning(kind).rank, |play| play.rank);
         let may_support = |b: &Bot| {
             support.is_none()
-                || team::may_support(b.assignment.as_ref().map(|a| (a.kind, a.target, rank_of(a.kind))), tuning.commit.hold_started)
+                || team::may_support(b.assignment.as_ref().map(|a| (a, rank_of(a.kind))), tuning.commit.hold_started, now)
         };
         let squad_of = |place: Place| -> Option<usize> {
             self.teams[usize::from(team)].squads.as_ref()?.iter().position(|s| s.contains(&place))
@@ -1312,9 +1312,9 @@ impl Bots {
                 // [fix-team 2] Its held play waits for the interrupter it runs to be over.
                 commits.push((bot.place, team::Commit::Resumes { kind: s.kind, target: s.target }));
             } else if tuning.commit.hold_started
-                && bot.assignment.as_ref().is_some_and(|a| team::held_kind(a.kind, a.target))
+                && bot.assignment.as_ref().is_some_and(|a| team::held(a.kind, a.target, a.since, now))
             {
-                // [fix-team 2] A started raid, job or Breach role, cover of a human or Collect run: held.
+                // [fix-team 2] A started raid, job or Breach role, cover of a human (its first seconds) or Collect run: held.
                 commits.push((bot.place, team::Commit::Held));
             } else if tuning.commit.hold_to_arrival
                 && bot.running.as_ref().is_some_and(plays::Running::travelling)
