@@ -185,6 +185,8 @@ pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
 pub use team::BehindOpen;
 pub use team::CampFlank;
+pub use team::AttackGate;
+pub use team::Comeback;
 pub use team::CommitTuning;
 pub use team::Concede;
 pub use team::GangRule;
@@ -351,6 +353,9 @@ impl Tuning {
         }
         if let Some(regroup) = self.mods.raid_regroup {
             regroup.check()?;
+        }
+        if let Some(comeback) = self.mods.comeback {
+            comeback.check()?;
         }
         self.tdm.check()?;
         self.think.check()?;

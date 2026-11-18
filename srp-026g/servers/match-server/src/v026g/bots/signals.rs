@@ -40,6 +40,12 @@ pub struct MatchSignals {
 impl MatchSignals {
     /// `back`: a dead place counted as alive ([Gap 13] its respawn time has come, `think.respawn_times`).
     pub fn read(view: &MatchView, team: u8, since_theft_s: f32, back: impl Fn(&PlaceView) -> bool) -> Self {
+        Self::read_full_at(view, team, since_theft_s, back, None)
+    }
+
+    /// [`Self::read`] with Team Deathmatch's gap fully behind at `full_tickets` ([fix-team 4] `tdm.gap_full_tickets`,
+    /// `ObjectiveMap::score_gap_full_at`; `None`: a tenth a ticket).
+    pub fn read_full_at(view: &MatchView, team: u8, since_theft_s: f32, back: impl Fn(&PlaceView) -> bool, full_tickets: Option<f32>) -> Self {
         let count = |ours: bool, alive: bool| {
             view.places
                 .iter()
@@ -50,7 +56,7 @@ impl MatchSignals {
         Self {
             team,
             mode: Some(view.mode),
-            score_gap: view.objective().score_gap(view, team),
+            score_gap: view.objective().score_gap_full_at(view, team, full_tickets),
             time_left_s: view.time_left_s,
             progress: if view.total_s > 0.0 {
                 (1.0 - view.time_left_s / view.total_s).clamp(0.0, 1.0)
