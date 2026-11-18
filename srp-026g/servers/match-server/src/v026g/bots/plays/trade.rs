@@ -162,6 +162,38 @@ fn reaches_in_time(cx: &Ctx, body: Vec3) -> bool {
     !cx.tuning.threat.trade_reach || cx.me.feet.distance_xz(body) <= TRADE_REACH_M
 }
 
+/// How the team answers a mate's fight with a cover ([`State::Cover`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Answering {
+    /// [A297 `tdm.group`, A310 `tdm.squad`] Team Deathmatch's grouping: the cover is an alarm, as the play's band.
+    Group(GroupUp),
+    /// [fix-team 3 `threat.support`] Every mode, where the grouping is off: the cover is a support play in the fight band, so
+    /// it takes a free or roaming bot and never one on an objective, an alarm or a held angle (A297 v2: the cover in the
+    /// alarm band took about a quarter of the bots' time off their held angles, and the hunter died less).
+    Support(GroupUp),
+}
+
+impl Answering {
+    fn rules(self) -> GroupUp {
+        match self {
+            Answering::Group(rules) | Answering::Support(rules) => rules,
+        }
+    }
+
+    /// The cover's candidate in its band.
+    fn ranked(self, mut c: Candidate) -> Candidate {
+        if let Answering::Support(_) = self {
+            c.rank = Rank::Fight;
+        }
+        c
+    }
+}
+
+/// How this bot's team answers a mate's fight now, if it does.
+fn answering(cx: &Ctx) -> Option<Answering> {
+    group(cx).map(Answering::Group).or_else(|| cx.tuning.threat.support.map(Answering::Support))
+}
+
 /// The rules of a trade's cover spot: TDM's `tdm.group`, else [A302 #1] `threat.trade_cover` in any mode.
 fn cover_rules(cx: &Ctx) -> Option<GroupUp> {
     group(cx).or(cx.tuning.threat.trade_cover)
@@ -204,15 +236,16 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.me.carrying.is_some() {
         return;
     }
-    // [A297 `tdm.group`] The partner's fight, answered before his death; a running cover stays a candidate until its step
-    // ends it.
-    if let Some(rules) = group(cx) {
+    // [A297 `tdm.group`, fix-team 3 `threat.support`] A mate's fight, answered before his death: the cover goes to a spot
+    // with a line on the mate's enemy and looks at him, the target the mate fights; a running cover stays a candidate until
+    // its step ends it.
+    if let Some(answering) = answering(cx) {
         if let Some((PlayKind::Trade, target @ TargetRef::Place(_), _)) = cx.bot.current {
-            out.extend(cx.candidate(PlayKind::Trade, target, None));
+            out.extend(cx.candidate(PlayKind::Trade, target, None).map(|c| answering.ranked(c)));
             return;
         }
-        if let Some(mate) = fight_to_answer(cx, &rules) {
-            out.extend(cx.candidate(PlayKind::Trade, TargetRef::Place(mate), None));
+        if let Some(mate) = fight_to_answer(cx, &answering.rules()) {
+            out.extend(cx.candidate(PlayKind::Trade, TargetRef::Place(mate), None).map(|c| answering.ranked(c)));
             return;
         }
     }
@@ -253,8 +286,8 @@ pub enum State {
 }
 
 pub fn start(target: TargetRef, cx: &Ctx, rng: &mut Rng) -> State {
-    if let (Some(rules), TargetRef::Place(mate)) = (group(cx), target) {
-        return start_cover(cx, &rules, mate, rng);
+    if let (Some(answering), TargetRef::Place(mate)) = (answering(cx), target) {
+        return start_cover(cx, &answering.rules(), mate, rng);
     }
     let s = rng.range(
         cx.num(PlayKind::Trade, "trade_min_s"),
@@ -368,7 +401,7 @@ fn start_cover(cx: &Ctx, rules: &GroupUp, mate: Place, rng: &mut Rng) -> State {
 /// [A297 `tdm.group`] A cover's step: to the spot (run, then walk the last `walk_m`), the view on the enemy's known place;
 /// over when the mate died (his death is the next poll's trade), his fight has been over `linger_s`, or at `max_s`.
 fn step_cover(state: &mut State, cx: &Ctx) -> Step {
-    let Some(rules) = group(cx) else {
+    let Some(rules) = answering(cx).map(Answering::rules) else {
         return Step::Failed("not grouping");
     };
     let State::Cover { mate, enemy, spot, until, quiet_since } = state else {
@@ -628,6 +661,8 @@ mod tests {
         s.team.fighting = vec![Fighting { mate: 2, enemy: 1, since: s.view.clock - 500 }];
         s.team.answers = vec![(2, 0)];
         s.tuning.tdm.group = on.then(GroupUp::default);
+        // [fix-team 3] The grouping alone (the support answers where it is off).
+        s.tuning.threat.support = None;
         s
     }
 
@@ -656,5 +691,33 @@ mod tests {
         assert_eq!(trades(&s).len(), 1);
         s.tuning.tdm.group = Some(GroupUp { answer: Answer::Partner, answer_m: Metres::of(5.0), ..GroupUp::default() });
         assert!(trades(&s).is_empty());
+    }
+
+    /// [fix-team 3] With `threat.support` (the default) the fight is answered in every mode, in the fight band, by the bot the
+    /// commander gave it; the grouping in TDM keeps its alarm; off, no cover before a death.
+    #[test]
+    fn the_support_answers_a_mates_fight_in_every_mode_in_the_fight_band() {
+        for mode in [Mode::Batteries, Mode::TeamDeathmatch] {
+            let mut s = covering(false);
+            s.view.mode = mode;
+            s.tuning.threat.support = crate::v026g::bots::tuning::Tuning::default().threat.support;
+            assert!(s.tuning.threat.support.is_some(), "on by default");
+            let out = trades(&s);
+            assert_eq!(out.len(), 1, "{mode:?}: {out:#?}");
+            assert_eq!((out[0].target, out[0].rank), (TargetRef::Place(2), Rank::Fight), "{mode:?}");
+            // Its start: a cover spot with a line on the mate's enemy, the shared target.
+            let mut rng = Rng::new(7);
+            match start(TargetRef::Place(2), &s.cx(0), &mut rng) {
+                State::Cover { mate: 2, enemy: 1, .. } | State::NoCover => {}
+                other => panic!("{mode:?}: {other:?}"),
+            }
+            // Given to another bot: none.
+            s.team.answers = vec![(2, 3)];
+            assert!(trades(&s).is_empty());
+        }
+        // The grouping in TDM: its alarm, as before.
+        let mut s = covering(true);
+        s.tuning.threat.support = crate::v026g::bots::tuning::Tuning::default().threat.support;
+        assert_eq!(trades(&s)[0].rank, Rank::Alarm);
     }
 }

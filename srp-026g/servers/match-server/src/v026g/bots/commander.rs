@@ -1061,7 +1061,17 @@ impl Bots {
         // [A310 `tdm.squad` S3] The squad target order: with the squads on, fights are answered as `tdm.group`'s (play 21's cover,
         // its default rules), by a free mover of the fighting bot's own squad.
         let squad_on = tuning.tdm.squad.is_some() && !view.objective().has_homes();
-        let by_position = by_position.or_else(|| squad_on.then(tuning::GroupUp::default));
+        // [fix-team 3 `threat.support`] Where the grouping and the squads are off, a mate's fight is answered in every mode by
+        // the support rules (play 21's cover in the fight band, `plays/trade.rs`).
+        let support = tuning.threat.support.filter(|_| by_position.is_none() && !squad_on);
+        let by_position = by_position.or_else(|| squad_on.then(tuning::GroupUp::default)).or(support);
+        // [fix-team 3] A support answers only from a bot whose play is under the objective band: the cover (fight band) could
+        // not take a bot on an objective or an alarm, and the fight would wait for an answerer that never comes.
+        let rank_of = |kind: plays::PlayKind| tuning.plays.get(&kind).map_or_else(|| plays::default_tuning(kind).rank, |play| play.rank);
+        let may_support = |b: &Bot| {
+            support.is_none()
+                || team::may_support(b.assignment.as_ref().map(|a| (a, rank_of(a.kind))), tuning.commit.hold_started, now)
+        };
         let squad_of = |place: Place| -> Option<usize> {
             self.teams[usize::from(team)].squads.as_ref()?.iter().position(|s| s.contains(&place))
         };
@@ -1125,6 +1135,7 @@ impl Bots {
                     .flatten()
                     .filter(|b| b.team == team && !engaged.iter().any(|f| f.mate == b.place))
                     .filter(|b| answer == tuning::Answer::Nearest || !b.assignment.as_ref().is_some_and(|a| group::holds(a.kind)))
+                    .filter(|b| may_support(b))
                     .filter_map(|b| view.place(b.place).filter(|p| p.alive && p.carrying.is_none()).map(|p| (b.place, p.feet)))
                     .collect();
                 if squad_on {
@@ -1301,9 +1312,9 @@ impl Bots {
                 // [fix-team 2] Its held play waits for the interrupter it runs to be over.
                 commits.push((bot.place, team::Commit::Resumes { kind: s.kind, target: s.target }));
             } else if tuning.commit.hold_started
-                && bot.assignment.as_ref().is_some_and(|a| team::held_kind(a.kind, a.target))
+                && bot.assignment.as_ref().is_some_and(|a| team::held(a.kind, a.target, a.since, now))
             {
-                // [fix-team 2] A started raid, job or Breach role, cover of a human or Collect run: held.
+                // [fix-team 2] A started raid, job or Breach role, cover of a human (its first seconds) or Collect run: held.
                 commits.push((bot.place, team::Commit::Held));
             } else if tuning.commit.hold_to_arrival
                 && bot.running.as_ref().is_some_and(plays::Running::travelling)
