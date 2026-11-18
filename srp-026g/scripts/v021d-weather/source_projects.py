@@ -24,7 +24,9 @@ def file_sha256(path):
         return hashlib.file_digest(f, 'sha256').hexdigest()
 
 
-WEATHER_MODE = re.compile(r'v021d_level_(01|02|03|05|06)_(rain|evn)_[24]\t')
+WEATHER_MODE = re.compile(r'v021d_level_0[1-6]_(rain|evn)_[24]\t')
+# The weather packs: the five maps' and Chemical Plant's, made from this export.
+WEATHER_PACK = re.compile(r'maps-021d-(chemical-)?weathers@')
 
 
 def shift_map_counts(text, delta):
@@ -74,14 +76,14 @@ def main():
     rows = build.read_manifest(ROOT / 'release/content.tsv', offered, ROOT)
     weather_rows = 0
     for kind, name, pin, *_ in rows:
-        if kind == 'pack' and name.startswith('maps-021d-weathers@'):
+        if kind == 'pack' and WEATHER_PACK.match(name):
             pack_id, version = name.split('@')
             recipe = args.packs / f'{pack_id}-{version}/pack.json'
             if file_sha256(recipe) != pin:
                 raise RuntimeError('weather pack source pin differs')
             weather_rows += sum(len(op['entries']) for op in json.loads(recipe.read_text())['operations']
                                 if op['op'] == 'dictionary_add' and op['table'] == 'maps_dict')
-    rows = [r for r in rows if not (r[0] == 'pack' and r[1].startswith('maps-021d-weathers@'))
+    rows = [r for r in rows if not (r[0] == 'pack' and WEATHER_PACK.match(r[1]))
             and not (r[0] == 'edit' and r[1].startswith('v021d-weather-'))]
     base_rows = sorted((r for r in rows if r[0] == 'base'),
                        key=lambda r: int(build.PATCH.match(r[1]).group(1)))
@@ -101,7 +103,7 @@ def main():
                     if path.startswith('projects/v021d_level_') and '/day_' in path
                     or path.startswith('gameplay/game_modes/v021d_level_') and '_day_' in path
                     or path == 'gameplay/db_static_dictionaries'}
-        levels = {'01', '02', '03', '05', '06'}
+        levels = {'01', '02', '03', '04', '05', '06'}
         required = {f'projects/v021d_level_{level}/day_{mode}/client_project'
                     for level in levels for mode in (2, 4)}
         if missing := required - selected.keys():

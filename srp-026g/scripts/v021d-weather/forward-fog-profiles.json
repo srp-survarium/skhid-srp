@@ -1,6 +1,6 @@
 {
   "id": "three-maps-021-lighting",
-  "version": "5",
+  "version": "6",
   "donor_sha256": "e28cc2878e0e2f04ab9ab0a1861034622af487a491bf230ea24f44e9af9715a4",
   "target_sha256": "c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c",
   "profiles": [
@@ -63,6 +63,18 @@
     {
       "project": "projects/level_01/evening/client_project",
       "marker": -32285.0
+    },
+    {
+      "project": "projects/level_04/day/client_project",
+      "marker": -32287.0
+    },
+    {
+      "project": "projects/level_04/rain/client_project",
+      "marker": -32289.0
+    },
+    {
+      "project": "projects/level_04/evening/client_project",
+      "marker": -32291.0
     }
   ]
 }

@@ -64,7 +64,7 @@ SPECS={
 def main():
  ap=argparse.ArgumentParser()
  for k in ['porter','donor','stock','pack','profiles','patches','patch_cache','shader_indexer']:ap.add_argument('--'+k.replace('_','-'),type=Path,required=True)
- ap.add_argument('--patch',type=Path);a=ap.parse_args();manifest=json.loads((a.pack/'pack.json').read_text());specs=json.loads(a.profiles.read_text())['profiles'];assert len(specs)==15
+ ap.add_argument('--patch',type=Path);a=ap.parse_args();manifest=json.loads((a.pack/'pack.json').read_text());specs=json.loads(a.profiles.read_text())['profiles'];assert specs and len(specs)%3==0
  assert manifest['id']=='v021d-forward-fog' and manifest['version']=='2' and manifest['operations']
  expected_observed={
  'shaders/sm_4_0/forward_base.ps/______0________1_010__1________0_0______________1__0_0_0________0__':'11a0d17017593951bf8c850e2a5b5f7646413f03a196a1b236995822f5c88028',
@@ -95,7 +95,7 @@ def main():
  assert provenance['published_manifest_sha256']==hashlib.sha256(a.patches.read_bytes()).hexdigest()
  used={effective[path][0].name for path in expected}
  assert {r['archive']:r['sha256'] for r in provenance['used_archives']}=={name:archive_pins[name] for name in used}
- markers={struct.unpack('<I',struct.pack('<f',s['marker']))[0]:s for s in specs};assert len(markers)==15
+ markers={struct.unpack('<I',struct.pack('<f',s['marker']))[0]:s for s in specs};assert len(markers)==len(specs)
  with tempfile.TemporaryDirectory() as tmp:
   cache={}
   def read(db,path):
@@ -133,5 +133,5 @@ def main():
     else:assert body[-1]==(0x05000036,0x00100012,0,0x0010000a,oldtemp);body=body[:-1]
     assert body==[mapped(op,oldtemp,profile,globals) for op in ops(original)[start:end]],'original fog block changed'
    unique.add(hashlib.sha256(new).hexdigest());coverage[family]=coverage.get(family,0)+1
-  print(json.dumps(dict(status='PASS',families=coverage,effective_layers=len(layers),effective_forward_paths=len(effective),aliases=len(operations),unique_programs=len(unique),all15_scene_guards=True,unmarked_native_instructions='byte-identical',original_fog_blocks='exact after established register/schema bindings',composed=a.patch is not None),indent=2))
+  print(json.dumps(dict(status='PASS',families=coverage,effective_layers=len(layers),effective_forward_paths=len(effective),aliases=len(operations),unique_programs=len(unique),scene_guards=len(markers),unmarked_native_instructions='byte-identical',original_fog_blocks='exact after established register/schema bindings',composed=a.patch is not None),indent=2))
 if __name__=='__main__':main()

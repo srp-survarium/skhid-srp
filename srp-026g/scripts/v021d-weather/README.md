@@ -1,7 +1,7 @@
-# Five 0.21 map weathers
+# The 0.21 maps' weathers
 
-Rain and evening for Rudnya, School, Vostok Radar, Tarakanovsky Fort and
-Mamayev Kurgan. Each has Protective device (mode 2) and Team Deathmatch
+Rain and evening for Rudnya, School, Vostok Radar, Chemical Plant,
+Tarakanovsky Fort and Mamayev Kurgan. Each has Protective device (mode 2) and Team Deathmatch
 (mode 4). Resource-porter commit `a9d8e64` on `port/v021d-five-weathers` makes
 `maps-021d-weathers@2` and `three-maps-021-lighting@5` together.
 
@@ -10,6 +10,7 @@ Mamayev Kurgan. Each has Protective device (mode 2) and Team Deathmatch
 | Rudnya | 262 / 263 | 264 / 265 |
 | School | 1 / 2 | 3 / 4 |
 | Vostok Radar | 170 / 171 | 172 / 173 |
+| Chemical Plant | 268 / 269 | 270 / 271 |
 | Tarakanovsky Fort | 5 / 6 | 7 / 8 |
 | Mamayev Kurgan | 179 / 180 | 253 / 254 |
 

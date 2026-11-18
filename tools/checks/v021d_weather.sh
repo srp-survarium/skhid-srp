@@ -13,7 +13,7 @@ python3 srp-026g/scripts/v021d-weather/source_projects.py \
 python3 srp-026g/scripts/v021d-weather/make_geometry.py \
     --donor "$common/private/v021d-five-weathers/donor-layout" \
     --imported "$common/private/v021d-five-weathers/geometry-import" \
-    --pack "$SKHID_PACKS_DIR/maps-021d-weathers-2" \
+    --pack "$SKHID_PACKS_DIR/maps-021d-weathers-2" --pack "$SKHID_PACKS_DIR/maps-021d-chemical-weathers-1" \
     --out "$CHECK_WORK/geometry.json" --provenance "$CHECK_WORK/geometry-inputs.json"
 cmp "$CHECK_WORK/geometry.json" srp-026g/scripts/content-edit/v021d-weather-geometry-1.json
 cmp "$CHECK_WORK/geometry-inputs.json" srp-026g/scripts/v021d-weather/geometry-inputs.json
@@ -85,10 +85,10 @@ python3 srp-026g/scripts/v021d-weather/check_forward_fog.py \
     --profiles srp-026g/scripts/v021d-weather/forward-fog-profiles.json \
     --patches release/patches.tsv --patch-cache "$cache/patches" \
     --shader-indexer "$common/private/v021d-five-weathers/bin/shader-digests" \
-    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-forward-fog-2"
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-forward-fog-3"
 layers+=(--donor-patch "${candidate[0]}" --target-patch "${candidate[0]}")
 roots=()
-for level in 01 02 03 05 06; do
+for level in 01 02 03 04 05 06; do
     for weather in rain evening; do
         for mode in 2 4; do
             roots+=(--root "projects/v021d_level_$level/${weather}_$mode/client_project")
