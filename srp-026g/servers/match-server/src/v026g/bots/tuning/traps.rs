@@ -53,7 +53,8 @@ pub struct TrapTuning {
     /// team did not know).
     pub promise_match: PromiseMatch,
     /// [A324] Where the habit counts a released trap as lying, and so when it lets the key go. The client places a trap on
-    /// the key's release where a ray from the head along the view meets the walk geometry within 2.0 m, on flat ground only
+    /// the key's release where a ray from the head along the view meets the walk geometry (the walker's objects, not the
+    /// bullet mesh: `Tactics::trap_mesh`) within 2.0 m, on flat ground only
     /// (normal.y at least cos 30 deg), not on another trap's sensor (`try_to_place_trap` 0x305EA0, `docs/notes/bear_traps.md`,
     /// PROVEN); otherwise nothing is placed and the trap stays in the pocket. `plane` (the old value) met the flat plane at the
     /// planned spot's height: on the farming-camper bench 15 of 54 releases (28 %) put no trap down while the bot counted its
@@ -317,8 +318,8 @@ pub enum TrapRelease {
     /// The head ray meets the flat plane at the planned spot's height: the old guess, which releases where the client
     /// places nothing.
     Plane,
-    /// The client's rule on the map's mesh: the head ray within 2.0 m, flat ground, no known trap's sensor; the key is held
-    /// back (the look goes on) where the client would refuse.
+    /// The client's rule on the map's walker mesh (`Tactics::trap_mesh`): the head ray within 2.0 m, flat ground, no known
+    /// trap's sensor; the key is held back (the look goes on) where the client would refuse.
     #[default]
     Client,
 }
