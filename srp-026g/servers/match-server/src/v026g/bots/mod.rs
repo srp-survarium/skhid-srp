@@ -329,6 +329,8 @@ pub struct Bot {
     personality: usize,
     /// The skill it took at its last spawn.
     skill: f32,
+    /// [fix-team 5] Its life's key for the advanced tactics split by lives (`signals::life_key`).
+    life_key: u64,
     /// Its map side (the spawns' team it first came out of).
     side: Option<i32>,
     /// Where its first life began: the side is read from it when the map comes after that spawn (a map built
@@ -634,6 +636,7 @@ impl Bot {
             camp_lanes: Arc::from(Vec::new()),
             personality,
             skill: tuning.skill.of_tier(BotTier::default()).start,
+            life_key: 0,
             side: None,
             first_feet: None,
             running: None,
@@ -1207,7 +1210,6 @@ impl Bots {
             features: TeamFeatures::default(),
             squads: None,
             suspended: Vec::new(),
-            confidence: Default::default(),
         };
         let bots = teams
             .iter()
@@ -2231,6 +2233,7 @@ impl Bots {
             bot.sent_keys = 0;
             bot.end_route(RouteEnd::NewLife, time);
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
+            bot.life_key = signals::life_key(self.static_seed, place, time);
             #[cfg(test)]
             {
                 bot.bench_life = Some(life_start::Life::new(time));
@@ -2477,7 +2480,7 @@ impl Bots {
                     }
                 }
             }
-            let keys = stuck::unstick_keys(recovery, ledge.is_some(), escape, jump);
+            let keys = stuck::unstick_keys(recovery, ledge.is_some(), escape);
             match recovery {
                 Recovery::BackOff => {
                     bot.unstick = Some((keys, ticks(&mut bot.rng, (0.5, 0.8))));

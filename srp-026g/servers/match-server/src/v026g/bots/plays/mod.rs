@@ -491,6 +491,9 @@ pub enum Step {
 #[derive(Clone, Debug)]
 pub struct BotFacts<'a> {
     pub personality: &'a Personality,
+    /// [fix-team 5] The skill it took at its last spawn (`Bot::skill`): what the advanced tactics' shares read
+    /// ([`advanced`], `SkillTactics`).
+    pub skill: f32,
     /// The kind of its weapon 1 (`Bot::weapon`), where known.
     pub weapon: Option<WeaponKind>,
     /// The kind of every place's weapon 1 as the match knows it (`Bots::set_weapons`): the sniper the team sensed is
@@ -1648,8 +1651,47 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     trap_spot::candidates(cx, out);
     behind_holds(cx, out);
     squad_holds(cx, out);
+    skill_shares(cx, out);
     #[cfg(test)]
     super::bench_work::add(super::bench_work::Work::Plays, (out.len() - scored_before) as u64);
+}
+
+/// [fix-team 5] The advanced tactic a candidate of `kind` on `target` is (`LOSING-TEAM-ROOT-CAUSE.md` §6.4 T1-T5), if it is
+/// one: a flank or a crossfire of the bot's own (a job's flanker or pinner and a Breach's pin are on a held spot: team play,
+/// not scaled), a cut or an ambush, a sneak, the answer to a sniper.
+pub fn advanced(kind: PlayKind, target: TargetRef) -> Option<crate::v026g::bots::tuning::Tactic> {
+    use crate::v026g::bots::tuning::Tactic;
+    match (kind, target) {
+        (PlayKind::Flank | PlayKind::Crossfire, TargetRef::ThreatSpot(_)) => None,
+        (PlayKind::Flank, _) => Some(Tactic::Flank),
+        (PlayKind::Crossfire, _) => Some(Tactic::Crossfire),
+        (PlayKind::Cut | PlayKind::Ambush, _) => Some(Tactic::Cut),
+        (PlayKind::Sneak, _) => Some(Tactic::Sneak),
+        (PlayKind::Answer, _) => Some(Tactic::Answer),
+        _ => None,
+    }
+}
+
+/// [fix-team 5 `skill.tactics`] The advanced tactics' candidates scored times their share at the bot's skill (dual utility:
+/// one more weight on the play's own considerations, so a scaled tactic stays in its band; over 1 the miss `1 - score`
+/// is divided by the share instead, so a score stays under 1 and keeps its order). At the design's
+/// `today` (0.6) every share is exactly 1 and nothing changes; the team play is never scaled.
+fn skill_shares(cx: &Ctx, out: &mut [Candidate]) {
+    let Some(tactics) = cx.tuning.skill.tactics else {
+        return;
+    };
+    for c in out.iter_mut() {
+        let Some(tactic) = advanced(c.kind, c.target) else {
+            continue;
+        };
+        let share = tactics.share(tactic, cx.bot.skill);
+        if share < 1.0 {
+            c.score = Score::new(c.score.get() * share);
+        } else if share > 1.0 {
+            // [review of #2189] Over 1 the miss shrinks instead: monotone, at most 1, no ties at the cap, the score itself at 1.
+            c.score = Score::new(1.0 - (1.0 - c.score.get()) / share);
+        }
+    }
 }
 
 /// [A310 `tdm.squad` S2] A squad member's holds: within the radius of its living leader `with_anchor` times, farther `away`

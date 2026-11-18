@@ -16,8 +16,6 @@ pub(super) struct TeamState {
     /// [fix-team 2 `commit.hold_started`] Its bots' held plays an interrupter suspended (`team::Commit::Resumes`): one a bot
     /// at most, kept while the bot's play is the interrupter's (`team::INTERRUPT_REASON`), gone with the bot's life.
     pub(super) suspended: Vec<team::Suspended>,
-    /// [fix-team 4 `mods.comeback`] Its confidence, faded (`team::Confidence`).
-    pub(super) confidence: team::Confidence,
 }
 
 /// [A391] A Breach that went: its spot and its bots.
@@ -924,9 +922,6 @@ impl Bots {
         let exact = tuning.cheats.enemy_respawn_exact;
         let back = |p: &PlaceView| tuning.think.respawn_times && tracker.back(view, team, p, exact);
         state.signals = MatchSignals::read_full_at(view, team, since_theft, back, tuning.tdm.gap_full_tickets.map(|t| t.get()));
-        if let Some(rule) = tuning.mods.comeback {
-            state.confidence = state.confidence.read(state.signals.alive_ours, state.signals.alive_theirs, now, rule.fade_s);
-        }
         state.mods.update(&state.signals, &tuning.mods);
         // A team that can no longer respawn (Team Deathmatch, its tickets
         // out) plays it safe.
@@ -1344,19 +1339,63 @@ impl Bots {
                 }
             }
         }
-        // [fix-team 4 `mods.comeback`] By the team's faded confidence: outnumbered, no new attack (a running one goes on);
-        // decimated, a running one is let go too (Killzone 3's decimated attack reported up; Days Gone's fall back).
-        if let Some(rule) = tuning.mods.comeback
-            && let Some(confidence) = state.confidence.ratio()
-        {
-            let gate = rule.gate(confidence);
-            if gate != tuning::AttackGate::Open {
-                for (_, candidates, current) in &mut asked {
-                    let before = candidates.len();
-                    let running = |c: &plays::Candidate| current.as_ref().is_some_and(|a| a.kind == c.kind && a.target == c.target);
-                    candidates.retain(|c| !team::attack(c.kind) || (gate == tuning::AttackGate::NoStart && running(c)));
-                    team::comeback_counts::add(team::comeback_counts::Count::AttacksHeldBack, (before - candidates.len()) as u64);
+        // [fix-team 4 `mods.comeback`] By each attack's local confidence: outnumbered there, no new attack (a running one goes
+        // on); its group decimated or the target held by clearly more known enemies, a running one is let go too (Killzone 3's
+        // decimated attack reported up; Days Gone's fall back).
+        if let Some(rule) = tuning.mods.comeback {
+            let container_at = |target: plays::TargetRef| match target {
+                plays::TargetRef::Container(id) => view.containers.iter().find(|k| k.id == id).map(|k| k.at),
+                _ => None,
+            };
+            let mates: Vec<(Place, Vec3)> = view.team(team).filter(|p| p.alive).map(|p| (p.place, p.feet)).collect();
+            let raiders: Vec<(Place, Vec3, Vec3)> = asked
+                .iter()
+                .filter_map(|(place, _, current)| {
+                    let a = current.as_ref().filter(|a| team::attack(a.kind))?;
+                    Some((*place, view.place(*place).filter(|p| p.alive)?.feet, container_at(a.target)?))
+                })
+                .collect();
+            // The enemies the team knows by its own senses (sight, hearing, callouts), each where it last had him.
+            let mut known: Vec<(Place, Vec3, u32)> = Vec::new();
+            for bot in self.bots.iter().flatten().filter(|b| b.team == team) {
+                for t in bot.memory.tracks() {
+                    if let Some((at, time)) = t.own {
+                        match known.iter_mut().find(|k| k.0 == t.who) {
+                            Some(k) if k.2 < time => *k = (t.who, at, time),
+                            Some(_) => {}
+                            None => known.push((t.who, at, time)),
+                        }
+                    }
                 }
+            }
+            let enemies: Vec<Vec3> = known.iter().map(|k| k.1).collect();
+            // The kill feed's deaths: an enemy's is our kill, ours a loss.
+            let (mut kills, mut losses) = (Vec::new(), Vec::new());
+            for d in &view.deaths {
+                match view.place(d.place).map(|p| p.team == team) {
+                    Some(true) => losses.push((d.at, d.time)),
+                    Some(false) => kills.push((d.at, d.time)),
+                    None => {}
+                }
+            }
+            let picture = team::AttackPicture { mates: &mates, raiders: &raiders, enemies: &enemies, kills: &kills, losses: &losses, now };
+            for (place, candidates, current) in &mut asked {
+                let Some(feet) = view.place(*place).map(|p| p.feet) else {
+                    continue;
+                };
+                let before = candidates.len();
+                candidates.retain(|c| {
+                    let Some(target) = container_at(c.target).filter(|_| team::attack(c.kind)) else {
+                        return true;
+                    };
+                    let running = current.as_ref().is_some_and(|a| a.kind == c.kind && a.target == c.target);
+                    match rule.gate(team::local_confidence(&picture, *place, feet, target, &rule)) {
+                        tuning::AttackGate::Open => true,
+                        tuning::AttackGate::NoStart => running,
+                        tuning::AttackGate::Drop => false,
+                    }
+                });
+                team::comeback_counts::add(team::comeback_counts::Count::AttacksHeldBack, (before - candidates.len()) as u64);
             }
         }
         // [A296 item 2, `mods.team_plan`] The team's plan from its standing and the time left re-weighs every bot's candidates.
@@ -1484,6 +1523,7 @@ impl Bots {
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
+                    skill: bot.skill,
                     weapon: bot.weapon(&self.features.weapons, &tuning),
                     weapons: &self.features.weapons,
                     side: bot.side,
@@ -1667,6 +1707,7 @@ fn bot_facts<'a>(
 ) -> BotFacts<'a> {
     BotFacts {
         personality: bot.personality(tuning),
+        skill: bot.skill,
         weapon: bot.weapon(weapons, tuning),
         weapons,
         side: bot.side,

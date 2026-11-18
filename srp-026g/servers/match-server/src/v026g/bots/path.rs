@@ -1739,6 +1739,13 @@ impl Route {
         self
     }
 
+    /// This route with a riser up (tests of the walk).
+    #[cfg(test)]
+    pub fn with_riser(mut self, riser: RiserUp) -> Self {
+        self.risers.push(riser);
+        self
+    }
+
     /// This route's rule for a body under a walked leg ([`OFF_WALK_BELOW_M`]).
     pub fn set_below_walk(&mut self, metres: f32) {
         self.below_walk_m = metres;
