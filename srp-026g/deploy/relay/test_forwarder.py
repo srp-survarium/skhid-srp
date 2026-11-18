@@ -29,6 +29,19 @@ class WireTests(unittest.TestCase):
         self.assertTrue(peers.contains('a', 122))
         self.assertFalse(peers.contains('b', 122))
 
+    def test_one_address_cannot_hold_every_slot(self):
+        slots = f.Slots(limit=3, each=2)
+        self.assertTrue(slots.take('a'))
+        self.assertTrue(slots.take('a'))
+        self.assertFalse(slots.take('a'))
+        self.assertTrue(slots.take('b'))
+        self.assertFalse(slots.take('c'))
+        slots.free('a')
+        self.assertTrue(slots.take('c'))
+        for ip in 'abc':
+            slots.free(ip)
+        self.assertEqual(slots.held, {})
+
     def test_budget(self):
         budget = f.Budget(rate=2, burst=2)
         self.assertTrue(budget.take('a', 0))
@@ -124,6 +137,47 @@ class SocketTests(unittest.IsolatedAsyncioTestCase):
             writer.close()
             await writer.wait_closed()
         finally:
+            relay.close()
+            origin.close()
+            await relay.wait_closed()
+            await origin.wait_closed()
+
+    async def test_a_closed_connection_gives_its_slot_back(self):
+        async def backend(reader, writer):
+            await reader.readexactly(28)
+            while data := await reader.read(16):
+                writer.write(data)
+                await writer.drain()
+            writer.close()
+        origin = await asyncio.start_server(backend, '127.0.0.1', 0)
+        login = f.Login('203.0.113.4', '127.0.0.1', origin.sockets[0].getsockname()[1])
+        login.slots = f.Slots(limit=8, each=1)
+        relay = await asyncio.start_server(login.accept, '127.0.0.1', 0)
+        port = relay.sockets[0].getsockname()[1]
+        opened = []
+        async def echo(source):
+            """The byte back, or nothing from a relay that closed at once."""
+            reader, writer = await asyncio.open_connection('127.0.0.1', port, local_addr=(source, 0))
+            opened.append(writer)
+            try:
+                writer.write(b'x')
+                await writer.drain()
+                return await asyncio.wait_for(reader.read(1), 2)
+            except ConnectionError:
+                return b''
+        try:
+            self.assertEqual(await echo('127.0.0.1'), b'x')
+            self.assertEqual(await echo('127.0.0.1'), b'')
+            self.assertEqual(await echo('127.0.0.2'), b'x')
+            opened[0].close()
+            for _ in range(5):
+                if again := await echo('127.0.0.1'):
+                    break
+                await asyncio.sleep(0.1)
+            self.assertEqual(again, b'x')
+        finally:
+            for writer in opened:
+                writer.close()
             relay.close()
             origin.close()
             await relay.wait_closed()
