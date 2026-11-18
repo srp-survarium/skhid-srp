@@ -517,8 +517,18 @@ pub struct GapStats {
     /// … the gaps found and their groups (a metre of edge, way, levels; at most two of a group flown).
     pub gaps: usize,
     pub groups: usize,
-    /// … and the clip pass's pressed links kept where no flown press covers their group (unflown, priced as before).
+    /// … and the clip pass's pressed links kept where no flown press covers their group, unflown (0 with `gap_flights`: each
+    /// is proven first, [F1]).
     pub clip_kept: usize,
+    /// [F1] With `gap_flights`: the groups of clip pass presses no flown link covers, flown over every client press onto their
+    /// own landing top (`gap_flown`'s `prove_clip_presses`) …
+    pub clip_tried: usize,
+    /// … kept with a flown press that lands there …
+    pub clip_proven: usize,
+    /// … left with no pressed link: no client press lands there …
+    pub clip_unlanded: usize,
+    /// … in this many flights (not in [`Self::flights`]).
+    pub clip_flights: usize,
     /// [R83] Groups no press on the line made, one of whose flights came near the landing, flown again aimed
     /// ([`WalkGrid::best_aimed`]) …
     pub aimed_tried: usize,
@@ -549,6 +559,10 @@ impl GapStats {
         self.flown += o.flown;
         self.gaps += o.gaps;
         self.clip_kept += o.clip_kept;
+        self.clip_tried += o.clip_tried;
+        self.clip_proven += o.clip_proven;
+        self.clip_unlanded += o.clip_unlanded;
+        self.clip_flights += o.clip_flights;
         self.groups += o.groups;
         self.flights += o.flights;
         for (m, o) in self.by_share.iter_mut().zip(o.by_share) {
