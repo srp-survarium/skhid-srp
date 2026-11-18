@@ -3297,22 +3297,24 @@ fn meets_from_fetch(cx: &Ctx, at: Vec3, stand: Vec3) -> bool {
     let lead = meet_aim(eye, at);
     let across = eye.distance_xz(at);
     let meet = eye.distance_xz(lead).min(across);
-    let speed = cx.me.velocity[0].hypot(cx.me.velocity[1]);
+    // At least the walk's forward speed (`Kinematics::walk`): a body slowing from a sprint to this stretch's walk would
+    // shrink the window about as fast as it closes the distance, and the look would come and go.
+    let speed = cx.me.velocity[0].hypot(cx.me.velocity[1]).max(cx.tuning.kin.walk[0]);
     let think_s = cx.tuning.think.think_ms.1 as f32 / 1000.0;
     across - meet <= speed * (think_s + look_turn_s(cx, eye, lead))
 }
 
-/// [take.on_the_move, F7] How long the motor's view takes from the bot's view now onto the look at `p` from `eye`, to within
-/// the battery's inner ball seen from the reach's edge ([`BATTERY_INNER_M`] over the use ray less it), s: the motor eases
-/// the remaining angle at `left / turn_time_s` (`motor::Motor::turn_fed`, `Feel::turn_time_s`), an exponential with that
-/// time constant, so `turn_time_s ln(angle / tolerance)`.
+/// [take.on_the_move, F7] How long the motor's view takes from a level view along the bearing (the walk's own look, along its
+/// way) onto the look at `p` from `eye`, to within the battery's inner ball seen from the reach's edge ([`BATTERY_INNER_M`]
+/// over the use ray less it), s: the motor eases the remaining angle at `left / turn_time_s` (`motor::Motor::turn_fed`,
+/// `Feel::turn_time_s`), an exponential with that time constant, so `turn_time_s ln(angle / tolerance)`. From the level view,
+/// not the view now: read from the view now, the time fell to nothing once the view was on the lead, the window shut, the
+/// fetch let the look go for a think and took it up again too late (the full-loop test at a sprint's 5 m/s, 2026-11-19).
 fn look_turn_s(cx: &Ctx, eye: Vec3, p: Vec3) -> f32 {
-    use crate::v026g::bots::kin::{wrap, yaw_of};
     let to = p - eye;
-    let yaw = wrap(yaw_of([to.x, to.z]) - cx.me.yaw);
-    let pitch = to.y.atan2(to.x.hypot(to.z)) - cx.me.pitch;
+    let angle = to.y.atan2(to.x.hypot(to.z)).abs();
     let tolerance = BATTERY_INNER_M / (view::use_ray_m() - BATTERY_INNER_M);
-    cx.tuning.feel.turn_time_s * (yaw.hypot(pitch).max(tolerance) / tolerance).ln()
+    cx.tuning.feel.turn_time_s * (angle.max(tolerance) / tolerance).ln()
 }
 
 /// [take.on_the_move] The walk in of a take's first press: to the battery's stand ([`Tactics::stand_to_take`]) upright at
