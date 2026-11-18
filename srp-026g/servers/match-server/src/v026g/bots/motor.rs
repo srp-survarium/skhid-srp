@@ -1325,7 +1325,7 @@ fn flown_press_off(ahead: &Ahead, pose: &Pose, along: f32) -> Option<FlownOff> {
         Leap::Gap(GapPress { lead, .. }) | Leap::SprintGap(SprintPress { lead, .. }) => lead.metres(),
         Leap::Ledge | Leap::SprintLedge => 0.0,
     };
-    if (ahead.before - along.max(0.0) * TICK_S - lead).abs() > FlownWindow::LEAD_M {
+    if lead_off(ahead.before - along.max(0.0) * TICK_S, lead, ahead.leap.window()) {
         return Some(FlownOff::Lead);
     }
     match ahead.leap {
@@ -1334,18 +1334,42 @@ fn flown_press_off(ahead: &Ahead, pose: &Pose, along: f32) -> Option<FlownOff> {
     }
 }
 
+/// [F3, the coordinator's option (1)] Whether a jump whose first step starts `at` m before the take-off is off the leads its press
+/// lands from: the stored window's span ([`mapdata::grid::gap::TakeoffWindow::lead_m`], the run of landing lead neighbours through
+/// the press's own) on each side where it has width; on a side where it has none (the 0.1 m neighbour there does not land: a
+/// knife edge the grid does not price yet) today's [`FlownWindow::LEAD_M`]. No window (unflown): today's either side.
+fn lead_off(at: f32, lead: f32, window: Option<mapdata::grid::gap::TakeoffWindow>) -> bool {
+    let (least, most) = window.map_or((lead, lead), |w| w.lead_m);
+    let earlier = if most > lead + LEAD_WIDTH_EPS_M { most - lead } else { FlownWindow::LEAD_M };
+    let later = if least < lead - LEAD_WIDTH_EPS_M { lead - least } else { FlownWindow::LEAD_M };
+    let d = at - lead;
+    d > earlier || -d > later
+}
+
+/// [F3] A window side narrower than this has no width (the neighbours are 0.1 m apart; the stored leads are centimetres), m.
+const LEAD_WIDTH_EPS_M: f32 = 0.005;
+
 /// [A386] Why a flown press at the walk cap made now (a route riser's, `drive::riser_gait`) is off the window the grid flew it over
 /// ([`FlownWindow`], as [`flown_press_off`] for a gap's), if it is: `before` the take-off along the way, m; `side` off the line, m;
 /// `above` the take-off's height, m; `along` the speed along the way, m/s; `turn` off the way's heading, rad; `lead` the flown lead,
 /// m. The key acts a step later ([`press_due`]), so the jump's first step starts a step's travel on.
-pub(super) fn cap_press_off(before: f32, side: f32, above: f32, along: f32, turn: f32, lead: f32) -> Option<CapPressOff> {
+#[allow(clippy::too_many_arguments)]
+pub(super) fn cap_press_off(
+    before: f32,
+    side: f32,
+    above: f32,
+    along: f32,
+    turn: f32,
+    lead: f32,
+    window: Option<mapdata::grid::gap::TakeoffWindow>,
+) -> Option<CapPressOff> {
     if above.abs() > FLOWN_RUN_UP_HEIGHT_M {
         Some(CapPressOff::Height)
     } else if side > FlownWindow::SIDE_M {
         Some(CapPressOff::Side)
     } else if turn > FlownWindow::TURN_RAD {
         Some(CapPressOff::Turn)
-    } else if (before - along.max(0.0) * TICK_S - lead).abs() > FlownWindow::LEAD_M {
+    } else if lead_off(before - along.max(0.0) * TICK_S, lead, window) {
         Some(CapPressOff::Lead)
     } else {
         None
@@ -6309,6 +6333,31 @@ mod tests {
 
     fn sprint_link(walk: Option<GapPress>) -> Leap {
         Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk, aim: PressAim::STRAIGHT, after: AfterLanding::LetGo })
+    }
+
+    /// [F3] The lead gate ([`lead_off`]): the stored window's span on each side where it has width, today's 0.2 m elsewhere.
+    #[test]
+    fn the_lead_gate_reads_the_stored_window_where_it_has_width() {
+        use mapdata::grid::gap::{SpeedBand, TakeoffWindow};
+        let window = |least: f32, most: f32| TakeoffWindow {
+            lead_m: (least, most),
+            side_m: (0.15, 0.15),
+            turn_rad: (0.1, 0.1),
+            aim_side_m: 0.0,
+            aim_turn_rad: 0.0,
+            speed: SpeedBand::Walk,
+            fastest_kit: true,
+        };
+        let lead = 0.6;
+        // None stored: today's 0.2 m either side.
+        assert!(!lead_off(0.79, lead, None) && lead_off(0.81, lead, None) && !lead_off(0.41, lead, None) && lead_off(0.39, lead, None));
+        // The 0.1 m earlier neighbour lands, the 0.2 m one does not: 0.1 m earlier; later the whole 0.2 m.
+        let w = Some(window(0.4, 0.7));
+        assert!(!lead_off(0.69, lead, w) && lead_off(0.71, lead, w));
+        assert!(!lead_off(0.41, lead, w) && lead_off(0.39, lead, w));
+        // No width later (the 0.1 m later neighbour does not land): today's 0.2 m that side, not a knife edge at the lead.
+        let w = Some(window(0.6, 0.8));
+        assert!(!lead_off(0.41, lead, w) && lead_off(0.39, lead, w) && !lead_off(0.79, lead, w));
     }
 
     /// [A386] [`press_due`]: the key moves the body a step later (`StepInput::Previous`), so the press is the tick whose next
