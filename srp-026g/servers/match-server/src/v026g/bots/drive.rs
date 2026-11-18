@@ -705,9 +705,9 @@ fn drive_tick_inner(
         urgent: urgent || tuning.feel.view_rule == motor::ViewRule::Free,
         walking,
     };
-    let (view, take) = before.step(ask, time);
-    bot.view = view;
-    match (before, view, take) {
+    let (looked, take) = before.step(ask, time);
+    bot.view = looked;
+    match (before, looked, take) {
         (_, view_schedule::View::Glance { .. }, view_schedule::Take::Look) if !matches!(before, view_schedule::View::Glance { .. }) => {
             view_schedule::counts::add(view_schedule::counts::BEGUN);
         }
