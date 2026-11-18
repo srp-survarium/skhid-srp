@@ -1,0 +1,245 @@
+{
+ "_about": "The main-building corridor Electras of 0.21d Radar (v021d_level_03) hit the legs only, as 0.26g Vostok does: remove body from the six corridor zones. The transformer field anomaly/electro/electric_hit_damage_zone keeps its original 0.21d pulse: 0.9 every 2 s on body, head, both feet and both arms. The prior edit incorrectly applied corridor feet-only tuning to that lethal field too; corrected after the owner tested Vostok v0.11 on 2026-11-12.",
+ "set_entry": [
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/entarance/elctro_damage_zone(2)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/entarance/elctro_damage_zone(3)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_2/elctro_damage_zone"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_2/elctro_damage_zone(1)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_1/elctro_damage_zone"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_1/elctro_damage_zone(1)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/entarance/elctro_damage_zone(2)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/entarance/elctro_damage_zone(3)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_2/elctro_damage_zone"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_2/elctro_damage_zone(1)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_1/elctro_damage_zone"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  },
+  {
+   "file": "projects/v021d_level_03/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "anomaly/random_anomalies/antena/coridor_1/elctro_damage_zone(1)"
+   },
+   "from": {
+    "max_hit": 0.6,
+    "interval_in_msec": 1000,
+    "hit_parts_filter[0]": "body",
+    "hit_parts_filter[1]": "right_foot",
+    "hit_parts_filter[2]": "left_foot"
+   },
+   "to": {
+    "hit_parts_filter": [
+     "right_foot",
+     "left_foot"
+    ]
+   }
+  }
+ ]
+}

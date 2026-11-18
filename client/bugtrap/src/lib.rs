@@ -2,7 +2,7 @@
 
 #[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 compile_error!(
-    "This DLL implements the native ANSI Win32 BugTrap ABI; build for i686-win7-windows-msvc."
+    "This DLL implements the native ANSI Win32 BugTrap ABI; build for i686-pc-windows-msvc."
 );
 
 mod api;
@@ -16,6 +16,7 @@ mod logs;
 mod notice;
 mod notice_text;
 mod report;
+mod run_name;
 mod sanitize;
 // The updater's SHA-256, for the game exe's hash in the crash report.
 #[allow(dead_code)]

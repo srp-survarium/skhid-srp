@@ -2,7 +2,7 @@
 //! cull (`player_draw.cull`) and the bones made (`player_draw.bones`).
 //! What each site's registers hold is said here, once.
 
-use super::context::{Context, Flag, Flow, NoExit, Reg};
+use super::context::{Context, Flag, Flow, Reg};
 use super::world::{Player, Skeleton, floats, read};
 use crate::raw;
 
@@ -63,9 +63,16 @@ pub fn culled_player<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
 
 /// The cull's way for a player drawn whatever its model was last seen as:
 /// ZF set (the `je` after the span draws), the compare skipped.
-pub fn draw_anyway(ctx: &mut Context<'_>) -> Flow<NoExit> {
+pub fn draw_anyway<E>(ctx: &mut Context<'_>) -> Flow<E> {
     ctx.set_flag(Flag::Zf, true);
     Flow::Skip
+}
+
+/// Whether the game culls this player at `player_draw.cull`: its model not
+/// seen the last frame (+0F4E2h) and an item to switch to (+12Ch), as the
+/// `je` after the span and the `jne 0x24758C` read them.
+pub fn game_culls(player: &Player<'_>) -> bool {
+    player.not_seen() && player.switching()
 }
 
 /// mt_draw's bones at `player_draw.bones` (the player and mt_draw's frame):

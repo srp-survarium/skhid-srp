@@ -9,7 +9,7 @@ package survarium.player
    // speeds the player up and red slows them down, as the item cards' rows
    // (ModificationRolls.style) (WeightEffects, SpeedParts; docs/notes/data.md
    // "The kit's movement speed").
-   public final class SpeedExplanation implements IEffectRows
+   public final class SpeedExplanation implements IKitStat
    {
       private var _weight:Number;
       private var _parts:SpeedParts;
@@ -23,6 +23,7 @@ package survarium.player
       }
       public function get total() : Number { return _parts.total(_weight); }
       private function get percent() : Number { return Math.round(total * 100); }
+      public function get label() : String { return LocalizationData.getName("st_srp_speed_label"); }
       // The total as the box beside the weight shows it: its text, and its style's name
       // in the lobby's style sheet (coral below 100 %, green above: the weight's).
       public function get value() : String

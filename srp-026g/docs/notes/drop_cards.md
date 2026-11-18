@@ -32,7 +32,7 @@ The rules the code and the tests follow. Code: `crates/session/src/v026g/rewards
   `show_system_message`, so the refusal showed only after the screen closed, as if under it.
   Now a `debug` or `ok` box (the lobby's refusals and errors) is drawn at once over the
   screen (`VictoryScreen.messageOver`), and the message layer is made visible first (a
-  match's loading hides it); so is it for the screen's premium and player windows.
+  match's loading hides it); so is it for the screen's player window.
 - **The slot** (the owner's of 2026-11-07; `VictoryScreen.as`, checked in Ruffle by
   `scripts/drop-card-slot/check.sh`): one state per screen (`setData`), whatever the screen (a
   match just ended or a report reopened from the list) and whatever the match dropped

@@ -13,7 +13,7 @@ package survarium.player
 
    // The greyed Play's and Join's tip (presets.md, the reasons), and the
    // item search's (item-search.md, InventoryList.makeSearch): the game's
-   // tooltip (SrvProfileTipRendererStyled, as Autobuy's).
+   // tooltip (SrvProfileTipRendererStyled).
    // - tipData.name: its text a line a reason, with the left margin as wide
    //   as the right (the owner's of 2026-10-23: "a bit more padding from the
    //   left"). The stock renderer pads the right by 5 more than its margins

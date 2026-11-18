@@ -28,7 +28,10 @@
 //!   its ask) if the match admits players (from its countdown until
 //!   `LOAD_MARGIN` is left), on the side with fewer players in it; of two
 //!   alike in that, the side it played on in that match before, then the
-//!   one that counts for less (`matchmaking_policy::place_joiner`);
+//!   one that counts for less (`matchmaking_policy::place_joiner`); in an
+//!   open room a joiner with a strong player to the side with fewer strong
+//!   players, never more than two players ahead, waiting while that side
+//!   is full (`place_open_joiner`, `place_open_joiner_beside`);
 //!   otherwise it waits for the next match. While it waits it is told why it
 //!   cannot go in now (`late_hold`: a joiner on its way, a game loading,
 //!   the last 30 s, the end, full, a maintenance; the owner's of 2026-10-20).
@@ -40,8 +43,8 @@
 //!   it came in (Play or a join; the owner's of 2026-10-31).
 //! - **Play.** Public rooms start empty and grow with demand: the first
 //!   Play creates an 8 v 8 room in its equipment bracket (up to 10 or 15).
-//!   Full rooms queue newcomers; four ready Play waiters in the same bracket
-//!   open another room. Explicit room queues stay chosen.
+//!   Full rooms queue newcomers; three ready waiters in the same bracket
+//!   (Play's or a public room's Queue alike) open another room.
 //!   Only private rooms may be created by a client.
 //! - **Squads** (two at most; the owner's of 2026-10-31,
 //!   `docs/notes/squads.md`): Play, Join and a queue take the mate along
@@ -95,6 +98,7 @@ use survarium::v026g::lobby::rooms::{
     RoomView,
 };
 use survarium::v026g::lobby::{self, ClientState};
+use survarium::v026g::twist::Played;
 use survarium::v026g::maps;
 
 use super::MAINTENANCE_WINDOW;
@@ -141,7 +145,7 @@ pub struct Config {
     pub max_rooms: usize,
     /// `SRP_ROOMS_EXTRA_MAPS`: playable ids a pool may hold besides the
     /// match pool.
-    pub extra_maps: Vec<u8>,
+    pub extra_maps: Vec<maps::MapId>,
 }
 
 impl Default for Config {
@@ -180,13 +184,13 @@ impl Config {
 }
 
 /// `SRP_ROOMS_EXTRA_MAPS`: playable ids, comma-separated; empty is none.
-fn parse_extra(value: &str) -> Option<Vec<u8>> {
+fn parse_extra(value: &str) -> Option<Vec<maps::MapId>> {
     value
         .split(',')
         .map(str::trim)
         .filter(|id| !id.is_empty())
         .map(|id| {
-            let id: u8 = id.parse().ok()?;
+            let id: maps::MapId = id.parse().ok()?;
             maps::map_mode(id)
                 .filter(|map| map.is_playable())
                 .map(|_| id)
@@ -208,10 +212,10 @@ fn code_of(refused: Refused) -> RoomCode {
 }
 
 /// A room's match being made (`play::launch`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct RoomLaunch {
-    /// The map its vote chose.
-    pub map_id: u8,
+    /// What its vote chose.
+    pub played: Played,
     /// The room's minimum of players (`MatchSetup::room_minimum`).
     pub minimum: u8,
     pub kind: RoomKind,
@@ -239,8 +243,12 @@ struct Ready {
 }
 
 impl Core<'_> {
-    /// The maps a pool may hold, in the order their bits name them: the
-    /// match pool (Blackout's maps too, mode 6), then the experimental maps.
+    /// The maps a pool may hold, in the order their bits name them and the
+    /// create window lists them: the match pool (Blackout's maps too, mode
+    /// 6), then the experimental maps, the STALKER maps of both after every
+    /// other (the owner's of 2026-11-15: "also when creating private rooms,
+    /// stalker maps should be at the bottom of the list"), each part in its
+    /// order.
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -249,21 +257,28 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        pool
+        let mut entries: Vec<(bool, PoolEntry)> = pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
             .filter_map(|(id, extra)| {
                 let map = maps::map_mode(id)?;
-                Some(PoolEntry {
+                let entry = PoolEntry {
                     map_id: id,
                     level: map.level,
                     weather: map.weather,
                     mode: map.mode.lobby_number(),
                     extra,
                     bots: self.settings.pvb.bot_maps.contains(&id),
-                })
+                };
+                Some((map.is_stalker(), entry))
             })
+            .collect();
+        // Stable: the others first, the STALKER maps after, each as it came.
+        entries.sort_by_key(|&(stalker, _)| stalker);
+        entries
+            .into_iter()
+            .map(|(_, entry)| entry)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()
@@ -308,6 +323,18 @@ impl Core<'_> {
             .squads()
             .of(account_id)
             .is_some_and(|squad| squad.commander() != account_id)
+    }
+
+    /// The commander of a soldier that waits in `room` to go into its match:
+    /// the soldier goes in with it, by the commander's turn
+    /// (`late_placement`), never alone.
+    fn waiting_commander(&self, account_id: u32, room: &model::Room) -> Option<u32> {
+        let commander = self.store.squads().of(account_id)?.commander();
+        (commander != account_id
+            && room.members.contains(&commander)
+            && !room.in_match.contains(&commander)
+            && self.room_ready(commander).is_some())
+        .then_some(commander)
     }
 
     /// The mate a commander's Play takes ([`Self::room_mate`]), and the
@@ -629,9 +656,9 @@ impl Core<'_> {
         match self.rooms.start(who.account_id, &mut |bound| {
             rng.below(bound as u32) as usize
         }) {
-            Ok(Due::Start { key, map_id }) => {
+            Ok(Due::Start { key, played }) => {
                 log::info!("{}: started its room {key}'s match", who.name);
-                self.room_start(key, map_id, now);
+                self.room_start(key, played, now);
             }
             Err(refused) => log::info!("{}: Start in a room: refused ({refused:?})", who.name),
         }
@@ -838,7 +865,7 @@ impl Core<'_> {
         bots: bool,
         now: Instant,
     ) -> Result<u32, Refused> {
-        let entries: Vec<u8> = self
+        let entries: Vec<maps::MapId> = self
             .room_entries()
             .iter()
             .map(|entry| entry.map_id)
@@ -846,7 +873,7 @@ impl Core<'_> {
         // The whole pool but the experimental maps: the match pool,
         // Blackout's maps with it (the owner's of 2026-10-25: Blackout
         // is part of the standard pool).
-        let default: Vec<u8> = self
+        let default: Vec<maps::MapId> = self
             .room_entries()
             .iter()
             .filter(|entry| !entry.extra)
@@ -1112,8 +1139,9 @@ impl Core<'_> {
         Ok(key)
     }
 
-    /// Only connected, ready Play users count toward demand. A changed
-    /// loadout is routed again before counting, and explicit queues stay put.
+    /// Only connected, ready waiters count toward demand: Play's and a
+    /// public room's Queue alike. A changed loadout of Play's is routed again
+    /// before counting.
     fn room_scale_queues(&mut self, now: Instant) {
         if self.maintenance_is_near() {
             return;
@@ -1146,7 +1174,7 @@ impl Core<'_> {
                 // its Play takes, `play_party`), by the pair's gear.
                 let waiting: Vec<_> = self
                     .rooms
-                    .play_queue()
+                    .public_queue()
                     .into_iter()
                     .filter_map(|(waiting, _)| {
                         let account_id = waiting.lead();
@@ -1180,7 +1208,7 @@ impl Core<'_> {
                     let _ = self.rooms.join_with(who.account_id, *gear, *mate, key, now);
                 }
                 log::info!(
-                    "Room {key}: opened for queued Play users, max level {}",
+                    "Room {key}: opened for queued players, max level {}",
                     bracket.max_level()
                 );
             }
@@ -1273,39 +1301,21 @@ impl Core<'_> {
     }
 
     /// Who is in the room of that key, for anyone looking at the list (the
-    /// owner's of 2026-10-20), each with its side while it plays the room's
-    /// match: the team of its latest place in the match's roster. Nobody: the
-    /// room is gone.
+    /// owner's of 2026-10-20), never by side: in every mode and state the
+    /// room's players as at its vote, those in its match marked (the owner's
+    /// of 2026-11-13: "always like at voting", "just what players are in the
+    /// game"). Nobody: the room is gone.
     fn room_members(&self, who: &Who, key: u32) -> Vec<ListMember> {
         let Some(room) = self.rooms.get(key) else {
             return Vec::new();
-        };
-        let formed = match room.stage {
-            Stage::InMatch { match_id, .. } => self.store.matchmaking().formed_match(match_id),
-            _ => None,
         };
         let unix = quests::now();
         let marks = self.room_squad_marks(room);
         room.members
             .iter()
-            .map(|&account_id| {
-                let member = self.room_member(who, room, account_id, &marks, unix);
-                let side = formed
-                    .as_ref()
-                    .filter(|_| member.in_match)
-                    .and_then(|formed| {
-                        formed
-                            .seats
-                            .iter()
-                            .rev()
-                            .find(|seat| seat.player.account_id == account_id)
-                    })
-                    .map(|seat| seat.team);
-                ListMember {
-                    member,
-                    side,
-                    account_id,
-                }
+            .map(|&account_id| ListMember {
+                member: self.room_member(who, room, account_id, &marks, unix),
+                account_id,
             })
             .collect()
     }
@@ -1343,14 +1353,14 @@ impl Core<'_> {
                 .cards
                 .iter()
                 .enumerate()
-                .map(|(index, &map_id)| Card {
-                    map_id,
+                .map(|(index, &played)| Card {
+                    shown: played.into(),
                     votes: tally[index],
                     mine: mine == Some(index as u8),
                 })
                 .collect(),
             members,
-            last_map: room.last_map,
+            last: room.last.map(Into::into),
             min_players: room.needs() as u8,
             // The vote is open until the match starts: no map is fixed
             // before (the cards show the votes).
@@ -1391,10 +1401,8 @@ impl Core<'_> {
         if rule.room == 0 {
             return Err(Some(JoinHold::PlayerLimit));
         }
-        let anyone = Worth {
-            players: 1,
-            strength: Strength::ZERO,
-        };
+        // Anyone not strong: a strong one's side is `room_join_in`'s.
+        let anyone = Worth::of([Strength::ZERO]);
         if policy::place_joiner(sides, anyone, None, &rule).is_none() {
             return Err(Some(JoinHold::Full));
         }
@@ -1460,10 +1468,15 @@ impl Core<'_> {
             Err(None) => return Ok(None),
         }
         // A squad's side has no place for it (beside its mate, or two
-        // together): it waits for the next match, told the match is full.
-        if let Some(ready) = self.room_ready(who.account_id) {
-            let late = self.late_placement(who.account_id, room, match_id, running, &ready, now);
-            if late.squad && late.placement.is_none() {
+        // together), or a strong player's (the side with fewer strong
+        // players): it waits, told the match is full. A soldier whose
+        // commander waits is told what the pair is: its commander's check.
+        let whose = self
+            .waiting_commander(who.account_id, room)
+            .unwrap_or(who.account_id);
+        if let Some(ready) = self.room_ready(whose) {
+            let late = self.late_placement(whose, room, match_id, running, &ready, now);
+            if late.placement.is_none() {
                 return Err(JoinHold::Full);
             }
         }
@@ -1566,10 +1579,11 @@ impl Core<'_> {
                 // Before its match: the card that leads alone, or none (a
                 // tie or no votes is drawn at the start, so no map is shown
                 // that may not be played).
-                let map_id = match room.stage {
-                    Stage::InMatch { .. } => room.last_map,
-                    _ => room.leading().unwrap_or(0),
+                let shown = match room.stage {
+                    Stage::InMatch { .. } => room.last,
+                    _ => room.leading(),
                 };
+                let map_id = shown.map(|played| played.map().id);
                 RoomRow {
                     key: room.key,
                     level: self.room_level(room),
@@ -2012,8 +2026,8 @@ impl Core<'_> {
             &mut |bound| rng.below(bound as u32) as usize,
             |member| counted.contains(&member),
         );
-        for Due::Start { key, map_id } in due {
-            self.room_start(key, map_id, now);
+        for Due::Start { key, played } in due {
+            self.room_start(key, played, now);
         }
         let waiting: Vec<u32> = self
             .rooms
@@ -2072,8 +2086,8 @@ impl Core<'_> {
         Fit::Yes
     }
 
-    /// Start the room's match on `map_id`.
-    fn room_start(&mut self, key: u32, map_id: u8, now: Instant) {
+    /// Start the room's match, to play `played`.
+    fn room_start(&mut self, key: u32, played: Played, now: Instant) {
         let Some(room) = self.rooms.get(key) else {
             return;
         };
@@ -2107,6 +2121,12 @@ impl Core<'_> {
             self.rooms.not_started(key, now);
             return;
         }
+        // A free-for-all (`docs/notes/ffa.md`) takes the room's members as
+        // a match of two teams does: no most players of its own (the room's
+        // size, 20 at the most). Each plays on his own, squads too: the two
+        // sides made below are only its seating (the match server gives
+        // each place a team of its own and no squad).
+        let free_for_all = played.mode() == maps::GameMode::FreeForAll;
         let ready: Vec<Ready> = members
             .iter()
             .filter_map(|&account_id| self.room_ready(account_id))
@@ -2131,7 +2151,8 @@ impl Core<'_> {
                 .unwrap_or_default()
                 .into_iter()
                 .filter(|mate| {
-                    *mate != each.player.account_id
+                    !free_for_all
+                        && *mate != each.player.account_id
                         && ready.iter().any(|other| other.player.account_id == *mate)
                 })
                 .collect();
@@ -2145,7 +2166,7 @@ impl Core<'_> {
         }
         // A squad alone plays no match against itself (the owner's of
         // 2026-10-31): the room waits for a third.
-        if arranged.is_none() && parties.len() == 1 && parties[0].members().len() > 1 {
+        if arranged.is_none() && parties.len() == 1 && parties[0].is_squad() {
             log::info!("Room {key}: no match yet: only a squad can play");
             self.rooms.not_started(key, now);
             return;
@@ -2190,8 +2211,8 @@ impl Core<'_> {
         let mut next_squad = 0_u8;
         for party in parties
             .iter()
-            .map(model::Party::members)
-            .filter(|party| party.len() > 1)
+            .filter(|party| party.is_squad())
+            .map(|party| party.members().collect::<Vec<u32>>())
         {
             // In a private room a squad may be on both teams: a squad in the
             // match is its members on one team, two at least.
@@ -2239,7 +2260,7 @@ impl Core<'_> {
         self.room_launching.insert(
             match_id,
             RoomLaunch {
-                map_id,
+                played,
                 minimum: room_minimum,
                 kind,
             },
@@ -2259,8 +2280,10 @@ impl Core<'_> {
             .map(|player| player.account_id)
             .collect();
         log::info!(
-            "Room {key}: match {match_id:#x} on map {map_id}, {} v {} with {} and {} of the \
+            "Room {key}: match {match_id:#x} on map {}{}, {} v {} with {} and {} of the \
              server's bots",
+            played.map().id,
+            played.armed().map_or(String::new(), |twist| format!(" ({twist:?})")),
             teams[0].len(),
             teams[1].len(),
             bots[0],
@@ -2270,7 +2293,7 @@ impl Core<'_> {
             self.room_send_to_match(*player, now);
         }
         // `launch` made the match (it is in `matches` from here on).
-        self.rooms.started(key, match_id, map_id, &seated, now);
+        self.rooms.started(key, match_id, played, &seated, now);
         // The match started without who could not play it: out of the room,
         // told why (they may come back with a kit that can).
         for (member, fit) in unfit {
@@ -2360,14 +2383,7 @@ impl Core<'_> {
         };
         // A soldier whose commander waits in the room to go in goes with
         // it, by its commander's turn (`late_placement`).
-        if self.squad_soldier(account_id)
-            && self.store.squads().of(account_id).is_some_and(|squad| {
-                let commander = squad.commander();
-                room.members.contains(&commander)
-                    && !room.in_match.contains(&commander)
-                    && self.room_ready(commander).is_some()
-            })
-        {
+        if self.waiting_commander(account_id, room).is_some() {
             return;
         }
         let Late {
@@ -2498,10 +2514,7 @@ impl Core<'_> {
                 strength: self.strength_of(player.account_id, match_gear, squad),
             })
             .collect();
-        let worth = Worth {
-            players: party.len(),
-            strength: party.iter().map(|each| each.strength).sum(),
-        };
+        let worth = Worth::of(party.iter().map(|each| each.strength));
         // One who played this match before (left it, or its game was gone
         // for good) goes back to its side when the sides have as many
         // players: the side of its latest place in the roster, which keeps
@@ -2509,13 +2522,20 @@ impl Core<'_> {
         let previous = side_in_match(account_id);
         let placement = match (room.arranged_side(account_id), mate_side) {
             (Some(side), _) => policy::place_joiner_on(sides, worth, side, &rule),
+            // The strong dealt evenly in an open room; a private room's owner
+            // arranges its sides.
+            (None, Some(side)) if room.is_open() => {
+                policy::place_open_joiner_beside(sides, worth, side, &rule)
+            }
             (None, Some(side)) => policy::place_joiner_beside(sides, worth, side, &rule),
+            (None, None) if room.is_open() => {
+                policy::place_open_joiner(sides, worth, previous, &rule)
+            }
             (None, None) => policy::place_joiner(sides, worth, previous, &rule),
         };
         Late {
             placement,
             lead: rule.lead,
-            squad,
             party,
         }
     }
@@ -2534,9 +2554,6 @@ struct Late {
     lead: [Strength; 2],
     /// Who goes in: the member, and its squad mate waiting with it.
     party: Vec<Joiner>,
-    /// Whether its squad decided the side (its mate in the match, or
-    /// going in with it).
-    squad: bool,
 }
 
 /// The phase and its seconds: left of a countdown, played of a match.
@@ -2571,7 +2588,7 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.max_rooms, wire::rules().rooms_most);
         assert_eq!(parse_extra(""), Some(vec![]));
-        assert_eq!(parse_extra("61, 117"), Some(vec![61, 117]));
+        assert_eq!(parse_extra("61, 117"), Some(vec![maps::MapId::new(61), maps::MapId::new(117)]));
         // 107: level_08 night, which has no project.
         assert_eq!(parse_extra("107"), None);
         assert_eq!(parse_extra("x"), None);

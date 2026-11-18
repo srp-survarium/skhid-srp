@@ -183,7 +183,7 @@ impl Problem {
 
     /// The box's caption: the title's beginning, in English always.
     pub fn caption(&self) -> String {
-        format!("Skhid updater: {}", self.kind(0))
+        format!("Skhid: {}", self.kind(0))
     }
 
     /// The fixed beginning of the title, in `language`.
@@ -259,7 +259,7 @@ impl Problem {
                 "{title}\n{}\n{}\n{log}",
                 removal_words(language, *removal),
                 match exclusion {
-                    Exclusion::Programs => defender(language, folder),
+                    Exclusion::Programs | Exclusion::Torrent => defender(language, folder),
                     Exclusion::Game => allow(language, folder),
                 }
             ),
@@ -505,8 +505,9 @@ mod tests {
         Fault::Insecure,
         Fault::Other,
     ];
-    const LOG: &str = "E:\\S\\game\\binaries\\x86\\updater_skhid.log";
+    const LOG: &str = "E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log";
     const FOLDER: &str = "E:\\S\\game\\binaries\\x86";
+    const TORRENT: &str = "E:\\S\\game\\torrent";
     const GAME: &str = "E:\\S\\game";
 
     fn server() -> Where {
@@ -519,6 +520,7 @@ mod tests {
             file: file.into(),
             folder: match exclusion {
                 Exclusion::Programs => FOLDER,
+                Exclusion::Torrent => TORRENT,
                 Exclusion::Game => GAME,
             }
             .into(),
@@ -533,6 +535,7 @@ mod tests {
         for removal in [Removal::Blocked, Removal::PutBack] {
             all.push(antivirus("survarium_skhid.exe", removal));
         }
+        all.push(antivirus("game/torrent/bootstrap/updater_skhid.exe", Removal::Blocked));
         all.push(antivirus("resources.db.patch_44", Removal::Blocked));
         for fault in FAULTS {
             for addresses in [1, 3] {
@@ -687,14 +690,14 @@ mod tests {
             what: server(),
             failure: Failure::Timeout,
         };
-        assert_eq!(blocked.caption(), "Skhid updater: Blocked on this network");
+        assert_eq!(blocked.caption(), "Skhid: Blocked on this network");
         assert_eq!(
             blocked.message(None, LOG),
             "Blocked on this network: skhid.link did not answer (timed out)\n\
              Other sites answer: this network blocks it (the internet provider, or the VPN in use).\n\
              Use a VPN with launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe in its \
              split tunnelling, or turn the VPN off (see VPN.txt). Then try again.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::NoConnection {
@@ -705,7 +708,7 @@ mod tests {
             "No connection: no address of resources.db.patch_44 answered (connection refused)\n\
              No other site answered either: a firewall blocks the game, or this PC is offline.\n\
              Run Skhid-network-setup.cmd (beside Skhid.bat) to allow the game in the firewall, then try again.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::Download {
@@ -717,7 +720,7 @@ mod tests {
             "Download failed: resources.db.patch_44, damaged at every address\n\
              Start Skhid.bat again: it tries every address again, and the game's download goes on \
              from where it stopped.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::Download {
@@ -729,7 +732,7 @@ mod tests {
             "Download failed: skhid.link, no secure connection\n\
              Check this PC's date, time and time zone, and that no program (an antivirus's web \
              shield, a proxy) intercepts HTTPS; then start Skhid.bat again.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             antivirus("survarium_skhid.exe", Removal::Blocked).message(None, LOG),
@@ -738,7 +741,7 @@ mod tests {
              stays off until it is let through.\n\
              Run Skhid-defender-setup.cmd (beside Skhid.bat); with another antivirus, exclude this \
              folder: E:\\S\\game\\binaries\\x86\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         // A patch is in the game folder, which Skhid-defender-setup.cmd does
         // not exclude: Windows Security's own way, for that folder.
@@ -750,7 +753,7 @@ mod tests {
              Windows Security > Protection history > this item > Allow on device; then add this \
              folder as an exclusion (Virus & threat protection > Manage settings > Exclusions), in \
              any other antivirus too: E:\\S\\game\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.log"
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::Download {
@@ -777,6 +780,10 @@ mod tests {
                     exclusion: Exclusion::Programs,
                     ..
                 } => &["Skhid-defender-setup.cmd", FOLDER],
+                Problem::Antivirus {
+                    exclusion: Exclusion::Torrent,
+                    ..
+                } => &["Skhid-defender-setup.cmd", TORRENT],
                 Problem::Antivirus {
                     exclusion: Exclusion::Game,
                     ..
@@ -844,7 +851,7 @@ mod tests {
             // The caption is the English beginning, in every language.
             assert_eq!(
                 problem.caption(),
-                format!("Skhid updater: {}", problem.kind(0))
+                format!("Skhid: {}", problem.kind(0))
             );
         }
         // Each problem, each way it failed, has a title of its own.

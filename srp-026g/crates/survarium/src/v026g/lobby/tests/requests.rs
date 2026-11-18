@@ -14,6 +14,41 @@ fn read(text: &str) -> ClientMessage {
 use ClientMessage as M;
 
 #[test]
+fn player_comments_accept_only_the_seven_menu_choices() {
+    let choices = [
+        (1, 1, PlayerComment::BotOrCheater),
+        (1, 2, PlayerComment::Swearing),
+        (1, 3, PlayerComment::UnsportingBehavior),
+        (1, 4, PlayerComment::AccountTrading),
+        (2, 1, PlayerComment::Friendly),
+        (2, 2, PlayerComment::GoodPlayer),
+        (2, 3, PlayerComment::BornLeader),
+    ];
+    for kind in (0..=u8::MAX).filter(|&kind| kind != super::super::CHAT_MUTE_ACTION) {
+        for reason in 0..=u8::MAX {
+            let parsed = parse(0x49, &[5, 3, b'B', b'o', b'b', kind, reason]);
+            match choices.iter().find(|(k, r, _)| (*k, *r) == (kind, reason)) {
+                Some((_, _, comment)) => {
+                    assert_eq!(comment.wire(), (kind, reason));
+                    assert_eq!(
+                        parsed,
+                        Ok(M::CommentAboutUser {
+                            nickname: "Bob".into(),
+                            comment: *comment,
+                        })
+                    );
+                }
+                None => assert_eq!(parsed, Err(ParseError::InvalidComment { kind, reason })),
+            }
+        }
+    }
+    assert!(matches!(
+        parse(0x49, &[5, 3, b'B', b'o', b'b', 1]),
+        Err(ParseError::Truncated { .. })
+    ));
+}
+
+#[test]
 fn chat_mute_extension_is_typed_and_rejects_unknown_modes() {
     use super::super::ChatMuteMode::{Hidden, Placeholder};
     for (wire, mode) in [
@@ -217,7 +252,10 @@ fn inventory_actions() {
         M::Craft { a0: 5, a1: 6 }
     );
     // The stock windows' "paid in gold" byte is read and changes nothing.
-    assert_eq!(read("46 09 05000000 06000000 01"), M::Craft { a0: 5, a1: 6 });
+    assert_eq!(
+        read("46 09 05000000 06000000 01"),
+        M::Craft { a0: 5, a1: 6 }
+    );
     assert_eq!(read("46 0A"), M::TutorialWeaponChosen);
 }
 
@@ -243,11 +281,7 @@ fn shop_actions() {
     );
     assert_eq!(
         read("47 02 07000000 00000000 00000000"),
-        M::BuyOffer {
-            offer_id: 7,
-            x: 0,
-            factor: 0.0
-        }
+        M::BuyOffer { offer_id: 7 }
     );
     // No repair: srp has none.
     assert_eq!(
@@ -259,20 +293,17 @@ fn shop_actions() {
         parse(0x47, &h("04 64000000")),
         Err(ParseError::UnknownSubType { id: 0x47, sub: 4 })
     );
+    // No premium account: its offers' answers are not read.
     assert_eq!(
-        read("47 05 01000000 0000003F 02000000 03000000 04000000 02"),
-        M::AcceptPremiumWithBonuses {
-            a0: 1,
-            a1: 0.5,
-            a2: 2,
-            a3: 3,
-            a4: 4,
-            faction: 2
-        }
+        parse(
+            0x47,
+            &h("05 01000000 0000003F 02000000 03000000 04000000 02")
+        ),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 5 })
     );
     assert_eq!(
-        read("47 06 01000000 0000803E"),
-        M::AcceptPremiumWithDiscount { a0: 1, a1: 0.25 }
+        parse(0x47, &h("06 01000000 0000803E")),
+        Err(ParseError::UnknownSubType { id: 0x47, sub: 6 })
     );
 }
 
@@ -286,10 +317,7 @@ fn skills() {
         }
     );
     assert_eq!(read("48 00 00"), M::SetSkills { skills: Vec::new() });
-    assert_eq!(
-        read("48 01 01 00"),
-        M::ResetSkills { branch: 1 }
-    );
+    assert_eq!(read("48 01 01 00"), M::ResetSkills { branch: 1 });
     assert_eq!(read("48 01 01 01"), M::ResetSkills { branch: 1 });
 }
 
@@ -302,11 +330,6 @@ fn kit_and_account_actions() {
             name: "Sniper".into()
         }
     );
-    assert_eq!(read("49 01 01"), M::SetAutobuy { on: true });
-    assert_eq!(read("49 01 00"), M::SetAutobuy { on: false });
-    // The lobby's number: bit 1, the stock auto-repair, is not read.
-    assert_eq!(read("49 01 02"), M::SetAutobuy { on: false });
-    assert_eq!(read("49 01 03"), M::SetAutobuy { on: true });
     assert_eq!(read("49 02 02000000"), M::SetActiveKit { kit_id: 2 });
     assert_eq!(
         read("49 03 'Alice'"),
@@ -324,8 +347,7 @@ fn kit_and_account_actions() {
         read("49 05 'Bob' 01 02"),
         M::CommentAboutUser {
             nickname: "Bob".into(),
-            a: 1,
-            b: 2
+            comment: PlayerComment::Swearing
         }
     );
     assert_eq!(read("49 24 00"), M::HideVideoLink);
@@ -460,6 +482,51 @@ fn squad_and_quest_actions() {
     assert_eq!(read("4B 00 03"), M::ChooseQuestFaction { faction: 3 });
     assert_eq!(read("4B 01 02"), M::TutorialStep { step: 2 });
     assert_eq!(read("4B 02"), M::SkipTutorial);
+}
+
+/// The results' menu sends a clan member's name as its row shows it,
+/// `[TAG] name`: add to friends, ignore, a report or praise all name the
+/// player, not the shown form.
+#[test]
+fn a_target_shown_with_its_clan_tag_is_the_player() {
+    assert_eq!(
+        read("4D 00000000 '[ARTS] Strelok_NK' 00 00"),
+        M::Important {
+            target_name: "Strelok_NK".into(),
+            kind: 0,
+            text: String::new(),
+            extra: None
+        }
+    );
+    assert_eq!(
+        read("4E 04 '[A B] Troll'"),
+        M::Friendship(FriendshipAction::IgnoreByName {
+            name: "Troll".into()
+        })
+    );
+    assert_eq!(
+        read("49 05 '[ARTS] Bob' 02 02"),
+        M::CommentAboutUser {
+            nickname: "Bob".into(),
+            comment: PlayerComment::GoodPlayer
+        }
+    );
+    assert_eq!(
+        read("4C 00000000 '[ARTS] Bob' 04 'psst'"),
+        M::ChatText {
+            channel_id: 0,
+            receiver: "Bob".into(),
+            channel: 4,
+            body: "psst".into()
+        }
+    );
+    // A name with brackets but no tag before a blank is the name.
+    assert_eq!(
+        read("4E 04 '[Bob]'"),
+        M::Friendship(FriendshipAction::IgnoreByName {
+            name: "[Bob]".into()
+        })
+    );
 }
 
 #[test]

@@ -534,6 +534,11 @@ def native_profile(data):
     for length in range(len(wire)):
         run(wire[:length], False)
     run(wire + b"\0", False)
+    for side in (0, 1, *range(4, 24)):
+        run(bytes([side]) + wire[1:], True)
+        assert m.read(BASE + 0x45EC) == side
+    for side in (2, 3, 24, 255):
+        run(bytes([side]) + wire[1:], False)
     for offset, replacement in (
         (0, b"\x02"), (1, b"\x40"), (5, b"\x0f"),
         (12, b"\x04"), (13, b"\x46"),
@@ -740,7 +745,7 @@ def native_animations(data):
             assert [m.read(entries[index] + 8) for index in expected] == list(range(count))
 
 
-def native_preparation(data, grenades=0, traps=0):
+def native_preparation(data, grenades=0, traps=0, free_for_all=False):
     """Exercise the composed ready -> E4 -> query -> install -> ACK -> teardown.
 
     Native profile reading, callback invocation, slot/player/inventory binding
@@ -828,7 +833,9 @@ def native_preparation(data, grenades=0, traps=0):
     uc.mem_write(histories_at, histories)
     body = b"\x01\x03new\0" + struct.pack("<I", 10) + b"\x01\0"
     body += b"\0" + struct.pack("<I", 1) + b"\0" + bytes(20)
-    payload = b"\xffLJ\x01" + struct.pack("<II", seed, 123) + b"\x02\x07" + body
+    side, squad = (6, 0) if free_for_all else (1, 7)
+    body = bytes([side]) + body[1:]
+    payload = b"\xffLJ\x01" + struct.pack("<II", seed, 123) + bytes([2, squad]) + body
     uc.mem_write(wire_at, payload)
     for offset, value in ((0, wire_at), (4, wire_at), (8, len(payload))):
         m.write(reader + offset, value)
@@ -947,7 +954,8 @@ def native_preparation(data, grenades=0, traps=0):
     assert m.read(state + 56) == 3 and uc.mem_read(options + 0x577B5, 1)[0] == 3
     assert uc.mem_read(statistics + 8 + 0x31E0, 1)[0] == 3
     assert uc.mem_read(statistics + 0x31E0, 1)[0] == 0x5A
-    assert uc.mem_read(options + 0x5782C + 2, 1)[0] == 7
+    assert uc.mem_read(options + 0x5782C + 2, 1)[0] == squad
+    assert m.read(options + 2 * 0x45FC + 0x45EC) == side
     assert bytes(uc.mem_read(options + 2 * 0x45FC + 8, 4)) == b"new\0"
     expected_ack = b"\xff" * 6 + b"\0\0" + struct.pack("<II", seed, 123) + b"\x02\0\x01\0"
     assert messages == [expected_ack]
@@ -1899,6 +1907,7 @@ def check(original, nasm):
     native_direct_match(patch.build(original, nasm, test_session=0x1002), 0x1002)
     native_animations(changed)
     native_preparation(changed)
+    native_preparation(changed, free_for_all=True)
     for grenades, traps in ((2, 0), (0, 1), (6, 3), (1, 1)):
         native_preparation(changed, grenades, traps)
     saved_objects(changed)

@@ -1,0 +1,69 @@
+# Patch 143: a battery's carrier hits with it (battery_hit.rs;
+# docs/notes/battery-hit.md). Only the decisions: the sites and the handlers.
+name = "battery_hit"
+patch = 143
+
+# the cook's callback once initialize_logic made the three states: the strikes'
+[[hook]]
+site = "battery.logic"
+handler = "on_logic"
+
+# carry -> swing's predicate, the function of a function-pointer functor
+[[hook]]
+site = "battery.wants_hit"
+handler = "on_wants_swing"
+
+# the swing's vtable: a copy of the take's, may-be-put-away ours
+[[vtable]]
+name = "swing"
+source = "take_state_methods"
+check = "check_battery_hit_026g.py"
+
+# the strike: fsm::tick leaving a swing through the transition it took (to its
+# recovery, or to the put), the one way the simulation leaves it; a battery put
+# away (victory_item_core::deactivate, a world load's base_player::remove too)
+# finalizes its state without a transition and never strikes
+[[hook]]
+site = "battery.state_left"
+handler = "on_state_left"
+
+# The strike's bullet reads its deactivated gun's user and posture all its
+# life (its stance at the constructor, its melee damage at every step): the
+# gun's player and its held battery's posture instead. Hot functions (every
+# shot's stance, every melee step): the entries call the handlers for a null
+# read only (`only`), which natively never happens.
+# Note: at gun.melee_damage_user (after fld [eax+8]) and gun.melee_falloff_user
+# (after fld1) one x87 slot is in use: the handlers must do no x87 float work.
+[[hook]]
+site = "gun.stance_user"
+handler = "on_stance_user"
+only = { user = "NONE" }
+
+[[hook]]
+site = "gun.stance_posture"
+handler = "on_stance_posture"
+only = { posture = "NONE" }
+
+[[hook]]
+site = "gun.melee_damage_user"
+handler = "on_melee_damage_user"
+only = { user = "NONE" }
+
+[[hook]]
+site = "gun.melee_falloff_user"
+handler = "on_melee_falloff_user"
+only = { user = "NONE" }
+
+# the swing may be put away as the carry may: when its carrier is dead (the
+# take's slot answers never, which would keep a dead carrier's battery until
+# the swing's clip ends)
+[[hook]]
+site = "battery_state.deactivatable"
+handler = "on_deactivatable"
+proof = "a dead carrier's swing put away through victory_item_core::deactivate"
+
+# the kill feed: a kill by a strike shows the battery's icon in the weapon's
+# place (the hud movie's CombatLogBatteryIcon); the hud alone reads it
+[[hook]]
+site = "kill_feed.weapon_icon"
+handler = "on_kill_feed_icon"

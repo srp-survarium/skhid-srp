@@ -260,7 +260,7 @@ package
                   expect(DECAL,false,"the decal not owned");
                   require(bundleRow() != null && !marked(bundleRow()),"the bundle whose id is the rifle's has no mark");
                   require(toggle() != null && toggle().visible && !toggle().selected && toggle().label == "Hide owned","the shop shows the hide-owned box, off, labelled");
-                  // The tick: the compare box's symbol (Autobuy's, CheckBoxSharedPD, is pixelated).
+                  // The tick: the compare box's symbol (the character panel's CheckBoxSharedPD is pixelated).
                   require(getQualifiedClassName(toggle()) == getQualifiedClassName(inventory.checkboxCompareItems),"the box is the compare box's symbol (" + getQualifiedClassName(toggle()) + ")");
                   lastRow("english");
                   inLevelOrder("the shop, opened");
