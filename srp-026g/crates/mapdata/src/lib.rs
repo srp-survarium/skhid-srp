@@ -45,6 +45,7 @@ pub mod format;
 pub mod grid;
 pub mod library;
 pub mod math;
+pub mod objective;
 pub mod pierce;
 pub mod project;
 pub mod regions;
