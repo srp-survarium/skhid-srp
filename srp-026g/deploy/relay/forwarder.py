@@ -123,6 +123,39 @@ class BackendUDP(asyncio.DatagramProtocol):
         logging.debug("backend UDP %s: %s", self.front.port, error)
 
 
+async def tunnel(reader, writer, remote, upstream):
+    """Copy both ways until the server's side ends or the tunnel is idle.
+    Idle is the tunnel's, not one direction's: a download sends nothing the
+    other way for minutes."""
+    active = time.monotonic()
+
+    async def copy(source, target):
+        nonlocal active
+        while True:
+            left = active + IDLE - time.monotonic()
+            if left <= 0:
+                raise TimeoutError("idle tunnel")
+            try:
+                data = await asyncio.wait_for(source.read(65536), left)
+            except TimeoutError:
+                continue
+            if not data:
+                break
+            active = time.monotonic()
+            target.write(data)
+            await asyncio.wait_for(target.drain(), 10)
+        if target.can_write_eof():
+            target.write_eof()
+
+    # The client's half may end first. Once the server's half has ended nothing
+    # more can be answered: the tunnel ends, and a silent client does not hold
+    # its slot. An error in either half ends both.
+    async with asyncio.TaskGroup() as group:
+        asking = group.create_task(copy(reader, upstream))
+        await copy(remote, writer)
+        asking.cancel()
+
+
 class Login:
     def __init__(self, public, backend, port, limit=256):
         self.public, self.backend, self.port = public, backend, port
@@ -142,17 +175,7 @@ class Login:
             upstream.write(header(client, self.public, self.port, 0x11))
             await upstream.drain()
 
-            async def copy(source, target):
-                while data := await asyncio.wait_for(source.read(65536), IDLE):
-                    target.write(data)
-                    await asyncio.wait_for(target.drain(), 10)
-                if target.can_write_eof():
-                    target.write_eof()
-
-            # Both halves finish naturally on EOF; errors cancel the sibling.
-            async with asyncio.TaskGroup() as group:
-                group.create_task(copy(reader, upstream))
-                group.create_task(copy(remote, writer))
+            await tunnel(reader, writer, remote, upstream)
         except (OSError, TimeoutError, ExceptionGroup) as error:
             logging.debug("login from %s failed: %s", client, error)
         finally:
@@ -182,16 +205,7 @@ class HTTPS(Login):
             writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
             await writer.drain()
 
-            async def copy(source, target):
-                while data := await asyncio.wait_for(source.read(65536), IDLE):
-                    target.write(data)
-                    await asyncio.wait_for(target.drain(), 10)
-                if target.can_write_eof():
-                    target.write_eof()
-
-            async with asyncio.TaskGroup() as group:
-                group.create_task(copy(reader, upstream))
-                group.create_task(copy(remote, writer))
+            await tunnel(reader, writer, remote, upstream)
         except (OSError, TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError, ExceptionGroup) as error:
             logging.debug("HTTPS tunnel from %s failed: %s", client, error)
         finally:

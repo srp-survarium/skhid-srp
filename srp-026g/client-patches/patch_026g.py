@@ -2432,12 +2432,12 @@ ARTEFACTS_SIZES = (
 # world's tick (0x3B7BD0) calls for every handler after it polled the devices
 # and before they hand out the keys: match_keys_poll sets the kits' screen's
 # state from the hud's cursor and GetTickCount (CLOSED; OPENING from the
-# first poll the kits are up at, with its time; OPEN from the first poll 300
-# ms, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
+# first poll the kits are up at, with its time; OPEN from the first poll 1
+# s, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
 # that went down in the frame the kits came, in play, is handed out in their
-# first tick and picks nothing, nor does one pressed in their first 300 ms
+# first tick and picks nothing, nor does one pressed in their first second
 # (the owner, 2026-10-25: "I press 3 mid-fight to heal with the medkit, I
-# die, and I swap to my 3rd kit"; then: ignore them for 300 ms).
+# die, and I swap to my 3rd kit"; then: ignore them for 300 ms; 1 s since 2026-11-18).
 MATCH_KEYS_HOOKS = (
     (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
     (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
@@ -2626,8 +2626,12 @@ BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440
 # on (the launcher's box writes its line). Its initial value, the byte in
 # .data, 1 in the original, is 0: a user.cfg without the line leaves it off.
 # The Rust patch lobby_seeding (sites_026g.tsv seeding.*) names the pipe and
-# starts the updater.
+# starts the updater. The sharing goes on in a match (the owner, 2026-11-18):
+# game::switch_to_game_world's jz over its "in a match" byte
+# (torrent_client+1Ch := 1, 0x1ED193) and its stop_seeding (0x1ED1A5), taken
+# only by a replay, is a jmp (MATCH_SEEDING_KEEP).
 LOBBY_SEEDING_DEFAULT = (0xA712B6, b"\x01", b"\x00")
+MATCH_SEEDING_KEEP = (0x1ED184, bytes.fromhex("7424"), bytes.fromhex("eb24"))
 
 # The grass sort's one order of distance (patch 146, README; client_patch.md
 # "The grass sort's distance"). grass_world::process_culling (0x160470) sorts
@@ -4315,6 +4319,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
                 patch_section_value(data, *LOBBY_SEEDING_DEFAULT)
+                patch(data, *MATCH_SEEDING_KEEP)
                 patch(data, *GRASS_SORT_ORDER)
                 for change in MAP_ID_READERS:
                     patch(data, *change)
