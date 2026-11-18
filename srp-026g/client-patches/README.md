@@ -197,6 +197,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/trap_stock_hit.rs`, `src/trap_stock_hit.toml`, `src/vostok/trap.rs`, `check_trap_stock_hit_026g.py` | Patch 151: a gun-stock hit disarms a trap (`../docs/notes/trap-stock-hit.md`): one lohook at `booby_trap_core::hit`'s entry (`trap.hit`); its check runs the hit in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
+| `rust/patches/src/particle_room.rs`, `src/particle_room.toml`, `src/vostok/effect_presenter.rs`, `check_particle_room_026g.py` | Patch 122: the game world's particle presenters hold 32 effects, not six (README "Room for a presenter's particle effects"): five lohooks, a heap room per presenter, no entry for a play into a full list; its check runs the constructors, push_back, deserialize's local list, the swap and a play in the original and the build (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `rust/patches/src/weapon_camo.rs`, `weapon_camo.toml` | Patch 44's part in the baker (Rust, one lohook at `bake.own_camouflage`, 0x12E124): a weapon's bake takes only the camouflage textures its patch names (the colours and the `_smap`, not the `_nmap`, a cloth's weave), never the surface's own `<diffuse>_camo...`; `check_weapon_camo_026g.py` runs the site |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -5177,6 +5178,79 @@ effect they hold and of one they do not, in the original and the build, at
 the four stack alignments (64 cases): the original frees the seed, faults or
 erases before the list; the build returns and changes nothing; a held
 effect's stop and update are the original's byte for byte. Not played.
+
+## Room for a presenter's particle effects (patch 122, unreleased)
+
+The rev52 and rev53 crashes (four reports, 2026-11-07/08): the engine's
+assert "buffer overflow" in
+`vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::push_back`
+(0x2ACC20, int3 0x2ACC7F), from an artefact's activation
+(`artefact_base::effect` 0x313350 -> `game_effect_player::add` ->
+the third-person presenter -> `on_event` 0x2AC400 -> push_back at 0x2AC695),
+on another player's list (place 2 at 04:44, place 16 at 00:10-00:13; the
+game world's presenters are at a fixed place, the static 0xA96860 + 22BCh +
+place x 220h). A particle presenter keeps its list inline, room for six
+entries, and nothing grows it; patch 111's glows put more on a player.
+
+Only some games reach the seventh: the leg quarters are shown by a game whose
+local player has Artifact Sight, or that has no local player (a spectator, a
+replay); every other game holds only the player's stock effects. The rev64
+reports of 2026-11-18 (three crashes of one game in one match, 19:22-19:26
++03): in the dumps place 13's list held five quarters and one artefact
+effect, the seventh its next activation; the reporter's own first-person list
+held its own quarter.
+
+The budget (the owner, 2026-11-08): a player can show 6 artefact glows (one
+leg quarter a copy; with Resonance's shared copies up to 4 a kind, 12), 3
+activations and Forest Protection's at once: 16 from our patches, the stock
+effects beside them. 32 leaves room for both.
+
+The patch (`particle_room`, five lohooks):
+
+- `game_world.first_person_presenter_made` (0x1F6884, EBP the world, its
+  presenter +1D98h) and `game_world.third_person_presenter_made` (0x1F6B14,
+  EAX each place's presenter): as game_world's constructor builds them, the
+  list's begin, end and capacity end point at a room of ours, 32 entries,
+  from the process heap. One room a presenter, kept by its address in a
+  table of 64 and never freed: game_world is a static object, so it builds
+  its presenters again at the same addresses and they get their rooms back.
+  The lobby's presenters (lobby_menu, lobby_character) keep their six.
+- `effect_presenter.particle_read_room` (0x2AC8A6): a world's load
+  (`base_player::deserialize` -> the presenter's vtable +0Ch ->
+  `particle_game_effect_presenter::deserialize` 0x2AC870) pushes the saved
+  entries into a local list of six on its stack: a presenter with a room
+  reads into the room's second half (32).
+- `effect_presenter.particle_swap` (0x2ACD00): deserialize then swaps its
+  local with the presenter's list through a stack room of six and three
+  assigns (0x2AD360) that check no capacity; the patch swaps the two lists
+  in place, entry for entry (each moved whole, its references counted as
+  before), and returns. A presenter has the same room on both sides (32 and
+  32, or the game's six and six), so neither overflows.
+- `effect_presenter.particle_start` (0x2AC686, EBX the presenter): `on_event`'s
+  play, before its entry is made. A full list (the 33rd; the 7th of a
+  presenter without a room, the lobby's too) takes no entry: the site leaves
+  through on_event's return (0x2AC6B3) with a refusal line, and the effect
+  goes on without its particles on that player, where the game asserts.
+  Patch 117 makes the presenter ignore the stop and the updates of an effect
+  it holds no entry of. A stopgap for what the budget did not count, not the
+  room itself.
+
+The table full or the heap empty: the presenter keeps the game's six, with
+a line in `srp_patches.log`. A saved presenter is about 17 bytes an entry
+(flag, effect, a word, two floats), in the history item's second buffer,
+which is not uploaded or hashed: 10 more entries a player is about 170 bytes.
+
+`check_particle_room_026g.py <stock exe>`: the constructors, then the sites,
+in the original and the build: the original keeps six and its seventh push
+reaches the assert; the build holds 32 (the 33rd reaches it), the same room
+again for a presenter built again; deserialize's local in the room or the
+frame's six; six and four swapped to the byte as the original; twenty and
+ten swapped in place, where the original writes past its stack room; a play
+from its site in on_event's frame: with room both go on with the same
+registers, with a full list (32 in a room, six without one) the original
+goes on to the push that asserts and the build returns as on_event does, its
+list as it was, one line in the log. At the four stack alignments (248
+cases). Not played.
 
 ## Match-message checks (patch 114, unreleased)
 
