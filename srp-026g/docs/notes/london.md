@@ -57,3 +57,17 @@ The source day is what players have (patch 51's London projects): revision 66's 
 found every London day file unchanged against the manifest, so it is the manifest's own output.
 Six new maps raise the pinned `maps_dict` counts of five edit lists by six; a PR adding maps after
 this one renumbers again.
+## The window probes (pack probe-specular)
+
+London has ten box probes `environment_and_lights/probes/reflection_window(…)` along its window
+facades with `affect_diffuse = false`, as 0.31a2 authored them; no 0.26g map has such a probe
+(a census of every live project: only London's 5 day projects and its weathers). In 0.31a2 such a
+probe adds only its reflection: its `environment_probe_lighting.ps` permutations write the specular
+accumulator alone. 0.26g's write the surface's own albedo into the diffuse accumulator under the
+probe's falloff (`renderer-026g.md` 5.3), which lit the walls by the windows in their own colour.
+
+Pack `probe-specular@1` (resource-porter `probe_specular`) changes the 16 `TDIFFUSE` 0 permutations
+of 0.26g's shader: the diffuse output's alpha is zero, so with the probes' blend (SRC_ALPHA /
+INV_SRC_ALPHA per target) the diffuse light stays as it was; the reflection is drawn as before.
+One instruction per permutation (`mov o0.w, <falloff>` → `mov o0.w, l(0)`); the permutations
+with `affect_diffuse = true`, the ones every other map draws, are untouched.
