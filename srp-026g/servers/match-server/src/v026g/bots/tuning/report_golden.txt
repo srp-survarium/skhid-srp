@@ -41,7 +41,7 @@ switches OFF unstick: fix_gap_ms
 switch values aim: combat.fire.burst_human={"rifle":{"best":[{"at_m":6.800000190734863,"q":[50,100,150,300,500,650,800,9... combat.fire.burst_pause={"floor_ms":100,"rifle":[{"from_m":20.0,"q":[100,200,462]},{"from_m":40.0,"q"... combat.gate_from_client={"jump_ms":1200,"sprint_out_ms":300} combat.hit_shooter=nearest combat.settle=wander_and_policy combat.settle_guns=scoped combat.sights_up={"lead_ms":1558,"max_m":49.29999923706055} combat.worth.hurt_from=seen combat.zoom_error=all friends.spread_source=data skill_curve=geometric
 switch values calibration: source=PR #1089 (A243's skill-1 sweep and per-class ladders, weighed to the live shots, 2026-11-02; tiers pooled, the sweep made non-increasing) and A267(a) (fx-fights, 2026-11-02: per-type skill-1 points down to factor 0.40 and lines at skill 0 / 0.5 / 1, the same settings and estimator; MGs and pistols on forced kits)
 switch values cover: hold_exposure={"anchor_deg":45.0,"far_m":60.0,"near_m":20.0,"weight":2.0}
-switch values feel: drop_truth=links past_drop=landed
+switch values feel: drop_truth=links ledge_press=stand past_drop=landed
 switch values hazard: escape=under_start_zone route_crossing=total zone_pools=routed
 switch values heal: amounts=course_total drug_stops=known
 switch values kin: aim_gates=world carrier_sprint=refused client_step=kept drop_fall=client edge=controller fix_blend=replayed fix_fall=world fix_floor=under_in_air forecast_step=kept jump_flight=controller jump_snap=by_keys leg_damage=client level_read=settled level_source=computed margin_edge=body mixer=layers pitch_scale=client slope_speed=ramps_grade speed_cap=client speed_terms=legs_stagger sprint_gates=client step_input=previous walk_off_landing=by_speed wall_slide=round

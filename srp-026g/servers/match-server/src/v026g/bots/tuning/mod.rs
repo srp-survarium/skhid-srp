@@ -532,6 +532,9 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/cover/pierce",
     "/feel/carry_jumps",
     "/feel/walk_jump_reach",
+    // [fix-move, owner-16 row 29] A plain ledge up to the standing top pressed at the walk misses in the exe where the standing
+    // press lands (owner-16 report 10b, class (b/c)).
+    "/feel/ledge_press",
     "/feel/floor_height_clear",
     "/feel/past_drop",
     "/grid/client_numbers",

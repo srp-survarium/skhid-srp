@@ -267,6 +267,9 @@ pub struct Feel {
     /// clear, or the second time, it presses as before (counted, [`walk_reach`]). Replaces 2d's "no press at rest at the face",
     /// which it covers. Off: pressed at any speed.
     pub walk_jump_reach: bool,
+    /// [fix-move, owner-16 row 29] How a plain jump link (`Leap::Ledge`, no press stored) up to the standing jump's top
+    /// ([`STANDING_JUMP_M`]) is pressed ([`LedgePress`]). Stand (KEPT_RIGHT): the walking press there is proven to miss in the exe.
+    pub ledge_press: LedgePress,
     /// [A198] At the take-off's place (along the jump's way) under its floor and out of reach of any jump its approach makes, the
     /// jump is given up and the route planned again. Off (A262: given up 17 -> 104 with the stand-in's air control). The hold of
     /// such a press, and following the route up to the take-off instead of lining up under it, are always on (`under_reach`:
@@ -336,6 +339,18 @@ pub enum SprintGaits {
     RunAndCruise,
 }
 
+/// [fix-move, owner-16 row 29] How a plain jump link up to the standing jump's top is pressed ([`Feel::ledge_press`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LedgePress {
+    /// At the walk, as any ledge (as before).
+    Walk,
+    /// From a stand at [`LEDGE_STAND_LEAD_M`] before the take-off: the exe (owner-16 report 10b, class (b/c), 27 plain 0.82-0.97 m
+    /// links) lands the standing press at leads 0-0.5 m 5 of 5 at 22 of the 27, the walk at the cap at 2 of 8 leads or fewer at 16.
+    #[default]
+    Stand,
+}
+
 impl Default for Feel {
     fn default() -> Self {
         Self {
@@ -386,6 +401,7 @@ impl Default for Feel {
             straight_jumps: false,
             carry_jumps: true,
             walk_jump_reach: true,
+            ledge_press: LedgePress::Stand,
             press_in_reach: false,
             sprint_turns: None,
         }
@@ -761,6 +777,13 @@ const LINED_BEHIND_M: f32 = 0.5;
 const LINED_PAST_M: f32 = 0.15;
 /// The run-up is reached this near, metres.
 const AT_RUN_UP_M: f32 = 0.3;
+
+/// [fix-move, owner-16 row 29] A plain jump link (`Leap::Ledge`, no press stored) up to the standing jump's top
+/// ([`STANDING_JUMP_M`], 0.998, PROVEN) is pressed from a stand this far before its take-off, m, the body at rest within this of
+/// that point (so at leads 0-0.5 m). The exe (the game's own tick on its captured collision objects, `rig_real_v2`; owner-16
+/// report 10b, class (b/c), 27 plain 0.82-0.97 m links the bots failed): the standing press at leads 0-0.5 m lands 5 of 5 at 22
+/// of the 27, the walk at the cap lands at 2 of 8 leads or fewer at 16, the sprint jump at none of 10 at 21.
+const LEDGE_STAND_LEAD_M: f32 = 0.25;
 /// On the jump's line it walks only facing within this of the jump's way,
 /// radians (else it stands and turns) …
 pub const LINE_UP_GO: f32 = 0.45;
@@ -1382,12 +1405,14 @@ enum Approach {
     Lift,
     /// A walking jump kept at a sprint ([`Feel::sprint_through`]).
     Through,
+    /// [fix-move, owner-16 row 29] A plain jump link up to the standing jump's top, pressed from a stand at its lead.
+    Stand,
 }
 
 impl Approach {
     /// The sprint is held into the face.
     fn sprints(self) -> bool {
-        self != Approach::Walk
+        !matches!(self, Approach::Walk | Approach::Stand)
     }
 
 }
@@ -2436,6 +2461,23 @@ impl Motor {
             && !pose.no_jump
             && matches!(leap, Leap::Ledge | Leap::SprintLedge)
             && landing.y - take_off.y <= LIFT_MAX_RISE_M;
+        // [fix-move, owner-16 row 29] A plain jump link (no press stored) up to the standing jump's top, walked to: pressed from a
+        // stand at its lead ([`LEDGE_STAND_LEAD_M`]), as the slow press of A386 is (rest at the point, then the press).
+        let stand_ledge = self.feel.ledge_press == LedgePress::Stand
+            && matches!(leap, Leap::Ledge)
+            && !sprint
+            && !lift_open
+            && landing.y - take_off.y <= STANDING_JUMP_M;
+        let leap = if stand_ledge {
+            Leap::Gap(GapPress {
+                lead: mapdata::PressLead::from_metres(LEDGE_STAND_LEAD_M),
+                walk: WalkPress::Slow(0),
+                share: mapdata::Share::UNFLOWN,
+                aim: PressAim::STRAIGHT,
+            })
+        } else {
+            leap
+        };
         if before_route > if sprint || lift_open { SPRINT_LINE_UP_FROM_M } else { LINE_UP_FROM_M } {
             self.links.lost(link_time::Lost::Far);
             return None;
@@ -2587,7 +2629,8 @@ impl Motor {
         // three walk steps up from 28.08 cut across, pressed from 1.5 m under the take-off again and again (nav-motor's
         // pull_walk trace, 2026-11-13; A198's presses 0.08-1.50 m under).
         let under = under_reach(
-            leap,
+            // [fix-move] A plain ledge pressed from a stand is still a ledge for the floor under it.
+            if stand_ledge { Leap::Ledge } else { leap },
             take_off.y - feet.y,
             landing.y - feet.y,
             if sprint || lift_open { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M },
@@ -2732,6 +2775,9 @@ impl Motor {
         // carries a rest off the line on to the press.
         let rest_near = if leap.flown() {
             (along + run_up).abs() <= FlownWindow::LEAD_M && side <= FlownWindow::SIDE_M
+        } else if stand_ledge {
+            // [fix-move] Within the leads the exe landed from a stand ([`LEDGE_STAND_LEAD_M`] either side of the middle).
+            (along + run_up).abs() <= LEDGE_STAND_LEAD_M && side <= LINED_SIDE_M
         } else {
             at(run_up).distance_xz(feet) <= AT_RUN_UP_M
         };
@@ -2803,6 +2849,8 @@ impl Motor {
             leap,
             approach: if lifting {
                 Approach::Lift
+            } else if stand_ledge {
+                Approach::Stand
             } else if through {
                 Approach::Through
             } else if sprint_gap {
@@ -2990,7 +3038,8 @@ impl Motor {
         // [A386] Not for a press the grid flew with the client's own flyer (a gap or rim link with a share, A385): that flight is
         // the landing's proof, and the model's carry is not.
         let flown = matches!(ahead.leap, Leap::Gap(GapPress { share, .. }) if share.flown().is_some());
-        if self.feel.walk_jump_reach && short_clip && ahead.approach != Approach::SprintGap && !flown {
+        // [fix-move] Nor for a plain ledge pressed from a stand: the exe lands that press (owner-16 10b class (b/c)).
+        if self.feel.walk_jump_reach && short_clip && !matches!(ahead.approach, Approach::SprintGap | Approach::Stand) && !flown {
             // [A364] The carry counts the body's last move whatever its heading (player +0x334); the jump goes the way it faces.
             let speed = pose.velocity[0].hypot(pose.velocity[1]);
             if walk_jump_lands(speed, ahead.before.max(0.0), ahead.span, ahead.rise) {
@@ -4642,6 +4691,11 @@ mod tests {
     }
 
     /// The feel with the owner's options off (the bots as they were): what a test of an option's effect starts from.
+    fn walk_ledges() -> Feel {
+        // [fix-move] The tests of the walking ledge jump's own rules (plain ledges pressed at the walk, as before row 29).
+        Feel { ledge_press: LedgePress::Walk, ..Feel::default() }
+    }
+
     fn feel_off() -> Feel {
         crate::v026g::bots::tuning::Tuning::all_off().feel
     }
@@ -4844,7 +4898,7 @@ mod tests {
         aiming: bool,
         hurt_ticks: usize,
     ) -> Climb {
-        climb_ledge_feel(route, ledge, start, yaw, ticks, aiming, hurt_ticks, Feel::default())
+        climb_ledge_feel(route, ledge, start, yaw, ticks, aiming, hurt_ticks, walk_ledges())
     }
 
     /// [`climb_ledge_hurt`] with the motor's `feel`.
@@ -5867,7 +5921,7 @@ mod tests {
         let (_, ledge) = up_a_ledge(false);
         let climb = |gate: bool, start: Vec3| {
             let (mut route, _) = up_a_ledge(false);
-            let feel = Feel { walk_jump_reach: gate, ..Feel::default() };
+            let feel = Feel { walk_jump_reach: gate, ..walk_ledges() };
             climb_ledge_feel(&mut route, &ledge, start, yaw_of([1.0, 0.0]), 400, false, 0, feel)
         };
         // At rest 0.6 m short of the take-off: the hop's control alone does not carry it 0.6 m on and over the 0.9 m face.
@@ -6519,6 +6573,40 @@ mod tests {
         assert_eq!(keys & key::JUMP, 0, "too fast for the standing jump: {keys:#x}");
     }
 
+    /// [fix-move, owner-16 row 29] A plain jump link 0.9 m up (no press stored) is walked to its point [`LEDGE_STAND_LEAD_M`]
+    /// before the take-off, stood at until the body is at rest (no move key, no press), and pressed from the stand; one over the
+    /// standing jump's top keeps the walking jump (no stand).
+    #[test]
+    fn a_plain_ledge_up_to_the_standing_top_is_pressed_from_a_stand() {
+        let route_up = |rise: f32| {
+            let p = |x: f32, y: f32, jump: Option<Leap>| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump, low: false };
+            Route::new(vec![p(-10.0, 0.0, None), p(0.0, 0.0, None), p(0.5, rise, Some(Leap::Ledge)), p(5.0, rise, None)])
+        };
+        let fresh = || {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.walking = true;
+            motor
+        };
+        let mut motor = fresh();
+        let mut route = route_up(0.9);
+        let (keys, _) = gap_tick(&mut motor, &mut route, -LEDGE_STAND_LEAD_M, 2.0, None);
+        assert_eq!(keys & (key::FORWARD | key::JUMP), 0, "at its point, still moving: stands: {keys:#x}");
+        let (keys, _) = gap_tick(&mut motor, &mut route, -LEDGE_STAND_LEAD_M, 0.0, None);
+        assert_ne!(keys & key::JUMP, 0, "at rest at its point: the standing press: {keys:#x}");
+        // Past the leads the exe landed from a stand (0-0.5 m): no stand there, the body comes back to its point.
+        let mut motor = fresh();
+        let mut route = route_up(0.9);
+        let (keys, _) = gap_tick(&mut motor, &mut route, 0.1, 0.0, None);
+        assert_eq!(keys & key::JUMP, 0, "past the take-off at rest: no press: {keys:#x}");
+        // Over the standing jump's top: the walking jump's approach, no stand short of the face.
+        assert!(1.05 > STANDING_JUMP_M && 1.05 <= mapdata::Body::default().max_jump);
+        let mut motor = fresh();
+        let mut route = route_up(1.05);
+        let (keys, _) = gap_tick(&mut motor, &mut route, -LEDGE_STAND_LEAD_M, 2.0, None);
+        assert_ne!(keys & key::FORWARD, 0, "a 1.05 m ledge is walked into: {keys:#x}");
+    }
+
     /// [A386] A slow link (`WalkPress::Slow`, `jump::Kind::Slow`) is walked to its run-up point (its walk-up from a stand before
     /// the lead), stood at until the body is at rest (no move key), then walked up and pressed; a standing jump (0 steps) at its
     /// point, at rest.
@@ -6624,7 +6712,7 @@ mod tests {
     fn a_body_lined_up_near_a_take_off_is_on_the_jumps_line_through_the_air() {
         let (mut route, ledge) = up_a_ledge(false);
         let mut rng = Rng::new(31);
-        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut motor = Motor::new(walk_ledges(), &mut rng);
         motor.walk(&mut route, &facing_x(Vec3::new(0.5, 0.0, 0.0)), 5.0, |_| true);
         assert!(!motor.on_jump_line(), "4.1 m before the take-off");
         let climb = climb_ledge(&mut route, &ledge, Vec3::new(2.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 300, false);
@@ -6632,7 +6720,7 @@ mod tests {
         // Replay to the press: on the line from 2 m before it, forward alone, and still on it a few ticks after.
         let (mut route, _) = up_a_ledge(false);
         let mut rng = Rng::new(17);
-        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut motor = Motor::new(walk_ledges(), &mut rng);
         let press = climb.presses[0].0;
         for (tick, pose) in climb.poses.iter().enumerate().take(press + 5) {
             let (decision, _) = motor.walk(&mut route, pose, 5.0, |_| true);
@@ -6684,7 +6772,7 @@ mod tests {
         let steps = || Route::new(vec![p(0.0, 0.0, false), p(0.75, 0.72, false), p(1.25, 1.5, false), p(1.75, 2.32, true), p(4.0, 2.32, false)]);
         let mut route = steps();
         let mut rng = Rng::new(1);
-        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut motor = Motor::new(walk_ledges(), &mut rng);
         let clear = |_: Vec3| true;
         let mut ahead_of = |motor: &mut Motor, feet: Vec3| {
             let pose = Pose { feet, yaw: 0.0, pitch: 0.0, speed: 0.0, ..Default::default() };
@@ -6702,7 +6790,7 @@ mod tests {
         assert!(under.out_of_reach(STANDING_JUMP_M));
         // On the take-off's floor, on the jump's line: lined up.
         let mut rng = Rng::new(1);
-        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut motor = Motor::new(walk_ledges(), &mut rng);
         let on = ahead_of(&mut motor, Vec3::new(1.2, 1.5, 0.0));
         assert!(on.lined && !on.out_of_reach(STANDING_JUMP_M), "{on:?}");
     }
@@ -7278,7 +7366,7 @@ mod tests {
         };
         for aiming in [false, true] {
             // The lip under a low floor (x 4-8).
-            let mut motor = Motor::new(Feel::default(), &mut rng);
+            let mut motor = Motor::new(walk_ledges(), &mut rng);
             let mut route = Route::new(vec![
                 point(0.0, false, false),
                 point(4.0, false, false),
@@ -7305,7 +7393,7 @@ mod tests {
             };
             let feel = Feel {
                 hop_after_jump_s: 0.0,
-                ..Feel::default()
+                ..walk_ledges()
             };
             let mut motor = Motor::new(feel, &mut rng);
             let jumps = reckoned_to(
@@ -7319,7 +7407,7 @@ mod tests {
             );
             let no_hop = Feel {
                 hop_behind_m: f32::INFINITY,
-                ..Feel::default()
+                ..walk_ledges()
             };
             let mut motor = Motor::new(no_hop, &mut rng);
             let planned = reckoned_to(
@@ -7336,7 +7424,7 @@ mod tests {
             // A jump of the route at x 2.6 to 3 (made at once), then caught
             // at the lip 1.5 s later: not then, at the next world. (Pressed at
             // rest 2.6 m short: the walk-reach gate would hold it for the walk.)
-            let mut motor = Motor::new(Feel { walk_jump_reach: false, ..Feel::default() }, &mut rng);
+            let mut motor = Motor::new(Feel { walk_jump_reach: false, ..walk_ledges() }, &mut rng);
             let mut route = Route::new(vec![
                 point(0.0, false, false),
                 point(2.6, false, false),
