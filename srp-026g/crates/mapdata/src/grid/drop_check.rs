@@ -805,7 +805,7 @@ impl WalkGrid {
             }
             let share = Share::of_mask(super::gap::Mask::of_bits(bits).expect("a bit a neighbour"));
             let press = Takeoff::Release { at: PressLead::from_metres(at), crouched: stance == Stance::Crouched };
-            if best.is_none_or(|(_, _, kept)| share.flown() > kept.flown()) {
+            if best.is_none_or(|(_, _, kept)| share.rank() > kept.rank()) {
                 best = Some((b, press, share));
             }
         }
@@ -873,7 +873,7 @@ impl WalkGrid {
                 let link = OffLink { from: a, to: b, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT };
                 if let Some(l) = wide.off.iter_mut().find(|l| l.from == a && l.to == b) {
                     // Of two releases the higher share, as within the pass; anything else takes the release's press.
-                    if matches!(l.press, Takeoff::Release { .. }) && l.share.flown() >= share.flown() {
+                    if matches!(l.press, Takeoff::Release { .. }) && l.share.rank() >= share.rank() {
                         pairs.earlier_kept += 1;
                     } else {
                         pairs.earlier_replaced += 1;
@@ -882,7 +882,7 @@ impl WalkGrid {
                 } else if let Some(&i) = index.get(&(a, b)) {
                     pairs.merged += 1;
                     match added[i].press {
-                        Takeoff::Release { .. } if added[i].share.flown() >= share.flown() => pairs.releases_kept_first += 1,
+                        Takeoff::Release { .. } if added[i].share.rank() >= share.rank() => pairs.releases_kept_first += 1,
                         Takeoff::Release { .. } => {
                             pairs.releases_kept_later += 1;
                             added[i] = link;
