@@ -1392,6 +1392,7 @@ pub(super) fn decide(
         me,
         bot: BotFacts {
             personality: bot.personality(tuning),
+            skill: bot.skill,
             weapon: bot.weapon(weapons, tuning),
             weapons,
             side: bot.side,

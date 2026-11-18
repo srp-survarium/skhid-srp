@@ -141,6 +141,7 @@
   },
   "skill": {
     "duel_by_killer": false,
+    "tactics": null,
     "step_reset": false,
     "tiers": {
       "13-15": {

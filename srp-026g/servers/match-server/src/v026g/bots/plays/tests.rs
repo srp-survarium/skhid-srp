@@ -313,6 +313,8 @@ impl Scenario {
             me: &self.view.places[place],
             bot: BotFacts {
                 personality: &self.tuning.personalities[self.personality],
+                // [fix-team 5] The skill where every advanced tactic is as today.
+                skill: 0.6,
                 weapon: self.weapon.or_else(|| {
                     WeaponKind::of_role(&self.tuning.personalities[self.personality].name)
                 }),

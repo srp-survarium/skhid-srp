@@ -287,9 +287,38 @@ pub fn mix(range: (f32, f32), t: f32) -> f32 {
     range.0 + (range.1 - range.0) * t.clamp(0.0, 1.0)
 }
 
+/// [fix-team 5] How often a bot of `skill` uses an advanced tactic of `row` (`LOSING-TEAM-ROOT-CAUSE.md` §6.3): a smoothstep
+/// from `row.floor` at skill 0 to exactly 1 at `today`, and from 1 there to `row.top` at `top_at` and over. At `today`
+/// the share is 1.0 exactly, so a score times it is the same float: a team at `today` plays as before.
+pub fn tactic_share(skill: f32, today: f32, top_at: f32, row: crate::v026g::bots::tuning::TacticRow) -> f32 {
+    let smooth = |t: f32| t * t * (3.0 - 2.0 * t);
+    if skill < today {
+        let x = (skill / today).clamp(0.0, 1.0);
+        row.floor + (1.0 - row.floor) * smooth(x)
+    } else {
+        let y = ((skill - today) / (top_at - today)).clamp(0.0, 1.0);
+        1.0 + (row.top - 1.0) * smooth(y)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [fix-team 5] The share at its anchors: the floor at 0, exactly 1 at today, the top at top_at and over; rising.
+    #[test]
+    fn a_tactic_share_is_its_floor_at_0_one_at_today_and_its_top_at_the_ceiling() {
+        use crate::v026g::bots::tuning::TacticRow;
+        let row = TacticRow { floor: 0.3, top: 1.3 };
+        assert_eq!(tactic_share(0.0, 0.6, 0.9, row), 0.3);
+        assert_eq!(tactic_share(0.6, 0.6, 0.9, row), 1.0);
+        assert!((tactic_share(0.9, 0.6, 0.9, row) - 1.3).abs() < 1e-6 && tactic_share(1.0, 0.6, 0.9, row) == tactic_share(0.9, 0.6, 0.9, row));
+        let steps: Vec<f32> = (0..=10).map(|i| tactic_share(i as f32 / 10.0, 0.6, 0.9, row)).collect();
+        assert!(steps.windows(2).all(|w| w[0] <= w[1]), "{steps:?}");
+        // The tier starts: Low 0.3 and Mid 0.5 below 1, High 0.6 at 1.
+        assert!((tactic_share(0.3, 0.6, 0.9, row) - 0.65).abs() < 1e-6);
+        assert!(tactic_share(0.5, 0.6, 0.9, row) > 0.9 && tactic_share(0.5, 0.6, 0.9, row) < 1.0);
+    }
 
     #[test]
     fn a_team_behind_late_grows_aggressive_by_degrees() {
