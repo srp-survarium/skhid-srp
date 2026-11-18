@@ -48,6 +48,7 @@ switch values kin: aim_gates=world carrier_sprint=refused client_step=kept drop_
 switch values kit: frags=support_and_camper medkit=military smoke=radio_place
 switch values mods: comeback={"drop_confidence":0.6700000166893005,"enemy_m":30.0,"fade_s":20.0,"group_m":... raid_regroup={"call":true,"call_m":50.0,"mate_m":12.0,"stage_m":40.0,"wait_s":10.0}
 switch values pace: reserve={"gap":[15.0,30.0],"stop":[10.0,25.0]}
+switch values skill: tactics={"answer":{"floor":0.4000000059604645,"top":1.2000000476837158},"crossfire":{...
 switch values smoke: shooter_spot={"rest_within_m":4.0} wait_for_cloud={"close_m":15.0,"close_sensed_ms":2000,"margin_ms":500,"who":"crossers"}
 switch values spacing: callouts=seen_and_heard queue={"cone_deg":60.0,"gap_m":2.0,"stop_m":1.5}
 switch values take: pitch=view_scale team_memory={"aside_after":2,"aside_s":20.0,"keep_s":90.0} zone_look={"within_m":24.0} zone_take={"in_mps":4.5,"spend":{"after_opening":{"left":0.4000000059604645,"share":0.6...
