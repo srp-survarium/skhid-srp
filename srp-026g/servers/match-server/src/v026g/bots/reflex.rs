@@ -4193,8 +4193,21 @@ impl OutrangedStats {
     }
 }
 
+/// [fix-team 5 T7 `skill.tactics.frags`] The share of the A170 held-spot frag's chance its skill gives it (`signals::tactic_share`);
+/// 1: as today.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HeldFragShare(f32);
+
+impl Default for HeldFragShare {
+    fn default() -> Self {
+        Self(1.0)
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Reflex {
+    /// [fix-team 5 T7] The held-spot frag's share (set by the think before each reflex think).
+    held_frag_share: HeldFragShare,
     target: Option<Place>,
     /// When it took the target.
     since: u32,
@@ -4687,6 +4700,11 @@ fn along(from: Vec3, bearing: f32, m: f32) -> Vec3 {
 }
 
 impl Reflex {
+    /// [fix-team 5 T7] The held-spot frag's share at the bot's skill (`skill.tactics.frags`; 1 with the tactics off).
+    pub fn set_held_frag_share(&mut self, share: f32) {
+        self.held_frag_share = HeldFragShare(share.clamp(0.0, 1.0));
+    }
+
     /// A reflex for a bot carrying `arms` (`None`: [`Arms::fallback`]).
     pub fn armed(arms: Option<&'static Arms>) -> Self {
         static BORN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1);
@@ -7165,7 +7183,8 @@ impl Reflex {
         let chance = match pace {
             Some(pace) => pace.chance,
             None => match (lead, c.grenade_at_held) {
-                (PlaceSource::Spot, Some(chance)) => chance,
+                // [fix-team 5 T7] Times the skill's share: no new draw (the roll below is the one there was).
+                (PlaceSource::Spot, Some(chance)) => chance * self.held_frag_share.0,
                 (source, _) if source.is_track() => c.grenade_track_chance,
                 _ => c.grenade_chance,
             },
