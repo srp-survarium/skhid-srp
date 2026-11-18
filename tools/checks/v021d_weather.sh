@@ -62,6 +62,10 @@ python3 srp-026g/scripts/v021d-weather/check_normal_on.py \
     --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-blend-normal-on-1" \
     --blend-pack "$SKHID_PACKS_DIR/v021d-vertex-blend-3" \
     --patches release/patches.tsv --patch-cache "$cache/patches"
+python3 srp-026g/scripts/v021d-weather/check_consider_off.py \
+    --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-blend-consider-off-1" \
+    --blend-pack "$SKHID_PACKS_DIR/v021d-vertex-blend-3"
 python3 srp-026g/scripts/v021d-weather/check_alpha_textures.py \
     --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
     --donor "$common/private/v021d-five-weathers/original-resources.db" \
