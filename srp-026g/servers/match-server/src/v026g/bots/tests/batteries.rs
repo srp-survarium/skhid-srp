@@ -588,6 +588,9 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32, refresh: bo
     game.bodies[1].feet = by_container;
     // The bot a little way off, facing the container.
     let bot_at = Vec3::new(14.0, 0.0, 12.0);
+    // The client's pitch unit, as the bots send it (`kin.pitch_scale`): with the unit tests' radian the stand-in's use ray
+    // left a take on the move 0.2 rad over the box.
+    game.bodies[0].scale = crate::v026g::bots::pitch::PitchScale::Client;
     game.bodies[0].node = world.grid.locate(bot_at, 1.0);
     game.bodies[0].feet = bot_at;
     game.bodies[0].yaw = kin::yaw_of([by_container.x - bot_at.x, by_container.z - bot_at.z]);
@@ -761,6 +764,9 @@ pub(crate) fn theft_drop_run(weight: Option<f32>, drop_at: Vec3, drop_ms: u32, l
     game.bodies[1].feet = by_container;
     // The bot a little way off, its back to the container.
     let bot_at = Vec3::new(14.0, 0.0, 12.0);
+    // The client's pitch unit, as the bots send it (`kin.pitch_scale`): with the unit tests' radian the stand-in's use ray
+    // left a take on the move 0.2 rad over the box.
+    game.bodies[0].scale = crate::v026g::bots::pitch::PitchScale::Client;
     game.bodies[0].node = world.grid.locate(bot_at, 1.0);
     game.bodies[0].feet = bot_at;
     game.bodies[0].yaw = kin::yaw_of([bot_at.x - by_container.x, bot_at.z - by_container.z]);
