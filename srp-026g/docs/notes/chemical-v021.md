@@ -49,3 +49,37 @@ A particle material's transparency texture keeps 0.26's file where the
 full-size image is the same (the anomaly's `bug` and `spori`, the candle
 light): 0.21's small mips raise alpha, and 0.26's particle pass would draw
 pale squares with them (the reason `v021d-particle-alpha` was dropped).
+
+## Comparison with 0.21d (2026-11-18)
+
+Generated poses a set (interiors, roofs, lights, horizon, ground, mode objects,
+spawns, four sun views), 0.21d shot once and kept, the port on a quick build
+with lighting@7, both at the rig's 0.21 quality settings. Static render
+geometry: 51.1 MiB (Protective device) and 51.0 MiB (Team Deathmatch) in every
+weather, of the pool's 88.
+
+| Set | Pairs | Flagged | Serious |
+| --- | --- | --- | --- |
+| day | 96 | 4 | 3 |
+| rain | 93 | 13 | 8 |
+| evening | 96 | 7 | 2 |
+
+All six projects load with no missing shader. The day sun views match 0.21d's.
+Open, none of them fixed here:
+
+- **Rain: the anomaly's liquid is pale white** (`battery_3`, `roof_1_out`); it is
+  teal in 0.21d's rain, in native 0.26 rain at the same cameras, and in the
+  port's day and evening. Lighting quality 0 or 1 makes no difference. The
+  material (`anomaly/anomaly_liquid`) is 0.26's own with 0.21d's diffuse;
+  0.21d's rain fog is dense and white (Mie far distance 60 m against the
+  native rain's 1200), which is where to look.
+- **Sunlight missing indoors**: day `in_18_wall` (one sun patch on the floor)
+  and evening `in_03_near` (a room the low sun floods in 0.21d is unlit): the
+  sun's shadow covers them, as on School's gym wall.
+- **Water** (`in_32_wall`, every weather): 0.21d's water mirrors the sky at the
+  far edge, the port's does not (water surface lighting is 0.26's).
+- **Roof metal** (day `in_31_near`): 0.26's finish is glossier and bluer than
+  0.21d's matte rust (the native-finish rule of these ports).
+- The anomaly's green haze and bright spores in 0.21d's rain and evening shots
+  are its active state at the time of the shot (the day shots of both builds
+  have neither); the port's static captures show it idle.
