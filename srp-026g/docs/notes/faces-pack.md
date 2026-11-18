@@ -203,8 +203,14 @@ What 0.69d0 modelled is the reference: a face is never reshaped to fit an item.
      (the chin, the jaw) that comes down into its collar when the head bows, where today's chin
      only touches it.
 6. **The Novice's scalp** is cut along his skin's open top (where his cap sat), its cut edge laid
-   on that open edge and the rest of it moved with the edge: no step and no gap where the two
-   meet (`faces@2` hung it 2 mm over his skin, which showed as a ledge at the temples).
+   on that open edge and the rest of it moved with the edge (`faces@2` hung it 2 mm over his
+   skin: a ledge, and facets of it over his forehead). **Not right yet**, seen in the game: the
+   ledge and the facets are gone, but the band his cap shadowed stays a pale strip across his
+   forehead and temples (his own colour map), and behind the ears, where his skin's open edge
+   runs lower than the cut follows, a dark gap stays between scalp and skin down to the nape. A
+   trial with the scalp's band laid on his skin under the edge closed the gap and left flaps at
+   the ears' tops (`v3/offline/novice-scalp-closeup-shipped-and-band-trial.png`). He needs his
+   cap line and colour map worked by hand, or another scalp.
 
 ### The numbers
 
