@@ -680,6 +680,12 @@ pub struct ThreatTuning {
     /// [A391] New jobs try the held spots with the most kills first, so a shooter's job opens on his strongest spot and falls
     /// back to the next when that one rests or cannot be staffed (`threat::opening_order`). Off: in the held spots' order.
     pub job_strongest_first: bool,
+    /// [fix-team 1] A job role goes only to a mate that has a spot for it now (the role play's own test, asked of each free mate
+    /// nearest first; `threat::JobTeam::spot`); a held spot none of whose free mates in reach has one reports it and rests
+    /// (`threat::JobEvent::NoSpot`). Off: the nearest free mate, whose role then fails as "no spot" one poll later and goes
+    /// to the next (owner-16, 16 matches at 9694ea576: 719 of 750 roles on the human's spots were dropped so, 0.5 s after
+    /// they were given; `LOSING-TEAM-ROOT-CAUSE.md` L3).
+    pub job_role_needs_spot: bool,
     /// K2: a role goes to a bot out of every held line (off: out of the
     /// holds' only, `job_kills`; verify-703 should-fix 3). OFF by default:
     /// alone against the four follow-ups off (96 pairs by side, 2026-10-29)
@@ -1035,6 +1041,7 @@ impl Default for ThreatTuning {
             job_open_staffed: true,
             job_role_offer: true,
             job_strongest_first: true,
+            job_role_needs_spot: true,
             job_out_of_all_lines: false,
             job_line_by_id: true,
             job_spot_levels: false,
