@@ -124,18 +124,25 @@ fn job_spot_stages() {
     let (mut flank_all, mut pin_all) = (Tally::default(), Tally::default());
     for ((mode, level), centres) in groups {
         let file = dir.join(mapdata::format::file_name(&format!("{level}/day_{mode}")));
-        let Ok(map) = mapdata::MapData::read(&file) else {
+        let Ok(bytes) = std::fs::read(&file) else {
             eprintln!("{level} mode {mode}: no map file {}", file.display());
             continue;
         };
-        let world = World::build_with(
-            map,
-            mapdata::CELL,
-            t.grid_body(),
-            t.off_mesh_links(),
-            t.needs_wall_clearance(),
-            t.needs_open_sides(),
-        );
+        // As the bench loads its maps: from the grid cache when the run has one (`SRP_BENCH_GRID_CACHE`), else built.
+        let map_file = {
+            let mut digest = mapdata::digest::Digest::new();
+            digest.bytes(&bytes);
+            digest.finish()
+        };
+        let map = mapdata::MapData::from_bytes(&bytes).unwrap();
+        let extras = mapdata::GridExtras {
+            wall_clearance: t.needs_wall_clearance(),
+            open_sides: t.needs_open_sides(),
+            pull_hold: t.grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
+            pull_walk: t.grid.pull_walk,
+            walker_shapes: t.grid.walker_shapes,
+        };
+        let world: World = super::grid_cache::world(map, map_file, mapdata::CELL, t.grid_body(), t.off_mesh_links(), extras);
         let tactics = Tactics::new(std::sync::Arc::new(world), t.hazard.margin_m.get());
         let mut sides: Vec<i32> = tactics.world.map.spawns.iter().map(|s| s.team).collect();
         sides.sort_unstable();
