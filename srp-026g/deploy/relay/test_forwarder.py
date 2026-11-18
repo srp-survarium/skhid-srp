@@ -74,6 +74,34 @@ class SocketTests(unittest.IsolatedAsyncioTestCase):
             await server.wait_closed()
             await backend.wait_closed()
 
+    async def test_a_download_longer_than_the_idle_time_is_not_cut(self):
+        from unittest.mock import patch
+        async def origin(reader, writer):
+            for part in (b'a', b'b', b'c', b'd'):
+                await asyncio.sleep(0.2)
+                writer.write(part)
+                await writer.drain()
+            writer.close()
+        backend = await asyncio.start_server(origin, '127.0.0.1', 0)
+        open_connection = asyncio.open_connection
+        async def connect(_host, _port):
+            return await open_connection('127.0.0.1', backend.sockets[0].getsockname()[1])
+        proxy = f.HTTPS('203.0.113.8', 'skhid.link', 443)
+        server = await asyncio.start_server(proxy.accept, '127.0.0.1', 0, limit=4096)
+        try:
+            with patch('forwarder.asyncio.open_connection', new=connect), patch('forwarder.IDLE', 0.3):
+                reader, writer = await open_connection('127.0.0.1', server.sockets[0].getsockname()[1])
+                writer.write(b'CONNECT skhid.link:443 HTTP/1.1\r\n\r\n')
+                await asyncio.wait_for(reader.readuntil(b'\r\n\r\n'), 2)
+                self.assertEqual(await asyncio.wait_for(reader.read(-1), 3), b'abcd')
+                writer.close()
+                await writer.wait_closed()
+        finally:
+            server.close()
+            backend.close()
+            await server.wait_closed()
+            await backend.wait_closed()
+
     async def test_tcp_header_and_bidirectional_stream(self):
         observed = []
         async def backend(reader, writer):

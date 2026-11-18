@@ -80,7 +80,7 @@ def check(run, updater, x86, started, log, win):
                     command, folder = lines[:2]
                     assert f'-server={host}' in command, command
                     assert '-minimum_resources_memory_size=768' in command, command
-                    assert ' quiet' not in command, command
+                    assert ' quiet' not in command and ' wait' not in command, command
                     assert folder.lower().rstrip('\\') == win(x86).lower(), folder
                     started.unlink()
                     return
@@ -96,6 +96,9 @@ def check(run, updater, x86, started, log, win):
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768', expected=1)
         assert not started.exists(), 'unreachable routes must not launch the game'
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768', '-server=127.0.0.9:1234')
+        expect('127.0.0.9:1234')
+        # The scripts' form: the updater stays until the game has ended.
+        run(updater, 'play', 'wait', 'quiet', '-minimum_resources_memory_size=768', '-server=127.0.0.9:1234')
         expect('127.0.0.9:1234')
     finally:
         config.unlink(missing_ok=True)

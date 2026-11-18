@@ -209,8 +209,7 @@ impl Drop for Permit {
         self.0.fetch_sub(1, Ordering::Relaxed);
     }
 }
-fn connection(mut front: TcpStream, config: Config) -> io::Result<()> {
-    let client = front.peer_addr()?;
+fn connection(mut front: TcpStream, client: SocketAddr, config: Config) -> io::Result<()> {
     let mut back = TcpStream::connect_timeout(
         &SocketAddr::from((config.backend, config.login)),
         Duration::from_secs(10),
@@ -231,15 +230,11 @@ fn connection(mut front: TcpStream, config: Config) -> io::Result<()> {
     let mut reverse_back = back.try_clone()?;
     std::thread::scope(|scope| {
         scope.spawn(move || {
-            let result = copy(&mut reverse_back, &mut reverse_front);
-            let _ = reverse_front.shutdown(if result.is_ok() {
-                Shutdown::Write
-            } else {
-                Shutdown::Both
-            });
-            if result.is_err() {
-                let _ = reverse_back.shutdown(Shutdown::Both);
-            }
+            let _ = copy(&mut reverse_back, &mut reverse_front);
+            // The server is done with this sign-in: end both sides now, so a
+            // silent client does not hold its slot until the idle timeout.
+            let _ = reverse_front.shutdown(Shutdown::Both);
+            let _ = reverse_back.shutdown(Shutdown::Both);
         });
         let result = copy(&mut front, &mut back);
         let _ = back.shutdown(if result.is_ok() {
@@ -276,22 +271,31 @@ fn main() -> io::Result<()> {
     let active = Arc::new(AtomicUsize::new(0));
     let mut budget = Budget::new(2.0, 10.0);
     for stream in login.incoming() {
-        let stream = stream?;
-        if active.load(Ordering::Relaxed) >= 128
-            || !budget.take(stream.peer_addr()?, Instant::now())
-        {
+        // One sign-in that fails (reset before it is accepted, no thread for
+        // it) is dropped: the process also carries every relayed match.
+        let Ok(stream) = stream else {
+            std::thread::sleep(Duration::from_millis(50));
+            continue;
+        };
+        let Ok(client) = stream.peer_addr() else {
+            continue;
+        };
+        if active.load(Ordering::Relaxed) >= 128 || !budget.take(client, Instant::now()) {
             continue;
         }
         active.fetch_add(1, Ordering::Relaxed);
         let permit = Permit(active.clone());
-        std::thread::Builder::new()
+        let spawned = std::thread::Builder::new()
             .name("login-forward".into())
             .spawn(move || {
                 let _permit = permit;
-                if let Err(error) = connection(stream, config) {
+                if let Err(error) = connection(stream, client, config) {
                     eprintln!("login ended: {error}");
                 }
-            })?;
+            });
+        if let Err(error) = spawned {
+            eprintln!("login dropped: {error}");
+        }
     }
     Ok(())
 }
