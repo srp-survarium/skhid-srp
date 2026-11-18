@@ -3888,6 +3888,40 @@ mod tests {
         }
     }
 
+    /// [fix-move, owner-16 row 2] At a riser's face a body that may sprint sprints into it; one that may not (here the aim held) is
+    /// pressed up by the grid's walking jump when it has one, and with none flown the riser is refused with its top and the
+    /// refusal's reason for the log (the route is then planned again without it).
+    #[test]
+    fn a_riser_with_neither_the_sprint_nor_a_press_is_refused() {
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let me = PlaceView { velocity: [0.0, 0.0], ..on_the_slab(52.0, -std::f32::consts::FRAC_PI_2, 0.0) };
+        let top = Vec3::new(52.6, 3.0, 33.0);
+        let way = |x: f32| path::Waypoint { at: Vec3::new(x, 2.0, 33.0), node: 0, jump: None, low: false };
+        let gait = |press: path::RiserPress, keys: u32| {
+            let mut bot = Bot::new(1, 0, 0, None, &tuning);
+            let route = path::Route::new(vec![way(52.0), way(56.0)])
+                .with_riser(path::RiserUp { top, take_off: Vec3::new(52.2, 2.0, 33.0), press });
+            bot.route = Some((route.clone(), route.end()));
+            let mut keys = keys;
+            let step = riser_gait(&bot, &me, &mut keys, 1_000, &tuning);
+            (step, keys)
+        };
+        let (step, keys) = gait(path::RiserPress::NoPress, key::FORWARD);
+        assert_eq!((step, keys & key::SPRINT), (None, key::SPRINT), "free: sprinted into");
+        match gait(path::RiserPress::NoPress, key::FORWARD | key::AIM) {
+            (Some(RiserStep::Refused { top: at, line }), keys) => {
+                assert_eq!(at, top);
+                assert_eq!(keys & key::SPRINT, 0);
+                assert!(line.contains("keys 0x80 held") && line.contains("no press flown"), "{line}");
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(
+            matches!(gait(path::RiserPress::Unflown, key::FORWARD | key::AIM).0, Some(RiserStep::Press(_))),
+            "a walking jump at the face"
+        );
+    }
+
     /// [#2081] A route over a noticed trap that the own-trap guard holds at rest (the walk on it refused, no other key) past the
     /// longest think gap ends, and the trap is shut for the bot's searches; a route the guard lets walk is kept.
     #[test]
