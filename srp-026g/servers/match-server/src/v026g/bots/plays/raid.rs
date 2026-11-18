@@ -73,25 +73,34 @@ pub fn tuning() -> PlayTuning {
 
 /// [A296 items 4 and 5] What the switches did (the bench's tally): raids offered early by `mods.behind_open` (before the play's
 /// own `after_s`), regroup stops by `mods.raid_regroup`, those a mate came to, those that waited the whole `wait_s`.
-#[cfg(test)]
+/// [fix-team `mods.raid_approach`] ... and the approaches chosen among the human routes, or round the container.
 pub mod raid_counts {
+    #[cfg(test)]
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    #[cfg(test)]
+    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
 
     pub enum Count {
         EarlyOffered,
         RegroupStop,
         RegroupMate,
         RegroupTimedOut,
+        ApproachRoute,
+        ApproachRing,
     }
 
+    #[cfg(test)]
     pub fn count(what: Count) {
         COUNTS[what as usize].fetch_add(1, Ordering::Relaxed);
     }
 
-    pub fn counts() -> [u64; 4] {
-        [0, 1, 2, 3].map(|k| COUNTS[k].load(Ordering::Relaxed))
+    #[cfg(not(test))]
+    pub fn count(_: Count) {}
+
+    #[cfg(test)]
+    pub fn counts() -> [u64; 6] {
+        [0, 1, 2, 3, 4, 5].map(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
 
@@ -170,6 +179,9 @@ fn raid_candidate(cx: &Ctx, target: TargetRef, slot: u32) -> Option<Candidate> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
     Approach,
+    /// [fix-team `mods.raid_approach`] On its chosen approach: to `points[next]`, the last its gather point; there it regroups
+    /// (`mods.raid_regroup`) or goes in.
+    Via { points: Vec<Vec3>, next: usize },
     /// [A296 item 5, `mods.raid_regroup`] Stopped short of their container for a teammate to come, to `until`.
     Regroup { until: u32 },
     /// In after a regroup (or with no mate to wait for): no second stop.
@@ -177,8 +189,101 @@ pub enum State {
     Take { tries: u8, last_use: u32 },
 }
 
-pub fn start(_target: TargetRef, _cx: &Ctx, _rng: &mut Rng) -> State {
-    State::Approach
+pub fn start(target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> State {
+    match (cx.tuning.mods.raid_approach, cx.point_of(target)) {
+        (Some(rule), Some(container)) => match approach(cx, container, &rule) {
+            Some(points) => State::Via { points, next: 0 },
+            None => State::Approach,
+        },
+        _ => State::Approach,
+    }
+}
+
+/// [fix-team `mods.raid_approach`] The way's risk by what the team knows (an influence map priced along the way, Mark's
+/// threat maps; Killzone 3's squads path round the danger): each `sample_m` of the way weighs the known enemies within
+/// `enemy_m` (its own senses and callouts, fading over `known_s`), the team's deaths within `death_m` (the losses, fading
+/// over their 120 s), and the enemy humans' recent lanes within `lane_m` (`HumanLanes`, their own decay), each at most 1.
+fn way_risk(cx: &Ctx, way: &[Vec3], rule: &crate::v026g::bots::tuning::RaidApproach) -> f32 {
+    let known_ms = rule.known_s * 1000.0;
+    let enemies: Vec<(Vec3, f32)> = cx
+        .memory
+        .tracks()
+        .iter()
+        .filter_map(|t| t.own)
+        .filter_map(|(at, time)| {
+            let age = cx.now.saturating_sub(time) as f32;
+            (age < known_ms).then(|| (at, 1.0 - age / known_ms))
+        })
+        .collect();
+    let keep = crate::v026g::bots::know::LOSS_KEEP_MS as f32;
+    let deaths: Vec<(Vec3, f32)> = cx
+        .team
+        .losses
+        .iter()
+        .filter(|l| l.time <= cx.now)
+        .map(|l| (l.at, (1.0 - (cx.now - l.time) as f32 / keep).max(0.0)))
+        .collect();
+    let lanes: Vec<(Vec3, f32)> =
+        cx.team.humans.humans.iter().flat_map(|h| h.cells.iter().map(|c| (c.at, c.count_at(cx.now).min(1.0)))).collect();
+    let near = |p: Vec3, sources: &[(Vec3, f32)], reach: f32| -> f32 {
+        sources.iter().map(|&(at, w)| w * (1.0 - at.distance_xz(p) / reach).max(0.0)).sum::<f32>().min(1.0)
+    };
+    let mut risk = 0.0;
+    for leg in way.windows(2) {
+        let (a, b) = (leg[0], leg[1]);
+        let steps = (a.distance_xz(b) / rule.sample_m).ceil().max(1.0) as usize;
+        for k in 1..=steps {
+            let p = a + (b - a) * (k as f32 / steps as f32);
+            risk += (near(p, &enemies, rule.enemy_m) + near(p, &deaths, rule.death_m) + near(p, &lanes, rule.lane_m)) * rule.sample_m;
+        }
+    }
+    risk
+}
+
+/// [fix-team `mods.raid_approach`] The approach to the container at `container` that the team's knowledge covers least (the
+/// owner's "the less protected flank, or a path the enemies weren't using"), as the points to walk before the container, the
+/// last the gather point: among the side's human routes that pass within `route_near_m` of the container (a real lane, from
+/// the route's point nearest the bot to its point nearest the container) where there are any, else among `bearings` points
+/// round the container at `stage_m` (the regroup's ring) on a floor the bot can go to. Each priced as its length plus
+/// `risk_m` times its risk ([`way_risk`]) over the whole way, the last leg to the container included. None: no approach.
+fn approach(cx: &Ctx, container: Vec3, rule: &crate::v026g::bots::tuning::RaidApproach) -> Option<Vec<Vec3>> {
+    let feet = cx.me.feet;
+    let routes: Vec<Vec<Vec3>> = cx
+        .bot
+        .side
+        .into_iter()
+        .flat_map(|side| cx.tactics.routes_of(side))
+        .filter_map(|route| {
+            let d = |i: usize| route.points[i].distance_xz(container);
+            let gather = (0..route.points.len()).min_by(|&a, &b| d(a).total_cmp(&d(b))).filter(|&i| d(i) <= rule.route_near_m)?;
+            let from = (0..route.points.len())
+                .min_by(|&a, &b| route.points[a].distance_xz(feet).total_cmp(&route.points[b].distance_xz(feet)))?;
+            (from <= gather).then(|| route.points[from..=gather].to_vec())
+        })
+        .filter(|points| points.last().is_some_and(|&g| cx.can_go(g)))
+        .collect();
+    let ring = || -> Vec<Vec<Vec3>> {
+        let grid = &cx.tactics.world.grid;
+        (0..rule.bearings)
+            .filter_map(|k| {
+                let yaw = std::f32::consts::TAU * f32::from(k) / f32::from(rule.bearings);
+                let p = container + Vec3::new(yaw.cos() * rule.stage_m, 0.0, yaw.sin() * rule.stage_m);
+                let floor = grid.position(grid.locate(p, 3.0)?);
+                cx.can_go(floor).then(|| vec![floor])
+            })
+            .collect()
+    };
+    let (candidates, kind) = if routes.is_empty() { (ring(), raid_counts::Count::ApproachRing) } else { (routes, raid_counts::Count::ApproachRoute) };
+    let cost = |points: &Vec<Vec3>| {
+        let way: Vec<Vec3> = std::iter::once(feet).chain(points.iter().copied()).chain(std::iter::once(container)).collect();
+        let length: f32 = way.windows(2).map(|w| w[0].distance_xz(w[1])).sum();
+        length + rule.risk_m * way_risk(cx, &way, rule)
+    };
+    let best = candidates.into_iter().map(|p| (cost(&p), p)).min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, p)| p);
+    if best.is_some() {
+        raid_counts::count(kind);
+    }
+    best
 }
 
 pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> Step {
@@ -205,6 +310,28 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
     };
     if count == 0 {
         return Step::Done("their container is empty");
+    }
+    // [fix-team `mods.raid_approach`] Its chosen approach first; at its gather point the regroup (or in).
+    if let State::Via { points, next } = state {
+        let reach = num("reach_m");
+        while *next < points.len() && cx.me.feet.distance_xz(points[*next]) <= reach {
+            *next += 1;
+        }
+        if let Some(&p) = points.get(*next) {
+            return Step::Continue(Intent::to(p, cx.pace_toward(p)).within(reach * 0.7).into_base());
+        }
+        let mate_by = |m: f32| {
+            cx.view
+                .team(cx.me.team)
+                .any(|p| p.place != cx.me.place && p.alive && p.feet.distance_xz(cx.me.feet) <= m)
+        };
+        *state = match cx.tuning.mods.raid_regroup {
+            Some(rule) if mate_by(rule.call_m) && !mate_by(rule.mate_m) => {
+                raid_counts::count(raid_counts::Count::RegroupStop);
+                State::Regroup { until: cx.now + (rule.wait_s * 1000.0) as u32 }
+            }
+            _ => State::GoIn,
+        };
     }
     // [A296 item 5] First within the stage ring with a teammate coming: wait for him there.
     if let Some(rule) = cx.tuning.mods.raid_regroup {
@@ -260,7 +387,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
                     .into_base(),
             )
         }
-        State::Regroup { .. } => Step::Continue(Intent::stay().crouched().looking(Look::At(at))),
+        State::Regroup { .. } | State::Via { .. } => Step::Continue(Intent::stay().crouched().looking(Look::At(at))),
         State::Take { tries, last_use } => {
             if *tries >= num("tries") as u8 {
                 return Step::Failed("took nothing: blocked");
@@ -306,7 +433,35 @@ mod tests {
         }
         s.container_count(1, 3);
         s.signals();
+        // The straight way (the approach's own test sets it).
+        s.tuning.mods.raid_approach = None;
         s
+    }
+
+    /// [fix-team `mods.raid_approach`] With no human route, the gather point is the ring point round the container the team's
+    /// knowledge covers least: a known enemy east of the container pushes it off the east; it walks there, then goes in.
+    #[test]
+    fn a_raider_gathers_on_the_approach_its_team_knows_least_covered() {
+        use crate::v026g::bots::tuning::RaidApproach;
+        let at = Vec3::new(68.0, 0.0, 30.0);
+        let target = TargetRef::Container(1);
+        let mut rng = Rng::new(1);
+        let mut s = raid(2);
+        s.tuning.mods.raid_approach = Some(RaidApproach::default());
+        s.tuning.mods.raid_regroup = None;
+        // A known enemy (heard) 25 m east of their container.
+        s.enemy(5, 1, Vec3::new(93.0, 0.0, 30.0), Some(Source::Heard));
+        let mut state = start(target, &s.cx(0), &mut rng);
+        let State::Via { points, next: 0 } = &state else { panic!("{state:?}") };
+        let gather = *points.last().unwrap();
+        assert!((gather.distance_xz(at) - 40.0).abs() < 3.5, "on the ring: {gather:?}");
+        assert!(gather.x < at.x, "away from the known enemy's side: {gather:?}");
+        // It walks to it; there, it goes in.
+        let Step::Continue(intent) = step(&mut state, target, &s.cx(0), &mut rng) else { panic!("{state:?}") };
+        assert!(matches!(intent.go, Go::To { at: p, .. } if p == gather), "{intent:?}");
+        s.view.places[0].feet = gather;
+        let _ = step(&mut state, target, &s.cx(0), &mut rng);
+        assert_eq!(state, State::GoIn);
     }
 
     fn raids(s: &Scenario) -> Vec<Candidate> {
