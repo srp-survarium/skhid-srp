@@ -70,6 +70,13 @@ TYPE_ALLOWLIST = {
        '(damage_zone_core::hit_objects 0x319AF0, +1C4h beside the float +1C0h), as srp reads it '
        "(mapdata's f32_or); 0.26g's own zones have a whole 0 there"
        for mode in (2, 4)},
+    # London's evening (pack london-weathers): 0.31a2's stratosphere turns at 0.62, a fraction where
+    # 0.26g's corpus has whole numbers; the reader takes either (stratosphere 0x34E84F).
+    **{(f'projects/level_09/evening_{mode}/client_project',
+        '/client_objects[environment]/properties/stratosphere_rotation_speed'):
+       "0.31a2's London evening 0.62; load_environment_properties_impl 0x34E1E0 reads float/int "
+       "numerically (stratosphere 0x34E84F)"
+       for mode in (2, 3, 4)},
     # Original 0.21 weather scalar representations, scoped to the exact
     # projects/keys that differ from the 0.26 corpus. The native reader tests
     # binary-config type 2 then uses movss; otherwise it uses cvtsi2ss. Keep
