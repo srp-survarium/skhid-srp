@@ -6275,10 +6275,11 @@ section 3.87):
 - On the scene of a project whose config root names its inscatter distance (`srp_renderer_v011w: <metres>`,
   edit list `v011w-renderer-1.json`: 200 for the evenings, 300 for the rains) the geometry stage draws 3 in
   5's place and, at its god rays' entry, 4: the constants 0.11e sets for it (to_sun_direction_parameter as
-  minus the sun's direction with the sun's intensity, inscatter_parameters, s_eye_ray_corner), target 37h
+  minus the sun's direction with .w 1, inscatter_parameters, s_eye_ray_corner), target 37h
   and fill_surfaces as stage_atmosphere::execute's own pass. Once a frame; the sky stage never.
-- 0.26g's program for technique 4 is another equation, so the content pack `v011e-radar-fog@1` gives its
-  file 0.11e's program moved to 0.26g's constant and texture places (`scripts/v011-weather/make_fog_pack.py`).
+- 0.26g's program for technique 4 is another equation, so the content pack `v011e-radar-fog@2` gives its
+  file 0.11e's program, compiled from source for 0.26g's layout (`../shaders/v011w.sh`,
+  `scripts/v011-weather/make_fog_pack.py`).
   Nothing else draws technique 4: no other map changes. The lobby's scene, unmarked projects and every
   native map draw technique 5 as before.
 

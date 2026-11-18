@@ -1,0 +1,21 @@
+#include "common.h"
+#include "gbuffer.h"
+
+uniform float4x4	inverted_view_projection_matrix;
+uniform float4		to_sun_direction_parameter;
+uniform float4		inscatter_parameters;
+
+struct v2p_scattering
+{
+	float4	hpos	: SV_POSITION;
+	float2	tc		: TEXCOORD0;
+};
+
+float4 main( v2p_scattering I ) : SV_TARGET
+{
+	float	depth		= t_position.SampleLevel( s_position, I.hpos.xy*screen_res.zw, 0).x;
+
+	float	inscatter	= saturate( min( depth, inscatter_parameters.x)*0.1f/inscatter_parameters.x);
+
+	return	1.0f - inscatter;
+}

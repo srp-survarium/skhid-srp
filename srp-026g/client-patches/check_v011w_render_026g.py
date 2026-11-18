@@ -16,7 +16,7 @@ environment_sun_direction):
   constant; on the marked scene the inscatter host first, (the project's distance, 1, 0, 0);
 - the god rays' entry (0x1A5520): the original's body at once; in the geometry stage after a
   multiplicative pass, first the additive pass: apply_pass with technique 4, then
-  to_sun_direction_parameter (minus the environment's sun direction, .w its +48h),
+  to_sun_direction_parameter (minus the environment's sun direction, .w 1 as 0.11e's),
   inscatter_parameters and s_eye_ray_corner (the context's +53A8h), get_rt(37h) and fill_surfaces
   with that target, no secondary and the flag 1 (as execute's 0x1A5111..0x1A512E); once: the next
   god rays without a new multiplicative pass draw nothing more; the sky stage's never; the body
@@ -38,7 +38,6 @@ BACKEND, BACKEND_SLOT = HEAP + 0x3A0000, 0x2260490
 TARGET = HEAP + 0x3B0000
 APPLY_PASS, SET_PS_CONSTANT, GET_RT, FILL, SUN = 0x3D7230, 0x132A90, 0x11C1D0, 0x1A3690, 0x34E020
 SUN_DIRECTION = (0.25, -0.5, 0.8)
-SUN_INTENSITY = 3.5
 EYE_RAY = (0.7, 0.4, 1.0)
 
 
@@ -78,7 +77,6 @@ def stage(m, drawn, mode):
     m.w(CONTEXT + 0x416C, drawn)
     m.w(CONTEXT + 0x4170, VIEW)
     m.emu.mem_write(CONTEXT + 0x53A8, struct.pack("<3f", *EYE_RAY))
-    m.emu.mem_write(VIEW + 0x118 + 0x48, struct.pack("<f", SUN_INTENSITY))
     m.w(BACKEND_SLOT, BACKEND)
 
 
@@ -106,7 +104,7 @@ ORIGINAL_CONSTANTS = [("constant", "eye_ray", True, (0.7, 0.4, 1.0, 0.0))]
 
 
 def add_pass(distance):
-    to_sun = tuple(round(-x, 5) for x in SUN_DIRECTION) + (SUN_INTENSITY,)
+    to_sun = tuple(round(-x, 5) for x in SUN_DIRECTION) + (1.0,)
     return [("apply_pass", True, 4), ("sun", True), ("constant", "to_sun", True, to_sun),
             ("constant", "inscatter", True, (distance, 1.0, 0.0, 0.0)), ("constant", "eye_ray", True, EYE_RAY + (0.0,)),
             ("get_rt", True, 0x37), ("fill", True, True, 0, 1)]

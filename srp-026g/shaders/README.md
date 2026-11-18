@@ -13,6 +13,7 @@ frame uses them: [renderer-026g.md](../docs/notes/renderer-026g.md), sections 4,
 | `fxc.sh` | the compiler, fxc under Wine |
 | `fxc.nix` | fetches and unpacks that compiler from Microsoft's installer |
 | `lights.sh` | `check`: rebuild and compare with the shipped blobs; `build`: blobs for a resources patch |
+| `v011w/`, `v011w.sh` | 0.11e's atmosphere programs from source, for the 0.11 weathers (below) |
 
 ## The compiler
 
@@ -67,3 +68,19 @@ the new DXBC. That folder is what `release/build-patch` packs into a resources p
 Nothing here is in `release/content.tsv` yet. Shipping one would be a content source kind of its
 own, like `movie`: a row naming the shader family, built by `release/build-content` with
 `lights.sh build` and compared with what players have like every other source.
+
+## 0.11e's atmosphere programs (`v011w/`, `v011w.sh`)
+
+The 0.11 weathers' programs (`../docs/notes/v011-weather.md`). `v011w/` is vostok's 0.10b shader
+sources (`resources/sources/shaders/sm_4_0`, vostok commit 2abd75e36, GPL-3.0 as this repository): the
+four atmosphere programs and the ten headers they include, with 0.11e's changes (the additive fog's
+near fade, the scattering tables' atmosphere) and a switch `TARGET_026G` for 0.26g's constant layout.
+
+```
+v011w.sh check <0.11e resources.db>               # all four byte-identical with 0.11e's, or exit 1
+v011w.sh build <0.26g stock resources.db> <out>   # the additive fog for 0.26g (pack v011e-radar-fog)
+```
+
+For 0.26g, `TARGET_026G=1` declares 0.26g's `static_globals` (as `sm_4_0/point_light_accumulator.ps`),
+drops the per-program `near_far_invn_invf` (0.26g has it there) and declares the tables in 0.26g's order;
+the engine finds every other constant and texture by name.

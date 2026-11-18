@@ -239,7 +239,8 @@ pub fn draw_fog_add(ctx: &Context<'_>, distance: f32) {
         let environment = view.environment();
         let mut direction = [0.0f32; 3];
         raw::engine_sun_direction(Some(environment), direction.as_mut_ptr());
-        let to_sun = [-direction[0], -direction[1], -direction[2], environment.sun_intensity().read()];
+        // 0.11e's geometry passes give .w 1 (0x60E1C2), not the sun's intensity (the sky's, 0x60D68D).
+        let to_sun = [-direction[0], -direction[1], -direction[2], 1.0];
         let backend = backend();
         raw::engine_set_ps_constant(Some(backend), stage.to_sun_constant(), to_sun.as_ptr());
         let scattering = inscatter(distance);

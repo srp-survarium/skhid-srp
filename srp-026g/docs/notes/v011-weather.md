@@ -40,12 +40,22 @@ port for it. This work is Vostok's two weathers only.
   (274), two views each, no missing shader. `evening_4` and `rain_4` and the ten views a weather
   are queued behind the owner's game.
 - **The fog, the 0.11 way** (exe patch 162 `v011w_render`, README "The 0.11 weathers fog their
-  geometry the 0.11 way"; pack `v011e-radar-fog@1`; edit list `v011w-renderer-1.json`): on the four
+  geometry the 0.11 way"; pack `v011e-radar-fog@2`; edit list `v011w-renderer-1.json`): on the four
   projects the geometry stage draws 0.11e's two passes (techniques 3 and 4, which 0.26g compiles and
   never draws) instead of 0.26g's one, with 0.11e's additive program and each weather's inscatter
   distance (evening 200 m, rain 300 m, 0.11e's post material's). Checked with Unicorn
-  (`check_v011w_render_026g.py`). The pack is made by `scripts/v011-weather/make_fog_pack.py` from the
-  two pinned files.
+  (`check_v011w_render_026g.py`). The pack is made by `scripts/v011-weather/make_fog_pack.py` from source
+  (below).
+- **0.11e's atmosphere programs from source** (`srp-026g/shaders/v011w/`, `v011w.sh`): vostok's 0.10b
+  sources compile byte-identically to 0.11e's `atmosphere.ps` and `atmospheric_scattering_on_geometry_mul.ps`;
+  0.11e changed two after 0.10b, and with those changes the sources are byte-identical too:
+  `..._add.ps` fades the whole in-scatter in over the first quarter of the distance (`saturate(near_depth /
+  (D / 4))`), and `make_mie_rayleigh_texture.ps` has another atmosphere (outer radius^2 40659220 for
+  41629640, Rayleigh and Mie extinction about 5 and 10 times 0.10b's, scale heights 3 and 10 times
+  shorter, another Rayleigh output scale). `v011w.sh check <0.11e resources.db>` proves all four;
+  `v011w.sh build` compiles the additive one for 0.26g (`TARGET_026G`: 0.26g's static_globals, where
+  near_far_invn_invf lives, and its table order). Built so, it has the same reflection and instructions
+  as 0.11e's program with its operands moved (the pack's first version), only its declarations in order.
 - The 0.11e reference runner is rebuilt (`/mnt/hdd/Projects/v011-weather/ref/ref011e.py`: the legacy
   0.10b match server with a rain profile and a port setting, the 0.11e exe with the camera DLL, an
   Xorg dummy display). The legacy server must run with `SRP_STOCK_PROFILE_ONLY=1` and
