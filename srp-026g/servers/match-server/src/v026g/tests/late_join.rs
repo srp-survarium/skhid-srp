@@ -100,7 +100,7 @@ fn reserve_as(bench: &mut Bench, newcomer: fn(usize) -> MatchPlayer) -> usize {
         .push(Client::growing(session_of(place), place + 1, map_id));
     bench
         .addrs
-        .push(SocketAddr::from(([127, 0, 0, 1], 40_000 + place as u16)));
+        .push(super::direct_peer(40_000 + place as u16));
     place
 }
 
@@ -484,7 +484,7 @@ fn readiness_from_an_old_connection_cannot_ready_its_replacement() {
     assert!(bench.until(1_000, |b| !b.clients[1].prepares.is_empty()));
     let old = bench.clients[1].prepares[0].proposal;
     bench.clients[1] = Client::growing(session_of(1), 3, MAP_BATTERIES);
-    bench.addrs[1] = SocketAddr::from(([127, 0, 0, 1], 41_001));
+    bench.addrs[1] = super::direct_peer(41_001);
     bench.clients[1].connect();
     assert!(bench.until(1_000, |b| b.clients[1].model.options.is_some()));
     let ack = Prepared {
@@ -629,7 +629,7 @@ fn a_newcomer_can_reconnect_during_catchup_without_duplicate_entry() {
     bench.join(place);
     assert!(!bench.clients[0].entered().contains(&(place as u8)));
     bench.clients[place] = Client::growing(session_of(place), place + 1, MAP_BATTERIES);
-    bench.addrs[place].set_port(42_000 + place as u16);
+    bench.addrs[place] = super::direct_peer(42_000 + place as u16);
     bench.join(place);
     assert!(bench.until(2_000, |b| b.clients[0].entered().contains(&(place as u8))));
     bench.run(2_000);
@@ -922,7 +922,7 @@ fn reserve_pair(bench: &mut Bench) {
             .push(Client::growing(session_of(place), 4, MAP_BATTERIES));
         bench
             .addrs
-            .push(SocketAddr::from(([127, 0, 0, 1], 40_000 + place as u16)));
+            .push(super::direct_peer(40_000 + place as u16));
         bench.clients[place].connect();
     }
     assert!(bench.until(1_000, |b| {
@@ -984,7 +984,7 @@ fn reserve_group(bench: &mut Bench, count: usize) -> Vec<usize> {
         ));
         bench
             .addrs
-            .push(SocketAddr::from(([127, 0, 0, 1], 40_000 + *place as u16)));
+            .push(super::direct_peer(40_000 + *place as u16));
     }
     places
 }
@@ -1348,7 +1348,7 @@ fn a_player_that_left_by_its_own_word_comes_again_as_a_new_place() {
     // still has that address's link, gone.
     assert_eq!(bench.game().gone_session(1), Some(session_of(1)));
     let addr = bench.addrs[1];
-    bench.addrs[1].set_port(43_001);
+    bench.addrs[1] = super::direct_peer(43_001);
     bench
         .clients
         .push(Client::growing(session_of(1), 3, MAP_BATTERIES));
@@ -1414,7 +1414,7 @@ fn a_game_that_connects_again_and_never_loads_does_not_keep_a_newcomer_out() {
     );
     let roster = bench.clients.len();
     bench.clients[1] = Client::growing(NEW_SESSION, roster, MAP_BATTERIES);
-    bench.addrs[1].set_port(43_001);
+    bench.addrs[1] = super::direct_peer(43_001);
     bench.clients[1].connect();
     assert!(bench.until(1_000, |b| b.clients[1].model.options.is_some()));
     bench.clients[place].ready();
@@ -1444,7 +1444,7 @@ fn a_game_still_loading_after_thirty_seconds_holds_no_joiner_back() {
             .is_some()
     );
     bench.clients[1] = Client::growing(NEW_SESSION, 3, MAP_BATTERIES);
-    bench.addrs[1].set_port(43_001);
+    bench.addrs[1] = super::direct_peer(43_001);
     bench.clients[1].connect();
     assert!(bench.until(1_000, |b| b.clients[1].model.options.is_some()));
     // Loading: no joiner is taken for now, and the lobby is told why.
@@ -1614,7 +1614,7 @@ fn a_game_let_go_for_loading_behind_is_waited_for_on_its_next_load() {
             .is_some()
     );
     bench.clients[1] = Client::growing(NEW_SESSION, 3, MAP_BATTERIES);
-    bench.addrs[1].set_port(43_001);
+    bench.addrs[1] = super::direct_peer(43_001);
     bench.clients[1].connect();
     assert!(bench.until(1_000, |b| b.clients[1].model.options.is_some()));
     bench.run_long(31_000);
@@ -1627,7 +1627,7 @@ fn a_game_let_go_for_loading_behind_is_waited_for_on_its_next_load() {
     // It comes again, as slow: this time it is waited for.
     let roster = bench.clients.len();
     bench.clients[1] = Client::growing(NEW_SESSION, roster, MAP_BATTERIES);
-    bench.addrs[1].set_port(43_002);
+    bench.addrs[1] = super::direct_peer(43_002);
     bench.clients[1].connect();
     assert!(bench.until(1_000, |b| b.clients[1].model.options.is_some()));
     bench.run_long(40_000);
@@ -1656,7 +1656,7 @@ fn a_newcomer_that_loads_again_gives_the_games_their_install_grace_again() {
     bench.run_long(10_000);
     // Its game crashes and comes again; it loads 2 s later.
     bench.clients[place] = Client::growing(session_of(place), place + 1, MAP_BATTERIES);
-    bench.addrs[place].set_port(42_000 + place as u16);
+    bench.addrs[place] = super::direct_peer(42_000 + place as u16);
     bench.clients[place].connect();
     assert!(bench.until(1_000, |b| b.clients[place].model.options.is_some()));
     bench.run(2_000);
