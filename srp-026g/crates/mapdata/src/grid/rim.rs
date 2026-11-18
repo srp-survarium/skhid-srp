@@ -101,6 +101,12 @@ pub struct RimStats {
     pub held_over_share0: usize,
     /// … and of those, the links a held sprint at a higher share replaced.
     pub held_replaced: usize,
+    /// [row 5] Made rim links whose take-off floor only a crouched body fits ([`WalkGrid::can_stand`]) …
+    pub crouched_takeoffs: usize,
+    /// … flown again from the standing floor behind it on the line ([`WalkGrid::standing_behind`]) and moved there …
+    pub reanchored: usize,
+    /// … or kept where they were: no standing floor behind, or no press from it lands (teach, do not cut).
+    pub reanchor_kept: usize,
     /// Flights flown.
     pub flights: usize,
 }
@@ -841,6 +847,7 @@ impl WalkGrid {
         let mut none = Vec::new();
         let mut replaced: Vec<(usize, usize)> = Vec::new();
         let mut cut: Vec<(u32, usize, f32)> = Vec::new();
+        let first = wide.off.len();
         for ((&(a, b, d), p), &plain) in todo.iter().zip(&flown).zip(&plain) {
             stats.flights += p.flights;
             let aimed = aimed_of.get(&(a, b)).copied();
@@ -890,10 +897,78 @@ impl WalkGrid {
         for (a, d) in replaced {
             wide.links[a][d] = NONE;
         }
+        self.reanchor_crouched(wide, world, s, first, &leads, kits, &mut stats);
         // Two candidates of one take-off may land on the same floor: one link (the first, by the way's order).
         wide.off.sort_by_key(|l| (l.from, l.to));
         wide.off.dedup_by_key(|l| (l.from, l.to));
         (stats, none, cut)
+    }
+
+    /// [row 5] The rim links from `first` on whose take-off floor only a crouched body fits, moved to the standing floor behind
+    /// it on their line ([`Self::standing_behind`]) and flown again from there ([`Self::best_press`] along the line from that
+    /// floor to the link's top, the line the motor plays: `motor.rs` `jump_ahead` takes the way from the take-off to the
+    /// landing). The client presses no jump from a crouch (the jump's gate 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90,
+    /// false for a crouched capsule) and a standing body does not enter such a floor; rule (e) refuses a press POINT over one,
+    /// but a press 1.6 m back from a crouch-only take-off was kept, and a route walked the body into the take-off and stalled
+    /// there (Vector Laboratory pit ledge (4.5, 16.8, 6.3): 189 of 218 give-ups on the walk into (4.51, 17.00, 5.96), headroom
+    /// 1.29 m; 654 such pressed links on that map's grid at 9694ea576). A link no press from the standing floor lands stays
+    /// where it was (teach, do not cut), counted.
+    #[allow(clippy::too_many_arguments)]
+    fn reanchor_crouched(
+        &self,
+        wide: &mut Wide,
+        world: &Collision,
+        s: &Settings,
+        first: usize,
+        leads: &[f32],
+        kits: Kits,
+        stats: &mut RimStats,
+    ) {
+        let back = leads.last().copied().unwrap_or(gap::GAP_PRESS_MAX_M);
+        let crouched: Vec<usize> = (first..wide.off.len()).filter(|&i| !self.can_stand(wide.off[i].from)).collect();
+        stats.crouched_takeoffs += crouched.len();
+        let jobs: Vec<(usize, NodeId, NodeId)> = crouched
+            .iter()
+            .filter_map(|&i| {
+                let l = wide.off[i];
+                self.standing_behind(l.from, l.to, back).map(|a| (i, a, l.to))
+            })
+            .collect();
+        let linked = |a: NodeId| {
+            let mut linked: Vec<NodeId> = wide.links[a as usize].iter().copied().filter(|&n| n != NONE).collect();
+            linked.extend(wide.off.iter().filter(|o| o.from == a).map(|o| o.to));
+            linked
+        };
+        let flown = super::controlled::parallel(&jobs, |&(_, a, b)| {
+            let (p, q) = (self.position(a), self.position(b));
+            let len = p.distance_xz(q).max(1e-4);
+            let linked = linked(a);
+            self.best_press(world, s, a, b, ((q.x - p.x) / len, (q.z - p.z) / len), leads, |st| self.rim_lands_on(st, a, &linked), kits)
+        });
+        let mut moved = 0;
+        for (&(i, a, _), p) in jobs.iter().zip(&flown) {
+            stats.flights += p.flights;
+            if let Some(&Made { to, press, share, walk, aim, .. }) = p.made.first() {
+                wide.off[i] = OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk, aim };
+                moved += 1;
+            }
+        }
+        stats.reanchored += moved;
+        stats.reanchor_kept += crouched.len() - moved;
+    }
+
+    /// [row 5] The first floor a standing body fits ([`Self::can_stand`]) back from the take-off `a` along its line to `b`, a
+    /// cell at a time to `back` m, within a step of `a`'s height ([`super::Body::step`]): where the run-up of a press from `a`
+    /// stands. None when there is none.
+    pub(super) fn standing_behind(&self, a: NodeId, b: NodeId, back: f32) -> Option<NodeId> {
+        let (p, q) = (self.position(a), self.position(b));
+        let len = p.distance_xz(q).max(1e-4);
+        let way = ((q.x - p.x) / len, (q.z - p.z) / len);
+        (1..)
+            .map(|k| k as f32 * self.cell)
+            .take_while(|&m| m <= back + 1e-4)
+            .filter_map(|m| self.floor_under(Vec3::new(p.x - way.0 * m, p.y, p.z - way.1 * m)))
+            .find(|&f| f != a && self.can_stand(f) && (self.height[f as usize] - p.y).abs() <= self.body.step)
     }
 
     /// [S1] Where a flight with no jump (a sprint climb, [`jump::climb_flight`]) ends: its last two steps on the ground
@@ -996,6 +1071,34 @@ mod tests {
         let (grid, rim, up) = onto(2.10, true);
         assert!(rim.tried > 0 && rim.walked + rim.slowed + rim.sprinted + rim.climbed == 0 && !up, "2.10: {rim:?}");
         assert_eq!(grid.rim_unmade().len(), rim.tried);
+    }
+
+    /// [row 5] The 1.30 m block's top reaches out 0.5 m over the ground as a lip (as the Vector Laboratory pit's rim over its
+    /// ledge): the ground under the lip is a floor only a crouched body fits. Rim links made from it are moved to the standing
+    /// floor behind on their line and flown again from there; none pressed from a crouch-only floor is left but those counted
+    /// kept, and the top is reached.
+    #[test]
+    fn a_rim_jump_from_under_a_lip_is_pressed_from_the_standing_floor_behind() {
+        let b = body(true);
+        let (top, lip) = (1.30, 4.5);
+        let mut tris = Vec::new();
+        quad(&mut tris, Vec3::new(-2.0, 0.0, 0.0), Vec3::new(-2.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 0.0));
+        quad(&mut tris, Vec3::new(lip, top, 0.0), Vec3::new(lip, top, 6.0), Vec3::new(12.0, top, 6.0), Vec3::new(12.0, top, 0.0));
+        quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, top - 0.1, 0.0), Vec3::new(5.0, top - 0.1, 6.0), Vec3::new(5.0, 0.0, 6.0));
+        quad(&mut tris, Vec3::new(lip, top - 0.1, 0.0), Vec3::new(5.0, top - 0.1, 0.0), Vec3::new(5.0, top - 0.1, 6.0), Vec3::new(lip, top - 0.1, 6.0));
+        let start = [Vec3::new(1.0, 0.0, 3.0)];
+        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, b, &start, &start, OffMeshLinks::Gaps);
+        let rim = stats.rim;
+        let under = grid.locate(Vec3::new(4.85, 0.0, 3.0), 0.3).expect("a floor under the lip");
+        assert!(!grid.can_stand(under), "the floor under the lip is crouch-only");
+        let pressed = |l: &&OffLink| !matches!(l.press, Takeoff::WalkOff | Takeoff::Release { .. });
+        let left = grid.off_links().iter().filter(pressed).filter(|l| !grid.can_stand(l.from)).count();
+        println!("{rim:?}; left {left}");
+        assert!(rim.crouched_takeoffs > 0 && rim.reanchored > 0, "{rim:?}");
+        assert_eq!(rim.crouched_takeoffs, rim.reanchored + rim.reanchor_kept);
+        assert!(left <= rim.reanchor_kept, "{left} pressed links from a crouch-only floor, {} kept", rim.reanchor_kept);
+        let up = grid.locate(Vec3::new(9.0, top, 3.0), 0.3).is_some_and(|n| grid.reached(n));
+        assert!(up, "the top is reached");
     }
 
     /// [A385 §4] The share's classes and price: every neighbour lands, no extra try; 7 of 14, one; none, 14 (the largest, kept);
