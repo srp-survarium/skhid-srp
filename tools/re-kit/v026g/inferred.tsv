@@ -1768,7 +1768,6 @@ va	status	ref_021d	name
 0x002a9900	inferred-medium		survarium::hud_game_effect_presenter::serialize
 0x002aa270	inferred-medium		survarium::sound_game_effect_presenter::serialize
 0x002aa8f0	inferred-medium		vostok::network_core::buffer_writer::w<class boost::random::linear_congruential_engine<unsigned int,48271,0,2147483647>>
-0x002ac720	inferred-medium		survarium::particle_game_effect_presenter::serialize
 0x002ae150	inferred-medium	0x001b4201	survarium::hud_game_effect::hud_game_effect
 0x002ae6f0	inferred-medium	0x001b4512	survarium::text_clipboard::OnTextStore
 0x002ae750	inferred-medium	0x001b458e	survarium::flash_factory::flash_factory
@@ -2319,7 +2318,6 @@ va	status	ref_021d	name
 0x0034d160	inferred-medium	0x00214b93	vostok::buffer_vector<vostok::render::culling::portal>::push_back
 0x0034d280	inferred-medium	0x00214cf0	vostok::buffer_vector<vostok::math::float3>::insert<vostok::math::float3 const *>
 0x0034d440	inferred-medium	0x00214c81	stlp_std::find_if<vostok::collision::triangle_result *,stlp_std::unary_negate<vostok::render::culling::collision_result_user_data_equalls_to> >
-0x0034e1e0	inferred-medium	0x002157f7	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >
 0x00350080	inferred-medium	0x002176f8	vostok::math::curve_line_points<vostok::math::float4_pod,1>::load<vostok::configs::binary_config_value>
 0x003502b0	inferred-medium	0x002178ba	vostok::network_core::udp_match_cumulative_value_stats::append
 0x00350310	inferred-medium	0x002178f3	vostok::network_core::udp_match_max_value_stats::append
@@ -3377,6 +3375,9 @@ va	status	ref_021d	name
 0x002ffc40	inferred-high		survarium::inventory_item::degrade_per_death
 0x002ffc80	inferred-medium		survarium::inventory_item::degrade_per_use
 0x002da790	inferred-medium		survarium::base_player::unload
+0x002ac870	inferred-high		survarium::particle_game_effect_presenter::deserialize
+0x002acd00	inferred-medium		vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::swap
+0x002ad360	inferred-medium		vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::assign
 0x00103d10	inferred-medium		vostok::resources::resources_manager::push_new_query
 0x00014020	inferred-high	0x00012d86	vostok::engine::engine_world::on_alttab
 0x00018ac0	inferred-high		vostok::engine::engine_world::process_messages
@@ -3517,3 +3518,8 @@ va	status	ref_021d	name
 0x00084fe0	inferred-medium		vostok::physics::bullet_character_controller::step_down_sweep [descriptive]
 0x00348000	inferred-medium		vostok::ui::ui_text_edit::insert_char [descriptive]
 0x003486a0	inferred-medium		vostok::ui::ui_text_edit::delete_selection [descriptive]
+0x003cc920	inferred-medium		vostok::render::effect_compiler::release_passes
+0x0014ae40	inferred-medium		vostok::render::backend::set_vs_constant
+0x00132a90	inferred-medium		vostok::render::backend::set_ps_constant
+0x0014e800	inferred-medium		vostok::math::normalize_safe
+0x00133f50	inferred-medium		vostok::render::stage_rain::rain_rotation_basis

@@ -10,8 +10,8 @@ world enters it, a frame a call; the game's own code picks the eye, runs the
 hooks at its join (0x1F3643: the ragdoll's, then ours) and the view's
 update (0x2422B0, in the build through patch 46's death_view). A run stops
 after it, at 0x1F3650 (camera.viewed, before patch 133's hook there), the
-handler's view (+48h) written as camera_director::apply then takes it. ray_test (0x75E20) is a stand-in: a plane square to the ray, or
-nothing; the performance counter is a clock of ours (1000 ticks a second).
+handler's view (+48h) written as camera_director::apply then takes it. ray_test (0x75E20) is a stand-in: planes square to the ray, each of a game
+material (the nearest is met), or nothing; the performance counter is a clock of ours (1000 ticks a second).
 
 The player stands at (100, 5, -50) turned 30 degrees about up, crouched: its
 eye 1.06 m over the feet and 0.13 m ahead.
@@ -26,6 +26,9 @@ eye 1.06 m over the feet and 0.13 m ahead.
   leaves the original's view.
 - It goes: the eye back by 1 - e^(-6 t) of the way in t s, then the
   original's view again, bit for bit.
+- Leaves across the way (game materials 24, 44, 49): the ray goes on from
+  1 mm behind them, to the surface behind (one they lie on too) or to nothing (the original's
+  view); through 16 of them at most.
 - A spectator (4): the same as the first person.
 - The warmup's orbit (3): the original's view, no ray.
 - A player with no physics world: the original's view, no ray.
@@ -56,6 +59,8 @@ REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_R
         UC_X86_REG_EBP, UC_X86_REG_ESP)
 STEADY = dict(zip(REGS[:7], (0x0A0A0A0A, 0x0B0B0B0B, 0x0C0C0C0C, 0x0D0D0D0D, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
 CLEARANCE, BELOW_EYE, OUT_RATE = 0.12, 0.4, 6.0
+OBJECT, VTABLE, MATERIAL_OF = STUBS + 0x200, STUBS + 0x300, STUBS + 0xB0   # the object a ray meets
+WALL, LEAVES, PAST_LEAF, MOST_LEAVES = 11, (24, 44, 49), 0.001, 16
 
 # the player: turned 30 degrees about up, its feet at (100, 5, -50); crouched, its eye 1.06 m up and 0.13 m ahead
 C, S = math.cos(math.radians(30)), math.sin(math.radians(30))
@@ -105,8 +110,13 @@ class Game:
             emu.mem_write(stub, b"\xC2\x04\x00")
             emu.hook_add(UC_HOOK_CODE, hook, begin=stub, end=stub)
         emu.hook_add(UC_HOOK_CODE, self.ray_test, begin=RAY_TEST, end=RAY_TEST)
+        # get_triangle_material (the object's vtable +10h, thiscall, `ret 8`): the met surface's
+        self.u32(OBJECT, VTABLE)
+        self.u32(VTABLE + 0x10, MATERIAL_OF)
+        emu.mem_write(MATERIAL_OF, b"\xC2\x08\x00")
+        emu.hook_add(UC_HOOK_CODE, self.material_of, begin=MATERIAL_OF, end=MATERIAL_OF)
         self.ms = 1000
-        self.wall = None
+        self.surfaces = []
         self.rays = []
 
     def u32(self, at, value=None):
@@ -126,8 +136,8 @@ class Game:
         emu.reg_write(UC_X86_REG_EAX, 1)
 
     def ray_test(self, emu, *_):
-        """bullet_physics_world::ray_test (thiscall, `ret 20h`): the wall, a
-        plane through `point` facing `normal`, or nothing."""
+        """bullet_physics_world::ray_test (thiscall, `ret 20h`): the nearest
+        of the surfaces (planes through `point` facing `normal`), or nothing."""
         esp = emu.reg_read(UC_X86_REG_ESP)
         ret, result, origin, direction = (self.u32(esp + 4 * i) for i in range(4))
         length = struct.unpack("<f", emu.mem_read(esp + 16, 4))[0]
@@ -135,18 +145,23 @@ class Game:
         o, d = self.floats(origin, 3), self.floats(direction, 3)
         self.rays.append((emu.reg_read(UC_X86_REG_ECX), o, d, length, group & 0xFFFF, mask & 0xFFFF, delegate))
         emu.mem_write(result, bytes(0x28))
-        if self.wall is not None:
-            point, normal = self.wall
-            t = dot(sub(point, o), normal) / dot(d, normal)
-            if 0 <= t <= length:
-                hit = tuple(a + b * t for a, b in zip(o, d))
-                emu.mem_write(result, struct.pack("<3f", *hit))
-                self.u32(result + 0x1C, 0x77770000)
+        met = [(dot(sub(point, o), normal) / dot(d, normal), i) for i, (point, normal, _) in enumerate(self.surfaces)]
+        met = [(t, i) for t, i in met if 0 <= t <= length]
+        if met:
+            t, i = min(met)
+            hit = tuple(a + b * t for a, b in zip(o, d))
+            emu.mem_write(result, struct.pack("<3f", *hit))
+            emu.mem_write(result + 0xC, struct.pack("<f", t / length))
+            self.u32(result + 0x1C, OBJECT)
+            self.u32(result + 0x20, i)
         emu.reg_write(UC_X86_REG_EAX, result)
         emu.reg_write(UC_X86_REG_ESP, esp + 4 + 0x20)
         emu.reg_write(UC_X86_REG_EIP, ret)
 
-    def update_camera(self, mode, physics=PHYSICS, wall=None, ms=None):
+    def material_of(self, emu, *_):
+        emu.reg_write(UC_X86_REG_EAX, self.surfaces[self.u32(emu.reg_read(UC_X86_REG_ESP) + 4)][2])
+
+    def update_camera(self, mode, physics=PHYSICS, wall=None, leaves=(), ms=None):
         """A frame at `ms` (16 ms after the last by default): (the handler's
         view after its update (0x1F3650), the registers there, the rays)."""
         emu = self.emu
@@ -160,7 +175,7 @@ class Game:
         emu.mem_write(PLAYER + 0x44C, struct.pack("<16f", *EYES))
         self.u32(HANDLER + 0x358, mode)
         emu.mem_write(HANDLER + 0x34C, struct.pack("<3f", 0.7, -0.3, 3.0))   # yaw, pitch, distance
-        self.wall, self.rays = wall, []
+        self.surfaces, self.rays = [*leaves, *([wall] if wall else [])], []
         emu.mem_write(SP, struct.pack("<2I", DONE, PLAYER))
         for reg, value in STEADY.items():
             emu.reg_write(reg, value)
@@ -192,8 +207,8 @@ def main():
     length = math.dist(EYE_AT, START)
     eye32 = struct.unpack("<3f", struct.pack("<3f", *EYE_AT))
 
-    def surface_at(at):
-        return tuple(p + w * at for p, w in zip(START, way)), tuple(-w for w in way)
+    def surface_at(at, material=WALL):
+        return tuple(p + w * at for p, w in zip(START, way)), tuple(-w for w in way), material
 
     def eye_out(view):
         return math.dist(view[12:15], START)
@@ -222,6 +237,28 @@ def main():
         for n in range(100):
             o_view, _, _ = ours.update_camera(mode)
         check(o_view == s_view, f"mode {mode}: after a while with nothing in the way, the original's view again")
+
+    # leaves across the way: the ray goes on behind them
+    s_view, s_regs, _ = stock.update_camera(0)
+    behind = tuple(p + w * (0.2 + PAST_LEAF) for p, w in zip(START, way))
+    for material in LEAVES:
+        o_view, o_regs, rays = ours.update_camera(0, leaves=[surface_at(0.2, material)])
+        check(o_view == s_view and o_regs == s_regs and len(rays) == 2 and math.dist(rays[1][1], behind) < 1e-4
+              and math.dist(rays[1][2], way) < 1e-4 and abs(rays[1][3] - (length + CLEARANCE - 0.2 - PAST_LEAF)) < 1e-4,
+              f"leaves ({material}) 0.200 m out: a second ray from 1 mm behind them, the original's view")
+        lain = length - 0.1 + 0.005
+        o_view, o_regs, rays = ours.update_camera(0, leaves=[surface_at(length - 0.1, material)], wall=surface_at(lain))
+        check(abs(eye_out(o_view) - (lain - CLEARANCE)) < 1e-4 and on_way(o_view) and len(rays) == 2,
+              f"leaves ({material}) lying 5 mm over a surface: the eye 0.12 m short of the surface")
+        o_view, o_regs, rays = ours.update_camera(0, leaves=[surface_at(0.2, material)], wall=surface_at(length - 0.1))
+        check(abs(eye_out(o_view) - (length - 0.1 - CLEARANCE)) < 1e-4 and on_way(o_view) and o_regs == s_regs
+              and len(rays) == 2, f"leaves ({material}) before a surface: the eye 0.12 m short of the surface")
+        for n in range(100):
+            o_view, _, _ = ours.update_camera(0)
+    hedge = [surface_at(0.02 * k, LEAVES[1]) for k in range(1, 21)]
+    o_view, o_regs, rays = ours.update_camera(0, leaves=hedge, wall=surface_at(length))
+    check(o_view == s_view and o_regs == s_regs and len(rays) == MOST_LEAVES,
+          f"more than {MOST_LEAVES} leaves on the way: {MOST_LEAVES} rays, the original's view")
 
     # a surface comes, then goes 100 ms later
     s_view, s_regs, _ = stock.update_camera(0)

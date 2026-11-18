@@ -35,14 +35,14 @@ configure)
         echo "add rule inet skhid_relay ingress iifname \"skhid-relay\" ip daddr != $own drop"
         echo 'add rule inet skhid_relay ingress iifname "skhid-relay" ip protocol icmp accept'
         if [[ $role == origin ]]; then
-            echo 'add rule inet skhid_relay ingress iifname "skhid-relay" tcp dport 1234 accept'
+            echo 'add rule inet skhid_relay ingress iifname "skhid-relay" tcp dport { 443, 1234 } accept'
             echo 'add rule inet skhid_relay ingress iifname "skhid-relay" udp dport 1235-1237 accept'
         else
             # Responses to this host's connected sockets only, never new
             # connections from the origin into SSH or the public forwarder.
             # conntrack runs AFTER raw prerouting, so source port + destination
             # ephemeral port are bounded here; WG authenticates the origin.
-            echo 'add rule inet skhid_relay ingress iifname "skhid-relay" tcp sport 1234 tcp dport 1024-65535 accept'
+            echo 'add rule inet skhid_relay ingress iifname "skhid-relay" tcp sport { 443, 1234 } tcp dport 1024-65535 accept'
             echo 'add rule inet skhid_relay ingress iifname "skhid-relay" udp sport 1235-1237 udp dport 1024-65535 accept'
         fi
         echo 'add rule inet skhid_relay ingress iifname "skhid-relay" drop'
@@ -72,7 +72,9 @@ configure)
     # Refuse to bounce an existing tunnel; configuration changes need an
     # explicit planned restart and a fresh end-to-end check.
     if systemctl is-active --quiet wg-quick@skhid-relay; then
-        echo 'tunnel already running; wrote config for its next planned restart'
+        # One transaction of this table alone: no packet meets half of the rules.
+        nft --file /etc/skhid-relay/tunnel.nft
+        echo 'tunnel already running: firewall reloaded, tunnel config written for its next planned restart'
     else
         systemctl enable --now wg-quick@skhid-relay
     fi

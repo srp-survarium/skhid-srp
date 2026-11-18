@@ -244,6 +244,17 @@ pub mod weather {
     pub const EVENING: u8 = 3;
     pub const NIGHT: u8 = 4;
     pub const PRERAIN: u8 = 5;
+
+    /// Where a weather stands among a map's weathers in a list: day, evening,
+    /// rain, as the stock maps' ids have them, whatever a ported map's ids are.
+    pub fn list_place(weather: u8) -> u8 {
+        match weather {
+            DAY => 0,
+            EVENING => 1,
+            RAIN => 2,
+            other => other,
+        }
+    }
 }
 
 /// One `maps_dict` id and its `gameplay/game_modes/` config, with what the

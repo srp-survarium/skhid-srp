@@ -1,0 +1,58 @@
+[
+  {
+    "vertex": 0,
+    "mask": "zero",
+    "high": "2a2e60af8d4d20a723af7a1b232a29c4b8fd6e08c916b2c14f107101404f0f16",
+    "normal": "10b864e34324e81f645a3b0924d60357f5edbc10334bf8591e11d1dc1d456206",
+    "low": "ebbe993499f1d6107bb34ca2ef17027358a00f54365b0a3113f7488eb4e8f500",
+    "alpha": "ef8a9e5c4b8755cdf3476e5827669f1b408c5c60d10793713e7f3fe4ab1d6739"
+  },
+  {
+    "vertex": 1,
+    "mask": "vertex",
+    "high": "f3ed79e34f5925f3a6402681cf1e9bc581ad832000ccaef0a7ac85bdeed91373",
+    "normal": "ce6b8ca397f15c56bcc5afbd253b86e720b9c8438c2b257f7faafc56ff8c0735",
+    "low": "89e8b1a0156d6aa2838f33938ca108802a835f17ff538f090334d194779467a0",
+    "alpha": "670fa62da72ea3d1a52c52de3af1559f90bd19fbab7fc2353b873b465a804046"
+  },
+  {
+    "vertex": 2,
+    "mask": "vertex",
+    "high": "d40197224051f2c30dcf41b9a5aaaeb702af436c8bc581fcb39ec3ffb46e9334",
+    "normal": "04fb9e02d27e527d76b3f2b632a3842de764e023fbfbc35ef04859017b2c4726",
+    "low": "b6ef6665b69ec276e4971aed7fef6fee51fdce8ab4e90d9ddf8c3ba5f349aa26",
+    "alpha": "a1c417c8f0fef7df23f54ba8ba42109c056d42b347dcea9b3f5eda58a7f1fca8"
+  },
+  {
+    "vertex": 10,
+    "mask": "zero",
+    "high": "ee89c1eff36d06774cc79940722ce5d674a8a1f144241b96985c9ac889e4f459",
+    "normal": "c32f75d6ff1add267e8d95411ed4e32335df00256457d9183842bc4d54ba82b3",
+    "low": "049827e0631166e65d339916e140fd96b7529d861afc65d0d548e43e83c7694e",
+    "alpha": "2a2b09e6915ed05f2672e76e580e3f6e300830b9743d6334f17bd7befb903546"
+  },
+  {
+    "vertex": 12,
+    "mask": "zero",
+    "high": "80769b2fea6b671423206033629445c2ced1cc0119d2fcd43e93fa2629c2bbd4",
+    "normal": "ed57ae3e64f747e775498b293feebd4da9bbac92827de3f238bdc9037b6dca73",
+    "low": "bc22a3d47d002440df46bd26b017c1266e9d404644daef1b516a3b28b6ea294a",
+    "alpha": "8b6c4872283fdb4e15b5cbf073bcce248534704aee24a969a51bfdd4db299a66"
+  },
+  {
+    "vertex": 13,
+    "mask": "zero",
+    "high": "792c0c7c9638bce32e94edb63e9645f3aa761bdd77018dbba1ad9e58ad779cf6",
+    "normal": "9dab42d5b629856c257992b4df08fd21ccce72478c6999f9cd9367ffbafafa9f",
+    "low": "0009449671998eaa6a3cbb3ff42d54d325ee24763eaa6cd95e5c7bfcdb83168d",
+    "alpha": "c19cc5a2f8fd787e4d38f7b27e02b6341c469972ba944f61d1434296a217afb3"
+  },
+  {
+    "vertex": 14,
+    "mask": "zero",
+    "high": "19c22e56b97b73262f301b45253065906b8d04afcdff702762666c2fe996dc3c",
+    "normal": "1ed83466e8162b6a29280318d212ae73aa085f3161d3edf29d70f6ce1c183277",
+    "low": "c063b77501f95ea48cd2e1a3da3d2c9a7a37c0f559745e285d38ee96f06bb083",
+    "alpha": "e52957bc8240d3906feb3e0f939ff87b7cbc5b6cdef70b86a22a3b26630142cc"
+  }
+]

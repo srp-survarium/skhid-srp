@@ -186,9 +186,10 @@ corrections from the owner go here.
 
 ## Sharing from the game
 
-The owner (2026-11-15): with "Allow torrent" on, the game shares too, but never in a match: on the
-login screen and in the lobby, where the original developers had it (the game's own
-`start_seeding`, which never worked: it asked a Windows service).
+The owner (2026-11-15): with "Allow torrent" on, the game shares too, from the login screen on,
+where the original developers had it (the game's own `start_seeding`, which never worked: it
+asked a Windows service). The owner (2026-11-18): in matches too (the original stopped there;
+until then so did we): the upload within the cap is not traffic to worry about.
 
 - "Allow torrent" is the game's own setting `enable_torrent_seeding`, a line of its `user.cfg`
   as the language is (the launcher's box writes it); off without the line (the game's default
@@ -200,8 +201,8 @@ login screen and in the lobby, where the original developers had it (the game's 
   so the updater shares only when the launcher's "Allow torrent" says so too (below).
 - Entering the login screen or the lobby with it on (or as it is turned on there), the game makes the pipe
   `\\.\pipe\skhid_seed-<its process id>` and starts `updater_skhid.exe seed <that pipe>` beside
-  itself, with no window. Entering a match closes the pipe (so do the game's end and the setting
-  turned off); a replay never shares.
+  itself, with no window. It stays through matches (the same updater, back in the lobby too);
+  the game's end closes the pipe, and so does the setting turned off; a replay never shares.
 - The updater (`seed`) first reads "Allow torrent" as the launcher's updater reads it (the
   line `on`, and the launcher's reset done: `launcher_skhid.torrent_reset` beside user.cfg); else it
   ends at once, sharing nothing. Then it shares the folder's revision torrent as the launcher's
