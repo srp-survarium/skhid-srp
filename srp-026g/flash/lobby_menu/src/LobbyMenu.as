@@ -103,6 +103,7 @@ package
    import survarium.controls.PlayerInfo;
    import survarium.controls.PlayerRanking;
    import survarium.lobbypick.LobbyWindow;
+   import survarium.rooms.CardWindow;
    import survarium.face.FaceWindow;
    import survarium.controls.QuestWindow;
    import survarium.controls.SrvContextMenu;
@@ -4170,6 +4171,8 @@ package
          {
             Modals.escape();
          }
+         // a card window (the lobby's, the faces') under what was closed does not stay into the match
+         CardWindow.closeOpen();
          dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP,true));
       }
       

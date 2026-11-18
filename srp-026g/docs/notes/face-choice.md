@@ -99,7 +99,8 @@ marked [pick] is a worker's choice the owner may change.
 - The owner, 2026-11-09, playing the drop-down: "faces select should be in style of lobby
   select". A click opens the faces' window as LOBBY opens the lobby window, and of its kind (both
   `survarium/rooms/CardWindow`): in the middle of the lobby, a modal (Esc or the button again
-  close it); the title (`st_srp_face`, upper case); a card a face (140 x 180), its portrait over
+  close it), one of the two at a time (opening one closes the other; a match's load closes the
+  one open); the title (`st_srp_face`, upper case); a card a face (140 x 180), its portrait over
   the card and "Face <n>" in white on the dark band (`st_srp_face_card`, every dictionary), in
   rows of at most six, evened (11: six and five, the shorter row centred); the account's face
   framed gold. A press on a card chooses that face at once and closes the window, as a lobby's

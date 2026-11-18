@@ -20,7 +20,8 @@ package survarium.rooms
    // to the card under it, as in the rooms window.
    //
    // Its button toggles it (`toggle`): opened in the middle of the lobby, a modal (Esc closes it,
-   // Modals); `close` takes it down.
+   // Modals); `close` takes it down. One card window is open at a time: opening one closes the
+   // other, and a match's load closes the one open (`closeOpen`).
    public class CardWindow extends Sprite
    {
       private static const GAP:int = 14;
@@ -31,6 +32,9 @@ package survarium.rooms
 
       // The name's line, from the band's top.
       private static const NAME_TOP:int = 4;
+
+      // The card window its button opened (null: none).
+      private static var _open:CardWindow;
 
       private var _font:String;
 
@@ -192,17 +196,32 @@ package survarium.rooms
             this.close();
             return;
          }
+         closeOpen();
          if(host.stage != null)
          {
             x = int((host.stage.stageWidth / host.scaleX - width) / 2);
             y = int((host.stage.stageHeight / host.scaleY - height) / 2);
          }
          host.addChild(this);
+         _open = this;
          Modals.open(this,Modals.LOBBY,this.close,this.shown);
+      }
+
+      // The card window open, closed (another one opens; a match loads).
+      public static function closeOpen() : void
+      {
+         if(_open != null)
+         {
+            _open.close();
+         }
       }
 
       public function close() : void
       {
+         if(_open == this)
+         {
+            _open = null;
+         }
          if(parent != null)
          {
             parent.removeChild(this);

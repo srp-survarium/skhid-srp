@@ -140,6 +140,16 @@ package {
       // Esc closes it, the button's toggle too.
       open();require(Modals.escape() && !window.isOpen,"Esc closes it");
       window.toggle(host);require(window.isOpen,"opened again");window.toggle(host);require(!window.isOpen,"the toggle closes it");
+      // One card window at a time: the lobby window's toggle closes the faces' and the faces' the
+      // lobby's; the one open is closed at a match's load (CardWindow.closeOpen).
+      var other:Object=new LobbyWindow();other.state(1,1);
+      open();other.toggle(host);
+      require(other.isOpen && !window.isOpen && Modals.top()==other,"the lobby window opened: the faces' closed");
+      window.toggle(host);
+      require(window.isOpen && !other.isOpen && Modals.top()==window,"the faces' opened: the lobby window closed");
+      Object(domain.getDefinition("survarium.rooms.CardWindow")).closeOpen();
+      require(!window.isOpen && !other.isOpen && !Modals.any(),"none open after a match's load");
+      window.toggle(host);require(window.isOpen,"and opened again after");window.toggle(host);
       // Fewer faces: the cards made again; one face: closed.
       open();answer("F1;0;0;4");require(card(3)!=null && card(4)==null && window.count==4,"four cards");
       require(golds().join()=="0","srp's face framed");

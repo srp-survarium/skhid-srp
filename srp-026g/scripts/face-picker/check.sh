@@ -5,7 +5,8 @@
 # srp's answers as the ranking list gives them and presses the cards: the button hidden until srp
 # says and with one face, the lobby button's size and look left of it; every language's word fitting
 # (the button, the window's title, the cards' names); the window of the lobby window's kind
-# (CardWindow), in the middle, a modal (Esc and the toggle close it); a card a face in rows of six
+# (CardWindow), in the middle, a modal (Esc and the toggle close it), never open with the lobby
+# window (each one's toggle closes the other; closeOpen for a match's load); a card a face in rows of six
 # and five, srp's framed gold; a press (on the card or routed by the window) choosing at once and
 # closing, the last pick kept while one choice is asked, a refusal back to srp's face, fewer faces;
 # the equipment atlas's cells as the portraits (atlas.png, the faces pack's LobbyMenu_EquipmentIcons,
