@@ -196,8 +196,10 @@ pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// share 0 (the same bound), its link kept at a higher share. 0b0f: [F1] a neighbour of a press counts only when it rests on the
 /// link's own landing top (`grid::rim` `OWN_TOP_FLAT_M`), not on any top; a press resting on another floor of that top scores
 /// for the link too. 0b10: [F1b] each flown share keeps which neighbours land (`grid::gap::Mask`), in a masks table at the
-/// grid file's end, for the motor's take-off window (`TakeoffWindow`).
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b10;
+/// grid file's end, for the motor's take-off window (`TakeoffWindow`). 0b13: [row 5] a rim link whose take-off floor only a
+/// crouched body fits is moved to the standing floor behind it on its line and flown again from there (`grid::rim`
+/// `reanchor_crouched`), kept where it was where no press from there lands (0b11 and 0b12 are other open PRs').
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b13;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
