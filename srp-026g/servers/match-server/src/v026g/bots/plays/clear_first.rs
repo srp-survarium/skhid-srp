@@ -26,7 +26,7 @@
 
 use mapdata::Vec3;
 
-use super::{Ctx, Go, HeldBattery, Intent, Look, PlayKind, ThreatBy};
+use super::{Ctx, Go, HeldBattery, Intent, Look, PlayKind, TargetRef, ThreatBy};
 use crate::v026g::bots::breach;
 use crate::v026g::bots::know::{BatteryHold, HoldLook, Source};
 use crate::v026g::bots::rng::Rng;
@@ -130,12 +130,17 @@ pub fn clear_first(
     rng: &mut Rng,
     intent: Intent,
 ) -> (Intent, Option<BatteryHold>) {
-    let held = if cx.tuning.take.clear_first {
-        cx.held_battery().and_then(|h| known_spot(&h).map(|spot| (h, spot)))
-    } else {
-        None
+    let known = |h: HeldBattery| known_spot(&h).map(|spot| (h, spot));
+    let nearest = if cx.tuning.take.clear_first { cx.held_battery().and_then(known) } else { None };
+    // The team hears of the man at the nearest held battery, whatever the play.
+    let hold = nearest.map(|(h, (at, sensed))| BatteryHold::new(h.threat.who, at, sensed, h.battery, h.at));
+    // [row 8] A take holds off only for its own battery: in the 16 own-play matches of 2026-11-18, 15 of the 16 Collect
+    // holds of 2 s or more at a free battery were for another loose battery a remembered man stood by.
+    let held = match own_battery(cx, kind) {
+        Some(battery) if cx.tuning.take.clear_first => held_at(cx, battery).and_then(known),
+        Some(_) => None,
+        None => nearest,
     };
-    let hold = held.map(|(h, (at, sensed))| BatteryHold::new(h.threat.who, at, sensed, h.battery, h.at));
     let gated = cx.me.carrying.is_none()
         && !matches!(kind, PlayKind::Heal | PlayKind::Retreat | PlayKind::Breach)
         && breach::role_in(&cx.team.breaches, cx.me.place).is_none();
@@ -214,6 +219,26 @@ pub fn clear_first(
         Stand::To(at) => aimed(Intent::to(at, intent.pace)),
     };
     (waiting, hold)
+}
+
+/// The battery a play of `kind` goes to take, if it is a take: a Collect's lying battery.
+fn own_battery(cx: &Ctx, kind: PlayKind) -> Option<usize> {
+    match cx.bot.current {
+        Some((PlayKind::Collect, TargetRef::Battery(battery), _)) if kind == PlayKind::Collect => Some(battery),
+        _ => None,
+    }
+}
+
+/// [`Ctx::held_battery`] for one battery: lying within the take's `exposed_m` of the bot, with the take's own threat by it
+/// ([`Ctx::take_threat`] with Collect's numbers). None with `take.known_threats` off.
+fn held_at(cx: &Ctx, battery: usize) -> Option<HeldBattery> {
+    if !cx.tuning.take.known_threats {
+        return None;
+    }
+    let num = |name| cx.num(PlayKind::Collect, name);
+    let (exposed_m, reload_ms, cover_m) = (num("exposed_m"), (num("reload_cover_s") * 1000.0) as u32, num("cover_m"));
+    let at = cx.battery_lying(battery).filter(|&at| cx.me.feet.distance_xz(at) <= exposed_m)?;
+    cx.take_threat(Some(at), exposed_m, reload_ms, cover_m).map(|threat| HeldBattery { battery, at, threat })
 }
 
 /// Where to wait out of the sight of a man at `spot`: here if he cannot see the bot's eye from there, else the nearest of the
@@ -397,6 +422,37 @@ mod tests {
         let mut s = scene(&[]);
         s.tuning.take.clear_first = false;
         assert_eq!(run(&s, PlayKind::Intercept, &mut None, walk_in), (walk_in, None), "off");
+    }
+
+    /// [row 8] A take holds off only for its own battery: a Collect of a loose battery no man is known by walks on though its
+    /// walk brings the bot nearer a man heard at another battery (the team still hears of him), and a Collect of his
+    /// battery waits.
+    #[test]
+    fn a_take_is_not_held_off_its_battery_for_another_a_man_holds() {
+        // Battery 1 lies 26 m from him (beyond the take's `exposed_m`, 25 m), the bot 26.5 m from him: its walk to battery 1
+        // ends nearer him than it stands.
+        let other = Vec3::new(27.0, 0.0, 38.0);
+        let scene_on = |target: usize| {
+            let mut s = scene(&[]);
+            s.battery(BatteryState::Free(other));
+            s.bot(0, 0, Vec3::new(0.5, 0.0, 12.0));
+            s.current = Some((PlayKind::Collect, TargetRef::Battery(target), s.view.clock));
+            s
+        };
+        let s = scene_on(1);
+        let walk = walk_to(other);
+        let mut memory = None;
+        let (intent, hold) = run(&s, PlayKind::Collect, &mut memory, walk);
+        assert_eq!(intent, walk, "its own battery is not held");
+        assert_eq!(memory, None);
+        assert_eq!(hold, Some(BatteryHold::new(1, HIM, s.view.clock, 0, BATTERY)), "the team hears of him");
+        // The same walk on another play (not a take) is held, as before.
+        let (intent, _) = run(&s, PlayKind::Intercept, &mut None, walk);
+        assert!(waits_on_him(&intent), "{intent:?}");
+        // A take of his battery waits.
+        let s = scene_on(0);
+        let (intent, _) = run(&s, PlayKind::Collect, &mut None, walk_to(BATTERY));
+        assert!(waits_on_him(&intent), "{intent:?}");
     }
 
     /// The bound, Breach's own: with no Breach on him a wait lasts `breach::DUE_MS`, then the play walks on and does not wait
