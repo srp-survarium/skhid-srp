@@ -111,6 +111,32 @@ impl GlassLine {
     }
 }
 
+/// An axis-aligned box of the world, its low corner at most its high on
+/// every axis: it may be flat.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Aabb { low: WorldPoint, high: WorldPoint }
+
+impl Aabb {
+    pub fn parse(low: WorldPoint, high: WorldPoint) -> Option<Self> {
+        (0..3).all(|k| low.0[k] <= high.0[k]).then_some(Self { low, high })
+    }
+    /// Whether `point` is at most `distance` from the box (inside it: 0).
+    pub fn within(self, point: WorldPoint, distance: Distance) -> bool {
+        box_within(self.low.0, self.high.0, point.0, distance.0)
+    }
+}
+
+/// Whether `point` is at most `reach` from the box `low`..`high` (inside it: 0).
+pub fn box_within(low: [f32; 3], high: [f32; 3], point: [f32; 3], reach: f32) -> bool {
+    let square: f32 = (0..3)
+        .map(|k| {
+            let d = (low[k] - point[k]).max(point[k] - high[k]).max(0.0);
+            d * d
+        })
+        .sum();
+    square <= reach * reach
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Bounds { low: WorldPoint, high: WorldPoint, centre: WorldPoint }
 

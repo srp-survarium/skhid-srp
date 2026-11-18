@@ -69,6 +69,110 @@ fn world() -> World {
     world_with(GameAccounts::new())
 }
 
+#[test]
+fn admin_rename_targets_an_id_is_free_and_keeps_an_audit() {
+    let repository = session::v026g::persist::MemoryGameRepository::default();
+    let world = world_with(GameAccounts::with_repository(Box::new(repository.clone())).unwrap());
+    let id = world.player("Mamoru", "pw");
+    let other = world.player("Other", "pw");
+    let before = world.accounts.get(id).unwrap().locked().clone();
+    let response = world.admin(&[
+        ("tab", "rename"),
+        ("rename_id", &id.to_string()),
+        ("rename_name", "Mamoru_777"),
+        ("rename_reason", "duplicate name"),
+    ]);
+    assert!(response.contains(&format!("Account #{id} renamed: Mamoru → Mamoru_777.")));
+    let mut expected = before;
+    expected.name = "Mamoru_777".into();
+    assert_eq!(*world.accounts.get(id).unwrap().locked(), expected);
+    assert_eq!(
+        world.web.store.account(id).unwrap().locked().name(),
+        "Mamoru_777"
+    );
+    assert_eq!(
+        world.web.store.account(other).unwrap().locked().name(),
+        "Other"
+    );
+    assert_eq!(
+        world
+            .web
+            .store
+            .sign_in_with_digest_from(
+                "Mamoru",
+                &sha1_hex(b"pw"),
+                "127.0.0.1".parse().unwrap(),
+                Instant::now()
+            )
+            .unwrap()
+            .account_id(),
+        id
+    );
+    assert_eq!(*world.told.changed.locked(), vec![id]);
+    let actions = repository.all_admin_actions();
+    assert_eq!(actions.len(), 1);
+    assert_eq!(
+        (
+            actions[0].account_id,
+            actions[0].kind.as_str(),
+            actions[0].before.as_str(),
+            actions[0].after.as_str()
+        ),
+        (id, "nickname", "Mamoru", "Mamoru_777")
+    );
+}
+
+#[test]
+fn admin_rename_refuses_bad_auth_names_ids_and_lookalikes() {
+    let world = world();
+    let id = world.player("Alice", "pw");
+    world.player("sovspiranha", "pw");
+    for (target, name, reason, token) in [
+        (id.to_string(), "Alisa", "repair", "wrong"),
+        (id.to_string(), "sоvspiranha", "repair", "tok"),
+        (id.to_string(), "ab", "repair", "tok"),
+        (id.to_string(), "Alisa", "", "tok"),
+        ("Alice".into(), "Alisa", "repair", "tok"),
+        ("4294967295".into(), "Alisa", "repair", "tok"),
+    ] {
+        let response = world.web.route(
+            &post(
+                "/hidden",
+                &[
+                    ("tab", "rename"),
+                    ("rename_id", &target),
+                    ("rename_name", name),
+                    ("rename_reason", reason),
+                    ("token", token),
+                ],
+            ),
+            "t",
+        );
+        assert!(!response.body.contains(" renamed: "));
+        assert_eq!(
+            world.web.store.account(id).unwrap().locked().name(),
+            "Alice"
+        );
+    }
+    assert!(world.told.changed.locked().is_empty());
+    let mut request = post(
+        "/hidden",
+        &[
+            ("tab", "rename"),
+            ("rename_id", &id.to_string()),
+            ("rename_name", "Alisa"),
+            ("rename_reason", "repair"),
+            ("token", "tok"),
+        ],
+    );
+    request.client = Some("192.0.2.10".parse().unwrap());
+    assert_eq!(world.web.route(&request, "t").status, "404 Not Found");
+    assert_eq!(
+        world.web.store.account(id).unwrap().locked().name(),
+        "Alice"
+    );
+}
+
 /// The world with these 0.26g accounts (one kept in a repository: what is
 /// written, and the audit trail).
 fn world_with(accounts: GameAccounts) -> World {
@@ -239,18 +343,17 @@ fn the_admin_changes_money_and_the_account() {
     assert_eq!(world.balance(id), 0);
     assert_eq!(world.told.changed.locked()[..], [id]);
 
-    // Premium, a level with experience on top, reputation.
+    // A level with experience on top, reputation.
     let done = world.admin(&[
         ("tab", "account"),
         ("acc_user", "tester"),
-        ("premium_hours", "+24"),
         ("level", "3"),
         ("experience", "+10"),
         ("faction", "2"),
         ("reputation", "+150"),
     ]);
     assert!(done.contains("level 3"), "{done}");
-    assert!(done.contains("24 h of premium"), "{done}");
+    assert!(!done.contains("premium"), "{done}");
     assert!(done.contains("Reputation with faction 2: 150"), "{done}");
     assert!(done.contains("value=account id=tab-account checked"));
     {
@@ -258,22 +361,19 @@ fn the_admin_changes_money_and_the_account() {
         let account = account.locked();
         assert_eq!(account.level(), 3);
         assert_eq!(account.exp_total, level_start(3) + 10);
-        assert_eq!(account.premium_hours(crate::unix_now()), Some(24));
         assert_eq!(account.reputation(2), 150);
     }
-    // Taken back; the premium ends.
+    // Taken back.
     let done = world.admin(&[
         ("tab", "account"),
         ("acc_user", "tester"),
-        ("premium_hours", "-48"),
         ("faction", "2"),
         ("reputation", "-1000"),
     ]);
-    assert!(done.contains("0 h of premium"), "{done}");
+    assert!(done.contains("Reputation with faction 2: 0"), "{done}");
     {
         let account = world.accounts.get(id).unwrap();
         let account = account.locked();
-        assert_eq!(account.premium_until, 0);
         assert_eq!(account.reputation(2), 0);
         assert_eq!(account.level(), 3);
     }
@@ -567,7 +667,7 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
     let world = world();
     let stats = || world.web.route(&get("/api/stats"), "t").body;
     let live = |phase, time_left: Option<Duration>| crate::LiveMatch {
-        map_id: 117,
+        map_id: survarium::v026g::maps::MapId::new(117),
         phase,
         players: [4, 3],
         played: None,
@@ -607,7 +707,7 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
     assert!(stats().ends_with(r#""last_match_ends_in":925}"#));
     // A map the client does not have: the time every playable mode has.
     *world.told.live.locked() = vec![crate::LiveMatch {
-        map_id: 0,
+        map_id: survarium::v026g::maps::MapId::new(0),
         ..live(crate::LivePhase::Gathering, None)
     }];
     assert!(stats().ends_with(r#""last_match_ends_in":925}"#));
@@ -664,7 +764,7 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
         .store(3, std::sync::atomic::Ordering::Relaxed);
     // A Team Deathmatch on Rudnya in play.
     *world.told.live.locked() = vec![crate::LiveMatch {
-        map_id: 117,
+        map_id: survarium::v026g::maps::MapId::new(117),
         phase: crate::LivePhase::Playing,
         players: [4, 3],
         played: Some(Duration::from_secs(130)),

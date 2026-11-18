@@ -31,6 +31,11 @@ and presses Play again.
   --name      the first bot's user name (default bot-1; or SRP_BOT_NAME)
   --password  the bots' password (or SRP_BOT_PASSWORD; a built-in one for
               local tests when neither is given). Never printed.
+
+SRP_BOT_SERVER_KEY: the login server's public key of the sign-in cipher
+(64 hex characters), for a server that is not the released game's; such a
+server logs it at its start.
+
   --count N   N bots: bot-1 .. bot-N (default 1). The first waits in a
               room; the others join once somebody else is in it.
   --once      stop after one match
@@ -41,6 +46,9 @@ and presses Play again.
   --drive     in a match, send inputs: a fixed script (walk, turn a quarter,
               walk, sprint, crouch, fire, reload, weapon 2, turn back),
               again and again; each input is printed (srp::drive)
+
+SRP_GAME_DATA: use the same server-game-data.db as the local server.
+Without it the bot uses the embedded test archive.
 
 The server must name the bots' accounts: SRP_BOT_ACCOUNTS=bot-1,bot-2
 (testing only: never on a public server).
@@ -70,6 +78,11 @@ fn main() {
     let mut server = env("SRP_BOT_SERVER").unwrap_or_else(|| DEFAULT_SERVER.to_owned());
     let mut name = env("SRP_BOT_NAME").unwrap_or_else(|| DEFAULT_NAME.to_owned());
     let mut password = env("SRP_BOT_PASSWORD");
+    // The login server's public key: the released game's, or another server's own.
+    let server_key = env("SRP_BOT_SERVER_KEY").map_or(login_server::sealed::SKHID, |text| {
+        login_server::sealed::parse_public_key(&text)
+            .unwrap_or_else(|| fail("SRP_BOT_SERVER_KEY must be 64 hex characters"))
+    });
     let mut count = 1_usize;
     let mut once = false;
     let mut kit = None;
@@ -126,6 +139,14 @@ fn main() {
     }
     let password = password.unwrap_or_else(|| DEFAULT_PASSWORD.to_owned());
 
+    // Use the same catalogue as the local server before the client model reads
+    // any tables. The embedded test archive cannot describe ported/live items.
+    if env(survarium::v026g::game_data::GAME_DATA_ENV).is_some()
+        && let Err(error) = survarium::v026g::game_data::init()
+    {
+        fail(&format!("SRP_GAME_DATA: {error}"));
+    }
+
     let names = bot::names(&name, count);
     println!(
         "{} srp-bot: {} at {server}{}. The server must have SRP_BOT_ACCOUNTS={}. Ctrl+C stops.",
@@ -140,6 +161,7 @@ fn main() {
             server: server.clone(),
             name,
             password: password.clone(),
+            server_key,
             once,
             kit,
             drive,

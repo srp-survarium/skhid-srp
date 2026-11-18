@@ -1,0 +1,36 @@
+name = "module_report"
+patch = 125
+
+# after patch 97's receipt (order 1), patch 109's skills (2), patch 126's memory report (3) and patch 127's profile (4): the connection's first world is in
+[[hook]]
+site = "world_load.loaded"
+handler = "on_loaded"
+order = 5
+
+# close_current_match's entry, its world still there, after patch 126's report (order 1) and before patch 97 forgets the connection (order 3)
+[[hook]]
+site = "match_recovery.close"
+handler = "on_close"
+order = 2
+
+# the earliest start and every later thread: the exe's TLS callback (module_watch_026g.asm, which the TLS directory names)
+[[hook]]
+site = "module_watch.thread"
+handler = "on_thread"
+
+# the loader's notification of each DLL it loads after that
+[[hook]]
+site = "module_watch.dll"
+handler = "on_dll"
+
+# each Present, after patch 83's (order 1): which window the game presents to
+[[hook]]
+site = "render_output.present"
+handler = "on_present"
+order = 2
+
+# every frame (after patch 88's music and patch 97's receipts, orders 1 and 2): a minute's look at the windows over the game, in a match
+[[hook]]
+site = "game.tick"
+handler = "on_frame"
+order = 3

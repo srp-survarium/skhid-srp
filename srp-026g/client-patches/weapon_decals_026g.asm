@@ -24,8 +24,8 @@
 ;               camouflage nor a decal to paint
 ;   +5  fill    patch 44's bake_surface, edi = the parameters P: the
 ;               camouflage's layer (P+4E0h) when there is one, a layer
-;               (P + i*270h) for each of the first two `data/decals`, and the
-;               decals' part of the baked files' name
+;               (P + i*270h) for each of the first two `data/decals` (the
+;               Rust patch weapon_camo names the baked files of them all)
 ;   +A  pick    0x265999 `call 0x264960` in lobby_character's per-frame
 ;               decal preview (0x265980): for the weapon above the workbench
 ;               (patch 45) the mouse's ray meets the weapon's long axis, in
@@ -100,7 +100,6 @@ LAYER_NORMAL        equ 0xCC
 LAYER_FRESNEL       equ 0x158
 LAYER_SMOOTHNESS    equ 0x1E4
 P_CAMO              equ 2 * LAYER_SIZE
-P_NAME              equ 0x7A4
 MAX_DECALS          equ 2
 
 ; patch 44's frame (weapon_camo_026g.asm, ebp = esp after its pushad)
@@ -224,8 +223,12 @@ decals:
     xor ecx, ecx
     ret
 
-; patch 44's bake_surface, edi = P (its name begun), ebp = patch 44's frame.
+; patch 44's bake_surface, edi = P, ebp = patch 44's frame.
 ; Every register kept.
+; Of a camouflage the weapon takes the colours and the `_smap`, not the
+; `_nmap`: that is the weave of the cloth the camouflages were drawn for,
+; and the weapon keeps its own relief. A name left empty is no layer on a
+; weapon (the Rust patch weapon_camo, at the baker's `bake.own_camouflage`).
 fill:
     pushad
     mov esi, [ebp+CAMO]
@@ -234,12 +237,6 @@ fill:
     lea eax, [edi+P_CAMO+LAYER_DIFFUSE]
     mov ecx, esi
     call string_assign
-    push SUFFIX_NMAP
-    push esi
-    push FORMAT_STRING
-    lea eax, [edi+P_CAMO+LAYER_NORMAL]
-    call string_appendf
-    add esp, 12
     push SUFFIX_SMAP
     push esi
     push FORMAT_STRING
@@ -320,16 +317,7 @@ fill:
     push SUFFIX_SMAP
     lea eax, [eax+LAYER_SMOOTHNESS]
     call suffixed
-    pop eax
-    pop eax                         ; low
-    pop edx                         ; high
-    push eax
-    push edx
-    push esi
-    push name_decal
-    lea eax, [ebx+P_NAME]
-    call string_appendf
-    add esp, 16
+    add esp, 12                     ; the layer, the u64
 .next:
     inc edi
     cmp edi, [esp+4]
@@ -933,4 +921,3 @@ least_across:       dd 1.0e-4       ; a ray within 0.6 degrees of the axis is ta
 reach_squared:      dd 0.0625       ; REACH: 0.25 m from the axis
 z_min:              dd -0.6         ; Z_MIN, Z_MAX: a rifle's stock to beyond a long muzzle
 z_max:              dd 1.4
-name_decal:         db "_%s_%08x%08x", 0

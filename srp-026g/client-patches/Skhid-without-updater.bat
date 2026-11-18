@@ -22,7 +22,7 @@ if errorlevel 1 exit /b 1
 rem 4. Play, as the launcher starts the game (the language is the game's own).
 rem It must start in game\binaries\x86: the game finds its certificate from there.
 cd /d "game\binaries\x86"
-start "" survarium_skhid.exe -mt_allocator=768 -minimum_resources_memory_size=768
+start "" survarium_skhid.exe -minimum_resources_memory_size=768
 exit /b 0
 
 :locked

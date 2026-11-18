@@ -22,6 +22,12 @@ impl<T> NativeVtable<T> {
     pub(in crate::vostok) unsafe fn from_address(address: u32) -> Self {
         Self { address: NonZeroU32::new(address).expect("linked vtable"), layout: PhantomData }
     }
+
+    /// The table's address, the word an object of layout T's vtable field
+    /// takes (vostok::console's command).
+    pub(in crate::vostok) fn address(self) -> u32 {
+        self.address.get()
+    }
 }
 
 pub struct MethodTables {
@@ -57,6 +63,11 @@ pub struct PhysicsId(NonZeroU32);
 impl PhysicsId {
     pub(super) fn of(physics: raw::BulletPhysicsWorld) -> Self {
         Self(NonZeroU32::new(physics.address()).expect("non-null native handle"))
+    }
+    /// A made-up world's (the tests').
+    #[cfg(test)]
+    pub fn made_up(id: u32) -> Self {
+        Self(NonZeroU32::new(id).expect("a made-up world's id is not 0"))
     }
 }
 

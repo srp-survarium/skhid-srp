@@ -1,0 +1,7 @@
+project	point	x	y	z	rx	ry	rz	enemy_check_radius	invulnerability_time	verdict	ground	reason
+level_09/day_4	central_00	37.770996	5.8737397	-24.156006	0	0	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m; inside central London; at least 12m from existing solo spawns
+level_09/day_4	central_01	-34.979004	6.4055653	28.093994	0	3.5342917	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m; inside central London; at least 12m from existing solo spawns
+level_09/day_4	central_02	-34.979004	5.994721	-6.906006	0	0.5890486	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m; inside central London; at least 12m from existing solo spawns
+level_09/day_4	central_03	28.020996	8.222669	0.09399414	0	0.3926991	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m; inside central London; at least 12m from existing solo spawns
+level_09/day_4	central_04	16.020996	8.825874	-29.906006	0	3.926991	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m; inside central London; at least 12m from existing solo spawns
+level_09/day_4	central_05	-15.729004	5.998556	29.843994	0	4.712389	0	30	2	kept		reachable standing floor; body clear; harmful zones >=2m; walkable facing 6m; spacing >=12m; inside central London; at least 12m from existing solo spawns

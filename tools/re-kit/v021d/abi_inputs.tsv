@@ -1,0 +1,5 @@
+va	name	location	role	basis
+0x00215157	vostok::render::environment_properties::environment_properties	entry ESP+4	destination environment properties; initialized low RGBA at +178h is (0,0,0,1), high RGBA at +188h is (1,1,1,1)	observed
+0x00215157	vostok::render::environment_properties::environment_properties	entry ESP+8	initialize-defaults boolean; zero skips default assignments	observed
+0x002157f7	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >	destination +178h/+188h	height-based ambient low/high colours; keys optional at 0x2158E4/0x215974, absent preserves constructor defaults; present RGB linearized with pow 2.2	observed
+0x000f2ce0	vostok::render::scene::particle_engine::update_light	stack+96	authored particle-light intensity copied unchanged to light_props+44h at 0xF2D6D; fill_light copies it to light+210h	verified

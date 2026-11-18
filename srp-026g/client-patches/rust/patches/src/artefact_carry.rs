@@ -366,6 +366,8 @@ pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
 fn artefact_draw(ctx: &Context<'_>, class: ArtefactClass) -> bool {
     let Some(draw) = ArtefactDraw::at(ctx, class) else { return false };
     if draw.ground(ctx) { return true; }
+    // Keep and Native alike leave an artefact we do not present to the native.
+    if !draw.ours() { return false; }
     let held = OWNERS.with(ctx.thread(), |owners| owners.0.iter().flatten().find_map(|owner| {
         let a = owner.attachment?;
         (a.item == draw.id() && owner.carry.artefact() == Some(a.token.artefact)).then_some(())

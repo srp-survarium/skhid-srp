@@ -8,7 +8,8 @@
 #   harness_display <w>x<h> [package]...
 #                                     a private Xvfb on an unused display ($display: never the owner's
 #                                     desktop), Ruffle and lavapipe (CPU Vulkan), and each nixpkgs
-#                                     package's programs on PATH (ffmpeg-full, imagemagick, xdotool)
+#                                     package's programs on PATH (ffmpeg-full, imagemagick, xdotool),
+#                                     all of the nixpkgs srp-026g/flake.lock pins
 #   harness_run <log> <ruffle args>...
 #                                     Ruffle in $work in the background ($ruffle_pid), its output in
 #                                     $work/<log>, for $HARNESS_TIMEOUT s at most (default 180)
@@ -18,6 +19,10 @@
 #                                     Ruffle did not run on lavapipe
 # $here is the sourcing script's folder.
 main=$(git -C "$here" worktree list --porcelain | sed -n '1s/^worktree //p')
+# Ruffle, Mesa and Xvfb from the nixpkgs srp-026g/flake.lock pins: Ruffle 0.7.1 (nixpkgs-unstable,
+# 2026-11) never finishes the lobby harnesses; the pinned nightly does in seconds.
+nixpkgs=github:NixOS/nixpkgs/$(sed -n '/"nixpkgs": {/,/"rev"/s/.*"rev": "\([0-9a-f]*\)".*/\1/p' \
+    "$(dirname "${BASH_SOURCE[0]}")/../flake.lock")
 tools=${SRP_AS_TOOLS:-$main/private/actionscript/tools.json}
 java=$(sed -n 's/.*"java": *"\([^"]*\)".*/\1/p' "$tools")
 flex=$(sed -n 's/.*"flex": *"\([^"]*\)".*/\1/p' "$tools")
@@ -54,11 +59,11 @@ harness_compile() {
 harness_display() {
     local size=$1 paths path
     shift
-    paths=$(nix build nixpkgs#ruffle nixpkgs#mesa nixpkgs#xorg.xorgserver "${@/#/nixpkgs#}" --no-link --print-out-paths)
+    paths=$(nix build "$nixpkgs#ruffle" "$nixpkgs#mesa" "$nixpkgs#xorg.xorgserver" "${@/#/$nixpkgs#}" --no-link --print-out-paths)
     for path in $paths; do
         if [[ -d $path/bin ]]; then PATH=$path/bin:$PATH; fi
     done
-    lvp=$(grep -- '-mesa-[0-9.]*$' <<<"$paths")/share/vulkan/icd.d/lvp_icd.x86_64.json
+    lvp=$(echo "$(grep -- '-mesa-[0-9.]*$' <<<"$paths")"/share/vulkan/icd.d/lvp_icd.*.json)
     Xvfb -displayfd 3 -screen 0 "${size}x24" -nolisten tcp 3>"$work/display" >"$work/xvfb.log" 2>&1 &
     xvfb_pid=$!
     for _ in $(seq 100); do [[ -s $work/display ]] && break; sleep 0.1; done

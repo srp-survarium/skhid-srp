@@ -15,8 +15,10 @@ env_logger = { workspace = true }
 log = { workspace = true }
 
 ban-reason = { workspace = true }
+sign-in-cipher = { workspace = true }
 session = { workspace = true }
 vostok = { workspace = true }
+udp-transport = { workspace = true }
 
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).

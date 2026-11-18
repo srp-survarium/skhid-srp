@@ -1,0 +1,10 @@
+name = "replay_file"
+patch = 141
+
+[[hook]]
+site = "replay.before_open"
+handler = "before_open"
+
+[[hook]]
+site = "replay.open_result"
+handler = "open_result"

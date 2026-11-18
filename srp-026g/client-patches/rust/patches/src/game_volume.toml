@@ -1,0 +1,27 @@
+# Patch 144: the Settings' Game slider (docs/notes/game-volume.md). Only the
+# decisions: which sites, and the handlers; the sites are sites_026g.tsv's,
+# the logic is game_volume.rs and vostok/sound.rs (GeneralPass).
+name = "game_volume"
+patch = 144
+uses = ["music"]
+
+# game::on_configs_loaded's start, before user.cfg runs: s_ingame_volume
+# registered, so the stock Settings' Game slider and user.cfg have it (after
+# patches 79, 83, 81, 88, 112, console_where and 66: orders 1 to 7)
+[[hook]]
+site = "configs.start"
+handler = "on_configs"
+order = 8
+
+# every frame (the game's thread): the slider's level to the sound thread
+# (after the music, the packets, the two reports and the voice: 1 to 5)
+[[hook]]
+site = "game.tick"
+handler = "on_frame"
+order = 6
+
+# the sound thread's general pass, in the engine's place: every active
+# scene's factor, the Game slider's but for the music's bus
+[[hook]]
+site = "sound_world.general"
+handler = "on_general"

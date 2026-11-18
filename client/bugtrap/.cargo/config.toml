@@ -1,10 +1,7 @@
 [build]
-# Windows 7 and later, as the game: the `i686-pc-windows-msvc` standard
-# library asks for Windows 10. Its standard library is built here
-# (`build-std` below, from the toolchain's `rust-src`).
-target = "i686-win7-windows-msvc"
+target = "i686-pc-windows-msvc"
 
-[target.i686-win7-windows-msvc]
+[target.i686-pc-windows-msvc]
 linker = "rust-lld"
 # Microsoft's C runtime linked in (`+crt-static`: libcmt, as `cl /MT`), from
 # SKHID_MSVC_LIB (build.rs), so the DLL needs no runtime DLL beside it.
@@ -19,7 +16,6 @@ rustflags = [
     "-C", "link-arg=/DEBUG:NONE",
     # Microsoft's libraries name PDBs of their own, which are not here.
     "-C", "link-arg=/IGNORE:4099",
-    "-C", "link-arg=/SUBSYSTEM:WINDOWS,6.1",
 ]
 
 # No build folder, home folder or toolchain store path in the program's
@@ -29,5 +25,4 @@ rustflags = [
 trim-paths = "all"
 
 [unstable]
-build-std = ["std", "panic_abort"]
 trim-paths = true

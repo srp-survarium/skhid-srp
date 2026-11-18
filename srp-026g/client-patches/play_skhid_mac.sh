@@ -30,6 +30,7 @@ x86_64-windows/winemac.drv:x86_64-windows:603077293cb95f68ac9c675b5bf43f1e216587
 i386-windows/winemac.drv:i386-windows:723c6addf3c49d2a76ddfb947dc805f70adb59eae049f8a708231fee7e09d414"
 # Microsoft's PowerPoint Viewer 2007, which carries the font Calibri (the
 # game's UI asks for it); its cabinet starts at VIEWER_CAB in the file.
+# The same file as calibri_from_viewer's in play_skhid.sh: a bump changes both.
 VIEWER_URL=https://downloads.sourceforge.net/project/mscorefonts2/cabs/PowerPointViewer.exe
 VIEWER_SHA256=c4e753548d3092ffd7dd3849105e0a26d9b5a1afe46e6e667fe7c6887893701f
 VIEWER_CAB=592896
@@ -288,12 +289,19 @@ start_game() {
         && ! "$WINE" updater_skhid.exe ready quiet >>"$log" 2>&1; then
         die "Skhid has not finished updating the game's files (game/resources.db.patch_*), so the game is not started.
 Start the launcher (bash Skhid.sh launcher): it finishes the update.
-Details: game/binaries/x86/updater_skhid.log"
+Details: the newest game/logs/updater_skhid.<date>.log"
     fi
     check_nx_compat
     echo "Starting Survarium. Log: $log"
-    args=(-mt_allocator=768 -minimum_resources_memory_size=768)
+    args=(-minimum_resources_memory_size=768)
     [[ -z "$server" ]] || args+=("-server=$server")
+    if [[ -f updater_skhid.relay ]]; then
+        # `wait`: the updater stays until the game ends, with its exit status.
+        "$WINE" updater_skhid.exe play wait quiet "${args[@]}" >>"$log" 2>&1 \
+            || die "Cannot reach the game server, or the game exited with an error.
+See $log and the newest game/logs/updater_skhid.<date>.log"
+        return
+    fi
     "$WINE" "$exe" "${args[@]}" >>"$log" 2>&1 || die "Game exited with an error. See $log"
 }
 
@@ -321,7 +329,10 @@ main() {
     shlock -f .skhid-launcher.lock -p $$ || die 'This launcher is already running.'
     trap 'rm -f .skhid-launcher.lock' EXIT
 
-    log="$PWD/skhid-wine.log"
+    # game/logs, with the updater's and the game's; an earlier script's log beside this one goes
+    log="${PWD%/*/*}/logs/skhid-wine.log"
+    mkdir -p "${log%/*}"
+    rm -f skhid-wine.log
     RUNTIME=$(runtime_dir)
     WINE_ROOT="$RUNTIME/Survarium.app/Contents"
     install_runtime

@@ -21,7 +21,7 @@ How 0.26g functions were found without a PDB: through the assert/log strings tha
 | Browser server (HTTP `/hello`) | used, port 80 | **gone**. No `http_client` in the exe. | browser-server unused |
 | Sign-in step 1 (plain) | `01 len email ver[12]="0.21d" eula u32 queue` | **same layout**, ver = `"0.26g0"` | version string only |
 | Step 2 (plain, 1 byte) | `0B` → TLS | same | none |
-| TLS | OpenSSL 1.0.0g, verify against `../../resources/ssl/survarium_login_server.crt` | **OpenSSL 1.0.1h**. Same file path, same "accept preverified" callback. | Copy srp's cert over the shipped 0.26g cert (different key, expired 2015) |
+| TLS (srp since patch 139: its own cipher instead, `sign-in-cipher.md`) | OpenSSL 1.0.0g, verify against `../../resources/ssl/survarium_login_server.crt` | **OpenSSL 1.0.1h**. Same file path, same "accept preverified" callback. | Copy srp's cert over the shipped 0.26g cert (different key, expired 2015) |
 | Step 3 (TLS, password) | `len pw` | **`02 digest[40]`** (remembered login) or **`03 digest[40] len pw`** (typed). digest = lowercase hex SHA-1(password). | **Must change** |
 | Reply 0x08 | `08 L1 browser L2 query u32 session` + 12 bytes (lobby and messaging ip:port) | **`08 u32 session u32 lobby_ip u16 lobby_port`** (11 bytes) | **Must change** |
 | Login reply enum | 0x08..0x16, invalid 0x1F | renumbered from 0x11 up: ban reasons 0x12..0x1F, then 0x20..0x25; invalid 0x2D | update constants |

@@ -104,6 +104,14 @@
   offered all the same (the pickup waits for it, at most 2 s). Not aimed at, out of
   reach or out of sight: no prompt, as for the crate and the artefacts. A
   dead player has no prompt.
+- What the game's own Use takes goes first (the owner, 2026-11-07, from a
+  player: a battery lying by a body's gun was missed for the gun): while the
+  game's use scan (patch 23's, `use_scan::detect`) finds an object whose
+  can_use says yes (a battery, a battery container, an artefact container,
+  the ammo crate, a trap), no gun prompt is shown and Use goes to the game;
+  one that refuses (a battery while already carrying one) leaves the gun's
+  pickup as it was. One rule, not a battery's: any usable object in reach
+  wins (my pick).
 - The replacement rule (Codex's, approved): the gun in hands is replaced,
   never the other slot's; any gun for any gun; the carry rules after the
   skill modifiers hold: `disable_second_weapon` (modifier 64) keeps guns to
@@ -305,7 +313,15 @@ local: nothing synced, no `simulation_changes` row.
   was not installed there. The cook now takes the recipe's place's player
   of its kit from the core's place table (core+18458h, 30h a place, the kit
   players at +0/+4/+8; `Player::kit_player`), which keeps them
-  (`a_departed_donors_gun_is_cooked`). Only the profile's changing part differs: the world carries it for
+  (`a_departed_donors_gun_is_cooked`). Before a world's load the table is
+  read in the client's match (`NetworkClient::kit_player`): a late
+  joiner's first world comes before its local player and before any
+  place's bit (the core's constructor clears them, 0x2D00D7; the load sets
+  them, 0x2D2862). Rev57 read it through the local player: the joiner
+  cooked nothing, the reader's cook inside the load was not made in 2 s,
+  and the native reader read the picked gun's bytes into the own gun, 2
+  bytes short; the next slot's item read garbage and crashed (report of
+  2026-11-13, exe+0x2EFF87). Only the profile's changing part differs: the world carries it for
   the places in it, so a joiner has a departed place's from the static info
   (its items' wear 1.0). A held gun's wear comes with the world; a pickup
   waiting for its switch is not in the world, so at the swap the picked gun
@@ -664,6 +680,17 @@ cooked gun).
   (`bullet.load_ordinal`) an ordinal at or past the loading gun's ammo
   count is that count, its own none (+53Ch). A record is one byte longer
   for a one-pellet ammo; the server keeps the bullets' section opaque.
+- **A record whose slot is empty** (the 0x2E2753 crash, rev62,
+  2026-11-17): the slot a record names is the gun's own (+254h) at the
+  save, so a bullet in flight when a swap moved its gun into a cooked
+  inventory names that inventory's slot (the donor's 10), which the shooter
+  may have empty; the loader read a null gun. `bullets.load_record` (the
+  deserialize loop, 0x321CA0) looks the record's shooter up as the loader
+  does (the engine's get_player, 0x1F7660) and passes a record with no gun
+  in its slot over (69 bytes, no bullet made, a log line). That game then
+  lacks one bullet the others have until it lands, so its world hash may
+  differ for that while (a resync). The gun itself outlives its bullets: a
+  copy once in hands is kept until its holder is destroyed.
 - **The bound** (the owner's): 20 places x 3 kits x 2 weapon slots = 120
   recipes at most (40..60 in practice); another copy of a recipe only while
   all of its copies are in use, at most 60 at once (two held a player, one
@@ -752,10 +779,15 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   engine_cfg_child reads past the end for a missing one), translated by the
   game's text translator (0x1FF0F0); `Pick up %1$s ({USE})`, `{USE}` the
   bound key (the localizer's), `%1$s` the name (the movie's
-  `LocalizationData.format`). The target is remembered for Use.
-  Each kept pose's verdict is logged once per drop body and change of
-  reason (never per frame): `pickup: place P sees the gun of place T:
-  offered`, or `out of reach (2.2 m)` (the box's centre farther than the
+  `LocalizationData.format`). The target is remembered for Use. First of
+  all (when any drop is seen) the game's use scan (`use_scan::detect`, the
+  Rust detect_usable_object): an object Use takes now there means no prompt
+  and no target (`use_scan::rule::use_owner`).
+  Each kept pose's verdict is logged once per drop body and kind of
+  verdict (a refusal by its reason; never per frame, and a viewer turning
+  to and from a drop says each once; the last 4 bodies of a place are
+  remembered, with the box line at a body's first verdict):
+  `pickup: place P sees the gun of place T: offered`, or `out of reach (2.2 m)` (the box's centre farther than the
   reach and its padded half diagonal), `in reach, not aimed at its box`,
   `not offered, no line of sight`, `already taken`, `no drop in its
   record`, `the body drawn is not its drop's`, `its gun not made on this
@@ -924,8 +956,9 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   `Frame::states`) names its picks and its pending pickup; a pick the
   place's player holds (or has pending) as named is kept by the reader; for
   each recipe, as many copies as the rest name, less its idle copies (in a
-  drop or let go), are cooked from the recipe's place's player (the
-  network client's get_active_player 0x27A9C0) and waited for. That wait is
+  drop or let go), are cooked from the recipe's place's player of its kit
+  (the client's match's place table, `NetworkClient::kit_player`; else
+  get_active_player 0x27A9C0) and waited for. That wait is
   not refused on the mark: here the game's own frame dispatch could have
   run every callback, a late join's install among them (it then binds its
   slot before the world is installed, between simulation updates); the game
@@ -943,6 +976,10 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   MiB`; at the next frame `cook of ...: made, inventory 0x..., N ms after it
   was asked for (the death), address space A -> B MiB` or `FAILED`; a wait:
   `pickup: waited W ms for the gun of place P kit K slot S: made` or why not.
+  `death hook: place P life L at T ms` and `its body left the world: ...` are
+  said once for each death and removal: a rollback runs both hooks again at
+  each tick it simulates again (the owner's log of 2026-11-09: 13 064 and
+  7 977 such lines in its last 3 MB).
 - **Checked:** `check_weapon_pickup_026g.py` (Unicorn) runs the death, the
   frame's step and the destruction of the built exe with the game's own
   profile code, match_options, boost binder and invoker: the query and its

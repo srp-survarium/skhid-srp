@@ -54,6 +54,6 @@ bandage in 0.26g. The edit list is `scripts/content-edit/bandages-1.json`.
 show healing for arms/legs and body/head separately, plus pain relief. Bandages:
 100%, 35%, 35%; medkit: 100%, 100%, 0%. The original activation time, duration,
 and weight rows remain; a lower activation time compares as better. These are UI
-properties only and do not change the medical effects. The card no longer invents
-zero-valued rows from a compared medicine whose properties differ, and its layout
-responds when the comparison changes the rows.
+properties only and do not change the medical effects. Its layout responds when the comparison changes the rows. Since 2026-11-10 a
+medicine's card again has a row, of 0, for a stat only the compared medicine has (the
+owner: medkits "are almost all the same"; one-pocket-a-type.md, "The pocket's units shown").

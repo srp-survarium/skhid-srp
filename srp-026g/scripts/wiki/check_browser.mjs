@@ -50,6 +50,7 @@ try {
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   await navigate('/wiki');
   assert.equal(await evaluate("document.querySelector('.wiki-link').pathname"), '/wiki/weapons');
+  assert.equal(await evaluate("[...document.querySelectorAll('.wiki-link')][1].pathname"), '/wiki/simulators');
   await screenshot('wiki');
   await navigate('/wiki/weapons');
   await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
@@ -71,7 +72,7 @@ try {
   assert.equal(await evaluate("document.activeElement.id"), 'compare-a-btn');
   assert.equal(await evaluate("document.querySelector('#compare-a-btn img').naturalWidth > 0"), true);
   await evaluate("document.querySelector('#compare-b-btn').click();document.activeElement.value='PM';document.activeElement.dispatchEvent(new Event('input'));document.querySelector('#compare-b-wpn_pm').click()");
-  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false, 'chooser updates both stats and recoil');
+  assert.ok((await evaluate("document.querySelector('#compare-simulate').search")).includes('a=wpn_ak_74m&b=wpn_pm'), 'the chooser updates the stats and the simulators link');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('b')"), 'wpn_pm');
   await evaluate("document.querySelector('#compare-b-btn').click();document.activeElement.value='no such weapon';document.activeElement.dispatchEvent(new Event('input'));document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))");
   assert.equal(await evaluate("document.querySelector('#compare-b-picker .wpick-empty').hidden"), false);
@@ -139,13 +140,44 @@ try {
     await evaluate("getComputedStyle(document.querySelector('.weapon-comparison [data-stat=min_damage_amount] td')).color"), 'better values visibly change color');
   assert.equal(await evaluate("document.querySelector('.weapon-comparison [data-stat=min_damage_amount] td').className"), '', 'equal values neutral');
   assert.equal(await evaluate("document.querySelector('.weapon-comparison [data-stat=\"breath_vibration.base_period\"] td').className"), '', 'sway period neutral');
-  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false);
-  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-vertical path').length"), 4, 'two complete and two elapsed curves');
+  assert.equal(await evaluate("document.querySelectorAll('.sim-vertical,#recoil-template').length"), 0, 'the simulation is on its own page');
   await screenshot('comparison-stats');
   await evaluate("document.querySelector('#compare-colors').click()");
   assert.equal(await evaluate("document.querySelectorAll('.weapon-comparison .better,.weapon-comparison .worse').length"), 0);
   await evaluate("document.querySelector('#compare-colors').click();document.querySelector('#only-differences').click()");
   assert.equal(await evaluate("!!document.querySelector('.weapon-comparison [data-stat=min_damage_amount]')"), false);
+  await evaluate("document.querySelector('#compare-b').value='wpn_ak_74m';document.querySelector('#compare-b').dispatchEvent(new Event('change'))");
+  assert.equal(await evaluate("document.querySelector('#compare-same').hidden"), false, 'same weapon has no differences');
+  assert.equal(await evaluate("document.querySelectorAll('.weapon-comparison .better,.weapon-comparison .worse').length"), 0);
+  await navigate('/wiki/weapons?lang=uk&a=wpn_ak_74m&b=wpn_pm');
+  await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'comparison fits mobile');
+  await evaluate("document.querySelector('#comparison').scrollIntoView();document.querySelector('#compare-b-btn').click()");
+  assert.equal(await evaluate("(()=>{const r=document.querySelector('#compare-b-picker .wpick-pop').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()"), true, 'right chooser stays on screen');
+  await screenshot('weapon-chooser-mobile-uk');
+  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+  await evaluate("document.querySelector('#clear-comparison').click()");
+  assert.equal(await evaluate("document.querySelector('#compare-table').childElementCount"), 0);
+  assert.equal(await evaluate("document.querySelectorAll('.wpick-btn img').length"), 0, 'clear repaints both choosers');
+  // A card links to the simulators with its weapon and round.
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  await navigate('/wiki/weapons#wpn_vityaz');
+  await evaluate("document.querySelector('#wpn_vityaz-round-btn').click();document.querySelector('#wpn_vityaz-round-ammo_9x19p_7n31').click()");
+  assert.equal(await evaluate("new URL(document.querySelector('#wpn_vityaz .weapon-simulate a').href).search"), '?lang=en&a=wpn_vityaz&ra=ammo_9x19p_7n31');
+  // The simulators: one or two weapons' recoil and spread.
+  const sim = selector => `document.querySelector('#recoil-sim ${selector}')`;
+  const choose = (selector, value) => evaluate(`{const s=${sim(selector)};s.value='${value}';s.dispatchEvent(new Event('change'))}`);
+  // A side's setup row (`key`): a button by its value, its strongest, none.
+  const row = (side, key) => `.sim-setup[data-side="${side}"] .gmrow[data-key="${key}"]`;
+  const setRow = (side, key, value) => evaluate(`document.querySelector('${row(side, key)} .gstep[data-v="${value}"]').click()`);
+  const strongest = (side, key) => evaluate(`{const b=[...document.querySelectorAll('${row(side, key)} .gstep')].at(-1);if(b.getAttribute('aria-pressed')!=='true')b.click()}`);
+  const clearRow = (side, key) => evaluate(`document.querySelector('${row(side, key)} .gstep[aria-pressed=true]')?.click()`);
+  const rowKeys = async side => JSON.parse(await evaluate(`JSON.stringify([...document.querySelectorAll('.sim-setup[data-side="${side}"] .gmrow')].map(r=>r.dataset.key))`));
+  await navigate('/wiki/simulators?a=wpn_ak_74m&b=wpn_pm');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false);
+  assert.equal(await evaluate("document.querySelector('#compare-a-value').textContent"), 'AK-74M', 'URL paints chooser');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-vertical path').length"), 4, 'two complete and two elapsed curves');
   assert.equal(await evaluate("document.querySelectorAll('.sim-step').length"), 0, 'no step-by-step mode');
   await evaluate("{const t=document.querySelector('#recoil-sim .sim-time');t.value='0.05';t.dispatchEvent(new Event('input'))}");
   assert.equal(await evaluate("Number(document.querySelector('#recoil-sim .sim-time').value)"), .05);
@@ -175,8 +207,8 @@ try {
   await evaluate('new Promise(r=>setTimeout(r,150))');
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-time').value"), played, 'pause holds the position');
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-sight .sim-cross circle').getAttribute('cy')"), crossAt);
-  await screenshot('comparison-crosshair');
-  // Next shot and Play stop at the last shot: the settling is the plots' only.
+  await screenshot('simulators-crosshair');
+  // Last shot and Play stop at the last shot: the settling is the plots' only.
   assert.equal(await evaluate("document.querySelectorAll('#sim-shots,.sim-shots').length"), 0, 'the burst is the smaller magazine, not a setting');
   await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-last').disabled"), true, 'at the last shot');
@@ -191,77 +223,151 @@ try {
   await evaluate("document.querySelector('#recoil-sim .sim-seed').value='42';document.querySelector('#recoil-sim .sim-seed').dispatchEvent(new Event('change'))");
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-time').value"), '1.5', 'seed change preserves timeline');
   assert.notEqual(await evaluate("document.querySelector('#recoil-sim .sim-vertical path').getAttribute('d')"), beforeSeed, 'seed change redraws recoil');
-  await screenshot('comparison-recoil');
+  await screenshot('simulators-recoil');
   await evaluate("document.querySelector('#recoil-sim .sim-reset').click()");
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-time').value"), '0');
-  await evaluate("document.querySelector('#compare-b').value='wpn_ak_74m';document.querySelector('#compare-b').dispatchEvent(new Event('change'))");
-  assert.equal(await evaluate("document.querySelector('#compare-same').hidden"), false, 'same weapon has no differences');
-  assert.equal(await evaluate("document.querySelectorAll('.weapon-comparison .better,.weapon-comparison .worse').length"), 0);
-  await navigate('/wiki/weapons?lang=uk&a=wpn_ak_74m&b=wpn_pm');
-  await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
-  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'comparison fits mobile');
-  await evaluate("document.querySelector('#comparison').scrollIntoView();document.querySelector('#compare-b-btn').click()");
-  assert.equal(await evaluate("(()=>{const r=document.querySelector('#compare-b-picker .wpick-pop').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()"), true, 'right chooser stays on screen');
-  await screenshot('weapon-chooser-mobile-uk');
-  await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
-  await evaluate("document.querySelector('#recoil-sim').scrollIntoView()");
-  await screenshot('comparison-recoil-mobile');
+  // One weapon is enough; clearing hides the simulation.
   await evaluate("document.querySelector('#clear-comparison').click()");
   assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), true);
-  assert.equal(await evaluate("document.querySelector('#compare-table').childElementCount"), 0);
-  assert.equal(await evaluate("document.querySelectorAll('.wpick-btn img').length"), 0, 'clear repaints both choosers');
-  // One weapon is enough for the recoil simulation.
+  assert.equal(await evaluate("document.querySelector('#compare-empty').hidden"), false);
   await evaluate("document.querySelector('#compare-b').value='wpn_ak_74m';document.querySelector('#compare-b').dispatchEvent(new Event('change'))");
   assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), false, 'a single weapon gets its simulation');
   assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-sight .sim-cross').length"), 1);
   assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-sight .sim-cross').classList.contains('series-1')"), true, 'B keeps its colour');
   assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).includes('/30'), 'its own magazine');
-  // A weapon's card has its own simulation, without A or B.
-  await evaluate("document.querySelector('#clear-comparison').click();const card=document.querySelector('#wpn_ak_74m');card.open=true;card.scrollIntoView()");
-  await evaluate('new Promise(r=>setTimeout(r,100))');
-  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .weapon-recoil .sim-sight .sim-cross').length"), 1, 'the card simulates its weapon');
-  assert.ok((await evaluate("document.querySelector('#wpn_ak_74m .sim-legend').textContent")).includes('/30'));
-  await evaluate("document.querySelector('#wpn_ak_74m .sim-play').click()");
-  await evaluate('new Promise(r=>setTimeout(r,300))');
-  assert.ok(Number(await evaluate("document.querySelector('#wpn_ak_74m .sim-time').value")) > 0, 'the card plays');
-  assert.equal(await evaluate("document.querySelector('#recoil-sim').hidden"), true, 'the comparison is left alone');
-  await screenshot('card-recoil');
   // Last shot shows the whole pattern; a target is drawn to scale, unmagnified.
-  await evaluate("document.querySelector('#wpn_ak_74m .sim-last').click()");
-  assert.ok((await evaluate("document.querySelector('#wpn_ak_74m .sim-legend').textContent")).includes('30/30'), 'last shot');
-  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-last').disabled"), true);
-  const trail = await evaluate("document.querySelector('#wpn_ak_74m .sim-trail').getAttribute('d')");
-  await evaluate("{const s=document.querySelector('#wpn_ak_74m .sim-target');s.value='10';s.dispatchEvent(new Event('change'))}");
-  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .sim-target-body').length"), 1, 'a target at 10 m');
-  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-trail').getAttribute('d')"), trail, 'a target leaves the pattern as it is');
-  const near = await evaluate("document.querySelector('#wpn_ak_74m .sim-target-body').getAttribute('transform')");
-  await evaluate("{const s=document.querySelector('#wpn_ak_74m .sim-target');s.value='25';s.dispatchEvent(new Event('change'))}");
-  assert.notEqual(await evaluate("document.querySelector('#wpn_ak_74m .sim-target-body').getAttribute('transform')"), near, 'the distance sizes the target');
-  assert.equal(await evaluate("document.querySelector('#wpn_ak_74m .sim-trail').getAttribute('d')"), trail);
-  await evaluate("document.querySelector('#wpn_ak_74m .sim-sight').scrollIntoView()");
-  await screenshot('card-target');
-  // From the hip: the spread circle, a hit per shot fired, the shake.
-  await evaluate("{const s=document.querySelector('#wpn_ak_74m .sim-stance');s.value='hip';s.dispatchEvent(new Event('change'))}");
-  await evaluate("document.querySelector('#wpn_ak_74m .sim-last').click()");
-  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .sim-hit').length"), 30, 'a hit per shot');
-  assert.equal(await evaluate("document.querySelectorAll('#wpn_ak_74m .sim-spread').length"), 1, 'the spread circle');
-  assert.ok((await evaluate("document.querySelector('#wpn_ak_74m .sim-legend').textContent")).includes('°'), 'the spread in the legend');
-  await screenshot('card-hip');
+  await navigate('/wiki/simulators?a=wpn_ak_74m');
+  await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+  assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).includes('30/30'), 'last shot');
+  const trail = await evaluate("document.querySelector('#recoil-sim .sim-trail').getAttribute('d')");
+  await choose('.sim-target', '10');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-target-body').length"), 1, 'a target at 10 m');
+  assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-trail').getAttribute('d')"), trail, 'a target leaves the pattern as it is');
+  const near = await evaluate("document.querySelector('#recoil-sim .sim-target-body').getAttribute('transform')");
+  await choose('.sim-target', '25');
+  assert.notEqual(await evaluate("document.querySelector('#recoil-sim .sim-target-body').getAttribute('transform')"), near, 'the distance sizes the target');
+  assert.equal(await evaluate("document.querySelector('#recoil-sim .sim-trail').getAttribute('d')"), trail);
+  // The spread's parts: from the hip by default; the stance, skills, gloves
+  // and arms change them; fully aimed, none of them does.
+  const parts = () => evaluate("[...document.querySelectorAll('#recoil-sim .sim-parts tbody td')].map(td=>td.textContent).join(' ')");
+  assert.equal(await parts(), '0.2° 5° 2° 25.2°', 'standing from the hip: base, stance, a shot, at most');
+  await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-hit').length"), 30, 'a hit per shot');
+  assert.equal(await evaluate("document.querySelectorAll('#recoil-sim .sim-spread').length"), 1, 'the spread circle');
+  assert.ok((await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).includes('°'), 'the spread in the legend');
+  await evaluate("document.querySelector('#recoil-sim .sim-sight').scrollIntoView()");
+  await screenshot('simulators-hip');
+  await setRow(0, 'stance', 'walk');
+  assert.equal(await parts(), '0.2° 10° 2° 30.2°', 'walking');
+  // Every skill and modification at its strongest: the gloves' and the body
+  // armour's dispersion add up (−10% each), as the pieces' sum does.
+  for (const key of await rowKeys(0)) if (/^(skill|mod)-/.test(key)) await strongest(0, key);
+  await setRow(0, 'arms', '2');
+  const hipAll = await parts();
+  assert.equal(hipAll, `0.2° ${+((10 * .76 + 10 * .4) * .8).toFixed(2)}° 1.6° ${+(0.2 + (10 * .76 + 10 * .4) * .8 + 20).toFixed(2)}°`, 'walking from the hip with all of them');
+  await setRow(0, 'aim', 'aiming');
+  assert.equal(await parts(), `0.2° ${+((10 * .88 + 10 * .4) * .8).toFixed(2)}° 1.6° ${+(0.2 + (10 * .88 + 10 * .4) * .8 + 20).toFixed(2)}°`, 'aiming in: the aimed values, no Accuracy');
+  await setRow(0, 'aim', 'aimed');
+  for (const stance of ['idle', 'walk', 'crouch', 'crouch_walk', 'run', 'jump']) {
+    await setRow(0, 'stance', stance);
+    assert.equal(await parts(), '0.2° 0° 0° 0.2°', `fully aimed, ${stance}: the base only, whatever else`);
+  }
+  await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+  await screenshot('simulators-aimed');
+  // Each side its own setup, the same weapon on both: the recoil pieces and
+  // the weapon's modification lower B's climb, and A's aim leaves B's spread.
+  {
+    await navigate('/wiki/simulators?a=wpn_ak_74m&b=wpn_ak_74m');
+    const ups = async () => {
+      await evaluate("document.querySelector('#recoil-sim .sim-last').click()");
+      return [...(await evaluate("document.querySelector('#recoil-sim .sim-legend').textContent")).matchAll(/up (-?[\d.]+)/g)].map(m => Number(m[1]));
+    };
+    const [a0, b0] = await ups();
+    assert.equal(a0, b0, 'the same weapon and setup, the same climb');
+    assert.match(await evaluate("[...document.querySelectorAll('.sim-setup[data-side=\"1\"] .gmrow[data-key=\"mod-9-weapon\"] .gstep')].map(b=>b.textContent).join()"), /^−2%,.*,−10%$/, 'the five strengths, no defect');
+    await strongest(1, 'mod-9-weapon');
+    const [a1, weapon] = await ups();
+    assert.ok(a1 === a0 && weapon < b0, `the weapon's modification lowers B's climb only (${weapon} < ${b0})`);
+    await clearRow(1, 'mod-9-weapon');
+    const pieces = (await rowKeys(1)).filter(key => key.startsWith('mod-27-'));
+    assert.ok(pieces.includes('mod-27-gloves') && pieces.length > 1, `recoil on more than one piece (${pieces})`);
+    await strongest(1, 'mod-27-gloves');
+    const [, gloves] = await ups();
+    for (const key of pieces) await strongest(1, key);
+    const [, both] = await ups();
+    assert.ok(both < gloves && gloves < b0, `the pieces add up (${both} < ${gloves} < ${b0})`);
+    assert.equal(await parts(), '0.2° 5° 2° 25.2° 0.2° 5° 2° 25.2°', 'recoil leaves the spread');
+    await setRow(0, 'aim', 'aimed');
+    assert.equal(await parts(), '0.2° 0° 0° 0.2° 0.2° 5° 2° 25.2°', 'A\'s aim is A\'s');
+    await screenshot('simulators-same-weapon');
+  }
+  // A row's card (what it does): on hover, keyboard focus or a tap.
+  {
+    const label = "document.querySelector('.sim-setup[data-side=\"0\"] .gmrow[data-key=\"skill-106\"] .glabel')";
+    const shown = () => evaluate(`getComputedStyle(${label}.querySelector('.gamemods')).display !== 'none'`);
+    assert.equal(await shown(), false, 'closed at first');
+    await evaluate(`${label}.scrollIntoView({block:'center'})`);
+    const at = JSON.parse(await evaluate(`(()=>{const r=${label}.getBoundingClientRect();return JSON.stringify([Math.round(r.x+8),Math.round(r.y+r.height/2)])})()`));
+    const height = await evaluate("document.documentElement.scrollHeight");
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'mouse', actions: [{type: 'pointerMove', x: at[0], y: at[1]}]}]});
+    // Headless Firefox has no hovering pointer unless its prefs give one.
+    const hover = await evaluate("matchMedia('(hover:hover)').matches");
+    if (hover) assert.equal(await shown(), true, 'hover opens it');
+    assert.equal(await evaluate("document.documentElement.scrollHeight"), height, 'it shifts nothing');
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'mouse', actions: [{type: 'pointerMove', x: 5, y: 5}]}]});
+    assert.equal(await shown(), false, 'leaving closes it');
+    await evaluate("[...document.querySelectorAll('.sim-setup[data-side=\"0\"] .gmrow[data-key=\"arms\"] .gstep')].at(-1).focus()");
+    await send('input.performActions', {context, actions: [{type: 'key', id: 'keyboard', actions: [{type: 'keyDown', value: ''}, {type: 'keyUp', value: ''}]}]});
+    assert.equal(await evaluate(`document.activeElement === ${label}`), true, 'the label takes the keyboard');
+    assert.equal(await shown(), true, 'keyboard focus opens it');
+    assert.ok((await evaluate(`${label}.textContent`)).includes('−4%'), 'the per-rank value from the data');
+    await evaluate("document.activeElement.blur()");
+  }
+  await navigate('/wiki/simulators?lang=uk&a=wpn_ak_74m&b=wpn_pm');
+  await send('browsingContext.setViewport', {context, viewport: {width:360,height:800}, devicePixelRatio:1});
+  assert.equal(await evaluate('document.documentElement.lang'), 'uk');
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'the simulators fit 360 px');
+  assert.ok((await evaluate("document.querySelector('.sim-setup .gmrow[data-key=\"stance\"] .glabel').textContent")).startsWith('Положення'));
+  await evaluate("document.querySelector('.sim-setup').scrollIntoView()");
+  await screenshot('simulators-mobile-uk');
+  // At 360 px a tap opens a card inside the screen; a tap elsewhere closes it.
+  const cards = await evaluate("document.querySelectorAll('.sim-setup[data-side=\"0\"] .glabel.fxhint').length");
+  assert.ok(cards >= 5, `a card per skill and modification (${cards})`);
+  for (let i = 0; i < cards; i++) {
+    const label = `document.querySelectorAll('.sim-setup[data-side="0"] .glabel.fxhint')[${i}]`;
+    await evaluate(`${label}.scrollIntoView({block:'center'})`);
+    const at = JSON.parse(await evaluate(`(()=>{const r=${label}.getBoundingClientRect();return JSON.stringify([Math.round(r.x+8),Math.round(r.y+r.height/2)])})()`));
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'touch', parameters: {pointerType: 'touch'}, actions: [
+      {type: 'pointerMove', x: at[0], y: at[1]}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}]}]});
+    assert.equal(await evaluate(`getComputedStyle(${label}.querySelector('.gamemods')).display`), 'grid', `tap ${i} opens it`);
+    assert.equal(await evaluate(`(()=>{const r=${label}.querySelector('.gamemods').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth})()`), true, `card ${i} fits 360 px`);
+    assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'no sideways scroll');
+    if (i === 0) await screenshot('simulators-mobile-uk-help');
+    await evaluate("document.querySelector('#recoil-sim .sim-parts caption').scrollIntoView({block:'center'})");
+    const away = JSON.parse(await evaluate("(()=>{const r=document.querySelector('#recoil-sim .sim-parts caption').getBoundingClientRect();return JSON.stringify([Math.round(r.x+r.width/2),Math.round(r.y+r.height/2)])})()"));
+    await send('input.performActions', {context, actions: [{type: 'pointer', id: 'touch', parameters: {pointerType: 'touch'}, actions: [
+      {type: 'pointerMove', x: away[0], y: away[1]}, {type: 'pointerDown', button: 0}, {type: 'pointerUp', button: 0}]}]});
+    assert.equal(await evaluate(`getComputedStyle(${label}.querySelector('.gamemods')).display`), 'none', `a tap elsewhere closes ${i}`);
+  }
+  await evaluate("document.querySelector('#recoil-sim .sim-sight').scrollIntoView()");
+  await screenshot('simulators-mobile-uk-sight');
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
   // A rifle with no side kick: its crosshair stays in view, unmagnified.
-  await evaluate("const m=document.querySelector('#wpn_mosin_nagant');m.open=true;m.scrollIntoView()");
-  await evaluate('new Promise(r=>setTimeout(r,100))');
-  await evaluate("const t=document.querySelector('#wpn_mosin_nagant .sim-time');t.value=t.max;t.dispatchEvent(new Event('input'))");
-  assert.equal(await evaluate("!!document.querySelector('#wpn_mosin_nagant .sim-note')"), false, 'no side magnification');
-  const cx = Number(await evaluate("document.querySelector('#wpn_mosin_nagant .sim-cross circle').getAttribute('cx')"));
+  await navigate('/wiki/simulators?a=wpn_mosin_nagant');
+  await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+  await evaluate("const t=document.querySelector('#recoil-sim .sim-time');t.value=t.max;t.dispatchEvent(new Event('input'))");
+  assert.equal(await evaluate("!!document.querySelector('#recoil-sim .sim-note')"), false, 'no side magnification');
+  const cx = Number(await evaluate("document.querySelector('#recoil-sim .sim-cross circle').getAttribute('cx')"));
   assert.ok(cx >= 0 && cx <= 300, `crosshair in view (${cx})`);
-  assert.equal(await evaluate("JSON.stringify(window.pageErrors ?? [])"), '[]', 'no script errors (since the last weapons page load)');
-  // Play from a fresh card, several times: its first frame may come before the press.
+  assert.equal(await evaluate("JSON.stringify(window.pageErrors ?? [])"), '[]', 'no script errors');
+  assert.ok((await fetch(base + '/wiki/simulators')).headers.get('content-security-policy').includes("script-src 'self'"));
+  // Play from a fresh page, several times: its first frame may come before the press.
   for (let i = 0; i < 5; i++) {
-    await navigate('/wiki/weapons?lang=en');
-    await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message));const c=document.querySelector('#wpn_pkp_pecheneg');c.open=true");
-    await evaluate("new Promise(r=>setTimeout(r,50)).then(()=>document.querySelector('#wpn_pkp_pecheneg .sim-play').click())");
+    await navigate('/wiki/simulators?lang=en&a=wpn_pkp_pecheneg');
+    await evaluate("window.pageErrors=[];addEventListener('error',event=>pageErrors.push(event.message))");
+    await evaluate("new Promise(r=>setTimeout(r,50)).then(()=>document.querySelector('#recoil-sim .sim-play').click())");
     await evaluate('new Promise(r=>setTimeout(r,300))');
-    assert.ok(Number(await evaluate("document.querySelector('#wpn_pkp_pecheneg .sim-time').value")) > 0, `card play ${i}`);
+    assert.ok(Number(await evaluate("document.querySelector('#recoil-sim .sim-time').value")) > 0, `play ${i}`);
     assert.equal(await evaluate("JSON.stringify(pageErrors)"), '[]');
   }
   // The equipment: a link straight to the helmets, one-click slots, search,
@@ -295,7 +401,7 @@ try {
   await send('browsingContext.setViewport', {context, viewport: {width:390,height:844}, devicePixelRatio:1});
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'equipment fits mobile');
   await screenshot('equipment-mobile-uk');
-  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, recoil step/scrub/reset, EN/UK and CSP.`);
+  console.log(`PASS: ${total} weapons; image choosers/search/keyboard/mobile, catalogue, full stat comparison, equality/neutral colors, same weapon, simulators: recoil step/scrub/reset, spread by aim, stance, skills, gloves and arms, recoil modifications, help lines (hover, keyboard, tap), EN/UK, 360 px and CSP.`);
   await send('session.end');
 } finally {
   await send('session.end').catch(() => {});

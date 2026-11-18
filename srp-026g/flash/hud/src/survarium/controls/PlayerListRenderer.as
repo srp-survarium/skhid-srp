@@ -191,10 +191,19 @@ package survarium.controls
       // The list this row is in shows names only (PlayerList.namesOnly: the Settings' "Hide player scores").
       protected function get namesOnly() : Boolean
       {
-         var board:PlayerList = owner != null ? owner.parent as PlayerList : null;
-         return board != null && board.namesOnly;
+         return this.board != null && this.board.namesOnly;
+      }
+
+      // The Tab list this row is in, null for another list.
+      protected function get board() : PlayerList
+      {
+         return owner != null ? owner.parent as PlayerList : null;
       }
       
+      // The name's authored width, beside the columns.
+      private var _nameWidth:Number = 0;
+
+      // Names only, the name takes the row up to the hidden columns' right edge.
       protected function showStats(shown:Boolean) : void
       {
          this.ui_kills.visible = this.ui_deaths.visible = this.ui_rank.visible = shown;
@@ -202,6 +211,24 @@ package survarium.controls
          {
             this.ui_score.visible = shown;
          }
+         if(this._nameWidth == 0)
+         {
+            this._nameWidth = this.ui_name.width;
+         }
+         this.ui_name.width = shown ? this._nameWidth : this.columnsRight() - this.ui_name.x;
+      }
+
+      private function columnsRight() : Number
+      {
+         var right:Number = this.ui_name.x + this._nameWidth;
+         for each(var column:TextField in [this.ui_kills,this.ui_deaths,this.ui_rank,this.ui_score])
+         {
+            if(column)
+            {
+               right = Math.max(right,column.x + column.width);
+            }
+         }
+         return right;
       }
       
       override public function toString() : String

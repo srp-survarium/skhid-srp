@@ -635,7 +635,8 @@ Differs from 0.10b: 0.10b sorted inside the ambient stage; same predicate and sa
 ### 5.4 Ambient lights (0x181EB0, per-list body 0x181660)
 
 Properties (`object_ambient_light::load` 0x2907A0): `radius`, `enabled`, `color` (packed,
-linearized with pow 2.2 at insert 0x2909C0), `intensity` (clamped >= 0), `attenuation_power`,
+ABGR: red in the low byte, green in bits 8..15, blue in bits 16..23, extracted
+at 0x29094F..0x2909BC; linearized with pow 2.2 at insert 0x2909C0), `intensity` (clamped >= 0), `attenuation_power`,
 `dot_normal`, `affect_specular` (default 0), `geometry` (0 sphere, 1 box), `side_width`
 (default 0.1, 0x921948), `smart_attenuation`. Render light: +44h location, +50h colour, +5Ch
 intensity, +60h attenuation power, +64h radius, +68h side width, +6Ch geometry, +71h dot_normal,
@@ -1187,3 +1188,62 @@ PROVEN for the 0.26g column (sections 1, 4, 5, 6); the 0.10b column is the sourc
 - The order of ambient lights (no sort found on the render path).
 - The sun's shadow map (`stage_shadow_direct`, cascades) and `stage_shadow_mask` beyond their
   output target.
+
+### Original 0.21 local-light compatibility (candidate, 2026-11-17)
+
+The original point/spot pixel programs differ from native in diffuse and
+specular arithmetic and shadow sampling. Scaling a local light's intensity
+cannot reproduce those direction- and material-dependent differences.
+Resource-porter `weather_fog_021/local_lights.rs` adapts the original retail
+program to each of the 32 native permutations; `local_lights.tsv` pins both
+inputs. Original quality selectors 0/3 map to native SSDO disabled/enabled
+permutations, and shadow quality 0–3 and shadowed/unshadowed remain paired.
+The original programs do not sample the native SSDO texture.
+
+The only arithmetic-boundary adaptation is screen UV: original
+`v1.xy / v1.w` becomes native `SV_Position.xy * screen_res.zw`. The complete
+original remainder survives instruction-for-instruction, including shadows.
+Reflection maps constant buffers/samplers/textures by name and verifies each
+used constant's byte offset and size. In unshadowed variants the positional
+constant buffer moves b1→b2; native SSDO+shadow variants move the original
+shadow comparison sampler s3→s4. Native declarations and bindings remain;
+the static buffer grows from 15 to 19 registers to read the marker.
+
+The exact day-map markers select these programs; all unmarked scenes execute
+the complete native body. An independent disassembly check passed all 32
+original programs for all three markers. The broader fallback check passed
+all 88 shaders in the pack. In-game visual acceptance is still pending.
+
+### Original particle-light intensity (2026-11-17; candidate)
+
+Native `scene::particle_engine::update_light` (0x14F260) multiplies its
+authored intensity argument (entry ESP+96) by 3.0 at 0x14F30A before storing
+`light_props+44h`. `fill_light` passes that field unchanged to
+`set_color_and_intensity`, which stores `light+210h`. Original 0xF2CE0
+copies the same argument unchanged at 0xF2D6D; original `fill_light`
+0x12FCCF stores it at `light+210h` at 0x130039. The constant at native
+0xA2D73C is exactly 3.0. This is an engine-wide particle-light conversion
+difference, not evidence for a per-torch artistic intensity adjustment.
+The original-program candidate shows Fort's torch and Mamayev's dugout fire
+too bright. The hook at 0x14F305 skips that multiplication only when the
+particle engine's actual scene (+8, verified by `get_scene` 0x14F080) equals
+the active game world's render scene (game+18h+4). Native
+`object_ambient_light::insert` passes scene+4 at 0x290ABE;
+`scene_renderer::update_ambient_light` copies the resource pointer at
+0x23AB4/0x23AC3, and `engine::world::update_ambient_light` dereferences it
+at 0x118C3D/0x118C3E. No resource-base adjustment is involved.
+
+The engine-world global at 0x1F1D310 and its game at +2D0 are the existing
+native `message_processor` path (0x18359/0x1835F). Both must exist, the
+actual render-scene pointers must match and be non-null, and the game
+project must be one of the five exact day-map aliases. The hook has no
+cached flags or scene ownership. Every other scene executes the original
+MULSS instruction. The focused check passed 264 ambient and 1,152 particle
+cases, including actual-scene mismatches, map transitions, missing owners,
+teardown, preserved registers/frame and the native gain. In the flagged
+Fort torch view, mean brightness fell from 44.0 to 30.0 (original 28.8),
+and the lower-frame RGB MAE from 18.21 to 3.95. Mamayev's dugout fell from
+39.0 to 32.0 (original 30.6), full-frame MAE 12.66 to 5.24. Both lost their
+serious colour flags; geometry and authored curves remain unchanged.
+Mamayev's sun control stayed at brightness 105.5 versus original 106.5.
+The broader five-map review remains incomplete.

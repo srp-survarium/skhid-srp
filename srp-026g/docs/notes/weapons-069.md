@@ -78,6 +78,12 @@ older file under the same name, the port moves 0.69d0's to a name of its own (th
   was in the vertices). @15 is @14 with the five files the porter makes again without the turn
   (`scripts/weapons-069/pack_models.py`: the drum and its rounds, their boxes and the model's); the
   icon is @14's.
+- The drum stands straight in the well (@16). 0.69d0's PPSh has its magazine socket turned
+  -3.74 degrees about X; up to @15 the porter took that turn with the wrong sign, so the drum
+  leant 7.5 degrees off: its neck 6 to 8 mm through the well's front wall, a 9 to 10 mm gap
+  behind it. resource-porter #44 places a module by the engine's own frames (row vectors:
+  module, then locator, then bone). @16 is @15 with the same five files made again; the porter
+  before #44 makes @15's 1751 files byte for byte, after it only those five differ.
 - G3SG/1, Mauser, KS-23M: their own 0.69d0 rigs and clips. The KS-23M is a pump as the
   Remington 870 (start, one shell, finish, chambering); 0.69d0's "load into an empty chamber"
   start and the Mauser's aimed shots are 0.69d0-only and left out. The Mauser's empty reload
@@ -97,6 +103,10 @@ older file under the same name, the port moves 0.69d0's to a name of its own (th
   at 0 its aim sat at the receiver's top and the receiver filled the lower screen; the Drum the
   PPSh's 0.01, its aim at the live PPSh's height). The Mauser sets 0 (its aim was within 2 px;
   the APS's -0.1 is the APS model's).
+- A gun with no scope rail of its own (the AKMSU: 0.69d0 mounts its optic on a B-18 module; the
+  Mauser) has its `scope_point` at the eye on the gun's body bone, `offset` (@19). Up to @18 it
+  was a copy of the aim locator on the root bone, which the 0.69d0 clips leave behind: an optic on
+  the AKMSU floated off the gun whenever a clip moved it (bug report 2026-11-16).
 
 ## Stats (live peers beside each)
 

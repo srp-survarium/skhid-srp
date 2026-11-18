@@ -13,12 +13,18 @@ package survarium.player
       private var _current:Number;
       private var _maximum:Number;
       private var _effects:WeightEffects;
-      // The kit's movement speed: its own indicator left of the weight.
-      private var _speed:SpeedIndicator;
-      public function WeightIndicator(widget:MovieClip)
+      // The kit's regeneration, then its movement speed: each its own indicator left of the
+      // weight, the three boxes the same distance apart.
+      private var _speed:KitStatIndicator;
+      private var _regeneration:KitStatIndicator;
+      private var _regenerationStat:RegenerationExplanation;
+      // `left`: where the row's first box starts in the widget's parent.
+      public function WeightIndicator(widget:MovieClip, left:Number)
       {
          _widget = widget;
-         _speed = new SpeedIndicator(widget);
+         KitStatIndicator.evenSides(widget);
+         _regeneration = new KitStatIndicator(widget,"regeneration",left);
+         _speed = new KitStatIndicator(widget,"speed",(left + KitStatIndicator.boxOf(widget).x) / 2);
          var holder:Sprite = new Sprite();
          _tip = new WeightTip();
          _tip.graphics.beginFill(0,0.01);
@@ -28,11 +34,13 @@ package survarium.player
          widget.addChild(holder);
          _tip.validateNow();
       }
-      public function update(current:Number, maximum:Number, effects:WeightEffects) : void
+      // `regeneration`: null until the exe gives the kit's modifiers.
+      public function update(current:Number, maximum:Number, effects:WeightEffects, regeneration:RegenerationExplanation = null) : void
       {
          _current = current;
          _maximum = maximum;
          _effects = effects;
+         _regenerationStat = regeneration;
          refresh();
       }
       public function refresh() : void
@@ -45,6 +53,7 @@ package survarium.player
          _widget.progress_indicator.value = _current;
          _tip.updateEffects(_effects);
          _speed.update(_effects != null ? _effects.speedExplanation : null);
+         _regeneration.update(_regenerationStat);
       }
    }
 }

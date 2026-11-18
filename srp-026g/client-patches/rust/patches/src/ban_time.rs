@@ -208,7 +208,7 @@ mod tests {
         String::from_utf8(text.bytes().to_vec()).unwrap()
     }
 
-    const TODAY: LocalTime = LocalTime { month: 11, day: 7, hour: 13, minute: 41 };
+    const TODAY: LocalTime = LocalTime { year: 2026, month: 11, day: 7, hour: 13, minute: 41, second: 0 };
 
     #[test]
     fn the_end_and_the_time_left() {
@@ -216,7 +216,7 @@ mod tests {
         assert_eq!(line(at, TODAY, 29), "Ends at 14:10 (in 29 min).");
         assert_eq!(line(at, TODAY, 60), "Ends at 14:10 (in 1 h).");
         assert_eq!(line(at, TODAY, 135), "Ends at 14:10 (in 2 h 15 min).");
-        let later = LocalTime { month: 11, day: 10, hour: 9, minute: 5 };
+        let later = LocalTime { month: 11, day: 10, hour: 9, minute: 5, ..TODAY };
         assert_eq!(line(later, TODAY, 3 * 24 * 60 + 4 * 60 + 59), "Ends at 10.11 09:05 (in 3 d 4 h).");
         assert_eq!(line(later, TODAY, 2 * 24 * 60), "Ends at 10.11 09:05 (in 2 d).");
     }

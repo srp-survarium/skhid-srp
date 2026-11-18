@@ -55,6 +55,8 @@ CREATE_FILE, WRITE_FILE, CLOSE_HANDLE, TICK_COUNT = 0x870048, 0x870108, 0x870040
 # GetCurrentProcessId, a constant: a clock read from it would stand still and
 # drop every refusal line after the first (each case expects one).
 PROCESS_ID = 0x8701B8
+# GetCurrentThreadId: the log's one writer asks whose line it is.
+THREAD_ID = 0x870118
 MEMORY, STACK, STUBS, STOP = 0x20000000, 0x21000000, 0x22000000, 0x23000000
 WORLD = 0x12340000
 REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_REG_ESI,
@@ -71,7 +73,7 @@ class Game:
         for at, size in ((MEMORY, 0x100000), (STACK, 0x10000), (STUBS, 0x1000), (STOP, 0x1000)):
             emu.mem_map(at, size, UC_PROT_ALL)
         # srp_patches.log and the refusals' clock, as kernel32 would.
-        for n, slot in enumerate((CREATE_FILE, WRITE_FILE, CLOSE_HANDLE, TICK_COUNT, PROCESS_ID)):
+        for n, slot in enumerate((CREATE_FILE, WRITE_FILE, CLOSE_HANDLE, TICK_COUNT, PROCESS_ID, THREAD_ID)):
             self.word(slot, STUBS + 0x10 * n)
             emu.hook_add(UC_HOOK_CODE, self.kernel32, begin=STUBS + 0x10 * n, end=STUBS + 0x10 * n)
         for at in (STOP, SOUND_FREE, PARTICLE_ERASE, PARTICLE_RETURN):
@@ -94,8 +96,10 @@ class Game:
         elif n == 3:                       # GetTickCount: a second on, each refusal a line
             self.ticks += 1000
             pops, result = 0, self.ticks
-        else:                              # GetCurrentProcessId
+        elif n == 4:                       # GetCurrentProcessId
             pops, result = 0, 4242
+        else:                              # GetCurrentThreadId: one thread
+            pops, result = 0, 1
         emu.reg_write(UC_X86_REG_EAX, result)
         emu.reg_write(UC_X86_REG_ESP, sp + 4 + pops)
         emu.reg_write(UC_X86_REG_EIP, self.read(sp))
@@ -219,7 +223,9 @@ def check(stock_data, built_data):
         expect(ours.stopped == STOP and ours.fault is None, f"the build returns ({ours.stopped}, {ours.fault})")
         expect(ours.snapshot(o.tp, 0x300) == before and ours.read(o.seed + 4) == 1,
                "the build leaves the presenter and the seed's word as they were")
-        expect(len(ours.lines) == 1 and b"a sound's stop" in ours.lines[0], f"one line logged: {ours.lines}")
+        # A run of one line before it may be counted first (vostok::log: "the line above: N more times").
+        said = [l for l in ours.lines if b"(the line above: " not in l]
+        expect(len(said) == 1 and b"a sound's stop" in said[0], f"one line logged: {ours.lines}")
 
         # A sound update on an empty list.
         s, o = Scene(stock), Scene(ours)
