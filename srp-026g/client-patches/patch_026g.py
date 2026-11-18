@@ -2420,12 +2420,12 @@ ARTEFACTS_SIZES = (
 # world's tick (0x3B7BD0) calls for every handler after it polled the devices
 # and before they hand out the keys: match_keys_poll sets the kits' screen's
 # state from the hud's cursor and GetTickCount (CLOSED; OPENING from the
-# first poll the kits are up at, with its time; OPEN from the first poll 300
-# ms, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
+# first poll the kits are up at, with its time; OPEN from the first poll 1
+# s, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
 # that went down in the frame the kits came, in play, is handed out in their
-# first tick and picks nothing, nor does one pressed in their first 300 ms
+# first tick and picks nothing, nor does one pressed in their first second
 # (the owner, 2026-10-25: "I press 3 mid-fight to heal with the medkit, I
-# die, and I swap to my 3rd kit"; then: ignore them for 300 ms).
+# die, and I swap to my 3rd kit"; then: ignore them for 300 ms; 1 s since 2026-11-18).
 MATCH_KEYS_HOOKS = (
     (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
     (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
