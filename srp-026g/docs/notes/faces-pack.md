@@ -87,7 +87,7 @@ By the gate, over the stock db and patches 12 .. 64: 229 models, of 16 helmets a
 **They are not in `faces@3`.** The build makes them (resource-porter `face_shape::Carry`, `face_fit::settle`) and the
 gate measures them, but they have only been looked at in software renders, and they are not right yet:
 
-- with them a face shows through a helmet or mask as it sits (the bind pose) in 12 cases of a face and an item; without them in 135;
+- with them a face shows through a helmet or mask as it sits (the bind pose) in 12 cases of a face and an item; without them, over the face as it is, in 135, and over 0.69d0's mask heads as the pack ships in 117;
 - 92 of them stand off the face at a seen edge by more than 4 mm (the carry is smoothed and never under what the skin needs, and the settling only moves out);
 - 88 still meet the jaw or throat in a pose (a hood's drape, a balaclava's neck: cloth that follows the neck), as the collars do;
 - settling in the sampled poses too pushed such cloth out by up to 48 mm; it is done in the bind pose only, at most 6 mm a vertex.
@@ -173,12 +173,18 @@ What 0.69d0 modelled is the reference: a face is never reshaped to fit an item.
    lowest point is at about 1.55 m).
 3. **Under a helmet** a face is 0.69d0's own helmet head where it has one (`head_default` and
    `head_04` to `head_07`: the hair and scalp pressed, the face as it is), else the bare face
-   without its hair; **under a mask** it is the same.
+   without its hair. **Under a mask** it is, for now, 0.69d0's own mask head where it has one
+   (`head_default`, `head_05` to `head_07`), else the helmet head.
    - **0.69d0's own helmet and mask heads are not cuts.** Each has every vertex and triangle of
-     the bare head; what differs is where vertices are. Its mask heads push the face itself in
-     under 0.69d0's masks (1,012 to 1,771 vertices by more than half a millimetre, up to 8 to 18 mm), and every one of those vertices is in sight under at
-     least one live mask: the face would be another one under a respirator. They are not used.
-     Its helmet heads move hair and scalp only (0 to 225 vertices, up to 14 mm; 0 to 156 of them are in sight under some live helmet, by up to 11 mm: 0.69d0's own look of that face in a helmet, kept).
+     the bare head; what differs is where vertices are. Its helmet heads move hair and scalp
+     only (0 to 225 vertices, up to 14 mm; 0 to 156 of them are in sight under some live helmet, by up to 11 mm: 0.69d0's own look of that face in a helmet). Its mask heads push the face itself in under 0.69d0's masks
+     (1,054 to 1,789 vertices by more than half a millimetre, up to 8 to 18 mm), and every one of those vertices is in sight under at least one live mask:
+     under a respirator the forehead and cheeks are not quite the bare face's.
+   - **They stay in `faces@3` all the same**, as 0.69d0 draws a masked face. A build with the
+     face as it is under the masks was looked at in the game (`v3/ingame/trial-masks-over-the-face-as-it-is/`):
+     without the masks made for faces it shows through the live masks far more than `faces@2`
+     did (the nose and cheeks through `face_069d_balaclava`). When the masks made for faces
+     ship, the mask state becomes the helmet head, the face as it is.
    - **Skin no one can see is not drawn**, but there is little of it: the live helmets include
      ones that cover almost nothing (`eq046_blackmarket_helmet_7`, `novice_026`) and the masks a
      pair of goggles (`eq046_edge_mask_6`), so what every helmet hides is 4 to 58 triangles of
@@ -221,14 +227,14 @@ patches 12 .. 64:
 
 | face | bare | helmet | mask | with the items made for the face (bare, helmet, mask) | chin and jaw meet a collar in a pose: collars, deepest |
 |---|---|---|---|---|---|
-| `069d_head_default` | 43 -> 13 | 57 -> 19 | 495 -> 471 | 13, 19, 252 (7 helmets and 18 masks made) | 83, 18 mm -> 62, 8 mm |
+| `069d_head_default` | 43 -> 13 | 57 -> 19 | 495 -> 417 | 13, 19, 252 (7 helmets and 18 masks made) | 83, 18 mm -> 62, 8 mm |
 | `069d_head_01` | 38 -> 13 | 50 -> 18 | 489 -> 431 | 13, 15, 203 (5 helmets and 18 masks made) | 78, 18 mm -> 68, 9 mm |
 | `069d_head_02` | 47 -> 12 | 58 -> 18 | 427 -> 288 | 12, 16, 125 (6 helmets and 17 masks made) | 79, 17 mm -> 56, 5 mm |
 | `069d_head_03` | 42 -> 12 | 52 -> 20 | 447 -> 398 | 12, 16, 207 (10 helmets and 18 masks made) | 83, 18 mm -> 67, 13 mm |
 | `069d_head_04` | 41 -> 14 | 53 -> 23 | 526 -> 456 | 14, 19, 234 (11 helmets and 17 masks made) | 86, 18 mm -> 81, 12 mm |
-| `069d_head_05` | 22 -> 5 | 31 -> 9 | 431 -> 337 | 5, 10, 163 (6 helmets and 17 masks made) | 61, 34 mm -> 34, 33 mm |
-| `069d_head_06` | 49 -> 19 | 63 -> 29 | 528 -> 481 | 19, 23, 237 (11 helmets and 18 masks made) | 86, 18 mm -> 83, 15 mm |
-| `069d_head_07` | 44 -> 14 | 58 -> 22 | 474 -> 465 | 14, 18, 254 (11 helmets and 18 masks made) | 89, 28 mm -> 78, 28 mm |
+| `069d_head_05` | 22 -> 5 | 31 -> 9 | 431 -> 229 | 5, 10, 163 (6 helmets and 17 masks made) | 61, 34 mm -> 34, 33 mm |
+| `069d_head_06` | 49 -> 19 | 63 -> 29 | 528 -> 471 | 19, 23, 237 (11 helmets and 18 masks made) | 86, 18 mm -> 83, 15 mm |
+| `069d_head_07` | 44 -> 14 | 58 -> 22 | 474 -> 351 | 14, 18, 254 (11 helmets and 18 masks made) | 89, 28 mm -> 78, 28 mm |
 | `stk2_neutral_01_head` | 27 -> 22 | 32 -> 26 | 458 -> 376 | 22, 26, 202 (6 helmets and 15 masks made) | 76, 19 mm -> 73, 13 mm |
 
 Each cell of the first three: `faces@2` -> `faces@3` as it ships. A helmet over a mask counts as a set of its own, so one mask a face
@@ -240,13 +246,13 @@ shows through is up to 28 sets. `faces@2` is its shapes measured by this gate (i
 `ports/faces-026-open.tsv` (resource-porter) names every misfit left, with the most it may be;
 a new one, or a deeper one, stops the build.
 
-460 lines, a face and an item each:
+493 lines, a face and an item each:
 
-- 135: a helmet or mask shown through as it sits (the bind pose);
-- 124: a torso or back piece, in a pose only (the throat behind the chin against a collar);
-- 77: a helmet or mask, in a pose only (the jaw or throat against cloth that follows the neck);
-- 41: a helmet over a mask that is deeper than under either alone;
-- 83: a helmet's or mask's seen edge standing off;
+- 129: a torso or back piece, in a pose only (the throat behind the chin against a collar);
+- 117: a helmet or mask shown through as it sits (the bind pose);
+- 88: a helmet's or mask's seen edge standing off;
+- 85: a helmet or mask, in a pose only (the jaw or throat against cloth that follows the neck);
+- 74: a helmet over a mask that is deeper than under either alone;
 
 - **The helmets and masks** wait for their models for the face (above). Until then a face shows through them as
   `faces@2`'s did: by 2 to 20 mm at the nose, the jaw and the chin under the masks made close on today's head.
