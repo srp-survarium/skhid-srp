@@ -9,6 +9,25 @@ release that made it what it is now.
 
 ---
 
+## 18 Nov, 19:54 — TODO: the owner's words (update required)
+
+<!-- Revision 66 (026g-rev66), released 2026-11-18 19:54 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2159 Record revision 64 test patch baseline
+- TODO: #2162 Publish torrent downloader with tracker and peer diagnostics
+- TODO: #2163 Add automatic regional relay fallback with native UDP forwarding
+- TODO: #2164 Relay: a probe, a reset sign-in or an idle client no longer takes the service down
+- TODO: #2165 Patch 150: the game shares by BitTorrent in matches too
+- TODO: #2166 Black Market Medkit: heals in 1 s (2 s to activate as before)
+- TODO: #2167 Patch 58: kit keys pick nothing for 1 s after the kits appear
+- TODO: #2168 Chemical Plant v0.11: a picture of its own
+- TODO: #2170 The five 0.21 maps in day, rain and evening, drawn the 0.21 way
+- TODO: #2171 Patch 158: the eye's ray goes through leaves
+- TODO: #2169 Relay: the site under the relay's own name (by.skhid.link)
+- TODO: #1543 Patch 122: room for 32 particle effects in each presenter, no entry past a full list (crash at 0x2ACC7F)
+- TODO: #2172 Patch 158, reviewed: the leaves' ray keeps its own filter; a surface under a leaf is met
+- TODO: #2174 simulation_changes.tsv: one next row for the two pending changes
+
 ## 17 Nov, 16:28 — TODO: the owner's words (update required)
 
 <!-- Revision 64 (026g-rev64), released 2026-11-17 16:28 UTC. To be worded for players; what it shipped: -->
