@@ -910,6 +910,19 @@ fn build(
                             rim.held_over_share0,
                             rim.held_replaced
                         );
+                        // [row 6] The walk check's counts (on the game's shapes): walks checked, failed and taken away, failed and
+                        // kept as a floor's only way (marked), walked crouched; and the marked walks in the grid.
+                        let walked = &stats.controlled;
+                        log::info!(
+                            "Bot map {} walk check: {} checked, {} failed and cut, {} failed and kept (marked {}), {} crouched, {} no way round",
+                            path.display(),
+                            walked.checks,
+                            walked.checks_dropped,
+                            walked.checks_kept,
+                            grid.walk_marked_count(),
+                            walked.checks_crouched,
+                            walked.checks_no_way_round
+                        );
                         // [item 10] Each held sprint built (`Takeoff::SprintHeld`: the forward key held on after the landing).
                         for l in grid.off_links().iter().filter(|l| matches!(l.press, mapdata::grid::gap::Takeoff::SprintHeld(_))) {
                             let (from, to) = (grid.position(l.from), grid.position(l.to));
