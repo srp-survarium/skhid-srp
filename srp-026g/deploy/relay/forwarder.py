@@ -156,18 +156,37 @@ async def tunnel(reader, writer, remote, upstream):
         asking.cancel()
 
 
+class Slots:
+    """Open connections: so many in all and so many of one address, which
+    cannot then hold them all with idle ones."""
+    def __init__(self, limit, each=16):
+        self.limit, self.each = limit, each
+        self.held = {}
+
+    def take(self, ip):
+        held = self.held.get(ip, 0)
+        if held >= self.each or sum(self.held.values()) >= self.limit:
+            return False
+        self.held[ip] = held + 1
+        return True
+
+    def free(self, ip):
+        self.held[ip] -= 1
+        if not self.held[ip]:
+            del self.held[ip]
+
+
 class Login:
     def __init__(self, public, backend, port, limit=256):
         self.public, self.backend, self.port = public, backend, port
-        self.limit, self.active = limit, 0
+        self.slots = Slots(limit)
         self.budget = Budget(rate=2, burst=10)
 
     async def accept(self, reader, writer):
         client = writer.get_extra_info("peername")
-        if self.active >= self.limit or not self.budget.take(client[0], time.monotonic()):
+        if not self.budget.take(client[0], time.monotonic()) or not self.slots.take(client[0]):
             writer.close()
             return
-        self.active += 1
         upstream = None
         try:
             remote, upstream = await asyncio.wait_for(
@@ -179,7 +198,7 @@ class Login:
         except (OSError, TimeoutError, ExceptionGroup) as error:
             logging.debug("login from %s failed: %s", client, error)
         finally:
-            self.active -= 1
+            self.slots.free(client[0])
             writer.close()
             if upstream:
                 upstream.close()
@@ -189,10 +208,9 @@ class HTTPS(Login):
     """CONNECT to one configured HTTPS origin, never an open proxy."""
     async def accept(self, reader, writer):
         client = writer.get_extra_info("peername")
-        if self.active >= self.limit or not self.budget.take(client[0], time.monotonic()):
+        if not self.budget.take(client[0], time.monotonic()) or not self.slots.take(client[0]):
             writer.close()
             return
-        self.active += 1
         upstream = None
         try:
             request = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 10)
@@ -209,7 +227,7 @@ class HTTPS(Login):
         except (OSError, TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError, ExceptionGroup) as error:
             logging.debug("HTTPS tunnel from %s failed: %s", client, error)
         finally:
-            self.active -= 1
+            self.slots.free(client[0])
             writer.close()
             if upstream:
                 upstream.close()

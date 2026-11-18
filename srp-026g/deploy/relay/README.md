@@ -78,14 +78,18 @@ UDP replies go only to clients observed on that frontend within 120 seconds.
 1. Point the name's A record (`by.skhid.link`) at the relay.
 2. On both hosts run `bash setup.sh configure ...` again with the same
    arguments: it reloads the tunnel's firewall with port 443 (the tunnel stays
-   up), and on the relay installs this forwarder and its service. Then
-   `systemctl restart skhid-relay-web` there.
+   up), and on the relay installs this forwarder and its service. Nothing else
+   may hold the relay's port 443 (`ss -ltn 'sport = :443'` is empty): the web
+   service does not start without it, the updater's port 8080 neither. Then
+   `systemctl restart skhid-relay-web` there, which cuts the updater downloads
+   running through it: once players have the relay, on the owner's go.
 3. On the origin add the name to `SRP_WEB_DOMAIN` in `.env` (`SRP_RELAYS` is
    step 4 above) and make Caddy anew with this compose file:
    `docker compose --profile tls up -d --no-deps caddy26`. The site's HTTPS is
    away for a few seconds, so this needs the owner's go; a release does not do
    it (it makes only `srp26` anew). The name's certificate comes by TLS-ALPN
-   through the relay, so steps 1 and 2 come first.
+   through the relay, so steps 1 and 2 come first. Caddy reads `SRP_RELAYS`
+   only when it is made: make it anew whenever that setting changes.
 4. Check `https://by.skhid.link/api/stats`, then that the page sees the
    visitor and not the relay: the admin page must answer the jump host under
    this name too. If it does not, Caddy sees another source than the relay's
@@ -105,7 +109,8 @@ normal `tools/check` before a PR too.
 
 To stop forwarding: `systemctl disable --now skhid-relay skhid-relay-web`. Remove the fallback
 setting for a later player release. Direct connections keep working. Remove
-`SRP_RELAYS` in a normal server release before dismantling the tunnel. Its
+`SRP_RELAYS` in a normal server release before dismantling the tunnel, and
+make `caddy26` anew then: until that it believes the tunnel address. Its
 anti-spoof rules deliberately remain even when the interface goes down.
 To remove it later, stop/disable `wg-quick@skhid-relay` and delete only the
 `inet skhid_relay` nftables table and this setup's files. Keep SSH access and the
