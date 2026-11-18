@@ -675,7 +675,10 @@ fn drive_tick_inner(
     // soaks the battery where the teams meet lay there all match in 6 runs
     // of 16 (its takers had a target 91 % of their time by it).
     let using = Gates::using(&intent, eye, bot.reflex.view_held());
-    press_on_meet(bot, aiming_me, eye, &intent, using, tactics, time);
+    // [take.on_the_move, F7] The use's ray starts from the frame before (`press_on_meet`): the eye before this tick's move,
+    // not `aiming_me`'s, led to where the move puts it (`lead_own`): at a walk's 3.5 m/s that is 0.175 m nearer, and a press
+    // there at the reach's edge left the client's ray 1.83 m from the box.
+    press_on_meet(bot, me, me.eye(), &intent, using, tactics, time);
     bot.motor.track = over.track.filter(|_| !glance_yields && !using);
     let aim = over
         .look_at
@@ -686,6 +689,8 @@ fn drive_tick_inner(
         })
         .or(match intent.look {
             Look::At(p) => Some(aim_at(p + Vec3::new(0.0, 1.0, 0.0))),
+            // [take.on_the_move, F7] A take's press on the move looks at its battery by the lead of this tick's eye.
+            Look::Use(p) if intent.use_on_meet == Some(p) => Some(aim_at(plays::collect::meet_aim(eye, p))),
             Look::Use(p) => Some(aim_at(p)),
             _ => None,
         });

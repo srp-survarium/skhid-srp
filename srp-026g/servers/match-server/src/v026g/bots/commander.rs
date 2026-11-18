@@ -1075,15 +1075,44 @@ impl Bots {
         let squad_of = |place: Place| -> Option<usize> {
             self.teams[usize::from(team)].squads.as_ref()?.iter().position(|s| s.contains(&place))
         };
+        // [fix-team `threat.support_attackers`] With the support on, every enemy attacking a mate is a fight of its own.
+        let attackers = tuning.threat.support_attackers.filter(|_| support.is_some());
         // [A297 `tdm.group`] The team's bots in a fight now (their reflex targets): their mates answer them (play 21's cover).
         let fighting = if by_position.is_some() {
-            let targets: Vec<(Place, Place)> = self
-                .bots
-                .iter()
-                .flatten()
-                .filter(|b| b.team == team && view.place(b.place).is_some_and(|p| p.alive))
-                .filter_map(|b| b.reflex.target().map(|enemy| (b.place, enemy)))
-                .collect();
+            let targets: Vec<(Place, Place)> = match attackers {
+                Some(rule) => {
+                    let mut all: Vec<(Place, group::Attacker)> = self
+                        .bots
+                        .iter()
+                        .flatten()
+                        .filter(|b| b.team == team)
+                        .filter_map(|b| view.place(b.place).filter(|p| p.alive).map(|me| (b, me)))
+                        .flat_map(|(b, me)| {
+                            let window_ms = (rule.window_s.get() * 1000.0) as u32;
+                            group::attackers(
+                                me,
+                                b.reflex.target(),
+                                b.reflex.last_hit(),
+                                b.memory.tracks(),
+                                view,
+                                group::Senses { now, window_ms, view_deg: tuning.sense.view_deg, aim_deg: tuning.aim.combat.hit_match_deg },
+                            )
+                            .into_iter()
+                            .map(move |a| (b.place, a))
+                        })
+                        .collect();
+                    // The most dangerous first, over the whole team: one the mate does not face, then hits, then the nearest.
+                    all.sort_by(|(_, a), (_, b)| a.rank(b));
+                    all.into_iter().map(|(mate, a)| (mate, a.enemy)).collect()
+                }
+                None => self
+                    .bots
+                    .iter()
+                    .flatten()
+                    .filter(|b| b.team == team && view.place(b.place).is_some_and(|p| p.alive))
+                    .filter_map(|b| b.reflex.target().map(|enemy| (b.place, enemy)))
+                    .collect(),
+            };
             group::fighting(&targets, &self.teams[usize::from(team)].knowledge.fighting, now)
         } else {
             Vec::new()
@@ -1138,18 +1167,32 @@ impl Bots {
                     .filter(|b| may_support(b))
                     .filter_map(|b| view.place(b.place).filter(|p| p.alive && p.carrying.is_none()).map(|p| (b.place, p.feet)))
                     .collect();
+                // The enemy of a mate's first fight (the one answer the single-target rules give him).
+                let first_enemy = |mate: Place| engaged.iter().find(|f| f.mate == mate).map(|f| f.enemy);
+                let single = |pairs: Vec<(Place, Place)>| -> Vec<know::Answer> {
+                    pairs.into_iter().filter_map(|(mate, bot)| first_enemy(mate).map(|enemy| know::Answer { mate, enemy, bot })).collect()
+                };
                 if squad_on {
                     // Each fight answered within its squad only.
-                    fights
+                    single(
+                        fights
+                            .iter()
+                            .flat_map(|&fight| {
+                                let mine: Vec<(Place, mapdata::Vec3)> =
+                                    free.iter().copied().filter(|f| squad_of(f.0).is_some() && squad_of(f.0) == squad_of(fight.0)).collect();
+                                group::answerers(&[fight], &mine, answer_m)
+                            })
+                            .collect(),
+                    )
+                } else if attackers.is_some() {
+                    // [fix-team `threat.support_attackers`] Up to one helper per attacker, the most dangerous first.
+                    let each: Vec<(Place, Place, mapdata::Vec3)> = engaged
                         .iter()
-                        .flat_map(|&fight| {
-                            let mine: Vec<(Place, mapdata::Vec3)> =
-                                free.iter().copied().filter(|f| squad_of(f.0).is_some() && squad_of(f.0) == squad_of(fight.0)).collect();
-                            group::answerers(&[fight], &mine, answer_m)
-                        })
-                        .collect()
+                        .filter_map(|f| view.place(f.mate).filter(|p| p.alive).map(|p| (f.mate, f.enemy, p.feet)))
+                        .collect();
+                    group::answer_each(&each, &free, answer_m).into_iter().map(|(mate, enemy, bot)| know::Answer { mate, enemy, bot }).collect()
                 } else {
-                    group::answerers(&fights, &free, answer_m)
+                    single(group::answerers(&fights, &free, answer_m))
                 }
             }
             _ => Vec::new(),
@@ -1162,7 +1205,7 @@ impl Bots {
                     let me = view.place(a.mate)?.feet;
                     let bot = self.bots.get(a.mate)?.as_ref()?;
                     let at = bot.memory.tracks().iter().find(|t| t.who == a.enemy).and_then(|t| t.own).map(|(at, _)| at)?;
-                    let answerer = answers.iter().find(|(m, _)| *m == a.mate).and_then(|&(_, b)| view.place(b)).map(|p| p.feet);
+                    let answerer = answers.iter().find(|x| x.mate == a.mate).and_then(|x| view.place(x.bot)).map(|p| p.feet);
                     if answerer.is_some() && a.since == now {
                         group::count(group::Count::ApproachAnswered);
                     }
