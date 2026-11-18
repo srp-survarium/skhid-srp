@@ -103,6 +103,7 @@ pub(crate) fn a_bot_standing_on_a_battery_steps_off_and_takes_it() {
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    client_pitch(&mut game);
     // On battery 1 (25, 0.3, 12), the other battery 25 m off; the enemy
     // is no bot and stands at his spawn.
     let on = Vec3::new(25.0, 0.0, 12.0);
@@ -166,6 +167,7 @@ pub(crate) fn a_battery_sunk_under_the_floor_is_taken_through_it_by_the_patched_
     let world = soak_world_with(&solids);
     let teams = [0u8, 1];
     let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    client_pitch(&mut game);
     game.use_line = true;
     let battery = Vec3::new(25.0, 0.0, 12.0);
     let mut body = game.bodies[0].clone();
@@ -210,6 +212,7 @@ pub(crate) fn a_bot_takes_a_battery_from_round_a_wall_its_use_cannot_pass() {
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    client_pitch(&mut game);
     game.use_line = true;
     let east = Vec3::new(26.3, 0.0, 12.0);
     game.bodies[0].node = world.grid.locate(east, 1.0);
@@ -310,6 +313,7 @@ pub(crate) fn fight_by_a_battery(busy: Busy) -> (Option<u32>, bool, u32) {
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    client_pitch(&mut game);
     // The enemy's health is put back every step ("who does not die"); only
     // the old flat hit has no other pool to empty (the head's and the
     // pain's, which the weapon's own damage now empties first).
@@ -443,6 +447,7 @@ pub(crate) fn a_raid_that_gets_there_steals() {
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 5, None, None);
+    client_pitch(&mut game);
     for battery in 0..3 {
         game.batteries[battery] = Lying::Home(1);
     }
@@ -570,6 +575,7 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32, refresh: bo
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 3, None, None);
+    client_pitch(&mut game);
     // The scenario's timing (the thief takes the battery at 3 s and is
     // killed after, by the tuning above) was found with the flat fifth of
     // the health a hit took: the weapon's own damage kills him at 2.6 s.
@@ -588,9 +594,6 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32, refresh: bo
     game.bodies[1].feet = by_container;
     // The bot a little way off, facing the container.
     let bot_at = Vec3::new(14.0, 0.0, 12.0);
-    // The client's pitch unit, as the bots send it (`kin.pitch_scale`): with the unit tests' radian the stand-in's use ray
-    // left a take on the move 0.2 rad over the box.
-    game.bodies[0].scale = crate::v026g::bots::pitch::PitchScale::Client;
     game.bodies[0].node = world.grid.locate(bot_at, 1.0);
     game.bodies[0].feet = bot_at;
     game.bodies[0].yaw = kin::yaw_of([by_container.x - bot_at.x, by_container.z - bot_at.z]);
@@ -752,6 +755,7 @@ pub(crate) fn theft_drop_run(weight: Option<f32>, drop_at: Vec3, drop_ms: u32, l
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 3, None, None);
+    client_pitch(&mut game);
     // Battery 0 in team 0's container (id 0, at (12, 0, 30)); the thief
     // stands by it. Battery 1 lies at its spawner for the first worlds
     // (the bots tell the batteries' frame by it), then is in team 1's
@@ -764,9 +768,6 @@ pub(crate) fn theft_drop_run(weight: Option<f32>, drop_at: Vec3, drop_ms: u32, l
     game.bodies[1].feet = by_container;
     // The bot a little way off, its back to the container.
     let bot_at = Vec3::new(14.0, 0.0, 12.0);
-    // The client's pitch unit, as the bots send it (`kin.pitch_scale`): with the unit tests' radian the stand-in's use ray
-    // left a take on the move 0.2 rad over the box.
-    game.bodies[0].scale = crate::v026g::bots::pitch::PitchScale::Client;
     game.bodies[0].node = world.grid.locate(bot_at, 1.0);
     game.bodies[0].feet = bot_at;
     game.bodies[0].yaw = kin::yaw_of([bot_at.x - by_container.x, bot_at.z - by_container.z]);
@@ -980,9 +981,8 @@ pub(crate) fn f7_run(start: Vec3, seed: u32) -> F7Run {
     );
     bots.map_ready(world.clone());
     let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    client_pitch(&mut game);
     game.batteries[1] = Lying::Free(F7_AT, 0);
-    // The client's pitch unit, as the bots send it (`kin.pitch_scale`); the unit tests' bodies keep a radian otherwise.
-    game.bodies[0].scale = crate::v026g::bots::pitch::PitchScale::Client;
     game.bodies[0].node = world.grid.locate(start, 1.0);
     game.bodies[0].feet = start;
     bots.entered(0, true, 0);
@@ -1064,4 +1064,14 @@ pub(crate) fn a_bot_takes_a_battery_on_the_move_as_its_eye_enters_the_use_ray() 
     assert!(runs.iter().all(|(_, _, r)| !r.crouched && !r.sprinting), "upright, walking");
     let median = delays[delays.len() / 2];
     assert!(median <= 100, "median {median} ms: {delays:?}");
+}
+
+/// [take.on_the_move] The stand-in's bodies in the client's pitch unit, as the bots send it (`kin.pitch_scale`, 60.0 degrees
+/// up and 67.48 down a unit): a full-loop run with bots. The unit tests' default is a radian (`standin::pitch_scale`, the
+/// geometry the stand-in-only tests were made in); with it a bot's take on the move aimed 0.2 rad over the box in the stand-in
+/// only, and a take passed or failed on the harness, not on the bots.
+fn client_pitch(game: &mut Game) {
+    for body in &mut game.bodies {
+        body.scale = crate::v026g::bots::pitch::PitchScale::Client;
+    }
 }
