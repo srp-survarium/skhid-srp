@@ -695,7 +695,11 @@ fn drive_tick_inner(
     let urgent = using || over.fire || over.keys & key::AIM != 0 || bot.reflex.target().is_some() || matches!(intent.look, Look::Use(_));
     let walking = matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
     let before = bot.view;
-    let ask = view_schedule::Ask { look: aim.is_some(), urgent, walking };
+    let ask = view_schedule::Ask {
+        look: aim.is_some(),
+        urgent: urgent || tuning.feel.view_rule == motor::ViewRule::Free,
+        walking,
+    };
     let (view, take) = before.step(ask, time);
     bot.view = view;
     match (before, view, take) {

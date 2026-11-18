@@ -81,6 +81,7 @@
     "sprint_through": false,
     "sprint_turns": null,
     "unclear_aim": false,
+    "view_rule": "free",
     "zone_lines": false
   },
   "grid": {
