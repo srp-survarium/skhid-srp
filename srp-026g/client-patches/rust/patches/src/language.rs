@@ -22,13 +22,20 @@ use crate::vostok::settings::{OptionsCall, save_user_config};
 use crate::vostok::{Context, Flow, NoExit, LanguageOnOptionsCallExit};
 
 /// A game language: its resource name (`-localization=`,
-/// `resources/localization/<name>`), its own name and the Windows primary
-/// language whose players start in it.
+/// `resources/localization/<name>`), its own name and its Windows locale rule.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Language {
     pub name: &'static CStr,
     pub native: &'static CStr,
-    pub windows: PrimaryLanguage,
+    pub windows: WindowsLanguage,
+}
+
+/// Exact locale matches take precedence where distinct languages share a
+/// Windows primary id (Croatian, Serbian and Bosnian all use 0x1A).
+#[derive(Debug, PartialEq, Eq)]
+pub enum WindowsLanguage {
+    Primary(PrimaryLanguage),
+    Locales(&'static [LangId]),
 }
 
 // LANGUAGES, generated from localization_026g.py's registry.
@@ -39,10 +46,10 @@ pub fn registered(name: &[u8]) -> Option<&'static Language> {
     LANGUAGES.iter().find(|l| l.name.to_bytes() == name)
 }
 
-/// The registered language of a Windows language, by its primary language
-/// (any country or script of it).
+/// An exact locale first, else its primary language (any country or script).
 pub fn of_windows(language: LangId) -> Option<&'static Language> {
-    LANGUAGES.iter().find(|l| l.windows == language.primary())
+    LANGUAGES.iter().find(|l| matches!(l.windows, WindowsLanguage::Locales(ids) if ids.contains(&language)))
+        .or_else(|| LANGUAGES.iter().find(|l| l.windows == WindowsLanguage::Primary(language.primary())))
 }
 
 /// The game language of a start: a registered `flag` (the command line's),
@@ -124,8 +131,11 @@ mod tests {
         assert_eq!(of(0x0405), Some(c"czech"));
         assert_eq!(of(0x0807), Some(c"german"));
         assert_eq!(of(0x0809), Some(c"english"));
-        for serbo_croatian in [0x041A, 0x081A, 0x0C1A, 0x101A, 0x141A, 0x241A] {
-            assert_eq!(of(serbo_croatian), Some(c"serbian"), "{serbo_croatian:#06x}");
+        for croatian in [0x041A, 0x101A] {
+            assert_eq!(of(croatian), Some(c"croatian"), "{croatian:#06x}");
+        }
+        for serbian_or_bosnian in [0x081A, 0x0C1A, 0x141A, 0x181A, 0x1C1A, 0x201A, 0x241A, 0x281A, 0x2C1A, 0x301A] {
+            assert_eq!(of(serbian_or_bosnian), Some(c"serbian"), "{serbian_or_bosnian:#06x}");
         }
         assert_eq!(of(0x0411), None);
         assert_eq!(of(0x041B), None);
@@ -136,10 +146,13 @@ mod tests {
         let never = || -> LangId { panic!("Windows is asked only without a flag and a choice") };
         let windows = |id| move || LangId(id);
         assert_eq!(resolve(b"czech", b"german", never).name, c"czech");
+        assert_eq!(resolve(b"croatian", b"serbian", never).name, c"croatian");
+        assert_eq!(resolve(b"original", b"croatian", never).name, c"croatian");
+        assert_eq!(resolve(b"original", b"serbian", never).name, c"serbian");
         assert_eq!(resolve(b"original", b"german", never).name, c"german");
         assert_eq!(resolve(b"original", b"", windows(0x0419)).name, c"russian");
         assert_eq!(resolve(b"original", b"klingon", windows(0x0405)).name, c"czech");
-        assert_eq!(resolve(b"original", b"", windows(0x041A)).name, c"serbian");
+        assert_eq!(resolve(b"original", b"", windows(0x041A)).name, c"croatian");
         assert_eq!(resolve(b"original", b"", windows(0x0411)).name, c"english");
         assert_eq!(resolve(b"original", b"", windows(0x0C00)).name, c"english");
         assert_eq!(resolve(b"Czech", b"", windows(0x0409)).name, c"english");

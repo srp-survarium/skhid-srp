@@ -322,7 +322,8 @@ def main():
 
     r.death()
     assert r.queries == [], "a replayed death asks again"
-    print("ok the same life's death again (a rollback replaying it): no second cook")
+    assert sum("pickup: death hook: place 5 " in l for l in r.log) == 1, r.log
+    print("ok the same life's death again (a rollback replaying it): no second cook, its line said once")
 
     r.complete(q, COOKED)
     assert r.read(COOKED + 0xD0) == 2 and recipe in r.frees and copy in r.live
@@ -336,6 +337,8 @@ def main():
     r.remove(PLAYER, respawn)
     assert any("its body left the world: the drop stays, alone, the gun of place 5 kit 1 slot 10 of place 5 at %d ms"
                % respawn in l for l in r.log), r.log
+    r.remove(PLAYER, respawn)
+    assert sum("its body left the world" in l for l in r.log) == 1, "a replayed removal's line said again"
     r.step(respawn + 600_000)
     assert r.read(COOKED + 0xD0) == 2, "freed after the respawn (the drop stays until the player dies again)"
     gone = respawn + 600_000                            # its next death, holding nothing: no drop now
@@ -466,7 +469,7 @@ HINT, HINT_AFTER, HINT_AVAILABLE = 0x2F80E4, 0x2F80EA, 0x2F8116
 RESUPPLY, RESUPPLY_AFTER = 0x2F81B8, 0x2F81BE
 CLIENT_RESUPPLY, CLIENT_RESUPPLY_AFTER = 0x2954EF, 0x2954F5
 NEW_SPANS = {SAVE_SITE: 6, LOAD_SITE: 6, REMOVE_SITE: 6, CAN_USE: 6, HINT: 6, RESUPPLY: 6, CLIENT_RESUPPLY: 6,
-             0x2D7650: 5, 0x2D76D0: 6, 0x32C148: 7, 0x32BE12: 7, 0x32BDBA: 5}
+             0x2D7650: 5, 0x2D76D0: 6, 0x32C148: 7, 0x32BE12: 7, 0x32BDBA: 5, 0x321CA0: 6}
 WRITE_U8, DEACTIVATE, FORGET, SET_USER, INITIALIZE, ACTIVATE, ACTIVE_PLAYER = (
     0x1F3DE0, 0x244860, 0x3919E0, 0x2445E0, 0x2449E0, 0x244610, 0x2D0AB0)
 SET_OWNER = 0x243590                        # inventory_item::set_owner: the item's +250h/+254h (ret 8)
@@ -1484,7 +1487,10 @@ def a_departed_donors_gun_is_cooked(patched):
     core_active_player 0x2D0AB0, refuses it in every game). The place keeps its players and its profile (a
     returning player gets them again: the static info is fixed per match), so a game that has no copy cooks the
     recipe from the place's kit player in the core's place table (core+18458h, 30h a place): a late joiner's world
-    load (before the load) and a resync's record (at its reader) both install it."""
+    load (before the load) and a resync's record (at its reader) both install it. A late joiner's first world comes
+    before its local player and before any place's bit (the core's constructor clears them, 0x2D00D7; the load sets
+    them, 0x2D2862): the table is read in the client's match (rev57 read it through the local player, cooked nothing,
+    and the pick was not installed: the next slot's item misread and crashed, report of 2026-11-13)."""
     pick = (DIED + 900, 6, KIT, 1)
     loaded = record(slot10=pick)
 
@@ -1495,9 +1501,8 @@ def a_departed_donors_gun_is_cooked(patched):
         g.word(CORE + 0x1845C, places + 0x30 * 8)
         g.word(places + 0x30 * 6 + 4 * KIT, PLAYER)
         g.roster.pop(6, None)
-        g.word(CLIENT + 4, g.picker)            # the local player, whose world the table is read in
 
-    # A late joiner's first world.
+    # A late joiner's first world: no local player (the client's +4), no place in the world.
     j = Pick(patched)
     j.setup()
     departed(j)
@@ -1513,7 +1518,9 @@ def a_departed_donors_gun_is_cooked(patched):
     j.emu.hook_add(UC_HOOK_CODE, active_player, begin=GET_ACTIVE_PLAYER, end=GET_ACTIVE_PLAYER)
     cooked, gun, _ = j.cooked_gun()
     j.on_dispatch, j.queries = cooked, []
+    in_world, j.roster = j.roster, {}
     load_world(j, world_with({3: b"\0\0" + loaded}))
+    j.roster = in_world
     assert len(j.queries) == 1, ("the departed place's gun cooked before the load", j.log)
     j.load(j.picker, loaded)
     assert j.slot(j.inventory, 10) == gun + 0x10 and not any("NOT installed" in l for l in j.log), j.log
@@ -2236,11 +2243,52 @@ def bullet_record(patched, original):
     o.word(o_bullet + 0xC, o_gun + 0x10)
     out, _ = o.lohook(ORDINAL, ORDINAL_CALL, {UC_X86_REG_EDI: o_bullet, UC_X86_REG_ECX: 16})
     assert out[UC_X86_REG_ECX] & 0xFF == 16, "the original passes it on unchecked"
+
+    # A record whose shooter has no gun in its slot (a bullet in flight when a swap moved its gun into a
+    # cooked inventory names the donor's 10): the loader reads a null gun (0x2E2753, 2026-11-17). The
+    # deserialize loop's record (0x321CA0) is passed over, 69 bytes, no bullet made; one with a gun goes on.
+    RECORD_SITE, RECORD_ALLOC, RECORD_SKIP = 0x321CA0, 0x321CA6, 0x321CFC
+
+    def load_record(item_of, slot=10, place=4):
+        """Where the loop goes for a record of `place` naming `slot`, the shooter's slot holding
+        `item_of(r)` (0: empty), the engine's get_player answering the shooter; the reader's step."""
+        r = Pick(patched)
+        player, inventory = r.blk(0x200), r.blk(0x200)
+        r.word(player + 0x10C, inventory)
+        item = item_of(r)
+        if item:
+            r.word(inventory + 0x10C + 4 * slot, item)
+        engine, vtable, get_player = r.blk(8), r.blk(0x40), r.blk(16)
+        r.emu.mem_write(get_player, b"\xB8" + struct.pack("<I", player) + b"\xC2\x04\x00")  # mov eax,player; ret 4
+        r.word(vtable + 0x24, get_player)
+        r.word(engine, vtable)
+        manager = r.blk(0x100)
+        r.word(manager + 0x90, engine)
+        r.word(manager + 0x80, 0x5A5A5A5A)
+        data = bytearray(69 * 2)
+        data[63], data[65] = place, slot
+        at, reader = r.blk(len(data)), r.blk(12)
+        r.emu.mem_write(at, bytes(data))
+        for off, value in ((0, at), (4, at), (8, len(data))):
+            r.word(reader + off, value)
+        out, _ = r.lohook(RECORD_SITE, RECORD_ALLOC, {UC_X86_REG_EDI: manager, UC_X86_REG_EBX: reader},
+                          stops=(RECORD_ALLOC, RECORD_SKIP))
+        return r.stopped, r.read(reader + 4) - at, out[UC_X86_REG_ESI], r.log
+
+    went, step, esi, _ = load_record(lambda r: r.gun() + 0x10)
+    assert (went, step, esi) == (RECORD_ALLOC, 0, 0x5A5A5A5A), (hex(went), step, hex(esi))
+    went, step, _, log = load_record(lambda r: 0)
+    assert (went, step) == (RECORD_SKIP, 69), (hex(went), step)
+    assert any("a loaded bullet of place 4 names its slot 10, which has no gun: not made" in l for l in log), log
+    went, step, _, _ = load_record(lambda r: r.stack(30), slot=7)
+    assert (went, step) == (RECORD_SKIP, 69), "an item that is not a gun is no gun"
     print("ok a bullet's record after a swap: the original writes the quiet byte only for multi-pellet ammo and "
           "reads it by the loading gun's (a rifle's record with a shotgun in the slot: written 0, read 1, out of "
           "step); patched it is always written and read (rifle to shotgun, shotgun to rifle, and the swap-free "
           "rifle and shotgun alike: in step), the struck material stored as before; an ordinal past the loading "
-          "gun's ammo is its count (none), one within is kept, where the original passes 16 on")
+          "gun's ammo is its count (none), one within is kept, where the original passes 16 on; a record whose "
+          "shooter has no gun in its slot (empty, or an item that is not a gun) is passed over, 69 bytes, no "
+          "bullet made, logged; one with a gun goes on to the allocation, the replaced mov done")
 
 
 def stage2(patched, original):
@@ -2485,6 +2533,7 @@ WEAPON_DRAW, WEAPON_DRAWN, WEAPON_SKIPPED = 0x2477C8, 0x2477CE, 0x2477DF
 ICONS_SITE, ICONS_AFTER = 0x23AA10, 0x23AA16
 BUILDER_END, BUILDER_AFTER = 0x2421B0, 0x2421B5
 RAY_TEST, REMOVE_MODEL, TRANSLATE = 0x75E20, 0x21F40, 0x1FF0F0
+USE_GATHER, USE_FREE = 0x2DC390, 0xEB5B0     # the use scan's usable objects' query and its frees
 USE = 1 << 21
 IDENTITY = (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1.)
 NAME_KEY, NAME = b"st_wpn_svd_name", "SVD"
@@ -2502,6 +2551,52 @@ class Prompt(Pick):
         self.wall, self.removed = False, []
         for at in (RAY_TEST, REMOVE_MODEL, TRANSLATE):
             self.emu.hook_add(UC_HOOK_CODE, self.fixtures, begin=at, end=at)
+        # The physics world: ray_test by its address; the use scan's ray_query
+        # (vtable+4Ch) and what it asks of a hit by stubs. use_hit: None, no
+        # usable object in the use ray; "usable" or "refusing", one whose
+        # can_use says yes or no.
+        self.use_hit = None
+        self.world, table, self.use_stubs = self.blk(0x10), self.blk(0x100), self.blk(0x40)
+        self.emu.mem_write(self.use_stubs, b"\xCC" * 0x40)
+        self.word(self.world, table)
+        self.word(table + 0x4C, self.use_stubs)
+        for at in (self.use_stubs, self.use_stubs + 0x10, self.use_stubs + 0x20, self.use_stubs + 0x30,
+                   USE_GATHER, USE_FREE):
+            self.emu.hook_add(UC_HOOK_CODE, self.use_scan, begin=at, end=at)
+
+    def use_scan(self, emu, address, *_):
+        sp, s = emu.reg_read(UC_X86_REG_ESP), self.use_stubs
+        if address == s:                            # ray_query(world; origin, direction, length, hits, group, mask)
+            if self.use_hit is not None:
+                hit, obj, obj_table, owner, owner_table = (self.blk(0x28), self.blk(0x10), self.blk(0x10),
+                                                           self.blk(0x10), self.blk(0x10))
+                self.usable, usable_table = self.blk(0x10), self.blk(0x40)
+                self.word(hit + 0x1C, obj)
+                emu.mem_write(hit, struct.pack("<3f", 0., 0.4, 0.8))   # by the gun, 0.6 m below the eye
+                self.word(obj, obj_table)
+                self.word(obj_table, s + 0x10)
+                self.word(obj + 0xC, owner)
+                self.word(owner, owner_table)
+                self.word(owner_table + 4, s + 0x20)
+                self.word(self.usable, usable_table)
+                self.word(usable_table + 0x30, s + 0x30)
+                hits = self.read(sp + 16)
+                self.word(hits, hit)
+                self.word(hits + 4, hit + 0x28)
+            self.ret(24)
+        elif address == s + 0x10:                   # the hit's collision group: usable
+            self.ret(0, 0x80)
+        elif address == s + 0x20:                   # its collision geometry
+            self.ret(0, self.blk(0x20))
+        elif address == USE_GATHER:                 # ESI the list: the usable object
+            slot = self.blk(4)
+            self.word(slot, self.usable)
+            self.word(emu.reg_read(UC_X86_REG_ESI), slot)
+            self.ret(12)
+        elif address == s + 0x30:                   # its can_use
+            self.ret(4, 1 if self.use_hit == "usable" else 0)
+        else:                                       # a free
+            self.ret(16)
 
     def fixtures(self, emu, address, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -2525,7 +2620,7 @@ class Prompt(Pick):
         super().setup(double_handed)
         p = self.picker
         self.emu.mem_write(PLACES_AT, b"\x08")
-        self.word(p + 0x350, 0x5050)                    # its physics world
+        self.word(p + 0x350, self.world)                # its physics world
         self.eye([0., 0., 1.], [0., 1.0, 0.])
         # The donor's gun on its ragdoll at (0, 1, 1): its model's instance in the scene (what
         # patch 78's hiding takes out), without its resource (replaced as the body went to ragdoll):
@@ -2602,6 +2697,13 @@ def stage2b(patched):
     assert r.hud() == [("st_weapon_pick_up", NAME)], r.invokes()
     assert r.hud() == [("st_weapon_pick_up", NAME)]
     assert sights(r) == ["offered"], "once per drop and reason"
+    # The picker turning away and back, again and again: each sight once a body.
+    for _ in range(3):
+        r.eye([1., 0., 0.], [0., 1.0, 0.])
+        r.hud()
+        r.eye([0., 0., 1.], [0., 1.0, 0.])
+        assert r.hud() == [("st_weapon_pick_up", NAME)]
+    assert sights(r) == ["offered", "in reach, not aimed at its box"], sights(r)
     boxes = [l for l in r.log if "the gun box of place 5" in l]
     assert len(boxes) == 1 and boxes[0].endswith(
         "place 3: the gun box of place 5 at (0, 1000, 1000), half sizes (50, 50, 500) mm"), boxes
@@ -2672,6 +2774,21 @@ def stage2b(patched):
         assert len(sights(g)) == 1 and sights(g)[0].startswith(sight), (case, sights(g))
     print("ok aimed at but refused, the prompt says why: a second rifle, one gun only (modifier 64), no gun in "
           "hands (a battery), a weapon switch under way, already taken; Use does nothing")
+    # What the game's own Use takes goes first (patch 23's use scan): a battery
+    # by the body's gun, no prompt and Use the game's; one that refuses (its
+    # can_use no) leaves the gun's pickup as it was.
+    g = Prompt(patched)
+    g.setup()
+    g.use_hit = "usable"
+    assert g.draw()
+    assert g.hud() == [] and g.build(USE) == USE and sights(g) == [], (g.invokes(), sights(g))
+    g = Prompt(patched)
+    g.setup()
+    g.use_hit = "refusing"
+    assert g.draw() and g.hud() == [("st_weapon_pick_up", NAME)], g.invokes()
+    assert g.build(USE) == command(PLACE)
+    print("ok a usable object in the game's use ray (a battery by the gun) goes first: no prompt, Use the game's; "
+          "one that refuses leaves the pickup offered")
     g = Prompt(patched)
     g.setup()
     g.word(g.picker + 0x324, DIED + 60_000)
@@ -2797,7 +2914,7 @@ class Death(Prompt):
     def viewer(self, p):
         """`p` the local player, looking from (0, 1, 0) along z at the gun drawn at (0, 1, 1)."""
         self.word(CLIENT + 4, p)
-        self.word(p + 0x350, 0x5050)
+        self.word(p + 0x350, self.world)
         m = list(IDENTITY)
         m[8:11], m[12:15] = [0., 0., 1.], [0., 1.0, 0.]
         self.emu.mem_write(p + 0x44C, struct.pack("<16f", *m))
@@ -3477,7 +3594,7 @@ class Alone(Death):
 
     def fixtures(self, emu, address, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
-        if address == RAY_TEST and self.read(sp + 20) == 0x434:   # the ragdoll's level: the floor at y = 0
+        if address == RAY_TEST and self.read(sp + 20) == 0x414:   # the ragdoll's level: the floor at y = 0
             result, origin, direction = (self.read(sp + 4 * n) for n in (1, 2, 3))
             (o, d), length = (struct.unpack("<3f", bytes(emu.mem_read(a, 12))) for a in (origin, direction)), \
                 struct.unpack("<f", bytes(emu.mem_read(sp + 16, 4)))[0]

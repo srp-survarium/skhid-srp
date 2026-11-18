@@ -105,6 +105,26 @@ class MapEditorEdits(unittest.TestCase):
             ce.set_vector(data, 'bounding_box/max', [2, 1, 1], [0, 0, 0])
         self.assertEqual(data, before)
 
+    def test_set_vector_preserves_native_float2_and_float4(self):
+        for original, target in [((1.0, 2.0), [3.0, 4.0]),
+                                 ((0.25, 0.25, 0.25, 1.0), [1.0, 1.0, 1.0, 1.0])]:
+            with self.subTest(dimensions=len(original)):
+                data = config({'vector': original, 'neighbor': 'unchanged'})
+                before_type = ce.rec(data, ce.find(data, 'vector'))[3]
+                ce.set_vector(data, 'vector', list(original), target)
+                at, _, _, kind, _ = ce.rec(data, ce.find(data, 'vector'))
+                self.assertEqual(kind, before_type)
+                self.assertEqual(struct.unpack_from('<%df' % len(target), data, at), tuple(target))
+                self.assertEqual(value(data, 'neighbor'), 'unchanged')
+                before = bytes(data)
+                with self.assertRaises(ValueError):
+                    ce.set_vector(data, 'vector', list(original), target)
+                self.assertEqual(data, before)
+                for frm, to in [(target[:-1], target), (target, target[:-1])]:
+                    with self.assertRaises(TypeError):
+                        ce.set_vector(data, 'vector', frm, to)
+                    self.assertEqual(data, before)
+
     def test_nested_copy_does_not_change_the_model(self):
         data = fixture()
         ce.add_entry(data, 'objects', {'full_name': 'first'}, {'full_name': 'first'},
@@ -116,6 +136,42 @@ class MapEditorEdits(unittest.TestCase):
         self.assertEqual(value(data, 'objects[1]/geometries[0]/name'), 'copy-geometry')
         self.assertEqual(value(data, 'objects[2]/full_name'), 'second')
         ce.walk(data)  # Names, CRC ordering and every reachable value still parse.
+
+    def test_copied_spawn_zones_survive_native_in_place_relocation(self):
+        # FFA clones a point without editing these mandatory nested zones. The
+        # native loader revisits shared records and adds its base address again.
+        data = config({'points': [{'id': 0,
+            'ally_zones': {'collision_geometries': {}},
+            'enemy_zones': {'collision_geometries': [
+                {'name': 'zone', 'position': (1.0, 2.0, 3.0)}]}}]})
+        for index in range(1, 4):
+            ce.add_entry(data, 'points', {'id': index - 1}, {'id': 0}, {'id': index})
+        original = bytes(data)
+        offsets = ce.value_offsets(original)
+        self.assertEqual(len(offsets), len(set(offsets)), 'each record must have one owner')
+        base = 0x31000000
+
+        def relocate(offset):
+            # Native 0xF6D00: adjust the name, then data for types > 2,
+            # recursively visiting named/indexed table records, without a cache.
+            d, name, _, kind, count = ce.rec(data, offset)
+            if name:
+                struct.pack_into('<I', data, offset + 8, (name + base) & 0xffffffff)
+            if kind > 2:
+                struct.pack_into('<I', data, offset, (d + base) & 0xffffffff)
+                if kind <= 4:
+                    for i in range(count):
+                        relocate(d + i * 24)
+
+        relocate(0)
+        for offset in offsets:
+            d, name, crc, kind, count = ce.rec(original, offset)
+            self.assertEqual(ce.rec(data, offset),
+                             (d + base if kind > 2 else d,
+                              name + base if name else 0, crc, kind, count))
+        for i in range(4):
+            self.assertEqual(value(original, f'points[{i}]/enemy_zones/collision_geometries[0]/name'),
+                             'zone')
 
     def test_add_value_takes_a_table_of_a_vector_and_a_float(self):
         """A lobby's srp_lobby (lobby-scenes-1): a named table at the root holding a float3 and a float."""
@@ -269,6 +325,60 @@ class MapEditorEdits(unittest.TestCase):
             self.assertEqual(ce.items_of(data, 'objects[0]/containers'), ['b', 'c'])
             self.assertEqual(value(data, 'objects[1]/full_name'), 'second')
 
+    def test_cli_add_entry_refuses_another_number_of_files_than_expected(self):
+        """An entry a file must take (a project's object): a missing anchor is refused, not passed over."""
+        def run(after, expected):
+            edits = {'add_entry': [{'files': 'project', 'list': 'objects', 'after': {'full_name': after},
+                                    'like': {'full_name': 'first'}, 'values': {'full_name': 'copy'},
+                                    **expected}]}
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                (root / 'live').mkdir()
+                (root / 'live/project').write_bytes(fixture())
+                (root / 'edits.json').write_text(json.dumps(edits))
+                result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                         str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                        capture_output=True, text=True)
+                return result, (root / 'out/project').exists()
+        result, written = run('first', {'expected_files': 1})
+        self.assertEqual((result.returncode, written), (0, True), result.stdout + result.stderr)
+        result, written = run('gone', {'expected_files': 1})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('0 files took it, not 1', result.stderr)
+        self.assertFalse(written)
+        # Without it, as before: the file is left alone.
+        result, written = run('gone', {})
+        self.assertEqual((result.returncode, written), (0, False), result.stdout + result.stderr)
+
+    def test_cli_set_entry_remakes_an_indexed_table(self):
+        """A skill from 5 ranks to 3 (skill-ranks-1): set_entry gives `modifiers` and the texts a
+        shorter list, whose items may change type (here a text to an int), and the read-back takes
+        it; the entry beside it stays."""
+        def skill(sid):
+            return {'id': sid, 'levels_amount': 5, 'modifiers': [{'m': 0.02}] * 5,
+                    'ui': {'rows': [['+2', ' 0'], ['+2', ' +2'], ['<max> +10', ' 8']]}}
+        edits = {'set_entry': [{
+            'file': 'tree', 'list': 'skills', 'where': {'id': 1},
+            'from': {'levels_amount': 5, 'modifiers[4]/m': 0.02},
+            'to': {'levels_amount': 3, 'modifiers': [{'m': 0.04}] * 3,
+                   'ui/rows': [['+4', ' 0'], ['<max> +12', 0]]}}]}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live').mkdir()
+            (root / 'live/tree').write_bytes(config({'skills': [skill(1), skill(2)]}))
+            (root / 'edits.json').write_text(json.dumps(edits))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            data = bytearray((root / 'out/tree').read_bytes())
+            self.assertEqual(ce.rec(data, ce.find(data, 'skills[0]/modifiers'))[4], 3)
+            self.assertTrue(ce.same(value(data, 'skills[0]/modifiers[2]/m'), 0.04))
+            self.assertEqual(value(data, 'skills[0]/ui/rows[1][1]'), 0)
+            self.assertEqual(ce.rec(data, ce.find(data, 'skills[1]/modifiers'))[4], 5)
+        with self.assertRaises(ValueError):  # an indexed table takes a list
+            ce.set_entry(config({'skills': [skill(1)]}), 'skills', {'id': 1}, {}, {'modifiers': 3})
+
     def test_cli_puts_each_rounds_pierce_line_for_each_of_its_weapons(self):
         """Material penetration (pierce-line-1): on each round the dictionary pairs with a weapon, for
         each such weapon by dictionary id, the hardest tier its bullet gets through (P > A, as
@@ -376,6 +486,21 @@ def row_of(text, name):
 
 def cells_of(damage, rpm=600, k_damage=2):
     return {'damage': damage, 'rpm': str(rpm), 'weight': '3', 'melee': str(k_damage)}
+
+
+class CollisionMesh(unittest.TestCase):
+    def test_remove_faces_drops_the_triangle_and_its_face_entry(self):
+        chunk = lambda kind, body: struct.pack('<II', kind, len(body)) + body
+        points = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
+        vertices = chunk(0x19, b''.join(struct.pack('<3f', *p) for p in points))
+        indices = chunk(0x1a, struct.pack('<6I', 0, 1, 2, 0, 2, 3))
+        names = struct.pack('<H', 2) + b'a\0b\0'
+        face_data = chunk(0x1b, names) + chunk(0x1c, struct.pack('<2H', 0, 1))
+        new_indices, new_faces = ce.remove_faces(vertices, indices, face_data, [[(0, 0, 0), (0, 1, 0), (0, 0, 1)]])
+        self.assertEqual(new_indices, chunk(0x1a, struct.pack('<3I', 0, 1, 2)))
+        self.assertEqual(new_faces, chunk(0x1b, names) + chunk(0x1c, struct.pack('<H', 0)))
+        with self.assertRaises(ValueError):
+            ce.remove_faces(vertices, indices, face_data, [[(0, 0, 0), (0, 1, 0), (0, 0, 2)]])
 
 
 class WeaponTable(unittest.TestCase):
@@ -661,7 +786,8 @@ class OtherTables(unittest.TestCase):
         columns, rows = read_table(category, 'armor\tarmor\tback\tarms\tano\tmovement\texperience\tregen\n'
                                              'torso/t\t0.55\t0.4\t0.3\t0.25\t1113\t\t1094\n')
         written, _, gone = ce.stats_write(category, columns, rows, files, 't')
-        self.assertEqual(ce.items_of(torso, 'default_modifications'), [1030, 1113, 1094])
+        # in the columns' order; 1030 (pockets) has no column here, so it goes after them
+        self.assertEqual(ce.items_of(torso, 'default_modifications'), [1113, 1094, 1030])
         self.assertEqual(gone, {'a/torso/t.options': {'/default_modifications'}})
         self.assertEqual((value(torso, 'hit_params/front/hit_types/slash/armor'), value(torso, 'hit_params/back/hit_types/ranged/armor')),
                          (value(torso, 'hit_params/front/hit_types/ranged/armor'), value(torso, 'hit_params/back/hit_types/slash/armor')))
@@ -670,6 +796,21 @@ class OtherTables(unittest.TestCase):
                           'experience': '', 'regen': '1094'})
         self.assertEqual(ce.armour_card(torso)[6], '55')
 
+
+    def test_an_armour_rows_built_ins_are_kept_in_the_columns_order(self):
+        """The card lists them as the config does: ammo bags first, as every piece has them."""
+        category = ce.STATS['armor']
+        columns = {c: k for c, k in category['columns'].items() if c in ('pockets', 'ammo_bags', 'movement', 'weight')}
+        category = dict(category, columns=columns, configs='a/(*/*).options')
+        files = {'a/torso/t.options': config({'parameters': {'weight': 3.0},
+                                               'default_modifications': [1113, 1030, 1220, 1051]})}
+        columns, rows = read_table(category, 'armor\tweight\tpockets\tammo_bags\tmovement\n'
+                                             'torso/t\t3\t1030\t1051\t1113\n')
+        targets = ce.stats_targets(category, files)
+        self.assertEqual(len(ce.stats_problems(category, columns, rows, targets, files, 't')), 1)
+        written, _, _ = ce.stats_write(category, columns, rows, files, 't')
+        self.assertEqual(ce.items_of(files['a/torso/t.options'], 'default_modifications'), [1051, 1030, 1113, 1220])
+        self.assertEqual(ce.stats_problems(category, columns, rows, targets, files, 't'), [])
 
     def test_an_add_bonus_column_makes_the_built_in_list_a_config_lacks(self):
         category = {'configs': 'a/*.options', 'match': set(), 'add': {'aim', 'reload'},
@@ -685,6 +826,21 @@ class OtherTables(unittest.TestCase):
         columns, rows = read_table(category, 'name\taim\treload\tchamber\ngun\t\t\t2054\n')
         with self.assertRaisesRegex(ValueError, 'does not read back'):
             ce.stats_write(category, columns, rows, files, 't')
+
+    def test_a_weight_bonus_cell_replaces_a_guns_aim_built_in(self):
+        """docs/notes/vssk-built-ins.md: the Vychlop's 2074 (aim, decade 207) cleared, 2064 (weight, 206) set."""
+        weapons = ce.STATS['weapon-stats']
+        self.assertEqual(weapons['columns']['weight_bonus'], ce.default_modification(206))
+        self.assertLessEqual({'weight_bonus', 'aim_bonus'}, weapons['add'] & weapons['match'])
+        category = {'configs': 'a/*.options', 'match': set(), 'add': weapons['add'],
+                    'columns': {c: weapons['columns'][c] for c in ('weight_bonus', 'aim_bonus')}}
+        files = {'a/gun.options': config({'parameters': {'weight': 7}, 'default_modifications': [2074]})}
+        columns, rows = read_table(category, 'name\tweight_bonus\taim_bonus\ngun\t2064\t\n')
+        ce.stats_write(category, columns, rows, files, 't')
+        self.assertEqual(ce.items_of(files['a/gun.options'], 'default_modifications'), [2064])
+        files = {'a/gun.options': config({'parameters': {'weight': 7}})}
+        ce.stats_write(category, columns, rows, files, 't')
+        self.assertEqual(ce.items_of(files['a/gun.options'], 'default_modifications'), [2064])
 
     def test_a_row_that_takes_a_bonus_out_and_puts_two_in_reads_back(self):
         columns = list(ce.STATS['armor']['columns'])

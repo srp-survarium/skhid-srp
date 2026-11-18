@@ -1,0 +1,26 @@
+# Patch 147: every run of the game writes its logs to files of its own, named
+# by the run's start, the oldest deleted past 100 files or 500 MiB a kind
+# (docs/notes/run-logs.md). Only the decisions: the sites and the handlers;
+# the sites are sites_026g.tsv's, the logic is run_logs.rs and
+# vostok/run_log.rs (the patches' log, vostok/log.rs, takes its file there).
+name = "run_logs"
+patch = 147
+
+# the process's start, its first hook: the run's stamp, before patch 83's
+# start (order 2) logs its lines
+[[hook]]
+site = "memory.allocate_arenas"
+handler = "on_process_start"
+order = 1
+
+# logging_initialize, the engine's log named and not yet opened: the run's
+# name instead of Survarium_<user>.log, which create_always made anew
+[[hook]]
+site = "logging.log_named"
+handler = "on_engine_log"
+
+# the arena's C code's line (patch 100's ad_log) to the patches' log, the
+# run's file: no game code writes srp_patches.log by its name
+[[hook]]
+site = "log.c_line"
+handler = "on_c_line"

@@ -66,6 +66,12 @@ package survarium.modes
          }
       }
 
+      // Counting down or showing its text: the frames the HUD places it and runs its end (update).
+      public function get shown() : Boolean
+      {
+         return _state.kind == "countdown" || _state.kind == "showing";
+      }
+
       public function place(screenWidth:Number, timerBottom:Number) : void
       {
          label.width = Math.min(600,Math.max(200,screenWidth - 40));

@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 
 build = Path(sys.argv[1]).resolve()
@@ -24,7 +25,7 @@ LOG = "".join(
     for n in range(1, 31)
 ).encode()
 
-# srp_patches.log beside the exe, as vostok/log.rs writes it: 3 MB of old
+# The crashed run's srp_patches.<stamp>.log in game\logs, as vostok/log.rs writes it: 3 MB of old
 # lines (the ZIP takes its last 2 MiB from a whole line), then 130 lines, one
 # of them with a token.
 PATCH_LOG = b"".join(b"srp: old %07d padding padding padding padding\r\n" % n for n in range(60000)) + b"".join(
@@ -40,14 +41,28 @@ def offset(text, line):
 
 with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
     root = Path(temporary)
-    game = root / "game"
-    game.mkdir()
+    game = root / "game" / "binaries" / "x86"
+    game.mkdir(parents=True)
+    logs = root / "game" / "logs"
+    logs.mkdir()
     for name in ("BugTrap.dll", "report_probe.exe"):
         shutil.copy2(build / name, game / name)
     docs = root / "Documents"
     (docs / "Survarium").mkdir(parents=True)
-    (docs / "Survarium" / "Survarium_tester.log").write_bytes(LOG)
-    (game / "srp_patches.log").write_bytes(PATCH_LOG)
+    # The game's log of this run in game\logs, and in Documents one of before
+    # the runs were named (written later: the run's is taken all the same).
+    older = docs / "Survarium" / "Survarium_tester.log"
+    older.write_bytes(b"game <INFO>\t[11:00:00.000]\trecord of an earlier run\r\n")
+    os.utime(older, (time.time() + 60, time.time() + 60))
+    (logs / "Survarium_tester.2026-11-15_14-03-07.log").write_bytes(LOG)
+    # The crashed run's patch log is the newest srp_patches.<stamp>.log in
+    # game\logs, not an earlier run's nor the old srp_patches.log of before
+    # the runs were named, beside the exe.
+    PATCH_NAME = "srp_patches.2026-11-15_14-03-07.log"
+    for path, age in ((game / "srp_patches.log", 7200), (logs / "srp_patches.2026-11-15_12-00-00.log", 3600)):
+        path.write_bytes(b"srp: an earlier run\r\n")
+        os.utime(path, (time.time() - age, time.time() - age))
+    (logs / PATCH_NAME).write_bytes(PATCH_LOG)
     # deep, misaligned: the review of PR 459, a stack 400 KB deep, ESP not
     # 4-aligned; the scan once hung there, and the game with it, with no dump.
     for mode in ("write", "cpp", "deep", "misaligned"):
@@ -65,12 +80,12 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
             assert archive.testzip() is None
             assert archive.read("crash.txt") == data
             crumbs = archive.read("breadcrumbs.txt")
-            patches = archive.read("logs/game-exe/srp_patches.log")
+            patches = archive.read("logs/game-logs/" + PATCH_NAME)
             manifest = archive.read("logs/collection.txt").decode()
         assert len(patches) <= 2 * 1024 * 1024 and patches.startswith(b"srp: old "), patches[:80]
         assert PATCH_LOG.endswith(patches.replace(b"[SRP: sensitive log record removed]\r\n", b"srp: login token=SYNTHETIC\r\n"))
         assert b"SYNTHETIC" not in patches and patches.endswith(b"srp: event 130\r\n"), patches[-200:]
-        assert "tail of logs/game-exe/srp_patches.log: from byte " in manifest, manifest
+        assert f"tail of logs/game-logs/{PATCH_NAME}: from byte " in manifest, manifest
         text = data.decode("utf-8")
         assert text.startswith("Skhid crash report, "), text
         assert re.match(r"Skhid crash report, \d{4}-\d\d-\d\d \d\d:\d\d:\d\d UTC \(local [+-]\d\d:\d\d\)\r\n", text), text
@@ -114,11 +129,13 @@ with tempfile.TemporaryDirectory(prefix="srp-report-test-") as temporary:
         assert crumbs.decode().startswith("Match:     0x1092") and crumbs.decode().count(" s  ") == 3, crumbs
         # The game log's last 20 lines, the password's record removed.
         tail = text.split("\r\nGame log:  ", 1)[1]
+        assert tail.startswith("last 20 lines of the newest Survarium*.log in game\\logs\r\n"), tail[:100]
         assert all(f"record {n}\r\n" in tail for n in (12, 24, 26, 27, 30)), tail
         assert "record 11\r\n" not in tail, tail  # 31 lines: the 20 last start at record 12
+        assert "earlier run" not in tail, tail
         assert "hunter2" not in text and "[SRP: sensitive log record removed]" in tail, tail
-        # srp_patches.log's last 100 lines: events 31..130, the token's line removed.
-        patch = text.split("\r\nPatch log: last 100 lines of srp_patches.log\r\n", 1)[1]
+        # The crashed run's patch log's last 100 lines: events 31..130, the token's line removed.
+        patch = text.split(f"\r\nPatch log: last 100 lines of {PATCH_NAME}\r\n", 1)[1]
         assert patch.startswith("srp: event 31\r\n") and patch.endswith("srp: event 130\r\n"), patch
         assert "SYNTHETIC" not in patch and "[SRP: sensitive log record removed]" in patch, patch
         print(f"PASS {mode}: {text.splitlines()[1]} at {offset(text, 'Address:')[0]}+..., "

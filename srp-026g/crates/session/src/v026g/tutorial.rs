@@ -38,7 +38,7 @@
 //! 25 gold each, the match's tutorial 50 gold. **A new account starts**
 //! with what the game data's table says
 //! ([`survarium::v026g::new_account`]): its
-//! level and skills, money, premium, the rounds of every ammo
+//! level and skills, money, the rounds of every ammo
 //! ([`starter_ammo`]), its reputation and quest faction, what it owns and
 //! what its three kits wear (the owner's of 2026-10-19, 2026-10-24 and
 //! 2026-11-06, `docs/notes/no-tutorial.md`). It is the account's state
@@ -170,16 +170,15 @@ pub fn start_experience() -> u32 {
 /// ([`new_account`]): its level and skills, its money, the rounds of every
 /// ammo, the faction's reputation level and its quests (the tutorial ended
 /// in the faction's choice; the owner's of 2026-10-19: never neutral), what
-/// it owns and what its three kits wear ([`wear_starter_kit`]), and its
-/// premium from `now` (Unix seconds).
-pub fn signup_grant(account: &mut Account, now: u64) {
-    signup_grant_with(account, true, now);
+/// it owns and what its three kits wear ([`wear_starter_kit`]).
+pub fn signup_grant(account: &mut Account) {
+    signup_grant_with(account, true);
 }
 
-/// [`signup_grant`], its level and skills, what it owns, the kits and the
-/// premium given only with `starter_kit` (off only in the lobby's tests,
+/// [`signup_grant`], its level and skills, what it owns and the kits
+/// given only with `starter_kit` (off only in the lobby's tests,
 /// `GameAccounts::set_starter_kit`).
-pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
+pub fn signup_grant_with(account: &mut Account, starter_kit: bool) {
     let grant = new_account();
     let faction = grant.faction.id();
     let dictionary = Dictionary::shared();
@@ -196,7 +195,6 @@ pub fn signup_grant_with(account: &mut Account, starter_kit: bool, now: u64) {
     super::quests::choose_faction(account, faction).expect("every quest faction is open");
     account.generic_money = grant.silver;
     if starter_kit {
-        super::premium::add_premium(account, u64::from(grant.premium_days) * 86_400, now);
         // The levels below it pay nothing. Before the kits: they carry the
         // skills' modifiers.
         account.exp_total = start_experience();
@@ -333,6 +331,7 @@ pub fn message(show: bool) -> ServerMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use survarium::v026g::loadouts::{KitLayout, Loadout, SlotItem};
     use survarium::v026g::lobby::client_model::{Client, Decoded};
     use survarium::v026g::lobby::tutorial_model::State;
 
@@ -366,19 +365,12 @@ mod tests {
         use survarium::v026g::item_params::item_params;
 
         let grant = new_account();
-        const NOW: u64 = 1_800_000_000;
         let mut account = Account::with_loadout(
             "Alice",
             &survarium::v026g::loadouts::Loadout { items: Vec::new() },
         );
-        signup_grant(&mut account, NOW);
+        signup_grant(&mut account);
         assert_eq!(account.generic_money, grant.silver);
-        // 30 days of premium from the making, 720 hours as the lobby is
-        // told.
-        assert_eq!(account.premium_until, NOW + 30 * 86_400);
-        assert!(account.is_premium(NOW) && account.is_premium(NOW + 30 * 86_400 - 1));
-        assert!(!account.is_premium(NOW + 30 * 86_400));
-        assert_eq!(account.premium_hours(NOW), Some(720));
         assert_eq!(account.level(), grant.level);
         assert_eq!(account.exp_total, level_start(16) - 1);
         assert_eq!(account.skills, grant.skills);
@@ -501,6 +493,30 @@ mod tests {
         let mut missing = Vec::new();
         for (number, (preset, kept)) in (1..).zip(grant.presets().zip(kept)) {
             for (index, kit) in kept.kits.iter().enumerate() {
+                // The test data lacks some of the gear (below): a kit's
+                // pockets are what the gear it has opens.
+                let gear = Loadout {
+                    items: preset
+                        .kit(index)
+                        .filter_map(|(slot, name)| {
+                            let item = dictionary.item_named(name)?;
+                            let dict_id = item.dict_id;
+                            (!item.is_stack).then_some(SlotItem {
+                                slot,
+                                dict_id,
+                                count: 1,
+                            })
+                        })
+                        .collect(),
+                };
+                let own: Vec<(u32, bool)> = gear
+                    .items
+                    .iter()
+                    .map(|item| &dictionary.item(item.dict_id).unwrap().name)
+                    .flat_map(|name| own_modifications(name))
+                    .collect();
+                let layout = KitLayout::of_loadout(&gear, &own);
+                let mut dropped = 0;
                 for (slot, name) in preset.kit(index) {
                     let held = kit[usize::from(slot)];
                     let Some(item) = dictionary.item_named(name) else {
@@ -509,7 +525,17 @@ mod tests {
                         continue;
                     };
                     let count = match (item.is_stack, POCKET_SLOTS.contains(&slot)) {
-                        (true, true) => preset.pocket_units_of(item.dict_id),
+                        (true, true) => {
+                            let mut alone = [None; KIT_SLOTS];
+                            alone[usize::from(slot)] =
+                                Some((item.dict_id, preset.pocket_units_of(item.dict_id)));
+                            let Some((_, units)) = layout.kept(&alone)[usize::from(slot)] else {
+                                assert_eq!(held, None, "{name}: a pocket the gear does not open");
+                                dropped += 1;
+                                continue;
+                            };
+                            units
+                        }
                         (true, false) => {
                             rounds(name, starter_slot_bags(dictionary, preset, index, slot))
                         }
@@ -537,7 +563,7 @@ mod tests {
                     .kit(index)
                     .filter(|(_, name)| dictionary.item_named(name).is_some())
                     .count();
-                assert_eq!(worn, named, "preset {number} kit {index}");
+                assert_eq!(worn, named - dropped, "preset {number} kit {index}");
             }
         }
         // The test data predates the knit cap and the Novice's backpack
@@ -563,7 +589,9 @@ mod tests {
             let worn: Vec<u8> = (0..KIT_SLOTS as u8)
                 .filter(|&slot| kit.slots[usize::from(slot)].is_some())
                 .collect();
-            assert_eq!(worn, [1, 2, 4, 5, 6, 7, 8, 13, 14, 15], "kit {index}");
+            // Without the Novice's backpack (missing here) two pockets of the
+            // three: the server keeps a kit to the gear it wears.
+            assert_eq!(worn, [1, 2, 4, 5, 6, 7, 8, 13, 14], "kit {index}");
             assert_eq!(
                 super::super::rules::check_play(&account, kit.id, 0),
                 Ok(()),

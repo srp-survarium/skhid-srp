@@ -77,53 +77,10 @@ handler = "on_medicine_heal"
 site = "medical.stopping"
 handler = "on_stopping"
 
-# Concentration (the local player's hearing while its painkiller is active):
-# the frame's hearing and opponents, published after the simulation's move
-# and cleared when the lobby is shown again.
+# Concentration: the aimed weapon's sway while the painkiller is active.
 [[hook]]
-site = "game_world.after_move"
-handler = "on_listener"
-order = 2
-[[hook]]
-site = "lobby_menu.activate"
-handler = "on_lobby"
-order = 1
-
-# The sound thread at each voice's volume (set_volume_impl's argument).
-[[hook]]
-site = "sound_voice.gain"
-handler = "on_voice_gain"
-
-# A proxy's tag (its +8Ch): cleared at allocation, set where it is made.
-[[hook]]
-site = "sound_proxy.allocated"
-handler = "on_proxy_allocated"
-[[hook]]
-site = "object_sound.play"
-handler = "on_object_sound"
-[[hook]]
-site = "damage_zone.sound"
-handler = "on_zone_sound"
-[[hook]]
-site = "weapon_sound.made"
-handler = "on_weapon_sound"
-[[hook]]
-site = "sound_emitter.once_point"
-handler = "on_once_point"
-
-# An opponent's step: this thread's point sounds between these pairs.
-[[hook]]
-site = "player_sound.foot_step"
-handler = "on_foot_step"
-[[hook]]
-site = "player_sound.foot_stepped"
-handler = "on_foot_stepped"
-[[hook]]
-site = "player.landing_step"
-handler = "on_landing_step"
-[[hook]]
-site = "player.landing_stepped"
-handler = "on_landing_stepped"
+site = "medical.sway"
+handler = "on_sway"
 
 [[hook]]
 site = "medical.regenerate"

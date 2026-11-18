@@ -9,8 +9,6 @@ use super::*;
 use crate::v026g::account::{KitSlot, Reroll};
 use crate::v026g::wire;
 
-const NOW: u64 = 1_700_000_000;
-
 fn dict(name: &str) -> u16 {
     Dictionary::shared().item_named(name).unwrap().dict_id
 }
@@ -43,7 +41,7 @@ fn give(account: &mut Account, name: &str, modifications: &[u32]) -> u32 {
 fn client_of(account: &Account) -> Client {
     let mut client = Client::signed_in();
     client
-        .receive_all(&wire::after_change(account, NOW).unwrap())
+        .receive_all(&wire::after_change(account).unwrap())
         .unwrap();
     client
 }
@@ -209,7 +207,7 @@ fn cosmetics_go_on_and_come_off() {
     assert!(place_upgrade(&mut account, 999, first, 1).is_err());
     // The client wrote it itself: the next inventory agrees with it.
     client
-        .receive_all(&wire::after_change(&account, NOW).unwrap())
+        .receive_all(&wire::after_change(&account).unwrap())
         .unwrap();
 
     // Off the other vest, byte for byte; the first keeps it.
@@ -278,7 +276,7 @@ fn one_cosmetic_is_worn_by_many_items() {
     assert_eq!(decal_on(&account, vests[1]), Some((1, 2)));
     assert_eq!(decal_on(&account, vests[2]), Some((0, 3)));
     client
-        .receive_all(&wire::after_change(&account, NOW).unwrap())
+        .receive_all(&wire::after_change(&account).unwrap())
         .unwrap();
     // Off one: the others keep it.
     assert_eq!(
@@ -466,7 +464,7 @@ fn a_scope_is_bought_once_and_put_on_many_weapons() {
         };
         assert_eq!(held(&client), u32::from(SCOPE));
         client
-            .receive_all(&wire::after_change(&account, NOW).unwrap())
+            .receive_all(&wire::after_change(&account).unwrap())
             .unwrap();
         assert_eq!(held(&client), u32::from(variant));
     }
@@ -521,7 +519,7 @@ fn a_scope_is_bought_once_and_put_on_many_weapons() {
         .unwrap();
     takes(
         &mut client,
-        &wire::after_change(&account, NOW).unwrap()[0],
+        &wire::after_change(&account).unwrap()[0],
         &account,
     );
 
@@ -558,7 +556,7 @@ fn a_client_without_patch_30_takes_a_scope_off_its_first_holder() {
         attach_upgrade_in(&mut account, &table, host, scope, 3).unwrap();
     }
     client
-        .receive_all(&wire::after_change(&account, NOW).unwrap())
+        .receive_all(&wire::after_change(&account).unwrap())
         .unwrap();
 
     // The SVD comes first in the inventory: it loses the scope.

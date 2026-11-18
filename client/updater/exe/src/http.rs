@@ -12,9 +12,9 @@ use updater_logic::download::{self, PAGE_HEAD, Speed};
 use updater_logic::problem::{Fault, Miss, Probe, Stage};
 use updater_logic::url::{self, MAX_REDIRECTS, Url};
 use windows_sys::Win32::Networking::WinHttp::{
-    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-    WINHTTP_DISABLE_COOKIES, WINHTTP_FLAG_BYPASS_PROXY_CACHE, WINHTTP_FLAG_SECURE,
-    WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2, WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3,
+    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_ACCESS_TYPE_NAMED_PROXY, WINHTTP_OPTION_PROXY,
+    WINHTTP_PROXY_INFO, WINHTTP_DISABLE_COOKIES, WINHTTP_FLAG_BYPASS_PROXY_CACHE,
+    WINHTTP_FLAG_SECURE, WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2, WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3,
     WINHTTP_OPTION_DISABLE_FEATURE, WINHTTP_OPTION_REDIRECT_POLICY,
     WINHTTP_OPTION_REDIRECT_POLICY_NEVER, WINHTTP_OPTION_SECURE_PROTOCOLS,
     WINHTTP_QUERY_CONTENT_LENGTH, WINHTTP_QUERY_CONTENT_RANGE, WINHTTP_QUERY_CONTENT_TYPE,
@@ -332,7 +332,7 @@ pub fn get_file(
 /// timeouts; TLS 1.2 and newer.
 fn open_session() -> Result<Internet, HttpError> {
     let agent = wide("SkhidUpdater/1");
-    let mut session = unsafe {
+    let session = unsafe {
         WinHttpOpen(
             agent.as_ptr(),
             WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
@@ -341,18 +341,6 @@ fn open_session() -> Result<Internet, HttpError> {
             0,
         )
     };
-    if session.is_null() {
-        // Windows before 8.1 does not know the automatic setting.
-        session = unsafe {
-            WinHttpOpen(
-                agent.as_ptr(),
-                WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
-                null(),
-                null(),
-                0,
-            )
-        };
-    }
     let session = handle(session, "start")?;
     unsafe {
         // Name lookup, connect, send, receive: no step waits longer.
@@ -385,6 +373,37 @@ struct Answer {
 /// GET `full_path` of `url`'s host, from byte `from` on when it is not 0
 /// (`Range`): the answer's status and headers.
 fn ask(session: &Internet, url: &Url, full_path: &str, from: u64) -> Result<Answer, HttpError> {
+    // Only this installation's HTTPS site can use the fixed-origin CONNECT
+    // service. TLS still authenticates the original hostname end to end.
+    #[derive(Clone, Copy)]
+    enum Preferred { Direct, Relay }
+    static PREFERRED: std::sync::Mutex<Preferred> = std::sync::Mutex::new(Preferred::Direct);
+    let proxy = crate::play::config().ok().flatten().filter(|config| {
+        url.secure && url.port == 443
+            && config.direct.host().eq_ignore_ascii_case(&url.host)
+    }).map(|config| format!("{}:8080", config.relay.host()));
+    let Some(proxy) = proxy else { return ask_via(session, url, full_path, from, None); };
+    let preferred = *PREFERRED.lock().unwrap_or_else(|e| e.into_inner());
+    let (first, second) = match preferred {
+        Preferred::Direct => (None, Some(proxy.as_str())),
+        Preferred::Relay => (Some(proxy.as_str()), None),
+    };
+    match ask_via(session, url, full_path, from, first) {
+        Err(HttpError::Network(_, code)) if updater_logic::network::Failure::of(code).is_some() => {
+            let result = ask_via(session, url, full_path, from, second);
+            if result.is_ok() {
+                *PREFERRED.lock().unwrap_or_else(|e| e.into_inner()) = match preferred {
+                    Preferred::Direct => Preferred::Relay,
+                    Preferred::Relay => Preferred::Direct,
+                };
+            }
+            result
+        }
+        result => result,
+    }
+}
+
+fn ask_via(session: &Internet, url: &Url, full_path: &str, from: u64, proxy: Option<&str>) -> Result<Answer, HttpError> {
     let connection = handle(
         unsafe { WinHttpConnect(session.0, wide(&url.host).as_ptr(), url.port, 0) },
         "connect",
@@ -404,6 +423,20 @@ fn ask(session: &Internet, url: &Url, full_path: &str, from: u64) -> Result<Answ
         },
         "request",
     )?;
+    if let Some(proxy) = proxy {
+        let mut name = wide(proxy);
+        let mut info = WINHTTP_PROXY_INFO {
+            dwAccessType: WINHTTP_ACCESS_TYPE_NAMED_PROXY,
+            lpszProxy: name.as_mut_ptr(),
+            lpszProxyBypass: null_mut(),
+        };
+        // The option copies the strings. No certificate flags are changed.
+        if unsafe { WinHttpSetOption(request.0, WINHTTP_OPTION_PROXY,
+            (&mut info as *mut WINHTTP_PROXY_INFO).cast(),
+            core::mem::size_of::<WINHTTP_PROXY_INFO>() as u32) } == 0 {
+            return Err(HttpError::Network("relay proxy", last_error()));
+        }
+    }
     // WinHTTP follows no redirect itself (`get_file` follows a patch's,
     // checking each address), and no cookie is kept or sent.
     if !set_option(

@@ -43,6 +43,7 @@
 //! }
 //! ```
 
+pub mod relay;
 pub mod ack;
 pub mod packet_log;
 pub mod seq;

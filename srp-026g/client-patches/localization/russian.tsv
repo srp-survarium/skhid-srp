@@ -883,6 +883,14 @@ st_crosshair_static_option	Статический прицел
 st_crosshair_type_option	Выбор прицела
 st_crouch_action	Присесть (удерж.)
 st_crouch_toggle_action	Присесть
+st_cs_mp_atp_name	АТП
+st_cs_mp_bath_name	Бассейн
+st_cs_mp_darkvalley_name	Тёмная долина
+st_cs_mp_firestation_name	Пожарная станция
+st_cs_mp_military_1_name	Армейские склады
+st_cs_mp_rembasa_name	Ремонтная база
+st_cs_mp_sport_center_name	Спортивный центр
+st_cs_training_camp_name	Тренировочный лагерь
 st_ct_max_members_count_error	Ошибка добавления. В клановой команде уже находится максимальное количество игроков.
 st_current_value	\nТекущее значение:
 st_cz_75_description	Чешский самозарядный пистолет, патрон: 9x19. Один из самых копируемых пистолетов холодной войны.
@@ -916,6 +924,10 @@ st_dispersion_from_hip_description	Точность при стрельбе от
 st_dispersion_from_hip_name	Точность
 st_dispersion_movement_influence_description	Точность в движении:
 st_dispersion_movement_influence_name	Крепкий хват
+st_distance_detail_high	Высокая
+st_distance_detail_maximum	Максимум
+st_distance_detail_normal	Обычная
+st_distance_detail_option	Детализация
 st_dont_have_permission	Недостаточно прав для выполнения действия.
 st_drop	Снять
 st_drop_action	Выбросить
@@ -1189,6 +1201,8 @@ st_finish_match_mode_04_winner_message	Победа! Все противники
 st_finish_match_mode_05_draw_message	Ничья. Команды исследовали поровну
 st_finish_match_mode_05_loser_message	Поражение. Команда противника завершила исследование аномальной активности
 st_finish_match_mode_05_winner_message	Победа! Ваша команда завершила исследование аномальной активности
+st_finish_match_mode_08_loser_message	Поражение. Больше всех убийств не у вас
+st_finish_match_mode_08_winner_message	Победа! У вас больше всех убийств
 st_first_weapon_action	Оружие 1
 st_fix	Починить
 st_fn_fnc_description	Бельгийская штурмовая винтовка под боеприпас 5.56х45. Разработана FN Herstal в 70-х годах для бельгийской армии; лицензионные версии служат в Швеции и Индонезии. Магазин на 30 патронов. Огонь: одиночный и автоматический.
@@ -1238,7 +1252,7 @@ st_health_regen_correction_perc_name	Регенерация
 st_hide_ammo	Спрятать аммуницию
 st_hide_interface_action	Скрыть интерфейс
 st_hide_quest_list	Скрыть окно заданий
-st_hide_spam_option	Скрывать спам
+st_hide_spam_option	Отключить голосовой чат
 st_hide_squad_list	Скрыть окно отряда
 st_hk416_description	Немецкая штурмовая винтовка под боеприпас 5.56х45. Развитие AR-15 от Heckler & Koch с газовым поршнем короткого хода, появилась в середине 2000-х; служит в спецназе и армиях НАТО. Прицел EOTech 552. Магазин на 30 патронов. Огонь: одиночный и автоматический.
 st_hk416_name	H&K 416А5
@@ -1411,6 +1425,9 @@ st_level_11_name	Мамаев курган (v0.21)
 st_level_12_name	Химзавод (v0.11)
 st_level_13_name	РЛС "Восток" (v0.11)
 st_level_14_name	Рудня (v0.69)
+st_level_25_name	Школа (v0.21)
+st_level_26_name	Таракановский форт (v0.21)
+st_level_29_name	Рудня (v0.21)
 st_lifebone_activation_hint	Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!
 st_lifebone_pickup_hint	Артефакт Живокост. Повышает регенерацию здоровья.
 st_lightning_quality_option	Качество освещения
@@ -1513,6 +1530,8 @@ st_mode_04_description	Закрепите позиции вашей группы
 st_mode_04_name	Командный бой
 st_mode_05_description	Ваша задача - захватить контроль над мобильными исследовательскими установками. Каждая установка, захваченная вашей командой, производит очки исследования аномальной активности. Побеждает команда, набравшая больше очков в конце матча.
 st_mode_05_name	Исследование
+st_mode_08_description	Каждый сам за себя. Матч заканчивается, когда кто-то наберёт нужное число убийств или истечёт время. Побеждает боец с наибольшим числом убийств.
+st_mode_08_name	Все против всех
 st_modification_screen_edit_decal_hint	Чтобы изменить размер и положение нашивки, кликните на ее слот
 st_modification_screen_hint	Перетяните камуфляж или нашивку из вашего инвентаря в соответствующий слот модификации предмета
 st_modified	Модифицировано
@@ -1765,8 +1784,9 @@ st_profile_selection_warning	+20 секунд времени возрожден�
 st_profile_warning_weapon	Профиль не активен: нет оружия
 st_profile_warning_weapon_ammo	Профиль не активен: недостаточно патронов в рюкзаке
 st_profile_warning_weapon_ammo_in_inv	Профиль не активен: недостаточно патронов на складе
-st_ptt_action	PTT
+st_ptt_action	Говорить по рации
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Говорить рядом
 st_put_item	Положить ({USE})
 st_quest_change_warning	Внимание! При смене задания лояльность группировки к вам понизится!
 st_quest_completed	Задание выполнено!
@@ -2076,6 +2096,8 @@ st_scavengers_win_x_games_obj	Выиграть боев:
 st_science_medkit_description	Полностью лечит руки, ноги, тело и голову. Восстанавливает 50% боли. Излечивает отравление и лучевую болезнь.
 st_science_medkit_name	Научная аптечка
 st_scientists_faction	Институт
+st_screenshot_action	Снимок экрана
+st_screenshot_no_ui_action	Снимок без интерфейса
 st_search_label	Поиск
 st_search_range	Уровень матча
 st_second_weapon_action	Оружие 2
@@ -2097,10 +2119,16 @@ st_shop	Магазин
 st_shop_label	Магазин
 st_shop_scope_1p69_hyperon_description	Четырехкратный оптический прицел
 st_shop_scope_1p69_hyperon_name	Оптический прицел Зенит "Гиперон", x4
+st_shop_scope_acog_ta01_description	Четырехкратный оптический прицел
+st_shop_scope_acog_ta01_name	Оптический прицел TA01, x4
 st_shop_scope_acog_ta31_description	Четырехкратный оптический прицел
 st_shop_scope_acog_ta31_name	Оптический прицел TA31, x4
 st_shop_scope_aimpoint_compm4_description	Шведский коллиматорный прицел с точкой 2 MOA и батареей, которой хватает до восьми лет непрерывной работы. Принят на вооружение армии США как M68 CCO; крепится на планку Пикатинни.
-st_shop_scope_aimpoint_compm4_name	Коллиматор CompM4
+st_shop_scope_aimpoint_compm4_name	Коллиматор CompM4, x2
+st_shop_scope_aperture_description	Трехкратный оптический прицел
+st_shop_scope_aperture_name	Оптический прицел Aperture, x3
+st_shop_scope_belomo_pk01_description	Коллиматорный прицел с двукратным увеличением.
+st_shop_scope_belomo_pk01_name	Коллиматор ПК-01ВИ, x2
 st_shop_scope_cobra_ekp_8_description	Российский коллиматорный прицел с четырьмя сменными красными прицельными марками. Позволяет быстро целиться с обоими открытыми глазами; крепится на боковую планку оружия семейства Калашникова.
 st_shop_scope_cobra_ekp_8_name	Коллиматор Кобра ЭКП-8
 st_shop_scope_docter_description	Компактный немецкий открытый коллиматорный прицел с красной точкой. Лёгкий и быстрый в прицеливании; создан для гладкоствольного оружия, пистолетов и компактного оружия.
@@ -2109,10 +2137,18 @@ st_shop_scope_elcan_specterdr_description	Четырехкратный опти�
 st_shop_scope_elcan_specterdr_name	Оптический прицел SpecterDR, x4
 st_shop_scope_eotech_552_description	Американский голографический прицел: кольцо 65 MOA с точкой 1 MOA в центре, питание от батарей AA. Быстрый на ближней и средней дистанции; крепится на планку Пикатинни.
 st_shop_scope_eotech_552_name	Коллиматор EOTech 552
+st_shop_scope_eotech_xps2_description	Коллиматорный прицел для быстрого прицеливания.
+st_shop_scope_eotech_xps2_name	Коллиматор EOTech XPS2
+st_shop_scope_hensoldt_rsas_description	Коллиматорный прицел с двукратным увеличением.
+st_shop_scope_hensoldt_rsas_name	Коллиматор RSA-S, x2
+st_shop_scope_leupold_3_7_description	Шестикратный оптический прицел
+st_shop_scope_leupold_3_7_name	Оптический прицел Leupold 3-7, x6
 st_shop_scope_leupold_deltapoint_description	Компактный американский коллиматорный прицел с красной треугольной прицельной маркой. Создан для пистолетов и лёгкого оружия; настолько мал, что не мешает.
 st_shop_scope_leupold_deltapoint_name	Коллиматор Leupold DeltaPoint
 st_shop_scope_leupold_mk4_description	Четырехкратный оптический прицел
 st_shop_scope_leupold_mk4_name	Оптический прицел Leupold MK4, x4
+st_shop_scope_ncstar_4_description	Коллиматорный прицел для быстрого прицеливания.
+st_shop_scope_ncstar_4_name	Коллиматор NcSTAR 4
 st_shop_scope_pso_1_description	Четырехкратный оптический прицел
 st_shop_scope_pso_1_name	Оптический прицел ПСО-1, x4
 st_shop_scope_pso_1_old_description	Четырехкратный оптический прицел
@@ -2162,6 +2198,8 @@ st_snp_steady_breath_desc	Вы быстрее восстанавливаетес
 st_snp_steady_breath_name	Ровный выдох
 st_snp_steady_grip_desc	Повышает точность при стрельбе в движении.
 st_snp_steady_grip_name	Верный хват
+st_soc_ug_depository_name	Хранилище
+st_soc_ug_station_name	Станция
 st_soc_vepr_description	Российский самозарядный карабин семейства «Вепрь» под боеприпас 7.62х39. Выпускается заводом «Молот» в Вятских Полянах на усиленной ствольной коробке пулемета РПК как охотничье и спортивное оружие. Оснащен магазином на 10 патронов. Только одиночный огонь.
 st_soc_vepr_name	СОК-94
 st_socom16_description	ОПИСАНИЕ НЕ ГОТОВО!!!
@@ -2243,6 +2281,7 @@ st_srp_ban_reason_threats	Угрозы в реальной жизни.
 st_srp_crosshair_dynamic	Динамический прицел
 st_srp_crosshair_hidden	Скрытый прицел
 st_srp_crosshair_static	Статический прицел
+st_srp_deep_pockets_name	Хабарщик
 st_srp_equipment029_bm_back_6_desc	Описание пока недоступно.
 st_srp_equipment029_bm_back_6_name	Рюкзак часового
 st_srp_equipment029_bm_back_8_desc	Описание пока недоступно.
@@ -2496,9 +2535,11 @@ st_srp_equipment069_snow_20_legs_7_desc	Описание пока недосту
 st_srp_equipment069_snow_20_legs_7_name	Штаны "Снег-20"
 st_srp_equipment069_snow_20_torso_7_desc	Описание пока недоступно.
 st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Снег-20"
-st_srp_hide_hit_markers_option	Скрыть хитмаркеры
 st_srp_hide_quests_option	Скрыть задания
 st_srp_hide_scores_option	Скрыть очки игроков
+st_srp_hit_markers_all	Все хитмаркеры
+st_srp_hit_markers_hidden	Скрытые хитмаркеры
+st_srp_hit_markers_kill	Только при убийстве
 st_srp_hud_add_friend	Добавить в друзья
 st_srp_hud_blackout_intro	Блэкаут: несите батареи к устройству своей команды. Интерфейс и маркеры попаданий скрыты для погружения. Удерживайте Tab: боезапас, здоровье, чат; после смерти — выбор комплекта.
 st_srp_hud_blackout_start	Блэкаут\nНесите батареи к устройству своей команды.\nИнтерфейс и маркеры попаданий скрыты. Удерживайте Tab, чтобы увидеть боезапас и здоровье.
@@ -2510,6 +2551,11 @@ st_srp_hud_mute_not_sent	Не отправлено
 st_srp_hud_muted	Чат заглушён
 st_srp_hud_unmute	Включить чат
 st_srp_hud_unmuted	Чат включён
+st_srp_hud_voice_mute	Заглушить голос
+st_srp_hud_voice_muted	Голос заглушён
+st_srp_hud_voice_not_muted	Голосовой чат недоступен
+st_srp_hud_voice_unmute	Включить голос
+st_srp_hud_voice_unmuted	Голос включён
 st_srp_inv_ammo_range	Дальность
 st_srp_inv_bullet_speed	Скорость пули
 st_srp_inv_defuse_time	Время обезвреживания
@@ -2517,6 +2563,7 @@ st_srp_inv_fuse_time	Время запала
 st_srp_inv_material_pierce	Пробивает
 st_srp_inv_pellets	Дробин
 st_srp_inv_pocket_units	Место в кармане
+st_srp_inv_pocket_units_whole	∞
 st_srp_inv_stamina_damage	Урон выносливости
 st_srp_inv_throw_speed	Скорость броска
 st_srp_inventory_search	Поиск
@@ -2529,6 +2576,8 @@ st_srp_inventory_search_tip_kind	шлемы или ботинки
 st_srp_inventory_search_tip_kind_example	+шлем +ботинки
 st_srp_inventory_search_tip_level	предметы 10 или 11 уровня
 st_srp_inventory_search_tip_level_example	+10 +11
+st_srp_inventory_sell_duplicates	Продать дубли
+st_srp_inventory_sell_duplicates_ask	Предметов на продажу: %1$s
 st_srp_item_props_mps	м/с
 st_srp_language_option	Язык:
 st_srp_language_restart	Применится после перезапуска.
@@ -2557,14 +2606,27 @@ st_srp_login_ban_forever	Бан бессрочный.
 st_srp_map_chemical_plant	Химзавод
 st_srp_map_chemical_plant_v011	Химзавод (v0.11)
 st_srp_map_cologne	Кельн
+st_srp_map_cs_mp_atp	АТП
+st_srp_map_cs_mp_bath	Бассейн
+st_srp_map_cs_mp_darkvalley	Тёмная долина
+st_srp_map_cs_mp_firestation	Пожарная станция
+st_srp_map_cs_mp_military_1	Армейские склады
+st_srp_map_cs_mp_rembasa	Ремонтная база
+st_srp_map_cs_mp_sport_center	Спортивный центр
+st_srp_map_cs_training_camp	Тренировочный лагерь
 st_srp_map_london	Лондон
 st_srp_map_mamayev_kurgan	Мамаев курган
 st_srp_map_mamayev_kurgan_v021	Мамаев курган (v0.21)
 st_srp_map_names_option	Имена на карте
 st_srp_map_rudnya	Рудня
+st_srp_map_rudnya_v021	Рудня (v0.21)
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
+st_srp_map_school_v021	Школа (v0.21)
+st_srp_map_soc_ug_depository	Хранилище
+st_srp_map_soc_ug_station	Станция
 st_srp_map_tarakanovsky_fort	Таракановский форт
+st_srp_map_tarakanovsky_fort_v021	Таракановский форт (v0.21)
 st_srp_map_vector	Лаборатория "Вектор"
 st_srp_map_vostok	РЛС "Восток"
 st_srp_map_vostok_v011	РЛС "Восток" (v0.11)
@@ -2613,20 +2675,30 @@ st_srp_medical_331_description	Заменяет ячейку дополните�
 st_srp_medical_331_name	Карман для припасов
 st_srp_medical_332_description	Бонус к максимальному здоровью рук и ног:
 st_srp_medical_332_name	Крепкие кости
-st_srp_medical_333_description	Пока действует обезболивающее, звуки окружения тише, а звуки противников (кроме выстрелов) громче на:
+st_srp_medical_333_description	Пока действует обезболивающее, снижение раскачивания прицела:
 st_srp_medical_333_name	Концентрация
 st_srp_medical_342_description	Снижение урона, получаемого от союзников:
 st_srp_medical_342_name	Братья по оружию
 st_srp_medical_seconds	 s
-st_srp_medicine_ambient_sounds	Звуки окружения
 st_srp_medicine_crouched_healing	Лечение в приседе
-st_srp_medicine_enemy_sounds	Звуки противников
 st_srp_medicine_hit_slow	Замедление от пуль
+st_srp_medicine_sight_sway	Раскачивание
 st_srp_medicine_sprint_stamina	Энергия на спринт
 st_srp_melee_knockback	Отбрасывание прикладом
+st_srp_mic_test	Проверить микрофон
+st_srp_mic_test_no_microphone	Нет микрофона
+st_srp_mic_test_no_playback	Нет вывода звука
+st_srp_mic_test_playing	Воспроизведение %1$s
+st_srp_mic_test_recording	Запись %1$s
+st_srp_microphone	Микрофон
+st_srp_microphone_default	По умолчанию
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
+st_srp_mode_cowboy	FFA: Салун
+st_srp_mode_cowboy_winchester	FFA: Салун (Винчестер)
+st_srp_mode_free_for_all	Все против всех
 st_srp_mode_protective_device	Защитное устройство
+st_srp_mode_racket	FFA: Движ
 st_srp_mode_research	Исследование
 st_srp_mode_team_deathmatch	Командный бой
 st_srp_mouse_lock_option	Зафиксировать вертикальную чувствительность
@@ -2663,6 +2735,9 @@ st_srp_pvb_searching	Сначала отмените поиск
 st_srp_pvb_team_size	%1$s на %2$s
 st_srp_pvb_title	Игрок против ботов
 st_srp_pvb_unknown_choice	Эта карта или размер команд сейчас недоступны
+st_srp_regeneration_health	Регенерация здоровья
+st_srp_regeneration_label	Регенерация
+st_srp_regeneration_stamina	Восстановление энергии
 st_srp_renderer_dx11	DirectX 11
 st_srp_renderer_dxvk	Vulkan/DXVK
 st_srp_renderer_option	Рендер
@@ -2684,10 +2759,10 @@ st_srp_replay_not_yours	Смотреть можно только повторы 
 st_srp_replay_off	Повторы на этом сервере отключены.
 st_srp_replay_old_game	Ваша версия игры не воспроизводит повторы. Обновите игру: запустите её снова через лаунчер.
 st_srp_replay_place_in_line	Место в очереди: %1$s. Ожидание: %2$s с.
-st_srp_replay_ready	Повтор этого матча готов.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F11 для управления: игроки, камера, перемотка, скорость.
-st_srp_replay_ready_size	Повтор этого матча: %1$s.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F11 для управления: игроки, камера, перемотка, скорость.
+st_srp_replay_ready	Повтор этого матча готов.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F9 для управления: игроки, камера, перемотка, скорость.
+st_srp_replay_ready_size	Повтор этого матча: %1$s.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F9 для управления: игроки, камера, перемотка, скорость.
 st_srp_replay_size	%1$s,%2$s МБ
-st_srp_replay_starting	Запускаем повтор: откроется второе окно игры, лобби останется открытым. Если что-то пойдёт не так, программа обновления покажет, что случилось.\n\nВ повторе нажмите F11 для управления.
+st_srp_replay_starting	Запускаем повтор: откроется второе окно игры, лобби останется открытым. Если что-то пойдёт не так, программа обновления покажет, что случилось.\n\nВ повторе нажмите F9 для управления.
 st_srp_replay_still_preparing	Повтор ещё готовится. Сервер продолжает его создавать; откройте «Смотреть повтор» ещё раз через минуту.
 st_srp_replay_title	Смотреть повтор
 st_srp_replay_waiting	Ожидание: %1$s с.
@@ -2852,6 +2927,7 @@ st_srp_weapon_reload	Перезарядка
 st_srp_weapon_reload_empty	Перезарядка (пустой)
 st_srp_weapon_reload_tactical	Тактическая перезарядка
 st_srp_weapon_shift_hint	Shift: детали · Alt: в бою
+st_srp_weapon_slot_closed	%1$s: нет второго оружия
 st_srp_weapon_spread_growth	Скорость роста разброса
 st_srp_weapon_spread_max	Предел роста разброса
 st_srp_weapon_spread_per_shot	Разброс от выстрела
@@ -2889,6 +2965,7 @@ st_start_match_welcome_message	Найдите батареи и доставьт
 st_start_match_welcome_message_2	Найдите и защитите места зарядки батарей!
 st_start_match_welcome_message_3	Уничтожьте как можно больше противников!
 st_start_match_welcome_message_5	Найдите и захватите исследовательские установки!
+st_start_match_welcome_message_8	Все против всех. Побеждает первый, кто наберёт %1$s убийств
 st_statistic_sync_text	Получение статистики матча
 st_statistics_daily_bonus	Ежедневный бонус
 st_statistics_equipment_bonus	Бонус экипировки
