@@ -617,11 +617,29 @@ impl WalkGrid {
     /// The controller pass ([`Body::client_controller`], module documentation).
     /// The bridges are made here; the walk links that fail their check are returned (a floor, a direction and the share the body
     /// got), for the build to take away with `cut_keeping_reach`.
-    pub(super) fn controlled_links(&self, wide: &mut Wide, triangles: &[Triangle]) -> (ControlledStats, Vec<(u32, usize, f32)>) {
+    /// [row 6] `shapes`: the game's shapes ([`Collision::build_exe`]), the world every other pass flies and walks the client's
+    /// body on; the walks are checked on them when given, else on the walker triangles with the body's caster (a map with no
+    /// shapes). The walker triangles are a primitive's drawn stand-in, not the object the client's controller sweeps: on
+    /// Mamayev Kurgan the walk 366489 -> 365709 up the slope at (26.0, 25.5, 91.7) passes the check on them and fails it on the
+    /// shapes (best share 0.49 of 0.5), and the exe's own tick does not climb it from the floor's centre or either line (it
+    /// slides 0.06-0.37 m down) nor from 5 stuck bots' feet (51 stuck notes there in 1 match).
+    pub(super) fn controlled_links(
+        &self,
+        wide: &mut Wide,
+        triangles: &[Triangle],
+        shapes: Option<&Collision>,
+    ) -> (ControlledStats, Vec<(u32, usize, f32)>) {
         let body = self.body;
         let (caster, s) = body.controller();
         let start = body.walk_start();
-        let world = Collision::build(triangles).with_caster(caster);
+        let walker;
+        let world: &Collision = match shapes {
+            Some(shapes) => shapes,
+            None => {
+                walker = Collision::build(triangles).with_caster(caster);
+                &walker
+            }
+        };
         let s = &s;
         let mut stats = ControlledStats::default();
         let cells_apart = |a: usize, b: usize| {
@@ -1162,6 +1180,31 @@ mod tests {
             .filter(|&(a, b, _)| on.walk_marked(a, b))
             .collect::<Vec<_>>();
         assert!(!marked.is_empty() && marked.iter().all(|&(_, _, kind)| kind == LinkKind::Walk));
+    }
+
+    /// [row 6] The walks are checked on the build's shapes where it has them, not on the walker triangles: a 0.5 m step the
+    /// walker triangles hold (walked) is, in the shapes, a 0.785 m vertical one (the client's tick does not climb it): with the
+    /// shapes its links up fail and are kept marked as the platform's only way up; with none, none is marked.
+    #[test]
+    fn the_walks_are_checked_on_the_shapes() {
+        let mut walker = Vec::new();
+        floor(&mut walker, 0.0, 0.0, 5.0, 6.0, 0.0);
+        floor(&mut walker, 5.0, 0.0, 10.0, 6.0, 0.5);
+        quad(&mut walker, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.5, 0.0), Vec3::new(5.0, 0.5, 6.0), Vec3::new(5.0, 0.0, 6.0));
+        let mut shaped = Vec::new();
+        floor(&mut shaped, 0.0, 0.0, 5.0, 6.0, 0.0);
+        floor(&mut shaped, 5.0, 0.0, 10.0, 6.0, 0.785);
+        quad(&mut shaped, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.785, 0.0), Vec3::new(5.0, 0.785, 6.0), Vec3::new(5.0, 0.0, 6.0));
+        let body = Body { client_controller: true, walk_start_clear: true, walk_every_link: true, ..Body::client() };
+        let shapes = Collision::build(&shaped).with_caster(body.controller().0);
+        let start = [Vec3::new(1.0, 0.0, 3.0)];
+        let build = |shapes: Option<&Collision>| {
+            WalkGrid::build_kept_with_shapes(&walker, shapes, [0.0, 0.0, 10.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::None)
+        };
+        let (walked, stats) = build(None);
+        assert_eq!(walked.walk_marked_count(), 0, "on the walker triangles the 0.5 m step is walked: {:?}", stats.controlled);
+        let (checked, stats) = build(Some(&shapes));
+        assert!(checked.walk_marked_count() > 0, "on the shapes the step is 0.785 m: {:?}", stats.controlled);
     }
 
     /// [A313] A riser bare its whole width is bridged; bare over a 0.5 m strip only (two columns of the grid, the rest
