@@ -719,6 +719,8 @@ pub(crate) struct TheftDrop {
     pub(crate) sent: Option<u32>,
     pub(crate) seen: Option<u32>,
     pub(crate) took: Option<u32>,
+    /// The bot's plays as they changed: (ms, kind and target).
+    pub(crate) plays: Vec<(u32, String)>,
 }
 
 /// F2 of the analysis of the owner's matches 0x652d/0x1a09 of 2026-10-16
@@ -833,6 +835,12 @@ pub(crate) fn theft_drop_run(weight: Option<f32>, drop_at: Vec3, drop_ms: u32, l
             })
         {
             out.sent = Some(clock);
+        }
+        let play = bots.bots[0].as_ref().and_then(|b| b.assignment.as_ref()).map(|a| format!("{:?} {:?}", a.kind, a.target));
+        if let Some(play) = play
+            && out.plays.last().is_none_or(|(_, last)| *last != play)
+        {
+            out.plays.push((clock, play));
         }
         for made in made {
             let r = made.input.rotation;
