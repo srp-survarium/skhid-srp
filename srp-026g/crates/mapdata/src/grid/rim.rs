@@ -215,6 +215,23 @@ impl Riser {
         }
     }
 
+    /// [F1b] This riser (read from its record's count) with the masks table's `bits` ([`Share::with_bits`]); None when they
+    /// disagree. One no press gets up has no bits.
+    pub(super) fn with_bits(self, bits: u16) -> Option<Self> {
+        match self {
+            Riser::Pressed { press, share } => share.with_bits(bits).map(|share| Riser::Pressed { press, share }),
+            Riser::NoPress => (bits == 0).then_some(Riser::NoPress),
+        }
+    }
+
+    /// [F1b] Where its press lands from ([`Share::window`], on the riser's line); None for one no press gets up.
+    pub fn window(self) -> Option<gap::TakeoffWindow> {
+        match self {
+            Riser::Pressed { press, share } => share.window(press, Aim::STRAIGHT),
+            Riser::NoPress => None,
+        }
+    }
+
     /// The run a failed try walks again ([`Takeoff::run_up_m`]); a walking press's for one no press gets up (the motor's
     /// riser press is a walking one).
     pub fn run_up_m(self) -> f32 {
@@ -526,7 +543,7 @@ impl WalkGrid {
     /// [F1] Whether floor `g` is on the link's own landing top at `to` (owner-16 part 3 F1: "lands" means ending standing on
     /// the link's own landing floor): `to` itself, or a floor within [`OWN_TOP_FLAT_M`] across of it and within a step
     /// ([`super::Body::step`]: what a walk on climbs) of its height.
-    pub(super) fn own_top(&self, to: NodeId, g: NodeId) -> bool {
+    pub fn own_top(&self, to: NodeId, g: NodeId) -> bool {
         g == to
             || (self.position(g).distance_xz(self.position(to)) <= OWN_TOP_FLAT_M
                 && (self.height[g as usize] - self.height[to as usize]).abs() <= self.body.step)
@@ -553,11 +570,12 @@ fn press_onto(
             .find(|(k, l, _)| *k == kind && (l - lead).abs() < 1e-3)
             .map(|(.., floors)| !floors.is_empty() && floors.iter().all(|&f| on_top(f)))
     };
-    let mut scored: Vec<(Kind, f32, u8)> = Vec::new();
+    // [F1b] Each press with its landing neighbours' count and bits (the bits in `jump::neighbourhood`'s order).
+    let mut scored: Vec<(Kind, f32, u8, u16)> = Vec::new();
     // [F1] A press resting on another floor of the same top lands this link too (teach, do not cut).
     for l in landings.iter().filter(|l| same(l.to)) {
-        let mut landed = 0u8;
-        for n in jump::neighbourhood() {
+        let mut bits = 0u16;
+        for (i, n) in jump::neighbourhood().into_iter().enumerate() {
             let lead_only = n == Neighbour { lead: n.lead, ..own };
             let lands = match lead_only.then(|| reused(l.kind, l.lead + n.lead)).flatten() {
                 Some(lands) => lands,
@@ -566,12 +584,12 @@ fn press_onto(
                     fl.iter().all(|st| on_top(lands(st)))
                 }),
             };
-            landed += u8::from(lands);
+            bits |= u16::from(lands) << i;
         }
-        scored.push((l.kind, l.lead, landed));
+        scored.push((l.kind, l.lead, bits.count_ones() as u8, bits));
     }
     let best_of = |kind: Option<Kind>| {
-        let of: Vec<&(Kind, f32, u8)> = scored.iter().filter(|s| kind.is_none_or(|k| s.0 == k)).collect();
+        let of: Vec<&(Kind, f32, u8, u16)> = scored.iter().filter(|s| kind.is_none_or(|k| s.0 == k)).collect();
         let mid = |k: Kind| {
             let ls: Vec<f32> = scored.iter().filter(|s| s.0 == k).map(|s| s.1).collect();
             ls.iter().sum::<f32>() / ls.len().max(1) as f32
@@ -582,12 +600,12 @@ fn press_onto(
                 .then((q.1 - mid(q.0)).abs().total_cmp(&(p.1 - mid(p.0)).abs()))
         })
     };
-    let (kind, lead, landed) = best_of(None).expect("a scored press");
+    let (kind, lead, _, bits) = best_of(None).expect("a scored press");
     // [S2] A sprint climb carries one too: a body with no sprint takes the link by it (S6's reach).
     let walk = matches!(kind, Kind::Sprint | Kind::SprintHeld | Kind::Climb)
         .then(|| best_of(Some(Kind::Walk)))
         .flatten()
-        .map(|(_, l, n)| (PressLead::from_metres(l), Share::landed(n)));
+        .map(|(_, l, _, b)| (PressLead::from_metres(l), share_of(b)));
     let press = match kind {
         Kind::Walk => Takeoff::Press(PressLead::from_metres(lead)),
         Kind::Sprint => Takeoff::Sprint(PressLead::from_metres(lead)),
@@ -596,7 +614,12 @@ fn press_onto(
         Kind::Climb => Takeoff::Climb,
     };
     let walker_lands = scored.iter().any(|s| matches!(s.0, Kind::Walk | Kind::Slow(_)));
-    Made { to, press, share: Share::landed(landed), walk, aim: Aim::STRAIGHT, walker_lands }
+    Made { to, press, share: share_of(bits), walk, aim: Aim::STRAIGHT, walker_lands }
+}
+
+/// [F1b] The share of a neighbourhood's landing bits.
+fn share_of(bits: u16) -> Share {
+    Share::of_mask(gap::Mask::of_bits(bits).expect("a bit a neighbour"))
 }
 
 /// [A385] The presses flown, with their leads: the walk and the sprint at the gap links' `leads`, and the slow presses
@@ -1032,6 +1055,46 @@ mod tests {
         let ground = at(4.4, 0.0);
         assert!(grid.position(ground).distance_xz(grid.position(to)) <= OWN_TOP_FLAT_M, "within reach across");
         assert!(!grid.own_top(to, ground), "the ground under the edge");
+    }
+
+    /// [F1b] A flown share keeps which neighbours land and gives the take-off window: the lead run through the press's own,
+    /// each side and turn whose flight lands, the fastest kit; no window when the press itself does not land; a record's
+    /// count and its mask must agree.
+    #[test]
+    fn a_share_keeps_its_neighbours_and_gives_the_window() {
+        // The press, leads -0.1 / +0.1 / +0.2 (not -0.2), the right side, the counter-clockwise turn, the fastest kit.
+        let bits = 1 | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 6) | (1 << 8) | (1 << (jump::NEIGHBOURS - 1));
+        let share = Share::of_mask(gap::Mask::of_bits(bits).unwrap());
+        assert_eq!(share.flown(), Some(7));
+        let w = share.window(Takeoff::Press(PressLead::from_metres(1.0)), Aim::STRAIGHT).expect("a window");
+        assert!((w.lead_m.0 - 0.9).abs() < 1e-4 && (w.lead_m.1 - 1.2).abs() < 1e-4, "{w:?}");
+        assert_eq!((w.side_m, w.turn_rad, w.speed, w.fastest_kit), ((0.0, jump::NEIGHBOUR_SIDE_M), (jump::NEIGHBOUR_TURN_RAD, 0.0), gap::SpeedBand::Walk, true));
+        // A gap in the lead row ends the run: +0.2 lands but not +0.1.
+        let gapped = Share::of_mask(gap::Mask::of_bits(1 | (1 << 4)).unwrap());
+        let w = gapped.window(Takeoff::Slow { lead: PressLead::from_metres(0.4), steps: 2 }, Aim::STRAIGHT).unwrap();
+        assert_eq!((w.lead_m, w.speed), ((0.4, 0.4), gap::SpeedBand::SlowWalk { steps: 2 }));
+        // The press itself must land.
+        assert_eq!(Share::of_mask(gap::Mask::of_bits(bits & !1).unwrap()).window(Takeoff::Press(PressLead::from_metres(1.0)), Aim::STRAIGHT), None);
+        assert_eq!(Share::UNFLOWN.window(Takeoff::WalkOff, Aim::STRAIGHT), None);
+        assert_eq!(gap::Mask::of_bits(1 << jump::NEIGHBOURS), None);
+        // The masks table against a record's count.
+        assert_eq!(Share::landed(7).with_bits(bits), Some(share));
+        assert_eq!(Share::landed(6).with_bits(bits), None);
+        assert_eq!(Share::UNFLOWN.with_bits(0), Some(Share::UNFLOWN));
+        assert_eq!(Share::UNFLOWN.with_bits(1), None);
+    }
+
+    /// [F1b] A rim link's share keeps its neighbours' bits through the grid file.
+    #[test]
+    fn a_rim_links_mask_is_kept_in_the_file() {
+        let (grid, _, up) = onto(1.4, true);
+        assert!(up && grid.off_links().iter().any(|l| l.share.mask().is_some()), "{:?}", grid.off_links());
+        let path = std::env::temp_dir().join(format!("srp-masks-{}.bin", std::process::id()));
+        grid.write(&path, 12).unwrap();
+        let back = WalkGrid::read(&path, 12, body(true)).unwrap();
+        std::fs::remove_file(&path).ok();
+        assert_eq!(back.digest(), grid.digest());
+        assert_eq!(back.off_links(), grid.off_links());
     }
 
     #[test]

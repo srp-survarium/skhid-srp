@@ -205,7 +205,8 @@ impl WalkGrid {
     /// [F1] The bottom of the gap a clip link from `a` along `d` to `to` crosses ([`Self::gap_across`]'s): the highest of the
     /// way's Drop link's floor and the walk-off's floor under the take-off by more than a step, and of the floors crossed in
     /// the cells from `a`'s on to `to`'s (not counting it) that lie under the take-off's height plus a step; -inf when none.
-    /// A landing over it by more than a step is out of the gap ([`Gap::over`]).
+    /// A landing over it by more than a step is out of the gap ([`Gap::over`]). A floor at the take-off's level in a crossed
+    /// cell makes a level landing beyond it no crossing: harmless, a walk reaches that landing (review of #2175).
     fn clip_gap_bottom(&self, wide: &Wide, solids: &Solids, a: u32, d: usize, to: u32) -> f32 {
         let a = a as usize;
         let h = self.height[a];
