@@ -665,6 +665,9 @@ pub struct ThreatTuning {
     /// other enemy bot fired at or hit him; 67 % of a victim's mates within 15 m had no line to him in the 3 s before;
     /// `LOSING-TEAM-ROOT-CAUSE.md` L6).
     pub support: Option<GroupUp>,
+    /// [fix-team, multi-attacker support] With `support`, every enemy attacking a mate is a fight of its own, each answered by
+    /// its own helper ([`SupportAttackers`], `group::attackers`). `None`: the mate's reflex target only, one helper.
+    pub support_attackers: Option<SupportAttackers>,
     /// K3: PairUp does not join a teammate standing in a held spot's lanes,
     /// and its join and wait spots are out of the top player's sight and the
     /// held lanes (F3).
@@ -1007,6 +1010,22 @@ pub struct CommitTuning {
     pub crossfire_arrival_tau_s: Option<f32>,
 }
 
+/// [fix-team, multi-attacker support] A mate's attackers: the enemy his reflex fights, the one his last hit came from (the
+/// nearest of his own fresh tracks to where the hit put the shooter), and any he saw fire with his aim on him (within
+/// `aim.combat.hit_match_deg`), each within the last `window_s`. All from the mate's own senses.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SupportAttackers {
+    /// How recent a hit or a shot is, s: Trade's `fresh_s` (3 s, "a death this recent is traded"), a design value.
+    pub window_s: super::limits::Positive,
+}
+
+impl Default for SupportAttackers {
+    fn default() -> Self {
+        Self { window_s: super::limits::Positive::of(3.0) }
+    }
+}
+
 impl ThreatTuning {
     /// The gang-up cap's rule, or none (off).
     pub fn gang_rule(&self) -> Option<GangRule> {
@@ -1054,6 +1073,7 @@ impl Default for ThreatTuning {
             trade_reach: true,
             trade_cover: None,
             support: Some(GroupUp { approach: None, ..GroupUp::default() }),
+            support_attackers: Some(SupportAttackers::default()),
             pair_up_hidden: true,
             crossfire_out_of_lines: true,
             whole_route_booked: true,

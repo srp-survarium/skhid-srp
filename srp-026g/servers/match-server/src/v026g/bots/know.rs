@@ -791,6 +791,14 @@ pub struct Fighting {
     pub since: u32,
 }
 
+/// [A297, fix-team `threat.support_attackers`] A mate's fight given to a bot: the mate, the enemy it covers him from, the bot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Answer {
+    pub mate: Place,
+    pub enemy: Place,
+    pub bot: Place,
+}
+
 /// Losses are kept this long, ms.
 pub const LOSS_KEEP_MS: u32 = 120_000;
 
@@ -1142,9 +1150,9 @@ pub struct TeamKnowledge {
     /// [A297 `tdm.group`] The team's bots in a fight now (the commander's, from each one's reflex target): the team hears
     /// their shots and their callouts. Empty with the switch off or outside Team Deathmatch.
     pub fighting: Vec<Fighting>,
-    /// [A297 `tdm.group`] Who answers which fight now, (the fighting mate, the answering bot): the commander's
-    /// (`group::answerers`).
-    pub answers: Vec<(Place, Place)>,
+    /// [A297 `tdm.group`] Who answers which fight now: the commander's (`group::answerers`, [fix-team `threat.support_attackers`]
+    /// `group::answer_each`).
+    pub answers: Vec<Answer>,
     /// [A297 v4] The team's movers approaching an enemy they know (as fights: (mover, enemy, since)), kept for `since`.
     pub approaching: Vec<Fighting>,
     /// [A297 v4] The movers holding short now, and the enemy's place each knows (it looks there).
