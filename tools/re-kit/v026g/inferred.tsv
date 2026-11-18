@@ -3516,3 +3516,8 @@ va	status	ref_021d	name
 0x00084fe0	inferred-medium		vostok::physics::bullet_character_controller::step_down_sweep [descriptive]
 0x00348000	inferred-medium		vostok::ui::ui_text_edit::insert_char [descriptive]
 0x003486a0	inferred-medium		vostok::ui::ui_text_edit::delete_selection [descriptive]
+0x003cc920	inferred-medium		vostok::render::effect_compiler::release_passes
+0x0014ae40	inferred-medium		vostok::render::backend::set_vs_constant
+0x00132a90	inferred-medium		vostok::render::backend::set_ps_constant
+0x0014e800	inferred-medium		vostok::math::normalize_safe
+0x00133f50	inferred-medium		vostok::render::stage_rain::rain_rotation_basis

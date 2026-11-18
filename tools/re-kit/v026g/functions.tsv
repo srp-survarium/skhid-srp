@@ -644,6 +644,7 @@ va	status	ref_021d	name
 0x001a3690	reviewed	0x00120122	vostok::render::stage_atmosphere::fill_surfaces
 0x001a39d0	reviewed	0x00120336	vostok::render::stage_atmosphere::stage_atmosphere
 0x001a4200	reviewed	0x00120709	vostok::render::stage_atmosphere::execute
+0x001a5520	observed		vostok::render::stage_atmosphere::god_rays_pass
 0x001a6ee0	reviewed	0x0011ec51	vostok::render::effect_debug_modify_gbuffer::compile
 0x001a7280	reviewed	0x0011ee27	vostok::render::stage_composition::stage_composition
 0x001a78d0	reviewed	0x0011f135	vostok::render::stage_composition::gather_subsurface_scattering_models
@@ -2449,3 +2450,9 @@ va	status	ref_021d	name
 0x001858e0	verified		vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity
 0x0034d9a0	verified	0x00215157	vostok::render::environment_properties::environment_properties
 0x0034e1e0	observed	0x002157f7	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >
+0x0017cc90	verified		vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>
+0x001ae110	verified		vostok::render::effect_manager::create_effect<vostok::render::effect_rain>
+0x001d3730	verified	0x0013fc08	vostok::render::particle_rain_drops_geometry::particle_rain_drops_geometry
+0x0015fe20	verified		vostok::render::grass_world::set_wind_parameters
+0x001cbb70	verified	0x0013afad	vostok::render::pack_direction
+0x00070e30	verified		vostok::math::random32::random_f

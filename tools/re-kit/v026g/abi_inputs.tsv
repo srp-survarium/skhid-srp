@@ -1755,6 +1755,7 @@ va	name	location	role	basis
 0x001a39d0	vostok::render::stage_atmosphere::stage_atmosphere	EAX	renderer context	inferred
 0x001a39d0	vostok::render::stage_atmosphere::stage_atmosphere	stack+8	stage type	inferred
 0x001a4200	vostok::render::stage_atmosphere::execute	ECX	atmosphere stage receiver	inferred
+0x001a5520	vostok::render::stage_atmosphere::god_rays_pass	ESP+4	the stage_atmosphere (+ACh 0 the sky's, 1 the geometry's); its one call is stage_atmosphere::execute's end (push ebp / call at 0x1A5133); ret 4 at 0x1A575C, the only exit	observed
 0x001a6ee0	vostok::render::effect_debug_modify_gbuffer::compile	entry ESP+4	effect compiler object	observed
 0x001a7280	vostok::render::stage_composition::stage_composition	ESI	composition stage receiver	inferred
 0x001a7280	vostok::render::stage_composition::stage_composition	ECX	renderer	inferred
@@ -6370,3 +6371,15 @@ va	name	location	role	basis
 0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1DE237..0x1DE27B	optional use_vertex_alpha_test still becomes stack byte1Ah bit20h; original vertex_alpha_test_parameters/texture_alpha_multiply_vertex_alpha binders are absent from026g. Observed Vostok trash_dirt__vc draw with flagtrue selects stock alpha-only PS1035c925e2d60626b86fd99a17486a09; its vertex shader exports painted alpha at v9.x.	observed
 0x001c0d70	vostok::render::depth_accumulate_material_effect::compile	0x1C0D85..0x1C0DCA	use_alpha_test.value alone selects permutation bit4 of stack byte22h; shader construction at0x1C0E43(depth_accumulate) and0x1C0FF8(depth_accumulate_batched) uses that flag, before reading alpha_ref.	observed
 0x001c0d70	vostok::render::depth_accumulate_material_effect::compile	0x1C0F03..0x1C0F50 and0x1C104C..0x1C1096	When alpha testing is enabled, alpha_ref.value type2 loads f32 directly, otherwise cvtsi2ss; passed unchanged to alpha_ref_parameter binding via0x1C0960. No sign test/clamp in this compiler; negative private selectors do not disable its alpha-test permutation.	observed
+0x0017cc90	vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>	EAX	the effect manager ([2260494h]); its byte +0 force_sync picks create_new_effect 0x3CB510 (waits) over 0x3CB3C0 (async)	observed
+0x0017cc90	vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>	EDI	the res_effect_ptr written (stage_pre_rain +18h from the ctor 0x17BC2C); descriptor static 0x2261118, vtable 0x9F3440 (slot 2 compile 0x1CE100, slot 1 should_recompile 0x54E10 false)	observed
+0x001ae110	vostok::render::effect_manager::create_effect<vostok::render::effect_rain>	EAX	the effect manager ([2260494h]), as create_effect<effect_wet_surface>	observed
+0x001ae110	vostok::render::effect_manager::create_effect<vostok::render::effect_rain>	EDI	the res_effect_ptr written (stage_rain +34h, EDI set at the ctor's 0x1AD856); descriptor static 0x2260F8C, vtable 0x9F5108 (slot 2 compile 0x1D3B90, slot 1 should_recompile 0x54E10 false)	observed
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	EDX	the grass world (its VS host wind_info_parameters at +1C8h)	observed
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	EAX	float2: the wind direction's x and z	observed
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	entry ESP+4	float: the wind strength	observed
+0x001cbb70	vostok::render::pack_direction	EAX	float3 to pack ((v+1)/2*255 a byte); the packed u32 back in EAX	observed
+0x00070e30	vostok::math::random32::random_f	ECX	the random32 state (x = x*8088405h+1)	observed
+0x00070e30	vostok::math::random32::random_f	entry ESP+4	float: min	observed
+0x00070e30	vostok::math::random32::random_f	entry ESP+8	float: max	observed
+0x001cd0b0	vostok::render::effect_material_base::compile_begin	entry ESP+16	byte +6 bits 0..5: the vertex input type, written from the options record's byte 0 (0x1CD0C1..0x1CD0CD) before begin_pass; 0Bh grassmesh_vertex_input	observed

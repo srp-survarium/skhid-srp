@@ -693,6 +693,7 @@ va	name	source	ret_cleanup	result
 0x001a3690	vostok::render::stage_atmosphere::fill_surfaces	manual	16	
 0x001a39d0	vostok::render::stage_atmosphere::stage_atmosphere	manual	8	
 0x001a4200	vostok::render::stage_atmosphere::execute	manual	0	
+0x001a5520	vostok::render::stage_atmosphere::god_rays_pass	manual	4	
 0x001a6ee0	vostok::render::effect_debug_modify_gbuffer::compile	manual	12	
 0x001a7280	vostok::render::stage_composition::stage_composition	manual	0	
 0x001a78d0	vostok::render::stage_composition::gather_subsurface_scattering_models	manual	4	
@@ -2694,3 +2695,7 @@ va	name	source	ret_cleanup	result
 0x00290930	survarium::object_ambient_light::insert	manual	0	result not established
 0x001858e0	vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity	manual	0	EAX end of retained pointer range
 0x0034e1e0	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >	manual	0	void; fills supplied environment properties
+0x0017cc90	vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>	manual	0	none: the effect lands in *EDI, now (force_sync) or when its async query completes
+0x001ae110	vostok::render::effect_manager::create_effect<vostok::render::effect_rain>	manual	0	none: the effect lands in *EDI, now (force_sync) or when its async query completes
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	manual	4	none
+0x00070e30	vostok::math::random32::random_f	manual	8	ST0: a float from min to max
