@@ -27,7 +27,7 @@ eye 1.06 m over the feet and 0.13 m ahead.
 - It goes: the eye back by 1 - e^(-6 t) of the way in t s, then the
   original's view again, bit for bit.
 - Leaves across the way (game materials 24, 44, 49): the ray goes on from
-  0.01 m behind them, to the surface behind or to nothing (the original's
+  1 mm behind them, to the surface behind (one they lie on too) or to nothing (the original's
   view); through 16 of them at most.
 - A spectator (4): the same as the first person.
 - The warmup's orbit (3): the original's view, no ray.
@@ -60,7 +60,7 @@ REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_R
 STEADY = dict(zip(REGS[:7], (0x0A0A0A0A, 0x0B0B0B0B, 0x0C0C0C0C, 0x0D0D0D0D, 0x05050505, 0x0E0E0E0E, 0x0019FF00)))
 CLEARANCE, BELOW_EYE, OUT_RATE = 0.12, 0.4, 6.0
 OBJECT, VTABLE, MATERIAL_OF = STUBS + 0x200, STUBS + 0x300, STUBS + 0xB0   # the object a ray meets
-WALL, LEAVES, PAST_LEAF, MOST_LEAVES = 11, (24, 44, 49), 0.01, 16
+WALL, LEAVES, PAST_LEAF, MOST_LEAVES = 11, (24, 44, 49), 0.001, 16
 
 # the player: turned 30 degrees about up, its feet at (100, 5, -50); crouched, its eye 1.06 m up and 0.13 m ahead
 C, S = math.cos(math.radians(30)), math.sin(math.radians(30))
@@ -245,7 +245,11 @@ def main():
         o_view, o_regs, rays = ours.update_camera(0, leaves=[surface_at(0.2, material)])
         check(o_view == s_view and o_regs == s_regs and len(rays) == 2 and math.dist(rays[1][1], behind) < 1e-4
               and math.dist(rays[1][2], way) < 1e-4 and abs(rays[1][3] - (length + CLEARANCE - 0.2 - PAST_LEAF)) < 1e-4,
-              f"leaves ({material}) 0.200 m out: a second ray from 0.01 m behind them, the original's view")
+              f"leaves ({material}) 0.200 m out: a second ray from 1 mm behind them, the original's view")
+        lain = length - 0.1 + 0.005
+        o_view, o_regs, rays = ours.update_camera(0, leaves=[surface_at(length - 0.1, material)], wall=surface_at(lain))
+        check(abs(eye_out(o_view) - (lain - CLEARANCE)) < 1e-4 and on_way(o_view) and len(rays) == 2,
+              f"leaves ({material}) lying 5 mm over a surface: the eye 0.12 m short of the surface")
         o_view, o_regs, rays = ours.update_camera(0, leaves=[surface_at(0.2, material)], wall=surface_at(length - 0.1))
         check(abs(eye_out(o_view) - (length - 0.1 - CLEARANCE)) < 1e-4 and on_way(o_view) and o_regs == s_regs
               and len(rays) == 2, f"leaves ({material}) before a surface: the eye 0.12 m short of the surface")
