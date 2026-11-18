@@ -918,7 +918,15 @@ const ENEMIES_OUT: f32 = 4.0;
 /// distance from it ([`held_weight`]); any other remembered enemy within [`ENEMIES_NEAR_M`] one, as
 /// [`Input::EnemiesNearTarget`] counts him. A man reloading or kept busy is one the take goes past, as the take itself
 /// reads him.
-fn enemies_weighed(cx: &Ctx, at: Vec3) -> Weighed {
+///
+/// [own battery] With `own` (a battery the HUD showed stolen from our container lately, `TeamKnowledge::thefts`): a man
+/// known by his spot alone, not seen now, weighs as the count does (one within [`ENEMIES_NEAR_M`]) and holds nothing. The
+/// battery stays a Collect candidate, whose walk in at his spot is `take.clear_first`'s: the look that clears his spot, then
+/// the take. Before, the thief's last spot by our own battery, dropped by our container, held it out until a mate looked the
+/// spot clear or his track dropped (about 40 s); a lone bot raided instead (the theft-drop test's (12, 0, 33) case: taken
+/// at 45 s against 14.4 s). An own flag lying loose is returned first, as the CTF bots' rule has it. A man seen weighs as
+/// before.
+fn enemies_weighed(cx: &Ctx, at: Vec3, own: bool) -> Weighed {
     let num = |name| cx.num(PlayKind::Collect, name);
     let (held_m, exposed_m, cover_m) = (num("hold_near_m"), num("exposed_m"), num("cover_m"));
     let reload_ms = (num("reload_cover_s") * 1000.0) as u32;
@@ -930,6 +938,7 @@ fn enemies_weighed(cx: &Ctx, at: Vec3) -> Weighed {
     };
     cx.memory.tracks().iter().fold(Weighed { sum: 0.0, held: false }, |w, t| {
         match t.own.filter(|&(_, time)| cx.spot_lives(t.who, time)) {
+            Some(_) if own && !seen_now(t) => Weighed { sum: w.sum + count(t), ..w },
             Some((spot, _))
                 if !cx.reloading(t.who, reload_ms)
                     && !(seen_now(t) && mates.iter().any(|mate| cx.covers(mate, Ctx::standing_eye(spot), cover_m, veil))) =>
@@ -1000,7 +1009,8 @@ fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
     let counted = cx.input(Input::EnemiesNearTarget, PlayKind::Collect, target);
     let near = match cx.battery_lying(battery) {
         Some(at) if cx.tuning.take.known_threats => {
-            let weighed = enemies_weighed(cx, at);
+            let own = cx.team.thefts.iter().any(|theft| theft.battery == battery);
+            let weighed = enemies_weighed(cx, at, own);
             if weighed.sum > counted {
                 take_counts::count(take_counts::Count::ScoreWeighed);
             }
