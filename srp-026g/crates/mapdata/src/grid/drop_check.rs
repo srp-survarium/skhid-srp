@@ -15,6 +15,7 @@
 
 use super::{DIRS, LIP_DROP_M, LinkKind, NONE, SEED_M, SPAWN_M, Triangle, Vec3, WalkGrid, Wide};
 use super::controlled::{STARTS, Stance, WalkStart, body_at, out_of_walls, parallel};
+use super::gap_flown::THIN_TOP_M;
 use super::gap::{GAP_PRESS_MAX_M, GAP_PRESS_MIN_M, GAP_PRESS_STEP_M, PressLead, RELEASE_AT_MAX_M, Share, Takeoff};
 use crate::controller::{jump, Collision};
 use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
@@ -262,6 +263,74 @@ pub fn walk_drop_as(world: &Collision, s: &Settings, start: WalkStart, stance: S
     DropWalk::Unsettled
 }
 
+/// [F2] A Drop link's key script, as a body plays it and the build flies it ([`walk_off_rest`]): the walk at the link's speed
+/// steered at the landing (re-aimed each step; on along the link's line from within [`WALK_ON_WITHIN_M`] or past it), the forward key held
+/// over the edge and through the fall, and let go on the first step the body stands below the take-off's level (the jumps'
+/// [`jump::STAY_KEYS`]: forward held to the landing, let go there); then nothing until it rests. A [`super::gap::Takeoff::Release`]
+/// is the other drop script (let go at the edge, [`released_rest`]).
+///
+/// The landing a link promises is where this flight RESTS, not a step of a walk carried on past it: [`walk_drop`]'s
+/// arrival (standing within [`ARRIVE_FLAT_M`] of the landing on any step while the key is still held and the body walks on)
+/// passed links whose body only crossed the landing (owner-16 part 3 F2: of 22 planned falls with a known landing 10 ended
+/// lower; the Vector Laboratory battery ledge's drops land 0 of 9 in the exe, 2.3-2.7 m lower).
+///
+/// [`DropWalk::LandsAt`] with the rest's feet and the landings counted, [`DropWalk::Unsettled`], [`DropWalk::Held`] or
+/// [`DropWalk::NoMove`] as [`walk_drop_as`]; never [`DropWalk::Arrives`] (the caller judges the rest against the link's own top).
+pub fn walk_off_rest(world: &Collision, s: &Settings, start: WalkStart, stance: Stance, speed: f32, from: Vec3, to: Vec3) -> DropWalk {
+    let mut c = body_at(world, start, stance, from);
+    let key = stance == Stance::Crouched;
+    let first = c.feet();
+    let down = left_take_off(from.y, to.y);
+    let len = flat(from, to).max(1e-4);
+    let line = Vec3::new((to.x - from.x) / len, 0.0, (to.z - from.z) / len);
+    let mut moved = 0.0f32;
+    let mut left: Option<usize> = None;
+    // The let-go's walk and the steps since (the client's stop blend, 1 - k/6 of the last walk, [`STOP_STEPS`]).
+    let mut let_go: Option<(Vec3, usize)> = None;
+    // Once within [`WALK_ON_WITHIN_M`] of the landing or past it along the line, the walk goes on along the line: a body that
+    // passed its waypoint walks on to the next, it does not turn back to it (steered back in the air, the let-go at the
+    // landing would carry it back to the take-off's face).
+    let mut on_line = false;
+    let mut landed = super::held_floors::Landed::NONE;
+    for n in 1..=LEAVE_STEPS + LAND_STEPS {
+        let feet = c.feet();
+        let falling = -c.velocity.y;
+        let d = flat(feet, to);
+        let past = (feet.x - to.x) * line.x + (feet.z - to.z) * line.z;
+        on_line |= d <= WALK_ON_WITHIN_M || past >= 0.0;
+        let walk = match let_go {
+            Some((last, k)) => last * (1.0 - (k + 1).min(STOP_STEPS) as f32 / STOP_STEPS as f32),
+            // [`WALK_ON_M`] past the landing still on the take-off's level: the walk goes no farther (a landing under a deck
+            // that goes on is no way down there; the body walking on to the deck's end is another link's).
+            None if on_line && left.is_none() && past >= WALK_ON_M => Vec3::ZERO,
+            None if on_line => line * (speed * LAND_DT),
+            None => Vec3::new((to.x - feet.x) / d, 0.0, (to.z - feet.z) / d) * (speed * LAND_DT).min(d),
+        };
+        let notes = c.tick(world, LAND_DT, s, TickInput { walk, air_control: Vec3::ZERO, crouch: CrouchInput::Tested { key, legs_broken: false }, sprinting: false });
+        if let Some(ground) = notes.landing {
+            landed = landed.and(ground, falling);
+        }
+        let feet = c.feet();
+        moved = moved.max(flat(feet, first));
+        if left.is_none() && feet.y <= down {
+            left = Some(n);
+        }
+        let standing = !c.jumping && c.on_ground(s);
+        let_go = match (let_go, left) {
+            (Some((last, k)), _) => Some((last, k + 1)),
+            (None, Some(_)) if standing => Some((walk, 0)),
+            (None, _) => None,
+        };
+        match left {
+            None if n >= LEAVE_STEPS => return if moved < MOVED_M { DropWalk::NoMove } else { DropWalk::Held },
+            None => {}
+            Some(t) if n - t >= LAND_STEPS => return if standing { DropWalk::LandsAt(feet, landed) } else { DropWalk::Unsettled },
+            Some(_) => {}
+        }
+    }
+    DropWalk::Unsettled
+}
+
 /// [A377] Where the client's body comes to stand when it walks off `from` at `to` as [`walk_drop`] walks ([`WALK_MPS`], re-aimed
 /// each [`LAND_DT`] step) and the walk key is let go on the step that would reach `to`: the walk then falls off over the stop
 /// blend ([`STOP_STEPS`]) along the way it had, then nothing. Its feet [`LAND_STEPS`] steps after the blend when it stands then
@@ -418,6 +487,9 @@ pub struct DropStats {
     /// those turned into one.
     pub released: usize,
     pub walk_offs_released: usize,
+    /// [F2] Of the links walked (Drop links and walk-offs), those whose release was not made because their take-off is a thin
+    /// top ([`WalkGrid::on_thin_top`]).
+    pub releases_held_thin: usize,
 }
 
 /// [feed 67] What [`super::Body::drop_lands`] does with one Drop link.
@@ -484,7 +556,7 @@ impl WalkGrid {
     /// has a link there already). One no client way tried stands on a floor stays as it is (an off-mesh link has no reach guard
     /// to cut it by; counted). [A1b] One the walk-off at release takes down ([`Verdict::Released`]) carries that press and share.
     /// Returns (walked, re-aimed, standing on no floor, released).
-    pub(super) fn walk_off_links(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize, usize, usize) {
+    pub(super) fn walk_off_links(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3]) -> (usize, usize, usize, usize, usize) {
         let reached = self.reached_floors(wide, seeds, spawns);
         let todo: Vec<usize> = (0..wide.off.len())
             .filter(|&i| {
@@ -493,16 +565,17 @@ impl WalkGrid {
             })
             .collect();
         if todo.is_empty() {
-            return (0, 0, 0, 0);
+            return (0, 0, 0, 0, 0);
         }
         let s = self.body.controller().1;
         let start = self.body.walk_start();
         let verdicts = parallel(&todo, |&i| {
             let l = wide.off[i];
-            self.drop_verdict(world, &s, start, l.from, self.position(l.from), self.position(l.to))
+            self.drop_verdict(world, &s, start, l.from, self.position(l.from), l.to)
         });
         let (mut moved, mut none, mut released) = (0, 0, 0);
-        for (&i, v) in todo.iter().zip(verdicts) {
+        let held = verdicts.iter().filter(|(_, held)| *held).count();
+        for (&i, (v, _)) in todo.iter().zip(verdicts) {
             match v {
                 Verdict::Keep => {}
                 Verdict::Released(b, press, share) => {
@@ -529,7 +602,7 @@ impl WalkGrid {
             wide.off.sort_by_key(|l| (l.from, l.to));
             wide.off.dedup_by_key(|l| (l.from, l.to));
         }
-        (todo.len(), moved, none, released)
+        (todo.len(), moved, none, released, held)
     }
 
     /// [feed 67] [`super::Body::drop_lands`]: every Drop link out of a reached floor walked by the client's body to its landing
@@ -554,20 +627,21 @@ impl WalkGrid {
         }
         let s = self.body.controller().1;
         let start = self.body.walk_start();
-        let verdicts = parallel(&links, |&(a, _, from, to)| {
-            let v = self.drop_verdict(world, &s, start, a, from, to);
+        let verdicts = parallel(&links, |&(a, d, from, to)| {
+            let (v, held) = self.drop_verdict(world, &s, start, a, from, wide.links[a as usize][d]);
             let lip = match v {
                 Verdict::Keep => self.stops_below(world, &s, start, from, to),
                 Verdict::Reaim(b) | Verdict::Taught(b) => self.stops_below(world, &s, start, from, self.position(b)),
                 // [A1b] Let go at its release, the body rests on its landing: no lip by a stop past it.
                 Verdict::Released(..) | Verdict::Cut => false,
             };
-            (v, lip)
+            (v, lip, held)
         });
+        stats.releases_held_thin = verdicts.iter().filter(|(_, _, held)| *held).count();
         let mut cut = Vec::new();
         let mut reaim = Vec::new();
         let mut lips = Vec::new();
-        for (&(a, d, _, _), (v, lip)) in links.iter().zip(verdicts) {
+        for (&(a, d, _, _), (v, lip, _)) in links.iter().zip(verdicts) {
             match v {
                 Verdict::Keep if lip => lips.push((a, wide.links[a as usize][d])),
                 Verdict::Keep => {}
@@ -605,61 +679,100 @@ impl WalkGrid {
             .any(|&off| stop_at_drop(world, s, start, from + side * off, to + side * off).is_none_or(|feet| from.y - feet.y >= LIP_DROP_M))
     }
 
-    /// [feed 67] One link of [`Self::landing_drops`].
-    fn drop_verdict(&self, world: &Collision, s: &Settings, start: WalkStart, a: u32, from: Vec3, to: Vec3) -> Verdict {
+    /// [F2] The floor a drop's flight rests on ([`walk_off_rest`], [`released_rest`]): the floor under the feet within
+    /// [`ARRIVE_FLAT_M`] across and [`ARRIVE_HEIGHT_M`] in height, the feet within [`ARRIVE_HEIGHT_M`] of its height.
+    fn rest_floor(&self, feet: Vec3) -> Option<u32> {
+        self.locate_within(feet, ARRIVE_FLAT_M, ARRIVE_HEIGHT_M).filter(|&g| (self.position(g).y - feet.y).abs() <= ARRIVE_HEIGHT_M)
+    }
+
+    /// [feed 67] One link of [`Self::landing_drops`] from `a` (at `from`) to the floor `b`. [F2] Each way down is judged by
+    /// where its flight RESTS ([`walk_off_rest`]: the forward key let go on the landing step), on `b`'s own top
+    /// ([`WalkGrid::own_top`]): the link is kept where a walk line's rest is there.
+    fn drop_verdict(&self, world: &Collision, s: &Settings, start: WalkStart, a: u32, from: Vec3, b: u32) -> (Verdict, bool) {
+        let mut held = false;
+        let v = self.drop_verdict_holding(world, s, start, a, from, b, &mut held);
+        (v, held)
+    }
+
+    /// [F2] Whether the take-off `a` is a thin top along `way` (flat, unit): its level (within a step,
+    /// [`super::Body::step`]) ends within [`THIN_TOP_M`] back along the way, cell by cell (a railing's top, a held floor on a
+    /// rail, the railings census's tops). A release off such a top is not made until the port's and the exe's drop flights
+    /// agree at rims (#2180's review: off the Vector Laboratory spawner walkway's railing, 114512, the port's release rests on the
+    /// ledge, the exe's body never leaves the railing, its top at 21.55 where the grid's floor is at 21.74).
+    pub(super) fn on_thin_top(&self, a: u32, way: Vec3) -> bool {
+        let p = self.position(a);
+        let h = self.height[a as usize];
+        let level = |q: Vec3| {
+            let i = ((q.x - self.x0) / self.cell).floor() as i32;
+            let k = ((q.z - self.z0) / self.cell).floor() as i32;
+            self.cell_index(i, k)
+                .is_some_and(|c| (self.start[c]..self.start[c + 1]).any(|f| (self.height[f as usize] - h).abs() <= self.body.step))
+        };
+        let mut d = self.cell;
+        while d <= THIN_TOP_M + 1e-4 {
+            if !level(p - way * d) {
+                return true;
+            }
+            d += self.cell;
+        }
+        false
+    }
+
+    /// [`Self::drop_verdict`], `held` set when a release was not made off a thin top.
+    #[allow(clippy::too_many_arguments)]
+    fn drop_verdict_holding(&self, world: &Collision, s: &Settings, start: WalkStart, a: u32, from: Vec3, b: u32, held: &mut bool) -> Verdict {
+        let to = self.position(b);
         let len = flat(from, to).max(1e-3);
         let side = Vec3::new(-(to.z - from.z) / len, 0.0, (to.x - from.x) / len);
-        let walks = STARTS.map(|off| walk_drop(world, s, start, from + side * off, to + side * off));
-        if walks.iter().any(|w| matches!(w, DropWalk::Arrives | DropWalk::NoMove)) {
+        let rest = |stance: Stance, speed: f32, off: f32, at: Vec3| walk_off_rest(world, s, start, stance, speed, from + side * off, at + side * off);
+        let on_top = |w: &DropWalk, of: u32| matches!(*w, DropWalk::LandsAt(feet, _) if self.rest_floor(feet).is_some_and(|g| self.own_top(of, g)));
+        let walks = STARTS.map(|off| rest(Stance::Standing, WALK_MPS, off, to));
+        if walks.iter().any(|w| *w == DropWalk::NoMove || on_top(w, b)) {
             return Verdict::Keep;
         }
         for (w, off) in walks.iter().zip(STARTS) {
             let DropWalk::LandsAt(feet, _) = *w else { continue };
-            let Some(b) = self.locate_within(feet, ARRIVE_FLAT_M, ARRIVE_HEIGHT_M) else { continue };
-            let at = self.position(b);
-            if b == a || (at.y - feet.y).abs() > ARRIVE_HEIGHT_M || at.y >= from.y - self.body.step {
+            let Some(g) = self.rest_floor(feet) else { continue };
+            if g == a || self.position(g).y >= from.y - self.body.step {
                 continue;
             }
-            if walk_drop(world, s, start, from + side * off, at + side * off) == DropWalk::Arrives {
-                return Verdict::Reaim(b);
+            if on_top(&rest(Stance::Standing, WALK_MPS, off, self.position(g)), g) {
+                return Verdict::Reaim(g);
             }
         }
         // [A389] No cut on the walk alone (a link is cut only where no client action takes the body down there): a walk line's own landing on a floor lower down, then the crouched walk-off, then the jumps off the edge.
-        let lower = |feet: Vec3| {
-            self.locate_within(feet, ARRIVE_FLAT_M, ARRIVE_HEIGHT_M).filter(|&b| {
-                let y = self.position(b).y;
-                b != a && (y - feet.y).abs() <= ARRIVE_HEIGHT_M && y < from.y - self.body.step
-            })
-        };
+        let lower = |feet: Vec3| self.rest_floor(feet).filter(|&g| g != a && self.position(g).y < from.y - self.body.step);
         // [A1b] The walk-off at release: on the link's own landing before a walk line's landing elsewhere (the shallow ledge a
         // steady walk overshoots), on another lower floor before the crouched walk-off.
-        let release = self.released(world, s, start, from, to, lower);
-        if let Some((b, press, share)) = release
-            && flat(self.position(b), to) <= ARRIVE_FLAT_M
-            && (self.position(b).y - to.y).abs() <= ARRIVE_HEIGHT_M
+        let thin = self.on_thin_top(a, Vec3::new((to.x - from.x) / len, 0.0, (to.z - from.z) / len));
+        let flown = self.released(world, s, start, from, to, lower);
+        *held = thin && flown.is_some();
+        let release = if thin { None } else { flown };
+        if let Some((g, press, share)) = release
+            && self.own_top(b, g)
         {
-            return Verdict::Released(b, press, share);
+            return Verdict::Released(g, press, share);
         }
         if let Some(b) = walks.iter().find_map(|w| if let DropWalk::LandsAt(feet, _) = *w { lower(feet) } else { None }) {
             return Verdict::Taught(b);
         }
-        if let Some((b, press, share)) = release {
-            return Verdict::Released(b, press, share);
+        if let Some((g, press, share)) = release {
+            return Verdict::Released(g, press, share);
         }
         for off in STARTS {
-            match walk_drop_as(world, s, start, Stance::Crouched, CROUCH_MPS, from + side * off, to + side * off) {
-                DropWalk::Arrives => return Verdict::Keep,
-                DropWalk::LandsAt(feet, _) => {
-                    if let Some(b) = lower(feet) {
-                        return Verdict::Taught(b);
-                    }
-                }
-                _ => {}
+            let w = rest(Stance::Crouched, CROUCH_MPS, off, to);
+            if on_top(&w, b) {
+                return Verdict::Keep;
+            }
+            if let DropWalk::LandsAt(feet, _) = w
+                && let Some(g) = lower(feet)
+            {
+                return Verdict::Taught(g);
             }
         }
         match self.jumped_down(world, s, a, from, ((to.x - from.x) / len, (to.z - from.z) / len)) {
-            Some(b) if (self.position(b).y - to.y).abs() <= ARRIVE_HEIGHT_M && flat(self.position(b), to) <= ARRIVE_FLAT_M => Verdict::Keep,
-            Some(b) => Verdict::Taught(b),
+            Some(g) if self.own_top(b, g) => Verdict::Keep,
+            Some(g) => Verdict::Taught(g),
             None => Verdict::Cut,
         }
     }
@@ -678,8 +791,8 @@ impl WalkGrid {
         for (stance, speed) in [(Stance::Crouched, CROUCH_MPS), (Stance::Standing, WALK_MPS)] {
             let Some(at) = release_point(world, s, start, stance, speed, from, way) else { continue };
             let Some(b) = released_rest(world, s, start, stance, speed, from, way, at, to.y).and_then(&lower) else { continue };
-            let mut landed: u8 = 0;
-            for n in jump::neighbourhood() {
+            let mut bits: u16 = 0;
+            for (i, n) in jump::neighbourhood().into_iter().enumerate() {
                 let itself = n.lead == 0.0 && n.side == 0.0 && n.turn == 0.0 && !n.fastest;
                 let lands = itself || {
                     let (sin, cos) = n.turn.sin_cos();
@@ -688,9 +801,9 @@ impl WalkGrid {
                     released_rest(world, s, start, stance, v, from + right * n.side, heading, (at - n.lead).max(0.0), to.y).and_then(&lower)
                         == Some(b)
                 };
-                landed += u8::from(lands);
+                bits |= u16::from(lands) << i;
             }
-            let share = Share::landed(landed);
+            let share = Share::of_mask(super::gap::Mask::of_bits(bits).expect("a bit a neighbour"));
             let press = Takeoff::Release { at: PressLead::from_metres(at), crouched: stance == Stance::Crouched };
             if best.is_none_or(|(_, _, kept)| share.flown() > kept.flown()) {
                 best = Some((b, press, share));
@@ -1031,6 +1144,84 @@ mod tests {
         assert!((wide.y - 2.1).abs() < 0.1, "{wide:?}");
         let narrow = stop_at_drop(&slab(0.25), &s, start, from, to).expect("stands");
         assert!(narrow.y < 0.1, "{narrow:?}");
+    }
+
+    /// [F2] The drop's script flown to its rest ([`walk_off_rest`]: forward held to the landing step, then let go): off a slab
+    /// 3 m up (its face down to the ground), a ledge 0.9 m down holds the body when it is 3 m deep, and one 0.25 m deep does not (the body rests on the
+    /// ground); off the slab onto open ground it rests on the ground within reach of the landing. Under a deck it is held.
+    #[test]
+    fn a_drop_is_judged_where_its_flight_rests() {
+        let s = Settings::LIVE;
+        let start = WalkStart::Clear;
+        let (from, to) = (Vec3::new(-0.25, 3.0, 0.0), Vec3::new(0.125, 2.1, 0.0));
+        let slab = |ledge_x1: Option<f32>| {
+            let mut tris = Vec::new();
+            tris.extend(quad(-10.0, 10.0, -10.0, 10.0, 0.0));
+            tris.extend(quad(-5.0, 0.0, -2.0, 2.0, 3.0));
+            // The slab's face down its edge (a body let go at the landing stands against it, not under the slab's top).
+            let t = |v: [Vec3; 3]| Triangle { v, walker: WalkerBehaviour::BySlope };
+            let (a, b, c, d) = (Vec3::new(0.0, 0.0, -2.0), Vec3::new(0.0, 0.0, 2.0), Vec3::new(0.0, 3.0, 2.0), Vec3::new(0.0, 3.0, -2.0));
+            tris.extend([t([a, b, c]), t([a, c, d])]);
+            if let Some(x1) = ledge_x1 {
+                tris.extend(quad(0.0, x1, -2.0, 2.0, 2.1));
+            }
+            Collision::build(&tris)
+        };
+        let rest = |world: &Collision, to: Vec3| walk_off_rest(world, &s, start, Stance::Standing, WALK_MPS, from, to);
+        let DropWalk::LandsAt(wide, _) = rest(&slab(Some(3.0)), to) else { panic!("rests") };
+        assert!((wide.y - 2.1).abs() < 0.05, "{wide:?}");
+        let DropWalk::LandsAt(narrow, _) = rest(&slab(Some(0.25)), to) else { panic!("rests") };
+        assert!(narrow.y < 0.05, "{narrow:?}");
+        let ground = Vec3::new(0.25, 0.0, 0.0);
+        let DropWalk::LandsAt(open, _) = rest(&slab(None), ground) else { panic!("rests") };
+        assert!(open.y < 0.05 && flat(open, ground) < 2.0, "{open:?}");
+        let mut deck = Vec::new();
+        deck.extend(quad(-10.0, 10.0, -10.0, 10.0, 0.0));
+        deck.extend(quad(-5.0, 5.0, -2.0, 2.0, 3.0));
+        assert_eq!(rest(&Collision::build(&deck), Vec3::new(0.25, 0.0, 0.0)), DropWalk::Held);
+    }
+
+    /// [F2] A take-off on a top 0.5 m deep along the way (a rail's, a railing's) is a thin top, whose releases are held; one on
+    /// the edge of a slab 5 m deep is not.
+    #[test]
+    fn a_rails_top_is_thin_and_a_slabs_edge_is_not() {
+        let mut tris = Vec::new();
+        tris.extend(quad(-10.0, 10.0, -10.0, 10.0, 0.0));
+        tris.extend(quad(-6.0, -1.0, -2.0, 2.0, 2.0));
+        tris.extend(quad(2.0, 2.5, -2.0, 2.0, 2.0));
+        let grid = WalkGrid::build(&tris, [-10.0, -10.0, 10.0, 10.0], 0.25, super::super::Body::default());
+        let way = Vec3::new(1.0, 0.0, 0.0);
+        let rail = grid.locate_within(Vec3::new(2.375, 2.0, 0.0), 0.2, 0.3).expect("a floor on the rail");
+        let slab = grid.locate_within(Vec3::new(-1.125, 2.0, 0.0), 0.2, 0.3).expect("a floor on the slab's edge");
+        assert!(grid.on_thin_top(rail, way));
+        assert!(!grid.on_thin_top(slab, way));
+    }
+
+    /// [F2] A drop on a map's game shapes (`Collision::build_exe`): its flights printed (`cargo test -- --ignored --nocapture`):
+    /// `DROP_MAP` a format 6 map file, `DROP_FROM` and `DROP_TO` as `x,y,z` (feet). The walk carried on ([`walk_drop`]), the
+    /// script flown to its rest ([`walk_off_rest`]) standing and crouched, and the let-go at the release ([`release_point`],
+    /// [`released_rest`]) standing and crouched.
+    #[test]
+    #[ignore]
+    fn print_a_maps_drop() {
+        let var = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("set {k}"));
+        let point = |k: &str| {
+            let v: Vec<f32> = var(k).split(',').map(|x| x.trim().parse().unwrap()).collect();
+            Vec3::new(v[0], v[1], v[2])
+        };
+        let map = crate::MapData::from_bytes(&std::fs::read(var("DROP_MAP")).unwrap()).unwrap();
+        let world = Collision::build_exe(&map).expect("a format 6 map");
+        let s = Settings { wall_normal: crate::controller::tick::WallNormal::Rays, ..Settings::LIVE };
+        let start = WalkStart::Clear;
+        let (from, to) = (point("DROP_FROM"), point("DROP_TO"));
+        println!("walk carried on: {:?}", walk_drop(&world, &s, start, from, to));
+        for (stance, speed) in [(Stance::Standing, WALK_MPS), (Stance::Crouched, CROUCH_MPS)] {
+            println!("{stance:?} script to rest: {:?}", walk_off_rest(&world, &s, start, stance, speed, from, to));
+            let way = Vec3::new(to.x - from.x, 0.0, to.z - from.z) * (1.0 / flat(from, to).max(1e-4));
+            let at = release_point(&world, &s, start, stance, speed, from, way);
+            let rest = at.and_then(|at| released_rest(&world, &s, start, stance, speed, from, way, at, to.y));
+            println!("{stance:?} release at {at:?}: rests at {rest:?}");
+        }
     }
 
     /// A take-off boxed in by walls (the body cannot move from it on any line) says nothing of the drop: the link is kept.

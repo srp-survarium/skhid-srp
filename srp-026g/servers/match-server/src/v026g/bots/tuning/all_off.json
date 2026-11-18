@@ -56,6 +56,7 @@
     "cut_given_crowd": false,
     "finish_take": false,
     "held_in_pass": false,
+    "hold_started": false,
     "hold_to_arrival": false
   },
   "cover": {
@@ -186,6 +187,8 @@
     "clear_by_look": false,
     "spawn_exit_breach": false,
     "job_role_offer": false,
+    "job_role_needs_spot": false,
+    "support": null,
     "job_strongest_first": false,
     "concede": null,
     "crossfire_out_of_lines": false,
