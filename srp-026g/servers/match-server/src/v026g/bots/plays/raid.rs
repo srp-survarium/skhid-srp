@@ -258,25 +258,54 @@ fn approach(cx: &Ctx, container: Vec3, rule: &crate::v026g::bots::tuning::RaidAp
             let gather = (0..route.points.len()).min_by(|&a, &b| d(a).total_cmp(&d(b))).filter(|&i| d(i) <= rule.route_near_m)?;
             let from = (0..route.points.len())
                 .min_by(|&a, &b| route.points[a].distance_xz(feet).total_cmp(&route.points[b].distance_xz(feet)))?;
-            (from <= gather).then(|| route.points[from..=gather].to_vec())
+            // [review of #2195] Never back first: the route's points farther from the container than the bot are left out.
+            let ahead = feet.distance_xz(container);
+            let points: Vec<Vec3> = (from <= gather)
+                .then(|| route.points[from..=gather].iter().copied().skip_while(|p| p.distance_xz(container) > ahead).collect())?;
+            (!points.is_empty()).then_some(points)
         })
         .filter(|points| points.last().is_some_and(|&g| cx.can_go(g)))
         .collect();
+    // The ring's points round the container (none where no floor the bot can go to), by bearing; none for a bot already
+    // inside the ring (going out to it would be going back).
     let ring = || -> Vec<Vec<Vec3>> {
+        if feet.distance_xz(container) <= rule.stage_m {
+            return Vec::new();
+        }
         let grid = &cx.tactics.world.grid;
-        (0..rule.bearings)
-            .filter_map(|k| {
-                let yaw = std::f32::consts::TAU * f32::from(k) / f32::from(rule.bearings);
+        let n = usize::from(rule.bearings);
+        let points: Vec<Option<Vec3>> = (0..n)
+            .map(|k| {
+                let yaw = std::f32::consts::TAU * k as f32 / n as f32;
                 let p = container + Vec3::new(yaw.cos() * rule.stage_m, 0.0, yaw.sin() * rule.stage_m);
                 let floor = grid.position(grid.locate(p, 3.0)?);
-                cx.can_go(floor).then(|| vec![floor])
+                cx.can_go(floor).then_some(floor)
+            })
+            .collect();
+        // [review of #2195] The bot comes onto the ring at its point nearest the bot and walks round it to the gather point,
+        // the shorter way, never across the container.
+        let Some(entry) = (0..n).filter(|&k| points[k].is_some()).min_by(|&a, &b| {
+            let d = |k: usize| points[k].map_or(f32::INFINITY, |p| p.distance_xz(feet));
+            d(a).total_cmp(&d(b))
+        }) else {
+            return Vec::new();
+        };
+        (0..n)
+            .filter(|&g| points[g].is_some())
+            .map(|g| {
+                let forward = (g + n - entry) % n;
+                let steps: Vec<usize> =
+                    if forward <= n / 2 { (0..=forward).map(|i| (entry + i) % n).collect() } else { (0..=n - forward).map(|i| (entry + n - i) % n).collect() };
+                steps.into_iter().filter_map(|k| points[k]).collect()
             })
             .collect()
     };
     let (candidates, kind) = if routes.is_empty() { (ring(), raid_counts::Count::ApproachRing) } else { (routes, raid_counts::Count::ApproachRoute) };
+    // [review of #2195] The walk to the approach's first point by the bot's path distance (as `Input::PathDist`), the rest
+    // along the approach's own points.
     let cost = |points: &Vec<Vec3>| {
         let way: Vec<Vec3> = std::iter::once(feet).chain(points.iter().copied()).chain(std::iter::once(container)).collect();
-        let length: f32 = way.windows(2).map(|w| w[0].distance_xz(w[1])).sum();
+        let length = cx.path_dist(points[0]) + way[1..].windows(2).map(|w| w[0].distance_xz(w[1])).sum::<f32>();
         length + rule.risk_m * way_risk(cx, &way, rule)
     };
     let best = candidates.into_iter().map(|p| (cost(&p), p)).min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, p)| p);
@@ -449,19 +478,26 @@ mod tests {
         let mut s = raid(2);
         s.tuning.mods.raid_approach = Some(RaidApproach::default());
         s.tuning.mods.raid_regroup = None;
-        // A known enemy (heard) 25 m east of their container.
+        // A known enemy (heard) 25 m east of their container; the raider 63 m west of it, outside the ring.
         s.enemy(5, 1, Vec3::new(93.0, 0.0, 30.0), Some(Source::Heard));
+        s.view.places[0].feet = Vec3::new(5.0, 0.0, 30.0);
         let mut state = start(target, &s.cx(0), &mut rng);
         let State::Via { points, next: 0 } = &state else { panic!("{state:?}") };
+        let points = points.clone();
         let gather = *points.last().unwrap();
-        assert!((gather.distance_xz(at) - 40.0).abs() < 3.5, "on the ring: {gather:?}");
+        assert!(points.iter().all(|p| (p.distance_xz(at) - 40.0).abs() < 3.5), "round the ring: {points:?}");
         assert!(gather.x < at.x, "away from the known enemy's side: {gather:?}");
-        // It walks to it; there, it goes in.
-        let Step::Continue(intent) = step(&mut state, target, &s.cx(0), &mut rng) else { panic!("{state:?}") };
-        assert!(matches!(intent.go, Go::To { at: p, .. } if p == gather), "{intent:?}");
-        s.view.places[0].feet = gather;
+        // It walks its points in turn, never across the container; at the last, it goes in.
+        for &p in &points {
+            let Step::Continue(intent) = step(&mut state, target, &s.cx(0), &mut rng) else { panic!("{state:?}") };
+            assert!(matches!(intent.go, Go::To { at: q, .. } if q == p), "{intent:?}");
+            s.view.places[0].feet = p;
+        }
         let _ = step(&mut state, target, &s.cx(0), &mut rng);
         assert_eq!(state, State::GoIn);
+        // Already inside the ring: no ring approach (it would walk back out), the straight way.
+        s.view.places[0].feet = Vec3::new(40.0, 0.0, 30.0);
+        assert_eq!(start(target, &s.cx(0), &mut rng), State::Approach);
     }
 
     fn raids(s: &Scenario) -> Vec<Candidate> {
