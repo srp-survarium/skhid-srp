@@ -1160,6 +1160,7 @@ mod tests {
             flank_from: None,
             role_offer: false,
             strongest_first: false,
+            spot: &crate::v026g::bots::threat::any_spot,
         };
         let unheld = |_| JobEnd::Faded;
         for now in [1_500, 1_000 + crate::v026g::bots::threat::JOB_REST_MS + 500] {

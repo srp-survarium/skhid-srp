@@ -656,6 +656,15 @@ pub struct ThreatTuning {
     /// no such spot, the bot holds where it is, its view on him. In 0x60217a42 the trades walked onto bodies 6-8 m from a camper
     /// (the A297 spot was Team Deathmatch's only). `None`: off (TDM's `tdm.group` only).
     pub trade_cover: Option<GroupUp>,
+    /// [fix-team 3] A mate's fight is answered in every mode where `tdm.group` and `tdm.squad` are off: the commander gives
+    /// each fight (a teammate whose reflex holds a target) the nearest free bot within `answer_m` not holding an angle
+    /// (`answer`) and not on an objective or alarm play, and play 21's cover takes it to a spot round the mate with a line
+    /// on the mate's enemy from a second bearing, its view on him (the shared target), in the fight band (A297's cover was an
+    /// alarm and took the bots off their held angles). The rules are A297's v3 cover, with no pre-contact hold (`approach`).
+    /// `None`: off, the trade after the mate's death only (16 local matches at 9694ea576: at 73 % of the human's kills no
+    /// other enemy bot fired at or hit him; 67 % of a victim's mates within 15 m had no line to him in the 3 s before;
+    /// `LOSING-TEAM-ROOT-CAUSE.md` L6).
+    pub support: Option<GroupUp>,
     /// K3: PairUp does not join a teammate standing in a held spot's lanes,
     /// and its join and wait spots are out of the top player's sight and the
     /// held lanes (F3).
@@ -680,6 +689,12 @@ pub struct ThreatTuning {
     /// [A391] New jobs try the held spots with the most kills first, so a shooter's job opens on his strongest spot and falls
     /// back to the next when that one rests or cannot be staffed (`threat::opening_order`). Off: in the held spots' order.
     pub job_strongest_first: bool,
+    /// [fix-team 1] A job role goes only to a mate that has a spot for it now (the role play's own test, asked of each free mate
+    /// nearest first; `threat::JobTeam::spot`); a held spot none of whose free mates in reach has one reports it and rests
+    /// (`threat::JobEvent::NoSpot`). Off: the nearest free mate, whose role then fails as "no spot" one poll later and goes
+    /// to the next (owner-16, 16 matches at 9694ea576: 719 of 750 roles on the human's spots were dropped so, 0.5 s after
+    /// they were given; `LOSING-TEAM-ROOT-CAUSE.md` L3).
+    pub job_role_needs_spot: bool,
     /// K2: a role goes to a bot out of every held line (off: out of the
     /// holds' only, `job_kills`; verify-703 should-fix 3). OFF by default:
     /// alone against the four follow-ups off (96 pairs by side, 2026-10-29)
@@ -935,6 +950,14 @@ pub struct CommitTuning {
     /// battery, 20 of those bots killed there, where players finish every take they start (the batteries findings of
     /// 2026-11-14, C2).
     pub finish_take: bool,
+    /// [fix-team 2] A started raid, late denial, job or Breach role, cover of a human or Collect run is held: kept against
+    /// every play but a named interrupter (a survival play that is the bot's best, or an alarm-band play over a play below
+    /// it), while it is a free candidate; the interrupter suspends it, and it is taken back once the interrupter is no longer
+    /// kept, if it is still a free candidate (`team::Commit::Held`, `team::Commit::Resumes`). Off: a running play is kept
+    /// only by its band and the margin, so any higher band took it (16 local matches at 9694ea576: 58-65 play changes per
+    /// 100 alive bot-minutes, 97 % by a higher band or a play dropping out; 1,028 raids, 10 within 10 m of the container;
+    /// CoverHuman held a median 6.2 s, 235 of 239 higher-band winners scoring lower; `LOSING-TEAM-ROOT-CAUSE.md` L4).
+    pub hold_started: bool,
     /// A running Cut is scored without the crowd at its cut point
     /// (`Input::FriendsNearTarget` taken as 0): the crowd is a reason not to
     /// start a Cut where friends already are, not to leave one the bot is
@@ -996,6 +1019,7 @@ impl Default for CommitTuning {
         Self {
             hold_to_arrival: true,
             finish_take: true,
+            hold_started: true,
             cut_given_crowd: true,
             crossfire_point: true,
             crossfire_point_s: 30.0,
@@ -1029,12 +1053,14 @@ impl Default for ThreatTuning {
             trade_out_of_lines: true,
             trade_reach: true,
             trade_cover: None,
+            support: Some(GroupUp { approach: None, ..GroupUp::default() }),
             pair_up_hidden: true,
             crossfire_out_of_lines: true,
             whole_route_booked: true,
             job_open_staffed: true,
             job_role_offer: true,
             job_strongest_first: true,
+            job_role_needs_spot: true,
             job_out_of_all_lines: false,
             job_line_by_id: true,
             job_spot_levels: false,

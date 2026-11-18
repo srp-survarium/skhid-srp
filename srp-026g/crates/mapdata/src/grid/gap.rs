@@ -517,8 +517,20 @@ pub struct GapStats {
     /// … the gaps found and their groups (a metre of edge, way, levels; at most two of a group flown).
     pub gaps: usize,
     pub groups: usize,
-    /// … and the clip pass's pressed links kept where no flown press covers their group (unflown, priced as before).
+    /// … and the clip pass's pressed links kept where no flown press covers their group, unflown (0 with `gap_flights`: each
+    /// is proven first, [F1]).
     pub clip_kept: usize,
+    /// [F1] With `gap_flights`: the groups of clip pass presses no flown link covers, flown over every client press as a flown
+    /// group is (`gap_flown`'s `prove_clip_presses`) …
+    pub clip_tried: usize,
+    /// … kept with a flown press that lands across (the gap pass's own landing rule) …
+    pub clip_proven: usize,
+    /// … of their links, those going to another floor than the clip's (where the flights rest) …
+    pub clip_retargeted: usize,
+    /// … left with no pressed link: no client press lands across …
+    pub clip_unlanded: usize,
+    /// … in this many flights (not in [`Self::flights`]).
+    pub clip_flights: usize,
     /// [R83] Groups no press on the line made, one of whose flights came near the landing, flown again aimed
     /// ([`WalkGrid::best_aimed`]) …
     pub aimed_tried: usize,
@@ -549,6 +561,11 @@ impl GapStats {
         self.flown += o.flown;
         self.gaps += o.gaps;
         self.clip_kept += o.clip_kept;
+        self.clip_tried += o.clip_tried;
+        self.clip_proven += o.clip_proven;
+        self.clip_unlanded += o.clip_unlanded;
+        self.clip_retargeted += o.clip_retargeted;
+        self.clip_flights += o.clip_flights;
         self.groups += o.groups;
         self.flights += o.flights;
         for (m, o) in self.by_share.iter_mut().zip(o.by_share) {
@@ -575,27 +592,70 @@ pub enum OffMeshLinks {
     Gaps,
 }
 
-/// [A385] A flown link's robustness (A385-FORMAT §2): of its press's [`jump::NEIGHBOURS`] neighbourhood flights (the motor's
-/// spread of lead, side and heading, the world 1-2 cm off, the bots' fastest kit; every sprint variant), how many land and stay;
-/// or not flown (a link no pass has scored yet: no price of its own).
+/// [F1b] Which flights of a press's neighbourhood ([`jump::neighbourhood`], in its order) land on the link's own top: bit `i` for
+/// neighbour `i` (the press itself, the leads -0.2 / -0.1 / +0.1 / +0.2, the sides -0.15 / +0.15, the turns -0.1 / +0.1, the
+/// world's heights, the fastest kit).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct Share(u8);
+pub struct Mask(u16);
+
+impl Mask {
+    /// Every neighbour.
+    const ALL: u16 = (1 << jump::NEIGHBOURS) - 1;
+
+    /// The mask of these bits; None with a bit past the neighbourhood.
+    pub fn of_bits(bits: u16) -> Option<Self> {
+        (bits & !Self::ALL == 0).then_some(Self(bits))
+    }
+
+    /// The mask's bits.
+    pub fn bits(self) -> u16 {
+        self.0
+    }
+
+    /// Whether neighbour `i` lands.
+    pub fn lands(self, i: usize) -> bool {
+        i < jump::NEIGHBOURS && self.0 & (1 << i) != 0
+    }
+
+    /// The neighbours that land.
+    pub fn count(self) -> u8 {
+        self.0.count_ones() as u8
+    }
+}
+
+/// [A385] A flown link's robustness (A385-FORMAT §2): of its press's [`jump::NEIGHBOURS`] neighbourhood flights (the motor's
+/// spread of lead, side and heading, the world 1-2 cm off, the bots' fastest kit; every sprint variant), which land and stay
+/// ([F1b] the [`Mask`], whose count prices the link and whose bits give its [`TakeoffWindow`]); or not flown (a link no pass
+/// has scored yet: no price of its own).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Share(Option<Mask>);
 
 impl Share {
     /// A link not scored ([`OffLink`]s of the gap and drop passes until A389).
-    pub const UNFLOWN: Self = Self(u8::MAX);
+    pub const UNFLOWN: Self = Self(None);
     /// Every neighbour lands.
-    pub const FULL: Self = Self(jump::NEIGHBOURS as u8);
+    pub const FULL: Self = Self(Some(Mask(Mask::ALL)));
 
-    /// `n` of the neighbourhood land.
+    /// `n` of the neighbourhood land, the first `n` in its order: for a share known by its count only (a riser no press gets
+    /// up, 0; the tests).
     pub fn landed(n: u8) -> Self {
         assert!(usize::from(n) <= jump::NEIGHBOURS, "{n} of {} neighbours", jump::NEIGHBOURS);
-        Self(n)
+        Self(Some(Mask(((1u32 << n) - 1) as u16)))
+    }
+
+    /// [F1b] The share of the neighbours `mask` lands.
+    pub fn of_mask(mask: Mask) -> Self {
+        Self(Some(mask))
+    }
+
+    /// [F1b] Which neighbours land, None when not flown.
+    pub fn mask(self) -> Option<Mask> {
+        self.0
     }
 
     /// The neighbours that land, None when not flown.
     pub fn flown(self) -> Option<u8> {
-        (self != Self::UNFLOWN).then_some(self.0)
+        self.0.map(Mask::count)
     }
 
     /// owner-5's classes (rim-score): 0 under 0.2 (knife edge), 1 from 0.2 to under 0.6, 2 at 0.6 and over (robust); an unflown
@@ -619,14 +679,100 @@ impl Share {
         }
     }
 
+    /// In a built file's record: the count, [`u8::MAX`] when not flown (the mask is in the masks table, [`Self::mask_bits`]).
     pub(super) fn byte(self) -> u8 {
-        self.0
+        self.flown().unwrap_or(u8::MAX)
     }
 
-    /// From a built file's byte: None when it is neither a count of the neighbourhood nor [`Self::UNFLOWN`].
+    /// From a built file's byte: None when it is neither a count of the neighbourhood nor not flown. A count reads as its
+    /// first neighbours ([`Self::landed`]) until the masks table gives the bits ([`Self::with_bits`]).
     pub(super) fn from_byte(b: u8) -> Option<Self> {
-        (usize::from(b) <= jump::NEIGHBOURS || b == u8::MAX).then_some(Self(b))
+        match b {
+            u8::MAX => Some(Self::UNFLOWN),
+            b if usize::from(b) <= jump::NEIGHBOURS => Some(Self::landed(b)),
+            _ => None,
+        }
     }
+
+    /// [F1b] In a built file's masks table: the bits, 0 when not flown (no flown mask's bits are read back for one).
+    pub(super) fn mask_bits(self) -> u16 {
+        self.0.map_or(0, Mask::bits)
+    }
+
+    /// [F1b] This share (read from a record's count) with the masks table's `bits`: None when they disagree (another count,
+    /// bits on an unflown share, a bit past the neighbourhood).
+    pub(super) fn with_bits(self, bits: u16) -> Option<Self> {
+        match self.flown() {
+            None => (bits == 0).then_some(self),
+            Some(n) => Mask::of_bits(bits).filter(|m| m.count() == n).map(Self::of_mask),
+        }
+    }
+
+    /// [F1b] The take-off window of `press` aimed by `aim` with this share ([`TakeoffWindow`]); None when not flown or when the
+    /// press itself (neighbour 0) does not land: no point of the window is proven.
+    pub fn window(self, press: Takeoff, aim: Aim) -> Option<TakeoffWindow> {
+        let m = self.mask().filter(|m| m.lands(0))?;
+        // The lead row (neighbours 1-4: -0.2, -0.1, +0.1, +0.2 m of lead), the run of landing leads through the press's own.
+        let leads = jump::NEIGHBOUR_LEADS_M;
+        let earlier = (2..=3).take_while(|&i| m.lands(i + 1)).map(|i| leads[i]).fold(0.0f32, f32::max);
+        let later = (0..=1).rev().take_while(|&i| m.lands(i + 1)).map(|i| leads[i]).fold(0.0f32, f32::min);
+        let side = |i: usize| if m.lands(i) { jump::NEIGHBOUR_SIDE_M } else { 0.0 };
+        let turn = |i: usize| if m.lands(i) { jump::NEIGHBOUR_TURN_RAD } else { 0.0 };
+        let (lead_m, speed) = match press {
+            Takeoff::Press(lead) => ((lead.metres() + later, lead.metres() + earlier), SpeedBand::Walk),
+            Takeoff::Slow { lead, steps: 0 } => ((lead.metres() + later, lead.metres() + earlier), SpeedBand::Stand),
+            Takeoff::Slow { lead, steps } => ((lead.metres() + later, lead.metres() + earlier), SpeedBand::SlowWalk { steps }),
+            Takeoff::Sprint(lead) | Takeoff::SprintHeld(lead) => ((lead.metres() + later, lead.metres() + earlier), SpeedBand::Sprint),
+            Takeoff::Climb => ((later, earlier), SpeedBand::Sprint),
+            // A release's neighbour `lead` lets go that much earlier: its `at` less the lead.
+            Takeoff::Release { at, .. } => ((at.metres() - earlier, at.metres() - later), SpeedBand::Walk),
+            Takeoff::WalkOff => ((0.0, 0.0), SpeedBand::Walk),
+        };
+        Some(TakeoffWindow {
+            lead_m,
+            side_m: (side(5), side(6)),
+            turn_rad: (turn(8), turn(7)),
+            aim_side_m: aim.side_m(),
+            aim_turn_rad: aim.turn_rad(),
+            speed,
+            fastest_kit: m.lands(jump::NEIGHBOURS - 1),
+        })
+    }
+}
+
+/// [F1b] The gait a press is made from ([`TakeoffWindow::speed`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpeedBand {
+    /// At rest (a standing jump, [`Takeoff::Slow`] with no steps).
+    Stand,
+    /// The short jump this many steps into the walk-up ([`jump::Kind::Slow`]).
+    SlowWalk { steps: u8 },
+    /// At the walk cap (a walking press, a release).
+    Walk,
+    /// At a sprint (a sprint jump, a held sprint, a sprint climb).
+    Sprint,
+}
+
+/// [F1b] Where a press of a flown link lands from (agreed with the motor's session, 2026-11-18): the neighbourhood's offsets whose
+/// flights land on the link's own top ([`Share::window`]), as the motor's entry gate reads them.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TakeoffWindow {
+    /// The leads (m before the take-off floor's centre along the way; a release's: m past it, where the key goes) the window
+    /// spans, (least, most): the run of landing lead neighbours through the press's own.
+    pub lead_m: (f32, f32),
+    /// How far the press point may lie to the left and to the right of the press's line (the aimed line), m: the
+    /// neighbourhood's side offset where that side's flight lands, else 0.
+    pub side_m: (f32, f32),
+    /// How far the heading may turn counter-clockwise and clockwise of the press's heading, rad: the neighbourhood's turn where
+    /// that turn's flight lands, else 0.
+    pub turn_rad: (f32, f32),
+    /// The press's aim off the link's line ([`Aim`]): its line's side, m to the way's right, and its heading's turn, rad.
+    pub aim_side_m: f32,
+    pub aim_turn_rad: f32,
+    /// The press's gait.
+    pub speed: SpeedBand,
+    /// Whether the bots' fastest kit's flight lands too.
+    pub fastest_kit: bool,
 }
 
 /// A link that is no neighbour link (an off-mesh connection): from a
@@ -694,6 +840,13 @@ pub struct OffLink {
     pub walk: Option<(PressLead, Share)>,
     /// [R83] Where its press is aimed ([`Aim::STRAIGHT`] for every link but a rim jump made only off the line).
     pub aim: Aim,
+}
+
+impl OffLink {
+    /// [F1b] Where its press lands from ([`Share::window`]); None for a link not flown or whose own press does not land.
+    pub fn window(&self) -> Option<TakeoffWindow> {
+        self.share.window(self.press, self.aim)
+    }
 }
 
 /// The short jump's root height `ahead` metres from the press (linear
