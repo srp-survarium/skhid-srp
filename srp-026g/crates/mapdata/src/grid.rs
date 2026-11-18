@@ -98,7 +98,7 @@ mod gap_flown;
 pub mod held_floors;
 mod line_tops;
 mod rest_floors;
-pub use gap::{Aim, GapStats, OffLink, OffMeshLinks, PressLead, Share};
+pub use gap::{Aim, GapStats, Mask, OffLink, OffMeshLinks, PressLead, Share, SpeedBand, TakeoffWindow};
 pub use rim::{Riser, LAND_HEIGHT_M};
 pub use line_tops::{LineTop, TopFace, ACROSS_WAYS, MEASURE_STEP_M};
 pub use wall_give_back::{give_back_stands, GiveBackStands, STAND_MOVED_M};
@@ -3381,6 +3381,10 @@ impl WalkGrid {
             if !l.aim.is_straight() {
                 digest.u32(0x4149_4d00 | u32::from(l.aim.byte()));
             }
+            // [F1b] A flown share's neighbourhood mask.
+            if let Some(m) = l.share.mask() {
+                digest.u32(0x4d41_0000 | u32::from(m.bits()));
+            }
         }
         // [A347] A grid with no walled exits digests as before there were any.
         if !self.walled_exits.is_empty() {
@@ -3433,6 +3437,8 @@ impl WalkGrid {
                 digest.u32(b);
                 digest.u32(u32::from(press));
                 digest.u32(u32::from(share));
+                // [F1b] A riser's neighbourhood mask.
+                digest.u32(0x4d41_0000 | u32::from(r.share().mask_bits()));
             }
         }
         // [A377] A grid with no lips by where the body stops digests as before there were any.
@@ -3449,6 +3455,8 @@ impl WalkGrid {
     /// Writes the grid to `path` as the grid of `key` ([`crate::built`],
     /// [`crate::grid_key`]).
     pub fn write(&self, path: &std::path::Path, key: u64) -> Result<(), Error> {
+        // [F1b] The flown shares' neighbourhood masks, last in the file: one a off link, then one a riser.
+        let masks = self.share_masks();
         built::write(path, built::GRID_MAGIC, key, self.digest(), |out| {
             for value in [self.x0, self.z0, self.cell] {
                 out.f32(value)?;
@@ -3480,7 +3488,7 @@ impl WalkGrid {
                 && self.walk_marked.is_empty()
                 && self.walk_crouched.is_empty()
                 && self.riser.is_empty()
-                && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty()
+                && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty()
             {
                 return Ok(());
             }
@@ -3500,12 +3508,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A304] The ramp slopes, when the grid has them (an empty table before the walled exits).
-            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
+            if self.ramp.is_empty() && self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
                 return Ok(());
             }
             out.plain(&self.ramp, |&v| [v])?;
             // [A347] The walled exits, when the grid has them (an empty table before the marked walks).
-            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
+            if self.walled_exits.is_empty() && self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
                 return Ok(());
             }
             let pair = |&(a, b): &(NodeId, NodeId)| {
@@ -3516,17 +3524,17 @@ impl WalkGrid {
             };
             out.plain(&self.walled_exits, pair)?;
             // [2c] The marked walks, when the grid has them (an empty table before the crouched walks).
-            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
+            if self.walk_marked.is_empty() && self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_marked, pair)?;
             // [`Body::walk_ceiling_stalls`] The crouched walks, when the grid has them.
-            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
+            if self.walk_crouched.is_empty() && self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
                 return Ok(());
             }
             out.plain(&self.walk_crouched, pair)?;
             // [A385 rule (d)] The risers' presses, when the grid has them: from, to, press (as an off-mesh link's), share, a zero.
-            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
+            if self.riser.is_empty() && self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
                 return Ok(());
             }
             out.plain(&self.riser, |&(a, b, r)| {
@@ -3539,12 +3547,12 @@ impl WalkGrid {
                 bytes
             })?;
             // [A377] The lips by where the body stops, when the grid has them.
-            if self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
+            if self.drop_lips.is_empty() && self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
                 return Ok(());
             }
             out.plain(&self.drop_lips, pair)?;
             // [A389] The floors `held_floors` took, as feet, when the grid has them (a log's only: not in the digest).
-            if self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() {
+            if self.held_taken.is_empty() && self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
                 return Ok(());
             }
             out.plain(&self.held_taken, |p| {
@@ -3555,7 +3563,7 @@ impl WalkGrid {
                 bytes
             })?;
             // [S6] The held floors' drops' landing speeds, when the grid has them: from, to, cm/s.
-            if self.drop_speed.is_empty() && self.line_tops.is_empty() {
+            if self.drop_speed.is_empty() && self.line_tops.is_empty() && masks.is_empty() {
                 return Ok(());
             }
             out.plain(&self.drop_speed, |&(a, b, v)| {
@@ -3566,10 +3574,15 @@ impl WalkGrid {
                 bytes
             })?;
             // [S3] The line tops, when the grid has them.
-            if self.line_tops.is_empty() {
+            if self.line_tops.is_empty() && masks.is_empty() {
                 return Ok(());
             }
-            out.plain(&self.line_tops, |(f, t)| line_tops::LineTop::bytes(*f, t))
+            out.plain(&self.line_tops, |(f, t)| line_tops::LineTop::bytes(*f, t))?;
+            // [F1b] The flown shares' neighbourhood masks ([`Self::share_masks`]), when any share is flown.
+            if masks.is_empty() {
+                return Ok(());
+            }
+            out.plain(&masks, |m| m.to_le_bytes())
         })
     }
 
@@ -3729,14 +3742,50 @@ impl WalkGrid {
             pull_hold: None,
             pull_walk: None,
                 };
-                grid.check()?;
+                // [F1b] The flown shares' neighbourhood masks, when the file has them.
+                let masks: Vec<u16> = if input.ends() { Vec::new() } else { input.plain(u16::from_le_bytes)? };
                 let mut grid = grid;
+                grid.set_share_masks(&masks)?;
+                grid.check()?;
                 grid.body = build;
                 grid.warm();
                 Ok(grid)
             },
             Self::digest,
         )
+    }
+
+    /// [F1b] The flown shares' neighbourhood masks in the file's order: each off link's ([`gap::Share::mask_bits`], 0 when not
+    /// flown), then each riser's; none when no share is flown (a grid with none writes as before).
+    fn share_masks(&self) -> Vec<u16> {
+        let flown = self.off.iter().any(|l| l.share.flown().is_some()) || !self.riser.is_empty();
+        if !flown {
+            return Vec::new();
+        }
+        self.off.iter().map(|l| l.share.mask_bits()).chain(self.riser.iter().map(|&(_, _, r)| r.share().mask_bits())).collect()
+    }
+
+    /// [F1b] Gives the off links' and the risers' shares read from their records' counts the masks table's bits
+    /// ([`Self::share_masks`]'s order). A table of another length, or bits that disagree with a record's count, is no grid this
+    /// build wrote; no table is one only where no share is flown.
+    fn set_share_masks(&mut self, masks: &[u16]) -> Result<(), String> {
+        if masks.is_empty() {
+            return match self.share_masks().is_empty() {
+                true => Ok(()),
+                false => Err("flown shares with no masks table".into()),
+            };
+        }
+        if masks.len() != self.off.len() + self.riser.len() {
+            return Err(format!("{} share masks for {} off links and {} risers", masks.len(), self.off.len(), self.riser.len()));
+        }
+        let (off, riser) = masks.split_at(self.off.len());
+        for (i, (l, &bits)) in self.off.iter_mut().zip(off).enumerate() {
+            l.share = l.share.with_bits(bits).ok_or_else(|| format!("off link {i}: mask {bits:#06x} against {:?}", l.share))?;
+        }
+        for (i, (r, &bits)) in self.riser.iter_mut().zip(riser).enumerate() {
+            r.2 = r.2.with_bits(bits).ok_or_else(|| format!("riser {i}: mask {bits:#06x} against {:?}", r.2))?;
+        }
+        Ok(())
     }
 
     /// The first off-mesh link that breaks the file's rule, named with its index and its neighbour: the links strictly ordered
