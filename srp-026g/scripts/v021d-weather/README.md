@@ -68,9 +68,21 @@ Static validation does not establish visual parity. Rendering retains the
 same documented native portions as the day ports: probe shading; box-edge
 ambient saturation; unsupported tone, AO, sun, particle and water variants;
 foliage lighting; and native scheduling, bindings and shadow-map generation.
-See `docs/notes/three-maps-lighting-scope.md` for the complete pass inventory. Cached donor references
-exist under `donor-refs/021d`; no donor recapture, visible game run, release
-or deployment is part of this source change.
+See `docs/notes/three-maps-lighting-scope.md` for the complete pass inventory.
+
+**Required visual acceptance is in progress, not complete.** The map-port
+skill requires generated regional sweeps against original donor captures,
+followed by investigation and correction of serious findings. Static/source
+checks do not replace this requirement or waive inherited rendering defects.
+The current capture plan and evidence live under
+`private/v021d-five-weathers/visual`; `validation.json` in its parent records
+paired coverage separately from port-only inspection. Vostok evening has 110
+kept original views under `donor-refs/021d`. Frozen Vostok rain and Mamayev
+rain/evening reference archives are missing; replacement captures require an
+owner exception to their existing freeze. First-time Rudnya, School and Fort
+weather references use approved static input-free headless capture. Preserve
+all kept donor images and reshoot only affected port views after a correction.
+No visible game run, release or deployment is authorized by this check.
 
 The native guard harness passed 600 ambient and 2,496 particle cases, including
 unrelated maps/scenes, exact alias boundaries, and load/teardown transitions.
@@ -99,3 +111,59 @@ The content type allowlist preserves original numeric representations only at
 float, or convert an integer with `cvtsi2ss`; the re-kit records their exact
 sites. Two legacy keys have no 0.26 reader. Rudnya retains the same fractional
 swamp sensor as its day source. No value is rounded to satisfy a type check.
+
+## Original material visibility
+
+The required visual sweeps found two concrete template-conversion errors:
+School's basement showed backfaces absent in the original, and Rudnya's broken
+tractor windshield became opaque. An audit of all fifteen original weather
+projects (912 models, 618 materials) found 52 differing face-culling,
+alpha-test/blend and shadow flags in 46 materials. The porter now preserves
+these original selectors before native deduplication; unsupported native
+schema fields reject conversion.
+
+`material-visibility-inputs.json` records the original and converted flags,
+every affected model binding, and hashes of all unchanged material leaves.
+The original `vehicle/interior_fwd` soft-edge switch is also restored: the
+native template had disabled it on UAZ/Niva glass. Five targeted captures
+confirmed that restoring this original switch alone does not fix the pale
+glass. The green vehicle in the `in_13_out` diagnostic is also a UAZ; it is
+not evidence about an AZLK material.
+`make_material_visibility.py` authors `v021d-material-visibility-1.json` to
+retrofit the existing packs. Eight shared materials receive private copies;
+the other materials were already private. Native maps retain their archived
+materials, and the reviewed day-port native finishes and textures stay intact.
+This source correction avoids rebuilding unrelated legacy content while the
+importer fix prevents recurrence in future imports.
+
+The registered weather check reads the original archive through the local
+`private/v021d-five-weathers/original-resources.db` symlink and verifies the
+composed materials, exact original flags, private model bindings, unchanged
+other material leaves and absence of shared native material edits. Corrected
+visual comparisons are **in progress**, with baseline frames retained; source
+validation alone does not establish visual acceptance.
+
+Restoring Rudnya's `terrain_tiled/dirt_vc` alpha flag requests shader paths
+absent from stock. `v021d-material-visibility@3` covers the complete shipped
+feature family: 28 paths across seven native vertex classes, two quality
+variants and two native aliases. The builder enumerates and checks the
+family; it does not wait for one missing resource per native launch.
+No existing shader is replaced.
+
+For quality `0`, native parallax-enabled/disabled programs are byte-identical,
+so the corresponding existing native alpha program is reused. For quality
+`3`, classes 1 and 2 retain every instruction except their mask cutoff:
+`mask - .4` becomes the shipped native alpha expression
+`mask * diffuse_alpha - alpha_ref`. Other classes have a compile-time zero
+vertex mask; their unconditional discard becomes the existing alpha neighbor's
+`-alpha_ref < 0` comparison, using one fresh temporary. This preserves each
+native input layout's behavior, including unsupported combinations; it does
+not invent vertex data. Reflection marks only the existing alpha constant used.
+
+`visibility-shader-inputs.json` pins all native source programs and neighbors.
+`check_visibility_shaders.py` independently enumerates the family, verifies
+composed files, native isolation, unchanged instructions and bindings, and
+exactly these cutoff/reflection deltas. The normal importer emits the additions
+when it imports the affected original material and accepts already-installed
+byte-identical additions. Runtime acceptance of the complete closure remains
+pending the next composed candidate.

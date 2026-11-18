@@ -44,6 +44,48 @@ while read -r patch _; do
 done <release/patches.tsv
 candidate=("$CHECK_WORK"/content/resources.db.patch_*)
 [[ ${#candidate[@]} == 1 && -f ${candidate[0]} ]]
+python3 srp-026g/scripts/v021d-weather/check_material_visibility.py \
+    --porter "$weather_porter" \
+    --donor "$common/private/v021d-five-weathers/original-resources.db" \
+    --patch "${candidate[0]}" --stock "$SKHID_STOCK_DB" \
+    --shader-pack "$SKHID_PACKS_DIR/v021d-material-visibility-3"
+python3 srp-026g/scripts/v021d-weather/check_vertex_blend.py \
+    --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
+    --donor "$common/private/v021d-five-weathers/original-resources.db" \
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-blend-3"
+python3 srp-026g/scripts/v021d-weather/check_normal_off.py \
+    --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
+    --donor "$common/private/v021d-five-weathers/original-resources.db" \
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-blend-normal-off-3"
+python3 srp-026g/scripts/v021d-weather/check_normal_on.py \
+    --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-blend-normal-on-1" \
+    --blend-pack "$SKHID_PACKS_DIR/v021d-vertex-blend-3" \
+    --patches release/patches.tsv --patch-cache "$cache/patches"
+python3 srp-026g/scripts/v021d-weather/check_alpha_textures.py \
+    --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
+    --donor "$common/private/v021d-five-weathers/original-resources.db" \
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-alpha-textures-1" \
+    --patches release/patches.tsv --patch-cache "$cache/patches"
+python3 srp-026g/scripts/v021d-weather/check_vertex_alpha.py \
+    --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
+    --donor "$common/private/v021d-five-weathers/original-resources.db" \
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-alpha-1"
+python3 srp-026g/scripts/v021d-weather/check_parallax_alpha.py \
+    --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
+    --donor "$common/private/v021d-five-weathers/original-resources.db" \
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-alpha-parallax-1"
+python3 srp-026g/scripts/v021d-weather/check_particle_alpha.py \
+    --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
+    --donor "$common/private/v021d-five-weathers/original-resources.db" \
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-particle-alpha-1"
+python3 srp-026g/scripts/v021d-weather/check_forward_fog.py \
+    --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
+    --donor "$common/private/v021d-five-weathers/original-resources.db" \
+    --profiles srp-026g/scripts/v021d-weather/forward-fog-profiles.json \
+    --patches release/patches.tsv --patch-cache "$cache/patches" \
+    --shader-indexer "$common/private/v021d-five-weathers/bin/shader-digests" \
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-forward-fog-2"
 layers+=(--donor-patch "${candidate[0]}" --target-patch "${candidate[0]}")
 roots=()
 for level in 01 02 03 05 06; do

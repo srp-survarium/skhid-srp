@@ -1,0 +1,602 @@
+{
+  "donor_db_sha256": "e28cc2878e0e2f04ab9ab0a1861034622af487a491bf230ea24f44e9af9715a4",
+  "stock_db_sha256": "c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c",
+  "scope": "Exact original particle alpha mipchains; all current material leaves equal original. Private material copies isolate native users. Missing normal fallbacks remain separately under investigation.",
+  "textures": [
+    {
+      "texture": "fx/lighted_smoke/smoke1",
+      "original_sha256": "1f2f5c708169f31a00c575f0f934b9267c0d5fa99a23357ae9eecf9b59c79715",
+      "native_sha256": "802b5d92481c2ac3376bc8db5c94f451b0d64c8750ad04dbad409e708ccdc809",
+      "options_sha256": "0b9f2bda0af335eef5481af61154d6e68a6cbebaf4eec6ddf865c8c06a68a2d2"
+    },
+    {
+      "texture": "fx/anomaly/easy_flame1",
+      "original_sha256": "ff17280dd2942c1bc8b8f6341c81b3c8fdabdee4c12a250ea319ac1524639fff",
+      "native_sha256": "c719265d1ee236fa6cfcb8c87281a0db3c7ddcd7481d58116129646afbaca18a",
+      "options_sha256": "0b9f2bda0af335eef5481af61154d6e68a6cbebaf4eec6ddf865c8c06a68a2d2"
+    },
+    {
+      "texture": "fx/weapons/ak_trail",
+      "original_sha256": "69aa8d9e3af8847c19c460bda4a19c21a99d0f92cf4fe56769b7cc3f6776fc80",
+      "native_sha256": "eeff24c4bbb1e75b716e88e229316355dd986261449e0e25c128257dfac8d701",
+      "options_sha256": "0b9f2bda0af335eef5481af61154d6e68a6cbebaf4eec6ddf865c8c06a68a2d2"
+    },
+    {
+      "texture": "fx/level_02_anomaly/point_single",
+      "original_sha256": "19911e4ce8ae1e9a9556e3a6d6087ad0dee931148eb125178629225d8a043f10",
+      "native_sha256": "7c9769f832ac75f4c62c90e0fe250513d44e1b3a93da48d9119b1ca2077b831f",
+      "options_sha256": "0b9f2bda0af335eef5481af61154d6e68a6cbebaf4eec6ddf865c8c06a68a2d2"
+    },
+    {
+      "texture": "fx/level_02_anomaly/points",
+      "original_sha256": "1adf4bbae7b0694f15e2ed8735ce3d2f060e70ad5f30cb4164f86fb71231d46c",
+      "native_sha256": "e68da354e03946643ac7ac5206ec049e8b94169f86927e28c0b024d5fe15ace4",
+      "options_sha256": "0b9f2bda0af335eef5481af61154d6e68a6cbebaf4eec6ddf865c8c06a68a2d2"
+    },
+    {
+      "texture": "fx/level_02_anomaly/points_small",
+      "original_sha256": "a0acd5e3a755fc48b43f67e99cf1b09f985d27571cefe66b9227e2d9511e4d8a",
+      "native_sha256": "b1b7ebbb820a6da22982f1fe87ae4c4c94bc88996c532c58c5c67443a4ea36d4",
+      "options_sha256": "0b9f2bda0af335eef5481af61154d6e68a6cbebaf4eec6ddf865c8c06a68a2d2"
+    },
+    {
+      "texture": "fx/level_03_anomaly/smoke4",
+      "original_sha256": "be924d727e378f1f3f73e0ed0894a9fdfffbb16ff91eef7ce358b55833e147c6",
+      "native_sha256": "e08f39890dc6de9c53503f28bf20a25db2dbfb783b18527b29be91481d5cb8bf",
+      "options_sha256": "0b9f2bda0af335eef5481af61154d6e68a6cbebaf4eec6ddf865c8c06a68a2d2"
+    },
+    {
+      "texture": "fx/level_05_anomaly/new/points",
+      "original_sha256": "b703ae9c49132d85ab5b2612518af1bc04792fc3b93345b0a36e7ed1b3676d14",
+      "native_sha256": "74f025821e2682e50ee9704fec7d3236ab9fe7a5acd1e6736b0017a6220d8aa4",
+      "options_sha256": "0b9f2bda0af335eef5481af61154d6e68a6cbebaf4eec6ddf865c8c06a68a2d2"
+    },
+    {
+      "texture": "fx/environment/water_drop",
+      "original_sha256": "67b55609421186752a99dee02b793ef037467248250f13b422519cadf7cadf32",
+      "native_sha256": "a911852cc5e4b784cac1d347841ee603c0e4014d3569b96e4187c640dffe7fb6",
+      "options_sha256": "0b9f2bda0af335eef5481af61154d6e68a6cbebaf4eec6ddf865c8c06a68a2d2"
+    }
+  ],
+  "materials": [
+    {
+      "original_material": "fx/anomaly/flame1",
+      "current_material": "fx/anomaly/flame1",
+      "target_material": "ported/v021d/original_particle_alpha/fx/anomaly/flame1",
+      "changes": {
+        "material.forward.effect.texture_transparency.value": {
+          "selector": "material.forward.effect.use_ttransparency.value",
+          "source_texture": "fx/anomaly/easy_flame1",
+          "from": "fx/anomaly/easy_flame1",
+          "to": "ported/v021d/original_particle_alpha/fx/anomaly/easy_flame1"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step3_explosion.particle",
+          "key": "LOD 0.children.f18f7e23-c382-4f7e-842d-4b3ef796d3a8.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step3_explosion.particle",
+          "key": "LOD 0.children.8542b769-afaa-4f2c-87b4-a78c34ef62f0.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "ba69cb1fd7aee5ab0beeaac9d0d73b4a7c1b398845676b45440f1c1c3a1248c6",
+      "original_leaves_sha256": "8fe85ff129758c3cc9341a86c830e781357c5226cc00e17e0bb88f24590d57d1"
+    },
+    {
+      "original_material": "fx/environment/water_drops",
+      "current_material": "fx/environment/water_drops",
+      "target_material": "ported/v021d/original_particle_alpha/fx/environment/water_drops",
+      "changes": {
+        "material.forward.effect.texture_transparency.value": {
+          "selector": "material.forward.effect.use_ttransparency.value",
+          "source_texture": "fx/environment/water_drop",
+          "from": "fx/environment/water_drop",
+          "to": "ported/v021d/original_particle_alpha/fx/environment/water_drop"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_6_anomaly/water_drops.particle",
+          "key": "LOD 0.children.83bab5f1-c7bb-4396-a877-aa3037295d0b.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_6_anomaly/water_drops.particle",
+          "key": "LOD 0.children.8722d494-5730-4497-83c9-e77ed7e90548.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_6_anomaly/water_drops.particle",
+          "key": "LOD 0.children.51c0a1f3-e7bf-46e7-8796-f255a120822a.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_6_anomaly/water_drops.particle",
+          "key": "LOD 0.children.4bf3c3c1-a88d-4d3f-bedf-445cdbf9e1c7.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_6_anomaly/water_drops.particle",
+          "key": "LOD 0.children.8e20f920-618d-48c4-b6ff-35104e4f3c39.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_6_anomaly/water_drops.particle",
+          "key": "LOD 0.children.154114ca-b470-448c-aa95-75401099116b.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "2b5daba8e4edf5a0de32f68fbc94899aa930fe1bd181e6ab5ddf63a190653862",
+      "original_leaves_sha256": "52c365d2e07cb67ee5b953b14e075e104b17bf626ceff91dc5c3dfdedbca93cb"
+    },
+    {
+      "original_material": "fx/level_2_anomaly_1/anomaly_smoke_lighted",
+      "current_material": "fx/level_2_anomaly_1/anomaly_smoke_lighted",
+      "target_material": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/anomaly_smoke_lighted",
+      "changes": {
+        "material.lighting.effect.texture_transparency.value": {
+          "selector": "material.lighting.effect.use_ttransparency.value",
+          "source_texture": "fx/lighted_smoke/smoke1",
+          "from": "fx/lighted_smoke/smoke1",
+          "to": "ported/v021d/original_particle_alpha/fx/lighted_smoke/smoke1"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step1.particle",
+          "key": "LOD 0.children.0f311983-24e0-40df-9c5b-b466acd659c7.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step1.particle",
+          "key": "LOD 0.children.f1ad5808-ace4-4e69-bc3a-494d9526f37f.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step1.particle",
+          "key": "LOD 0.children.a5f7e02b-f52d-4235-a78f-ff7ae103ef8a.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step1.particle",
+          "key": "LOD 0.children.3217e657-2451-48ae-8175-c01d874ef542.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step1.particle",
+          "key": "LOD 0.children.7a3c4a46-66ac-48f2-afd5-1993622e95ac.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step2.particle",
+          "key": "LOD 0.children.8542b769-afaa-4f2c-87b4-a78c34ef62f0.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step3.particle",
+          "key": "LOD 0.children.8542b769-afaa-4f2c-87b4-a78c34ef62f0.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "4a0be39aae32d02047f52b9df94d81a8034606c1f5057bdf45f0a382ce12592d",
+      "original_leaves_sha256": "b28efce1ed4bd3cb19002321e8b131fd63194d64aefaed2b583e929e78fb78e9"
+    },
+    {
+      "original_material": "fx/level_2_anomaly_2/point_single",
+      "current_material": "fx/level_2_anomaly_2/point_single",
+      "target_material": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_2/point_single",
+      "changes": {
+        "material.forward.effect.texture_transparency.value": {
+          "selector": "material.forward.effect.use_ttransparency.value",
+          "source_texture": "fx/level_02_anomaly/point_single",
+          "from": "fx/level_02_anomaly/point_single",
+          "to": "ported/v021d/original_particle_alpha/fx/level_02_anomaly/point_single"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_2/point_single.particle",
+          "key": "LOD 0.children.9c8fd4c4-8ddb-44d0-9b84-662ef795bbf1.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "78ef71796ac8a97d86fe6c87e2d2ccf17016623e9e5dc248ef57865158b90636",
+      "original_leaves_sha256": "7672663a821acf7d9c503dd8b7b61dea3587856258508361943323e5456a1e8f"
+    },
+    {
+      "original_material": "fx/level_2_anomaly_2/points",
+      "current_material": "fx/level_2_anomaly_2/points",
+      "target_material": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_2/points",
+      "changes": {
+        "material.forward.effect.texture_transparency.value": {
+          "selector": "material.forward.effect.use_ttransparency.value",
+          "source_texture": "fx/level_02_anomaly/points",
+          "from": "fx/level_02_anomaly/points",
+          "to": "ported/v021d/original_particle_alpha/fx/level_02_anomaly/points"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_2/points.particle",
+          "key": "LOD 0.children.668bc128-fcaf-42e6-bb0c-8d51a62a3b7d.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "ef677bb6cc9c32c19b20764fcadd969aa87dae342219338d8da95fed574825e7",
+      "original_leaves_sha256": "15d668ff04dc4fdccab429761336640ca8d0b3d246d025a3c0eb81976e0f5498"
+    },
+    {
+      "original_material": "fx/level_2_anomaly_2/points_small",
+      "current_material": "fx/level_2_anomaly_2/points_small",
+      "target_material": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_2/points_small",
+      "changes": {
+        "material.forward.effect.texture_transparency.value": {
+          "selector": "material.forward.effect.use_ttransparency.value",
+          "source_texture": "fx/level_02_anomaly/points_small",
+          "from": "fx/level_02_anomaly/points_small",
+          "to": "ported/v021d/original_particle_alpha/fx/level_02_anomaly/points_small"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_2/points_mini.particle",
+          "key": "LOD 0.children.e57e1d0d-40f7-49d7-9bdd-31d6ed14f22f.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_2/points_small.particle",
+          "key": "LOD 0.children.e57e1d0d-40f7-49d7-9bdd-31d6ed14f22f.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "97df2ec3b222300ecc9688788bc53b840d436aa00fd534e559a388a024d6cbd8",
+      "original_leaves_sha256": "ae5675c7e782f78272a9dc37eaaa139232f4d24bb76437d558ee21fd9385a1b9"
+    },
+    {
+      "original_material": "fx/level_3_anomaly/smoke",
+      "current_material": "fx/level_3_anomaly/smoke",
+      "target_material": "ported/v021d/original_particle_alpha/fx/level_3_anomaly/smoke",
+      "changes": {
+        "material.lighting.effect.texture_transparency.value": {
+          "selector": "material.lighting.effect.use_ttransparency.value",
+          "source_texture": "fx/lighted_smoke/smoke1",
+          "from": "fx/lighted_smoke/smoke1",
+          "to": "ported/v021d/original_particle_alpha/fx/lighted_smoke/smoke1"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_3_anomaly_1/smoke.particle",
+          "key": "LOD 0.children.badd4497-733c-4570-94b5-c328e3a25197.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_3_anomaly_1/smoke_dark.particle",
+          "key": "LOD 0.children.badd4497-733c-4570-94b5-c328e3a25197.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "3baeffc839a9b9c5ec5da53e4c982ec39ab0a93e0d67c2281f43f7fc54cf5878",
+      "original_leaves_sha256": "6131621aea0929b092928c8a4f05aa3f50f63b81cc0b19fa583630b895bdc4b4"
+    },
+    {
+      "original_material": "fx/level_5_anomaly/new/pasted_points",
+      "current_material": "fx/level_5_anomaly/new/pasted_points",
+      "target_material": "ported/v021d/original_particle_alpha/fx/level_5_anomaly/new/pasted_points",
+      "changes": {
+        "material.forward.effect.texture_transparency.value": {
+          "selector": "material.forward.effect.use_ttransparency.value",
+          "source_texture": "fx/level_05_anomaly/new/points",
+          "from": "fx/level_05_anomaly/new/points",
+          "to": "ported/v021d/original_particle_alpha/fx/level_05_anomaly/new/points"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_5_anomaly_2/points.particle",
+          "key": "LOD 0.children.668bc128-fcaf-42e6-bb0c-8d51a62a3b7d.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "bd46c34044a3802101a30e534fe0753127efeafbc57439c2f85891a0dbad5912",
+      "original_leaves_sha256": "c417bbe9b5f6d04dc070b39757343757be4ce364fa2647a8611e03325bff4c9a"
+    },
+    {
+      "original_material": "fx/weapons/ak_trail",
+      "current_material": "fx/weapons/ak_trail",
+      "target_material": "ported/v021d/original_particle_alpha/fx/weapons/ak_trail",
+      "changes": {
+        "material.forward.effect.texture_transparency.value": {
+          "selector": "material.forward.effect.use_ttransparency.value",
+          "source_texture": "fx/weapons/ak_trail",
+          "from": "fx/weapons/ak_trail",
+          "to": "ported/v021d/original_particle_alpha/fx/weapons/ak_trail"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step3_explosion.particle",
+          "key": "LOD 0.children.5f335ad7-a6b9-4721-9b59-e389c96a695a.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step3_explosion.particle",
+          "key": "LOD 0.children.71d45c39-4320-4ccd-96f5-82ef7d75bb57.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "7a7e02acebd3d42c5f959f97e2c13ec3fe23d5d779f5c96cb9f5f77fdfc598f1",
+      "original_leaves_sha256": "7f8f42b75f71ff30b367c68b66190587e7c83fed05defd27804e02b0f0c8573c"
+    },
+    {
+      "original_material": "fx/level_2_anomaly_1/explosion_smoke",
+      "current_material": "ported/v021d/fx/level_2_anomaly_1/explosion_smoke",
+      "target_material": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/explosion_smoke",
+      "changes": {
+        "material.lighting.effect.texture_transparency.value": {
+          "selector": "material.lighting.effect.use_ttransparency.value",
+          "source_texture": "fx/lighted_smoke/smoke1",
+          "from": "fx/lighted_smoke/smoke1",
+          "to": "ported/v021d/original_particle_alpha/fx/lighted_smoke/smoke1"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step3_explosion.particle",
+          "key": "LOD 0.children.57a180cb-df72-49bb-9d6e-7dd5f80d56d0.properties.Material"
+        },
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step3_explosion.particle",
+          "key": "LOD 0.children.8d565bac-5b6f-402f-afa2-50d0fdf94ca8.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "bd44b49ee8083008599b7260cddedc536d89f5717f819e993fa36bc27be2686b",
+      "original_leaves_sha256": "f2d58b378c62db642307c0ed81a6932bbb6c8870bbff86c5e50ab57a44f0666b"
+    },
+    {
+      "original_material": "fx/level_2_anomaly_1/explosion_smoke1",
+      "current_material": "ported/v021d/fx/level_2_anomaly_1/explosion_smoke1",
+      "target_material": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/explosion_smoke1",
+      "changes": {
+        "material.lighting.effect.texture_transparency.value": {
+          "selector": "material.lighting.effect.use_ttransparency.value",
+          "source_texture": "fx/lighted_smoke/smoke1",
+          "from": "fx/lighted_smoke/smoke1",
+          "to": "ported/v021d/original_particle_alpha/fx/lighted_smoke/smoke1"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_2_anomaly_1/step3_explosion.particle",
+          "key": "LOD 0.children.47b7d27b-beab-423e-a58f-7ad356d0bc11.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "676813702cd6a20396af40ce224428b3bc08efe2741c4b5169bc415750a5698c",
+      "original_leaves_sha256": "9d0c325468c0940503f35d7ff438991553bd2c4bbd31b82442c9f1e747e420ae"
+    },
+    {
+      "original_material": "fx/level_3_anomaly/smoke_trail",
+      "current_material": "ported/v021d/fx/level_3_anomaly/smoke_trail",
+      "target_material": "ported/v021d/original_particle_alpha/fx/level_3_anomaly/smoke_trail",
+      "changes": {
+        "material.lighting.effect.texture_transparency.value": {
+          "selector": "material.lighting.effect.use_ttransparency.value",
+          "source_texture": "fx/level_03_anomaly/smoke4",
+          "from": "fx/level_03_anomaly/smoke4",
+          "to": "ported/v021d/original_particle_alpha/fx/level_03_anomaly/smoke4"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_3_anomaly_1/smoke_trail.particle",
+          "key": "LOD 0.children.68ff721a-40b5-4651-b69e-20a5a69dbfe3.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "37b091504ee09ac866f921362ef482aed27b4682f033ca839ec5d06493a7ca1e",
+      "original_leaves_sha256": "f8ea561a8826eb5e499c8e61457e10b42b5bfe4827625ef18a2c12f09edb6be3"
+    },
+    {
+      "original_material": "fx/level_6_anomaly/kurgan_smoke",
+      "current_material": "ported/v021d/fx/level_6_anomaly/kurgan_smoke",
+      "target_material": "ported/v021d/original_particle_alpha/fx/level_6_anomaly/kurgan_smoke",
+      "changes": {
+        "material.lighting.effect.texture_transparency.value": {
+          "selector": "material.lighting.effect.use_ttransparency.value",
+          "source_texture": "fx/lighted_smoke/smoke1",
+          "from": "fx/lighted_smoke/smoke1",
+          "to": "ported/v021d/original_particle_alpha/fx/lighted_smoke/smoke1"
+        }
+      },
+      "bindings": [
+        {
+          "particle": "particles/ported/v021d/fx/level_6_anomaly/kurgan_smoke.particle",
+          "key": "LOD 0.children.48f558c2-bdbe-4ead-b929-d7c745155ec4.properties.Material"
+        }
+      ],
+      "unchanged_leaves_sha256": "acdfbb2d568517f86e0a91e72b23fb82e70422e0f73dc83fe253a054ad61db84",
+      "original_leaves_sha256": "7aae115eabe4209858ef9348eabf8add1d8d7331b28aa1535beee2c4e4acdc2f"
+    }
+  ],
+  "particles": [
+    {
+      "path": "particles/ported/v021d/fx/level_2_anomaly_1/step1.particle",
+      "changes": {
+        "LOD 0.children.0f311983-24e0-40df-9c5b-b466acd659c7.properties.Material": {
+          "from": "fx/level_2_anomaly_1/anomaly_smoke_lighted",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/anomaly_smoke_lighted"
+        },
+        "LOD 0.children.f1ad5808-ace4-4e69-bc3a-494d9526f37f.properties.Material": {
+          "from": "fx/level_2_anomaly_1/anomaly_smoke_lighted",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/anomaly_smoke_lighted"
+        },
+        "LOD 0.children.a5f7e02b-f52d-4235-a78f-ff7ae103ef8a.properties.Material": {
+          "from": "fx/level_2_anomaly_1/anomaly_smoke_lighted",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/anomaly_smoke_lighted"
+        },
+        "LOD 0.children.3217e657-2451-48ae-8175-c01d874ef542.properties.Material": {
+          "from": "fx/level_2_anomaly_1/anomaly_smoke_lighted",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/anomaly_smoke_lighted"
+        },
+        "LOD 0.children.7a3c4a46-66ac-48f2-afd5-1993622e95ac.properties.Material": {
+          "from": "fx/level_2_anomaly_1/anomaly_smoke_lighted",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/anomaly_smoke_lighted"
+        }
+      },
+      "unchanged_leaves_sha256": "bfb85f80c7b153a45ffbe60ada63252ad457cc22a3a670fc0764f01e46d5371c"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_2_anomaly_1/step2.particle",
+      "changes": {
+        "LOD 0.children.8542b769-afaa-4f2c-87b4-a78c34ef62f0.properties.Material": {
+          "from": "fx/level_2_anomaly_1/anomaly_smoke_lighted",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/anomaly_smoke_lighted"
+        }
+      },
+      "unchanged_leaves_sha256": "198e8f98e5c6379590b091a5ceb9fc981dff19823f7714a01d7b5dafd62da20c"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_2_anomaly_1/step3.particle",
+      "changes": {
+        "LOD 0.children.8542b769-afaa-4f2c-87b4-a78c34ef62f0.properties.Material": {
+          "from": "fx/level_2_anomaly_1/anomaly_smoke_lighted",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/anomaly_smoke_lighted"
+        }
+      },
+      "unchanged_leaves_sha256": "198e8f98e5c6379590b091a5ceb9fc981dff19823f7714a01d7b5dafd62da20c"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_2_anomaly_1/step3_explosion.particle",
+      "changes": {
+        "LOD 0.children.57a180cb-df72-49bb-9d6e-7dd5f80d56d0.properties.Material": {
+          "from": "ported/v021d/fx/level_2_anomaly_1/explosion_smoke",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/explosion_smoke"
+        },
+        "LOD 0.children.8d565bac-5b6f-402f-afa2-50d0fdf94ca8.properties.Material": {
+          "from": "ported/v021d/fx/level_2_anomaly_1/explosion_smoke",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/explosion_smoke"
+        },
+        "LOD 0.children.47b7d27b-beab-423e-a58f-7ad356d0bc11.properties.Material": {
+          "from": "ported/v021d/fx/level_2_anomaly_1/explosion_smoke1",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_1/explosion_smoke1"
+        },
+        "LOD 0.children.f18f7e23-c382-4f7e-842d-4b3ef796d3a8.properties.Material": {
+          "from": "fx/anomaly/flame1",
+          "to": "ported/v021d/original_particle_alpha/fx/anomaly/flame1"
+        },
+        "LOD 0.children.8542b769-afaa-4f2c-87b4-a78c34ef62f0.properties.Material": {
+          "from": "fx/anomaly/flame1",
+          "to": "ported/v021d/original_particle_alpha/fx/anomaly/flame1"
+        },
+        "LOD 0.children.5f335ad7-a6b9-4721-9b59-e389c96a695a.properties.Material": {
+          "from": "fx/weapons/ak_trail",
+          "to": "ported/v021d/original_particle_alpha/fx/weapons/ak_trail"
+        },
+        "LOD 0.children.71d45c39-4320-4ccd-96f5-82ef7d75bb57.properties.Material": {
+          "from": "fx/weapons/ak_trail",
+          "to": "ported/v021d/original_particle_alpha/fx/weapons/ak_trail"
+        }
+      },
+      "unchanged_leaves_sha256": "5145f92f28eb7de35d516e8036888a7425f9c103c1c19d4ad1c7f3dac98a13ba"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_2_anomaly_2/point_single.particle",
+      "changes": {
+        "LOD 0.children.9c8fd4c4-8ddb-44d0-9b84-662ef795bbf1.properties.Material": {
+          "from": "fx/level_2_anomaly_2/point_single",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_2/point_single"
+        }
+      },
+      "unchanged_leaves_sha256": "2e94cf1bf7425deabc60038c2a57681a4dede90013efa75eeab4967f5a1e4f44"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_2_anomaly_2/points.particle",
+      "changes": {
+        "LOD 0.children.668bc128-fcaf-42e6-bb0c-8d51a62a3b7d.properties.Material": {
+          "from": "fx/level_2_anomaly_2/points",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_2/points"
+        }
+      },
+      "unchanged_leaves_sha256": "3f869c82ea05cbfbd6246f44487960727cb445611743e026a2880be040dac04b"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_2_anomaly_2/points_mini.particle",
+      "changes": {
+        "LOD 0.children.e57e1d0d-40f7-49d7-9bdd-31d6ed14f22f.properties.Material": {
+          "from": "fx/level_2_anomaly_2/points_small",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_2/points_small"
+        }
+      },
+      "unchanged_leaves_sha256": "acd7559f8ce49f42c917d286c10b7db2d399717b0cf90e9b54e13d25a781ad5e"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_2_anomaly_2/points_small.particle",
+      "changes": {
+        "LOD 0.children.e57e1d0d-40f7-49d7-9bdd-31d6ed14f22f.properties.Material": {
+          "from": "fx/level_2_anomaly_2/points_small",
+          "to": "ported/v021d/original_particle_alpha/fx/level_2_anomaly_2/points_small"
+        }
+      },
+      "unchanged_leaves_sha256": "d40b1d303c64fdaa84491332688faaa927a17ffc1eb61f077fe1db3057bd8d35"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_3_anomaly_1/smoke.particle",
+      "changes": {
+        "LOD 0.children.badd4497-733c-4570-94b5-c328e3a25197.properties.Material": {
+          "from": "fx/level_3_anomaly/smoke",
+          "to": "ported/v021d/original_particle_alpha/fx/level_3_anomaly/smoke"
+        }
+      },
+      "unchanged_leaves_sha256": "275edea4d830e49a5e06268b8510e99f0257e9001986e2278f0f690f43da51e9"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_3_anomaly_1/smoke_dark.particle",
+      "changes": {
+        "LOD 0.children.badd4497-733c-4570-94b5-c328e3a25197.properties.Material": {
+          "from": "fx/level_3_anomaly/smoke",
+          "to": "ported/v021d/original_particle_alpha/fx/level_3_anomaly/smoke"
+        }
+      },
+      "unchanged_leaves_sha256": "3af17accd96ebcfdec1221a157dd8f0056fbd3cc6278d6d3ca8d346ce53bb6fd"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_3_anomaly_1/smoke_trail.particle",
+      "changes": {
+        "LOD 0.children.68ff721a-40b5-4651-b69e-20a5a69dbfe3.properties.Material": {
+          "from": "ported/v021d/fx/level_3_anomaly/smoke_trail",
+          "to": "ported/v021d/original_particle_alpha/fx/level_3_anomaly/smoke_trail"
+        }
+      },
+      "unchanged_leaves_sha256": "8a96c5295b3672f5674d2124205e1f9078992b7beece30d4563e5529c8dcc63a"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_5_anomaly_2/points.particle",
+      "changes": {
+        "LOD 0.children.668bc128-fcaf-42e6-bb0c-8d51a62a3b7d.properties.Material": {
+          "from": "fx/level_5_anomaly/new/pasted_points",
+          "to": "ported/v021d/original_particle_alpha/fx/level_5_anomaly/new/pasted_points"
+        }
+      },
+      "unchanged_leaves_sha256": "6c879ea1e68d8ebe6f56c2f3570743ad98bba327a5a31fe438b9ad66969fdd52"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_6_anomaly/kurgan_smoke.particle",
+      "changes": {
+        "LOD 0.children.48f558c2-bdbe-4ead-b929-d7c745155ec4.properties.Material": {
+          "from": "ported/v021d/fx/level_6_anomaly/kurgan_smoke",
+          "to": "ported/v021d/original_particle_alpha/fx/level_6_anomaly/kurgan_smoke"
+        }
+      },
+      "unchanged_leaves_sha256": "639d55c81c18d31abb2a485fbe5e76c841c45274dac52d89dff66406dd0d9ee5"
+    },
+    {
+      "path": "particles/ported/v021d/fx/level_6_anomaly/water_drops.particle",
+      "changes": {
+        "LOD 0.children.83bab5f1-c7bb-4396-a877-aa3037295d0b.properties.Material": {
+          "from": "fx/environment/water_drops",
+          "to": "ported/v021d/original_particle_alpha/fx/environment/water_drops"
+        },
+        "LOD 0.children.8722d494-5730-4497-83c9-e77ed7e90548.properties.Material": {
+          "from": "fx/environment/water_drops",
+          "to": "ported/v021d/original_particle_alpha/fx/environment/water_drops"
+        },
+        "LOD 0.children.51c0a1f3-e7bf-46e7-8796-f255a120822a.properties.Material": {
+          "from": "fx/environment/water_drops",
+          "to": "ported/v021d/original_particle_alpha/fx/environment/water_drops"
+        },
+        "LOD 0.children.4bf3c3c1-a88d-4d3f-bedf-445cdbf9e1c7.properties.Material": {
+          "from": "fx/environment/water_drops",
+          "to": "ported/v021d/original_particle_alpha/fx/environment/water_drops"
+        },
+        "LOD 0.children.8e20f920-618d-48c4-b6ff-35104e4f3c39.properties.Material": {
+          "from": "fx/environment/water_drops",
+          "to": "ported/v021d/original_particle_alpha/fx/environment/water_drops"
+        },
+        "LOD 0.children.154114ca-b470-448c-aa95-75401099116b.properties.Material": {
+          "from": "fx/environment/water_drops",
+          "to": "ported/v021d/original_particle_alpha/fx/environment/water_drops"
+        }
+      },
+      "unchanged_leaves_sha256": "2540801805b831095abb92337d902b28bcb6a85e9c16b09823683c4b19e46024"
+    }
+  ]
+}

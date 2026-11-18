@@ -1,0 +1,52 @@
+[
+  {
+    "path": "shaders/sm_4_0/forward_base.ps/______0________1_010__1________0_0______________1__0_0_0________0__",
+    "base_sha256": "11a0d17017593951bf8c850e2a5b5f7646413f03a196a1b236995822f5c88028",
+    "dxbc_digest": "996c524509ac73a04fac10ca166d1683"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_probe_lighting.ps/_____11_0___001__00___1________0_0______________0__0_0__________0__",
+    "base_sha256": "b15ac0326fad1fbecb7b6e5457f05543a98d2461e2f9b241575136e98fc42046",
+    "dxbc_digest": "95523945985463ecd693262e98de2352"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_lighting.ps/____011_0___001_000___1___0____0_0______________0__0_0__________0__",
+    "base_sha256": "9bac952dde94b8b62eef0f65e446dedf3598a46a6d8afda2760c0252a1492fee",
+    "dxbc_digest": "e8602516ce4ea0de5b73cb97f380cb17"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_lighting.ps/____011_0___001_000___2___0____0_0______________0__0_0__________0__",
+    "base_sha256": "c58da6712bb4f28a6a23604f5e64c4ecec911d853e45f6308a4e6472b9d82153",
+    "dxbc_digest": "432a5b259abe3928806cf381f3163a37"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_lighting.ps/____111_0___001_000___1___0____0_0______________0__0_0__________0__",
+    "base_sha256": "891830b564aa6b58fcdfaa6bd0c453b497483b274191ad96f9194d36df842299",
+    "dxbc_digest": "3af75b1da94347ae38df86892065da51"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_lighting.ps/____111_0___001_000___2___0____0_0______________0__0_0__________0__",
+    "base_sha256": "b58b7a0b193ae7614eaf296e65a4e1278ed0807d342a7497fbc1275d3b276ec9",
+    "dxbc_digest": "ce017ef862f93b955abc038f2bf28ef5"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_lighting.ps/____211_0___001_000___1___0____0_0______________0__0_0__________0__",
+    "base_sha256": "183a1444038161f14776d69f32d6351637af7d20ef4774cadc19aed9177e060d",
+    "dxbc_digest": "1fb5b744b2f59dea291a23f74637132c"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_lighting.ps/____211_0___001_000___2___0____0_0______________0__0_0__________0__",
+    "base_sha256": "18c02b631f223155ce18c4b0344236c4afe907804bb75d6f9fab8094ff8f5af9",
+    "dxbc_digest": "fad6c5110454382fbe85e7ae0e858f53"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_lighting.ps/____311_0___001_000___1___0____0_0______________0__0_0__________0__",
+    "base_sha256": "a9382d5f97f7a5d3dee2f3dd7b25109f313bd27dcea3ead42fa82321d9adf957",
+    "dxbc_digest": "0d112017b13a47dc3968135400c5fef0"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_lighting.ps/____311_0___001_000___2___0____0_0______________0__0_0__________0__",
+    "base_sha256": "70eb354c7e76cc33d9774f97b63decc8026659466329256d4520ec47b6d653eb",
+    "dxbc_digest": "c1caaa4f61e12b4ff612081aa58cd892"
+  }
+]
