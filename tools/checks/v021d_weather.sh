@@ -79,10 +79,6 @@ python3 srp-026g/scripts/v021d-weather/check_parallax_alpha.py \
     --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
     --donor "$common/private/v021d-five-weathers/original-resources.db" \
     --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-vertex-alpha-parallax-1"
-python3 srp-026g/scripts/v021d-weather/check_particle_alpha.py \
-    --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
-    --donor "$common/private/v021d-five-weathers/original-resources.db" \
-    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-particle-alpha-1"
 python3 srp-026g/scripts/v021d-weather/check_forward_fog.py \
     --porter "$weather_porter" --stock "$SKHID_STOCK_DB" \
     --donor "$common/private/v021d-five-weathers/original-resources.db" \
