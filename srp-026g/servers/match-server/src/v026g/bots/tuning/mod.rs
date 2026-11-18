@@ -182,6 +182,7 @@ pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
 pub use team::BehindOpen;
 pub use team::CampFlank;
+pub use team::AttackGate;
 pub use team::Comeback;
 pub use team::CommitTuning;
 pub use team::Concede;

@@ -232,6 +232,40 @@ impl Default for Bands {
     }
 }
 
+/// [fix-team 4 `mods.comeback`] A team's confidence: its living players over the enemy's (`MatchSignals::alive_ours`,
+/// `alive_theirs`), faded toward the present ratio with a time constant (Days Gone's kills and losses that fade), so a death
+/// or a respawn moves it a little, not at once.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Confidence {
+    /// Not read yet this match.
+    #[default]
+    Unread,
+    /// Its value, and when it was read.
+    Read { ratio: f32, at: u32 },
+}
+
+impl Confidence {
+    /// The confidence at `now`, `ours` and `theirs` alive, faded with `fade_s`; the first read is the ratio itself.
+    pub fn read(self, ours: usize, theirs: usize, now: u32, fade_s: f32) -> Self {
+        let raw = ours as f32 / theirs.max(1) as f32;
+        match self {
+            Confidence::Unread => Confidence::Read { ratio: raw, at: now },
+            Confidence::Read { ratio, at } => {
+                let dt = now.saturating_sub(at) as f32 / 1000.0;
+                let a = 1.0 - (-dt / fade_s).exp();
+                Confidence::Read { ratio: ratio + (raw - ratio) * a, at: now }
+            }
+        }
+    }
+
+    pub fn ratio(self) -> Option<f32> {
+        match self {
+            Confidence::Unread => None,
+            Confidence::Read { ratio, .. } => Some(ratio),
+        }
+    }
+}
+
 /// [fix-team 4 `mods.comeback`] The comeback's counts (the bench's; nothing live): attack candidates held back while the team
 /// was outnumbered, and container holders not offered behind late.
 pub mod comeback_counts {
@@ -2062,13 +2096,22 @@ mod tests {
     /// [fix-team 4] The comeback's confidence: attacks while not outnumbered.
     #[test]
     fn a_team_attacks_only_while_it_is_not_outnumbered() {
-        use crate::v026g::bots::signals::MatchSignals;
-        use crate::v026g::bots::tuning::Comeback;
+        use crate::v026g::bots::tuning::{AttackGate, Comeback};
         let rule = Comeback::default();
-        let at = |ours, theirs| rule.confident(&MatchSignals { alive_ours: ours, alive_theirs: theirs, ..Default::default() });
-        assert!(at(5, 5) && at(6, 4));
-        assert!(!at(4, 5), "outnumbered: no attack");
-        assert!(rule.check().is_ok() && Comeback { confidence: 0.0, ..rule }.check().is_err());
+        assert_eq!(rule.gate(1.0), AttackGate::Open);
+        assert_eq!(rule.gate(0.8), AttackGate::NoStart, "outnumbered: none started, a running one goes on");
+        assert_eq!(rule.gate(0.5), AttackGate::Drop, "decimated: let go");
+        assert!(rule.check().is_ok() && Comeback { drop_confidence: 1.5, ..rule }.check().is_err());
+        // The confidence fades: one death of five moves it a little, not to 0.8 at once.
+        let c = Confidence::Unread.read(5, 5, 0, rule.fade_s);
+        assert_eq!(c.ratio(), Some(1.0));
+        let c = c.read(4, 5, 500, rule.fade_s).ratio().unwrap();
+        assert!(c > 0.99 && c < 1.0, "{c}");
+        let mut c = Confidence::Read { ratio: 1.0, at: 0 };
+        for t in (500..=60_000).step_by(500) {
+            c = c.read(4, 5, t, rule.fade_s);
+        }
+        assert!((c.ratio().unwrap() - 0.8).abs() < 0.01, "held long enough, it is the ratio");
     }
 
     /// [fix-team 2] A held play is kept against a far better play of its band and against a higher band that is no alarm;

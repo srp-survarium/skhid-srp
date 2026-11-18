@@ -36,10 +36,16 @@ pub struct ModTuning {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Comeback {
-    /// Attacks on the enemy's container (raid, sneak, late denial) are offered while ours alive are at least this times
-    /// theirs: 1, not outnumbered (Days Gone presses from "confident", falls back below "neutral"; no source gives a
-    /// number, so 1 is the even split, not a measured value).
-    pub confidence: f32,
+    /// No new attack on the enemy's container (raid, sneak, late denial) while the team's confidence (its living players
+    /// over the enemy's, faded over `fade_s`) is under this: 1, outnumbered. A start value: Days Gone presses from
+    /// "confident" and falls back below "neutral", and no source gives a number.
+    pub start_confidence: f32,
+    /// A running attack is let go only under this: 0.67, decimated (Killzone 3's squads report a decimated attack). A start
+    /// value. Between the two a started attack goes on (hysteresis: a death or a respawn does not flip the team's attacks).
+    pub drop_confidence: f32,
+    /// The confidence fades toward the present ratio with this time constant, s (Days Gone's kills and losses that fade): a
+    /// start value, about the 8 s respawn twice over.
+    pub fade_s: f32,
     /// The container holder is not offered from this `behind_late` on: 0.5, where the raid sends its second raider
     /// (`raid.rs` `pair_behind`), so the team that pairs its raids keeps no bot at home.
     pub holder_off_behind_late: f32,
@@ -47,22 +53,43 @@ pub struct Comeback {
 
 impl Default for Comeback {
     fn default() -> Self {
-        Self { confidence: 1.0, holder_off_behind_late: 0.5 }
+        Self { start_confidence: 1.0, drop_confidence: 0.67, fade_s: 15.0, holder_off_behind_late: 0.5 }
     }
 }
 
 impl Comeback {
     pub fn check(&self) -> Result<(), String> {
-        if !((0.25..=4.0).contains(&self.confidence) && (0.0..=1.0).contains(&self.holder_off_behind_late)) {
+        if !((0.25..=4.0).contains(&self.start_confidence)
+            && (0.1..=self.start_confidence).contains(&self.drop_confidence)
+            && (0.5..=120.0).contains(&self.fade_s)
+            && (0.0..=1.0).contains(&self.holder_off_behind_late))
+        {
             return Err("mods.comeback".into());
         }
         Ok(())
     }
 
-    /// Whether the team of `signals` may attack: not outnumbered by more than the rule lets it.
-    pub fn confident(&self, signals: &crate::v026g::bots::signals::MatchSignals) -> bool {
-        signals.alive_ours as f32 >= self.confidence * signals.alive_theirs as f32
+    /// What the team's attacks may do at `confidence` (its faded ratio, `team::Confidence`).
+    pub fn gate(&self, confidence: f32) -> AttackGate {
+        if confidence < self.drop_confidence {
+            AttackGate::Drop
+        } else if confidence < self.start_confidence {
+            AttackGate::NoStart
+        } else {
+            AttackGate::Open
+        }
     }
+}
+
+/// [fix-team 4] What a team's attacks on the enemy's container may do at its confidence ([`Comeback::gate`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AttackGate {
+    /// Started and kept.
+    Open,
+    /// None started; a running one goes on.
+    NoStart,
+    /// None at all: a running one is let go.
+    Drop,
 }
 
 /// [A296 item 2] A team plan from the HUD's score and the time left (the owner, 2026-11-04: "bots should give a challenge to
