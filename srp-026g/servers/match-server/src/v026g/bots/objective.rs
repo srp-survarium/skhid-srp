@@ -192,12 +192,20 @@ impl ObjectiveMap {
 
     /// Our points minus theirs, for `team` (tickets count a tenth).
     pub fn score_gap(self, view: &MatchView, team: u8) -> f32 {
+        self.score_gap_full_at(view, team, None)
+    }
+
+    /// [`Self::score_gap`] with Team Deathmatch's tickets read so that `full_tickets` of them are
+    /// [`super::signals::BEHIND_FULL`] points (fix-team 4 `tdm.gap_full_tickets`); `None`: a tenth each, so "fully behind"
+    /// took 30 tickets, which a Team Deathmatch match seldom reaches (the 16 local matches at 9694ea576 ended 3, 4, 3 and 13
+    /// tickets apart, the loser's gap read 0.4-1.8 of the 3).
+    pub fn score_gap_full_at(self, view: &MatchView, team: u8, full_tickets: Option<f32>) -> f32 {
         let (ours, theirs) = (view.points[usize::from(team & 1)], view.points[usize::from(!team & 1)]);
         let gap = ours as f32 - theirs as f32;
-        if self.mode == Mode::TeamDeathmatch {
-            gap / 10.0
-        } else {
-            gap
+        match (self.mode, full_tickets) {
+            (Mode::TeamDeathmatch, Some(full)) => gap * super::signals::BEHIND_FULL / full,
+            (Mode::TeamDeathmatch, None) => gap / 10.0,
+            _ => gap,
         }
     }
 
@@ -375,5 +383,17 @@ mod tests {
         assert_eq!(Mode::Batteries.objective().score_gap(&s.view, 0), 20.0);
         assert_eq!(Mode::TeamDeathmatch.objective().tickets(&s.view, 1), Some(10));
         assert_eq!(Mode::Batteries.objective().tickets(&s.view, 1), None);
+    }
+
+    /// [fix-team 4] With `tdm.gap_full_tickets` the tickets read so that that many are fully behind; batteries as before.
+    #[test]
+    fn tickets_read_full_at_the_tdm_full_tickets() {
+        let mut s = Scenario::field(Mode::TeamDeathmatch);
+        s.view.points = [30, 35];
+        let full = crate::v026g::bots::signals::BEHIND_FULL;
+        assert_eq!(Mode::TeamDeathmatch.objective().score_gap_full_at(&s.view, 0, Some(5.0)), -full);
+        assert_eq!(Mode::TeamDeathmatch.objective().score_gap_full_at(&s.view, 1, Some(5.0)), full);
+        assert_eq!(Mode::TeamDeathmatch.objective().score_gap_full_at(&s.view, 0, None), -0.5);
+        assert_eq!(Mode::Batteries.objective().score_gap_full_at(&s.view, 0, Some(5.0)), -5.0);
     }
 }

@@ -222,6 +222,41 @@ impl Default for Bands {
     }
 }
 
+/// [fix-team 4 `mods.comeback`] The comeback's counts (the bench's; nothing live): attack candidates held back while the team
+/// was outnumbered, and container holders not offered behind late.
+pub mod comeback_counts {
+    #[derive(Clone, Copy, Debug)]
+    pub enum Count {
+        AttacksHeldBack,
+        HolderOffBehindLate,
+    }
+
+    pub const NAMES: [&str; 2] = ["attacks_held_back", "holder_off_behind_late"];
+
+    #[cfg(test)]
+    thread_local! {
+        static COUNTS: std::cell::Cell<[u64; 2]> = const { std::cell::Cell::new([0; 2]) };
+    }
+
+    #[cfg(test)]
+    pub fn add(c: Count, n: u64) {
+        COUNTS.with(|cell| {
+            let mut all = cell.get();
+            all[c as usize] += n;
+            cell.set(all);
+        });
+    }
+
+    #[cfg(not(test))]
+    pub fn add(_: Count, _: u64) {}
+
+    /// The counts so far on this thread, in [`NAMES`] order.
+    #[cfg(test)]
+    pub fn counted() -> [u64; 2] {
+        COUNTS.with(|cell| cell.get())
+    }
+}
+
 /// An attack on the enemy's container: what a team behind on points
 /// needs to win points back (the batteries home are taken only so).
 /// [A296 item 2, `mods.team_plan`] What a team sets out to do this commander tick, from its standing on points and the time
@@ -1869,5 +1904,17 @@ mod tests {
         assert_eq!([gang_factor(&rule, 0), gang_factor(&rule, 1)], [1.0, 1.0]);
         assert_eq!(gang_factor(&rule, 2), 0.5);
         assert_eq!(gang_factor(&rule, 9), 0.25);
+    }
+
+    /// [fix-team 4] The comeback's confidence: attacks while not outnumbered.
+    #[test]
+    fn a_team_attacks_only_while_it_is_not_outnumbered() {
+        use crate::v026g::bots::signals::MatchSignals;
+        use crate::v026g::bots::tuning::Comeback;
+        let rule = Comeback::default();
+        let at = |ours, theirs| rule.confident(&MatchSignals { alive_ours: ours, alive_theirs: theirs, ..Default::default() });
+        assert!(at(5, 5) && at(6, 4));
+        assert!(!at(4, 5), "outnumbered: no attack");
+        assert!(rule.check().is_ok() && Comeback { confidence: 0.0, ..rule }.check().is_err());
     }
 }

@@ -918,7 +918,7 @@ impl Bots {
         let tracker = &self.tracker;
         let exact = tuning.cheats.enemy_respawn_exact;
         let back = |p: &PlaceView| tuning.think.respawn_times && tracker.back(view, team, p, exact);
-        state.signals = MatchSignals::read(view, team, since_theft, back);
+        state.signals = MatchSignals::read_full_at(view, team, since_theft, back, tuning.tdm.gap_full_tickets.map(|t| t.get()));
         state.mods.update(&state.signals, &tuning.mods);
         // A team that can no longer respawn (Team Deathmatch, its tickets
         // out) plays it safe.
@@ -1311,6 +1311,18 @@ impl Bots {
                 for (role, offer) in offers {
                     bot.offers.note(role, offer);
                 }
+            }
+        }
+        // [fix-team 4 `mods.comeback`] Attacks only while the team is not outnumbered: an attack started outnumbered is let go
+        // (its candidate gone), as Killzone 3's squads report a decimated attack and Days Gone's squads fall back below
+        // neutral confidence.
+        if let Some(rule) = tuning.mods.comeback
+            && !rule.confident(&state.signals)
+        {
+            for (_, candidates, _) in &mut asked {
+                let before = candidates.len();
+                candidates.retain(|c| !team::attack(c.kind));
+                team::comeback_counts::add(team::comeback_counts::Count::AttacksHeldBack, (before - candidates.len()) as u64);
             }
         }
         // [A296 item 2, `mods.team_plan`] The team's plan from its standing and the time left re-weighs every bot's candidates.

@@ -20,8 +20,49 @@ pub struct ModTuning {
     pub team_plan: Option<TeamPlanRule>,
     /// [A296 item 4] A team behind opens its raids and late denials earlier ([`BehindOpen`]). Off: the plays' own windows.
     pub behind_open: Option<BehindOpen>,
-    /// [A296 item 5] A raider waits for a teammate near before it goes in ([`RaidRegroup`]). Off: it goes in alone.
+    /// [A296 item 5] A raider waits for a teammate near before it goes in ([`RaidRegroup`]). Off: it goes in alone. On by default
+    /// with [fix-team 4] as the comeback's gather (its own bench never ran alone: #1272 turned it on with `team_plan` and
+    /// `behind_open`, #1284 took all three off together).
     pub raid_regroup: Option<RaidRegroup>,
+    /// [fix-team 4] A comeback that gathers, then commits ([`Comeback`]): attacks only while the team is not outnumbered, and
+    /// no container holder behind late. The gather is `raid_regroup`, the commit `commit.hold_started`. Not `team_plan`: no
+    /// play is weighed up. Off: attacks at any strength, the holder at any score.
+    pub comeback: Option<Comeback>,
+}
+
+/// [fix-team 4] The comeback's rules (Days Gone's squad confidence, Killzone 3's decimated attack reported up): the team's
+/// confidence is its living bots and players against the enemy's (`MatchSignals::alive_ours`, `alive_theirs`: the kill feed
+/// and the respawn times, as the HUD gives them).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Comeback {
+    /// Attacks on the enemy's container (raid, sneak, late denial) are offered while ours alive are at least this times
+    /// theirs: 1, not outnumbered (Days Gone presses from "confident", falls back below "neutral"; no source gives a
+    /// number, so 1 is the even split, not a measured value).
+    pub confidence: f32,
+    /// The container holder is not offered from this `behind_late` on: 0.5, where the raid sends its second raider
+    /// (`raid.rs` `pair_behind`), so the team that pairs its raids keeps no bot at home.
+    pub holder_off_behind_late: f32,
+}
+
+impl Default for Comeback {
+    fn default() -> Self {
+        Self { confidence: 1.0, holder_off_behind_late: 0.5 }
+    }
+}
+
+impl Comeback {
+    pub fn check(&self) -> Result<(), String> {
+        if !((0.25..=4.0).contains(&self.confidence) && (0.0..=1.0).contains(&self.holder_off_behind_late)) {
+            return Err("mods.comeback".into());
+        }
+        Ok(())
+    }
+
+    /// Whether the team of `signals` may attack: not outnumbered by more than the rule lets it.
+    pub fn confident(&self, signals: &crate::v026g::bots::signals::MatchSignals) -> bool {
+        signals.alive_ours as f32 >= self.confidence * signals.alive_theirs as f32
+    }
 }
 
 /// [A296 item 2] A team plan from the HUD's score and the time left (the owner, 2026-11-04: "bots should give a challenge to
@@ -181,7 +222,8 @@ impl Default for ModTuning {
             // comeback takes the behind team off defence (Raid time +81 %, Raid deaths +36 %, its container unheld +58 %).
             team_plan: None,
             behind_open: None,
-            raid_regroup: None,
+            raid_regroup: Some(RaidRegroup::default()),
+            comeback: Some(Comeback::default()),
         }
     }
 }
