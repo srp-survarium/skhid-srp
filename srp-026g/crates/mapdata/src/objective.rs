@@ -18,7 +18,7 @@
 //! (its hazards), not this module's.
 
 use crate::grid::gap::Takeoff;
-use crate::grid::{Aim, LinkKind, NodeId, OffLink, Path, Reach, Riser, Share, SprintReach, WalkGrid};
+use crate::grid::{Aim, Entry, LinkKind, NodeId, OffLink, Open, Path, Reach, Riser, Share, SprintReach, WalkGrid};
 use crate::stands::{UseStands, USE_RAY_CLIENT_M};
 use crate::{RayTree, Vec3, World};
 
@@ -276,20 +276,64 @@ fn judge(grid: &WalkGrid, path: &Path, reach: Reach) -> Way {
 
 /// The cheapest way from any of `from` to any of `to` for `reach`, judged ([`judge`]); with the goal it reached.
 fn best_way(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -> (Way, Option<NodeId>) {
-    let mut best: Option<(Path, NodeId)> = None;
+    match nearest_path(grid, from, to, reach) {
+        Some(path) => {
+            let b = *path.nodes.last().expect("a path has its goal");
+            (judge(grid, &path, reach), Some(b))
+        }
+        None => (Way::Fails { at: None, why: WayFail::NoPath }, None),
+    }
+}
+
+/// The cheapest path for `reach` from any of `from` to any of `to`, in one search (the batteries' session's ask: a search per
+/// pair of spawn floor and take stand cost 3.5 s on a 50,423-floor field): a Dijkstra from every floor of `from` at once over
+/// the links' costs for `reach` ([`WalkGrid::link_cost_reaching`], what [`WalkGrid::path_where_reaching`] prices), stopped at
+/// the first floor of `to` it settles. The same cost as the best of the pairs' searches; None when no floor of `to` is reached.
+fn nearest_path(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -> Option<Path> {
+    let n = grid.len();
+    let mut goal = vec![false; n];
+    for &b in to {
+        if let Some(g) = goal.get_mut(b as usize) {
+            *g = true;
+        }
+    }
+    let mut cost = vec![f32::INFINITY; n];
+    // The floor each was reached from and the link taken (the start's: itself, a Walk).
+    let mut came: Vec<(NodeId, LinkKind)> = (0..n as NodeId).map(|v| (v, LinkKind::Walk)).collect();
+    let mut open = Open::default();
     for &a in from {
-        for &b in to {
-            if let Some(path) = grid.path_where_reaching(a, b, |_| true, reach)
-                && best.as_ref().is_none_or(|(p, _)| path.cost < p.cost)
-            {
-                best = Some((path, b));
+        if (a as usize) < n && cost[a as usize] > 0.0 {
+            cost[a as usize] = 0.0;
+            open.push(Entry(0.0, a));
+        }
+    }
+    while let Some(Entry(c, u)) = open.pop() {
+        if c > cost[u as usize] {
+            continue;
+        }
+        if goal[u as usize] {
+            let mut nodes = vec![u];
+            let mut kinds = vec![came[u as usize].1];
+            let mut v = u;
+            while came[v as usize].0 != v {
+                v = came[v as usize].0;
+                nodes.push(v);
+                kinds.push(came[v as usize].1);
+            }
+            nodes.reverse();
+            kinds.reverse();
+            return Some(Path { nodes, kinds, cost: c });
+        }
+        for (v, kind) in grid.links(u) {
+            let cv = c + grid.link_cost_reaching(u, v, kind, reach);
+            if cv < cost[v as usize] {
+                cost[v as usize] = cv;
+                came[v as usize] = (u, kind);
+                open.push(Entry(cv, v));
             }
         }
     }
-    match best {
-        Some((path, b)) => (judge(grid, &path, reach), Some(b)),
-        None => (Way::Fails { at: None, why: WayFail::NoPath }, None),
-    }
+    None
 }
 
 fn row(world: &World, stands: &UseStands, spawner: Option<usize>, at: Vec3, team: i32, takes: &[Stand]) -> Row {
@@ -376,6 +420,32 @@ mod tests {
             ..MapData::default()
         };
         World::assemble(map, grid.into(), RayTree::build(&sight).into())
+    }
+
+    /// The one search's path costs what the best of the pairs' searches does, for the full reach and a carrier's, ends on a
+    /// goal and starts on a source; with no goal reached, none.
+    #[test]
+    fn the_one_search_finds_the_best_pair() {
+        let w = world(false);
+        let g = &w.grid;
+        let at = |x: f32, z: f32| g.locate(Vec3::new(x, 0.0, z), 0.3).unwrap();
+        let from = [at(-8.0, 5.0), at(-8.0, -5.0), at(0.0, 8.0)];
+        let to = [at(4.0, 1.0), at(5.0, 0.0), at(8.0, -6.0)];
+        for reach in [Reach::FULL, Reach::no_sprint(None)] {
+            let one = nearest_path(g, &from, &to, reach).expect("a path");
+            let pairs = from
+                .iter()
+                .flat_map(|&a| to.iter().filter_map(move |&b| g.path_where_reaching(a, b, |_| true, reach)))
+                .map(|p| p.cost)
+                .fold(f32::INFINITY, f32::min);
+            assert!((one.cost - pairs).abs() < 1e-3, "{} vs {pairs}", one.cost);
+            assert!(from.contains(&one.nodes[0]) && to.contains(one.nodes.last().unwrap()));
+            assert_eq!(one.nodes.len(), one.kinds.len());
+        }
+        let shut = world(true);
+        let inside = shut.grid.locate(Vec3::new(4.0, 0.0, 0.0), 0.3).unwrap();
+        let outside = shut.grid.locate(Vec3::new(-8.0, 0.0, 5.0), 0.3).unwrap();
+        assert!(nearest_path(&shut.grid, &[outside], &[inside], Reach::FULL).is_none());
     }
 
     /// The use ray meets a battery 1.5 m from the eye in the open, not one 2.0 m away, nor one behind a wall.

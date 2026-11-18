@@ -913,6 +913,16 @@ impl Tactics {
         self.base.walker_walls.clone()
     }
 
+    /// [fix-team trap ray] What a trap's release ray meets (`traps::client_landing`): the map's walker objects, the same tree
+    /// as [`Self::walker_walls`]. The client casts it with group 0x404 / mask 0x202 (`get_visible_place_transform` 0x306490,
+    /// pushed at 0x3064B6), which meets an object when `cgroup & 0x202` and `cmask & 0x404`, and refuses a hit in group 0x200
+    /// (0x306598). The 16 offered map files' placements are 0x2/0x4, 0xA/0x14 and 0x8/0x10 only, so the ray meets exactly
+    /// the walker's objects there, never the bullet-only ones the sight tree has (PROVEN). Not checked: a map object that
+    /// neither body meets, which the map files leave out, in group 0x2 with mask 0x400 and no 0x4.
+    pub fn trap_mesh(&self) -> &RayTree {
+        &self.base.walker_walls
+    }
+
     pub fn of(base: Arc<TacticsBase>) -> Self {
         Self {
             world: base.world.clone(),

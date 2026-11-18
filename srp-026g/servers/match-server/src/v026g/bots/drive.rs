@@ -721,7 +721,7 @@ fn drive_tick_inner(
         &tuning.traps,
     );
     let trap = if reacts {
-        traps::drive(bot, me, time, trap_calm, intent.crouch, &tuning.traps, Some(&tactics.world.sight), over_heard)
+        traps::drive(bot, me, time, trap_calm, intent.crouch, &tuning.traps, Some(tactics.trap_mesh()), over_heard)
     } else {
         None
     };
