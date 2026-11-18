@@ -1210,7 +1210,6 @@ impl Bots {
             features: TeamFeatures::default(),
             squads: None,
             suspended: Vec::new(),
-            confidence: Default::default(),
         };
         let bots = teams
             .iter()
