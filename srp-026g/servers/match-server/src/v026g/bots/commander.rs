@@ -16,8 +16,6 @@ pub(super) struct TeamState {
     /// [fix-team 2 `commit.hold_started`] Its bots' held plays an interrupter suspended (`team::Commit::Resumes`): one a bot
     /// at most, kept while the bot's play is the interrupter's (`team::INTERRUPT_REASON`), gone with the bot's life.
     pub(super) suspended: Vec<team::Suspended>,
-    /// [fix-team 4 `mods.comeback`] Its confidence, faded (`team::Confidence`).
-    pub(super) confidence: team::Confidence,
 }
 
 /// [A391] A Breach that went: its spot and its bots.
@@ -924,9 +922,6 @@ impl Bots {
         let exact = tuning.cheats.enemy_respawn_exact;
         let back = |p: &PlaceView| tuning.think.respawn_times && tracker.back(view, team, p, exact);
         state.signals = MatchSignals::read_full_at(view, team, since_theft, back, tuning.tdm.gap_full_tickets.map(|t| t.get()));
-        if let Some(rule) = tuning.mods.comeback {
-            state.confidence = state.confidence.read(state.signals.alive_ours, state.signals.alive_theirs, now, rule.fade_s);
-        }
         state.mods.update(&state.signals, &tuning.mods);
         // A team that can no longer respawn (Team Deathmatch, its tickets
         // out) plays it safe.
@@ -1080,15 +1075,44 @@ impl Bots {
         let squad_of = |place: Place| -> Option<usize> {
             self.teams[usize::from(team)].squads.as_ref()?.iter().position(|s| s.contains(&place))
         };
+        // [fix-team `threat.support_attackers`] With the support on, every enemy attacking a mate is a fight of its own.
+        let attackers = tuning.threat.support_attackers.filter(|_| support.is_some());
         // [A297 `tdm.group`] The team's bots in a fight now (their reflex targets): their mates answer them (play 21's cover).
         let fighting = if by_position.is_some() {
-            let targets: Vec<(Place, Place)> = self
-                .bots
-                .iter()
-                .flatten()
-                .filter(|b| b.team == team && view.place(b.place).is_some_and(|p| p.alive))
-                .filter_map(|b| b.reflex.target().map(|enemy| (b.place, enemy)))
-                .collect();
+            let targets: Vec<(Place, Place)> = match attackers {
+                Some(rule) => {
+                    let mut all: Vec<(Place, group::Attacker)> = self
+                        .bots
+                        .iter()
+                        .flatten()
+                        .filter(|b| b.team == team)
+                        .filter_map(|b| view.place(b.place).filter(|p| p.alive).map(|me| (b, me)))
+                        .flat_map(|(b, me)| {
+                            let window_ms = (rule.window_s.get() * 1000.0) as u32;
+                            group::attackers(
+                                me,
+                                b.reflex.target(),
+                                b.reflex.last_hit(),
+                                b.memory.tracks(),
+                                view,
+                                group::Senses { now, window_ms, view_deg: tuning.sense.view_deg, aim_deg: tuning.aim.combat.hit_match_deg },
+                            )
+                            .into_iter()
+                            .map(move |a| (b.place, a))
+                        })
+                        .collect();
+                    // The most dangerous first, over the whole team: one the mate does not face, then hits, then the nearest.
+                    all.sort_by(|(_, a), (_, b)| a.rank(b));
+                    all.into_iter().map(|(mate, a)| (mate, a.enemy)).collect()
+                }
+                None => self
+                    .bots
+                    .iter()
+                    .flatten()
+                    .filter(|b| b.team == team && view.place(b.place).is_some_and(|p| p.alive))
+                    .filter_map(|b| b.reflex.target().map(|enemy| (b.place, enemy)))
+                    .collect(),
+            };
             group::fighting(&targets, &self.teams[usize::from(team)].knowledge.fighting, now)
         } else {
             Vec::new()
@@ -1143,18 +1167,32 @@ impl Bots {
                     .filter(|b| may_support(b))
                     .filter_map(|b| view.place(b.place).filter(|p| p.alive && p.carrying.is_none()).map(|p| (b.place, p.feet)))
                     .collect();
+                // The enemy of a mate's first fight (the one answer the single-target rules give him).
+                let first_enemy = |mate: Place| engaged.iter().find(|f| f.mate == mate).map(|f| f.enemy);
+                let single = |pairs: Vec<(Place, Place)>| -> Vec<know::Answer> {
+                    pairs.into_iter().filter_map(|(mate, bot)| first_enemy(mate).map(|enemy| know::Answer { mate, enemy, bot })).collect()
+                };
                 if squad_on {
                     // Each fight answered within its squad only.
-                    fights
+                    single(
+                        fights
+                            .iter()
+                            .flat_map(|&fight| {
+                                let mine: Vec<(Place, mapdata::Vec3)> =
+                                    free.iter().copied().filter(|f| squad_of(f.0).is_some() && squad_of(f.0) == squad_of(fight.0)).collect();
+                                group::answerers(&[fight], &mine, answer_m)
+                            })
+                            .collect(),
+                    )
+                } else if attackers.is_some() {
+                    // [fix-team `threat.support_attackers`] Up to one helper per attacker, the most dangerous first.
+                    let each: Vec<(Place, Place, mapdata::Vec3)> = engaged
                         .iter()
-                        .flat_map(|&fight| {
-                            let mine: Vec<(Place, mapdata::Vec3)> =
-                                free.iter().copied().filter(|f| squad_of(f.0).is_some() && squad_of(f.0) == squad_of(fight.0)).collect();
-                            group::answerers(&[fight], &mine, answer_m)
-                        })
-                        .collect()
+                        .filter_map(|f| view.place(f.mate).filter(|p| p.alive).map(|p| (f.mate, f.enemy, p.feet)))
+                        .collect();
+                    group::answer_each(&each, &free, answer_m).into_iter().map(|(mate, enemy, bot)| know::Answer { mate, enemy, bot }).collect()
                 } else {
-                    group::answerers(&fights, &free, answer_m)
+                    single(group::answerers(&fights, &free, answer_m))
                 }
             }
             _ => Vec::new(),
@@ -1167,7 +1205,7 @@ impl Bots {
                     let me = view.place(a.mate)?.feet;
                     let bot = self.bots.get(a.mate)?.as_ref()?;
                     let at = bot.memory.tracks().iter().find(|t| t.who == a.enemy).and_then(|t| t.own).map(|(at, _)| at)?;
-                    let answerer = answers.iter().find(|(m, _)| *m == a.mate).and_then(|&(_, b)| view.place(b)).map(|p| p.feet);
+                    let answerer = answers.iter().find(|x| x.mate == a.mate).and_then(|x| view.place(x.bot)).map(|p| p.feet);
                     if answerer.is_some() && a.since == now {
                         group::count(group::Count::ApproachAnswered);
                     }
@@ -1344,19 +1382,63 @@ impl Bots {
                 }
             }
         }
-        // [fix-team 4 `mods.comeback`] By the team's faded confidence: outnumbered, no new attack (a running one goes on);
-        // decimated, a running one is let go too (Killzone 3's decimated attack reported up; Days Gone's fall back).
-        if let Some(rule) = tuning.mods.comeback
-            && let Some(confidence) = state.confidence.ratio()
-        {
-            let gate = rule.gate(confidence);
-            if gate != tuning::AttackGate::Open {
-                for (_, candidates, current) in &mut asked {
-                    let before = candidates.len();
-                    let running = |c: &plays::Candidate| current.as_ref().is_some_and(|a| a.kind == c.kind && a.target == c.target);
-                    candidates.retain(|c| !team::attack(c.kind) || (gate == tuning::AttackGate::NoStart && running(c)));
-                    team::comeback_counts::add(team::comeback_counts::Count::AttacksHeldBack, (before - candidates.len()) as u64);
+        // [fix-team 4 `mods.comeback`] By each attack's local confidence: outnumbered there, no new attack (a running one goes
+        // on); its group decimated or the target held by clearly more known enemies, a running one is let go too (Killzone 3's
+        // decimated attack reported up; Days Gone's fall back).
+        if let Some(rule) = tuning.mods.comeback {
+            let container_at = |target: plays::TargetRef| match target {
+                plays::TargetRef::Container(id) => view.containers.iter().find(|k| k.id == id).map(|k| k.at),
+                _ => None,
+            };
+            let mates: Vec<(Place, Vec3)> = view.team(team).filter(|p| p.alive).map(|p| (p.place, p.feet)).collect();
+            let raiders: Vec<(Place, Vec3, Vec3)> = asked
+                .iter()
+                .filter_map(|(place, _, current)| {
+                    let a = current.as_ref().filter(|a| team::attack(a.kind))?;
+                    Some((*place, view.place(*place).filter(|p| p.alive)?.feet, container_at(a.target)?))
+                })
+                .collect();
+            // The enemies the team knows by its own senses (sight, hearing, callouts), each where it last had him.
+            let mut known: Vec<(Place, Vec3, u32)> = Vec::new();
+            for bot in self.bots.iter().flatten().filter(|b| b.team == team) {
+                for t in bot.memory.tracks() {
+                    if let Some((at, time)) = t.own {
+                        match known.iter_mut().find(|k| k.0 == t.who) {
+                            Some(k) if k.2 < time => *k = (t.who, at, time),
+                            Some(_) => {}
+                            None => known.push((t.who, at, time)),
+                        }
+                    }
                 }
+            }
+            let enemies: Vec<Vec3> = known.iter().map(|k| k.1).collect();
+            // The kill feed's deaths: an enemy's is our kill, ours a loss.
+            let (mut kills, mut losses) = (Vec::new(), Vec::new());
+            for d in &view.deaths {
+                match view.place(d.place).map(|p| p.team == team) {
+                    Some(true) => losses.push((d.at, d.time)),
+                    Some(false) => kills.push((d.at, d.time)),
+                    None => {}
+                }
+            }
+            let picture = team::AttackPicture { mates: &mates, raiders: &raiders, enemies: &enemies, kills: &kills, losses: &losses, now };
+            for (place, candidates, current) in &mut asked {
+                let Some(feet) = view.place(*place).map(|p| p.feet) else {
+                    continue;
+                };
+                let before = candidates.len();
+                candidates.retain(|c| {
+                    let Some(target) = container_at(c.target).filter(|_| team::attack(c.kind)) else {
+                        return true;
+                    };
+                    let running = current.as_ref().is_some_and(|a| a.kind == c.kind && a.target == c.target);
+                    match rule.gate(team::local_confidence(&picture, *place, feet, target, &rule)) {
+                        tuning::AttackGate::Open => true,
+                        tuning::AttackGate::NoStart => running,
+                        tuning::AttackGate::Drop => false,
+                    }
+                });
+                team::comeback_counts::add(team::comeback_counts::Count::AttacksHeldBack, (before - candidates.len()) as u64);
             }
         }
         // [A296 item 2, `mods.team_plan`] The team's plan from its standing and the time left re-weighs every bot's candidates.

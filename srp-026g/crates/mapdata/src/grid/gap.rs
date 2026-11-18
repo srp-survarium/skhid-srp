@@ -621,7 +621,23 @@ impl Mask {
     pub fn count(self) -> u8 {
         self.0.count_ones() as u8
     }
+
+    /// [knife edge] Whether the press lands and none of its sides or turns does ([`jump::neighbourhood`]'s order: 0 the press,
+    /// 1-4 the leads, 5-6 the sides, 7-8 the turns): its window ([`Share::window`]) has no width across the way, so a motor that
+    /// eases onto the line lands only at the exact press.
+    pub fn knife_edge(self) -> bool {
+        self.lands(0) && !LATERAL.into_iter().any(|i| self.lands(i))
+    }
+
+    /// [knife edge] The landing neighbours a press is priced and chosen by: a knife edge's ([`Self::knife_edge`]) is the press
+    /// alone, 1, whatever its leads, heights or kit land; else every landing neighbour.
+    pub fn priced(self) -> u8 {
+        if self.knife_edge() { 1 } else { self.count() }
+    }
 }
+
+/// [knife edge] The neighbours across the way ([`jump::neighbourhood`]: the two sides, the two turns).
+const LATERAL: std::ops::RangeInclusive<usize> = 5..=8;
 
 /// [A385] A flown link's robustness (A385-FORMAT §2): of its press's [`jump::NEIGHBOURS`] neighbourhood flights (the motor's
 /// spread of lead, side and heading, the world 1-2 cm off, the bots' fastest kit; every sprint variant), which land and stay
@@ -658,6 +674,13 @@ impl Share {
         self.0.map(Mask::count)
     }
 
+    /// [knife edge] How two flown presses of one link compare, the better the greater: the count it is priced by
+    /// ([`Mask::priced`]: a knife edge's is 1), then every landing neighbour; None when not flown. A press with width across the
+    /// way wins over a knife edge however many of the knife edge's leads land: the wider client move, not a cut.
+    pub fn rank(self) -> Option<(u8, u8)> {
+        self.0.map(|m| (m.priced(), m.count()))
+    }
+
     /// owner-5's classes (rim-score): 0 under 0.2 (knife edge), 1 from 0.2 to under 0.6, 2 at 0.6 and over (robust); an unflown
     /// link in 2.
     pub fn class(self) -> usize {
@@ -670,9 +693,11 @@ impl Share {
 
     /// The tries a press of this share fails for each that lands, reading the share as the chance a press within the motor's
     /// spread lands (each neighbour an equally likely press): `NEIGHBOURS / landed - 1`; a link none of whose neighbours lands
-    /// (a riser no press gets up) `NEIGHBOURS`; an unflown one 0 (A385-FORMAT §4).
+    /// (a riser no press gets up) `NEIGHBOURS`; an unflown one 0 (A385-FORMAT §4). [knife edge] `landed` is the priced count
+    /// ([`Mask::priced`]): a knife edge, whose sides and turns all miss, is priced as the press alone (13 tries), so a route
+    /// takes it only where nothing robust goes.
     pub fn failed_tries(self) -> f32 {
-        match self.flown() {
+        match self.0.map(Mask::priced) {
             None => 0.0,
             Some(0) => jump::NEIGHBOURS as f32,
             Some(n) => jump::NEIGHBOURS as f32 / f32::from(n) - 1.0,

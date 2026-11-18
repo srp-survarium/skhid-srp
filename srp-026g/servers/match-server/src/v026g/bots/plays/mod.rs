@@ -1673,7 +1673,8 @@ pub fn advanced(kind: PlayKind, target: TargetRef) -> Option<crate::v026g::bots:
 }
 
 /// [fix-team 5 `skill.tactics`] The advanced tactics' candidates scored times their share at the bot's skill (dual utility:
-/// one more weight on the play's own considerations, so a scaled tactic stays in its band), capped at 1. At the design's
+/// one more weight on the play's own considerations, so a scaled tactic stays in its band; over 1 the miss `1 - score`
+/// is divided by the share instead, so a score stays under 1 and keeps its order). At the design's
 /// `today` (0.6) every share is exactly 1 and nothing changes; the team play is never scaled.
 fn skill_shares(cx: &Ctx, out: &mut [Candidate]) {
     let Some(tactics) = cx.tuning.skill.tactics else {
@@ -1684,8 +1685,11 @@ fn skill_shares(cx: &Ctx, out: &mut [Candidate]) {
             continue;
         };
         let share = tactics.share(tactic, cx.bot.skill);
-        if share != 1.0 {
+        if share < 1.0 {
             c.score = Score::new(c.score.get() * share);
+        } else if share > 1.0 {
+            // [review of #2189] Over 1 the miss shrinks instead: monotone, at most 1, no ties at the cap, the score itself at 1.
+            c.score = Score::new(1.0 - (1.0 - c.score.get()) / share);
         }
     }
 }

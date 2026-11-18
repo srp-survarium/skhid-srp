@@ -220,11 +220,9 @@ fn fight_to_answer(cx: &Ctx, rules: &GroupUp) -> Option<Place> {
             }
             partner
         }
-        Answer::Nearest | Answer::NearestMover => {
-            cx.team.answers.iter().find(|(_, bot)| *bot == cx.me.place)?.0
-        }
+        Answer::Nearest | Answer::NearestMover => cx.team.answers.iter().find(|a| a.bot == cx.me.place)?.mate,
     };
-    let enemy = fighting.iter().find(|f| f.mate == mate)?.enemy;
+    let enemy = answer_enemy(cx, mate)?;
     if cx.known_place(enemy).is_none() {
         count(Count::CoverUnknown);
         return None;
@@ -382,12 +380,22 @@ fn cover_spot(cx: &Ctx, rules: &GroupUp, mate: Vec3, enemy: Vec3, rng: &mut Rng)
     best
 }
 
+/// The enemy this bot covers `mate` from: the one its answer names ([fix-team `threat.support_attackers`]: one of his
+/// attackers), else his first fight's; none when that fight is over.
+fn answer_enemy(cx: &Ctx, mate: Place) -> Option<Place> {
+    let fighting = &cx.team.fighting;
+    match cx.team.answers.iter().find(|a| a.bot == cx.me.place && a.mate == mate) {
+        Some(a) => fighting.iter().any(|f| f.mate == mate && f.enemy == a.enemy).then_some(a.enemy),
+        None => fighting.iter().find(|f| f.mate == mate).map(|f| f.enemy),
+    }
+}
+
 /// [A297 `tdm.group`] The cover of `mate`'s fight: its spot, picked once.
 fn start_cover(cx: &Ctx, rules: &GroupUp, mate: Place, rng: &mut Rng) -> State {
-    let found = cx.team.fighting.iter().find(|f| f.mate == mate).and_then(|f| {
+    let found = answer_enemy(cx, mate).and_then(|enemy| {
         let mate_at = cx.known_place(mate)?;
-        let enemy_at = cx.known_place(f.enemy)?;
-        cover_spot(cx, rules, mate_at, enemy_at, rng).map(|spot| (f.enemy, spot))
+        let enemy_at = cx.known_place(enemy)?;
+        cover_spot(cx, rules, mate_at, enemy_at, rng).map(|spot| (enemy, spot))
     });
     match found {
         Some((enemy, spot)) => {
@@ -659,7 +667,7 @@ mod tests {
         s.enemy(1, 1, Vec3::new(58.0, 0.0, 34.0), Some(Source::Heard));
         s.partner = Some(2);
         s.team.fighting = vec![Fighting { mate: 2, enemy: 1, since: s.view.clock - 500 }];
-        s.team.answers = vec![(2, 0)];
+        s.team.answers = vec![crate::v026g::bots::know::Answer { mate: 2, enemy: 1, bot: 0 }];
         s.tuning.tdm.group = on.then(GroupUp::default);
         // [fix-team 3] The grouping alone (the support answers where it is off).
         s.tuning.threat.support = None;
@@ -682,7 +690,7 @@ mod tests {
         assert!(trades(&s).is_empty());
         // Not when the commander gave its fight to another bot.
         let mut s = covering(true);
-        s.team.answers = vec![(2, 3)];
+        s.team.answers = vec![crate::v026g::bots::know::Answer { mate: 2, enemy: 1, bot: 3 }];
         assert!(trades(&s).is_empty());
         // answer = partner: not when the partner fights farther than answer_m.
         use crate::v026g::bots::tuning::{Answer, Metres};
@@ -712,7 +720,7 @@ mod tests {
                 other => panic!("{mode:?}: {other:?}"),
             }
             // Given to another bot: none.
-            s.team.answers = vec![(2, 3)];
+            s.team.answers = vec![crate::v026g::bots::know::Answer { mate: 2, enemy: 1, bot: 3 }];
             assert!(trades(&s).is_empty());
         }
         // The grouping in TDM: its alarm, as before.

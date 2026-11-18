@@ -861,15 +861,17 @@ impl Stuck {
 pub const ESCAPE_REACH: f32 = 2.0;
 
 /// The keys of one stuck recovery: a forward jump up the ledge the body is
-/// held by (`Tactics::ledge_ahead`), else the escape keys. The first stop at
-/// a spot backs off with no jump, the second keeps the old back-diagonal
-/// jump (`jump` is `key::JUMP` when the body may jump, else 0), the third
-/// none.
-pub fn unstick_keys(recovery: Recovery, ledge: bool, escape: u32, jump: u32) -> u32 {
+/// held by (`Tactics::ledge_ahead`, asked only of a body that may jump), else
+/// the escape keys, with no jump.
+///
+/// [fix-move, owner-16 row 30] The second stop at a spot kept a back-diagonal jump with no ledge ahead: in 16 local matches at
+/// 9694ea576, 399 of the 468 unstick jumps left the body at the same level 1.2-2.7 s later (owner-16 report 10, "an unstick
+/// jump"). A jump with nothing to jump up is no way out; the escape keys and the replan (`Recovery::BackOff` drops the route,
+/// `Sidestep` ends the play) are.
+pub fn unstick_keys(recovery: Recovery, ledge: bool, escape: u32) -> u32 {
     match (recovery, ledge) {
         (Recovery::BackOff | Recovery::Sidestep, true) => key::FORWARD | key::JUMP,
-        (Recovery::BackOff | Recovery::GiveUp, _) => escape,
-        (Recovery::Sidestep, false) => escape | jump,
+        (Recovery::BackOff | Recovery::GiveUp | Recovery::Sidestep, _) => escape,
     }
 }
 
@@ -1705,24 +1707,18 @@ mod tests {
     }
 
     /// F4: a forward jump up the ledge a stuck body is held by, else the
-    /// escape keys: no jump on the first stop at a spot, the old
-    /// back-diagonal jump on the second, none on the third.
+    /// escape keys; [fix-move, owner-16 row 30] no jump without a ledge ahead, at any stop.
     #[test]
     fn a_stop_at_a_ledge_jumps_forward_and_any_other_backs_off() {
-        let (escape, jump) = (key::BACK | key::LEFT, key::JUMP);
+        let escape = key::BACK | key::LEFT;
         let forward_jump = key::FORWARD | key::JUMP;
         for recovery in [Recovery::BackOff, Recovery::Sidestep] {
-            assert_eq!(unstick_keys(recovery, true, escape, jump), forward_jump);
+            assert_eq!(unstick_keys(recovery, true, escape), forward_jump);
         }
-        assert_eq!(unstick_keys(Recovery::GiveUp, true, escape, jump), escape);
-        assert_eq!(unstick_keys(Recovery::BackOff, false, escape, jump), escape);
-        assert_eq!(
-            unstick_keys(Recovery::Sidestep, false, escape, jump),
-            escape | jump
-        );
-        assert_eq!(unstick_keys(Recovery::GiveUp, false, escape, jump), escape);
-        // A body that may not jump (a hit's stagger) gets no jump at all.
-        assert_eq!(unstick_keys(Recovery::Sidestep, false, escape, 0), escape);
+        assert_eq!(unstick_keys(Recovery::GiveUp, true, escape), escape);
+        for recovery in [Recovery::BackOff, Recovery::Sidestep, Recovery::GiveUp] {
+            assert_eq!(unstick_keys(recovery, false, escape), escape, "{recovery:?}: no jump with nothing to jump up");
+        }
     }
 
     /// [`Stuck::walking`] with no walk key shown held: the reckoned watch.

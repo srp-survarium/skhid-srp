@@ -24,28 +24,38 @@ pub struct ModTuning {
     /// with [fix-team 4] as the comeback's gather (its own bench never ran alone: #1272 turned it on with `team_plan` and
     /// `behind_open`, #1284 took all three off together).
     pub raid_regroup: Option<RaidRegroup>,
+    /// [fix-team] A raider takes the approach the team's knowledge covers least, and gathers on it ([`RaidApproach`],
+    /// `raid::approach`). Off: the straight way to the container, the regroup on its ring.
+    pub raid_approach: Option<RaidApproach>,
     /// [fix-team 4] A comeback that gathers, then commits ([`Comeback`]): attacks only while the team is not outnumbered, and
     /// no container holder behind late. The gather is `raid_regroup`, the commit `commit.hold_started`. Not `team_plan`: no
     /// play is weighed up. Off: attacks at any strength, the holder at any score.
     pub comeback: Option<Comeback>,
 }
 
-/// [fix-team 4] The comeback's rules (Days Gone's squad confidence, Killzone 3's decimated attack reported up): the team's
-/// confidence is its living bots and players against the enemy's (`MatchSignals::alive_ours`, `alive_theirs`: the kill feed
-/// and the respawn times, as the HUD gives them).
+/// [fix-team 4] The comeback's rules (Days Gone's squad confidence, Killzone 3's decimated attack reported up). The confidence
+/// is local to each attack (`team::local_confidence`): the team's players on or near it (within `group_m` of the bot or of a
+/// mate attacking the same container), with the team's kills there, against the enemies the team knows by its own senses
+/// there (within `enemy_m` of the container or of a raider's straight way to it), with the team's losses there; kills and
+/// losses fade with `fade_s`. Not the team-wide alive count, which moves with every death and respawn anywhere.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Comeback {
-    /// No new attack on the enemy's container (raid, sneak, late denial) while the team's confidence (its living players
-    /// over the enemy's, faded over `fade_s`) is under this: 1, outnumbered. A start value: Days Gone presses from
-    /// "confident" and falls back below "neutral", and no source gives a number.
+    /// No new attack on the enemy's container (raid, sneak, late denial) while its local confidence is under this: 1,
+    /// outnumbered there. A start value: Days Gone presses from "confident" and falls back below "neutral", and no source
+    /// gives a number.
     pub start_confidence: f32,
-    /// A running attack is let go only under this: 0.67, decimated (Killzone 3's squads report a decimated attack). A start
-    /// value. Between the two a started attack goes on (hysteresis: a death or a respawn does not flip the team's attacks).
+    /// A running attack is let go only under this: 0.67, its group decimated or the target held by clearly more known enemies
+    /// (Killzone 3's squads report a decimated attack). A start value. Between the two a started attack goes on.
     pub drop_confidence: f32,
-    /// The confidence fades toward the present ratio with this time constant, s (Days Gone's kills and losses that fade): a
-    /// start value, about the 8 s respawn twice over.
+    /// A kill or a loss at the attack counts `exp(-age / fade_s)`, s: 20, a start value (Days Gone's outcomes that fade).
     pub fade_s: f32,
+    /// The team's players within this of the bot or of a mate attacking the same container are on the attack, m: 25, a start
+    /// value.
+    pub group_m: f32,
+    /// Known enemies, kills and losses within this of the container or of a raider's straight way to it count there, m: 30,
+    /// a start value.
+    pub enemy_m: f32,
     /// The container holder is not offered from this `behind_late` on: 0.5, where the raid sends its second raider
     /// (`raid.rs` `pair_behind`), so the team that pairs its raids keeps no bot at home.
     pub holder_off_behind_late: f32,
@@ -53,7 +63,7 @@ pub struct Comeback {
 
 impl Default for Comeback {
     fn default() -> Self {
-        Self { start_confidence: 1.0, drop_confidence: 0.67, fade_s: 15.0, holder_off_behind_late: 0.5 }
+        Self { start_confidence: 1.0, drop_confidence: 0.67, fade_s: 20.0, group_m: 25.0, enemy_m: 30.0, holder_off_behind_late: 0.5 }
     }
 }
 
@@ -62,6 +72,8 @@ impl Comeback {
         if !((0.25..=4.0).contains(&self.start_confidence)
             && (0.1..=self.start_confidence).contains(&self.drop_confidence)
             && (0.5..=120.0).contains(&self.fade_s)
+            && (5.0..=100.0).contains(&self.group_m)
+            && (5.0..=100.0).contains(&self.enemy_m)
             && (0.0..=1.0).contains(&self.holder_off_behind_late))
         {
             return Err("mods.comeback".into());
@@ -69,7 +81,7 @@ impl Comeback {
         Ok(())
     }
 
-    /// What the team's attacks may do at `confidence` (its faded ratio, `team::Confidence`).
+    /// What an attack may do at its local `confidence` (`team::local_confidence`).
     pub fn gate(&self, confidence: f32) -> AttackGate {
         if confidence < self.drop_confidence {
             AttackGate::Drop
@@ -211,6 +223,52 @@ impl Default for RaidRegroup {
     }
 }
 
+/// [fix-team] The raid's approach by a threat map of what the team knows (Mark's modular influence maps; Killzone 3's
+/// squads path round danger and gather before an attack): the side's human routes that pass within `route_near_m` of the
+/// container, else `bearings` points round it at `stage_m`, each priced by its length plus `risk_m` times its risk: per
+/// `sample_m` of the way, the known enemies within `enemy_m` (fading over `known_s`), the team's recent deaths within
+/// `death_m`, and the enemy humans' recent lanes within `lane_m`. Every number a start value for the bench, none measured.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RaidApproach {
+    pub route_near_m: f32,
+    pub bearings: u8,
+    pub stage_m: f32,
+    pub sample_m: f32,
+    pub enemy_m: f32,
+    pub known_s: f32,
+    pub death_m: f32,
+    pub lane_m: f32,
+    /// Metres of way one metre in full risk is worth.
+    pub risk_m: f32,
+}
+
+impl Default for RaidApproach {
+    fn default() -> Self {
+        Self {
+            route_near_m: 60.0,
+            bearings: 8,
+            stage_m: 40.0,
+            sample_m: 5.0,
+            enemy_m: 30.0,
+            known_s: 20.0,
+            death_m: 20.0,
+            lane_m: 12.0,
+            risk_m: 3.0,
+        }
+    }
+}
+
+impl RaidApproach {
+    pub fn check(&self) -> Result<(), String> {
+        let positive = [self.route_near_m, self.stage_m, self.sample_m, self.enemy_m, self.known_s, self.death_m, self.lane_m];
+        if !(positive.iter().all(|&v| v > 0.0) && (2..=32).contains(&self.bearings) && (0.0..=50.0).contains(&self.risk_m)) {
+            return Err("mods.raid_approach".into());
+        }
+        Ok(())
+    }
+}
+
 impl RaidRegroup {
     pub fn check(&self) -> Result<(), String> {
         if !(self.stage_m > 25.0 && self.call_m >= self.mate_m && self.mate_m > 0.0 && self.wait_s >= 0.0 && self.wait_s <= 30.0) {
@@ -250,6 +308,7 @@ impl Default for ModTuning {
             team_plan: None,
             behind_open: None,
             raid_regroup: Some(RaidRegroup::default()),
+            raid_approach: Some(RaidApproach::default()),
             comeback: Some(Comeback::default()),
         }
     }
@@ -734,6 +793,9 @@ pub struct ThreatTuning {
     /// other enemy bot fired at or hit him; 67 % of a victim's mates within 15 m had no line to him in the 3 s before;
     /// `LOSING-TEAM-ROOT-CAUSE.md` L6).
     pub support: Option<GroupUp>,
+    /// [fix-team, multi-attacker support] With `support`, every enemy attacking a mate is a fight of its own, each answered by
+    /// its own helper ([`SupportAttackers`], `group::attackers`). `None`: the mate's reflex target only, one helper.
+    pub support_attackers: Option<SupportAttackers>,
     /// K3: PairUp does not join a teammate standing in a held spot's lanes,
     /// and its join and wait spots are out of the top player's sight and the
     /// held lanes (F3).
@@ -1076,6 +1138,22 @@ pub struct CommitTuning {
     pub crossfire_arrival_tau_s: Option<f32>,
 }
 
+/// [fix-team, multi-attacker support] A mate's attackers: the enemy his reflex fights, the one his last hit came from (the
+/// nearest of his own fresh tracks to where the hit put the shooter), and any he saw fire with his aim on him (within
+/// `aim.combat.hit_match_deg`), each within the last `window_s`. All from the mate's own senses.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SupportAttackers {
+    /// How recent a hit or a shot is, s: Trade's `fresh_s` (3 s, "a death this recent is traded"), a design value.
+    pub window_s: super::limits::Positive,
+}
+
+impl Default for SupportAttackers {
+    fn default() -> Self {
+        Self { window_s: super::limits::Positive::of(3.0) }
+    }
+}
+
 impl ThreatTuning {
     /// The gang-up cap's rule, or none (off).
     pub fn gang_rule(&self) -> Option<GangRule> {
@@ -1123,6 +1201,7 @@ impl Default for ThreatTuning {
             trade_reach: true,
             trade_cover: None,
             support: Some(GroupUp { approach: None, ..GroupUp::default() }),
+            support_attackers: Some(SupportAttackers::default()),
             pair_up_hidden: true,
             crossfire_out_of_lines: true,
             whole_route_booked: true,

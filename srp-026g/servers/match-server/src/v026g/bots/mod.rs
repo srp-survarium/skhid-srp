@@ -1210,7 +1210,6 @@ impl Bots {
             features: TeamFeatures::default(),
             squads: None,
             suspended: Vec::new(),
-            confidence: Default::default(),
         };
         let bots = teams
             .iter()
@@ -2481,7 +2480,7 @@ impl Bots {
                     }
                 }
             }
-            let keys = stuck::unstick_keys(recovery, ledge.is_some(), escape, jump);
+            let keys = stuck::unstick_keys(recovery, ledge.is_some(), escape);
             match recovery {
                 Recovery::BackOff => {
                     bot.unstick = Some((keys, ticks(&mut bot.rng, (0.5, 0.8))));

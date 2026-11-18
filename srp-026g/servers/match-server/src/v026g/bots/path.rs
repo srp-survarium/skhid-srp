@@ -175,6 +175,29 @@ impl RiserPress {
 }
 
 impl Leap {
+    /// [F1b, F3] The take-off window the grid stored for this press (`mapdata::grid::gap::Share::window`: the neighbourhood flights
+    /// that land on the link's own top); None for a ledge, an unflown press, or one whose own press does not land.
+    pub fn window(self) -> Option<mapdata::grid::gap::TakeoffWindow> {
+        use mapdata::grid::gap::Takeoff;
+        match self {
+            Leap::Gap(GapPress { lead, walk, share, aim }) => {
+                let press = match walk {
+                    WalkPress::Cap => Takeoff::Press(lead),
+                    WalkPress::Slow(steps) => Takeoff::Slow { lead, steps },
+                };
+                share.window(press, aim)
+            }
+            Leap::SprintGap(SprintPress { lead, share, aim, after, .. }) => {
+                let press = match after {
+                    AfterLanding::LetGo => Takeoff::Sprint(lead),
+                    AfterLanding::Held { .. } => Takeoff::SprintHeld(lead),
+                };
+                share.window(press, aim)
+            }
+            Leap::Ledge | Leap::SprintLedge => None,
+        }
+    }
+
     /// [A386 R83/R94] Where the press is aimed off the link's line ([`PressAim::STRAIGHT`] for a ledge).
     pub fn aim(self) -> PressAim {
         match self {
@@ -1736,6 +1759,13 @@ impl Route {
     #[cfg(test)]
     pub fn with_gate(mut self, at: Vec3) -> Self {
         self.gates.push(at);
+        self
+    }
+
+    /// This route with a riser up (tests of the walk).
+    #[cfg(test)]
+    pub fn with_riser(mut self, riser: RiserUp) -> Self {
+        self.risers.push(riser);
         self
     }
 
