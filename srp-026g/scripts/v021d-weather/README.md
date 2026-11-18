@@ -178,3 +178,29 @@ files. It is not used: 0.21's `points` textures raise alpha in their small mips
 pass samples those levels: Fort rain's anomaly drew pale square sprites
 (candidate 11, `damage_zone_0`, `particle_0`). The native files have the same
 full-size image and an even alpha down the chain.
+
+## The 0.21 renderer (exe patch 130) on all five maps
+
+The owner (2026-11-18): the rain itself the 0.21 way too. Exe patch 130 (`v021d_render`,
+`docs/notes/client_patch.md` 3.82, merged from `feat/v021d-rain-render`) draws a project marked
+`srp_renderer_v021d` with 0.21d's wet-surface shader, rain drop scales and texture, and its god rays
+once a frame (0.26g draws them for the sky's stage as well: the blown-out low evening sun), and marked
+grass and water materials with 0.21d's grass vertex shaders and wave normals.
+
+- Pack `v021d-renderer@1`: the twelve files it draws with, byte copies from retail 0.21d under new
+  names (`wet_surface_v021d.ps`, seven `vertex_base*_v021d.vs`, `textures/ported/v021d/engine/rain_drop`
+  and `water_waves2`). The patch compiles its twins on every map, so the files ship with the exe.
+- Edit list `v021d-renderer-1.json`: the key at the root of the 34 client projects of the five maps,
+  `srp_grass_v021d` in the five grass materials their vegetation layers' models use, `srp_water_v021d`
+  in the six ported water materials. The weather packs themselves stay without the key
+  (`check_packs.py`).
+
+## Anomaly materials keep 0.21d's look
+
+A ported material takes the values of 0.26g's material of the same name (520 of the 532 ported
+materials with a 0.21d original have such a twin). For three anomaly materials 0.26g redesigned the
+effect, and the 0.21 maps showed 0.26g's: Fort's crystals red (glow multiplier 1 for 0.21d's 0.1,
+flicker, scroll, subsurface scattering), Rudnya's swamp anomaly clouds warping (uv distortion and an
+emissive map 0.21d's material lacks), the stalactite anomaly flickering. Edit list
+`v021d-anomaly-materials-1.json` sets those values back on the ported copies. The other twins'
+differences are 0.26g's surface retunes (fresnel, roughness) and are left.

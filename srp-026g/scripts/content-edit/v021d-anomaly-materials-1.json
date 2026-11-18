@@ -1,0 +1,74 @@
+{
+ "_about": "Three anomaly materials of the ported 0.21 maps take 0.21d's own look back. The port gives a ported material the values of 0.26g's material of the same name; for these three 0.26g redesigned the anomaly, so the 0.21 maps showed 0.26g's (the owner's screenshots of 2026-11-18: Fort's crystals red, Rudnya's swamp anomaly \"moving too fast\"). uran_crystals (Fort's crystals; 0.21d: green, a faint glow): the glow's multiplier 1 -> 0.21d's 0.1, no flicker, no scroll of the glow map along u, no subsurface scattering or its mask, no specular-intensity map, fresnel 0.4 -> 0.04, not a vegetation surface. cloud_mesh (Rudnya's swamp anomaly clouds): no uv distortion and no emissive map, neither of which 0.21d's has. anomaly_stalactite: no emissive flicker. Values read from retail 0.21d's material_instances of the same names; the native materials are untouched (these are the ported/v021d copies).",
+ "set_bool": [
+  {
+   "file": "material_instances/ported/v021d/fx/level_5_anomaly/uran_crystals.material",
+   "path": "material/g_stage/effect/use_emissive_flickering/value",
+   "from": true,
+   "to": false
+  },
+  {
+   "file": "material_instances/ported/v021d/fx/level_5_anomaly/uran_crystals.material",
+   "path": "material/g_stage/effect/use_subsurface_scattering/value",
+   "from": true,
+   "to": false
+  },
+  {
+   "file": "material_instances/ported/v021d/fx/level_5_anomaly/uran_crystals.material",
+   "path": "material/g_stage/effect/use_subsurface_scattering_mask_map/value",
+   "from": true,
+   "to": false
+  },
+  {
+   "file": "material_instances/ported/v021d/fx/level_5_anomaly/uran_crystals.material",
+   "path": "material/g_stage/effect/use_tspecular_intensity/value",
+   "from": true,
+   "to": false
+  },
+  {
+   "file": "material_instances/ported/v021d/fx/level_5_anomaly/uran_crystals.material",
+   "path": "material/g_stage/with_vegetation/value",
+   "from": true,
+   "to": false
+  },
+  {
+   "file": "material_instances/ported/v021d/fx/level_1_anomaly/cloud_mesh.material",
+   "path": "material/forward/effect/use_uv_distortion/value",
+   "from": true,
+   "to": false
+  },
+  {
+   "file": "material_instances/ported/v021d/fx/level_1_anomaly/cloud_mesh.material",
+   "path": "material/forward/effect/use_temissive/value",
+   "from": true,
+   "to": false
+  },
+  {
+   "file": "material_instances/ported/v021d/anomaly/anomaly_stalactite.material",
+   "path": "material/g_stage/effect/use_emissive_flickering/value",
+   "from": true,
+   "to": false
+  }
+ ],
+ "set": [
+  {
+   "file": "material_instances/ported/v021d/fx/level_5_anomaly/uran_crystals.material",
+   "path": "material/g_stage/effect/emissive_map_scroll_u_direction/value",
+   "from": 0.003,
+   "to": 0.0
+  },
+  {
+   "file": "material_instances/ported/v021d/fx/level_5_anomaly/uran_crystals.material",
+   "path": "material/g_stage/effect/constant_fresnel/value",
+   "from": 0.4,
+   "to": 0.04
+  },
+  {
+   "file": "material_instances/ported/v021d/fx/level_5_anomaly/uran_crystals.material",
+   "path": "material/g_stage/effect/constant_emissive_multiplier/value",
+   "from": 1,
+   "to": 0.1,
+   "as_float": true
+  }
+ ]
+}
