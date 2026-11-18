@@ -138,6 +138,17 @@ fn arrival_factor(walk_s: f32, tau_s: f32) -> f32 {
     (-walk_s.max(0.0) / tau_s).exp()
 }
 
+/// Whether this bot has a spot for a job's pinner role on `line`: it runs that pin already, a fine spot round him out of
+/// the lanes, or (with none) a peek spot in his own (the pin from cover). The role's offer asks it, and [fix-team 1] the
+/// staffing asks it of each mate before it gives the role (`threat::JobTeam::spot`).
+pub fn job_spot(cx: &Ctx, line: &HeldLine) -> bool {
+    let target = TargetRef::ThreatSpot(line.id);
+    let choke = Choke { target, at: line.at, job: job_at(cx, target, line.at) };
+    matches!(cx.bot.current, Some((PlayKind::Crossfire, TargetRef::ThreatSpot(id), _)) if id == line.id)
+        || has_fine_spot(cx, &choke)
+        || has_peek_spot(cx, &choke)
+}
+
 /// The choke's number for its slots.
 fn choke_key(target: TargetRef) -> Option<u32> {
     match target {
@@ -156,14 +167,11 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.tuning.threat.job
         && let Some((job, Role::Pinner, line)) = cx.team.threat.job_of(cx.me.place)
     {
-        let target = TargetRef::ThreatSpot(line.id);
-        let choke = Choke { target, at: line.at, job: job_at(cx, target, line.at) };
-        // With none out of the lanes, a peek spot in his own (the pin from cover).
-        let has_spot = matches!(cx.bot.current, Some((PlayKind::Crossfire, TargetRef::ThreatSpot(id), _)) if id == line.id)
-            || has_fine_spot(cx, &choke)
-            || has_peek_spot(cx, &choke);
+        let has_spot = job_spot(cx, line);
         #[cfg(test)]
         if !has_spot {
+            let target = TargetRef::ThreatSpot(line.id);
+            let choke = Choke { target, at: line.at, job: job_at(cx, target, line.at) };
             crate::v026g::bots::threat::no_spot_why(cx.me.place, Role::Pinner, why_no_fine_spot(cx, &choke));
             crate::v026g::bots::threat::no_spot_centre(Role::Pinner, &cx.tactics.world.grid, line.at);
         }
