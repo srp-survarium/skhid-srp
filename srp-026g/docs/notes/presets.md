@@ -70,8 +70,7 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
   added in the future and it is better to have all of them documented"). The presets list carries
   them as bits (`<blocks>`, `lobby.md` 2.16.4), worked out by the server's own functions, the same
   that refuse at the door, so the movie's greying and the server can not disagree. A greyed Play,
-  Join, Queue or New room shows every reason that holds in its tip (the game's tooltip, as
-  Autobuy's), a line each, with no full stop at a line's end (the game's own texts trimmed
+  Join, Queue or New room shows every reason that holds in its tip (the game's tooltip), a line each, with no full stop at a line's end (the game's own texts trimmed
   too) and the text's left margin as wide as its right (`ReasonsTip`: the renderer's own margin
   setting; the owner's, 2026-10-23: "no need for dot in the end and a bit more padding from the
   left"). The kit's reasons are `rules::PlayBlock` (`rules::play_blocks` of the
@@ -92,9 +91,9 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     (`send_presets`); the movie greys by the list (`LocalPlayerProfile.mayPlay`, `mayEnter`,
     `mayCreate`; `StatusPanel.showRoomsPlay`, `RoomsList`, `RoomsCreate.onNew`,
     `FriendListRender`). The movie never lights a Play the game keeps off.
-  - Only a Join asks the popup first: a full room's Queue, and a friend's "Join room" (whose
-    room's max level the movie does not know), are greyed by any reason, not lit for a loadout
-    the popup could offer. "Switch room" is not offered while a reason holds (`room_switch`
+  - A Join and a full room's Queue ask the popup first: a friend's "Join room" (whose room's
+    max level the movie does not know) is greyed by any reason, not lit for a loadout the popup
+    could offer. "Switch room" is not offered while a reason holds (`room_switch`
     asks the door's `room_enter_fit`). A queued player whose kit can not play when a place
     frees keeps its place, passed over, and the next goes in (`next_ready_in_queue`).
   - Until the first list the reasons are not known: Play, Join, Queue and New room start greyed,
@@ -190,11 +189,17 @@ applies it, and adding equipment to it saves things". Code: `session::v026g::pre
     fits: "Enter anyway" (the kits as they are) or "Switch and enter". None higher: joins, no popup.
   - **Gear over the max:** a preset fits: "Exit" (no join) or "Switch and enter". None fits: the
     refusal as before (code 12).
-  - "Switch and enter": that preset chosen (active, its kits put on), then the join.
-  - Where: Join in the list (a friend's "Join room" goes through it), and Play (Quick join), for
-    the room Play would take now. "Switch and enter" from Play chooses, then Play picks again by
-    the new gear [choice]. Not the queue of a full room, "Switch room" (it already takes the
-    gear), nor making a room.
+  - "Switch and enter": that preset chosen (active, its kits put on), then the join (a room
+    full by then: its queue, as its Queue).
+  - Where: Join in the list (a friend's "Join room" goes through it), the Queue of a full room,
+    and Play (Quick join), for the room Play would take now. "Switch and enter" from Play
+    chooses, then Play picks again by the new gear [choice]. Not "Switch room" (it already takes
+    the gear), nor making a room.
+  - **Queue of a full room** (the owner's of 2026-11-01, the room's Queue pressed with no offer
+    on rev 40): the offer of a Join of that room, the same popup and text. "Room allows more":
+    its first button is "Queue" (the queue with the kits as they are); "gear over the max" and
+    "can't play" keep "Exit". "Switch and enter" chooses the loadout, then queues (a place kept
+    if already queued there), or joins if a place has freed.
   - **Play that would queue** (the owner's of 2026-10-30: "I want exactly the same
     recommendation when I join a room with lower/higher gear"): no room of its bracket takes
     it now and Play would wait in a queue. Play then offers what a Join of the other bracket's

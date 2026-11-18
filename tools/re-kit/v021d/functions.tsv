@@ -1,0 +1,7 @@
+va	status	ref_026g	name
+0x001a7008	verified	0x00290930	survarium::object_ambient_light::insert
+0x0010efaa	verified	0x00181eb0	vostok::render::stage_ambient_lighting::render_ambient_lights
+0x00215157	verified	0x0034d9a0	vostok::render::environment_properties::environment_properties
+0x002157f7	verified		vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >
+0x0010f84f	verified	0x00182530	vostok::render::stage_ambient_lighting::apply_ssao_and_height_based_ambient
+0x000f2ce0	verified	0x0014f260	vostok::render::scene::particle_engine::update_light

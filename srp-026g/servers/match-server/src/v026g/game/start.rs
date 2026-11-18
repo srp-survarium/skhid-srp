@@ -11,7 +11,7 @@
 //! minimum (`MatchSetup::room_minimum`), so:
 //!
 //! - **Stand-ins.** When the places that can still come cannot make the
-//!   clients' number, or [`START_WAIT_MS`] after the first entry, and the
+//!   clients' number, or `RoomRules::match_start_wait_ms` after the first entry, and the
 //!   room's minimum is in with a player on each side (any side with a
 //!   minimum of one, below), the server enters
 //!   as many places as are missing that no game holds (given up first) on
@@ -31,6 +31,8 @@
 //!   side, are in or can still come, the match ends before its countdown
 //!   as not made ([`MatchEnd::NotMade`]): nothing of it counts, and the
 //!   lobby gives its room the vote and the wait again.
+//! - **A free-for-all** (`docs/notes/ffa.md`) has no two sides: its room's
+//!   minimum alone starts it or calls it off.
 //! - **A minimum of one** (a private room, started by its owner with whoever
 //!   is in; the owner's of 2026-10-26): no side needs a player, so a match of one starts 1 v 0
 //!   (its one place is the clients' whole number, `floor(0.8 × 1)` = 0:
@@ -38,13 +40,8 @@
 //!   up goes on as 1 v 0.
 
 use super::*;
+use survarium::v026g::lobby::rooms::rules;
 
-/// With no countdown this long after the first entry (match ms), the match
-/// starts with who is in (`LOADING_GRACE`'s 30 s: loads measured live take
-/// 16 s at most), and a place whose game is not connected no longer counts
-/// as one that may come. A game still loading enters once loaded, as into
-/// any match; it stands in for nobody.
-pub(super) const START_WAIT_MS: u32 = 30_000;
 /// A stand-in's leave goes once every game simulating has reported a tick
 /// at or past its entry (it played the entry). A game that has not this
 /// long after the entry is started anew from a world of a game that played
@@ -144,7 +141,7 @@ impl Game {
         let clock = self.clock(now);
         let waited = self
             .first_entered
-            .is_some_and(|first| clock >= first.saturating_add(START_WAIT_MS));
+            .is_some_and(|first| clock >= first.saturating_add(rules().match_start_wait_ms));
         let mask = self.rule.mask;
         let is_in = |index: usize| index < 32 && mask & (1 << index) != 0;
         let mut humans_in = [0usize; 2];
@@ -185,8 +182,10 @@ impl Game {
         }
         let minimum = usize::from(minimum);
         // A player a side, except in a match of one's minimum (a private
-        // room's 1 v 0): one side may be empty there.
-        let both_sides = minimum > 1;
+        // room's 1 v 0): one side may be empty there. A free-for-all has no
+        // two sides to fill: each place is a side of its own
+        // (`maps::free_for_all_team`), all counted as one here.
+        let both_sides = minimum > 1 && self.game_mode() != RuleMode::FreeForAll;
         let (now_in, could) = (humans_in[0] + humans_in[1], humans_able[0] + humans_able[1]);
         if could < minimum || (both_sides && humans_able.contains(&0)) {
             log::warn!(
@@ -225,7 +224,10 @@ impl Game {
             humans_in[0],
             humans_in[1],
             if waited {
-                format!("{} s since the first entry", START_WAIT_MS / 1_000)
+                format!(
+                    "{} s since the first entry",
+                    rules().match_start_wait_ms / 1_000
+                )
             } else {
                 format!("only {able} more can come")
             }

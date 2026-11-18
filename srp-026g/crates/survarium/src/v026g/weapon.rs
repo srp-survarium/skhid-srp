@@ -112,12 +112,8 @@ impl Weapon {
                 power: number(recoil, "recoil_power")?,
             },
             spread: Spread {
-                // The dispersion loader's (0x330EE0); older configs carry it
-                // in `parameters` too.
-                base: match number(dispersion, "base_dispersion")? {
-                    Some(base) => Some(base),
-                    None => number(p, "base_dispersion")?,
-                },
+                // The dispersion loader's (0x330EE0).
+                base: number(dispersion, "base_dispersion")?,
                 per_shot: number(dispersion, "one_shoot_dispersion_amount")?,
                 max: number(dispersion, "max_dispersion")?,
                 recovery: number(dispersion, "speed_of_aiming")?,

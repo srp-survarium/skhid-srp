@@ -1,0 +1,32 @@
+{
+  "_about": "The Anomalous Force Protein (weight_booster, 339) in a pocket knocks its carrier's gun-stock kills' ragdolls 16 times as hard (the owner, 2026-11-05): a built-in modification 1330 of player modifier 29 (stamina_boost_interval, which no 0.26g code reads) +15, which the ragdoll patch (visual only) reads from the killer's kit, docs/notes/force-protein-knockback.md. Its card line is property 175 (Melee knockback: +1500%, a percentage like 105). The booster gets the key its modification changes, as every booster has those of its own. boosters.tsv makes 1330 the booster's built-in (column knockback), modifications.tsv holds its row.",
+  "add_entry": [
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {"prop_id": 131},
+      "like": {"prop_id": 105},
+      "values": {"prop_id": 175, "prop_name": "st_srp_melee_knockback"}
+    }
+  ],
+  "append_entry": [
+    {
+      "file": "gameplay/items/modifications/modifications.options",
+      "list": "modifications",
+      "expected_count": 161,
+      "unique_key": "id",
+      "value": {
+        "drop_weight": 0,
+        "lobby_info": {"stamina_boost_interval_modifier": 15.0},
+        "ui_desc": {"name": "st_srp_melee_knockback", "icon": 12, "props_list": [{"prop_value": "15.00", "prop_id": 175}]},
+        "type_mask": "00000000000000000000000000000000001000000",
+        "type_requirements_mask": "00000000000000000000000000000000001000000",
+        "id": 1330,
+        "modifiers": [{"path": ["parameters", "stamina_boost_interval_modifier"], "value": 15.0, "type": 1}]
+      }
+    }
+  ],
+  "add_value": [
+    {"files": ["gameplay/items/boosters/weight_booster.options"], "table": "parameters", "key": "stamina_boost_interval_modifier", "value": 0.0}
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "uzi": {
+    "reason": "0.69 replaces the UZI receiver. The 0.26 receiver has no integral rail. Seat a medium rail on its top cover, between the rear sight and charging handle; use the rail's own optic socket.",
+    "bone": "offset",
+    "module": "medium_picatinnyrail",
+    "locator": "picatinny_scope_point",
+    "position": [-0.0002, 0.06388, -0.043],
+    "rotation": [0.0, 0.0, 0.0],
+    "evidence": "0.26 top-cover vertices at x=-0.00571/+0.00530, y=0.06038, z=-0.07657/-0.00964; medium rail underside y=-0.00350315. The seated underside is y=0.06037685. Side and top projections reviewed."
+  }
+}

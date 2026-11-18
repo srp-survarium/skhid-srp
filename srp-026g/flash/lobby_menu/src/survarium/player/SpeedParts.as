@@ -23,16 +23,17 @@ package survarium.player
       }
       public function withItems(items:KitItems) : SpeedParts
       {
+         // The weapon first, then the items as the kit lists them (armour head to boots, the pockets).
          var sources:Array = [];
-         for each(var item:Object in items.speed) sources.push(item);
          if(items.weapon != null && !(_bearArms && items.weapon.value < 0)) sources.push(items.weapon);
+         for each(var item:Object in items.speed) sources.push(item);
          return new SpeedParts(_skills,_bearArms,sources);
       }
       // Every source with its name and value, the skills by their skill's name.
       public function sources() : Array
       {
          var result:Array = _sources.concat();
-         if(_skills != 0) result.unshift({name:skillName(208),value:_skills});
+         if(_skills != 0) result.push({name:skillName(208),value:_skills});
          return result;
       }
       // A skill's name as the skill tree shows it (Rapid 208, Athlete 209, Packrat 202),

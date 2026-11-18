@@ -25,10 +25,10 @@ history_capacity:
 
 times 128-($-$$) db 0xcc
 ; D8's stock debug flag is 00 or FF. Normalize it before advertising the
-; experimental dialect, so debug clients send 81 and ordinary clients 80.
+; experimental dialect, so debug clients send 83 and ordinary clients 82 (world receipts).
 connect_capability:
     and bl, 1
-    or bl, 0x80
+    or bl, 0x82
     mov [eax+edi], bl
     mov eax, [esp+0x1c]
     jmp 0x27a244

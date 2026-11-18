@@ -1,10 +1,13 @@
 import unittest
-from stats import sections
+from stats import ROUND_FACTORS, sections
+
+# A round that changes nothing.
+PLAIN = {**{factor: 1 for _, factor in ROUND_FACTORS}, "dispersion": 1, "buck_shot": 1}
 
 
 class StatsTests(unittest.TestCase):
-    def rows(self, weapon):
-        return {row["id"]: row for section in sections(weapon, "en") for row in section["rows"]}
+    def rows(self, weapon, ammo=PLAIN):
+        return {row["id"]: row for section in sections(weapon, ammo, "en") for row in section["rows"]}
 
     def test_fixed_symmetric_side_values_cancel(self):
         rows = self.rows({"recoil": {"min_left_recoil": 3, "max_left_recoil": 3,
@@ -35,6 +38,25 @@ class StatsTests(unittest.TestCase):
         self.assertEqual(rows["bullet_damage"]["text"], "45")
         self.assertEqual(rows["movement_speed_modifier"]["text"], "-5 %")
         self.assertEqual(rows["reload_time"]["values"], [3.167])
+
+    def test_round_scales_what_it_fires(self):
+        weapon = {"bullet_damage": .4, "bullet_pierce": .2, "min_damage_amount": .6, "max_damage_distance": 15,
+                  "dispersion": {"base_dispersion": .5}, "reload_time": 2.5}
+        rows = self.rows(weapon, {**PLAIN, "k_damage": 1.3, "k_arp": 1.3, "k_min_damage_amount": 1.5,
+                                  "k_max_damage_distance": 1.2, "dispersion": 2})
+        self.assertEqual(rows["bullet_damage"]["text"], "52")
+        self.assertEqual(rows["bullet_pierce"]["text"], "26")
+        self.assertEqual(rows["min_damage_amount"]["text"], "90 %")
+        self.assertEqual(rows["max_damage_distance"]["text"], "18 m")
+        self.assertEqual(rows["dispersion.base_dispersion"]["values"], [1])
+        self.assertEqual(rows["reload_time"]["text"], "2.5 s")
+        self.assertEqual(weapon["bullet_damage"], .4)
+
+    def test_pellets_compare_as_one_shot(self):
+        rows = self.rows({"bullet_damage": 1, "bullet_pierce": .3}, {**PLAIN, "k_damage": .2, "buck_shot": 10})
+        self.assertEqual(rows["bullet_damage"]["text"], "20 × 10 pellets")
+        self.assertEqual(rows["bullet_damage"]["values"], [200])
+        self.assertEqual(rows["bullet_pierce"]["text"], "30")
 
 
 if __name__ == "__main__":

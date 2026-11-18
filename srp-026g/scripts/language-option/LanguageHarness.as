@@ -6,7 +6,6 @@ package
     import flash.display.Sprite;
     import flash.events.Event;
     import flash.events.UncaughtErrorEvent;
-    import flash.geom.Rectangle;
     import flash.net.URLRequest;
     import flash.system.ApplicationDomain;
     import flash.system.LoaderContext;
@@ -16,8 +15,9 @@ package
 
     // The Settings' Language choice (exe patch 79) in the rebuilt main menu:
     // the exe's answer as root.srp_language gives it, the list, the saved
-    // pick, the note, its place in the bottom panel (the seeding and
-    // statistics options hidden), a pick as a pending change that Apply saves
+    // pick, the note, its label styled as the tab's own headings (where the
+    // column places it: hud-options' SettingsHarness), the seeding and
+    // statistics options hidden, a pick as a pending change that Apply saves
     // and Cancel drops, the other tabs, and the embedded font's glyphs for
     // every language's own name and texts (check.sh passes them, from the
     // registry and the dictionaries). No game or server.
@@ -134,22 +134,14 @@ package
             {
                 require(content[unsupported] != null && !content[unsupported].visible, unsupported + " is hidden");
             }
-            var panel:Rectangle = content.bottomContainer.getBounds(content);
-            for each (var part:DisplayObject in [heading, menu, note])
-            {
-                var bounds:Rectangle = part.getBounds(content);
-                require(panel.containsRect(bounds), "in the bottom panel " + panel + ": " + part.name + " " + bounds);
-            }
-            var middle:Number = panel.x + panel.width / 2;
-            require(Math.abs(menu.x + menu.width / 2 - middle) < 4, "the list centred in the panel");
-            var model:TextFormat = content._upload_speed.textField.defaultTextFormat;
+            var model:TextFormat = content.s_friends.defaultTextFormat;
             var format:TextFormat = heading.defaultTextFormat;
             require(format.font == model.font && format.size == model.size && format.color == model.color,
-                "the label styled as the \"Limit upload speed:\" label");
+                "the label styled as the tab's \"Friends:\" heading");
             require(heading.text.charAt(heading.text.length - 1) == ":", "the label ends with a colon: " + heading.text);
             trace("LANGUAGE label " + heading.text + " " + format.font + " " + format.size + " #" + uint(format.color).toString(16)
                 + " at " + heading.x + "," + heading.y + "; list at " + menu.x + "," + menu.y + " w " + menu.width
-                + "; note at " + note.x + "," + note.y + "; panel " + panel);
+                + "; note at " + note.x + "," + note.y);
 
             var english:int = 0;
             require(!settings.btn_accept.enabled, "nothing to apply before a pick");

@@ -1,0 +1,65 @@
+project	point	x	y	z	rx	ry	rz	enemy_check_radius	invulnerability_time	verdict	ground	reason
+level_09/day_8	20	-18.683	14.059	11.069	0	-2.024582	0	20	0	moved		the owner's pick 1 (where yaw 116.0, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 8.7 m clear ahead
+level_09/day_8	21	-19.039	14.069	-1.143	0	-0.5078907	0	20	0	moved		the owner's pick 2 (where yaw 29.1, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 13.1 m clear ahead
+level_09/day_8	22	-19.632	14.059	-10.751	0	-1.6353736	0	20	0	moved		the owner's pick 3 (where yaw 93.7, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 13.2 m clear ahead
+level_09/day_8	23	-7.369	14.059	-18.912	0	-0.77841663	0	20	0	moved		the owner's pick 4 (where yaw 44.6, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 5.5 m clear ahead
+level_09/day_8	24	-1.788	14.059	-15.239	0	-1.4433875	0	20	0	moved		the owner's pick 5 (where yaw 82.7, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; >20 m clear ahead
+level_09/day_8	25	12.932	14.059	-16.709	0	0.21118498	0	20	0	moved		the owner's pick 6 (where yaw 347.9, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 6.3 m clear ahead
+level_09/day_8	26	22.076	14.059	-5.568	0	1.4660769	0	20	0	moved		the owner's pick 7 (where yaw 276.0, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 10.5 m clear ahead
+level_09/day_8	27	12.69	14.059	-4.538	0	-2.3631756	0	20	0	moved		the owner's pick 8 (where yaw 135.4, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 11.8 m clear ahead
+level_09/day_8	28	9.271	14.059	5.72	0	2.75413	0	20	0	moved		the owner's pick 9 (where yaw 202.2, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 7.2 m clear ahead
+level_09/day_8	29	9.794	14.059	-2.808	0	0.4921832	0	20	0	moved		the owner's pick 10 (where yaw 331.8, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 7.3 m clear ahead
+level_09/day_8	30	2.81	14.059	11.151	0	3.1171584	0	20	0	moved		the owner's pick 11 (where yaw 181.4, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 16.3 m clear ahead
+level_09/day_8	31	-10.754	14.059	-3.086	0	-1.2636185	0	20	0	moved		the owner's pick 12 (where yaw 72.4, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; >20 m clear ahead
+level_09/day_8	32	-10.87	14.059	-0.713	0	-1.5830135	0	20	0	moved		the owner's pick 13 (where yaw 90.7, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 15.4 m clear ahead
+level_09/day_8	33	6.534	14.059	-8.961	0	0.52185345	0	20	0	moved		the owner's pick 14 (where yaw 330.1, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 13.7 m clear ahead
+level_09/day_8	34	10.279	11.021297	-0.423	0	-0.4625125	0	20	0	moved		the owner's pick 15 (where yaw 26.5, ground -0.094 m); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 18.3 m clear ahead
+level_09/day_8	35	14.425	10.286	13.549	0	-2.6965337	0	20	0	moved		the owner's pick 16 (where yaw 154.5, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; >20 m clear ahead
+level_09/day_8	36	7.533	8.939	18.166	0	0.8150692	0	20	0	moved		the owner's pick 17 (where yaw 313.3, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 7.7 m clear ahead
+level_09/day_8	37	-6.401	10.035	20.617	0	-1.4224434	0	20	0	moved		the owner's pick 18 (where yaw 81.5, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 13.4 m clear ahead
+level_09/day_8	38	5.989	6.294	26.747	0	-2.2218041	0	20	0	moved		the owner's pick 19 (where yaw 127.3, on its ground); body clear; harmful zones >=2m; cover side; holds the spawn rule; 7.9 m clear ahead
+level_09/day_8	39	-16.293	9.802	13.438	0	-0.73478365	0	20	0	moved		the owner's pick 20 (where yaw 42.1, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 8.2 m clear ahead
+level_09/day_8	40	-20.744	9.709647	5.139	0	3.029892	0	20	0	moved		the owner's pick 21 (where yaw 186.4, ground -0.063 m); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 14.7 m clear ahead
+level_09/day_8	41	-18.764	10.584	-10.52	0	0.54105234	0	20	0	moved		the owner's pick 22 (where yaw 329.0, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 10.9 m clear ahead
+level_09/day_8	42	-15.095	9.949	-16.318	0	0.7487464	0	20	0	moved		the owner's pick 23 (where yaw 317.1, on its ground); body clear; harmful zones >=2m; cover corner; holds the spawn rule; 3.5 m clear ahead
+level_09/day_8	43	-9.53	10.349	-20.017	0	-2.01411	0	20	0	moved		the owner's pick 24 (where yaw 115.4, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 9.0 m clear ahead
+level_09/day_8	44	-1.359	10.021	-21.344	0	-1.527163	0	20	0	moved		the owner's pick 25 (where yaw 87.5, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 14.1 m clear ahead
+level_09/day_8	45	10.523	9.655	-20.561	0	-0.7208209	0	20	0	moved		the owner's pick 26 (where yaw 41.3, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 7.2 m clear ahead
+level_09/day_8	46	12.855	10.159	-14.747	0	-0.6562438	0	20	0	moved		the owner's pick 27 (where yaw 37.6, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; >20 m clear ahead
+level_09/day_8	47	21.691	10.133	-7.587	0	0.39619017	0	20	0	moved		the owner's pick 28 (where yaw 337.3, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 14.8 m clear ahead
+level_09/day_8	48	-5.805	0.583	-11.688	0	1.2409296	0	20	0	moved		the owner's pick 29 (where yaw 288.9, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 10.6 m clear ahead
+level_09/day_8	49	0.762	0.583	-12.031	0	-0.4433136	0	20	0	moved		the owner's pick 30 (where yaw 25.4, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; >20 m clear ahead
+level_09/day_8	50	29.041	1.2662451	-8.531	0	1.7051873	0	20	0	moved		the owner's pick 31 (where yaw 262.3, ground -0.079 m); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 2.9 m clear ahead
+level_09/day_8	51	16.059	0.583	-6.97	0	2.3719025	0	20	0	moved		the owner's pick 32 (where yaw 224.1, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 16.4 m clear ahead
+level_09/day_8	52	5.241	0.609	6.913	0	2.237512	0	20	0	moved		the owner's pick 33 (where yaw 231.8, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; >20 m clear ahead
+level_09/day_8	53	-0.429	0.583	8.325	0	-2.602286	0	20	0	moved		the owner's pick 34 (where yaw 149.1, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 14.6 m clear ahead
+level_09/day_8	54	-5.818	0.583	11.988	0	2.0402899	0	20	0	moved		the owner's pick 35 (where yaw 243.1, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 18.7 m clear ahead
+level_09/day_8	55	-10.198	0.583	3.742	0	0.75572777	0	20	0	moved		the owner's pick 36 (where yaw 316.7, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 18.6 m clear ahead
+level_09/day_8	56	-8.348	0.583	-8.204	0	2.8413963	0	20	0	moved		the owner's pick 37 (where yaw 197.2, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 11.1 m clear ahead
+level_09/day_8	57	-13.567	0.622	-2.273	0	0.26354504	0	20	0	moved		the owner's pick 38 (where yaw 344.9, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 8.0 m clear ahead
+level_09/day_8	58	-13.559	0.606	14.196	0	2.1275563	0	20	0	moved		the owner's pick 39 (where yaw 238.1, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 15.7 m clear ahead
+level_09/day_8	59	-23.955	9.362652	7.955	0	0.8499756	0	20	0	moved		the owner's pick 40 (where yaw 311.3, ground -0.075 m); body clear; harmful zones >=2m; cover side; holds the spawn rule; >20 m clear ahead
+level_09/day_8	60	-17.078	10.855	15.431	0	1.6493363	0	20	0	moved		the owner's pick 41 (where yaw 265.5, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; >20 m clear ahead
+level_09/day_8	61	24.555	9.587	-10.427	0	-0.14660788	0	20	0	moved		the owner's pick 42 (where yaw 8.4, on its ground); body clear; harmful zones >=2m; cover corner; holds the spawn rule; >20 m clear ahead
+level_09/day_8	62	-1.942	14.059	-22.88	0	0.2967062	0	20	0	moved		the owner's pick 43 (where yaw 343.0, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 12.2 m clear ahead
+level_09/day_8	63	-9.067	14.059	-17.558	0	0.3351035	0	20	0	moved		the owner's pick 44 (where yaw 340.8, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; >20 m clear ahead
+level_09/day_8	64	-11.971	14.059	-18.842	0	0.7260575	0	20	0	moved		the owner's pick 45 (where yaw 318.4, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 12.0 m clear ahead
+level_09/day_8	65	-19.309	14.059	-10.441	0	-1.6179204	0	20	0	moved		the owner's pick 46 (where yaw 92.7, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 12.3 m clear ahead
+level_09/day_8	66	-22.762	14.059	-2.13	0	-0.5061455	0	20	0	moved		the owner's pick 47 (where yaw 29.0, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 4.3 m clear ahead
+level_09/day_8	67	-20.542	9.784713	5.573	0	2.8675761	0	20	0	moved		the owner's pick 48 (where yaw 195.7, ground -0.085 m); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 10.6 m clear ahead
+level_09/day_8	68	-18.837	9.912	9.502	0	-0.35430193	0	20	0	moved		the owner's pick 49 (where yaw 20.3, on its ground); body clear; harmful zones >=2m; cover roof; holds the spawn rule; 8.1 m clear ahead
+level_09/day_8	69	-34.111	5.709	9.693	0	-1.5568337	0	20	0	moved		the owner's pick 50 (where yaw 89.2, on its ground); body clear; harmful zones >=2m; cover corner; holds the spawn rule; 6.6 m clear ahead
+level_09/day_8	70	22.770996	5.9375834	24.093994	0	-2.1598446	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	71	-28.979004	5.5109	42.093994	0	-1.767146	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	72	40.770996	9.562276	-37.906006	0	-0.5890487	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	73	102.520996	5.9484553	-29.906006	0	1.5707964	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	74	66.020996	5.7752504	-13.906006	0	-2.945243	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	75	90.020996	5.8292527	-47.656006	0	1.1780972	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	76	61.270996	6.102859	-32.656006	0	-0.39269906	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	77	20.270996	5.949501	-51.406006	0	0.39269912	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	78	-3.979004	6.4400015	28.093994	0	1.5707964	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	79	-25.229004	13.989495	0.09399414	0	-0.98174745	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	80	-60.729004	5.94843	20.093994	0	1.1780972	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	81	66.020996	6.5486946	-45.906006	0	-1.767146	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	82	-13.979004	4.6266036	-33.906006	0	-2.3561943	0	20	0	removed		one solo spawn more than the picks kept
+level_09/day_8	83	-37.979004	6.505677	4.093994	0	-3.1415925	0	20	0	removed		one solo spawn more than the picks kept

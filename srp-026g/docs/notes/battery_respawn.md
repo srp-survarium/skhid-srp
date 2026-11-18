@@ -2,7 +2,7 @@
 
 The owner's rule and what it changes. Data: `gameplay/game_modes/<config>.options`
 `mode/parameters/respawn_time`; the change ships as a resources.db patch
-(`scripts/content-edit/battery-respawn-1.json`, one `set` a config).
+(`scripts/content-edit/modes.tsv`, the `respawn_s` column).
 
 - **Decision (the owner, 2026-10-21):** "in batteries mode respawns should take 10 seconds".
 - **Modes:** "Protective device" (mode 2, rule 88) and "Protective device: chargers" (mode 3,

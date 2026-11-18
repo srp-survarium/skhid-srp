@@ -37,9 +37,10 @@ protection and default modifications exactly, with zero random-drop weight.
 They receive +5% experience and +5% reputation with their faction as their
 first two owned modifications, following the existing premium system.
 Keeper of the Sun uses this same rule in place of its donor combat bonuses.
-The `srp_premium` config field declares the plain item and bonus IDs; the
-server parses it from game data. The Flash movie cannot read custom config
-fields, so `Equipment029.as` is a generated mirror, checked against the pack.
+Each premium piece's row of `scripts/content-edit/items.tsv` names its plain
+item (`like`) and bonus IDs (`start`); the server reads them from the
+dictionary. The Flash movie cannot read them, so `Equipment029.as` is a
+generated mirror, which a `golden` test holds to the table.
 
 The donor models, textures, sounds and item icons are retained. Native
 equipment data type 4 replaces donor type 5. Omicron's mask keeps the player's
@@ -98,8 +99,8 @@ No revision is reserved by this content change.
 
 `check_pack.py` checks all 84 configs, exact premium/plain combat parity,
 native parameter vocabulary, card values, icon collisions, six localization
-tables and the generated Flash mapping. `golden::content` Rust tests check
-content-defined premiums and reject malformed relationships and bonuses.
+tables and the generated Flash mapping. srp refuses a malformed `like` or
+`start` at start (`dictionary`, `golden::check`).
 Run `cargo test -p survarium` and `cargo clippy -p survarium --all-targets`
 under `nix develop` in `srp-026g`.
 

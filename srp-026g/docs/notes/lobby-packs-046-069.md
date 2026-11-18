@@ -12,8 +12,8 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   `projects/lobby_scene/vegetation/<scene>/`.
 - Made by resource-porter (`vostok-port build-survarium-later-scene`, branch
   `feat/lobby-scenes-046-069`; hangar @9 and camp @17 its `feat/lobby-reuse-native-textures`;
-  its `docs/survarium-069d-to-026.md`, "Lobby scenes"), shipped as one content pack per scene, so
-  either can ship or change alone.
+  camp @18 its `fix/room-lobby-ceiling`; its `docs/survarium-069d-to-026.md`, "Lobby scenes"),
+  shipped as one content pack per scene, so either can ship or change alone.
 - Sounds: the classic lobby's `sounds/background` and `sounds/lobby_room_tone` (the donors' sound
   environments have no 0.26 counterpart).
 - To see one locally: a test patch with the scene in place of the classic one (`vostok-port pack
@@ -95,7 +95,7 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
 - Not ported: particles birds, crows, light rays, underground smoke (0.26 has none of them; lamp
   sparks and leaflets use 0.26's own), the portal system.
 
-## lobby_scene/camp_069 (pack lobby-camp-069@17)
+## lobby_scene/camp_069 (pack lobby-camp-069@18)
 
 - Source: 0.69d, `projects/lobby_scene/day` of volume 72 (the last copy), without its New Year
   snow: the 8 instances of `level/new_year_event/` and `generic/modular/terrain/snow/` (volume
@@ -242,6 +242,25 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
     remove hinges"): resource-porter's new `removed_parts` drops a model surface's triangles near
     given points; the 15 cm pins of `props/door/wood_door_02` (4) and `wood_door_01` (2), LOD0 and
     LOD1 (128, 64, 64 and 32 triangles: the pins alone; LOD2 has none). The door keeps @10's turn.
+- @18 (the owner, 2026-11-01: "we have this invisible collision making light strange in room right
+  now", the invisible ambient-light boxes of the ceiling hunt): @17's ceiling patch. 0.26 draws an
+  ambient box with a hard edge, and after @17 two sets of boxes still cut the ceiling (y 2.81).
+  Both are left out; every other light is @17's:
+  - `light/ambient_light(6)`, -0.225: x -2.64..2.09, y 1.44..3.01, z -2.41..-1.62, a dark strip
+    along the whole back-window wall with its straight edge on the ceiling 0.45 m from the wall.
+    Its pair under it, `light/ambient_light(5)` (-0.2475, y -0.19..1.37), goes too, or its top
+    would be a hard line across the window wall;
+  - `light/celling/ambient_light(1)`..`(6)`: faint fills (0.003..0.012, against the room fills'
+    0.98) laid on the ceiling as 0.48 m slabs, with edges and gaps across it. The ceiling's faint
+    sphere `light/celling/ambient_light` and the chandelier's spheres stay.
+  - The back-window camera wall moves 0.15 m into the room (inner face z -1.40). Before, the eye
+    stopped on the wall's face, about 0.07 m from (5) and (6). The eye straight toward the windows
+    stays at z -1.50 (the camera's 1.5 m clamp).
+
+  The camera walls are collision only (`collision_objects`, cgroup 8 / cmask 16), as the STK2
+  `camera_boxes`. They are Bullet shapes for the camera's ray, and 0.10b's renderer never reads
+  physics, so they draw, shadow and light nothing. The built project differs from @17's by the
+  eight lights and that wall alone. Not yet seen in a game.
 
 - Character: (0, 0, 0), rotation 180.
 - Donor camera (`main_scene_alone`): look at (0, 1.3, 0), distance 1.5, pitch -2, yaw 0 (range 25),
@@ -250,9 +269,9 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   but its collision is open at the back windows (z -2.07: the default view), the left windows and
   the right doorway. Without walls the stock eye left the room (pack 1: the wall not drawn from
   outside, the window frame over half the view). The pack's invisible walls: in front of the
-  back windows' frames and curtains (inner face z -1.55), the left windows (x -2.10), the doorway
-  (x 1.50), the front wall (z 5.53); 0.1 m thick, the room's full height. In a game (#778's
-  build) the stock camera stays in the room, the eye about 1.5 m from him.
+  back windows' frames and curtains (inner face z -1.55; -1.40 since @18), the left windows (x -2.10),
+  the doorway (x 1.50), the front wall (z 5.53); 0.1 m thick, the room's full height. In a game
+  (#778's build) the stock camera stays in the room, the eye about 1.5 m from him.
 - Weapon spot (`srp_lobby`): `weapon = (-1.60, 1.37, 3.255)` (since @7; 1.27 before), the donor's
   workshop view (its `weapon_workshop` lights), 0.40 m over the work table (top y 0.97, the
   raincoat on it) left behind the character; the free part

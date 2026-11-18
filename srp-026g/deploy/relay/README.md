@@ -1,0 +1,121 @@
+# Regional game relay
+
+A relay forwards login TCP and lobby/match/voice UDP to the same srp instance.
+The game account and match stay on the origin. The relay never has the sign-in
+cipher's secret key. Source addresses travel in a strict IPv4 PROXY v2 envelope;
+only configured WireGuard peers may supply it. Direct players still use the
+original sockets and wire format. This changes no simulation or world data.
+
+Automatic fallback runs before PLAY starts the game. With `updater_skhid.relay`
+installed, the updater probes direct login TCP and lobby/match UDP concurrently,
+then tries the relay if any fails. The server echoes a 22-byte nonce challenge
+without creating an account, session or match. A successful route is passed as
+`-server=IP:port`; the origin advertises the relay for lobby and match, and voice
+uses match + 1. Explicit `-server=` and replay options bypass route selection.
+A failed route never switches a running match: launch again to choose anew.
+
+The updater's HTTPS requests to the configured login hostname on port 443 also
+fall back, on network errors only, to the relay's port 8080 CONNECT service.
+It permits only `skhid.link:443` (or the configured `--https-origin`). TLS stays
+end to end, with normal hostname/certificate verification. Other download hosts
+retain their existing mirror behavior. This is not a general HTTP proxy and does
+not change browser or system proxy settings. A new player needs the release
+containing this updater/configuration before automatic fallback is available.
+
+## Installation
+
+The default tunnel addresses are origin `10.77.0.1/32`, relay `10.77.0.2/32`.
+Check they do not overlap either host's networks. Origin initiates WireGuard to
+the relay on UDP 51820 with a 25-second keepalive, so it needs no new inbound
+provider firewall port. The relay needs inbound TCP 1234/8080, UDP 1235–1237/51820.
+Only IPv4 players and consecutive game ports are supported by this first setup.
+
+1. Build the native bundle (command below) and install
+   `srp-026g/target/relay-dist/` as `/opt/skhid-relay/` on the relay.
+   Copy this deployment directory to each host. As root run `bash setup.sh prepare` on
+   each. This prints only its public key. Private keys are generated and kept
+   on their own host, never in git or the player's download.
+2. On the relay run `bash setup.sh configure relay ORIGIN_PUBLIC_KEY RELAY_IP`.
+   On the origin run `bash setup.sh configure origin RELAY_PUBLIC_KEY RELAY_IP`.
+   This installs and starts only the tunnel; it leaves the forwarder stopped.
+   It adds its own nftables table, never flushes the host/Docker rules, and
+   rejects the trusted peer's source address arriving outside WireGuard.
+   The tunnel has only host routes to its peer, never a default route.
+3. Check `wg show skhid-relay latest-handshakes` and ping each tunnel address.
+   Test both forwarders with
+   `SKHID_NATIVE_RELAY=/opt/skhid-relay/run python3 -m unittest -v test_forwarder test_native`.
+4. Prepare a normal server/player release with this branch. Set origin's
+   `SRP_RELAYS=10.77.0.2=RELAY_IP` in its compose environment. This is a trust
+   boundary: NEVER trust an Internet source IP here, and install the tunnel's
+   anti-spoof firewall rules first. Deployment goes through the owner's usual
+   release workflow and go; setup.sh does not restart srp or edit its .env.
+5. After the backend is updated, start the relay with
+   `systemctl enable --now skhid-relay skhid-relay-web`. Verify direct and relayed probes, and
+   sign-in/lobby/match/voice with a test account before enabling client fallback.
+6. In private release settings set `SKHID_RELAY_SERVER=RELAY_IP:1234`
+   (`SKHID_TEST_RELAY_SERVER` for a test release). `release/build-zip` passes
+   `--relay=` to the client packager, ships the two-line route configuration,
+   and points PLAY at `updater_skhid.exe play`. The normal release creates the
+   revision; a feature branch does not reserve one.
+
+The setup's firewall defaults are the live ports. A test server on 2234–2237
+needs those ports in the tunnel allow-list and the native forwarder's
+`--login-port 2234` option. Origin and public ports must match, including the PROXY destination.
+The server processes invalid envelopes as dropped packets, not fatal socket
+errors. Both ends bound their return-address tables and expire idle entries;
+UDP replies go only to clients observed on that frontend within 120 seconds.
+
+## Checks and rollback
+
+`tools/check regional-relay relay-packaging cargo:udp-transport
+cargo:login-server cargo:lobby-server cargo:match-server updater-replays`
+checks parsing, forged headers, concurrent clients, TCP/UDP round trips, address
+advertising, fallback selection, Windows build and release packaging. Run the
+normal `tools/check` before a PR too.
+
+To stop forwarding: `systemctl disable --now skhid-relay skhid-relay-web`. Remove the fallback
+setting for a later player release. Direct connections keep working. Remove
+`SRP_RELAYS` in a normal server release before dismantling the tunnel. Its
+anti-spoof rules deliberately remain even when the interface goes down.
+To remove it later, stop/disable `wg-quick@skhid-relay` and delete only the
+`inet skhid_relay` nftables table and this setup's files. Keep SSH access and the
+server's existing firewall unchanged.
+
+Protocol references: [PROXY v2](https://www.haproxy.org/download/2.9/doc/proxy-protocol.txt)
+and [WireGuard setup](https://www.wireguard.com/quickstart/).
+
+## Native packet path and measured overhead
+
+Production game traffic uses `srp-relay` (the `udp-transport` crate's binary),
+not the Python forwarding reference. Each UDP port has a receive thread per
+direction, fixed packet buffers, immediate sends, and a bounded table of observed
+clients. It adds no reliability layer, timer batching or per-packet payload
+allocation. WireGuard does encryption in the kernel. The separate
+`skhid-relay-web` process handles HTTPS downloads with a lower CPU weight.
+
+Build the portable Linux server bundle with:
+
+```
+nix develop ./srp-026g --command bash srp-026g/deploy/relay/build.sh
+```
+
+Install `srp-026g/target/relay-dist/` as `/opt/skhid-relay/`. It includes the exact
+ELF loader and runtime libraries, with SHA256SUMS; the service starts `run`.
+Install both `relay.service` as `skhid-relay.service` and `relay-web.service` as
+`skhid-relay-web.service`. Enable the web service with the game forwarder only
+when the release is ready. Neither service changes the machine's default route.
+
+On the supplied Debian host, 2026-11-17, `benchmark.py` measured 1,000 round trips
+with 512-byte payloads through a loopback echo backend:
+
+| Path | Median RTT | p99 RTT | Lost |
+|---|---:|---:|---:|
+| Backend directly | 0.0130 ms | 0.0219 ms | 0/1,000 |
+| Native relay and same backend | 0.0259 ms | 0.0356 ms | 0/1,000 |
+
+Added median RTT: 0.0129 ms. This isolates the forwarding process; it does not
+include Internet routing, the game's own processing, or WireGuard. The separate
+WireGuard host-to-host ping was 9.83–10.08 ms (3/3 received). These are measurements
+of this host and route at that time, not latency guarantees for players.
+Reproduce with `SKHID_NATIVE_RELAY=/opt/skhid-relay/run python3 benchmark.py` from
+this directory. All benchmark/game stand-in sockets bind loopback only.

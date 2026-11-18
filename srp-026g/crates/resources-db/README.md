@@ -139,13 +139,15 @@ srp reads, of the archive the players mount:
   `localization/english/localization` and `localization/ukrainian/localization`
   (`server::LOCALIZATIONS`): the names of the maps and modes it shows;
 - each project's `projects/<project>/client_project`, cut to its
-  `server_objects` (`server::server_objects_of`): a binary config of that one
-  table as the project has it (its respawn points, battery containers,
-  spawners and stations), or of none for a project without it
-  (`lobby_scene/day`). srp counts a map's respawn points and reads its battery
-  containers' teams there; the rest of a project, its world, is the client's
-  (0.26g's 73 projects are 60 MB, their server objects about 3 MB). A project that
-  is not a binary config stops the build;
+  `server_objects` and the `client_objects` a world saves (`server::objects_of`:
+  its damage zones, resupply zones and anomalies, `server::WORLD_OBJECTS`): a
+  binary config of those two tables as the project has them (its respawn
+  points, battery containers, spawners and stations), or of what it has of
+  them (`lobby_scene/day` has neither). srp counts a map's respawn points and
+  reads its battery containers' teams there, and reads a world's game objects
+  with the client objects; the rest of a project, its world, is the client's
+  (0.26g's 73 projects are 60 MB). A project that is not a binary config stops
+  the build;
 - and the data adds `srp/provenance`.
 
 ## Provenance
@@ -153,7 +155,7 @@ srp reads, of the archive the players mount:
 `srp/provenance` in the output, text, fields by one space:
 
 ```
-skhid server game data 3
+skhid server game data 4
 db resources.db 6285533906 c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c
 patch resources.db.patch_14 43691157 7535d0d0…d4c6c3 http://203.0.113.5/patches/resources.db.patch_14
 patch resources.db.patch_15 46429158 191b24fb…b993ea0 http://203.0.113.5/patches/resources.db.patch_15

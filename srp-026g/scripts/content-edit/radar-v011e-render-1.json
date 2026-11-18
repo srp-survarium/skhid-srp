@@ -1,0 +1,10 @@
+{
+  "_about": "Radar v0.11: retain the detailed terrain material on simplified terrain geometry. Both render LODs have the same static vertex layout and atlas UVs; reuse the existing native-compatible terrain material instead of the smooth diffuse-only distant material. Geometry LOD distances and collision stay unchanged. Matched-camera runtime comparison and content build evidence: scripts/radar-visual-check/README.md.",
+  "replace_string": [
+    {
+      "files": "models/ported/v011e/level/03/terrain_p_*.model/settings",
+      "from": "ported/v011e/terrain/03_base_final_lod",
+      "to": "ported/v011e/terrain/03_base_final"
+    }
+  ]
+}

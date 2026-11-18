@@ -25,7 +25,7 @@ The original must give the original's answers (a Spring's passive node 2
 max_carried_weight, no aim node; Lifebone heals no pool; one press fires one
 artefact; n active Onyx reduce a hit n times, each 3 s), the build: aim
 time from the config in the passive and the active, the active's linked and
-unlinked with the others, pain, body and head full after Lifebone's active,
+unlinked with the others, every body part's pool full after Lifebone's active,
 no slow from hits while a Spring is active, a press fires every ready
 artefact of its class, and n Onyx fired together are each active 3 s +
 (n - 1) s, reduce a hit once (x0.25) and show the activation hint once a
@@ -66,7 +66,7 @@ LOCALIZE = 0x1FEF90                      # its text's last step: eax = the text,
 from localization_026g import CATALOG, LANGUAGES, read_translations
 HINTS = [read_translations(CATALOG / f'{language}.tsv')['st_onyx_activation_hint']
          for language, *_ in LANGUAGES]
-# The release's Onyx (artefacts-1.json): passive x0.95, active x0.25 for 3 s,
+# The release's Onyx (artefacts.tsv): passive x0.95, active x0.25 for 3 s,
 # absorb_total 5; its loader's fields at +C7Ch (+26Ch.. of 0x33B780).
 ONYX = {0xEE8: 7, 0xEF0: 0.95, 0xEF8: 0.95, 0xF00: 0.25, 0xF08: 0.25, 0xF0C: 5.0, 0xF10: 3000}
 
@@ -75,7 +75,7 @@ HINT, GAME = 0x22000800, 0x22001000      # an activation hint's text, the game (
 HOLDER, HOLDER_VT, PLAYER, KITS, CONFIG, POOLS, DM, NAMES = (MEMORY + 0x10000 * i for i in range(1, 9))
 GET_PLAYER, GET_DM, ENABLE_ACTIVE, RET4, RET8 = (STUB + 0x10 * i for i in range(5))
 
-# The release's numbers (srp-026g/scripts/content-edit/artefacts-1.json).
+# The release's numbers (srp-026g/scripts/content-edit/artefacts.tsv).
 SPRING = {"passive": {"movement_speed_mod": 0.05, "max_carried_weight_mod": 0.0, "aim_time_mod": -0.05},
           "active": {"movement_speed_mod": 0.1, "stamina_regen_mod": 5, "stamina_spend_mod": -5,
                      "duration": 10, "aim_time_mod": -0.1, "stopping_power_mod": -1.0}}
@@ -317,12 +317,16 @@ def run(data, patched):
            "an active Spring: no slow" if patched else "an active Spring: the slow as ever")
     expect(stagger([(100, 0.6), (200, 0.3)], True) == (0.0 if patched else -0.5), "an active Spring, big hits")
 
-    # Lifebone's active: pain, body and head full, the limbs left to their
-    # remove_affects; a pool that is full or not there is left alone.
+    # Lifebone's active: every body part full (pain, body, head, both hands,
+    # both legs), each to its own maximum (a limb's 0.5, or the 0.75 Strong Bones
+    # makes it); `infection` is not one and is left, as is a pool that is full
+    # or not there.
     cases = (
         # {pool: (Hmax, H before)} -> H after in the build
-        ({"pain": (1.0, 0.3), "body": (1.0, 0.3), "head": (0.4, 0.1), "left_leg": (0.5, 0.1)},
-         {"pain": 1.0, "body": 1.0, "head": 0.4, "left_leg": 0.1}),
+        ({"pain": (1.0, 0.3), "body": (1.0, 0.3), "head": (0.4, 0.1), "left_hand": (0.5, 0.0),
+          "right_hand": (0.5, 0.5), "left_leg": (0.75, 0.25), "right_leg": (0.5, 0.25), "infection": (1.0, 0.4)},
+         {"pain": 1.0, "body": 1.0, "head": 0.4, "left_hand": 0.5, "right_hand": 0.5, "left_leg": 0.75,
+          "right_leg": 0.5, "infection": 0.4}),
         ({"pain": (1.0, 1.0), "body": (1.0, 0.7), "head": (0.4, 0.35)},
          {"pain": 1.0, "body": 1.0, "head": 0.4}),
         ({"pain": (1.0, 1.0), "body": (1.0, 1.0), "head": (0.4, 0.4)},

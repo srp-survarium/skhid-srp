@@ -6,6 +6,7 @@ import zlib
 DO_ABC, DO_ABC_OLD, SYMBOL_CLASS, END = 82, 72, 76, 0
 DEFINE_BITS_LOSSLESS2 = 36
 DEFINE_BITS_JPEG2 = 21
+DEFINE_SPRITE, SHOW_FRAME, PLACE_OBJECT2 = 39, 1, 26
 # The tags that define a character, its id their first field.
 DEFINES = {2, 6, 7, 10, 11, 14, 20, 21, 22, 32, 33, 34, 35, 36, 37, 39, 46, 48, 60, 75, 83, 84, 87, 90, 91}
 
@@ -90,6 +91,40 @@ def symbol_classes(tags):
 def character_ids(tags):
     """Every character id the movie's tags define."""
     return {struct.unpack_from('<H', payload(raw))[0] for kind, raw in tags if kind in DEFINES}
+
+
+def tags_of(body):
+    """[(kind, raw tag bytes)] of a tag list (a DefineSprite's control tags), up to its End."""
+    pos, out = 0, []
+    while pos < len(body):
+        start = pos
+        word, = struct.unpack_from('<H', body, pos)
+        pos += 2
+        kind, size = word >> 6, word & 63
+        if size == 63:
+            size, = struct.unpack_from('<I', body, pos)
+            pos += 4
+        pos += size
+        if pos > len(body):
+            raise ValueError('Truncated sprite tag')
+        out.append((kind, body[start:pos]))
+        if kind == END:
+            break
+    return out
+
+
+def placed(raw):
+    """(depth, character id or None) of a PlaceObject2 tag."""
+    body = payload(raw)
+    flags, depth = body[0], struct.unpack_from('<H', body, 1)[0]
+    return depth, (struct.unpack_from('<H', body, 3)[0] if flags & 0x02 else None)
+
+
+def with_character(raw, cid):
+    """A PlaceObject2 tag that places `cid` (it must place a character already)."""
+    word, = struct.unpack_from('<H', raw)
+    at = (6 if word & 63 == 63 else 2) + 3
+    return raw[:at] + struct.pack('<H', cid) + raw[at + 2:]
 
 
 def symbol_class(bindings):

@@ -58,6 +58,7 @@ FULL = 1000000000
 # the world
 PLACES, TICK_LIST, TICK_ORDER, STATISTICS, MATCH_STATE, LOCAL_PLACE, RULES = \
     0x18458, 0x18850, 0x18FB0, 0x18FA8, 0x18FE4, 0x18FDC, 0x18824
+PLACES_END, ACTIVE_PLACES = 0x1845C, 0x18FD8
 PLAYER, PROFILE = 0xF500, 0x4600  # client player: camera handler at +F470h
 
 
@@ -230,6 +231,8 @@ def world(run):
     run.emu.mem_write(CORE, bytes(0x20000))
     places, statistics, counter = run.allocate(20 * 0x30), run.allocate(0x3250), run.allocate(4)
     run.word(CORE + PLACES, places)
+    run.word(CORE + PLACES_END, places + 20 * 0x30)
+    run.word(CORE + ACTIVE_PLACES, (1 << 20) - 1)
     run.word(CORE + STATISTICS, statistics)
     run.word(CORE + TICK_ORDER, counter)
     run.word(counter, 7)
@@ -865,6 +868,14 @@ def main():
     scope_flag("viewed player dies: release the scope fade", 0)
     run.emu.mem_write(players[5] + 0x33C, b"\1")
     scope_flag("live viewed player", 1)
+    # A departed place keeps its freed player's pointer; only the active bit
+    # says it left (core_active_player 0x2D0AD4). Rev 47 crashed reading one.
+    places = run.read(CORE + PLACES)
+    run.word(places + 0x30 * 2, 0xDEAD0000)
+    run.word(CORE + ACTIVE_PLACES, ((1 << 20) - 1) & ~(1 << 2))
+    scope_flag("a departed place's stale player is never read", 1)
+    run.word(places + 0x30 * 2, players[2])
+    run.word(CORE + ACTIVE_PLACES, (1 << 20) - 1)
     run.word(director + 0x84, 0)
     scope_flag("free camera: the old aimed weapon cannot hide markers", 0)
     run.word(game2 + 0x4D58, 0)

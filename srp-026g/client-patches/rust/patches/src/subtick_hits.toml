@@ -1,0 +1,12 @@
+# Patch 103: a bullet meets a player where he stood when it crossed him, not
+# where the step left him (docs/notes/subtick_bullet_hits.md). The site is
+# sites_026g.tsv's; the logic is subtick_hits.rs.
+name = "subtick_hits"
+patch = 103
+
+# check_collision after the game's ray test: first of the site's chain, so
+# the ragdoll (0) and the lamps (1) read the hit it leaves
+[[hook]]
+site = "bullet.ray_traced"
+handler = "on_ray"
+order = -1

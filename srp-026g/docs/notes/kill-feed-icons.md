@@ -77,18 +77,28 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
     `bitmaps/`, made by `scripts/kill-feed-icons/make_weapon_icons.py`): 53 to 63 the bitmaps of
     0.28d0's clip's frames 54 to 64, as they are (its frames 1 to 53 are 0.26g's bit for bit), 64 to
     68 0.31a2's kill log icons `icon_65.png` to `icon_69.png` (0.28d0's clip ends at 63; 0.31a2 loads
-    its icons from textures);
+    its icons from textures); weapons batch 1 (`weapons-031.md`) adds 70, 71, 72 and 74, 0.31a2's
+    `icon_71.png` to `icon_75.png` of its guns;
   - `CombatLogItem`: a kill row whose icon is past the clip's frames shows that bitmap in the clip's
     place (the clip hidden), centred where the clip's frames centre theirs (12.5 px down it), never
-    above it; the icons after it and the victim follow it as they follow the clip; an icon past 68
-    shows the clip's last frame, as before;
+    above it; the icons after it and the victim follow it as they follow the clip; an icon past the
+    clip with no bitmap shows the clip's last frame, as before. A bitmap is found by its class name
+    (`CombatLogWeapon<n>`, `getDefinitionByName`; the lobby's `KillFeedWeapon<n>` the same way), so a
+    ported weapon's icon is its bitmap and class, with no list to edit;
+  - weapons batch 2 (`weapons-046.md`, release 41's weapons): `make_weapon_icons_046.py` adds
+    0.46c2's 75, 77 to 80, 82 to 84, 0.69d0's 95 and the Colt M1911's 99, drawn from its lobby cell;
   - `content-edit/kill-feed-weapons-1.json`: the 21 configs take their builds' icons again (the
     premium Saiga and Vepr-12, the Neostead's second config and the MP7 Special their weapon's); the
     M4A1 21, the clip's own M4.
   - The premium copies of stock weapons (base patch 19's `_premium`, `_premium_2`, `_camo`) keep
     their plain weapon's icon, as in those builds.
+- **0.69d0's weapons (pack weapons-069, 2026-11-01):** their own numbers and 0.69d0's
+  `icon_<icon + 1>.png` (85 KS-23M, 86 Mauser M.712, 96 AKMSU, 97 FAMAS, 98 H&K G3SG/1);
+  `CombatLogItem` finds `CombatLogWeapon<icon>` by name (as #948), so a batch adds only its
+  bitmaps and classes.
 - **Checked:** `scripts/kill-feed-icons/check-combat-log/check.sh` also adds a kill row for every
-  icon 0 to 69 and checks what it shows (the frame, or `CombatLogWeapon<icon>` with the clip hidden)
+  icon 0 to 99 and checks what it shows (the frame, or `CombatLogWeapon<icon>` with the clip hidden
+  when the hud defines that class)
   and where (after the killer, within the row, before the victim).
 - **Release:** the hud movie and the edit list together; the movie alone shows the stand-ins as
   before, the edit list alone the clip's last frame (the VSSK) for icons 53 to 68.
@@ -100,7 +110,7 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
 - **The images:** `scripts/kill-feed-icons/make_lobby_weapon_icons.py` takes them from the hud: the
   bitmap of each frame of the weapon icon clip (sprite 698, `object_icon` of `CombatLogItem`; each
   frame one shape filled 1:1 with its icon's bitmap, read from the shape's fill styles, exported by
-  FFDec as it is) for icons 0 to 52, and the hud's own `CombatLogWeapon53..68` for 53 to 68; icon 17
+  FFDec as it is) for icons 0 to 52, and the hud's own `CombatLogWeapon<icon>` past them; icon 17
   has none (an empty frame). It writes `flash/lobby_menu/bitmaps/KillFeedWeapon<icon>.png`, their
   classes, and `survarium/player/KillFeedIcons.as` (the index). Rerun it when the hud's icons change.
 - **The number:** `content-edit/weapon-kill-icon-ui-1.json` copies each weapon's
@@ -119,3 +129,22 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
   taller than the other icons. With a weapon row the card's icon column is that wide; the other
   icons stay centred in it, every text after it. The generator trims a transparent margin (the
   hud's images have none today: their alpha reaches every edge).
+
+## A battery strike (exe patch 143, 2026-11-15)
+
+- **The owner:** "whether we can add killfeed battery icon" (`battery-hit.md`).
+- Icon 200, past every weapon's: the exe sends it for a kill by a battery strike
+  (`kill_feed.weapon_icon`); `CombatLogItem` shows it as `CombatLogBatteryIcon` (not a
+  `CombatLogWeapon<n>`: no weapon has it, so the lobby's index leaves it out), drawn by
+  `scripts/kill-feed-icons/make_battery_icon.py`, drawn as the weapon icons are (white, details cut
+  out, a black shadow at 40 % one pixel right and two down): the battery's own mesh
+  (`electrobox_s`) in three-quarter view (turned 135 degrees, 30 above, 22 px high), its faces
+  parted by cut lines, the handles ringed by one, its two cell wells' openings cut out (the hud's
+  battery rows' glyph: a box with two cells), then the gun-stock icon's (48) impact burst, as a
+  melee hit. 47 x 24. The owner: on the glyph doubled, "not in the style"; of the second round's
+  candidates, "three-quoter is good, we can add strike too"; of the third's, "I like yaw 135, 30
+  down, 22px the most".
+- **The website's maps** (the owner: "we can use the same icon on website (without strike)", "for
+  showing battery locations"): the same battery, no burst, as a vector SVG (`marker`, traced at
+  16x: a dark silhouette, the white faces over it), the Maps tab's battery spawn marker; its build
+  (`scripts/maps-tab/build.py`) draws it from the released game's mesh.
