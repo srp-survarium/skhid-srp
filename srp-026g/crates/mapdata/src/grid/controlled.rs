@@ -663,7 +663,7 @@ impl WalkGrid {
         stats.bridges_tried = bridges.len();
         let walked = parallel(&bridges, |&i| {
             let l: &OffLink = &wide.off[i];
-            walk_lines(&world, s, start, self.position(l.from), self.position(l.to)).1
+            walk_lines(world, s, start, self.position(l.from), self.position(l.to)).1
         });
         let old: Vec<usize> = bridges.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&i, _)| i).collect();
         // Bridges with no link yet: two cells on, a floor within a step, the cell between with no floor near that height (a
@@ -719,7 +719,7 @@ impl WalkGrid {
             }
         }
         stats.bridges_tried += new.len();
-        let walked = parallel(&new, |&(a, b)| walk_lines(&world, s, start, self.position(a), self.position(b)).1);
+        let walked = parallel(&new, |&(a, b)| walk_lines(world, s, start, self.position(a), self.position(b)).1);
         let new: Vec<(u32, u32)> = new.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&p, _)| p).collect();
         // Only the bridges in a run at least [`BRIDGE_MIN_RUN`] wide are walked: a narrower one is crossed only by a body
         // inside its columns, which a bot steering at a point ahead of it does not keep to.
@@ -744,7 +744,7 @@ impl WalkGrid {
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
         if body.walk_every_link {
-            let (stats, failing, held, mut crouch) = self.walk_every_link(wide, &world, s, start, stats);
+            let (stats, failing, held, mut crouch) = self.walk_every_link(wide, world, s, start, stats);
             // The risers with no walking way round stay, marked (the caller marks the cut's kept ones beside them).
             wide.marked = held;
             crouch.sort_unstable();
@@ -774,7 +774,7 @@ impl WalkGrid {
         stats.checks = checks.len();
         let shares = parallel(&checks, |&(a, d)| {
             let b = wide.links[a][d];
-            walk_lines(&world, s, start, self.position(a as NodeId), self.position(b)).0
+            walk_lines(world, s, start, self.position(a as NodeId), self.position(b)).0
         });
         let failing = checks
             .iter()
