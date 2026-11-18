@@ -1618,7 +1618,7 @@ impl Ctx<'_> {
         let len = to.length();
         len <= view::use_ray_m()
             && (len <= USE_LINE_SLACK_M
-                || crate::v026g::bots::rays::ray_cast(&self.tactics.world.sight, eye, to / len, len - USE_LINE_SLACK_M).is_none())
+                || crate::v026g::bots::rays::ray_cast(&self.tactics.world.sight, eye, to * (1.0 / len), len - USE_LINE_SLACK_M).is_none())
     }
 
     pub fn can_take(&self, at: Vec3) -> bool {
