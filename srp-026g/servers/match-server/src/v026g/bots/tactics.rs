@@ -2572,6 +2572,13 @@ impl Tactics {
     /// it within 30 m (`floor_off_height`) or none at all (`no_floor`).
     #[cfg(test)]
     pub fn spots_why(&self, query: &SpotQuery, time: u32, rng: &mut Rng) -> &'static str {
+        super::threat::most_failed(&self.spots_stages(query, time, rng))
+    }
+
+    /// [`Self::spots_why`]'s stage of each sample (a probe with no floor: one; a probe with floors: one a floor), in
+    /// the query's order: the first test of [`Self::spots`] that left it out, `other_filter` for one that passed them all.
+    #[cfg(test)]
+    pub fn spots_stages(&self, query: &SpotQuery, time: u32, rng: &mut Rng) -> Vec<&'static str> {
         let grid = &self.world.grid;
         let mut fails: Vec<&'static str> = Vec::new();
         let mut by_walk: Option<Arc<WalkUp>> = None;
@@ -2613,7 +2620,7 @@ impl Tactics {
                 });
             }
         }
-        super::threat::most_failed(&fails)
+        fails
     }
 
     /// The best spots for `query`, best first, at most `n`.
