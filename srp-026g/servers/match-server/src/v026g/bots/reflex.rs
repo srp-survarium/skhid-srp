@@ -9570,7 +9570,7 @@ mod tests {
     /// shot still waits for both rays, and nothing in sight (hidden, or a spray's point) still stops a held burst.
     #[test]
     fn a_held_burst_goes_on_through_its_own_ray_while_the_target_shows() {
-        use super::aimpoint::{Aim, Blocked};
+        use crate::v026g::bots::aimpoint::{Aim, Blocked};
         use super::*;
         let at = Vec3::new(10.0, 1.4, 0.0);
         for ray in [Blocked::View(3.0), Blocked::Aim(9.5)] {
