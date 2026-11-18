@@ -147,8 +147,9 @@ fn follows_line(world: &Collision, s: &Settings, from: Vec3, to: Vec3) -> bool {
 }
 
 /// The height under which the feet have left a take-off at `from_y` for a landing at `to_y`: [`LEAVE_M`] down, or half the drop
-/// when that is less.
-fn left_take_off(from_y: f32, to_y: f32) -> f32 {
+/// when that is less. The drop script ([`walk_off_rest`]) and the bots' motor (`walk_off.rs`, F3) release on the first
+/// standing step at or under it.
+pub fn left_take_off(from_y: f32, to_y: f32) -> f32 {
     from_y - LEAVE_M.min(0.5 * (from_y - to_y).max(0.0))
 }
 
