@@ -22,8 +22,11 @@ pub trait Dictionary {
     /// it does not have (`items_dictionary::item_by_id` 0x1F0090 finds
     /// nothing, and the client crashes later).
     fn item(&self, dict_id: u16) -> Option<bool>;
-    /// Whether the client has the map (a maps_dict id).
-    fn map(&self, map_id: u8) -> bool;
+    /// Whether the client has the map (a maps_dict id, up to `u16::MAX`).
+    fn map(&self, map_id: u16) -> bool;
+    /// How many faces the client's data lists (`body_parts.heads`, 1
+    /// without): a place's face is under it.
+    fn faces(&self) -> u8;
 }
 
 /// The ids srp sends and a client takes. 0xE2 and every id outside
@@ -387,7 +390,7 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         }
     }
     let at = reader.at();
-    let map = reader.u8().map_err(short)?;
+    let map_byte = reader.u8().map_err(short)?;
     let roster = reader.u8().map_err(short)?;
     if !(1..=MAX_PLAYERS).contains(&usize::from(roster)) {
         return Err(refuse(
@@ -395,12 +398,19 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
             Reason::OptionsRoster { roster },
         ));
     }
-    if !dictionary.map(map) {
-        return Err(refuse(at, Reason::OptionsMap { map }));
-    }
+    // The roster's teams: the match's two (0 and 1), or in a free-for-all
+    // each place a side of its own ([`crate::own_side`]); never a mix of
+    // the two, and never 2 or 3, which the game reads as "neutral" and
+    // "none".
+    let own_sides = teams.first().is_some_and(|&team| team > 1);
     for (place, (held, team)) in places.iter().zip(teams).enumerate() {
         if place < usize::from(roster) {
-            if team > 1 {
+            let fits = if own_sides {
+                team == crate::own_side(place)
+            } else {
+                team <= 1
+            };
+            if !fits {
                 return Err(refuse(held.at, Reason::OptionsTeam { place, team }));
             }
             if held.kits == 0 {
@@ -420,42 +430,60 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     }
     // The squad bytes.
     reader.skip(MAX_PLAYERS).map_err(short)?;
-    // srp's block: patch 65's Blackout entry (tag 2, one byte 1) and the
-    // faces patch's (tag 3, a byte a place of the roster; any byte is a
-    // face to the exe, which draws one it does not know as face 0).
+    // srp appends an SRPX block for a Blackout match (shipped patch 65), for
+    // a free-for-all (its kill target), for a map id over a byte (patch
+    // 154: the whole id, the options' byte its low byte) and for the
+    // roster's faces when one is not face 0 (the faces patch).
     // Keep this in sync with static_info::read_srp_block on the server.
+    let mut wide = None;
     if !reader.is_done() {
         let at = reader.at();
-        let invalid = || {
-            refuse(
-                at,
-                Reason::OptionsTrailing {
-                    len: reader.rest().len(),
-                },
-            )
-        };
+        let trailing = |reader: &Reader| refuse(at, Reason::OptionsTrailing { len: reader.rest().len() });
         if !reader.rest().starts_with(b"SRPX") {
-            return Err(invalid());
+            return Err(trailing(&reader));
         }
         reader.skip(4).map_err(short)?;
+        // Entries `{tag, len, bytes}`, each tag once: the whole map id's
+        // `{4, 2, id}` (over a byte, its low byte the options' byte),
+        // Blackout's `{2, 1, 1}` or a free-for-all's `{3, 2, kills to win}`
+        // (a u16, never 0), which only a roster of own sides has, and the
+        // faces' `{5, roster, a face a place}` (each a face of the
+        // dictionary's, not every one face 0).
+        let (mut mode, mut faces) = (false, false);
         while !reader.is_done() {
-            let at = reader.at();
-            let [tag, len] = reader.array::<2>().map_err(short)?;
-            let entry = reader.take(usize::from(len)).map_err(short)?;
-            let known = match tag {
-                2 => entry == [1],
-                3 => len == roster,
+            let fits = match reader.rest() {
+                [4, 2, low, high, ..] => {
+                    let id = u16::from_le_bytes([*low, *high]);
+                    id > u16::from(u8::MAX) && *low == map_byte && wide.replace(id).is_none()
+                }
+                [2, 1, 1, ..] => !own_sides && !core::mem::replace(&mut mode, true),
+                [3, 2, low, high, ..] => {
+                    own_sides && (*low, *high) != (0, 0) && !core::mem::replace(&mut mode, true)
+                }
+                [5, len, entry @ ..] if *len == roster => {
+                    entry.get(..usize::from(roster)).is_some_and(|entry| {
+                        entry.iter().all(|&face| face < dictionary.faces())
+                            && entry.iter().any(|&face| face != 0)
+                    }) && !core::mem::replace(&mut faces, true)
+                }
                 _ => false,
             };
-            if !known {
-                return Err(refuse(
-                    at,
-                    Reason::OptionsTrailing {
-                        len: reader.rest().len().saturating_add(2).saturating_add(entry.len()),
-                    },
-                ));
+            if !fits {
+                return Err(trailing(&reader));
             }
+            let [_tag, len] = reader.array().map_err(short)?;
+            reader.skip(usize::from(len)).map_err(short)?;
         }
+        if !mode && (own_sides || (wide.is_none() && !faces)) {
+            return Err(trailing(&reader));
+        }
+    } else if own_sides {
+        // A free-for-all's options always carry its entry.
+        return Err(refuse(reader.at(), Reason::OptionsTrailing { len: 0 }));
+    }
+    let map = wide.unwrap_or(u16::from(map_byte));
+    if !dictionary.map(map) {
+        return Err(refuse(at, Reason::OptionsMap { map }));
     }
     Ok(roster)
 }

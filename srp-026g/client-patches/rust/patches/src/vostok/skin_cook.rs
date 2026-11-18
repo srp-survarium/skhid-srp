@@ -181,7 +181,7 @@ impl<'t> HeadCook<'t> {
 unsafe fn assign(string: raw::BufferString, text: &[u8]) {
     // SAFETY: the caller's.
     unsafe {
-        let (begin, capacity) = (string.begin(), string.capacity());
+        let (begin, capacity) = (string.begin(), string.capacity_end());
         let room = (capacity as usize).saturating_sub(begin as usize);
         let len = text.len().min(room.saturating_sub(1));
         core::ptr::copy_nonoverlapping(text.as_ptr(), begin, len);
@@ -197,7 +197,7 @@ unsafe fn assign(string: raw::BufferString, text: &[u8]) {
 unsafe fn append(string: raw::BufferString, text: &[u8]) -> Result<(), NameFull> {
     // SAFETY: the caller's.
     unsafe {
-        let (end, capacity) = (string.end(), string.capacity());
+        let (end, capacity) = (string.end(), string.capacity_end());
         if (capacity as usize).saturating_sub(end as usize) <= text.len() {
             return Err(NameFull);
         }

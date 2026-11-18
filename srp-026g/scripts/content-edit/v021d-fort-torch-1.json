@@ -1,0 +1,113 @@
+{
+  "_about": "Fort v0.21 torch schema conversion only: private native-schema copy with the original 5.047268 m radius and original shadow settings. Original and native intensity/colour curves are identical (83 compared property leaves); preserve them without scaling. Native maps keep their existing torch resource.",
+  "copy": [
+    {
+      "files": "particles/fx/lights/torch.particle",
+      "from": "particles/fx/lights/torch.particle",
+      "to": "particles/srp/v021d/torch.particle"
+    }
+  ],
+  "set_bool": [
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/EnableShadows",
+      "from": false,
+      "to": true
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/StaticShadows",
+      "from": false,
+      "to": true
+    }
+  ],
+  "set": [
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/ShadowMapSizeIndex",
+      "from": 4,
+      "to": 2
+    }
+  ],
+  "replace_string": [
+    {
+      "files": "projects/v021d_level_05/day_*/client_project",
+      "from": "fx/lights/torch",
+      "to": "srp/v021d/torch"
+    }
+  ],
+  "set_vector": [
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Radius/source/data/curve0/key0/left_tangent",
+      "from": [
+        -1.6447096,
+        2.4360433
+      ],
+      "to": [
+        -1.6447096,
+        4.983311
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Radius/source/data/curve0/key0/position",
+      "from": [
+        -1.563596,
+        2.5
+      ],
+      "to": [
+        -1.563596,
+        5.047268
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "LOD 0/children/9081bcf8-95b2-4642-8f9e-b59b44b08ac5/children/a5ae311b-140f-4eda-8639-f5323329a7a3/properties/Radius/source/data/curve0/key0/right_tangent",
+      "from": [
+        -1.3113762,
+        2.6988707
+      ],
+      "to": [
+        -1.3113762,
+        5.2461386
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float63/source/data/curve0/key0/left_tangent",
+      "from": [
+        -1.6447096,
+        2.4360433
+      ],
+      "to": [
+        -1.6447096,
+        4.983311
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float63/source/data/curve0/key0/position",
+      "from": [
+        -1.563596,
+        2.5
+      ],
+      "to": [
+        -1.563596,
+        5.047268
+      ]
+    },
+    {
+      "file": "particles/srp/v021d/torch.particle",
+      "path": "data_sources/float/float63/source/data/curve0/key0/right_tangent",
+      "from": [
+        -1.3113762,
+        2.6988707
+      ],
+      "to": [
+        -1.3113762,
+        5.2461386
+      ]
+    }
+  ]
+}

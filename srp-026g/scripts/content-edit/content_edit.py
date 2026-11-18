@@ -22,8 +22,8 @@ Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
                                                        be the live value (a stale base is refused); the
                                                        path's `name[i]` is item i of an indexed table
-  "set_vector":     [{"file", "path", "from", "to"}]   a float3 (a model's `bounding_box/min`): `from` the
-                                                       live three numbers, `to` the new ones, in place
+  "set_vector":     [{"file", "path", "from", "to"}]   a float2/3/4 (e.g. a model's `bounding_box/min`): `from` the
+                                                       live components, `to` the new ones, in place
   "set_bool":       [{"file", "path", "from", "to"}]   a native boolean; both values must be JSON booleans,
                                                        type and every other byte are preserved
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
@@ -36,7 +36,7 @@ Edits (edits.json):
   "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended
   "edit_text":      [{"file", "path", "from", "to"}]   in one text (UTF-8, as the localization tables
                                                        keep it), its one `from` becomes `to`
-  "add_entry":      [{"files", "list", "after", "like", "values", "only_if"}]
+  "add_entry":      [{"files", "list", "after", "like", "values", "only_if", "expected_files"}]
                     a new entry of the indexed table `list` (a lobby card's `ui_desc/props_list`, the
                     card lines' `ui_properties`) after the entry whose keys match `after`, made like
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
@@ -44,7 +44,8 @@ Edits (edits.json):
                     indexed table of vectors (a wire's points) made anew; a key of `values` may be a
                     path in the entry (`spawned_item/position`): the tables on its way are copied
                     anew, the like entry's own stay as they are; files without `only_if`, the table
-                    or those entries are left alone
+                    or those entries are left alone, unless `expected_files` says how many files
+                    must take the entry (a project's object: any other number is refused)
   "_inputs":        [{"files" (glob)}]               read-only dependencies supplied by build-content.
                     add_entry with reload_clip_ratio:true copies the empty/tactical hands-clip
                     duration ratio into prop_value, only for state 314. Declare its clips here.
@@ -59,6 +60,8 @@ Edits (edits.json):
                     declare source .b-spline and .bones_names dependencies in _inputs.
   "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
                     append a new indexed record, refusing stale counts and duplicate identities;
+                    "unique_key": null for a list whose entries are known by their index (the
+                    game reads them by it: a battery's `states`), the count check alone;
                     arrays in the new value are indexed tables, leaving existing records intact;
                     "files" and "expected_counts" (two lists, a count a file) in place of
                     "file" and "expected_count" append the same record to each file; with
@@ -104,7 +107,9 @@ Edits (edits.json):
   "set_entry":      [{"file", "list", "where", "from", "to"}]
                     the one entry of the indexed table `list` whose keys match `where`: each key of
                     `from` must hold that value, then takes the value in `to` (a number keeps its type,
-                    a string or a vector, a list of 2-4 numbers, is appended); a key of `from` and `to`
+                    a string or a vector, a list of 2-4 numbers, is appended; an indexed table takes
+                    the list given, made as append_entry makes one, so it may shrink or grow: a
+                    skill's `modifiers`); a key of `from` and `to`
                     may be a path in the entry (`spawned_item/position`, `collision_geometries[0]/name`)
   "append_rows":    [{"file", "path", "rows"}]         append rows of strings to an indexed UI table
   "add_item":       [{"file", "list", "where", "key", "value"}]
@@ -131,6 +136,16 @@ Edits (edits.json):
                     the source's zero-time pose. The clamped cubic eases in/out with zero endpoint
                     velocity; no events, no edits to stock clips. Not shipped: the carry's pose
                     source (scripts/artefact-carry/pose.json) runs it to compile its curves.
+  "remove_faces":   [{"files": ["<mesh>/vertices", "<mesh>/indices", "<mesh>/face_data"], "faces"}]
+                    a collision mesh (a model's collision or walker_collision) without the triangles
+                    whose corners are `faces` (each three points of the vertices file, in model space,
+                    within 0.0005 and in the file's order): indices and face_data lose them, the
+                    vertices stay; a face not exactly one triangle is refused
+  "files_from_repo": [{"source", "output", "sha256"}]
+                    a new animations/ resource from a file of this repo (`source`, relative to
+                    the edit list), its bytes pinned by `sha256`; a `.b-spline` must parse as a
+                    clip. The battery swing's clips: scripts/battery-hit/make_clips.py writes
+                    them from its keys, and checks them (`--check`)
   "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
                                                        preserve runtime positions/normals byte for byte;
                                                        reject unknown, duplicate or malformed chunks
@@ -163,6 +178,7 @@ import re
 import struct
 import sys
 import zlib
+from pathlib import Path
 
 T_BOOL, T_INT, T_FLOAT, T_NAMED, T_INDEXED, T_STR = 0, 1, 2, 3, 4, 5
 REC = struct.Struct('<QQIHH')
@@ -254,14 +270,16 @@ def set_number(buf, path, frm, to, as_float=False):
 
 
 def set_vector(buf, path, frm, to):
-    """A float3 value's three numbers, in place."""
+    """A native float2, float3 or float4, preserving its type and dimensions."""
     at, _, _, t, _ = rec(buf, find(buf, path))
-    if t != 7 or len(frm) != 3 or len(to) != 3:
-        raise TypeError('%s: a float3 and three numbers each' % path)
-    old = struct.unpack_from('<3f', buf, at)
+    dimensions = {6: 2, 7: 3, 8: 4}.get(t)
+    if dimensions is None or len(frm) != dimensions or len(to) != dimensions:
+        raise TypeError('%s: a float2/3/4 and matching numbers each' % path)
+    fmt = '<%df' % dimensions
+    old = struct.unpack_from(fmt, buf, at)
     if any(abs(a - b) > 1e-6 for a, b in zip(old, frm)):
         raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
-    struct.pack_into('<3f', buf, at, *to)
+    struct.pack_into(fmt, buf, at, *to)
 
 
 def set_bool(buf, path, frm, to):
@@ -453,7 +471,10 @@ def add_entry(buf, path, after, like, values):
 
 def copied_table(buf, table, values, path):
     """A new array of the records of the table at `table`, the keys of `values` set; a key `a/b` (or
-    `a[0]/b`) sets b in a copy of the table a. Returns the array's offset."""
+    `a[0]/b`) sets b in a copy of the table a. Every nested table gets its own records:
+    the native loader (0xF6D00) relocates each reachable record in place, so sharing
+    an unchanged subtree would relocate it twice. Strings/vector payloads may be
+    shared: only their owning records are mutated. Returns the array's offset."""
     recs = []
     named = rec(buf, table)[3] == T_NAMED
     for k, c in enumerate(children(buf, table)):
@@ -493,6 +514,8 @@ def copied_table(buf, table, values, path):
                 d = (d & ~0xffffffff) | struct.unpack('<I', struct.pack('<f', v))[0]
             else:
                 d = (d & ~0xffffffff) | (1 if v else 0)
+        elif t in (T_NAMED, T_INDEXED):
+            d = copied_table(buf, c, {}, path)
         recs.append(REC.pack(d, i, crc, t, cnt))
     return append_array(buf, recs)
 
@@ -564,6 +587,21 @@ def insert_value(buf, toff, key, value):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
+def as_table(value, vectors=False):
+    """A JSON value for value_record: a list an indexed table; with `vectors`, a list of 2 to 4
+    numbers a native vector and an empty list an empty indexed table."""
+    if vectors and isinstance(value, list):
+        if not value:
+            return EmptyList()
+        if 2 <= len(value) <= 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in value):
+            return value
+    if isinstance(value, list):
+        return {i: as_table(item, vectors) for i, item in enumerate(value)}
+    if isinstance(value, dict):
+        return {key: as_table(item, vectors) for key, item in value.items()}
+    return value
+
+
 def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
     """Append a new record, refusing stale counts and duplicate identities.
 
@@ -575,24 +613,16 @@ def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
     _, name, crc, kind, count = rec(buf, off)
     if kind != T_INDEXED or count != expected_count:
         raise ValueError(f'{path}: expected indexed table of {expected_count}, got {kind}/{count}')
-    if not isinstance(value, dict) or unique_key not in value:
-        raise ValueError(f'{path}: new entry must have {unique_key}')
     entries = children(buf, off)
-    if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
-        raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    if unique_key is not None:
+        if not isinstance(value, dict) or unique_key not in value:
+            raise ValueError(f'{path}: new entry must have {unique_key}')
+        if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
+            raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    elif not isinstance(value, dict):
+        raise ValueError(f'{path}: a new entry is a table')
     records = [bytes(buf[entry:entry + 24]) for entry in entries]
-    def indexed(value):
-        if vectors and isinstance(value, list):
-            if not value:
-                return EmptyList()
-            if 2 <= len(value) <= 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in value):
-                return value
-        if isinstance(value, list):
-            return {i: indexed(item) for i, item in enumerate(value)}
-        if isinstance(value, dict):
-            return {key: indexed(item) for key, item in value.items()}
-        return value
-    records.append(value_record(buf, 0, '', indexed(value)))
+    records.append(value_record(buf, 0, '', as_table(value, vectors)))
     REC.pack_into(buf, off, append_array(buf, records), name, crc, kind, count + 1)
     return count
 
@@ -1031,7 +1061,34 @@ def default_modification(decade):
         new = REC.pack(int(cell) & 0xffffffff, ii, icrc, T_INT, icnt)
         REC.pack_into(buf, items, append_array(buf, [bytes(buf[c:c + 24]) for c in kids] + [new]), i, crc, t, cnt + 1)
         return ['[%d]' % cnt], []
-    return Derived('default_modifications', read, write)
+    out = Derived('default_modifications', read, write)
+    out.decade = decade
+    return out
+
+
+def built_in_order(columns):
+    """The kinds (id decades) of a table's built-in bonus columns, in the columns' order."""
+    return [key.decade for key in columns.values() if hasattr(key, 'decade')]
+
+
+def built_in_kinds(buf, items):
+    """The kind of each item of a default list."""
+    return [as_number(T_INT, rec(buf, c)[0] & 0xffffffff) // 10 for c in children(buf, items)]
+
+
+def sorted_built_ins(kinds, order):
+    """The indexes of a default list's items by kind in `order`; kinds it lacks after them, as they were."""
+    return sorted(range(len(kinds)), key=lambda k: order.index(kinds[k]) if kinds[k] in order else len(order))
+
+
+def sort_built_ins(buf, items, order):
+    """A default list's items put in `order` (sorted_built_ins), in place: the indexes that changed."""
+    kids = children(buf, items)
+    was = [bytes(buf[c:c + 24]) for c in kids]
+    now = [was[k] for k in sorted_built_ins(built_in_kinds(buf, items), order)]
+    for c, r in zip(kids, now):
+        buf[c:c + 24] = r
+    return [k for k in range(len(was)) if was[k] != now[k]]
 
 
 def shown_value():
@@ -1161,20 +1218,21 @@ STATS = {
             'silver_bonus': default_modification(123), 'damage_bonus': default_modification(200),
             'spread_bonus': default_modification(202), 'rpm_bonus': default_modification(203),
             'reload_bonus': default_modification(204), 'chamber_bonus': default_modification(205),
-            'aim_bonus': default_modification(207), 'recoil_bonus': default_modification(208),
+            'weight_bonus': default_modification(206), 'aim_bonus': default_modification(207),
+            'recoil_bonus': default_modification(208),
             'reliability_bonus': default_modification(209),
         },
         # a bonus cell of a gun with no built-in list makes its default_modifications
         'add': {'reload_empty', 'silver_bonus', 'damage_bonus', 'spread_bonus', 'rpm_bonus', 'reload_bonus',
-                'chamber_bonus', 'aim_bonus', 'recoil_bonus', 'reliability_bonus'},
+                'chamber_bonus', 'weight_bonus', 'aim_bonus', 'recoil_bonus', 'reliability_bonus'},
         'match': {'damage', 'pierce', 'rpm', 'magazine', 'reload', 'reload_empty', 'reload_start', 'reload_end', 'chamber',
                   'aim_time', 'show_time', 'hide_time', 'weight', 'movement', 'stopping', 'stamina_damage',
                   'near_m', 'far_m', 'far_damage', 'spread', 'shot_spread', 'max_spread', 'spread_growth',
                   'aim_speed', 'hip_spread', 'aim_spread', 'reload_spread', 'recoil', 'top_min', 'top_max',
                   'left_min', 'left_max', 'right_min', 'right_max', 'pid_p', 'pid_i', 'pid_d', 'shake_min',
                   'shake_max', 'shake_time', 'sway_h', 'sway_v', 'sway_period', 'melee', 'damage_bonus',
-                  'spread_bonus', 'rpm_bonus', 'reload_bonus', 'chamber_bonus', 'aim_bonus', 'recoil_bonus',
-                  'reliability_bonus'},
+                  'spread_bonus', 'rpm_bonus', 'reload_bonus', 'chamber_bonus', 'weight_bonus', 'aim_bonus',
+                  'recoil_bonus', 'reliability_bonus'},
         'cards': weapon_card,
     },
     'ammo': {
@@ -1278,7 +1336,8 @@ STATS = {
     'maps': {
         'configs': 'projects/*/*/client_project',
         'columns': {
-            'spawn_protection_s': 'server_objects/respawn_points[*]/invulnerability_time',
+            # the two teams' points; team 2's are Free for all's, with its own protection (ffa-1.json)
+            'spawn_protection_s': 'server_objects/respawn_points[team=0|1]/invulnerability_time',
             'spawn_zone_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_duration',
             'spawn_zone_fade_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_attenuation',
             'resupply_ms': 'client_objects[game_object_type=resupply_zone]/resupply_time_in_ms',
@@ -1295,21 +1354,23 @@ STATS = {
             'back': armour_values('back'), 'weight': 'parameters/weight', 'oxygen_s': 'data/amount_time_sec',
             'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
             'rarity': 'parameters/base_rarity_level', 'mods': 'parameters/available_modifications_mask',
-            # built-in bonuses, a column a kind: the modification's id
-            'pockets': default_modification(103),
-            'artefact_slots': default_modification(104),
+            # built-in bonuses, a column a kind: the modification's id; an item's default list is kept
+            # in this order (sort_built_ins), the card's lines too: what it carries (ammo bags first),
+            # then the body, the gun, the rest
             'ammo_bags': default_modification(105),
+            'pockets': default_modification(103),
+            'slot_size': default_modification(117),
+            'artefact_slots': default_modification(104),
+            'max_weight': default_modification(112),
+            'movement': default_modification(111),
+            'stamina_spend': default_modification(116),
+            'stamina_regen': default_modification(110),
+            'health_regen': default_modification(109),
             'accuracy': default_modification(107),
             'aim': default_modification(108),
-            'max_weight': default_modification(112),
-            'health_regen': default_modification(109),
-            'stamina_regen': default_modification(110),
-            'movement': default_modification(111),
-            'artefact_search': default_modification(113),
             'reload_speed': default_modification(114),
             'recoil': default_modification(115),
-            'stamina_spend': default_modification(116),
-            'slot_size': default_modification(117),
+            'artefact_search': default_modification(113),
             'experience': default_modification(124),
             'rep_scav': default_modification(125),
             'rep_bm': default_modification(126),
@@ -1340,11 +1401,11 @@ STATS = {
         'configs': 'gameplay/items/boosters/*.options',
         'columns': {
             'weight': 'parameters/weight',
-            # built-in bonuses, a column a kind: the modification's id
-            'health_regen': default_modification(109),
-            'stamina_regen': default_modification(110),
-            'movement': default_modification(111),
+            # built-in bonuses, a column a kind: the modification's id; kept in this order, the armour's
             'max_weight': default_modification(112),
+            'movement': default_modification(111),
+            'stamina_regen': default_modification(110),
+            'health_regen': default_modification(109),
             'artefact_search': default_modification(113),
             'sway': default_modification(121),
             'respawn': default_modification(122),
@@ -1588,8 +1649,21 @@ def stats_problems(category, columns, rows, targets, files, table):
                                                                 have or 'absent', cell or 'nothing')
                         for column, key, cell, have in stats_differences(files[p], off, columns, rows[row], row,
                                                                          present)]
+                out += ['%s: built-in bonuses %s, not in the order of the columns' % (stats_label(category, row, p), at)
+                        for at, kinds in built_ins_unsorted(files[p], off, columns)]
             except ValueError as why:
                 out.append('%s: %s' % (stats_label(category, row, p), why))
+    return out
+
+
+def built_ins_unsorted(buf, off, columns):
+    """[(walk path, kinds)] of each default list under `off` not in the columns' order (built_in_order)."""
+    order = built_in_order(columns)
+    out = []
+    for at, o in resolve(buf, 'default_modifications', off) if order else ():
+        kinds = built_in_kinds(buf, o)
+        if sorted_built_ins(kinds, order) != list(range(len(kinds))):
+            out.append((at, kinds))
     return out
 
 
@@ -1642,6 +1716,13 @@ def stats_write(category, columns, rows, data, table):
                         write_cell(b, o, cell)
                         written.setdefault(p, []).append(root + at)
                 print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
+            for at, o in resolve(b, 'default_modifications', off) if built_in_order(columns) else ():
+                was = built_in_kinds(b, o)
+                moved = sort_built_ins(b, o, built_in_order(columns))
+                if moved:
+                    written.setdefault(p, []).extend(root + at + '[%d]' % k for k in moved)
+                    lists.setdefault(p, set()).add(root + at)
+                    print('%s built-in order: %s -> %s' % (stats_label(category, row, p), was, built_in_kinds(b, o)))
             if stats_differences(b, off, columns, rows[row], row, present):
                 raise ValueError('%s: does not read back as its row' % stats_label(category, row, p))
             for prop_id, text, want in card_differences(b, category['cards']) if category.get('cards') else ():
@@ -1778,6 +1859,11 @@ def set_entry(buf, path, where, frm, to):
         if t == T_STR:
             new = v.encode()
             REC.pack_into(buf, c, append(buf, new + b'\0'), i, crc, t, len(new) + 1)
+        elif t == T_INDEXED:
+            if not isinstance(v, list):
+                raise ValueError('%s[%d]/%s is an indexed table: its value is a list' % (path, at, k))
+            d, _, _, _, cnt = REC.unpack(value_record(buf, 0, '', as_table(v)))
+            REC.pack_into(buf, c, d, i, crc, t, cnt)
         elif t > T_STR:
             if not isinstance(v, list) or len(v) != t - 4:
                 raise ValueError('%s[%d]/%s takes %d numbers' % (path, at, k, t - 4))
@@ -2214,6 +2300,44 @@ def vegetation_chunks(data):
     return chunks
 
 
+def mesh_chunks(data):
+    """{id: body} of a collision mesh file's sequential chunks (u32 id, u32 size)."""
+    chunks, at = {}, 0
+    while at < len(data):
+        if at + 8 > len(data):
+            raise ValueError('mesh: truncated chunk header')
+        kind, size = struct.unpack_from('<II', data, at)
+        if kind in chunks or at + 8 + size > len(data):
+            raise ValueError('mesh: duplicate or truncated chunk %#x' % kind)
+        chunks[kind] = data[at + 8:at + 8 + size]
+        at += 8 + size
+    return chunks
+
+
+def remove_faces(vertices, indices, face_data, faces):
+    """(indices, face_data) of a collision mesh (chunks 0x19 vertices, 0x1a indices, 0x1b face names,
+    0x1c a u16 per triangle) without the triangles whose corners are `faces`."""
+    v, i, f = mesh_chunks(vertices), mesh_chunks(indices), mesh_chunks(face_data)
+    if set(v) != {0x19} or set(i) != {0x1a} or set(f) != {0x1b, 0x1c}:
+        raise ValueError('mesh: unexpected chunks')
+    points = [p for p in struct.iter_unpack('<3f', v[0x19])]
+    tris = [t for t in struct.iter_unpack('<3I', i[0x1a])]
+    if len(f[0x1c]) != 2 * len(tris) or any(k >= len(points) for t in tris for k in t):
+        raise ValueError('mesh: %d triangles, %d face entries' % (len(tris), len(f[0x1c]) // 2))
+    near = lambda a, b: all(abs(x - y) <= 5e-4 for x, y in zip(a, b))
+    drop = set()
+    for face in faces:
+        hit = [n for n, t in enumerate(tris) if all(near(points[k], c) for k, c in zip(t, face))]
+        if len(hit) != 1:
+            raise ValueError('remove_faces: %d triangles at %r, not 1: the base is not the live data' % (len(hit), face))
+        drop |= set(hit)
+    keep = [n for n in range(len(tris)) if n not in drop]
+    body = b''.join(struct.pack('<3I', *tris[n]) for n in keep)
+    faces_body = b''.join(f[0x1c][2 * n:2 * n + 2] for n in keep)
+    return (struct.pack('<II', 0x1a, len(body)) + body,
+            struct.pack('<II', 0x1b, len(f[0x1b])) + f[0x1b] + struct.pack('<II', 0x1c, len(faces_body)) + faces_body)
+
+
 def runtime_vegetation(data):
     """Keep complete runtime chunks in original order, including their headers."""
     original = vegetation_chunks(data)
@@ -2307,9 +2431,13 @@ def main():
     for e in edits.get('set_bool', []):
         set_bool(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    remade = {}  # file -> the indexed tables set_entry made again: anything under them may differ
     for e in edits.get('set_entry', []):
         at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
-        allowed.setdefault(e['file'], set()).update('/%s[%d]/%s' % (e['list'], at, k) for k in e['to'])
+        paths = ['/%s[%d]/%s' % (e['list'], at, k) for k in e['to']]
+        allowed.setdefault(e['file'], set()).update(paths)
+        remade.setdefault(e['file'], set()).update(
+            q for q in paths if rec(buf(e['file']), find(buf(e['file']), q[1:]))[3] == T_INDEXED)
     shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
     gone = {}
     if stats is not None:
@@ -2369,7 +2497,6 @@ def main():
                 sys.exit('remove_key: no file of %s has %s' % (e['files'], key))
             print('remove %s: %d files' % (key, n))
     if 'localization' in edits:
-        from pathlib import Path
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
         from build_localization_026g import compile_catalog
         from localization_026g import FLASH_MOVIES, LANGUAGES, flash_rows, read_config, read_translations
@@ -2461,6 +2588,9 @@ def main():
             added.setdefault(p, []).append('%s[%d]' % (lst, at))
             grown.setdefault(p, {}).setdefault(lst, 0)
             grown[p][lst] += 1
+        if 'expected_files' in e and n != e['expected_files']:
+            raise ValueError('add_entry %s of %s after %s: %d files took it, not %d'
+                             % (e['list'], e['files'], e['after'], n, e['expected_files']))
         print('entry %s after %s: %d files' % (e['list'], e['after'], n))
     for e in edits.get('append_entry', []):
         if 'files' in e:
@@ -2528,6 +2658,7 @@ def main():
         grown[e['file']].setdefault(lst, 0)
         grown[e['file']][lst] -= 1
         allowed[e['file']] = {q for q in (unshifted(q, lst, at) for q in allowed.get(e['file'], ())) if q is not None}
+        remade[e['file']] = {q for q in (unshifted(q, lst, at) for q in remade.get(e['file'], ())) if q is not None}
         if any(unshifted(a, lst, at) is None for a in added.get(e['file'], ())):
             sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
         added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
@@ -2568,6 +2699,20 @@ def main():
         clips[stem + '.b-spline'] = make_pose_clip(source_bytes, names_bytes, e)
         clips[stem + '.bones_names'] = names_bytes
         print('pose clip %s: %g frames, %d authored bones' % (stem, e['frames'], len(e['end'])))
+    for e in edits.get('files_from_repo', []):
+        stem = e['output']
+        if not stem.startswith('animations/') or '..' in stem.split('/') or '\\' in stem:
+            raise ValueError('files_from_repo: output must be a new animations/ resource path')
+        if stem in files or stem in bufs or stem in clips:
+            raise ValueError('files_from_repo: output already exists: ' + stem)
+        source = Path(edits_file).resolve().parent / e['source']
+        data = source.read_bytes()
+        if hashlib.sha256(data).hexdigest() != e['sha256']:
+            raise ValueError('files_from_repo: %s differs from its pinned sha256' % e['source'])
+        if stem.endswith('.b-spline'):
+            clip_parse(data)
+        clips[stem] = data
+        print('file from the repo %s: %d bytes' % (stem, len(data)))
     for e in edits.get('add_event_channel', []):
         p = e['file']
         if p in bufs:
@@ -2599,6 +2744,15 @@ def main():
         source = open(files[e['file']], 'rb').read()
         require_headwear_bind(source, {b['file'] for b in edits.get('append_headwear_bind', [])})
         print('character bind reference verified: ' + e['file'])
+
+    for e in edits.get('remove_faces', []):
+        vertices, indices, face_data = e['files']
+        for p in (indices, face_data):
+            if p in bufs or p in clips:
+                sys.exit('remove_faces: %s already edited' % p)
+        read = lambda p: open(files[p], 'rb').read()
+        clips[indices], clips[face_data] = remove_faces(read(vertices), read(indices), read(face_data), e['faces'])
+        print('remove_faces %s: %d triangles out' % (indices.rpartition('/')[0], len(e['faces'])))
 
     # Binary render assets: each operation checks its format and unchanged bytes.
     if edits.get('append_headwear_bind') or edits.get('rigid_headwear'):
@@ -2667,6 +2821,7 @@ def main():
             if o == n:
                 continue
             ok = (q in allowed.get(p, ()) and o and n and n[0] in (o[0], T_FLOAT)) or \
+                any(q.startswith(t + '[') for t in remade.get(p, ())) or \
                 (o and n and o[0] == n[0] == T_STR and (o[1], n[1]) in strings) or \
                 (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
                                                            for k, x in prefixed.get(p, ()))) or \

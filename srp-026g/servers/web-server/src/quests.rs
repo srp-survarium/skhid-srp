@@ -203,7 +203,14 @@ mod tests {
     fn every_faction_quest_is_on_the_page_with_its_icons_and_pay() {
         let quests = &Quests::shared().quests;
         for lang in [Lang::En, Lang::Uk] {
-            let page = crate::wiki::page(PATH, "", lang, "site header", None).body;
+            let page = crate::wiki::page(
+                PATH,
+                "",
+                lang,
+                "site header",
+                &crate::skills::Now::default(),
+            )
+            .body;
             assert!(page.contains("site header"));
             assert!(page.contains(&format!("lang=\"{}\"", lang.code())));
             for faction in FACTIONS {

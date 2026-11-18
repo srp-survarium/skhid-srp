@@ -1,7 +1,7 @@
 # Medical skill tree
 
 Source: `scripts/content-edit/medical-skills-1.json`, listed in `release/content.tsv`.
-The third skill tab has 32 points in a full build: thirteen skills, of which
+The third skill tab has 31 points in a full build: thirteen skills, of which
 the two tier-5 unlocks exclude each other, and so do tier 4's Unflinching and
 Concentration. Thresholds count points in earlier tiers of this branch: 0, 3,
 10, 15 and 20. The 2026-11-05 retune and the 2026-11-06 changes below
@@ -10,17 +10,17 @@ been played or released.
 
 | Tier | Required points | ID | Skill | Per rank / unlock | Maximum |
 |---|---:|---:|---|---|---|
+| 1 | 0 | 342 | Brothers in Arms | Incoming allied damage -50% | One rank |
 | 1 | 0 | 301 | Potent Painkiller | Pain protection +1 point; duration +1.5 s | +3 points; +4.5 s |
 | 1 | 0 | 302 | Fast Bandaging | First-aid kit and bandage use time -5% | -10% |
 | 2 | 3 | 311 | Metabolism | Regeneration starts 0.5 s sooner | 2.5 s sooner |
 | 2 | 3 | 313 | Take Cover | First-aid kit and bandage healing +10% while crouched | +20% |
 | 2 | 3 | 312 | Medical Training | First-aid kit and bandage healing +8% | +24% |
-| 3 | 10 | 342 | Brothers in Arms | Incoming allied damage -25% | -50% |
 | 3 | 10 | 303 | Numb Legs | Sprint stamina -20% while a painkiller is active | -40% |
 | 3 | 10 | 321 | Adrenalin | Movement +5% below 30 body health | +15% |
 | 4 | 15 | 332 | Strong Bones | Arm and leg maximum health +10% | +50% |
 | 4 | 15 | 323 | Unflinching | Bullets' slow -10% while a painkiller is active | -40% |
-| 4 | 15 | 333 | Concentration | While a painkiller is active: environment sounds -10%, opponents' sounds (not shots) +10% | -40% / +40% |
+| 4 | 15 | 333 | Concentration | Sight sway -5% while a painkiller is active | -20% |
 | 5 | 20 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
 | 5 | 20 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
 
@@ -28,33 +28,76 @@ The four-column layout, from tier 1 down to tier 5 (`S` Supply Pocket and `M`
 Additional Medicine, one or the other):
 
 ```text
-| - x x - |    Potent Painkiller, Fast Bandaging
+| x x x - |    Brothers in Arms, Potent Painkiller, Fast Bandaging
 | x - x x |    Metabolism, Take Cover, Medical Training
-| x x - x |    Brothers in Arms, Numb Legs, Adrenalin
+| - x - x |    Numb Legs, Adrenalin
 | - x U C |    Strong Bones, Unflinching XOR Concentration
 | - S M - |    Supply Pocket XOR Additional Medicine
 ```
 
-Points held: tier 1 = 5, tiers 1-2 = 15, tiers 1-3 = 22, tiers 1-4 = 31 (with
-Unflinching or Concentration); a full build 32.
+Points held: tier 1 = 6, tiers 1-2 = 16, tiers 1-3 = 21, tiers 1-4 = 30 (with
+Unflinching or Concentration); a full build 31.
 
-## Concentration (owner decision, 2026-11-06)
+## Brothers in Arms in tier 1 (owner decision, 2026-11-14)
+
+The owner: "move brothers in arms skill from lvl3 to lvl1 and make it single
+point to give +50".
+
+- Skill 342 moves from tier 3 to tier 1, column 1, and takes one rank, which
+  gives the whole -50% of a teammate's damage (what its two ranks of -25%
+  gave). The thresholds stay 0, 3, 10, 15 and 20. Tier 1 holds 6 points, tier 3
+  holds 5 (Numb Legs column 2, Adrenalin column 4), a full build 31.
+- Its tooltip is a ranked skill's, the description and the value: "+50%",
+  and "Current value: 0%" until the point is taken. The dictionaries' texts
+  state no number and are unchanged. The lobby wraps a one-rank skill's
+  tooltip at 250 px (`PerkTipRenderer`, as the unlocks' sentences): where the
+  line is longer, the value goes to the next line. Both text rows keep their
+  space inside the green span ("<green> +50"), so the wrap takes the value
+  whole (Ruffle split " <green>+50" after its plus).
+- Transport: its three bits at 21 of modifier 43 stay and hold 0 or 1; 2..7
+  are refused (no medical skill at all). The exe (`BROTHERS`, an unlock:
+  the hit times 0.5) and the lobby's `KitModifiers.as` take the same.
+- Saved skills (`SkillsTree::settle`, no new rule): a saved rank 2 becomes
+  rank 1 and its point is free again. The rank that stays counts from tier 1,
+  so tiers 2 and 3 are always kept. Tiers 1-3 and 1-4 hold one point less
+  than they did with both ranks, so a build saved with rank 2 loses a row
+  when that point was the last one the row asked:
+
+  | Saved with rank 2 | Taken back besides the second rank |
+  |---|---|
+  | tiers 1-3 held exactly 15, tier 4 taken | tier 4's skills, and the tier-5 unlock if taken |
+  | tiers 1-3 held 16 or more, tiers 1-4 exactly 20, a tier-5 unlock taken | the tier-5 unlock |
+  | any other | nothing |
+
+  A saved rank 1, or none, changes nothing. What is taken back is refunded
+  (one more point in the tiers above opens the row again), the kits are sent
+  again, and a Supply Pocket taken back reshapes them as any change of it.
+- It changes what a match computes (a teammate's hit at one rank): it has its
+  `simulation_changes.tsv` row.
+
+## Concentration (owner decisions, 2026-11-06 and 2026-11-09)
 
 - New skill 333, tier 4 column 4, 4 ranks; Strong Bones column 2, Unflinching
   column 3. Unflinching and Concentration exclude each other (antiskills both
   ways, as Supply Pocket and Additional Medicine).
-- For the local player only, while a painkiller is active (the same test as
-  Numb Legs and Unflinching): environment sounds 10% quieter a rank, opponents'
-  sounds except their shots 10% louder a rank (-40% / +40% at rank 4).
-  Teammates and the player's own sounds are unchanged.
-- Name and text from retail 0.69's orphan strings st_trained_ears_name /
-  description ("Concentration"; "Makes environment sounds more quiet, and
-  opponents' sounds (except firing) are louder by:"), adapted to the
-  painkiller condition, in every locale of the edit list.
+- Since 2026-11-09 (the owner: "reduce sway by 5% per skill point when
+  painkiller is active"): while a painkiller is active (the same test as Numb
+  Legs and Unflinching), the sight's sway is 5% less a rank (-20% at rank 4).
+  It replaces the 2026-11-06 hearing effect (environment -10% / opponents'
+  sounds +10% a rank, the local player only), which is gone with its sound
+  sites (commit 61205cf06 has them).
+- The sway is the game's own: modifier 61 `breath_vibration` ("Sight sway",
+  the gear's -20 % bonus 1210), and Concentration adds -0.05 a rank to it,
+  as percentage points (skill-design rule): the gear's -20 % and rank 4
+  together give -40 %, never below no sway.
+- It is part of the match: every game of it computes the aimed weapon's sway
+  in the simulation (weapon_core::tick), so it has its `simulation_changes.tsv`
+  row.
+- Name kept ("Concentration", retail 0.69's st_trained_ears_name); the
+  description says "While a painkiller is active, reduction in sight sway:"
+  with the stock "Sight sway" words of each language.
 - Icon: retail 0.69d0 `skills/survival/15.png` (a brain), bytes unchanged,
   MedicalSkill069333 (`icons-069.tsv`).
-- Purely what the local player hears: no simulation change, so no
-  `simulation_changes.tsv` row for it (the retune's `next` row stays).
 
 ## 2026-11-06 changes (owner decisions)
 
@@ -106,8 +149,8 @@ Unflinching or Concentration); a full build 32.
   (0x33D638) to its end (0x33DA3E).
 - Fewer ranks, the same or a near maximum: Potent Painkiller 3 x (+8%, +1.5 s; additive +1 point since 2026-11-06);
   Fast Bandaging 2 x -5%; Medical Training 3 x +8%; Adrenalin 3 x +5% below
-  30 health (was 20); Brothers in Arms 2 x -25%. Metabolism and Strong Bones
-  keep five ranks.
+  30 health (was 20); Brothers in Arms 2 x -25% (one rank of -50% in tier 1
+  since 2026-11-14). Metabolism and Strong Bones keep five ranks.
 - Potent Painkiller shows both values per rank and in the final result.
 - Medic (341) leaves the tree; it returns later in an anomalous tree. Its native
   code (activation sharing, the Larkspur 20-instance pool, the length clock) and
@@ -167,7 +210,8 @@ leaves the player with no medical skill at all.
   (Potent Painkiller, 0..3), 3 (Fast Bandaging, 0..2), 6 (Metabolism, 0..5),
   9 (Medical Training, 0..3), 12 (Adrenalin, 0..3), 15 (Additional Medicine),
   16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained: set by the artefact tree's Cascade) and
-  21 (Brothers in Arms, 0..2). Ranked fields keep three bits; unlocks use one.
+  21 (Brothers in Arms, three bits: 0..1 since 2026-11-14, 0..2 before). Ranked
+  fields keep three bits; unlocks use one.
 - Slot 45 `can_defuse_traps`, 10 bits: Numb Legs at 0 (2 bits, 1.0 a rank,
   0..2), Take Cover at 2 (2 bits, 4.0, 0..2), Unflinching at 4 (3 bits, 16.0,
   0..4; two bits and 0..2 before 2026-11-06), Concentration at 7 (3 bits,
@@ -228,55 +272,37 @@ also invoked by deserialize and must never perform this gameplay healing.
 It excludes self, enemies, dead/inactive players and targets outside Cascade's reach (6 m;
 5 m before the owner's 2026-11-07 change).
 Each successful native lookup is an owned reference released on every exit.
-For recipients it removes the Larkspur config's affects, fills body/head/pain
-like patch 54, and adds a native effect instance with the recipient's calculator.
+For recipients it removes the Larkspur config's affects, fills every body part
+like patch 54 (body, head, pain and, since the owner's 2026-11-14 report, both
+hands and both legs, each to the recipient's own maximum; artefacts.md), and
+adds a native effect instance with the recipient's calculator.
+The places it reaches are the copy's for its whole active (since 2026-11-11 patch 109 gives a
+Spring's and an Onyx's active to them wherever they go, artefact-skills.md "Resonance or Cascade");
+an activation without Medic's bit reaches none.
 The source's normal activation and cooldown continue unchanged. Brothers in Arms
 uses the same core lookup and team rule, after spawn invulnerability and before
 native body-part damage processing. Environmental and self damage are unchanged.
 
-Concentration (`on_listener` .. `on_once_point` in medical_skills.rs; the
-sound sites' owner is `vostok/sound.rs`, the listener `vostok/medical.rs`):
+Concentration (`on_sway` in medical_skills.rs, `vostok::medical::sway`; the
+site `medical.sway`, sites_026g.tsv):
 
-- What a sound is: a tag of ours in each sound proxy, `Source` (untagged,
-  environment, opponent), at proxy +8Ch, the tail padding of its 144-byte
-  pool record (the three constructors write up to +88h; the sound code
-  0x55000..0x67000 has no +8Ch access of a proxy). `sound_proxy.allocated`
-  (new_helper 0x65484, the one allocation of point, hud and spot proxies)
-  clears it, so a proxy no site tags is untagged.
-- Tagged where it is made, before it is played, on the game's thread:
-  - environment: a map object's looped spot or point sound
-    (`object_sound.play`, object_sound::insert 0x294A6F); a damage zone's
-    loop (`damage_zone.sound`, emit_sound 0x298CF8) and its three fx
-    one-shots (emit_and_play_once's return address 0x298DEE, 0x298F1E,
-    0x299269);
-  - opponent: a weapon's sounds that are not its shot (`weapon_sound.made`,
-    play_sound_callback 0x297F7E; a shot is an effect of the fire states'
-    handlers, whose +18h vtable lies 150h before the effect for
-    weapon_core_fire_state, 158h for the pistol's and the double barrel's,
-    both words inside every handler state) when its user's place is an
-    opponent's; a step or a landing (`player_sound.foot_step` ..
-    `foot_stepped` around on_foot_step's call of on_step 0x2A6572,
-    `player.landing_step` .. `landing_stepped` around on_landing's landing
-    step 0x23FBE0) of an opponent: the thread's id is marked before the call
-    and cleared after it (also on its early returns), and only that thread's
-    point one-shots in between (`sound_emitter.once_point`,
-    emit_and_play_once 0x6587F) are the step's: a bullet task's sound at the
-    same time is not.
-- Opponents: every other place of the match's options not on the local
-  player's team (vostok::medical `ally()`'s rule by place: teams 0 and 1
-  have allies, another team none).
-- Published once a frame at `game_world.after_move` (order 2, after ragdoll
-  and lamps): the local player's `Hearing` (`Plain`, or `Concentrated` with
-  its rank while its painkiller is active) for the sound thread and the
-  opponents' places for the tagging sites, two atomics; `lobby_menu.activate`
-  (order 1, after lobby_scene's) sets them back to plain and none.
-- The volume: `sound_voice.gain` (notify_listener2 0x5C73E, the sound thread)
-  multiplies XMM1 by the factor of the voice's proxy's tag; set_volume_impl
-  still clamps it to [0, 1], so an opponent's sound already at full volume is
-  not louder.
-- Later (left untagged in this version): stamina breathing, the game-effect
-  presenter's sounds, poisoning, the rustles of equipment; hud sounds;
-  bullet impacts and other one-shots (game_world::play_sound).
+- breath_vibration_calculator::tick (0x31D6E0; the calculator at weapon+288h,
+  EDI) runs from weapon_core::tick (0x2E0A40) only while the weapon is aimed
+  (+5E8h), with the weapon's dispersion now as its first argument: the
+  dispersion calculator's m_weapon_dispersion (+418h) plus
+  m_character_dispersion (+404h), 0x2E0A23. At 0x31D722 it calls
+  apply_modifier with index 61 (`breath_vibration`) on the holder's kit
+  (calculator +3Ch, the player set by set_user 0x2E29F3): B x max(0, 1 + S).
+  That value feeds the breath state's tick (vtable +1Ch), the amplitude it
+  eases to (1 + params+18h x it, 0x31D898) and the phase's speed (params+1Ch
+  x it, 0x31D7E9): the sight's sway. It is the only read of modifier 61 in
+  the exe (the 93 apply_modifier calls' indices; 0x2D5B80's one call reads
+  29, apply_modifiers 0x2D5BC0's two {4, 20} (0x2DBC1D) and {24, 56} (0x331715)).
+- The site: 0x31D727, after that call, before `movss [esp+10h],xmm0`
+  (0x31D72D); the hook replays `mov eax,[ebp+0Ch]` / `fild dword [ebp+0Ch]`.
+  XMM0 becomes max(0, M - 0.05 x rank x B) = B x max(0, 1 + S - 0.05 x rank),
+  with B the tick's argument ([ebp+8], never written) and the painkiller test
+  of Numb Legs. A B or M not above 0 is left as it is.
 
 ## Effect ownership, capacity and duration
 
@@ -434,47 +460,31 @@ Implemented and tested locally; not played, not released.
 - Ruffle harness on the built lobby movie: `MEDICALSKILLS RESULT pass`.
 - `engine_026g.py`, `hooks_026g.py` and `link_026g.py` checks current.
 
-## Validation of Concentration (2026-11-06)
+## Validation of Concentration's sway (2026-11-09)
 
-Implemented and tested locally; not played, not released.
+Implemented and tested locally; not played, not released. (The hearing
+version's checks of 2026-11-06 went with it; commit 61205cf06 has them.)
 
-- `check_medical_skills_026g.py` (Unicorn, built exe), `check_concentration`:
-  the tag cleared at allocation (and nothing written when the pool is
-  empty); map objects', damage zones' loops and one-shots environment,
-  another one-shot untagged; weapon sounds of every place of three team
-  layouts (allies, self, places past the count untagged), the three fire
-  handlers' shots never, non-fire effects at +158h/+168h/+170h tagged; foot
-  steps and landings tagged only between their pair, only on their thread,
-  nothing after, and nothing after a call that played nothing (on_step's
-  early return); the volume through the real set_volume_impl for
-  Concentration 0..7 (5..7 refused), with Unflinching beside it (refused),
-  painkiller on/off (an active bandage is no painkiller), every tag, volumes
-  0..1.5 and below 0 clamped; the lobby's activate resets it. The publish
-  runs the real after_move chain (ragdoll and lamps first). PASS; the
-  earlier checks unchanged, PASS.
-- Patch-crate tests (4 medical: Concentration 0..4, 5..7 and beside
-  Unflinching refused, the volume per tag, the opponents' set) and i686
-  Clippy, no warnings.
-- `survarium` skills tests (layout with 333, both held refused and settled
-  to Concentration with 32 points), session account tests (a set holding
-  both refunds Unflinching and sends the kits again) and Clippy, no warnings.
+- `check_medical_skills_026g.py` (Unicorn, built exe), `check_sway`: the
+  native breath tick from 0x31D6F1 to 0x31D72D, the real apply_modifier of
+  index 61 and the hook between, for the dispersion 0, 0.3 and 2, the kit's
+  S61 0, -0.2, -0.9 and -1.5, Concentration 0..7 (5..7 refused) with and
+  without Unflinching (refused beside it), painkiller on/off (an active
+  bandage is no painkiller): B x max(0, 1 + S - 0.05 x rank), the argument
+  unchanged; kits 0 and 2 the same. PASS; the file's other checks PASS.
+- Patch-crate tests (218, the new sway test among them) and i686 Clippy, no
+  warnings.
 - `engine_026g.py`, `hooks_026g.py` current; `link_026g.py --write`, then
-  current. The after_move and lobby-activate chains' own checks
-  (`check_ragdoll`, `check_lamps`, `check_lobby_scene`, `check_weapon_pickup`)
-  run with Concentration's handlers in them.
-- `release/build-content 49` (a local build; no number reserved): all 18960
-  files the manifest makes are as it makes them; patch
-  `c099d3ea278492c75af392133779e914a54ae3731f8654fd5e1fe244801b5f87`, server
-  data `44f1c4414a8ea38cf8ace5087b15ce18212bf946b404d67e6090a7d2c1a97566`.
-  Its skills tree passes `survarium/tests/medical_skills.rs` (13 skills,
-  Concentration at tier 4 column 4, 32-point builds with either of the pair,
-  both refused, modifier 45 = 74 or 522).
-- Ruffle on that lobby movie: `MEDICALSKILLS RESULT pass` (layout with 333,
-  Concentration refused beside Unflinching and the other way, stops at 4,
-  survival/15 pixels) and `DETAILS RESULT pass` (Concentration 5, and
-  beside Unflinching, refused; its full set 522 valid).
-- Not played: whether the factors are audible as intended, and the sources
-  left untagged (above), need the owner's ears in a match.
+  current; `check_hooks_026g.py` 28 ok. The after_move and lobby-activate
+  chains without Concentration's handlers: `check_lobby_scene`,
+  `check_lamps`, `check_ragdoll`, `check_weapon_pickup` pass.
+- `check_localization_026g.py` PASS; `release/build-content 54` (a quick
+  local build; no number reserved) builds, skills_tree.options changed by the
+  edit list.
+- Ruffle on that build's lobby movie: `DETAILS RESULT pass` (the painkiller
+  card's Sight sway line 100 -> 95 % and -> 80 %, green, in every language
+  beside its value).
+- Not played: how -5 % to -20 % of the sway feels at the sight.
 
 ## Validation of the 2026-11-06 changes
 
@@ -512,3 +522,48 @@ Implemented and tested locally; not played, not released.
   and on a stock 0/5/10/15/20 tab at every point 0..20 (min(points + 1, 21),
   as before, then full); the old drawing fails the medical marks. `DETAILS
   RESULT pass` on the same movie. Not seen in the game.
+
+## Validation of the 2026-11-14 change (Brothers in Arms in tier 1)
+
+Implemented and tested locally; not played, not released.
+
+- Patch-crate tests (332) and i686 Clippy, no warnings: the field at 21 takes
+  0 and 1, 2..7 are refused, a teammate's hit times 0.5.
+- `check_medical_skills_026g.py` (Unicorn, the exe built here): a teammate's
+  hit 0.8 -> 0.4 at the one rank, the player's own, an enemy's and an empty
+  place's unchanged; ranks 2..7 refused, the hit whole; the file's other
+  checks PASS.
+- `engine_026g.py`, `hooks_026g.py` current; `link_026g.py --write`, then
+  current (patches.code alone changed); `check_engine_026g.py`,
+  `check_hooks_026g.py` (28 ok) and `check_module_report_026g.py` pass.
+- `survarium` (452 tests) and `session` (533) with Clippy, no warnings.
+  `SkillsTree::settle` over every distribution of points over the rows that
+  the tree before allowed (3,124, a row's skills filled from either end),
+  with 0 to 2 ranks: 168 lose row 4 (and row 5 with it), 56 the tier-5 unlock
+  alone, every other only the second rank. The account's settle gives the
+  points back and sends the kits again.
+- `release/build-content 59` (a quick local build without the step cache,
+  with Battle stance's retune; no number reserved): 29757 files made, 8 differ
+  from players' (skills_tree.options and the lobby movie among them); patch
+  `0db5e6613e90082aee7c85b4af6e1404c490fa87467dd6b7ccde3934f1cd0a60`, server
+  data `9ae1db0c189a8d2c70661ff503aa29e1d07143ac8aff9cd410465eca30bb5ce9`.
+  Its skills tree passes `survarium/tests/medical_skills.rs` (Brothers in Arms
+  at [1, 1], one rank, threshold 0, the 31-point build, bit 21 of modifier
+  43) and `tests/artefact_skills.rs`.
+- Ruffle on the lobby movie built from source: `MEDICALSKILLS RESULT pass`
+  (Brothers in Arms in row I with one pip, its point opening tier 2 with two
+  more, both tooltip texts) and `DETAILS RESULT pass` (float 43 with 2 at bit
+  21 refused, with 1 valid; with the old bound that check fails). The medical
+  harness failed on main at its pocket checks, which called
+  `LocalPaperDoll.pocketUnits` with two arguments (one since 2026-11-10, "a put
+  fills the pocket"): they now check the put.
+- The exe's tooltip loop (fill_skills_properties, 0x223E45..0x224058) read
+  again: one text a rank from 0 to `levels_amount`, "Current value" below the
+  last, no case of its own for a skill of one rank.
+- The wiki's skills page is the release's to build, from the patches players
+  have (`release/build-site`, `built-from.tsv`): no page changes here.
+  `skills-tab/build.py` over the released patches makes main's pages byte for
+  byte; with this build's patch it moves the skill to tier I (one rank,
+  "+50%") and gives Battle stance +4% / +12%, nothing else.
+- Not played: the skills window and the wrapped tooltip in the game, a
+  teammate's hit in a match, a live account's settle.

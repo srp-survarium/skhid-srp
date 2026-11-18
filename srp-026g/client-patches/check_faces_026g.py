@@ -27,7 +27,7 @@ head ends too). Checked:
 - a missing variant is the face's `data`;
 - `0x88`'s byte (`lobby_client.squad_member`, the profile in EDI): the
   member's face;
-- the match's options (`static_info.options_read`, srp's block entry 3): each
+- the match's options (`static_info.options_read`, srp's block entry 5): each
   place's face by its name; a face the data does not list drawn as face 0,
   with no suffix; the lobby's face asked first; a new match without the entry
   forgets the old match's faces;
@@ -333,12 +333,12 @@ def main():
     made, skin = patched.cook(faces(patched), "mate", [2])
     check(made[0][:2] == ("head/face_1", "face_1") and skin.endswith("f1_"), "0x88's byte: the member's face")
 
-    patched.options(["me", "you", "them"], b"SRPX\x02\x01\x01\x03\x03\x00\x01\x09")
+    patched.options(["me", "you", "them"], b"SRPX\x02\x01\x01\x05\x03\x00\x01\x09")
     you, them, me = (patched.cook(faces(patched), name, [2]) for name in ("you", "them", "me"))
     check(you[0][0][:2] == ("head/face_1", "face_1") and you[1].endswith("f1_")
           and them[0][0][:2] == ("head/face_0", "face_0") and them[1] == "105_0_0_207_0_0_0_"
           and me[0][0][:2] == ("head/face_2", "face_2"),
-          "the match's faces by name (entry 3 after the Blackout one); face 9, not in the data, drawn as face 0, "
+          "the match's faces by name (entry 5 after the Blackout one); face 9, not in the data, drawn as face 0, "
           "no suffix; the lobby's face asked first")
     patched.options(["you"], b"")
     you = patched.cook(faces(patched), "you", [2])
@@ -351,7 +351,7 @@ def main():
           "a 0x87 without srp's byte: logged, the face kept")
 
     patched.options(["me", "you"], b"")
-    cut, after, esp = patched.proposal(2, "late", b"SRPX\x03\x01\x01")
+    cut, after, esp = patched.proposal(2, "late", b"SRPX\x05\x01\x01")
     check(cut == -7 and after[UC_X86_REG_EAX] == 1 and patched.read(BP + 0xC) == 0xE4 and esp == SP,
           "a late joiner's proposal: srp's block taken off (its reader 7 bytes shorter), the span replayed "
           "(mov [ebp+0Ch],eax / add eax,-E3h)")
@@ -363,7 +363,7 @@ def main():
     check(cut == 0 and patched.cook(faces(patched), "plain", [2])[0][0][:2] == ("head/face_0", "face_0"),
           "a proposal without a block: face 0, the message as it was")
     before = len(patched.logged)
-    cut, _, _ = patched.proposal(4, "odd", b"SRPX\x03\x02\x01\x01")
+    cut, _, _ = patched.proposal(4, "odd", b"SRPX\x05\x02\x01\x01")
     check(cut == 0 and b"no srp block" in patched.logged[before:]
           and patched.cook(faces(patched), "odd", [2])[0][0][:2] == ("head/face_0", "face_0"),
           "bytes after the profile that are no block: logged, left for the late join's check, nothing learnt")

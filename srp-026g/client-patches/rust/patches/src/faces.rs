@@ -8,7 +8,7 @@
 //!   (`lobby_client.own_account`, srp's byte after `0x87`), a squad member's
 //!   (`lobby_client.squad_member`, after `0x88`), and every place's of the
 //!   match or replay just read (`static_info.options_read`,
-//!   `replay.options_read`: srp's block entry 3 after the options, a byte a
+//!   `replay.options_read`: srp's block entry 5 after the options, a byte a
 //!   place; no entry, every face 0), and a late joiner's of the match in play
 //!   (`match_dispatch.message`, after patch 114's check: the entry of its one
 //!   place after its proposal's profile). The lobby's are asked first: they
@@ -38,7 +38,7 @@ use crate::vostok::{Context, FacesOnHeadExit, FacesOnMatchMessageExit, Flow, Loc
 /// srp's block after the options: its magic, then `{u8 tag, u8 len, bytes}`.
 const SRPX: [u8; 4] = *b"SRPX";
 /// The faces' entry: a byte a place.
-const TAG_FACES: u8 = 3;
+const TAG_FACES: u8 = 5;
 /// A match's places.
 const PLACES: usize = 20;
 /// The lobby's faces kept: the account's and its squad's, and room to spare.
@@ -420,18 +420,18 @@ mod tests {
         assert_eq!(faces_in(Reader::new(b"")), None);
         assert_eq!(faces_in(Reader::new(b"SRPX")), None);
         assert_eq!(faces_in(Reader::new(b"SRPX\x02\x01\x01")), None);
-        assert_eq!(faces_in(Reader::new(b"SRPX\x03\x02\x05\x00")), Some(&[5, 0][..]));
-        assert_eq!(faces_in(Reader::new(b"SRPX\x02\x01\x01\x03\x01\x09")), Some(&[9][..]));
-        assert_eq!(faces_in(Reader::new(b"SRPX\x03\x03\x01")), None);
-        assert_eq!(faces_in(Reader::new(b"SRPY\x03\x01\x01")), None);
+        assert_eq!(faces_in(Reader::new(b"SRPX\x05\x02\x05\x00")), Some(&[5, 0][..]));
+        assert_eq!(faces_in(Reader::new(b"SRPX\x02\x01\x01\x05\x01\x09")), Some(&[9][..]));
+        assert_eq!(faces_in(Reader::new(b"SRPX\x05\x03\x01")), None);
+        assert_eq!(faces_in(Reader::new(b"SRPY\x05\x01\x01")), None);
     }
 
     #[test]
     fn a_late_joiners_block_is_its_one_face_or_none() {
         assert_eq!(late_joiner_face(b""), Some(Face::FIRST));
-        assert_eq!(late_joiner_face(b"SRPX\x03\x01\x09"), Some(Face(9)));
-        for other in [&b"SRPX"[..], b"SRPX\x03\x01", b"SRPX\x03\x02\x01\x01", b"SRPX\x02\x01\x01",
-                      b"SRPX\x03\x01\x01\x00", b"SRPY\x03\x01\x01", b"\x00"] {
+        assert_eq!(late_joiner_face(b"SRPX\x05\x01\x09"), Some(Face(9)));
+        for other in [&b"SRPX"[..], b"SRPX\x05\x01", b"SRPX\x05\x02\x01\x01", b"SRPX\x02\x01\x01",
+                      b"SRPX\x05\x01\x01\x00", b"SRPY\x05\x01\x01", b"\x00"] {
             assert_eq!(late_joiner_face(other), None, "{other:?}");
         }
     }

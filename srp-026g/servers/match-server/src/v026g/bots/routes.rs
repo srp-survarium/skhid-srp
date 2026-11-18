@@ -91,7 +91,9 @@ impl RouteTable {
     }
 
     /// The routes of a map (`level` 1-8) in a mode, points still on the
-    /// ground plane (y 0) until [`HumanRoute::on_floors`].
+    /// ground plane (y 0) until [`HumanRoute::on_floors`]. A free-for-all
+    /// has none, though it is played on Team Deathmatch's project: a route
+    /// leaves from a base, and its players come out anywhere.
     pub fn for_map(&self, level: u8, mode: RuleMode) -> Vec<HumanRoute> {
         let name = format!("level_{level:02}");
         self.rows
@@ -159,6 +161,8 @@ mod tests {
         assert_eq!(routes[0].team, 1);
         assert_eq!(routes[0].points[1], Vec3::new(4.6, 0.0, -69.4));
         assert!(table.for_map(3, RuleMode::Batteries).is_empty());
+        assert_eq!(table.for_map(1, RuleMode::TeamDeathmatch).len(), 1);
+        assert!(table.for_map(1, RuleMode::FreeForAll).is_empty());
         assert!(RouteTable::parse(r#"{"format": 2, "routes": []}"#).is_err());
     }
 

@@ -1,0 +1,6 @@
+{
+ "_about": "The trap's hit shape is the trap's own size (the owner, 2026-11-15, after the first test of a gun-stock hit disarming a trap: 'you need to hit the trap dead center, which is a bit frustrating'; docs/notes/trap-stock-hit.md). data/hittable_object is the cylinder a bullet's ray meets (a shot, a gun-stock hit); stock it has half the radius and half the height of the cylinders that catch a foot (data/collision_sensor) and take Use (data/usable_object): 12.5 cm of the 25 cm trap. It gets their size, so a hit anywhere on the trap counts.",
+ "set_vector": [
+  {"file": "gameplay/items/devices/blackmarket_trap.options", "path": "data/hittable_object/meshes[0]/scale", "from": [0.125, 0.05, 0.125], "to": [0.25, 0.1, 0.25]}
+ ]
+}

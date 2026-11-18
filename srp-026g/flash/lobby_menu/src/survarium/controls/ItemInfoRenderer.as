@@ -367,12 +367,6 @@ package survarium.controls
             trace("isWeapon::",item.ammoText);
             this.itemAmmoName.text = item.ammoText;
          }
-         // A kit stack's line under its name, when it has one (the kit's ammo list's rounds do not).
-         else if(item.isStack && item.descriptor < ItemPlace.INVENTORY && item.category != ItemCategory.PREMIUM_MONEY && Boolean(item.tipText))
-         {
-            this.itemAmmoName.text = item.tipText;
-            this.itemAmmoName.visible = true;
-         }
          else
          {
             this.itemAmmoName.visible = false;
@@ -457,13 +451,13 @@ package survarium.controls
          itemCompare.y = propsTopLine.y + 10;
       }
 
-      // Optics descriptions can wrap. Reserve the taller natural header on
-      // both weapon cards so every comparison row starts at the same height.
+      // Descriptions can wrap. Reserve the taller natural header on both cards
+      // so every comparison row starts at the same height.
       public function alignComparisonHeader(peer:ItemInfoRenderer) : void
       {
          var ownHeight:Number = naturalHeaderHeight();
          var peerHeight:Number = peer == null ? 0 : peer.naturalHeaderHeight();
-         if(peer != null && _data != null && peer._data != null && _data.isWeapon && peer._data.isWeapon)
+         if(peer != null && _data != null && peer._data != null)
             ownHeight = peerHeight = Math.max(ownHeight,peerHeight);
          layoutHeader(ownHeight);
          layoutDetails();

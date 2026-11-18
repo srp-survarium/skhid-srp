@@ -54,6 +54,12 @@ const ONLINE_STATS_EVERY: Duration = Duration::from_secs(5);
 /// How long a link being signed out waits for its `AA` to be acked.
 const SIGN_OUT_WAIT: Duration = Duration::from_secs(1);
 
+/// Where this client's connection entered the server.
+pub(super) enum Arrival {
+    Direct(Option<IpAddr>),
+    Relayed(std::net::Ipv4Addr),
+}
+
 /// A signed-in client.
 pub(super) struct Player<'a> {
     pub session_id: u32,
@@ -65,7 +71,7 @@ pub(super) struct Player<'a> {
     _hold: SessionHold<'a>,
     /// The address the client reached srp at, if it could be found: what a
     /// client on this machine's network is told for the match server too.
-    pub reached: Option<IpAddr>,
+    pub arrival: Arrival,
     /// The chat channels' ids (`4F`); all 0 until the client subscribes.
     pub channel_ids: [u32; 10],
     /// The game's language, as `4F` and `45` give it (0 English, 1
@@ -200,9 +206,6 @@ pub(super) struct Core<'a> {
     /// The premium shop's settings (`session::v026g::premium`): the
     /// environment's.
     pub shop: premium::Settings,
-    /// The offer made with a match's results (`A8`), by account: the match
-    /// and when the offer ends, Unix seconds (`shop`).
-    pub premium_offers: HashMap<u32, (u32, u64)>,
     next_tick: Instant,
     /// The ranked players, and the count of accounts they were counted at.
     ranked: (usize, u32),
@@ -280,7 +283,6 @@ impl<'a> Core<'a> {
             matches: HashMap::new(),
             rng: Rng::from_time(),
             shop: *premium::settings(),
-            premium_offers: HashMap::new(),
             ranked: (usize::MAX, 0),
             squads_dirty: false,
             clan: Default::default(),
@@ -348,7 +350,7 @@ impl<'a> Core<'a> {
         if let Some(account) = self.accounts.get(account_id) {
             return Some(account.locked().name.clone());
         }
-        Some(self.store.account(account_id)?.locked().name.clone())
+        Some(self.store.account(account_id)?.locked().name().to_owned())
     }
 
     /// The account's clan tag (none: srp has no clans yet).
@@ -394,10 +396,7 @@ impl<'a> Core<'a> {
     pub fn push_account(&mut self, who: &Who) {
         let (push, balance) = {
             let account = who.account.locked();
-            (
-                wire::after_change(&account, quests::now()),
-                account.generic_money,
-            )
+            (wire::after_change(&account), account.generic_money)
         };
         self.accounts.mark_dirty(who.account_id);
         match push {
@@ -414,7 +413,15 @@ impl<'a> Core<'a> {
     // ----------------------------------------------------------- datagrams
 
     /// One datagram from `from`.
+    #[cfg(test)]
     pub fn datagram(&mut self, from: SocketAddr, bytes: &[u8], now: Instant) {
+        self.datagram_via(udp_transport::relay::Peer {
+            address: from, route: udp_transport::relay::Route::Direct,
+        }, bytes, now);
+    }
+
+    pub fn datagram_via(&mut self, peer: udp_transport::relay::Peer, bytes: &[u8], now: Instant) {
+        let from = peer.address;
         let events = match self.links.get_mut(&from) {
             Some(link) => link.transport.receive(bytes, now),
             None => {
@@ -424,6 +431,16 @@ impl<'a> Core<'a> {
                 events
             }
         };
+        if let Some(player) = self.player_mut(from) {
+            match peer.route {
+                udp_transport::relay::Route::Relayed(ip) => player.arrival = Arrival::Relayed(ip),
+                udp_transport::relay::Route::Direct => {
+                    if matches!(player.arrival, Arrival::Relayed(_)) {
+                        player.arrival = Arrival::Direct(reached_address(from));
+                    }
+                }
+            }
+        }
         for event in events {
             match event {
                 Event::Message { id, payload } => {
@@ -432,6 +449,7 @@ impl<'a> Core<'a> {
                     }
                     match requests::parse(id, &payload) {
                         Ok(message) => self.handle(from, message, now),
+                        Err(ParseError::InvalidComment { .. }) => self.refuse_comment(from),
                         Err(ParseError::Trailing { message, extra }) => {
                             log::warn!("Lobby message {id:#04X} has {extra} bytes too many");
                             self.handle(from, *message, now);
@@ -557,7 +575,7 @@ impl<'a> Core<'a> {
         };
         let (account_id, login_name) = {
             let account = account.locked();
-            (account.id, account.name.clone())
+            (account.id, account.name().to_owned())
         };
 
         // The account's other link: another game signed in with it (the
@@ -595,7 +613,9 @@ impl<'a> Core<'a> {
             .or(still_in_match)
             .filter(|id| self.matches.contains_key(id));
 
-        let (game, made) = self.accounts.sign_up(account_id, &login_name);
+        let Some((game, made)) = self.store.sign_up_026g(self.accounts, account_id) else {
+            return;
+        };
         let unix = quests::now();
         // A test bot (`SRP_BOT_ACCOUNTS`) starts no run of bonus days.
         let bot = self.accounts.is_bot(account_id);
@@ -670,7 +690,7 @@ impl<'a> Core<'a> {
             name: name.clone(),
             account: game,
             _hold: hold,
-            reached: reached_address(from),
+            arrival: Arrival::Direct(reached_address(from)),
             channel_ids: [0; 10],
             language: None,
             queued_since: None,
@@ -737,7 +757,7 @@ impl<'a> Core<'a> {
             self.notify(&who, &notices);
             // Its clan, and the clan invites that waited.
             self.clan_sign_in(&who);
-            // The daily bonus and a premium discount (`shop`).
+            // The daily bonus (`shop`).
             self.sign_in_extras(&who);
         }
         // A match that ended while the account was away: its screen. The
@@ -1022,7 +1042,13 @@ impl<'a> Core<'a> {
                     self.send_all(addr, messages.clone());
                 }
             }
+            Notice::IdleRemoved {
+                match_id,
+                account_id,
+                name,
+            } => self.idle_removed(match_id, account_id, &name),
             Notice::AccountChanged { account_id } => {
+                self.refresh_nickname(account_id);
                 let Some(who) = self.who_is(account_id) else {
                     return;
                 };

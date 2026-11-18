@@ -5,7 +5,7 @@
 //! E4's proposal: `FF 'L' 'J' 01`, the match, the serial, the place, the
 //! squad, the native profile, then srp's block as after the options
 //! (`static_info::SRPX_MAGIC`) with the faces entry of the one place
-//! (`03 01 <face>`), only when its face is not 0 (`face-choice.md`).
+//! (`05 01 <face>`), only when its face is not 0 (`face-choice.md`).
 
 use super::super::dictionary::Dictionary;
 use super::MAX_PLAYERS;
@@ -211,7 +211,7 @@ mod tests {
         let mut faced = prepare();
         faced.profile.face = Faces::shared().face(2).unwrap();
         let bytes = faced.encode(dictionary).unwrap();
-        assert_eq!(bytes[plain.len()..], b"SRPX\x03\x01\x02"[..]);
+        assert_eq!(bytes[plain.len()..], b"SRPX\x05\x01\x02"[..]);
         assert_eq!(Prepare::decode(&bytes, dictionary).unwrap(), faced);
         // Cut in the block (cut before it, it is a profile of face 0).
         for end in plain.len() + 1..bytes.len() {
@@ -221,12 +221,12 @@ mod tests {
         // (the test data has three), the Blackout entry, the entry twice,
         // an unknown tag: refused.
         for bad in [
-            &b"SRPX\x03\x02\x01\x01"[..],
-            b"SRPX\x03\x01\x03",
+            &b"SRPX\x05\x02\x01\x01"[..],
+            b"SRPX\x05\x01\x03",
             b"SRPX\x02\x01\x01",
-            b"SRPX\x03\x01\x01\x03\x01\x01",
+            b"SRPX\x05\x01\x01\x05\x01\x01",
             b"SRPX\x01\x01\x01",
-            b"SRPY\x03\x01\x01",
+            b"SRPY\x05\x01\x01",
         ] {
             assert!(
                 Prepare::decode(&[&plain[..], bad].concat(), dictionary).is_err(),

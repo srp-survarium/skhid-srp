@@ -199,7 +199,7 @@ fn signed(value: i64) -> String {
 }
 
 /// What the page says of a write ([`ResetWrite`]), after `done`.
-fn written_note(lang: Lang, written: &ResetWrite) -> String {
+pub(crate) fn written_note(lang: Lang, written: &ResetWrite) -> String {
     match written {
         ResetWrite::Written => String::new(),
         ResetWrite::Pending => lang.tr(
@@ -221,7 +221,7 @@ fn written_note(lang: Lang, written: &ResetWrite) -> String {
     }
 }
 
-fn log_write(peer: &str, what: &str, written: &ResetWrite) {
+pub(crate) fn log_write(peer: &str, what: &str, written: &ResetWrite) {
     match written {
         ResetWrite::Written => {}
         ResetWrite::Pending => {

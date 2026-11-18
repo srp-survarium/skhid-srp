@@ -6,7 +6,7 @@
 //!
 //! ```text
 //! 20 × player_profile     always 20; the places past N are empty
-//! u8  map_id              a maps_dict id: the map, the mode and its timings
+//! u8  map_id              a maps_dict id (its low byte when over a byte)
 //! u8  N                   the roster size
 //! u32 match id            the match's seed; not the lobby's match id
 //! u16 match level         logged only
@@ -18,8 +18,9 @@
 //! after them ("SRPX", then tagged entries) is read by exe patches only:
 //! tag 2 is the Blackout flag (patch 65, `docs/notes/blackout.md`; its
 //! reader is at the two calls of `match_options::deserialize`, 0x27B928 and
-//! 0x1F096C); tag 3 the players' faces (`face-choice.md`); tag 1 is kept
-//! for team damage (#370).
+//! 0x1F096C), tag 3 a free-for-all's kill target, tag 4 a map id over a
+//! byte (patch 154), tag 5 the players' faces (`face-choice.md`); tag 1 is
+//! kept for team damage (#370).
 //!
 //! The client checks nothing of this: a string, a kit or an item too many
 //! writes over its memory, an item the dictionary lacks crashes it later.
@@ -30,7 +31,7 @@
 //! The profile body (team … items) is the lobby's account body too
 //! (`lobby.md` §2.5; the same client function 0x1F1070).
 
-use super::super::dictionary::{Dictionary, PROFILE_SLOTS};
+use super::super::dictionary::{Dictionary, MapId, PROFILE_SLOTS};
 use super::super::faces::{Face, Faces};
 use super::super::loadouts::{Loadout, POCKET_SLOTS};
 use super::super::skills::{MODIFIERS, write_modifier_block};
@@ -394,6 +395,40 @@ impl MatchProfile {
         }
     }
 
+    /// Without the items no kit holds, the kits' indices following. An index past the table
+    /// stays past it.
+    pub fn drop_unheld(&mut self) {
+        let held: Vec<bool> = (0..self.items.len())
+            .map(|index| {
+                self
+                    .kits
+                    .iter()
+                    .flat_map(|kit| kit.slots.iter().flatten())
+                    .any(|&(at, _)| usize::from(at) == index)
+            })
+            .collect();
+        // An item's new index: the held ones before it.
+        let moved: Vec<u16> = held
+            .iter()
+            .scan(0u16, |next, &held| {
+                let index = *next;
+                *next += u16::from(held);
+                Some(index)
+            })
+            .collect();
+        let mut keep = held.iter();
+        self
+            .items
+            .retain(|_| keep.next().copied().unwrap_or(false));
+        for kit in &mut self.kits {
+            for (index, _) in kit.slots.iter_mut().flatten() {
+                if let Some(&to) = moved.get(usize::from(*index)) {
+                    *index = to;
+                }
+            }
+        }
+    }
+
     /// The place's grenades and traps in a world's game objects, in the
     /// order the game binds them (`srp_validate::world::objects`): its
     /// usable kits in order (each has a player object, 0x321820), each
@@ -487,15 +522,19 @@ impl MatchProfile {
                 if count == 0 {
                     continue;
                 }
-                Body::None
+                // A grenade set there is one all the same (a throw may name it).
+                match params.map(|params| params.class) {
+                    Some(ItemClass::GrenadeSet) => Body::GrenadeSet,
+                    _ => Body::None,
+                }
             } else {
                 match params.map(|params| params.class) {
                     Some(ItemClass::Medkit { influences }) => Body::Medkit { influences },
                     Some(ItemClass::OxygenTank) => Body::OxygenTank,
+                    Some(ItemClass::GrenadeSet) => Body::GrenadeSet,
                     Some(
                         ItemClass::Armor
                         | ItemClass::Booster
-                        | ItemClass::GrenadeSet
                         | ItemClass::TrapSet
                         | ItemClass::Ammunition,
                     ) => Body::None,
@@ -546,11 +585,19 @@ pub struct MatchOptions {
 pub const SRPX_MAGIC: &[u8; 4] = b"SRPX";
 /// The entry of a Blackout map's options ([`maps::GameMode::Blackout`]): one byte, 1.
 pub const SRPX_BLACKOUT: u8 = 2;
+/// The entry of a free-for-all's options ([`maps::GameMode::FreeForAll`]):
+/// the kills that win (`kills_to_win`), a u16, never 0. The client's
+/// free-for-all patch shows it on the hud.
+pub const SRPX_FREE_FOR_ALL: u8 = 3;
+/// The entry of a map id over a byte ([`MapId::over_a_byte`]): the whole
+/// id, a u16; the options' `map_id` is its low byte. Exe patch 154 makes the
+/// client load the whole id.
+pub const SRPX_MAP_ID: u8 = 4;
 /// The faces entry (exe patch `faces`, `face-choice.md`): one byte a place,
 /// each place's face: the roster's in the options, the one place's after a
 /// late joiner's profile (`late_join::Prepare`). Sent only when a face is
 /// not 0: no entry is every face 0.
-pub const SRPX_FACES: u8 = 3;
+pub const SRPX_FACES: u8 = 5;
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -558,8 +605,9 @@ pub enum StaticInfoError {
     /// No players, or more than 20.
     Roster(usize),
     /// Not a map and mode the client can load.
-    Map(u8),
-    /// A player's team is not 0 or 1.
+    Map(MapId),
+    /// A player's team is not its mode's: not 0 or 1, or in a free-for-all
+    /// not the place's own side.
     Team { player: usize, team: u8 },
     /// A player's name, clan tag or kit name is too long for its buffer.
     Text {
@@ -674,12 +722,6 @@ fn check_profile(
     profile: &MatchProfile,
     dictionary: &Dictionary,
 ) -> Result<(), StaticInfoError> {
-    if profile.team > 1 {
-        return Err(StaticInfoError::Team {
-            player,
-            team: profile.team,
-        });
-    }
     check_text(player, &profile.name, MAX_NAME)?;
     check_text(player, &profile.clan_tag, MAX_CLAN)?;
     if profile.kits.len() > MAX_KITS {
@@ -766,7 +808,7 @@ fn write_item(item: &MatchItem, dictionary: &Dictionary, out: &mut Vec<u8>) {
 /// What a match is sent must also have its kits' pockets packed: a kit
 /// built as a literal is refused here, not played. Profiles read back
 /// (recordings) are not held to it.
-fn check_sent(
+pub(crate) fn check_sent(
     player: usize,
     profile: &MatchProfile,
     dictionary: &Dictionary,
@@ -824,7 +866,7 @@ pub(super) fn profile_bytes(
     check_sent(player, profile, dictionary)?;
     let mut bytes = Vec::new();
     write_profile(profile, dictionary, &mut bytes);
-    write_srp_block(false, std::slice::from_ref(profile), &mut bytes);
+    write_srp_block(None, SrpBlock::Plain, &[profile.face], &mut bytes);
     Ok(bytes)
 }
 
@@ -837,33 +879,16 @@ pub(super) fn parse_profile(
 ) -> Result<MatchProfile, StaticInfoError> {
     let mut reader = Reader { bytes };
     let mut profile = read_profile(&mut reader, player, dictionary)?;
-    let block = read_srp_block(&mut reader, 1)?;
-    if block.blackout {
+    let SrpEntries { wide, mode, faces } = read_srp_block(&mut reader, 1)?;
+    if wide.is_some() || mode != SrpBlock::Plain {
         return Err(StaticInfoError::SrpBlock);
     }
-    if let Some(faces) = block.faces {
-        profile.face = faces[0];
+    if let Some([face]) = faces.as_deref() {
+        profile.face = *face;
     }
     check_profile(player, &profile, dictionary)?;
+    check_team(player, profile.team, None)?;
     Ok(profile)
-}
-
-/// srp's block after the native bytes of `players` (the options' roster,
-/// or a late joiner's one place): its magic and entries; nothing when it
-/// has none. The faces entry goes only when a face is not 0.
-fn write_srp_block(blackout: bool, players: &[MatchProfile], out: &mut Vec<u8>) {
-    let mut block = Vec::new();
-    if blackout {
-        block.extend([SRPX_BLACKOUT, 1, 1]);
-    }
-    if players.iter().any(|profile| profile.face != Face::DEFAULT) {
-        block.extend([SRPX_FACES, players.len() as u8]);
-        block.extend(players.iter().map(|profile| profile.face.index()));
-    }
-    if !block.is_empty() {
-        out.extend(SRPX_MAGIC);
-        out.extend(block);
-    }
 }
 
 /// The options' bytes, before LZMA2. `dictionary` must be the client's:
@@ -879,12 +904,14 @@ pub fn options_bytes(
     let mut out = Vec::new();
     for (player, profile) in options.players.iter().enumerate() {
         check_sent(player, profile, dictionary)?;
+        check_team(player, profile.team, Some(options.map.mode()))?;
         write_profile(profile, dictionary, &mut out);
     }
     for _ in roster..MAX_PLAYERS {
         out.extend(EMPTY_PROFILE);
     }
-    out.push(options.map.map().id);
+    let map_id = options.map.map().id;
+    out.push(map_id.low_byte());
     out.push(roster as u8);
     out.extend(options.match_id.to_le_bytes());
     out.extend(options.match_level.to_le_bytes());
@@ -896,11 +923,8 @@ pub fn options_bytes(
         *squad = profile.squad;
     }
     out.extend(squads);
-    write_srp_block(
-        options.map.mode() == maps::GameMode::Blackout,
-        &options.players,
-        &mut out,
-    );
+    let faces: Vec<Face> = options.players.iter().map(|profile| profile.face).collect();
+    write_srp_block(Some(map_id), SrpBlock::of(options.map), &faces, &mut out);
     if out.len() > OPTIONS_BUFFER {
         return Err(StaticInfoError::TooLarge(out.len()));
     }
@@ -1125,7 +1149,7 @@ pub fn parse_options(
     let mut players = (0..MAX_PLAYERS)
         .map(|player| read_profile(&mut reader, player, dictionary))
         .collect::<Result<Vec<_>, _>>()?;
-    let map_id = reader.u8()?;
+    let map_byte = reader.u8()?;
     let roster = usize::from(reader.u8()?);
     let match_id = reader.u32()?;
     let match_level = reader.u16()?;
@@ -1134,26 +1158,33 @@ pub fn parse_options(
         *weight = reader.f32()?;
     }
     let squads = reader.take(MAX_PLAYERS)?;
-    let block = read_srp_block(&mut reader, roster)?;
-    let blackout = block.blackout;
+    let SrpEntries { wide, mode: block, faces } = read_srp_block(&mut reader, roster)?;
     if !reader.bytes.is_empty() {
         return Err(StaticInfoError::Trailing(reader.bytes.len()));
     }
     if roster == 0 || roster > MAX_PLAYERS {
         return Err(StaticInfoError::Roster(roster));
     }
-    // The Blackout entry on a map of another mode, or none on a Blackout
-    // map: no map and mode the client plays.
+    // A whole id the byte is not the low byte of: no map the client loads.
+    let map_id = match wide {
+        Some(id) if id.low_byte() != map_byte => return Err(StaticInfoError::SrpBlock),
+        Some(id) => id,
+        None => MapId::from(map_byte),
+    };
+    // A block that is not the map's mode's (the Blackout entry on a map of
+    // another mode, none on a Blackout map, another kill target than a
+    // free-for-all's): no map and mode the client plays.
     let map = maps::MatchMap::of(map_id)
-        .filter(|map| (map.mode() == maps::GameMode::Blackout) == blackout)
+        .filter(|&map| SrpBlock::of(map) == block)
         .ok_or(StaticInfoError::Map(map_id))?;
     players.truncate(roster);
     for (player, (profile, &squad)) in players.iter_mut().zip(squads).enumerate() {
         profile.squad = squad;
-        if let Some(faces) = &block.faces {
+        if let Some(faces) = &faces {
             profile.face = faces[player];
         }
         check_profile(player, profile, dictionary)?;
+        check_team(player, profile.team, Some(map.mode()))?;
     }
     Ok(MatchOptions {
         players,
@@ -1164,54 +1195,142 @@ pub fn parse_options(
     })
 }
 
-/// What srp's block says.
-#[derive(Default)]
+/// What srp's block after the options says.
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct SrpEntries {
-    blackout: bool,
-    /// Each place's face; none: every face 0.
+    /// The whole map id, when it is over a byte.
+    wide: Option<MapId>,
+    /// The mode's entry.
+    mode: SrpBlock,
+    /// Each place's face, when one is not 0; none: every face 0.
     faces: Option<Vec<Face>>,
 }
 
 /// srp's block after the options or a late joiner's profile, if any: as
-/// the patches' readers read it, but strict (an unknown tag, a short entry,
-/// a faces entry of another length than the `roster` (1 for a late
-/// joiner) or with a face the data does not list is refused, so a test
-/// sees it).
+/// patches 65, 142, 154 and the faces patch read it, but strict (an unknown
+/// tag, a tag twice or a short entry is refused, so a test sees it; so is a
+/// faces entry of another length than the `roster` (1 for a late joiner), of
+/// a face the data does not list or of none but face 0).
 fn read_srp_block(reader: &mut Reader, roster: usize) -> Result<SrpEntries, StaticInfoError> {
-    let mut block = SrpEntries::default();
     if reader.bytes.is_empty() {
-        return Ok(block);
+        return Ok(SrpEntries { wide: None, mode: SrpBlock::Plain, faces: None });
     }
-    // The block goes only with an entry.
-    if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC
-        || reader.bytes.is_empty()
-    {
+    if reader.take(4).map_err(|_| StaticInfoError::SrpBlock)? != SRPX_MAGIC {
         return Err(StaticInfoError::SrpBlock);
     }
+    let (mut wide, mut block, mut faces) = (None, None, None);
     while !reader.bytes.is_empty() {
         let tag = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
         let len = reader.u8().map_err(|_| StaticInfoError::SrpBlock)?;
-        let mut entry = Reader {
-            bytes: reader
-                .take(usize::from(len))
-                .map_err(|_| StaticInfoError::SrpBlock)?,
-        };
-        match (tag, len) {
-            (SRPX_BLACKOUT, 1) if entry.u8()? == 1 => block.blackout = true,
-            (SRPX_FACES, len) if usize::from(len) == roster && block.faces.is_none() => {
-                let faces = Faces::shared();
-                let read = entry
-                    .bytes
-                    .iter()
-                    .map(|&index| faces.face(u32::from(index)))
-                    .collect::<Option<Vec<Face>>>()
-                    .ok_or(StaticInfoError::SrpBlock)?;
-                block.faces = Some(read);
+        let entry = reader
+            .take(usize::from(len))
+            .map_err(|_| StaticInfoError::SrpBlock)?;
+        let fresh = match (tag, entry) {
+            (SRPX_MAP_ID, &[low, high]) => {
+                let id = MapId::new(u16::from_le_bytes([low, high]));
+                id.over_a_byte() && wide.replace(id).is_none()
             }
-            _ => return Err(StaticInfoError::SrpBlock),
+            (SRPX_BLACKOUT, [1]) => block.replace(SrpBlock::Blackout).is_none(),
+            (SRPX_FREE_FOR_ALL, &[low, high]) if (low, high) != (0, 0) => block
+                .replace(SrpBlock::FreeForAll {
+                    kills_to_win: u16::from_le_bytes([low, high]),
+                })
+                .is_none(),
+            (SRPX_FACES, entry) if entry.len() == roster => {
+                let listed = Faces::shared();
+                let read: Option<Vec<Face>> =
+                    entry.iter().map(|&index| listed.face(u32::from(index))).collect();
+                read.filter(|read| read.iter().any(|&face| face != Face::DEFAULT))
+                    .is_some_and(|read| faces.replace(read).is_none())
+            }
+            _ => false,
+        };
+        if !fresh {
+            return Err(StaticInfoError::SrpBlock);
         }
     }
-    Ok(block)
+    // A block of no entries: never sent.
+    if (wide, block) == (None, None) && faces.is_none() {
+        return Err(StaticInfoError::SrpBlock);
+    }
+    Ok(SrpEntries { wide, mode: block.unwrap_or(SrpBlock::Plain), faces })
+}
+
+/// srp's block after the options, or after a late joiner's profile (no
+/// map, no mode, the faces of its one place): the whole map id when it is
+/// over a byte, then the mode's entry, then the places' `faces` when one is
+/// not 0; nothing when it has none of them.
+fn write_srp_block(map_id: Option<MapId>, block: SrpBlock, faces: &[Face], out: &mut Vec<u8>) {
+    let mut entries = Vec::new();
+    if let Some(map_id) = map_id.filter(|id| id.over_a_byte()) {
+        entries.extend([SRPX_MAP_ID, 2]);
+        entries.extend(map_id.get().to_le_bytes());
+    }
+    match block {
+        SrpBlock::Plain => {}
+        SrpBlock::Blackout => entries.extend([SRPX_BLACKOUT, 1, 1]),
+        SrpBlock::FreeForAll { kills_to_win } => {
+            entries.extend([SRPX_FREE_FOR_ALL, 2]);
+            entries.extend(kills_to_win.to_le_bytes());
+        }
+    }
+    if faces.iter().any(|&face| face != Face::DEFAULT) {
+        entries.extend([SRPX_FACES, faces.len() as u8]);
+        entries.extend(faces.iter().map(|face| face.index()));
+    }
+    if !entries.is_empty() {
+        out.extend(SRPX_MAGIC);
+        out.extend(entries);
+    }
+}
+
+/// What srp's block after the options says of the match: nothing, or the
+/// entry of the map's mode.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SrpBlock {
+    /// No block.
+    Plain,
+    /// [`SRPX_BLACKOUT`].
+    Blackout,
+    /// [`SRPX_FREE_FOR_ALL`].
+    FreeForAll { kills_to_win: u16 },
+}
+
+impl SrpBlock {
+    /// The block of a match on `map`.
+    fn of(map: maps::MatchMap) -> Self {
+        match map.mode() {
+            maps::GameMode::Blackout => Self::Blackout,
+            maps::GameMode::FreeForAll => Self::FreeForAll {
+                kills_to_win: u16::try_from(map.map().kills_to_win).unwrap_or(u16::MAX),
+            },
+            maps::GameMode::Batteries
+            | maps::GameMode::TimedBatteries
+            | maps::GameMode::TeamDeathmatch
+            | maps::GameMode::Research => Self::Plain,
+        }
+    }
+}
+
+/// A place's team as its match's mode has it: one of the two teams, or in a
+/// free-for-all the place's own side ([`maps::free_for_all_team`]). With no
+/// mode known (a profile read alone), either.
+fn check_team(
+    player: usize,
+    team: u8,
+    mode: Option<maps::GameMode>,
+) -> Result<(), StaticInfoError> {
+    let own = team == maps::free_for_all_team(player);
+    let fits = match mode {
+        Some(maps::GameMode::FreeForAll) => own,
+        Some(_) => team <= 1,
+        None => team <= 1 || own,
+    };
+    if fits {
+        Ok(())
+    } else {
+        Err(StaticInfoError::Team { player, team })
+    }
 }
 
 /// Reads a 0xE4 payload as the client at its local index would: the
@@ -1290,7 +1409,7 @@ mod tests {
     fn options(players: Vec<MatchProfile>) -> MatchOptions {
         MatchOptions {
             players,
-            map: maps::MatchMap::of(61).unwrap(),
+            map: maps::MatchMap::of(crate::v026g::maps::MapId::new(61)).unwrap(),
             match_id: 0x1234_5678,
             match_level: 3,
             score_weights: SCORE_WEIGHTS,
@@ -1322,7 +1441,7 @@ mod tests {
         let entry_on_plain = [&without[..], b"SRPX\x02\x01\x01"].concat();
         assert_eq!(
             parse_options(&entry_on_plain, dictionary()),
-            Err(StaticInfoError::Map(61))
+            Err(StaticInfoError::Map(MapId::new(61)))
         );
         assert_eq!(
             parse_options(&bytes[..without.len()], dictionary()),
@@ -1355,7 +1474,7 @@ mod tests {
         let mut with = plain.clone();
         with.players[1].face = Faces::shared().face(2).unwrap();
         let bytes = options_bytes(&with, dictionary()).unwrap();
-        assert_eq!(bytes[without.len()..], b"SRPX\x03\x02\x00\x02"[..]);
+        assert_eq!(bytes[without.len()..], b"SRPX\x05\x02\x00\x02"[..]);
         assert_eq!(parse_options(&bytes, dictionary()), Ok(with.clone()));
         // With Blackout's entry: both, Blackout's first.
         let with_blackout = MatchOptions {
@@ -1365,23 +1484,68 @@ mod tests {
         let bytes = options_bytes(&with_blackout, dictionary()).unwrap();
         assert_eq!(
             bytes[without.len()..],
-            b"SRPX\x02\x01\x01\x03\x02\x00\x02"[..]
+            b"SRPX\x02\x01\x01\x05\x02\x00\x02"[..]
         );
         assert_eq!(parse_options(&bytes, dictionary()), Ok(with_blackout));
-        // Another length than the roster's, a face the data does not list
-        // (the test data has three), twice, a block with no entry: refused.
+        // A block with no entry, another length than the roster's, a face
+        // the data does not list (the test data has three), twice, none but
+        // face 0: refused.
         for bad in [
             &b"SRPX"[..],
-            b"SRPX\x03\x01\x02",
-            &b"SRPX\x03\x03\x00\x02\x01"[..],
-            &b"SRPX\x03\x02\x00\x03"[..],
-            &b"SRPX\x03\x02\x00\x01\x03\x02\x00\x01"[..],
+            &b"SRPX\x05\x01\x02"[..],
+            &b"SRPX\x05\x03\x00\x02\x01"[..],
+            &b"SRPX\x05\x02\x00\x03"[..],
+            &b"SRPX\x05\x02\x00\x01\x05\x02\x00\x01"[..],
+            &b"SRPX\x05\x02\x00\x00"[..],
         ] {
             assert_eq!(
                 parse_options(&[&without[..], bad].concat(), dictionary()),
-                Err(StaticInfoError::SrpBlock)
+                Err(StaticInfoError::SrpBlock),
+                "{bad:?}"
             );
         }
+    }
+
+    /// A map id over a byte: its low byte in the options, the whole id in
+    /// srp's block (tag 4, exe patch 154), before the mode's entry; an id
+    /// of a byte has none.
+    #[test]
+    fn a_map_id_over_a_byte_goes_whole_in_srps_block() {
+        let wide = MapId::new(300);
+        let read = |bytes: &[u8]| read_srp_block(&mut Reader { bytes }, 1);
+        let mut block = Vec::new();
+        write_srp_block(Some(wide), SrpBlock::Plain, &[], &mut block);
+        assert_eq!(block, b"SRPX\x04\x02\x2c\x01");
+        let entries = |mode| Ok(SrpEntries { wide: Some(wide), mode, faces: None });
+        assert_eq!(read(&block), entries(SrpBlock::Plain));
+        let mut block = Vec::new();
+        write_srp_block(Some(wide), SrpBlock::FreeForAll { kills_to_win: 30 }, &[], &mut block);
+        assert_eq!(block, b"SRPX\x04\x02\x2c\x01\x03\x02\x1e\x00");
+        assert_eq!(read(&block), entries(SrpBlock::FreeForAll { kills_to_win: 30 }));
+        let mut block = Vec::new();
+        write_srp_block(Some(MapId::new(255)), SrpBlock::Plain, &[], &mut block);
+        assert!(block.is_empty());
+        // The entry of an id of a byte, twice, short, or a block of none:
+        // refused.
+        for bad in [
+            &b"SRPX\x04\x02\xff\x00"[..],
+            b"SRPX\x04\x02\x2c\x01\x04\x02\x2c\x01",
+            b"SRPX\x04\x01\x2c",
+            b"SRPX",
+        ] {
+            assert_eq!(read(bad), Err(StaticInfoError::SrpBlock), "{bad:?}");
+        }
+        // The client loads the whole id: a map the test data lacks is no
+        // map, named whole; a byte that is not its low byte is no block.
+        let plain = options_bytes(&options(vec![alice()]), dictionary()).unwrap();
+        // The map's byte: the first of the 140 after the profiles.
+        let at = plain.len() - 140;
+        let mut bytes = plain.clone();
+        bytes[at] = wide.low_byte();
+        bytes.extend(b"SRPX\x04\x02\x2c\x01");
+        assert_eq!(parse_options(&bytes, dictionary()), Err(StaticInfoError::Map(wide)));
+        let bytes = [&plain[..], b"SRPX\x04\x02\x2c\x01"].concat();
+        assert_eq!(parse_options(&bytes, dictionary()), Err(StaticInfoError::SrpBlock));
     }
 
     /// The options' end for map 61 and N players: 140 bytes.
@@ -1679,8 +1843,8 @@ mod tests {
         assert_eq!(refused(&|o| o.players = vec![alice(); 21]), E::Roster(21));
         // 107 is level_08 at night, which has no project; 0 is no map: no
         // options can name them.
-        assert_eq!(maps::MatchMap::of(107), None);
-        assert_eq!(maps::MatchMap::of(0), None);
+        assert_eq!(maps::MatchMap::of(crate::v026g::maps::MapId::new(107)), None);
+        assert_eq!(maps::MatchMap::of(crate::v026g::maps::MapId::new(0)), None);
         assert_eq!(
             refused(&|o| o.players[0].team = 2),
             E::Team { player: 0, team: 2 }

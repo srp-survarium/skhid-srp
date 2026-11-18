@@ -449,7 +449,7 @@ fn friendship_reply(
     let listed = |ids: &[u32]| -> Vec<ListedAccount> {
         ids.iter()
             .filter_map(|id| {
-                let name = store.account(*id)?.locked().name.clone().into_bytes();
+                let name = store.account(*id)?.locked().name().as_bytes().to_vec();
                 Some(ListedAccount {
                     account_id: *id,
                     name,
@@ -684,7 +684,7 @@ pub fn run(
     let (account_id, mut name) = match account {
         Some(account) => {
             let account = account.locked();
-            (account.id, account.name.clone().into_bytes())
+            (account.id, account.name().as_bytes().to_vec())
         }
         None if unknown == UnknownSessions::Refuse => {
             log::warn!("Chat session {session_id:#x} is unknown or has ended; closed it");

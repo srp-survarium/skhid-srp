@@ -95,8 +95,6 @@ pub struct NewAccount {
     pub skills: Vec<(u16, u8)>,
     /// Its money, silver (gold is gone, the owner's of 2026-11-08).
     pub silver: u32,
-    /// Premium from the account's making, added as every premium is.
-    pub premium_days: u32,
     /// The rounds it owns of every ammo.
     pub rounds: u32,
     /// The faction it takes quests from, at [`Self::reputation_level`].
@@ -197,8 +195,8 @@ impl NewAccount {
             match (key.as_str(), number) {
                 (_, Some(n)) => presets.push((n, preset(key, value)?)),
                 (
-                    "level" | "skills" | "silver" | "premium_days" | "rounds" | "faction"
-                    | "reputation_level" | "own" | "own_modifications",
+                    "level" | "skills" | "silver" | "rounds" | "faction" | "reputation_level"
+                    | "own" | "own_modifications",
                     None,
                 ) => {}
                 _ => return Err(format!("{PATH}: `{key}` is no key of it")),
@@ -237,7 +235,6 @@ impl NewAccount {
             level: byte("level")?,
             skills,
             silver: num("silver")?,
-            premium_days: num("premium_days")?,
             rounds: num("rounds")?,
             faction: QuestFaction::try_from(byte("faction")?).map_err(|id| {
                 format!(
