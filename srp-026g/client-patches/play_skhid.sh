@@ -244,6 +244,11 @@ Details: the newest game/logs/updater_skhid.<date>.log"
     echo "Starting Survarium. Log: $log"
     args=(-minimum_resources_memory_size=768)
     [[ -z "$server" ]] || args+=("-server=$server")
+    if [[ -f updater_skhid.relay ]]; then
+        "$WINE" updater_skhid.exe play "${args[@]}" >>"$log" 2>&1 \
+            || die "Cannot connect to the game. See $log"
+        return
+    fi
     "$WINE" "$exe" "${args[@]}" >>"$log" 2>&1 \
         || die "Game exited with an error. See $log"
 }
