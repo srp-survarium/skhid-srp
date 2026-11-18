@@ -791,8 +791,8 @@ impl WalkGrid {
         for (stance, speed) in [(Stance::Crouched, CROUCH_MPS), (Stance::Standing, WALK_MPS)] {
             let Some(at) = release_point(world, s, start, stance, speed, from, way) else { continue };
             let Some(b) = released_rest(world, s, start, stance, speed, from, way, at, to.y).and_then(&lower) else { continue };
-            let mut landed: u8 = 0;
-            for n in jump::neighbourhood() {
+            let mut bits: u16 = 0;
+            for (i, n) in jump::neighbourhood().into_iter().enumerate() {
                 let itself = n.lead == 0.0 && n.side == 0.0 && n.turn == 0.0 && !n.fastest;
                 let lands = itself || {
                     let (sin, cos) = n.turn.sin_cos();
@@ -801,9 +801,9 @@ impl WalkGrid {
                     released_rest(world, s, start, stance, v, from + right * n.side, heading, (at - n.lead).max(0.0), to.y).and_then(&lower)
                         == Some(b)
                 };
-                landed += u8::from(lands);
+                bits |= u16::from(lands) << i;
             }
-            let share = Share::landed(landed);
+            let share = Share::of_mask(super::gap::Mask::of_bits(bits).expect("a bit a neighbour"));
             let press = Takeoff::Release { at: PressLead::from_metres(at), crouched: stance == Stance::Crouched };
             if best.is_none_or(|(_, _, kept)| share.flown() > kept.flown()) {
                 best = Some((b, press, share));
