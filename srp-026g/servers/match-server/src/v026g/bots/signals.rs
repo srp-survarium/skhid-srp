@@ -287,6 +287,30 @@ pub fn mix(range: (f32, f32), t: f32) -> f32 {
     range.0 + (range.1 - range.0) * t.clamp(0.0, 1.0)
 }
 
+/// [fix-team 5] A life's key for the advanced tactics split by lives (T6 smoke, T8 traps): a hash of the match's static seed,
+/// the place and the life's spawn time. Never a draw of the bot's own RNG, so paired bench runs keep every other draw.
+pub fn life_key(seed: u32, place: usize, spawned: u32) -> u64 {
+    splitmix((u64::from(seed) << 32 | u64::from(spawned)) ^ (place as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15))
+}
+
+/// [fix-team 5] Whether the life of `key` uses `tactic` at `share`: its own draw for the tactic, under the share (a share of 1
+/// or more: every life).
+pub fn life_uses(key: u64, tactic: crate::v026g::bots::tuning::Tactic, share: f32) -> bool {
+    if share >= 1.0 {
+        return true;
+    }
+    let draw = splitmix(key ^ (tactic as u64 + 1).wrapping_mul(0xD1B5_4A32_D192_ED03));
+    ((draw >> 40) as f32 / (1u64 << 24) as f32) < share
+}
+
+/// SplitMix64's finaliser: a well-mixed 64-bit hash of `z`.
+fn splitmix(mut z: u64) -> u64 {
+    z = z.wrapping_add(0x9E37_79B9_7F4A_7C15);
+    z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+    z ^ (z >> 31)
+}
+
 /// [fix-team 5] How often a bot of `skill` uses an advanced tactic of `row` (`LOSING-TEAM-ROOT-CAUSE.md` §6.3): a smoothstep
 /// from `row.floor` at skill 0 to exactly 1 at `today`, and from 1 there to `row.top` at `top_at` and over. At `today`
 /// the share is 1.0 exactly, so a score times it is the same float: a team at `today` plays as before.
@@ -318,6 +342,18 @@ mod tests {
         // The tier starts: Low 0.3 and Mid 0.5 below 1, High 0.6 at 1.
         assert!((tactic_share(0.3, 0.6, 0.9, row) - 0.65).abs() < 1e-6);
         assert!(tactic_share(0.5, 0.6, 0.9, row) > 0.9 && tactic_share(0.5, 0.6, 0.9, row) < 1.0);
+    }
+
+    /// [fix-team 5] Lives split by their own draw: every life at a share of 1, about the share of lives below it.
+    #[test]
+    fn lives_use_a_tactic_by_its_share() {
+        use crate::v026g::bots::tuning::Tactic;
+        let keys: Vec<u64> = (0..2_000u32).map(|i| life_key(7, (i % 16) as usize, i * 8_000)).collect();
+        assert!(keys.iter().all(|&k| life_uses(k, Tactic::Smoke, 1.0)));
+        let used = keys.iter().filter(|&&k| life_uses(k, Tactic::Smoke, 0.3)).count();
+        assert!((500..700).contains(&used), "{used} of 2000 at 0.3");
+        let both = keys.iter().filter(|&&k| life_uses(k, Tactic::Smoke, 0.3) && life_uses(k, Tactic::Traps, 0.3)).count();
+        assert!(both < used, "the tactics draw apart");
     }
 
     #[test]

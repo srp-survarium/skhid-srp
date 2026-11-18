@@ -377,6 +377,8 @@ pub enum Refusal {
     Reloading,
     Jump,
     TeamCap,
+    /// [fix-team 5 T8 `skill.tactics.traps`] Not a life its skill gives traps of its own.
+    Skill,
 }
 
 /// What the gate reads: all the bot's own state at a think.
@@ -2750,6 +2752,19 @@ pub(super) fn think(bot: &mut Bot, due: &Due, state: &mut TeamState, notes: &mut
     // [A324] A bot the team sent to a camper's point (`camper_job`): no trap elsewhere on its way; at the point, the job's gate (an
     // enemy seen, not one known near: the camper himself is known there) and no chance roll.
     let job = t.camper_job.and_then(|j| camper_point(&state.knowledge, bot.place).map(|c| (c.at, j)));
+    // [fix-team 5 T8 `skill.tactics.traps`] Traps on the enemy's lanes only on the lives its skill gives them; the camper job's
+    // trap is the team's (not scaled).
+    if job.is_none()
+        && let Some(tactics) = due.tuning.skill.tactics
+        && !crate::v026g::bots::signals::life_uses(
+            bot.life_key,
+            crate::v026g::bots::tuning::Tactic::Traps,
+            tactics.share(crate::v026g::bots::tuning::Tactic::Traps, bot.skill),
+        )
+    {
+        bot.features.traps.tally.may_not(Refusal::Skill);
+        return;
+    }
     if let Some((at, j)) = job
         && me.feet.distance_xz(at) > j.within_m + t.reach_m + 1.0
     {
@@ -4218,7 +4233,7 @@ pub mod tally {
                 Refusal::Reloading => Some(Self::Reloading),
                 Refusal::Jump => Some(Self::Jump),
                 Refusal::TeamCap => Some(Self::TeamCap),
-                Refusal::Off | Refusal::NoTrap | Refusal::LifeSpent | Refusal::Busy => None,
+                Refusal::Off | Refusal::NoTrap | Refusal::LifeSpent | Refusal::Busy | Refusal::Skill => None,
             }
         }
     }
@@ -4229,6 +4244,8 @@ pub mod tally {
         /// Thinks of a bot with a trap left: the cheap part's refusals (`life spent`, `busy`) and the thinks that went on.
         spent: u32,
         busy: u32,
+        /// [fix-team 5 T8] Thinks of a life its skill gives no traps of its own.
+        skill: u32,
         thinks: u32,
         gate: [u32; 8],
         enemy: [u32; 3],
@@ -4261,6 +4278,7 @@ pub mod tally {
             match refusal {
                 Refusal::LifeSpent => self.spent += 1,
                 Refusal::Busy => self.busy += 1,
+                Refusal::Skill => self.skill += 1,
                 _ => {}
             }
         }
@@ -4338,6 +4356,7 @@ pub mod tally {
         pub fn add(&mut self, other: &Self) {
             self.spent += other.spent;
             self.busy += other.busy;
+            self.skill += other.skill;
             self.thinks += other.thinks;
             for (a, b) in self.gate.iter_mut().zip(&other.gate) {
                 *a += b;
@@ -4397,12 +4416,13 @@ pub mod tally {
                 .collect::<Vec<_>>()
                 .join(", ");
             format!(
-                "life spent {}, busy {}; thinks {}: refused by {gate} (the enemy: {enemy}; the plays: {plays}); \
+                "life spent {}, busy {}, not by skill {}; thinks {}: refused by {gate} (the enemy: {enemy}; the plays: {plays}); \
                  the chance {}, a stayer {}, no look {}, waited for a wished spot {}, waited for the pass {}; searched {}, no spot {} \
                  (candidates refused: {candidates}); planned {}; pressed {} (in the air {}), called away {}, gave up {} \
                  ({gave_up}, unjudged {})",
                 self.spent,
                 self.busy,
+                self.skill,
                 self.thinks,
                 self.chance,
                 self.stayer,
