@@ -2810,7 +2810,12 @@ fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tun
             let side = ((me.feet.x - riser.take_off.x) * way[1] - (me.feet.z - riser.take_off.z) * way[0]).abs();
             let turn = super::kin::wrap(me.yaw - super::kin::yaw_of(way)).abs();
             let due = motor::press_due(before, lead.metres(), along);
-            match (due, motor::cap_press_off(before, side, me.feet.y - riser.take_off.y, along, turn, lead.metres())) {
+            // [F3] Its stored window (F1b) on the lead where it has width ([`motor::cap_press_off`]).
+            let window = match riser.press {
+                path::RiserPress::Flown(leap) => leap.window(),
+                _ => None,
+            };
+            match (due, motor::cap_press_off(before, side, me.feet.y - riser.take_off.y, along, turn, lead.metres(), window)) {
                 (true, Some(off)) => {
                     riser_window::off(off);
                     false
