@@ -2073,16 +2073,7 @@ impl Motor {
             keys |= self.jump_key(&jump, still, pose, false);
         }
         keys = self.stay_keys(pose, keys);
-        // [A1b] A drop link walked off at release: crouched on its leg, every move key let go from its point until down and still.
-        let (walk_off, effect) = super::walk_off::step(
-            self.walk_off,
-            super::walk_off::Input { on_leg: route.walk_off_at(s, pose.feet), feet: pose.feet, footing: pose.footing, speed: pose.speed, clock: self.clock },
-        );
-        self.walk_off = walk_off;
-        keys = effect.keys(keys);
-        if let Some(ended) = effect.ended {
-            self.walk_off_line = Some(super::walk_off::line(ended));
-        }
+        keys = self.walk_off_keys(route, pose, s, keys);
         // A landing run against the way is braked, not walked out.
         let mut braked = false;
         if !self.letting_go()
@@ -2124,6 +2115,28 @@ impl Motor {
             let stop = rng.range(stop_lo, stop_hi);
             (stop, stop + rng.range(gap_lo, gap_hi))
         });
+    }
+
+    /// [A1b, F2/F3] A walk-off link's let-go ([`super::walk_off`]): a release's at its point, crouched on its leg; a walked-off drop's
+    /// on its first step standing under the height it has left the take-off by (`drop_check::left_take_off`, `walk_off_rest`).
+    /// Every move key let go from there until down and still. Both walks run it.
+    fn walk_off_keys(&mut self, route: &Route, pose: &Pose, s: f32, keys: u32) -> u32 {
+        let (walk_off, effect) = super::walk_off::step(
+            self.walk_off,
+            super::walk_off::Input {
+                on_leg: route.walk_off_at(s, pose.feet),
+                standing: pose.footing == Footing::Ground,
+                feet: pose.feet,
+                footing: pose.footing,
+                speed: pose.speed,
+                clock: self.clock,
+            },
+        );
+        self.walk_off = walk_off;
+        if let Some(ended) = effect.ended {
+            self.walk_off_line = Some(super::walk_off::line(ended));
+        }
+        effect.keys(keys)
     }
 
     /// [A1b] Whether the body was let go at a walk-off's release and is not yet down and still ([`super::walk_off::WalkOff::LetGo`]),
@@ -2405,8 +2418,10 @@ impl Motor {
             keys |= self.jump_key(&jump, still, pose, true);
         }
         keys = self.stay_keys(pose, keys);
+        // [F2/F3] The drop's script plays on an aimed walk too: it was walked over the edge and let go by the walk's keys alone.
+        keys = self.walk_off_keys(route, pose, s, keys);
         // A landing run against the way is braked, not walked out ([item 10] not a held sprint's held steps).
-        if !self.holding_landing()
+        if !self.letting_go()
             && let Some(brake) = self.landing_brake(route, pose, s, &clear)
         {
             keys = (keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)) | brake;
