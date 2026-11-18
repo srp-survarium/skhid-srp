@@ -250,7 +250,9 @@ impl<'a> Datagrams<'a> {
         output[..payload.len()].copy_from_slice(payload);
         let length = payload.len();
         if is_probe(&output[..length]) {
-            self.send_to(&output[..length], peer.address)?;
+            // An answer that cannot be sent (a source port 0, no route back)
+            // is the prober's loss, never this socket's failure.
+            let _ = self.send_to(&output[..length], peer.address);
             return Err(dropped());
         }
         Ok((length, peer))

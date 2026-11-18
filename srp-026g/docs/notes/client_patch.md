@@ -4022,7 +4022,11 @@ rows of 882ac2a93 and this patch's):
   return), StartServiceW (0x373F4A). The epilogue 0x37400E (`lea esp,[ebp-0CE0h]`, three pops,
   `leave`, `ret 8`) restores what the prologue saved from any point after it.
 - **The patch.** `LOBBY_SEEDING_DEFAULT` (patch_026g.py): the byte 0xA712B6 is 0, so a user.cfg
-  without the line leaves it off; the game's gates and callback are as they were. The Rust patch
+  without the line leaves it off; the game's gates and callback are as they were.
+  `MATCH_SEEDING_KEEP` (the owner, 2026-11-18: sharing in matches too): switch_to_game_world's
+  `jz 0x1ED1AA` at 0x1ED184 (a replay's way past the +1Ch write and stop_seeding) is a `jmp`, so
+  +1Ch stays 0, the pipe stays, and the lobby's start_seeding after the match finds the pipe and
+  returns (0x373C76): one updater from the login to the game's end. The Rust patch
   `lobby_seeding`, two lohooks of sites_026g.tsv: `seeding.accept` (0x373CD9,
   `lea eax,[ebp-4B8h]`, 6 bytes): EAX our name, `\\.\pipe\skhid_seed-<process id>` (a static of
   the arena: accept reads it after the hook), and a Skip of the lea. `seeding.updater` (0x373D2D,

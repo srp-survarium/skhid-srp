@@ -6063,13 +6063,15 @@ sorts it (needs Unicorn). See `docs/notes/client_patch.md`, "The grass sort's di
 ## The game shares in the lobby (patch 150, unreleased)
 
 The original game was made to share its files by BitTorrent while a player sits on the login
-screen or in the lobby, never in a match: its updater started as Windows' "Survarium Update
+screen or in the lobby, never in a match (we share there too, below): its updater started as Windows' "Survarium Update
 Service" with the word `seed`, talking to the game over a named pipe. It never ran (the game
 looked for a registry key under a garbled name and gave up). Now the game's own setting
 `enable_torrent_seeding` (user.cfg, "Allow torrent": the launcher's box writes it) decides, off by
 default (`LOBBY_SEEDING_DEFAULT`: the original's was on), and the game's own triggers do it:
-`switch_to_login` and `switch_to_lobby` start it while it is on, `switch_to_game_world` stops it
-(the pipe closed: the updater ends), a replay never does either. The Rust patch `lobby_seeding`
+`switch_to_login` and `switch_to_lobby` start it while it is on, a replay never does. The
+original's `switch_to_game_world` stopped it (the pipe closed: the updater ends); the owner
+(2026-11-18) wants it in matches too, so that function's jump over its stop, a replay's, is taken
+always (`MATCH_SEEDING_KEEP`, 0x1ED184: `jz` to `jmp`), and the one updater shares until the game ends. The Rust patch `lobby_seeding`
 (`rust/patches/src/lobby_seeding.rs`, sites `seeding.*`) names the pipe
 `\\.\pipe\skhid_seed-<process id>` and starts `updater_skhid.exe seed <pipe>` beside the exe
 (CreateProcessW, no window) where the game asked for the service. Its options stay hidden. The
@@ -6078,7 +6080,7 @@ game writes every setting into user.cfg at its end, so a player who played befor
 them. The updater's
 side (the 1 MB/s cap, the stats ticks) is `client/updater/README.md`; the rules
 `docs/notes/torrent-downloads.md`, "Sharing from the game". `check_lobby_seeding_026g.py` runs
-`start_seeding_impl`, `switch_to_lobby`, `switch_to_login` and the command's callback in both
+`start_seeding_impl`, `switch_to_lobby`, `switch_to_login`, `switch_to_game_world` and the command's callback in both
 exes (needs Unicorn). See `docs/notes/client_patch.md`, "The game shares in the lobby". Not run
 in a game.
 
