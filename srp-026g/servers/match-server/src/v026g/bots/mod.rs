@@ -1206,6 +1206,7 @@ impl Bots {
             next_commander: 0,
             features: TeamFeatures::default(),
             squads: None,
+            suspended: Vec::new(),
         };
         let bots = teams
             .iter()
