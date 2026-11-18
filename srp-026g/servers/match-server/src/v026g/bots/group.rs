@@ -198,6 +198,104 @@ pub fn answerers(fights: &[(Place, Vec3)], free: &[(Place, Vec3)], answer_m: f32
     out
 }
 
+/// [fix-team `threat.support_attackers`] Each fight (mate, enemy, the mate's feet), in the order given (the most dangerous
+/// first), the nearest free bot within `answer_m` not given one already: up to one helper per attacker.
+pub fn answer_each(fights: &[(Place, Place, Vec3)], free: &[(Place, Vec3)], answer_m: f32) -> Vec<(Place, Place, Place)> {
+    let mut out: Vec<(Place, Place, Place)> = Vec::new();
+    for &(mate, enemy, at) in fights {
+        if out.iter().any(|&(m, e, _)| m == mate && e == enemy) {
+            continue;
+        }
+        let bot = free
+            .iter()
+            .filter(|&&(bot, feet)| bot != mate && feet.distance_xz(at) <= answer_m && out.iter().all(|&(_, _, b)| b != bot))
+            .min_by(|a, b| a.1.distance_xz(at).total_cmp(&b.1.distance_xz(at)))
+            .map(|&(bot, _)| bot);
+        if let Some(bot) = bot {
+            out.push((mate, enemy, bot));
+        }
+    }
+    out
+}
+
+/// [fix-team `threat.support_attackers`] What [`attackers`] reads of the time and the rules.
+#[derive(Clone, Copy, Debug)]
+pub struct Senses {
+    pub now: u32,
+    /// How recent a hit, a shot or a sense is, ms.
+    pub window_ms: u32,
+    /// The view's full width, degrees (`sense.view_deg`): an attacker inside it is faced.
+    pub view_deg: f32,
+    /// A shooter whose facing is within this of the mate fires at him, degrees (`aim.combat.hit_match_deg`).
+    pub aim_deg: f32,
+}
+
+/// [fix-team `threat.support_attackers`] One of a mate's attackers: who, the hits the mate took from him, whether the mate
+/// faces him, and how far he is.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Attacker {
+    pub enemy: Place,
+    pub hits: u8,
+    pub faced: bool,
+    pub distance_m: f32,
+}
+
+impl Attacker {
+    /// The most dangerous first: one the mate does not face (a flanker, one behind him), then the one that hit him, then the
+    /// nearest.
+    pub fn rank(&self, other: &Self) -> std::cmp::Ordering {
+        self.faced.cmp(&other.faced).then(other.hits.cmp(&self.hits)).then(self.distance_m.total_cmp(&other.distance_m))
+    }
+}
+
+/// [fix-team `threat.support_attackers`] The enemies attacking the mate `me`, by its own senses within the window: the one
+/// its reflex fights (`target`), the one its last hit came from (the nearest of its own fresh tracks to where the hit put
+/// the shooter), and each it saw fire with his facing on it. Where each is: its own fresh sense, else its memory.
+pub fn attackers(
+    me: &super::view::PlaceView,
+    target: Option<Place>,
+    hit: Option<super::concede::Hit>,
+    tracks: &[super::know::Track],
+    view: &super::view::MatchView,
+    s: Senses,
+) -> Vec<Attacker> {
+    use super::know::Source;
+    use super::sense::in_view;
+    use super::view::SoundKind;
+    let fresh = |time: u32| time <= s.now && s.now - time <= s.window_ms;
+    let mut found: Vec<(Place, u8)> = Vec::new();
+    let mut add = |who: Place, hits: u8| match found.iter_mut().find(|(w, _)| *w == who) {
+        Some((_, h)) => *h = (*h).max(hits),
+        None => found.push((who, hits)),
+    };
+    if let Some(enemy) = target {
+        add(enemy, 0);
+    }
+    if let Some(hit) = hit.filter(|h| fresh(h.at))
+        && let Some(shooter) = tracks
+            .iter()
+            .filter(|t| t.own.is_some_and(|(_, time)| fresh(time)))
+            .min_by(|a, b| a.at.distance_xz(hit.shooter_at).total_cmp(&b.at.distance_xz(hit.shooter_at)))
+    {
+        add(shooter.who, 1);
+    }
+    for shot in view.sounds.iter().filter(|x| x.kind == SoundKind::Shot && fresh(x.time)) {
+        let seen = tracks.iter().any(|t| t.who == shot.from && t.source == Source::Seen && fresh(t.time));
+        let aimed = view.place(shot.from).is_some_and(|e| e.team != me.team && in_view(e.feet, e.yaw, me.feet, 2.0 * s.aim_deg));
+        if seen && aimed {
+            add(shot.from, 0);
+        }
+    }
+    found
+        .into_iter()
+        .filter_map(|(enemy, hits)| {
+            let track = tracks.iter().find(|t| t.who == enemy)?;
+            let at = track.own.filter(|&(_, time)| fresh(time)).map_or(track.at, |(at, _)| at);
+            Some(Attacker { enemy, hits, faced: in_view(me.feet, me.yaw, at, s.view_deg), distance_m: me.feet.distance_xz(at) })
+        })
+        .collect()
+}
+
 /// Whether a bot on this play holds an angle (a lane, an exit, a cut, an ambush, a container), which it keeps when a mate
 /// fights with `answer = nearest_mover`: the v2 bench's covers took ~28 % of the ON team's bot-time and its Crossfire and HoldExit
 /// kills of the hunter fell 69 -> 39 and 34 -> 27 (trace 72149578, 64 pairs). A Trade on a mate (a cover running) is no hold.
@@ -428,5 +526,23 @@ mod tests {
         // 3 answers 1; 4 is free but 42 m from 2 (over 30 m); 5 is too far from both.
         assert_eq!(answerers(&fights, &free, 30.0), vec![(1, 3)]);
         assert_eq!(answerers(&fights, &free, 45.0), vec![(1, 3), (2, 4)]);
+    }
+
+    /// [fix-team `threat.support_attackers`] One helper per attacker, the most dangerous first, each the nearest free bot.
+    #[test]
+    fn each_attacker_of_a_mate_gets_its_own_helper_the_most_dangerous_first() {
+        let at = |x: f32| Vec3::new(x, 0.0, 0.0);
+        // Mate 1 attacked by 7 (unfaced, ranked first) and 8; bots 3 (nearer) and 4 free.
+        let mut ranked = [
+            Attacker { enemy: 8, hits: 1, faced: true, distance_m: 10.0 },
+            Attacker { enemy: 7, hits: 0, faced: false, distance_m: 30.0 },
+            Attacker { enemy: 9, hits: 0, faced: true, distance_m: 5.0 },
+        ];
+        ranked.sort_by(Attacker::rank);
+        assert_eq!(ranked.map(|a| a.enemy), [7, 8, 9], "unfaced, then hits, then nearest");
+        let fights = [(1, 7, at(0.0)), (1, 8, at(0.0)), (1, 9, at(0.0))];
+        let free = [(4, at(20.0)), (3, at(10.0))];
+        assert_eq!(answer_each(&fights, &free, 30.0), vec![(1, 7, 3), (1, 8, 4)], "two helpers, the third attacker unanswered");
+        assert!(answer_each(&fights, &free, 5.0).is_empty(), "none within reach");
     }
 }
