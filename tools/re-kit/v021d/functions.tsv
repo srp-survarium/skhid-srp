@@ -5,3 +5,22 @@ va	status	ref_026g	name
 0x002157f7	verified		vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >
 0x0010f84f	verified	0x00182530	vostok::render::stage_ambient_lighting::apply_ssao_and_height_based_ambient
 0x000f2ce0	verified	0x0014f260	vostok::render::scene::particle_engine::update_light
+0x00106f07	verified	0x00172960	vostok::render::stage_shadow_direct::`scalar deleting destructor'
+0x001071a0	verified	0x00172e30	vostok::render::stage_shadow_direct::execute
+0x00106fd4	verified	0x00172b10	vostok::render::stage_shadow_direct::execute_disabled
+0x00106f23	verified	0x00172980	vostok::render::stage_shadow_direct::is_effects_ready
+0x00108b14	verified	0x001750c0	vostok::render::stage_shadow_direct::prepare_visibile_objects
+0x00108fdc	verified	0x00175790	vostok::render::stage_shadow_direct::render_models
+0x0021570f	verified	0x0034e020	vostok::render::environment_sun_direction
+0x0013d76d	verified	0x001cdd80	vostok::render::effect_shadow_map::compile
+0x0013c500	verified	0x001cd0b0	vostok::render::effect_material_base::compile_begin
+0x000f36e3	verified	0x00150560	vostok::render::scene::select_models
+0x00147c7e	verified	0x001ddd50	vostok::render::effect_gstage_default_materials::compile
+0x0010842e	observed	0x00174240	vostok::render::stage_shadow_direct::calculate_matrices
+0x00281210	verified	0x003e1640	vostok::render::texture_cook_wrapper::on_fs_iterators_ready_converted
+0x002804c1	verified	0x003e0060	vostok::render::effect_cook::on_textures_ready
+0x0027574f	verified	0x003d08f0	vostok::render::res_texture::res_texture
+0x0026822e	verified	0x003bc7b0	vostok::render::resource_manager::get_default_texture
+0x002681a5	observed		create_default_texture_rgba_gradient
+0x00277c6f	observed		texture_handler_collect_hardware_views_with_default_fallback
+0x0027721e	verified	0x003d5c90	vostok::render::textures_handler<1>::apply

@@ -359,6 +359,8 @@ unsafe extern "stdcall" {
     pub fn engine_discard_playing_order(client: Option<LobbyClient>, left: u32);
     /// 0x38c970 vostok::ai::fsm::append_transition: source ESP+4, destination ESP+8, predicate ESP+12; pops 12; stdcall, called directly
     pub fn engine_fsm_append_transition(source: Option<BatteryState>, destination: Option<BatteryState>, predicate: Option<FsmPredicate>);
+    /// 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
+    pub fn engine_set_texture(compiler: Option<EffectCompiler>, slot: *const u8, texture: *const u8, option: u32, request: u32, lower: u32, lower_float: f32, flag: u32);
 }
 
 #[allow(dead_code)]
@@ -6258,7 +6260,7 @@ impl EngineCfg {
         unsafe { self.0.byte_add(0x0).cast::<Option<EngineCfg>>().write_volatile(value) }
     }
 
-    /// +0x14 (u16): binary config type: integer 1, float 2, table 3, array 4
+    /// +0x14 (u16): binary config type: boolean 0, integer 1, float 2, table 3, array 4, text 5
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -25785,6 +25787,480 @@ impl UiTextEditText {
     }
 }
 
+/// A survarium::game_scene (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GameScene(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GameScene {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::scene>): the render scene it holds (a scene_ptr): a visual's insert passes &+4 to scene_renderer::add_model (0x285FB6), game::tick draws the current scene's (draw_scene 0x1F7F0, its EAX = [game+539Ch]+4, 0x1ECD2D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn render_scene(self) -> Option<Scene> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Scene>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::scene>): the render scene it holds (a scene_ptr): a visual's insert passes &+4 to scene_renderer::add_model (0x285FB6), game::tick draws the current scene's (draw_scene 0x1F7F0, its EAX = [game+539Ch]+4, 0x1ECD2D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_render_scene(self, value: Option<Scene>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<Scene>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::renderer_context (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RendererContext(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RendererContext {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x416c (ptr<vostok::render::scene>): the scene a frame draws: renderer::render (0x13D010) stores *scene_ptr, its first argument's, at 0x13D210 before it runs the stages
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene(self) -> Option<Scene> {
+        unsafe { self.0.byte_add(0x416c).cast::<Option<Scene>>().read_volatile() }
+    }
+
+    /// +0x416c (ptr<vostok::render::scene>): the scene a frame draws: renderer::render (0x13D010) stores *scene_ptr, its first argument's, at 0x13D210 before it runs the stages
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_scene(self, value: Option<Scene>) {
+        unsafe { self.0.byte_add(0x416c).cast::<Option<Scene>>().write_volatile(value) }
+    }
+
+    /// +0x4170 (ptr<vostok::render::scene_view>): that frame's scene view, its environment at +118h (stage_rain::execute 0x1ADB55, stage_pre_rain::execute 0x17CA64)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scene_view(self) -> Option<SceneView> {
+        unsafe { self.0.byte_add(0x4170).cast::<Option<SceneView>>().read_volatile() }
+    }
+
+    /// +0x4170 (ptr<vostok::render::scene_view>): that frame's scene view, its environment at +118h (stage_rain::execute 0x1ADB55, stage_pre_rain::execute 0x17CA64)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_scene_view(self, value: Option<SceneView>) {
+        unsafe { self.0.byte_add(0x4170).cast::<Option<SceneView>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::scene_view (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SceneView(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SceneView {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x2e8 (f32): the environment's rain_u_scale (environment +1D0h; stage_rain::execute 0x1ADD90 multiplies it by 0.05 into rain_drops_parameters1.z)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rain_u_scale(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x2e8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x2ec (f32): the environment's rain_v_scale (environment +1D4h; 0x1ADDB1, times 0.4 into rain_drops_parameters1.w)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rain_v_scale(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x2ec).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::stage_pre_rain (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StagePreRain(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StagePreRain {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (stage_pre_rain::execute 0x17CA61)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (stage_pre_rain::execute 0x17CA61)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+
+    /// +0x18 (u32): its effect_wet_surface (a res_effect, kept as the address res_effect::apply takes in EAX): create_effect<effect_wet_surface> (0x17CC90) from the ctor (0x17BC2F); execute applies technique 2 (copy, 0x17CB35) and 0 (wet, 0x17CB90)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn wet_effect(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::stage_rain (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StageRain(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StageRain {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (stage_rain::execute 0x1ADB52)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (stage_rain::execute 0x1ADB52)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+
+    /// +0x34 (u32): its effect_rain (a res_effect, as res_effect::apply takes it in EAX): create_effect<effect_rain> (0x1AE110) from the ctor (0x1ADA18); execute applies technique 1, the sprite drops (0x1ADFA4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn drops_effect(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x34).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::rain_execute_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RainExecuteFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RainExecuteFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x40 (f32): stage_rain::execute's local at 0x1ADF7D: rain_u_scale * 0.05 (0x1ADDA0, one push deeper), copied to rain_drops_parameters1.z (0x1ADF83) before the layers' loop
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn parameters1_z(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x40).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x44 (f32): rain_v_scale * 0.4 (0x1ADDEF, one push deeper), copied to rain_drops_parameters1.w (0x1ADF8F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn parameters1_w(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x44).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::effect_compiler (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EffectCompiler(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EffectCompiler {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x61f4c (u8): not 0: the shader-cache pass of an effect's compile (begin_pass only records its shaders 0x3D9FED, end_technique keeps nothing; 0.10b m_shaders_cache_mode): each compile's technique blocks skip begin_technique and the states then (effect_wet_surface::compile 0x1CE10D..0x1CE116)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn caching(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x61f4c).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::begin_pass_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BeginPassFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BeginPassFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<u8>): begin_pass's (0x3D9F60) arguments as its caller pushes them, at effect_wet_surface::compile's 0x1CE16C (technique 0): +0 the ps family name (pushed at 0x1CE142), +4 the 16-byte shader configuration being written; the gs name and the compiler pushed after
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pixel_shader(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): begin_pass's (0x3D9F60) arguments as its caller pushes them, at effect_wet_surface::compile's 0x1CE16C (technique 0): +0 the ps family name (pushed at 0x1CE142), +4 the 16-byte shader configuration being written; the gs name and the compiler pushed after
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_pixel_shader(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::compile_begin_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CompileBeginFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CompileBeginFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x2c (ptr<u8>): effect_material_base::compile_begin's (0x1CD0B0) first argument, the VS family name, at 0x1CD1B6 (the entry's ESP less 28h): the mov there reads it for begin_pass, nothing after
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vertex_shader(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x2c).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x2c (ptr<u8>): effect_material_base::compile_begin's (0x1CD0B0) first argument, the VS family name, at 0x1CD1B6 (the entry's ESP less 28h): the mov there reads it for begin_pass, nothing after
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_vertex_shader(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x2c).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x3c (ptr<vostok::engine_cfg>): its fifth argument, the effect's merged config tree (the material's <stage>.effect table with the cook's options; cull_mode and blend_mode are read from it, 0x1CD0DC, 0x1CD148)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<EngineCfg> {
+        unsafe { self.0.byte_add(0x3c).cast::<Option<EngineCfg>>().read_volatile() }
+    }
+
+    /// +0x3c (ptr<vostok::engine_cfg>): its fifth argument, the effect's merged config tree (the material's <stage>.effect table with the cook's options; cull_mode and blend_mode are read from it, 0x1CD0DC, 0x1CD148)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_config(self, value: Option<EngineCfg>) {
+        unsafe { self.0.byte_add(0x3c).cast::<Option<EngineCfg>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::shader_configuration (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShaderConfiguration(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ShaderConfiguration {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x6 (u8): the 16-byte shader_configuration's byte 6: bits 0..5 the vertex input type, which compile_begin writes from its options (0x1CD0C1..0x1CD0CD); 0Bh grassmesh_vertex_input
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vertex_input(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x6).cast::<u8>().as_ptr() }
+    }
+}
+
+/// A vostok::render::water_compile_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WaterCompileFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WaterCompileFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xc (ptr<vostok::engine_cfg>): effect_fstage_simpe_water_materials::compile's (0x1E5FE0) EBP frame: +0Ch its config tree, the material's (compile_begin's fifth argument, 0x1E6026)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<EngineCfg> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<EngineCfg>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<vostok::engine_cfg>): effect_fstage_simpe_water_materials::compile's (0x1E5FE0) EBP frame: +0Ch its config tree, the material's (compile_begin's fifth argument, 0x1E6026)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_config(self, value: Option<EngineCfg>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<EngineCfg>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::god_rays_entry_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GodRaysEntryFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl GodRaysEntryFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::stage_atmosphere>): the god-rays pass's (0x1A5520) one argument at its entry, the stage_atmosphere it draws for (pushed at 0x1A5133)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn stage(self) -> Option<StageAtmosphere> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<StageAtmosphere>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::stage_atmosphere>): the god-rays pass's (0x1A5520) one argument at its entry, the stage_atmosphere it draws for (pushed at 0x1A5133)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_stage(self, value: Option<StageAtmosphere>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<StageAtmosphere>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::stage_atmosphere (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StageAtmosphere(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StageAtmosphere {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (the god-rays pass 0x1A5528: its +4170h scene view)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (the god-rays pass 0x1A5528: its +4170h scene view)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+
+    /// +0xac (u32): the constructor's second argument: 0 the sky stage, 1 the geometry stage (execute 0x1A50C9 fills the geometry's scattering target only in mode 1; 0x1A42B7 updates the scattering lookup only in mode 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mode(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xac).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -25898,21 +26374,6 @@ pub struct GameEffectList(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl GameEffectList {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-}
-
-/// A survarium::game_scene (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct GameScene(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl GameScene {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -31148,6 +31609,207 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn edit(machine: &impl Machine) -> Option<UiTextEdit> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(UiTextEdit)
+        }
+    }
+
+    /// wet_surface.begin_pass (0x1ce16c): effect_wet_surface::compile, technique 0 (wet), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F71C8h and the call 0x3D9F60 at 0x1CE178): ESP the PS name's slot (wet_surface 0x9F71C8, pushed at 0x1CE142), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span
+    pub mod wet_surface_begin_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// wet_surface.compiled (0x1ce5be): effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone
+    pub mod wet_surface_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// rain.drop_texture (0x1d3dc7): effect_rain::compile, technique 1 (the sprite drops), before the pushes of its set_texture (0x3D98B0, at 0x1D3DDE) of t_rain_drop (fld1 / push 1 / push ecx; then fstp [esp], push esi, push -1, push esi, push engine/rain_drop 0x9F78D8, push t_rain_drop 0x9F78EC, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1D3DE3), the stack as here
+    pub mod rain_drop_texture {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// rain.compiled (0x1d3e30): effect_rain::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), technique 1 ended; technique is technique 1's start (cmp byte [ebx+61F4Ch],0 / jne), which needs EBX, EBP and ESI = 0 (its stores at 0x1D3D34 and 0x1D3D44..0x1D3D5A)
+    pub mod rain_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// pre_rain.wet_gate (0x17cb1b): stage_pre_rain::execute after render_rain_shadow_map, the shading-quality gate of its copy and wet passes (cmp dword [eax+0E8h],0, EAX the render options [2260498h]; the je 0x17CC39 after it takes the flags); wet is the r_rain_render_wet_surface_effect test after it (0x17CB28); ESI the stage
+    pub mod pre_rain_wet_gate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::stage_pre_rain (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StagePreRain> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StagePreRain)
+        }
+    }
+
+    /// pre_rain.wet_apply (0x17cb90): stage_pre_rain::execute's wet pass: mov eax,[esi+18h] / xor ecx,ecx before res_effect::apply 0x11C1B0 (EAX the effect, ECX the technique) at 0x17CB95, the copy's fill done; ESI the stage
+    pub mod pre_rain_wet_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::stage_pre_rain (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StagePreRain> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StagePreRain)
+        }
+    }
+
+    /// rain.drop_scales (0x1adf7d): stage_rain::execute before it copies rain_u_scale * 0.05 and rain_v_scale * 0.4 ([esp+40h], [esp+44h]) into rain_drops_parameters1.zw (movss xmm0,[esp+40h]); EBP the stage
+    pub mod rain_drop_scales {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_rain (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageRain> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageRain)
+        }
+
+        /// the site's ESP: a vostok::render::rain_execute_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<RainExecuteFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(RainExecuteFrame)
+        }
+    }
+
+    /// rain.drops_apply (0x1adfa4): stage_rain::execute's layer loop (the jb at 0x1AE0BD comes back here): mov eax,[ebp+34h] / mov ecx,1 before res_effect::apply 0x11C1B0 at 0x1ADFAC; EBP the stage
+    pub mod rain_drops_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_rain (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageRain> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageRain)
+        }
+    }
+
+    /// material.begin_pass (0x1cd1b6): effect_material_base::compile_begin's one begin_pass (0x1CD1BC): mov eax,[esp+2Ch] (the VS family name) / push esi / push ebp; EBX the shader configuration (its vertex input type in byte 6), [esp+3Ch] the merged config tree; every material effect's every pass, cache and build compiles alike
+    pub mod material_begin_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::shader_configuration (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn config(machine: &impl Machine) -> Option<ShaderConfiguration> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(ShaderConfiguration)
+        }
+
+        /// the site's ESP: a vostok::render::compile_begin_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CompileBeginFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CompileBeginFrame)
+        }
+    }
+
+    /// water.normal_texture (0x1e603c): effect_fstage_simpe_water_materials::compile (the forward_water and forward_water_local_reflections passes, the loop at 0x1E6015), after compile_begin's return, before the pushes of its set_texture (0x3D98B0, at 0x1E6053) of t_normal_map (fld1 / push 1 / push ecx; then fstp [esp], push esi, push -1, push esi, push engine/water_waves2 0x9F9FA4, push t_normal_map 0x9F3204, push ebx): EBX the compiler, [ebp+0Ch] the material's config tree; bound is after the call (0x1E6058), the stack as here
+    pub mod water_normal_texture {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// EBP: a vostok::render::water_compile_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn water(machine: &impl Machine) -> Option<WaterCompileFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(WaterCompileFrame)
+        }
+    }
+
+    /// atmosphere.god_rays (0x1a5520): stage_atmosphere's god-rays pass (0x1A5520, stdcall, ESP+4 the stage, ret 4), its entry (sub esp,14h / push ebx / mov ebx,[esp+1Ch]); its one caller is stage_atmosphere::execute's end (push ebp / call at 0x1A5133), for both the sky stage (stage+ACh 0) and the geometry stage (1), so 0.26 draws the rays twice a frame where 0.21 draws them once; skipped is its ret 4 (0x1A575C), the stack as at the entry
+    pub mod atmosphere_god_rays {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::god_rays_entry_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<GodRaysEntryFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(GodRaysEntryFrame)
         }
     }
 }
