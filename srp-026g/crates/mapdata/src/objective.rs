@@ -390,9 +390,9 @@ mod tests {
     }
 
     /// In the open yard both teams take the battery, walk in, carry it home and put it in: Ok, with stands and proven ways.
-    /// Shut in a box of walls, no stand reaches it: NoTakeStand.
+    /// Shut in a box of walls, a stand inside reaches it and no path does: NoWayIn. Out of every eye's reach: NoTakeStand.
     #[test]
-    fn a_battery_in_the_open_is_ok_and_one_shut_in_has_no_stand() {
+    fn a_battery_in_the_open_is_ok_shut_in_has_no_way_and_high_has_no_stand() {
         let w = world(false);
         let stands = UseStands::build_ray(&w, crate::stands::EYE_STANDING, crate::stands::EYE_CROUCHED, USE_RAY_CLIENT_M);
         let c = Contract::build(&w, &stands, &INPUTS);
@@ -401,11 +401,18 @@ mod tests {
             assert_eq!(r.verdict, Verdict::Ok, "{}", r.line(&w.grid));
             assert!(r.take.is_some() && r.put.is_some());
         }
+        // Shut in walls: the floor inside the walls reaches it, no path does: NoWayIn, no failing link (no path at all).
         let shut = world(true);
         let c = Contract::build(&shut, &stands, &INPUTS);
-        assert!(c.rows.iter().all(|r| r.verdict == Verdict::NoTakeStand), "{:?}", c.rows);
+        for r in &c.rows {
+            assert_eq!(r.verdict, Verdict::NoWayIn, "{}", r.line(&shut.grid));
+            assert_eq!(r.way_in, Way::Fails { at: None, why: WayFail::NoPath });
+        }
         // A battery at rest elsewhere is asked the same.
         let rows = Contract::rows_for(&w, &stands, &INPUTS, Vec3::new(-4.0, 0.1, 0.0));
-        assert!(rows.iter().all(|r| r.verdict == Verdict::Ok && r.spawner.is_none()));
+        assert!(rows.iter().all(|r| r.verdict == Verdict::Ok && r.spawner.is_none()), "{rows:?}");
+        // One 3.5 m up is past every eye's use ray (2.04 m over the standing eye less the inner ball, 1.92 > 1.80): NoTakeStand.
+        let rows = Contract::rows_for(&w, &stands, &INPUTS, Vec3::new(4.0, 3.5, 0.0));
+        assert!(rows.iter().all(|r| r.verdict == Verdict::NoTakeStand && r.take.is_none()), "{rows:?}");
     }
 }
