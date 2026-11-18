@@ -87,6 +87,8 @@ TYPE_ALLOWLIST = {
            ('02', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation', 'wind_strength')),
            ('03', 'evening', ('mie_fog_base_height', 'mie_fog_falloff', 'stratosphere_rotation')),
            ('03', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('04', 'evening', ('mie_fog_base_height', 'stratosphere_rotation')),
+           ('04', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
            ('05', 'evening', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'sky_clouds_fog_power', 'stratosphere_rotation', 'vignette_effect_power')),
            ('05', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
            ('06', 'evening', ('mie_fog_base_height', 'stratosphere_rotation')),

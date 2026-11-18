@@ -2,8 +2,14 @@
 
 Rain and evening for Rudnya, School, Vostok Radar, Chemical Plant,
 Tarakanovsky Fort and Mamayev Kurgan. Each has Protective device (mode 2) and Team Deathmatch
-(mode 4). Resource-porter commit `a9d8e64` on `port/v021d-five-weathers` makes
-`maps-021d-weathers@2` and `three-maps-021-lighting@5` together.
+(mode 4). Resource-porter commit `a9d8e64` on `port/v021d-five-weathers` made
+`maps-021d-weathers@2` (five maps); Chemical Plant's four projects are
+`maps-021d-chemical-weathers@1`, by the same builder and script with
+`WEATHER_MANIFEST=ports/survarium-021d-chemical-weathers-to-026g.json` on
+`port/v021d-chemical`, which also makes `three-maps-021-lighting@6` (eighteen
+profiles). The five maps' pack is not rebuilt: the importer has since kept
+alpha mip chains and visibility in private copies, which the edit lists below
+retrofit to it; Chemical Plant's files are made that way from the start.
 
 | Map | Rain 2 / 4 | Evening 2 / 4 |
 | --- | --- | --- |
@@ -18,7 +24,7 @@ The weather builder replaces only the environment, local lighting, probes
 and weather-layer client objects of the **authored day source**. The day
 source includes the ordered content edits: gameplay, anomalies, existing lamp fixtures and Keeper pools are retained.
 The source geometry edit restores the original weather-only deltas: School
-rain adds two hanging lamp assemblies (six donor visuals, four collisions,
+rain and Chemical Plant rain each add two hanging lamp assemblies (six donor visuals, four collisions,
 two broken-state visuals and two breakable fixtures); Fort rain/evening each
 omit three barrel groups and their six collisions. Existing lamp indices
 follow those removals; day variants are unchanged. These geometry differences

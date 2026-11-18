@@ -3968,10 +3968,10 @@ hook folds intensity into RGB and sets outgoing intensity to 1, selecting
 the native multiplicative pass. It never mutates the authored object.
 
 The guard requires the object's actual scene to be its game's embedded
-world, then recognizes `v021d_level_0{1,2,3,5,6}/day_{2,4,8}`,
-`v021d_level_0{1,2,3,5,6}/rain_{2,4}` and
-`v021d_level_0{1,2,3,5,6}/evening_{2,4}`: 35 exact aliases of fifteen
-map/weather profiles. No object names, positions or room measurements are consulted.
+world, then recognizes `v021d_level_0{1..6}/day_{2,4,8}`,
+`v021d_level_0{1..6}/rain_{2,4}` and
+`v021d_level_0{1..6}/evening_{2,4}`: 42 exact aliases of eighteen
+map/weather profiles (level 4, Chemical Plant, since `chemical-v021.md`). No object names, positions or room measurements are consulted.
 The stub preserves flags, general registers and FPU/SSE state, replays
 `mov al,[ebx+16Dh]`, and resumes at 0x290A45. The arena linker owns its
 placement; existing arena blocks keep their addresses.
