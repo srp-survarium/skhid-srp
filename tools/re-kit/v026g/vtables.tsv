@@ -182,3 +182,7 @@ vtable	slot	va	class	base	basis
 0x00a1debc	0x4	0x0034b4d0	vostok::ui::insert_char_action	vostok::ui::base_edit_action	observed: RTTI (base_edit_action 0xA1DEA4: the slot _purecall); the ui_text_edit's key action that types one character
 0x009dc020	0x4	0x0001c760	vostok::engine::game_console	vostok::engine::console	observed: RTTI; on_activate, the console shown
 0x009dc020	0x8	0x0001c7a0	vostok::engine::game_console	vostok::engine::console	observed: RTTI; on_deactivate, the console hidden
+0x009f3440	0x4	0x00054e10	vostok::render::effect_wet_surface	vostok::render::effect_descriptor	observed: should_recompile_when_global_changes, the base's (returns false): never recompiled on an options change
+0x009f3440	0x8	0x001ce100	vostok::render::effect_wet_surface	vostok::render::effect_descriptor	observed: compile; written into the static descriptor 0x2261118 at 0x17CCAC
+0x009f5108	0x4	0x00054e10	vostok::render::effect_rain	vostok::render::effect_descriptor	observed: should_recompile_when_global_changes, the base's (returns false)
+0x009f5108	0x8	0x001d3b90	vostok::render::effect_rain	vostok::render::effect_descriptor	observed: compile; written into the static descriptor 0x2260F8C at 0x1AE12C

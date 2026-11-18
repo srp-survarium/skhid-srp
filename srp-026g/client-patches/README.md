@@ -168,6 +168,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
 | `rust/patches/src/animation_math.rs`, `src/animation_math.toml`, `src/vostok/trig.rs`, `animation_math_026g.asm`, `check_animation_math_026g.py` | Patch 136: the animation's sines, cosines and atan2 (nine calls of the x87's fsin, fcos, fpatan whose results are stored as floats at once) computed with SSE2 doubles where the float is provably the x87's, the game's own function otherwise; time_channel::domain's knot search without a `div` per try. The same floats; the check runs the game's functions in both exes (needs Unicorn), the crate's ignored test every float against the CPU's x87 (`../docs/notes/client_patch.md` section 3.80) |
+| `rust/patches/src/v021d_render.rs`, `src/v021d_render.toml`, `src/vostok/render_stage.rs`, `src/vostok/effect_compile.rs`, `check_rain_v021d_026g.py` | Patch 130: the ported 0.21 maps render the 0.21 way: effect_wet_surface and effect_rain compile 0.21 twins of their techniques after their own (the wet pass with `wet_surface_v021d.ps`, the drops with `ported/v021d/engine/rain_drop`), and on the scene of a project whose config says `srp_renderer_v021d` the wet pass runs at any shading quality with its twin, the drops with theirs and 0.21d's half-float rain_drops_parameters1.zw; a material with `srp_grass_v021d` takes the 0.21 grass vertex shaders, one with `srp_water_v021d` the 0.21 wave normals; the sky stage's god-rays pass is skipped on that scene; fourteen lohooks; its check runs both compiles whole, the map's sites, the god-rays pass's entry, compile_begin and the water's compile in both exes, 0.21d's drop parameters in its own (needs Unicorn; `../docs/notes/client_patch.md` section 3.82) |
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
 | `rust/patches/src/texture_streaming.rs`, `src/texture_streaming.toml`, `src/vostok/streaming.rs`, `check_texture_streaming_026g.py` | Patch 137: texture streaming's per-frame bookkeeping in Rust, the same values: scene::update_streaming_data (every streaming record from its proxy, the three proxy classes' virtuals read once by their vtable, one square root a surface) and resource_manager::get_texture_video_memory_size (the registry's texture memory without the "$user$" names, searched 16 bytes at a time); two lohooks, each the whole function; its check runs both functions on made-up scenes and registries in both exes, every byte the same, and counts their instructions (needs Unicorn; `../docs/notes/client_patch.md` section 3.79) |
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
@@ -6207,7 +6208,9 @@ Crouched, the eye is 1.06 m up in a 1.1 m capsule, and the near plane (0.05 m) w
 the capsule touched; objects with shot but no walker collision let the capsule in. A lohook at
 update_camera's eye (`camera.eye`, after the ragdoll's) casts one ray from 0.4 m under the eye to
 0.12 m past it against the level's shot collision and puts the view's eye 0.12 m short of a hit at
-once, easing back when it clears. The view alone: the shots, the hit models and the movement are
+once, easing back when it clears. The ray goes through leaves (the game materials foliage_coniferous,
+foliage_deciduous and foliage_dry): the vine bushes are shot collision a walker goes into, and the
+eye dropped up to 0.4 m in them, the hands jumping up the screen (the owner, 2026-11-18). The view alone: the shots, the hit models and the movement are
 the game's. `check_head_clearance_026g.py` (`tools/check head-clearance`) runs update_camera in
 both exes. Not run in a game.
 
@@ -6224,3 +6227,36 @@ drawn the game's log file (`<application>_<user>.log`) through the engine's scro
 and move the view's pad; the console still takes every key and wheel turn before the game's handlers.
 Nothing a match computes changes. `check_console_scroll_026g.py` (`tools/check console-scroll`) runs
 the three functions on the game's own scroll view in both exes. Not run in a game.
+
+## The ported 0.21 maps render the 0.21 way (patch 130, unreleased)
+
+The owner (2026-11-09): exact 0.21 rain on the ported 0.21 maps (Vostok Radar Station v0.21,
+`v021d_level_03`), our render patched for those maps only, the native maps unchanged. The falling
+rain already runs 0.21's code in 0.26g; the patch makes the rest 0.21's, with the content pack's
+0.21 shaders and textures (`../docs/notes/client_patch.md` section 3.82):
+
+- **Wet surfaces**: on a 0.21 map's scene stage_pre_rain's wet pass draws with 0.21's pixel shader
+  (`wet_surface_v021d.ps`), at any shading quality (0.26g skips it at 0).
+- **Rain drops**: rain_drops_parameters1.zw are 0.21's half floats, and the drop texture is 0.21's
+  (`textures/ported/v021d/engine/rain_drop`).
+- **Grass**: a material with `srp_grass_v021d` in its effect config draws its grass with 0.21's
+  vertex shaders (the seven `vertex_base*_v021d.vs` families): 0.21's sway.
+- **Water**: a forward water material with `srp_water_v021d` takes 0.21's 1024^2 wave normals
+  (`textures/ported/v021d/engine/water_waves2`).
+- **God rays**: on a 0.21 map's scene they are drawn once a frame, by the geometry's atmosphere
+  stage, as 0.21 draws them; 0.26g draws the whole pass for the sky's stage as well, so the sky got
+  the rays twice (the pale, blown-out glow facing a low evening sun).
+
+A map is a 0.21 one when its project's config root says `srp_renderer_v021d: true`; it is its own
+scene that is drawn the 0.21 way (the lobby's scene, drawn while the match's project is loaded, stays
+native), until its project is removed. The two rain effects compile 0.21 twins of their techniques
+after their own, on every map, and the stages pick a twin only on that scene.
+
+**The patch** (the Rust patch `v021d_render`, `rust/patches/src/v021d_render.rs`; fourteen lohooks, three
+of them on the project sites the lamps share): `wet_surface.compiled`, `wet_surface.begin_pass`, `rain.compiled`,
+`rain.drop_texture` (the twins), `pre_rain.wet_gate`, `pre_rain.wet_apply`, `rain.drop_scales`,
+`rain.drops_apply` (the draws), `atmosphere.god_rays` (the rays), `material.begin_pass` (grass), `water.normal_texture` (water),
+`project.insert`, `project.removed`, `project.destroy` (the map). Nothing a match computes. Checked
+with `check_rain_v021d_026g.py` (with the 0.21d exe, 0.21d's own drop parameters bit for bit) and the
+patch crate's tests. Not run in a game. It needs the content pack's files and keys in the same
+release.
