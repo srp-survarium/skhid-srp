@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Patch 150 (lobby_seeding): the game shares by BitTorrent on the login
-screen and in the lobby while its own enable_torrent_seeding ("Allow
+"""Patch 150 (lobby_seeding): the game shares by BitTorrent from its login
+screen on, in matches too, while its own enable_torrent_seeding ("Allow
 torrent", a line of user.cfg) is on, its default now off (README "The game
 shares in the lobby", client_patch.md).
 
@@ -23,6 +23,8 @@ the sites stubbed and written down:
   built exe's; game::switch_to_lobby (0x1ED1E0) and switch_to_login
   (0x1ED260) call start_seeding (0x3737F0) only while it is on, in both;
   its callback (0x1EE580) starts (on) or stops (off) it, in both.
+- game::switch_to_game_world (0x1ED170): the original sets torrent_client+1Ch
+  (in a match) and calls stop_seeding (0x373910); the built exe does neither.
 """
 import struct
 import sys
@@ -35,6 +37,7 @@ import patch_026g as base
 
 START_SEEDING_IMPL, START_SEEDING, STOP_SEEDING = 0x373C20, 0x3737F0, 0x373910
 SWITCH_TO_LOBBY, SWITCH_TO_LOGIN, ENABLE_CALLBACK = 0x1ED1E0, 0x1ED260, 0x1EE580
+SWITCH_TO_GAME_WORLD, GAME_WORLD, IN_A_MATCH = 0x1ED170, 0x18, 0x1C
 ENABLE_TORRENT_SEEDING = 0xA712B6
 MALLOC, ALLOCATION_NAME, PIPE_NEW, PRODUCT, SWPRINTF, CATEGORY = 0xE4F90, 0x420789, 0x373090, 0xE4390, 0x3745B0, 0x445490
 ACCEPT, MAKE_FUNCTION, ASSIGN_FUNCTION, HANDLER = 0x373230, 0x374670, 0x219470, 0x373BD0
@@ -253,6 +256,21 @@ class Game:
         assert self.emu.reg_read(UC_X86_REG_EIP) == RETURN and self.emu.reg_read(UC_X86_REG_ESP) == SP + 4 + pops
         return self.calls
 
+    def enter_match(self):
+        """switch_to_game_world: (the calls, torrent_client+1Ch)."""
+        self.fresh()
+        self.word(GAME + GAME_NETWORK, NETWORK)
+        self.word(NETWORK, NETWORK_VTABLE)
+        self.word(NETWORK_VTABLE + 0x20, NETWORK_VTABLE + 0x100)
+        self.word(NETWORK_VTABLE + 0x48, NETWORK_VTABLE + 0x110)
+        self.word(GAME + GAME_SCENE, GAME + GAME_WORLD)        # the scene active already: no scene change
+        self.emu.mem_write(SP, struct.pack("<I", RETURN))
+        self.emu.reg_write(UC_X86_REG_EAX, GAME)
+        self.emu.reg_write(UC_X86_REG_ESP, SP)
+        self.emu.emu_start(SWITCH_TO_GAME_WORLD, RETURN, count=100_000)
+        assert self.emu.reg_read(UC_X86_REG_EIP) == RETURN and self.emu.reg_read(UC_X86_REG_ESP) == SP + 4
+        return self.calls, self.emu.mem_read(CLIENT + IN_A_MATCH, 1)[0]
+
     def callback(self, enabled):
         self.fresh()
         self.emu.mem_write(ENABLE_TORRENT_SEEDING, bytes([enabled]))
@@ -311,8 +329,13 @@ def main():
         assert game.callback(1) == [("start_seeding", CLIENT)] and game.callback(0) == [("stop_seeding", CLIENT)]
     print("ok enable_torrent_seeding is off until user.cfg says on (the original: on); switch_to_lobby and "
           "switch_to_login start the seeding only while it is on, its callback starts and stops it, as in the original")
+
+    # 4. A match: the original stops the sharing, the built exe keeps it.
+    assert old.enter_match() == ([("stop_seeding", CLIENT)], 1), old.enter_match()
+    assert new.enter_match() == ([], 0), new.enter_match()
+    print("ok switch_to_game_world: the original sets torrent_client+1Ch and stops the seeding, the built exe does neither")
     print("patch 150: the game's lobby seeding starts updater_skhid.exe seed \\\\.\\pipe\\skhid_seed-<pid> beside "
-          "itself, while enable_torrent_seeding is on")
+          "itself, while enable_torrent_seeding is on, and keeps it in a match")
 
 
 if __name__ == "__main__":

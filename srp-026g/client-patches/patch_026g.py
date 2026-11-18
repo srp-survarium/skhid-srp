@@ -2614,8 +2614,12 @@ BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440
 # on (the launcher's box writes its line). Its initial value, the byte in
 # .data, 1 in the original, is 0: a user.cfg without the line leaves it off.
 # The Rust patch lobby_seeding (sites_026g.tsv seeding.*) names the pipe and
-# starts the updater.
+# starts the updater. The sharing goes on in a match (the owner, 2026-11-18):
+# game::switch_to_game_world's jz over its "in a match" byte
+# (torrent_client+1Ch := 1, 0x1ED193) and its stop_seeding (0x1ED1A5), taken
+# only by a replay, is a jmp (MATCH_SEEDING_KEEP).
 LOBBY_SEEDING_DEFAULT = (0xA712B6, b"\x01", b"\x00")
+MATCH_SEEDING_KEEP = (0x1ED184, bytes.fromhex("7424"), bytes.fromhex("eb24"))
 
 # The grass sort's one order of distance (patch 146, README; client_patch.md
 # "The grass sort's distance"). grass_world::process_culling (0x160470) sorts
@@ -4303,6 +4307,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
                 patch_section_value(data, *LOBBY_SEEDING_DEFAULT)
+                patch(data, *MATCH_SEEDING_KEEP)
                 patch(data, *GRASS_SORT_ORDER)
                 for change in MAP_ID_READERS:
                     patch(data, *change)
