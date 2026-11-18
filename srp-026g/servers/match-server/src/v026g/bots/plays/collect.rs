@@ -1609,6 +1609,18 @@ impl Ctx<'_> {
         self.memo.zone_look(self.tactics, item, rule.within_m.get()).filter(|&spot| self.can_go(spot))
     }
 
+    /// [row 9] Whether a battery lying at `at` is within the client's use ray of the bot's eye ([`view::use_ray_m`], 1.80 m,
+    /// `detect_usable_object` 0x2D84C0, cvar 0xA710D8) with nothing of the bullet mesh between (as [`view_ray_meets_at`]
+    /// reads the line): a take from where it stands, whatever the routes say.
+    pub fn in_use_reach(&self, at: Vec3) -> bool {
+        let eye = self.me.eye();
+        let to = at - eye;
+        let len = to.length();
+        len <= view::use_ray_m()
+            && (len <= USE_LINE_SLACK_M
+                || crate::v026g::bots::rays::ray_cast(&self.tactics.world.sight, eye, to / len, len - USE_LINE_SLACK_M).is_none())
+    }
+
     pub fn can_take(&self, at: Vec3) -> bool {
         self.take_block(at).is_none()
     }
@@ -1648,11 +1660,16 @@ impl Ctx<'_> {
         } else {
             stand
         };
-        if !self.reachable(stand, false) {
-            return Some("no way to its stand");
-        }
-        if self.no_way_lately(stand) {
-            return Some("no way to its stand lately");
+        // [row 9] Within the use's reach of the eye no way is needed: the client takes on the press with the ray on the box
+        // (0x2D88B1, 0x2D84C0), from wherever the body stands. The route tests refused 28 batteries to bots 0-2 m from
+        // them in the 16 own-play matches of 2026-11-18 ("no way to its stand lately").
+        if !self.in_use_reach(at) {
+            if !self.reachable(stand, false) {
+                return Some("no way to its stand");
+            }
+            if self.no_way_lately(stand) {
+                return Some("no way to its stand lately");
+            }
         }
         // Its taker carries it out: a sprint jump is no way (Cologne CG-11,
         // pit A). No expiry: the pocket's ways out are the grid's, and a
@@ -2231,8 +2248,8 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             let _ = routed;
             let stand = crossing.unwrap_or(stand);
             // Or every way in crosses a hazard (a battery ringed by fire):
-            // the search said so, and the bot does something else.
-            if !cx.can_go(stand) {
+            // the search said so, and the bot does something else. [row 9] Not within the use's reach: no way is needed.
+            if !cx.in_use_reach(at) && !cx.can_go(stand) {
                 return Step::Failed("no way to it");
             }
             // Within reach across and not over the stand's floor
@@ -3798,6 +3815,22 @@ mod tests {
         };
         assert_eq!(whys(&scene(4, true)), [None]);
         assert_eq!(whys(&scene(4, false)), [Some("scored out: enemies by it")]);
+    }
+
+    /// [row 9] A battery within the use's reach of the eye is no "no way" block: the take needs the ray, not a route. From
+    /// 5 m off the same lately-failed search still blocks it.
+    #[test]
+    fn a_battery_within_the_use_ray_needs_no_way() {
+        let at = Vec3::new(25.0, 0.12, 12.0);
+        let block = |feet: Vec3| {
+            let mut s = Scenario::field(Mode::Batteries);
+            s.battery(BatteryState::Free(at));
+            s.bot(0, 0, feet);
+            s.no_way_to = vec![(at + Vec3::new(0.3, 0.0, 0.0), s.view.clock + 5_000)];
+            s.cx(0).take_block(at)
+        };
+        assert_eq!(block(Vec3::new(26.0, 0.0, 12.0)), None, "1 m off: within the ray");
+        assert_eq!(block(Vec3::new(30.0, 0.0, 12.0)), Some("no way to its stand lately"), "5 m off");
     }
 
     #[test]
