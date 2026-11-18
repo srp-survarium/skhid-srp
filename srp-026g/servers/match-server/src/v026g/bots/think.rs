@@ -71,11 +71,22 @@ impl Bots {
         sense_batteries(&due, bot, state, rays, notes);
         rays.allow(None);
         remember(&due, bot, &percepts);
-        // [A393] The sights-up window: the memory's track lifetime, the bot's own weapon's shot reach.
-        bot.reflex.set_sights_up(self.tracker.shot_reach_of(bot.place).map(|reach_m| reflex::SightsUp {
-            fresh_ms: tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
-            reach_m,
-        }));
+        // [A393, fix-move] The sights-up enemy: the memory's track lifetime, the bot's own weapon's shot reach, the last corner
+        // (his place in sight of the eye or of a corner of the route within the window's lead: a sight ray each, from the budget).
+        let pick = match (tuning.aim.combat.sights_up, self.tracker.shot_reach_of(bot.place)) {
+            (Some(window), Some(reach_m)) if me.carrying.is_none() => {
+                let corners: Vec<Vec3> = bot.route.as_ref().map_or_else(Vec::new, |(route, _)| {
+                    route.points().iter().skip(route.segment() + 1).take(reflex::SIGHTS_CORNERS).map(|point| point.at).collect()
+                });
+                let fresh_ms = tuning.cheats.forget_ms.max(tuning.sense.forget_ms);
+                let (place, bot_team) = (bot.place, bot.team);
+                reflex::SightsUp::pick(&bot.memory, me.eye(), me.feet, &corners, (window, reach_m, fresh_ms), now, |from, to| {
+                    rays.take(place, bot_team) && aimpoint::sight_line(&tactics.world.sight, from, to)
+                })
+            }
+            _ => None,
+        };
+        bot.reflex.set_sights_up(pick);
         react(&due, bot, state, &self.features.weapons, notes);
         self_kill(&due, bot, state, notes);
         if now < bot.pause_until {
@@ -1175,6 +1186,15 @@ fn smoke_uses(due: &Due, bot: &mut Bot, knowledge: &mut know::TeamKnowledge, not
     let Some((plan, why, against, hold, threat, stretch)) = chosen else {
         return;
     };
+    // [fix-team 5 T6 `skill.tactics.smoke`] A smoke for itself (across a lane, against a sniper, a Breach thrower's) only on
+    // the lives its skill gives one; the objective actor's smoke is team play and never scaled.
+    if plan.for_use != smoke::SmokeUse::ObjectiveActor
+        && let Some(tactics) = tuning.skill.tactics
+        && !signals::life_uses(bot.life_key, crate::v026g::bots::tuning::Tactic::Smoke, tactics.share(crate::v026g::bots::tuning::Tactic::Smoke, bot.skill))
+    {
+        log::debug!("player {} at {now} ms: no smoke of its own this life (skill {:.2})", bot.place, bot.skill);
+        return;
+    }
     #[cfg(not(test))]
     let _ = stretch;
     // A mate's live plan near its landing or against the same shooter: none of its own.
@@ -1254,6 +1274,8 @@ pub(super) fn react(
     };
     // A bullet that hit it, a limb's too (the hit marker and the stagger), as the world last showed: [Gap 14] an enemy's.
     bot.reflex.bullet_hit(bot.fight_hit_ms);
+    // [fix-team 5 T7] The held-spot frag's share at its skill.
+    bot.reflex.set_held_frag_share(tuning.skill.tactics.map_or(1.0, |t| t.share(crate::v026g::bots::tuning::Tactic::Frags, bot.skill)));
     bot.reflex
         .think_with(me, &sit, &bot.memory, now, &tuning.aim, skill, &mut bot.rng);
     for text in bot.reflex.take_throw_notes() {
@@ -1392,6 +1414,7 @@ pub(super) fn decide(
         me,
         bot: BotFacts {
             personality: bot.personality(tuning),
+            skill: bot.skill,
             weapon: bot.weapon(weapons, tuning),
             weapons,
             side: bot.side,

@@ -114,7 +114,10 @@ pub use aim::Calibration;
 pub use aim::ClassAim;
 pub use aim::ClassCalibration;
 pub use aim::SkillCurve;
+pub use aim::SkillTactics;
 pub use aim::SkillTuning;
+pub use aim::Tactic;
+pub use aim::TacticRow;
 pub use aim::TierSkill;
 pub use aim::TypeCalibration;
 pub use cover::BulletPierce;
@@ -182,6 +185,8 @@ pub use tdm::TdmTuning;
 pub use team::AvoidTuning;
 pub use team::BehindOpen;
 pub use team::CampFlank;
+pub use team::AttackGate;
+pub use team::Comeback;
 pub use team::CommitTuning;
 pub use team::Concede;
 pub use team::GangRule;
@@ -348,6 +353,9 @@ impl Tuning {
         }
         if let Some(regroup) = self.mods.raid_regroup {
             regroup.check()?;
+        }
+        if let Some(comeback) = self.mods.comeback {
+            comeback.check()?;
         }
         self.tdm.check()?;
         self.think.check()?;
@@ -524,6 +532,9 @@ pub(super) const KEPT_RIGHT: &[&str] = &[
     "/cover/pierce",
     "/feel/carry_jumps",
     "/feel/walk_jump_reach",
+    // [fix-move, owner-16 row 29] A plain ledge up to the standing top pressed at the walk misses in the exe where the standing
+    // press lands (owner-16 report 10b, class (b/c)).
+    "/feel/ledge_press",
     "/feel/floor_height_clear",
     "/feel/past_drop",
     "/grid/client_numbers",

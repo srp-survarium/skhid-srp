@@ -13,7 +13,7 @@
       "aim_sway_counter": false,
       "kit_recoil": false,
       "recoil_pull_low": 0.5,
-      "sights_up": false,
+      "sights_up": null,
       "fire": {
         "burst_pause": null,
         "burst_human": null,
@@ -141,6 +141,7 @@
   },
   "skill": {
     "duel_by_killer": false,
+    "tactics": null,
     "step_reset": false,
     "tiers": {
       "13-15": {
@@ -178,8 +179,13 @@
     "zone_look": null,
     "zone_take": null
   },
+  "mods": {
+    "comeback": null,
+    "raid_regroup": null
+  },
   "tdm": {
-    "behind_holds": null
+    "behind_holds": null,
+    "gap_full_tickets": null
   },
   "threat": {
     "area": false,

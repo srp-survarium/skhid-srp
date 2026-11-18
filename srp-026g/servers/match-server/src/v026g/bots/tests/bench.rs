@@ -2691,18 +2691,27 @@ pub(crate) fn real_bot_cost() {
             eprintln!("stamina saved worlds so far: {} (reckoned 5+ off {}, 20+ off {})", saved[0], saved[1], saved[2]);
             let riser = crate::v026g::bots::drive::riser_counts::counts();
             eprintln!(
-                "risers so far: sprinted ticks {}, jumps {}, neither ticks {}, flown press not makeable ticks {}, no press ticks {}; \
+                "risers so far: sprinted ticks {}, jumps {}, neither ticks {}, flown press not makeable ticks {}, no press ticks {}, \
+                 refused and planned again {}; \
                  gap landings let go ticks {}; flown presses backed off: off the height {}, slow too fast {}, off the lead {}, off the line {}",
                 riser[0],
                 riser[1],
                 riser[2],
                 riser[3],
                 riser[4],
+                riser[5],
                 crate::v026g::bots::motor::stays::count(),
                 crate::v026g::bots::motor::flown_presses::counts()[0],
                 crate::v026g::bots::motor::flown_presses::counts()[1],
                 crate::v026g::bots::motor::flown_presses::counts()[2],
                 crate::v026g::bots::motor::flown_presses::counts()[3]
+            );
+            // [fix-move] The sights-up's last corner and its yields.
+            let (picks, aimed, yields) = crate::v026g::bots::reflex::sights_up_counts::counts();
+            eprintln!(
+                "sights up so far: picked from the eye {}, from a corner {}, in sight of neither {}; aimed ticks eye {}, corner {}; \
+                 quiet looks yielded ticks riser {}, jump {}",
+                picks[0], picks[1], picks[2], aimed[0], aimed[1], yields[0], yields[1]
             );
             let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
             eprintln!(

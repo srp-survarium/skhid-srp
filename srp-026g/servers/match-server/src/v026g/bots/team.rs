@@ -88,6 +88,7 @@ use super::plays::collect::take_counts;
 use super::plays::{Candidate, PlayKind, Rank, SlotKey, TargetRef};
 use super::tuning::GangRule;
 use super::view::Place;
+use mapdata::Vec3;
 
 /// A candidate of the same band must beat the running play by this.
 pub const MARGIN: f32 = 0.12;
@@ -229,6 +230,84 @@ impl Default for Bands {
             behind_floor: 0.06,
             behind_second: 0.0,
         }
+    }
+}
+
+/// [fix-team 4 `mods.comeback`] What a team knows at its attacks, for [`local_confidence`]: its living players, its bots
+/// attacking a container now (place, feet, the container's place), the enemies it knows by its own senses (where), and the
+/// kill feed's recent deaths there, enemies' (our kills) and its own (our losses), with when.
+pub struct AttackPicture<'a> {
+    pub mates: &'a [(Place, Vec3)],
+    pub raiders: &'a [(Place, Vec3, Vec3)],
+    pub enemies: &'a [Vec3],
+    pub kills: &'a [(Vec3, u32)],
+    pub losses: &'a [(Vec3, u32)],
+    pub now: u32,
+}
+
+/// The ground distance from `p` to the segment `a`-`b`.
+fn to_segment(p: Vec3, a: Vec3, b: Vec3) -> f32 {
+    let (dx, dz) = (b.x - a.x, b.z - a.z);
+    let len2 = dx * dx + dz * dz;
+    let t = if len2 > 0.0 { (((p.x - a.x) * dx + (p.z - a.z) * dz) / len2).clamp(0.0, 1.0) } else { 0.0 };
+    let (cx, cz) = (a.x + dx * t, a.z + dz * t);
+    ((p.x - cx).powi(2) + (p.z - cz).powi(2)).sqrt()
+}
+
+/// [fix-team 4 `mods.comeback`] The local confidence of an attack by the bot `bot` at `feet` on the container at `target`
+/// (Killzone 3's squads judge their own attack; Days Gone's confidence counts the squad's kills toward its strength and its
+/// losses toward the enemy's): the group is the bot and the mates attacking the same container; ours are the team's players
+/// within `group_m` of one of them, plus the kills there; theirs the known enemies there, plus the losses there; "there" is
+/// within `enemy_m` of the container or of a group member's straight way to it; a kill or a loss weighs `exp(-age / fade_s)`.
+/// `(ours + kills) / max(theirs + losses, 1)`.
+pub fn local_confidence(p: &AttackPicture, bot: Place, feet: Vec3, target: Vec3, rule: &crate::v026g::bots::tuning::Comeback) -> f32 {
+    let group: Vec<Vec3> =
+        std::iter::once(feet).chain(p.raiders.iter().filter(|&&(place, _, at)| place != bot && at.distance_xz(target) < 1.0).map(|&(_, f, _)| f)).collect();
+    let there = |at: Vec3| at.distance_xz(target) <= rule.enemy_m || group.iter().any(|&g| to_segment(at, g, target) <= rule.enemy_m);
+    let ours = p.mates.iter().filter(|&&(_, at)| group.iter().any(|&g| g.distance_xz(at) <= rule.group_m)).count().max(1) as f32;
+    let theirs = p.enemies.iter().filter(|&&at| there(at)).count() as f32;
+    let faded = |events: &[(Vec3, u32)]| -> f32 {
+        events
+            .iter()
+            .filter(|&&(at, time)| time <= p.now && there(at))
+            .map(|&(_, time)| (-((p.now - time) as f32 / 1000.0) / rule.fade_s).exp())
+            .sum()
+    };
+    (ours + faded(p.kills)) / (theirs + faded(p.losses)).max(1.0)
+}
+
+/// [fix-team 4 `mods.comeback`] The comeback's counts (the bench's; nothing live): attack candidates held back while the team
+/// was outnumbered, and container holders not offered behind late.
+pub mod comeback_counts {
+    #[derive(Clone, Copy, Debug)]
+    pub enum Count {
+        AttacksHeldBack,
+        HolderOffBehindLate,
+    }
+
+    pub const NAMES: [&str; 2] = ["attacks_held_back", "holder_off_behind_late"];
+
+    #[cfg(test)]
+    thread_local! {
+        static COUNTS: std::cell::Cell<[u64; 2]> = const { std::cell::Cell::new([0; 2]) };
+    }
+
+    #[cfg(test)]
+    pub fn add(c: Count, n: u64) {
+        COUNTS.with(|cell| {
+            let mut all = cell.get();
+            all[c as usize] += n;
+            cell.set(all);
+        });
+    }
+
+    #[cfg(not(test))]
+    pub fn add(_: Count, _: u64) {}
+
+    /// The counts so far on this thread, in [`NAMES`] order.
+    #[cfg(test)]
+    pub fn counted() -> [u64; 2] {
+        COUNTS.with(|cell| cell.get())
     }
 }
 
@@ -2022,6 +2101,47 @@ mod tests {
         assert_eq!([gang_factor(&rule, 0), gang_factor(&rule, 1)], [1.0, 1.0]);
         assert_eq!(gang_factor(&rule, 2), 0.5);
         assert_eq!(gang_factor(&rule, 9), 0.25);
+    }
+
+    /// [fix-team 4] The comeback's confidence: attacks while not outnumbered.
+    #[test]
+    fn a_team_attacks_only_while_it_is_not_outnumbered() {
+        use crate::v026g::bots::tuning::{AttackGate, Comeback};
+        let rule = Comeback::default();
+        assert_eq!(rule.gate(1.0), AttackGate::Open);
+        assert_eq!(rule.gate(0.8), AttackGate::NoStart, "outnumbered: none started, a running one goes on");
+        assert_eq!(rule.gate(0.5), AttackGate::Drop, "decimated: let go");
+        assert!(rule.check().is_ok() && Comeback { drop_confidence: 1.5, ..rule }.check().is_err());
+    }
+
+    /// [fix-team 4] The confidence is local to the attack: the raiders and the mates by them against the enemies known at the
+    /// container or on the way; enemies elsewhere do not count; kills and losses there fade.
+    #[test]
+    fn an_attacks_confidence_is_its_own_group_against_the_known_enemies_there() {
+        use crate::v026g::bots::tuning::Comeback;
+        let rule = Comeback::default();
+        let v = |x: f32, z: f32| Vec3::new(x, 0.0, z);
+        let target = v(100.0, 0.0);
+        // Bot 1 at 0, mate 2 raiding the same container at 10, mate 3 by 2, mate 4 far behind.
+        let mates = [(1, v(0.0, 0.0)), (2, v(10.0, 0.0)), (3, v(12.0, 5.0)), (4, v(-80.0, 0.0))];
+        let raiders = [(2, v(10.0, 0.0), target)];
+        let base = AttackPicture { mates: &mates, raiders: &raiders, enemies: &[], kills: &[], losses: &[], now: 60_000 };
+        assert_eq!(local_confidence(&base, 1, v(0.0, 0.0), target, &rule), 3.0, "three on the attack, none known there");
+        // Four known enemies: two at the container, one on the way, one far off the way (not counted).
+        let enemies = [v(98.0, 2.0), v(105.0, 0.0), v(50.0, 20.0), v(50.0, 90.0)];
+        let p = AttackPicture { enemies: &enemies, ..base };
+        assert_eq!(local_confidence(&p, 1, v(0.0, 0.0), target, &rule), 1.0);
+        // A loss at the container just now tips it under 1; the same loss a minute old barely counts.
+        let fresh = [(v(99.0, 0.0), 60_000)];
+        let p2 = AttackPicture { losses: &fresh, ..p };
+        assert!((local_confidence(&p2, 1, v(0.0, 0.0), target, &rule) - 0.75).abs() < 1e-5);
+        let old = [(v(99.0, 0.0), 0)];
+        let p3 = AttackPicture { losses: &old, ..p };
+        assert!(local_confidence(&p3, 1, v(0.0, 0.0), target, &rule) > 0.98);
+        // A kill there counts for us.
+        let kills = [(v(101.0, 0.0), 60_000)];
+        let p4 = AttackPicture { kills: &kills, ..p };
+        assert!((local_confidence(&p4, 1, v(0.0, 0.0), target, &rule) - 4.0 / 3.0).abs() < 1e-5);
     }
 
     /// [fix-team 2] A held play is kept against a far better play of its band and against a higher band that is no alarm;
