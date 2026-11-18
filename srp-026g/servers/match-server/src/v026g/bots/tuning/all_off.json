@@ -183,7 +183,8 @@
   "mods": {
     "comeback": null,
     "raid_approach": null,
-    "raid_regroup": null
+    "raid_regroup": null,
+    "raid_replan": null
   },
   "tdm": {
     "behind_holds": null,

@@ -201,6 +201,7 @@ pub use team::PinFromCover;
 pub use team::PinRule;
 pub use team::RaidApproach;
 pub use team::RaidRegroup;
+pub use team::RaidReplan;
 pub use team::RefuseFights;
 pub use team::RoamAvoid;
 pub use team::SEARCH_FLOORS_PER_POLL;
@@ -357,6 +358,9 @@ impl Tuning {
         }
         if let Some(approach) = self.mods.raid_approach {
             approach.check()?;
+        }
+        if let Some(replan) = self.mods.raid_replan {
+            replan.check()?;
         }
         if let Some(comeback) = self.mods.comeback {
             comeback.check()?;
