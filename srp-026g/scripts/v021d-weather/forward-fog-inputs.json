@@ -48,5 +48,50 @@
     "path": "shaders/sm_4_0/forward_lighting.ps/____311_0___001_000___2___0____0_0______________0__0_0__________0__",
     "base_sha256": "70eb354c7e76cc33d9774f97b63decc8026659466329256d4520ec47b6d653eb",
     "dxbc_digest": "c1caaa4f61e12b4ff612081aa58cd892"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_base.ps/______0________1_010__3________0_0______________1__0_0_0________0__",
+    "base_sha256": "a645df0b355d76f5bed1ab7cb9f695e2b71b0d3bfe0adebd9ab8591b5820adbd",
+    "dxbc_digest": "9a09373a3de24f2ba740a1adcf5fb745"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_base.ps/______0________1_011__3________0_0______________1__0_0_0________0__",
+    "base_sha256": "8269c04bf90bb95303c361190df3a0aa621df7fd95ec6db228acc0083745392b",
+    "dxbc_digest": "8bf01adab15046ac4ab5b328f73ddd26"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_base.ps/______0________2_000__3________0_0______________1__0_0_0________0__",
+    "base_sha256": "595359ad55532030c0a454d29ab0cf7baca8e88b6e039ac2036ca0a5f03c9e3f",
+    "dxbc_digest": "2de52a6d626dc1ff477cb44f6db9d441"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_base.ps/______0________2_010__3________0_0______________0__0_0_0________0__",
+    "base_sha256": "3c12ca61033cb5c2bef08e2e96839a40bedce5ce3e6ce5a4e17912b469715bc2",
+    "dxbc_digest": "817ff82a8734be02b6c9836463680ed9"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_base.ps/______0________2_011__3________0_0______________0__0_0_0________0__",
+    "base_sha256": "710405d16a496706f5ad11e564877576395d07dc09f800074510c426ffcef9a2",
+    "dxbc_digest": "1e39d7d2049705fb7e282ae2e1aec3f8"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_base.ps/______1________1_010__3________0_0______________1__0_0_0________0__",
+    "base_sha256": "2802fb908db0954f8bbfd357c7376f6fcd531fa32176d59888acf92272533ada",
+    "dxbc_digest": "e7c7cea4d6c069420d4c65a5d527727b"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_base.ps/______1________1_011__3________0_0______________1__0_0_0________0__",
+    "base_sha256": "288c4714b1d139a065d86e9376cb7f1ac60fdeeae9a580cb5c04288d06028168",
+    "dxbc_digest": "b25024ed1c5807c31a0fb0004bc04e92"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_base.ps/______1________2_010__3________0_0______________0__0_0_0________0__",
+    "base_sha256": "a0234a5787410a1c9d702d86bf0ee39dd91020559e2e65afdbb7f04fc9fdc185",
+    "dxbc_digest": "d1b9d86fbbc6cf672b0c4db7f83b311c"
+  },
+  {
+    "path": "shaders/sm_4_0/forward_base.ps/______1________2_011__3________0_0______________0__0_0_0________0__",
+    "base_sha256": "fa14b12077972b262dd3f6102b3ebfbea1bc8629f1a65805a58c29cf233ad799",
+    "dxbc_digest": "15dbb9bbe3d7a16adf3d366ee3950d84"
   }
 ]

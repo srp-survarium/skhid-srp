@@ -88,7 +88,7 @@ python3 srp-026g/scripts/v021d-weather/check_forward_fog.py \
     --profiles srp-026g/scripts/v021d-weather/forward-fog-profiles.json \
     --patches release/patches.tsv --patch-cache "$cache/patches" \
     --shader-indexer "$common/private/v021d-five-weathers/bin/shader-digests" \
-    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-forward-fog-2"
+    --patch "${candidate[0]}" --pack "$SKHID_PACKS_DIR/v021d-forward-fog-3"
 layers+=(--donor-patch "${candidate[0]}" --target-patch "${candidate[0]}")
 roots=()
 for level in 01 02 03 05 06; do
