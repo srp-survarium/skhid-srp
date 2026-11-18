@@ -97,6 +97,30 @@ def check(run, updater, x86, started, log, win):
         assert not started.exists(), 'unreachable routes must not launch the game'
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768', '-server=127.0.0.9:1234')
         expect('127.0.0.9:1234')
+        # The scripts' form: the updater stays until the game has ended (the
+        # stand-in's `hold` runs until its release file is there).
+        file, held, release = x86 / 'wait.file', x86 / 'wait.held', x86 / 'wait.release'
+        file.write_bytes(b'')
+        problems = []
+        def waiting():
+            try:
+                run(updater, 'play', 'wait', 'quiet', 'hold', win(file), win(held), win(release),
+                    '-server=127.0.0.9:1234')
+            except BaseException as error:
+                problems.append(error)
+        script = threading.Thread(target=waiting)
+        script.start()
+        for _ in range(400):
+            if held.exists() or not script.is_alive():
+                break
+            time.sleep(.05)
+        assert held.exists(), f'the stand-in game did not start: {problems} {log()}'
+        time.sleep(.5)
+        assert script.is_alive(), 'play wait ended before the game did'
+        release.write_bytes(b'')
+        script.join(timeout=30)
+        assert not script.is_alive() and not problems, problems
+        started.unlink(missing_ok=True)
     finally:
         config.unlink(missing_ok=True)
         stop.set()
