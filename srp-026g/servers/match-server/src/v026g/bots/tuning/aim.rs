@@ -619,6 +619,103 @@ pub struct SkillTuning {
     /// [A392] A step one way sets the other way's step count back to 0, so the first step back is a full `step`. Off: the
     /// counts never reset, each further step the same way smaller over the match.
     pub step_reset: bool,
+    /// [fix-team 5] The skill scales how often a bot uses the advanced tactics (`LOSING-TEAM-ROOT-CAUSE.md` §6, the design
+    /// chosen 2026-11-18): the team play (job roles, the hold of a started play, the support, the comeback) is the same at
+    /// every skill; the advanced tactics are used as today at `today` (0.6, the High tier's start), less below it down to each
+    /// row's floor at skill 0, a little more above it up to its top at `top_at`. `None`: every tactic as today at every skill.
+    pub tactics: Option<SkillTactics>,
+}
+
+/// [fix-team 5] One advanced tactic's share by skill ([`crate::v026g::bots::signals::tactic_share`]): `floor` at skill 0,
+/// 1 at [`SkillTactics::today`], `top` at [`SkillTactics::top_at`].
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TacticRow {
+    pub floor: f32,
+    pub top: f32,
+}
+
+/// [fix-team 5] The advanced tactics a bot's skill scales (§6.4 T1-T8). The rows are the design's starting values: no source
+/// gives them, the bench sets them (a `top` over 1 stays only where the tactic's own outcome improves at 0.6-0.9).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SkillTactics {
+    /// The skill where every share is 1 (today's play): the High tier's start.
+    pub today: f32,
+    /// The skill where every share reaches its `top`: the highest bracket ceiling.
+    pub top_at: f32,
+    /// T1, a flank of its own (play 8 on an enemy, not a job role).
+    pub flank: TacticRow,
+    /// T2, a crossfire of its own (play 9, not a job's pin).
+    pub crossfire: TacticRow,
+    /// T3, a cut and an ambush (plays 26 and 1): an angle held on the enemy's way.
+    pub cut: TacticRow,
+    /// T4, a sneak (play 4).
+    pub sneak: TacticRow,
+    /// T5, the answer to a sniper (play 28).
+    pub answer: TacticRow,
+    /// T6, a smoke for itself (across a lane, against a sniper, a Breach thrower's): the share of lives that throw one.
+    pub smoke: TacticRow,
+    /// T7, a frag at a held spot (A170): the throw's chance times the share.
+    pub frags: TacticRow,
+    /// T8, traps on the enemy's lanes (the trap habit): the share of lives that plan them.
+    pub traps: TacticRow,
+}
+
+impl Default for SkillTactics {
+    fn default() -> Self {
+        let row = |floor, top| TacticRow { floor, top };
+        Self {
+            today: 0.6,
+            top_at: 0.9,
+            flank: row(0.3, 1.3),
+            crossfire: row(0.3, 1.3),
+            cut: row(0.4, 1.15),
+            sneak: row(0.4, 1.15),
+            answer: row(0.4, 1.2),
+            smoke: row(0.3, 1.0),
+            frags: row(0.3, 1.0),
+            traps: row(0.3, 1.0),
+        }
+    }
+}
+
+/// [fix-team 5] An advanced tactic ([`SkillTactics`]'s rows).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tactic {
+    Flank,
+    Crossfire,
+    Cut,
+    Sneak,
+    Answer,
+    Smoke,
+    Frags,
+    Traps,
+}
+
+impl SkillTactics {
+    /// The row of `tactic`.
+    pub fn row(&self, tactic: Tactic) -> TacticRow {
+        match tactic {
+            Tactic::Flank => self.flank,
+            Tactic::Crossfire => self.crossfire,
+            Tactic::Cut => self.cut,
+            Tactic::Sneak => self.sneak,
+            Tactic::Answer => self.answer,
+            Tactic::Smoke => self.smoke,
+            Tactic::Frags => self.frags,
+            Tactic::Traps => self.traps,
+        }
+    }
+
+    /// The share of `tactic` at `skill`.
+    pub fn share(&self, tactic: Tactic, skill: f32) -> f32 {
+        crate::v026g::bots::signals::tactic_share(skill, self.today, self.top_at, self.row(tactic))
+    }
+
+    fn rows(&self) -> [TacticRow; 8] {
+        [self.flank, self.crossfire, self.cut, self.sneak, self.answer, self.smoke, self.frags, self.traps]
+    }
 }
 
 impl Default for SkillTuning {
@@ -642,6 +739,7 @@ impl Default for SkillTuning {
             min_events: 4,
             duel_by_killer: true,
             step_reset: true,
+            tactics: Some(SkillTactics::default()),
         }
     }
 }
@@ -690,6 +788,13 @@ impl Check for SkillTuning {
             )?;
         }
         check(self.kd_low < self.kd_high, "skill.kd_*")?;
+        if let Some(t) = &self.tactics {
+            check(0.0 < t.today && t.today < t.top_at && t.top_at <= 1.0, "skill.tactics.today")?;
+            check(
+                t.rows().iter().all(|r| (0.0..=1.0).contains(&r.floor) && (1.0..=1.5).contains(&r.top)),
+                "skill.tactics rows (floor 0-1, top 1-1.5)",
+            )?;
+        }
         Ok(())
     }
 }
