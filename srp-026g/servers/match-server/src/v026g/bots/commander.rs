@@ -1484,6 +1484,7 @@ impl Bots {
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
+                    skill: bot.skill,
                     weapon: bot.weapon(&self.features.weapons, &tuning),
                     weapons: &self.features.weapons,
                     side: bot.side,
@@ -1667,6 +1668,7 @@ fn bot_facts<'a>(
 ) -> BotFacts<'a> {
     BotFacts {
         personality: bot.personality(tuning),
+        skill: bot.skill,
         weapon: bot.weapon(weapons, tuning),
         weapons,
         side: bot.side,
