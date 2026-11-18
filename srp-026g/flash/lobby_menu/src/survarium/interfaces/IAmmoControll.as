@@ -12,8 +12,6 @@ package survarium.interfaces
       
       function update(event:Event = null, caller:String = "null") : String;
       
-      function fillItems(items:Array) : void;
-      
       function openSlots(slotsN:int, slotsA:int) : void;
       
       function setSlotTarget(slotId:uint, targets:Array = null) : void;

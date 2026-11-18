@@ -133,7 +133,10 @@ OWN_CHECKS = {
     (0x2F5BE6, 6): "shared_statistics::deserialize: twenty records, as its serialize",
     (0x2F5C03, 6): "shared_statistics::deserialize: twenty records (its second loop)",
     (0x313735, 6): "carry.ground_save: a dropped artefact's 20 bytes in the objects section (no decoder locates "
-                   "them); check_artefact_carry_026g.py (state 6's 20 bytes saved, then loaded)",
+                   "them); check_artefact_carry_026g.py (state 6's 20 bytes saved, then loaded); and patch 109's "
+                   "4 bytes of an active one (state 4), the places Cascade's activation reached; "
+                   "check_artefact_skills_026g.py `check_cascade_activation` (saved, loaded by a late joiner, saved "
+                   "the same)",
     (0x3137EC, 5): "carry.ground_load: as carry.ground_save",
     (0x321C3B, 5): "bullet_history.saved: patch 75's lamp words after the bullets' history (the bullets section, "
                    "no decoder); check_lamps_026g.py (a rollback's and a late joiner's load: the lamps the words say)",
@@ -143,9 +146,16 @@ OWN_CHECKS = {
     (0x32BE12, 7): "bullet.load_quiet: the quiet byte always read, as bullet.save_quiet",
     (0x32BDBA, 5): "bullet.load_ordinal: an ordinal past the loading gun's ammo is none (the same in a world whose "
                    "guns match); check_weapon_pickup_026g.py `bullet_record`",
+    (0x321CA0, 6): "bullets.load_record: a record whose shooter has no gun in its slot passed over, no bullet made "
+                   "(none in a world whose guns match); check_weapon_pickup_026g.py `bullet_record`",
     (0x334F66, 10): "battery.save: patch 92's life after each battery's record (the statistics, modes 2 and 3; "
                     "none in the recorded match); check_battery_progress_026g.py (a load gives every life back)",
     (0x3350D0, 6): "battery.load: as battery.save",
+    (0x316FB8, 5): "respawn.save: patch 142's spawn history, 40 bytes after the respawn rule's (the rules section, a "
+                   "free-for-all's only: the corpus is Team Deathmatch's, where it writes nothing); "
+                   "check_free_for_all_026g.py (saved after the game's own bytes, loaded by a late joiner and in a "
+                   "rollback, saved the same, the same choices after; another mode's bytes the game's alone)",
+    (0x317038, 7): "respawn.load: as respawn.save",
 }
 CODEC = re.compile(r"::(de)?serialize")
 CODEC_ALSO = {0x32BBC0: "survarium::bullet::bullet (the bullet loader)",

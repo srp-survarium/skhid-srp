@@ -1,10 +1,10 @@
 //! The face a player chooses (`face-choice.md`): srp's own wire, on the
 //! ranking page's request (`3B`) at reserved starts and its reply (`91`),
-//! as the presets are (`presets.rs`, `lobby.md` §2.16.6). Only srp's
+//! as the presets are (`presets.rs`, `lobby.md` §2.16.7). Only srp's
 //! changed lobby movie asks; a stock game never does.
 //!
-//! Every start is from [`FACES_FIRST`] to [`FACES_LAST`], above the lobby
-//! pick and within an `int`. Every request is answered with the state
+//! Every start is from [`FACES_FIRST`] to [`FACES_LAST`], above the shop's
+//! box and within an `int`. Every request is answered with the state
 //! ([`face_state`]) at [`FACES_FIRST`]; a face chosen is sent in the
 //! account (`87`) first, which the exe draws the lobby's character by.
 
@@ -80,8 +80,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_starts_are_above_the_lobby_pick_and_inside_an_int() {
-        const { assert!(FACES_FIRST > super::super::lobby_pick::LOBBY_PICK_BASE + 99) };
+    fn the_starts_are_above_the_shops_box_and_inside_an_int() {
+        const { assert!(FACES_FIRST > super::super::shop_filter::SHOP_FILTER_FIRST + 2) };
         const { assert!(FACES_LAST < i32::MAX as u32) };
         const { assert!(FACE_CHOOSE_BASE + MAX_FACES as u32 - 1 <= FACES_LAST) };
     }

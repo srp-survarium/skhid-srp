@@ -4,6 +4,7 @@
 //! a late joiner; and no room for an older game.
 
 use session::v026g::rooms::Stage;
+use survarium::v026g::maps::MapId;
 use session::v026g::{matchmaking, quests};
 use survarium::v026g::lobby::rooms::{
     ROOM_FORM, ROOM_FRIENDS, ROOM_JOIN_BASE, ROOM_JOIN_MATCH, ROOM_LEAVE, ROOM_MEMBERS_BASE,
@@ -16,6 +17,7 @@ use super::pvb_tests::with_gear;
 use super::*;
 use crate::v026g::LiveView;
 
+mod free_for_all;
 mod scaling;
 mod squads;
 
@@ -131,7 +133,7 @@ pub(super) fn create(world: &mut World, index: usize, spec: RoomSpec, pin: Optio
 }
 
 /// The cards of a state: their maps.
-fn cards(state: &[String]) -> Vec<u8> {
+fn cards(state: &[String]) -> Vec<MapId> {
     state
         .iter()
         .filter(|row| row.starts_with("C;"))
@@ -183,23 +185,20 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(header(&counting)[NEXT], "0");
     let voted_cards = cards(&counting);
     assert_eq!(voted_cards.len(), 3);
-    // The third card is Blackout (the owner's of 2026-11-02), the others not.
-    assert!(maps::map_mode(voted_cards[2]).is_some_and(|map| map.mode == maps::GameMode::Blackout));
-    assert!(
-        voted_cards[..2]
-            .iter()
-            .all(|&card| !maps::map_mode(card).is_some_and(|map| map.mode == maps::GameMode::Blackout))
-    );
     // Alice changes her mind: one vote, the last.
     rows(&mut world, alice, ROOM_VOTE_BASE + 2, 1);
     rows(&mut world, alice, ROOM_VOTE_BASE + 1, 1);
     let voted = rows(&mut world, bob, ROOM_VOTE_BASE + 1, 1);
     assert!(
-        voted.contains(&format!("C;2;{};0;0", voted_cards[2])),
+        voted
+            .iter()
+            .any(|row| row.starts_with(&format!("C;2;{};0;0;", voted_cards[2]))),
         "{voted:?}"
     );
     assert!(
-        voted.contains(&format!("C;1;{};2;1", voted_cards[1])),
+        voted
+            .iter()
+            .any(|row| row.starts_with(&format!("C;1;{};2;1;", voted_cards[1]))),
         "{voted:?}"
     );
     // The list shows the card that leads alone.
@@ -219,7 +218,8 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(map_of(&list), "0");
     let late = rows(&mut world, bob, ROOM_VOTE_BASE + 2, 1);
     assert!(
-        late.contains(&format!("C;2;{};2;1", voted_cards[2])),
+        late.iter()
+            .any(|row| row.starts_with(&format!("C;2;{};2;1;", voted_cards[2]))),
         "{late:?}"
     );
     world.take(alice);
@@ -230,13 +230,12 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     assert_eq!(to_alice.0, to_bob.0);
     assert_ne!(to_alice.1, to_bob.1, "one a side");
     let setup = world.host.made.locked().last().unwrap().1.clone();
-    // The third card won: its Blackout map.
+    // The third card won.
     assert_eq!(
-        setup.map.map().id,
+        setup.played.map().id,
         voted_cards[2],
         "the vote's winner when it started"
     );
-    assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
     assert_eq!(setup.players.len(), 2, "no bots");
     assert!(!setup.vs_bots);
     assert!(!setup.private, "no PIN: it pays");
@@ -256,7 +255,8 @@ fn a_room_counts_down_from_two_and_plays_the_card_voted_for() {
     world.advance(Duration::from_secs(2));
     let after = state(&mut world, alice);
     assert_eq!(header(&after)[PHASE], "3", "the next vote: {after:?}");
-    assert_eq!(after.last().unwrap(), &format!("L;{}", voted_cards[2]));
+    // Its map and the mode it played.
+    assert!(after.last().unwrap().starts_with(&format!("L;{};", voted_cards[2])), "{after:?}");
     assert_eq!(cards(&after).len(), 3);
 }
 
@@ -1197,7 +1197,7 @@ fn a_rooms_match_has_its_players_mean_level_and_counts_its_map() {
     };
     assert_eq!(*id, ticket);
     assert_eq!(setup.match_level, 3);
-    let map = setup.map.map().level;
+    let map = setup.played.map().level;
     for player in [alice, bob] {
         let account = world.account(player);
         assert_eq!(account.map_plays, [(map, 1)]);
@@ -1222,7 +1222,7 @@ fn an_older_game_plays_in_no_room() {
 
 /// The create window's answer: its header's fields and the `maps_dict` ids
 /// it puts in (tile in, mode not out).
-fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<u8>) {
+fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<MapId>) {
     let rows = rows(world, index, ROOM_FORM, 1);
     let header = header(&rows);
     let modes_off: Vec<u8> = header[7]
@@ -1235,7 +1235,7 @@ fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<u8>) {
         let fields: Vec<&str> = row.split(';').collect();
         assert_eq!(fields[..2], ["E", &chunk.to_string()]);
         let bits: u32 = fields[2].parse().unwrap();
-        tiles_on.extend((0..20).map(|b| bits & 1 << b != 0));
+        tiles_on.extend((0..survarium::v026g::lobby::rooms::BITS_PER_CHUNK).map(|b| bits & 1 << b != 0));
     }
     let chosen = world
         .core
@@ -1257,7 +1257,7 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let entries = world.core.room_entries();
-    let regular: Vec<u8> = entries
+    let regular: Vec<MapId> = entries
         .iter()
         .filter(|entry| !entry.extra)
         .map(|entry| entry.map_id)
@@ -1293,7 +1293,7 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     assert_eq!(fields, ["1", "9", "2", "3", "45"]);
     // The pool as made: the window's tiles and modes give it back (an entry
     // of the same map, weather and mode would come with it).
-    let made: Vec<u8> = world
+    let made: Vec<MapId> = world
         .core
         .rooms
         .of(world.ids[alice].0)
@@ -1459,7 +1459,7 @@ fn one_who_leaves_the_match_by_its_own_word_is_out_of_the_room_and_may_come_agai
             .in_match
             .contains(&bob_account)
     );
-    let map = setup.map.map().level;
+    let map = setup.played.map().level;
     assert_eq!(world.account(bob).map_plays, [(map, 1)]);
 
     // The match ends: Bob's latest place is his result, once.
@@ -1836,7 +1836,7 @@ fn a_member_whose_late_join_fails_waits_in_its_room_again_and_goes_in_later() {
 }
 
 /// The members of a member list (`S1;G;<key>;<members>`, then two rows a
-/// member: `P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;<side>;
+/// member: `P;<i>;<gear>;<owner>;<me>;<in match>;<fit>;<away>;0;
 /// <account>;<squad>` and its whole name) that the asker gets for the room
 /// of `key`: the header's fields, then each member's fields with its name
 /// last (index 11).
@@ -1904,33 +1904,25 @@ fn anyone_sees_who_is_in_a_room_with_a_pin_too() {
     );
 }
 
-/// While the room plays its match, each member's side is the team of its
-/// place in it, 1 or 2; a member waiting outside the match has none.
+/// While the room plays its match, the list says who is in it and never on
+/// which side (the owner's of 2026-11-13: "always like at voting"); one who
+/// joins now waits outside the match first.
 #[test]
-fn a_member_list_says_the_side_of_each_player_in_the_match() {
+fn a_member_list_says_who_plays_the_match_and_no_side() {
     let mut world = World::new();
-    let (key, _, id, players) = room_match_of_four(&mut world);
+    let (key, _, _, _) = room_match_of_four(&mut world);
     let eve = world.connect("Eve");
-    let seen = members(&mut world, eve, key);
-    assert_eq!(seen[0][3], "4", "{seen:?}");
-    for (row, &player) in seen[1..].iter().zip(&players) {
-        let (_, team) = seat_of(&world, id, player);
-        assert_eq!(row[5], "1", "in the match: {row:?}");
-        assert_eq!(row[8], (team + 1).to_string(), "{row:?}");
-    }
-    let sides: Vec<&str> = seen[1..].iter().map(|row| row[8].as_str()).collect();
-    assert_eq!(
-        sides.iter().filter(|&&side| side == "1").count(),
-        2,
-        "{sides:?}"
-    );
-    // One who joins now waits outside the match first: no side.
     let frank = world.connect("Frank");
     rows(&mut world, frank, ROOM_JOIN_BASE + key, 1);
-    let now = members(&mut world, eve, key);
-    let row = &now[5];
+    let seen = members(&mut world, eve, key);
+    assert_eq!(seen[0][3], "5", "{seen:?}");
+    // In the match, on no side.
+    for row in &seen[1..5] {
+        assert_eq!((row[5].as_str(), row[8].as_str()), ("1", "0"), "{row:?}");
+    }
+    let row = &seen[5];
     assert_eq!(row[11], "Frank");
-    assert_eq!((row[5].as_str(), row[8].as_str()), ("0", "0"), "{now:?}");
+    assert_eq!((row[5].as_str(), row[8].as_str()), ("0", "0"), "{row:?}");
 }
 
 /// The longest names (63 bytes: wide Latin, Cyrillic, mixed with `;`) come
@@ -2391,7 +2383,7 @@ fn a_private_room_with_bots_fills_its_teams_with_them() {
     assert_eq!(refused, ["S1;N;8;0;0"], "no bots' maps: no room");
 
     let entries = world.core.room_entries();
-    let bot_maps: Vec<u8> = entries
+    let bot_maps: Vec<MapId> = entries
         .iter()
         .filter(|entry| entry.mode == 2 && !entry.extra)
         .map(|entry| entry.map_id)
@@ -2403,7 +2395,7 @@ fn a_private_room_with_bots_fills_its_teams_with_them() {
     let pool = rows(&mut world, alice, ROOM_POOL_BASE, 255);
     for row in &pool[1..] {
         let fields: Vec<&str> = row.split(';').collect();
-        let map_id: u8 = fields[1].parse().unwrap();
+        let map_id: MapId = fields[1].parse().unwrap();
         let bots = if bot_maps.contains(&map_id) { "1" } else { "0" };
         assert_eq!(fields[6], bots, "{row}");
     }
@@ -2426,7 +2418,7 @@ fn a_private_room_with_bots_fills_its_teams_with_them() {
 
     let (ticket, _) = sent_to_match(&press_start(&mut world, alice)).expect("a match");
     let setup = world.host.made.locked().last().unwrap().1.clone();
-    assert!(bot_maps.contains(&setup.map.map().id));
+    assert!(bot_maps.contains(&setup.played.map().id));
     let size = usize::from(rules().pvb.default_size);
     for side in [0, 1] {
         let on = |driven: bool| {
@@ -2788,7 +2780,7 @@ fn blackout_is_a_mode_of_the_standard_pool() {
     // Rudnya's day: batteries (61), chargers (62), Team Deathmatch (117)
     // and Blackout (its battery map's twin, `blackout-mode-1.json`).
     let twin = maps::find(1, maps::weather::DAY, maps::GameMode::Blackout).unwrap().id;
-    settings.maps = vec![61, 62, 117, twin];
+    settings.maps = vec![MapId::new(61), MapId::new(62), MapId::new(117), twin];
     let mut world = World::with_settings(settings);
     let entries = world.core.room_entries();
     let blackout = maps::GameMode::Blackout.lobby_number();
@@ -2845,8 +2837,8 @@ fn blackout_is_a_mode_of_the_standard_pool() {
         .iter()
         .find(|(id, _)| *id == ticket)
         .expect("the room's match");
-    assert_eq!(setup.map.map().id, twin, "the Blackout map");
-    assert_eq!(setup.map.mode(), maps::GameMode::Blackout);
+    assert_eq!(setup.played.map().id, twin, "the Blackout map");
+    assert_eq!(setup.played.mode(), maps::GameMode::Blackout);
 }
 
 /// The owner's of 2026-11-05 ("i wish matches were always 8vs8"): a room
@@ -2857,7 +2849,7 @@ fn a_rooms_match_with_bots_is_always_8_v_8() {
     use survarium::v026g::lobby::rooms::ROOM_CREATE_BOTS;
 
     let mut world = World::new();
-    let bot_maps: Vec<u8> = world
+    let bot_maps: Vec<MapId> = world
         .core
         .room_entries()
         .iter()
@@ -2894,4 +2886,49 @@ fn a_rooms_match_with_bots_is_always_8_v_8() {
     // A team takes 8: the owner moves nobody onto a full one.
     let room = world.core.rooms.get(key).unwrap();
     assert_eq!(room.spec.size, 8);
+}
+
+/// The owner's of 2026-11-09: "strong people being split always evenly". A
+/// strong late joiner goes to the side with fewer strong players, though
+/// the other side counts for less: at 2 v 2, team 0 one strong (2.5) and
+/// one weak (0.5, 3 in all), team 1 none strong (1.9 and 1.9, 3.8), it goes
+/// to team 1; a player not strong would go to team 0, the weaker.
+#[test]
+fn a_strong_late_joiner_goes_to_the_side_with_fewer_strong_players() {
+    use session::Strength;
+    use session::v026g::level_stats::{KillsDeaths, LevelStats};
+    let mut world = World::new();
+    let (key, ticket, id, _) = room_match_of_four(&mut world);
+    let running = world.core.matches.get_mut(&id).unwrap();
+    let mut team_0 = [2500, 500].into_iter();
+    let mut team_1 = [1900, 1900].into_iter();
+    for (place, &(_, team)) in running.seats.iter().enumerate() {
+        let milli = if team == 0 {
+            team_0.next()
+        } else {
+            team_1.next()
+        };
+        running.strengths[place] = Strength::from_milli(milli.unwrap());
+    }
+    let erin = world.connect("Erin");
+    world.change(erin, |account| {
+        account.level_stats = LevelStats::from_rows((0..=15).map(|level| {
+            (
+                level,
+                KillsDeaths {
+                    kills: 3000,
+                    deaths: 1000,
+                },
+            )
+        }));
+    });
+    rows(&mut world, erin, ROOM_JOIN_BASE + key, 1);
+    world.take(erin);
+    assert_eq!(late_teams(&mut world, ticket, id, &[erin]), [1]);
+    // 2 v 3, the strong one a side: Frank, not strong, to the side with
+    // fewer as before.
+    let frank = world.connect("Frank");
+    rows(&mut world, frank, ROOM_JOIN_BASE + key, 1);
+    world.take(frank);
+    assert_eq!(late_teams(&mut world, ticket, id, &[frank]), [0]);
 }

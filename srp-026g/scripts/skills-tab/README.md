@@ -16,6 +16,14 @@ every branch of the skill tree as the lobby draws it.
   rank); no "Current value", as the page has no player. It follows a mouse's hover;
   a tap opens it, a tap or a scroll closes it; it opens below the skill, or above when there is
   no room, and never moves the page.
+- A planner: a click on a skill adds a rank (its pips fill), a right click or a long press takes one
+  back; on a phone, a tapped skill's tooltip has − and +. Only what the server would accept is
+  taken (ranks, the row its branch opens, exclusions, the last level's points); a refused rank
+  shakes the disc. The lobby's locks follow the build: a row not opened yet, a skill a taken one
+  excludes. The tooltip shows the ranks taken and the lobby's "Current value". A bar above the
+  trees counts the points, which is the level the build needs, and that level in matches and hours
+  (the server's levels section); each branch's heading its own points. The build is kept in the
+  address (`#101.5,103.2`) to share.
 - A tree is never squeezed: a card that does not fit goes to the next row; on a phone the whole
   tree scales down.
 - English and Ukrainian, like the rest of the wiki; the site's colours and type around the

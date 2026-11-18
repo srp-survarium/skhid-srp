@@ -9,12 +9,14 @@ pub use effects::{
 };
 pub use objects::{
     ActiveCore, AnomalyArtefacts, AnomalyState, ArtefactBase, ArtefactBases, ArtefactContainerCore,
-    ArtefactContainerCores, ArtefactId, ArtefactState, BoobyTrapCore, DamageZoneCore,
-    DamageZoneCores, GameObject, GameObjectIter, GameObjects, GenericAnomalyCore, GrenadeCore, Kit,
-    Motion, ObjectFault, Owner, PlacedTrap, ResupplyZoneCore, Thrown, TrapState,
+    ArtefactContainerCores, ArtefactId, ArtefactSlot, ArtefactState, BoobyTrapCore,
+    DamageZoneCore, DamageZoneCores, GameObject, GameObjectIter, GameObjects, GenericAnomalyCore,
+    GrenadeCore, Kit, Motion, ObjectFault, Owner, PlacedTrap, ResupplyZoneCore, Thrown, TrapState,
     UsableObject, User, ZoneGroup, ZoneGroups, ZoneMask,
 };
-pub use objects::{Anomaly, Artefact, Artefacts, Group, Held, Map, Objects, State, objects};
+pub use objects::{
+    Anomaly, Artefact, ArtefactItem, Artefacts, Group, Held, Map, Objects, State, Uses, objects,
+};
 mod inventory;
 pub use inventory::{
     Affect, AffectKind, AfterItems, Ammo, Body, BodyPart, Chamber, Controller, DamageModel, Gun,
@@ -23,7 +25,8 @@ pub use inventory::{
 };
 mod player_tail;
 pub use player_tail::{
-    ArtefactSlots, BatteryAnimation, BatteryMotion, BatteryState, CarriedBattery, Head, HitEffect,
+    ArtefactSlots, BatteryAnimation, BatteryMotion, BatteryState, BatteryStrike, CarriedBattery,
+    Head, HitEffect,
     HitEmitter, MAX_HIT_EFFECTS, MAX_PLAYER_EFFECTS,
     InventoryHeader, PlayerState, Stamina, player_head, player_tail,
 };
@@ -39,8 +42,9 @@ mod statistics;
 use crate::{KITS, Part, Reason, Refusal, mode};
 pub use frame::{Block, Frame, PLAYER_STATE_CAP, Section, frame};
 pub use rules::{
-    Battery, Container, ContainerId, FreeBattery, Gather, KillsDeaths, ModeRule, Phase, PlaceList,
-    Research, ResearchUnit, Respawn, Rules, Tdm, Timed, Timelimit, rules,
+    Battery, Container, ContainerId, FreeBattery, Gather, KillsDeaths, LastSpawns, ModeRule, Phase,
+    PlaceList, Research, ResearchUnit, Respawn, Rules, SpawnHistory, SpawnPoint, Tdm, Timed, Timelimit,
+    rules,
 };
 pub use statistics::{
     BatteryStatus, ByPlace, EVENTS, Events, LastTaker, OwnerTeam, PlayerStatistics, Statistics, Tail,
@@ -68,6 +72,9 @@ pub struct Context<'a> {
     pub batteries: usize,
     /// The map's respawn points for the mode, when known.
     pub respawn_points: Option<usize>,
+    /// Of them, the team-2 group's, when known: what a free-for-all's
+    /// spawn history (exe patch 142) indexes.
+    pub team_2_points: Option<usize>,
     /// By place, when known: the kits a place has player objects for and
     /// the item count of its state's head. Without them the kit bytes are
     /// checked against the table's three entries only.

@@ -72,6 +72,26 @@ Ask, in this order:
    that benched it (`release/bot-data add`, below); the release ships what the
    list says from `$SKHID_BOT_DATA` and stops when the owner's folder does not
    have it. `release/bot-data check` says so before the dry run.
+4. **Does a merged PR need a one-off change of the accounts?** Such a change
+   is a script, not srp's start: the PR that needs it adds the script,
+   and its header says the release it belongs to. Before the go,
+   run its dry run on the newest copy of srp.db
+   (`/srv/skhid-backups/srp-db` on the jump host, copied to the local machine)
+   and **show the owner its numbers**. At the release, right after the swap
+   and once the checks have passed, srp's start copy of srp.db is made. Then
+   `docker compose stop srp26`, run the script as root as
+   `python3 <script> --apply <srp.db>` on the data volume's srp.db (it
+   copies the file to `backups/` first), and `docker compose start srp26`.
+   That is a second short stop: the owner's go covers it only when it was
+   asked for with the go. A script run again adds nothing. The host has
+   `/usr/bin/python3` with its `sqlite3` module, but no `sqlite3` command.
+   Such a script writes nothing that reads or rebuilds the 0.21d nickname
+   index (no `VACUUM`, no `integrity_check`, no `accounts.name`): its
+   collation is srp's own.
+   Open: `srp-026g/scripts/ammo-top-up/ammo_top_up.py` (1000 rounds of
+   every ammo for every account, PR #1785; dry run on the pre-rev58 copy:
+   614 of 799 accounts, 3,035,296 rounds). Remove its line here when it has
+   run.
 
 **The revision is the release's own.** Every release has a new patch
 revision, content or not: it is how the server refuses games without the
@@ -101,7 +121,11 @@ resources.db.patch_<n> (error 2). Please run the Skhid launcher again."
 `release.sh` and `deploy` refuse a ZIP whose exe requires other patches
 than the server data offers. So a patch removed from the list is no longer
 required by the next release's exe, and every patch a release offers must
-be downloadable by every player (add the Drive mirror at publish time).
+be downloadable by every player. New releases use the patches server without
+Google Drive (owner, 2026-11-17). A Drive mirror is optional: add or configure
+one only when the owner requests it. Do not delay a release or ask for a Drive
+exception merely because no Drive uploader is configured. Keep existing
+committed mirror URLs unless the owner asks to remove them.
 
 **Replays, and a change of what a match computes.** A game is given a
 replay only when every game of its recording was of the oldest replayable
@@ -151,10 +175,10 @@ The files players get are an explicit, committed list:
 `release/patches.tsv` (live) and `release/patches-test.tsv` (test), one
 `<name> <sha256> <size> <urls>` row per file, tabs between, the patches in
 revision order. `<urls>` is the file's URLs, one space apart, in the order
-the players' updater tries them: Google Drive's first (the owner's rule,
-2026-11-01), then the patches server's (`$SKHID_PATCHES_URL/<name>`: every
-patch row has it, the release downloads and builds from it), then the
-rest; 1 to 8, none twice. The server data is built of exactly those rows and `/patches` offers
+the players' updater tries them. New rows use the patches server's URL
+(`$SKHID_PATCHES_URL/<name>`: every patch row has it, the release downloads
+and builds from it). Existing rows retain their mirror order; add new
+mirrors only when requested. There are 1 to 8 URLs, none twice. The server data is built of exactly those rows and `/patches` offers
 exactly those (with the mirrors of `mirrors.tsv`, below); a file on the
 patches server that is not listed is offered to no one.
 `release/upload-patch` (and `release.sh --resources`) adds the row when it
@@ -189,8 +213,8 @@ and sha256, and, under the release lock and after a y/N, puts the row
 host through the jump host; `--test` the test environment): srp reads it
 again when it changes and adds its rows to the release's URLs of the file,
 in their order, each after the URLs so far or as the n-th (`--first`, `--at
-<n>`: the place among all the file's URLs, the release's too: a new Google
-Drive link goes `--first`; 8 URLs a file in all). A bad row (a file the release has not, a URL the
+<n>`: the place among all the file's URLs, the release's too; use the requested
+priority for a new mirror, with 8 URLs a file in all). A bad row (a file the release has not, a URL the
 updater would refuse, past 8) is logged by srp and skipped; it never breaks
 `/patches`. `release/add-mirror --remove <file> <url>` takes a row out.
 To build a URL into the next release too (the updater's and the .bat's own
@@ -364,7 +388,17 @@ The order, as it runs:
    --test`, play a match on the test environment (one against bots is
    kept), copy its recording from the test volume's `recordings/`, and
    give `--worlds <folder>`. Then
-   `build-zip` (of the commit checked in step 1); then the **exe patches'
+   `build-zip` (of the commit checked in step 1), `build-torrent` (the
+   torrent of the whole game folder, `skhid-rev<n>.torrent`, signed with the
+   release's key, `private/release/torrent-signing.pem`, and put into the ZIP
+   as `game/torrent/skhid.torrent`: `srp-026g/docs/notes/torrent-downloads.md`;
+   no key, or one that is not the commit's `release/signing.pub`'s pair: the
+   preflight stops; the owner makes it once with `release/make-signing-key`
+   and commits `release/signing.pub`; `--test` signs with the test
+   environment's own pair, `torrent-signing-test.pem` and
+   `release/signing-test.pub`, `make-signing-key --test`, so a test torrent is
+   never a player's; a revision srp came up on once, then rolled back,
+   must build the same ZIP again or it stops: `--revision` the next); then the **exe patches'
    self-test** of that commit started in the background
    (`srp-026g/client-patches/selftest_026g.py`, its Linux part, on
    `$SKHID_GAME`'s `survarium.exe`, in the commit's dev shell with nixpkgs'
@@ -456,19 +490,34 @@ The order, as it runs:
    atomic; the ZIP goes in while srp26 is stopped, never after its start:
    see below), sets
    `SRP_MIN_PATCH_REVISION=<rev>` (that line only; it must be at least the
-   highest patch, or srp refuses to start) and runs
+   highest patch, or srp refuses to start) and
+   `SRP_RELEASED_EXE_SHA256=<the sha256 of the ZIP's game exe>` (that line
+   only: the match server reads it at its start and asks no game that
+   reports this exe for its file, so the first players of a release do not
+   each upload the exe the release just gave them; any other exe the
+   server has not stored is collected as before) and runs
    `docker compose up -d --no-deps --force-recreate srp26` (after any
    `.env` change the container is made anew, never just restarted).
 6. **Checks**: the container running, healthy, not restarting; the
    log's `game data:` line; `/patches` and `/game` the list's (with any
    rows of `mirrors.tsv` among each file's URLs);
    `/api/client-files` names the new ZIP and (an srp that says it)
-   `min-revision <rev>`. Then srp.db: at its start srp copies it with `VACUUM INTO` to
+   `min-revision <rev>`; and it prints what srp's log says of the
+   release's exe (`Executables: the release's own is sha256 …`; an srp
+   from before the setting says nothing, which is said and fails
+   nothing). Then srp.db: at its start srp copies it with `VACUUM INTO` to
    `backups/srp-<unix>.db` before it opens it, so that copy is the state
    just before the release; it is copied (`docker exec ... cat`) into the
    folder and, from live, to the jump host (`$SKHID_BACKUP_DIR`, default
    `/srv/skhid-backups/srp-db`: folder 700, files 600, a line in
    `SHA256SUMS` there), its sha256 compared on both ends.
+   Live only, after the record (step 8; never `--test`),
+   `release/publish-dht <the torrent>` puts the
+   torrent's signed item on the public DHT (BEP 46: the newest release, for
+   updaters that cannot reach the site; `skhid.dht`, signed by
+   `build-torrent` with the torrent; the release's own libtorrent,
+   `nix build ./srp-026g#skhid-dht`). A failure is a warning, not a stop:
+   every updater that shares puts the same item again; run it again by hand.
 
    **Why the ZIP goes in before the start.** The site is srp26: it answers
    nothing while srp26 is stopped, and from the start on it serves the
@@ -592,6 +641,7 @@ Every release keeps a folder on its target:
 | `old-Survarium-0.26g-srp-files.zip`, `old-server-game-data.db` | `download/`'s files before the swap (hard links) |
 | `srp-<unix>.db`, `srp-db.name` | srp.db as it was before the release (srp's own start backup) |
 | `image.old`, `image.new`, `min.old` | the image IDs before and after, `SRP_MIN_PATCH_REVISION` before |
+| `released-exe.old` | the `SRP_RELEASED_EXE_SHA256` line of `.env` before (empty: there was none) |
 | `changed.txt` | the server source files that changed, the ZIP's changed entries |
 | `src.tar`, `old-src.tgz` | with server code: main's source, the tree's files it replaced |
 | `rollback.sh`, `rollback.env` | the rollback (`release/host-rollback.sh`) and what it puts back |
@@ -632,7 +682,8 @@ release/rollback [--test] [--keep-db] release-rev<rev>-<stamp>[-<label>]
 It runs the folder's `rollback.sh <folder>` on the target (by hand there:
 `sh <folder>/rollback.sh <folder> [--keep-db]`, as root): the ZIP and the
 server data from before (renamed into place), `SRP_MIN_PATCH_REVISION`
-back (or its line removed), the server source back, the image that ran
+and `SRP_RELEASED_EXE_SHA256` back (or their lines removed), the server
+source back, the image that ran
 before tagged `srp-026g:latest`, and srp.db as it was before the release
 (the folder's copy; or, when the run did not get to keep one, srp's own
 backup in the volume made by the new start; none at all means the new srp
@@ -676,7 +727,11 @@ shows the command, unless release.sh, already given the go-ahead, runs it):
 | `release/build-server-db [--test] [--out <file>]` | `server-game-data.db` from the stock db and the list's patches (local cache checked by size and SHA-256; missing or invalid files downloaded; every primary URL and mirror checked whole once, then by its first bytes), `srp-game-data build --patch "<file>=<urls>"` | a local file, the patch cache |
 | `release/build-site --tree <checkout> [--with <patch>]` | the Maps tab, the calculator and the skills from the stock db and the list's patches (cached, each sha256 checked), FFDec 26.0.0, dbgrab; each `built-from.tsv` must name exactly those; release.sh runs it in its preflight, by hand it is a local preview (`--tree .`) | the checkout's `servers/web-server/{maps,damage,skills,wiki}/`, the cache |
 | `release/build-zip [--test] [--ref <commit>] [--revision <n>] [--patches <list>] [--work <dir>]` | the players' ZIP from a fresh worktree of origin/main (never this checkout, never `git stash`): `--server`, `--site`, `--revision` (default: the site's exe's + 1; above it), `--required-patches` (every patch of the offered-patch list, or `--patches`'; release.sh passes its list with the new patch: the exe stops at its start without one, patch 49), no resources.db regions; the exe without a server too, both sha256 in `<work>/exe.sha256`; entries against the site's ZIP | a worktree, the ZIP |
-| `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own, in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
+| `release/build-torrent --zip <zip> --out <file> --zip-out <zip> --revision <n> [--public-key] [--test] [--patches <list>]` | the signed torrent of the whole game folder (`srp-026g/docs/notes/torrent-downloads.md`): the original game's files (`$SKHID_GAME`, `$SKHID_STOCK_DB`, each by its pinned sha256), the ZIP's files over them, the list's patches (the patch cache); and the ZIP with it in; prints its info hashes; the same inputs, the same bytes | local files, the patch cache |
+| `release/build-bootstrap [--dry-run] <players' ZIP>` | once for an updater version: the bootstrap's three files (the updater, its `skhid_torrent.dll`, 7zr.exe) published on the patches server at `bootstrap/<sha256>/<name>`, their rows in `release/bootstrap.tsv`, `release/bootstrap.torrent` and `srp-026g/servers/web-server/bootstrap/Skhid-get.bat` (`srp-026g/docs/notes/torrent-downloads.md`, "Bootstrap"); more URLs: `release/add-mirror <name> <url>`, which makes the script again | the patches server, the checkout |
+| `release/publish-dht [--dry-run] [--seconds <n>] <torrent>` | the release's BEP 46 item of a signed torrent on the DHT (its `skhid.dht`, checked with openssl against `release/signing.pub` or `signing-test.pub`), by `skhid-dht` (`srp-026g#skhid-dht`); release.sh runs it after a live release's record (never for `--test`) | the public DHT |
+| `release/make-signing-key [--test]` | once, by the owner: the torrents' Ed25519 key beside `release.env` (mode 600) and `release/signing.pub` to commit (`--test`: the test environment's, `torrent-signing-test.pem` and `release/signing-test.pub`); never replaces one | private/release/, the checkout |
+| `release/deploy --zip --server-data --revision [--label] [--dry-run]` | the swap on its own (a ZIP from it has no torrent unless it was release.sh's), in a window planned by hand: the release folder, the checks, the rollback on failure | the live host |
 | `release/rollback [--test] [--keep-db] [<folder>]` | a release folder's rollback | the target |
 | `release/setup-patches-server [--test] [--check]` | once: the patches folder and Caddy's site block for it (validate and reload; either failing puts the backup back) | the jump host's Caddy |
 

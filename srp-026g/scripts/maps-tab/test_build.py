@@ -1,4 +1,5 @@
-"""The website's maps (build.py's `objects`): Keeper of the Artifacts' hidden pool is not shown.
+"""The website's maps (build.py's `objects` and `spawns`): Keeper of the Artifacts' hidden pool is
+not shown, and a free-for-all shows its own spawns alone.
 
     python3 -m unittest test_build      (needs pillow, as build.py)
 """
@@ -42,6 +43,18 @@ class KeeperPoolHidden(unittest.TestCase):
     def test_a_map_with_only_the_pool_shows_no_artefact(self):
         project = {"server_objects": {}, "client_objects": [keeper_anomaly()]}
         self.assertEqual(build.objects(project, KEYS)["artefacts"], [])
+
+
+class FreeForAllSpawns(unittest.TestCase):
+    # A free-for-all's project as the game has it: Team Deathmatch's points and its own (team 2).
+    POINTS = [[1.0, 2.0, 0.0, 0, 90], [3.0, 4.0, 0.0, 1, 270], [5.0, 6.0, 0.0, 2, 0], [7.0, 8.0, 0.0, 2, 180]]
+
+    def test_a_free_for_all_shows_its_team_2_points_alone(self):
+        self.assertEqual(build.spawns(build.FREE_FOR_ALL, self.POINTS), self.POINTS[2:])
+
+    def test_a_mode_of_two_teams_shows_every_point(self):
+        for mode in (2, 3, 4, 5):
+            self.assertEqual(build.spawns(mode, self.POINTS), self.POINTS)
 
 
 if __name__ == "__main__":

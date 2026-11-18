@@ -1,9 +1,11 @@
+<meta charset="utf-8">
 <title>Damage calculator</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans+Narrow:wght@400;700&family=PT+Sans:ital,wght@0,400;0,700;1,400&family=PT+Mono&display=swap">
 <style>
 /*__FONT__*/
+/*__HUD__*/
 /* Layout: a range card. Shooter and target face each other across a ruler; the
    hit is traced underneath like a ballistics log, stage by stage. */
 :root {
@@ -26,12 +28,7 @@
   --doll: #d5d1c3;
   --doll-hi: #b4501f;
   --doll-cover: #9aa58a;
-  --hud-bg: #24272a;      /* the HUD's own dark ground, both themes */
-  --hud-ink: #bccbcb;     /* lobby text colour */
-  --hud-line: #4a5156;
   --hud-sel: #ffffff;
-  --mod-good: #87a816;
-  --mod-bad: #960f0e;
   --font-display: "PT Sans Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
   --font-body: "PT Sans", "Segoe UI", Roboto, sans-serif;
   --font-data: "PT Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
@@ -106,24 +103,18 @@ h3.sub { margin: 0 0 8px; font: 700 .78rem var(--font-display); letter-spacing: 
 .note { font-size: .8rem; color: var(--ink-3) }
 /* Modification rows, as the lobby draws them */
 .fxrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px }
+#healpick { display: grid; gap: 10px; justify-items: start }
 #healpick .lbl { margin-right: 6px }
+#healpick .fxhint + .lbl { margin-left: 14px }
+#healpick > .gamemods { max-width: 100% }
+/* On a phone a tile's card sits under the tiles' row, from its left: a tile may be at the screen's edge */
+@media (max-width: 560px) { .fxrow { position: relative } .fxrow .fxhint { position: static } .fxrow .fxhint > .gamemods { max-width: 100% } }
 .fxrow .chips { margin-left: 8px }
 .fxtile { width: 86px; height: 46px; padding: 2px; border: 1px solid var(--rule); background: var(--bg); cursor: pointer; opacity: .4; display: grid; place-items: center; font: .78rem var(--font-body); color: var(--ink-2) }
 .fxtile img { width: 100%; height: 100%; object-fit: contain; display: block }
 .fxtile:hover { opacity: .75 }
 .fxtile[aria-pressed=true] { opacity: 1; border-color: var(--accent); background: var(--panel) }
 .fxtile:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
-.gamemods { background: var(--hud-bg); padding: 8px 12px; display: grid; grid-template-columns: 31px max-content minmax(0, 1fr); align-items: center; gap: 4px 10px; font: 700 14px/1.2 "Carlito", Calibri, var(--font-body); color: var(--hud-ink); text-shadow: 0 1px 4px #000 }
-.gmrow { display: contents }
-.gmrow > * { min-height: 31px; display: flex; align-items: center }
-.gmrow > .gico { display: block }
-.gico { width: 31px; height: 31px; object-fit: contain; display: block }
-.gv.good { color: var(--mod-good) } .gv.bad { color: var(--mod-bad) }
-.gsteps { flex-wrap: wrap; gap: 4px }
-.gstep { font: inherit; text-shadow: inherit; min-width: 44px; min-height: 26px; padding: 2px 6px; cursor: pointer;
-  background: transparent; color: var(--hud-ink); border: 1px solid var(--hud-line); opacity: .7 }
-.gstep:hover { opacity: 1 }
-.gstep[aria-pressed=true] { color: var(--mod-good); border-color: var(--mod-good); background: rgba(135, 168, 22, .14); opacity: 1 }
 
 /* Range ruler */
 .ruler { display: grid; gap: 4px }
@@ -369,7 +360,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
         <div class="note" data-uk="Біль, який ціль уже має від попередніх влучань. Спадає до нуля по 10 за секунду, коли 8 с немає влучань.">Pain the target already carries from earlier hits. It drains back to none at 10 a second once 8 s pass without a hit.</div>
       </div>
       <div class="more" id="amods-box"><h3 class="sub" data-uk="Бонуси броні">Armour bonuses</h3><div class="mods" id="amods"></div></div>
-      <details class="more" id="tfx-box" open><summary data-uk="Артефакти й препарати">Artefacts &amp; drugs</summary><div class="mods" id="tfx"></div></details>
+      <details class="more" id="tfx-box" open><summary data-uk="Артефакти, препарати й навички">Artefacts, drugs &amp; skills</summary><div class="mods" id="tfx"></div></details>
     </section>
 
     <section class="mapsec" aria-labelledby="h-map">
@@ -426,7 +417,7 @@ tr.click { cursor: pointer } tr.click:hover td { background: color-mix(in srgb, 
 
   <section style="display:grid;gap:10px">
     <h2 data-uk="Лікування">Healing</h2>
-    <div class="fxrow" id="healpick"></div>
+    <div id="healpick"></div>
     <div class="tablebox"><table id="heal"></table></div>
     <div class="tablebox"><table id="fulltime"></table></div>
   </section>

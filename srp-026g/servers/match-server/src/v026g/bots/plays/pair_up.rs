@@ -15,6 +15,7 @@
 
 use super::*;
 use crate::v026g::bots::curve::{Consideration, Curve, Input};
+use crate::v026g::bots::view::Side;
 
 pub const NUMBERS: &[(&str, f32)] = &[
     // The scoreboard's worth: kills + this times the streak.
@@ -100,6 +101,11 @@ fn pair_key(a: Place, b: Place) -> u32 {
 }
 
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
+    // A pair is of a team. A free-for-all's bot has nobody to join against
+    // the leader, and would only wait back for a teammate that never comes.
+    let Side::Team(_) = cx.me.team else {
+        return;
+    };
     let Some(top) = top_player(cx) else {
         return;
     };

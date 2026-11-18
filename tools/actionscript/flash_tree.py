@@ -246,12 +246,13 @@ def table_classes(movie_dir):
 @dataclass(frozen=True)
 class Placement:
     """A row of placements.tsv: in sprite `sprite`'s frame `frame` (from 1), the PlaceObject2 at `depth`
-    places `to` where the original places `old`."""
+    places `to` where the original places `old`; `to` None (`-` in the file): it places nothing, the
+    PlaceObject2 is left out."""
     sprite: int
     frame: int
     depth: int
     old: int
-    to: int
+    to: int | None
 
 
 def placements(movie_dir):
@@ -265,20 +266,21 @@ def placements(movie_dir):
         row = line.split('#', 1)[0].strip()
         if not row:
             continue
-        cells = row.split('\t')
-        if len(cells) != 5 or not all(c.strip().isdigit() for c in cells):
-            raise ValueError(f'{path}:{n}: sprite, frame, depth, from and to, five numbers')
-        out.append(Placement(*(int(c) for c in cells)))
+        cells = [c.strip() for c in row.split('\t')]
+        if len(cells) != 5 or not all(c.isdigit() for c in cells[:4]) or not (cells[4].isdigit() or cells[4] == '-'):
+            raise ValueError(f'{path}:{n}: sprite, frame, depth, from and to, five numbers (to may be -)')
+        out.append(Placement(*(int(c) for c in cells[:4]), None if cells[4] == '-' else int(cells[4])))
     return out
 
 
 def placed_right(tags, fixes):
     """`tags` with each of `fixes` applied: every one must match exactly one PlaceObject2 of its sprite,
-    frame and depth that places its `old` character, and `to` must be a character the movie defines."""
+    frame and depth that places its `old` character, and `to` must be a character the movie defines; a fix
+    whose `to` is None leaves that PlaceObject2 out."""
     left = {(f.sprite, f.frame, f.depth): f for f in fixes}
     defined = swf.character_ids(tags)
     for f in fixes:
-        if f.to not in defined:
+        if f.to is not None and f.to not in defined:
             raise ValueError(f'placements.tsv: character {f.to} is not defined')
     out = []
     for kind, raw in tags:
@@ -295,8 +297,10 @@ def placed_right(tags, fixes):
                         depth, cid = swf.placed(sub)
                         fix = mine.get((sprite, frame, depth))
                         if fix and cid == fix.old:
-                            sub = swf.with_character(sub, fix.to)
                             del left[(sprite, frame, depth)]
+                            if fix.to is None:
+                                continue
+                            sub = swf.with_character(sub, fix.to)
                     inner.append(sub)
                 raw = swf.tag(kind, body[:4] + b''.join(inner))
         out.append((kind, raw))

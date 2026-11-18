@@ -1,6 +1,6 @@
 //! The face an account is drawn with (`docs/notes/face-choice.md`): the
 //! lobby's side of its wire (`survarium::v026g::lobby::faces`, `lobby.md`
-//! §2.16.6). The movie asks for the state and chooses a face; a face chosen
+//! §2.16.7). The movie asks for the state and chooses a face; a face chosen
 //! is sent in the account (`87`, every kit's revision bumped), so the exe
 //! draws the lobby's character with it, and squad mates' lobbies draw it
 //! too (`0xA1`'s revisions, then their `88`).

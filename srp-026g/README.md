@@ -54,7 +54,7 @@ The game: the original 0.26g with the patched exe and the certificate of
 `client-patches/`, started from `game\binaries\x86` with
 
 ```
-survarium_skhid.exe -localization=english -server=127.0.0.1:1234 -mt_allocator=768 -minimum_resources_memory_size=768
+survarium_skhid.exe -localization=english -server=127.0.0.1:1234 -minimum_resources_memory_size=768
 ```
 
 A match needs two players who did not come as one squad. Alone on one PC, the
@@ -75,4 +75,4 @@ test bot stands in for the second (`docs/SRP-026G.md`, "A match alone").
 | `crates/survarium/src/v026g/`, `crates/session/src/v026g/` | Game data and wire formats; the account, the rules, the rewards |
 | `servers/*/src/v026g*` | The 0.26g login server, lobby, match server and web page; `servers/srp` joins them |
 | `crates/resources-db`, `resources/game-026g/` | The players' `resources.db` and the server's game data of a release (`srp-game-data`), read at start; the test copy of it |
-| `certs/` | The login server's certificate and key |
+| `certs/` | The certificate and key of the game's own TLS (0.21d's login server; the certificate still ships to players) |

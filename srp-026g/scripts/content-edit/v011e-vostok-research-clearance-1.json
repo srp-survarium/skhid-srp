@@ -1,0 +1,558 @@
+{
+  "_about": "Research station C replaces the old crate stack at (45.141, 0.417, -64.292), as native Vostok Research does. Remove its visual and both collision placements only in day_5. The fully composed source visual index is 451; every later srp_lamps visual index drops by one, preserving the same lamp/model bindings. Protective Device, Blackout and TDM retain the crate. Owner playtest, 2026-11-12.",
+  "set": [
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp006/visuals/intact0/index",
+      "from": 743,
+      "to": 742
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp006/visuals/broken0/index",
+      "from": 744,
+      "to": 743
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp007/visuals/intact0/index",
+      "from": 751,
+      "to": 750
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp007/visuals/broken0/index",
+      "from": 752,
+      "to": 751
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp008/visuals/intact0/index",
+      "from": 753,
+      "to": 752
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp008/visuals/broken0/index",
+      "from": 754,
+      "to": 753
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp009/visuals/intact0/index",
+      "from": 757,
+      "to": 756
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp009/visuals/broken0/index",
+      "from": 758,
+      "to": 757
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp010/visuals/intact0/index",
+      "from": 761,
+      "to": 760
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp010/visuals/broken0/index",
+      "from": 762,
+      "to": 761
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp011/visuals/intact0/index",
+      "from": 766,
+      "to": 765
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp011/visuals/broken0/index",
+      "from": 767,
+      "to": 766
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp012/visuals/intact0/index",
+      "from": 772,
+      "to": 771
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp012/visuals/broken0/index",
+      "from": 773,
+      "to": 772
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp013/visuals/intact0/index",
+      "from": 776,
+      "to": 775
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp013/visuals/broken0/index",
+      "from": 777,
+      "to": 776
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp014/visuals/intact0/index",
+      "from": 779,
+      "to": 778
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp014/visuals/broken0/index",
+      "from": 780,
+      "to": 779
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp015/visuals/intact0/index",
+      "from": 787,
+      "to": 786
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp015/visuals/broken0/index",
+      "from": 788,
+      "to": 787
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp016/visuals/intact0/index",
+      "from": 790,
+      "to": 789
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp016/visuals/broken0/index",
+      "from": 791,
+      "to": 790
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp017/visuals/intact0/index",
+      "from": 796,
+      "to": 795
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp017/visuals/broken0/index",
+      "from": 797,
+      "to": 796
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp018/visuals/intact0/index",
+      "from": 798,
+      "to": 797
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp018/visuals/broken0/index",
+      "from": 799,
+      "to": 798
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp019/visuals/intact0/index",
+      "from": 801,
+      "to": 800
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp019/visuals/broken0/index",
+      "from": 802,
+      "to": 801
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp020/visuals/intact0/index",
+      "from": 804,
+      "to": 803
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp020/visuals/broken0/index",
+      "from": 805,
+      "to": 804
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp021/visuals/intact0/index",
+      "from": 807,
+      "to": 806
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp021/visuals/broken0/index",
+      "from": 808,
+      "to": 807
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp022/visuals/intact0/index",
+      "from": 810,
+      "to": 809
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp022/visuals/broken0/index",
+      "from": 811,
+      "to": 810
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp023/visuals/intact0/index",
+      "from": 812,
+      "to": 811
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp023/visuals/broken0/index",
+      "from": 813,
+      "to": 812
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp024/visuals/intact0/index",
+      "from": 816,
+      "to": 815
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp024/visuals/broken0/index",
+      "from": 817,
+      "to": 816
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp025/visuals/intact0/index",
+      "from": 821,
+      "to": 820
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp025/visuals/broken0/index",
+      "from": 822,
+      "to": 821
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp026/visuals/intact0/index",
+      "from": 824,
+      "to": 823
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp026/visuals/broken0/index",
+      "from": 825,
+      "to": 824
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp027/visuals/intact0/index",
+      "from": 828,
+      "to": 827
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp027/visuals/broken0/index",
+      "from": 829,
+      "to": 828
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp028/visuals/intact0/index",
+      "from": 830,
+      "to": 829
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp028/visuals/broken0/index",
+      "from": 831,
+      "to": 830
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp029/visuals/intact0/index",
+      "from": 833,
+      "to": 832
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp029/visuals/broken0/index",
+      "from": 834,
+      "to": 833
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp030/visuals/intact0/index",
+      "from": 839,
+      "to": 838
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp030/visuals/broken0/index",
+      "from": 840,
+      "to": 839
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp031/visuals/intact0/index",
+      "from": 843,
+      "to": 842
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp031/visuals/broken0/index",
+      "from": 844,
+      "to": 843
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp032/visuals/intact0/index",
+      "from": 845,
+      "to": 844
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp032/visuals/broken0/index",
+      "from": 846,
+      "to": 845
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp033/visuals/intact0/index",
+      "from": 853,
+      "to": 852
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp033/visuals/broken0/index",
+      "from": 854,
+      "to": 853
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp034/visuals/intact0/index",
+      "from": 855,
+      "to": 854
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp034/visuals/broken0/index",
+      "from": 856,
+      "to": 855
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp035/visuals/intact0/index",
+      "from": 860,
+      "to": 859
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp035/visuals/broken0/index",
+      "from": 861,
+      "to": 860
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp036/visuals/intact0/index",
+      "from": 863,
+      "to": 862
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp036/visuals/broken0/index",
+      "from": 864,
+      "to": 863
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp037/visuals/intact0/index",
+      "from": 866,
+      "to": 865
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp037/visuals/broken0/index",
+      "from": 867,
+      "to": 866
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp038/visuals/intact0/index",
+      "from": 874,
+      "to": 873
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp038/visuals/broken0/index",
+      "from": 875,
+      "to": 874
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp039/visuals/intact0/index",
+      "from": 876,
+      "to": 875
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp039/visuals/broken0/index",
+      "from": 877,
+      "to": 876
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp040/visuals/intact0/index",
+      "from": 880,
+      "to": 879
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp040/visuals/broken0/index",
+      "from": 881,
+      "to": 880
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp041/visuals/intact0/index",
+      "from": 882,
+      "to": 881
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp041/visuals/broken0/index",
+      "from": 883,
+      "to": 882
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp042/visuals/intact0/index",
+      "from": 886,
+      "to": 885
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp042/visuals/broken0/index",
+      "from": 887,
+      "to": 886
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp043/visuals/intact0/index",
+      "from": 891,
+      "to": 890
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp043/visuals/broken0/index",
+      "from": 892,
+      "to": 891
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp044/visuals/intact0/index",
+      "from": 896,
+      "to": 895
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp044/visuals/broken0/index",
+      "from": 897,
+      "to": 896
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp045/visuals/intact0/index",
+      "from": 899,
+      "to": 898
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "path": "srp_lamps/lamps/lamp045/visuals/broken0/index",
+      "from": 900,
+      "to": 899
+    }
+  ],
+  "remove_entry": [
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "list": "render_visuals",
+      "where": {
+        "rotation": [
+          -3.1410000324249268,
+          -0.699999988079071,
+          -3.1410000324249268
+        ],
+        "position": [
+          45.14099884033203,
+          0.4169999957084656,
+          -64.29199981689453
+        ],
+        "lib_name": "ported/v011e/props/box/half_cover_rect",
+        "visual_name": "ported/v011e/props/box/half_cover_rect",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "list": "collision_objects",
+      "where": {
+        "rotation": [
+          -3.1410000324249268,
+          -0.699999988079071,
+          -3.1410000324249268
+        ],
+        "position": [
+          45.14099884033203,
+          0.4169999957084656,
+          -64.29199981689453
+        ],
+        "cmask": 16,
+        "lib_name": "resources/models/ported/v011e/props/box/half_cover_rect.model/collision",
+        "cgroup": 8,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v011e_level_03/day_5/client_project",
+      "list": "collision_objects",
+      "where": {
+        "rotation": [
+          -3.1410000324249268,
+          -0.699999988079071,
+          -3.1410000324249268
+        ],
+        "position": [
+          45.14099884033203,
+          0.4169999957084656,
+          -64.29199981689453
+        ],
+        "cmask": 4,
+        "lib_name": "resources/models/ported/v011e/props/box/half_cover_rect.model/walker_collision",
+        "cgroup": 2,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  ]
+}

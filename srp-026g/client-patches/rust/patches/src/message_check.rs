@@ -13,6 +13,7 @@ pub fn on_message(ctx: &mut Context<'_>) -> Flow<MessageCheckOnMessageExit> {
         refusal(ctx.thread(), &[Piece::Text("message_check: a dispatch with no client or reader; discarded")]);
         return Flow::Exit(MessageCheckOnMessageExit::Refused);
     };
+    if message.executable_reply() { return Flow::Exit(MessageCheckOnMessageExit::Refused); }
     let Some(fault) = message.fault() else { return Flow::Continue; };
     let (id, len) = (message.id(), message.payload_len().unwrap_or(0));
     message.discard();
