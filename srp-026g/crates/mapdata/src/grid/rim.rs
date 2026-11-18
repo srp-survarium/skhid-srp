@@ -409,7 +409,7 @@ impl WalkGrid {
             let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits);
             flights += p.flights;
             under |= p.under;
-            if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.byte() > b.share.byte())) {
+            if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.rank() > b.share.rank())) {
                 best = Some(m);
             }
         }
@@ -438,7 +438,7 @@ impl WalkGrid {
         for aim in aims {
             let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits);
             flights += p.flights;
-            if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.byte() > b.share.byte())) {
+            if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.rank() > b.share.rank())) {
                 best = Some(m);
             }
         }
