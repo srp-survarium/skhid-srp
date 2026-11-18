@@ -336,6 +336,9 @@ impl Settler {
             ),
             None => log::info!("Match {match_id:#x}: nobody came; nothing to settle"),
         }
+        // The log's buffered lines to the file now: a server closed with its window has no exit path that flushes it, and
+        // the settle line of the last match of a run was lost so (3 of 16 local matches on 2026-11-18).
+        log::logger().flush();
         // Written before anyone is told: what a player is shown is kept.
         self.accounts.flush();
         for player in &result.players {
