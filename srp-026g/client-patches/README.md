@@ -203,7 +203,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `raw_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust (C's types, research_arena's; typed by the kinds' handles, the Rust patches' `raw`), and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
-| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first 300 ms), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first second), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (eleven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks, the Tab menu's voice mute and the options' microphone test (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
 | `rust/patches/src/screenshot.rs`, `src/screenshot.toml`, `src/screenshot/png.rs`, `src/vostok/back_buffer.rs` | Patch 152: two keys save a screenshot as a PNG, F11 the screen and F12 the frame without the interface (`../docs/notes/screenshots.md`): three named lohooks (the keyboard's poll, `render.flash_ui`, the Present), the back buffer read back through Direct3D, the patch's own PNG encoder; `cargo test` in `rust/` checks the encoder (a decoder of its own in the tests) and the request's steps; the two actions' names, keys and Controls rows are patch 62's table (`hide_ui_026g.asm`, `check_hide_ui_026g.py`) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F9 since patch 152, F11 before; the game's `toggle_replay_ui`, named `hide_interface`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
@@ -3394,7 +3394,7 @@ before: a key of this poll may have gone down before the kits came), OPEN (shown
 one pressed in their frame is OPENING's: either picks nothing until it is let go and pressed
 again on the kits. And, the owner's rule after that: a player still pressing 3 to heal just
 after the death presses on the kits before seeing them, so the keys pick nothing for
-`KIT_KEYS_DELAY`, 300 ms, after the kits appear. OPENING carries the time of the poll that
+`KIT_KEYS_DELAY`, 1 s (300 ms until 2026-11-18), after the kits appear. OPENING carries the time of the poll that
 first saw the kits (`kit_keys_since`, GetTickCount through its import 0x870090), and a poll
 moves it to OPEN only 300 ms or more after it (unsigned, over the wrap); CLOSED clears it. A
 key pressed in those 300 ms and held into OPEN picks nothing until let go and pressed again.
@@ -3436,7 +3436,7 @@ the option's name used once, the block's code, exits, calls and data, the movies
 manifest's parts, the input tick's order and the keyboard's kinds, the slot) and the call shapes
 (0x1F6845 and 0x26B916 CALLEE, `ret 4` and `ret 14h` as their models; 0x9FC59C SLOT, `ret 4`;
 0x25CD41 JUMP); `check_match_keys_026g.py` (Unicorn): the poll from each state, the kits shown
-and not, GetTickCount a stub (CLOSED, OPENING, OPEN at 300 ms and not at 299, over the wrap
+and not, GetTickCount a stub (CLOSED, OPENING, OPEN at 1000 ms and not at 999, over the wrap
 too; `ret 4`, ebx esi edi ebp kept); the keys from 0x25CD41 for
 the keys 1 to 5 and Enter, each kind, with and without the cursor and the movie, in each state:
 Invoke with `root.select_kit_key` and the kit exactly for 1, 2 and 3 going down in OPEN with the
@@ -3446,7 +3446,7 @@ frame and stack; the input ticks, the game's own tick (0x3B7BD0) and keyboard pr
 before its wrap: pressed 100 and 250 ms after the kits appear (none), 350 ms after (a pick),
 pressed at 100 ms and held into OPEN (none until let go and pressed again), held from play into
 the kits, pressed in the frame they came, in play, a respawn then a death: a kit only for a
-press handed out 300 ms or more after the kits came, the game's handler given the
+press handed out 1 s or more after the kits came, the game's handler given the
 same keys and kinds as by the original exe (which picks nothing: main's build, run the same way,
 picks kit 3 for a 3 pressed or tapped in the frame of the death); the variable: the hud's constructor called with the game world and the hud, its
 registers back, one `cc_bool` "g_private_messages_in_game" at the list's head over two calls,
