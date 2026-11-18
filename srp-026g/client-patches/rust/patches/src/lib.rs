@@ -96,6 +96,7 @@ pub mod weapon_camo;
 pub mod key_remap;
 pub mod deserialize_guards;
 pub mod effect_presenters;
+pub mod particle_room;
 
 pub mod message_check;
 pub mod packet_recovery;
