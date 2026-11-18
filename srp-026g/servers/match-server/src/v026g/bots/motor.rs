@@ -761,6 +761,13 @@ const LINED_BEHIND_M: f32 = 0.5;
 const LINED_PAST_M: f32 = 0.15;
 /// The run-up is reached this near, metres.
 const AT_RUN_UP_M: f32 = 0.3;
+
+/// [fix-move, owner-16 row 29] A plain jump link (`Leap::Ledge`, no press stored) up to the standing jump's top
+/// ([`STANDING_JUMP_M`], 0.998, PROVEN) is pressed from a stand this far before its take-off, m, the body at rest within this of
+/// that point (so at leads 0-0.5 m). The exe (the game's own tick on its captured collision objects, `rig_real_v2`; owner-16
+/// report 10b, class (b/c), 27 plain 0.82-0.97 m links the bots failed): the standing press at leads 0-0.5 m lands 5 of 5 at 22
+/// of the 27, the walk at the cap lands at 2 of 8 leads or fewer at 16, the sprint jump at none of 10 at 21.
+const LEDGE_STAND_LEAD_M: f32 = 0.25;
 /// On the jump's line it walks only facing within this of the jump's way,
 /// radians (else it stands and turns) …
 pub const LINE_UP_GO: f32 = 0.45;
@@ -1382,12 +1389,14 @@ enum Approach {
     Lift,
     /// A walking jump kept at a sprint ([`Feel::sprint_through`]).
     Through,
+    /// [fix-move, owner-16 row 29] A plain jump link up to the standing jump's top, pressed from a stand at its lead.
+    Stand,
 }
 
 impl Approach {
     /// The sprint is held into the face.
     fn sprints(self) -> bool {
-        self != Approach::Walk
+        !matches!(self, Approach::Walk | Approach::Stand)
     }
 
 }
@@ -2436,6 +2445,19 @@ impl Motor {
             && !pose.no_jump
             && matches!(leap, Leap::Ledge | Leap::SprintLedge)
             && landing.y - take_off.y <= LIFT_MAX_RISE_M;
+        // [fix-move, owner-16 row 29] A plain jump link (no press stored) up to the standing jump's top, walked to: pressed from a
+        // stand at its lead ([`LEDGE_STAND_LEAD_M`]), as the slow press of A386 is (rest at the point, then the press).
+        let stand_ledge = matches!(leap, Leap::Ledge) && !sprint && !lift_open && landing.y - take_off.y <= STANDING_JUMP_M;
+        let leap = if stand_ledge {
+            Leap::Gap(GapPress {
+                lead: mapdata::PressLead::from_metres(LEDGE_STAND_LEAD_M),
+                walk: WalkPress::Slow(0),
+                share: mapdata::Share::UNFLOWN,
+                aim: PressAim::STRAIGHT,
+            })
+        } else {
+            leap
+        };
         if before_route > if sprint || lift_open { SPRINT_LINE_UP_FROM_M } else { LINE_UP_FROM_M } {
             self.links.lost(link_time::Lost::Far);
             return None;
@@ -2587,7 +2609,8 @@ impl Motor {
         // three walk steps up from 28.08 cut across, pressed from 1.5 m under the take-off again and again (nav-motor's
         // pull_walk trace, 2026-11-13; A198's presses 0.08-1.50 m under).
         let under = under_reach(
-            leap,
+            // [fix-move] A plain ledge pressed from a stand is still a ledge for the floor under it.
+            if stand_ledge { Leap::Ledge } else { leap },
             take_off.y - feet.y,
             landing.y - feet.y,
             if sprint || lift_open { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M },
@@ -2732,6 +2755,9 @@ impl Motor {
         // carries a rest off the line on to the press.
         let rest_near = if leap.flown() {
             (along + run_up).abs() <= FlownWindow::LEAD_M && side <= FlownWindow::SIDE_M
+        } else if stand_ledge {
+            // [fix-move] Within the leads the exe landed from a stand ([`LEDGE_STAND_LEAD_M`] either side of the middle).
+            (along + run_up).abs() <= LEDGE_STAND_LEAD_M && side <= LINED_SIDE_M
         } else {
             at(run_up).distance_xz(feet) <= AT_RUN_UP_M
         };
@@ -2803,6 +2829,8 @@ impl Motor {
             leap,
             approach: if lifting {
                 Approach::Lift
+            } else if stand_ledge {
+                Approach::Stand
             } else if through {
                 Approach::Through
             } else if sprint_gap {
@@ -2990,7 +3018,8 @@ impl Motor {
         // [A386] Not for a press the grid flew with the client's own flyer (a gap or rim link with a share, A385): that flight is
         // the landing's proof, and the model's carry is not.
         let flown = matches!(ahead.leap, Leap::Gap(GapPress { share, .. }) if share.flown().is_some());
-        if self.feel.walk_jump_reach && short_clip && ahead.approach != Approach::SprintGap && !flown {
+        // [fix-move] Nor for a plain ledge pressed from a stand: the exe lands that press (owner-16 10b class (b/c)).
+        if self.feel.walk_jump_reach && short_clip && !matches!(ahead.approach, Approach::SprintGap | Approach::Stand) && !flown {
             // [A364] The carry counts the body's last move whatever its heading (player +0x334); the jump goes the way it faces.
             let speed = pose.velocity[0].hypot(pose.velocity[1]);
             if walk_jump_lands(speed, ahead.before.max(0.0), ahead.span, ahead.rise) {
@@ -6517,6 +6546,40 @@ mod tests {
         motor.jump_try.as_mut().expect("a try").walk_up = WalkUp::Walking;
         let (keys, _) = gap_tick(&mut motor, &mut route, -0.1, 2.8, None);
         assert_eq!(keys & key::JUMP, 0, "too fast for the standing jump: {keys:#x}");
+    }
+
+    /// [fix-move, owner-16 row 29] A plain jump link 0.9 m up (no press stored) is walked to its point [`LEDGE_STAND_LEAD_M`]
+    /// before the take-off, stood at until the body is at rest (no move key, no press), and pressed from the stand; one over the
+    /// standing jump's top keeps the walking jump (no stand).
+    #[test]
+    fn a_plain_ledge_up_to_the_standing_top_is_pressed_from_a_stand() {
+        let route_up = |rise: f32| {
+            let p = |x: f32, y: f32, jump: Option<Leap>| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump, low: false };
+            Route::new(vec![p(-10.0, 0.0, None), p(0.0, 0.0, None), p(0.5, rise, Some(Leap::Ledge)), p(5.0, rise, None)])
+        };
+        let fresh = || {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.walking = true;
+            motor
+        };
+        let mut motor = fresh();
+        let mut route = route_up(0.9);
+        let (keys, _) = gap_tick(&mut motor, &mut route, -LEDGE_STAND_LEAD_M, 2.0, None);
+        assert_eq!(keys & (key::FORWARD | key::JUMP), 0, "at its point, still moving: stands: {keys:#x}");
+        let (keys, _) = gap_tick(&mut motor, &mut route, -LEDGE_STAND_LEAD_M, 0.0, None);
+        assert_ne!(keys & key::JUMP, 0, "at rest at its point: the standing press: {keys:#x}");
+        // Past the leads the exe landed from a stand (0-0.5 m): no stand there, the body comes back to its point.
+        let mut motor = fresh();
+        let mut route = route_up(0.9);
+        let (keys, _) = gap_tick(&mut motor, &mut route, 0.1, 0.0, None);
+        assert_eq!(keys & key::JUMP, 0, "past the take-off at rest: no press: {keys:#x}");
+        // Over the standing jump's top: the walking jump's approach, no stand short of the face.
+        assert!(1.05 > STANDING_JUMP_M && 1.05 <= mapdata::Body::default().max_jump);
+        let mut motor = fresh();
+        let mut route = route_up(1.05);
+        let (keys, _) = gap_tick(&mut motor, &mut route, -LEDGE_STAND_LEAD_M, 2.0, None);
+        assert_ne!(keys & key::FORWARD, 0, "a 1.05 m ledge is walked into: {keys:#x}");
     }
 
     /// [A386] A slow link (`WalkPress::Slow`, `jump::Kind::Slow`) is walked to its run-up point (its walk-up from a stand before
