@@ -941,6 +941,14 @@ pub struct CommitTuning {
     /// battery, 20 of those bots killed there, where players finish every take they start (the batteries findings of
     /// 2026-11-14, C2).
     pub finish_take: bool,
+    /// [fix-team 2] A started raid, late denial, job or Breach role, cover of a human or Collect run is held: kept against
+    /// every play but a named interrupter (a survival play that is the bot's best, or an alarm-band play over a play below
+    /// it), while it is a free candidate; the interrupter suspends it, and it is taken back once the interrupter is no longer
+    /// kept, if it is still a free candidate (`team::Commit::Held`, `team::Commit::Resumes`). Off: a running play is kept
+    /// only by its band and the margin, so any higher band took it (16 local matches at 9694ea576: 58-65 play changes per
+    /// 100 alive bot-minutes, 97 % by a higher band or a play dropping out; 1,028 raids, 10 within 10 m of the container;
+    /// CoverHuman held a median 6.2 s, 235 of 239 higher-band winners scoring lower; `LOSING-TEAM-ROOT-CAUSE.md` L4).
+    pub hold_started: bool,
     /// A running Cut is scored without the crowd at its cut point
     /// (`Input::FriendsNearTarget` taken as 0): the crowd is a reason not to
     /// start a Cut where friends already are, not to leave one the bot is
@@ -1002,6 +1010,7 @@ impl Default for CommitTuning {
         Self {
             hold_to_arrival: true,
             finish_take: true,
+            hold_started: true,
             cut_given_crowd: true,
             crossfire_point: true,
             crossfire_point_s: 30.0,

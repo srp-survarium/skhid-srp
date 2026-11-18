@@ -22,6 +22,16 @@
 //!   its band but a heal or a retreat;
 //!   the bench showed 39 % of the commander's switches away from a hold to
 //!   be a same-band win by the margin, while the bot was 6 s into a 15 s walk.
+//! - **A started play held** ([`Commit::Held`], `commit.hold_started`, fix-team 2): a raid, a late
+//!   denial, a job role, a Breach role, a CoverHuman or a Collect run keeps the bot against every
+//!   candidate but a named interrupter ([`interrupts`]: a survival play that is its best, or an alarm
+//!   when it runs below the alarm band), until its own step ends it, it is no longer a free
+//!   candidate, or its way failed lately. An interrupter suspends it ([`INTERRUPT_REASON`]); once the
+//!   interrupter is no longer kept, the suspended play is taken back over every candidate but another
+//!   interrupter while it is still a free candidate ([`Commit::Resumes`], [`RESUME_REASON`]): Left 4
+//!   Dead's SuspendFor, Guild Wars 2's "do not interrupt" with named interrupters. In the owner's 16
+//!   local matches bots changed plays 58-65 times per 100 alive bot-minutes, 97 % of those by a higher
+//!   band or a play dropping out, and 1,028 raids reached a container 10 times.
 //! - **A take finished** ([`Commit::Finish`], `commit.finish_take`, A394 (b)):
 //!   a Collect within reach of its battery, in no enemy's sight and before its
 //!   first press keeps its play against every play but a heal or a retreat, of
@@ -381,6 +391,80 @@ fn survival(c: &Candidate) -> bool {
     matches!(c.kind, PlayKind::Heal | PlayKind::Retreat)
 }
 
+/// [fix-team 2] Whether the play `kind` on `target`, once started, is held ([`Commit::Held`], `commit.hold_started`): an
+/// attack on the enemy's container (a raid, a late denial), a job's flanker or pinner role on a held spot, a Breach role,
+/// cover of a human mate, and a Collect run: the plays whose start is a commitment the team counts on, and which end by
+/// their own step (arrival, a steal or a take, the job's or the human's end, "no way", stuck) or the bot's death.
+pub fn held_kind(kind: PlayKind, target: TargetRef) -> bool {
+    match kind {
+        PlayKind::Raid | PlayKind::LateDenial | PlayKind::Breach | PlayKind::CoverHuman | PlayKind::Collect => true,
+        PlayKind::Flank | PlayKind::Crossfire => matches!(target, TargetRef::ThreatSpot(_)),
+        _ => false,
+    }
+}
+
+/// [fix-team 2] Whether `best` (the bot's best other candidate, competing in band `best_band`) is a named interrupter of a
+/// held play competing in `held_band`: a survival play, or an alarm (a mate's death to trade, a carrier to escort, a thief
+/// to intercept, a hit to heal) over a play below the alarm band. Nothing else takes a held play.
+pub fn interrupts(best: &Candidate, best_band: Rank, held_band: Rank) -> bool {
+    survival(best) || (best_band == Rank::Alarm && held_band < Rank::Alarm)
+}
+
+/// [`Assignment::reason`] of a play a named interrupter gave the bot over its held play ([`interrupts`]): the held play is
+/// suspended while the bot's play keeps this reason (`Commit::Resumes`).
+pub const INTERRUPT_REASON: &str = "a named interrupter: the held play suspended";
+
+/// [`Assignment::reason`] of a suspended play taken back once its interrupter was no longer kept.
+pub const RESUME_REASON: &str = "its interrupter over: the suspended play resumed";
+
+/// [fix-team 2] A bot's held play suspended by an interrupter ([`INTERRUPT_REASON`]), and when.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Suspended {
+    pub place: Place,
+    pub kind: PlayKind,
+    pub target: TargetRef,
+    pub at: u32,
+}
+
+/// [fix-team 2] The commander's held-play counts (the bench's; nothing live): passes that kept a held play against a
+/// candidate that would have taken it (by the margin of its band, or a higher band), interrupters that took one,
+/// suspended plays resumed, and those dropped (no longer a free candidate when their interrupter ended).
+pub mod hold_counts {
+    #[derive(Clone, Copy, Debug)]
+    pub enum Count {
+        KeptSameBand,
+        KeptHigherBand,
+        Interrupted,
+        Resumed,
+        ResumeDropped,
+    }
+
+    pub const NAMES: [&str; 5] = ["kept_same_band", "kept_higher_band", "interrupted", "resumed", "resume_dropped"];
+
+    #[cfg(test)]
+    thread_local! {
+        static COUNTS: std::cell::Cell<[u64; 5]> = const { std::cell::Cell::new([0; 5]) };
+    }
+
+    #[cfg(test)]
+    pub fn count(c: Count) {
+        COUNTS.with(|cell| {
+            let mut all = cell.get();
+            all[c as usize] += 1;
+            cell.set(all);
+        });
+    }
+
+    #[cfg(not(test))]
+    pub fn count(_: Count) {}
+
+    /// The counts so far on this thread, in [`NAMES`] order.
+    #[cfg(test)]
+    pub fn counted() -> [u64; 5] {
+        COUNTS.with(|cell| cell.get())
+    }
+}
+
 /// One bot's input to the commander.
 pub struct Asking<'a> {
     pub place: Place,
@@ -393,7 +477,7 @@ pub struct Asking<'a> {
 /// How a bot's running play is held against the other candidates in a
 /// commander pass. Whatever holds it, a survival play ([`survival`]) that is
 /// its best candidate takes the bot.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Commit {
     /// By its band and the margin ([`MARGIN`]) while it is a free candidate.
     #[default]
@@ -408,6 +492,14 @@ pub enum Commit {
     /// against every play of any band, and while it is no longer a candidate;
     /// its slot is the bot's from the start of the pass.
     Finish,
+    /// [fix-team 2, `commit.hold_started`] A started play of [`held_kind`]: kept against every play but a named
+    /// interrupter ([`interrupts`]), while it is a free candidate. An interrupter that takes the bot suspends it
+    /// ([`INTERRUPT_REASON`]).
+    Held,
+    /// [fix-team 2] The bot's held play `kind` on `target` is suspended by the play it runs: that play is kept by its band
+    /// and the margin as any; once it is not, the suspended play is taken back ([`RESUME_REASON`]) over every candidate but
+    /// another interrupter (which keeps it suspended), if it is a free candidate.
+    Resumes { kind: PlayKind, target: TargetRef },
 }
 
 /// [`Assignment::reason`] of a take kept by [`Commit::Finish`].
@@ -697,16 +789,59 @@ fn assign_given_up(
                 .find(|c| c.kind == current.kind && c.target == current.target)
                 .map(|c| (current, c))
         });
-        let (choice, changed, reason) = match running {
-            Some((current, c))
-                if band(c) > cband(best)
-                    || (band(c) == cband(best)
-                        && ((bot.commit == Commit::Band && !survival(best))
-                            || by(best) < c.score.get() + MARGIN)) =>
-            {
-                (c, false, current.reason)
+        // Whether the running play is kept by its band and the margin (a [`Commit::Band`] against any of its band).
+        let kept = |c: &Candidate| {
+            band(c) > cband(best)
+                || (band(c) == cband(best) && ((bot.commit == Commit::Band && !survival(best)) || by(best) < c.score.get() + MARGIN))
+        };
+        // [fix-team 2] A held play is kept against all but a named interrupter, which suspends it.
+        let hold = match (bot.commit, running) {
+            (Commit::Held, Some((current, c))) => {
+                let interrupted = interrupts(best, cband(best), band(c));
+                if interrupted {
+                    hold_counts::count(hold_counts::Count::Interrupted);
+                } else if !kept(c) {
+                    let higher = cband(best) > band(c);
+                    hold_counts::count(if higher { hold_counts::Count::KeptHigherBand } else { hold_counts::Count::KeptSameBand });
+                }
+                log::debug!(
+                    "commander: bot {} {} its held {:?} on {:?} at {now} ms (best other {:?} {:?} {:.2})",
+                    bot.place,
+                    if interrupted { "suspends" } else { "keeps" },
+                    current.kind,
+                    current.target,
+                    best.kind,
+                    cband(best),
+                    by(best)
+                );
+                Some(interrupted)
             }
-            Some((_, c)) if band(c) == cband(best) => (best, true, "a better play by the margin"),
+            _ => None,
+        };
+        // [fix-team 2] The suspended play, once the play that interrupted it is no longer kept: taken back unless another
+        // interrupter comes first (which keeps it suspended); dropped when it is no longer a free candidate.
+        let resume = match bot.commit {
+            Commit::Resumes { kind, target } if !running.is_some_and(|(_, c)| kept(c)) => {
+                match bot.candidates.iter().filter(free).find(|c| c.kind == kind && c.target == target) {
+                    Some(s) if interrupts(best, cband(best), band(s)) => Some((best, true, INTERRUPT_REASON)),
+                    Some(s) => {
+                        hold_counts::count(hold_counts::Count::Resumed);
+                        Some((s, true, RESUME_REASON))
+                    }
+                    None => {
+                        hold_counts::count(hold_counts::Count::ResumeDropped);
+                        None
+                    }
+                }
+            }
+            _ => None,
+        };
+        let (choice, changed, reason) = match (resume, hold, running) {
+            (Some(decision), _, _) => decision,
+            (None, Some(false), Some((current, c))) => (c, false, current.reason),
+            (None, Some(true), _) => (best, true, INTERRUPT_REASON),
+            (None, _, Some((current, c))) if kept(c) => (c, false, current.reason),
+            (None, _, Some((_, c))) if band(c) == cband(best) => (best, true, "a better play by the margin"),
             _ if bot.current.is_some() => (best, true, "the play ran out or a higher band came"),
             _ => (best, true, "the best play"),
         };
@@ -1869,5 +2004,59 @@ mod tests {
         assert_eq!([gang_factor(&rule, 0), gang_factor(&rule, 1)], [1.0, 1.0]);
         assert_eq!(gang_factor(&rule, 2), 0.5);
         assert_eq!(gang_factor(&rule, 9), 0.25);
+    }
+
+    /// [fix-team 2] A held play is kept against a far better play of its band and against a higher band that is no alarm;
+    /// a survival play or an alarm takes it, suspending it; once the interrupter is over, it is taken back over a better
+    /// play, unless it is no longer a candidate.
+    #[test]
+    fn a_held_play_is_kept_but_for_a_named_interrupter_and_resumed_after_it() {
+        let held = Assignment {
+            kind: PlayKind::CoverHuman,
+            target: TargetRef::Battery(1),
+            slot: None,
+            score: 0.6,
+            since: 100,
+            reason: "the best play",
+        };
+        let ask = |commit: Commit, current: Option<&Assignment>, candidates: Vec<Candidate>| {
+            assign(vec![Asking { place: 0, candidates, current, commit }], 2_000)
+        };
+        let cover = || c(PlayKind::CoverHuman, Rank::Fight, 0.6, None, 1);
+        // A higher band (a Collect in the objective band) and a better play of its band: kept while held.
+        for other in [c(PlayKind::Collect, Rank::Objective, 0.3, None, 2), c(PlayKind::PairUp, Rank::Fight, 0.95, None, 3)] {
+            let out = ask(Commit::Held, Some(&held), vec![cover(), other.clone()]);
+            assert!(!out[0].2 && out[0].1.kind == PlayKind::CoverHuman && out[0].1.since == 100, "{other:?}: {out:?}");
+            let free = ask(Commit::Free, Some(&held), vec![cover(), other.clone()]);
+            assert!(free[0].2 && free[0].1.kind == other.kind, "not held: taken ({other:?})");
+        }
+        // An alarm and a survival play take it, suspending it.
+        for other in [c(PlayKind::Trade, Rank::Alarm, 0.2, None, 4), c(PlayKind::Heal, Rank::Fight, 0.9, None, 5)] {
+            let out = ask(Commit::Held, Some(&held), vec![cover(), other.clone()]);
+            assert!(out[0].2 && out[0].1.kind == other.kind && out[0].1.reason == INTERRUPT_REASON, "{other:?}: {out:?}");
+        }
+        let resumes = Commit::Resumes { kind: PlayKind::CoverHuman, target: TargetRef::Battery(1) };
+        let trade = Assignment { kind: PlayKind::Trade, target: TargetRef::Battery(4), reason: INTERRUPT_REASON, ..held.clone() };
+        // The interrupter still kept: it runs on, the held play still suspended.
+        let out = ask(resumes, Some(&trade), vec![c(PlayKind::Trade, Rank::Alarm, 0.2, None, 4), cover()]);
+        assert!(!out[0].2 && out[0].1.kind == PlayKind::Trade && out[0].1.reason == INTERRUPT_REASON);
+        // The interrupter over (its play ended): the held play back, over a better one of a higher band.
+        let out = ask(resumes, None, vec![c(PlayKind::Collect, Rank::Objective, 0.9, None, 2), cover()]);
+        assert!(out[0].2 && out[0].1.kind == PlayKind::CoverHuman && out[0].1.reason == RESUME_REASON, "{out:?}");
+        // ... but another interrupter first, the held play still suspended.
+        let out = ask(resumes, None, vec![c(PlayKind::Escort, Rank::Alarm, 0.4, None, 6), cover()]);
+        assert!(out[0].1.kind == PlayKind::Escort && out[0].1.reason == INTERRUPT_REASON, "{out:?}");
+        // No longer a candidate: the best play.
+        let out = ask(resumes, None, vec![c(PlayKind::Collect, Rank::Objective, 0.9, None, 2)]);
+        assert!(out[0].1.kind == PlayKind::Collect && out[0].1.reason == "the best play", "{out:?}");
+    }
+
+    #[test]
+    fn the_held_plays_are_the_commitments_the_team_counts_on() {
+        assert!(held_kind(PlayKind::Raid, TargetRef::Container(0)));
+        assert!(held_kind(PlayKind::Flank, TargetRef::ThreatSpot(3)));
+        assert!(!held_kind(PlayKind::Flank, TargetRef::Place(3)), "a flank of its own is no job role");
+        assert!(!held_kind(PlayKind::Roam, TargetRef::Battery(0)));
+        assert!(!held_kind(PlayKind::Trade, TargetRef::Place(2)), "an alarm is not held: it is kept by its band");
     }
 }
