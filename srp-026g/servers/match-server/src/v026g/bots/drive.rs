@@ -2441,10 +2441,20 @@ fn drive_tick_inner(
     };
     // [C2 riser] A route's walk up a 0.76-0.80 m riser (`WalkGait::SprintOrJump`): sprint into it, else a walking jump at it.
     let by = match riser_gait(bot, me, &mut decision.keys, time, tuning) {
-        Some((riser, line)) if by.is_none() && !bot.motor.carrying => {
+        Some(RiserStep::Press(line)) if by.is_none() && !bot.motor.carrying => {
             // [S6] The riser's press and why it is pressed, not sprinted into, for the log.
             bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
-            Some(riser)
+            Some("riser")
+        }
+        // [fix-move, owner-16 row 2] Neither the sprint nor a press it can make: its top is shut to this body's searches until its
+        // next think and the route is planned again from here (a way round, or this riser again once the sprint is the body's),
+        // as a sprint link the client refuses now is ([A386] `Walked::JumpRefused`); the refusal goes to the log.
+        Some(RiserStep::Refused { top, line }) if by.is_none() && !bot.motor.carrying && bot.control.reacts() => {
+            bot.nav_log.push(super::nav_log::Kind::Route, time, line);
+            bot.stuck.refused_jump(time, top, tuning.think.think_ms.1);
+            bot.end_route(RouteEnd::JumpRefused, time);
+            riser_counts::note(5);
+            by
         }
         _ => by,
     };
@@ -2745,7 +2755,12 @@ const RISER_JUMP_AGAIN_MS: u32 = super::body::JUMP_AIR_MS;
 /// that lands, is not pressed and is counted. A grid without flown risers keeps the jump at the face ([`RISER_JUMP_M`]).
 /// [S6] With the jump, the log's line: the press (at the face, or the flown walking press and its lead: a sprint climb's comes
 /// from its walking press, `path::RiserPress::of_climb`) and why the riser is not sprinted into.
-fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tuning) -> Option<(&'static str, String)> {
+///
+/// [fix-move, owner-16 row 2] With no sprint and no press this body makes here (none flown, a flown press it cannot make, or no
+/// jump now), the riser is refused ([`RiserStep::Refused`]), with the refusal's reasons for the log: the walking body is held at
+/// the face for good (the client's step-up, `step_forward_impl` 0x7D33D; the exe at the Vector Laboratory spawn exit held a walk
+/// and an aimed walk 40 ticks, owner-16 report 1c), so standing there pressing forward gets nowhere.
+fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tuning) -> Option<RiserStep> {
     let riser = bot.route.as_ref().and_then(|(route, _)| route.riser_ahead(me.feet, RISER_SPRINT_M))?;
     let top = riser.top;
     if *keys & key::FORWARD == 0 {
@@ -2760,7 +2775,19 @@ fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tun
         riser_counts::note(0);
         return None;
     }
+    let why = match block {
+        Some(motor::SprintBlock::Carrying) => "a battery carried".to_string(),
+        Some(block) => format!("sprint refused: {block:?}"),
+        None if !leg_free => "sprint refused: a leg wound".to_string(),
+        None => format!("sprint refused: keys {held:#x} held"),
+    };
     let may_jump = bot.hurt.may_jump(time) && (!tuning.think.stamina || bot.stamina.may_jump());
+    let refused = |no: &str| {
+        Some(RiserStep::Refused {
+            top,
+            line: format!("nav: riser up to {} refused ({why}; {no}): planned again without it", super::nav_log::at(top)),
+        })
+    };
     let near = match riser.press {
         path::RiserPress::Unflown => top.distance_xz(me.feet) <= RISER_JUMP_M,
         path::RiserPress::Flown(path::Leap::Gap(path::GapPress { lead, walk: path::WalkPress::Cap, .. })) => {
@@ -2788,33 +2815,35 @@ fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tun
         }
         path::RiserPress::Flown(_) => {
             riser_counts::note(3);
-            return None;
+            return refused("its flown press not one it makes here");
         }
         path::RiserPress::NoPress => {
             riser_counts::note(4);
-            return None;
+            return refused("no press flown");
         }
     };
     let again = bot.jump_watch.as_ref().is_some_and(|watch| time < watch.at + RISER_JUMP_AGAIN_MS);
     if !may_jump {
         riser_counts::note(2);
-        None
+        refused("no jump now")
     } else if near && !again && bot.jump_hold == 0 {
         riser_counts::note(1);
         let press = match riser.press {
             path::RiserPress::Flown(path::Leap::Gap(path::GapPress { lead, .. })) => format!("its flown walking press at {:.2} m", lead.metres()),
             _ => "the jump at its face".to_string(),
         };
-        let why = match block {
-            Some(motor::SprintBlock::Carrying) => "a battery carried".to_string(),
-            Some(block) => format!("sprint refused: {block:?}"),
-            None if !leg_free => "sprint refused: a leg wound".to_string(),
-            None => format!("sprint refused: keys {held:#x} held"),
-        };
-        Some(("riser", format!("nav: riser up to {} pressed by {press} ({why})", super::nav_log::at(top))))
+        Some(RiserStep::Press(format!("nav: riser up to {} pressed by {press} ({why})", super::nav_log::at(top))))
     } else {
         None
     }
+}
+
+/// [C2 riser, fix-move] What the riser gait does at a riser it does not sprint into: its walking jump (the log's line), or a
+/// refusal (its top, the log's line).
+#[derive(Clone, Debug, PartialEq)]
+enum RiserStep {
+    Press(String),
+    Refused { top: Vec3, line: String },
 }
 
 /// [fix-move, owner-16 rows 1-3] Why the reflex's quiet look (no target seen) yields this tick ([`reflex::SightsYield`]): the motor
@@ -2851,18 +2880,18 @@ fn sights_yield(bot: &Bot, me: &PlaceView) -> Option<reflex::SightsYield> {
 
 /// [C2 riser] The bench's counts: ticks a riser was sprinted at, walking jumps pressed at one, ticks at one the body could do
 /// neither; [A386] ticks at one whose flown press the body cannot make here (slow, or the sprint jump), ticks at one no flown
-/// press gets up.
+/// press gets up; [fix-move] risers refused and planned again without ([`RiserStep::Refused`]).
 pub mod riser_counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 5] = [const { AtomicU64::new(0) }; 5];
+    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
 
     pub fn note(kind: usize) {
         COUNTS[kind].fetch_add(1, Ordering::Relaxed);
     }
 
     #[cfg(test)]
-    pub fn counts() -> [u64; 5] {
+    pub fn counts() -> [u64; 6] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
