@@ -6712,7 +6712,7 @@ mod tests {
     fn a_body_lined_up_near_a_take_off_is_on_the_jumps_line_through_the_air() {
         let (mut route, ledge) = up_a_ledge(false);
         let mut rng = Rng::new(31);
-        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut motor = Motor::new(walk_ledges(), &mut rng);
         motor.walk(&mut route, &facing_x(Vec3::new(0.5, 0.0, 0.0)), 5.0, |_| true);
         assert!(!motor.on_jump_line(), "4.1 m before the take-off");
         let climb = climb_ledge(&mut route, &ledge, Vec3::new(2.0, 0.0, 0.0), yaw_of([1.0, 0.0]), 300, false);
@@ -6720,7 +6720,7 @@ mod tests {
         // Replay to the press: on the line from 2 m before it, forward alone, and still on it a few ticks after.
         let (mut route, _) = up_a_ledge(false);
         let mut rng = Rng::new(17);
-        let mut motor = Motor::new(Feel::default(), &mut rng);
+        let mut motor = Motor::new(walk_ledges(), &mut rng);
         let press = climb.presses[0].0;
         for (tick, pose) in climb.poses.iter().enumerate().take(press + 5) {
             let (decision, _) = motor.walk(&mut route, pose, 5.0, |_| true);
