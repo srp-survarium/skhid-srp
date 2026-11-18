@@ -202,6 +202,141 @@ impl WalkGrid {
         onto(rest.feet)
     }
 
+    /// [F1] The bottom of the gap a clip link from `a` along `d` to `to` crosses ([`Self::gap_across`]'s): the highest of the
+    /// way's Drop link's floor and the walk-off's floor under the take-off by more than a step, and of the floors crossed in
+    /// the cells from `a`'s on to `to`'s (not counting it) that lie under the take-off's height plus a step; -inf when none.
+    /// A landing over it by more than a step is out of the gap ([`Gap::over`]).
+    fn clip_gap_bottom(&self, wide: &Wide, solids: &Solids, a: u32, d: usize, to: u32) -> f32 {
+        let a = a as usize;
+        let h = self.height[a];
+        let step = self.body.step;
+        let drop = (wide.links[a][d] != NONE && wide.kinds[a][d] == LinkKind::Drop).then(|| self.height[wide.links[a][d] as usize]);
+        let walked = self.walk_off(a, d, jump::WALK_CAP_MS, solids).map(|f| self.height[f as usize]);
+        let mut crossed = [drop, walked].into_iter().flatten().filter(|&y| y < h - step).fold(f32::NEG_INFINITY, f32::max);
+        let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+        let (ti, tk) = self.cell_xz(self.cell_of[to as usize] as usize);
+        let (di, dk) = DIRS[d];
+        let cells = (ti - i).abs().max((tk - k).abs());
+        for g in 1..cells {
+            let Some(cell) = self.cell_index(i + g * di, k + g * dk) else { break };
+            crossed = (self.start[cell]..self.start[cell + 1]).map(|f| self.height[f as usize]).filter(|&y| y < h + step).fold(crossed, f32::max);
+        }
+        crossed
+    }
+
+    /// [F1] The clip pass's pressed links (`clip`: a press from the jump clip's approximation over the cells, never flown) where
+    /// no flown link of `found` covers their group (the thinning's key: a metre of edge, the way, the levels), proven by the
+    /// client's own jump code before they may be kept (part 3 F1: a link is a proven press). Each group's first and last such
+    /// link (the thinning keeps one a group; the flown groups' own bound) is flown as a flown group is: over every press a
+    /// client makes ([`Self::best_press`]: the walk, the slow presses, the sprint with every variant, the sprint climb, at the
+    /// gap leads; then the aimed presses where a flight came near), a flight landing by the gap pass's own rule
+    /// ([`Self::gap_lands_on`]: two or more cells on, over the gap's bottom by more than a step, [`Self::clip_gap_bottom`], in
+    /// a gap link's reach, with standing room, on no floor `a` links to already), and each link made goes to the floor its
+    /// flights rest on, with its press, share, walking press and aim. A group none lands is left with no pressed link: no
+    /// client press makes it (every client press was tried: teach, do not cut). Before, such a link stayed with the clip's
+    /// press and no share, so the route priced it as a sure link (part 3 table 18c: 6 spots where no fed press lands and the
+    /// bots failed 9 tries, the stored press missing in the exe and in the port). The walk-offs pass as they are (the Drop
+    /// links' walk proves them, `drop_check`).
+    #[allow(clippy::too_many_arguments)]
+    fn prove_clip_presses(
+        &self,
+        wide: &Wide,
+        solids: &Solids,
+        found: &[(OffLink, usize)],
+        clip: Vec<(OffLink, usize)>,
+        world: &Collision,
+        s: &Settings,
+        kits: Kits,
+        stats: &mut GapStats,
+    ) -> Vec<(OffLink, usize)> {
+        use super::gap::Takeoff;
+        let key = |l: &OffLink, d: usize| {
+            let (p, q) = (self.position(l.from), self.position(l.to));
+            (
+                p.x.floor() as i32,
+                p.z.floor() as i32,
+                (2.0 * p.y).round() as i32,
+                if l.kind == LinkKind::GapDrop { usize::MAX } else { d },
+                (2.0 * q.y).round() as i32,
+            )
+        };
+        let covered: std::collections::HashSet<_> = found.iter().map(|(l, d)| key(l, *d)).collect();
+        let mut out: Vec<(OffLink, usize)> = Vec::new();
+        let mut presses: Vec<(OffLink, usize)> = Vec::new();
+        for (l, d) in clip {
+            if matches!(l.press, Takeoff::WalkOff | Takeoff::Release { .. }) || l.share.flown().is_some() {
+                out.push((l, d));
+            } else {
+                presses.push((l, d));
+            }
+        }
+        // The groups no flown link covers, each in the thinning's order (a walking press before a sprint, then floor order).
+        presses.retain(|(l, d)| !covered.contains(&key(l, *d)));
+        presses.sort_by_key(|&(l, d)| (key(&l, d), u8::from(matches!(l.press, Takeoff::Sprint(_) | Takeoff::SprintHeld(_) | Takeoff::Climb)), l.from, d, l.to));
+        let mut groups: Vec<std::ops::Range<usize>> = Vec::new();
+        for (i, (l, d)) in presses.iter().enumerate() {
+            match groups.last_mut() {
+                Some(r) if key(&presses[r.start].0, presses[r.start].1) == key(l, *d) => r.end = i + 1,
+                _ => groups.push(i..i + 1),
+            }
+        }
+        let leads = gap_leads();
+        let proven = super::controlled::parallel(&groups, |r| {
+            let group = &presses[r.clone()];
+            let ends: &[(OffLink, usize)] = if group.len() <= 2 { group } else { &[group[0], group[group.len() - 1]] };
+            let mut flights = 0;
+            for &(l, d) in ends {
+                let (di, dk) = DIRS[d];
+                let len = ((di * di + dk * dk) as f32).sqrt();
+                let way = (di as f32 / len, dk as f32 / len);
+                // As the flown groups: the floors `a` has a link to already make no landing.
+                let linked: Vec<NodeId> = wide.links[l.from as usize].iter().copied().filter(|&f| f != NONE).collect();
+                let over = self.clip_gap_bottom(wide, solids, l.from, d, l.to) + self.body.step;
+                let lands = |st: &[FlightStep]| self.gap_lands_on(st, l.from, &linked, over, 2);
+                let p = self.best_press(world, s, l.from, l.to, way, &leads, lands, kits);
+                flights += p.flights;
+                let made = if p.made.is_empty() && p.near {
+                    let sweep = self.best_aimed(world, s, l.from, l.to, way, &lands, kits);
+                    flights += sweep.flights;
+                    sweep.made.into_iter().collect()
+                } else {
+                    p.made
+                };
+                if !made.is_empty() {
+                    let links: Vec<(OffLink, usize)> = made
+                        .into_iter()
+                        .map(|m| {
+                            let rise = self.height[m.to as usize] - self.height[l.from as usize];
+                            let kind = if rise > -self.body.step { LinkKind::GapJump } else { LinkKind::GapDrop };
+                            (OffLink { from: l.from, to: m.to, kind, press: m.press, share: m.share, walk: m.walk, aim: m.aim }, d)
+                        })
+                        .collect();
+                    return (links, flights);
+                }
+            }
+            (Vec::new(), flights)
+        });
+        stats.clip_tried += groups.len();
+        let mut pairs: std::collections::HashSet<(NodeId, NodeId)> = found.iter().map(|(l, _)| (l.from, l.to)).collect();
+        for (made, flights) in proven {
+            stats.clip_flights += flights;
+            if made.is_empty() {
+                stats.clip_unlanded += 1;
+                continue;
+            }
+            stats.clip_proven += 1;
+            stats.clip_retargeted += made.iter().filter(|(m, _)| !presses.iter().any(|(l, _)| (l.from, l.to) == (m.from, m.to))).count();
+            // One link a (take-off, landing) pair: a flown link of the pair is there already, or an earlier group made it.
+            for link in made {
+                if pairs.insert((link.0.from, link.0.to)) {
+                    stats.by_share[link.0.share.class()] += 1;
+                    out.push(link);
+                }
+            }
+        }
+        out
+    }
+
     /// [`super::Body::gap_flights`]: the gap links of the eroded grid flown by the client's jump on `world` (module
     /// documentation), with the walk-offs, kept and thinned as [`Self::gap_links`]'s, sorted by take-off then landing; and [S3]
     /// the cells of the thin tops the gaps over one cross ([`Self::over_thin_top`]), for [`Self::line_tops_of`].
@@ -325,7 +460,8 @@ impl WalkGrid {
                 found.push((OffLink { from: g.a, to, kind, press, share, walk, aim }, g.d));
             }
         }
-        found.extend(clip);
+        let proven = self.prove_clip_presses(wide, solids, &found, clip, world, s, kits, stats);
+        found.extend(proven);
         found.sort_by_key(|&(l, d)| (l.from, d, l.to));
         let out = self.thin_gap_links(wide, found, stats);
         stats.clip_kept = out.iter().filter(|l| l.press != super::gap::Takeoff::WalkOff && l.share.flown().is_none()).count();
@@ -404,6 +540,31 @@ mod tests {
         assert!(stats.gaps.over_thin > 0, "{:?}", stats.gaps);
         let over: Vec<OffLink> = g.off_links().iter().copied().filter(|l| g.position(l.from).x < 6.0 && g.position(l.to).x > 6.25).collect();
         println!("over the railing: {} made, {over:?}", stats.gaps.over_thin_made);
+    }
+
+    /// [F1] With the flights, no pressed link is kept unflown: the clip pass's presses are each proven by the client's jump onto
+    /// their own top or not kept, over gaps of 1, 2.5, 4 and 6 m between level blocks and up and down a step and a half.
+    #[test]
+    fn no_pressed_link_is_kept_unflown() {
+        let body = Body { gap_flights: true, exe_collision: true, start_witness: true, max_jump: STANDING_JUMP_M, ..Body::client() };
+        for (a, b, gap) in [(2.0, 2.0, 1.0), (2.0, 2.0, 2.5), (2.0, 2.0, 4.0), (2.0, 2.0, 6.0), (2.0, 2.9, 1.5), (2.0, 0.8, 2.0)] {
+            let t = blocks(a, b, gap, -3.0);
+            let start = [Vec3::new(3.0, a, 5.0), Vec3::new(13.0, b, 5.0)];
+            let (g, stats) = WalkGrid::build_kept_with_links(&t, AREA, 0.25, body, &start, &start, OffMeshLinks::Gaps);
+            let unflown: Vec<&OffLink> = g
+                .off_links()
+                .iter()
+                .filter(|l| !matches!(l.press, Takeoff::WalkOff | Takeoff::Release { .. }) && l.share.flown().is_none())
+                .collect();
+            assert!(unflown.is_empty(), "{a} {b} {gap}: {unflown:?}");
+            assert_eq!(stats.gaps.clip_kept, 0, "{a} {b} {gap}: {:?}", stats.gaps);
+            assert_eq!(stats.gaps.clip_tried, stats.gaps.clip_proven + stats.gaps.clip_unlanded, "{:?}", stats.gaps);
+            // The level gaps a press of the client's crosses keep a flown pressed link across (Opus's review of #2175).
+            if a == b && gap <= 4.0 {
+                let crossing = across(&g, 6.0 + gap);
+                assert!(crossing.iter().any(|l| l.share.flown().is_some()), "{gap} m: {crossing:?} {:?}", stats.gaps);
+            }
+        }
     }
 
     /// A level gap of 6 m: no press of the client's lands across (the sprint jump from a 0.6-1.6 m lead comes down about 4 m on),
