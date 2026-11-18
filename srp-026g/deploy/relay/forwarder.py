@@ -218,12 +218,16 @@ class HTTPS(Login):
 async def run_https(args):
     proxy = HTTPS(args.public, args.https_origin, 443, limit=128)
     server = await asyncio.start_server(proxy.accept, args.bind, 8080, family=socket.AF_INET, limit=4096)
-    logging.info("HTTPS relay ready for %s:443", args.https_origin)
+    # The site under the relay's own name: its HTTPS port goes to the origin's
+    # web server unopened, which is told the visitor's address as the login is.
+    site = Login(args.public, args.backend, args.site_port)
+    passed = await asyncio.start_server(site.accept, args.bind, args.site_port, family=socket.AF_INET)
+    logging.info("HTTPS relay ready for %s:443, site on %s", args.https_origin, args.site_port)
     stopped = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stopped.set)
-    async with server:
+    async with server, passed:
         await stopped.wait()
 
 
@@ -267,6 +271,7 @@ def main():
     parser.add_argument("--backend", required=True, type=ipv4)
     parser.add_argument("--bind", default="0.0.0.0")
     parser.add_argument("--https-origin", default="skhid.link")
+    parser.add_argument("--site-port", default=443, type=int)
     parser.add_argument("--login-port", default=1234, type=int)
     parser.add_argument("--lobby-port", default=1235, type=int)
     parser.add_argument("--match-port", default=1236, type=int)

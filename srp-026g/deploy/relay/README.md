@@ -22,12 +22,20 @@ retain their existing mirror behavior. This is not a general HTTP proxy and does
 not change browser or system proxy settings. A new player needs the release
 containing this updater/configuration before automatic fallback is available.
 
+Browsers get the site under a name of the relay's own (`by.skhid.link`): the
+same web service passes its port 443 through the tunnel to the origin's Caddy,
+unopened. The certificate and its key stay on the origin, and the relay sees
+no page and no password. Caddy takes the visitor's address from the PROXY
+header, from the tunnel addresses of `SRP_RELAYS` only; anyone else's header is
+read and ignored (`check_site.py`). Downloads through that name count against
+the relay's traffic.
+
 ## Installation
 
 The default tunnel addresses are origin `10.77.0.1/32`, relay `10.77.0.2/32`.
 Check they do not overlap either host's networks. Origin initiates WireGuard to
 the relay on UDP 51820 with a 25-second keepalive, so it needs no new inbound
-provider firewall port. The relay needs inbound TCP 1234/8080, UDP 1235–1237/51820.
+provider firewall port. The relay needs inbound TCP 443/1234/8080, UDP 1235–1237/51820.
 Only IPv4 players and consecutive game ports are supported by this first setup.
 
 1. Build the native bundle (command below) and install
@@ -65,12 +73,34 @@ The server processes invalid envelopes as dropped packets, not fatal socket
 errors. Both ends bound their return-address tables and expire idle entries;
 UDP replies go only to clients observed on that frontend within 120 seconds.
 
+## The site under the relay's name
+
+1. Point the name's A record (`by.skhid.link`) at the relay.
+2. On both hosts run `bash setup.sh configure ...` again with the same
+   arguments: it reloads the tunnel's firewall with port 443 (the tunnel stays
+   up), and on the relay installs this forwarder and its service. Then
+   `systemctl restart skhid-relay-web` there.
+3. On the origin add the name to `SRP_WEB_DOMAIN` in `.env` (`SRP_RELAYS` is
+   step 4 above) and make Caddy anew with this compose file:
+   `docker compose --profile tls up -d --no-deps caddy26`. The site's HTTPS is
+   away for a few seconds, so this needs the owner's go; a release does not do
+   it (it makes only `srp26` anew). The name's certificate comes by TLS-ALPN
+   through the relay, so steps 1 and 2 come first.
+4. Check `https://by.skhid.link/api/stats`, then that the page sees the
+   visitor and not the relay: the admin page must answer the jump host under
+   this name too. If it does not, Caddy sees another source than the relay's
+   tunnel address (Docker's published port keeps it) and ignores the header.
+
+To take it away: remove the name from `SRP_WEB_DOMAIN`, make `caddy26` anew,
+remove the A record.
+
 ## Checks and rollback
 
 `tools/check regional-relay relay-packaging cargo:udp-transport
 cargo:login-server cargo:lobby-server cargo:match-server updater-replays`
 checks parsing, forged headers, concurrent clients, TCP/UDP round trips, address
-advertising, fallback selection, Windows build and release packaging. Run the
+advertising, fallback selection, Windows build and release packaging;
+`tools/check relay-site` the site through a relay against a real Caddy. Run the
 normal `tools/check` before a PR too.
 
 To stop forwarding: `systemctl disable --now skhid-relay skhid-relay-web`. Remove the fallback

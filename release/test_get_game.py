@@ -35,7 +35,7 @@ class Download(unittest.TestCase):
             threading.Thread(target=backend.serve_forever,daemon=True).start()
             web_port = port()
             line = next(line.strip() for line in (HERE.parent/'srp-026g/docker-compose.yml').read_text().splitlines() if "printf '%s {" in line)
-            command = line.replace('$$SRP_WEB_NAMES','$SRP_WEB_NAMES').split(' > /tmp/Caddyfile')[0]
+            command = line.replace('$$SRP_WEB_NAMES','$SRP_WEB_NAMES').split('; } > /tmp/Caddyfile')[0]
             rendered = subprocess.check_output(['bash','-c',command],env={**os.environ,'SRP_WEB_NAMES':f'http://127.0.0.1:{web_port}'},text=True)
             rendered = rendered.replace('/data/skhid-downloads','"'+str(root)+'"').replace('srp26:8088',f'127.0.0.1:{backend.server_port}')
             config = root/'Caddyfile'; config.write_text('{\n admin off\n}\n'+rendered)
