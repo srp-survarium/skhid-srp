@@ -1015,11 +1015,12 @@ impl Core<'_> {
     /// The match server's host for the client at `addr`: one on this
     /// machine or its network is told the address it reached srp at, when
     /// the match server is on this machine too.
-    fn match_host_for(&self, addr: SocketAddr, ticket: &MatchTicket) -> String {
-        let reached = self
-            .player(addr)
-            .and_then(|player| player.reached)
-            .map(|reached| reached.to_canonical());
+    pub(super) fn match_host_for(&self, addr: SocketAddr, ticket: &MatchTicket) -> String {
+        let reached = match self.player(addr).map(|player| &player.arrival) {
+            Some(super::core::Arrival::Relayed(ip)) => return ip.to_string(),
+            Some(super::core::Arrival::Direct(reached)) => reached.map(|ip| ip.to_canonical()),
+            None => None,
+        };
         match reached {
             Some(IpAddr::V4(reached))
                 if self.settings.local_peers

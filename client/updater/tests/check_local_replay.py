@@ -152,6 +152,8 @@ def main():
     finally:
         server.shutdown()
         server.server_close()
+    import relay_play
+    relay_play.check(run, updater, x86, started, log, win)
     assert hashlib.sha256(file.read_bytes()).hexdigest() == digest
     (root / 'result.json').write_text(json.dumps({'passed': True, 'updater_sha256':
         hashlib.sha256(updater.read_bytes()).hexdigest()}, indent=2) + '\n')

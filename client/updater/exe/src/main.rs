@@ -28,6 +28,7 @@
 extern crate alloc;
 
 mod game;
+mod play;
 mod gate;
 mod http;
 mod install;
@@ -1302,6 +1303,9 @@ fn run() -> u32 {
     }
     if arguments.get(1).is_some_and(|a| a == "register-replays") {
         return register_replays(&arguments[2..]);
+    }
+    if arguments.get(1).is_some_and(|a| a == "play") {
+        return play::run(&arguments[2..]);
     }
     let options = options();
     let layout = match Layout::find() {

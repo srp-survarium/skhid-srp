@@ -54,6 +54,12 @@ const ONLINE_STATS_EVERY: Duration = Duration::from_secs(5);
 /// How long a link being signed out waits for its `AA` to be acked.
 const SIGN_OUT_WAIT: Duration = Duration::from_secs(1);
 
+/// Where this client's connection entered the server.
+pub(super) enum Arrival {
+    Direct(Option<IpAddr>),
+    Relayed(std::net::Ipv4Addr),
+}
+
 /// A signed-in client.
 pub(super) struct Player<'a> {
     pub session_id: u32,
@@ -65,7 +71,7 @@ pub(super) struct Player<'a> {
     _hold: SessionHold<'a>,
     /// The address the client reached srp at, if it could be found: what a
     /// client on this machine's network is told for the match server too.
-    pub reached: Option<IpAddr>,
+    pub arrival: Arrival,
     /// The chat channels' ids (`4F`); all 0 until the client subscribes.
     pub channel_ids: [u32; 10],
     /// The game's language, as `4F` and `45` give it (0 English, 1
@@ -407,7 +413,15 @@ impl<'a> Core<'a> {
     // ----------------------------------------------------------- datagrams
 
     /// One datagram from `from`.
+    #[cfg(test)]
     pub fn datagram(&mut self, from: SocketAddr, bytes: &[u8], now: Instant) {
+        self.datagram_via(udp_transport::relay::Peer {
+            address: from, route: udp_transport::relay::Route::Direct,
+        }, bytes, now);
+    }
+
+    pub fn datagram_via(&mut self, peer: udp_transport::relay::Peer, bytes: &[u8], now: Instant) {
+        let from = peer.address;
         let events = match self.links.get_mut(&from) {
             Some(link) => link.transport.receive(bytes, now),
             None => {
@@ -417,6 +431,16 @@ impl<'a> Core<'a> {
                 events
             }
         };
+        if let Some(player) = self.player_mut(from) {
+            match peer.route {
+                udp_transport::relay::Route::Relayed(ip) => player.arrival = Arrival::Relayed(ip),
+                udp_transport::relay::Route::Direct => {
+                    if matches!(player.arrival, Arrival::Relayed(_)) {
+                        player.arrival = Arrival::Direct(reached_address(from));
+                    }
+                }
+            }
+        }
         for event in events {
             match event {
                 Event::Message { id, payload } => {
@@ -666,7 +690,7 @@ impl<'a> Core<'a> {
             name: name.clone(),
             account: game,
             _hold: hold,
-            reached: reached_address(from),
+            arrival: Arrival::Direct(reached_address(from)),
             channel_ids: [0; 10],
             language: None,
             queued_since: None,
