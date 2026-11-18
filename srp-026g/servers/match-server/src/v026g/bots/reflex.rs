@@ -16783,7 +16783,7 @@ mod tests {
         let pick = |corners: &[Vec3], seen_from: &dyn Fn(Vec3) -> bool, reach: f32, rays: &mut u32| {
             SightsUp::pick(&memory, eye, feet, corners, (window, reach, 6_000), 6_000, |from, to| {
                 *rays += 1;
-                assert!(to.distance(heard_at + Vec3::new(0.0, SIGHTS_CHEST_M, 0.0)) < 1e-4);
+                assert!((to - (heard_at + Vec3::new(0.0, SIGHTS_CHEST_M, 0.0))).length() < 1e-4);
                 seen_from(from)
             })
         };
@@ -16794,17 +16794,17 @@ mod tests {
         // Hidden from the eye; the first corner (3 m on) sees him.
         let corner = Vec3::new(3.0, 0.0, 0.0);
         let corner_eye = corner + Vec3::new(0.0, 1.6, 0.0);
-        let sees_corner = |from: Vec3| from.distance(corner_eye) < 1e-4;
+        let sees_corner = |from: Vec3| (from - corner_eye).length() < 1e-4;
         let mut rays = 0;
         let at_corner = pick(&[corner, Vec3::new(3.0, 0.0, 9.0)], &sees_corner, 100.0, &mut rays).expect("from the corner");
         assert_eq!((at_corner.from, rays), (SightsFrom::Corner, 2));
         // The same corner past the lead, or third in line: no sights up.
         let far = Vec3::new(lead + 0.5, 0.0, 0.0);
         let far_eye = far + Vec3::new(0.0, 1.6, 0.0);
-        assert!(pick(&[far], &|from| from.distance(far_eye) < 1e-4, 100.0, &mut 0).is_none(), "past the lead");
+        assert!(pick(&[far], &|from| (from - far_eye).length() < 1e-4, 100.0, &mut 0).is_none(), "past the lead");
         let near = |x: f32| Vec3::new(x, 0.0, 0.0);
         let third = near(2.0) + Vec3::new(0.0, 1.6, 0.0);
-        assert!(pick(&[near(0.5), near(1.0), near(2.0)], &|from| from.distance(third) < 1e-4, 100.0, &mut 0).is_none(), "the third corner");
+        assert!(pick(&[near(0.5), near(1.0), near(2.0)], &|from| (from - third).length() < 1e-4, 100.0, &mut 0).is_none(), "the third corner");
         // Past the window's distance (20 m heard, 15 m reach) nothing is cast.
         let mut rays = 0;
         assert!(pick(&[corner], &|_| true, 15.0, &mut rays).is_none() && rays == 0, "past the weapon's reach");
