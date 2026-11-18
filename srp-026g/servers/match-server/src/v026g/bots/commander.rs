@@ -16,6 +16,8 @@ pub(super) struct TeamState {
     /// [fix-team 2 `commit.hold_started`] Its bots' held plays an interrupter suspended (`team::Commit::Resumes`): one a bot
     /// at most, kept while the bot's play is the interrupter's (`team::INTERRUPT_REASON`), gone with the bot's life.
     pub(super) suspended: Vec<team::Suspended>,
+    /// [fix-team 4 `mods.comeback`] Its confidence, faded (`team::Confidence`).
+    pub(super) confidence: team::Confidence,
 }
 
 /// [A391] A Breach that went: its spot and its bots.
@@ -921,7 +923,10 @@ impl Bots {
         let tracker = &self.tracker;
         let exact = tuning.cheats.enemy_respawn_exact;
         let back = |p: &PlaceView| tuning.think.respawn_times && tracker.back(view, team, p, exact);
-        state.signals = MatchSignals::read(view, team, since_theft, back);
+        state.signals = MatchSignals::read_full_at(view, team, since_theft, back, tuning.tdm.gap_full_tickets.map(|t| t.get()));
+        if let Some(rule) = tuning.mods.comeback {
+            state.confidence = state.confidence.read(state.signals.alive_ours, state.signals.alive_theirs, now, rule.fade_s);
+        }
         state.mods.update(&state.signals, &tuning.mods);
         // A team that can no longer respawn (Team Deathmatch, its tickets
         // out) plays it safe.
@@ -1339,6 +1344,21 @@ impl Bots {
                 }
             }
         }
+        // [fix-team 4 `mods.comeback`] By the team's faded confidence: outnumbered, no new attack (a running one goes on);
+        // decimated, a running one is let go too (Killzone 3's decimated attack reported up; Days Gone's fall back).
+        if let Some(rule) = tuning.mods.comeback
+            && let Some(confidence) = state.confidence.ratio()
+        {
+            let gate = rule.gate(confidence);
+            if gate != tuning::AttackGate::Open {
+                for (_, candidates, current) in &mut asked {
+                    let before = candidates.len();
+                    let running = |c: &plays::Candidate| current.as_ref().is_some_and(|a| a.kind == c.kind && a.target == c.target);
+                    candidates.retain(|c| !team::attack(c.kind) || (gate == tuning::AttackGate::NoStart && running(c)));
+                    team::comeback_counts::add(team::comeback_counts::Count::AttacksHeldBack, (before - candidates.len()) as u64);
+                }
+            }
+        }
         // [A296 item 2, `mods.team_plan`] The team's plan from its standing and the time left re-weighs every bot's candidates.
         if let Some(rule) = tuning.mods.team_plan {
             let plan = team::TeamPlan::of(&state.signals, &rule);
@@ -1464,6 +1484,7 @@ impl Bots {
                 me,
                 bot: BotFacts {
                     personality: bot.personality(&tuning),
+                    skill: bot.skill,
                     weapon: bot.weapon(&self.features.weapons, &tuning),
                     weapons: &self.features.weapons,
                     side: bot.side,
@@ -1647,6 +1668,7 @@ fn bot_facts<'a>(
 ) -> BotFacts<'a> {
     BotFacts {
         personality: bot.personality(tuning),
+        skill: bot.skill,
         weapon: bot.weapon(weapons, tuning),
         weapons,
         side: bot.side,

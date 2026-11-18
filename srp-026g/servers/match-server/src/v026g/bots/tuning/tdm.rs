@@ -185,11 +185,17 @@ pub struct TdmTuning {
     /// no-group-feed guards level (#1269). `all_off.json` names it null.
     pub behind_holds: Option<BehindHolds>,
     pub squad: Option<Squad>,
+    /// [fix-team 4] The team's score gap in Team Deathmatch is fully behind ([`crate::v026g::bots::signals::BEHIND_FULL`]
+    /// points) at this many tickets: 5, `behind_holds.full_tickets`'s value, so the aggression, the endgame's time and the
+    /// TDM holds read one "fully behind". It is a design value, not a measured one. `None`: a tenth a ticket, fully behind
+    /// at 30 tickets, which the loser of the 16 local matches at 9694ea576 never reached (its gap read 0.4-1.8, aggression
+    /// 0.23-0.47).
+    pub gap_full_tickets: Option<Positive>,
 }
 
 impl Default for TdmTuning {
     fn default() -> Self {
-        Self { group: None, behind_holds: Some(BehindHolds::default()), squad: None }
+        Self { group: None, behind_holds: Some(BehindHolds::default()), squad: None, gap_full_tickets: Some(Positive::of(5.0)) }
     }
 }
 
