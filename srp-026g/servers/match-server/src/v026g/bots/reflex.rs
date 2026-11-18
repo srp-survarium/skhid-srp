@@ -1057,11 +1057,20 @@ pub struct CombatTuning {
     /// [A393] Sights up at the last corner: with no target seen and an enemy heard or told of, the bot walks aimed (the
     /// aim key held) at his bearing, so its sights are up when he shows: raising them takes the weapon's aim time
     /// (`aim_time`, the client's 0x2E1B50), and 38 % of a reference player's victims died with the weapon down (A393).
-    /// Which enemy ([`SightsUp`], set each think): a Heard or Told track the bot's memory still holds as sensed (sensed
+    /// Which enemy ([`SightsUp`], picked each think): a Heard or Told track the bot's memory still holds as sensed (sensed
     /// within `sense.forget_ms`, the memory's own track lifetime: itself a bots' value with no source yet), within the
     /// distance the bot's own weapon's shot is heard (`shot_reach.rs`, PROVEN per weapon: the distance its shot could
-    /// answer). Not while carrying a battery; no reach known: none. Off: as before.
-    pub sights_up: bool,
+    /// answer). Not while carrying a battery; no reach known: none.
+    ///
+    /// [fix-move, owner-16 rows 1-3] Only at the last corner ([`SightsUpWindow`]): the track within the window's `max_m` and its
+    /// place in sight of the bot's eye, or of a corner of its route within the window's lead. And never while a riser, a sprint
+    /// climb or a route jump lies close ahead ([`SightsYield`]): the client refuses a sprint while the sights are up or still
+    /// coming down (`can_sprint` 0x2E3A10: the aim transition at exactly 0, `docs/notes/sprint_state.md`), and a walking body
+    /// is held at a 0.80-1.18 m face a sprinting one climbs (owner-16 report 1c, the exe at the Vector Laboratory spawn exit).
+    /// #1916's window (the whole shot reach, everywhere) held the aim in 56.5 % of the bots' quiet ticks against live humans'
+    /// 9-11 % at any range (`traces-20261028/fix-move-sights-up-20261118.md`), and refused the sprint at the climbs.
+    /// `None`: off (no aim key without a target, as before A393).
+    pub sights_up: Option<SightsUpWindow>,
     /// [fx-grid aim gates, `private/grid/aim-gates/FINDINGS.md`] The aim-in counts from when the client lets the sights
     /// come up ([`Reflex::aim_open`]), not from the AIM press: the client refuses the sights (`can_aim` 0x2E3AC0) and the
     /// shot (0x2E3CB0) while it sprints and until the sprint animation's end ([`ClientGate::sprint_out_ms`]), through a
@@ -2079,7 +2088,7 @@ impl Default for CombatTuning {
             kit_recoil: true,
             aim_last_known: true,
             pre_aim_heard: None,
-            sights_up: true,
+            sights_up: Some(SightsUpWindow::default()),
             gate_from_client: Some(ClientGate { sprint_out_ms: 300, jump_ms: 1_200 }),
             lead_most_ms: 300,
             lead_own: true,
@@ -2348,18 +2357,145 @@ impl PreAimHeard {
     }
 }
 
-/// [A393] [`CombatTuning::sights_up`]'s window: a Heard or Told track sensed within `fresh_ms` (the memory's track lifetime,
-/// `sense.forget_ms`) and within `reach_m` (the bot's own weapon's shot reach, `shot_reach.rs`).
+/// [fix-move, owner-16 rows 1-3] [`CombatTuning::sights_up`]'s last corner, from live players (`wsl-out/routes/hr12`: the AIM,
+/// FIRE and JUMP key runs of 237 recordings of matches with humans only, at least 6 alive, and their 1 s worlds; script
+/// `traces-20261028/fix-move/scripts/live_aim_before_contact_v1.py`, 29,841 first shots after 5 s without one).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SightsUpWindow {
+    /// The enemy's place at most this far, m: 9 of 10 live humans' sights that were up at their first shot went up with the
+    /// nearest enemy within 49.3 m (p90 of 22,489; p50 21.9 m). The bot's own weapon's shot reach still caps it.
+    pub max_m: f32,
+    /// A corner of the route ahead counts while it is within this long of the walk cap (`kin`: 3.5 m/s, PROVEN), ms: 9 of 10
+    /// live humans' sights that were up at their first shot had gone up at most 1,558 ms before it (p50 435 ms).
+    pub lead_ms: u32,
+}
+
+impl Default for SightsUpWindow {
+    fn default() -> Self {
+        Self { max_m: 49.3, lead_ms: 1_558 }
+    }
+}
+
+/// The walk cap, m/s: `default.player` `walk_fwd` 3.5 (PROVEN, `kin`).
+const SIGHTS_WALK_MPS: f32 = 3.5;
+
+impl SightsUpWindow {
+    /// How far along the route a corner counts, m.
+    pub fn lead_m(self) -> f32 {
+        self.lead_ms as f32 / 1000.0 * SIGHTS_WALK_MPS
+    }
+}
+
+/// [fix-move] At most this many corners of the route ahead are tested for a sight of the heard place, each think (a ray each).
+pub const SIGHTS_CORNERS: usize = 2;
+
+/// [A393, fix-move] Where the sights-up enemy's place is in sight from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SightsFrom {
+    /// The bot's eye now: he may show at once.
+    Eye,
+    /// A corner of the route within [`SightsUpWindow::lead_m`]: the last corner before he may show.
+    Corner,
+}
+
+/// [A393, fix-move] The sights-up enemy the think picked ([`SightsUp::pick`]): his track's place, when it was sensed, until when
+/// it counts (the memory's track lifetime), and where it is in sight from.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SightsUp {
-    pub fresh_ms: u32,
-    pub reach_m: f32,
+    pub at: Vec3,
+    pub sensed: u32,
+    pub until: u32,
+    pub from: SightsFrom,
 }
 
 impl SightsUp {
-    /// The nearest such track's place, and when it was sensed.
-    pub fn nearest(&self, memory: &Memory, feet: Vec3, now: u32) -> Option<(Vec3, u32)> {
-        PreAimHeard { fresh_ms: self.fresh_ms, max_m: self.reach_m }.nearest(memory, feet, now)
+    /// The nearest Heard or Told track sensed within `fresh_ms` and within the window's `max_m` and `reach_m` (the bot's own
+    /// weapon's shot reach) of the eye's feet, when its place (at the chest's height) is in sight of the eye or of one of the
+    /// first [`SIGHTS_CORNERS`] corners of the route ahead within the window's lead (at the eye's height over the corner).
+    /// `sees(from, to)` is the sight ray (the caller's budget; a ray refused is no sight).
+    #[allow(clippy::too_many_arguments)]
+    pub fn pick(
+        memory: &Memory,
+        eye: Vec3,
+        feet: Vec3,
+        corners: &[Vec3],
+        (window, reach_m, fresh_ms): (SightsUpWindow, f32, u32),
+        now: u32,
+        mut sees: impl FnMut(Vec3, Vec3) -> bool,
+    ) -> Option<SightsUp> {
+        let (at, sensed) = PreAimHeard { fresh_ms, max_m: reach_m.min(window.max_m) }.nearest(memory, feet, now)?;
+        let target = at + Vec3::new(0.0, SIGHTS_CHEST_M, 0.0);
+        let until = sensed.saturating_add(fresh_ms);
+        if sees(eye, target) {
+            sights_up_counts::picked(sights_up_counts::Pick::Eye);
+            return Some(SightsUp { at, sensed, until, from: SightsFrom::Eye });
+        }
+        let up = eye.y - feet.y;
+        let lead_m = window.lead_m();
+        let mut walked = 0.0;
+        let mut last = feet;
+        for &corner in corners.iter().take(SIGHTS_CORNERS) {
+            walked += last.distance_xz(corner);
+            if walked > lead_m {
+                break;
+            }
+            if sees(corner + Vec3::new(0.0, up, 0.0), target) {
+                sights_up_counts::picked(sights_up_counts::Pick::Corner);
+                return Some(SightsUp { at, sensed, until, from: SightsFrom::Corner });
+            }
+            last = corner;
+        }
+        sights_up_counts::picked(sights_up_counts::Pick::NotInSight);
+        None
+    }
+}
+
+/// The height the sights-up look is aimed at over the track's place, m (the reflex's look at a heard enemy, as before).
+const SIGHTS_CHEST_M: f32 = 1.3;
+
+/// [fix-move, owner-16 rows 1-3] Why the sights-up aim yields this tick ([`Reflex::set_sights_yield`], set by the driver from the
+/// route ahead): the view goes along the walk, no aim key, so the body may sprint where its way needs it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SightsYield {
+    /// A riser or a sprint climb of the route ahead (`Route::riser_ahead`): sprinted into.
+    Riser,
+    /// A route jump ahead, or the motor lined up for one or in it.
+    Jump,
+}
+
+/// [fix-move] The sights-up counts: thinks that picked an enemy by where his place is in sight from, or found it in sight of
+/// neither; ticks aimed by that pick; ticks it yielded by the reason.
+pub mod sights_up_counts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Pick {
+        Eye,
+        Corner,
+        NotInSight,
+    }
+
+    static PICKS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    static AIMED: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+    static YIELDS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn picked(pick: Pick) {
+        PICKS[pick as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn aimed(from: super::SightsFrom) {
+        AIMED[from as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn yielded(why: super::SightsYield) {
+        YIELDS[why as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Picks [eye, corner, in sight of neither], aimed ticks [eye, corner], yielded ticks [riser, jump].
+    pub fn counts() -> ([u64; 3], [u64; 2], [u64; 2]) {
+        let load = |a: &AtomicU64| a.load(Ordering::Relaxed);
+        (PICKS.each_ref().map(load), AIMED.each_ref().map(load), YIELDS.each_ref().map(load))
     }
 }
 
@@ -4242,8 +4378,10 @@ pub struct Reflex {
     /// [A391] Until when a Breach's go asked this crosser to throw first: its grenade roll is not paced meanwhile, so the
     /// A170 held-spot throw (`grenade_at_held`) goes at the go, not at the next paced roll ([`Reflex::throw_first`]).
     breach_throw_until: Option<u32>,
-    /// [A393] The window `sights_up` takes its enemy in ([`Reflex::set_sights_up`]); none: no reach known.
-    sights_up_window: Option<SightsUp>,
+    /// [A393, fix-move] The enemy the think picked for the sights up ([`Reflex::set_sights_up`]); none: none at the last corner.
+    sights_up_pick: Option<SightsUp>,
+    /// [fix-move] Why the sights-up aim yields this tick ([`Reflex::set_sights_yield`]); none: it does not.
+    sights_yield: Option<SightsYield>,
     debug_notes: Vec<String>,
     /// Enemies seen holding an angle: who, where, when.
     held: Vec<(Place, Vec3, u32)>,
@@ -4916,10 +5054,14 @@ impl Reflex {
         std::mem::take(&mut self.throw_notes)
     }
 
-    /// [A393] The window `sights_up` takes its enemy in, each think: the memory's track lifetime and the bot's own weapon's
-    /// shot reach (`None`: none known, no sights up).
-    pub fn set_sights_up(&mut self, window: Option<SightsUp>) {
-        self.sights_up_window = window;
+    /// [A393, fix-move] The enemy the sights go up at, each think ([`SightsUp::pick`]; `None`: none at the last corner).
+    pub fn set_sights_up(&mut self, pick: Option<SightsUp>) {
+        self.sights_up_pick = pick;
+    }
+
+    /// [fix-move] Why the sights-up aim yields this tick (the driver's, from the route ahead; `None`: it does not).
+    pub fn set_sights_yield(&mut self, why: Option<SightsYield>) {
+        self.sights_yield = why;
     }
 
     /// [A391] A Breach's go: throw first, the next grenade roll not paced until `until` (the go's time).
@@ -8531,6 +8673,14 @@ impl Reflex {
             if let Some(over) = self.fire_through((me, view), now, fire_allowed, (aim, skill), (legs, reload, carry), rng) {
                 return over;
             }
+            // [fix-move, owner-16 rows 1-3] A riser, a sprint climb or a route jump close ahead: no look of its own and no aim key,
+            // so the walk faces its way and may sprint (an aimed walk never sprints, `Motor::walk_aiming`, and the client refuses
+            // the sprint while the sights are up or coming down, `can_sprint` 0x2E3A10). A human lowers the sights to run up a ledge.
+            if let Some(why) = self.sights_yield {
+                sights_up_counts::yielded(why);
+                self.aim_since = None;
+                return Override { keys: reload & !key::AIM, legs, ..Override::default() };
+            }
             // Play 21: the partner's death spot within `trade_m`, weapon
             // up, unless a shot was heard lately (play 6 first: the killer
             // is there, not at the body); else play 6.
@@ -8565,18 +8715,22 @@ impl Reflex {
                         ..Override::default()
                     },
                     None => match self
-                        .sights_up_window
-                        .filter(|_| c.sights_up && me.carrying.is_none())
-                        .and_then(|window| window.nearest(memory, me.feet, now))
+                        .sights_up_pick
+                        .filter(|pick| c.sights_up.is_some() && me.carrying.is_none() && now <= pick.until)
                     {
-                        // [A393] The nearest enemy heard or told of within the pre-aim range: walked aimed at his bearing.
-                        Some((at, sensed)) => {
+                        // [A393, fix-move] The enemy heard or told of, at the last corner: walked aimed at his bearing.
+                        Some(SightsUp { at, sensed, from, .. }) => {
+                            sights_up_counts::aimed(from);
                             if self.sights_up_last.is_none_or(|last| now > last.saturating_add(1_000)) {
                                 self.debug_notes.push(format!(
-                                    "sights up at a heard or told enemy {:.1} m off at ({:.1}, {:.1})",
+                                    "sights up at a heard or told enemy {:.1} m off at ({:.1}, {:.1}), in sight from {}",
                                     at.distance_xz(me.feet),
                                     at.x,
-                                    at.z
+                                    at.z,
+                                    match from {
+                                        SightsFrom::Eye => "the eye",
+                                        SightsFrom::Corner => "a corner ahead",
+                                    }
                                 ));
                             }
                             self.sights_up_last = Some(now);
@@ -16611,6 +16765,89 @@ mod tests {
         assert!(o.glance && !o.fire, "{o:?}");
         assert!(look(&on, 5_000, 12_000).look_at.is_none_or(|at| at.distance_xz(heard_at) > 0.01), "heard 7 s ago: stale");
         assert!(look(&off, 5_000, 7_000).look_at.is_none_or(|at| at.distance_xz(heard_at) > 0.01), "off");
+    }
+
+    /// [fix-move] The sights-up pick: an enemy heard 20 m off whose place the eye sees is picked from the eye; one it does not see
+    /// is picked from the route's first corner when that corner is within the lead and sees him, never from a corner past the
+    /// lead or past [`SIGHTS_CORNERS`]; one past the window's `max_m` (or the weapon's reach) is not picked and costs no ray.
+    #[test]
+    fn the_sights_go_up_only_at_the_last_corner_of_a_heard_enemy_in_reach() {
+        let heard_at = Vec3::new(0.0, 0.0, 20.0);
+        let mut memory = Memory::default();
+        sense(&mut memory, &[percept(1, heard_at, 5_000, Source::Heard)], 5_000);
+        let feet = Vec3::new(0.0, 0.0, 0.0);
+        let eye = Vec3::new(0.0, 1.6, 0.0);
+        let window = SightsUpWindow::default();
+        let lead = window.lead_m();
+        assert!((lead - 1.558 * 3.5).abs() < 1e-4, "the lead {lead}");
+        let pick = |corners: &[Vec3], seen_from: &dyn Fn(Vec3) -> bool, reach: f32, rays: &mut u32| {
+            SightsUp::pick(&memory, eye, feet, corners, (window, reach, 6_000), 6_000, |from, to| {
+                *rays += 1;
+                assert!(to.distance(heard_at + Vec3::new(0.0, SIGHTS_CHEST_M, 0.0)) < 1e-4);
+                seen_from(from)
+            })
+        };
+        let mut rays = 0;
+        let eye_sees = pick(&[], &|from| from == eye, 100.0, &mut rays).expect("in sight of the eye");
+        assert_eq!((eye_sees.from, eye_sees.sensed, eye_sees.until), (SightsFrom::Eye, 5_000, 11_000));
+        assert_eq!(rays, 1);
+        // Hidden from the eye; the first corner (3 m on) sees him.
+        let corner = Vec3::new(3.0, 0.0, 0.0);
+        let corner_eye = corner + Vec3::new(0.0, 1.6, 0.0);
+        let sees_corner = |from: Vec3| from.distance(corner_eye) < 1e-4;
+        let mut rays = 0;
+        let at_corner = pick(&[corner, Vec3::new(3.0, 0.0, 9.0)], &sees_corner, 100.0, &mut rays).expect("from the corner");
+        assert_eq!((at_corner.from, rays), (SightsFrom::Corner, 2));
+        // The same corner past the lead, or third in line: no sights up.
+        let far = Vec3::new(lead + 0.5, 0.0, 0.0);
+        let far_eye = far + Vec3::new(0.0, 1.6, 0.0);
+        assert!(pick(&[far], &|from| from.distance(far_eye) < 1e-4, 100.0, &mut 0).is_none(), "past the lead");
+        let near = |x: f32| Vec3::new(x, 0.0, 0.0);
+        let third = near(2.0) + Vec3::new(0.0, 1.6, 0.0);
+        assert!(pick(&[near(0.5), near(1.0), near(2.0)], &|from| from.distance(third) < 1e-4, 100.0, &mut 0).is_none(), "the third corner");
+        // Past the window's distance (20 m heard, 15 m reach) nothing is cast.
+        let mut rays = 0;
+        assert!(pick(&[corner], &|_| true, 15.0, &mut rays).is_none() && rays == 0, "past the weapon's reach");
+        let mut memory_far = Memory::default();
+        sense(&mut memory_far, &[percept(1, Vec3::new(0.0, 0.0, window.max_m + 1.0), 5_000, Source::Heard)], 5_000);
+        let mut rays = 0;
+        let far_pick = SightsUp::pick(&memory_far, eye, feet, &[], (window, 200.0, 6_000), 6_000, |_, _| {
+            rays += 1;
+            true
+        });
+        assert!(far_pick.is_none() && rays == 0, "past max_m");
+    }
+
+    /// [fix-move] The reflex holds the aim key at the picked enemy with no target seen (on, not carrying, within the pick's time),
+    /// and lets go of every quiet look and of the key while the driver says a riser or a jump is close ahead.
+    #[test]
+    fn the_sights_up_aim_yields_to_a_riser_or_a_jump_ahead() {
+        let me = body(0, 0, Vec3::new(0.0, 0.0, 0.0), 0.0);
+        let heard_at = Vec3::new(0.0, 0.0, 20.0);
+        let view = view_of(vec![me.clone(), body(1, 1, heard_at, 0.0)]);
+        let aim = AimTuning { combat: CombatTuning { grenades: 0, ..CombatTuning::default() }, ..AimTuning::default() };
+        let pick = SightsUp { at: heard_at, sensed: 5_000, until: 11_000, from: SightsFrom::Corner };
+        let look = |aim: &AimTuning, why: Option<SightsYield>, now: u32| {
+            let mut memory = Memory::default();
+            sense(&mut memory, &[percept(1, heard_at, 5_000, Source::Heard)], 5_000);
+            let mut reflex = Reflex::default();
+            let mut rng = Rng::new(7);
+            reflex.think_with(&me, &Situation::of(&view), &memory, now, aim, 0.5, &mut rng);
+            reflex.set_sights_up(Some(pick));
+            reflex.set_sights_yield(why);
+            reflex.tick(&me, &view, &memory, now, true, aim, 0.5, &mut rng)
+        };
+        let o = look(&aim, None, 7_000);
+        assert!(o.keys & key::AIM != 0 && !o.fire, "{o:?}");
+        assert_eq!(o.heard_aim, Some((heard_at, 5_000)));
+        assert!(o.look_at.is_some_and(|at| at.distance_xz(heard_at) < 0.01), "{o:?}");
+        for why in [SightsYield::Riser, SightsYield::Jump] {
+            let o = look(&aim, Some(why), 7_000);
+            assert!(o.keys & key::AIM == 0 && o.look_at.is_none() && o.heard_aim.is_none(), "{why:?}: {o:?}");
+        }
+        assert!(look(&aim, None, 11_001).keys & key::AIM == 0, "past the track's time");
+        let off = AimTuning { combat: CombatTuning { sights_up: None, ..aim.combat.clone() }, ..aim.clone() };
+        assert!(look(&off, None, 7_000).keys & key::AIM == 0, "off");
     }
 
     #[test]

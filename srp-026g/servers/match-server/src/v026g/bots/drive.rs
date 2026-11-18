@@ -626,6 +626,7 @@ fn drive_tick_inner(
     #[cfg(test)]
     super::smoke::tally::set_role(bot.role.map_or(0, |role| role as usize));
     bot.reflex.set_client_sway(bot.client_sway);
+    bot.reflex.set_sights_yield(sights_yield(bot, me));
     let over = bot.reflex.tick(
         aiming_me,
         view,
@@ -2718,7 +2719,9 @@ pub(super) fn jumping(bot: &mut Bot, keys: u32, by: Option<&'static str>, feet: 
 /// cell (`mapdata::CELL`, 0.25) past the face.
 const RISER_FACE_M: f32 = 0.38 + mapdata::CELL;
 /// [C2 riser] One input's walk: the walk cap 3.5 m/s (PROVEN, `kin`) over a tick (50 ms).
-const RISER_TICK_WALK_M: f32 = 3.5 * super::kin::TICK_S;
+const RISER_TICK_WALK_M: f32 = RISER_WALK_MPS * super::kin::TICK_S;
+/// The walk cap, m/s: 3.5 (PROVEN, `kin`).
+const RISER_WALK_MPS: f32 = 3.5;
 /// [C2 riser] A walking jump is pressed this near the top (0.805 m): the press moves the body a tick later (the held-back input,
 /// `StepInput::Previous`, PROVEN), so it is pressed a tick's walk before the face, where the body is held and jumps up.
 const RISER_JUMP_M: f32 = RISER_FACE_M + RISER_TICK_WALK_M;
@@ -2812,6 +2815,38 @@ fn riser_gait(bot: &Bot, me: &PlaceView, keys: &mut u32, time: u32, tuning: &Tun
     } else {
         None
     }
+}
+
+/// [fix-move, owner-16 rows 1-3] Why the reflex's quiet look (no target seen) yields this tick ([`reflex::SightsYield`]): the motor
+/// lined up for a route jump or on its line ([`motor::Motor::lining_up`], [`motor::Motor::on_jump_line`]); a riser or a sprint climb
+/// of the route whose top is within the riser gait's sprint reach ([`RISER_SPRINT_M`]) plus the way the aim needs to come down;
+/// a route jump whose take-off is within the motor's line-up ([`motor::SPRINT_LINE_UP_FROM_M`]) plus that way. The way: the held
+/// gun's aim transition (`aim_time`: the client's hands refuse the sprint until it is back at exactly 0, `can_sprint` 0x2E3A10,
+/// `sprint_gates.rs`) at the walk cap, and a tick's walk for the key that reaches the step a tick later (as [`RISER_SPRINT_M`]'s).
+fn sights_yield(bot: &Bot, me: &PlaceView) -> Option<reflex::SightsYield> {
+    if bot.motor.lining_up() || bot.motor.on_jump_line() {
+        return Some(reflex::SightsYield::Jump);
+    }
+    let route = &bot.route.as_ref()?.0;
+    let lower_m = bot.reflex.held_gun().aim_ms as f32 / 1000.0 * RISER_WALK_MPS + RISER_TICK_WALK_M;
+    if route.riser_ahead(me.feet, RISER_SPRINT_M + lower_m).is_some() {
+        return Some(reflex::SightsYield::Riser);
+    }
+    let reach = motor::SPRINT_LINE_UP_FROM_M + lower_m;
+    let points = route.points();
+    let (mut walked, mut last) = (0.0, me.feet);
+    for point in points.iter().skip(route.segment() + 1) {
+        // A jump's waypoint is its landing: its take-off is the corner before, `walked` from the feet.
+        if point.jump.is_some() {
+            return (walked <= reach).then_some(reflex::SightsYield::Jump);
+        }
+        walked += last.distance_xz(point.at);
+        if walked > reach {
+            break;
+        }
+        last = point.at;
+    }
+    None
 }
 
 /// [C2 riser] The bench's counts: ticks a riser was sprinted at, walking jumps pressed at one, ticks at one the body could do
@@ -3786,6 +3821,42 @@ mod tests {
         assert_eq!(blind, traps::OwnTrapGuard::Swapped(key::FORWARD), "without the lip test it walks straight on, over the rim");
         let guarded = traps::own_trap_guard(path_of, |k| lip_ok(&me, k), me.feet, me.velocity, me.yaw, 0.0, diagonal, &[trap.into()], false);
         assert_eq!(guarded, traps::OwnTrapGuard::Swapped(0), "with it the body stops, on the slab and off the trap");
+    }
+
+    /// [fix-move, owner-16 rows 1-3] The quiet look yields to a route jump whose take-off is within the motor's line-up plus the
+    /// way the held gun's aim needs to come down, and to a riser whose top is within the riser gait's sprint reach plus that way;
+    /// not to one a little further, nor to a plain walk.
+    #[test]
+    fn the_quiet_look_yields_to_a_route_jump_or_a_riser_close_ahead() {
+        use crate::v026g::bots::reflex::SightsYield;
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let me = PlaceView { velocity: [0.0, 0.0], ..on_the_slab(52.0, -std::f32::consts::FRAC_PI_2, 0.0) };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        assert_eq!(sights_yield(&bot, &me), None, "no route");
+        let way = |x: f32, jump| path::Waypoint { at: Vec3::new(x, 2.0, 33.0), node: 0, jump, low: false };
+        let lower = bot.reflex.held_gun().aim_ms as f32 / 1000.0 * RISER_WALK_MPS + RISER_TICK_WALK_M;
+        assert!(lower > RISER_TICK_WALK_M, "the gun's aim time counts: {lower}");
+        let reach = motor::SPRINT_LINE_UP_FROM_M + lower;
+        let jump_at = |take_off: f32| {
+            path::Route::new(vec![way(52.0, None), way(take_off, None), way(take_off + 1.0, Some(path::Leap::Ledge))])
+        };
+        for (take_off, want) in [(52.0 + reach - 0.1, Some(SightsYield::Jump)), (52.0 + reach + 0.1, None)] {
+            let route = jump_at(take_off);
+            bot.route = Some((route.clone(), route.end()));
+            assert_eq!(sights_yield(&bot, &me), want, "take-off {:.2} m on", take_off - 52.0);
+        }
+        let walk = path::Route::new(vec![way(52.0, None), way(54.0, None), way(60.0, None)]);
+        bot.route = Some((walk.clone(), walk.end()));
+        assert_eq!(sights_yield(&bot, &me), None, "a plain walk");
+        let riser = |x: f32| path::RiserUp {
+            top: Vec3::new(x, 3.0, 33.0),
+            take_off: Vec3::new(x - 0.4, 2.0, 33.0),
+            press: path::RiserPress::Unflown,
+        };
+        for (top, want) in [(52.0 + RISER_SPRINT_M + lower - 0.05, Some(SightsYield::Riser)), (52.0 + RISER_SPRINT_M + lower + 0.05, None)] {
+            bot.route = Some((walk.clone().with_riser(riser(top)), walk.end()));
+            assert_eq!(sights_yield(&bot, &me), want, "riser top {:.2} m on", top - 52.0);
+        }
     }
 
     /// [#2081] A route over a noticed trap that the own-trap guard holds at rest (the walk on it refused, no other key) past the
