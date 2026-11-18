@@ -588,6 +588,9 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32, refresh: bo
     game.bodies[1].feet = by_container;
     // The bot a little way off, facing the container.
     let bot_at = Vec3::new(14.0, 0.0, 12.0);
+    // The client's pitch unit, as the bots send it (`kin.pitch_scale`): with the unit tests' radian the stand-in's use ray
+    // left a take on the move 0.2 rad over the box.
+    game.bodies[0].scale = crate::v026g::bots::pitch::PitchScale::Client;
     game.bodies[0].node = world.grid.locate(bot_at, 1.0);
     game.bodies[0].feet = bot_at;
     game.bodies[0].yaw = kin::yaw_of([by_container.x - bot_at.x, by_container.z - bot_at.z]);
@@ -761,6 +764,9 @@ pub(crate) fn theft_drop_run(weight: Option<f32>, drop_at: Vec3, drop_ms: u32, l
     game.bodies[1].feet = by_container;
     // The bot a little way off, its back to the container.
     let bot_at = Vec3::new(14.0, 0.0, 12.0);
+    // The client's pitch unit, as the bots send it (`kin.pitch_scale`): with the unit tests' radian the stand-in's use ray
+    // left a take on the move 0.2 rad over the box.
+    game.bodies[0].scale = crate::v026g::bots::pitch::PitchScale::Client;
     game.bodies[0].node = world.grid.locate(bot_at, 1.0);
     game.bodies[0].feet = bot_at;
     game.bodies[0].yaw = kin::yaw_of([bot_at.x - by_container.x, bot_at.z - by_container.z]);
@@ -941,3 +947,121 @@ pub(crate) fn a_stand_in_resupplies_at_its_own_teams_box_after_its_time() {
     assert_eq!((put, counts.box_cut), (0, 1), "the key let go");
 }
 
+/// [take.on_the_move, F7] One bot's walk in to a battery lying on the floor at [`F7_AT`] from `start`: the stand-in's tick
+/// at which the eye came within the client's 1.80 m use ray of the battery's position for the last time before the take
+/// (`entered`), the tick of the take (`took`: the stand-in takes on the press's tick; the client adds its 1.15 s, the holster
+/// and `take_time`), the USE presses the bot sent before the one that took, and whether it was crouched or sprinting then.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct F7Run {
+    pub(crate) entered: Option<u32>,
+    pub(crate) took: Option<u32>,
+    pub(crate) dead_presses: u32,
+    pub(crate) crouched: bool,
+    pub(crate) sprinting: bool,
+}
+
+/// Where [`f7_run`]'s battery lies: on the soak map's floor, its box's centre 0.12 m up ([`dropped_at`]).
+pub(crate) const F7_AT: Vec3 = Vec3::new(25.0, 0.12, 12.0);
+
+pub(crate) fn f7_run(start: Vec3, seed: u32) -> F7Run {
+    let world = soak_world();
+    let mut tuning = Tuning::default();
+    tuning.cheats.batteries = true;
+    let teams = [0u8, 1];
+    let mut bots = Bots::new(
+        seed,
+        survarium::v026g::maps::RuleMode::Batteries,
+        0,
+        &teams,
+        &[true, false],
+        &[None, None],
+        Arc::new(tuning),
+        Trace::none(0),
+    );
+    bots.map_ready(world.clone());
+    let mut game = Game::new(world.clone(), &teams, 7, None, None);
+    game.batteries[1] = Lying::Free(F7_AT, 0);
+    // The client's pitch unit, as the bots send it (`kin.pitch_scale`); the unit tests' bodies keep a radian otherwise.
+    game.bodies[0].scale = crate::v026g::bots::pitch::PitchScale::Client;
+    game.bodies[0].node = world.grid.locate(start, 1.0);
+    game.bodies[0].feet = start;
+    bots.entered(0, true, 0);
+    let mut run = F7Run { entered: None, took: None, dead_presses: 0, crouched: false, sprinting: false };
+    let (mut clock, mut next_world, mut last_use) = (0, 1_000, false);
+    while clock < 20_000 && run.took.is_none() {
+        clock += 25;
+        while game.tick + TICK_MS <= clock {
+            game.step();
+            let body = &game.bodies[0];
+            if body.carrying.is_some() {
+                run.took = Some(game.tick);
+                run.crouched = body.keys & key::CROUCH != 0;
+                run.sprinting = body.keys & key::SPRINT != 0;
+                break;
+            }
+            if (Game::eye(body) - F7_AT).length() <= crate::v026g::bots::view::use_ray_m() {
+                run.entered.get_or_insert(game.tick);
+            } else {
+                run.entered = None;
+            }
+        }
+        if clock >= next_world {
+            next_world += 1_000;
+            if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300) {
+                for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    bots.fixed(place, fix, Some(health));
+                }
+                bots.facts(facts);
+            }
+        }
+        let (made, _) = bots.poll(Clock { clock, time_left_s: 600.0, total_s: 900.0, playing: true });
+        for made in made {
+            let r = made.input.rotation;
+            let turn = (half_value(u16::from_le_bytes([r[0], r[1]])), half_value(u16::from_le_bytes([r[2], r[3]])));
+            let gun = Arms::fallback().primary.0;
+            if made.place == 0 {
+                let using = made.input.actions & key::USE != 0;
+                if using && !last_use && run.took.is_none() {
+                    run.dead_presses += 1;
+                }
+                last_use = using;
+            }
+            game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, gun));
+        }
+    }
+    // The press that took is not a dead one.
+    if run.took.is_some() {
+        run.dead_presses = run.dead_presses.saturating_sub(1);
+    }
+    run
+}
+
+/// [take.on_the_move, F7] A bot walking in to a battery on the floor takes it on the move: from 5 m and 10 m off, on eight
+/// bearings, every take is on the first press, upright, not sprinting, and the press comes within 100 ms (two stand-in
+/// ticks) of the eye entering the client's 1.80 m use ray at the median, so the client's 1.15 s use (the holster and
+/// `take_time`) ends within 1.25 s of the entry. Before F7 every take stopped short of the reach and turned down onto the
+/// box standing.
+#[test]
+pub(crate) fn a_bot_takes_a_battery_on_the_move_as_its_eye_enters_the_use_ray() {
+    let mut runs = Vec::new();
+    for (k, far) in [5.0f32, 10.0].into_iter().enumerate() {
+        for b in 0..8 {
+            let angle = b as f32 * std::f32::consts::TAU / 8.0 + 0.2;
+            let start = Vec3::new(F7_AT.x + far * angle.cos(), 0.0, F7_AT.z + far * angle.sin());
+            runs.push((far, b, f7_run(start, 0x7A6E + (k * 8 + b) as u32)));
+        }
+    }
+    let mut delays: Vec<u32> = runs.iter().filter_map(|(_, _, r)| Some(r.took? - r.entered?)).collect();
+    delays.sort_unstable();
+    for (far, b, run) in &runs {
+        eprintln!("F7 {far} m, bearing {b}: {run:?}");
+    }
+    eprintln!("F7 entry -> take, ms, sorted: {delays:?}");
+    let first = runs.iter().filter(|(_, _, r)| r.took.is_some() && r.dead_presses == 0).count();
+    eprintln!("F7 taken {} of {}, first press {first}", delays.len(), runs.len());
+    assert_eq!(delays.len(), runs.len(), "every battery taken");
+    assert_eq!(first, runs.len(), "every take on the first press");
+    assert!(runs.iter().all(|(_, _, r)| !r.crouched && !r.sprinting), "upright, walking");
+    let median = delays[delays.len() / 2];
+    assert!(median <= 100, "median {median} ms: {delays:?}");
+}

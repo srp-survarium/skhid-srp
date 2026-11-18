@@ -71,11 +71,22 @@ impl Bots {
         sense_batteries(&due, bot, state, rays, notes);
         rays.allow(None);
         remember(&due, bot, &percepts);
-        // [A393] The sights-up window: the memory's track lifetime, the bot's own weapon's shot reach.
-        bot.reflex.set_sights_up(self.tracker.shot_reach_of(bot.place).map(|reach_m| reflex::SightsUp {
-            fresh_ms: tuning.cheats.forget_ms.max(tuning.sense.forget_ms),
-            reach_m,
-        }));
+        // [A393, fix-move] The sights-up enemy: the memory's track lifetime, the bot's own weapon's shot reach, the last corner
+        // (his place in sight of the eye or of a corner of the route within the window's lead: a sight ray each, from the budget).
+        let pick = match (tuning.aim.combat.sights_up, self.tracker.shot_reach_of(bot.place)) {
+            (Some(window), Some(reach_m)) if me.carrying.is_none() => {
+                let corners: Vec<Vec3> = bot.route.as_ref().map_or_else(Vec::new, |(route, _)| {
+                    route.points().iter().skip(route.segment() + 1).take(reflex::SIGHTS_CORNERS).map(|point| point.at).collect()
+                });
+                let fresh_ms = tuning.cheats.forget_ms.max(tuning.sense.forget_ms);
+                let (place, bot_team) = (bot.place, bot.team);
+                reflex::SightsUp::pick(&bot.memory, me.eye(), me.feet, &corners, (window, reach_m, fresh_ms), now, |from, to| {
+                    rays.take(place, bot_team) && aimpoint::sight_line(&tactics.world.sight, from, to)
+                })
+            }
+            _ => None,
+        };
+        bot.reflex.set_sights_up(pick);
         react(&due, bot, state, &self.features.weapons, notes);
         self_kill(&due, bot, state, notes);
         if now < bot.pause_until {

@@ -24,6 +24,9 @@ pub struct ModTuning {
     /// with [fix-team 4] as the comeback's gather (its own bench never ran alone: #1272 turned it on with `team_plan` and
     /// `behind_open`, #1284 took all three off together).
     pub raid_regroup: Option<RaidRegroup>,
+    /// [fix-team] A raider takes the approach the team's knowledge covers least, and gathers on it ([`RaidApproach`],
+    /// `raid::approach`). Off: the straight way to the container, the regroup on its ring.
+    pub raid_approach: Option<RaidApproach>,
     /// [fix-team 4] A comeback that gathers, then commits ([`Comeback`]): attacks only while the team is not outnumbered, and
     /// no container holder behind late. The gather is `raid_regroup`, the commit `commit.hold_started`. Not `team_plan`: no
     /// play is weighed up. Off: attacks at any strength, the holder at any score.
@@ -220,6 +223,52 @@ impl Default for RaidRegroup {
     }
 }
 
+/// [fix-team] The raid's approach by a threat map of what the team knows (Mark's modular influence maps; Killzone 3's
+/// squads path round danger and gather before an attack): the side's human routes that pass within `route_near_m` of the
+/// container, else `bearings` points round it at `stage_m`, each priced by its length plus `risk_m` times its risk: per
+/// `sample_m` of the way, the known enemies within `enemy_m` (fading over `known_s`), the team's recent deaths within
+/// `death_m`, and the enemy humans' recent lanes within `lane_m`. Every number a start value for the bench, none measured.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RaidApproach {
+    pub route_near_m: f32,
+    pub bearings: u8,
+    pub stage_m: f32,
+    pub sample_m: f32,
+    pub enemy_m: f32,
+    pub known_s: f32,
+    pub death_m: f32,
+    pub lane_m: f32,
+    /// Metres of way one metre in full risk is worth.
+    pub risk_m: f32,
+}
+
+impl Default for RaidApproach {
+    fn default() -> Self {
+        Self {
+            route_near_m: 60.0,
+            bearings: 8,
+            stage_m: 40.0,
+            sample_m: 5.0,
+            enemy_m: 30.0,
+            known_s: 20.0,
+            death_m: 20.0,
+            lane_m: 12.0,
+            risk_m: 3.0,
+        }
+    }
+}
+
+impl RaidApproach {
+    pub fn check(&self) -> Result<(), String> {
+        let positive = [self.route_near_m, self.stage_m, self.sample_m, self.enemy_m, self.known_s, self.death_m, self.lane_m];
+        if !(positive.iter().all(|&v| v > 0.0) && (2..=32).contains(&self.bearings) && (0.0..=50.0).contains(&self.risk_m)) {
+            return Err("mods.raid_approach".into());
+        }
+        Ok(())
+    }
+}
+
 impl RaidRegroup {
     pub fn check(&self) -> Result<(), String> {
         if !(self.stage_m > 25.0 && self.call_m >= self.mate_m && self.mate_m > 0.0 && self.wait_s >= 0.0 && self.wait_s <= 30.0) {
@@ -259,6 +308,7 @@ impl Default for ModTuning {
             team_plan: None,
             behind_open: None,
             raid_regroup: Some(RaidRegroup::default()),
+            raid_approach: Some(RaidApproach::default()),
             comeback: Some(Comeback::default()),
         }
     }
@@ -743,6 +793,9 @@ pub struct ThreatTuning {
     /// other enemy bot fired at or hit him; 67 % of a victim's mates within 15 m had no line to him in the 3 s before;
     /// `LOSING-TEAM-ROOT-CAUSE.md` L6).
     pub support: Option<GroupUp>,
+    /// [fix-team, multi-attacker support] With `support`, every enemy attacking a mate is a fight of its own, each answered by
+    /// its own helper ([`SupportAttackers`], `group::attackers`). `None`: the mate's reflex target only, one helper.
+    pub support_attackers: Option<SupportAttackers>,
     /// K3: PairUp does not join a teammate standing in a held spot's lanes,
     /// and its join and wait spots are out of the top player's sight and the
     /// held lanes (F3).
@@ -1085,6 +1138,22 @@ pub struct CommitTuning {
     pub crossfire_arrival_tau_s: Option<f32>,
 }
 
+/// [fix-team, multi-attacker support] A mate's attackers: the enemy his reflex fights, the one his last hit came from (the
+/// nearest of his own fresh tracks to where the hit put the shooter), and any he saw fire with his aim on him (within
+/// `aim.combat.hit_match_deg`), each within the last `window_s`. All from the mate's own senses.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SupportAttackers {
+    /// How recent a hit or a shot is, s: Trade's `fresh_s` (3 s, "a death this recent is traded"), a design value.
+    pub window_s: super::limits::Positive,
+}
+
+impl Default for SupportAttackers {
+    fn default() -> Self {
+        Self { window_s: super::limits::Positive::of(3.0) }
+    }
+}
+
 impl ThreatTuning {
     /// The gang-up cap's rule, or none (off).
     pub fn gang_rule(&self) -> Option<GangRule> {
@@ -1132,6 +1201,7 @@ impl Default for ThreatTuning {
             trade_reach: true,
             trade_cover: None,
             support: Some(GroupUp { approach: None, ..GroupUp::default() }),
+            support_attackers: Some(SupportAttackers::default()),
             pair_up_hidden: true,
             crossfire_out_of_lines: true,
             whole_route_booked: true,

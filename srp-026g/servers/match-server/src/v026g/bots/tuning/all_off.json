@@ -13,7 +13,7 @@
       "aim_sway_counter": false,
       "kit_recoil": false,
       "recoil_pull_low": 0.5,
-      "sights_up": false,
+      "sights_up": null,
       "fire": {
         "burst_pause": null,
         "burst_human": null,
@@ -76,6 +76,7 @@
     "lip_guard_ticks": 0,
     "lip_look_ahead_m": 0.0,
     "precise_tops": false,
+    "sprint_by": "facing",
     "sprint_gaps": false,
     "sprint_through": false,
     "sprint_turns": null,
@@ -181,6 +182,7 @@
   },
   "mods": {
     "comeback": null,
+    "raid_approach": null,
     "raid_regroup": null
   },
   "tdm": {
@@ -195,6 +197,7 @@
     "job_role_offer": false,
     "job_role_needs_spot": false,
     "support": null,
+    "support_attackers": null,
     "job_strongest_first": false,
     "concede": null,
     "crossfire_out_of_lines": false,
