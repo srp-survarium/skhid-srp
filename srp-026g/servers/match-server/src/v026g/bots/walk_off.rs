@@ -14,7 +14,7 @@ use mapdata::grid::drop_check::{ARRIVE_FLAT_M, ARRIVE_HEIGHT_M, RELEASE_SETTLE_S
 
 use super::kin::TICK_S;
 use super::motor::Footing;
-use super::path::WalkOffRelease;
+use super::path::{LetGo, WalkOffRelease};
 use crate::v026g::drive::key;
 
 /// The keys a let-go body holds none of.
@@ -44,6 +44,8 @@ pub enum WalkOff {
 pub struct Input {
     /// The release link whose leg the body is on and how far along the leg, m (`Route::walk_off_at`).
     pub on_leg: Option<(WalkOffRelease, f32)>,
+    /// [F2] The body stands on the ground (not in a jump or a fall).
+    pub standing: bool,
     pub feet: Vec3,
     pub footing: Footing,
     /// Ground speed, m/s.
@@ -107,6 +109,17 @@ fn lets_go(along: f32, step: f32, at: f32) -> bool {
     along + 2.0 * step > at
 }
 
+/// [F2/F3] Whether the let-go of `link` is due this tick: a release's at its point ([`lets_go`]); a walked-off drop's on the first
+/// step the body stands at or under the height it has left the take-off by (`drop_check::left_take_off`, as
+/// `drop_check::walk_off_rest` flies it: that step keeps
+/// the full walk, the client's stop blend carries the next six).
+fn lets_go_now(link: WalkOffRelease, along: f32, step_m: f32, input: Input) -> bool {
+    match link.let_go {
+        LetGo::At(at) => lets_go(along, step_m, at),
+        LetGo::Standing => input.standing && input.feet.y <= mapdata::grid::drop_check::left_take_off(link.take_off.y, link.landing.y),
+    }
+}
+
 /// The transition: total over the states and the tick's facts.
 pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
     let held = |link: WalkOffRelease| Effect { crouch: link.crouched, ..Effect::ROUTE };
@@ -117,7 +130,7 @@ pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
     };
     match state {
         WalkOff::Idle | WalkOff::Approach { .. } => match input.on_leg {
-            Some((link, along)) if lets_go(along, step_m, link.at) => begin(link, along),
+            Some((link, along)) if lets_go_now(link, along, step_m, input) => begin(link, along),
             Some((link, _)) => (WalkOff::Approach { link }, held(link)),
             None => (WalkOff::Idle, Effect::ROUTE),
         },
@@ -127,7 +140,12 @@ pub fn step(state: WalkOff, input: Input) -> (WalkOff, Effect) {
             _ => step(WalkOff::Idle, input),
         },
         WalkOff::LetGo { link, since, from, along, step } => {
-            let down = input.footing == Footing::Ground && input.speed < STILL_MS && input.feet.y < from.y - ARRIVE_HEIGHT_M;
+            // A walked-off drop lets go once down already: still is enough; a release lets go on the top and must come down.
+            let lower = match link.let_go {
+                LetGo::At(_) => input.feet.y < from.y - ARRIVE_HEIGHT_M,
+                LetGo::Standing => true,
+            };
+            let down = input.footing == Footing::Ground && input.speed < STILL_MS && lower;
             let end = if down {
                 let on_landing =
                     input.feet.distance_xz(link.landing) <= ARRIVE_FLAT_M && (input.feet.y - link.landing.y).abs() <= ARRIVE_HEIGHT_M;
@@ -159,18 +177,29 @@ pub fn line(ended: Ended) -> String {
         End::Overshot(feet) => ("overshot", feet),
         End::TimedOut(feet) => ("timed out", feet),
     };
-    format!(
-        "{}release walk-off from {} to {} at +{:.2} m {}: let go at +{along:.2} m {}, step {step:.3} m, last full step to +{:.2} ({:+.2} from the release), after {after_ms} ms {word} {}",
-        super::nav_log::PREFIX,
-        p(link.take_off),
-        p(link.landing),
-        link.at,
-        if link.crouched { "crouched" } else { "standing" },
-        p(from),
-        along + step,
-        along + step - link.at,
-        p(feet)
-    )
+    match link.let_go {
+        LetGo::At(at) => format!(
+            "{}release walk-off from {} to {} at +{:.2} m {}: let go at +{along:.2} m {}, step {step:.3} m, last full step to +{:.2} ({:+.2} from the release), after {after_ms} ms {word} {}",
+            super::nav_log::PREFIX,
+            p(link.take_off),
+            p(link.landing),
+            at,
+            if link.crouched { "crouched" } else { "standing" },
+            p(from),
+            along + step,
+            along + step - at,
+            p(feet)
+        ),
+        LetGo::Standing => format!(
+            "{}drop walk-off from {} to {}: let go standing {:.2} m under the take-off {}, +{along:.2} m along, step {step:.3} m, after {after_ms} ms {word} {}",
+            super::nav_log::PREFIX,
+            p(link.take_off),
+            p(link.landing),
+            link.take_off.y - from.y,
+            p(from),
+            p(feet)
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -178,11 +207,11 @@ mod tests {
     use super::*;
 
     fn link() -> WalkOffRelease {
-        WalkOffRelease { take_off: Vec3::new(0.0, 2.0, 0.0), landing: Vec3::new(0.5, 1.0, 0.0), at: 0.3, crouched: true }
+        WalkOffRelease { take_off: Vec3::new(0.0, 2.0, 0.0), landing: Vec3::new(0.5, 1.0, 0.0), let_go: LetGo::At(0.3), crouched: true }
     }
 
     fn input(on_leg: Option<f32>, feet: Vec3, footing: Footing, speed: f32, clock: u32) -> Input {
-        Input { on_leg: on_leg.map(|along| (link(), along)), feet, footing, speed, clock }
+        Input { on_leg: on_leg.map(|along| (link(), along)), standing: footing == Footing::Ground, feet, footing, speed, clock }
     }
 
     /// Crouched on the leg, let go at the release, no move key until down and still on the landing.
@@ -214,6 +243,34 @@ mod tests {
         assert_eq!(e.keys(key::FORWARD), key::FORWARD);
         let (s, _) = step(s, input(None, down, Footing::Ground, 0.0, 11));
         assert_eq!(s, WalkOff::Idle);
+    }
+
+    /// [F2/F3] A walked-off drop (1.0 m) keeps the route's keys over the edge and through the fall, lets go on the first step the
+    /// body stands 0.4 m or more under the take-off (half the drop is 0.5), and ends when it is still.
+    #[test]
+    fn a_walked_off_drop_lets_go_on_its_first_standing_step_below_the_take_off() {
+        let drop = WalkOffRelease { take_off: Vec3::new(0.0, 2.0, 0.0), landing: Vec3::new(1.0, 1.0, 0.0), let_go: LetGo::Standing, crouched: false };
+        let at = |feet: Vec3, footing: Footing, speed: f32, clock: u32| Input {
+            on_leg: Some((drop, feet.x)),
+            standing: footing == Footing::Ground,
+            feet,
+            footing,
+            speed,
+            clock,
+        };
+        let (s, e) = step(WalkOff::Idle, at(Vec3::new(0.2, 2.0, 0.0), Footing::Ground, 3.5, 1));
+        assert!(matches!(s, WalkOff::Approach { .. }) && !e.let_go, "on the top: walked");
+        let (s, e) = step(s, at(Vec3::new(0.5, 1.5, 0.0), Footing::Air, 3.5, 2));
+        assert!(matches!(s, WalkOff::Approach { .. }) && !e.let_go, "in the fall: held");
+        let (s, e) = step(s, at(Vec3::new(0.6, 1.7, 0.0), Footing::Ground, 3.5, 3));
+        assert!(matches!(s, WalkOff::Approach { .. }) && !e.let_go, "standing only 0.3 m under: held");
+        let (s, e) = step(s, at(Vec3::new(0.9, 1.0, 0.0), Footing::Ground, 3.4, 4));
+        assert!(matches!(s, WalkOff::LetGo { .. }) && e.let_go, "standing 1.0 m under: let go");
+        assert_eq!(e.keys(key::FORWARD | key::SPRINT), 0);
+        let (s, e) = step(s, at(Vec3::new(1.0, 1.0, 0.0), Footing::Ground, 0.1, 9));
+        assert_eq!(s, WalkOff::Done { link: drop });
+        assert!(matches!(e.ended, Some(Ended { end: End::Landed(_), .. })), "{e:?}");
+        assert!(line(e.ended.unwrap()).contains("drop walk-off"));
     }
 
     /// A body still on the top is not down: the let-go ends after the settle time.
