@@ -520,12 +520,14 @@ pub struct GapStats {
     /// … and the clip pass's pressed links kept where no flown press covers their group, unflown (0 with `gap_flights`: each
     /// is proven first, [F1]).
     pub clip_kept: usize,
-    /// [F1] With `gap_flights`: the groups of clip pass presses no flown link covers, flown over every client press onto their
-    /// own landing top (`gap_flown`'s `prove_clip_presses`) …
+    /// [F1] With `gap_flights`: the groups of clip pass presses no flown link covers, flown over every client press as a flown
+    /// group is (`gap_flown`'s `prove_clip_presses`) …
     pub clip_tried: usize,
-    /// … kept with a flown press that lands there …
+    /// … kept with a flown press that lands across (the gap pass's own landing rule) …
     pub clip_proven: usize,
-    /// … left with no pressed link: no client press lands there …
+    /// … of their links, those going to another floor than the clip's (where the flights rest) …
+    pub clip_retargeted: usize,
+    /// … left with no pressed link: no client press lands across …
     pub clip_unlanded: usize,
     /// … in this many flights (not in [`Self::flights`]).
     pub clip_flights: usize,
@@ -562,6 +564,7 @@ impl GapStats {
         self.clip_tried += o.clip_tried;
         self.clip_proven += o.clip_proven;
         self.clip_unlanded += o.clip_unlanded;
+        self.clip_retargeted += o.clip_retargeted;
         self.clip_flights += o.clip_flights;
         self.groups += o.groups;
         self.flights += o.flights;
