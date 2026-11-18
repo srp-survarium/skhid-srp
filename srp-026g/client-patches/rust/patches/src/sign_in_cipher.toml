@@ -1,0 +1,28 @@
+# Patch 139: the sign-in's password goes through srp's own cipher, not TLS
+# (docs/notes/sign-in-cipher.md). The sites are sites_026g.tsv's; the logic
+# is crates/sign-in-cipher (its `game` module), the game's side of it
+# vostok/openssl.rs.
+name = "sign_in_cipher"
+patch = 139
+
+# The server took the user name: a sign-in's cipher starts.
+[[hook]]
+site = "sign_in.cipher_begin"
+handler = "on_begin"
+
+# The login stream's OpenSSL calls, answered whole.
+[[hook]]
+site = "openssl.connect"
+handler = "on_connect"
+
+[[hook]]
+site = "openssl.read"
+handler = "on_read"
+
+[[hook]]
+site = "openssl.write"
+handler = "on_write"
+
+[[hook]]
+site = "openssl.get_error"
+handler = "on_get_error"

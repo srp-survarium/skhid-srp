@@ -280,11 +280,15 @@ package survarium.player
          for each(skin in _sectionSkins)
          {
             var divider:MovieClip = skin.criticalSeparator;
+            // The card hides its defects' separator (items never wear: ItemInfoRenderer.configUI);
+            // here it is a section's heading, and the title's below.
+            divider.visible = true;
             addChild(divider);
             removeChild(skin);
             _sections.push(divider);
          }
          _sectionSkins = [];
+         _heading.visible = true;
          _heading.textField.text = effects.title;
          colourHeading(_heading.textField,effects.titleValue,effects.titleStyle);
          var icons:IconContainer = IconContainer.getInstance("modifiers");

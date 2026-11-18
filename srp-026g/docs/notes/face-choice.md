@@ -73,7 +73,7 @@ marked [pick] is a worker's choice the owner may change.
     redraws its character) before the `91`.
 - `87` (own account): one srp byte after `exp_next_level`, the account's face.
 - `88` (a squad member's account): one srp byte after its revision, the member's face.
-- `E4` (the match's options): srp's block entry tag 3, one byte a place (the roster's length),
+- `E4` (the match's options): srp's block entry tag 5, one byte a place (the roster's length),
   each place's face. Sent only when a place's face is not 0; no entry: every face 0, so older
   replays read as before.
 

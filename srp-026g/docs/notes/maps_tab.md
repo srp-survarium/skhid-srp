@@ -15,9 +15,16 @@ served by `servers/web-server/src/maps.rs`.
   - artefact spawns.
 - Research (mode 5) shows its three units, A to C, where its config puts them (`parameters.capture_zones`), as the
   HUD draws one nobody owns (a white letter on grey; its icon is drawn in code, not one of `_icons`).
+- Free for All (mode 8; the owner, 2026-11-13: "add to the wiki new mode with its spawns and a map") is a mode of
+  every map that has it, and the maps played in it alone (the STALKER ports) are on the page with that one mode.
+  It shows the spawns its players get: the team-2 points of its own project (`ffa.md`), never the two teams' points
+  that project keeps. One kind of spawn: one swatch, no team in the tooltip. Yellow is not the owner's pick: the
+  grey of a point of no team did not read on the minimaps.
 - The markers are the game's own HUD minimap icons (hud.swf `Minimap._icons`), painted in one blue and one red alike
-  (players, containers, ammo stashes: no discs). The battery is the game's electrobox drawn flat (the game has no
-  flat icon of it). Artefacts are their lobby icons alone, no circle.
+  (players, containers, ammo stashes: no discs). The battery is the kill feed's battery icon without its burst (the
+  owner, 2026-11-15: "we can use the same icon on website (without strike)"): the electrobox mesh in three-quarter
+  view, white faces over a dark silhouette, a vector SVG (`make_battery_icon.py`), drawn untinted with the outline.
+  Artefacts are their lobby icons alone, no circle.
 - The site's header: the calculator's look (paper, ink rule, PT Sans Narrow), separators between Home | Wiki,
   the page shown in the accent colour (Home too). The calculator and the maps are sections of the wiki (the owner,
   2026-10-29): listed on its index, each page under a "Wiki / <page>" line; the calculator's page says

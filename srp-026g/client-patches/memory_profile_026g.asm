@@ -1,0 +1,157 @@
+; Patch 127 (build 2777): the memory profiler's gates on the allocator's
+; entries (rust/patches/src/memory_profile.toml's `code` hooks, installed
+; on demand; the profiler is the Rust patch memory_profile,
+; docs/notes/memory-profile.md).
+;
+; Every allocation of the engine's heaps (each doug_lea arena's, ptmalloc3's
+; "global multithreaded") ends in mspace_malloc, mspace_realloc or
+; mspace_free, or for a block ptmalloc3 mapped on its own, in pt3free's or
+; free_starter's give-back to the region. The exe keeps the game's bytes at
+; those places: only a game started with SKHID_MEMORY_PROFILE=on has its
+; patch write the jumps here (vostok::memory_profile::install, while only
+; the main thread runs), so an off game runs the original allocator byte for
+; byte. Each gate calls the stock body (its replayed first instructions, then
+; a jump back) and tells the profiler through two generated entries (cdecl,
+; each saves the whole machine):
+;
+; - memory_profile_on_freeing (the game's ESP at its call, the memory) before
+;   a block is given back, so no other thread can be handed the block before
+;   the profiler forgot it;
+; - memory_profile_on_allocated (the game's ESP, the memory or 0) after
+;   mspace_malloc and mspace_realloc returned one.
+;
+; What the game sees is the stock body's: its result, its registers (ECX
+; and EDX as the body left them), its flags (the entry restores them); the
+; gate's own words are below the game's ESP.
+bits 32
+section .text
+
+extern memory_profile_on_allocated
+extern memory_profile_on_freeing
+
+%define MALLOC_ON 0x101335      ; mspace_malloc after sub esp,8 / push ebx / push ebp
+%define REALLOC_ON 0x1005A5     ; mspace_realloc after mov ecx,[esp+8] / push esi
+%define FREE_ON 0x1015E6        ; mspace_free after sub esp,0Ch / push edi / mov edi,eax
+
+global memory_profile_malloc
+memory_profile_malloc:          ; EAX the mspace, [esp+4] the bytes; cdecl, EAX the memory or 0
+    jmp .on
+.stock:
+    sub esp, 8
+    push ebx
+    push ebp
+    jmp MALLOC_ON
+.on:
+    push dword [esp + 4]        ; the bytes again, for the body called below (EAX still the mspace)
+    call .stock
+    add esp, 4
+    push ecx
+    push edx
+    lea ecx, [esp + 8]          ; the game's ESP at its call: its return address there
+    push eax                    ; the memory
+    push ecx
+    call memory_profile_on_allocated
+    pop ecx
+    pop eax
+    pop edx
+    pop ecx
+    ret
+
+global memory_profile_realloc
+memory_profile_realloc:         ; EAX the mspace, [esp+4] the memory, [esp+8] the bytes; cdecl
+    jmp .on
+.stock:
+    mov ecx, [esp + 8]
+    push esi
+    jmp REALLOC_ON
+.on:
+    push ecx
+    push edx
+    lea ecx, [esp + 8]
+    push dword [ecx + 4]        ; the memory given back
+    push ecx
+    call memory_profile_on_freeing
+    add esp, 8
+    pop edx
+    pop ecx
+    push dword [esp + 8]        ; the bytes
+    push dword [esp + 8]        ; the memory
+    call .stock
+    add esp, 8
+    push ecx
+    push edx
+    lea ecx, [esp + 8]
+    push eax                    ; the memory now (0: none, the old one kept)
+    push ecx
+    call memory_profile_on_allocated
+    pop ecx
+    pop eax
+    pop edx
+    pop ecx
+    ret
+
+global memory_profile_free
+memory_profile_free:            ; ESI the mspace, EAX the memory
+    jmp .on
+.stock:
+    sub esp, 0Ch
+    push edi
+    mov edi, eax
+    jmp FREE_ON
+.on:
+    push ecx
+    push edx
+    lea ecx, [esp + 8]
+    push eax
+    push ecx
+    call memory_profile_on_freeing
+    add esp, 8
+    pop edx
+    pop ecx
+    jmp .stock                  ; the body returns to the game's caller itself
+
+; ptmalloc3's free gives a block mapped on its own (one too large for its
+; arena's heap) back to the region itself (0x106AD0), never through
+; mspace_free: pt3free (0x106FC0) and its free hook (0x106D90) each have
+; that path, gated here the same way.
+%define PT_MAPPED_FREE_ON 0x107010      ; pt3free after and edx,-2 / and eax,-8
+%define HOOK_MAPPED_FREE_ON 0x106DB2    ; the hook after and ebx,-2 / and edx,-8
+
+global memory_profile_mapped_free
+memory_profile_mapped_free:     ; ECX the chunk (the memory - 8), EAX its head, EDX its prev_foot
+    jmp .on
+.stock:
+    and edx, 0FFFFFFFEh
+    and eax, 0FFFFFFF8h
+    jmp PT_MAPPED_FREE_ON
+.on:
+    push ecx
+    push edx
+    lea edx, [esp + 18h]        ; pt3free's entry ESP (sub esp,8 / push edi / push esi, then these two)
+    lea ecx, [ecx + 8]          ; the memory
+    push ecx
+    push edx
+    call memory_profile_on_freeing
+    add esp, 8
+    pop edx
+    pop ecx
+    jmp .stock
+
+global memory_profile_hook_mapped_free
+memory_profile_hook_mapped_free:    ; EAX the memory, ECX its chunk, EDX its head, EBX its prev_foot
+    jmp .on
+.stock:
+    and ebx, 0FFFFFFFEh
+    and edx, 0FFFFFFF8h
+    jmp HOOK_MAPPED_FREE_ON
+.on:
+    push ecx
+    push edx
+    lea ecx, [esp + 10h]        ; the hook's entry ESP (push ebx / push esi, then these two)
+    push eax
+    push ecx
+    call memory_profile_on_freeing
+    add esp, 8
+    pop edx
+    pop ecx
+    jmp .stock

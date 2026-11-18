@@ -7,7 +7,6 @@ package survarium.controls
    import scaleform.clik.controls.Button;
    import scaleform.clik.events.ButtonEvent;
    import survarium.buttons.ButtonClick;
-   import survarium.buttons.ButtonProgress;
    import survarium.constants.Events;
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
@@ -24,8 +23,6 @@ package survarium.controls
    {
       
       public var btn_item_upgrade:ButtonClick;
-      
-      public var btn_item_fix:ButtonProgress;
       
       public var btn_item_buy:Button;
       
@@ -101,8 +98,6 @@ package survarium.controls
          this.btnAccept.visible = false;
          this.btnCancel.visible = false;
          this.btn_show_use.visible = false;
-         // No Fix button: srp has no repair (the owner, 2026-11-08). The timeline still places it.
-         this.btn_item_fix.visible = false;
          this.updateData(null);
          this.btnSellBig.width = this.btn_show_l.width = this.btn_show_r.width = this.btn_show_use.width = 140;
       }
@@ -349,8 +344,8 @@ package survarium.controls
          this.spaceItemRow();
       }
 
-      // The item row (Upgrade, Modification, Attachments, Sell or Buy) had Fix among them; with Fix gone
-      // the visible ones grow to take the row's whole span, the stock gap between them (the owner,
+      // The item row (Upgrade, Modification, Attachments, Sell or Buy) had Fix among them, in its middle;
+      // with Fix gone the visible ones grow to take the row's whole span, the stock gap between them (the owner,
       // 2026-11-09: "there is a hole", "actually just make buttons bigger", "so the whole space is taken").
       // The span (the first button's left edge to the last one's right edge), the gap and the order are
       // the timeline's, read once: a later layout starts from them, not from the last one.
@@ -367,7 +362,7 @@ package survarium.controls
          var button:DisplayObject;
          if(this._rowOrder == null)
          {
-            this._rowOrder = [this.btn_item_craft,this.btn_item_reroll,this.btn_item_upgrade,this.btn_item_fix,this.btn_item_sell,this.btn_item_buy];
+            this._rowOrder = [this.btn_item_craft,this.btn_item_reroll,this.btn_item_upgrade,this.btn_item_sell,this.btn_item_buy];
             this._rowOrder.sortOn("x",Array.NUMERIC);
             this._rowLeft = this._rowOrder[0].x;
             this._rowRight = 0;

@@ -9,6 +9,7 @@ patch = 113
 [[hook]]
 site = "hud.initialize_match"
 handler = "on_match_start"
+order = 0
 
 # show_cursor's show: no movie while the main menu is shown.
 [[hook]]
@@ -25,7 +26,10 @@ handler = "on_cursor_hidden"
 site = "options.activate"
 handler = "on_menu_show"
 
-# The main menu about to close: the hud's cursor movie back.
+# The main menu about to close: a key its settings await given up as Esc
+# gives it up, then the hud's cursor movie back. Patch 66's hook of the site
+# (the microphone test stopped) runs after it.
 [[hook]]
 site = "options.deactivate"
 handler = "on_menu_close"
+order = 0

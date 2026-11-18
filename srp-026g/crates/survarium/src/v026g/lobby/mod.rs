@@ -47,6 +47,7 @@ pub mod push;
 pub mod requests;
 pub mod results;
 pub mod rooms;
+pub mod shop_filter;
 pub mod social;
 pub mod tutorial_model;
 
@@ -127,6 +128,8 @@ pub enum ServerId {
     Important = 0xA4,
     AdminText = 0xA5,
     AdminTextClear = 0xA6,
+    /// `A8`, `A9`: the premium offers; srp makes neither (there is no
+    /// premium account).
     PremiumStore = 0xA8,
     PremiumDiscount = 0xA9,
     SignedOut = 0xAA,

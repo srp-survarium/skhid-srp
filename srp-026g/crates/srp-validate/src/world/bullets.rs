@@ -629,6 +629,7 @@ mod tests {
             game_mode: 4,
             batteries: 0,
             respawn_points: None,
+            team_2_points: None,
             profiles,
             artefacts: None,
             objects: None,

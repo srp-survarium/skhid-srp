@@ -149,7 +149,8 @@ pub enum FriendshipAction {
     RemoveFriend { account_id: u32 },
     /// `03`.
     Ignore { account_id: u32 },
-    /// `04`.
+    /// `04`: the name without the clan tag the client may show with it
+    /// (`Reader::player_name`).
     IgnoreByName { name: String },
     /// `05`.
     StopIgnoring { account_id: u32 },
@@ -270,22 +271,14 @@ pub enum ClientMessage {
     },
     /// `47 01`: sell `amount` steps of an item.
     Sell { item_id: u32, amount: u32 },
-    /// `47 02`: buy a shop offer; `x` is 0 except from the results screen.
-    BuyOffer { offer_id: u32, x: u32, factor: f32 },
+    /// `47 02 <offer> <u32> <f32>`: buy a shop offer (a bundle). The u32
+    /// was the results screen's match and the f32 a discount, both for
+    /// premium time, which is offered no more: read and dropped.
+    BuyOffer { offer_id: u32 },
     // `47 03`, a repair, is no request: srp has no repair (the owner,
     // 2026-11-08: "we don't have repair in the game at all"); it is not read.
-    /// `47 05`.
-    AcceptPremiumWithBonuses {
-        a0: u32,
-        a1: f32,
-        a2: u32,
-        a3: u32,
-        a4: u32,
-        faction: u8,
-    },
-    /// `47 06`.
-    AcceptPremiumWithDiscount { a0: u32, a1: f32 },
-
+    // Nor are `47 05` and `47 06`, the answers to a premium offer (`A8`,
+    // `A9`): there is no premium account (the owner, 2026-11-09).
     /// `48 00`: the account's whole set of skills, `(skill id, points)`.
     SetSkills { skills: Vec<(u16, u8)> },
     /// `48 01`: reset the skills of a branch (the window's tab: 0 for
@@ -296,10 +289,6 @@ pub enum ClientMessage {
 
     /// `49 00`.
     RenameKit { kit_id: u32, name: String },
-    /// `49 01`: the account's two boxes, as the lobby's number
-    /// (`LocalPlayerProfile.getAutoBuyState`; PROVEN): bit 0 is autobuy
-    /// (`on`); bit 1, the stock auto-repair, is not read (srp has no repair).
-    SetAutobuy { on: bool },
     /// `49 02`.
     SetActiveKit { kit_id: u32 },
     /// `49 03`.
@@ -308,8 +297,14 @@ pub enum ClientMessage {
     /// voucher's item id (0 for money: `MessageEnterName`), is read and not
     /// kept: the vouchers are gone (the owner, 2026-11-08).
     ChangeNickname { nickname: String },
-    /// `49 05`: GUESS a report or praise of a player.
-    CommentAboutUser { nickname: String, a: u8, b: u8 },
+    /// `49 05`: a report or compliment, as named by the Flash menu. Here and
+    /// in the chat mute, the private line's receiver and `4D`'s target, the
+    /// name is without the clan tag the client may show with it
+    /// (`Reader::player_name`).
+    CommentAboutUser {
+        nickname: String,
+        comment: PlayerComment,
+    },
     SetChatMute {
         nickname: String,
         mode: Option<super::ChatMuteMode>,
@@ -363,6 +358,46 @@ pub enum ClientMessage {
     ImportantRead { message_id: u32, answer: u8 },
 }
 
+/// The seven choices in Flash's CommentKind, ClaimReason and Compliment.
+/// Each variant names one valid (kind, reason) pair.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlayerComment {
+    BotOrCheater,
+    Swearing,
+    UnsportingBehavior,
+    AccountTrading,
+    Friendly,
+    GoodPlayer,
+    BornLeader,
+}
+
+impl PlayerComment {
+    pub const fn from_wire(kind: u8, reason: u8) -> Option<Self> {
+        match (kind, reason) {
+            (1, 1) => Some(Self::BotOrCheater),
+            (1, 2) => Some(Self::Swearing),
+            (1, 3) => Some(Self::UnsportingBehavior),
+            (1, 4) => Some(Self::AccountTrading),
+            (2, 1) => Some(Self::Friendly),
+            (2, 2) => Some(Self::GoodPlayer),
+            (2, 3) => Some(Self::BornLeader),
+            _ => None,
+        }
+    }
+
+    pub const fn wire(self) -> (u8, u8) {
+        match self {
+            Self::BotOrCheater => (1, 1),
+            Self::Swearing => (1, 2),
+            Self::UnsportingBehavior => (1, 3),
+            Self::AccountTrading => (1, 4),
+            Self::Friendly => (2, 1),
+            Self::GoodPlayer => (2, 2),
+            Self::BornLeader => (2, 3),
+        }
+    }
+}
+
 /// Why a client message was not read.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ParseError {
@@ -370,6 +405,8 @@ pub enum ParseError {
     UnknownId(u8),
     /// A sub-type the id does not have.
     UnknownSubType { id: u8, sub: u8 },
+    /// Neither a report reason nor a compliment from the menu.
+    InvalidComment { kind: u8, reason: u8 },
     /// The body ends inside a field.
     Truncated { id: u8 },
     /// The message was read whole and bytes are left. Nothing in the notes
@@ -387,6 +424,9 @@ impl fmt::Display for ParseError {
             Self::UnknownId(id) => write!(f, "unknown lobby message {id:#04X}"),
             Self::UnknownSubType { id, sub } => {
                 write!(f, "lobby message {id:#04X}: unknown sub-type {sub:#04X}")
+            }
+            Self::InvalidComment { kind, reason } => {
+                write!(f, "invalid player comment {kind}/{reason}")
             }
             Self::Truncated { id } => write!(f, "lobby message {id:#04X} is cut short"),
             Self::Trailing { extra, .. } => write!(f, "{extra} bytes after a lobby message"),
@@ -435,6 +475,18 @@ impl<'a> Reader<'a> {
     fn str(&mut self) -> Result<String, ParseError> {
         let len = self.u8()?;
         Ok(String::from_utf8_lossy(self.take(len.into())?).into_owned())
+    }
+    /// A player the client names as a message's target, as it shows the
+    /// name: a clan member's is `[TAG] name` on the results' rows
+    /// (`results.md` §1.2), whose menu sends it back as it is. A nickname
+    /// has no blank (`session::v026g::names::Nickname`) and a tag no `]`,
+    /// so that form is no player's: the name is what follows the tag.
+    fn player_name(&mut self) -> Result<String, ParseError> {
+        let shown = self.str()?;
+        Ok(match shown.strip_prefix('[').and_then(|rest| rest.split_once("] ")) {
+            Some((_tag, name)) => name.to_owned(),
+            None => shown,
+        })
     }
     /// `u16 count` and UTF-16LE units.
     fn wide(&mut self) -> Result<String, ParseError> {
@@ -560,14 +612,14 @@ fn parse_body(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
         },
         id::CHAT_TEXT => M::ChatText {
             channel_id: r.u32()?,
-            receiver: r.str()?,
+            receiver: r.player_name()?,
             channel: r.u8()?,
             body: r.str()?,
         },
         id::IMPORTANT => {
             // Always 0.
             r.u32()?;
-            let target_name = r.str()?;
+            let target_name = r.player_name()?;
             let kind = r.u8()?;
             let text = r.str()?;
             // The long form (clan and clan-team invites) has one more u32.
@@ -590,7 +642,7 @@ fn parse_body(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             3 => FriendshipAction::Ignore {
                 account_id: super::listed_account(r.u32()?),
             },
-            4 => FriendshipAction::IgnoreByName { name: r.str()? },
+            4 => FriendshipAction::IgnoreByName { name: r.player_name()? },
             5 => FriendshipAction::StopIgnoring {
                 account_id: super::listed_account(r.u32()?),
             },
@@ -706,23 +758,12 @@ fn parse_shop(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             item_id: r.u32()?,
             amount: r.u32()?,
         },
-        0x02 => M::BuyOffer {
-            offer_id: r.u32()?,
-            x: r.u32()?,
-            factor: r.f32()?,
-        },
-        0x05 => M::AcceptPremiumWithBonuses {
-            a0: r.u32()?,
-            a1: r.f32()?,
-            a2: r.u32()?,
-            a3: r.u32()?,
-            a4: r.u32()?,
-            faction: r.u8()?,
-        },
-        0x06 => M::AcceptPremiumWithDiscount {
-            a0: r.u32()?,
-            a1: r.f32()?,
-        },
+        0x02 => {
+            let offer_id = r.u32()?;
+            r.u32()?;
+            r.f32()?;
+            M::BuyOffer { offer_id }
+        }
         sub => return Err(r.unknown_sub(sub)),
     })
 }
@@ -737,10 +778,6 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
                 name: r.str()?,
             });
         }
-        0x01 => {
-            let state = r.u8()?;
-            return Ok(M::SetAutobuy { on: state & 1 != 0 });
-        }
         0x02 => return Ok(M::SetActiveKit { kit_id: r.u32()? }),
         0x03 => {
             return Ok(M::CheckNickname { nickname: r.str()? });
@@ -751,7 +788,7 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
             return Ok(M::ChangeNickname { nickname });
         }
         0x05 => {
-            let nickname = r.str()?;
+            let nickname = r.player_name()?;
             let a = r.u8()?;
             let b = r.u8()?;
             if a == super::CHAT_MUTE_ACTION {
@@ -763,7 +800,9 @@ fn parse_profile(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
                 };
                 return Ok(M::SetChatMute { nickname, mode });
             }
-            return Ok(M::CommentAboutUser { nickname, a, b });
+            let comment = PlayerComment::from_wire(a, b)
+                .ok_or(ParseError::InvalidComment { kind: a, reason: b })?;
+            return Ok(M::CommentAboutUser { nickname, comment });
         }
         0x24 => {
             // Always 0.

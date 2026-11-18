@@ -186,7 +186,7 @@ pub struct Settings {
     pub tick: Duration,
     /// The `maps_dict` ids played: playable ones only (a room's default
     /// pool, what a clan match is drawn from).
-    pub maps: Vec<u8>,
+    pub maps: Vec<maps::MapId>,
     /// The least patch revision of a game let in, 0 for any: an older one
     /// is refused at its sign-in, and its sessions from before in the lobby
     /// (`SRP_MIN_PATCH_REVISION`; `patch_check`).
@@ -209,7 +209,7 @@ impl Settings {
         let modes = match var("SRP_MATCH_MODES") {
             Some(value) => parse_modes(&value).unwrap_or_else(|| {
                 log::error!(
-                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 6 (6 Blackout). Using \
+                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 8 (6 Blackout, 8 free for all). Using \
                      2,3,4,5,6"
                 );
                 DEFAULT_MODES.to_vec()
@@ -342,7 +342,7 @@ fn parse_weight(value: &str) -> Option<f64> {
         .filter(|weight| weight.is_finite() && (0.0..=1000.0).contains(weight))
 }
 
-/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 6 (6 Blackout;
+/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 8 (6 Blackout, 8 free for all;
 /// `maps::GameMode::lobby_number`), at least one.
 fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
     let modes: Option<Vec<maps::GameMode>> = value
@@ -358,17 +358,17 @@ fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
 }
 
 /// `SRP_MATCH_MAPS`: `maps_dict` ids, at least one.
-fn parse_maps(value: &str) -> Option<Vec<u8>> {
-    let ids: Option<Vec<u8>> = value
+fn parse_maps(value: &str) -> Option<Vec<maps::MapId>> {
+    let ids: Option<Vec<maps::MapId>> = value
         .split(',')
-        .map(|id| id.trim().parse::<u8>().ok())
+        .map(|id| id.trim().parse::<maps::MapId>().ok())
         .collect();
     ids.filter(|ids| !ids.is_empty())
 }
 
 /// The playable ids of `modes`; with `only` not empty, those of them it
 /// names.
-fn map_pool(modes: &[maps::GameMode], only: &[u8]) -> Vec<u8> {
+fn map_pool(modes: &[maps::GameMode], only: &[maps::MapId]) -> Vec<maps::MapId> {
     maps::playable()
         .filter(|map| modes.contains(&map.mode))
         .filter(|map| only.is_empty() || only.contains(&map.id))
@@ -404,6 +404,12 @@ pub(crate) enum Notice {
     /// To every client in the lobby now.
     Broadcast {
         messages: Vec<ServerMessage>,
+    },
+    /// [`Inbox::idle_removed`].
+    IdleRemoved {
+        match_id: u32,
+        account_id: u32,
+        name: String,
     },
 }
 
@@ -444,6 +450,18 @@ impl Inbox {
         self.notices
             .locked()
             .push(Notice::AccountChanged { account_id });
+    }
+
+    /// The match server removed the player of `account_id` (`name` in the
+    /// match) from its match `match_id` (the id the clients were told) for
+    /// being idle (anti-AFK): the match's chat and the general chat say so,
+    /// once.
+    pub fn idle_removed(&self, match_id: u32, account_id: u32, name: &str) {
+        self.notices.locked().push(Notice::IdleRemoved {
+            match_id,
+            account_id,
+            name: name.to_owned(),
+        });
     }
 
     /// Send messages to every client in the lobby now, in order. A client
@@ -555,10 +573,13 @@ impl Lobby {
         );
         core.packet_log = PacketLog::from_env();
         core.replays = self.replays.as_deref();
+        let mut socket = udp_transport::relay::Datagrams::new(
+            &self.socket, udp_transport::relay::Relays::from_env()?,
+        )?;
         let mut buffer = [0_u8; 2048];
         while !self.inbox.stopped() {
-            match self.socket.recv_from(&mut buffer) {
-                Ok((len, from)) => core.datagram(from, &buffer[..len], Instant::now()),
+            match socket.recv_from(&mut buffer) {
+                Ok((len, peer)) => core.datagram_via(peer, &buffer[..len], Instant::now()),
                 Err(error)
                     if matches!(
                         error.kind(),
@@ -575,7 +596,7 @@ impl Lobby {
                 }
             }
             for (to, datagram) in core.step(Instant::now()) {
-                if let Err(error) = self.socket.send_to(&datagram, to) {
+                if let Err(error) = socket.send_to(&datagram, to) {
                     log::debug!("A lobby datagram to {to} was not sent: {error}");
                 }
             }

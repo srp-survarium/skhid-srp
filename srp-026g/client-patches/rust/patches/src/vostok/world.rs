@@ -13,7 +13,13 @@ use core::marker::PhantomData;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
+use ::ragdoll::math::Pose;
+
+use super::geometry::{Aabb, WorldPoint};
+use super::shape::Shape;
 use super::hook::Thread;
+use super::options::MapId;
+use super::ui::{Movie, movie_of};
 use crate::raw;
 
 /// Reads a field's place (raw's accessor gives it).
@@ -60,24 +66,121 @@ impl<'t> GameWorld<'t> {
         Some(GameWorld { this, thread: ctx.thread() })
     }
 
+    /// The world whose match is over (`game_world.finish`, before it unloads).
+    pub fn at_finish(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: on_finish_match's game world, alive
+        // until its end, on the game's thread.
+        let this = unsafe { raw::site::game_world_finish::world(ctx) }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// The world being left (`game_world.deactivate`, before it is).
+    pub fn at_deactivate(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: on_deactivate's game world, alive
+        // until its end, on the game's thread.
+        let this = unsafe { raw::site::game_world_deactivate::world(ctx) }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
     /// Its game's network client.
     pub fn network_client(&self) -> Option<NetworkClient<'t>> {
         // SAFETY: the world, its game and the game's client, alive for the hook.
         let this = unsafe { self.this.game()?.network_client() }?;
         Some(NetworkClient { this, thread: self.thread })
     }
+
+    /// The world of the player at `minimap.enemy_spotted` (update_minimap_players' spotted test).
+    pub fn at_minimap_enemy(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: the context is this site's: a place's player in the world and alive, which
+        // keeps its game world (+F474h), on the game's thread.
+        let this = unsafe { raw::site::minimap_enemy_spotted::player(ctx)?.game_world() }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// The world of the player at `player_names.enemy_spotted` (render_name's spotted test).
+    pub fn at_name_enemy(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: as at_minimap_enemy: render_name's player, in the world.
+        let this = unsafe { raw::site::player_names_enemy_spotted::player(ctx)?.game_world() }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// The hud's world at `player_icons.enemy_ids` (initialize_match).
+    pub fn at_enemy_ids(ctx: &'t Context<'_>) -> Option<GameWorld<'t>> {
+        // SAFETY: initialize_match's ui in ESI and its world (+18h), alive while it runs.
+        let this = unsafe { raw::site::player_icons_enemy_ids::ui(ctx)?.world() }?;
+        Some(GameWorld { this, thread: ctx.thread() })
+    }
+
+    /// What its game plays (a world with no client: a match).
+    pub fn playback(&self) -> Playback {
+        self.network_client().map_or(Playback::Match, |client| client.playback())
+    }
+
+    /// The replay player movie (replay_player.swf) of this world's hud, when
+    /// its game plays a replay (its network client's class) and the hud has
+    /// the movie. A live match has none.
+    pub fn replay_player(&self) -> Option<Movie<'t>> {
+        if self.playback() != Playback::Replay {
+            return None;
+        }
+        // SAFETY: the world and the hud inside it, alive for the hook, on its
+        // thread; the holder is the hud's own.
+        unsafe { movie_of(self.this.ui().replay_movie()) }
+    }
+
+    /// The places in the match now (the core's, core_active_player 0x2D0AD4);
+    /// none without a match.
+    pub fn places_in_match(&self) -> Option<Places> {
+        // SAFETY: the world, its match and the core inside it, alive for the hook.
+        unsafe { Some(Places(read(self.this.pvp_match()?.core().active_places()))) }
+    }
+}
+
+/// The roster places in the match, a bit each (a place that left has none
+/// until it comes back).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Places(pub u32);
+
+impl Places {
+    /// As many as a match has (core_world's loops: `cmp bl,14h` 0x2D21CC).
+    pub const COUNT: usize = 20;
+
+    /// Each place of the match in turn: whether it is in.
+    pub fn each(self) -> [bool; Places::COUNT] {
+        core::array::from_fn(|place| self.0 >> place & 1 != 0)
+    }
+}
+
+/// What the game plays, from its network client's class (its vtable), read at each ask: there is
+/// no flag of ours to set. A live match's client (and a live spectator's) is the network_client;
+/// a `.sur` replay's the replay_network_client, which no live match has.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Playback {
+    /// A match played or spectated live.
+    Match,
+    /// A `.sur` replay.
+    Replay,
 }
 
 /// The network client: the match's places and the local player.
 pub struct NetworkClient<'t> {
-    this: raw::NetworkClient,
-    thread: &'t Thread,
+    pub(in crate::vostok) this: raw::NetworkClient,
+    pub(in crate::vostok) thread: &'t Thread,
 }
 
 impl<'t> NetworkClient<'t> {
     /// The client a site's typed register holds, on its hook's thread.
     pub(in crate::vostok) fn of(this: raw::NetworkClient, thread: &'t Thread) -> NetworkClient<'t> {
         NetworkClient { this, thread }
+    }
+
+    /// What it plays: its class (vtable +0), the one field both kinds of client share.
+    pub fn playback(&self) -> Playback {
+        // SAFETY: the client, alive for the hook; its vtable is its first word.
+        match unsafe { read(self.this.vtable()) } {
+            raw::image::REPLAY_CLIENT_VTABLE => Playback::Replay,
+            _ => Playback::Match,
+        }
     }
 
     /// The match's places' count (0 without match options).
@@ -109,6 +212,31 @@ impl<'t> NetworkClient<'t> {
             }
         }
         teams
+    }
+
+    /// The client of a game, on a hook's thread.
+    pub(in crate::vostok) fn of_game(game: raw::Game, thread: &'t Thread) -> Option<NetworkClient<'t>> {
+        // SAFETY: the game's network client, alive as long as the game.
+        let this = unsafe { game.network_client() }?;
+        Some(NetworkClient { this, thread })
+    }
+
+    /// The name of a place's record (64 bytes with its zero; the match
+    /// options' own), zeros past the match's places.
+    pub(in crate::vostok) fn place_name(&self, place: super::types::Place) -> [u8; 64] {
+        let mut name = [0; 64];
+        // SAFETY: the client's options and their places live as long as the
+        // client, on the hook's thread; a place below the count is one of
+        // them, its name 64 bytes.
+        unsafe {
+            if let Some(options) = raw::engine_match_options(Some(self.this))
+                && place.index() < usize::from(read(options.places()))
+            {
+                let at = options.first_place().at(place.index()).name();
+                core::ptr::copy_nonoverlapping(at, name.as_mut_ptr(), name.len());
+            }
+        }
+        name
     }
 
     /// The local player, if the match has one.
@@ -164,16 +292,42 @@ impl<'t> NetworkClient<'t> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Held {
     Nothing,
-    /// A battery (a victory_item): no gun drops from a carrier's hands.
+    /// A battery ([`held_battery`]): no gun drops from a carrier's hands.
     Battery,
     /// A weapon or another item.
     Item,
+}
+
+/// The vtables of a battery: the client cook's victory_item
+/// (victory_item_cook::create_resource 0x231B50 constructs it, 0x2463E0) and
+/// the core cook's victory_item_core (its create 0x2F9FA0 -> 0x2F9F40, the
+/// core's constructor 0x3000A0).
+const BATTERIES: [u32; 2] = [raw::image::VICTORY_ITEM_VTABLE, raw::image::VICTORY_ITEM_CORE_VTABLE];
+
+/// The battery `player` holds (+128h), none when it holds anything else or
+/// nothing: the one test of "holds a battery".
+///
+/// # Safety
+/// `player` is alive, on this thread.
+pub(in crate::vostok) unsafe fn held_battery(player: raw::Player) -> Option<raw::VictoryItemCore> {
+    unsafe {
+        let item = player.held_item()?;
+        BATTERIES.contains(&read(item.vtable())).then(|| item.battery())
+    }
 }
 
 /// A player as a value kept between hooks: its address, compared, never
 /// read through.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerId(u32);
+
+#[cfg(test)]
+impl PlayerId {
+    /// A made-up player's, for a patch's host tests.
+    pub fn for_test(address: u32) -> PlayerId {
+        PlayerId(address)
+    }
+}
 
 /// An inventory item (or an active object, a weapon) as a value kept between
 /// hooks: its address, compared, never read through. Made only from its
@@ -249,7 +403,8 @@ impl ModifierIndex {
     /// apply_modifier or apply_modifiers call names it) and nothing sets it
     /// but skill 205's 0; additive (0x927E08's list). srp's: the Force
     /// Protein's built-in modification 1330 gives 15: its carrier's
-    /// gun-stock kills push the ragdoll 1 + 15 times (shot::knocked_back).
+    /// gun-stock kills push the ragdoll 1 + 15 times, its battery strikes
+    /// 1 + 15 + 7.5 (shot::knocked_back).
     pub const MELEE_KNOCKBACK: ModifierIndex = ModifierIndex(29);
 }
 
@@ -311,6 +466,12 @@ impl<'t> Player<'t> {
         unsafe { read(self.this.place()) }
     }
 
+    /// Where its feet are (the simulated transform's translation).
+    pub fn feet(&self) -> [f32; 3] {
+        // SAFETY: the live player's three floats.
+        unsafe { floats(self.this.feet()) }
+    }
+
     /// In the match's world (m_has_been_inserted).
     pub fn inserted(&self) -> bool {
         // SAFETY: the player is alive for the hook.
@@ -329,14 +490,28 @@ impl<'t> Player<'t> {
         unsafe { read(self.this.spawned()) }
     }
 
+    /// Its model was not seen the last frame (+0F4E2h, mt_draw's cull).
+    pub fn not_seen(&self) -> bool {
+        // SAFETY: as inserted; a byte of the player.
+        unsafe { read(self.this.not_seen()) != 0 }
+    }
+
+    /// It has an item to switch to (+12Ch not 0, as mt_draw's cull reads it).
+    pub fn switching(&self) -> bool {
+        // SAFETY: as inserted; only whether the pointer is 0 is read.
+        unsafe { self.this.pending_item() }.is_some()
+    }
+
     /// What it holds (+128h: mt_draw draws it at the "Weapon" bone).
     pub fn held(&self) -> Held {
         // SAFETY: as inserted; the held item is alive as long.
         unsafe {
-            match self.this.held_item() {
-                None => Held::Nothing,
-                Some(item) if read(item.vtable()) == raw::image::VICTORY_ITEM_VTABLE => Held::Battery,
-                Some(_) => Held::Item,
+            if held_battery(self.this).is_some() {
+                Held::Battery
+            } else if self.this.held_item().is_some() {
+                Held::Item
+            } else {
+                Held::Nothing
             }
         }
     }
@@ -499,7 +674,12 @@ pub struct RayHit {
     pub normal: [f32; 3],
 }
 
-impl PhysicsWorld<'_> {
+impl<'t> PhysicsWorld<'t> {
+    /// The world as a value (another match's world is another).
+    pub fn id(&self) -> super::project::PhysicsId {
+        super::project::PhysicsId::of(self.this)
+    }
+
     /// bullet_physics_world::ray_test from `origin` along the unit
     /// `direction`, `length` long, with the filter `group`/`mask` (an object
     /// is tried when its mask has a bit of the group and its group a bit of
@@ -517,11 +697,207 @@ impl PhysicsWorld<'_> {
             Some(RayHit { point: floats(result.point()), normal: floats(result.normal()) })
         }
     }
+
+    /// Each object of the world (m_collisionObjects, in its order) that is
+    /// in its broadphase: its filter group, whether it is static, the box
+    /// the broadphase holds for it (the game's frame), its pose and shape
+    /// (Bullet's frame). Read only, on the
+    /// thread that steps the world, outside its step (camera.viewed is in
+    /// mt_draw, after the simulation's move): nothing adds or removes an
+    /// object meanwhile.
+    pub fn for_each_object(&self, mut visit: impl FnMut(CollisionObject<'t>)) {
+        // SAFETY: the physics world and its Bullet world are alive for the
+        // hook; m_collisionObjects holds object_count live objects, each
+        // proxy (when not 0) theirs, its two float4s written by setAabb.
+        unsafe {
+            let Some(world) = self.this.collision_world() else { return };
+            let Some(first) = world.objects() else { return };
+            for i in 0..read(world.object_count()) as usize {
+                let Some(object) = first.at(i).object() else { continue };
+                let Some(proxy) = object.broadphase() else { continue };
+                let ([x0, y0, z0], [x1, y1, z1]): ([f32; 3], [f32; 3]) =
+                    (floats(proxy.aabb_min()), floats(proxy.aabb_max()));
+                let low = WorldPoint::parse([x0, y0, -z1]);
+                let high = WorldPoint::parse([x1, y1, -z0]);
+                let Some(aabb) = low.zip(high).and_then(|(low, high)| Aabb::parse(low, high)) else { continue };
+                let motion = if read(object.flags()) & STATIC_OBJECT != 0 { Motion::Static } else { Motion::Moving };
+                visit(CollisionObject { group: read(proxy.group()), motion, aabb, object, thread: self.thread });
+            }
+        }
+    }
+}
+
+/// m_collisionFlags' CF_STATIC_OBJECT.
+const STATIC_OBJECT: u32 = 1;
+
+/// Whether a collision object can move: Bullet's static flag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Motion {
+    Static,
+    Moving,
+}
+
+/// An object of the physics world as its broadphase holds it.
+#[derive(Clone, Copy)]
+pub struct CollisionObject<'t> {
+    /// Its filter group (the bits a filter's mask meets).
+    pub group: u16,
+    pub motion: Motion,
+    /// Its box in the game's frame (Bullet's with z negated).
+    pub aabb: Aabb,
+    object: raw::BtCollisionObject,
+    thread: &'t Thread,
+}
+
+impl<'t> CollisionObject<'t> {
+    /// Where its shape is: m_worldTransform, Bullet's frame.
+    pub fn pose(&self) -> Pose {
+        // SAFETY: the object, alive for the hook (for_each_object's).
+        unsafe { super::shape::pose(self.object.transform()) }
+    }
+
+    pub fn shape(&self) -> Option<Shape<'t>> {
+        // SAFETY: as pose; its shape lives as long.
+        unsafe { Some(Shape::of(self.object.shape()?, self.thread)) }
+    }
 }
 
 impl BodyId {
     /// The body as a value (a shot's key).
     pub fn key(self) -> u32 {
         self.0
+    }
+}
+
+/// The map the game has loaded, while a match (live or replay) is in its
+/// world: its project's name as the data names it (the maps_dict id's game
+/// mode config's `map_name`, `level_01/day_2`) and that id.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LoadedMap {
+    name: [u8; LoadedMap::MOST],
+    len: u8,
+    /// The maps_dict id (match_options +577B8h, patch 154's), when the
+    /// client has options.
+    pub id: Option<MapId>,
+}
+
+impl LoadedMap {
+    /// The longest name kept; a longer one is cut.
+    const MOST: usize = 64;
+
+    /// The name (ASCII as the data has it; "?" for any other byte).
+    pub fn name(&self) -> &str {
+        core::str::from_utf8(&self.name[..usize::from(self.len)]).unwrap_or("?")
+    }
+
+    /// A map of this name and id (tests, and what `loaded_map` builds).
+    pub fn new(name: &[u8], id: Option<MapId>) -> LoadedMap {
+        let mut out = LoadedMap { name: [0; LoadedMap::MOST], len: 0, id };
+        for (slot, &byte) in out.name.iter_mut().zip(name) {
+            *slot = if byte.is_ascii_graphic() { byte } else { b'?' };
+            out.len += 1;
+        }
+        out
+    }
+}
+
+/// The map of the match the engine world's game has in its world, none in
+/// the lobby (the world's match 0), before the engine runs or without a name.
+pub fn loaded_map(_: &Thread) -> Option<LoadedMap> {
+    // SAFETY: the image's engine world slot, the engine world, its game, the
+    // game's embedded world and its match are live while the game runs (each
+    // pointer 0 when absent, as match_core in artefact_skills reads them);
+    // the map's name is the game's buffer_string, its text zero-terminated in
+    // its 200h bytes; the options are the client's own (match_options,
+    // vtable +34h, a live and a replay client alike).
+    unsafe {
+        let game = raw::image::engine_world().world()?.game()?;
+        game.world().pvp_match()?;
+        let name = super::ui::c_string(game.map_name().begin().cast_const(), 0x200)?.to_bytes();
+        if name.is_empty() {
+            return None;
+        }
+        // No client, no id: the options' call is through the client's vtable.
+        let id = game
+            .network_client()
+            .and_then(|client| raw::engine_match_options(Some(client)))
+            .map(|options| super::options::map_id_of(options));
+        Some(LoadedMap::new(name, id))
+    }
+}
+
+/// Whether an anomaly's damage zone is on: its collision sensor in the
+/// physics world (generic_anomaly_core::activate_damage_zone 0x31B9A0 puts
+/// it in, deactivate_damage_zone 0x31B9F0 takes it out).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ZoneState {
+    Active,
+    Off,
+}
+
+/// One of the loaded project's damage zones.
+#[derive(Clone, Copy)]
+pub struct DamageZone<'t> {
+    this: raw::DamageZone,
+    thread: &'t Thread,
+}
+
+impl<'t> DamageZone<'t> {
+    pub fn state(&self) -> ZoneState {
+        // SAFETY: the zone, alive with its project (the hook's).
+        if unsafe { read(self.this.active()) } != 0 { ZoneState::Active } else { ZoneState::Off }
+    }
+
+    /// Each of its geometries' shapes where its ghost stands (in the world or
+    /// not), Bullet's frame.
+    pub fn for_each_shape(&self, mut visit: impl FnMut(Pose, Shape<'t>)) {
+        // SAFETY: the zone's geometries, their ghosts and Bullet objects,
+        // made with the project and kept until it is let go.
+        unsafe {
+            let Some(first) = self.this.geometries() else { return };
+            for i in 0..read(self.this.geometry_count()) as usize {
+                let Some(object) = first.at(i).geometry().and_then(|g| g.ghost()).and_then(|g| g.object()) else {
+                    continue;
+                };
+                if let Some(shape) = object.shape() {
+                    visit(super::shape::pose(object.transform()), Shape::of(shape, self.thread));
+                }
+            }
+        }
+    }
+}
+
+/// Each damage zone of the project the engine world's game has loaded, none
+/// in the lobby (no match in its world). Read on the thread that steps the
+/// world, outside its step (as for_each_object).
+pub fn for_each_damage_zone<'t>(thread: &'t Thread, mut visit: impl FnMut(DamageZone<'t>)) {
+    // SAFETY: as loaded_map: the engine world's game and its world; the
+    // project it holds a reference to and its zones' vector, each zone held.
+    unsafe {
+        let Some(game) = raw::image::engine_world().world().and_then(|w| w.game()) else { return };
+        let world = game.world();
+        if world.pvp_match().is_none() {
+            return;
+        }
+        let Some(project) = world.project() else { return };
+        let (Some(first), Some(end)) = (project.damage_zones(), project.damage_zones_end()) else { return };
+        let Some(count) = end.index_from(first) else { return };
+        for i in 0..count {
+            if let Some(this) = first.at(i).zone() {
+                visit(DamageZone { this, thread });
+            }
+        }
+    }
+}
+
+/// Whether the engine world's game shows a match's world: game_world's
+/// active byte, which the game's thread writes (base_game_scene::on_activate
+/// sets it, game_world::on_deactivate clears it at a match's end). One byte
+/// of objects the process keeps for its whole run, so any thread may ask.
+pub fn match_shown(_: &Thread) -> bool {
+    // SAFETY: the image's engine world slot, the engine world and its game,
+    // made once and kept while the game runs; the game world inside it.
+    unsafe {
+        raw::image::engine_world().world().and_then(|w| w.game()).is_some_and(|game| read(game.world().active()) != 0)
     }
 }

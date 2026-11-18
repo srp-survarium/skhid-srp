@@ -28,9 +28,10 @@ python3 tools/actionscript/flash_tree.py original srp-026g/flash/<movie> <archiv
   (JPEG, DefineBits); a progressive JPEG is refused (Flash does not read it).
 - A character the original places wrongly is a row of `placements.tsv` beside `src/`
   (`sprite frame depth from to`, tab-separated, `#` comments): in that DefineSprite's frame (from 1)
-  the PlaceObject2 at that depth places `to` where the original places `from`; a row that matches no
-  such placement, or names a character the movie lacks, fails the build. The lobby's skills tabs:
-  the selected icon's fifth frame placed a campfire, not the leaf.
+  the PlaceObject2 at that depth places `to` where the original places `from`; `to` `-` places
+  nothing (that PlaceObject2 is left out). A row that matches no such placement, or names a character
+  the movie lacks, fails the build. The lobby's skills tabs: the selected icon's fifth frame placed a
+  campfire, not the leaf; its item panel: the stock Fix button (srp has no repair) is placed nowhere.
 - **Tables.** Data the movie's code reads, which other tools read too (the
   lobby's shop filters, which the wiki's icons take), is a table
   `tables/<package path>/<Class>.tsv` beside `src/`: the build writes the
@@ -134,6 +135,17 @@ player's icon its place's name centred over it, the own icon and a place with no
 corner minimap none; the names following their icons over 100 updates with the same text fields;
 Alt let go and held again; a player lost from sight, one spotted, an ally taking the battery, the
 rows made again; and Blackout (the list kept hidden): none on screen.
+
+### Enemies in a replay
+
+`tests/ReplayEnemiesHarness.as` checks the player icons movie's part of exe patch 135
+(`srp-026g/docs/notes/replay-map.md`) with the movie's own root, fed as the game feeds it. Put the
+newly built `player_icons.swf` beside its output, compile and run it as above. It traces
+`ENEMIES ... ok` lines and `ENEMIES RESULT pass` or `ENEMIES RESULT fail: ...`: in a live match
+(`srp_show_enemies(false)`) an ally's marker shows and an enemy's never; in a replay
+(`srp_show_enemies(true)`, before the enemy list, and the list sent again) the enemy's marker shows,
+its name red and shown after the marker's delay; told before the root's frame 1 made its layer, the
+layer takes it. `TabMapNamesHarness.as` checks the Tab map's enemy names red, allies' white.
 
 ### Weapon upgrade window
 

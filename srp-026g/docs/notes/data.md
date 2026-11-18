@@ -746,7 +746,7 @@ takes into account, as its own indicator ("some might think this is
 associated with weight"). Left of the weight the lobby shows a box of the
 same kind: the weight's frame (`WeightFrame`, the original's bitmap under
 playerWeight) beside the weight's, with "Speed" and "97%" in a second copy
-of the weight's own symbol (`SpeedIndicator`; its fonts, sizes, colours and
+of the weight's own symbol (`KitStatIndicator`; its fonts, sizes, colours and
 baseline; no bar; coral below 100 %, green above). A TextField made in code
 lost the value's size to the style sheet in the game (the owner's 2026-10-29
 screenshot: a small, raised "99%" beside a frameless "Speed"). Its own
@@ -760,8 +760,8 @@ pocket item by its displayed name with the sum of its own modifications
 +5 %"), and the weapon in hand ("AK-74M -5 %"). None at 0; biggest speed-up
 first, biggest slow-down last; green faster, red slower (the item card rows'
 own colours, `ModificatorListRenderer`'s style sheet). The total is summed
-from that list (`SpeedParts.sources`). The weight's tooltip stays the weight's. The Autobuy box's label is as long as its text (the
-symbol's fixed width cut "Automatikus vásárlás"). UI only: no gameplay or
+from that list (`SpeedParts.sources`). The weight's tooltip stays the weight's. Left of the speed's box is the regeneration's, the same kind of box
+([regeneration-box.md](regeneration-box.md); the Autobuy box was there until 2026-11-10). UI only: no gameplay or
 simulation change.
 
 - **The game's rule.** `base_player::movement_speed` 0x2DBB50 returns

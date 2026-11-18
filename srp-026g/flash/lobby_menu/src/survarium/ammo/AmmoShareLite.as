@@ -41,8 +41,6 @@ package survarium.ammo
       
       public var aviableWeight:Number = 0;
       
-      protected var _autoBuyCheckBox:Button;
-      
       protected var _updateFunction:Function;
       
       protected var _softUpdate:Boolean = false;
@@ -152,16 +150,6 @@ package survarium.ammo
             i++;
          }
          return null;
-      }
-      
-      public function set autoBuyCheckBox(value:Button) : void
-      {
-         _autoBuyCheckBox = value;
-      }
-      
-      public function get autoBuyCheckBox() : Button
-      {
-         return this._autoBuyCheckBox;
       }
       
       public function set acceptButton(value:Button) : void
@@ -710,12 +698,6 @@ package survarium.ammo
          }
       }
       
-      protected function updateAutoBuy(event:Event) : void
-      {
-         trace("ASl::updateAutoBuy",this._autoBuyCheckBox.selected);
-         ExternalInterface.call("ammo_autobuy_changed",this._autoBuyCheckBox.selected);
-      }
-      
       protected function onChange(event:Event) : void
       {
          var totalWeight:Number = 0;
@@ -833,7 +815,6 @@ package survarium.ammo
             {
                move = Relocation.move(profileId,itemId,dictId,sourceSlotId,targetSlotId,moveCount);
                move.count_in_inventory = inventoryCount;
-               move.auto_buy = this.autoBuyCheckBox.selected;
                this._relocateArray.push(move);
             }
          }
@@ -859,12 +840,11 @@ package survarium.ammo
             sourceSlotId = ammo.source_slot != undefined ? (ammo.source_slot) : ItemPlace.INVENTORY;
             moveCount = element.slider.position;
             inventoryCount = (element.slider.value_storage);
-            trace("prepare relocate:",element.name,"target:",targetSlotId,"source:",sourceSlotId,"count:",moveCount,inventoryCount,"name",ammo.name,element.pair,itemId,ammo.itemId,this.autoBuyCheckBox.selected);
+            trace("prepare relocate:",element.name,"target:",targetSlotId,"source:",sourceSlotId,"count:",moveCount,inventoryCount,"name",ammo.name,element.pair,itemId,ammo.itemId);
             if(inventoryCount)
             {
                move = Relocation.move(profileId,itemId,dictId,sourceSlotId,targetSlotId,moveCount);
                move.count_in_inventory = inventoryCount;
-               move.auto_buy = this.autoBuyCheckBox.selected;
                this._relocateArray.push(move);
             }
          }

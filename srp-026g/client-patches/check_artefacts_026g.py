@@ -25,7 +25,7 @@ The original must give the original's answers (a Spring's passive node 2
 max_carried_weight, no aim node; Lifebone heals no pool; one press fires one
 artefact; n active Onyx reduce a hit n times, each 3 s), the build: aim
 time from the config in the passive and the active, the active's linked and
-unlinked with the others, pain, body and head full after Lifebone's active,
+unlinked with the others, every body part's pool full after Lifebone's active,
 no slow from hits while a Spring is active, a press fires every ready
 artefact of its class, and n Onyx fired together are each active 3 s +
 (n - 1) s, reduce a hit once (x0.25) and show the activation hint once a
@@ -317,12 +317,16 @@ def run(data, patched):
            "an active Spring: no slow" if patched else "an active Spring: the slow as ever")
     expect(stagger([(100, 0.6), (200, 0.3)], True) == (0.0 if patched else -0.5), "an active Spring, big hits")
 
-    # Lifebone's active: pain, body and head full, the limbs left to their
-    # remove_affects; a pool that is full or not there is left alone.
+    # Lifebone's active: every body part full (pain, body, head, both hands,
+    # both legs), each to its own maximum (a limb's 0.5, or the 0.75 Strong Bones
+    # makes it); `infection` is not one and is left, as is a pool that is full
+    # or not there.
     cases = (
         # {pool: (Hmax, H before)} -> H after in the build
-        ({"pain": (1.0, 0.3), "body": (1.0, 0.3), "head": (0.4, 0.1), "left_leg": (0.5, 0.1)},
-         {"pain": 1.0, "body": 1.0, "head": 0.4, "left_leg": 0.1}),
+        ({"pain": (1.0, 0.3), "body": (1.0, 0.3), "head": (0.4, 0.1), "left_hand": (0.5, 0.0),
+          "right_hand": (0.5, 0.5), "left_leg": (0.75, 0.25), "right_leg": (0.5, 0.25), "infection": (1.0, 0.4)},
+         {"pain": 1.0, "body": 1.0, "head": 0.4, "left_hand": 0.5, "right_hand": 0.5, "left_leg": 0.75,
+          "right_leg": 0.5, "infection": 0.4}),
         ({"pain": (1.0, 1.0), "body": (1.0, 0.7), "head": (0.4, 0.35)},
          {"pain": 1.0, "body": 1.0, "head": 0.4}),
         ({"pain": (1.0, 1.0), "body": (1.0, 1.0), "head": (0.4, 0.4)},
