@@ -181,6 +181,7 @@
   },
   "mods": {
     "comeback": null,
+    "raid_approach": null,
     "raid_regroup": null
   },
   "tdm": {
