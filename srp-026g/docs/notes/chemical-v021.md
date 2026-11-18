@@ -26,8 +26,8 @@ Ids over 255 need exe patch 154.
   ([the weather README](../../scripts/v021d-weather/README.md)). 0.21d's rain
   has two hanging lamps its day has not; `v021d-weather-geometry-1.json` adds
   them with their breakable fixtures, as School's rain.
-- `three-maps-021-lighting` carries the three profiles (markers -32287 day,
-  -32289 rain, -32291 evening).
+- `three-maps-021-lighting@7` carries the three profiles (markers -32287 day,
+  -32289 rain, -32291 evening); `v021d-forward-fog@3` guards them too.
 
 `release/content.tsv` applies `v021d-chemical-environment-1.json` (the shader
 marker, cloud coordinates, the original engine's black/white height-ambient
@@ -36,7 +36,7 @@ the map's rows in `maps.tsv`, `modes.tsv`, the music, vegetation and Keeper
 lists. The 0.21 ambient and particle-light rule of exe patch `ambient_021`
 takes every level 1 to 6.
 
-## One importer rule
+## Importer rules
 
 0.21d's anomaly smoke (`fx/level_4_anomaly/green_smoke`, `radial_smoke`,
 `smoke_sample`) is a forward particle; 0.26's material of the same path is a
@@ -44,3 +44,8 @@ lit one. A same-path native material is the template only when it has each
 donor render stage that carries visibility; otherwise the donor material is
 converted like one 0.26 does not have (here on `level_4_anomaly/bugs`, a
 forward particle) and stays 0.21's.
+
+A particle material's transparency texture keeps 0.26's file where the
+full-size image is the same (the anomaly's `bug` and `spori`, the candle
+light): 0.21's small mips raise alpha, and 0.26's particle pass would draw
+pale squares with them (the reason `v021d-particle-alpha` was dropped).
