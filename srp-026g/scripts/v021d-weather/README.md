@@ -176,3 +176,12 @@ exactly these cutoff/reflection deltas. The normal importer emits the additions
 when it imports the affected original material and accepts already-installed
 byte-identical additions. Runtime acceptance of the complete closure remains
 pending the next composed candidate.
+
+## Particle textures keep the native mip chains
+
+A `v021d-particle-alpha` pack once gave nine particle textures their exact 0.21
+files. It is not used: 0.21's `points` textures raise alpha in their small mips
+(mean 2 of 255 at full size, 122 to 190 from 16x16 down), and 0.26's particle
+pass samples those levels: Fort rain's anomaly drew pale square sprites
+(candidate 11, `damage_zone_0`, `particle_0`). The native files have the same
+full-size image and an even alpha down the chain.
