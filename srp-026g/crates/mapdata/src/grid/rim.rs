@@ -415,7 +415,7 @@ impl WalkGrid {
             let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits);
             flights += p.flights;
             under |= p.under;
-            if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.byte() > b.share.byte())) {
+            if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.rank() > b.share.rank())) {
                 best = Some(m);
             }
         }
@@ -444,7 +444,7 @@ impl WalkGrid {
         for aim in aims {
             let p = self.best_press_with(world, s, a, b, way, &presses, aim, lands, kits);
             flights += p.flights;
-            if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.byte() > b.share.byte())) {
+            if let Some(m) = p.made.into_iter().next().filter(|m| best.is_none_or(|b| m.share.rank() > b.share.rank())) {
                 best = Some(m);
             }
         }
@@ -600,8 +600,12 @@ fn press_onto(
             let ls: Vec<f32> = scored.iter().filter(|s| s.0 == k).map(|s| s.1).collect();
             ls.iter().sum::<f32>() / ls.len().max(1) as f32
         };
+        // [knife edge] The priced count first ([`gap::Mask::priced`]): a press with width across the way before a knife edge.
+        let priced = |bits: u16| gap::Mask::of_bits(bits).map_or(0, gap::Mask::priced);
         of.into_iter().copied().max_by(|p, q| {
-            p.2.cmp(&q.2)
+            priced(p.3)
+                .cmp(&priced(q.3))
+                .then(p.2.cmp(&q.2))
                 .then(rank(q.0).cmp(&rank(p.0)))
                 .then((q.1 - mid(q.0)).abs().total_cmp(&(p.1 - mid(p.0)).abs()))
         })
@@ -649,7 +653,7 @@ fn presses(leads: &[f32]) -> Vec<(Kind, Vec<f32>)> {
 /// share is 0 (`fly_rim_todo`).
 fn aimed_or_held(aimed: Option<Made>, held: Option<Made>) -> Option<Made> {
     match (aimed, held) {
-        (Some(a), Some(h)) if h.share.flown() > a.share.flown() => Some(h),
+        (Some(a), Some(h)) if h.share.rank() > a.share.rank() => Some(h),
         (Some(a), _) => Some(a),
         (None, h) => h,
     }
@@ -1206,6 +1210,21 @@ mod tests {
         assert_eq!(Share::landed(7).failed_tries(), 1.0);
         assert_eq!(Share::landed(0).failed_tries(), jump::NEIGHBOURS as f32);
         assert_eq!(Share::UNFLOWN.failed_tries(), 0.0);
+        // [knife edge] The press and every lead, height and the kit land, no side or turn: priced as the press alone (13), and
+        // ranked under a press with one side landing and fewer neighbours.
+        let knife = Share::of_mask(gap::Mask::of_bits(0b11_1110_0001_1111).unwrap());
+        assert_eq!(knife.flown(), Some(10));
+        assert!(knife.mask().unwrap().knife_edge());
+        assert_eq!(knife.failed_tries(), jump::NEIGHBOURS as f32 - 1.0);
+        let wide = Share::of_mask(gap::Mask::of_bits(0b10_0001).unwrap());
+        assert!(!wide.mask().unwrap().knife_edge() && wide.failed_tries() == jump::NEIGHBOURS as f32 / 2.0 - 1.0);
+        assert!(wide.rank() > knife.rank() && knife.rank() > Share::UNFLOWN.rank());
+        // A press that misses itself is no knife edge (its window is None): priced by its count.
+        let off = Share::of_mask(gap::Mask::of_bits(0b1_1110).unwrap());
+        assert!(!off.mask().unwrap().knife_edge() && off.failed_tries() == jump::NEIGHBOURS as f32 / 4.0 - 1.0);
+        // aimed_or_held: the held sweep's wider press wins over the aimed knife edge.
+        let made = |share| Made { to: 0, press: Takeoff::Press(PressLead::from_metres(0.1)), share, walk: None, aim: Aim::STRAIGHT, walker_lands: true };
+        assert_eq!(aimed_or_held(Some(made(knife)), Some(made(wide))).map(|m| m.share), Some(wide));
         let classes: Vec<usize> = (0..=14).map(|n| Share::landed(n).class()).collect();
         assert_eq!(classes, [0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2]);
         assert_eq!(Share::UNFLOWN.class(), 2);
