@@ -94,9 +94,11 @@ pub struct Feel {
     pub sprint_from_m: f32,
     /// … and stop sprinting with this little left before a corner.
     pub sprint_until_m: f32,
-    /// Facing the way within this for `sprint_after_s` before a sprint.
+    /// Facing the way within this for `sprint_after_s` before a sprint ([`SprintBy::Facing`]).
     pub sprint_facing: f32,
     pub sprint_after_s: f32,
+    /// [A416, human-steering part D] What a walk's sprint asks of the way faced ([`SprintBy`]).
+    pub sprint_by: SprintBy,
     /// A corner sharper than this ends a straight stretch, radians.
     pub corner: f32,
     /// The heading's sway: amplitude (radians) and period (seconds).
@@ -339,6 +341,24 @@ pub enum SprintGaits {
     RunAndCruise,
 }
 
+/// [A416, human-steering part D] What a walk's sprint asks of the way faced ([`Feel::sprint_by`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SprintBy {
+    /// As before: the plain walk sprints after facing the way within [`Feel::sprint_facing`] for [`Feel::sprint_after_s`]; the
+    /// aimed walk (the view held off the course) never sprints.
+    Facing,
+    /// The client's own predicate (`sprint_predicate` 0x2FBC90: SPRINT and FORWARD, none of BACK, FIRE, CROUCH; side keys allowed,
+    /// no angle test, no wait; human-steering `exe-movement-rules.md`): either walk sprints while its key set is W, W+A or W+D (the
+    /// way within [`SPRINT_KEYS_RAD`] of the view). Live humans sprint 36 % of their alive time and 32 % of their sprint on W+A/D;
+    /// the bots 5.9 % and 1 % (human-steering 2.1-2.2, 124 matches, 246 players).
+    #[default]
+    Keys,
+}
+
+/// [A416] The way within this of the view is a W, W+A or W+D key set ([`Motor::pick_keys`]'s nearest sector 0 or 1): 67.5 degrees.
+const SPRINT_KEYS_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
+
 /// [fix-move, owner-16 row 29] How a plain jump link up to the standing jump's top is pressed ([`Feel::ledge_press`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -367,6 +387,7 @@ impl Default for Feel {
             sprint_until_m: 3.5,
             sprint_facing: 0.17,
             sprint_after_s: 0.3,
+            sprint_by: SprintBy::Keys,
             corner: 0.6,
             sway: 0.025,
             sway_period_s: 3.7,
@@ -1084,6 +1105,48 @@ enum Lining {
     Walk,
     /// A sprint jump (a sprint ledge or a sprint gap link) under [`Feel::band_jump_gate`]: it is run up to at a sprint.
     Sprint,
+}
+
+/// [A416, human-steering part D] How a walk's sprint judges the way faced ([`Motor::sprint_gate`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SprintFacing {
+    /// The view turned to the way (the plain walk): `still` radians off it, faced within [`Feel::sprint_facing`] for
+    /// [`Feel::sprint_after_s`], let go past twice that.
+    View { still: f32 },
+    /// The keys relative to a view held elsewhere (the aimed walk): `forward` when the key set is W, W+A or W+D, the client's own
+    /// sprint predicate (`sprint_predicate` 0x2FBC90: SPRINT and FORWARD, none of BACK, FIRE, CROUCH; side keys allowed; no angle
+    /// test; human-steering `exe-movement-rules.md`). No facing wait: the client has none.
+    Keys { forward: bool },
+}
+
+impl SprintFacing {
+    fn faced(self, feel: &Feel) -> bool {
+        match self {
+            SprintFacing::View { still } => still < feel.sprint_facing,
+            SprintFacing::Keys { forward } => forward,
+        }
+    }
+
+    fn off(self, feel: &Feel) -> bool {
+        match self {
+            SprintFacing::View { still } => still > 2.0 * feel.sprint_facing,
+            SprintFacing::Keys { forward } => !forward,
+        }
+    }
+
+    /// The angle the turn rule ([`Motor::sprint_by_the_turns`]) reads: the view's, or none off a forward key set.
+    fn still(self) -> f32 {
+        match self {
+            SprintFacing::View { still } => still,
+            SprintFacing::Keys { forward: true } => 0.0,
+            SprintFacing::Keys { forward: false } => PI,
+        }
+    }
+}
+
+/// Whether a key set is one the client sprints on: FORWARD, alone or with one side key, no BACK ([`SprintFacing::Keys`]).
+fn forward_set(keys: u32) -> bool {
+    keys & key::FORWARD != 0 && keys & key::BACK == 0
 }
 
 /// Where a sprint-band ledge jump stands as to the speed the client asks of it ([`Feel::band_jump_gate`]).
@@ -1944,116 +2007,11 @@ impl Motor {
         } else {
             link_time::Why::Lined
         };
-        // Sprint on a long straight stretch, facing the way.
-        let (straight, _) = route.straight_ahead(s, self.feel.corner);
-        if self.walking && still < self.feel.sprint_facing {
-            self.facing_ticks += 1;
-        } else {
-            self.facing_ticks = 0;
-        }
-        // Out of a blast the sprint needs neither the facing time nor a long straight (the walks are 2-10 m), only the way
-        // faced as for any sprint.
-        let escaping = pose.gait == Gait::Escape;
-        let settled = if escaping {
-            self.walking && still < self.feel.sprint_facing
-        } else {
-            self.facing_ticks as f32 * TICK_S >= self.feel.sprint_after_s
+        let facing = match self.feel.sprint_by {
+            SprintBy::Facing => SprintFacing::View { still },
+            SprintBy::Keys => SprintFacing::Keys { forward: still <= SPRINT_KEYS_RAD },
         };
-        // The legs that may run, with `sprint_turns` on: by the turn ahead, not the straight way's length. At an edge the
-        // old rule decides: a long straight to start, let go before a corner. So it does within `sprint_from_m` of a jump: the
-        // jump's line-up and run-up are walked into as before (a sprint jump's press is timed on the run-up's speed; reached at
-        // a sprint, it came a tick early and failed at every try).
-        let near_jump = route.next_jump(s).is_some_and(|(_, to)| to < self.feel.sprint_from_m);
-        let turns = match (self.sprint_turns_for(pose.gait), pose.floor) {
-            (Some(_), Floor::Edge) => {
-                sprint_turns::at_edge(self.sprinting);
-                None
-            }
-            (Some(_), Floor::Open) if near_jump => {
-                sprint_turns::near_jump(self.sprinting);
-                None
-            }
-            (turns, _) => turns,
-        };
-        if let Some(turns) = turns {
-            self.sprint_by_the_turns(route, s, turns, settled, still);
-        } else if !self.sprinting && settled && (escaping || straight >= self.feel.sprint_from_m) {
-            self.sprinting = true;
-        } else if self.sprinting
-            && (!self.walking
-                || (straight < self.feel.sprint_until_m && !escaping)
-                || still > 2.0 * self.feel.sprint_facing)
-        {
-            self.sprinting = false;
-        }
-        // The releases after the turn rule still win over a sprint it holds: counted when they let it go.
-        let mut held = turns.is_some() && self.sprinting;
-        // Crouched where a standing body does not fit (a low passage):
-        // no sprint there. Lining up for a jump: neither (a crouched body
-        // does not jump).
-        let low = jump.is_none() && route.low_ahead(s, LOW_AHEAD_M);
-        if low || jump.is_some() {
-            self.sprinting = false;
-        }
-        if held && !self.sprinting {
-            sprint_turns::overruled(if low { sprint_turns::Overrule::Low } else { sprint_turns::Overrule::Jump });
-            held = false;
-        }
-        // The reckoned bar: let go of the sprint at the empty bar, and short of the bar for a jump ahead.
-        self.sprint_by_the_bar(route, s);
-        if held && !self.sprinting {
-            sprint_turns::overruled(sprint_turns::Overrule::Bar);
-            held = false;
-        }
-        // A planned drop is a link too: timed from the lining up to it.
-        if let Some(&landing) = route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).first() {
-            let link = link_time::Link { kind: link_time::Kind::Drop, take_off: pose.feet, landing, top: None };
-            if self.links.idle() {
-                self.links.begin(self.clock, link, pose.feet, pose.speed);
-            }
-        }
-        // A planned drop just ahead is walked off, not sprinted into the air, unless its flight at a sprint comes down
-        // within the harmless fall as well.
-        if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).is_empty() {
-            let record = route.drop_record(s, DROP_WALK_AHEAD_M, self.feel.drop_truth);
-            match record {
-                // A drop a sprint would not land within the harmless fall, or one nothing is known of.
-                super::path::DropRecord::Unsafe | super::path::DropRecord::Unknown => {
-                    self.sprinting = false;
-                    drop_walks::released(record);
-                    if self.release.is_none() {
-                        let dist = route.next_drop_edge_along(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).map_or(0.0, |edge| (edge - s).max(0.0));
-                        self.release = Some(Release { start: self.clock, dist, edge: None });
-                        drop_walks::episode(record);
-                    }
-                }
-                // A drop the sprint lands as well.
-                super::path::DropRecord::Safe => drop_walks::skipped_as_safe(),
-                // A descent by walk links only (a ramp, stairs): no fall, the sprint goes on.
-                super::path::DropRecord::Walk | super::path::DropRecord::None => drop_walks::skipped_as_descent(),
-            }
-        }
-        if held && !self.sprinting {
-            sprint_turns::overruled(sprint_turns::Overrule::Drop);
-        }
-        if let Some(release) = self.release {
-            match release.edge {
-                None if self.sprinting => {
-                    drop_walks::unresolved(false);
-                    self.release = None;
-                }
-                Some(edge) if self.sprinting => {
-                    let from = |at: u32| self.clock.wrapping_sub(at) as f32 * TICK_S;
-                    drop_walks::resumed(from(edge.at), edge.landed.map(from));
-                    self.release = None;
-                }
-                _ if self.since(release.start) > DROP_RELEASE_WATCH_S => {
-                    drop_walks::unresolved(release.edge.is_some());
-                    self.release = None;
-                }
-                _ => {}
-            }
-        }
+        let (low, turns, straight) = self.sprint_gate(route, pose, s, jump, facing);
         // A sprint jump is walked into at a sprint, on its line and facing its way, unless the bar is spent: a tired body
         // walks (the keys held through a lockout lengthen it, and the bar comes back walking).
         if let Some(j) = jump
@@ -2344,7 +2302,6 @@ impl Motor {
         self.next_tick();
         self.aimed_walk = true;
         self.look = None;
-        self.sprinting = false;
         self.facing_ticks = 0;
         self.under_jump(route, pose.feet);
         self.follow_band_press(pose.feet);
@@ -2405,6 +2362,19 @@ impl Motor {
                 keys |= key::CROUCH;
             }
         }
+        // [A416, human-steering part D] The sprint by the walk's own rules and the client's predicate on the key set (W, W+A, W+D:
+        // the way within 67.5 degrees of the view), not by facing the way: a human runs with the view off the course. It was
+        // `sprinting = false` whenever the view was held: 5.9 % of the bots' alive time sprinted against the humans' 36 %
+        // (human-steering 2.1). The client's own refusals (AIM, FIRE, CROUCH, a reload, the stagger) are the driver's strips.
+        match self.feel.sprint_by {
+            SprintBy::Facing => self.sprinting = false,
+            SprintBy::Keys => {
+                self.sprint_gate(route, pose, s, jump, SprintFacing::Keys { forward: lined.is_none() && forward_set(keys) });
+                if self.sprinting && self.walking && lined.is_none() && forward_set(keys) {
+                    keys |= key::SPRINT;
+                }
+            }
+        }
         if jump.is_some_and(|jump| jump.stand) {
             // [A386] A slow press's body comes to rest at its run-up point.
             self.walking = false;
@@ -2433,6 +2403,123 @@ impl Motor {
         let turn = self.held_turn(pose, turn);
         let keys = if self.holding_landing() { key::FORWARD } else { keys };
         (Decision { keys, turn }, Walked::OnTheWay)
+    }
+
+    /// The sprint's own rules for a walk, as [`Self::walk_in_lane`] has always had them: a long straight (or [`Feel::sprint_turns`]),
+    /// no low passage, no jump's line-up, the reckoned bar, a planned drop walked off; and the way faced by `facing` ([`SprintFacing`]).
+    /// Gives whether the leg ahead is low (crouched), the turn rule taken and the straight's length.
+    fn sprint_gate(&mut self, route: &Route, pose: &Pose, s: f32, jump: Option<Ahead>, facing: SprintFacing) -> (bool, Option<SprintTurns>, f32) {
+        // Sprint on a long straight stretch, facing the way.
+        let (straight, _) = route.straight_ahead(s, self.feel.corner);
+        if self.walking && facing.faced(&self.feel) {
+            self.facing_ticks += 1;
+        } else {
+            self.facing_ticks = 0;
+        }
+        // Out of a blast the sprint needs neither the facing time nor a long straight (the walks are 2-10 m), only the way
+        // faced as for any sprint.
+        let escaping = pose.gait == Gait::Escape;
+        let settled = if escaping || matches!(facing, SprintFacing::Keys { .. }) {
+            self.walking && facing.faced(&self.feel)
+        } else {
+            self.facing_ticks as f32 * TICK_S >= self.feel.sprint_after_s
+        };
+        // The legs that may run, with `sprint_turns` on: by the turn ahead, not the straight way's length. At an edge the
+        // old rule decides: a long straight to start, let go before a corner. So it does within `sprint_from_m` of a jump: the
+        // jump's line-up and run-up are walked into as before (a sprint jump's press is timed on the run-up's speed; reached at
+        // a sprint, it came a tick early and failed at every try).
+        let near_jump = route.next_jump(s).is_some_and(|(_, to)| to < self.feel.sprint_from_m);
+        let turns = match (self.sprint_turns_for(pose.gait), pose.floor) {
+            (Some(_), Floor::Edge) => {
+                sprint_turns::at_edge(self.sprinting);
+                None
+            }
+            (Some(_), Floor::Open) if near_jump => {
+                sprint_turns::near_jump(self.sprinting);
+                None
+            }
+            (turns, _) => turns,
+        };
+        if let Some(turns) = turns {
+            self.sprint_by_the_turns(route, s, turns, settled, facing.still());
+        } else if !self.sprinting && settled && (escaping || straight >= self.feel.sprint_from_m) {
+            self.sprinting = true;
+        } else if self.sprinting
+            && (!self.walking
+                || (straight < self.feel.sprint_until_m && !escaping)
+                || facing.off(&self.feel))
+        {
+            self.sprinting = false;
+        }
+        // The releases after the turn rule still win over a sprint it holds: counted when they let it go.
+        let mut held = turns.is_some() && self.sprinting;
+        // Crouched where a standing body does not fit (a low passage):
+        // no sprint there. Lining up for a jump: neither (a crouched body
+        // does not jump).
+        let low = jump.is_none() && route.low_ahead(s, LOW_AHEAD_M);
+        if low || jump.is_some() {
+            self.sprinting = false;
+        }
+        if held && !self.sprinting {
+            sprint_turns::overruled(if low { sprint_turns::Overrule::Low } else { sprint_turns::Overrule::Jump });
+            held = false;
+        }
+        // The reckoned bar: let go of the sprint at the empty bar, and short of the bar for a jump ahead.
+        self.sprint_by_the_bar(route, s);
+        if held && !self.sprinting {
+            sprint_turns::overruled(sprint_turns::Overrule::Bar);
+            held = false;
+        }
+        // A planned drop is a link too: timed from the lining up to it.
+        if let Some(&landing) = route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).first() {
+            let link = link_time::Link { kind: link_time::Kind::Drop, take_off: pose.feet, landing, top: None };
+            if self.links.idle() {
+                self.links.begin(self.clock, link, pose.feet, pose.speed);
+            }
+        }
+        // A planned drop just ahead is walked off, not sprinted into the air, unless its flight at a sprint comes down
+        // within the harmless fall as well.
+        if self.feel.drop_walk && self.sprinting && !route.drop_landings(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).is_empty() {
+            let record = route.drop_record(s, DROP_WALK_AHEAD_M, self.feel.drop_truth);
+            match record {
+                // A drop a sprint would not land within the harmless fall, or one nothing is known of.
+                super::path::DropRecord::Unsafe | super::path::DropRecord::Unknown => {
+                    self.sprinting = false;
+                    drop_walks::released(record);
+                    if self.release.is_none() {
+                        let dist = route.next_drop_edge_along(s, DROP_WALK_AHEAD_M, self.feel.drop_truth).map_or(0.0, |edge| (edge - s).max(0.0));
+                        self.release = Some(Release { start: self.clock, dist, edge: None });
+                        drop_walks::episode(record);
+                    }
+                }
+                // A drop the sprint lands as well.
+                super::path::DropRecord::Safe => drop_walks::skipped_as_safe(),
+                // A descent by walk links only (a ramp, stairs): no fall, the sprint goes on.
+                super::path::DropRecord::Walk | super::path::DropRecord::None => drop_walks::skipped_as_descent(),
+            }
+        }
+        if held && !self.sprinting {
+            sprint_turns::overruled(sprint_turns::Overrule::Drop);
+        }
+        if let Some(release) = self.release {
+            match release.edge {
+                None if self.sprinting => {
+                    drop_walks::unresolved(false);
+                    self.release = None;
+                }
+                Some(edge) if self.sprinting => {
+                    let from = |at: u32| self.clock.wrapping_sub(at) as f32 * TICK_S;
+                    drop_walks::resumed(from(edge.at), edge.landed.map(from));
+                    self.release = None;
+                }
+                _ if self.since(release.start) > DROP_RELEASE_WATCH_S => {
+                    drop_walks::unresolved(release.edge.is_some());
+                    self.release = None;
+                }
+                _ => {}
+            }
+        }
+        (low, turns, straight)
     }
 
     /// The route's next jump, if its take-off is within [`LINE_UP_FROM_M`]
@@ -7223,6 +7310,39 @@ mod tests {
             .filter(|w| (w[0].keys ^ w[1].keys) & key::SPRINT != 0)
             .count();
         assert!(sprints <= 4, "{sprints}");
+    }
+
+    /// [A416, human-steering part D] An aimed walk (the view held off the course) down a 40 m straight sprints on a W+side key set:
+    /// the view 40 degrees off the way, the keys W+A or W+D, SPRINT held after the straight's own rules; 90 degrees off (a side key
+    /// alone) it does not: the client's own predicate, no facing wait.
+    #[test]
+    fn an_aimed_walk_sprints_on_a_forward_key_set_and_not_on_a_side_one() {
+        let run = |off: f32| {
+            let mut rng = Rng::new(5);
+            let mut motor = Motor::new(Feel::default(), &mut rng);
+            let mut r = route(&[(0.0, 0.0), (0.0, 40.0)]);
+            let way = yaw_of([0.0, 1.0]);
+            let mut keys = Vec::new();
+            for tick in 0..20 {
+                let pose = Pose {
+                    feet: Vec3::new(0.0, 0.0, 0.5 + 0.17 * tick as f32),
+                    yaw: way + off,
+                    pitch: 0.0,
+                    speed: 3.4,
+                    velocity: [0.0, 3.4],
+                    ..Default::default()
+                };
+                let (decision, walked) = motor.walk_aiming(&mut r, &pose, 5.0, |_| true, (way + off, 0.0));
+                assert_eq!(walked, Walked::OnTheWay);
+                keys.push(decision.keys);
+            }
+            keys
+        };
+        let off40 = run(40f32.to_radians());
+        assert!(off40.iter().all(|&k| k & key::FORWARD != 0 && k & (key::LEFT | key::RIGHT) != 0), "{off40:x?}");
+        assert!(off40.iter().any(|&k| k & key::SPRINT != 0), "W+side sprints: {off40:x?}");
+        let off90 = run(90f32.to_radians());
+        assert!(off90.iter().all(|&k| k & key::FORWARD == 0 && k & key::SPRINT == 0), "a side key alone: no sprint {off90:x?}");
     }
 
     #[test]
