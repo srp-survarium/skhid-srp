@@ -3,7 +3,7 @@
 Rain and evening for Rudnya, School, Vostok Radar, Tarakanovsky Fort and
 Mamayev Kurgan. Each has Protective device (mode 2) and Team Deathmatch
 (mode 4). Resource-porter commit `a9d8e64` on `port/v021d-five-weathers` makes
-`maps-021d-weathers@2` and `three-maps-021-lighting@6` together.
+`maps-021d-weathers@2` and `three-maps-021-lighting@7` together.
 
 | Map | Rain 2 / 4 | Evening 2 / 4 |
 | --- | --- | --- |

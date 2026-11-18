@@ -19,7 +19,7 @@ DAY_MARKERS = (-32281, -32195, -32198, -32187, -32196)
 
 def check(packs, source):
     weather = packs / 'maps-021d-weathers-2'
-    lighting = packs / 'three-maps-021-lighting-6'
+    lighting = packs / 'three-maps-021-lighting-7'
     for folder in (weather, lighting):
         manifest = folder / 'pack.json'
         pack = json.loads(manifest.read_text())
@@ -64,7 +64,7 @@ def check(packs, source):
         marker = -32021 - MAPS[level][0 if rain else 2]
         assert environment[0]['properties']['mie_fog_base_height'] == marker, path
     shaders = [p.read_bytes() for p in (lighting / 'files/shaders').rglob('*') if p.is_file()]
-    assert len(shaders) == 88, len(shaders)
+    assert len(shaders) == 128, len(shaders)
     markers = [*DAY_MARKERS, *(-32021 - ids[i] for ids in MAPS.values() for i in (0, 2))]
     for marker in markers:
         assert any(struct.pack('<f', marker) in shader for shader in shaders), f'missing shader marker {marker}'
@@ -72,7 +72,7 @@ def check(packs, source):
     assert len(geometry_edits['append_entry']) == 24
     assert len(geometry_edits['add_value']) == 4
     assert len(geometry_edits['remove_entry']) == 36
-    print('20 weather projects: day gameplay preserved with exact authored weather fixture/barrel deltas; all lamp bindings valid; 15 lighting profiles in 88 shaders')
+    print('20 weather projects: day gameplay preserved with exact authored weather fixture/barrel deltas; all lamp bindings valid; 15 lighting profiles in 128 shaders')
 
 
 def main():
