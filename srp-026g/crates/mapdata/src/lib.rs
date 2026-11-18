@@ -196,8 +196,12 @@ pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// share 0 (the same bound), its link kept at a higher share. 0b0f: [F1] a neighbour of a press counts only when it rests on the
 /// link's own landing top (`grid::rim` `OWN_TOP_FLAT_M`), not on any top; a press resting on another floor of that top scores
 /// for the link too. 0b10: [F1b] each flown share keeps which neighbours land (`grid::gap::Mask`), in a masks table at the
-/// grid file's end, for the motor's take-off window (`TakeoffWindow`).
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b10;
+/// grid file's end, for the motor's take-off window (`TakeoffWindow`). 0b12: [knife edge] of a link's presses the one with
+/// width across the way first (`grid::gap::Mask::priced`: a knife edge, whose sides and turns all miss, counts as the press
+/// alone), then the most landing neighbours (0b11 is the Vector Laboratory deck rule's, its own PR). 0b13: [row 5] a rim link
+/// whose take-off floor only a crouched body fits is moved to the standing floor behind it on its line and flown again from
+/// there (`grid::rim` `reanchor_crouched`), kept where it was where no press from there lands.
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b13;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
@@ -217,15 +221,17 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// landings on ground too steep to stand on too (`controller::tick::LandingGround`; `docs/notes/fall_damage.md` "steep slopes",
 /// PROVEN: `step_down` 0x7E527..0x7E6D1 and 0x7E408..0x7E4F2 keep the tick's starting speed for the landing's callback).
 /// 000a: [F2] every way down is judged by where its flight RESTS on the link's own top (`grid::drop_check::walk_off_rest`: the
-/// forward key let go on the landing step), not by a step of a walk carried on past the landing.
-pub const DROP_LANDS_ALGO: u32 = 0x5067_000a;
+/// forward key let go on the landing step), not by a step of a walk carried on past the landing. 000b: [knife edge] of two
+/// releases the one with width across the way first (`RIM_JUMPS_ALGO` 0b12).
+pub const DROP_LANDS_ALGO: u32 = 0x5067_000b;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own. 0007: [S3] the floors on the thin tops the gaps over one cross carry their top's
 /// centre line where a body is held on it (`grid::line_tops`), in the grid file. 0008: [F1] no clip pass press is kept unflown:
 /// each group of them no flown link covers is flown over every client press onto its own landing top and kept with the press
 /// that lands, or not kept (`grid::gap_flown` `prove_clip_presses`); and the own-top share of `RIM_JUMPS_ALGO` 0b0f. 0009: [F1b]
-/// the shares' neighbourhood masks (`RIM_JUMPS_ALGO` 0b10).
-pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0009;
+/// the shares' neighbourhood masks (`RIM_JUMPS_ALGO` 0b10). 000b: [knife edge] a press with width across the way before a
+/// knife edge (`RIM_JUMPS_ALGO` 0b12; 000a is the Vector Laboratory deck rule's, its own PR).
+pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_000b;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0102: the own-point stand test
 /// (`rest_floors::settle_near`: a standing body on the floor's own point, no push out of the walls, and 0.05-0.10 m around it
