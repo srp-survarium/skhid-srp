@@ -22,6 +22,23 @@ port for it. This work is Vostok's two weathers only.
 - Everything this note cites under `/tmp` is gone (the references of 0.11e, the reports, the
   private runner `run_reference_011e.py`, the diagnostic DLLs' builds). The work files are now under
   `/mnt/hdd/Projects/v011-weather/`.
+- The pack's four mode configs said `st_level_03_name` (native Vostok's name);
+  `v011e-radar-weather-names-1.json` gives them the day map's `st_level_13_name`.
+- `v011e-radar-weather-light-1.json` is the one calibration measured against 0.11e on 2026-11-12
+  ("Native diffuse calibration" below): the environment probes' diffuse light times three. It is
+  the only lighting change; 0.11e's fog, sky and post are in the pack as files and nothing selects
+  them. Fitting the original fog into 0.26g's programs the way the 0.21 maps have it is the next
+  step with the largest measured effect outdoors (display RMSE 0.150 -> 0.124 evening, 0.126 ->
+  0.074 rain with the diagnostic replacement); 0.11e's fog is a multiplicative and an additive pass
+  over two 256x128 tables, not one block of arithmetic, so it is not a drop-in guarded block.
+- The site's Maps tab stops on a project name without a top-down render: the two new names take
+  `v011e_level_03`'s image and frame in `scripts/damage-calc/assets/maps/maps.json`.
+- All 261 ported materials have a 0.11e original of the same name and carry its values; 114 differ
+  only in the surface settings the converter maps (bump, roughness, fresnel). No glow, flicker or
+  distortion setting differs (`/mnt/hdd/Projects/v011-weather/rig/mataudit011.py`).
+- Loaded headless on the candidate with exe patch 130's build: `evening_2` (272) and `rain_2`
+  (274), two views each, no missing shader. `evening_4` and `rain_4` and the ten views a weather
+  are queued behind the owner's game.
 - The rest of this note is the 2026-11-12 investigation as it was written; its map ids 249-252 are
   the old ones.
 
