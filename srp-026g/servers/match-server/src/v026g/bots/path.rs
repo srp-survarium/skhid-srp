@@ -254,15 +254,25 @@ impl Leap {
     }
 }
 
-/// [A1b] A drop link walked off at release (`mapdata::grid::gap::Takeoff::Release`): walked from its take-off along its way,
-/// crouched when `crouched`, and the walk key let go once the body's centre is `at` m along the way past the take-off
-/// (`walk_off.rs`).
+/// [A1b, F2/F3] A drop link walked off with its let-go (`walk_off.rs`): walked from its take-off along its way, crouched when
+/// `crouched`, and the walk key let go where its script says ([`LetGo`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WalkOffRelease {
     pub take_off: Vec3,
     pub landing: Vec3,
-    pub at: f32,
+    pub let_go: LetGo,
     pub crouched: bool,
+}
+
+/// [F2/F3] Where a drop's walk key goes, as the grid flew it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LetGo {
+    /// [A1b] `mapdata::grid::gap::Takeoff::Release`: once the body's centre is this far along the way past the take-off, m.
+    At(f32),
+    /// [F2] A drop walked off (a `Drop` link, or a gap drop `Takeoff::WalkOff`): forward held over the edge and through the fall,
+    /// let go on the first step the body stands (on the ground) at or under the height it has left the take-off by
+    /// (`mapdata::grid::drop_check::left_take_off`), as `drop_check::walk_off_rest` flies the drop's landing (F2, #2180).
+    Standing,
 }
 
 /// A corner of a route.
@@ -1246,6 +1256,13 @@ fn pull_straight(
             }
             if into[i] == LinkKind::Drop {
                 sprint_drops.push((grid.position(nodes[i]), grid.drop_harmless_at(nodes[i - 1], nodes[i], SPRINT_FLIGHT_MPS)));
+                // [F2/F3] Its let-go, as the grid proves the drop's landing.
+                walk_offs.push(WalkOffRelease {
+                    take_off: grid.position(nodes[i - 1]),
+                    landing: grid.position(nodes[i]),
+                    let_go: LetGo::Standing,
+                    crouched: false,
+                });
             } else if grid.body().walk_off_lips
                 && into[i] == LinkKind::GapDrop
                 && grid.off_link(nodes[i - 1], nodes[i]).is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::WalkOff)
@@ -1255,6 +1272,12 @@ fn pull_straight(
                 // fall: the lip guard (its take-off is a lip) lets the body over the edge. Only with `grid.walk_off_lips`:
                 // without it the take-off is no lip and nothing brakes the body there.
                 sprint_drops.push((grid.position(nodes[i]), true));
+                walk_offs.push(WalkOffRelease {
+                    take_off: grid.position(nodes[i - 1]),
+                    landing: grid.position(nodes[i]),
+                    let_go: LetGo::Standing,
+                    crouched: false,
+                });
             } else if into[i] == LinkKind::GapDrop
                 && let Some(mapdata::grid::gap::Takeoff::Release { at, crouched }) = grid.off_link(nodes[i - 1], nodes[i]).map(|l| l.press)
             {
@@ -1262,7 +1285,7 @@ fn pull_straight(
                 // release is the walk's), and its release for the motor.
                 let (take_off, landing) = (grid.position(nodes[i - 1]), grid.position(nodes[i]));
                 sprint_drops.push((landing, false));
-                walk_offs.push(WalkOffRelease { take_off, landing, at: at.metres(), crouched });
+                walk_offs.push(WalkOffRelease { take_off, landing, let_go: LetGo::At(at.metres()), crouched });
             }
             leg(i - 1, i, &mut floors);
             continue;
