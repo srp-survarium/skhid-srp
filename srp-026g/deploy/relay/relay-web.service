@@ -19,7 +19,9 @@ ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
 RestrictAddressFamilies=AF_INET AF_UNIX AF_INET6
-CapabilityBoundingSet=
+# The site's port 443.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 MemoryMax=192M
 TasksMax=16
 LimitNOFILE=4096

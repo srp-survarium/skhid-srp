@@ -17,6 +17,7 @@ use ::ragdoll::math::Pose;
 
 use super::geometry::{Aabb, WorldPoint};
 use super::shape::Shape;
+use super::step::GroundMaterial;
 use super::hook::Thread;
 use super::options::MapId;
 use super::ui::{Movie, movie_of};
@@ -698,6 +699,45 @@ impl<'t> PhysicsWorld<'t> {
         }
     }
 
+    /// A ray against the level's collision that bullets hit (`SHOT_GROUP`,
+    /// `SHOT_MASK`): its first hit on a triangle whose game material is not
+    /// one `passed` lets the ray through (a bush's leaves). After such a hit
+    /// the ray goes on from `PAST_LEAF` behind it, through at most
+    /// `MOST_LEAVES` of them (then nothing is met).
+    pub fn shot_ray_test_past(&self, origin: [f32; 3], direction: [f32; 3], length: f32,
+                              passed: impl Fn(GroundMaterial) -> bool)
+                              -> Option<RayHit> {
+        let _ = self.thread;
+        let mut gone = 0.0;
+        for _ in 0..MOST_LEAVES {
+            let rest = length - gone;
+            if rest <= 0.0 {
+                break;
+            }
+            let from = [0, 1, 2].map(|i| origin[i] + direction[i] * gone);
+            let mut room = raw::RayResultStorage::zeroed();
+            let result = room.handle();
+            // SAFETY: as ray_test; the object hit is alive in the world. Its
+            // triangle's material is read as on_step reads its ground's
+            // (0x248B6A) and a bullet its hit's (0x32D837), whose rays meet
+            // every object this filter can: the projects' 8/16 and 10/20,
+            // a trap's body 808h/10h, a battery 0A18h/418h. Another filter
+            // could meet a ghost object, whose vtable has no such slot.
+            unsafe {
+                raw::engine_ray_test(Some(self.this), Some(result), from.as_ptr(), direction.as_ptr(), rest, SHOT_GROUP,
+                                     SHOT_MASK, core::ptr::null(), 0);
+                let object = result.object()?;
+                let material =
+                    raw::engine_triangle_material(Some(object), read(result.part()), u32::from(read(result.part_kind())));
+                if !passed(GroundMaterial::of(material)) {
+                    return Some(RayHit { point: floats(result.point()), normal: floats(result.normal()) });
+                }
+                gone += read(result.fraction()) * rest + PAST_LEAF;
+            }
+        }
+        None
+    }
+
     /// Each object of the world (m_collisionObjects, in its order) that is
     /// in its broadphase: its filter group, whether it is static, the box
     /// the broadphase holds for it (the game's frame), its pose and shape
@@ -726,6 +766,16 @@ impl<'t> PhysicsWorld<'t> {
         }
     }
 }
+
+/// The level's collision that bullets hit (cgroup 8 / cmask 16), which
+/// follows the drawn surfaces (lobby_camera::process_collision 0x2844E4).
+const SHOT_GROUP: u32 = 0x10;
+const SHOT_MASK: u32 = 0x08;
+/// The most leaves [`PhysicsWorld::shot_ray_test_past`] goes through, and
+/// how far behind one its ray goes on (m): past the leaf itself, short of
+/// a surface the leaf lies on.
+const MOST_LEAVES: usize = 16;
+const PAST_LEAF: f32 = 0.001;
 
 /// m_collisionFlags' CF_STATIC_OBJECT.
 const STATIC_OBJECT: u32 = 1;

@@ -114,6 +114,13 @@ impl Faces {
             .map(Face)
     }
 
+    /// The face a recorded byte names (a match's options, a late joiner's
+    /// proposal): the listed face, or face 0 for one the data does not list
+    /// (a recording of a longer list), as a kept account's and the exe's.
+    pub fn recorded(self, index: u8) -> Face {
+        self.face(u32::from(index)).unwrap_or(Face::DEFAULT)
+    }
+
     /// A server bot's face: one of all the faces, fixed for its match by
     /// the match's `salt` and the bot's `number` in it, so bots of a match
     /// look apart and the same bot looks otherwise in another match.
@@ -197,12 +204,24 @@ mod tests {
     }
 
     #[test]
-    fn bots_get_every_face_and_keep_theirs() {
+    fn bots_get_every_face_in_a_match_and_another_in_another() {
         let faces = Faces::of_count(10).unwrap();
-        let drawn: std::collections::BTreeSet<u8> =
-            (0..200).map(|n| faces.bot_face(12345, n).index()).collect();
-        assert_eq!(drawn.len(), 10);
-        assert_eq!(faces.bot_face(7, 3), faces.bot_face(7, 3));
+        let drawn = |faces: Faces, picks: &mut dyn Iterator<Item = (u64, usize)>| {
+            picks
+                .map(|(salt, number)| faces.bot_face(salt, number).index())
+                .collect::<std::collections::BTreeSet<u8>>()
+        };
+        // The bots of one match, and one bot over many matches: every face.
+        assert_eq!(drawn(faces, &mut (0..200).map(|n| (12345, n))).len(), 10);
+        assert_eq!(drawn(faces, &mut (0..200).map(|salt| (salt, 3))).len(), 10);
         assert_eq!(Faces::one().bot_face(7, 3), Face::DEFAULT);
+    }
+
+    #[test]
+    fn a_recorded_face_the_data_does_not_list_is_face_0() {
+        let faces = Faces::of_count(3).unwrap();
+        assert_eq!(faces.recorded(2).index(), 2);
+        assert_eq!(faces.recorded(3), Face::DEFAULT);
+        assert_eq!(faces.recorded(255), Face::DEFAULT);
     }
 }

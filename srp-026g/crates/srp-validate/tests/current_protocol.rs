@@ -10,9 +10,6 @@ impl GuardDictionary for Data {
     fn map(&self, id: u16) -> bool {
         maps::map_mode(maps::MapId::new(id)).is_some_and(|map| map.is_playable())
     }
-    fn faces(&self) -> u8 {
-        survarium::v026g::faces::Faces::shared().count()
-    }
 }
 
 fn options(blackout: bool) -> info::MatchOptions {
@@ -164,10 +161,11 @@ fn current_server_options_and_blackout_are_accepted() {
 
 /// The roster's faces (`face-choice.md`): srp's entry `{5, roster, a face a
 /// place}`, last, as the server writes it when a face is not 0. The clients'
-/// check refuses another length than the roster's, a face the data does not
-/// list (the test data has three), every face 0, and the entry twice.
+/// check refuses another length than the roster's, every face 0, and the
+/// entry twice; a face the data does not list (the test data has three) is
+/// taken, and read as face 0.
 #[test]
-fn the_faces_entry_is_the_rosters_listed_faces() {
+fn the_faces_entry_is_a_face_a_place_of_the_roster() {
     use survarium::v026g::faces::Faces;
     let data = Data(Dictionary::shared());
     for blackout in [false, true] {
@@ -182,18 +180,22 @@ fn the_faces_entry_is_the_rosters_listed_faces() {
         assert!(bytes.ends_with(entry));
         assert_eq!(messages::options(&bytes, &data), Ok(2));
         assert_eq!(info::parse_options(&bytes, data.0).unwrap(), options);
+        // The options to the entry: the block's magic, and Blackout's entry.
         let before = &bytes[..bytes.len() - entry.len()];
+        let block: &[u8] = if blackout { b"SRPX\x02\x01\x01" } else { b"SRPX" };
+        assert!(before.ends_with(block));
+        let unlisted = [before, &b"\x05\x02\x00\x03"[..]].concat();
+        assert_eq!(messages::options(&unlisted, &data), Ok(2));
+        let read = info::parse_options(&unlisted, data.0).unwrap();
+        assert_eq!(read.players[1].face, survarium::v026g::faces::Face::DEFAULT);
         for suffix in [
             &b"\x05\x01\x02"[..],
             b"\x05\x03\x00\x02\x01",
             b"\x05\x02\x00",
-            b"\x05\x02\x00\x03",
             b"\x05\x02\x00\x00",
             b"\x05\x02\x00\x02\x05\x02\x00\x02",
         ] {
-            // The block's magic, when the mode's entry did not bring it.
-            let magic: &[u8] = if blackout { b"" } else { b"SRPX" };
-            let bad = [before, magic, suffix].concat();
+            let bad = [before, suffix].concat();
             assert!(messages::options(&bad, &data).is_err(), "{suffix:?}");
             assert!(info::parse_options(&bad, data.0).is_err(), "{suffix:?}");
         }
@@ -273,9 +275,6 @@ impl GuardDictionary for Wide {
     }
     fn map(&self, id: u16) -> bool {
         id == 300 || self.0.map(id)
-    }
-    fn faces(&self) -> u8 {
-        self.0.faces()
     }
 }
 

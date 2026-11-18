@@ -40,6 +40,7 @@ struct d3d_device;
 struct dds_cursor;
 struct di_command_queue;
 struct drawable_image_context;
+struct effect_compiler;
 struct effect_presenter_holder;
 struct engine_cfg;
 struct fsm_predicate;
@@ -946,5 +947,8 @@ extern void * (__attribute__((stdcall)) *const engine_global_lock)(void * memory
 
 /* the IAT slot 0x87007c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_global_unlock)(void * memory);
+
+/* 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly */
+void __attribute__((stdcall)) engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag);
 
 #endif

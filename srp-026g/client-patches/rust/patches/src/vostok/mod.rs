@@ -72,6 +72,8 @@ pub mod parse;
 pub mod resources;
 pub mod skin_cook;
 pub mod renderer;
+pub mod render_stage;
+pub mod effect_compile;
 pub mod gun_cook;
 pub mod pickup;
 pub mod use_scan;

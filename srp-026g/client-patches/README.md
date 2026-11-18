@@ -169,6 +169,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
 | `rust/patches/src/animation_math.rs`, `src/animation_math.toml`, `src/vostok/trig.rs`, `animation_math_026g.asm`, `check_animation_math_026g.py` | Patch 136: the animation's sines, cosines and atan2 (nine calls of the x87's fsin, fcos, fpatan whose results are stored as floats at once) computed with SSE2 doubles where the float is provably the x87's, the game's own function otherwise; time_channel::domain's knot search without a `div` per try. The same floats; the check runs the game's functions in both exes (needs Unicorn), the crate's ignored test every float against the CPU's x87 (`../docs/notes/client_patch.md` section 3.80) |
+| `rust/patches/src/v021d_render.rs`, `src/v021d_render.toml`, `src/vostok/render_stage.rs`, `src/vostok/effect_compile.rs`, `check_rain_v021d_026g.py` | Patch 130: the ported 0.21 maps render the 0.21 way: effect_wet_surface and effect_rain compile 0.21 twins of their techniques after their own (the wet pass with `wet_surface_v021d.ps`, the drops with `ported/v021d/engine/rain_drop`), and on the scene of a project whose config says `srp_renderer_v021d` the wet pass runs at any shading quality with its twin, the drops with theirs and 0.21d's half-float rain_drops_parameters1.zw; a material with `srp_grass_v021d` takes the 0.21 grass vertex shaders, one with `srp_water_v021d` the 0.21 wave normals; the sky stage's god-rays pass is skipped on that scene; fourteen lohooks; its check runs both compiles whole, the map's sites, the god-rays pass's entry, compile_begin and the water's compile in both exes, 0.21d's drop parameters in its own (needs Unicorn; `../docs/notes/client_patch.md` section 3.82) |
 | `rust/patches/src/memory_profile.rs`, `src/memory_profile.toml`, `src/vostok/memory_profile.rs`, `memory_profile_026g.asm`, `check_memory_profile_026g.py`, `../scripts/memory-profile/analyze.py` | Patch 127: a memory profiler of the engine's arenas for the owner and for workers' local tests, never players: on with `SKHID_MEMORY_PROFILE=on` in the game's environment. Off, the exe keeps the game's allocator bytes: its five gates (dlmalloc's three entries, ptmalloc3's two frees of mapped blocks) and the out-of-memory hook are installed on demand (`install = "on_demand"`, written at the start only when on). On, each block is counted to its arena and the call site that asked; snapshots (each arena's use, holes and sites; the address space) go to `srp_memory_profile.txt` in the user data folder at a world in, a match closing, a full arena and Scroll Lock; `analyze.py` prints the report; its check runs dlmalloc on a made-up arena in both exes and reads the snapshot (needs Unicorn; `../docs/notes/memory-profile.md`) |
 | `rust/patches/src/texture_streaming.rs`, `src/texture_streaming.toml`, `src/vostok/streaming.rs`, `check_texture_streaming_026g.py` | Patch 137: texture streaming's per-frame bookkeeping in Rust, the same values: scene::update_streaming_data (every streaming record from its proxy, the three proxy classes' virtuals read once by their vtable, one square root a surface) and resource_manager::get_texture_video_memory_size (the registry's texture memory without the "$user$" names, searched 16 bytes at a time); two lohooks, each the whole function; its check runs both functions on made-up scenes and registries in both exes, every byte the same, and counts their instructions (needs Unicorn; `../docs/notes/client_patch.md` section 3.79) |
 | `rust/patches/src/constant_upload.toml`, `constant_upload_026g.asm`, `check_constant_upload_026g.py` | Patch 134: shader constants cost the render thread less, the same bytes on the GPU: shader_constant_buffer::set_memory (0x11B5A0) copies 16 bytes at a time, not one, and update (0x3DDFD0) maps a buffer only when its bytes differ from the ones it last uploaded (four `code` hooks); its check runs set_memory on 4000 made-up cases in both exes (every register, XMM0..7 and the memory alike), the constructor, and 150 draws over four buffers with a model of the device context (the GPU's bytes after every update alike) (needs Unicorn) |
@@ -197,6 +198,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/trap_stock_hit.rs`, `src/trap_stock_hit.toml`, `src/vostok/trap.rs`, `check_trap_stock_hit_026g.py` | Patch 151: a gun-stock hit disarms a trap (`../docs/notes/trap-stock-hit.md`): one lohook at `booby_trap_core::hit`'s entry (`trap.hit`); its check runs the hit in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
+| `rust/patches/src/particle_room.rs`, `src/particle_room.toml`, `src/vostok/effect_presenter.rs`, `check_particle_room_026g.py` | Patch 122: the game world's particle presenters hold 32 effects, not six (README "Room for a presenter's particle effects"): five lohooks, a heap room per presenter, no entry for a play into a full list; its check runs the constructors, push_back, deserialize's local list, the swap and a play in the original and the build (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `rust/patches/src/weapon_camo.rs`, `weapon_camo.toml` | Patch 44's part in the baker (Rust, one lohook at `bake.own_camouflage`, 0x12E124): a weapon's bake takes only the camouflage textures its patch names (the colours and the `_smap`, not the `_nmap`, a cloth's weave), never the surface's own `<diffuse>_camo...`; `check_weapon_camo_026g.py` runs the site |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -204,7 +206,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `engine_026g.tsv`, `engine_026g.py` | The engine-function library (below, "Calling the game's functions"): its functions, one row each, and the generator of the three files after it from those rows and the re-kit's ABI rows (`--write`, `--check`) |
 | `engine_026g.h`, `engine_026g.inc`, `engine_026g.rs`, `raw_026g.rs`, `engine_026g.asm` | Generated, not edited: the C declarations, their externs for NASM, their declarations for Rust (C's types, research_arena's; typed by the kinds' handles, the Rust patches' `raw`), and the thunks, the arena's block `engine.code` |
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
-| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first 300 ms), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
+| `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first second), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (eleven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks, the Tab menu's voice mute and the options' microphone test (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
 | `rust/patches/src/screenshot.rs`, `src/screenshot.toml`, `src/screenshot/png.rs`, `src/vostok/back_buffer.rs` | Patch 152: two keys save a screenshot as a PNG, F11 the screen and F12 the frame without the interface (`../docs/notes/screenshots.md`): three named lohooks (the keyboard's poll, `render.flash_ui`, the Present), the back buffer read back through Direct3D, the patch's own PNG encoder; `cargo test` in `rust/` checks the encoder (a decoder of its own in the tests) and the request's steps; the two actions' names, keys and Controls rows are patch 62's table (`hide_ui_026g.asm`, `check_hide_ui_026g.py`) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F9 since patch 152, F11 before; the game's `toggle_replay_ui`, named `hide_interface`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
@@ -3395,7 +3397,7 @@ before: a key of this poll may have gone down before the kits came), OPEN (shown
 one pressed in their frame is OPENING's: either picks nothing until it is let go and pressed
 again on the kits. And, the owner's rule after that: a player still pressing 3 to heal just
 after the death presses on the kits before seeing them, so the keys pick nothing for
-`KIT_KEYS_DELAY`, 300 ms, after the kits appear. OPENING carries the time of the poll that
+`KIT_KEYS_DELAY`, 1 s (300 ms until 2026-11-18), after the kits appear. OPENING carries the time of the poll that
 first saw the kits (`kit_keys_since`, GetTickCount through its import 0x870090), and a poll
 moves it to OPEN only 300 ms or more after it (unsigned, over the wrap); CLOSED clears it. A
 key pressed in those 300 ms and held into OPEN picks nothing until let go and pressed again.
@@ -3437,7 +3439,7 @@ the option's name used once, the block's code, exits, calls and data, the movies
 manifest's parts, the input tick's order and the keyboard's kinds, the slot) and the call shapes
 (0x1F6845 and 0x26B916 CALLEE, `ret 4` and `ret 14h` as their models; 0x9FC59C SLOT, `ret 4`;
 0x25CD41 JUMP); `check_match_keys_026g.py` (Unicorn): the poll from each state, the kits shown
-and not, GetTickCount a stub (CLOSED, OPENING, OPEN at 300 ms and not at 299, over the wrap
+and not, GetTickCount a stub (CLOSED, OPENING, OPEN at 1000 ms and not at 999, over the wrap
 too; `ret 4`, ebx esi edi ebp kept); the keys from 0x25CD41 for
 the keys 1 to 5 and Enter, each kind, with and without the cursor and the movie, in each state:
 Invoke with `root.select_kit_key` and the kit exactly for 1, 2 and 3 going down in OPEN with the
@@ -3447,7 +3449,7 @@ frame and stack; the input ticks, the game's own tick (0x3B7BD0) and keyboard pr
 before its wrap: pressed 100 and 250 ms after the kits appear (none), 350 ms after (a pick),
 pressed at 100 ms and held into OPEN (none until let go and pressed again), held from play into
 the kits, pressed in the frame they came, in play, a respawn then a death: a kit only for a
-press handed out 300 ms or more after the kits came, the game's handler given the
+press handed out 1 s or more after the kits came, the game's handler given the
 same keys and kinds as by the original exe (which picks nothing: main's build, run the same way,
 picks kit 3 for a 3 pressed or tapped in the frame of the death); the variable: the hud's constructor called with the game world and the hud, its
 registers back, one `cc_bool` "g_private_messages_in_game" at the list's head over two calls,
@@ -5178,6 +5180,79 @@ the four stack alignments (64 cases): the original frees the seed, faults or
 erases before the list; the build returns and changes nothing; a held
 effect's stop and update are the original's byte for byte. Not played.
 
+## Room for a presenter's particle effects (patch 122, unreleased)
+
+The rev52 and rev53 crashes (four reports, 2026-11-07/08): the engine's
+assert "buffer overflow" in
+`vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::push_back`
+(0x2ACC20, int3 0x2ACC7F), from an artefact's activation
+(`artefact_base::effect` 0x313350 -> `game_effect_player::add` ->
+the third-person presenter -> `on_event` 0x2AC400 -> push_back at 0x2AC695),
+on another player's list (place 2 at 04:44, place 16 at 00:10-00:13; the
+game world's presenters are at a fixed place, the static 0xA96860 + 22BCh +
+place x 220h). A particle presenter keeps its list inline, room for six
+entries, and nothing grows it; patch 111's glows put more on a player.
+
+Only some games reach the seventh: the leg quarters are shown by a game whose
+local player has Artifact Sight, or that has no local player (a spectator, a
+replay); every other game holds only the player's stock effects. The rev64
+reports of 2026-11-18 (three crashes of one game in one match, 19:22-19:26
++03): in the dumps place 13's list held five quarters and one artefact
+effect, the seventh its next activation; the reporter's own first-person list
+held its own quarter.
+
+The budget (the owner, 2026-11-08): a player can show 6 artefact glows (one
+leg quarter a copy; with Resonance's shared copies up to 4 a kind, 12), 3
+activations and Forest Protection's at once: 16 from our patches, the stock
+effects beside them. 32 leaves room for both.
+
+The patch (`particle_room`, five lohooks):
+
+- `game_world.first_person_presenter_made` (0x1F6884, EBP the world, its
+  presenter +1D98h) and `game_world.third_person_presenter_made` (0x1F6B14,
+  EAX each place's presenter): as game_world's constructor builds them, the
+  list's begin, end and capacity end point at a room of ours, 32 entries,
+  from the process heap. One room a presenter, kept by its address in a
+  table of 64 and never freed: game_world is a static object, so it builds
+  its presenters again at the same addresses and they get their rooms back.
+  The lobby's presenters (lobby_menu, lobby_character) keep their six.
+- `effect_presenter.particle_read_room` (0x2AC8A6): a world's load
+  (`base_player::deserialize` -> the presenter's vtable +0Ch ->
+  `particle_game_effect_presenter::deserialize` 0x2AC870) pushes the saved
+  entries into a local list of six on its stack: a presenter with a room
+  reads into the room's second half (32).
+- `effect_presenter.particle_swap` (0x2ACD00): deserialize then swaps its
+  local with the presenter's list through a stack room of six and three
+  assigns (0x2AD360) that check no capacity; the patch swaps the two lists
+  in place, entry for entry (each moved whole, its references counted as
+  before), and returns. A presenter has the same room on both sides (32 and
+  32, or the game's six and six), so neither overflows.
+- `effect_presenter.particle_start` (0x2AC686, EBX the presenter): `on_event`'s
+  play, before its entry is made. A full list (the 33rd; the 7th of a
+  presenter without a room, the lobby's too) takes no entry: the site leaves
+  through on_event's return (0x2AC6B3) with a refusal line, and the effect
+  goes on without its particles on that player, where the game asserts.
+  Patch 117 makes the presenter ignore the stop and the updates of an effect
+  it holds no entry of. A stopgap for what the budget did not count, not the
+  room itself.
+
+The table full or the heap empty: the presenter keeps the game's six, with
+a line in `srp_patches.log`. A saved presenter is about 17 bytes an entry
+(flag, effect, a word, two floats), in the history item's second buffer,
+which is not uploaded or hashed: 10 more entries a player is about 170 bytes.
+
+`check_particle_room_026g.py <stock exe>`: the constructors, then the sites,
+in the original and the build: the original keeps six and its seventh push
+reaches the assert; the build holds 32 (the 33rd reaches it), the same room
+again for a presenter built again; deserialize's local in the room or the
+frame's six; six and four swapped to the byte as the original; twenty and
+ten swapped in place, where the original writes past its stack room; a play
+from its site in on_event's frame: with room both go on with the same
+registers, with a full list (32 in a room, six without one) the original
+goes on to the push that asserts and the build returns as on_event does, its
+list as it was, one line in the log. At the four stack alignments (248
+cases). Not played.
+
 ## Match-message checks (patch 114, unreleased)
 
 Before dispatching a server message, the client checks fixed lengths, player
@@ -6063,13 +6138,15 @@ sorts it (needs Unicorn). See `docs/notes/client_patch.md`, "The grass sort's di
 ## The game shares in the lobby (patch 150, unreleased)
 
 The original game was made to share its files by BitTorrent while a player sits on the login
-screen or in the lobby, never in a match: its updater started as Windows' "Survarium Update
+screen or in the lobby, never in a match (we share there too, below): its updater started as Windows' "Survarium Update
 Service" with the word `seed`, talking to the game over a named pipe. It never ran (the game
 looked for a registry key under a garbled name and gave up). Now the game's own setting
 `enable_torrent_seeding` (user.cfg, "Allow torrent": the launcher's box writes it) decides, off by
 default (`LOBBY_SEEDING_DEFAULT`: the original's was on), and the game's own triggers do it:
-`switch_to_login` and `switch_to_lobby` start it while it is on, `switch_to_game_world` stops it
-(the pipe closed: the updater ends), a replay never does either. The Rust patch `lobby_seeding`
+`switch_to_login` and `switch_to_lobby` start it while it is on, a replay never does. The
+original's `switch_to_game_world` stopped it (the pipe closed: the updater ends); the owner
+(2026-11-18) wants it in matches too, so that function's jump over its stop, a replay's, is taken
+always (`MATCH_SEEDING_KEEP`, 0x1ED184: `jz` to `jmp`), and the one updater shares until the game ends. The Rust patch `lobby_seeding`
 (`rust/patches/src/lobby_seeding.rs`, sites `seeding.*`) names the pipe
 `\\.\pipe\skhid_seed-<process id>` and starts `updater_skhid.exe seed <pipe>` beside the exe
 (CreateProcessW, no window) where the game asked for the service. Its options stay hidden. The
@@ -6078,7 +6155,7 @@ game writes every setting into user.cfg at its end, so a player who played befor
 them. The updater's
 side (the 1 MB/s cap, the stats ticks) is `client/updater/README.md`; the rules
 `docs/notes/torrent-downloads.md`, "Sharing from the game". `check_lobby_seeding_026g.py` runs
-`start_seeding_impl`, `switch_to_lobby`, `switch_to_login` and the command's callback in both
+`start_seeding_impl`, `switch_to_lobby`, `switch_to_login`, `switch_to_game_world` and the command's callback in both
 exes (needs Unicorn). See `docs/notes/client_patch.md`, "The game shares in the lobby". Not run
 in a game.
 
@@ -6132,7 +6209,9 @@ Crouched, the eye is 1.06 m up in a 1.1 m capsule, and the near plane (0.05 m) w
 the capsule touched; objects with shot but no walker collision let the capsule in. A lohook at
 update_camera's eye (`camera.eye`, after the ragdoll's) casts one ray from 0.4 m under the eye to
 0.12 m past it against the level's shot collision and puts the view's eye 0.12 m short of a hit at
-once, easing back when it clears. The view alone: the shots, the hit models and the movement are
+once, easing back when it clears. The ray goes through leaves (the game materials foliage_coniferous,
+foliage_deciduous and foliage_dry): the vine bushes are shot collision a walker goes into, and the
+eye dropped up to 0.4 m in them, the hands jumping up the screen (the owner, 2026-11-18). The view alone: the shots, the hit models and the movement are
 the game's. `check_head_clearance_026g.py` (`tools/check head-clearance`) runs update_camera in
 both exes. Not run in a game.
 
@@ -6149,6 +6228,39 @@ drawn the game's log file (`<application>_<user>.log`) through the engine's scro
 and move the view's pad; the console still takes every key and wheel turn before the game's handlers.
 Nothing a match computes changes. `check_console_scroll_026g.py` (`tools/check console-scroll`) runs
 the three functions on the game's own scroll view in both exes. Not run in a game.
+
+## The ported 0.21 maps render the 0.21 way (patch 130, unreleased)
+
+The owner (2026-11-09): exact 0.21 rain on the ported 0.21 maps (Vostok Radar Station v0.21,
+`v021d_level_03`), our render patched for those maps only, the native maps unchanged. The falling
+rain already runs 0.21's code in 0.26g; the patch makes the rest 0.21's, with the content pack's
+0.21 shaders and textures (`../docs/notes/client_patch.md` section 3.82):
+
+- **Wet surfaces**: on a 0.21 map's scene stage_pre_rain's wet pass draws with 0.21's pixel shader
+  (`wet_surface_v021d.ps`), at any shading quality (0.26g skips it at 0).
+- **Rain drops**: rain_drops_parameters1.zw are 0.21's half floats, and the drop texture is 0.21's
+  (`textures/ported/v021d/engine/rain_drop`).
+- **Grass**: a material with `srp_grass_v021d` in its effect config draws its grass with 0.21's
+  vertex shaders (the seven `vertex_base*_v021d.vs` families): 0.21's sway.
+- **Water**: a forward water material with `srp_water_v021d` takes 0.21's 1024^2 wave normals
+  (`textures/ported/v021d/engine/water_waves2`).
+- **God rays**: on a 0.21 map's scene they are drawn once a frame, by the geometry's atmosphere
+  stage, as 0.21 draws them; 0.26g draws the whole pass for the sky's stage as well, so the sky got
+  the rays twice (the pale, blown-out glow facing a low evening sun).
+
+A map is a 0.21 one when its project's config root says `srp_renderer_v021d: true`; it is its own
+scene that is drawn the 0.21 way (the lobby's scene, drawn while the match's project is loaded, stays
+native), until its project is removed. The two rain effects compile 0.21 twins of their techniques
+after their own, on every map, and the stages pick a twin only on that scene.
+
+**The patch** (the Rust patch `v021d_render`, `rust/patches/src/v021d_render.rs`; fourteen lohooks, three
+of them on the project sites the lamps share): `wet_surface.compiled`, `wet_surface.begin_pass`, `rain.compiled`,
+`rain.drop_texture` (the twins), `pre_rain.wet_gate`, `pre_rain.wet_apply`, `rain.drop_scales`,
+`rain.drops_apply` (the draws), `atmosphere.god_rays` (the rays), `material.begin_pass` (grass), `water.normal_texture` (water),
+`project.insert`, `project.removed`, `project.destroy` (the map). Nothing a match computes. Checked
+with `check_rain_v021d_026g.py` (with the 0.21d exe, 0.21d's own drop parameters bit for bit) and the
+patch crate's tests. Not run in a game. It needs the content pack's files and keys in the same
+release.
 
 ## Face choice (patch 123, unreleased)
 

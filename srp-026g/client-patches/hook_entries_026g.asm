@@ -5936,7 +5936,7 @@ keyboard_layout_on_console_char_replay:
 
 ; 0x285750 before insert_static, ECX project and ESP+4 physics: lohook -> lamps_on_bind
 global lamps_on_bind
-extern hook_lamps_on_bind
+extern hook_lamps_on_bind_chain
 lamps_on_bind:
     lea esp, [esp - 4]
     pushfd
@@ -5954,7 +5954,7 @@ lamps_on_bind:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lamps_on_bind
+    call hook_lamps_on_bind_chain
     mov edx, lamps_on_bind_replay
     cmp eax, 0
     je lamps_on_bind_go
@@ -5975,7 +5975,7 @@ lamps_on_bind_replay:
 
 ; 0x285614 remove_static epilogue, after native object removals: lohook -> lamps_on_remove
 global lamps_on_remove
-extern hook_lamps_on_remove
+extern hook_lamps_on_remove_chain
 lamps_on_remove:
     lea esp, [esp - 4]
     pushfd
@@ -5993,7 +5993,7 @@ lamps_on_remove:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lamps_on_remove
+    call hook_lamps_on_remove_chain
     mov edx, lamps_on_remove_replay
     cmp eax, 0
     je lamps_on_remove_go
@@ -6014,7 +6014,7 @@ lamps_on_remove_replay:
 
 ; 0x285330 destructor before any member is released: lohook -> lamps_on_destroy
 global lamps_on_destroy
-extern hook_lamps_on_destroy
+extern hook_lamps_on_destroy_chain
 lamps_on_destroy:
     lea esp, [esp - 4]
     pushfd
@@ -6032,7 +6032,7 @@ lamps_on_destroy:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_lamps_on_destroy
+    call hook_lamps_on_destroy_chain
     mov edx, lamps_on_destroy_replay
     cmp eax, 0
     je lamps_on_destroy_go
@@ -7842,6 +7842,207 @@ music_on_sound_tick_replay:
 ; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> music_on_query_done (wraps engine_store_first_resource 0x14730)
     RUST_CDECL music_on_query_done, hook_music_on_query_done, 2
 
+; 0x1f6884 game_world::game_world 0x1F67B0 after its first-person presenter's constructor 0x2971C0 at 0x1F686A (mov [ebp+4D38h],eax / mov [ebp+4D3Ch],ebx; the first site after it without a relocation under it, EAX no longer the presenter): EBP the game world, its first-person presenter at +1D98h (the EDI given at 0x1F6857), its particle list inline (six entries); game_world is the static at 0xA96860, so the address is the same at every construction: lohook -> particle_room_on_first_person_made
+global particle_room_on_first_person_made
+extern hook_particle_room_on_first_person_made
+particle_room_on_first_person_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_first_person_made
+    mov edx, particle_room_on_first_person_made_replay
+    cmp eax, 0
+    je particle_room_on_first_person_made_go
+    mov edx, 0x1f688a
+    cmp eax, 1
+    je particle_room_on_first_person_made_go
+    ud2
+particle_room_on_first_person_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_first_person_made_replay:
+    db 0x89, 0x85, 0x38, 0x4d, 0x00, 0x00
+    jmp 0x1f688a
+
+; 0x1f6b14 game_world::game_world 0x1F67B0's loop over the twenty places' holders, after each third-person presenter's constructor 0x297570 at 0x1F6B0F (add eax,220h / sub esi,edi): EAX the presenter (holder +8h, the game world's +22BCh + place x 220h; the constructor keeps EAX), its particle list inline (six entries): lohook -> particle_room_on_third_person_made
+global particle_room_on_third_person_made
+extern hook_particle_room_on_third_person_made
+particle_room_on_third_person_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_third_person_made
+    mov edx, particle_room_on_third_person_made_replay
+    cmp eax, 0
+    je particle_room_on_third_person_made_go
+    mov edx, 0x1f6b19
+    cmp eax, 1
+    je particle_room_on_third_person_made_go
+    ud2
+particle_room_on_third_person_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_third_person_made_replay:
+    db 0x05, 0x20, 0x02, 0x00, 0x00
+    jmp 0x1f6b19
+
+; 0x2ac8a6 particle_game_effect_presenter::deserialize 0x2AC870 once its local list is set up and the presenter stored (mov [esp+4Ch],edx / mov [esp+58h],eax): EAX the local's capacity end (ESP+0ECh, six entries inline from ESP+5Ch) the second instruction stores; the saved entries are pushed into it (0x2AC9B8) and it is swapped into the presenter at 0x2ACC00: lohook -> particle_room_on_read_room
+global particle_room_on_read_room
+extern hook_particle_room_on_read_room
+particle_room_on_read_room:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_read_room
+    mov edx, particle_room_on_read_room_replay
+    cmp eax, 0
+    je particle_room_on_read_room_go
+    mov edx, 0x2ac8ae
+    cmp eax, 1
+    je particle_room_on_read_room_go
+    ud2
+particle_room_on_read_room_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_read_room_replay:
+    db 0x89, 0x54, 0x24, 0x4c, 0x89, 0x44, 0x24, 0x58
+    jmp 0x2ac8ae
+
+; 0x2acd00 the particle lists' swap 0x2ACD00 (sub esp,0A4h), whose one caller is deserialize 0x2AC870 at 0x2ACC00: EDI the presenter's list, ESI the local read; it copies EDI's entries into a stack room of six (ESP+10h..+0A0h) and assigns with 0x2AD360, which checks no capacity; returned is its ret (at the site ESP is the return address): lohook -> particle_room_on_swap
+global particle_room_on_swap
+extern hook_particle_room_on_swap
+particle_room_on_swap:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_swap
+    mov edx, particle_room_on_swap_replay
+    cmp eax, 0
+    je particle_room_on_swap_go
+    mov edx, 0x2acd06
+    cmp eax, 1
+    je particle_room_on_swap_go
+    mov edx, 0x2acd73
+    cmp eax, 2
+    je particle_room_on_swap_go
+    ud2
+particle_room_on_swap_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_swap_replay:
+    db 0x81, 0xec, 0xa4, 0x00, 0x00, 0x00
+    jmp 0x2acd06
+
+; 0x2ac686 particle_game_effect_presenter::on_event 0x2AC400, a play (event kind 0) before its entry is made (mov eax,ecx / lea ecx,[esp+30h]; the entry's constructor 0x2AC1F0 at 0x2AC68C and push_back 0x2ACC20 at 0x2AC695 follow, and push_back asserts on a full list): EBX the presenter; full is its return (pop edi / pop esi / pop ebx; mov esp,ebp; pop ebp; ret 8), nothing pushed since the prologue: lohook -> particle_room_on_start
+global particle_room_on_start
+extern hook_particle_room_on_start
+particle_room_on_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_start
+    mov edx, particle_room_on_start_replay
+    cmp eax, 0
+    je particle_room_on_start_go
+    mov edx, 0x2ac68c
+    cmp eax, 1
+    je particle_room_on_start_go
+    mov edx, 0x2ac6b3
+    cmp eax, 2
+    je particle_room_on_start_go
+    ud2
+particle_room_on_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_start_replay:
+    db 0x8b, 0xc1, 0x8d, 0x4c, 0x24, 0x30
+    jmp 0x2ac68c
+
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player); culled 0x24781E, past the bones and past the culled player's held item's vtable+4Ch (0x247811: weapon::on_culled_player_draw 0x245250 moves the weapon to the player's root), where the game's own cull (jne 0x24758C, [ebx+12Ch] not 0) ends, the stack as at the site: lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull
@@ -9420,6 +9621,462 @@ use_scan_on_detect_go:
 use_scan_on_detect_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x2d84c6
+
+; 0x1ce5be effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v021d_render_on_wet_surface_compiled
+global v021d_render_on_wet_surface_compiled
+extern hook_v021d_render_on_wet_surface_compiled
+v021d_render_on_wet_surface_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_wet_surface_compiled
+    mov edx, v021d_render_on_wet_surface_compiled_replay
+    cmp eax, 0
+    je v021d_render_on_wet_surface_compiled_go
+    mov edx, 0x1ce5c4
+    cmp eax, 1
+    je v021d_render_on_wet_surface_compiled_go
+    mov edx, 0x1ce118
+    cmp eax, 2
+    je v021d_render_on_wet_surface_compiled_go
+    mov edx, 0x1ce13b
+    cmp eax, 3
+    je v021d_render_on_wet_surface_compiled_go
+    ud2
+v021d_render_on_wet_surface_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_wet_surface_compiled_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1ce5c4
+
+; 0x1ce16c effect_wet_surface::compile, technique 0 (wet), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F71C8h and the call 0x3D9F60 at 0x1CE178): ESP the PS name's slot (wet_surface 0x9F71C8, pushed at 0x1CE142), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span: lohook -> v021d_render_on_wet_surface_pass
+global v021d_render_on_wet_surface_pass
+extern hook_v021d_render_on_wet_surface_pass
+v021d_render_on_wet_surface_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_wet_surface_pass
+    mov edx, v021d_render_on_wet_surface_pass_replay
+    cmp eax, 0
+    je v021d_render_on_wet_surface_pass_go
+    mov edx, 0x1ce173
+    cmp eax, 1
+    je v021d_render_on_wet_surface_pass_go
+    ud2
+v021d_render_on_wet_surface_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_wet_surface_pass_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1ce173
+
+; 0x1d3e30 effect_rain::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), technique 1 ended; technique is technique 1's start (cmp byte [ebx+61F4Ch],0 / jne), which needs EBX, EBP and ESI = 0 (its stores at 0x1D3D34 and 0x1D3D44..0x1D3D5A): lohook -> v021d_render_on_rain_compiled
+global v021d_render_on_rain_compiled
+extern hook_v021d_render_on_rain_compiled
+v021d_render_on_rain_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_rain_compiled
+    mov edx, v021d_render_on_rain_compiled_replay
+    cmp eax, 0
+    je v021d_render_on_rain_compiled_go
+    mov edx, 0x1d3e36
+    cmp eax, 1
+    je v021d_render_on_rain_compiled_go
+    mov edx, 0x1d3d12
+    cmp eax, 2
+    je v021d_render_on_rain_compiled_go
+    ud2
+v021d_render_on_rain_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_rain_compiled_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1d3e36
+
+; 0x1d3dc7 effect_rain::compile, technique 1 (the sprite drops), before the pushes of its set_texture (0x3D98B0, at 0x1D3DDE) of t_rain_drop (fld1 / push 1 / push ecx; then fstp [esp], push esi, push -1, push esi, push engine/rain_drop 0x9F78D8, push t_rain_drop 0x9F78EC, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1D3DE3), the stack as here: lohook -> v021d_render_on_rain_drop_texture
+global v021d_render_on_rain_drop_texture
+extern hook_v021d_render_on_rain_drop_texture
+v021d_render_on_rain_drop_texture:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_rain_drop_texture
+    mov edx, v021d_render_on_rain_drop_texture_replay
+    cmp eax, 0
+    je v021d_render_on_rain_drop_texture_go
+    mov edx, 0x1d3dcc
+    cmp eax, 1
+    je v021d_render_on_rain_drop_texture_go
+    mov edx, 0x1d3de3
+    cmp eax, 2
+    je v021d_render_on_rain_drop_texture_go
+    ud2
+v021d_render_on_rain_drop_texture_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_rain_drop_texture_replay:
+    db 0xd9, 0xe8, 0x6a, 0x01, 0x51
+    jmp 0x1d3dcc
+
+; 0x17cb1b stage_pre_rain::execute after render_rain_shadow_map, the shading-quality gate of its copy and wet passes (cmp dword [eax+0E8h],0, EAX the render options [2260498h]; the je 0x17CC39 after it takes the flags); wet is the r_rain_render_wet_surface_effect test after it (0x17CB28); ESI the stage: lohook -> v021d_render_on_wet_gate
+global v021d_render_on_wet_gate
+extern hook_v021d_render_on_wet_gate
+v021d_render_on_wet_gate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_wet_gate
+    mov edx, v021d_render_on_wet_gate_replay
+    cmp eax, 0
+    je v021d_render_on_wet_gate_go
+    mov edx, 0x17cb22
+    cmp eax, 1
+    je v021d_render_on_wet_gate_go
+    mov edx, 0x17cb28
+    cmp eax, 2
+    je v021d_render_on_wet_gate_go
+    ud2
+v021d_render_on_wet_gate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_wet_gate_replay:
+    db 0x83, 0xb8, 0xe8, 0x00, 0x00, 0x00, 0x00
+    jmp 0x17cb22
+
+; 0x17cb90 stage_pre_rain::execute's wet pass: mov eax,[esi+18h] / xor ecx,ecx before res_effect::apply 0x11C1B0 (EAX the effect, ECX the technique) at 0x17CB95, the copy's fill done; ESI the stage: lohook -> v021d_render_on_wet_apply
+global v021d_render_on_wet_apply
+extern hook_v021d_render_on_wet_apply
+v021d_render_on_wet_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_wet_apply
+    mov edx, v021d_render_on_wet_apply_replay
+    cmp eax, 0
+    je v021d_render_on_wet_apply_go
+    mov edx, 0x17cb95
+    cmp eax, 1
+    je v021d_render_on_wet_apply_go
+    mov edx, 0x17cb95
+    cmp eax, 2
+    je v021d_render_on_wet_apply_go
+    ud2
+v021d_render_on_wet_apply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_wet_apply_replay:
+    db 0x8b, 0x46, 0x18, 0x33, 0xc9
+    jmp 0x17cb95
+
+; 0x1adf7d stage_rain::execute before it copies rain_u_scale * 0.05 and rain_v_scale * 0.4 ([esp+40h], [esp+44h]) into rain_drops_parameters1.zw (movss xmm0,[esp+40h]); EBP the stage: lohook -> v021d_render_on_drop_scales
+global v021d_render_on_drop_scales
+extern hook_v021d_render_on_drop_scales
+v021d_render_on_drop_scales:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_drop_scales
+    mov edx, v021d_render_on_drop_scales_replay
+    cmp eax, 0
+    je v021d_render_on_drop_scales_go
+    mov edx, 0x1adf83
+    cmp eax, 1
+    je v021d_render_on_drop_scales_go
+    ud2
+v021d_render_on_drop_scales_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_drop_scales_replay:
+    db 0xf3, 0x0f, 0x10, 0x44, 0x24, 0x40
+    jmp 0x1adf83
+
+; 0x1adfa4 stage_rain::execute's layer loop (the jb at 0x1AE0BD comes back here): mov eax,[ebp+34h] / mov ecx,1 before res_effect::apply 0x11C1B0 at 0x1ADFAC; EBP the stage: lohook -> v021d_render_on_drops_apply
+global v021d_render_on_drops_apply
+extern hook_v021d_render_on_drops_apply
+v021d_render_on_drops_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_drops_apply
+    mov edx, v021d_render_on_drops_apply_replay
+    cmp eax, 0
+    je v021d_render_on_drops_apply_go
+    mov edx, 0x1adfac
+    cmp eax, 1
+    je v021d_render_on_drops_apply_go
+    mov edx, 0x1adfac
+    cmp eax, 2
+    je v021d_render_on_drops_apply_go
+    ud2
+v021d_render_on_drops_apply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_drops_apply_replay:
+    db 0x8b, 0x45, 0x34, 0xb9, 0x01, 0x00, 0x00, 0x00
+    jmp 0x1adfac
+
+; 0x1cd1b6 effect_material_base::compile_begin's one begin_pass (0x1CD1BC): mov eax,[esp+2Ch] (the VS family name) / push esi / push ebp; EBX the shader configuration (its vertex input type in byte 6), [esp+3Ch] the merged config tree; every material effect's every pass, cache and build compiles alike: lohook -> v021d_render_on_material_pass
+global v021d_render_on_material_pass
+extern hook_v021d_render_on_material_pass
+v021d_render_on_material_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_material_pass
+    mov edx, v021d_render_on_material_pass_replay
+    cmp eax, 0
+    je v021d_render_on_material_pass_go
+    mov edx, 0x1cd1bc
+    cmp eax, 1
+    je v021d_render_on_material_pass_go
+    ud2
+v021d_render_on_material_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_material_pass_replay:
+    db 0x8b, 0x44, 0x24, 0x2c, 0x56, 0x55
+    jmp 0x1cd1bc
+
+; 0x1e603c effect_fstage_simpe_water_materials::compile (the forward_water and forward_water_local_reflections passes, the loop at 0x1E6015), after compile_begin's return, before the pushes of its set_texture (0x3D98B0, at 0x1E6053) of t_normal_map (fld1 / push 1 / push ecx; then fstp [esp], push esi, push -1, push esi, push engine/water_waves2 0x9F9FA4, push t_normal_map 0x9F3204, push ebx): EBX the compiler, [ebp+0Ch] the material's config tree; bound is after the call (0x1E6058), the stack as here: lohook -> v021d_render_on_water_texture
+global v021d_render_on_water_texture
+extern hook_v021d_render_on_water_texture
+v021d_render_on_water_texture:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_water_texture
+    mov edx, v021d_render_on_water_texture_replay
+    cmp eax, 0
+    je v021d_render_on_water_texture_go
+    mov edx, 0x1e6041
+    cmp eax, 1
+    je v021d_render_on_water_texture_go
+    mov edx, 0x1e6058
+    cmp eax, 2
+    je v021d_render_on_water_texture_go
+    ud2
+v021d_render_on_water_texture_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_water_texture_replay:
+    db 0xd9, 0xe8, 0x6a, 0x01, 0x51
+    jmp 0x1e6041
+
+; 0x1a5520 stage_atmosphere's god-rays pass (0x1A5520, stdcall, ESP+4 the stage, ret 4), its entry (sub esp,14h / push ebx / mov ebx,[esp+1Ch]); its one caller is stage_atmosphere::execute's end (push ebp / call at 0x1A5133), for both the sky stage (stage+ACh 0) and the geometry stage (1), so 0.26 draws the rays twice a frame where 0.21 draws them once; skipped is its ret 4 (0x1A575C), the stack as at the entry: lohook -> v021d_render_on_god_rays
+global v021d_render_on_god_rays
+extern hook_v021d_render_on_god_rays
+v021d_render_on_god_rays:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_god_rays
+    mov edx, v021d_render_on_god_rays_replay
+    cmp eax, 0
+    je v021d_render_on_god_rays_go
+    mov edx, 0x1a5528
+    cmp eax, 1
+    je v021d_render_on_god_rays_go
+    mov edx, 0x1a575c
+    cmp eax, 2
+    je v021d_render_on_god_rays_go
+    ud2
+v021d_render_on_god_rays_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_god_rays_replay:
+    db 0x83, 0xec, 0x14, 0x53, 0x8b, 0x5c, 0x24, 0x1c
+    jmp 0x1a5528
 
 ; 0x27a1b0 match_client::connect's start (push ebx / push ebp / push esi / mov esi,ecx): ECX the match client, the site's ESP+4 the host, +8 the port, +0Ch the session (a replay's connect is another function, 0x122350): lohook -> voice_on_connect
 global voice_on_connect

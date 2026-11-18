@@ -156,18 +156,37 @@ async def tunnel(reader, writer, remote, upstream):
         asking.cancel()
 
 
+class Slots:
+    """Open connections: so many in all and so many of one address, which
+    cannot then hold them all with idle ones."""
+    def __init__(self, limit, each=16):
+        self.limit, self.each = limit, each
+        self.held = {}
+
+    def take(self, ip):
+        held = self.held.get(ip, 0)
+        if held >= self.each or sum(self.held.values()) >= self.limit:
+            return False
+        self.held[ip] = held + 1
+        return True
+
+    def free(self, ip):
+        self.held[ip] -= 1
+        if not self.held[ip]:
+            del self.held[ip]
+
+
 class Login:
     def __init__(self, public, backend, port, limit=256):
         self.public, self.backend, self.port = public, backend, port
-        self.limit, self.active = limit, 0
+        self.slots = Slots(limit)
         self.budget = Budget(rate=2, burst=10)
 
     async def accept(self, reader, writer):
         client = writer.get_extra_info("peername")
-        if self.active >= self.limit or not self.budget.take(client[0], time.monotonic()):
+        if not self.budget.take(client[0], time.monotonic()) or not self.slots.take(client[0]):
             writer.close()
             return
-        self.active += 1
         upstream = None
         try:
             remote, upstream = await asyncio.wait_for(
@@ -179,7 +198,7 @@ class Login:
         except (OSError, TimeoutError, ExceptionGroup) as error:
             logging.debug("login from %s failed: %s", client, error)
         finally:
-            self.active -= 1
+            self.slots.free(client[0])
             writer.close()
             if upstream:
                 upstream.close()
@@ -189,10 +208,9 @@ class HTTPS(Login):
     """CONNECT to one configured HTTPS origin, never an open proxy."""
     async def accept(self, reader, writer):
         client = writer.get_extra_info("peername")
-        if self.active >= self.limit or not self.budget.take(client[0], time.monotonic()):
+        if not self.budget.take(client[0], time.monotonic()) or not self.slots.take(client[0]):
             writer.close()
             return
-        self.active += 1
         upstream = None
         try:
             request = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 10)
@@ -209,7 +227,7 @@ class HTTPS(Login):
         except (OSError, TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError, ExceptionGroup) as error:
             logging.debug("HTTPS tunnel from %s failed: %s", client, error)
         finally:
-            self.active -= 1
+            self.slots.free(client[0])
             writer.close()
             if upstream:
                 upstream.close()
@@ -218,12 +236,16 @@ class HTTPS(Login):
 async def run_https(args):
     proxy = HTTPS(args.public, args.https_origin, 443, limit=128)
     server = await asyncio.start_server(proxy.accept, args.bind, 8080, family=socket.AF_INET, limit=4096)
-    logging.info("HTTPS relay ready for %s:443", args.https_origin)
+    # The site under the relay's own name: its HTTPS port goes to the origin's
+    # web server unopened, which is told the visitor's address as the login is.
+    site = Login(args.public, args.backend, args.site_port)
+    passed = await asyncio.start_server(site.accept, args.bind, args.site_port, family=socket.AF_INET)
+    logging.info("HTTPS relay ready for %s:443, site on %s", args.https_origin, args.site_port)
     stopped = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, stopped.set)
-    async with server:
+    async with server, passed:
         await stopped.wait()
 
 
@@ -267,6 +289,7 @@ def main():
     parser.add_argument("--backend", required=True, type=ipv4)
     parser.add_argument("--bind", default="0.0.0.0")
     parser.add_argument("--https-origin", default="skhid.link")
+    parser.add_argument("--site-port", default=443, type=int)
     parser.add_argument("--login-port", default=1234, type=int)
     parser.add_argument("--lobby-port", default=1235, type=int)
     parser.add_argument("--match-port", default=1236, type=int)

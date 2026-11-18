@@ -24,9 +24,6 @@ pub trait Dictionary {
     fn item(&self, dict_id: u16) -> Option<bool>;
     /// Whether the client has the map (a maps_dict id, up to `u16::MAX`).
     fn map(&self, map_id: u16) -> bool;
-    /// How many faces the client's data lists (`body_parts.heads`, 1
-    /// without): a place's face is under it.
-    fn faces(&self) -> u8;
 }
 
 /// The ids srp sends and a client takes. 0xE2 and every id outside
@@ -444,8 +441,8 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         // `{4, 2, id}` (over a byte, its low byte the options' byte),
         // Blackout's `{2, 1, 1}` or a free-for-all's `{3, 2, kills to win}`
         // (a u16, never 0), which only a roster of own sides has, and the
-        // faces' `{5, roster, a face a place}` (each a face of the
-        // dictionary's, not every one face 0).
+        // faces' `{5, roster, a face a place}` (not every one face 0; a
+        // face the game's data does not list is drawn as face 0).
         let (mut mode, mut faces) = (false, false);
         while !reader.is_done() {
             let fits = match reader.rest() {
@@ -458,10 +455,10 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
                     own_sides && (*low, *high) != (0, 0) && !core::mem::replace(&mut mode, true)
                 }
                 [5, len, entry @ ..] if *len == roster => {
-                    entry.get(..usize::from(roster)).is_some_and(|entry| {
-                        entry.iter().all(|&face| face < dictionary.faces())
-                            && entry.iter().any(|&face| face != 0)
-                    }) && !core::mem::replace(&mut faces, true)
+                    entry
+                        .get(..usize::from(roster))
+                        .is_some_and(|entry| entry.iter().any(|&face| face != 0))
+                        && !core::mem::replace(&mut faces, true)
                 }
                 _ => false,
             };

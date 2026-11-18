@@ -75,7 +75,8 @@ marked [pick] is a worker's choice the owner may change.
 - `88` (a squad member's account): one srp byte after its revision, the member's face.
 - `E4` (the match's options): srp's block entry tag 5, one byte a place (the roster's length),
   each place's face. Sent only when a place's face is not 0; no entry: every face 0, so older
-  replays read as before.
+  replays read as before. A face the reader's data does not list (a recording read with a
+  shorter list) reads as face 0, in srp's readers of recordings as in the exe.
 
 ## Client (exe patch)
 
@@ -101,6 +102,11 @@ marked [pick] is a worker's choice the owner may change.
 - Cosmetic only: no simulation_changes row.
 - The faces pack, the server and the exe ship together, the server first. Until the pack ships
   the data has one face and nothing changes.
-- An exe from before this release refuses an `E4` with the faces entry (its options check,
-  srp-validate). The entry is sent only once a face but 0 is in play (a player's choice or a
-  bot's draw), which needs the pack's `heads`: the server's data lists them only with this exe.
+- An exe from before the faces patch takes the new bytes and draws everyone with face 0: its
+  options reader stops at the squads, the patches that read srp's block (65, 142, 154) step over
+  an entry they do not know, and its `87` and `88` readers stop before srp's byte. No game runs
+  srp-validate's options check (`messages::options`); it is the server's tests'.
+- What keeps such an exe out is its patch revision: srp does not start with
+  `SRP_MIN_PATCH_REVISION` under the newest patch of its game data (`check_min_patch_revision`),
+  so with the pack live only a game of the pack's revision or later signs in. That holds for
+  the faces when the exe with the patch ships no later than the pack.
