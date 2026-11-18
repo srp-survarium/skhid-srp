@@ -1,0 +1,10 @@
+{
+  "_about": "Vostok v0.11's evening and rain (pack v011e-radar-weather, maps 272-275) are named as its day map is: the pack's four mode configs say st_level_03_name, native Vostok's name; the day configs say st_level_13_name, \"Vostok Radar Station (v0.11)\" in every language.",
+  "replace_string": [
+    {
+      "files": "gameplay/game_modes/v011w_level_03_*.options",
+      "from": "st_level_03_name",
+      "to": "st_level_13_name"
+    }
+  ]
+}

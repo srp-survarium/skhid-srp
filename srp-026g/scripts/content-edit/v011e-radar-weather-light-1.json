@@ -1,0 +1,9 @@
+{
+  "_about": "Vostok v0.11 evening and rain (maps 272-275): the environment probes' diffuse light times three (evening 1 -> 3, rain 0.7 -> 2.1), nothing else. Drawn by 0.26g's own lighting the two weathers come out at about a third of 0.11e's light before post-processing (docs/notes/v011-weather.md, \"Native baseline and pre-post deficit\"); this one number was measured on 2026-11-12 against the original at eight matched views a weather: every evening view closer (mean display RMSE 0.2075 -> 0.1585), seven of eight rain views (0.1447 -> 0.1307; the south yard a little too bright). A larger number is not supported by those views. It does not replace 0.11e's fog and sky, which are the larger remaining difference outdoors.",
+  "set": [
+    {"file": "projects/v011w_level_03_evn/evening_2/client_project", "path": "client_objects[0]/properties/environment_probes_diffuse_intensity_multiplier", "from": 1, "to": 3},
+    {"file": "projects/v011w_level_03_evn/evening_4/client_project", "path": "client_objects[0]/properties/environment_probes_diffuse_intensity_multiplier", "from": 1, "to": 3},
+    {"file": "projects/v011w_level_03_rain/rain_2/client_project", "path": "client_objects[0]/properties/environment_probes_diffuse_intensity_multiplier", "from": 0.7, "to": 2.1},
+    {"file": "projects/v011w_level_03_rain/rain_4/client_project", "path": "client_objects[0]/properties/environment_probes_diffuse_intensity_multiplier", "from": 0.7, "to": 2.1}
+  ]
+}
