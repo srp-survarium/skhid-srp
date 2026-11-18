@@ -40,6 +40,7 @@ NATIVE = {
 PACK = Path('/mnt/hdd/Projects/release-20/packs/maps-021d-7/files')
 PACK_RUDNYA = Path('/home/sheep/Projects/survarium/work-rudnya-v021/probe-modes-build/maps-021d-rudnya-4/files')
 PACK_SCHOOL_FORT = Path('/home/sheep/Projects/survarium/v021d-rig-data/school-fort-work/probe-modes-build/maps-021d-school-fort-4/files')
+PACK_CHEMICAL = Path('/home/sheep/Projects/survarium/skhid-srp/private/content-packs/maps-021d-chemical-1/files')
 PORTED = {
     'v021d_level_03': dict(size=100, posX=14, posY=-42.196, bitmap=None, name='Vostok Radar Station (v0.21)',
                            name_key='st_level_10_name', project_name='level_03', map_ids={166: 2, 152: 4}),
@@ -61,6 +62,11 @@ PORTED = {
     'v021d_level_05': dict(size=90, posX=-1.096, posY=-14.211, bitmap=None, name='Tarakanovsky Fort (v0.21)',
                            name_key='st_level_26_name', project_name='level_05', map_ids={177: 2, 178: 4},
                            pack=PACK_SCHOOL_FORT, pack_name='maps-021d-school-fort@4'),
+    # Chemical Plant (pack maps-021d-chemical@1): project_name level_04, so the HUD draws native Chemical
+    # Plant's minimap in its frame (the project's levelmap_min/max are that frame: centre 15, 43, half 115).
+    'v021d_level_04': dict(size=115, posX=15, posY=43, bitmap=None, name='Chemical Plant (v0.21)',
+                           name_key='st_level_31_name', project_name='level_04', map_ids={266: 2, 267: 4},
+                           pack=PACK_CHEMICAL, pack_name='maps-021d-chemical@1'),
 }
 
 

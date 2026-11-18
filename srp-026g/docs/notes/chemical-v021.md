@@ -21,13 +21,24 @@ Ids over 255 need exe patch 154.
   and cubemaps with native material schemas; native level_04's ammo crates at
   its spots, set on 0.21d's floor (3 cm). 151 shared `ported/v021d` paths keep
   the live bytes (`chemical_021d.keep-live.txt` says why).
-- Rain and evening are four more projects of `maps-021d-weathers@3`, made from
+- Rain and evening are four projects of their own pack, `maps-021d-chemical-weathers@1`, made from
   the authored day source by the same builder
   ([the weather README](../../scripts/v021d-weather/README.md)). 0.21d's rain
   has two hanging lamps its day has not; `v021d-weather-geometry-1.json` adds
   them with their breakable fixtures, as School's rain.
-- `three-maps-021-lighting@7` carries the three profiles (markers -32287 day,
-  -32289 rain, -32291 evening); `v021d-forward-fog@3` guards them too.
+- `three-maps-021-lighting@8` carries the three profiles (markers -32287 day,
+  -32289 rain, -32291 evening); `v021d-forward-fog@5` guards them too. Both are
+  the five maps' `@7` and `@4` with nothing but Chemical Plant's guard branches
+  added to every program (128 and 1904 files; compared instruction by
+  instruction after taking the three markers' branches out).
+- `v021d-renderer-2.json`: exe patch 130's keys, as `v021d-renderer-1.json`
+  gives the other five maps (the six client projects, `flora/grass_l04`, the
+  two `water_l04_*` materials).
+- `v021d-chemical-materials-1.json`: the anomaly smoke's numbers as 0.21d has
+  them (`radial_smoke`'s frame sequence at 0.5, the template's 1 played it
+  twice as fast; `radial_smoke` and `smoke_sample` glowing at 1; `green_smoke`
+  without the template's emissive map). Numbers only: a flipped switch can ask
+  for a shader variant 0.26g never shipped.
 
 `release/content.tsv` applies `v021d-chemical-environment-1.json` (the shader
 marker, cloud coordinates, the original engine's black/white height-ambient
