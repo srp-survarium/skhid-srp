@@ -145,9 +145,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     if cx.tuning.threat.job
         && let Some((job, Role::Flanker, line)) = cx.team.threat.job_of(cx.me.place)
     {
-        let has_spot = matches!(cx.bot.current, Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) if id == line.id)
-            || camp_spot_of(cx, line).is_some()
-            || !job_flank_spots(cx, line).is_empty();
+        let has_spot = job_spot(cx, line);
         #[cfg(test)]
         if !has_spot {
             let why = JOB_SPOTS_WHY.with(|m| m.borrow().get(&(cx.bot.side, line.id)).copied()).unwrap_or("unknown");
@@ -372,6 +370,15 @@ const ROUTE_ENEMY_STEP: usize = 4;
 /// [A320] The route's time: its length at this pace, m/s, and this more, ms (a walk is about 3.5 m/s).
 const ROUTE_PACE_MPS: f32 = 2.0;
 const ROUTE_SPARE_MS: u32 = 15_000;
+
+/// Whether this bot has a flank for a job's flanker role on `line`: it runs that flank already, the held spot is a known
+/// camp spot with routes (`threat.camp_flank`), or the side's flank spots round it are not empty. The role's offer asks it,
+/// and [fix-team 1] the staffing asks it of each mate before it gives the role (`threat::JobTeam::spot`).
+pub fn job_spot(cx: &Ctx, line: &crate::v026g::bots::threat::HeldLine) -> bool {
+    matches!(cx.bot.current, Some((PlayKind::Flank, TargetRef::ThreatSpot(id), _)) if id == line.id)
+        || camp_spot_of(cx, line).is_some()
+        || !job_flank_spots(cx, line).is_empty()
+}
 
 /// [A320 `threat.camp_flank`] The known camp spot of the other side the job's held spot is on (within its match radius,
 /// a storey at most), with its routes; none with the switch off.

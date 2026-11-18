@@ -351,6 +351,12 @@ pub enum Count {
     /// K2: a held spot (a hold) given no job at a tick because no free bot
     /// could take a role of it (spot-ticks): its slot went to the next spot.
     JobNotOpened,
+    /// [fix-team 1 `threat.job_role_needs_spot`] A free role no free mate in reach was given because none of them has a
+    /// spot for it (the role play's own test, [`JobTeam::spot`]): role-ticks.
+    JobRoleNoSpot,
+    /// [fix-team 1] A held spot given no job because no free mate in reach had a spot for any role: its failure reported
+    /// ([`JobEvent::NoSpot`]) and the spot rested [`JOB_REST_MS`], not a role given to fail and be given again.
+    JobNoSpot,
     /// A3's replans judged (the bench): the next route a new way (its
     /// length ahead or exposure off the old by over [`JUDGE_SAME_M`]) or
     /// the same; of the new ways, less exposed, and out of the lanes (at
@@ -384,7 +390,7 @@ pub enum Count {
 }
 
 /// The [`Count`]s, in order, and their names in the tally.
-pub const COUNTS: [(Count, &str); 26] = [
+pub const COUNTS: [(Count, &str); 28] = [
     (Count::ReplanAsked, "replan_asked"),
     (Count::ReplanClear, "replan_clear"),
     (Count::Recast, "recast"),
@@ -396,6 +402,8 @@ pub const COUNTS: [(Count, &str); 26] = [
     (Count::JobEndedNobody, "job_ended_nobody"),
     (Count::JobEndedDown, "job_ended_down"),
     (Count::JobNotOpened, "job_not_opened"),
+    (Count::JobRoleNoSpot, "job_role_no_spot"),
+    (Count::JobNoSpot, "job_no_spot"),
     (Count::ReplanNew, "replan_new"),
     (Count::ReplanSame, "replan_same"),
     (Count::ReplanLess, "replan_less"),
@@ -442,10 +450,12 @@ pub enum JobTally {
     EndConceded,
     /// [threat.breach] Ended: a Breach took its spot over.
     EndBreached,
+    /// [fix-team 1] Not opened: no free mate in reach had a spot for a role of it ([`JobEvent::NoSpot`]).
+    NoSpot,
 }
 
 /// The [`JobTally`]s, in order, and their names in the tally.
-pub const JOB_TALLIES: [(JobTally, &str); 13] = [
+pub const JOB_TALLIES: [(JobTally, &str); 14] = [
     (JobTally::EndShooterDied, "ended_shooter_died"),
     (JobTally::EndUnseen, "ended_unseen"),
     (JobTally::EndFaded, "ended_faded"),
@@ -459,6 +469,7 @@ pub const JOB_TALLIES: [(JobTally, &str); 13] = [
     (JobTally::GivenUnsensed, "given_unsensed"),
     (JobTally::EndConceded, "ended_conceded"),
     (JobTally::EndBreached, "ended_breached"),
+    (JobTally::NoSpot, "not_opened_no_spot"),
 ];
 
 impl JobTally {
@@ -758,6 +769,7 @@ pub fn count_job(event: JobEvent) {
         JobEvent::Ended { end: JobEnd::Nobody, .. } => Count::JobEndedNobody,
         JobEvent::Ended { end: JobEnd::HolderDown { .. }, .. } => Count::JobEndedDown,
         JobEvent::Ended { .. } => Count::JobEndedUnheld,
+        JobEvent::NoSpot { .. } => Count::JobNoSpot,
     });
 }
 
@@ -2202,6 +2214,15 @@ pub struct JobTeam<'a> {
     pub role_offer: bool,
     /// [A391 `threat.job_strongest_first`] New jobs try the shooters' spots with the most kills first ([`opening_order`]).
     pub strongest_first: bool,
+    /// [fix-team 1 `threat.job_role_needs_spot`] Whether the mate at a place has a spot for a role on a held line now: the
+    /// role play's own offer test (`flank::job_spot`, `crossfire::job_spot`, the test that otherwise fails as "no spot"
+    /// once the role is given). A role goes only to a mate with one; [`any_spot`] (the switch off) gives it to the nearest.
+    pub spot: &'a dyn Fn(Place, Role, &HeldLine) -> bool,
+}
+
+/// [`JobTeam::spot`] with `threat.job_role_needs_spot` off: every mate is taken to have a spot (the nearest gets the role).
+pub fn any_spot(_: Place, _: Role, _: &HeldLine) -> bool {
+    true
 }
 
 /// Why a role went ([`JobEvent::Passed`]).
@@ -2272,6 +2293,9 @@ pub enum JobEvent {
     Passed { spot: u32, role: Role, place: Place, why: PassedWhy },
     /// A job ended: why, its shooter, after how long (ms).
     Ended { spot: u32, shooter: Place, end: JobEnd, life_ms: u32 },
+    /// [fix-team 1] A held spot not opened: `asked` free mates in reach, none with a spot for its `role` (the flanker's
+    /// first): the failure reported up (Killzone 3's squads report a failing objective, S3), the spot rests [`JOB_REST_MS`].
+    NoSpot { spot: u32, shooter: Place, role: Role, asked: usize },
 }
 
 impl std::fmt::Display for JobEvent {
@@ -2284,6 +2308,11 @@ impl std::fmt::Display for JobEvent {
             JobEvent::Ended { spot, end, life_ms, .. } => {
                 write!(f, "job on threat spot {spot} ends ({end}) after {:.1} s", life_ms as f32 / 1000.0)
             }
+            JobEvent::NoSpot { spot, role, asked, .. } => write!(
+                f,
+                "job on threat spot {spot} not opened: none of {asked} free bots within {JOB_NEAR_M} m has a {role:?} spot (rests {} s)",
+                JOB_REST_MS / 1000
+            ),
         }
     }
 }
@@ -2395,14 +2424,16 @@ pub fn one_of_each_pair(holds: Vec<HeldLine>, jobs: &[Job], step_m: f32) -> Vec<
 ///   play [`JOB_START_MS`] after it was given the role, lets it go (and is
 ///   not offered a role of that job again);
 /// - a free role goes to the nearest free teammate within [`JOB_NEAR_M`]
-///   that stands out of every held line and has no role, the flanker first,
+///   that stands out of every held line, has no role and has a spot for it
+///   ([`JobTeam::spot`]), the flanker first,
 ///   while the team's bots in jobs off the objective are fewer than a
 ///   [`JOB_SHARE`]th of its players (rounded up; a job on a spot covering
 ///   an objective area is objective work and not counted);
 /// - a held spot with no job, whose shooter has none, gets one, up to
 ///   [`JOBS_MAX`], only when a role of it can be given at once: a spot no
 ///   free bot can take keeps no slot (nor its shooter's one job), and the
-///   next spot is tried ([`Count::JobNotOpened`]).
+///   next spot is tried ([`Count::JobNotOpened`]); a spot whose free mates in
+///   reach have no spot for any role reports it ([`JobEvent::NoSpot`]) and rests.
 ///
 /// `held`: the spots jobs open on (the holds, [`holds`]); `lanes`: the held
 /// lines a role's bot stands out of (every held line). `rested`: spots
@@ -2473,7 +2504,7 @@ pub fn jobs_tick(
     }
     // The cap's bots off the objective, less those the team's Breaches hold.
     let share = team.size.div_ceil(JOB_SHARE).saturating_sub(team.breach_roles);
-    let staff = StaffRules { mates, lanes, share, now, flank_from: team.flank_from };
+    let staff = StaffRules { mates, lanes, share, now, flank_from: team.flank_from, spot: team.spot };
     if opening == Opening::ThenDropped {
         open_then_drop(jobs, rested, held, team, &staff, &mut events);
         return events;
@@ -2513,13 +2544,27 @@ pub fn jobs_tick(
             passed: Vec::new(),
         });
         let i = jobs.len() - 1;
-        staff.roles(jobs, i, line, &mut events);
+        let no_spot = staff.roles(jobs, i, line, &mut events);
         if jobs[i].flanker.is_none() && jobs[i].pinner.is_none() {
             jobs.pop();
-            count(Count::JobNotOpened);
+            not_opened(line, &no_spot, rested, &mut events, now);
         }
     }
     events
+}
+
+/// [fix-team 1] A new job on `line` that no role of was given: with free mates in reach and none of them with a spot
+/// (`no_spot`, the roles so refused and how many mates each asked), its failure is reported ([`JobEvent::NoSpot`]) and
+/// the spot rests [`JOB_REST_MS`], as a job its mates could not hold ends ([`JobEnd::Nobody`]); with no free mate, the next
+/// spot is tried and this one again next tick ([`Count::JobNotOpened`]).
+fn not_opened(line: &HeldLine, no_spot: &[(Role, usize)], rested: &mut Vec<(u32, u32)>, events: &mut Vec<JobEvent>, now: u32) {
+    match no_spot.first() {
+        Some(&(role, asked)) => {
+            rested.push((line.id, now + JOB_REST_MS));
+            events.push(JobEvent::NoSpot { spot: line.id, shooter: line.shooter, role, asked });
+        }
+        None => count(Count::JobNotOpened),
+    }
 }
 
 /// [A391] The order the held spots are tried for a new job: with `strongest_first`, the most kills first (a stable sort: ties
@@ -2570,12 +2615,15 @@ fn open_then_drop(jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[Hel
             opened.push(line.id);
         }
     }
+    let mut no_spots: Vec<(u32, Vec<(Role, usize)>)> = Vec::new();
     for i in 0..jobs.len() {
         if let Some(line) = held.iter().find(|l| l.id == jobs[i].spot) {
-            staff.roles(jobs, i, line, events);
+            let no_spot = staff.roles(jobs, i, line, events);
+            no_spots.push((line.id, no_spot));
         }
     }
     // A job nobody holds: a new one is not opened; an old one ends.
+    let mut not_staffed = Vec::new();
     jobs.retain(|j| {
         let staffed = j.flanker.is_some() || j.pinner.is_some();
         if !staffed && !opened.contains(&j.spot) {
@@ -2583,10 +2631,16 @@ fn open_then_drop(jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[Hel
             events.push(JobEvent::Ended { spot: j.spot, shooter: j.shooter, end: JobEnd::Nobody, life_ms: now.saturating_sub(j.since) });
         }
         if !staffed && opened.contains(&j.spot) {
-            count(Count::JobNotOpened);
+            not_staffed.push(j.spot);
         }
         staffed
     });
+    for spot in not_staffed {
+        if let Some(line) = held.iter().find(|l| l.id == spot) {
+            let no_spot = no_spots.iter().find(|(id, _)| *id == spot).map(|(_, n)| &n[..]).unwrap_or_default();
+            not_opened(line, no_spot, rested, events, now);
+        }
+    }
 }
 
 /// Who may take a job's free roles ([`jobs_tick`]): the team's `mates`, out
@@ -2598,12 +2652,15 @@ struct StaffRules<'a> {
     share: usize,
     now: u32,
     flank_from: Option<&'a dyn Fn(Vec3) -> Vec<Vec3>>,
+    /// [fix-team 1] Whether a mate has a spot for a role ([`JobTeam::spot`]).
+    spot: &'a dyn Fn(Place, Role, &HeldLine) -> bool,
 }
 
 impl StaffRules<'_> {
-    /// Job `i`'s free roles (on `line`) to the nearest free teammates, the
-    /// flanker first.
-    fn roles(&self, jobs: &mut [Job], i: usize, line: &HeldLine, events: &mut Vec<JobEvent>) {
+    /// Job `i`'s free roles (on `line`) to the nearest free teammates that have a spot for them, the flanker first.
+    /// Returns the roles left free because none of the free mates in reach has a spot, with how many were asked.
+    fn roles(&self, jobs: &mut [Job], i: usize, line: &HeldLine, events: &mut Vec<JobEvent>) -> Vec<(Role, usize)> {
+        let mut no_spot = Vec::new();
         for role in [Role::Flanker, Role::Pinner] {
             if jobs[i].holder(role).is_some() {
                 continue;
@@ -2625,7 +2682,11 @@ impl StaffRules<'_> {
                 .filter(|m| m.feet.distance_xz(line.at) <= JOB_NEAR_M)
                 .filter(|m| !self.lanes.iter().any(|l| l.covers(m.feet)))
                 .collect();
-            let nearest = free.iter().min_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at))).map(|m| m.place);
+            // [fix-team 1] Asked nearest first (a stable sort: ties as `min_by` took them), each only until one has a spot.
+            let has_spot = |m: &Mate| (self.spot)(m.place, role, line);
+            let mut by_near = free.clone();
+            by_near.sort_by(|a, b| a.feet.distance_xz(line.at).total_cmp(&b.feet.distance_xz(line.at)));
+            let nearest = by_near.iter().find(|m| has_spot(m)).map(|m| m.place);
             // [A320 F8] A camp spot's flanker: a spare nearest one of its route starts, not the gun already on him.
             let starts = match (role, self.flank_from) {
                 (Role::Flanker, Some(from)) => from(line.at),
@@ -2633,7 +2694,11 @@ impl StaffRules<'_> {
             };
             let to_start = |m: &Mate| starts.iter().map(|&s| m.feet.distance_xz(s)).fold(f32::INFINITY, f32::min);
             let spare = (!starts.is_empty())
-                .then(|| free.iter().filter(|m| Some(m.place) != nearest).min_by(|a, b| to_start(a).total_cmp(&to_start(b))).map(|m| m.place))
+                .then(|| {
+                    let mut by_start: Vec<&Mate> = free.iter().copied().filter(|m| Some(m.place) != nearest).collect();
+                    by_start.sort_by(|a, b| to_start(a).total_cmp(&to_start(b)));
+                    by_start.into_iter().find(|m| has_spot(m)).map(|m| m.place)
+                })
                 .flatten();
             let pick = spare.or(nearest);
             if let Some(place) = pick {
@@ -2641,8 +2706,12 @@ impl StaffRules<'_> {
                     *slot = Some(Holder { place, since: self.now });
                 }
                 events.push(JobEvent::Given { spot: line.id, role, place });
+            } else if !free.is_empty() {
+                count(Count::JobRoleNoSpot);
+                no_spot.push((role, free.len()));
             }
         }
+        no_spot
     }
 }
 
@@ -3412,7 +3481,7 @@ mod tests {
         let held = [a, b, c];
         let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None, offer: None }).collect();
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
-        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas, breach_roles: 0, flank_from: None, role_offer: false, strongest_first: false };
+        let team = |size, objective_areas| JobTeam { mates: &mates, size, objective_areas, breach_roles: 0, flank_from: None, role_offer: false, strongest_first: false, spot: &any_spot };
         // A 12-player team: 4 bots in jobs; shooter 7 has one job, shooter 9 the other.
         jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(12, &[]), &unheld, 1_000);
         let mut shooters: Vec<Place> = jobs.iter().map(|j| j.shooter).collect();
@@ -3430,6 +3499,60 @@ mod tests {
         jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(6, &[Vec3::new(30.0, 0.0, -40.0)]), &unheld, 1_000);
         assert_eq!(in_jobs(&jobs), 4);
         assert!(jobs.iter().any(|j| j.objective && j.shooter == 9), "{jobs:?}");
+    }
+
+    #[test]
+    fn a_role_goes_to_the_nearest_mate_with_a_spot_and_a_spot_none_has_rests() {
+        // [fix-team 1] Mates 10..13 nearer to farther from the spot; only 12 has a flank spot, 11 and 13 a pin spot.
+        let spot = line(4, at(0.0), &[bearing(at(0.0), at(30.0))]);
+        let held = [spot];
+        let mates: Vec<Mate> =
+            (10..14).map(|place| Mate { place, feet: Vec3::new(-10.0 * (place - 9) as f32, 0.0, 0.0), free: true, playing: None, offer: None }).collect();
+        let has = |place: Place, role: Role, _: &HeldLine| match role {
+            Role::Flanker => place == 12,
+            Role::Pinner => place == 11 || place == 13,
+            Role::Crosser => false,
+        };
+        let team = |spot: &'static dyn Fn(Place, Role, &HeldLine) -> bool| JobTeam {
+            mates: &mates,
+            size: 12,
+            objective_areas: &[],
+            breach_roles: 0,
+            flank_from: None,
+            role_offer: false,
+            strongest_first: false,
+            spot,
+        };
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        let has: &'static dyn Fn(Place, Role, &HeldLine) -> bool = Box::leak(Box::new(has));
+        jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(has), &unheld, 1_000);
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].holder(Role::Flanker).map(|h| h.place), Some(12), "10 and 11 are nearer, with no flank spot");
+        assert_eq!(jobs[0].holder(Role::Pinner).map(|h| h.place), Some(11), "10 is nearer, with no pin spot");
+        // The switch off: the nearest, spot or not.
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(&any_spot), &unheld, 1_000);
+        assert_eq!(jobs[0].holder(Role::Flanker).map(|h| h.place), Some(10));
+        assert_eq!(jobs[0].holder(Role::Pinner).map(|h| h.place), Some(11));
+        // No mate has a spot: no job, the failure reported once, the spot rests (not tried again next tick).
+        let none: &'static dyn Fn(Place, Role, &HeldLine) -> bool = &|_, _, _| false;
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        let before = counted()[Count::JobRoleNoSpot as usize];
+        let events = jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(none), &unheld, 1_000);
+        assert!(jobs.is_empty());
+        assert_eq!(counted()[Count::JobRoleNoSpot as usize] - before, 2, "both roles asked");
+        assert!(
+            matches!(events[..], [JobEvent::NoSpot { spot: 4, role: Role::Flanker, asked: 4, .. }]),
+            "{events:?}"
+        );
+        assert_eq!(rested, [(4, 1_000 + JOB_REST_MS)]);
+        let events = jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team(none), &unheld, 1_500);
+        assert!(events.is_empty() && jobs.is_empty(), "{events:?}");
+        // The same by the old opening.
+        let (mut jobs, mut rested) = (Vec::new(), Vec::new());
+        let events = jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::ThenDropped, &team(none), &unheld, 1_000);
+        assert!(jobs.is_empty() && matches!(events[..], [JobEvent::NoSpot { spot: 4, .. }]), "{events:?}");
+        assert_eq!(rested, [(4, 1_000 + JOB_REST_MS)]);
     }
 
     #[test]
@@ -3496,7 +3619,7 @@ mod tests {
         let start = Vec3::new(-32.0, 0.0, 32.0);
         let starts = |_: Vec3| vec![start];
         let role_of = |flank_from: Option<&dyn Fn(Vec3) -> Vec<Vec3>>| {
-            let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0, flank_from, role_offer: false, strongest_first: false };
+            let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0, flank_from, role_offer: false, strongest_first: false, spot: &any_spot };
             let (mut jobs, mut rested) = (Vec::new(), Vec::new());
             jobs_tick(&mut jobs, &mut rested, &held, &held, Opening::Staffed, &team, &unheld, 1_000);
             (jobs[0].flanker.map(|h| h.place), jobs[0].pinner.map(|h| h.place))
@@ -3512,7 +3635,7 @@ mod tests {
         let spot = |id, at: Vec3, shooter| HeldLine { shooter, ..line(id, at, &lane(at)) };
         let far = Vec3::new(0.0, 0.0, 500.0);
         let mates: Vec<Mate> = (10..16).map(|place| Mate { place, feet: Vec3::new(-20.0, 0.0, place as f32), free: true, playing: None, offer: None }).collect();
-        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0, flank_from: None, role_offer: false, strongest_first: false };
+        let team = JobTeam { mates: &mates, size: 12, objective_areas: &[], breach_roles: 0, flank_from: None, role_offer: false, strongest_first: false, spot: &any_spot };
         let ids = |jobs: &[Job]| jobs.iter().map(|j| j.spot).collect::<Vec<_>>();
         // A far spot first in the list: both slots still go to the spots the bots can reach.
         let held = [spot(2, far, 8), spot(3, at(0.0), 9), spot(4, Vec3::new(0.0, 0.0, 30.0), 10)];
@@ -3542,7 +3665,7 @@ mod tests {
         let one = line(9, from, &[bearing(from, Vec3::new(-10.0, 0.0, 0.0))]);
         let mate = |place, x: f32, z: f32| Mate { place, feet: Vec3::new(x, 0.0, z), free: true, playing: None, offer: None };
         let mates = [mate(1, -12.0, 0.0), mate(2, -10.0, 30.0), mate(3, -10.0, -30.0)];
-        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[], breach_roles: 0, flank_from: None, role_offer: false, strongest_first: false };
+        let team = JobTeam { mates: &mates, size: 10, objective_areas: &[], breach_roles: 0, flank_from: None, role_offer: false, strongest_first: false, spot: &any_spot };
         let (holds, lanes) = ([hold.clone()], [hold, one]);
         assert!(lanes[1].covers(mates[0].feet), "the test's bot stands in the one-kill line");
         assert!(!lanes.iter().any(|l| l.covers(mates[1].feet) || l.covers(mates[2].feet)), "the others in none");
@@ -3569,7 +3692,7 @@ mod tests {
         ];
         let holders = |jobs: &[Job]| (jobs[0].flanker.map(|h| h.place), jobs[0].pinner.map(|h| h.place));
         let tick = |jobs: &mut Vec<Job>, rested: &mut Vec<(u32, u32)>, held: &[HeldLine], mates: &[Mate], now| {
-            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[], breach_roles: 0, flank_from: None, role_offer: false, strongest_first: false }, &unheld, now)
+            jobs_tick(jobs, rested, held, held, Opening::Staffed, &JobTeam { mates, size: 10, objective_areas: &[], breach_roles: 0, flank_from: None, role_offer: false, strongest_first: false, spot: &any_spot }, &unheld, now)
         };
         let (mut jobs, mut rested) = (Vec::new(), Vec::new());
         let events = tick(&mut jobs, &mut rested, &held, &mates, 1_000);
