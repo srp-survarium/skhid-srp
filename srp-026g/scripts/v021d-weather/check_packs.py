@@ -18,7 +18,7 @@ PACKS = {'maps-021d-weathers-2': {'03': (170, 171, 172, 173), '06': (179, 180, 2
          'maps-021d-chemical-weathers-1': {'04': (268, 269, 270, 271)}}
 MAPS = {level: ids for maps in PACKS.values() for level, ids in maps.items()}
 DAY_MARKERS = (-32281, -32195, -32198, -32187, -32196, -32287)
-LIGHTING_PACK = 'three-maps-021-lighting-7'
+LIGHTING_PACK = 'three-maps-021-lighting-8'
 
 
 def check(packs, source):
@@ -71,7 +71,7 @@ def check(packs, source):
         marker = -32021 - MAPS[level][0 if rain else 2]
         assert environment[0]['properties']['mie_fog_base_height'] == marker, path
     shaders = [p.read_bytes() for p in (lighting / 'files/shaders').rglob('*') if p.is_file()]
-    assert len(shaders) == 88, len(shaders)
+    assert len(shaders) == 128, len(shaders)
     markers = [*DAY_MARKERS, *(-32021 - ids[i] for ids in MAPS.values() for i in (0, 2))]
     for marker in markers:
         assert any(struct.pack('<f', marker) in shader for shader in shaders), f'missing shader marker {marker}'
@@ -79,7 +79,7 @@ def check(packs, source):
     assert len(geometry_edits['append_entry']) == 48
     assert len(geometry_edits['add_value']) == 8
     assert len(geometry_edits['remove_entry']) == 36
-    print(f'{len(projects)} weather projects: day gameplay preserved with exact authored weather fixture/barrel deltas; all lamp bindings valid; {len(markers)} lighting profiles in 88 shaders')
+    print(f'{len(projects)} weather projects: day gameplay preserved with exact authored weather fixture/barrel deltas; all lamp bindings valid; {len(markers)} lighting profiles in 128 shaders')
 
 
 def main():

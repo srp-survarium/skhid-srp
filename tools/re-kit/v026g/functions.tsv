@@ -644,6 +644,7 @@ va	status	ref_021d	name
 0x001a3690	reviewed	0x00120122	vostok::render::stage_atmosphere::fill_surfaces
 0x001a39d0	reviewed	0x00120336	vostok::render::stage_atmosphere::stage_atmosphere
 0x001a4200	reviewed	0x00120709	vostok::render::stage_atmosphere::execute
+0x001a5520	observed		vostok::render::stage_atmosphere::god_rays_pass
 0x001a6ee0	reviewed	0x0011ec51	vostok::render::effect_debug_modify_gbuffer::compile
 0x001a7280	reviewed	0x0011ee27	vostok::render::stage_composition::stage_composition
 0x001a78d0	reviewed	0x0011f135	vostok::render::stage_composition::gather_subsurface_scattering_models
@@ -2264,6 +2265,8 @@ va	status	ref_021d	name
 0x00103140	observed		vostok::resources::resources_manager::on_created_resource
 0x00109bd0	observed	0x000cbaaa	vostok::resources::query_result::finish_translated_query
 0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >
+0x002acc20	observed		vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::push_back
+0x002ac720	observed		survarium::particle_game_effect_presenter::serialize
 0x00200f50	reviewed	0x0015f1b6	survarium::game_options::activate
 0x002010e0	reviewed	0x0015f2d4	survarium::game_options::process_key_input
 0x002015a0	reviewed	0x0015f5e9	survarium::game_options::finish_binding
@@ -2448,4 +2451,11 @@ va	status	ref_021d	name
 0x00181660	verified	0x0010efaa	vostok::render::stage_ambient_lighting::render_ambient_light_list
 0x001858e0	verified		vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity
 0x0034d9a0	verified	0x00215157	vostok::render::environment_properties::environment_properties
+0x002aa870	observed		vostok::buffer_vector<survarium::sound_game_effect_presenter::effect_data>::push_back
 0x0034e1e0	observed	0x002157f7	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >
+0x0017cc90	verified		vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>
+0x001ae110	verified		vostok::render::effect_manager::create_effect<vostok::render::effect_rain>
+0x001d3730	verified	0x0013fc08	vostok::render::particle_rain_drops_geometry::particle_rain_drops_geometry
+0x0015fe20	verified		vostok::render::grass_world::set_wind_parameters
+0x001cbb70	verified	0x0013afad	vostok::render::pack_direction
+0x00070e30	verified		vostok::math::random32::random_f

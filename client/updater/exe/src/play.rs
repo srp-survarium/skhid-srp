@@ -27,12 +27,15 @@ fn read_config() -> Result<Option<Config>, String> {
 
 pub fn run(arguments: &[String]) -> u32 {
     let quiet = arguments.iter().any(|a| a == "quiet");
+    // The scripts' way: stay until the game ends, so its end and exit status
+    // are theirs to see, as when they started the exe themselves.
+    let wait = arguments.iter().any(|a| a == "wait");
     let game_arguments: Vec<_> = arguments
         .iter()
-        .filter(|a| a.as_str() != "quiet")
+        .filter(|a| !matches!(a.as_str(), "quiet" | "wait"))
         .cloned()
         .collect();
-    let result = launch(&game_arguments);
+    let result = launch(&game_arguments, wait);
     match result {
         Ok(()) => exit::OK,
         Err(message) => {
@@ -45,7 +48,7 @@ pub fn run(arguments: &[String]) -> u32 {
     }
 }
 
-fn launch(arguments: &[String]) -> Result<(), String> {
+fn launch(arguments: &[String], wait: bool) -> Result<(), String> {
     let layout = Layout::find().map_err(|path| crate::text::wrong_folder(&path))?;
     log::start(&layout);
     patches::ready(&layout)?;
@@ -72,10 +75,18 @@ fn launch(arguments: &[String]) -> Result<(), String> {
     let game = format!("{}\\survarium_skhid.exe", layout.exe_dir);
     // Use Rust's Windows argument quoting; never assemble an unchecked command
     // line from user-supplied strings. The helper itself runs beside the game.
-    std::process::Command::new(&game)
+    let mut game = std::process::Command::new(&game)
         .args(&arguments)
         .current_dir(&layout.exe_dir)
         .spawn()
         .map_err(|e| format!("Cannot start the game: {e}"))?;
+    if wait {
+        let status = game
+            .wait()
+            .map_err(|e| format!("Cannot wait for the game: {e}"))?;
+        if !status.success() {
+            return Err(format!("The game ended with an error ({status})."));
+        }
+    }
     Ok(())
 }

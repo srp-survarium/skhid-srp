@@ -125,3 +125,16 @@ verifies both original blobs and the resulting selector on every alpha-tested
 blend material. Previous unchanged-leaf snapshots were verified before excluding
 this one additional changed field. The correction still requires the next
 composed build and runtime comparison; candidate 7 predates it.
+
+## Parallax blend programs
+
+Eight linear materials have parallax on (six on Fort, `bricks_brick_vc` on School,
+`wall_memory_moss_vc` on Mamayev). Their 20 native programs keep the material constants
+in cb1, so the cb0 adapters of `v021d-vertex-blend` do not cover them: with the selector
+as strength the native weight was zero and the second texture covered the surface
+(candidate 13: moss over Fort's floors where 0.21's painted alpha is 255, red crystals).
+`v021d-vertex-blend-parallax@1` gives those programs the same four-instruction guard
+(resource-porter `examples/vertex-blend-parallax-021-pack.rs`,
+`vertex_blend/parallax-linear-programs.tsv`); `check_parallax_blend.py` verifies each
+against stock and that no masked material uses parallax.
+

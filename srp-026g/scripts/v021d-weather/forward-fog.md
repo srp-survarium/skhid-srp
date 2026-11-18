@@ -48,3 +48,19 @@ closure passes the independent index check. Its composed native comparison is
 five kept School rain glass/control cameras; no original image is overwritten.
 The existing day-port native-finish policy is preserved and does not by itself
 waive visible differences. The separate roof sheen difference remains recorded.
+
+## Particle base programs (version 3)
+
+Fort's anomaly in rain drew pale blue squares: its additive particles
+(`fx/level_5_anomaly/new/pasted_points`, `forward_default`) are fogged by the
+forward base pass, and the native fog adds the sky LUT's colour over the whole
+quad. 0.21's particle program fogs with a fifth of the environment's Rayleigh
+colour. Version 3 adds a second case to the builder (`Kind::Particle`): the
+original block of `forward_base.ps/______0________2__010__3...` goes into the
+nine stock particle base programs that share one native fog block (blend 1 and
+2, vertex classes 3 to 6; 36 stock paths and their 36 published aliases). Their
+tails read only the fog colour (`r0.xzw`) and amount (`r0.y`), which the
+original block's `r0.xyz` and `r1.y` are copied into. Other particle programs
+have other register layouts and stay native. `forward-fog-inputs.json` pins the
+nineteen programs; `check_forward_fog.py` tells the two base cases by how the
+results reach the tail. Day and evening showed no squares before or after.
