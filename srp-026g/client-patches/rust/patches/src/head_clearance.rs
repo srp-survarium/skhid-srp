@@ -30,10 +30,6 @@ use crate::vostok::step::GroundMaterial;
 use crate::vostok::world::PlayerId;
 use crate::vostok::{Context, Flow, GameCell, NoExit, clock};
 
-/// The level's collision that bullets hit (cgroup 8 / cmask 16), which
-/// follows the drawn surfaces (lobby_camera::process_collision 0x2844E4).
-const GROUP: u32 = 0x10;
-const MASK: u32 = 0x08;
 /// The game materials of leaves (game.materials: foliage_coniferous,
 /// foliage_deciduous, foliage_dry), which a walker goes through and the eye
 /// with him.
@@ -79,7 +75,7 @@ pub fn on_eye(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let hit = player.physics_world().and_then(|world| {
         let (from, along) = (way.from, way.along);
         world
-            .ray_test_past([from.x, from.y, from.z], [along.x, along.y, along.z], way.length + CLEARANCE, GROUP, MASK, is_leaves)
+            .shot_ray_test_past([from.x, from.y, from.z], [along.x, along.y, along.z], way.length + CLEARANCE, is_leaves)
             .map(|hit| (Vec3::new(hit.point[0], hit.point[1], hit.point[2]) - from).dot(along))
     });
     let next = step(PULL.get(thread), player.id(), wanted_pull(way.length, hit), clock::milliseconds(thread));

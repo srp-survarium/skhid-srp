@@ -31,7 +31,17 @@ not let camera clip in in similar situations".
     met a leaf: the eye dropped up to 0.4 m, at once, at every leaf, and the hands (drawn at the
     real eye) jumped up the screen. A hit on a triangle of a leaves' game material
     (foliage_coniferous 24, foliage_deciduous 44, foliage_dry 49) is passed: the ray goes on from
-    0.01 m behind it, through 16 leaves at most (then nothing is met).
+    1 mm behind it (a surface the leaf lies on is still met), through 16 leaves at most (then
+    nothing is met).
+  - foliage_dry is two things in the live maps' collision (read from the stock db, 2026-11-18).
+    Upright leaves standing free: level 06's `object_1` has 410 m² of them, 94 % with no other
+    collision within 2 m along the face's normal, and Vector's `centre_lab` 505 m² (76 % more
+    than 15 cm off any). And leaves lying level: some the ground's own faces (level 06's `ground_1_4`, 98 % level,
+    70 % with nothing under them within 2 m), some over a floor (Vector's `base_v_outdoor`;
+    Cologne's ICE cars, most 5 cm or more over the car's other collision; a campfire's cloth).
+    It is passed for the first: a lying leaf is under the feet, not on the ray's way, and a floor
+    under leaves is met behind them. What is given up: a ground of foliage_dry faces alone
+    hanging over a crouched head.
   - A wall a player stands against never comes into it: the capsule keeps the eye 0.25 m from
     walls.
 - **What it does not change:**
