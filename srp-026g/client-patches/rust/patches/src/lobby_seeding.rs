@@ -1,14 +1,14 @@
-//! Patch 150: the game shares its files by BitTorrent on the login screen
-//! and in the lobby, never in a match, as its developers made it, while its
-//! own `enable_torrent_seeding` (a line of user.cfg, which the launcher's
+//! Patch 150: the game shares its files by BitTorrent from its login screen
+//! on, in matches too (the owner, 2026-11-18; its developers stopped it
+//! there), while its own `enable_torrent_seeding` (user.cfg, the launcher's
 //! "Allow torrent" box writes) is on (`srp-026g/docs/notes/torrent-downloads.md`,
 //! "Sharing from the game").
 //!
 //! The game's own triggers stay: switch_to_login and switch_to_lobby call
 //! start_seeding while the setting is on (its default now off,
 //! patch_026g.py LOBBY_SEEDING_DEFAULT), its command's callback starts or
-//! stops it as it changes, switch_to_game_world calls stop_seeding (the
-//! pipe's disconnect: the updater ends), a replay never either.
+//! stops it as it changes, a replay never either. switch_to_game_world's
+//! stop_seeding is jumped over (patch_026g.py MATCH_SEEDING_KEEP).
 //! start_seeding posts start_seeding_impl, whose pipe server and message
 //! handler stay the game's; this patch:
 //!

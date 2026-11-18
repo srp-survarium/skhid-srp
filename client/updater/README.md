@@ -132,9 +132,10 @@ one.
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
 | `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher keeps its "Allow torrent": user.cfg's `enable_torrent_seeding on` (`<Documents>\survarium\user.cfg`, as the language), taken only once the launcher's one-time reset is done (`launcher_skhid.torrent_reset` beside user.cfg, launcher patch 15); else off |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
+| `updater_skhid.exe play [<game options>]` (`quiet`: no box; `wait`: stays until the game ends, exit code 1 when it ended with an error) | the launcher's PLAY and the play scripts (`wait quiet`), in a download with `updater_skhid.relay` | Starts the game on the route that answers: the server itself, else the relay (`srp-026g/deploy/relay/README.md`). With `-server=` or `-match_replay=` among the options, or no `updater_skhid.relay`, the game is started as given. Exit code 1 when neither route answers or the patches are not ready |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
-| `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: on its login screen and in its lobby | Shares the folder's revision torrent until the game closes its pipe (a match, the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `updater_skhid.seed-logs\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
+| `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: from its login screen on, matches too | Shares the folder's revision torrent until the game closes its pipe (the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `updater_skhid.seed-logs\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
 
 Exit codes: 0, 1 (failed), 2 (the launcher's pipe could not be opened), 3
 (an internal error; logged).
@@ -561,7 +562,7 @@ and in `seed`.
 **Sharing from the game** (`exe/src/seed.rs`, `logic/src/seed.rs`; the spec's
 "Sharing from the game"): the patched game, while its own
 `enable_torrent_seeding` ("Allow torrent", user.cfg's line) is on, makes the pipe
-`\\.\pipe\skhid_seed-<its process id>` on its login screen and in its lobby
+`\\.\pipe\skhid_seed-<its process id>` on its login screen (kept through the lobby and matches)
 and starts `updater_skhid.exe seed <that pipe>` beside itself, with no
 window. The updater opens the pipe and reads "Allow torrent" as the
 launcher's updater does (`win::launcher_torrent_allowed`: user.cfg's line
@@ -571,8 +572,7 @@ still has the original game's default `on`). Then it shares the folder's
 torrent as the launcher's updater does while it watches (`torrent::share_while`, its one
 call into the engine: the trusted torrent's files the folder has, the
 bootstrap's, the DHT item; nothing fetched), on the port the updaters keep
-(`game\torrent\port`; a free one, then kept, when none is), and ends when the pipe closes: the game entering a match,
-or ending. It takes no lock and shows no box; its run logs go in `game\logs\seed\` (a seed runs at every lobby: beside the others it would push them out). A port that
+(`game\torrent\port`; a free one, then kept, when none is), and ends when the pipe closes: the game ending, or the setting turned off. It takes no lock and shows no box; its run logs go in `game\logs\seed\` (a seed runs at every game start: beside the others it would push them out). A port that
 is held (another updater shares on it, or is closing) is tried for 10 s,
 then the run ends, logged. On the pipe (the launcher's framing) the game
 says its upload limit (`1E`: ignored, the cap holds) and its stats switch
