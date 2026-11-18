@@ -13,6 +13,9 @@ pub(super) struct TeamState {
     pub(super) features: TeamFeatures,
     /// [A310 `tdm.squad`] The team's squads, formed once at the first commander tick with every bot alive (`squad::form`).
     pub(super) squads: Option<Vec<Vec<Place>>>,
+    /// [fix-team 2 `commit.hold_started`] Its bots' held plays an interrupter suspended (`team::Commit::Resumes`): one a bot
+    /// at most, kept while the bot's play is the interrupter's (`team::INTERRUPT_REASON`), gone with the bot's life.
+    pub(super) suspended: Vec<team::Suspended>,
 }
 
 /// [A391] A Breach that went: its spot and its bots.
@@ -1206,6 +1209,8 @@ impl Bots {
                 &self.memo,
             );
         }
+        // [fix-team 2] A suspended play goes with its bot's life.
+        self.teams[usize::from(team)].suspended.retain(|s| view.place(s.place).is_some_and(|p| p.alive && p.spawned <= s.at));
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         let mut asked_lines: Vec<(Place, Vec<super::nav_log::Line>)> = Vec::new();
@@ -1290,6 +1295,16 @@ impl Bots {
             {
                 // [A394 (b)] A take within reach, unseen, before its first press: finished first.
                 commits.push((bot.place, team::Commit::Finish));
+            } else if tuning.commit.hold_started
+                && let Some(s) = state.suspended.iter().find(|s| s.place == bot.place)
+            {
+                // [fix-team 2] Its held play waits for the interrupter it runs to be over.
+                commits.push((bot.place, team::Commit::Resumes { kind: s.kind, target: s.target }));
+            } else if tuning.commit.hold_started
+                && bot.assignment.as_ref().is_some_and(|a| team::held_kind(a.kind, a.target))
+            {
+                // [fix-team 2] A started raid, job or Breach role, cover of a human or Collect run: held.
+                commits.push((bot.place, team::Commit::Held));
             } else if tuning.commit.hold_to_arrival
                 && bot.running.as_ref().is_some_and(plays::Running::travelling)
                 // [A320 F1] With `camp_flank.inertia` a flank route's walk keeps its play by its score and bonus instead.
@@ -1378,6 +1393,19 @@ impl Bots {
             let Some(Some(bot)) = self.bots.get_mut(place) else {
                 continue;
             };
+            // [fix-team 2] A held play an interrupter took is suspended; a suspension lasts while the bot's play is the
+            // interrupter's, and ends with the play resumed or another taken.
+            if tuning.commit.hold_started {
+                let suspended = &mut self.teams[usize::from(team)].suspended;
+                if assignment.reason != team::INTERRUPT_REASON {
+                    suspended.retain(|s| s.place != place);
+                } else if changed
+                    && !suspended.iter().any(|s| s.place == place)
+                    && let Some(old) = bot.assignment.as_ref().filter(|a| team::held_kind(a.kind, a.target))
+                {
+                    suspended.push(team::Suspended { place, kind: old.kind, target: old.target, at: now });
+                }
+            }
             if !changed {
                 bot.assignment = Some(assignment);
                 continue;
