@@ -438,6 +438,24 @@ pub fn held_kind(kind: PlayKind, target: TargetRef) -> bool {
     }
 }
 
+/// [fix-team 2, review of #2177] A CoverHuman is held for this long from its start, then kept by its band and the margin
+/// as any play, ms: a commitment that wears off with its run time (Lewis, Game AI Pro 3 ch. 13), not one that keeps a support
+/// bot by the human against every objective play for the cover's own 60-120 s. The design's 15-20 s; not measured.
+pub const COVER_HUMAN_HOLD_MS: u32 = 20_000;
+
+/// [fix-team 2] Whether the running play `kind` on `target`, started at `since`, is held at `now` ([`Commit::Held`]): a play
+/// of [`held_kind`], a CoverHuman only for its first [`COVER_HUMAN_HOLD_MS`].
+pub fn held(kind: PlayKind, target: TargetRef, since: u32, now: u32) -> bool {
+    held_kind(kind, target) && (kind != PlayKind::CoverHuman || now < since.saturating_add(COVER_HUMAN_HOLD_MS))
+}
+
+/// [fix-team 3 `threat.support`] Whether a bot running `current` (its play, target and the play's band) may be given a mate's
+/// fight: one whose play is under the objective band and, with `commit.hold_started`, not a held play (a held CoverHuman or a
+/// job's flank in the fight band keeps the bot against the fight-band cover, so the fight would wait on it every pass).
+pub fn may_support(current: Option<(&Assignment, Rank)>, hold_started: bool, now: u32) -> bool {
+    current.is_none_or(|(a, rank)| rank < Rank::Objective && !(hold_started && held(a.kind, a.target, a.since, now)))
+}
+
 /// [fix-team 2] Whether `best` (the bot's best other candidate, competing in band `best_band`) is a named interrupter of a
 /// held play competing in `held_band`: a survival play, or an alarm (a mate's death to trade, a carrier to escort, a thief
 /// to intercept, a hit to heal) over a play below the alarm band. Nothing else takes a held play.
@@ -2105,5 +2123,33 @@ mod tests {
         assert!(!held_kind(PlayKind::Flank, TargetRef::Place(3)), "a flank of its own is no job role");
         assert!(!held_kind(PlayKind::Roam, TargetRef::Battery(0)));
         assert!(!held_kind(PlayKind::Trade, TargetRef::Place(2)), "an alarm is not held: it is kept by its band");
+    }
+
+    /// [fix-team 3] A fight goes only to a bot that can take the fight-band cover: none on an objective or an alarm, none held.
+    #[test]
+    fn a_mates_fight_goes_only_to_a_bot_free_to_support_it() {
+        let play = |kind, target| Assignment { kind, target, slot: None, score: 0.5, since: 1_000, reason: "the best play" };
+        let now = 5_000;
+        assert!(may_support(None, true, now));
+        assert!(may_support(Some((&play(PlayKind::Roam, TargetRef::Battery(0)), Rank::Roam)), true, now));
+        assert!(!may_support(Some((&play(PlayKind::Collect, TargetRef::Battery(0)), Rank::Objective)), false, now));
+        // Held in the fight band: a CoverHuman, a job's flank.
+        for (kind, target) in [(PlayKind::CoverHuman, TargetRef::Place(3)), (PlayKind::Flank, TargetRef::ThreatSpot(2))] {
+            assert!(!may_support(Some((&play(kind, target), Rank::Fight)), true, now), "{kind:?} held");
+            assert!(may_support(Some((&play(kind, target), Rank::Fight)), false, now), "{kind:?} not held with the hold off");
+        }
+        assert!(may_support(Some((&play(PlayKind::Flank, TargetRef::Place(3)), Rank::Fight)), true, now), "a flank of its own is not held");
+        // A CoverHuman past its hold may support.
+        let late = 1_000 + COVER_HUMAN_HOLD_MS;
+        assert!(may_support(Some((&play(PlayKind::CoverHuman, TargetRef::Place(3)), Rank::Fight)), true, late));
+    }
+
+    /// [review of #2177] A CoverHuman is held for its first COVER_HUMAN_HOLD_MS only; the other held plays to their end.
+    #[test]
+    fn a_cover_human_is_held_only_for_its_first_seconds() {
+        assert!(held(PlayKind::CoverHuman, TargetRef::Place(3), 1_000, 1_000 + COVER_HUMAN_HOLD_MS - 1));
+        assert!(!held(PlayKind::CoverHuman, TargetRef::Place(3), 1_000, 1_000 + COVER_HUMAN_HOLD_MS));
+        assert!(held(PlayKind::Raid, TargetRef::Container(0), 1_000, 1_000 + 10 * COVER_HUMAN_HOLD_MS));
+        assert!(!held(PlayKind::Roam, TargetRef::Battery(0), 1_000, 1_001));
     }
 }

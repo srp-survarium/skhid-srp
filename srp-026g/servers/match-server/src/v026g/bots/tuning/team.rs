@@ -698,6 +698,15 @@ pub struct ThreatTuning {
     /// no such spot, the bot holds where it is, its view on him. In 0x60217a42 the trades walked onto bodies 6-8 m from a camper
     /// (the A297 spot was Team Deathmatch's only). `None`: off (TDM's `tdm.group` only).
     pub trade_cover: Option<GroupUp>,
+    /// [fix-team 3] A mate's fight is answered in every mode where `tdm.group` and `tdm.squad` are off: the commander gives
+    /// each fight (a teammate whose reflex holds a target) the nearest free bot within `answer_m` not holding an angle
+    /// (`answer`) and not on an objective or alarm play, and play 21's cover takes it to a spot round the mate with a line
+    /// on the mate's enemy from a second bearing, its view on him (the shared target), in the fight band (A297's cover was an
+    /// alarm and took the bots off their held angles). The rules are A297's v3 cover, with no pre-contact hold (`approach`).
+    /// `None`: off, the trade after the mate's death only (16 local matches at 9694ea576: at 73 % of the human's kills no
+    /// other enemy bot fired at or hit him; 67 % of a victim's mates within 15 m had no line to him in the 3 s before;
+    /// `LOSING-TEAM-ROOT-CAUSE.md` L6).
+    pub support: Option<GroupUp>,
     /// K3: PairUp does not join a teammate standing in a held spot's lanes,
     /// and its join and wait spots are out of the top player's sight and the
     /// held lanes (F3).
@@ -1086,6 +1095,7 @@ impl Default for ThreatTuning {
             trade_out_of_lines: true,
             trade_reach: true,
             trade_cover: None,
+            support: Some(GroupUp { approach: None, ..GroupUp::default() }),
             pair_up_hidden: true,
             crossfire_out_of_lines: true,
             whole_route_booked: true,
