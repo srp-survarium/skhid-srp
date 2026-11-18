@@ -1,0 +1,21 @@
+# Patch 135: a replay shows the enemies too (README "A replay shows every
+# player"). The sites are sites_026g.tsv's; the logic is replay_map.rs. Each
+# hook asks the game's network client whether it plays a replay (its class);
+# there is no state of ours to set.
+name = "replay_map"
+patch = 135
+
+# update_minimap_players' spotted test of an enemy: its dot.
+[[hook]]
+site = "minimap.enemy_spotted"
+handler = "on_enemy"
+
+# render_name's spotted test of an enemy: its marker and, with Alt, its name.
+[[hook]]
+site = "player_names.enemy_spotted"
+handler = "on_name"
+
+# initialize_match as it sends the icons movie its enemy list.
+[[hook]]
+site = "player_icons.enemy_ids"
+handler = "on_enemy_ids"

@@ -104048,6 +104048,710 @@
       }
     },
     {
+      "files": "projects/v021d_level_02/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          29.291000366210938,
+          13.152000427246094,
+          90.73500061035156
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          29.291000366210938,
+          13.152000427246094,
+          90.73500061035156
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          11.17199993133545,
+          13.152000427246094,
+          90.73500061035156
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          11.17199993133545,
+          13.152000427246094,
+          90.73500061035156
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/alarm_red",
+        "position": [
+          40.13600158691406,
+          21.143999099731445,
+          15.071000099182129
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/alarm_red",
+        "position": [
+          40.13600158691406,
+          21.143999099731445,
+          15.071000099182129
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "ported/v021d/props/light/alarm_broken",
+        "lib_name": "ported/v021d/props/light/alarm_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          11.1850004196167,
+          13.079000473022461,
+          118.98999786376953
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          11.1850004196167,
+          13.079000473022461,
+          118.98999786376953
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          29.618999481201172,
+          13.079000473022461,
+          118.98999786376953
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          29.618999481201172,
+          13.079000473022461,
+          118.98999786376953
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          39.861000061035156,
+          22.045000076293945,
+          23.22599983215332
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          39.861000061035156,
+          22.045000076293945,
+          23.22599983215332
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          42.834999084472656,
+          22.045000076293945,
+          17.91900062561035
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          42.834999084472656,
+          22.045000076293945,
+          17.91900062561035
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          42.8390007019043,
+          22.045000076293945,
+          23.22599983215332
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          42.8390007019043,
+          22.045000076293945,
+          23.22599983215332
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          29.291000366210938,
+          13.152000427246094,
+          90.73500061035156
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          29.291000366210938,
+          13.152000427246094,
+          90.73500061035156
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          11.17199993133545,
+          13.152000427246094,
+          90.73500061035156
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          11.17199993133545,
+          13.152000427246094,
+          90.73500061035156
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/alarm_red",
+        "position": [
+          40.13600158691406,
+          21.143999099731445,
+          15.071000099182129
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/alarm_red",
+        "position": [
+          40.13600158691406,
+          21.143999099731445,
+          15.071000099182129
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "ported/v021d/props/light/alarm_broken",
+        "lib_name": "ported/v021d/props/light/alarm_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          11.1850004196167,
+          13.079000473022461,
+          118.98999786376953
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          11.1850004196167,
+          13.079000473022461,
+          118.98999786376953
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          29.618999481201172,
+          13.079000473022461,
+          118.98999786376953
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          29.618999481201172,
+          13.079000473022461,
+          118.98999786376953
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          39.861000061035156,
+          22.045000076293945,
+          23.22599983215332
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          39.861000061035156,
+          22.045000076293945,
+          23.22599983215332
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          42.834999084472656,
+          22.045000076293945,
+          17.91900062561035
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          42.834999084472656,
+          22.045000076293945,
+          17.91900062561035
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_02/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          42.8390007019043,
+          22.045000076293945,
+          23.22599983215332
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "position": [
+          42.8390007019043,
+          22.045000076293945,
+          23.22599983215332
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
       "files": "projects/v021d_level_03/day_2/client_project",
       "list": "render_visuals",
       "after": {
@@ -105893,6 +106597,94 @@
       "values": {
         "visual_name": "ported/v021d/props/light/white_broken",
         "lib_name": "ported/v021d/props/light/white_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_05/day_2/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp",
+        "position": [
+          4.118000030517578,
+          12.067999839782715,
+          2.8929998874664307
+        ],
+        "rotation": [
+          2.825000047683716,
+          0.9559999704360962,
+          0.20200000703334808
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp",
+        "position": [
+          4.118000030517578,
+          12.067999839782715,
+          2.8929998874664307
+        ],
+        "rotation": [
+          2.825000047683716,
+          0.9559999704360962,
+          0.20200000703334808
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
+      }
+    },
+    {
+      "files": "projects/v021d_level_05/day_4/client_project",
+      "list": "render_visuals",
+      "after": {
+        "visual_name": "ported/v021d/props/light/lamp",
+        "position": [
+          4.118000030517578,
+          12.067999839782715,
+          2.8929998874664307
+        ],
+        "rotation": [
+          2.825000047683716,
+          0.9559999704360962,
+          0.20200000703334808
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "like": {
+        "visual_name": "ported/v021d/props/light/lamp",
+        "position": [
+          4.118000030517578,
+          12.067999839782715,
+          2.8929998874664307
+        ],
+        "rotation": [
+          2.825000047683716,
+          0.9559999704360962,
+          0.20200000703334808
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "values": {
+        "visual_name": "props/light/srp_lamp_broken",
+        "lib_name": "props/light/srp_lamp_broken"
       }
     },
     {
@@ -177601,6 +178393,588 @@
     },
     {
       "files": [
+        "projects/v021d_level_02/day_2/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 29.235000364482403,
+            "min_y": 12.943000420928001,
+            "min_z": 90.67900060862303,
+            "max_x": 29.347000367939472,
+            "max_y": 13.152000427246094,
+            "max_z": 90.79000061005354,
+            "glass_from_x": 29.291000366210938,
+            "glass_from_y": 12.943000420928001,
+            "glass_from_z": 90.73450060933828,
+            "glass_to_x": 29.291000366210938,
+            "glass_to_y": 13.152000427246094,
+            "glass_to_z": 90.73450060933828,
+            "visuals": {
+              "intact0": {
+                "index": 295,
+                "state": 0
+              },
+              "broken0": {
+                "index": 296,
+                "state": 1
+              },
+              "cone0": {
+                "index": 293,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 29.299999237060547,
+                "y": 12.920999526977539,
+                "z": 90.74800109863281,
+                "name": "environment_and_lights/lights/spot_light(4)"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 11.115999929606915,
+            "min_y": 12.943000420928001,
+            "min_z": 90.67900060862303,
+            "max_x": 11.227999933063984,
+            "max_y": 13.152000427246094,
+            "max_z": 90.79000061005354,
+            "glass_from_x": 11.17199993133545,
+            "glass_from_y": 12.943000420928001,
+            "glass_from_z": 90.73450060933828,
+            "glass_to_x": 11.17199993133545,
+            "glass_to_y": 13.152000427246094,
+            "glass_to_z": 90.73450060933828,
+            "visuals": {
+              "intact0": {
+                "index": 299,
+                "state": 0
+              },
+              "broken0": {
+                "index": 300,
+                "state": 1
+              },
+              "cone0": {
+                "index": 297,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 11.197999954223633,
+                "y": 12.859000205993652,
+                "z": 90.75499725341797,
+                "name": "environment_and_lights/lights/spot_light(2)"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 40.13600158691406,
+            "min_y": 21.077999100089073,
+            "min_z": 14.90100009739399,
+            "max_x": 40.24500158429146,
+            "max_y": 21.209999099373817,
+            "max_z": 15.241000100970268,
+            "glass_from_x": 40.19050158560276,
+            "glass_from_y": 21.143999099731445,
+            "glass_from_z": 14.90100009739399,
+            "glass_to_x": 40.19050158560276,
+            "glass_to_y": 21.143999099731445,
+            "glass_to_z": 15.241000100970268,
+            "visuals": {
+              "intact0": {
+                "index": 408,
+                "state": 0
+              },
+              "broken0": {
+                "index": 409,
+                "state": 1
+              }
+            },
+            "lights": {}
+          },
+          "lamp003": {
+            "min_x": 11.129000417888165,
+            "min_y": 12.870000466704369,
+            "min_z": 118.933997862041,
+            "max_x": 11.241000421345234,
+            "max_y": 13.079000473022461,
+            "max_z": 119.04499786347151,
+            "glass_from_x": 11.1850004196167,
+            "glass_from_y": 12.870000466704369,
+            "glass_from_z": 118.98949786275625,
+            "glass_to_x": 11.1850004196167,
+            "glass_to_y": 13.079000473022461,
+            "glass_to_z": 118.98949786275625,
+            "visuals": {
+              "intact0": {
+                "index": 633,
+                "state": 0
+              },
+              "broken0": {
+                "index": 634,
+                "state": 1
+              },
+              "cone0": {
+                "index": 631,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 11.197999954223633,
+                "y": 12.795999526977539,
+                "z": 118.96600341796875,
+                "name": "environment_and_lights/lights/spot_light(5)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 29.562999479472637,
+            "min_y": 12.870000466704369,
+            "min_z": 118.933997862041,
+            "max_x": 29.674999482929707,
+            "max_y": 13.079000473022461,
+            "max_z": 119.04499786347151,
+            "glass_from_x": 29.618999481201172,
+            "glass_from_y": 12.870000466704369,
+            "glass_from_z": 118.98949786275625,
+            "glass_to_x": 29.618999481201172,
+            "glass_to_y": 13.079000473022461,
+            "glass_to_z": 118.98949786275625,
+            "visuals": {
+              "intact0": {
+                "index": 651,
+                "state": 0
+              },
+              "broken0": {
+                "index": 652,
+                "state": 1
+              },
+              "cone0": {
+                "index": 649,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 29.608999252319336,
+                "y": 12.782999992370605,
+                "z": 118.97799682617188,
+                "name": "environment_and_lights/lights/spot_light(1)"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 39.80500005930662,
+            "min_y": 21.836000069975853,
+            "min_z": 23.169999830424786,
+            "max_x": 39.91700006276369,
+            "max_y": 22.045000076293945,
+            "max_z": 23.280999831855297,
+            "glass_from_x": 39.861000061035156,
+            "glass_from_y": 21.836000069975853,
+            "glass_from_z": 23.22549983114004,
+            "glass_to_x": 39.861000061035156,
+            "glass_to_y": 22.045000076293945,
+            "glass_to_z": 23.22549983114004,
+            "visuals": {
+              "intact0": {
+                "index": 656,
+                "state": 0
+              },
+              "broken0": {
+                "index": 657,
+                "state": 1
+              },
+              "cone0": {
+                "index": 654,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 39.89500045776367,
+                "y": 21.78700065612793,
+                "z": 23.233999252319336,
+                "name": "environment_and_lights/lights/spot_light"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 42.77899908274412,
+            "min_y": 21.836000069975853,
+            "min_z": 17.863000623881817,
+            "max_x": 42.89099908620119,
+            "max_y": 22.045000076293945,
+            "max_z": 17.97400062531233,
+            "glass_from_x": 42.834999084472656,
+            "glass_from_y": 21.836000069975853,
+            "glass_from_z": 17.918500624597073,
+            "glass_to_x": 42.834999084472656,
+            "glass_to_y": 22.045000076293945,
+            "glass_to_z": 17.918500624597073,
+            "visuals": {
+              "intact0": {
+                "index": 665,
+                "state": 0
+              },
+              "broken0": {
+                "index": 666,
+                "state": 1
+              },
+              "cone0": {
+                "index": 663,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 42.816001892089844,
+                "y": 21.700000762939453,
+                "z": 17.940000534057617,
+                "name": "environment_and_lights/lights/spot_light(3)"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 42.78300070017576,
+            "min_y": 21.836000069975853,
+            "min_z": 23.169999830424786,
+            "max_x": 42.89500070363283,
+            "max_y": 22.045000076293945,
+            "max_z": 23.280999831855297,
+            "glass_from_x": 42.8390007019043,
+            "glass_from_y": 21.836000069975853,
+            "glass_from_z": 23.22549983114004,
+            "glass_to_x": 42.8390007019043,
+            "glass_to_y": 22.045000076293945,
+            "glass_to_z": 23.22549983114004,
+            "visuals": {
+              "intact0": {
+                "index": 670,
+                "state": 0
+              },
+              "broken0": {
+                "index": 671,
+                "state": 1
+              },
+              "cone0": {
+                "index": 668,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 42.83700180053711,
+                "y": 21.78700065612793,
+                "z": 23.224000930786133,
+                "name": "environment_and_lights/lights/spot_light(6)"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_02/day_4/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 29.235000364482403,
+            "min_y": 12.943000420928001,
+            "min_z": 90.67900060862303,
+            "max_x": 29.347000367939472,
+            "max_y": 13.152000427246094,
+            "max_z": 90.79000061005354,
+            "glass_from_x": 29.291000366210938,
+            "glass_from_y": 12.943000420928001,
+            "glass_from_z": 90.73450060933828,
+            "glass_to_x": 29.291000366210938,
+            "glass_to_y": 13.152000427246094,
+            "glass_to_z": 90.73450060933828,
+            "visuals": {
+              "intact0": {
+                "index": 295,
+                "state": 0
+              },
+              "broken0": {
+                "index": 296,
+                "state": 1
+              },
+              "cone0": {
+                "index": 293,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 29.299999237060547,
+                "y": 12.920999526977539,
+                "z": 90.74800109863281,
+                "name": "environment_and_lights/lights/spot_light(4)"
+              }
+            }
+          },
+          "lamp001": {
+            "min_x": 11.115999929606915,
+            "min_y": 12.943000420928001,
+            "min_z": 90.67900060862303,
+            "max_x": 11.227999933063984,
+            "max_y": 13.152000427246094,
+            "max_z": 90.79000061005354,
+            "glass_from_x": 11.17199993133545,
+            "glass_from_y": 12.943000420928001,
+            "glass_from_z": 90.73450060933828,
+            "glass_to_x": 11.17199993133545,
+            "glass_to_y": 13.152000427246094,
+            "glass_to_z": 90.73450060933828,
+            "visuals": {
+              "intact0": {
+                "index": 299,
+                "state": 0
+              },
+              "broken0": {
+                "index": 300,
+                "state": 1
+              },
+              "cone0": {
+                "index": 297,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 11.197999954223633,
+                "y": 12.859000205993652,
+                "z": 90.75499725341797,
+                "name": "environment_and_lights/lights/spot_light(2)"
+              }
+            }
+          },
+          "lamp002": {
+            "min_x": 40.13600158691406,
+            "min_y": 21.077999100089073,
+            "min_z": 14.90100009739399,
+            "max_x": 40.24500158429146,
+            "max_y": 21.209999099373817,
+            "max_z": 15.241000100970268,
+            "glass_from_x": 40.19050158560276,
+            "glass_from_y": 21.143999099731445,
+            "glass_from_z": 14.90100009739399,
+            "glass_to_x": 40.19050158560276,
+            "glass_to_y": 21.143999099731445,
+            "glass_to_z": 15.241000100970268,
+            "visuals": {
+              "intact0": {
+                "index": 406,
+                "state": 0
+              },
+              "broken0": {
+                "index": 407,
+                "state": 1
+              }
+            },
+            "lights": {}
+          },
+          "lamp003": {
+            "min_x": 11.129000417888165,
+            "min_y": 12.870000466704369,
+            "min_z": 118.933997862041,
+            "max_x": 11.241000421345234,
+            "max_y": 13.079000473022461,
+            "max_z": 119.04499786347151,
+            "glass_from_x": 11.1850004196167,
+            "glass_from_y": 12.870000466704369,
+            "glass_from_z": 118.98949786275625,
+            "glass_to_x": 11.1850004196167,
+            "glass_to_y": 13.079000473022461,
+            "glass_to_z": 118.98949786275625,
+            "visuals": {
+              "intact0": {
+                "index": 631,
+                "state": 0
+              },
+              "broken0": {
+                "index": 632,
+                "state": 1
+              },
+              "cone0": {
+                "index": 629,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 11.197999954223633,
+                "y": 12.795999526977539,
+                "z": 118.96600341796875,
+                "name": "environment_and_lights/lights/spot_light(5)"
+              }
+            }
+          },
+          "lamp004": {
+            "min_x": 29.562999479472637,
+            "min_y": 12.870000466704369,
+            "min_z": 118.933997862041,
+            "max_x": 29.674999482929707,
+            "max_y": 13.079000473022461,
+            "max_z": 119.04499786347151,
+            "glass_from_x": 29.618999481201172,
+            "glass_from_y": 12.870000466704369,
+            "glass_from_z": 118.98949786275625,
+            "glass_to_x": 29.618999481201172,
+            "glass_to_y": 13.079000473022461,
+            "glass_to_z": 118.98949786275625,
+            "visuals": {
+              "intact0": {
+                "index": 649,
+                "state": 0
+              },
+              "broken0": {
+                "index": 650,
+                "state": 1
+              },
+              "cone0": {
+                "index": 647,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 29.608999252319336,
+                "y": 12.782999992370605,
+                "z": 118.97799682617188,
+                "name": "environment_and_lights/lights/spot_light(1)"
+              }
+            }
+          },
+          "lamp005": {
+            "min_x": 39.80500005930662,
+            "min_y": 21.836000069975853,
+            "min_z": 23.169999830424786,
+            "max_x": 39.91700006276369,
+            "max_y": 22.045000076293945,
+            "max_z": 23.280999831855297,
+            "glass_from_x": 39.861000061035156,
+            "glass_from_y": 21.836000069975853,
+            "glass_from_z": 23.22549983114004,
+            "glass_to_x": 39.861000061035156,
+            "glass_to_y": 22.045000076293945,
+            "glass_to_z": 23.22549983114004,
+            "visuals": {
+              "intact0": {
+                "index": 654,
+                "state": 0
+              },
+              "broken0": {
+                "index": 655,
+                "state": 1
+              },
+              "cone0": {
+                "index": 652,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 39.89500045776367,
+                "y": 21.78700065612793,
+                "z": 23.233999252319336,
+                "name": "environment_and_lights/lights/spot_light"
+              }
+            }
+          },
+          "lamp006": {
+            "min_x": 42.77899908274412,
+            "min_y": 21.836000069975853,
+            "min_z": 17.863000623881817,
+            "max_x": 42.89099908620119,
+            "max_y": 22.045000076293945,
+            "max_z": 17.97400062531233,
+            "glass_from_x": 42.834999084472656,
+            "glass_from_y": 21.836000069975853,
+            "glass_from_z": 17.918500624597073,
+            "glass_to_x": 42.834999084472656,
+            "glass_to_y": 22.045000076293945,
+            "glass_to_z": 17.918500624597073,
+            "visuals": {
+              "intact0": {
+                "index": 663,
+                "state": 0
+              },
+              "broken0": {
+                "index": 664,
+                "state": 1
+              },
+              "cone0": {
+                "index": 661,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 42.816001892089844,
+                "y": 21.700000762939453,
+                "z": 17.940000534057617,
+                "name": "environment_and_lights/lights/spot_light(3)"
+              }
+            }
+          },
+          "lamp007": {
+            "min_x": 42.78300070017576,
+            "min_y": 21.836000069975853,
+            "min_z": 23.169999830424786,
+            "max_x": 42.89500070363283,
+            "max_y": 22.045000076293945,
+            "max_z": 23.280999831855297,
+            "glass_from_x": 42.8390007019043,
+            "glass_from_y": 21.836000069975853,
+            "glass_from_z": 23.22549983114004,
+            "glass_to_x": 42.8390007019043,
+            "glass_to_y": 22.045000076293945,
+            "glass_to_z": 23.22549983114004,
+            "visuals": {
+              "intact0": {
+                "index": 668,
+                "state": 0
+              },
+              "broken0": {
+                "index": 669,
+                "state": 1
+              },
+              "cone0": {
+                "index": 666,
+                "state": 0
+              }
+            },
+            "lights": {
+              "light0": {
+                "x": 42.83700180053711,
+                "y": 21.78700065612793,
+                "z": 23.224000930786133,
+                "name": "environment_and_lights/lights/spot_light(6)"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "files": [
         "projects/v021d_level_03/day_2/client_project"
       ],
       "table": "",
@@ -178999,6 +180373,84 @@
               },
               "broken0": {
                 "index": 271,
+                "state": 1
+              }
+            },
+            "lights": {}
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_05/day_2/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 4.028044885258615,
+            "min_y": 12.053161267991403,
+            "min_z": 2.817107030260984,
+            "max_x": 4.194907024609449,
+            "max_y": 12.287928022529956,
+            "max_z": 3.006971608547816,
+            "glass_from_x": 4.105363365507912,
+            "glass_from_y": 12.273164077494004,
+            "glass_from_z": 2.930804687475887,
+            "glass_to_x": 4.117588544360152,
+            "glass_to_y": 12.067925213027355,
+            "glass_to_z": 2.893273951332913,
+            "visuals": {
+              "intact0": {
+                "index": 188,
+                "state": 0
+              },
+              "broken0": {
+                "index": 189,
+                "state": 1
+              }
+            },
+            "lights": {}
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_05/day_4/client_project"
+      ],
+      "table": "",
+      "key": "srp_lamps",
+      "value": {
+        "version": 3,
+        "break_material": 29,
+        "effect_material": 7,
+        "lamps": {
+          "lamp000": {
+            "min_x": 4.028044885258615,
+            "min_y": 12.053161267991403,
+            "min_z": 2.817107030260984,
+            "max_x": 4.194907024609449,
+            "max_y": 12.287928022529956,
+            "max_z": 3.006971608547816,
+            "glass_from_x": 4.105363365507912,
+            "glass_from_y": 12.273164077494004,
+            "glass_from_z": 2.930804687475887,
+            "glass_to_x": 4.117588544360152,
+            "glass_to_y": 12.067925213027355,
+            "glass_to_z": 2.893273951332913,
+            "visuals": {
+              "intact0": {
+                "index": 188,
+                "state": 0
+              },
+              "broken0": {
+                "index": 189,
                 "state": 1
               }
             },

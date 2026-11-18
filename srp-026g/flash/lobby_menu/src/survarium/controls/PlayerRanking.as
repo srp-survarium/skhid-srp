@@ -138,6 +138,11 @@ package survarium.controls
          {
             return;
          }
+         // The shop's "Hide owned" box as the account last set it (shop-owned-mark.md).
+         if(InventoryList.ownedTake(players))
+         {
+            return;
+         }
          if(BottomPanel.matchesTake(players))
          {
             return;

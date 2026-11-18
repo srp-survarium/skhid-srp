@@ -9,10 +9,14 @@ use survarium::v026g::match_msgs::snapshot::{KITS, Statistics, event};
 /// The battery events and what one battery is worth of each: a put-in, a
 /// find and the quest events count 1 a battery; the delivery shares (a
 /// delivery, a stolen one, a rescued one) are hundredths of a delivery.
+/// Event 6 also counts a carrier's progress (exe patch 92: 40 hundredths, 2
+/// points at event 6's weight 5, a 10 m nearer its container than the
+/// battery has been, paid at its delivery): a battery is worth its delivery
+/// share and 200 m of progress, 100 + 20 x 40, more than any map's way home.
 const KINDS: [(usize, &str, u32); 7] = [
     (event::PUT_VICTORY_ITEM_IN_CONTAINER, "put in", 1),
     (event::VICTORY_ITEM_FOUND, "found", 1),
-    (event::BRING_VICTORY_ITEM, "delivery share", 100),
+    (event::BRING_VICTORY_ITEM, "share and progress", 900),
     (event::STEAL_VICTORY_ITEM, "stolen delivery share", 100),
     (event::RECOVER_VICTORY_ITEM, "rescued delivery share", 100),
     (event::SOLO_DELIVERY, "solo (quest)", 1),

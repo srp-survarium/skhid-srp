@@ -1,18 +1,48 @@
 """Weapon display schema shared by catalogue details and comparisons.
 
 Only labels, units and comparison semantics are defined here. Values come from
-the released weapon configs; wear rates and reliability are deliberately omitted.
+the released weapon and ammo configs; wear rates and reliability are
+deliberately omitted.
 """
 import math
+
+# What a round scales, by its own `data` keys (ammo_data::load 0x332440): the
+# bullet's damage and piercing (bullet::bullet 0x32BA60), its least damage
+# (weapon::min_damage 0x2E1C80), both damage distances, stopping power
+# (base_player::hit_impl 0x2D9B90) and stamina damage.
+ROUND_FACTORS = (
+    ("bullet_damage", "k_damage"), ("bullet_pierce", "k_arp"),
+    ("min_damage_amount", "k_min_damage_amount"),
+    ("max_damage_distance", "k_max_damage_distance"), ("min_damage_distance", "k_min_damage_distance"),
+    ("stopping_power", "k_power"), ("stamina_damage", "k_stamina_damage"),
+)
 
 
 def number(value):
     return f"{value:.3f}".rstrip("0").rstrip(".")
 
 
-def sections(weapon, code):
+def with_round(weapon, ammo):
+    """The weapon as it fires `ammo`: its scaled values, the spread's base
+    times the round's `dispersion` (get_static_dispersion 0x331220) and the
+    round's pellets (`buck_shot`)."""
+    fired = dict(weapon)
+    for key, factor in ROUND_FACTORS:
+        if key in fired:
+            fired[key] = fired[key] * ammo[factor]
+    spread = weapon.get("dispersion", {})
+    if "base_dispersion" in spread:
+        fired["dispersion"] = {**spread, "base_dispersion": spread["base_dispersion"] * ammo["dispersion"]}
+    fired["pellets"] = max(1, round(ammo["buck_shot"]))
+    return fired
+
+
+def sections(weapon, ammo, code):
+    """The card's rows for `weapon` firing `ammo`."""
     def tr(en, uk):
         return en if code == "en" else uk
+
+    weapon = with_round(weapon, ammo)
 
     def read(path):
         value = weapon
@@ -32,6 +62,15 @@ def sections(weapon, code):
         return {"id": key, "label": tr(en, uk), "values": values,
                 "text": text + (f" {unit}" if values and unit else ""), "direction": direction}
 
+    def damage():
+        # A shot's damage: each pellet's, compared as all of them together.
+        row = stat("bullet_damage", "Damage", "Ушкодження", "higher", scale=100)
+        pellets = weapon["pellets"]
+        if pellets > 1 and row["values"]:
+            row["text"] = f'{row["text"]} × {pellets} {tr("pellets", "шротин")}'
+            row["values"] = [float(number(row["values"][0] * pellets))]
+        return row
+
     seconds, metres, kg = tr("s", "с"), tr("m", "м"), tr("kg", "кг")
     recoil = weapon.get("recoil", {})
     def interval(axis):
@@ -48,7 +87,7 @@ def sections(weapon, code):
     hip = 1 if hip is None else hip
     return [
         {"id": "damage", "title": tr("Damage & range", "Ушкодження та дальність"), "rows": [
-            stat("bullet_damage", "Damage", "Ушкодження", "higher", scale=100),
+            damage(),
             stat("bullet_pierce", "Armor penetration", "Бронебійність", "higher", scale=100),
             stat("max_damage_distance", "Full damage up to", "Повні ушкодження до", "higher", metres),
             stat("min_damage_distance", "Minimum damage from", "Мінімальні ушкодження від", "higher", metres),
@@ -72,7 +111,7 @@ def sections(weapon, code):
         {"id": "spread", "title": tr("Accuracy & spread", "Точність і розкид"),
          "note": tr("Spread values use the game's own units. Growth and recovery parameters are shown without a better/worse rating.",
                     "Значення розкиду наведено в одиницях гри. Параметри зростання й відновлення показано без оцінки «краще/гірше»."), "rows": [
-            stat("base_dispersion", "Base dispersion", "Базовий розкид", "lower"),
+            stat("dispersion.base_dispersion", "Base dispersion", "Базовий розкид", "lower"),
             stat("hip_multiplier", "Hip-fire spread multiplier", "Множник розкиду від стегна", "lower", "×", values=[hip]),
             stat("dispersion.one_shoot_dispersion_amount", "Spread added per shot", "Розкид від пострілу", "lower"),
             stat("dispersion.max_dispersion", "Spread limit", "Межа розкиду", "lower"),

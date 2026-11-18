@@ -883,7 +883,7 @@ package survarium.rooms
                     var f:Array = RoomsWire.fields(rows[i]);
                     _rooms.push({"key": int(f[0]), "level": int(f[1]), "max": int(f[2]), "size": int(f[3]),
                         "players": int(f[4]), "phase": int(f[5]), "secs": int(f[6]), "map": int(f[7]),
-                        "pin": f[8] == "1", "name": f.slice(9).join(";")});
+                        "pin": f[8] != "0", "bots": f[8] == "2", "name": f.slice(9).join(";")});
                 }
                 var sig:String = "";
                 for (var q:int = 0; q < _rooms.length; q++)
@@ -916,7 +916,7 @@ package survarium.rooms
                     if (p.length < 6 || hasEntry(int(p[0])))
                         continue;
                     _pool.push({"index": int(p[0]), "map": int(p[1]), "level": int(p[2]), "weather": int(p[3]),
-                        "mode": int(p[4]), "extra": p[5] == "1"});
+                        "mode": int(p[4]), "extra": p[5] == "1", "bots": p[6] == "1"});
                 }
                 if (_pool.length < _poolTotal && rows.length > 1)
                     ask(RoomsWire.POOL + page + 1, RoomsWire.POOL_ASK_ROWS);
@@ -1014,7 +1014,8 @@ package survarium.rooms
                 _room = {"key": int(head[2]), "level": int(head[3]), "max": int(head[4]), "size": int(head[5]),
                     "wait": int(head[6]), "phase": int(head[7]), "secs": int(head[8]), "owner": head[9] == "1",
                     "pool": int(head[10]), "serial": int(head[12]), "pin": head[13] == "1", "next": int(head[14]), "min": int(head[15]),
-                    "cards": [], "members": [], "last": 0, "switchTo": null, "joinIn": -1, "joinWhy": JoinHold.NONE, "teams": null};
+                    "cards": [], "members": [], "last": 0, "lastMode": 0, "switchTo": null, "joinIn": -1, "joinWhy": JoinHold.NONE, "teams": null,
+                    "bots": false};
                 var squads:String = "";
                 _roomAt = getTimer();
                 // A new vote (another room, or after its match): its alert
@@ -1025,7 +1026,10 @@ package survarium.rooms
                 {
                     var r:Array = RoomsWire.fields(rows[k]);
                     if (r[0] == "C")
-                        _room.cards.push({"map": int(r[2]), "votes": int(r[3]), "mine": r[4] == "1"});
+                        // `C;<i>;<map>;<votes>;<mine>;<mode>`: the mode its match plays, a free-for-all's
+                        // twist's own (Racket 9); 0 from a server before it: the map's.
+                        _room.cards.push({"map": int(r[2]), "votes": int(r[3]), "mine": r[4] == "1",
+                            "mode": r.length > 5 ? int(r[5]) : 0});
                     else if (r[0] == "P")
                         _room.members.push({"gear": int(r[2]), "owner": r[3] == "1", "me": r[4] == "1",
                             "inMatch": r[5] == "1", "fit": int(r[6]), "away": r[7] == "1", "squad": 0,
@@ -1042,11 +1046,18 @@ package survarium.rooms
                     // A private room's teams, a digit a member (its owner's).
                     else if (r[0] == "A")
                         _room.teams = String(r[1]);
+                    // A private room with bots: its matches are filled with them.
+                    else if (r[0] == "B")
+                        _room.bots = true;
                     // Its squads' marks, a character a member (0: none).
                     else if (r[0] == "S")
                         squads = String(r[1]);
                     else if (r[0] == "L")
+                    {
+                        // `L;<map>;<mode>`, `L;0` before its first match.
                         _room.last = int(r[1]);
+                        _room.lastMode = r.length > 2 ? int(r[2]) : 0;
+                    }
                 }
                 // Why a join from the All rooms tab (or a room made) left us
                 // here, said once; our own word (a PIN not of 4 digits) stays
@@ -1135,8 +1146,8 @@ package survarium.rooms
         }
 
         // `S1;G;<key>;<members>`, then two rows a member: `P;<i>;<gear>;
-        // <owner>;<me>;<in match>;<fit>;<away>;<side>;<account>;<squad>` and
-        // its whole name (`squad`: its squad's mark, 0 none). Drawn when it is the chosen room's and something
+        // <owner>;<me>;<in match>;<fit>;<away>;0;<account>;<squad>` and
+        // its whole name (`0`: no side is told; `squad`: its squad's mark, 0 none). Drawn when it is the chosen room's and something
         // changed (only its box: the view under the mouse keeps its clicks
         // and the PIN typed).
         private function takeMembers(head:Array, rows:Array):void
@@ -1155,7 +1166,7 @@ package survarium.rooms
                 var name:String = String(rows[i + 1].nickname);
                 sig += String(rows[i].nickname) + "|" + name + "|";
                 list.push({"gear": int(f[2]), "owner": f[3] == "1", "me": f[4] == "1", "inMatch": f[5] == "1",
-                    "fit": int(f[6]), "away": f[7] == "1", "side": int(f[8]), "account": uint(f[9]),
+                    "fit": int(f[6]), "away": f[7] == "1", "account": uint(f[9]),
                     "squad": f.length > 10 ? int(f[10]) : 0, "name": name});
             }
             if (_seen != null && _seen.key == key && _seen.sig == sig)
@@ -1314,8 +1325,9 @@ package survarium.rooms
             askMembers(true);
         }
 
-        // A join from the list: first whether it offers one of our kit
-        // presets (presets.md); the server answers `S1;O` (takeOffer).
+        // A join (or a full room's queue) from the list: first whether it
+        // offers one of our kit presets (presets.md); the server answers
+        // `S1;O` (takeOffer).
         internal function askOffer(room:Object):void
         {
             _offer = null;
@@ -1328,7 +1340,8 @@ package survarium.rooms
         // its max) and 3 (our kits can not play, preset n can) show the popup.
         // `about` 1: Play would queue, the room is of the other bracket
         // (the owner's of 2026-10-30): "Queue" (Play as it is) for the
-        // popup's first button.
+        // popup's first button. So for a full room's Queue offered a higher
+        // loadout (the owner's of 2026-11-01): its queue as it is.
         private function takeOffer(head:Array):void
         {
             var asked:Object = _offerAsk;
@@ -1341,9 +1354,10 @@ package survarium.rooms
                 goOn(asked, 0);
                 return;
             }
+            var full:Boolean = asked.room != null && asked.room.players >= asked.room.size * 2;
             _offer = {"kind": kind, "preset": int(head[4]), "level": int(head[5]), "gear": int(head[6]),
                 "max": int(head[7]), "room": asked.room, "play": asked.play,
-                "queue": asked.play && head.length > 8 && head[8] == "1"};
+                "queue": (asked.play && head.length > 8 && head[8] == "1") || (full && kind == 1)};
             _busyAt = 0;
             _playAskedAt = 0;
             applyPlay();
@@ -1400,8 +1414,9 @@ package survarium.rooms
             tf.text = text;
             var bw:Number = 200;
             var by:Number = y + h - 50;
-            // Play that would queue: "Queue" plays as it is; else "Enter
-            // anyway" (the kits as they are) or "Exit" (nothing).
+            // Play that would queue, or a full room's queue: "Queue" goes on
+            // as it is; else "Enter anyway" (the kits as they are) or "Exit"
+            // (nothing).
             var asIs:Boolean = _offer.queue || _offer.kind == 1;
             var first:String = _offer.queue ? "st_srp_rooms_queue" : _offer.kind == 1 ? "st_srp_rooms_enter_anyway" : "st_srp_rooms_exit";
             look.button(look._content, say(first), x + w / 2 - bw - 8, by, bw,

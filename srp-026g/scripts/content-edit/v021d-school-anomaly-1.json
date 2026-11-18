@@ -1,0 +1,21 @@
+{
+  "_about": "School v0.21 stalactite: use the native 0.26 material's white diffuse multiplier instead of the donor fallback colour (0.08402451), which makes the textured stone almost black in 0.26. Keep the donor diffuse texture and the converted material's other fields. Shared by all School day modes.",
+  "set_vector": [
+    {
+      "file": "material_instances/ported/v021d/anomaly/anomaly_stalactite.material",
+      "path": "material/g_stage/effect/constant_diffuse/value",
+      "from": [
+        0.08402451,
+        0.08402451,
+        0.08402451,
+        1.0
+      ],
+      "to": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    }
+  ]
+}

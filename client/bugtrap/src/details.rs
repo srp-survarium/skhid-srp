@@ -151,6 +151,19 @@ pub fn follows_call(before: &[u8; 8]) -> bool {
     before[3] == 0xE8 || (2..=7).any(|len| call_rm(8 - len, len))
 }
 
+/// ` (local +03:00)`: the PC's clock against UTC, `minutes` = local - UTC.
+pub fn write_offset(w: &mut dyn Write, minutes: i64) -> fmt::Result {
+    let sign = if minutes < 0 { '-' } else { '+' };
+    let m = minutes.unsigned_abs();
+    write!(w, " (local {sign}{:02}:{:02})", m / 60, m % 60)
+}
+
+/// Whether `SKHID_CRASH_DUMP`'s value asks for full-memory dumps: `full`,
+/// in any case, with spaces or tabs around it.
+pub fn asks_full_dump(value: &str) -> bool {
+    value.trim_matches([' ', '\t']).eq_ignore_ascii_case("full")
+}
+
 /// The last `lines` lines of `text` (a file's tail), from the start of a
 /// whole line: a first line cut by the read is dropped unless `whole` (the
 /// read began at the file's start).

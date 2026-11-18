@@ -54,11 +54,9 @@
 //! - `SRP_BIND_HOST` / `SRP_LOBBY_BIND`, `SRP_LOBBY_PORT` (default 1235),
 //!   `SRP_PUBLIC_HOST` / `SRP_LOBBY_PUBLIC_HOST`, `SRP_LOCAL_PEERS`: the
 //!   address (`vostok::config`), the one the 0.26g login server announces;
-//! - `SRP_BALANCE_PLAYER` (default 12), `SRP_BALANCE_PLAYER_LEVEL` (1.5),
-//!   `SRP_BALANCE_RATING` (4), `SRP_BALANCE_TRUST_MATCHES` (5): what a
-//!   player, a level of its account and a point of its balance rating
-//!   count for when the sides are made, in gear levels, and the matches
-//!   after which the rating counts for half (`session::v026g::balance`);
+//! - `SRP_BALANCE_PLAYER_KD` (default 1): what a player counts for by
+//!   being there when the sides are made, in K/Ds, beside its K/D
+//!   (`session::v026g::balance`, `docs/notes/kd-balance.md`);
 //! - `SRP_BALANCE_RATED_PLAYERS` (default 4): the fewest players a match
 //!   must have had in it to move the balance rating (read where a match
 //!   is settled: `session::v026g::balance::rated_players`);
@@ -89,11 +87,12 @@
 //!   (0: it ends with the link);
 //! - `SRP_PACKET_LOG=<dir>`: the transport's raw datagram log (the sign-in's
 //!   session id is left out of it);
-//! - `SRP_PVB` (default off), `SRP_PVB_MAX_GEAR` (15), `SRP_PVB_MAX_MATCHES`
-//!   (5), `SRP_PVB_PAY` (0.5), `SRP_PVB_STALL_S` (60): "Player vs Bots"
-//!   (`pvb`, whose module says what each does and which server reads it).
-//! - `SRP_ROOMS_MAX` (50), `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the
-//!   players' "servers" (`rooms`, whose module says what each does).
+//! - `SRP_PVB` (default off), `SRP_PVB_MAX_MATCHES` (5), `SRP_PVB_PAY` (0.5),
+//!   `SRP_PVB_STALL_S` (60): "Player vs Bots" (`pvb`, whose module says what
+//!   each does and which server reads it).
+//! - `SRP_ROOMS_EXTRA_MAPS` (none): rooms, the players' "servers" (`rooms`,
+//!   whose module says what each does). Their numbers are game data:
+//!   `gameplay/srp/rooms.options` (`RoomRules`).
 
 mod away;
 mod clans;
@@ -140,7 +139,7 @@ pub use patch_check::{check_min_patch_revision, min_patch_revision_from_env};
 pub use play::{LiveView, MatchHost, MatchPlayer, MatchSetup, MatchTicket, match_profile};
 
 /// The modes played when `SRP_MATCH_MODES` is unset: all the client has.
-const DEFAULT_MODES: [u8; maps::mode::ALL.len()] = maps::mode::ALL;
+const DEFAULT_MODES: [maps::GameMode; maps::GameMode::ALL.len()] = maps::GameMode::ALL;
 /// A silent client keeps its link this long: what the store calls a game
 /// that is gone (`session::GONE_AFTER`). The client itself gives up after
 /// 5 s without a datagram (0x26F0ED).
@@ -186,7 +185,7 @@ pub struct Settings {
     pub tick: Duration,
     /// The `maps_dict` ids played: playable ones only (a room's default
     /// pool, what a clan match is drawn from).
-    pub maps: Vec<u8>,
+    pub maps: Vec<maps::MapId>,
     /// The least patch revision of a game let in, 0 for any: an older one
     /// is refused at its sign-in, and its sessions from before in the lobby
     /// (`SRP_MIN_PATCH_REVISION`; `patch_check`).
@@ -194,10 +193,10 @@ pub struct Settings {
     /// What a player counts for when the sides of a match are made
     /// (`SRP_BALANCE_*`; `session::v026g::balance`).
     pub balance: Weights,
-    /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_GEAR`,
-    /// `SRP_PVB_MAX_MATCHES`; `pvb`).
+    /// "Player vs Bots" (`SRP_PVB`, `SRP_PVB_MAX_MATCHES`, `RoomRules::pvb`;
+    /// `pvb`).
     pub pvb: pvb::Config,
-    /// Rooms (`SRP_ROOMS_MAX`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
+    /// Rooms (`RoomRules::rooms_most`, `SRP_ROOMS_EXTRA_MAPS`; `rooms`).
     pub rooms: rooms::Config,
 }
 
@@ -209,7 +208,8 @@ impl Settings {
         let modes = match var("SRP_MATCH_MODES") {
             Some(value) => parse_modes(&value).unwrap_or_else(|| {
                 log::error!(
-                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 5. Using 2,3,4,5"
+                    "SRP_MATCH_MODES is `{value}`; it must list modes of 2 to 8 (6 Blackout, 8 free for all). Using \
+                     2,3,4,5,6"
                 );
                 DEFAULT_MODES.to_vec()
             }),
@@ -277,20 +277,14 @@ impl Settings {
         };
         let defaults = Weights::default();
         let balance = Weights {
-            player: weight("SRP_BALANCE_PLAYER", defaults.player),
-            player_level: weight("SRP_BALANCE_PLAYER_LEVEL", defaults.player_level),
-            rating: weight("SRP_BALANCE_RATING", defaults.rating),
-            trust_matches: weight("SRP_BALANCE_TRUST_MATCHES", defaults.trust_matches),
+            player: weight("SRP_BALANCE_PLAYER_KD", defaults.player),
             battery_lead: weight("SRP_BALANCE_BATTERY_LEAD", defaults.battery_lead),
             ticket_lead: weight("SRP_BALANCE_TICKET_LEAD", defaults.ticket_lead),
         };
         log::info!(
-            "The sides of a match: a player counts for {} gear levels, a level of its account \
-             for {}, a point of its balance rating for {} (for half after {} matches)",
-            balance.player,
-            balance.player_level,
-            balance.rating,
-            balance.trust_matches
+            "The sides of a match: each player counts for its K/D at the match's equipment \
+             level, and {} K/D for being there",
+            balance.player
         );
         log::info!(
             "The balance rating: a match moves it when {} players or more were in it for half \
@@ -347,32 +341,33 @@ fn parse_weight(value: &str) -> Option<f64> {
         .filter(|weight| weight.is_finite() && (0.0..=1000.0).contains(weight))
 }
 
-/// `SRP_MATCH_MODES`: modes of 2 to 5, at least one.
-fn parse_modes(value: &str) -> Option<Vec<u8>> {
-    let modes: Option<Vec<u8>> = value
+/// `SRP_MATCH_MODES`: modes by their lobby numbers, 2 to 8 (6 Blackout, 8 free for all;
+/// `maps::GameMode::lobby_number`), at least one.
+fn parse_modes(value: &str) -> Option<Vec<maps::GameMode>> {
+    let modes: Option<Vec<maps::GameMode>> = value
         .split(',')
         .map(|mode| {
             mode.trim()
                 .parse::<u8>()
                 .ok()
-                .filter(|mode| maps::mode::ALL.contains(mode))
+                .and_then(maps::GameMode::of_lobby_number)
         })
         .collect();
     modes.filter(|modes| !modes.is_empty())
 }
 
 /// `SRP_MATCH_MAPS`: `maps_dict` ids, at least one.
-fn parse_maps(value: &str) -> Option<Vec<u8>> {
-    let ids: Option<Vec<u8>> = value
+fn parse_maps(value: &str) -> Option<Vec<maps::MapId>> {
+    let ids: Option<Vec<maps::MapId>> = value
         .split(',')
-        .map(|id| id.trim().parse::<u8>().ok())
+        .map(|id| id.trim().parse::<maps::MapId>().ok())
         .collect();
     ids.filter(|ids| !ids.is_empty())
 }
 
 /// The playable ids of `modes`; with `only` not empty, those of them it
 /// names.
-fn map_pool(modes: &[u8], only: &[u8]) -> Vec<u8> {
+fn map_pool(modes: &[maps::GameMode], only: &[maps::MapId]) -> Vec<maps::MapId> {
     maps::playable()
         .filter(|map| modes.contains(&map.mode))
         .filter(|map| only.is_empty() || only.contains(&map.id))
@@ -408,6 +403,12 @@ pub(crate) enum Notice {
     /// To every client in the lobby now.
     Broadcast {
         messages: Vec<ServerMessage>,
+    },
+    /// [`Inbox::idle_removed`].
+    IdleRemoved {
+        match_id: u32,
+        account_id: u32,
+        name: String,
     },
 }
 
@@ -448,6 +449,18 @@ impl Inbox {
         self.notices
             .locked()
             .push(Notice::AccountChanged { account_id });
+    }
+
+    /// The match server removed the player of `account_id` (`name` in the
+    /// match) from its match `match_id` (the id the clients were told) for
+    /// being idle (anti-AFK): the match's chat and the general chat say so,
+    /// once.
+    pub fn idle_removed(&self, match_id: u32, account_id: u32, name: &str) {
+        self.notices.locked().push(Notice::IdleRemoved {
+            match_id,
+            account_id,
+            name: name.to_owned(),
+        });
     }
 
     /// Send messages to every client in the lobby now, in order. A client
@@ -559,10 +572,13 @@ impl Lobby {
         );
         core.packet_log = PacketLog::from_env();
         core.replays = self.replays.as_deref();
+        let mut socket = udp_transport::relay::Datagrams::new(
+            &self.socket, udp_transport::relay::Relays::from_env()?,
+        )?;
         let mut buffer = [0_u8; 2048];
         while !self.inbox.stopped() {
-            match self.socket.recv_from(&mut buffer) {
-                Ok((len, from)) => core.datagram(from, &buffer[..len], Instant::now()),
+            match socket.recv_from(&mut buffer) {
+                Ok((len, peer)) => core.datagram_via(peer, &buffer[..len], Instant::now()),
                 Err(error)
                     if matches!(
                         error.kind(),
@@ -579,7 +595,7 @@ impl Lobby {
                 }
             }
             for (to, datagram) in core.step(Instant::now()) {
-                if let Err(error) = self.socket.send_to(&datagram, to) {
+                if let Err(error) = socket.send_to(&datagram, to) {
                     log::debug!("A lobby datagram to {to} was not sent: {error}");
                 }
             }

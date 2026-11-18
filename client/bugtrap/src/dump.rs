@@ -6,11 +6,172 @@ use core::{
     ptr::{null, null_mut},
     sync::atomic::{AtomicU32, Ordering},
 };
+use std::{ffi::OsStr, sync::OnceLock};
 use windows_sys::Win32::{
     Foundation::*,
     Storage::FileSystem::*,
-    System::{Diagnostics::Debug::*, LibraryLoader::*, SystemInformation::*, Threading::*},
+    System::{
+        Diagnostics::Debug::*, LibraryLoader::*, Memory::*, SystemInformation::*, Threading::*,
+    },
 };
+
+/// What a dump holds, chosen once when the DLL is loaded ([`Kind::get`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Kind {
+    /// Players' dumps: the threads' stacks and registers, the modules, their
+    /// data segments, and the memory the stacks point to and around what the
+    /// crashing thread's registers point to ([`Registers`]), so the object
+    /// behind a faulting pointer is in it. Zipped with the logs: a few MB.
+    Small,
+    /// `SKHID_CRASH_DUMP=full` in the game's environment (for a crash to
+    /// investigate on this PC): the whole process memory, every heap object.
+    /// Hundreds of MB to a few GB, kept as a `.dmp` (not zipped: zipping would
+    /// hold the crash for seconds, and it is read on this PC anyway).
+    Full,
+}
+static KIND: OnceLock<Kind> = OnceLock::new();
+impl Kind {
+    /// The game's `SKHID_CRASH_DUMP`, read at the first call (`DllMain`, at
+    /// load): `full` is [`Kind::Full`] (any case, spaces around it: cmd's
+    /// `set SKHID_CRASH_DUMP=full ` keeps the space), anything else (unset)
+    /// [`Kind::Small`]. `play_skhid.sh` refuses other values before the game
+    /// starts.
+    pub fn get() -> Kind {
+        *KIND.get_or_init(|| {
+            let value = std::env::var_os("SKHID_CRASH_DUMP");
+            if value.as_deref().and_then(OsStr::to_str).is_some_and(crate::details::asks_full_dump) {
+                Kind::Full
+            } else {
+                Kind::Small
+            }
+        })
+    }
+    const fn dump_type(self) -> MINIDUMP_TYPE {
+        match self {
+            Kind::Small => MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory,
+            Kind::Full => {
+                MiniDumpWithFullMemory
+                    | MiniDumpWithFullMemoryInfo
+                    | MiniDumpWithHandleData
+                    | MiniDumpWithThreadInfo
+                    | MiniDumpWithUnloadedModules
+            }
+        }
+    }
+}
+
+/// Bytes kept before and after each register's value.
+const BEFORE: usize = 256;
+const AFTER: usize = 2048;
+/// Memory around the values of the crashing thread's EAX, EBX, ECX, EDX, ESI,
+/// EDI and EBP, given to `MiniDumpWriteDump` through its memory callback: a
+/// faulting `[esi+0x116]` reads a field of the object behind ESI, which no
+/// stack slot need point to. Each range lies in one committed readable
+/// region; at most 7 x 2.3 KiB.
+struct Registers {
+    ranges: [(usize, usize); 7],
+    len: usize,
+    next: usize,
+}
+impl Registers {
+    unsafe fn of(exception: *const EXCEPTION_POINTERS) -> Registers {
+        let mut registers = Registers {
+            ranges: [(0, 0); 7],
+            len: 0,
+            next: 0,
+        };
+        if exception.is_null() || (*exception).ContextRecord.is_null() {
+            return registers;
+        }
+        let c = &*(*exception).ContextRecord;
+        for value in [c.Eax, c.Ebx, c.Ecx, c.Edx, c.Esi, c.Edi, c.Ebp] {
+            if let Some(range) = readable_around(value as usize)
+                && !registers.ranges[..registers.len].contains(&range)
+            {
+                registers.ranges[registers.len] = range;
+                registers.len += 1;
+            }
+        }
+        registers
+    }
+}
+/// `[value - BEFORE, value + AFTER)` cut to the committed, readable region
+/// holding `value`, or none.
+unsafe fn readable_around(value: usize) -> Option<(usize, usize)> {
+    if value < 0x10000 {
+        return None;
+    }
+    let mut region: MEMORY_BASIC_INFORMATION = core::mem::zeroed();
+    if VirtualQuery(
+        value as *const c_void,
+        &mut region,
+        size_of::<MEMORY_BASIC_INFORMATION>(),
+    ) == 0
+    {
+        return None;
+    }
+    let readable = PAGE_READONLY
+        | PAGE_READWRITE
+        | PAGE_WRITECOPY
+        | PAGE_EXECUTE_READ
+        | PAGE_EXECUTE_READWRITE
+        | PAGE_EXECUTE_WRITECOPY;
+    if region.State != MEM_COMMIT
+        || region.Protect & readable == 0
+        || region.Protect & PAGE_GUARD != 0
+    {
+        return None;
+    }
+    let base = region.BaseAddress as usize;
+    let end = base.saturating_add(region.RegionSize);
+    Some((
+        value.saturating_sub(BEFORE).max(base),
+        value.saturating_add(AFTER).min(end),
+    ))
+}
+/// `MiniDumpWriteDump`'s callback: every thread and module, as without one,
+/// the [`Registers`] ranges as extra memory, and a range it cannot read
+/// skipped rather than failing the dump.
+unsafe extern "system" fn callback(
+    param: *mut c_void,
+    input: *const MINIDUMP_CALLBACK_INPUT,
+    output: *mut MINIDUMP_CALLBACK_OUTPUT,
+) -> windows_sys::core::BOOL {
+    let kind = (*input).CallbackType as MINIDUMP_CALLBACK_TYPE;
+    if [
+        IncludeThreadCallback,
+        IncludeModuleCallback,
+        ThreadCallback,
+        ThreadExCallback,
+        ModuleCallback,
+    ]
+    .contains(&kind)
+    {
+        TRUE
+    } else if kind == MemoryCallback {
+        let registers = &mut *param.cast::<Registers>();
+        let Some(&(start, end)) = registers.ranges[..registers.len].get(registers.next) else {
+            return FALSE;
+        };
+        registers.next += 1;
+        (*output).Anonymous.Anonymous1 = MINIDUMP_CALLBACK_OUTPUT_0_0 {
+            MemoryBase: start as u64,
+            MemorySize: (end - start) as u32,
+        };
+        TRUE
+    } else if kind == CancelCallback {
+        (*output).Anonymous.Anonymous2 = MINIDUMP_CALLBACK_OUTPUT_0_1 {
+            CheckCancel: FALSE,
+            Cancel: FALSE,
+        };
+        TRUE
+    } else if kind == ReadMemoryFailureCallback {
+        (*output).Anonymous.Status = S_OK;
+        TRUE
+    } else {
+        FALSE
+    }
+}
 
 const IDLE: u32 = 0;
 const SNAPSHOT: u32 = 1;
@@ -24,6 +185,9 @@ struct Request {
     exception: MINIDUMP_EXCEPTION_INFORMATION,
     crash: bool,
     saved: bool,
+    /// QueryPerformanceCounter as the capture began: the game's
+    /// breadcrumbs are dated from it (report.rs).
+    counter: i64,
 }
 struct Slot(UnsafeCell<Request>);
 // Only the PHASE owner accesses this slot, and it joins the worker before releasing it.
@@ -36,6 +200,7 @@ static REQUEST: Slot = Slot(UnsafeCell::new(Request {
     },
     crash: false,
     saved: false,
+    counter: 0,
 }));
 
 type WriteDump = unsafe extern "system" fn(
@@ -45,7 +210,7 @@ type WriteDump = unsafe extern "system" fn(
     i32,
     *const MINIDUMP_EXCEPTION_INFORMATION,
     *const MINIDUMP_USER_STREAM_INFORMATION,
-    *const c_void,
+    *const MINIDUMP_CALLBACK_INFORMATION,
 ) -> i32;
 
 pub unsafe fn capture(exception: *mut EXCEPTION_POINTERS, crash: bool) -> bool {
@@ -78,6 +243,7 @@ pub unsafe fn capture(exception: *mut EXCEPTION_POINTERS, crash: bool) -> bool {
     }
     OWNER.store(caller, Ordering::Release);
     let request = REQUEST.0.get();
+    windows_sys::Win32::System::Performance::QueryPerformanceCounter(&mut (*request).counter);
     (*request).exception.ThreadId = caller;
     (*request).exception.ExceptionPointers = exception;
     (*request).crash = crash;
@@ -224,14 +390,24 @@ unsafe fn save(
             UserStreamCount: 1,
             UserStreamArray: &mut comment,
         };
+        // The Registers ranges only for a small dump: a full one holds them.
+        let kind = Kind::get();
+        let mut registers = Registers::of(request.exception.ExceptionPointers);
+        let callback = MINIDUMP_CALLBACK_INFORMATION {
+            CallbackRoutine: Some(callback),
+            CallbackParam: (&raw mut registers).cast(),
+        };
         let ok = write_dump(
             GetCurrentProcess(),
             GetCurrentProcessId(),
             file,
-            MiniDumpWithDataSegs,
+            kind.dump_type(),
             exception,
             &streams,
-            null(),
+            match kind {
+                Kind::Small => &callback,
+                Kind::Full => null(),
+            },
         );
         let mut error = if ok == 0 { GetLastError() } else { 0 };
         if ok != 0 {
@@ -306,17 +482,30 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
             &mut report,
             request.exception.ExceptionPointers,
             request.exception.ThreadId,
+            request.counter as u64,
         );
     }
     crate::report::finish(&mut report, request.saved, partial, error, capture);
     // The text report beside the dump (or, with none, beside the exe or in
     // the temporary folder, and the dialog names it in the dump's place);
     // when neither takes it, the dialog still shows it.
-    crate::report::save(&report, kept, &mut path, request.exception.ThreadId);
+    let reported = crate::report::save(&report, kept, &mut path, request.exception.ThreadId);
+    // A full-memory dump is kept for the developer, never posted (also one
+    // saved only in part): the dialog names its report to send (beside it,
+    // the same name), or with none says so.
+    let full = (kept && Kind::get() == Kind::Full).then_some(if reported {
+        crate::ui::FullDump::WithReport
+    } else {
+        crate::ui::FullDump::WithoutReport
+    });
     // Zip the dump only now that it is flushed and closed: on any failure, or
     // a crash or exit while zipping, the dump stays and the dialog names it.
-    if kept {
-        let _ = crate::archive::zip(&mut path, &report.text.buf[..report.text.len]);
+    if kept && Kind::get() == Kind::Small {
+        let _ = crate::archive::zip(
+            &mut path,
+            &report.text.buf[..report.text.len],
+            crate::report::crumbs_text(&report),
+        );
     }
     // Publish only after save() has flushed/closed its file and it is zipped
     // (or all attempts failed). Contending crashes need not wait for callbacks
@@ -335,7 +524,11 @@ unsafe extern "system" fn worker(parameter: *mut c_void) -> u32 {
             // Both callbacks and UI occur only after the persistent dump is closed.
             api::callback(&api::PRE, &api::PRE_PARAM);
             if api::ACTIVITY.load(Ordering::Relaxed) == 1 {
-                crate::ui::show(&path, request.saved, partial, error, capture, &report);
+                if full == Some(crate::ui::FullDump::WithReport) {
+                    let n = path.len;
+                    path.buf[n - 3..n].copy_from_slice(&[b't' as u16, b'x' as u16, b't' as u16]);
+                }
+                crate::ui::show(&path, full, request.saved, partial, error, capture, &report);
             }
             api::callback(&api::POST, &api::POST_PARAM);
         }

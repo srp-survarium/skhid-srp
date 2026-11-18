@@ -63,7 +63,7 @@ fn main() {
         }
         eprintln!(
             "{}: {} worlds, {} refused {:?}; largest bullets {:#x}, statistics {:#x}, objects {:#x}, \
-             physics {:#x}, rules {:#x}, effects {:#x} (caps {:x?}), a state {:#x} (cap {:#x}), \
+             physics {:#x}, rules {:#x}, effects {:#x}, a state {:#x} (cap {:#x}), \
              highest slot {:?}",
             dir.display(),
             seen.worlds,
@@ -75,7 +75,6 @@ fn main() {
             seen.largest[3],
             seen.largest[4],
             seen.largest[5],
-            Section::ALL.map(Section::cap),
             seen.state,
             PLAYER_STATE_CAP,
             seen.slot,

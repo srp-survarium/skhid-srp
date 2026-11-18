@@ -77,9 +77,9 @@ package survarium.player
       // (modifications.options: defects 4070 and 4110).
       public function rows() : Array
       {
-         var result:Array = [{icon:11,label:LocalizationData.format("st_srp_weight_speed",signed(_movement,_movement < 0))}];
+         var result:Array = [{icon:11,label:LocalizationData.getName("st_srp_weight_speed"),value:signed(_movement,_movement < 0)}];
          if(_sprint != SPRINT_HEAVYWEIGHT)
-            result.push({icon:16,label:LocalizationData.format("st_srp_weight_sprint_stamina",signed(_spending,_spending > 0))});
+            result.push({icon:16,label:LocalizationData.getName("st_srp_weight_sprint_stamina"),value:signed(_spending,_spending > 0)});
          if(_sprint != SPRINT_ALLOWED)
             result.push({icon:11,label:Util.styledChar(LocalizationData.getName(_sprint == SPRINT_WEIGHT ? "st_srp_weight_no_sprint_limit" : "st_srp_weight_no_sprint_heavyweight"),"red")});
          // What raises the carry limit, by source (LimitParts).

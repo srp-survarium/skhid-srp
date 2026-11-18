@@ -1,0 +1,97 @@
+{
+  "_about": "Grenade and trap card lines (UI property IDs 167..170; their names in client-patches/localization/*.tsv). The RGD-5: damage on each body it hits (prop 1, splash_max_damage x100, no longer summed over its six splash bodies: 130, not 780, so the bar of prop 1's 150 keeps the weapons' scale), armour penetration (3, splash_pierce x100), stopping power (132, x100), 167 stamina damage, radius (23), 168 fuse (data/ttl_ms in s), 169 throw speed (data/throw_power, m/s: the velocity grenade_set_core gives the grenade, 0x30A250); the smoke grenade 168 and 169; the trap armour penetration (3, its foot hit's armor_piercing x100) and 170 defuse time (data/defuse_time, s). throwables.tsv (after this list) writes their values from its cells (content_edit.throwable_card), so a retune follows. Alt shows them with the skills (docs/notes/alt-weapon-stats.md). Presentation only; no simulation fields changed.",
+  "add_entry": [
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {"prop_id": 165},
+      "like": {"prop_id": 16},
+      "values": {"prop_id": 167, "prop_name": "st_srp_inv_stamina_damage", "max_value": "100"}
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {"prop_id": 167},
+      "like": {"prop_id": 19},
+      "values": {"prop_id": 168, "prop_name": "st_srp_inv_fuse_time", "max_value": "10"}
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {"prop_id": 168},
+      "like": {"prop_id": 23},
+      "values": {"prop_id": 169, "prop_name": "st_srp_inv_throw_speed", "postfix": "st_srp_item_props_mps",
+                 "max_value": "25"}
+    },
+    {
+      "files": "gameplay/static_game_parameters.options",
+      "list": "ui_properties",
+      "after": {"prop_id": 169},
+      "like": {"prop_id": 18},
+      "values": {"prop_id": 170, "prop_name": "st_srp_inv_defuse_time", "max_value": "10"}
+    },
+    {
+      "files": "gameplay/items/weapons/rgd-5.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 1},
+      "like": {"prop_id": 1},
+      "values": {"prop_id": 3, "prop_value": "15"}
+    },
+    {
+      "files": "gameplay/items/weapons/rgd-5.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 3},
+      "like": {"prop_id": 1},
+      "values": {"prop_id": 132, "prop_value": "10"}
+    },
+    {
+      "files": "gameplay/items/weapons/rgd-5.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 132},
+      "like": {"prop_id": 1},
+      "values": {"prop_id": 167, "prop_value": "{data/stamina_damage}"}
+    },
+    {
+      "files": "gameplay/items/weapons/rgd-5.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 15},
+      "like": {"prop_id": 15},
+      "values": {"prop_id": 168, "prop_value": "4"}
+    },
+    {
+      "files": "gameplay/items/weapons/rgd-5.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 168},
+      "like": {"prop_id": 15},
+      "values": {"prop_id": 169, "prop_value": "{data/throw_power}"}
+    },
+    {
+      "files": "gameplay/items/weapons/smoke_grenade.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 15},
+      "like": {"prop_id": 15},
+      "values": {"prop_id": 168, "prop_value": "4"}
+    },
+    {
+      "files": "gameplay/items/weapons/smoke_grenade.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 168},
+      "like": {"prop_id": 15},
+      "values": {"prop_id": 169, "prop_value": "{data/throw_power}"}
+    },
+    {
+      "files": "gameplay/items/devices/blackmarket_trap.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 1},
+      "like": {"prop_id": 1},
+      "values": {"prop_id": 3, "prop_value": "100"}
+    },
+    {
+      "files": "gameplay/items/devices/blackmarket_trap.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 3},
+      "like": {"prop_id": 1},
+      "values": {"prop_id": 170, "prop_value": "{data/defuse_time}"}
+    }
+  ]
+}

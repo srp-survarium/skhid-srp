@@ -28,7 +28,8 @@ package
    // - the list (`S1;L`): a private room's row has no max level, nor its facts beside the list;
    //   an open room's has both;
    // - the create window (New room): Team size and Max level shown; a PIN typed hides both, and
-   //   clearing it shows them again.
+   //   clearing it shows them again; "With bots" always there, and with it on the modes and maps
+   //   the server's bots play none of unticked, greyed and out of the pool's count;
    // - squads (docs/notes/squads.md, the owner's of 2026-10-31): a pair both in the room shows
    //   the match's squad icon (its frame by the pair's number) after each name, ours green and
    //   another's tan, in the room's view and the list's side panel; every name keeps its place
@@ -126,6 +127,9 @@ package
          checkList("list, private chosen", ["S1;L;2;0","1001;2;0;10;3;0;0;0;1;Alice","1002;2;5;6;1;0;0;0;0;Bob"],
             "PIN · Alice", false, "Bob", true, false);
          checkList("list, open chosen", ["S1;L;1;0","1001;2;5;6;1;0;0;0;0;Bob"], null, false, "Bob", true, true);
+         // A private room with bots (`pin` 2, the owner's of 2026-11-05): BOT, not PIN.
+         checkList("list, bots room chosen", ["S1;L;2;0","1001;2;0;10;3;0;0;0;2;Carol","1002;2;5;6;1;0;0;0;0;Bob"],
+            "BOT · Carol", false, "Bob", true, false);
          checkSideStable();
          checkRoomView();
          checkQueueButton();
@@ -136,7 +140,50 @@ package
          checkSoldier();
          checkInSquad();
          checkFit();
+         checkBigPool();
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
+      }
+
+      // A pool of 256 entries at most (every playable map: 167 in the live data with the
+      // free-for-alls): the create's bits requests of a 200-entry pool, every third entry out, one
+      // a chunk of 16 (13), each read back entry by entry as the form's rows are read; and the
+      // window told the 200 entries, a room's vote drawn with them.
+      private function checkBigPool() : void
+      {
+         var Wire:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.rooms.RoomsWire");
+         var count:int = 200;
+         var picked:Array = [];
+         var i:int;
+         for(i = 0; i < count; i++)
+            if(i % 3 != 0)
+               picked.push(i);
+         var steps:Array = Wire.poolSteps(picked, count);
+         var bits:Array = [];
+         var bad:Array = [];
+         for(var c:int = 0; c < steps.length; c++)
+         {
+            var offset:int = int(steps[c]) - int(Wire.BITS);
+            if(int(offset / int(Wire.CHUNK_STEP)) != c)
+               bad.push("chunk " + c + " sent as " + int(offset / int(Wire.CHUNK_STEP)));
+            bits.push(offset % int(Wire.CHUNK_STEP));
+         }
+         for(i = 0; i < count; i++)
+            if(Wire.bitIn(bits, i) != (i % 3 != 0))
+               bad.push("entry " + i);
+         if(Wire.POOL_BITS < 167 || steps.length != 13 || bad.length != 0)
+            failures.push("a 200-entry pool: " + steps.length + " requests, " + Wire.POOL_BITS + " bits, wrong: "
+               + bad.slice(0, 5).join(", "));
+         trace("ROOMS a 200-entry pool: " + steps.length + " bits requests of " + Wire.BITS_PER_CHUNK
+            + ", every entry read back: " + (bad.length == 0 ? "yes" : "no"));
+         var rows:Array = ["S1;M;" + count + ";0"];
+         for(i = 0; i < count; i++)
+            rows.push(i + ";" + (61 + i % 30) + ";" + (1 + i % 8) + ";" + (1 + i % 3) + ";" + [2, 3, 4, 5, 6, 8][i % 6] + ";0");
+         if(!tell(rows))
+            return;
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var misses:Array = overlaps("a 200-entry pool, a room's vote");
+         if(misses.length != 0)
+            failures.push("a 200-entry pool: " + misses.join("; "));
       }
 
       // Ruffle draws the movie's embedded Calibri, yet not exactly as Scaleform lays it out: every
@@ -155,8 +202,10 @@ package
          {
             var say:Object = HarnessText.DATA[language];
             Loc.setData(say);
-            // The pool the cards and rows name: long map names, the longest weather, every mode.
-            tell(["S1;M;3;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0"]);
+            // The pool the cards and rows name: long map names, the longest weather, every mode (the
+            // create window's ticks).
+            tell(["S1;M;6;0","0;61;5;5;2;0","1;62;13;5;3;1","2;63;12;3;6;0","3;117;1;1;4;0","4;184;8;1;5;0",
+               "5;12;7;1;8;0"]);
             var states:Array = [
                ["private, owner", 1001, true, true, 0, "01010", 0, []],
                ["private, member", 1002, true, false, 0, "01010", 0, []],
@@ -170,7 +219,7 @@ package
                ["open, squads", 1003, false, false, 0, null, 0, ["S;01122"]],
                ["open, squads, in match", 1003, false, false, 2, null, 0, ["S;01122"]],
                ["private, owner, squads", 1001, true, true, 0, "01010", 0, ["S;11220"]]];
-            for(var why:int = 1; why <= 7; why++)
+            for(var why:int = 1; why <= 8; why++)
                states.push(["open, in match, why " + why, 1003, false, false, 2, null, 0, ["J;-1;" + why]]);
             for each(var s:Array in states)
             {
@@ -181,6 +230,34 @@ package
             tell(["S1;N;0;0;0"]);
             tell(["S1;L;3;0","1001;15;0;10;20;2;754;61;0;Bob","1002;15;15;10;3;3;12;62;0;Carol","1003;10;0;10;5;0;0;63;1;Erin"]);
             misses = misses.concat(overlaps(language + ", list"));
+            // A full room's queue, ours: its Join is Leave queue.
+            tell(["S1;L;1;0","1001;2;15;8;16;0;0;0;0;Bob"]);
+            selectRow("1001");
+            tell(["S1;N;0;1001;1"]);
+            misses = misses.concat(overlaps(language + ", list, queued"));
+            tell(["S1;N;0;0;0"]);
+            // The preset offer's three first buttons beside Switch and enter: Queue (Play that would
+            // queue), Enter anyway, Exit (a full room's Queue, gear over its max).
+            var offers:Array = [["st_srp_rooms_queue", "S1;O;1002;2;2;10;15;10;1", null],
+               ["st_srp_rooms_enter_anyway", "S1;O;1002;1;2;8;5;10;0", null],
+               ["st_srp_rooms_exit", "S1;O;1001;2;2;10;15;10;0", "1001;2;10;8;16;0;0;0;0;Bob"]];
+            for each(var offer:Array in offers)
+            {
+               tell(["S1;N;0;0;0"]);
+               if(offer[2] == null)
+                  win["quickPlay"]();
+               else
+               {
+                  tell(["S1;L;1;0", offer[2]]);
+                  selectRow("1001");
+                  pressLabel(say.st_srp_rooms_queue);
+               }
+               tell([offer[1]]);
+               misses = misses.concat(cutButtons(language + ", offer, " + say[offer[0]]));
+               pressLabel(say[offer[0]]);
+            }
+            tell(["S1;N;0;0;0"]);
+            tell(["S1;L;3;0","1001;15;0;10;20;2;754;61;0;Bob","1002;15;15;10;3;3;12;62;0;Carol","1003;10;0;10;5;0;0;63;1;Erin"]);
             var buttons:Array = [];
             walk(win,[],[],0,0,buttons);
             for each(var b:* in buttons)
@@ -189,6 +266,23 @@ package
                   var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
                   b.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
                   misses = misses.concat(overlaps(language + ", create"));
+                  // a tick for each mode of the pool, in RoomsCreate.MODE_ORDER (named by its mode),
+                  // before the pool's tiles (named by their levels)
+                  var ticks:Array = [];
+                  findRows(win, ticks);
+                  var modes:Array = [];
+                  for each(var tick:* in ticks)
+                     modes.push(tick.name);
+                  if(modes.slice(0, 6).join() != "2,3,6,4,5,8")
+                     failures.push(language + ": the create window's mode ticks " + modes.join());
+                  // the six of them above the window's foot (its Create button, in the same box; the
+                  // window here is as low as it gets, RoomsWindow.MIN_H)
+                  var formButtons:Array = [];
+                  walk(win,[],[],0,0,formButtons);
+                  for each(var foot:* in formButtons)
+                     if(foot.label == say.st_srp_rooms_create && ticks.length >= 6 && (foot.parent != ticks[5].parent
+                        || ticks[5].y + ticks[5].getBounds(ticks[5]).bottom > foot.y))
+                        failures.push(language + ": the create window's last mode tick reaches its foot");
                }
          }
          Loc.setData(HarnessText.DATA.english);
@@ -399,7 +493,8 @@ package
       }
 
       // The top bar's Play (the lobby's StatusPanel, its symbol SrvTopMenuContainer): a soldier's
-      // greyed Play says "In squad" (in capitals, as the game's PLAY), whole in every language;
+      // greyed Play says "In squad", in a room or its queue it is the rooms' Leave ("Leave room",
+      // "Leave queue", lit); each in capitals (as the game's PLAY), whole in every language;
       // its leader's is the game's own PLAY.
       private function checkInSquad() : void
       {
@@ -420,31 +515,45 @@ package
          btn.label = "PLAY";
          btn.validateNow();
          var said:Array = [];
+         // What Play says and what of it fits: `key`'s text in capitals.
+         var fits:Function = function(what:String, language:String, key:String):void
+         {
+            btn.validateNow();
+            var want:String = String(HarnessText.DATA[language][key]).toUpperCase();
+            var field:TextField = btn.textField as TextField;
+            said.push(what + " " + language + " " + btn.label + (field != null ? " " + Math.round(field.textWidth) + "/" + Math.round(field.width - 4) : ""));
+            if(btn.label != want)
+               failures.push(what + ", " + language + ": Play says " + btn.label + ", not " + want);
+            else if(field == null || field.textWidth * (1 + FIT_MARGIN) > field.width - 4)
+               failures.push(what + ", " + language + ": \"" + btn.label + "\" does not fit Play");
+         };
          for each(var language:String in HarnessText.LANGUAGES)
          {
-            var say:Object = HarnessText.DATA[language];
-            Loc.setData(say);
+            Loc.setData(HarnessText.DATA[language]);
             Info.isInSquad = true;
             Info.commander = false;
             panel.showRoomsPlay(false,false,false,false,false,"");
-            btn.validateNow();
-            var want:String = String(say.st_srp_play_in_squad).toUpperCase();
-            var field:TextField = btn.textField as TextField;
-            said.push(language + " " + btn.label + (field != null ? " " + Math.round(field.textWidth) + "/" + Math.round(field.width) : ""));
-            if(btn.label != want)
-               failures.push("in squad, " + language + ": Play says " + btn.label + ", not " + want);
-            else if(field == null || field.textWidth * (1 + FIT_MARGIN) > field.width - 4)
-               failures.push("in squad, " + language + ": \"" + btn.label + "\" does not fit Play");
+            fits("in squad", language, "st_srp_play_in_squad");
             if(btn.enabled)
                failures.push("in squad, " + language + ": Play lit for a soldier");
             Info.commander = true;
             panel.showRoomsPlay(false,false,false,false,true,"");
             if(btn.label != "PLAY")
                failures.push("in squad, " + language + ": the leader's Play says " + btn.label);
+            Info.isInSquad = false;
+            panel.showRoomsPlay(true,false,false,false,true,Loc.getName("st_srp_rooms_leave_room"));
+            fits("leave room", language, "st_srp_rooms_leave_room");
+            panel.showRoomsPlay(false,true,false,false,true,Loc.getName("st_srp_rooms_leave_queue"));
+            fits("leave queue", language, "st_srp_rooms_leave_queue");
+            if(!btn.enabled)
+               failures.push("leave queue, " + language + ": Play greyed");
+            panel.showRoomsPlay(false,false,false,false,true,"");
+            if(btn.label != "PLAY")
+               failures.push(language + ": Play out of the room says " + btn.label);
          }
          Info.isInSquad = false;
          Loc.setData(HarnessText.DATA.english);
-         trace("ROOMS a soldier's Play: " + said.join(", "));
+         trace("ROOMS Play: " + said.join(", "));
       }
 
       // The list's rows (their sprites are named by their rooms' keys).
@@ -459,13 +568,33 @@ package
             findRows(box.getChildAt(i), rows);
       }
 
+      // Every button `what` shows whose label its field cuts.
+      private function cutButtons(what:String) : Array
+      {
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         var misses:Array = [];
+         for each(var b:* in buttons)
+         {
+            // Drawn as the next frame draws it; the label counter-scaled to the button's size
+            // (its own width, unscaled, is what its text gets).
+            b.validateNow();
+            var label:TextField = b.textField as TextField;
+            var room:Number = label != null ? label.width / label.scaleX - 4 : 0;
+            if(label != null && label.textWidth * (1 + FIT_MARGIN) > room)
+               misses.push(what + ": button \"" + b.label + "\" cut: " + Math.round(label.textWidth) + " in " + Math.round(room));
+         }
+         return misses;
+      }
+
       // What `what` shows: every shown text's drawn extent (its alignment in its field, the margin
-      // added), a single-line one cut at its field's end, and any two on one line that meet.
+      // added), a single-line one cut at its field's end, and any two on one line that meet; every
+      // button's label cut (cutButtons).
       private function overlaps(what:String) : Array
       {
          var texts:Array = [];
          walk(win,[],texts,0,0,[]);
-         var misses:Array = [];
+         var misses:Array = cutButtons(what);
          var spans:Array = [];
          for each(var t:Object in texts)
          {
@@ -527,18 +656,29 @@ package
             "Room max level 15, your gear 5. Loadout 2 is level 14.");
          playOffer("Play into its room", "S1;O;1002;1;2;8;5;10;0", "Enter anyway",
             "Room max level 10, your gear 5. Loadout 2 is level 8.");
+         // A full room's Queue (the owner's of 2026-11-01): Join's offer, its first button "Queue"
+         // (the queue as it is) for a higher loadout, "Exit" for gear over the max.
+         playOffer("Queue of a full room, a higher loadout", "S1;O;1001;1;2;15;10;15;0", "Queue",
+            "Room max level 15, your gear 10. Loadout 2 is level 15.", "1001;2;15;8;16;0;0;0;0;QueueDemo01");
+         playOffer("Queue of a full room, gear over its max", "S1;O;1001;2;2;10;15;10;0", "Exit",
+            "Your gear 15 is over the room's max level 10. Loadout 2 is level 10.", "1001;2;10;8;16;0;0;0;0;QueueDemo01");
       }
 
-      private function playOffer(what:String, row:String, first:String, why:String):void
+      // Play pressed, or (`full`, a full room's list row) that room's Queue in the list; then the
+      // server's offer `row`.
+      private function playOffer(what:String, row:String, first:String, why:String, full:String = null):void
       {
          tell(["S1;N;0;0;0"]);
          try
          {
-            win["quickPlay"]();
+            if(full == null)
+               win["quickPlay"]();
+            else
+               pressQueue(full);
          }
          catch(err:Error)
          {
-            failures.push(what + ": Play: " + err.message);
+            failures.push(what + ": " + (full == null ? "Play" : "Queue") + ": " + err.message);
             return;
          }
          tell([row]);
@@ -573,6 +713,47 @@ package
          for each(b in buttons)
             if(b.label == "Switch and enter")
                failures.push(what + ": the popup stays after " + first);
+      }
+
+      // The list's row of room `key` chosen.
+      private function selectRow(key:String):void
+      {
+         var rows:Array = [];
+         findRows(win, rows);
+         for each(var row:Sprite in rows)
+            if(row.name == key)
+               row.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+      }
+
+      // The window's button labelled `label` pressed.
+      private function pressLabel(label:String):void
+      {
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         for each(var b:* in buttons)
+            if(b.label == label)
+            {
+               var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+               b.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+               return;
+            }
+         failures.push("no " + label + " button");
+      }
+
+      // The list of the one full room `full`, its Queue pressed.
+      private function pressQueue(full:String):void
+      {
+         tell(["S1;L;1;0", full]);
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         for each(var b:* in buttons)
+            if(b.label == "Queue")
+            {
+               var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+               b.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+               return;
+            }
+         throw new Error("no Queue button");
       }
 
       private function queueButton(what:String, expected:String, enabled:Boolean):void
@@ -698,6 +879,22 @@ package
             if(lobby.getChildIndex(history) <= lobby.getChildIndex(room))
                failures.push("History reopened last did not stay above room");
             trace("ROOMS most recently opened window stays on top across side-panel updates");
+            // The notifications that come up by themselves (a match's report
+            // after the results) stay over the room, however it came up.
+            var popups:Object = new (domain.getDefinition("SrvNotificationList") as Class)();
+            var before:Object = lobby.notificationListTemp;
+            lobby.notificationListTemp = popups;
+            lobby.addChild(popups);
+            for(i = 0; i < 3; i++)
+            {
+               lobby.setChildIndex(room,lobby.numChildren - 1);
+               lobby.layerRoomsWindow(room);
+               if(lobby.getChildIndex(popups) <= lobby.getChildIndex(room))
+                  failures.push("a match's report popped up under the room");
+            }
+            lobby.removeChild(popups);
+            lobby.notificationListTemp = before;
+            trace("ROOMS the notifications that pop up stay over the room");
             // Use the production modal-order owner with lightweight results;
             // the full victory screen requires the game's player dictionaries.
             var Layers:Object = domain.getDefinition("survarium.rooms.RoomLayers");
@@ -841,11 +1038,16 @@ package
          tell(["S1;M;2;0","0;61;5;5;3;0","1;62;13;5;2;0"]);
          tellRoom(1003, false, false, 3, null, 0, []);
          var short:Object = tagOf("PROTECTIVE DEVICE");
+         // Free for all (mode 8, docs/notes/ffa.md): its card (the third, map 63) names it.
+         tell(["S1;M;3;0","0;61;5;5;3;0","1;62;13;5;2;0","2;63;12;3;8;0"]);
+         tellRoom(1003, false, false, 3, null, 0, []);
+         var ffa:Object = tagOf("FREE FOR ALL");
          trace("ROOMS vote card tag: long " + (long != null ? long.tag + " for " + long.text : "none")
-            + ", then short " + (short != null ? short.tag + " for " + short.text : "none"));
-         if(long == null || short == null)
+            + ", then short " + (short != null ? short.tag + " for " + short.text : "none")
+            + ", free for all " + (ffa != null ? ffa.tag + " for " + ffa.text : "none"));
+         if(long == null || short == null || ffa == null)
             failures.push("vote card tags not found");
-         else if(short.tag > short.text + 20 || long.tag > long.text + 20)
+         else if(short.tag > short.text + 20 || long.tag > long.text + 20 || ffa.tag > ffa.text + 20)
             failures.push("a vote card's mode tag is wider than its name (" + short.tag + " for " + short.text + ")");
          var texts:Array = [];
          walk(win,[],texts,0,0,[]);
@@ -940,6 +1142,63 @@ package
             failures.push("hidden room still owns text focus");
          Object(win).show(true);
          trace("ROOMS PIN focus released before removal, restored after redraw, released on hide");
+         checkCreateBots();
+      }
+
+      // A private room with bots (the owner's of 2026-11-05): "With bots" always there; turned
+      // on, the modes and maps the bots play none of are unticked, greyed and out of the pool's
+      // count; turned off, they are back to choose, still unticked.
+      private function checkCreateBots() : void
+      {
+         if(createText("With bots") == null)
+            failures.push("create: no With bots with no bots' map");
+         tell(["S1;M;2;0", "0;61;1;1;2;0;1", "1;117;2;1;4;0;0"]);
+         var toggle:Object = createText("With bots");
+         if(toggle == null)
+         {
+            failures.push("create: no With bots for a bots' map");
+            return;
+         }
+         createGreyed("create, without bots", 0, "2 / 2");
+         toggle.parent.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+         // Team Deathmatch's row and level 2's map: the bots play neither.
+         createGreyed("create, with bots", 2, "1 / 1");
+         toggle = createText("With bots");
+         if(toggle != null)
+            toggle.parent.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
+         createGreyed("create, bots off again", 0, "1 / 2");
+         trace("ROOMS create with bots: toggle, unticked and greyed modes and maps");
+      }
+
+      // The create window's text `text`, if it shows it.
+      private function createText(text:String) : Object
+      {
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var t:Object in texts)
+            if(t.text == text)
+               return t;
+         return null;
+      }
+
+      // The create window shows `count` greyed lines (a mode, a map) and the pool's count `pool`.
+      private function createGreyed(what:String, count:int, pool:String) : void
+      {
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         var greyed:int = 0;
+         var counted:Boolean = false;
+         for each(var t:Object in texts)
+         {
+            if(t.parent != null && t.parent.alpha < 1)
+               greyed++;
+            if(String(t.text).indexOf(": " + pool) > 0)
+               counted = true;
+         }
+         if(greyed != count)
+            failures.push(what + ": " + greyed + " greyed lines, not " + count);
+         if(!counted)
+            failures.push(what + ": the pool does not count " + pool);
       }
 
       // The create window's PIN field (its one input) given `pin`, as typed.

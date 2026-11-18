@@ -108,7 +108,7 @@ impl Walkers {
             None => Trace::none(hash),
         };
         log::info!("Match {id:#x}: the bots run on tuning {hash:08x}");
-        let project = formed.map.project;
+        let project = formed.played.map().project;
         maps.request(project);
         let teams: Vec<u8> = formed.places.iter().map(|place| place.team).collect();
         // A bot's role by its weapon 1's category; a player's weapon may
@@ -134,15 +134,15 @@ impl Walkers {
         Some(Self {
             bots: Bots::new(
                 id,
-                formed.map.mode,
-                formed.map.level,
+                formed.played.mode().rules(),
+                formed.played.map().level,
                 &teams,
                 &driven,
                 &roles,
                 Arc::new(tuning),
                 trace,
             )
-            .with_container_teams(formed.map.container_teams),
+            .with_container_teams(formed.played.map().container_teams),
             maps,
             project,
             world: None,

@@ -3,6 +3,7 @@
 use super::*;
 extern crate std;
 use crate::limits::{angle_between, signed_angle};
+use crate::shot::{BATTERY_STRIKE_KNOCKBACK, Blow, FORCE_PROTEIN_KNOCKBACK};
 use crate::skeleton::{BONES, Bone};
 
 /// A plane at height `floor` (and, if set, a wall at z = `wall` facing -Z).
@@ -544,6 +545,7 @@ fn the_killing_shot_decides_the_fall() {
     let leg = crate::shot::Hit {
         point: Vec3::new(0.1, 0.3, 0.08),
         impulse: crate::shot::impulse(Vec3::new(0.0, 0.0, -1.0), 0.02, 800.0),
+        blow: None,
     };
     let kicked = fall(&[leg], none, 12);
     assert!(
@@ -634,6 +636,7 @@ fn equipment_and_ammo_change_the_knock() {
     let shot = |mass: f32, speed: f32| crate::shot::Hit {
         point: front.point,
         impulse: crate::shot::impulse(Vec3::new(0.0, 0.0, -1.0), mass, speed),
+        blow: None,
     };
     let sniper = fall(&[shot(0.1, 800.0)], [0.0; PARTS], 12);
     let pistol = fall(&[shot(0.02, 315.0)], [0.0; PARTS], 12);
@@ -920,6 +923,7 @@ pub(crate) fn looks() -> [(&'static str, crate::shot::Hit); 3] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.3, 0.12),
                 impulse: rifle(Vec3::new(0.0, 0.0, -1.0)),
+                blow: None,
             },
         ),
         (
@@ -927,6 +931,7 @@ pub(crate) fn looks() -> [(&'static str, crate::shot::Hit); 3] {
             crate::shot::Hit {
                 point: Vec3::new(-0.15, 1.3, 0.0),
                 impulse: rifle(Vec3::new(1.0, 0.0, 0.0)),
+                blow: None,
             },
         ),
         (
@@ -934,6 +939,7 @@ pub(crate) fn looks() -> [(&'static str, crate::shot::Hit); 3] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.66, 0.09),
                 impulse: rifle(Vec3::new(0.0, 0.0, -1.0)),
+                blow: None,
             },
         ),
     ]
@@ -1021,6 +1027,7 @@ pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.3, 0.12),
                 impulse: rifle(back),
+                blow: None,
             },
             Vec3::ZERO,
         ),
@@ -1029,6 +1036,7 @@ pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
             crate::shot::Hit {
                 point: Vec3::new(-0.15, 1.3, 0.0),
                 impulse: rifle(Vec3::X),
+                blow: None,
             },
             Vec3::ZERO,
         ),
@@ -1037,6 +1045,7 @@ pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.66, 0.09),
                 impulse: rifle(back),
+                blow: None,
             },
             Vec3::ZERO,
         ),
@@ -1045,6 +1054,7 @@ pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.3, 0.12),
                 impulse: crate::shot::impulse(back, 0.1, 800.0),
+                blow: None,
             },
             Vec3::ZERO,
         ),
@@ -1053,6 +1063,7 @@ pub(crate) fn looks5() -> [(&'static str, crate::shot::Hit, Vec3); 5] {
             crate::shot::Hit {
                 point: Vec3::new(0.0, 1.3, 0.12),
                 impulse: rifle(back),
+                blow: None,
             },
             Vec3::new(0.0, 0.0, 5.0),
         ),
@@ -1152,6 +1163,7 @@ fn no_single_hit_reaches_a_cap() {
             let hits = [crate::shot::Hit {
                 point,
                 impulse: crate::shot::impulse(back, mass, speed),
+                blow: None,
             }];
             let now = standing(Quat::IDENTITY, Vec3::ZERO);
             let before = driver_bones(&now);
@@ -1190,4 +1202,304 @@ fn no_single_hit_reaches_a_cap() {
         crate::shot::impulse(back, 0.1, 850.0).length()
             > 2.0 * crate::shot::impulse(back, 0.02, 800.0).length()
     );
+}
+
+/// How far under Rudnya's drawn ground each settled body's axis lies (its
+/// two ends and its centre, the deepest; under 0 when above it), the gun's
+/// first, on the level made of `meshes` (`rudnya_floor`).
+fn under_rudnya_drawn_ground(
+    meshes: &[&'static [super::rudnya_floor::Triangle]],
+) -> std::vec::Vec<(f32, f32)> {
+    use super::rudnya_floor::{DRAWN, Floor};
+    let mut out = std::vec::Vec::new();
+    for (turn, cause) in [
+        (0.0, SHOT),
+        (1.3, SHOT),
+        (
+            2.5,
+            Cause::Body {
+                part: Part::LeftThigh,
+                direction: Vec3::X,
+                heavy: true,
+            },
+        ),
+        (
+            0.4,
+            Cause::Head {
+                direction: Vec3::new(0.0, 0.0, 1.0),
+            },
+        ),
+        (-2.0, SHOT),
+    ] {
+        let now = standing(Quat::from_axis_angle(Vec3::Y, turn), Vec3::ZERO);
+        let before = driver_bones(&now);
+        let mut ragdoll = Ragdoll::new(&start(&now, &before, cause, Some(GUN))).unwrap();
+        let mut floor = Floor {
+            meshes: meshes.to_vec(),
+        };
+        let mut t = 0.0;
+        while ragdoll.step(1.0 / 60.0, None, &mut floor) != Motion::Settled {
+            t += 1.0 / 60.0;
+            assert!(t < 10.0, "{cause:?}: never settled");
+        }
+        let under = |b: &Body| {
+            let (a, c) = b.shape.ends(b.pose);
+            [a, b.pose.position, c]
+                .iter()
+                .map(|p| {
+                    let drawn = Floor::height(&DRAWN, p.x, p.z)
+                        .unwrap_or_else(|| panic!("{cause:?}: off the piece of ground at {p:?}"));
+                    drawn - p.y
+                })
+                .fold(f32::MIN, f32::max)
+        };
+        let gun = under(ragdoll.gun.as_ref().expect("the gun dropped"));
+        let body = ragdoll.bodies.iter().map(under).fold(f32::MIN, f32::max);
+        out.push((gun, body));
+    }
+    out
+}
+
+#[test]
+fn on_rudnya_a_dropped_gun_lies_on_the_drawn_ground_not_in_it() {
+    use super::rudnya_floor::{HITTABLE, WALKER};
+    // the owner: "on Rudnya, weapons quite often fall under the textures".
+    // On the walker mesh alone (patch 76's rays before) the gun's axis lay
+    // 6 cm under the drawn ground, deeper than its radius: all of it hidden
+    let walker = under_rudnya_drawn_ground(&[&WALKER]);
+    std::println!("walker mesh alone (gun, body): {walker:?}");
+    assert!(
+        walker.iter().all(|&(gun, _)| gun > GUN.radius),
+        "{walker:?}"
+    );
+    // with the collision bullets hit (what the rays meet now) the gun's
+    // axis lies 3 cm above it (the collision is 1 cm under it here), every
+    // body's 4 cm
+    let both = under_rudnya_drawn_ground(&[&WALKER, &HITTABLE]);
+    std::println!("walker and hittable collision (gun, body): {both:?}");
+    assert!(
+        both.iter().all(|&(gun, body)| gun < -0.02 && body < -0.03),
+        "{both:?}"
+    );
+}
+
+/// A lone gun (its body gone: the player respawned) stepped at 60 frames a
+/// second until it rests: the frames it took and the highest its capsule's
+/// bottom went under the floor (m, positive below).
+fn lone_until_rest(gun: &mut LoneGun, ground: &mut Ground) -> (usize, f32) {
+    let mut sunk = 0.0f32;
+    for n in 1..=600 {
+        let motion = gun.step(1.0 / 60.0, Vec3::Y, ground);
+        let (a, b) = gun.body.shape.ends(gun.body.pose);
+        sunk = sunk.max(gun.body.shape.radius - a.y.min(b.y));
+        if motion == Motion::Settled {
+            return (n, sunk);
+        }
+    }
+    panic!("a lone gun never rested");
+}
+
+#[test]
+fn a_lone_gun_sliding_on_the_ground_stops() {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let ragdoll = Ragdoll::new(&start(&now, &before, SHOT, Some(GUN))).unwrap();
+    let mut gun = ragdoll.lone_gun().unwrap();
+    // lying flat on the floor, sliding at 3 m/s along its length's side
+    let radius = gun.body.shape.radius;
+    gun.body.pose = Pose::new(Quat::IDENTITY, Vec3::new(0.0, radius + 0.002, 0.0));
+    gun.body.previous = gun.body.pose;
+    gun.body.velocity = Vec3::new(0.0, 0.0, 3.0);
+    gun.body.contacts = [Contact::Plane { point: Vec3::ZERO, normal: Vec3::Y }; 2];
+    let mut ground = Ground::flat();
+    let (frames, sunk) = lone_until_rest(&mut gun, &mut ground);
+    let at = gun.body.pose.position;
+    assert!(at.z > 0.05, "it slid on: {at:?}");
+    assert!(sunk < 0.02 && (at.y - radius).abs() < 0.03, "on the ground: {at:?}, sunk {sunk}");
+    assert!(gun.body.end_speed() < SLOW && frames < 300, "{frames} frames");
+}
+
+/// A melee hit (the weapon's melee/data: mass 0.01, 1000 m/s) struck with
+/// `blow` by a shooter whose kit sums `kit` (the Force Protein's 15).
+fn gun_stock(direction: Vec3, point: Vec3, blow: Blow, kit: f32) -> crate::shot::Hit {
+    let push = crate::shot::impulse(direction, 0.01, 1000.0);
+    crate::shot::Hit {
+        point,
+        impulse: crate::shot::knocked_back(push, blow, kit),
+        blow: Some(blow),
+    }
+}
+
+/// The melee hits the renders and the throw test compare: a plain gun
+/// stock, the Force Protein's, a battery strike, a strike with the protein.
+const MELEE: [(&str, Blow, f32); 4] = [
+    ("stock", Blow::GunStock, 0.0),
+    ("protein", Blow::GunStock, FORCE_PROTEIN_KNOCKBACK),
+    ("strike", Blow::BatteryStrike, 0.0),
+    ("strike_protein", Blow::BatteryStrike, FORCE_PROTEIN_KNOCKBACK),
+];
+
+/// A melee hit's scenes: from the front on the chest, from the side.
+const KNOCK_SCENES: [(&str, Vec3, Vec3); 2] = [
+    ("front", Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12)),
+    ("side", Vec3::new(1.0, 0.0, 0.0), Vec3::new(-0.15, 1.3, 0.0)),
+];
+
+
+/// A standing body killed by `hit`, 300 frames at 60 a second, `each`
+/// frame's ragdoll seen: how high its centre of mass went and how far on
+/// (level) it ended, m, and when it first settled, s.
+fn thrown(hit: crate::shot::Hit, mut each: impl FnMut(&Ragdoll)) -> (f32, f32, Option<f32>) {
+    let now = standing(Quat::IDENTITY, Vec3::ZERO);
+    let before = driver_bones(&now);
+    let hits = [hit];
+    let mut s = start(&now, &before, Cause::Unknown, Some(GUN));
+    s.hits = &hits;
+    let mut r = Ragdoll::new(&s).unwrap();
+    let centre = |r: &Ragdoll| {
+        let m: f32 = r.bodies.iter().map(|b| 1.0 / b.inverse_mass).sum();
+        r.bodies.iter().fold(Vec3::ZERO, |c, b| {
+            c + b.pose.position * (1.0 / (b.inverse_mass * m))
+        })
+    };
+    let (from, mut rise, mut settled) = (centre(&r), 0.0f32, None);
+    let mut ground = Ground::flat();
+    for frame in 0..300 {
+        each(&r);
+        if r.step(1.0 / 60.0, None, &mut ground) == Motion::Settled {
+            settled = settled.or(Some(frame as f32 / 60.0));
+        }
+        rise = rise.max(centre(&r).y - from.y);
+    }
+    (rise, (centre(&r) - from).reject(Vec3::Y).length(), settled)
+}
+
+#[test]
+fn a_force_protein_gun_stock_kill_flies_on_and_rests_by_friction() {
+    // nothing holds a body near where it died (no wall at 2.5 m, the old
+    // cap): the throw goes on past it and the ground's friction stops it,
+    // the rest rules settle it before the age cap; a plain gun stock falls
+    // about where it stood
+    let rested = |settled: Option<f32>| settled.is_some_and(|t| t < MAX_AGE - 0.5);
+    for (_, direction, point) in KNOCK_SCENES {
+        let (rise, on, settled) = thrown(gun_stock(direction, point, Blow::GunStock, 15.0), |_| {});
+        let seen = std::format!("up {rise:.2}, on {on:.2}, settled {settled:?}");
+        assert!(rise > 0.15 && on > 3.0 && rested(settled), "thrown: {seen}");
+        let (rise, on, settled) = thrown(gun_stock(direction, point, Blow::GunStock, 0.0), |_| {});
+        let seen = std::format!("up {rise:.2}, on {on:.2}, settled {settled:?}");
+        assert!(rise < 0.02 && on < 1.1 && rested(settled), "plain: {seen}");
+    }
+}
+
+#[test]
+fn a_battery_strike_knocks_back_half_the_protein_and_adds_to_it() {
+    // its own knockback half the protein's, added to the kit's: 8.5 times
+    // a gun stock's push alone, 23.5 with the protein
+    assert_eq!(BATTERY_STRIKE_KNOCKBACK * 2.0, FORCE_PROTEIN_KNOCKBACK);
+    let push = crate::shot::impulse(Vec3::new(0.0, 0.0, -1.0), 0.01, 1000.0);
+    for k in [0.0, -1.0, f32::NAN] {
+        assert_eq!(crate::shot::knocked_back(push, Blow::BatteryStrike, k), push * 8.5);
+    }
+    assert_eq!(crate::shot::knocked_back(push, Blow::BatteryStrike, FORCE_PROTEIN_KNOCKBACK), push * 23.5);
+    // every strike is a heavy hit, alone (68 N s) too; a plain gun stock
+    // and the heaviest bullet are not
+    let hit = |blow, kit| gun_stock(Vec3::new(0.0, 0.0, -1.0), Vec3::new(0.0, 1.3, 0.12), blow, kit);
+    assert!(hit(Blow::BatteryStrike, 0.0).heavy() && hit(Blow::BatteryStrike, FORCE_PROTEIN_KNOCKBACK).heavy());
+    assert!(hit(Blow::GunStock, FORCE_PROTEIN_KNOCKBACK).heavy() && !hit(Blow::GunStock, 0.0).heavy());
+    let round = crate::shot::Hit { blow: None, impulse: crate::shot::impulse(Vec3::Z, 0.999, 2999.0), ..hit(Blow::GunStock, 0.0) };
+    assert!(!round.heavy());
+    // thrown about half as far as the protein's and lifted a little, well
+    // past a plain gun stock's; with the protein, farther and higher than
+    // the protein alone
+    let rested = |settled: Option<f32>| settled.is_some_and(|t| t < MAX_AGE - 0.5);
+    for (scene, direction, point) in KNOCK_SCENES {
+        let [stock, protein, strike, both] =
+            MELEE.map(|(_, blow, kit)| thrown(gun_stock(direction, point, blow, kit), |_| {}));
+        let seen = std::format!("{scene}: {stock:?} {protein:?} {strike:?} {both:?}");
+        let half = strike.1 / protein.1;
+        assert!(stock.1 + 0.5 < strike.1 && (0.4..0.6).contains(&half) && strike.0 > 0.02, "strike: {seen}");
+        assert!(protein.1 + 1.0 < both.1 && protein.0 < both.0, "strike with the protein: {seen}");
+        assert!(rested(strike.2) && rested(both.2), "{seen}");
+    }
+}
+
+#[test]
+fn no_bullet_and_no_plain_gun_stock_is_a_heavy_hit() {
+    // so every bullet's death is pushed as before (the heaviest a bullet makes)
+    let d = Vec3::new(0.0, 0.0, -1.0);
+    assert!(crate::shot::impulse(d, 0.999, 2999.0).length() < tuning::HEAVY_HIT);
+    let push = crate::shot::impulse(d, 0.01, 1000.0);
+    for k in [0.0, -1.0, f32::NAN] {
+        assert_eq!(crate::shot::knocked_back(push, Blow::GunStock, k), push);
+    }
+    assert_eq!(crate::shot::knocked_back(push, Blow::GunStock, 15.0), push * 16.0);
+    assert!((push * 16.0).length() >= tuning::HEAVY_HIT);
+}
+
+#[test]
+#[ignore = "render dump: RAGDOLL_DUMP=<file> cargo test -p ragdoll render_knockback -- --ignored"]
+fn render_knockback() {
+    use std::io::Write;
+    let out = std::env::var("RAGDOLL_DUMP").unwrap();
+    let mut file = std::fs::File::create(out).unwrap();
+    for (scene, direction, point) in KNOCK_SCENES {
+        for (hit, blow, kit) in MELEE {
+            let mut frames = std::vec::Vec::new();
+            let push = gun_stock(direction, point, blow, kit);
+            thrown(push, |r| {
+                let mut caps = std::vec::Vec::new();
+                for b in r.bodies.iter().chain(r.gun.iter()) {
+                    let (a, c) = b.shape.ends(b.pose);
+                    caps.push(std::format!(
+                        "[{:.4},{:.4},{:.4},{:.4},{:.4},{:.4},{:.3}]",
+                        a.x,
+                        a.y,
+                        a.z,
+                        c.x,
+                        c.y,
+                        c.z,
+                        b.shape.radius
+                    ));
+                }
+                frames.push(std::format!("[{}]", caps.join(",")));
+            });
+            writeln!(
+                file,
+                "{{\"name\":\"{scene}\",\"hit\":\"{hit}\",\"push\":{:.1},\"frames\":[{}]}}",
+                push.impulse.length(),
+                frames.join(",")
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn capsules_found_apart_never_overlap() {
+    // random capsules, many near the reach: `apart` never skips a pair
+    // `separation` finds overlapping, and skips most far ones
+    let mut seed = 0x1234_5678u32;
+    let mut next = || {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        (seed >> 8) as f32 / (1u32 << 24) as f32
+    };
+    let (mut skipped, mut far) = (0, 0);
+    for _ in 0..200_000 {
+        let capsule = |next: &mut dyn FnMut() -> f32| {
+            let shape = Capsule { half: next() * 0.3, radius: 0.02 + next() * 0.12 };
+            let axis = Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5).direction_or(Vec3::Y);
+            let rotation = Quat::from_axis_angle(axis, next() * 7.0);
+            let position = Vec3::new(next() * 1.6 - 0.8, next() * 1.6 - 0.8, next() * 1.6 - 0.8);
+            Body::new(Pose::new(rotation, position), shape, 1.0)
+        };
+        let a = capsule(&mut next);
+        let b = capsule(&mut next);
+        let overlap = separation(&a, &b).is_some();
+        if apart(&a, &b) {
+            skipped += 1;
+            assert!(!overlap, "{a:?} {b:?}");
+        }
+        far += usize::from(!overlap);
+    }
+    assert!(skipped > far / 4, "{skipped} of {far}");
 }

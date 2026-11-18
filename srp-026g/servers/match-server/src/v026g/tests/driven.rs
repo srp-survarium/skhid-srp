@@ -259,7 +259,8 @@ fn with_the_map_the_servers_bot_sees_its_body_in_the_worlds_and_walks_smoothly()
     sim.player_states[1] = Some(PlayerState {
         current_index: 0,
         target_index: 0,
-        items: vec![1, 2, 3],
+        pickup: weapon_pickup::Record::EMPTY,
+        items: vec![1], // the fixture profile has one item
         alive: true,
         has_to_die: false,
         look_pitch: 0.0,
@@ -409,6 +410,22 @@ fn a_solo_humans_bot_match_keeps_accepted_actions_for_replay() {
         sur_convert::convert_file(&path, &notes, b"config", sur_convert::Settings::default())
             .unwrap();
     assert!(report.inputs > 1, "human and bot inputs are present");
+    // The key frames are the worlds the server took, each one recorded.
+    let taken: Vec<record::AcceptedWorld> = records
+        .iter()
+        .filter(|r| r.kind == record::ACCEPTED_WORLD)
+        .map(|r| record::AcceptedWorld::parse(&r.bytes).unwrap())
+        .collect();
+    assert!(!taken.is_empty(), "the initial world at least");
+    assert_eq!(report.worlds_from, sur_convert::WorldsSource::Accepted);
+    assert!(
+        report
+            .key_frames
+            .iter()
+            .all(|time| taken.iter().any(|world| world.time == *time)),
+        "key frames {:?}, worlds taken {taken:?}",
+        report.key_frames
+    );
     let chunks = crate::v026g::sur::chunks(&file).unwrap();
     let events = crate::v026g::sur::read_body(
         &survarium::v026g::lzma2::unpack(chunks[2].1, 1 << 20).unwrap(),

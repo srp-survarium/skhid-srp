@@ -65,7 +65,7 @@ the bot sends key-down actions as one-tick pulses.
 
 Batteries (code): taking one from the ground on use is instant (0x3007E0),
 and so are putting one in and stealing from a container (0x31CC40); the
-battery config's `take_time` (0.6, 0.5 from content-edit battery-pickup-1) is
+battery config's `take_time` (0.6, 0.5 from content-edit battery.tsv) is
 the length the hands-up animation is time-scaled to (PROVEN,
 `battery_pickup.md`); the bots plan with no pick-up time. Only resupply zones (`resupply_time_in_ms`), artefact
 containers (`artefacts_search_time_sec`) and defusing a trap need use held.
@@ -366,7 +366,8 @@ the archive's index: a loader must follow them.
      weighs 0.3 of a Team Deathmatch one).
    - Kit and role (`survarium::v026g::loadouts::BotRole`): flanker (Uzi),
      support (AK-74U), rusher (TOZ-34), camper (Mosin), each with two
-     medkits, two RGD-5 and the radio (passive: −20 % respawn time, PROVEN
+     medkits, one RGD-5 (it takes two pocket units; two before 2026-11-05)
+     and the radio (passive: −20 % respawn time, PROVEN
      in the client); the role is read back from the gear and sets the
      bot's personality.
    - Weapons (`guns.rs`): each weapon's rounds a load, shot time, trigger
@@ -514,7 +515,7 @@ chosen in srp's changed lobby movie ("Player vs Bots"; the wire is
   Deathmatch). Its teams are fixed: no late joiner.
   `MatchSetup::vs_bots` marks it for the match server and the rewards.
 - **Every equipment level (the owner's, 2026-10-26).** Any equipment
-  level plays (`SRP_PVB_MAX_GEAR`, 15; 5 before), and the bots wear kits
+  level plays (`pvb/max_gear` of `rooms.tsv`, 15; 5 before), and the bots wear kits
   of the player's (`matchmaking::gear_level`; a match of several players:
   their mean), the top players' (`session::v026g::bot_kits`):
   - whose: accounts put in a match 5 times or more, by rating; for each

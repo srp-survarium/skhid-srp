@@ -4,20 +4,29 @@
 # Builds the game server's server-game-data.db from the stock resources.db
 # ($SKHID_STOCK_DB) and the patches of the offered-patch list
 # release/patches.tsv, exactly those, in its order:
-#   1. reads the list (every row checked: name, sha256, size, its URLs, the
-#      first on $SKHID_PATCHES_URL);
+#   1. reads the list (every row checked: name, sha256, size, its URLs, one
+#      of them on $SKHID_PATCHES_URL);
 #   2. uses the local patch cache, checking each file's size and sha256;
-#      downloads a missing or invalid file from its first URL (HTTP 200).
-#      Checks every URL as the updater fetches it (redirects followed, not
-#      a web page), whole once and then by its first bytes (lib.sh
-#      check_patch_url). Cached bytes never replace URL availability checks;
-#   3. srp-game-data build --db $SKHID_STOCK_DB --patch "<file>=<urls>" ...
-#      --out <file> (the row's URLs, one space apart), then srp-game-data
+#      downloads a missing or invalid file from the patches server (HTTP
+#      200). Checks every URL as the updater fetches it (redirects
+#      followed, not a web page), whole once and then by its first bytes
+#      (lib.sh check_patch_url): the patches server's must give it; another
+#      that does not is a WARNING (players move on to the next), unless
+#      none does. Cached bytes never replace URL availability checks;
+#   3. the game's archive's row (survarium-026g.7z, release/game.tsv):
+#      each of its URLs asked for its first bytes as the updater fetches it
+#      (200 or 206, not a web page, the row's size, a 7z archive; never the
+#      2.9 GB: release/add-mirror downloads a new URL whole); one that does
+#      not give it is a WARNING, none that does stops it;
+#   4. srp-game-data build --db $SKHID_STOCK_DB --patch "<file>=<urls>" ...
+#      [--game "<the game's row>"] --out <file> (the row's URLs, one space
+#      apart), then srp-game-data
 #      info <file>, which must name the list's patches and no other, and
 #      srp-check-game-data <file>, what srp checks at start (every table,
 #      the golden weapons' content patch): data srp would refuse after the
 #      swap is refused here;
-#   4. prints what the server's /patches will offer the players' updater.
+#   5. prints what the server's /patches and /game will offer the players'
+#      updater (before the mirrors of srp's mirrors.tsv).
 #
 #   --test         the test environment's: release/patches-test.tsv on
 #                  $SKHID_TEST_PATCHES_URL
@@ -52,18 +61,19 @@ cache_patches
 args=()
 while read -r name sha size urls; do
     [[ -n $name ]] || continue
-    read -r -a each <<<"$urls"
-    url=${each[0]}
-    check_patch_url "$url" "$sha" "$size" "$work" || die "$name: $URL_PROBLEM"
-    say "$name: $url: $CHECKED; cached $size bytes, sha256 $sha, as the list says"
-    for mirror in "${each[@]:1}"; do
-        check_patch_url "$mirror" "$sha" "$size" "$work" ||
-            die "$name: $URL_PROBLEM (a mirror in $PATCH_LIST: put it right, or take it out of the row)"
-        say "$name: mirror $mirror: $CHECKED, as the list says"
-    done
+    check_file_urls "$name" "$sha" "$size" "$urls" "$work" '' "$PATCHES_URL/$name" ||
+        die "$name: $URL_PROBLEM (in $PATCH_LIST)"
+    say "$name: cached $size bytes, sha256 $sha, as the list says; $URLS_GOOD URL(s) giving it"
     args+=(--patch "$PATCH_CACHE/$name=$urls")
 done <<<"$LIST"
 ((${#args[@]})) || say "no patch in $PATCH_LIST"
+if [[ -n $GAME_ROW ]]; then
+    read -r name sha size urls <<<"$GAME_ROW"
+    check_file_urls "$name" "$sha" "$size" "$urls" "$work" quick || die "$name: $URL_PROBLEM (in $GAME_LIST)"
+    args+=(--game "$GAME_ROW")
+else
+    say "no $GAME_NAME in $GAME_LIST: /game offers nothing (the updater uses the addresses built into it)"
+fi
 
 "$bin" build --db "$SKHID_STOCK_DB" "${args[@]}" --out "$work/$DATA_NAME"
 say
@@ -71,6 +81,7 @@ info=$("$bin" info "$work/$DATA_NAME")
 say "$info"
 offered=$(offered_in "$info")
 [[ $offered == "$(offered_of_list "")" ]] || die "the built data does not offer exactly the patches of $PATCH_LIST; $out not written"
+[[ $(offered_game_in "$info") == "$GAME_ROW" ]] || die "the built data does not name the game's archive of $GAME_LIST; $out not written"
 # What srp checks at start (every table; the golden weapons' content patch):
 # data it would refuse after the swap is refused here.
 checked=$("$check" "$work/$DATA_NAME" 2>&1) || die "srp would not start on the built data; $out not written: $checked"
@@ -84,6 +95,9 @@ if [[ -n $offered ]]; then
     sed 's/^\([^ ]*\) \([^ ]*\) \(.*\)$/  \1 sha256 \2 urls \3/' <<<"$offered"
 else
     say "  nothing ({}): the updater deletes every patch file of a game"
+fi
+if [[ -n $GAME_ROW ]]; then
+    say "/game will offer: $(list_game_json)"
 fi
 say "$out: sha256 $(sha256_of "$out")"
 say "next: release/deploy --server-data $out ..."

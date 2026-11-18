@@ -19,9 +19,10 @@ package {
   private function loaded(e:Event):void {
    try {
     var hud:Object = loader.content;
-    hud.set_localization_data({st_artefact_take_teammate:"Take artifact (E)"});
     // These native HUD methods set their state before touching game-only
-    // view objects, which need not exist in this headless fixture.
+    // view objects, which need not exist in this headless fixture (the
+    // texts are kept before the pregame line is drawn again).
+    try { hud.set_localization_data({st_artefact_take_teammate:"Take artifact (E)",st_weapon_pick_up:"Pick up %1$s (E)"}); } catch(nativePregame:Error) {}
     try { hud.show_profiles_selector(false); } catch(nativeProfile:Error) {}
     if(!hud.contextInfo) {
      var Widget:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("SrvContextInfo") as Class;
@@ -43,6 +44,9 @@ package {
     hud.show_context(true);
     if(!prompt.visible || prompt.contextText.text != "Native collection") throw new Error("native show did not retain text");
     hud.hide_context();
+    // Patch 85: the dropped gun's prompt names the gun; the next offer has no name.
+    hud.show_artefact_offer("st_weapon_pick_up","SVD");
+    if(!prompt.visible || prompt.contextText.text != "Pick up SVD (E)" || prompt.currentFrame != 1) throw new Error("weapon pickup prompt wrong: " + prompt.contextText.text);
     hud.show_artefact_offer("st_artefact_take_teammate");
     if(!prompt.visible || prompt.contextText.text != "Take artifact (E)") throw new Error("take message wrong");
     hud.show_artefact_offer("");

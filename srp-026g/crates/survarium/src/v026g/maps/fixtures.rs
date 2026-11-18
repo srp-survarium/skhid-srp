@@ -8,13 +8,13 @@ use binary_config_parser::tree::ConfigValue;
 
 use super::super::dictionary::{self, Dictionary};
 use super::super::game_data::{self, GameData};
-use super::{GAME_MODES_DIR, MapMode, mode};
+use super::{GAME_MODES_DIR, MapId, MapMode, RuleMode};
 
 /// A map a patch adds.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AddedMap {
     /// Its `maps_dict` id.
-    pub id: u8,
+    pub id: MapId,
     /// `cfg_mode_name`.
     pub config: &'static str,
     /// `match_making_params.map_id`, `map_weather_id`, `map_name`.
@@ -34,12 +34,12 @@ impl AddedMap {
     /// 17 respawn points.
     pub fn level_12_tdm() -> Self {
         Self {
-            id: 200,
+            id: MapId::new(200),
             config: "level_12_day_4.options",
             level: 12,
             weather: super::weather::DAY,
             project: "level_12/day_4",
-            mode: mode::TEAM_DEATHMATCH,
+            mode: RuleMode::TeamDeathmatch.number(),
             respawn_points: 17,
             containers: Vec::new(),
         }
@@ -49,10 +49,10 @@ impl AddedMap {
     /// (`research_mode.md`): 14 respawn points and no containers.
     pub fn level_12_research() -> Self {
         Self {
-            id: 202,
+            id: MapId::new(202),
             config: "level_12_day_5.options",
             project: "level_12/day_5",
-            mode: mode::RESEARCH,
+            mode: RuleMode::Research.number(),
             respawn_points: 14,
             ..Self::level_12_tdm()
         }
@@ -89,10 +89,10 @@ fn entry<'a>(value: &'a mut ConfigValue, key: &str) -> &'a mut ConfigValue {
 }
 
 /// The stock config whose mode is `game_mode`, on level_01 in the day.
-fn stock_config(game_mode: u8) -> ConfigValue {
+fn stock_config(game_mode: RuleMode) -> ConfigValue {
     let stock = super::all()
         .iter()
-        .find(|map| (map.level, map.weather, map.mode) == (1, super::weather::DAY, game_mode))
+        .find(|map| (map.level, map.weather, map.mode) == (1, super::weather::DAY, game_mode.into()))
         .expect("a stock config of the mode");
     let bytes = game_data::shared()
         .file(&format!("{GAME_MODES_DIR}{}", stock.config))
@@ -108,15 +108,15 @@ fn stock_config(game_mode: u8) -> ConfigValue {
 pub fn with_map(map: &AddedMap) -> GameData {
     let stock = game_data::shared();
 
-    let mut config = stock_config(match map.mode {
-        mode::RESEARCH => mode::TEAM_DEATHMATCH,
-        other if mode::ALL.contains(&other) => other,
-        _ => mode::BATTERIES,
+    let mut config = stock_config(match RuleMode::of_config(map.mode) {
+        Some(RuleMode::Research) => RuleMode::TeamDeathmatch,
+        Some(other) => other,
+        None => RuleMode::Batteries,
     });
     let root = entry(&mut config, "mode");
     *entry(root, "name") = ConfigValue::String(map.config.trim_end_matches(".options").into());
     *entry(root, "mode") = ConfigValue::Integer(map.mode.into());
-    if map.mode == mode::RESEARCH {
+    if map.mode == RuleMode::Research.number() {
         *entry(root, "rules") = ConfigValue::Indexed(
             [93, 91, 480, 94]
                 .into_iter()
@@ -175,7 +175,7 @@ pub fn with_map(map: &AddedMap) -> GameData {
     let mut dictionary_config = ConfigValue::parse(stock.file(dictionary::PATH).unwrap()).unwrap();
     match entry(&mut dictionary_config, "maps_dict") {
         ConfigValue::Indexed(rows) => rows.push(ConfigValue::Named(vec![
-            ("id".into(), ConfigValue::Integer(map.id.into())),
+            ("id".into(), ConfigValue::Integer(map.id.get().into())),
             (
                 "cfg_mode_name".into(),
                 ConfigValue::String(map.config.into()),

@@ -10,6 +10,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+
+import localization_026g as registry
 import zlib
 
 import check_localization_026g as checker
@@ -31,11 +34,31 @@ class LocalizationTests(unittest.TestCase):
         path.write_bytes(encode_strings(strings))
         return path
 
-    def test_serbian_roundtrip_preserves_every_latin_letter_and_tokens(self):
+    def test_serbian_and_croatian_roundtrip_preserves_every_latin_letter_and_tokens(self):
         strings = {'st_test': 'ČĆŠŽĐ čćšžđ: {USE} %d <white>Pokreni</white>',
                    'st_blank': '', 'st_multiline': 'Prvi red\nDrugi red'}
-        path = self.dictionary('serbian', strings)
-        self.assertEqual(read_strings(path), (strings, []))
+        for language in ('serbian', 'croatian'):
+            with self.subTest(language=language):
+                path = self.dictionary(language, strings)
+                self.assertEqual(read_strings(path), (strings, []))
+
+    def test_windows_rules_prefer_exact_locales_to_shared_primary(self):
+        def resolve(lcid):
+            return next((LANGUAGES[index][0] for mask, value, index in registry.windows_rules()
+                         if lcid & mask == value), 'english')
+        for lcid in (0x041A, 0x101A, 0x1041A):
+            self.assertEqual(resolve(lcid), 'croatian')
+        for lcid in (0x081A, 0x0C1A, 0x141A, 0x201A, 0x241A):
+            self.assertEqual(resolve(lcid), 'serbian')
+        self.assertEqual(resolve(0x0807), 'german')
+        self.assertEqual(resolve(0x0411), 'english')
+
+    def test_windows_registry_rejects_ambiguous_or_invalid_rules(self):
+        for rule in (0x1A, (0x041A,), (), (0x1A,), (0x10000,), (0x041B, 0x041B)):
+            with self.subTest(rule=rule), patch.object(
+                    registry, 'LANGUAGES', (*LANGUAGES, ('test', 'Test', rule, 'tt'))):
+                with self.assertRaises(ValueError):
+                    registry.rust_table()
 
     def test_missing_languages_and_keys_fail_even_when_counts_match(self):
         self.dictionary('english', {'a': 'One', 'b': 'Two'})
@@ -197,11 +220,14 @@ class LocalizationTests(unittest.TestCase):
         (edits / 'item.json').write_text(json.dumps({'set_entry': [
             {'file': 'gameplay/item', 'to': {'name': 'st_new_item'}}]}))
         manifest = release / 'content.tsv'
-        manifest.write_text('edit\titem.json\t-\titem\nedit\tcatalog.json\t-\ttranslations\n')
+        manifest.write_text('edit\titem.json\t-\titem\nedit\tweapon-stats.tsv\t-\tstats\nedit\tcatalog.json\t-\ttranslations\n')
         self.assertEqual(checker.audit_content_sources(self.root, {'st_new_item'}), [])
         self.assertTrue(any('st_new_item' in issue for issue in checker.audit_content_sources(self.root, set())))
         manifest.write_text('edit\tcatalog.json\t-\ttranslations\nedit\titem.json\t-\titem\n')
-        self.assertTrue(any('must end' in issue for issue in checker.audit_content_sources(self.root, {'st_new_item'})))
+        self.assertEqual(checker.audit_content_sources(self.root, {'st_new_item'}), [])
+        manifest.write_text('edit\tcatalog.json\t-\ttranslations\nedit\tcatalog.json\t-\tagain\n')
+        self.assertTrue(any('exactly one' in issue for issue in checker.audit_content_sources(self.root, {'st_new_item'})))
+        manifest.write_text('edit\tcatalog.json\t-\ttranslations\nedit\titem.json\t-\titem\n')
         (edits / 'item.json').write_text(json.dumps({'edit_text': [
             {'file': 'localization/polish/localization', 'path': 'strings/st_new_item'}]}))
         self.assertTrue(any('edit dictionary text' in issue

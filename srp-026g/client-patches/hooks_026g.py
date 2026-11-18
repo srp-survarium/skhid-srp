@@ -10,10 +10,14 @@ A patch's declaration is only names -- which site, and the handler:
 Everything else is a fact written once in the raw tables and read here:
 
     sites_026g.tsv    a named site: its VA, its kind (call/splice/pointer/
-                      vtable/callback/lohook/code), the callee it uses (an
+                      vtable/callback/lohook/code; `entry`, VA `-`: a Rust
+                      handler our own NASM calls, cdecl, aligned as a
+                      lohook), the callee it uses (an
                       engine_026g.tsv row, for the kinds that call a game
-                      function), the span it covers, its named exits (lohook)
-                      and a short `what`. The kind follows from the site, so a
+                      function), the span it covers, its named exits (a
+                      lohook's Flow targets; a code hook's jumps out of its
+                      cave other than past the site, which the self-test
+                      allows) and a short `what`. The kind follows from the site, so a
                       patch names no kind.
     engine_026g.tsv   the callee: its VA and convention (from the re-kit), and
                       a `vostok` column, the typed signature a Rust hook takes
@@ -29,6 +33,23 @@ exe, so a site that drifted fails the build. Nothing is looked up at run time.
 
     python hooks_026g.py --write     writes hook_entries_026g.asm and hooks_026g.rs
     python hooks_026g.py --check     says whether they are current (the self-test runs the same)
+
+A `lohook` row with `only = { <held> = "<CONST>" }` calls its handler only
+while the site's register `<held>` (a `name=REGISTER:u32` of the site's
+`holds`) is one of the values of the patch module's `CONST` (a `[u32; N]`,
+each below 256): its entry tests the register against a bit set the shim
+file makes of them (vostok::hook::Only) before it saves anything, and for any
+other value replays the site's bytes at once (pushfd, a compare, a bit test,
+popfd). For a site the game runs at every call of a hot function whose
+handler acts on a few values only (a modifier getter's index): the handler
+must do nothing for the other values, which it then never sees. A filtered
+site is not shared.
+
+A `code` or `lohook` row with `install = "on_demand"` is linked but not
+written into the exe: its site keeps the game's bytes, and the patch writes
+the jump at run time when it decides to (vostok::hook::install_on_demand,
+from the generated `<patch>_on_demand()`: the site, its bytes, the entry),
+so a game that never asks runs the original code byte for byte.
 
 A span hook (lohook, splice, code) needs the original exe for its bytes: the
 caller's reader, else the file `--exe` or SRP_026G_EXE names (sha256
@@ -97,6 +118,11 @@ TYPES["QueryTag"] = {
     "binding": "let {n} = QueryTag::from_raw({a} as usize as u32);",
     "orig_type": "QueryTag", "orig_raw": "-", "pass": "{n}", "null": "{a}",
 }
+# A float the game passes by value in a stack slot (vostok::math's x87
+# functions, `call` hooks).
+TYPES["f32"] = {
+    "raw": "f32", "binding": "let {n} = {a};", "orig_type": "f32", "orig_raw": "{n}", "pass": "{n}", "null": "{a}",
+}
 # Native presentation interfaces. Their raw kinds come from fields_026g.tsv;
 # the public views borrow the generated hook's thread.
 for _view in ("RenderVisual", "GameScene", "ObjectLight"):
@@ -107,13 +133,62 @@ for _view in ("RenderVisual", "GameScene", "ObjectLight"):
         "pass": "&mut {n}", "null": "{a}",
     }
 
+# A console command of ours (patch 133's cc_delegate) and the text after its
+# name: none (a null pointer) for a line of the name alone, so not fallible.
+TYPES["ConsoleCommand"] = {
+    "raw": "Option<CcDelegate>", "fallible": True,
+    "build": "ConsoleCommand::from_raw(&thread, {a})",
+    "orig_type": "&mut ConsoleCommand", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+TYPES["ConsoleArguments"] = {
+    "raw": "*const u8",
+    "binding": "let {n} = unsafe {{ ConsoleArguments::from_raw(&thread, {a}) }};",
+    "orig_type": "&ConsoleArguments", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
+}
+
+# Patch 156's triangle callback (vostok::shape): our copy of a
+# btTriangleCallback's vtable, the triangle the BVH found (three btVector3)
+# and its part and index.
+TYPES["TriangleSink"] = {
+    "raw": "Option<TriangleCallback>", "fallible": True,
+    "build": "TriangleSink::from_raw(&thread, {a})",
+    "orig_type": "&mut TriangleSink", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+TYPES["Triangle"] = {
+    "raw": "*const f32",
+    "binding": "let {n} = unsafe {{ Triangle::from_raw(&thread, {a}) }};",
+    "orig_type": "&Triangle", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
+}
+TYPES["u32"] = {
+    "raw": "u32", "binding": "let {n} = {a};", "orig_type": "u32", "orig_raw": "{n}", "pass": "{n}", "null": "{a}",
+}
+
+# Patch 143's battery swing (vostok::battery): the state its finalize gets,
+# and the buffer its carry -> swing predicate is entered with.
+TYPES["BatteryState"] = {
+    "raw": "Option<BatteryState>", "fallible": True,
+    "build": "BatteryState::from_raw(&thread, {a})",
+    "orig_type": "&mut BatteryState", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+TYPES["PredicateBuffer"] = {
+    "raw": "Option<PredicateBuffer>",
+    "binding": "let {n} = unsafe {{ PredicateBuffer::from_raw(&thread, {a}) }};",
+    "orig_type": "&PredicateBuffer", "orig_raw": "-", "pass": "{n}", "null": "{a}",
+}
+
 # A handler result, mapped to F's: the raw result engine_026g.tsv must give,
 # the Vostok type and how F's raw result `{x}` becomes it (`Original::call`),
-# and how that Vostok value `{v}` becomes the shim's u32 (EAX).
+# and how that Vostok value `{v}` becomes the shim's result (`shim`: u32 in EAX
+# unless named; an f32 in ST0, as C and the game's x87 functions return it,
+# which the RUST_CALL entry leaves as the shim left it).
 RESULTS = {
     None: {"raw": (None,), "type": "()", "from_raw": "{x}", "to_u32": "{{ {v}; 0 }}"},
     "bool": {"raw": ("AL", "EAX"), "type": "bool", "from_raw": "{x} != 0", "to_u32": "u32::from({v})"},
     "u32": {"raw": ("EAX",), "type": "u32", "from_raw": "{x}", "to_u32": "{v}"},
+    "f32": {"raw": ("ST0",), "type": "f32", "from_raw": "{x}", "to_u32": "{v}", "shim": "f32"},
 }
 
 
@@ -146,7 +221,8 @@ def read_sites(path=None):
     """sites_026g.tsv as {site name: dict}. A site is a named place the game
     is hooked -- its VA, its kind, the callee row it uses (engine_026g.tsv,
     for the kinds that call a game function), the span it occupies, its named
-    exits (lohook), and a short `what`. The VAs live here (and in
+    exits (a lohook's Flow targets; a code hook's other ways out of its cave),
+    and a short `what`. The VAs live here (and in
     engine_026g.tsv), not in the patches; the re-kit (tools/re-kit/v026g) is
     the RE source a site's VA and its callee's ABI come from, as for the
     engine library."""
@@ -157,9 +233,14 @@ def read_sites(path=None):
             raise Bad(f"sites_026g.tsv: {name!r} is no site name (dotted, e.g. input_builder.spot_query)")
         exits = [] if row["exits"].strip() in ("", "-") else [
             (e.split("@")[0], engine_026g.number(e.split("@")[1])) for e in row["exits"].split(";")]
-        out[name] = {"site": name, "va": engine_026g.number(row["va"]), "kind": row["kind"].strip(),
+        kind = row["kind"].strip()
+        # an `entry` is called by our own code, not the game's: it has no VA
+        if (row["va"].strip() == "-") != (kind == "entry"):
+            raise Bad(f"sites_026g.tsv: {name}: a VA is `-` for an entry, and only for one")
+        out[name] = {"site": name, "va": None if kind == "entry" else engine_026g.number(row["va"]), "kind": kind,
                      "callee": row["callee"].strip(), "span": None if row["span"].strip() in ("", "-")
-                     else engine_026g.number(row["span"]), "exits": exits, "what": row["what"].strip()}
+                     else engine_026g.number(row["span"]), "exits": exits, "what": row["what"].strip(),
+                     "holds": (row.get("holds") or "").strip()}
     return out
 
 
@@ -373,7 +454,27 @@ def lohook_hook(patch, row, sites, exe=None):
     return {"patch": name, "patch_no": patch["patch"], "kind": "lohook", "site": site["va"],
             "site_name": site["site"], "original": span, "handler": row["handler"], "what": site["what"],
             "exits": site["exits"], "order": row.get("order"), "install": ("lohook", 0xE9),
-            "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}"}
+            "entry": f"{name}_{row['handler']}", "shim": f"hook_{name}_{row['handler']}",
+            "only": only_of(name, row, site)}
+
+
+def only_of(name, row, site):
+    """A lohook's `only = { <held> = "<CONST>" }`: (the held name, its register, the constant), or
+    None. The held name is a `name=REGISTER:u32` of the site's `holds`; the constant a name of the
+    patch module (the shim file makes the bit set of its values, vostok::hook::Only)."""
+    only = row.get("only")
+    if only is None:
+        return None
+    if not isinstance(only, dict) or len(only) != 1:
+        raise Bad(f"{name}: `only` is one {{ <held> = \"<CONST>\" }}")
+    (held, const), = only.items()
+    if not isinstance(const, str) or not re.fullmatch(r"[A-Z][A-Z0-9_]*", const):
+        raise Bad(f"{name}: `only`'s {held} names a constant of the patch module (got {const!r})")
+    for token in site["holds"].split():
+        match = re.fullmatch(r"([a-z][a-z0-9_]*)=(E[A-Z]{2}):u32", token)
+        if match and match.group(1) == held and match.group(2) != "ESP":
+            return held, match.group(2).lower(), const
+    raise Bad(f"{name}: `only` names {held!r}, no `name=REGISTER:u32` of site {site['site']}'s holds")
 
 
 def lohook_entry(h):
@@ -381,8 +482,16 @@ def lohook_entry(h):
     restore, and jump where it says (the replay stub, past the span, or an
     exit). Reached by a jump from the site; leaves esp as it was."""
     e, past = h["entry"], h["site"] + len(h["original"])
-    lines = [f"global {e}", f"extern {h['shim']}", f"{e}:",
-             "    lea esp, [esp - 4]",                  # dispatch slot; keep the game's flags for pushfd
+    lines = [f"global {e}", f"extern {h['shim']}", f"{e}:"]
+    if h.get("only"):                                   # the handler's values only: a bit test, nothing saved
+        _, reg, _ = h["only"]
+        lines += [f"extern {e}_only",
+                  "    pushfd",
+                  f"    cmp {reg}, 256", f"    jae {e}_pass",
+                  f"    bt dword [{e}_only], {reg}", f"    jc {e}_save",
+                  f"{e}_pass:", "    popfd", f"    jmp {e}_replay",
+                  f"{e}_save:", "    popfd"]
+    lines += ["    lea esp, [esp - 4]",                  # dispatch slot; keep the game's flags for pushfd
              "    pushfd", "    pushad", "    cld",
              "    mov ebp, esp",                        # ebp -> Regs; [ebp+36] the slot
              "    sub esp, 512", "    and esp, -16", "    fxsave [esp]", "    mov edi, esp",
@@ -401,6 +510,45 @@ def lohook_entry(h):
               "    fxrstor [edi]", "    mov esp, ebp", "    popad", "    popfd", "    ret",
               f"{e}_replay:", "    db " + ", ".join(f"0x{b:02x}" for b in h["original"]), f"    jmp {past:#x}"]
     return lines
+
+
+def entry_hook(patch, row, sites):
+    """An `[[entry]]`: a Rust handler our own NASM calls (cdecl; a patch's
+    code at a fixed place calls it through a dword the build writes). No site
+    in the exe, nothing replaced or installed: the entry saves the machine
+    and aligns the stack as a lohook's does, hands the handler a Context
+    (its arguments are the site's ESP frame, `holds`), and returns to the
+    caller. Its handler returns Flow::Continue."""
+    name = patch["name"]
+    site = site_of(name, "entry", row, sites)
+    if site["exits"] or site["span"] is not None:
+        raise Bad(f"{name}: entry {site['site']} has no span and no exits (it returns to its caller)")
+    return {"patch": name, "patch_no": patch["patch"], "kind": "entry", "site": None,
+            "site_name": site["site"], "original": b"", "handler": row["handler"], "what": site["what"],
+            "exits": [], "install": ("entry", None), "entry": f"{name}_{row['handler']}",
+            "shim": f"hook_{name}_{row['handler']}"}
+
+
+def entry_template(h):
+    """The NASM of an entry: a lohook's save (the same frame, so the
+    Context's site ESP is the caller's: the return address, then the
+    arguments) with the stack aligned to 16 at the shim's call, then the
+    machine restored and a `ret` to the caller. A Flow other than Continue
+    is a bug (ud2)."""
+    e = h["entry"]
+    return [f"global {e}", f"extern {h['shim']}", f"{e}:",
+            "    lea esp, [esp - 4]",                   # a lohook's dispatch slot: the same Regs frame
+            "    pushfd", "    pushad", "    cld",
+            "    mov ebp, esp",
+            "    sub esp, 512", "    and esp, -16", "    fxsave [esp]", "    mov edi, esp",
+            "    sub esp, 8", "    and esp, -16",
+            "    mov [esp], ebp", "    mov [esp+4], edi",
+            "    mov eax, esp", "    sub esp, 12", "    push eax",
+            f"    call {h['shim']}",
+            "    cmp eax, 0", f"    je {e}_go",
+            "    ud2",
+            f"{e}_go:", "    fxrstor [edi]", "    mov esp, ebp", "    popad", "    popfd",
+            "    lea esp, [esp + 4]", "    ret"]
 
 
 def code_hook(patch, row, sites, exe=None):
@@ -444,23 +592,41 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
                 out.append(code_hook(patch, row, sites, exe))
             elif kind == "lohook":
                 out.append(lohook_hook(patch, row, sites, exe))
+            elif kind == "entry":
+                out.append(entry_hook(patch, row, sites))
             else:
                 raise Bad(f"{patch['name']}: site {row['site']} has unknown kind {kind!r}")
+            install = row.get("install", "build")
+            if install not in ("build", "on_demand"):
+                raise Bad(f"{patch['name']}: a [[hook]]'s `install` is \"build\" or \"on_demand\"")
+            if install == "on_demand":
+                if kind not in ("code", "lohook") or out[-1]["install"][1] != 0xE9:
+                    raise Bad(f"{patch['name']}: only a jumping code hook or a lohook is installed on demand")
+                out[-1]["on_demand"] = True
     entries = [h["entry"] for h in out]
     if len(set(entries)) != len(entries):
         raise Bad("two hooks with the same entry symbol")
     # Sharing an exact lohook site is explicit and ordered. Partial overlaps,
     # mixed kinds and implicit order remain errors. One machine save/replay
     # wraps the chain; the first non-Continue result ends it.
+    # A callback or a vtable slot rewrites nothing (the patch hands its own
+    # entry to the game, or puts it in its own copy of the vtable), so the
+    # handlers of one such site are never a chain.
     grouped = {}
     for h in out:
-        grouped.setdefault(h["site"], []).append(h)
+        key = (h["entry"] if h["kind"] in ("callback", "vtable")
+               else h["site_name"] if h["site"] is None else h["site"])
+        grouped.setdefault(key, []).append(h)
     out = []
     for group in grouped.values():
         if len(group) == 1:
             out.extend(group)
             continue
         orders = [h.get("order") for h in group]
+        if any(h.get("on_demand") for h in group):
+            raise Bad("a hook installed on demand cannot share its site")
+        if any(h.get("only") for h in group):
+            raise Bad("a filtered lohook (`only`) cannot share its site")
         if (any(h["kind"] != "lohook" for h in group)
                 or any(type(order) is not int for order in orders)
                 or len(set(orders)) != len(orders)):
@@ -474,7 +640,8 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # The overlap audit for the Rust hooks (the whole arena's, across the asm
     # and C installs too, is selftest_026g.py's span check): no two sites'
     # replaced spans overlap. Each hook names its owning patch.
-    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out)
+    spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out
+                   if h["site"] is not None and h["kind"] not in ("callback", "vtable"))
     for (lo, hi, a), (lo2, _, b) in zip(spans, spans[1:]):
         if lo2 < hi:
             raise Bad(f"the hooks of {a} and {b} overlap at {lo2:#x} (the bytes {lo:#x}..{hi:#x})")
@@ -568,7 +735,7 @@ def rs_text(hs, tables=()):
     for h in [member for h in hs for member in h.get("chain", [h])]:
         if h["kind"] == "code":
             continue                                   # raw NASM, no shim or Original
-        if h["kind"] == "lohook":
+        if h["kind"] in ("lohook", "entry"):
             lines += ["", f"// ---- {h['patch']} (patch {h['patch_no']}) ----", ""]
             arms = ["        Flow::Continue => 0,", "        Flow::Skip => 1,"]
             if h["exits"]:
@@ -580,11 +747,24 @@ def rs_text(hs, tables=()):
                 arms.append("        Flow::Exit(e) => 2 + e as u32,")
             else:
                 arms.append("        Flow::Exit(e) => match e {},")
+            at = h["site_name"] if h["site"] is None else f"{h['site']:#x}"
+            whence = (f"from our own code's call ({h['site_name']})" if h["site"] is None
+                      else f"from the game's jump at {h['site']:#x}")
+            if h.get("only"):
+                held, reg, const = h["only"]
+                lines += [
+                    f"/// The values of `{held}` ({reg.upper()}) the entry `{h['entry']}` calls its handler for",
+                    f"/// (`only`): crate::{h['patch']}::{const}; for any other it replays the site's bytes.",
+                    "#[unsafe(no_mangle)]",
+                    "#[allow(non_upper_case_globals)]",
+                    f"pub static {h['entry']}_only: Only = Only::of(&crate::{h['patch']}::{const});",
+                    "",
+                ]
             lines += [
-                f"/// The entry `{h['entry']}` ({h['site']:#x}, {h['what']}) calls this with the saved machine.",
+                f"/// The entry `{h['entry']}` ({at}, {h['what']}) calls this with the saved machine.",
                 "#[unsafe(no_mangle)]",
                 f"pub extern \"C\" fn {h['shim']}(frame: &mut Frame) -> u32 {{",
-                f"    // SAFETY: only the entry `{h['entry']}` calls this, from the game's jump at {h['site']:#x},",
+                f"    // SAFETY: only the entry `{h['entry']}` calls this, {whence},",
                 "    // on the game's thread; `frame` is its saved registers and fxsave area.",
                 "    let mut ctx = unsafe { Context::new(frame) };",
                 f"    match crate::{h['patch']}::{h['handler']}(&mut ctx) {{",
@@ -671,11 +851,16 @@ def rs_text(hs, tables=()):
             "/// # Safety",
             f"/// Called only by the entry `{h['entry']}`.",
             "#[unsafe(no_mangle)]",
-            f"pub unsafe extern \"C\" fn {h['shim']}({', '.join(f'a{i}: {t}' for i, t in enumerate(h['raw_params']))}) -> u32 {{",
-            f"    // SAFETY: only the entry `{h['entry']}` calls this, from the game's call at",
-            f"    // {h['site']:#x}, on the game's thread; a0.. are {h['function']}'s arguments.",
-            "    let thread = unsafe { Thread::new() };",
+            f"pub unsafe extern \"C\" fn {h['shim']}({', '.join(f'a{i}: {t}' for i, t in enumerate(h['raw_params']))}) "
+            f"-> {result.get('shim', 'u32')} {{",
         ]
+        # the thread token, for the arguments that borrow it (plain values do not)
+        if any("thread" in TYPES[v].get("build", "") + TYPES[v].get("binding", "") for _, v in h["args"]):
+            lines += [
+                f"    // SAFETY: only the entry `{h['entry']}` calls this, from the game's call at",
+                f"    // {h['site']:#x}, on the game's thread; a0.. are {h['function']}'s arguments.",
+                "    let thread = unsafe { Thread::new() };",
+            ]
         null_args = ", ".join(TYPES[v]["null"].format(a=f"a{i}") for i, (_, v) in enumerate(h["args"]))
         null = f"unsafe {{ {'raw::' if abi is None else ''}{target_fn}({null_args}) }}"
         null_ret = result["to_u32"].format(v=result["from_raw"].format(x=null))
@@ -716,6 +901,7 @@ def rs_text(hs, tables=()):
                   f"    // arguments of {h['function']}, whose `Original` names the entry's type.",
                   f"    unsafe {{ super::hook::CallbackEntry::from_entry({h['entry']} as *const () as *const c_void) }}",
                   "}"]
+    lines += on_demand_text(hs)
     for table in tables:
         symbol, count = table["symbol"], table["count"]
         lines += ["", f'unsafe extern "C" {{ static {symbol}: [u32; {count + 1}]; }}',
@@ -724,6 +910,31 @@ def rs_text(hs, tables=()):
                   f"    unsafe {{ super::project::NativeVtable::from_address(core::ptr::addr_of!({symbol}).cast::<u32>().add(1) as usize as u32) }}",
                   "}"]
     return "\n".join(lines) + "\n"
+
+
+def on_demand_text(hs):
+    """Each patch's hooks installed on demand: `<patch>_on_demand()`, the
+    sites its patch may write at run time (vostok::hook::install_on_demand),
+    each with the game's bytes there (read from the original exe, checked
+    again before the write) and its entry's address."""
+    lines, by_patch = [], {}
+    for h in hs:
+        if h.get("on_demand"):
+            by_patch.setdefault(h["patch"], []).append(h)
+    for patch, group in by_patch.items():
+        lines += ["", f"// ---- {patch}: its hooks installed on demand ----", "",
+                  'unsafe extern "C" {'] + [f"    fn {h['entry']}();" for h in group] + ["}",
+                  f"/// {patch}'s sites that keep the game's bytes until it installs them.",
+                  f"pub fn {patch}_on_demand() -> [super::hook::OnDemand; {len(group)}] {{", "    ["]
+        for h in group:
+            original = ", ".join(f"0x{b:02x}" for b in h["original"])
+            lines += [f"        // {h['site_name']}: {h['what'][:100]}",
+                      f"        // SAFETY: the site's span as the original exe has it; {h['entry']} is the",
+                      "        // generated or linked entry for it, alive as long as the executable.",
+                      f"        unsafe {{ super::hook::OnDemand::new({h['site']:#x}, &[{original}], "
+                      f"{h['entry']} as *const () as usize as u32) }},"]
+        lines += ["    ]", "}"]
+    return lines
 
 
 def asm_text(hs, tables=(), exe=None):
@@ -739,6 +950,9 @@ def asm_text(hs, tables=(), exe=None):
             continue                                   # its own .asm source, not generated here
         if h["kind"] == "lohook":
             lines += ["", f"; {h['site']:#x} {h['what']}: lohook -> {h['entry']}"] + lohook_entry(h)
+            continue
+        if h["kind"] == "entry":
+            lines += ["", f"; {h['site_name']} {h['what']}: entry -> {h['entry']}"] + entry_template(h)
             continue
         macro = h["entry_macro"]
         lines += ["", f"; {h['site']:#x} {h['what']}: {h['kind']} -> {h['entry']} (wraps {h['function']} "
@@ -780,6 +994,10 @@ def installs(exe=None, tomls=None, functions=None, sites=None):
         how, opcode = h["install"]
         if how in ("vtable", "callback"):
             continue  # a runtime copy (audited above) or a callback handed at run time: no write
+        if how == "entry":
+            continue  # called by our own code, through what the build writes (no image install)
+        if h.get("on_demand"):
+            continue  # written at run time by its patch, if ever (on_demand_text): the exe keeps its bytes
         if opcode is None:
             raise Bad(f"{h['patch']}: a {how} hook is not installed by a call/jump rewrite; patch_026g.py must "
                       "integrate its install before it can ship")
@@ -805,7 +1023,8 @@ def lohook_sites(tomls=None, sites=None):
     tomls = read_tomls() if tomls is None else tomls
     sites = read_sites() if sites is None else sites
     return [(sites[row["site"]]["va"], patch["name"], sites[row["site"]]["what"]) for patch in tomls
-            for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "lohook"]
+            for row in patch.get("hook", ()) if row.get("site") in sites and sites[row["site"]]["kind"] == "lohook"
+            and row.get("install") != "on_demand"]
 
 
 def install_sites(tomls=None, sites=None):
@@ -814,7 +1033,8 @@ def install_sites(tomls=None, sites=None):
     tomls = read_tomls() if tomls is None else tomls
     sites = read_sites() if sites is None else sites
     return [(sites[row["site"]]["va"], patch["name"]) for patch in tomls for row in patch.get("hook", ())
-            if row.get("site") in sites and sites[row["site"]]["kind"] not in ("vtable", "callback")]
+            if row.get("site") in sites and sites[row["site"]]["kind"] not in ("vtable", "callback", "entry")
+            and row.get("install") != "on_demand"]
 
 
 def stale():

@@ -1,0 +1,18 @@
+{
+  "_about": "Map the dropped-weapon pickup prompt (\"Pick up <gun> (E)\", patch 85) and its refusal lines (why a gun aimed at cannot be taken: a second rifle, one gun only, no gun in hands, a weapon switch, already taken, anything else) into the hud's strings; the hud shows them in the collection widget through show_artefact_offer. Text lives in client-patches/localization/*.tsv; Use follows the current binding.",
+  "append_rows": [
+    {
+      "file": "localization/flash_movies_localizations.options",
+      "path": "hud_strings",
+      "rows": [
+        ["st_weapon_pick_up", "st_weapon_pick_up"],
+        ["st_weapon_already_taken", "st_weapon_already_taken"],
+        ["st_weapon_cannot_carry", "st_weapon_cannot_carry"],
+        ["st_weapon_cannot_pick_up", "st_weapon_cannot_pick_up"],
+        ["st_weapon_no_gun_in_hands", "st_weapon_no_gun_in_hands"],
+        ["st_weapon_one_gun_only", "st_weapon_one_gun_only"],
+        ["st_weapon_switching", "st_weapon_switching"]
+      ]
+    }
+  ]
+}

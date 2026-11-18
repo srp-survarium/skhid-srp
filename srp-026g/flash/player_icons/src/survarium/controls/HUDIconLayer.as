@@ -31,6 +31,10 @@ package survarium.controls
       protected var _class:Dictionary = new Dictionary();
       
       protected var _enemyIds:Array = [];
+
+      // The enemies' player icons shown too: a replay (exe patch 135, MainTimeline.srp_show_enemies;
+      // docs/notes/replay-map.md). The enemy list is then not consulted.
+      public var enemiesShown:Boolean = false;
       
       protected var _playerTeam:uint = 0;
       
@@ -69,15 +73,15 @@ package survarium.controls
          }
       }
 
-      // Whether the icon of this id may show: an enemy's player icon never (the game's own rule), an object's
-      // not while the objects are hidden.
+      // Whether the icon of this id may show: an enemy's player icon never (the game's own rule) but in a
+      // replay, an object's not while the objects are hidden.
       protected function canShow(id:uint, renderer:HUDMarker) : Boolean
       {
          if(_objectsHidden && id >= FIRST_OBJECT)
          {
             return false;
          }
-         return renderer.kind != 0 || this._enemyIds.indexOf(id) == -1;
+         return renderer.kind != 0 || this.enemiesShown || this._enemyIds.indexOf(id) == -1;
       }
 
       // Research (mode 5), at a change and every 60 frames (research_arena
@@ -281,6 +285,12 @@ package survarium.controls
          {
             return;
          }
+         // The native sender includes this only when it changes. Consume it
+         // even when the same update hides the marker, or it stays stale on reveal.
+         if(props.modifier_visible != undefined)
+         {
+            renderer.container = props.modifier_visible;
+         }
          var iconVisible:Boolean = props.visible == true || props.visible == undefined;
          var canBeVisible:Boolean;
          var textField:TextField;
@@ -320,10 +330,6 @@ package survarium.controls
                   {
                      textField.text = newName;
                   }
-               }
-               if(props.modifier_visible != undefined)
-               {
-                  renderer.container = props.modifier_visible;
                }
                if(props.name_visible != undefined)
                {
