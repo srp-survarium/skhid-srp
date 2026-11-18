@@ -697,12 +697,12 @@ fn drive_tick_inner(
     // [A416, human-steering part D] The view schedule: a walking body's look that is no threat and no use is a glance of the
     // humans' length, then the course (`view_schedule.rs`); a threat (a target seen, its own shot, the aim key held) or a use
     // takes it at once, and a body not walking anywhere keeps any look.
-    let urgent = using || over.fire || over.keys & key::AIM != 0 || bot.reflex.target().is_some() || matches!(intent.look, Look::Use(_));
+    let look_urgent = using || over.fire || over.keys & key::AIM != 0 || bot.reflex.target().is_some() || matches!(intent.look, Look::Use(_));
     let walking = matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
     let before = bot.view;
     let ask = view_schedule::Ask {
         look: aim.is_some(),
-        urgent: urgent || tuning.feel.view_rule == motor::ViewRule::Free,
+        urgent: look_urgent || tuning.feel.view_rule == motor::ViewRule::Free,
         walking,
     };
     let (looked, take) = before.step(ask, time);
