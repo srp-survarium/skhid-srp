@@ -1965,7 +1965,10 @@ impl WalkGrid {
             let failing = if body.drop_lands {
                 let world = world.expect("a world");
                 let (cut, reaim, lips, mut walked) = grid.landing_drops(&wide, world, seeds, spawns);
-                (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded, walked.walk_offs_released) = grid.walk_off_links(&mut wide, world, seeds, spawns);
+                let held;
+                (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded, walked.walk_offs_released, held) =
+                    grid.walk_off_links(&mut wide, world, seeds, spawns);
+                walked.releases_held_thin += held;
                 stats.drops_walked = walked;
                 (stats.drops_reaimed, stats.drops_reaim_pairs) = grid.reaim_drops(&mut wide, &reaim);
                 wide.lips = lips;
