@@ -198,8 +198,10 @@ pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// for the link too. 0b10: [F1b] each flown share keeps which neighbours land (`grid::gap::Mask`), in a masks table at the
 /// grid file's end, for the motor's take-off window (`TakeoffWindow`). 0b12: [knife edge] of a link's presses the one with
 /// width across the way first (`grid::gap::Mask::priced`: a knife edge, whose sides and turns all miss, counts as the press
-/// alone), then the most landing neighbours (0b11 is the Vector Laboratory deck rule's, its own PR).
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b12;
+/// alone), then the most landing neighbours (0b11 is the Vector Laboratory deck rule's, its own PR). 0b13: [row 5] a rim link
+/// whose take-off floor only a crouched body fits is moved to the standing floor behind it on its line and flown again from
+/// there (`grid::rim` `reanchor_crouched`), kept where it was where no press from there lands.
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b13;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
