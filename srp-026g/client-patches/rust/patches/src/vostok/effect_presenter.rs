@@ -50,6 +50,30 @@ pub fn particle_stop(ctx: &Context<'_>) -> Search {
     index(ctx.reg(Reg::Eax))
 }
 
+/// A play's presenter at `effect_presenter.particle_start`, before the
+/// entry is made.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Start {
+    /// Its list takes another entry: the game's push goes on.
+    Room,
+    /// Its list is full, `held` entries: push_back 0x2ACC20 would assert.
+    Full { presenter: PresenterId, held: u32 },
+}
+
+/// `effect_presenter.particle_start`: EBX the particle presenter.
+pub fn particle_start(ctx: &Context<'_>) -> Start {
+    // SAFETY: at the site EBX is the presenter on_event 0x2AC400 was called
+    // with (its `this`, kept in EBX from 0x2AC40A); its list is part of it.
+    unsafe {
+        let Some(presenter) = raw::site::effect_presenter_particle_start::presenter(ctx) else { return Start::Room };
+        let list = presenter.effects();
+        if list.end() != list.capacity() {
+            return Start::Room;
+        }
+        Start::Full { presenter: PresenterId(presenter.address()), held: counts(list).0 as u32 }
+    }
+}
+
 /// A particle presenter's identity: its address (a key, never read through).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PresenterId(u32);

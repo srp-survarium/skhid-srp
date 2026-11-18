@@ -6362,3 +6362,5 @@ va	name	location	role	basis
 0x001858e0	vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity	entry ESP+4	pass selector: 0 retains intensity <= 1; 1 retains intensity > 1	observed
 0x0034d9a0	vostok::render::environment_properties::environment_properties	ESI	destination environment properties	observed
 0x0034d9a0	vostok::render::environment_properties::environment_properties	entry ESP+4	initialize-defaults boolean, tested at 0x34D9D0	observed
+0x002aa870	vostok::buffer_vector<survarium::sound_game_effect_presenter::effect_data>::push_back	ESI	the list: begin, end, capacity end (a sound presenter's at +18h, 14h an entry)	observed
+0x002aa870	vostok::buffer_vector<survarium::sound_game_effect_presenter::effect_data>::push_back	entry ESP+4	the entry to copy (0x2AB660 copies it to end, then end += 14h)	observed

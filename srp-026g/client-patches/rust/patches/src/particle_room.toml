@@ -18,3 +18,7 @@ handler = "on_read_room"
 [[hook]]
 site = "effect_presenter.particle_swap"
 handler = "on_swap"
+
+[[hook]]
+site = "effect_presenter.particle_start"
+handler = "on_start"

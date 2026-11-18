@@ -4711,6 +4711,26 @@ pub extern "C" fn hook_particle_room_on_swap(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- particle_room (patch 122) ----
+
+/// The named exits of particle_room::on_start (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ParticleRoomOnStartExit { Full }
+/// The entry `particle_room_on_start` (0x2ac686, particle_game_effect_presenter::on_event 0x2AC400, a play (event kind 0) before its entry is made (mov eax,ecx / lea ecx,[esp+30h]; the entry's constructor 0x2AC1F0 at 0x2AC68C and push_back 0x2ACC20 at 0x2AC695 follow, and push_back asserts on a full list): EBX the presenter; full is its return (pop edi / pop esi / pop ebx; mov esp,ebp; pop ebp; ret 8), nothing pushed since the prologue) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_room_on_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_room_on_start` calls this, from the game's jump at 0x2ac686,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_room::on_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The named exits of ragdoll::on_cull (the order the shim's Flow code

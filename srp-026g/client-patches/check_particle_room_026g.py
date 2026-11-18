@@ -15,6 +15,11 @@ with the presenters the game's constructors build:
   points the list at a heap room of 32; both go on with EAX the next holder;
 - pushes through push_back: the original's seventh reaches the assert, the
   build holds 32 and its 33rd reaches it (the game's own limit, at 32);
+- a play, from on_event 0x2AC400's site 0x2AC686 in its frame: with room
+  both go on to the entry's constructor (0x2AC68C) with the same registers;
+  with a full list (32 in a room, six without one) the original goes on to
+  the push that asserts, the build returns through 0x2AC6B3 (`ret 8`, the
+  saved registers back), the list as it was, one line in the log;
 - the same presenter built again at its address gets the same room; another
   presenter its own;
 - a first-person presenter (0x2971C0) at the game world's +1D98h, then
@@ -46,6 +51,8 @@ FP_MADE, FP_MADE_NEXT = 0x1F6884, 0x1F688A    # mov [ebp+4D38h],eax / mov [ebp+4
 FP_IN_WORLD = 0x1D98                  # game_world's first-person presenter
 PUSH_BACK = 0x2ACC20                   # esi = the list, (the entry); ret 4
 PUSH_FULL = 0x2ACC2B                   # its branch to the assert (end == capacity end)
+START, START_NEXT = 0x2AC686, 0x2AC68C  # on_event's play: mov eax,ecx / lea ecx,[esp+30h] / call 0x2AC1F0
+START_FULL = 0x2AC6B3                  # on_event's return: pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp / ret 8
 READ_ROOM, READ_ROOM_NEXT = 0x2AC8A6, 0x2AC8AE    # mov [esp+4Ch],edx / mov [esp+58h],eax / cmp edx,edi
 SWAP = 0x2ACD00                        # edi = the presenter's list, esi = the local; ret
 ASSIGN, ASSIGN_END = 0x2AD360, 0x2AD3E0
@@ -79,9 +86,10 @@ class Game:
         for n, slot in enumerate(self.slots):
             self.word(slot, STUBS + 0x10 * n)
             emu.hook_add(UC_HOOK_CODE, self.kernel32, begin=STUBS + 0x10 * n, end=STUBS + 0x10 * n)
-        self.stops = {STOP, PUSH_FULL, TP_MADE_NEXT, FP_MADE_NEXT, READ_ROOM_NEXT}
+        self.stops = {STOP, PUSH_FULL, TP_MADE_NEXT, FP_MADE_NEXT, READ_ROOM_NEXT, START_NEXT}
         for at in self.stops:
             emu.hook_add(UC_HOOK_CODE, self.on_stop, begin=at, end=at)
+        emu.hook_add(UC_HOOK_CODE, self.on_return, begin=START_FULL, end=START_FULL)
         self.next, self.heap, self.ticks, self.allocations = MEMORY, HEAP, 0, []
 
     def kernel32(self, emu, address, size, _):
@@ -120,6 +128,9 @@ class Game:
         self.stopped = address
         emu.emu_stop()
 
+    def on_return(self, emu, address, size, _):
+        self.returned = True
+
     def word(self, at, value):
         self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
 
@@ -132,7 +143,7 @@ class Game:
         return at
 
     def run(self, at, sp, **regs):
-        self.stopped, self.lines, self.fault = None, [], None
+        self.stopped, self.lines, self.fault, self.returned = None, [], None, False
         fixed = {name: 0x1000 * (n + 1) for n, name in enumerate(REGISTER)}
         for name, value in {**fixed, **regs}.items():
             self.emu.reg_write(REGISTER[name], value)
@@ -185,6 +196,20 @@ def pushes(game, vec, count, align):
         if game.stopped != STOP:
             return n, game.stopped
     return count, STOP
+
+
+def play(game, presenter, align):
+    """on_event's play from its site, in the frame its prologue makes (push
+    ebp / mov ebp,esp / and esp,-8 / sub esp,3Ch / push ebx, esi, edi), its
+    caller's return STOP: (the frame, the saved edi, esi, ebx and ebp)."""
+    frame = STACK + 0x7000 - align
+    sp = (frame & ~7) - 0x3C - 12
+    saved = (0xED1, 0xE51, 0xEB1, 0xEB9)
+    for at, value in zip((sp, sp + 4, sp + 8, frame), saved):
+        game.word(at, value)
+    game.word(frame + 4, STOP)
+    game.run(START, sp, ebx=presenter, ecx=0x7EFFEC70, ebp=frame)
+    return frame, saved
 
 
 def fill(game, begin, count, mark):
@@ -293,6 +318,42 @@ def check(stock_data, built_data):
                 else:
                     expect(read == (sp + 0x5C, sp + 0x5C, sp + 0xEC), f"{name}: the frame's own six ({read})")
 
+        # A play: with room both go on alike; a full list returns in the build.
+        for held, full in ((3, False), (None, True)):
+            went = {}
+            for name, game in (("stock", stock), ("ours", ours)):
+                fresh(game)
+                given, _ = third_person(game, align)
+                bare = game.block(0x300)
+                game.call(TP_PRESENTER, (), align, eax=bare, edx=WORLD)
+                for which, presenter in (("room", given), ("bare", bare)):
+                    vec = presenter + TP_LIST
+                    slots = (game.list(vec)[2] - game.list(vec)[0]) // ENTRY
+                    count = slots if full else held
+                    expect(slots == (ROOM if (name, which) == ("ours", "room") else 6)
+                           and pushes(game, vec, count, align) == (count, STOP), f"{name} {which}: {count} of {slots} held")
+                    before = (game.list(vec), entries(game, vec))
+                    frame, (edi, esi, ebx, ebp) = play(game, presenter + 8, align)
+                    expect(game.fault is None and (game.list(vec), entries(game, vec)) == before,
+                           f"{name} {which}: the play's site leaves the list as it was ({game.fault})")
+                    if full and name == "ours":
+                        got = tuple(game.emu.reg_read(r) for r in (UC_X86_REG_EDI, UC_X86_REG_ESI, UC_X86_REG_EBX,
+                                                                   UC_X86_REG_EBP, UC_X86_REG_ESP))
+                        expect(game.stopped == STOP and game.returned and got == (edi, esi, ebx, ebp, frame + 0x10),
+                               f"{which}: a play for a full list returns as on_event does ({game.stopped}, {got})")
+                        expect(len(game.lines) == 1 and b"is full (%d entries)" % count in game.lines[0],
+                               f"{which}: one line says so ({game.lines})")
+                    else:
+                        expect(game.stopped == START_NEXT and not game.returned and not game.lines,
+                               f"{name} {which}: the play goes on to its entry ({game.stopped}, {game.lines})")
+                        went[which] = (game.regs(), game.emu.reg_read(UC_X86_REG_EAX))
+                    if full and name == "stock":
+                        expect(pushes(game, vec, 1, align) == (0, PUSH_FULL), f"{which}: the original's push then asserts")
+                if not full:
+                    results[name] = went
+            if not full:
+                expect(results["stock"] == results["ours"], "a play with room goes on with the original's registers")
+
         # The swap: six and four to the byte as the original's.
         outcome = []
         for game in (stock, ours):
@@ -325,7 +386,7 @@ def check(stock_data, built_data):
         stock.emu.hook_del(hook)
         expect(past, "the original's swap writes past its stack room of six")
     print(f"{checks} particle-room cases passed (the original asserts at its seventh entry and overruns its "
-          f"swap's stack room; the build holds {ROOM} and swaps in place)")
+          f"swap's stack room; the build holds {ROOM}, swaps in place and plays nothing more into a full list)")
 
 
 def main():

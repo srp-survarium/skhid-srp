@@ -7881,6 +7881,48 @@ particle_room_on_swap_replay:
     db 0x81, 0xec, 0xa4, 0x00, 0x00, 0x00
     jmp 0x2acd06
 
+; 0x2ac686 particle_game_effect_presenter::on_event 0x2AC400, a play (event kind 0) before its entry is made (mov eax,ecx / lea ecx,[esp+30h]; the entry's constructor 0x2AC1F0 at 0x2AC68C and push_back 0x2ACC20 at 0x2AC695 follow, and push_back asserts on a full list): EBX the presenter; full is its return (pop edi / pop esi / pop ebx; mov esp,ebp; pop ebp; ret 8), nothing pushed since the prologue: lohook -> particle_room_on_start
+global particle_room_on_start
+extern hook_particle_room_on_start
+particle_room_on_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_particle_room_on_start
+    mov edx, particle_room_on_start_replay
+    cmp eax, 0
+    je particle_room_on_start_go
+    mov edx, 0x2ac68c
+    cmp eax, 1
+    je particle_room_on_start_go
+    mov edx, 0x2ac6b3
+    cmp eax, 2
+    je particle_room_on_start_go
+    ud2
+particle_room_on_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+particle_room_on_start_replay:
+    db 0x8b, 0xc1, 0x8d, 0x4c, 0x24, 0x30
+    jmp 0x2ac68c
+
 ; 0x24757c mt_draw's cull: the model not seen the last frame (cmp byte [ebx+0F4E2h],0, the je draws; EBX the player); culled 0x24781E, past the bones and past the culled player's held item's vtable+4Ch (0x247811: weapon::on_culled_player_draw 0x245250 moves the weapon to the player's root), where the game's own cull (jne 0x24758C, [ebx+12Ch] not 0) ends, the stack as at the site: lohook -> ragdoll_on_cull
 global ragdoll_on_cull
 extern hook_ragdoll_on_cull

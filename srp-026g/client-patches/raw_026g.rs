@@ -30201,6 +30201,21 @@ pub mod site {
         }
     }
 
+    /// effect_presenter.particle_start (0x2ac686): particle_game_effect_presenter::on_event 0x2AC400, a play (event kind 0) before its entry is made (mov eax,ecx / lea ecx,[esp+30h]; the entry's constructor 0x2AC1F0 at 0x2AC68C and push_back 0x2ACC20 at 0x2AC695 follow, and push_back asserts on a full list): EBX the presenter; full is its return (pop edi / pop esi / pop ebx; mov esp,ebp; pop ebp; ret 8), nothing pushed since the prologue
+    pub mod effect_presenter_particle_start {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::particle_game_effect_presenter (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn presenter(machine: &impl Machine) -> Option<ParticleGameEffectPresenter> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(ParticleGameEffectPresenter)
+        }
+    }
+
     /// login.other_answer (0x37fb66): on_sign_in_answer_received (0x37FB10) for an answer other than 08h (connection info) and 25h (online queue): mov dword [ebx+180h],1, before the callback with its code (0x37FEC4); EBX the login client, [ebp+10h] the bytes read
     pub mod login_other_answer {
         #[allow(unused_imports)]

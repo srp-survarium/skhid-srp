@@ -21,14 +21,25 @@
 //!   into the room's second half, and the swap is made in place, entry for
 //!   entry, for every presenter.
 //!
+//! - A play for a presenter whose list is full (the 33rd; the 7th of one
+//!   without a room, the lobby's too) makes no entry: the effect goes on
+//!   without its particles on that player, with a refusal line, where the
+//!   game asserts. Patch 117 makes the presenter ignore the stop and the
+//!   updates of an effect it holds no entry of.
+//!
+//! Only some games reached the seventh: the leg quarters are shown by a game
+//! whose local player has Artifact Sight, or that has no local player (a
+//! spectator, a replay). The rev64 reports of 2026-11-18: place 13 with five
+//! quarters and one artefact effect, the seventh its next activation.
+//!
 //! When the table is full or the heap has no room, the presenter keeps the
 //! game's six (one refusal line): never more than the game's limit, never a
 //! write past a room. Presentation only: nothing a match computes reads it.
 #![forbid(unsafe_code)]
 
-use crate::vostok::effect_presenter::{self, Built, NotGiven, PresenterId, Read, Room, Swap};
+use crate::vostok::effect_presenter::{self, Built, NotGiven, PresenterId, Read, Room, Start, Swap};
 use crate::vostok::log::{self, Piece::{Dec, Hex, Text}};
-use crate::vostok::{Context, Flow, Lock, NoExit, ParticleRoomOnSwapExit, Thread};
+use crate::vostok::{Context, Flow, Lock, NoExit, ParticleRoomOnStartExit, ParticleRoomOnSwapExit, Thread};
 
 /// A presenter's room, in entries (the game's: six).
 const ENTRIES: u32 = 32;
@@ -104,6 +115,19 @@ pub fn on_first_person_made(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_third_person_made(ctx: &mut Context<'_>) -> Flow<NoExit> {
     give(ctx.thread(), Built::third_person(ctx));
     Flow::Continue
+}
+
+/// A play for a full list makes no entry (the game's push asserts); patch
+/// 117 ignores the stop and the updates of the effect it then does not hold.
+pub fn on_start(ctx: &mut Context<'_>) -> Flow<ParticleRoomOnStartExit> {
+    match effect_presenter::particle_start(ctx) {
+        Start::Room => Flow::Continue,
+        Start::Full { presenter, held } => {
+            log::refusal(ctx.thread(), &[Text("particle_room: presenter "), Hex(presenter.address()), Text(" is full ("),
+                                          Dec(held), Text(" entries): an effect plays without its particles")]);
+            Flow::Exit(ParticleRoomOnStartExit::Full)
+        }
+    }
 }
 
 /// deserialize's local list: in the presenter's room when it has one, so it

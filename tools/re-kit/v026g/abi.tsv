@@ -2694,3 +2694,4 @@ va	name	source	ret_cleanup	result
 0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	manual	4	AL 1 (the key taken); calls its method (+18h) with its object (+14h) as ECX, no argument
 0x00290930	survarium::object_ambient_light::insert	manual	0	result not established
 0x001858e0	vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity	manual	0	EAX end of retained pointer range
+0x002aa870	vostok::buffer_vector<survarium::sound_game_effect_presenter::effect_data>::push_back	manual	4	none; asserts "buffer overflow" (branch 0x2AA87B) when end == capacity end: a sound presenter's list holds 16 entries of 14h inline (140h, the constructors 0x297570 at +0D8h and 0x2971C0 at +330h) and nothing grows it; only an effect with a sound reaches it (the 2026-11-18 dumps: 0 entries beside 6 particle ones)
