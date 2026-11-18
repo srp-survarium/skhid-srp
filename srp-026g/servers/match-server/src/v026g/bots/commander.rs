@@ -13,6 +13,9 @@ pub(super) struct TeamState {
     pub(super) features: TeamFeatures,
     /// [A310 `tdm.squad`] The team's squads, formed once at the first commander tick with every bot alive (`squad::form`).
     pub(super) squads: Option<Vec<Vec<Place>>>,
+    /// [fix-team 2 `commit.hold_started`] Its bots' held plays an interrupter suspended (`team::Commit::Resumes`): one a bot
+    /// at most, kept while the bot's play is the interrupter's (`team::INTERRUPT_REASON`), gone with the bot's life.
+    pub(super) suspended: Vec<team::Suspended>,
 }
 
 /// [A391] A Breach that went: its spot and its bots.
@@ -151,6 +154,7 @@ fn threat_tick(
     camper: Option<Place>,
     notes: &mut Vec<Note>,
     weapons: &[Option<reflex::WeaponKind>],
+    memo: &plays::memo::Memo,
 ) {
     let rules = threat::SpotRules::of(&tuning.threat);
     let kept = Kept::of(&tuning.threat);
@@ -399,6 +403,7 @@ fn threat_tick(
             flank_from: spare.then_some(&starts_at as &dyn Fn(Vec3) -> Vec<Vec3>),
             role_offer: tuning.threat.job_role_offer,
             strongest_first: tuning.threat.job_strongest_first,
+            spot: &threat::any_spot,
         };
         let spots = &threat.spots;
         // [threat.concede] A job on an area conceded ends: the fight side's (`Concede::refuse_fights`).
@@ -407,7 +412,54 @@ fn threat_tick(
         // A role's bot stands out of every held line, or of the holds' only (the switch off).
         let lanes = if tuning.threat.job_out_of_all_lines { &held[..] } else { &holds[..] };
         let opening = if tuning.threat.job_open_staffed { threat::Opening::Staffed } else { threat::Opening::ThenDropped };
+        // [fix-team 1 `threat.job_role_needs_spot`] The staffing asks each mate the role play's own spot test, as the play
+        // pass after it will (the bot's own `Ctx`), with this tick's held lines in the picture it reads (restored after: the
+        // rest of the tick reads the picture as before; the tick's end publishes it).
+        let held_now: Vec<threat::HeldLine> = held.iter().chain(&battery_lines).cloned().collect();
+        let picture_before = (tuning.threat.job_role_needs_spot && state.knowledge.threat.held != held_now).then(|| {
+            let now_picture = threat::Picture { held: held_now, ..(*state.knowledge.threat).clone() };
+            std::mem::replace(&mut state.knowledge.threat, Arc::new(now_picture))
+        });
+        let (knowledge, team_stuck) = (&state.knowledge, &state.features.stuck.no_way_to);
+        let (signals, mods) = (&state.signals, &state.mods);
+        let bots_now: &[Option<Bot>] = bots;
+        let mate_spot = |place: Place, role: threat::Role, line: &threat::HeldLine| -> bool {
+            let Some(bot) = bots_now.iter().flatten().find(|b| b.place == place) else {
+                return false;
+            };
+            let Some(me) = view.place(place).filter(|p| p.alive) else {
+                return false;
+            };
+            let no_way = team_no_way(&bot.no_way_to, team_stuck);
+            let cx = Ctx {
+                now,
+                view,
+                me,
+                bot: bot_facts(bot, me, tactics, tuning, weapons, &no_way),
+                memory: &bot.memory,
+                team: knowledge,
+                sig: signals,
+                mods,
+                tactics,
+                tuning,
+                memo,
+                lines: Default::default(),
+                offers: Default::default(),
+            };
+            match role {
+                threat::Role::Flanker => plays::flank::job_spot(&cx, line),
+                threat::Role::Pinner => plays::crossfire::job_spot(&cx, line),
+                threat::Role::Crosser => false,
+            }
+        };
+        let job_team = threat::JobTeam {
+            spot: if tuning.threat.job_role_needs_spot { &mate_spot } else { &threat::any_spot },
+            ..job_team
+        };
         let events = threat::jobs_tick(&mut threat.jobs, &mut threat.rested, &holds, lanes, opening, &job_team, &unheld, now);
+        if let Some(before) = picture_before {
+            state.knowledge.threat = before;
+        }
         threat.deaths.retain(|d| now.saturating_sub(d.time) <= threat::DEATH_KEPT_MS);
         for event in events {
             threat::count_job(event);
@@ -452,6 +504,9 @@ fn threat_tick(
                         text.push_str(&format!(", class {}", bot.offers.class(role, running.as_deref())));
                     }
                 }
+                threat::JobEvent::NoSpot { .. } => {
+                    threat::job_tally(team, threat::JobTally::NoSpot);
+                }
                 threat::JobEvent::Passed { role, place, .. } => {
                     // [A391] Let go for not being free: its last offer goes with it.
                     if let Some(bot) = bots.iter_mut().flatten().find(|b| b.place == place) {
@@ -465,7 +520,9 @@ fn threat_tick(
             if breach_rules.is_some() {
                 let due = match event {
                     threat::JobEvent::Ended { spot, end: threat::JobEnd::HolderDown { .. } | threat::JobEnd::Time | threat::JobEnd::Nobody, .. }
-                    | threat::JobEvent::Passed { spot, role: threat::Role::Flanker, why: threat::PassedWhy::NoPlay, .. } => Some(spot),
+                    | threat::JobEvent::Passed { spot, role: threat::Role::Flanker, why: threat::PassedWhy::NoPlay, .. }
+                    // [fix-team 1] No free mate has a flank spot: the same failure, reported by the staffing.
+                    | threat::JobEvent::NoSpot { spot, role: threat::Role::Flanker, .. } => Some(spot),
                     _ => None,
                 };
                 if let Some(spot) = due.filter(|spot| !threat.breach_due.iter().any(|d| d.spot == *spot)) {
@@ -1004,7 +1061,17 @@ impl Bots {
         // [A310 `tdm.squad` S3] The squad target order: with the squads on, fights are answered as `tdm.group`'s (play 21's cover,
         // its default rules), by a free mover of the fighting bot's own squad.
         let squad_on = tuning.tdm.squad.is_some() && !view.objective().has_homes();
-        let by_position = by_position.or_else(|| squad_on.then(tuning::GroupUp::default));
+        // [fix-team 3 `threat.support`] Where the grouping and the squads are off, a mate's fight is answered in every mode by
+        // the support rules (play 21's cover in the fight band, `plays/trade.rs`).
+        let support = tuning.threat.support.filter(|_| by_position.is_none() && !squad_on);
+        let by_position = by_position.or_else(|| squad_on.then(tuning::GroupUp::default)).or(support);
+        // [fix-team 3] A support answers only from a bot whose play is under the objective band: the cover (fight band) could
+        // not take a bot on an objective or an alarm, and the fight would wait for an answerer that never comes.
+        let rank_of = |kind: plays::PlayKind| tuning.plays.get(&kind).map_or_else(|| plays::default_tuning(kind).rank, |play| play.rank);
+        let may_support = |b: &Bot| {
+            support.is_none()
+                || team::may_support(b.assignment.as_ref().map(|a| (a.kind, a.target, rank_of(a.kind))), tuning.commit.hold_started)
+        };
         let squad_of = |place: Place| -> Option<usize> {
             self.teams[usize::from(team)].squads.as_ref()?.iter().position(|s| s.contains(&place))
         };
@@ -1068,6 +1135,7 @@ impl Bots {
                     .flatten()
                     .filter(|b| b.team == team && !engaged.iter().any(|f| f.mate == b.place))
                     .filter(|b| answer == tuning::Answer::Nearest || !b.assignment.as_ref().is_some_and(|a| group::holds(a.kind)))
+                    .filter(|b| may_support(b))
                     .filter_map(|b| view.place(b.place).filter(|p| p.alive && p.carrying.is_none()).map(|p| (b.place, p.feet)))
                     .collect();
                 if squad_on {
@@ -1137,8 +1205,23 @@ impl Bots {
             let camper = self.bench_camper.as_ref().map(|c| c.place());
             #[cfg(not(test))]
             let camper = None;
-            threat_tick(tactics, &mut self.bots, &mut self.teams[usize::from(team)], team, view, now, &tuning, self.mode.objective(), camper, notes, &self.features.weapons);
+            threat_tick(
+                tactics,
+                &mut self.bots,
+                &mut self.teams[usize::from(team)],
+                team,
+                view,
+                now,
+                &tuning,
+                self.mode.objective(),
+                camper,
+                notes,
+                &self.features.weapons,
+                &self.memo,
+            );
         }
+        // [fix-team 2] A suspended play goes with its bot's life.
+        self.teams[usize::from(team)].suspended.retain(|s| view.place(s.place).is_some_and(|p| p.alive && p.spawned <= s.at));
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         let mut asked_lines: Vec<(Place, Vec<super::nav_log::Line>)> = Vec::new();
@@ -1163,32 +1246,7 @@ impl Bots {
                 now,
                 view,
                 me,
-                bot: BotFacts {
-                    personality: bot.personality(&tuning),
-                    weapon: bot.weapon(&self.features.weapons, &tuning),
-                    weapons: &self.features.weapons,
-                    side: bot.side,
-                    current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
-                    last_ran: &bot.last_ran,
-                    partner: bot.partner,
-                    paired: bot.paired,
-                    medkits_used: bot.features.stock.medkits_used,
-                    pantry: &bot.features.stock.pantry,
-                    pools: bot.features.stock.pools,
-                    zone_armour: &bot.features.crossing.armour,
-                    no_way_to: &no_way,
-                    set_aside: &bot.features.memory.set_aside,
-                    failed_stands: &bot.features.memory.failed_stands,
-                    world_feet: bot.world_feet,
-                    use_pressed: bot.use_pressed,
-                    dry: bot.reflex.dry(),
-                    hit: bot.reflex.last_hit(),
-                    ammo: bot.ammo(),
-                    crossing: walks_crossing(bot),
-                    held_choke: bot.held_choke,
-                    route_left_m: bot.running.as_ref().and_then(|r| r.route_left_m(tactics, me.feet)),
-                    route_total_m: bot.running.as_ref().and_then(|r| r.route_total_m(tactics)),
-                },
+                bot: bot_facts(bot, me, tactics, &tuning, &self.features.weapons, &no_way),
                 memory: &bot.memory,
                 team: &state.knowledge,
                 sig: &state.signals,
@@ -1248,6 +1306,16 @@ impl Bots {
             {
                 // [A394 (b)] A take within reach, unseen, before its first press: finished first.
                 commits.push((bot.place, team::Commit::Finish));
+            } else if tuning.commit.hold_started
+                && let Some(s) = state.suspended.iter().find(|s| s.place == bot.place)
+            {
+                // [fix-team 2] Its held play waits for the interrupter it runs to be over.
+                commits.push((bot.place, team::Commit::Resumes { kind: s.kind, target: s.target }));
+            } else if tuning.commit.hold_started
+                && bot.assignment.as_ref().is_some_and(|a| team::held_kind(a.kind, a.target))
+            {
+                // [fix-team 2] A started raid, job or Breach role, cover of a human or Collect run: held.
+                commits.push((bot.place, team::Commit::Held));
             } else if tuning.commit.hold_to_arrival
                 && bot.running.as_ref().is_some_and(plays::Running::travelling)
                 // [A320 F1] With `camp_flank.inertia` a flank route's walk keeps its play by its score and bonus instead.
@@ -1324,6 +1392,19 @@ impl Bots {
             let Some(Some(bot)) = self.bots.get_mut(place) else {
                 continue;
             };
+            // [fix-team 2] A held play an interrupter took is suspended; a suspension lasts while the bot's play is the
+            // interrupter's, and ends with the play resumed or another taken.
+            if tuning.commit.hold_started {
+                let suspended = &mut self.teams[usize::from(team)].suspended;
+                if assignment.reason != team::INTERRUPT_REASON {
+                    suspended.retain(|s| s.place != place);
+                } else if changed
+                    && !suspended.iter().any(|s| s.place == place)
+                    && let Some(old) = bot.assignment.as_ref().filter(|a| team::held_kind(a.kind, a.target))
+                {
+                    suspended.push(team::Suspended { place, kind: old.kind, target: old.target, at: now });
+                }
+            }
             if !changed {
                 bot.assignment = Some(assignment);
                 continue;
@@ -1554,6 +1635,44 @@ pub(super) fn learn_no_way(team: &mut Vec<(Vec3, u32)>, own: &[(Vec3, u32)], now
 
 /// A bot's goals with no way lately and its team's
 /// ([`TEAM_NO_WAY_KEEP_MS`]), for the commander's choice.
+/// What the plays read of `bot` at a commander pass (`me` its place now, `no_way` [`team_no_way`]): its running play and
+/// route as they stand. The play pass asks its candidates with it, and [fix-team 1] the job staffing a mate's spot.
+fn bot_facts<'a>(
+    bot: &'a Bot,
+    me: &view::PlaceView,
+    tactics: &Tactics,
+    tuning: &'a Tuning,
+    weapons: &'a [Option<reflex::WeaponKind>],
+    no_way: &'a [(Vec3, u32)],
+) -> BotFacts<'a> {
+    BotFacts {
+        personality: bot.personality(tuning),
+        weapon: bot.weapon(weapons, tuning),
+        weapons,
+        side: bot.side,
+        current: bot.assignment.as_ref().map(|a| (a.kind, a.target, a.since)),
+        last_ran: &bot.last_ran,
+        partner: bot.partner,
+        paired: bot.paired,
+        medkits_used: bot.features.stock.medkits_used,
+        pantry: &bot.features.stock.pantry,
+        pools: bot.features.stock.pools,
+        zone_armour: &bot.features.crossing.armour,
+        no_way_to: no_way,
+        set_aside: &bot.features.memory.set_aside,
+        failed_stands: &bot.features.memory.failed_stands,
+        world_feet: bot.world_feet,
+        use_pressed: bot.use_pressed,
+        dry: bot.reflex.dry(),
+        hit: bot.reflex.last_hit(),
+        ammo: bot.ammo(),
+        crossing: walks_crossing(bot),
+        held_choke: bot.held_choke,
+        route_left_m: bot.running.as_ref().and_then(|r| r.route_left_m(tactics, me.feet)),
+        route_total_m: bot.running.as_ref().and_then(|r| r.route_total_m(tactics)),
+    }
+}
+
 pub(super) fn team_no_way(own: &[(Vec3, u32)], team: &[(Vec3, u32)]) -> Vec<(Vec3, u32)> {
     own.iter().chain(team).copied().collect()
 }
