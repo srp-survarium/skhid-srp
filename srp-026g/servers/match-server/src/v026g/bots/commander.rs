@@ -1068,7 +1068,10 @@ impl Bots {
         // [fix-team 3] A support answers only from a bot whose play is under the objective band: the cover (fight band) could
         // not take a bot on an objective or an alarm, and the fight would wait for an answerer that never comes.
         let rank_of = |kind: plays::PlayKind| tuning.plays.get(&kind).map_or_else(|| plays::default_tuning(kind).rank, |play| play.rank);
-        let may_support = |b: &Bot| support.is_none() || b.assignment.as_ref().is_none_or(|a| rank_of(a.kind) < plays::Rank::Objective);
+        let may_support = |b: &Bot| {
+            support.is_none()
+                || team::may_support(b.assignment.as_ref().map(|a| (a.kind, a.target, rank_of(a.kind))), tuning.commit.hold_started)
+        };
         let squad_of = |place: Place| -> Option<usize> {
             self.teams[usize::from(team)].squads.as_ref()?.iter().position(|s| s.contains(&place))
         };

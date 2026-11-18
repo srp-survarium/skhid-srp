@@ -403,6 +403,13 @@ pub fn held_kind(kind: PlayKind, target: TargetRef) -> bool {
     }
 }
 
+/// [fix-team 3 `threat.support`] Whether a bot running `current` (its play, target and the play's band) may be given a mate's
+/// fight: one whose play is under the objective band and, with `commit.hold_started`, not a held play (a held CoverHuman or a
+/// job's flank in the fight band keeps the bot against the fight-band cover, so the fight would wait on it every pass).
+pub fn may_support(current: Option<(PlayKind, TargetRef, Rank)>, hold_started: bool) -> bool {
+    current.is_none_or(|(kind, target, rank)| rank < Rank::Objective && !(hold_started && held_kind(kind, target)))
+}
+
 /// [fix-team 2] Whether `best` (the bot's best other candidate, competing in band `best_band`) is a named interrupter of a
 /// held play competing in `held_band`: a survival play, or an alarm (a mate's death to trade, a carrier to escort, a thief
 /// to intercept, a hit to heal) over a play below the alarm band. Nothing else takes a held play.
@@ -2058,5 +2065,19 @@ mod tests {
         assert!(!held_kind(PlayKind::Flank, TargetRef::Place(3)), "a flank of its own is no job role");
         assert!(!held_kind(PlayKind::Roam, TargetRef::Battery(0)));
         assert!(!held_kind(PlayKind::Trade, TargetRef::Place(2)), "an alarm is not held: it is kept by its band");
+    }
+
+    /// [fix-team 3] A fight goes only to a bot that can take the fight-band cover: none on an objective or an alarm, none held.
+    #[test]
+    fn a_mates_fight_goes_only_to_a_bot_free_to_support_it() {
+        assert!(may_support(None, true));
+        assert!(may_support(Some((PlayKind::Roam, TargetRef::Battery(0), Rank::Roam)), true));
+        assert!(!may_support(Some((PlayKind::Collect, TargetRef::Battery(0), Rank::Objective)), false));
+        // Held in the fight band: a CoverHuman, a job's flank.
+        for (kind, target) in [(PlayKind::CoverHuman, TargetRef::Place(3)), (PlayKind::Flank, TargetRef::ThreatSpot(2))] {
+            assert!(!may_support(Some((kind, target, Rank::Fight)), true), "{kind:?} held");
+            assert!(may_support(Some((kind, target, Rank::Fight)), false), "{kind:?} not held with the hold off");
+        }
+        assert!(may_support(Some((PlayKind::Flank, TargetRef::Place(3), Rank::Fight)), true), "a flank of its own is not held");
     }
 }
