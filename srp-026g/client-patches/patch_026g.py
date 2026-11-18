@@ -643,6 +643,18 @@ Patches:
   walk (no engine call), to srp_patches.log and in 0xE0 carriers
   (srp_validate::report); the server only logs them. Nothing a match
   computes;
+- the ported 0.21 maps render the 0.21 way (patch 130, the Rust patch
+  v021d_render; docs/notes/client_patch.md section 3.82): effect_wet_surface
+  and effect_rain compile 0.21 twins of their techniques after their own
+  (0x1CE5BE, 0x1D3E30: the wet pass with wet_surface_v021d.ps, the drops
+  with ported/v021d/engine/rain_drop); on the scene of a project whose
+  config says srp_renderer_v021d, stage_pre_rain's wet pass runs at any
+  shading quality (0x17CB1B) with technique 3 (0x17CB90), stage_rain's drops
+  with technique 2 (0x1ADFA4) and 0.21d's half-float
+  rain_drops_parameters1.zw (0x1ADF7D); compile_begin gives a grassmesh pass
+  of a material with srp_grass_v021d its 0.21 vertex shader family
+  (0x1CD1B6), the forward water of one with srp_water_v021d 0.21's wave
+  normals (0x1E603C). Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
@@ -2420,12 +2432,12 @@ ARTEFACTS_SIZES = (
 # world's tick (0x3B7BD0) calls for every handler after it polled the devices
 # and before they hand out the keys: match_keys_poll sets the kits' screen's
 # state from the hud's cursor and GetTickCount (CLOSED; OPENING from the
-# first poll the kits are up at, with its time; OPEN from the first poll 300
-# ms, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
+# first poll the kits are up at, with its time; OPEN from the first poll 1
+# s, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
 # that went down in the frame the kits came, in play, is handed out in their
-# first tick and picks nothing, nor does one pressed in their first 300 ms
+# first tick and picks nothing, nor does one pressed in their first second
 # (the owner, 2026-10-25: "I press 3 mid-fight to heal with the medkit, I
-# die, and I swap to my 3rd kit"; then: ignore them for 300 ms).
+# die, and I swap to my 3rd kit"; then: ignore them for 300 ms; 1 s since 2026-11-18).
 MATCH_KEYS_HOOKS = (
     (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
     (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
@@ -2614,8 +2626,12 @@ BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440
 # on (the launcher's box writes its line). Its initial value, the byte in
 # .data, 1 in the original, is 0: a user.cfg without the line leaves it off.
 # The Rust patch lobby_seeding (sites_026g.tsv seeding.*) names the pipe and
-# starts the updater.
+# starts the updater. The sharing goes on in a match (the owner, 2026-11-18):
+# game::switch_to_game_world's jz over its "in a match" byte
+# (torrent_client+1Ch := 1, 0x1ED193) and its stop_seeding (0x1ED1A5), taken
+# only by a replay, is a jmp (MATCH_SEEDING_KEEP).
 LOBBY_SEEDING_DEFAULT = (0xA712B6, b"\x01", b"\x00")
+MATCH_SEEDING_KEEP = (0x1ED184, bytes.fromhex("7424"), bytes.fromhex("eb24"))
 
 # The grass sort's one order of distance (patch 146, README; client_patch.md
 # "The grass sort's distance"). grass_world::process_culling (0x160470) sorts
@@ -4303,6 +4319,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
                 patch_section_value(data, *LOBBY_SEEDING_DEFAULT)
+                patch(data, *MATCH_SEEDING_KEEP)
                 patch(data, *GRASS_SORT_ORDER)
                 for change in MAP_ID_READERS:
                     patch(data, *change)

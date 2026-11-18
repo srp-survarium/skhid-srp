@@ -248,7 +248,9 @@ impl Core<'_> {
     /// 6), then the experimental maps, the STALKER maps of both after every
     /// other (the owner's of 2026-11-15: "also when creating private rooms,
     /// stalker maps should be at the bottom of the list"), each part in its
-    /// order.
+    /// order. A map's weathers come day, evening, rain whatever their ids
+    /// (the owner's of 2026-11-18: "it should be day, evening, rain like in
+    /// others"; the 0.21 School's rain is id 1, its day 174).
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -274,8 +276,13 @@ impl Core<'_> {
                 Some((map.is_stalker(), entry))
             })
             .collect();
-        // Stable: the others first, the STALKER maps after, each as it came.
-        entries.sort_by_key(|&(stalker, _)| stalker);
+        // Stable: the others first, the STALKER maps after, each map where
+        // its first id came, its weathers in the list's order.
+        let levels: Vec<u8> = entries.iter().map(|(_, entry)| entry.level).collect();
+        entries.sort_by_key(|&(stalker, entry)| {
+            let map = levels.iter().position(|&level| level == entry.level);
+            (stalker, map, maps::weather::list_place(entry.weather))
+        });
         entries
             .into_iter()
             .map(|(_, entry)| entry)
