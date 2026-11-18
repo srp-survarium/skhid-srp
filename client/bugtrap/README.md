@@ -235,9 +235,13 @@ English, Russian, Ukrainian, German, Polish; English for unsupported languages):
 `src/dump.rs`, `Kind`: read once, when the DLL is loaded, from the game's
 environment variable `SKHID_CRASH_DUMP`.
 
-- **Players' dumps** (unset): `MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory`
-  (0x41): every thread's stack and registers, the modules, their writable data
-  sections, and the memory the stacks point to. Its memory callback also adds,
+- **Players' dumps** (unset): `MiniDumpWithDataSegs | MiniDumpWithIndirectlyReferencedMemory |
+  FullMemoryInfo | ThreadInfo` (0x1841): every thread's stack and registers, the modules, their
+  writable data sections, and the memory the stacks point to. The last two add no memory, only
+  two lists: every region of the address space (base, size, state, protection, type: stream 16)
+  and each thread's start address and times (stream 17). They are for a game that ran out of
+  address space (`E_OUTOFMEMORY` in `create_texture2d_impl`, 2026-11-17): that crash's dump
+  said the space was full, not what held it. Its memory callback also adds,
   for the crashing thread's EAX, EBX, ECX, EDX, ESI, EDI and EBP, the range
   `[value - 256, value + 2048)` cut to the committed readable region holding
   it: the object behind a faulting `mov eax, [esi+116h]`, which no stack slot
