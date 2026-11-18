@@ -195,8 +195,9 @@ pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// share 0 (the same bound), its link kept at a higher share. 0b0f: [F1] a neighbour of a press counts only when it rests on the
 /// link's own landing top (`grid::rim` `OWN_TOP_FLAT_M`), not on any top; a press resting on another floor of that top scores
 /// for the link too. 0b10: [F1b] each flown share keeps which neighbours land (`grid::gap::Mask`), in a masks table at the
-/// grid file's end, for the motor's take-off window (`TakeoffWindow`).
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b10;
+/// grid file's end, for the motor's take-off window (`TakeoffWindow`). 0b11: [row 31] a floor overhead with room under it
+/// (`grid::gap_flown` `overhead`) ends no search for an edge up.
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b11;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
@@ -223,8 +224,9 @@ pub const DROP_LANDS_ALGO: u32 = 0x5067_000a;
 /// centre line where a body is held on it (`grid::line_tops`), in the grid file. 0008: [F1] no clip pass press is kept unflown:
 /// each group of them no flown link covers is flown over every client press onto its own landing top and kept with the press
 /// that lands, or not kept (`grid::gap_flown` `prove_clip_presses`); and the own-top share of `RIM_JUMPS_ALGO` 0b0f. 0009: [F1b]
-/// the shares' neighbourhood masks (`RIM_JUMPS_ALGO` 0b10).
-pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_0009;
+/// the shares' neighbourhood masks (`RIM_JUMPS_ALGO` 0b10). 000a: [row 31] a floor overhead with room under it (`overhead`) is no
+/// wall and no thin top to the gap searches.
+pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_000a;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0102: the own-point stand test
 /// (`rest_floors::settle_near`: a standing body on the floor's own point, no push out of the walls, and 0.05-0.10 m around it
