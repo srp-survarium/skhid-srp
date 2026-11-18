@@ -232,6 +232,75 @@ impl Default for Bands {
     }
 }
 
+/// [fix-team 4 `mods.comeback`] A team's confidence: its living players over the enemy's (`MatchSignals::alive_ours`,
+/// `alive_theirs`), faded toward the present ratio with a time constant (Days Gone's kills and losses that fade), so a death
+/// or a respawn moves it a little, not at once.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub enum Confidence {
+    /// Not read yet this match.
+    #[default]
+    Unread,
+    /// Its value, and when it was read.
+    Read { ratio: f32, at: u32 },
+}
+
+impl Confidence {
+    /// The confidence at `now`, `ours` and `theirs` alive, faded with `fade_s`; the first read is the ratio itself.
+    pub fn read(self, ours: usize, theirs: usize, now: u32, fade_s: f32) -> Self {
+        let raw = ours as f32 / theirs.max(1) as f32;
+        match self {
+            Confidence::Unread => Confidence::Read { ratio: raw, at: now },
+            Confidence::Read { ratio, at } => {
+                let dt = now.saturating_sub(at) as f32 / 1000.0;
+                let a = 1.0 - (-dt / fade_s).exp();
+                Confidence::Read { ratio: ratio + (raw - ratio) * a, at: now }
+            }
+        }
+    }
+
+    pub fn ratio(self) -> Option<f32> {
+        match self {
+            Confidence::Unread => None,
+            Confidence::Read { ratio, .. } => Some(ratio),
+        }
+    }
+}
+
+/// [fix-team 4 `mods.comeback`] The comeback's counts (the bench's; nothing live): attack candidates held back while the team
+/// was outnumbered, and container holders not offered behind late.
+pub mod comeback_counts {
+    #[derive(Clone, Copy, Debug)]
+    pub enum Count {
+        AttacksHeldBack,
+        HolderOffBehindLate,
+    }
+
+    pub const NAMES: [&str; 2] = ["attacks_held_back", "holder_off_behind_late"];
+
+    #[cfg(test)]
+    thread_local! {
+        static COUNTS: std::cell::Cell<[u64; 2]> = const { std::cell::Cell::new([0; 2]) };
+    }
+
+    #[cfg(test)]
+    pub fn add(c: Count, n: u64) {
+        COUNTS.with(|cell| {
+            let mut all = cell.get();
+            all[c as usize] += n;
+            cell.set(all);
+        });
+    }
+
+    #[cfg(not(test))]
+    pub fn add(_: Count, _: u64) {}
+
+    /// The counts so far on this thread, in [`NAMES`] order.
+    #[cfg(test)]
+    pub fn counted() -> [u64; 2] {
+        COUNTS.with(|cell| cell.get())
+    }
+}
+
 /// An attack on the enemy's container: what a team behind on points
 /// needs to win points back (the batteries home are taken only so).
 /// [A296 item 2, `mods.team_plan`] What a team sets out to do this commander tick, from its standing on points and the time
@@ -403,11 +472,22 @@ pub fn held_kind(kind: PlayKind, target: TargetRef) -> bool {
     }
 }
 
+/// [fix-team 2, review of #2177] A CoverHuman is held for this long from its start, then kept by its band and the margin
+/// as any play, ms: a commitment that wears off with its run time (Lewis, Game AI Pro 3 ch. 13), not one that keeps a support
+/// bot by the human against every objective play for the cover's own 60-120 s. The design's 15-20 s; not measured.
+pub const COVER_HUMAN_HOLD_MS: u32 = 20_000;
+
+/// [fix-team 2] Whether the running play `kind` on `target`, started at `since`, is held at `now` ([`Commit::Held`]): a play
+/// of [`held_kind`], a CoverHuman only for its first [`COVER_HUMAN_HOLD_MS`].
+pub fn held(kind: PlayKind, target: TargetRef, since: u32, now: u32) -> bool {
+    held_kind(kind, target) && (kind != PlayKind::CoverHuman || now < since.saturating_add(COVER_HUMAN_HOLD_MS))
+}
+
 /// [fix-team 3 `threat.support`] Whether a bot running `current` (its play, target and the play's band) may be given a mate's
 /// fight: one whose play is under the objective band and, with `commit.hold_started`, not a held play (a held CoverHuman or a
 /// job's flank in the fight band keeps the bot against the fight-band cover, so the fight would wait on it every pass).
-pub fn may_support(current: Option<(PlayKind, TargetRef, Rank)>, hold_started: bool) -> bool {
-    current.is_none_or(|(kind, target, rank)| rank < Rank::Objective && !(hold_started && held_kind(kind, target)))
+pub fn may_support(current: Option<(&Assignment, Rank)>, hold_started: bool, now: u32) -> bool {
+    current.is_none_or(|(a, rank)| rank < Rank::Objective && !(hold_started && held(a.kind, a.target, a.since, now)))
 }
 
 /// [fix-team 2] Whether `best` (the bot's best other candidate, competing in band `best_band`) is a named interrupter of a
@@ -2013,6 +2093,27 @@ mod tests {
         assert_eq!(gang_factor(&rule, 9), 0.25);
     }
 
+    /// [fix-team 4] The comeback's confidence: attacks while not outnumbered.
+    #[test]
+    fn a_team_attacks_only_while_it_is_not_outnumbered() {
+        use crate::v026g::bots::tuning::{AttackGate, Comeback};
+        let rule = Comeback::default();
+        assert_eq!(rule.gate(1.0), AttackGate::Open);
+        assert_eq!(rule.gate(0.8), AttackGate::NoStart, "outnumbered: none started, a running one goes on");
+        assert_eq!(rule.gate(0.5), AttackGate::Drop, "decimated: let go");
+        assert!(rule.check().is_ok() && Comeback { drop_confidence: 1.5, ..rule }.check().is_err());
+        // The confidence fades: one death of five moves it a little, not to 0.8 at once.
+        let c = Confidence::Unread.read(5, 5, 0, rule.fade_s);
+        assert_eq!(c.ratio(), Some(1.0));
+        let c = c.read(4, 5, 500, rule.fade_s).ratio().unwrap();
+        assert!(c > 0.99 && c < 1.0, "{c}");
+        let mut c = Confidence::Read { ratio: 1.0, at: 0 };
+        for t in (500..=60_000).step_by(500) {
+            c = c.read(4, 5, t, rule.fade_s);
+        }
+        assert!((c.ratio().unwrap() - 0.8).abs() < 0.01, "held long enough, it is the ratio");
+    }
+
     /// [fix-team 2] A held play is kept against a far better play of its band and against a higher band that is no alarm;
     /// a survival play or an alarm takes it, suspending it; once the interrupter is over, it is taken back over a better
     /// play, unless it is no longer a candidate.
@@ -2070,14 +2171,28 @@ mod tests {
     /// [fix-team 3] A fight goes only to a bot that can take the fight-band cover: none on an objective or an alarm, none held.
     #[test]
     fn a_mates_fight_goes_only_to_a_bot_free_to_support_it() {
-        assert!(may_support(None, true));
-        assert!(may_support(Some((PlayKind::Roam, TargetRef::Battery(0), Rank::Roam)), true));
-        assert!(!may_support(Some((PlayKind::Collect, TargetRef::Battery(0), Rank::Objective)), false));
+        let play = |kind, target| Assignment { kind, target, slot: None, score: 0.5, since: 1_000, reason: "the best play" };
+        let now = 5_000;
+        assert!(may_support(None, true, now));
+        assert!(may_support(Some((&play(PlayKind::Roam, TargetRef::Battery(0)), Rank::Roam)), true, now));
+        assert!(!may_support(Some((&play(PlayKind::Collect, TargetRef::Battery(0)), Rank::Objective)), false, now));
         // Held in the fight band: a CoverHuman, a job's flank.
         for (kind, target) in [(PlayKind::CoverHuman, TargetRef::Place(3)), (PlayKind::Flank, TargetRef::ThreatSpot(2))] {
-            assert!(!may_support(Some((kind, target, Rank::Fight)), true), "{kind:?} held");
-            assert!(may_support(Some((kind, target, Rank::Fight)), false), "{kind:?} not held with the hold off");
+            assert!(!may_support(Some((&play(kind, target), Rank::Fight)), true, now), "{kind:?} held");
+            assert!(may_support(Some((&play(kind, target), Rank::Fight)), false, now), "{kind:?} not held with the hold off");
         }
-        assert!(may_support(Some((PlayKind::Flank, TargetRef::Place(3), Rank::Fight)), true), "a flank of its own is not held");
+        assert!(may_support(Some((&play(PlayKind::Flank, TargetRef::Place(3)), Rank::Fight)), true, now), "a flank of its own is not held");
+        // A CoverHuman past its hold may support.
+        let late = 1_000 + COVER_HUMAN_HOLD_MS;
+        assert!(may_support(Some((&play(PlayKind::CoverHuman, TargetRef::Place(3)), Rank::Fight)), true, late));
+    }
+
+    /// [review of #2177] A CoverHuman is held for its first COVER_HUMAN_HOLD_MS only; the other held plays to their end.
+    #[test]
+    fn a_cover_human_is_held_only_for_its_first_seconds() {
+        assert!(held(PlayKind::CoverHuman, TargetRef::Place(3), 1_000, 1_000 + COVER_HUMAN_HOLD_MS - 1));
+        assert!(!held(PlayKind::CoverHuman, TargetRef::Place(3), 1_000, 1_000 + COVER_HUMAN_HOLD_MS));
+        assert!(held(PlayKind::Raid, TargetRef::Container(0), 1_000, 1_000 + 10 * COVER_HUMAN_HOLD_MS));
+        assert!(!held(PlayKind::Roam, TargetRef::Battery(0), 1_000, 1_001));
     }
 }
