@@ -507,30 +507,55 @@ impl WalkGrid {
         if let Some(c) = floor_of(&climbs).filter(|c| !floors.contains(c) && !climbs.iter().any(|l| floors.contains(&l.to))) {
             floors.push(c);
         }
-        let made = floors.into_iter().map(|to| Made { aim, ..press_onto(&flown, &landings, to, &lands, &fly, &mut flights) }).collect();
+        let made = floors
+            .into_iter()
+            .map(|to| Made { aim, ..press_onto(&flown, &landings, to, &|g| self.own_top(to, g), &lands, &fly, &mut flights) })
+            .collect();
         RimPress { made, flights, near, under }
     }
 }
 
-/// [`WalkGrid::best_press`] step 3: each press of `landings` onto `to` scored by its neighbourhood (`flown` is step 1's flights
-/// at the press itself, reused for the lead row), the best of them.
+/// [F1] How far across from the link's landing floor a flight may rest and still have landed on the link's own top, m:
+/// [`NEAR_FLAT_M`], the sweep's own bound of "near the top". A neighbour of a press rests a little aside of the press's own
+/// rest (Chemical Plant R9: the exe's tick rests 13 of 14 neighbours over three cells and two levels of the top, 6 on the
+/// press's own floor node, owner-5 `a385-lost-links-client-truth.md` §3), so the node alone is too narrow; any top floor at
+/// all, the rule before, counts a neighbour that rests on another top as landed although the route goes on from this one.
+pub const OWN_TOP_FLAT_M: f32 = NEAR_FLAT_M;
+
+impl WalkGrid {
+    /// [F1] Whether floor `g` is on the link's own landing top at `to` (owner-16 part 3 F1: "lands" means ending standing on
+    /// the link's own landing floor): `to` itself, or a floor within [`OWN_TOP_FLAT_M`] across of it and within a step
+    /// ([`super::Body::step`]: what a walk on climbs) of its height.
+    pub(super) fn own_top(&self, to: NodeId, g: NodeId) -> bool {
+        g == to
+            || (self.position(g).distance_xz(self.position(to)) <= OWN_TOP_FLAT_M
+                && (self.height[g as usize] - self.height[to as usize]).abs() <= self.body.step)
+    }
+}
+
+/// [`WalkGrid::best_press`] step 3: each press of `landings` onto `to`'s own top (`same`, [`WalkGrid::own_top`]) scored by its
+/// neighbourhood (`flown` is step 1's flights at the press itself, reused for the lead row), the best of them. [F1] A neighbour
+/// counts only when every one of its flights rests on that top, not on any top.
 fn press_onto(
     flown: &[(Kind, f32, Vec<Option<NodeId>>)],
     landings: &[Landing],
     to: NodeId,
+    same: &impl Fn(NodeId) -> bool,
     lands: &impl Fn(&[FlightStep]) -> Option<NodeId>,
     fly: &impl Fn(Kind, f32, Neighbour) -> Option<Vec<Vec<FlightStep>>>,
     flights: &mut usize,
 ) -> Made {
     let own = jump::neighbourhood()[0];
-let reused = |kind: Kind, lead: f32| {
+    let on_top = |f: Option<NodeId>| f.is_some_and(same);
+    let reused = |kind: Kind, lead: f32| {
         flown
             .iter()
             .find(|(k, l, _)| *k == kind && (l - lead).abs() < 1e-3)
-            .map(|(.., floors)| !floors.is_empty() && floors.iter().all(Option::is_some))
+            .map(|(.., floors)| !floors.is_empty() && floors.iter().all(|&f| on_top(f)))
     };
     let mut scored: Vec<(Kind, f32, u8)> = Vec::new();
-    for l in landings.iter().filter(|l| l.to == to) {
+    // [F1] A press resting on another floor of the same top lands this link too (teach, do not cut).
+    for l in landings.iter().filter(|l| same(l.to)) {
         let mut landed = 0u8;
         for n in jump::neighbourhood() {
             let lead_only = n == Neighbour { lead: n.lead, ..own };
@@ -538,7 +563,7 @@ let reused = |kind: Kind, lead: f32| {
                 Some(lands) => lands,
                 None => fly(l.kind, l.lead, n).is_some_and(|fl| {
                     *flights += fl.len();
-                    fl.iter().all(|st| lands(st).is_some())
+                    fl.iter().all(|st| on_top(lands(st)))
                 }),
             };
             landed += u8::from(lands);
@@ -992,6 +1017,21 @@ mod tests {
         assert_eq!(aimed_or_held(Some(aimed0), None), Some(aimed0));
         assert_eq!(aimed_or_held(None, Some(held(0))), Some(held(0)));
         assert_eq!(aimed_or_held(None, None), None);
+    }
+
+    /// [F1] A link's own landing top: its landing floor, and a floor of the same top within [`OWN_TOP_FLAT_M`] across and a step
+    /// in height; not a floor of that top farther off, nor the ground under the top's edge within reach across.
+    #[test]
+    fn the_own_top_is_the_landing_and_the_floors_beside_it() {
+        let (grid, _, _) = onto(1.4, false);
+        let at = |x: f32, y: f32| grid.locate(Vec3::new(x, y, 3.0), 0.3).expect("a floor");
+        let to = at(5.3, 1.4);
+        assert!(grid.own_top(to, to));
+        assert!(grid.own_top(to, at(6.0, 1.4)), "beside it on the top");
+        assert!(!grid.own_top(to, at(7.5, 1.4)), "2 m on");
+        let ground = at(4.4, 0.0);
+        assert!(grid.position(ground).distance_xz(grid.position(to)) <= OWN_TOP_FLAT_M, "within reach across");
+        assert!(!grid.own_top(to, ground), "the ground under the edge");
     }
 
     #[test]
