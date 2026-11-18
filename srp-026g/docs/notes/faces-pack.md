@@ -24,8 +24,10 @@ heads[i].icon         [row, col]                                   the picker's 
 - `heads[0]` is today's head (`character/human/base/base_character_head`,
   `black_market_01_head_s`). `body_parts.head` is unchanged.
 - `heads[i].icon` is an addition to the spec's format: cell `[i + 1, 16]`
-  of the equipment atlas (column 16: no pack `release/content.tsv` lists draws
-  into it, checked on 2026-11-18; the pack's compose stops on a taken cell).
+  of the equipment atlas (column 16: free in what players have on 2026-11-18:
+  `vostok-port pack check` passes over the stock db and patches 12 .. 64, and no
+  other pack of `release/content.tsv` whose folder is at hand draws into it; the
+  pack's compose stops on a taken cell).
 - The server reads the count of `heads` from its game data.
 
 | i | face | from |
@@ -282,14 +284,16 @@ a new one, or a deeper one, stops the build.
   The test exe is patch 123's cook as it is today: it draws the faces' new necks, helmet and
   mask models and the Novice's scalp, and every item as the game's own model.
 - `v3/offline/`: software renders (`render-faces-026-pairs.py`: the colour map under a flat
-  light, the bind pose) of the same sets with the items made for each face on the right: the
-  only pictures of those until the cook reads `data_head_<i>`.
+  light, the bind pose) of the same sets, `faces@3` as it ships.
+- `v3/offline-items/`: the same with the items made for each face on the right: the only
+  pictures of those until the cook reads `data_head_<i>`.
 
 What is checked, and how:
 
 - **By the build** (every time): each face's vertices that follow the Head against the donor's, bit
   for bit; the gate over every worn set and pose; the bundle's models (`validate_overlay_on`).
 - **By `vostok-port pack check`**: the pack over the stock db and patches 12 .. 64 (232 operations).
+- **By `tools/check build-content`**: the manifest with `faces@3` composes over what players have.
 - **In the game** (the lobby captures above): the ten faces bare, under `renesanse_helmet_2`,
   `scavenger_helmet_3`, `edge_helmet_4`, `novice_026`, `face_069d_balaclava`, `bandit_026`,
   `scavenger_resp_1`, `eq069_league_shadow_mask` and two helmets over masks, over
