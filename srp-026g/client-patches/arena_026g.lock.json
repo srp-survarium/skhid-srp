@@ -2,7 +2,7 @@
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
   "size": 1345124,
-  "sha256": "8969b8c2813d6c81a2aaf8122b0277a414a8a79e40743f25bfa244798c1d4052",
+  "sha256": "b23a3a86e414fe19b224b71784fe7b4452272c1fa759cfad8c4092e59104c949",
   "blocks": {
     "bullet_bounds.code": {
       "kind": "code",
