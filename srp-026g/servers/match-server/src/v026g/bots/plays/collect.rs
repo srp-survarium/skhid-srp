@@ -918,7 +918,7 @@ const ENEMIES_OUT: f32 = 4.0;
 /// distance from it ([`held_weight`]); any other remembered enemy within [`ENEMIES_NEAR_M`] one, as
 /// [`Input::EnemiesNearTarget`] counts him. A man reloading or kept busy is one the take goes past, as the take itself
 /// reads him.
-fn enemies_weighed(cx: &Ctx, at: Vec3) -> f32 {
+fn enemies_weighed(cx: &Ctx, at: Vec3) -> Weighed {
     let num = |name| cx.num(PlayKind::Collect, name);
     let (held_m, exposed_m, cover_m) = (num("hold_near_m"), num("exposed_m"), num("cover_m"));
     let reload_ms = (num("reload_cover_s") * 1000.0) as u32;
@@ -928,19 +928,27 @@ fn enemies_weighed(cx: &Ctx, at: Vec3) -> f32 {
     let seen_now = |t: &crate::v026g::bots::know::Track| {
         t.source == crate::v026g::bots::know::Source::Seen && cx.now <= t.time + SEEN_NOW_MS
     };
-    cx.memory
-        .tracks()
-        .iter()
-        .map(|t| match t.own.filter(|&(_, time)| cx.spot_lives(t.who, time)) {
+    cx.memory.tracks().iter().fold(Weighed { sum: 0.0, held: false }, |w, t| {
+        match t.own.filter(|&(_, time)| cx.spot_lives(t.who, time)) {
             Some((spot, _))
                 if !cx.reloading(t.who, reload_ms)
                     && !(seen_now(t) && mates.iter().any(|mate| cx.covers(mate, Ctx::standing_eye(spot), cover_m, veil))) =>
             {
-                held_weight(spot.distance_xz(at), held_m, exposed_m)
+                let d = spot.distance_xz(at);
+                Weighed { sum: w.sum + held_weight(d, held_m, exposed_m), held: w.held || d <= held_m }
             }
-            _ => count(t),
-        })
-        .sum()
+            _ => Weighed { sum: w.sum + count(t), ..w },
+        }
+    })
+}
+
+/// [take.known_threats] A battery's enemies weighed by their distance ([`enemies_weighed`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Weighed {
+    /// The sum of their weights ([`held_weight`]; one for a remembered enemy with no spot of the team's own).
+    sum: f32,
+    /// One of them stands by it: his spot within the take's `hold_near_m` (the take's own threat, [`Ctx::take_threat`]).
+    held: bool,
 }
 
 /// [take.known_threats] One enemy known lately `d` metres from a battery, on its score's enemies (out at [`ENEMIES_OUT`]):
@@ -959,7 +967,9 @@ fn held_weight(d: f32, held_m: f32, exposed_m: f32) -> f32 {
 /// How many enemies over [`ENEMIES_OUT`] a bot already on a battery's
 /// Collect stands before the battery scores out for it: while
 /// [`ENEMIES_OUT`] or more are known by it, the bot reads this many fewer. A
-/// battery out comes back only below [`ENEMIES_OUT`] (hysteresis).
+/// battery out comes back only below [`ENEMIES_OUT`] (hysteresis). With
+/// `take.known_threats` on the sum weighed by distance ([`enemies_weighed`]),
+/// and not while a man stands by the battery ([`Weighed::held`]).
 ///
 /// GUESS (2026-10-25): one enemy. Why: the count is of the bot's remembered
 /// enemies (`Memory::tracks`), whose spots move with sight, hearing and
@@ -991,12 +1001,12 @@ fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
     let near = match cx.battery_lying(battery) {
         Some(at) if cx.tuning.take.known_threats => {
             let weighed = enemies_weighed(cx, at);
-            if weighed > counted {
+            if weighed.sum > counted {
                 take_counts::count(take_counts::Count::ScoreWeighed);
             }
             weighed
         }
-        _ => counted,
+        _ => Weighed { sum: counted, held: false },
     };
     // A crossing's damage weighs against it (`Crossing::cost`): a dry
     // battery as good wins.
@@ -1019,13 +1029,10 @@ fn battery_candidate_given(
     slot: Option<u32>,
     on_it: bool,
     counted: f32,
-    near: f32,
+    near: Weighed,
 ) -> Option<Candidate> {
     let mut given = [(Input::PathDist, 0.0); 2];
     let mut n = 0;
-    // [take.known_threats] `near` is the enemies weighed by their distance (`enemies_weighed`), given as it is; the margin
-    // still goes by the COUNT (`counted`) at the cut-off, the flicker it was made for (a fourth enemy's spot crossing
-    // 25 m): on the weighed sum a lone man on the battery, who weighs `ENEMIES_OUT` alone, would bring it back at 3.
     // The floor paths off (`GridTuning::floor_paths`, off by default): only a
     // battery a storey off is as far as the way between the floors, as
     // before every play's `path_dist` was.
@@ -1038,11 +1045,19 @@ fn battery_candidate_given(
         given[n] = (Input::PathDist, walk);
         n += 1;
     }
-    if on_it && counted >= ENEMIES_OUT && cx.memory.all_seen(cx.now, cx.view.clock).is_empty() {
-        given[n] = (Input::EnemiesNearTarget, near - COLLECT_ENEMY_MARGIN);
-        n += 1;
-    } else if cx.tuning.take.known_threats {
+    let calm_on_it = on_it && cx.memory.all_seen(cx.now, cx.view.clock).is_empty();
+    if cx.tuning.take.known_threats {
+        // [take.known_threats] The enemies weighed by their distance (`enemies_weighed`), with the margin on that sum: the
+        // bot on the battery's Collect, no enemy in sight, keeps it till the sum reaches `ENEMIES_OUT` + the margin, and
+        // the battery comes back for any bot only below `ENEMIES_OUT` (two thresholds). The margin went by the plain count
+        // before (4+ tracks within 25 m), so one to three men who weighed 4 or more flipped the battery with none: at least
+        // 542 of 2,480 replaced Collect runs in the 16 own-play matches of 2026-11-18. A man whose spot is by the battery
+        // (`Weighed::held`, within `hold_near_m`) puts it out at once, margin or not: he holds it, wherever the others are.
+        let near = if calm_on_it && !near.held { near.sum - COLLECT_ENEMY_MARGIN } else { near.sum };
         given[n] = (Input::EnemiesNearTarget, near);
+        n += 1;
+    } else if calm_on_it && counted >= ENEMIES_OUT {
+        given[n] = (Input::EnemiesNearTarget, near.sum - COLLECT_ENEMY_MARGIN);
         n += 1;
     }
     if n == 0 {
@@ -6518,10 +6533,17 @@ mod tests {
             score_of(&s)
         };
         assert!((seen(true) - seen(false)).abs() < 1e-6, "seen and covered: {} against off {}", seen(true), seen(false));
-        // A bot already on the battery with nobody in sight: the margin goes by the count (one here), so a lone man at
-        // the battery still holds it (on the weighed sum, 4, it came back at 3).
+        // A bot already on the battery with nobody in sight: a lone man at the battery (within `hold_near_m`) still holds
+        // it, the margin or not.
         let mut s = scene(true, at_it);
         s.current = Some((PlayKind::Collect, TargetRef::Battery(0), s.view.clock));
         assert_eq!(score_of(&s), 0.0, "on it, heard at it: held");
+        // [#2052 hysteresis] The margin goes by the weighed sum: one man heard 3.6 m off (weighing 3.9, one track by the
+        // count) leaves the battery to a bot already on it by the margin, and a bot not on it reads the sum as it is.
+        let mut s = scene(true, by_it);
+        let fresh = score_of(&s);
+        s.current = Some((PlayKind::Collect, TargetRef::Battery(0), s.view.clock));
+        let kept = score_of(&s);
+        assert!(kept > 2.0 * fresh, "on it, heard 3.6 m off: kept by the margin, {kept} against {fresh}");
     }
 }
