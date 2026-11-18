@@ -2252,10 +2252,12 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             if !cx.in_use_reach(at) && !cx.can_go(stand) {
                 return Step::Failed("no way to it");
             }
+            // [take.on_the_move, F7] The drive pressed USE on a tick of the walk in ([`meets_from_fetch`]): the take reads it.
+            let pressed = cx.bot.use_pressed.is_some_and(|(pressed_at, _)| (pressed_at - at).length() < 0.01);
             // Within reach across and not over the stand's floor
             // (`over_goal`, the motor's rule for a route's end).
             let near = cx.me.feet.distance_xz(stand) <= num("reach_m");
-            if near && !over_goal(cx, stand) {
+            if pressed || (near && !over_goal(cx, stand)) {
                 #[cfg(test)]
                 if routed {
                     routed_asks::count(routed_asks::Ask::Begun);
@@ -2290,6 +2292,16 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
             // gathers or goes: wait out of it, on once the crossers hold.
             if super::breach::waits_for_breach(cx, stand) {
                 return Step::Continue(Intent::stay());
+            }
+            // [take.on_the_move, F7] The last stretch of the walk in: the view on the box, the press on the tick it meets; at a
+            // walk (the client refuses a use while sprinting, `can_use` 0x300710), its keys let go where the body comes to rest
+            // still within an upright look down at a battery on the floor ([`upright_nearest_m`]), not the 0.9 m the body
+            // coasted over the battery from (0.13 m across in the full-loop test's trace).
+            if crossing.is_none() && meets_from_fetch(cx, at, stand) {
+                let within = if (stand - at).length() < 0.01 { upright_nearest_m(cx, stand, at) + coast_m(cx) } else { within };
+                return Step::Continue(
+                    Intent::to(stand, Pace::Walk).within(within).looking(Look::Use(at)).pressing_use_on_meet(at),
+                );
             }
             Step::Continue(Intent::to(stand, cx.pace_toward(stand)).within(within))
         }
@@ -2740,9 +2752,14 @@ fn take(state: &mut State, target: TargetRef, cx: &Ctx) -> Step {
     // stays, its look gives way to the reflex's (no use within reach, so
     // it aims, moves and fires), and its timers wait. [take.known_threats]
     // A man known by the battery and out of sight: it waits looking at his
-    // spot (the reflex fights him once he shows), no use pressed.
+    // spot (the reflex fights him once he shows), no use pressed. [take.on_the_move, F7] Not the first press on the move:
+    // the client starts the use on the key's down edge with the ray on the box and carries it on with no key or look
+    // (0x2D88B1, 0x300830), so a wait there only keeps the bot by the battery longer, empty-handed. A man seen still comes
+    // first; the walk in to a battery a man is known to hold is `take.clear_first`'s (`plays::clear_first`).
+    let first_on_the_move = matches!(*first, FirstPress::OnTheMove);
     if me.distance_xz(at) <= num("hold_near_m")
         && let Some(threat) = take_threat(cx, at)
+        && !(first_on_the_move && matches!(threat.by, ThreatBy::Spot { .. }))
     {
         *since = cx.now;
         *arrived = None;
@@ -3188,15 +3205,6 @@ pub(in crate::v026g::bots) fn view_ray_meets_at(
     }
 }
 
-/// [take.on_the_move] How far across from a battery on the floor whose position is `at` a body standing at `feet` has its
-/// standing eye within the use ray ([`view::use_ray_m`]) of the battery's inner ball ([`BATTERY_INNER_M`]): there a view
-/// on the battery's position meets the box. At least 0.25 m (the take's own stop on a shelf).
-fn upright_reach_m(feet: Vec3, at: Vec3) -> f32 {
-    let reach = view::use_ray_m() - BATTERY_INNER_M;
-    let dy = view::still_eye(feet, false).y - at.y;
-    (reach * reach - dy * dy).max(0.0).sqrt().max(0.25)
-}
-
 /// [take.on_the_move, phase 2 #11] How far the body goes on once its walk keys are let go at its present ground speed: the
 /// client's blend to standing ([`Kinematics::blend_ticks`] ticks of [`kin::TICK_S`], its mixer, [`kin::Blend`]) and the tick
 /// on which the drive finds the stop.
@@ -3210,11 +3218,84 @@ fn coast_m(cx: &Ctx) -> f32 {
     (0..=k.blend_ticks).map(|_| blend.tick_mixed([0.0, 0.0], k.blend_ticks, k.mixer)[0] * kin::TICK_S).sum::<f32>() + speed * kin::TICK_S
 }
 
+/// [take.on_the_move, F7] The nearest across from a battery on the floor at `at` a body standing at `feet` still has its
+/// standing eye's look down at the battery within the first press's pitch limit ([`take_pitch_limits`]); at least 0.25 m.
+fn upright_nearest_m(cx: &Ctx, feet: Vec3, at: Vec3) -> f32 {
+    let dy = view::still_eye(feet, false).y - at.y;
+    take_flat_m(dy, take_pitch_limits(cx).1).max(0.25)
+}
+
+/// [take.on_the_move, F7] Where the view looks, on this tick, for a take's press on the move at a battery whose position
+/// is `at`, from `eye`: along the bearing to it, down at the elevation from which the ray from the eye passes through the
+/// position just as the eye comes within the use's reach of the box ([`view::use_ray_m`] less [`BATTERY_INNER_M`]); within
+/// that, the position itself. The point lies at the battery's height on that bearing. Why not the battery itself all the
+/// way: walking in at `v` across, the look down at it steepens at `dy v / (x² + dy²)` rad/s (about 1.5 rad/s at the reach's
+/// edge, 1.14 m across, at the walk's 3.5 m/s, `Kinematics::walk`, the standing eye 1.23 m over the box's centre), and the
+/// motor's turn follows a moving aim a turn's time constant behind (`motor::Feel::turn_time_s`, 0.15 s: the ease asks
+/// `left / turn_time`, `Motor::turn_fed`), about 0.23 rad, while the box's inner ball is 0.07 rad either side of its
+/// centre from 1.68 m: the ray passed over the box until the body stopped. A fixed look
+/// down, computed again on each tick from the eye (the drive's aim for [`Intent::use_on_meet`]), asks the view no turn
+/// while the body walks straight in.
+pub(in crate::v026g::bots) fn meet_aim(eye: Vec3, at: Vec3) -> Vec3 {
+    let reach = view::use_ray_m() - BATTERY_INNER_M;
+    let dy = eye.y - at.y;
+    let across = eye.distance_xz(at);
+    if dy <= 0.0 || dy >= reach || across < 1e-3 {
+        return at;
+    }
+    let meet = (reach * reach - dy * dy).sqrt();
+    if across <= meet {
+        return at;
+    }
+    let k = meet / across;
+    Vec3::new(eye.x + (at.x - eye.x) * k, at.y, eye.z + (at.z - eye.z) * k)
+}
+
+/// [take.on_the_move, F7] Whether a fetch of a battery lying at `at`, its take standing at `stand`, walks its last stretch
+/// with the take's look and press on the move ([`meet_aim`], [`Intent::use_on_meet`]): `take.on_the_move` on, a battery
+/// the take walks in to upright ([`approach`]: not one under the feet, the patched client's take through the floor), not in
+/// an enemy's sight ([`take_threat`], [`ThreatBy::Sight`]: the fight first, as the take's own step has it), and the eye
+/// within a look's lead of the meet: at its ground speed it would come within the meet's distance across ([`meet_aim`])
+/// before the next think (`think.think_ms`'s longest) and the view's turn onto the lead ([`look_turn_s`]) are over. Before:
+/// the fetch's view looked along the way till the take's step at `reach_m` (1.5 m across), and the use look took the view
+/// only within `drive::USE_LOOK_M` (2.5 m) of the eye, a think late: at the walk's 3.5 m/s the eye passed the meet with the
+/// view 0.25-0.3 rad short of the look down (the full-loop test's trace, `f7_run`).
+fn meets_from_fetch(cx: &Ctx, at: Vec3, stand: Vec3) -> bool {
+    if !cx.tuning.take.on_the_move
+        || stand.y >= at.y + SUNK_MIN_M
+        || at.y < cx.me.feet.y
+        || matches!(take_threat(cx, at), Some(TakeThreat { by: ThreatBy::Sight, .. }))
+    {
+        return false;
+    }
+    let eye = cx.me.eye();
+    let lead = meet_aim(eye, at);
+    let across = eye.distance_xz(at);
+    let meet = eye.distance_xz(lead).min(across);
+    let speed = cx.me.velocity[0].hypot(cx.me.velocity[1]);
+    let think_s = cx.tuning.think.think_ms.1 as f32 / 1000.0;
+    across - meet <= speed * (think_s + look_turn_s(cx, eye, lead))
+}
+
+/// [take.on_the_move, F7] How long the motor's view takes from the bot's view now onto the look at `p` from `eye`, to within
+/// the battery's inner ball seen from the reach's edge ([`BATTERY_INNER_M`] over the use ray less it), s: the motor eases
+/// the remaining angle at `left / turn_time_s` (`motor::Motor::turn_fed`, `Feel::turn_time_s`), an exponential with that
+/// time constant, so `turn_time_s ln(angle / tolerance)`.
+fn look_turn_s(cx: &Ctx, eye: Vec3, p: Vec3) -> f32 {
+    use crate::v026g::bots::kin::{wrap, yaw_of};
+    let to = p - eye;
+    let yaw = wrap(yaw_of([to.x, to.z]) - cx.me.yaw);
+    let pitch = to.y.atan2(to.x.hypot(to.z)) - cx.me.pitch;
+    let tolerance = BATTERY_INNER_M / (view::use_ray_m() - BATTERY_INNER_M);
+    cx.tuning.feel.turn_time_s * (yaw.hypot(pitch).max(tolerance) / tolerance).ln()
+}
+
 /// [take.on_the_move] The walk in of a take's first press: to the battery's stand ([`Tactics::stand_to_take`]) upright at
-/// the route's pace (`Ctx::pace_toward`), looking at the battery's position, stopping within [`upright_reach_m`] of a
-/// battery on the floor (0.25 m of a stand beside it); there, standing, turning onto it while a use reaches from the
-/// standing eye ([`use_from`]). None: no such walk (a crossing's line, a battery under the feet, no stand), or there with
-/// the view on it and no use from there: the take's stands.
+/// a walk, looking at the battery ([`meet_aim`]), through the use's reach: for a battery on the floor the keys are let go
+/// the body's coast short of [`upright_nearest_m`], so the body coasts through the reach's edge, where the view ray meets
+/// the box, and comes to rest still within a look down the view allows (0.25 m of a stand beside it); there, standing,
+/// turning onto it while a use reaches from the standing eye ([`use_from`]). None: no such walk (a crossing's line, a
+/// battery under the feet, no stand), or there with the view on it and no use from there: the take's stands.
 fn approach(cx: &Ctx, at: Vec3, crossing: bool) -> Option<Intent> {
     if crossing {
         return None;
@@ -3224,12 +3305,13 @@ fn approach(cx: &Ctx, at: Vec3, crossing: bool) -> Option<Intent> {
         return None;
     }
     let me = cx.me.feet;
-    // [phase 2 #11] At the battery's own spot the walk lets go of its keys the body's coast short of the reach, so the
-    // body comes to rest within it, its view free to settle on the box (a coast of 0.6 m from 2.9 m/s carried it onto the
-    // battery, under any upright use).
-    let within = if (to - at).length() < 0.01 { upright_reach_m(to, at) + coast_m(cx) } else { 0.25 };
+    // [F7] Before: the keys were let go the coast short of the reach's edge (1.14 m across), 1.6-1.8 m across, while
+    // the fetch hands over at `reach_m` (1.5 m across): every take began stopping, then turned down onto the box standing
+    // (the owner's 16 matches: 0.85 s median turning, 3 of 152 taking presses moving). A walk is no sprint: the client
+    // refuses a use while sprinting (`can_use` 0x300710).
+    let within = if (to - at).length() < 0.01 { upright_nearest_m(cx, to, at) + coast_m(cx) } else { 0.25 };
     if me.distance_xz(to) > within {
-        let intent = Intent::to(to, cx.pace_toward(to)).within(within);
+        let intent = Intent::to(to, Pace::Walk).within(within);
         return Some(straight_if_clear(cx, intent, to, false).looking(Look::Use(at)));
     }
     let here = TakeStand { feet: me, crouch: false };
