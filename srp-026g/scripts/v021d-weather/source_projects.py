@@ -83,8 +83,10 @@ def main():
                 raise RuntimeError('weather pack source pin differs')
             weather_rows += sum(len(op['entries']) for op in json.loads(recipe.read_text())['operations']
                                 if op['op'] == 'dictionary_add' and op['table'] == 'maps_dict')
+    # The renderer keys (exe patch 130) are laid over the finished projects, the weather packs' too:
+    # they are no part of the authored day source the weather packs are made from.
     rows = [r for r in rows if not (r[0] == 'pack' and WEATHER_PACK.match(r[1]))
-            and not (r[0] == 'edit' and r[1].startswith('v021d-weather-'))]
+            and not (r[0] == 'edit' and r[1].startswith(('v021d-weather-', 'v021d-renderer-')))]
     base_rows = sorted((r for r in rows if r[0] == 'base'),
                        key=lambda r: int(build.PATCH.match(r[1]).group(1)))
     archive_of = {'resources.db': args.stock} | {r[1]: args.patches / r[1] for r in base_rows}

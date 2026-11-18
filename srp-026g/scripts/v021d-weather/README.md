@@ -201,6 +201,12 @@ grass and water materials with 0.21d's grass vertex shaders and wave normals.
   `srp_grass_v021d` in the five grass materials their vegetation layers' models use, `srp_water_v021d`
   in the six ported water materials. The weather packs themselves stay without the key
   (`check_packs.py`).
+- Chemical Plant's keys are `v021d-renderer-2.json` (its six projects, `flora/grass_l04`, its two
+  water materials).
+- The day-source export (`source_projects.py`) leaves the `v021d-renderer-*` lists out, as it leaves
+  the weather packs and the `v021d-weather-*` lists out: the keys are laid over the finished
+  projects, the weather packs' too, and are no part of the day source those packs are made from.
+  (With them in, the export stopped on the weather projects the first list names.)
 
 ## Anomaly materials keep 0.21d's look
 
