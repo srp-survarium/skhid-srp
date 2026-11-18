@@ -19,7 +19,7 @@ DAY_MARKERS = (-32281, -32195, -32198, -32187, -32196)
 
 def check(packs, source):
     weather = packs / 'maps-021d-weathers-2'
-    lighting = packs / 'three-maps-021-lighting-5'
+    lighting = packs / 'three-maps-021-lighting-6'
     for folder in (weather, lighting):
         manifest = folder / 'pack.json'
         pack = json.loads(manifest.read_text())

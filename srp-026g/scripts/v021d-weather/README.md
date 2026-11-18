@@ -3,7 +3,7 @@
 Rain and evening for Rudnya, School, Vostok Radar, Tarakanovsky Fort and
 Mamayev Kurgan. Each has Protective device (mode 2) and Team Deathmatch
 (mode 4). Resource-porter commit `a9d8e64` on `port/v021d-five-weathers` makes
-`maps-021d-weathers@2` and `three-maps-021-lighting@5` together.
+`maps-021d-weathers@2` and `three-maps-021-lighting@6` together.
 
 | Map | Rain 2 / 4 | Evening 2 / 4 |
 | --- | --- | --- |
@@ -67,7 +67,9 @@ ports. Regenerate it with `make_environment.py WEATHER_PACK OUTPUT_JSON`.
 Static validation does not establish visual parity. Rendering retains the
 same documented native portions as the day ports: probe shading; box-edge
 ambient saturation; unsupported tone, AO, sun, particle and water variants;
-foliage lighting; and native scheduling, bindings and shadow-map generation.
+and native scheduling, bindings and shadow-map generation. Foliage translucency
+is the original since `three-maps-021-lighting@6` (the Fort rain sweep showed
+close leaves lit bright green by the native block where 0.21 keeps them dark).
 See `docs/notes/three-maps-lighting-scope.md` for the complete pass inventory.
 
 **Required visual acceptance is in progress, not complete.** The map-port
