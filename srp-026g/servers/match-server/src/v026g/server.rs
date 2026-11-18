@@ -176,10 +176,13 @@ pub(crate) fn serve(
     socket.set_read_timeout(Some(RECEIVE_WAIT))?;
     let mut server = Server::new(port, registry, store, results, settings, Instant::now());
     server.packet_log = PacketLog::from_env();
+    let mut socket = udp_transport::relay::Datagrams::new(
+        socket, udp_transport::relay::Relays::from_env()?,
+    )?;
     let mut buffer = [0; RECEIVE_BUFFER];
     while !stop.load(Ordering::Relaxed) {
         match socket.recv_from(&mut buffer) {
-            Ok((len, addr)) => server.receive(addr, &buffer[..len], Instant::now()),
+            Ok((len, peer)) => server.receive(peer.address, &buffer[..len], Instant::now()),
             Err(error)
                 if matches!(
                     error.kind(),

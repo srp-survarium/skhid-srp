@@ -698,6 +698,7 @@ def main():
     dxvk_path = None
     late_join, revision, required = True, None, None
     downloads = []
+    relay = None
     for option in options:
         if option == "--check":
             check = True
@@ -717,6 +718,10 @@ def main():
             mode = option[7:]
         elif option.startswith("--server="):
             server = parse_server(option[9:])
+        elif option.startswith("--relay="):
+            relay = parse_server(option[len("--relay="):])
+            import ipaddress
+            ipaddress.IPv4Address(relay.split(":")[0])
         elif option.startswith("--bugtrap="):
             bugtrap_path = option[len("--bugtrap="):]
         elif option.startswith("--voice="):
@@ -781,6 +786,16 @@ def main():
         ("LINUX.txt", Path(HERE, "LINUX.txt").read_bytes()),
         ("MACOS.txt", Path(HERE, "MACOS.txt").read_bytes()),
     ]
+    if relay:
+        if not launcher or not embedded:
+            sys.exit("--relay requires the full client with its launcher and embedded server")
+        if int(server.rsplit(":", 1)[1]) > 65532 or relay.rsplit(":", 1)[1] != server.rsplit(":", 1)[1]:
+            sys.exit("--relay must use the same login port, with room for lobby, match and voice")
+        files.append((os.path.join("game", EXE_DIR, "updater_skhid.relay"),
+                      (server + "\n" + relay + "\n").encode("ascii")))
+        files = [(name, data.replace(b'start "" survarium_skhid.exe ',
+                                    b'start "" updater_skhid.exe play ')
+                  if name.endswith("play_skhid.bat") else data) for name, data in files]
     launcher_description = None
     if launcher:
         # The launcher: patch_launcher_026g.py refuses anything but the
@@ -791,7 +806,8 @@ def main():
             sys.exit(f"{launcher_path}: the game folder has no launcher (--no-launcher leaves it out)")
         launcher_exe, launcher_description = L.build(
             launcher_path.read_bytes(), Path(L.default_bin()).read_bytes(), site=site,
-            game_exe="survarium_skhid.exe", arguments=game_arguments(server, embedded))
+            game_exe="updater_skhid.exe" if relay else "survarium_skhid.exe",
+            arguments=("play " if relay else "") + game_arguments(server, embedded))
         torrent_dll_path = torrent_dll_path or os.path.join(os.path.dirname(updater_path), TORRENT_DLL_NAME)
         files += [
             (os.path.join("game", EXE_DIR, L.LAUNCHER_NAME), bytes(launcher_exe)),

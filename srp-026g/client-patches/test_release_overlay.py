@@ -132,6 +132,26 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(self.exe.read_bytes(), b'original fixture')
         return patcher.call_args, messages.getvalue()
 
+    def test_relay_packages_route_config_and_uses_updater_for_play(self):
+        output = self.root / 'relay'
+        self.build(output, '--relay=203.0.113.8:2234')
+        config = output / 'game/binaries/x86/updater_skhid.relay'
+        self.assertEqual(config.read_text(), 'release.example:2234\n203.0.113.8:2234\n')
+        self.assertEqual(self.launcher.call_args.kwargs, dict(
+            site='https://release.example', game_exe='updater_skhid.exe',
+            arguments='play -minimum_resources_memory_size=768'))
+        self.assertIn(b'start "" updater_skhid.exe play ',
+                      (output / 'game/binaries/x86/play_skhid.bat').read_bytes())
+        for name in (overlay.LINUX_LAUNCHER, overlay.MAC_LAUNCHER):
+            self.assertIn(b'updater_skhid.exe play', (output / name).read_bytes())
+
+    def test_relay_refuses_incompatible_ports_and_no_updater(self):
+        for index, options in enumerate((['--relay=203.0.113.8:1234'],
+                                        ['--relay=203.0.113.8:2234', '--no-launcher'],
+                                        ['--relay=203.0.113.8:2234', '--cert-only'])):
+            with self.assertRaises(SystemExit):
+                self.build(self.root / str(index), *options)
+
     def test_scripts_pass_no_language(self):
         output = self.root / 'default'
         self.build(output)

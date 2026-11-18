@@ -3317,3 +3317,21 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
     assert_eq!(world.account(again).generic_money, money);
     world.assert_clean();
 }
+
+#[test]
+fn relayed_lobby_connection_keeps_the_match_on_the_relay() {
+    use udp_transport::relay::{Peer, Route};
+    let mut world = World::new();
+    let index = world.connect("relay-player");
+    let address = world.clients[index].0;
+    let relay = "203.0.113.8".parse().unwrap();
+    let ticket = crate::v026g::MatchTicket {
+        match_id: 42, host: "203.0.113.67".into(), port: 1236,
+    };
+    assert_eq!(world.core.match_host_for(address, &ticket), "203.0.113.67");
+    world.core.datagram_via(Peer { address, route: Route::Relayed(relay) }, &[], world.now);
+    assert_eq!(world.core.match_host_for(address, &ticket), "203.0.113.8");
+    assert!(world.core.player(address).is_some());
+    world.core.datagram_via(Peer { address, route: Route::Direct }, &[], world.now);
+    assert_eq!(world.core.match_host_for(address, &ticket), "203.0.113.67");
+}

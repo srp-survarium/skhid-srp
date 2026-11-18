@@ -6,7 +6,7 @@ Tarakanovsky Fort and Mamayev Kurgan. Each has Protective device (mode 2) and Te
 `maps-021d-weathers@2` (five maps); Chemical Plant's four projects are
 `maps-021d-chemical-weathers@1`, by the same builder and script with
 `WEATHER_MANIFEST=ports/survarium-021d-chemical-weathers-to-026g.json` on
-`port/v021d-chemical`, which also makes `three-maps-021-lighting@6` (eighteen
+`port/v021d-chemical`, which also makes `three-maps-021-lighting@7` (eighteen
 profiles). The five maps' pack is not rebuilt: the importer has since kept
 alpha mip chains and visibility in private copies, which the edit lists below
 retrofit to it; Chemical Plant's files are made that way from the start.
@@ -74,7 +74,9 @@ ports. Regenerate it with `make_environment.py WEATHER_PACK OUTPUT_JSON`.
 Static validation does not establish visual parity. Rendering retains the
 same documented native portions as the day ports: probe shading; box-edge
 ambient saturation; unsupported tone, AO, sun, particle and water variants;
-foliage lighting; and native scheduling, bindings and shadow-map generation.
+and native scheduling, bindings and shadow-map generation. Foliage translucency
+is the original since `three-maps-021-lighting@6` (the Fort rain sweep showed
+close leaves lit bright green by the native block where 0.21 keeps them dark).
 See `docs/notes/three-maps-lighting-scope.md` for the complete pass inventory.
 
 **Required visual acceptance is in progress, not complete.** The map-port

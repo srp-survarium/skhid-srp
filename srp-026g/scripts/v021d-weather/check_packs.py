@@ -18,7 +18,7 @@ PACKS = {'maps-021d-weathers-2': {'03': (170, 171, 172, 173), '06': (179, 180, 2
          'maps-021d-chemical-weathers-1': {'04': (268, 269, 270, 271)}}
 MAPS = {level: ids for maps in PACKS.values() for level, ids in maps.items()}
 DAY_MARKERS = (-32281, -32195, -32198, -32187, -32196, -32287)
-LIGHTING_PACK = 'three-maps-021-lighting-6'
+LIGHTING_PACK = 'three-maps-021-lighting-7'
 
 
 def check(packs, source):

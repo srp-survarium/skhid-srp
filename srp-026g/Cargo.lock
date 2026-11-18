@@ -488,6 +488,7 @@ dependencies = [
  "openssl",
  "session",
  "sign-in-cipher",
+ "udp-transport",
  "vostok",
 ]
 
