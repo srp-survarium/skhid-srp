@@ -2704,6 +2704,13 @@ pub(crate) fn real_bot_cost() {
                 crate::v026g::bots::motor::flown_presses::counts()[2],
                 crate::v026g::bots::motor::flown_presses::counts()[3]
             );
+            // [fix-move] The sights-up's last corner and its yields.
+            let (picks, aimed, yields) = crate::v026g::bots::reflex::sights_up_counts::counts();
+            eprintln!(
+                "sights up so far: picked from the eye {}, from a corner {}, in sight of neither {}; aimed ticks eye {}, corner {}; \
+                 quiet looks yielded ticks riser {}, jump {}",
+                picks[0], picks[1], picks[2], aimed[0], aimed[1], yields[0], yields[1]
+            );
             let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
             eprintln!(
                 "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"
