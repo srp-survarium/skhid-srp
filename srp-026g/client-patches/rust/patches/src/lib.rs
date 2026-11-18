@@ -136,3 +136,5 @@ pub mod lobby_seeding;
 // patch 159: the console's output scrolls
 pub mod console_scroll;
 pub mod v021d_render;
+// patch 162: the 0.11 weathers fog their geometry the 0.11 way
+pub mod v011w_render;

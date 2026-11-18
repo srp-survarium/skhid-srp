@@ -3658,6 +3658,21 @@ pub extern "C" fn hook_v021d_render_on_project_insert(frame: &mut Frame) -> u32 
     }
 }
 
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_project_insert` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_project_insert(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_project_insert` calls this, from the game's jump at 0x285750,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_project_insert(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_remove` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
@@ -3688,6 +3703,21 @@ pub extern "C" fn hook_v021d_render_on_project_removed(frame: &mut Frame) -> u32
     }
 }
 
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_project_removed` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_project_removed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_project_removed` calls this, from the game's jump at 0x285614,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_project_removed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
@@ -3712,6 +3742,21 @@ pub extern "C" fn hook_v021d_render_on_project_destroy(frame: &mut Frame) -> u32
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::v021d_render::on_project_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_project_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_project_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_project_destroy` calls this, from the game's jump at 0x285330,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_project_destroy(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -5555,6 +5600,81 @@ pub extern "C" fn hook_use_scan_on_detect(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_geometry_fog (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnGeometryFogExit { Applied }
+/// The entry `v011w_render_on_geometry_fog` (0x1a50f0, stage_atmosphere::execute, the geometry stage's fog (mode 1, the option [2260498h]+116h on): mov dword [eax+5620h],5 before res_effect::apply_pass 0x3D7230 at 0x1A50FA (EAX the stage's effect, its +50h, loaded at 0x1A50E7); applied skips the write) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_geometry_fog(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_geometry_fog` calls this, from the game's jump at 0x1a50f0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_geometry_fog(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_geometry_fog_applied` (0x1a50ff, after the geometry fog's apply_pass (0x1A50FA): mov eax,[ebp+0A8h], the pass's pixel shader bound (its constants can be set now); then s_eye_ray_corner, the target 37h and fill_surfaces (0x1A510C..0x1A512E)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_geometry_fog_applied(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_geometry_fog_applied` calls this, from the game's jump at 0x1a50ff,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_geometry_fog_applied(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The named exits of v021d_render::on_god_rays (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V021DRenderOnGodRaysExit { Skipped }
+/// The entry `v021d_render_on_god_rays` (0x1a5520, stage_atmosphere's god-rays pass (0x1A5520, stdcall, ESP+4 the stage, ret 4), its entry (sub esp,14h / push ebx / mov ebx,[esp+1Ch]); its one caller is stage_atmosphere::execute's end (push ebp / call at 0x1A5133), for both the sky stage (stage+ACh 0) and the geometry stage (1), so 0.26 draws the rays twice a frame where 0.21 draws them once; skipped is its ret 4 (0x1A575C), the stack as at the entry) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_god_rays(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_god_rays` calls this, from the game's jump at 0x1a5520,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_god_rays(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_god_rays (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnGodRaysExit { Skipped }
+/// The entry `v011w_render_on_god_rays` (0x1a5520, stage_atmosphere's god-rays pass (0x1A5520, stdcall, ESP+4 the stage, ret 4), its entry (sub esp,14h / push ebx / mov ebx,[esp+1Ch]); its one caller is stage_atmosphere::execute's end (push ebp / call at 0x1A5133), for both the sky stage (stage+ACh 0) and the geometry stage (1), so 0.26 draws the rays twice a frame where 0.21 draws them once; skipped is its ret 4 (0x1A575C), the stack as at the entry) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_god_rays(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_god_rays` calls this, from the game's jump at 0x1a5520,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_god_rays(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- v021d_render (patch 130) ----
 
 /// The named exits of v021d_render::on_wet_surface_compiled (the order the shim's Flow code
@@ -5734,26 +5854,6 @@ pub extern "C" fn hook_v021d_render_on_water_texture(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::v021d_render::on_water_texture(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- v021d_render (patch 130) ----
-
-/// The named exits of v021d_render::on_god_rays (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum V021DRenderOnGodRaysExit { Skipped }
-/// The entry `v021d_render_on_god_rays` (0x1a5520, stage_atmosphere's god-rays pass (0x1A5520, stdcall, ESP+4 the stage, ret 4), its entry (sub esp,14h / push ebx / mov ebx,[esp+1Ch]); its one caller is stage_atmosphere::execute's end (push ebp / call at 0x1A5133), for both the sky stage (stage+ACh 0) and the geometry stage (1), so 0.26 draws the rays twice a frame where 0.21 draws them once; skipped is its ret 4 (0x1A575C), the stack as at the entry) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_v021d_render_on_god_rays(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `v021d_render_on_god_rays` calls this, from the game's jump at 0x1a5520,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::v021d_render::on_god_rays(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -6514,6 +6614,8 @@ pub extern "C" fn hook_lamps_on_bind_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_v021d_render_on_project_insert(frame);
     if flow != 0 { return flow; }
+    let flow = hook_v011w_render_on_project_insert(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -6523,6 +6625,8 @@ pub extern "C" fn hook_lamps_on_remove_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_v021d_render_on_project_removed(frame);
     if flow != 0 { return flow; }
+    let flow = hook_v011w_render_on_project_removed(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -6531,6 +6635,8 @@ pub extern "C" fn hook_lamps_on_destroy_chain(frame: &mut Frame) -> u32 {
     let flow = hook_lamps_on_destroy(frame);
     if flow != 0 { return flow; }
     let flow = hook_v021d_render_on_project_destroy(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_v011w_render_on_project_destroy(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -6584,6 +6690,15 @@ pub extern "C" fn hook_tab_cursor_on_hud_call_chain(frame: &mut Frame) -> u32 {
     let flow = hook_tab_cursor_on_hud_call(frame);
     if flow != 0 { return flow; }
     let flow = hook_voice_on_hud_call(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_god_rays_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_v021d_render_on_god_rays(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_v011w_render_on_god_rays(frame);
     if flow != 0 { return flow; }
     0
 }

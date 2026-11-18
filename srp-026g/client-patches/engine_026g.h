@@ -43,6 +43,7 @@ struct drawable_image_context;
 struct effect_compiler;
 struct effect_presenter_holder;
 struct engine_cfg;
+struct environment_properties;
 struct fsm_predicate;
 struct game_allocator;
 struct game_effect;
@@ -111,6 +112,8 @@ struct render_model_instance;
 struct render_notify;
 struct render_surface_instance;
 struct render_visual;
+struct renderer_context;
+struct res_effect;
 struct res_texture;
 struct resource_manager;
 struct resource_request;
@@ -122,6 +125,7 @@ struct scene_model_ref;
 struct scene_reference;
 struct scene_renderer;
 struct scroll_source;
+struct shader_constant_host;
 struct simple_game_project;
 struct sound_emitter;
 struct sound_instance_proxy;
@@ -130,6 +134,7 @@ struct sound_propagator_emitter;
 struct sound_scene;
 struct sound_voice;
 struct sound_world;
+struct stage_atmosphere;
 struct static_collision;
 struct static_model_instance;
 struct statistics_listener;
@@ -950,5 +955,20 @@ extern unsigned int (__attribute__((stdcall)) *const engine_global_unlock)(void 
 
 /* 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly */
 void __attribute__((stdcall)) engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag);
+
+/* 0x3d7230 vostok::render::res_effect::apply_pass: effect EAX; pops 0; AL */
+unsigned char engine_apply_effect_pass(struct res_effect *effect);
+
+/* 0x132a90 vostok::render::backend::set_ps_constant: backend EDI, host EAX, data ESP+4; pops 4 */
+void engine_set_ps_constant(struct backend *backend, struct shader_constant_host *host, const float *data);
+
+/* 0x11c1d0 vostok::render::renderer_context::get_rt: context ESP+4, index ECX, storage EAX; pops 4 */
+void engine_render_target(struct renderer_context *context, unsigned int index, void **storage);
+
+/* 0x1a3690 vostok::render::stage_atmosphere::fill_surfaces: stage ESP+4, primary ESP+8, secondary ESP+12, flag ESP+16; pops 16 */
+void engine_fill_atmosphere(struct stage_atmosphere *stage, void *primary, void *secondary, unsigned int flag);
+
+/* 0x34e020 vostok::render::environment_sun_direction: environment EAX, output ESI; pops 0; EAX */
+float *engine_sun_direction(struct environment_properties *environment, float *output);
 
 #endif

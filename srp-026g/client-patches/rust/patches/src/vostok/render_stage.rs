@@ -54,6 +54,10 @@ pub enum StageSite {
     DropsApply,
     /// `atmosphere.god_rays`.
     GodRays,
+    /// `atmosphere.geometry_fog`.
+    GeometryFog,
+    /// `atmosphere.geometry_fog_applied`.
+    GeometryFogApplied,
 }
 
 /// The renderer context of the stage at `site`.
@@ -68,6 +72,8 @@ fn context(ctx: &Context<'_>, site: StageSite) -> Option<raw::RendererContext> {
             StageSite::DropScales => raw::site::rain_drop_scales::stage(ctx)?.context(),
             StageSite::DropsApply => raw::site::rain_drops_apply::stage(ctx)?.context(),
             StageSite::GodRays => raw::site::atmosphere_god_rays::frame(ctx)?.stage()?.context(),
+            StageSite::GeometryFog => raw::site::atmosphere_geometry_fog::stage(ctx)?.context(),
+            StageSite::GeometryFogApplied => raw::site::atmosphere_geometry_fog_applied::stage(ctx)?.context(),
         }
     }
 }
@@ -150,6 +156,99 @@ pub fn set_drop_parameters(ctx: &Context<'_>, z: f32, w: f32) {
         let frame = raw::site::rain_drop_scales::frame(ctx).expect("the site's ESP");
         frame.parameters1_z().write(z);
         frame.parameters1_w().write(w);
+    }
+}
+
+/// The geometry fog of 0.11e (patch v011w_render): 0.26g's stage_atmosphere
+/// draws one pass of its scattering effect, technique 5; 0.11e drew two,
+/// a multiplicative and an additive one, which 0.26g still compiles as
+/// techniques 3 and 4 (effect_atmospheric_scattering::compile 0x1D2585,
+/// 0x1D2722; their stencil and targets as 5's, their blends dst x src and
+/// one + one). The multiplicative pass takes 5's place at
+/// `atmosphere.geometry_fog`, the additive one is drawn after it, before the
+/// god rays (`atmosphere.god_rays`, the geometry stage).
+pub const FOG_MULTIPLY: Technique = Technique::new(3);
+pub const FOG_ADD: Technique = Technique::new(4);
+
+/// The render target the geometry fog draws into (renderer_context::get_rt
+/// 0x11C1D0 with 37h, as execute takes it at 0x1A5123).
+const FOG_TARGET: u32 = 0x37;
+
+/// `atmosphere.geometry_fog`: the stage's effect applies `technique`
+/// instead of 5 (the site's `applied` exit skips execute's own write).
+pub fn set_fog_technique(ctx: &Context<'_>, technique: Technique) {
+    // SAFETY: the site's EBP is the stage executing (its execute's frame
+    // pointer), on the render thread; +50h its scattering effect, which the
+    // constructor made; +5620h the technique apply_pass reads next.
+    unsafe {
+        let effect = raw::site::atmosphere_geometry_fog::stage(ctx)
+            .and_then(|stage| stage.scattering_effect())
+            .expect("the stage's scattering effect");
+        effect.technique().write(technique.0);
+    }
+}
+
+/// The constant 0.11e's fog passes read as inscatter_parameters: .x the
+/// weather's inscatter distance (both passes read .x alone).
+fn inscatter(distance: f32) -> [f32; 4] {
+    [distance, 1.0, 0.0, 0.0]
+}
+
+fn backend() -> raw::Backend {
+    // SAFETY: the render backend's global, set once at the render system's
+    // start, before any stage executes.
+    unsafe { raw::image::backend_global().backend() }.expect("the render backend")
+}
+
+/// `atmosphere.geometry_fog_applied`: the multiplicative pass's program is
+/// bound; its inscatter_parameters.
+pub fn set_multiply_constants(ctx: &Context<'_>, distance: f32) {
+    let value = inscatter(distance);
+    // SAFETY: the site's stage (above); its inscatter host the constructor
+    // made; set_ps_constant writes the bound pixel shader's constant and
+    // reads `value` during the call only.
+    unsafe {
+        let stage = raw::site::atmosphere_geometry_fog_applied::stage(ctx).expect("the stage executing");
+        raw::engine_set_ps_constant(Some(backend()), stage.inscatter_constant(), value.as_ptr());
+    }
+}
+
+/// At the god rays' entry in the geometry stage, after the multiplicative
+/// pass: the additive pass, as execute draws a fog pass (0x1A50FA..0x1A512E:
+/// apply_pass, the pass's constants, target 37h, fill_surfaces), with
+/// to_sun_direction_parameter as execute makes it for the lookup tables
+/// (0x1A4276..0x1A42B1: minus the environment's sun direction, .w its sun
+/// intensity), inscatter_parameters and s_eye_ray_corner.
+pub fn draw_fog_add(ctx: &Context<'_>, distance: f32) {
+    // SAFETY: the site's ESP is the god-rays pass's entry, its argument the
+    // stage executing (execute pushes it at 0x1A5133, alive for the call);
+    // the stage's effect, hosts and context are its constructor's; the
+    // context's scene view is the frame's (renderer::render set it); every
+    // engine call runs on this, the render thread, as execute's own do, and
+    // the target fill_surfaces takes is the reference get_rt made (it
+    // releases it, as execute's).
+    unsafe {
+        let stage = raw::site::atmosphere_god_rays::frame(ctx)
+            .and_then(|frame| frame.stage())
+            .expect("the stage the god rays draw for");
+        let effect = stage.scattering_effect().expect("the stage's scattering effect");
+        let context = stage.context().expect("the stage's renderer context");
+        let view = context.scene_view().expect("the frame's scene view");
+        effect.technique().write(FOG_ADD.0);
+        raw::engine_apply_effect_pass(Some(effect));
+        let environment = view.environment();
+        let mut direction = [0.0f32; 3];
+        raw::engine_sun_direction(Some(environment), direction.as_mut_ptr());
+        let to_sun = [-direction[0], -direction[1], -direction[2], environment.sun_intensity().read()];
+        let backend = backend();
+        raw::engine_set_ps_constant(Some(backend), stage.to_sun_constant(), to_sun.as_ptr());
+        let scattering = inscatter(distance);
+        raw::engine_set_ps_constant(Some(backend), stage.inscatter_constant(), scattering.as_ptr());
+        let eye_ray = [context.eye_ray_x().read(), context.eye_ray_y().read(), context.eye_ray_z().read(), 0.0];
+        raw::engine_set_ps_constant(Some(backend), stage.eye_ray_constant(), eye_ray.as_ptr());
+        let mut target: *mut core::ffi::c_void = core::ptr::null_mut();
+        raw::engine_render_target(Some(context), FOG_TARGET, &mut target);
+        raw::engine_fill_atmosphere(Some(stage), target, core::ptr::null_mut(), 1);
     }
 }
 

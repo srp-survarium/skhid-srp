@@ -1,0 +1,7 @@
+{
+ "_about": "The key exe patch 162 (v011w_render) reads to fog Vostok v0.11's evening and rain the 0.11 way: srp_renderer_v011w at the root of their four client projects, the weather's inscatter distance in metres as 0.11e's post-process materials give it (material_instances/post_process/level_03_evn: atmosphere_inscatter_distance 200; level_03_rain: 300). On those scenes the geometry stage draws 0.11e's two fog passes (techniques 3 and 4 of effect_atmospheric_scattering, the second 0.11e's program from pack v011e-radar-fog) in place of 0.26g's one. No other project has the key.",
+ "add_value": [
+  {"files": ["projects/v011w_level_03_evn/evening_2/client_project", "projects/v011w_level_03_evn/evening_4/client_project"], "table": "", "key": "srp_renderer_v011w", "value": 200},
+  {"files": ["projects/v011w_level_03_rain/rain_2/client_project", "projects/v011w_level_03_rain/rain_4/client_project"], "table": "", "key": "srp_renderer_v011w", "value": 300}
+ ]
+}

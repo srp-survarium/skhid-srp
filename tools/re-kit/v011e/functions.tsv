@@ -23,3 +23,5 @@ va	status	size	name
 0x00625ca0	verified-pdb	3677	void vostok::render::stage_ambient_lighting::execute()
 0x00625860	verified-pdb	1080	void vostok::render::stage_ambient_lighting::make_probe_indices_map(vostok::render::vector<vostok::render::environment_probe *>&)
 0x006257e0	verified-pdb	26	bool `vostok::render::stage_ambient_lighting::execute'::`5'::sort_by_size_predicate::operator()(vostok::render::environment_probe const*, vostok::render::environment_probe const*) const
+0x0060d4f0	verified-pdb	3695	vostok::render::stage_atmosphere::execute
+0x007b7a60	verified-pdb	1615	vostok::render::effect_atmospheric_scattering::compile

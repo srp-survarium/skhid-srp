@@ -4069,7 +4069,7 @@ va	name	location	role	basis
 0x003d6fd0	vostok::render::compare	ECX	left record pointer	observed
 0x003d6fd0	vostok::render::compare	EDX	right record pointer	observed
 0x003d7170	vostok::render::res_effect::~res_effect	ECX	res_effect owner	observed
-0x003d7230	vostok::render::res_effect::apply_pass	EAX	effect receiver; selected technique and its first pass	observed
+0x003d7230	vostok::render::res_effect::apply_pass	EAX	effect receiver; it applies the first pass (the technique record +8, 0x3D724E..0x3D7251) of the technique at +5620h	observed
 0x003d72b0	vostok::render::res_effect::get_max_used_texture_dimension	entry ESP+4	res_effect owner	observed
 0x003d72b0	vostok::render::res_effect::get_max_used_texture_dimension	entry ESP+8	width dword output pointer	observed
 0x003d72b0	vostok::render::res_effect::get_max_used_texture_dimension	entry ESP+12	height dword output pointer	observed
@@ -5436,7 +5436,6 @@ va	name	location	role	basis
 0x00157730	vostok::render::register_samplers	0x1577DE..0x157860	s_base: filter 21 MIN_MAG_MIP_LINEAR, wrap U/V/W, mip bias and min LOD 0, max LOD FLT_MAX	observed
 0x00176bd0	vostok::render::stage_gbuffer::stage_gbuffer	receiver+0x64	technique base, 0 (0x176BFD); render_models adds the quality bit (0x1774B9)	observed
 0x001773c0	vostok::render::stage_gbuffer::render_models	stage+0x40	the smoothness_multiplier host (name 0x9F30D8): scene_view+2DCh when options [0x2260498]+E8h is 0, else 1.0 (0x177575..0x1775B7)	observed
-0x003d7230	vostok::render::res_effect::apply_pass	selected technique+8	always the first pass (0x3D724E..0x3D7251)	observed
 0x003d79d0	vostok::render::shader_constant_table::parse_constant_buffer	reflected variable desc+12 bit 1	the USED flag (0x3D7A68); an unused variable gets no record (0x3D7A70)	observed
 0x0034e020	vostok::render::environment_sun_direction	EAX	environment record (callers pass scene_view+118h): azimuth degrees +40h, altitude degrees +44h	observed
 0x0034e020	vostok::render::environment_sun_direction	ESI	output float3, normalized (cos az cos alt, -sin alt, sin az cos alt): the direction light travels; written at 0x34E0CD..0x34E0E5	observed

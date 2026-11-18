@@ -333,6 +333,16 @@ unsafe extern "C" {
     pub fn engine_draw_triangles(renderer: *mut c_void, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
     /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
     pub fn engine_text_edit_delete_selection(edit: *mut c_void);
+    /// 0x3d7230 vostok::render::res_effect::apply_pass: effect EAX; pops 0; AL
+    pub fn engine_apply_effect_pass(effect: *mut c_void) -> u8;
+    /// 0x132a90 vostok::render::backend::set_ps_constant: backend EDI, host EAX, data ESP+4; pops 4
+    pub fn engine_set_ps_constant(backend: *mut c_void, host: *mut c_void, data: *const f32);
+    /// 0x11c1d0 vostok::render::renderer_context::get_rt: context ESP+4, index ECX, storage EAX; pops 4
+    pub fn engine_render_target(context: *mut c_void, index: u32, storage: *mut *mut c_void);
+    /// 0x1a3690 vostok::render::stage_atmosphere::fill_surfaces: stage ESP+4, primary ESP+8, secondary ESP+12, flag ESP+16; pops 16
+    pub fn engine_fill_atmosphere(stage: *mut c_void, primary: *mut c_void, secondary: *mut c_void, flag: u32);
+    /// 0x34e020 vostok::render::environment_sun_direction: environment EAX, output ESI; pops 0; EAX
+    pub fn engine_sun_direction(environment: *mut c_void, output: *mut f32) -> *mut f32;
 }
 
 #[allow(dead_code)]

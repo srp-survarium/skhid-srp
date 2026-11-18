@@ -302,3 +302,8 @@ engine_global_lock	0x870078	-	void *engine_global_lock(void *memory)	import
 engine_global_unlock	0x87007c	-	unsigned int engine_global_unlock(void *memory)	import
 engine_global_size	-	-	unsigned int engine_global_size(void *memory)	dynamic
 engine_set_texture	0x3d98b0	ESP+4:receiver ESP+8:binding ESP+12:path ESP+16:option ESP+20:selector ESP+24:unsigned ESP+28:float ESP+32:flag	void engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag)	stdcall	
+engine_apply_effect_pass	0x3d7230	EAX:effect	unsigned char engine_apply_effect_pass(struct res_effect *effect)	thunk	
+engine_set_ps_constant	0x132a90	EDI:backend EAX:pointer ESP+4:data	void engine_set_ps_constant(struct backend *backend, struct shader_constant_host *host, const float *data)	thunk	
+engine_render_target	0x11c1d0	ESP+4:context ECX:index EAX:storage	void engine_render_target(struct renderer_context *context, unsigned int index, void **storage)	thunk	
+engine_fill_atmosphere	0x1a3690	ESP+4:stage ESP+8:primary ESP+12:secondary ESP+16:flag	void engine_fill_atmosphere(struct stage_atmosphere *stage, void *primary, void *secondary, unsigned int flag)	thunk	
+engine_sun_direction	0x34e020	EAX:environment ESI:output	float *engine_sun_direction(struct environment_properties *environment, float *output)	thunk	

@@ -39,6 +39,18 @@ port for it. This work is Vostok's two weathers only.
 - Loaded headless on the candidate with exe patch 130's build: `evening_2` (272) and `rain_2`
   (274), two views each, no missing shader. `evening_4` and `rain_4` and the ten views a weather
   are queued behind the owner's game.
+- **The fog, the 0.11 way** (exe patch 162 `v011w_render`, README "The 0.11 weathers fog their
+  geometry the 0.11 way"; pack `v011e-radar-fog@1`; edit list `v011w-renderer-1.json`): on the four
+  projects the geometry stage draws 0.11e's two passes (techniques 3 and 4, which 0.26g compiles and
+  never draws) instead of 0.26g's one, with 0.11e's additive program and each weather's inscatter
+  distance (evening 200 m, rain 300 m, 0.11e's post material's). Checked with Unicorn
+  (`check_v011w_render_026g.py`). The pack is made by `scripts/v011-weather/make_fog_pack.py` from the
+  two pinned files.
+- The 0.11e reference runner is rebuilt (`/mnt/hdd/Projects/v011-weather/ref/ref011e.py`: the legacy
+  0.10b match server with a rain profile and a port setting, the 0.11e exe with the camera DLL, an
+  Xorg dummy display). The legacy server must run with `SRP_STOCK_PROFILE_ONLY=1` and
+  `SRP_MATCH_LOADOUT_PROFILE=stock-v0100b`: its demo profile hands 0.11e imported item ids and the
+  client dies on the profile (an access violation; the server then panics on its reconnect).
 - The rest of this note is the 2026-11-12 investigation as it was written; its map ids 249-252 are
   the old ones.
 

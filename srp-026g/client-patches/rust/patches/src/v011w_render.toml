@@ -1,0 +1,32 @@
+# Patch 162: the ported 0.11 weathers fog their geometry the 0.11 way (README "The 0.11
+# weathers' fog", srp-026g/docs/notes/v011-weather.md). Only the decisions; the logic is
+# v011w_render.rs, the stage's side vostok/render_stage.rs.
+name = "v011w_render"
+patch = 162
+
+# The map: a project whose config root names its inscatter distance (after patch 130's).
+[[hook]]
+site = "project.insert"
+handler = "on_project_insert"
+order = 3
+[[hook]]
+site = "project.removed"
+handler = "on_project_removed"
+order = 3
+[[hook]]
+site = "project.destroy"
+handler = "on_project_destroy"
+order = 3
+
+# The geometry's fog: 0.11e's multiplicative pass in technique 5's place, its constant once its
+# program is bound, and the additive pass before the god rays.
+[[hook]]
+site = "atmosphere.geometry_fog"
+handler = "on_geometry_fog"
+[[hook]]
+site = "atmosphere.geometry_fog_applied"
+handler = "on_geometry_fog_applied"
+[[hook]]
+site = "atmosphere.god_rays"
+handler = "on_god_rays"
+order = 2

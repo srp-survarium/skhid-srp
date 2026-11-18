@@ -339,6 +339,16 @@ unsafe extern "C" {
     pub fn engine_draw_triangles(renderer: Option<SystemRenderer>, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
     /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
     pub fn engine_text_edit_delete_selection(edit: Option<UiTextEdit>);
+    /// 0x3d7230 vostok::render::res_effect::apply_pass: effect EAX; pops 0; AL
+    pub fn engine_apply_effect_pass(effect: Option<ResEffect>) -> u8;
+    /// 0x132a90 vostok::render::backend::set_ps_constant: backend EDI, host EAX, data ESP+4; pops 4
+    pub fn engine_set_ps_constant(backend: Option<Backend>, host: Option<ShaderConstantHost>, data: *const f32);
+    /// 0x11c1d0 vostok::render::renderer_context::get_rt: context ESP+4, index ECX, storage EAX; pops 4
+    pub fn engine_render_target(context: Option<RendererContext>, index: u32, storage: *mut *mut c_void);
+    /// 0x1a3690 vostok::render::stage_atmosphere::fill_surfaces: stage ESP+4, primary ESP+8, secondary ESP+12, flag ESP+16; pops 16
+    pub fn engine_fill_atmosphere(stage: Option<StageAtmosphere>, primary: *mut c_void, secondary: *mut c_void, flag: u32);
+    /// 0x34e020 vostok::render::environment_sun_direction: environment EAX, output ESI; pops 0; EAX
+    pub fn engine_sun_direction(environment: Option<EnvironmentProperties>, output: *mut f32) -> *mut f32;
 }
 
 #[allow(dead_code)]
@@ -26104,6 +26114,33 @@ impl RendererContext {
     pub unsafe fn set_scene_view(self, value: Option<SceneView>) {
         unsafe { self.0.byte_add(0x4170).cast::<Option<SceneView>>().write_volatile(value) }
     }
+
+    /// +0x53a8 (f32): s_eye_ray_corner's x (stage_atmosphere::execute passes +53A8h to set_ps_constant at 0x1A510C); y at +53ACh, z at +53B0h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn eye_ray_x(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x53a8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x53ac (f32): s_eye_ray_corner's y
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn eye_ray_y(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x53ac).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x53b0 (f32): s_eye_ray_corner's z
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn eye_ray_z(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x53b0).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A vostok::render::scene_view (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -26136,6 +26173,15 @@ impl SceneView {
     #[inline(always)]
     pub unsafe fn rain_v_scale(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x2ec).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x118 (obj<vostok::render::environment_properties>): its environment record: stage_atmosphere::execute passes +118h to environment_sun_direction (0x1A4267..0x1A4276); stage_rain reads its +1D0h as the view's +2E8h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn environment(self) -> EnvironmentProperties {
+        EnvironmentProperties(unsafe { self.0.byte_add(0x118) })
     }
 }
 
@@ -26493,6 +26539,150 @@ impl StageAtmosphere {
     #[inline(always)]
     pub unsafe fn mode(self) -> *mut u32 {
         unsafe { self.0.byte_add(0xac).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x50 (ptr<vostok::render::res_effect>): its effect_atmospheric_scattering (create_effect 0x1A5F90 from the ctor, 0x1A3A74 with EDI = this+50h): execute applies technique 0 (the lookup tables, 0x1A4422), 2 (the sun disc, 0x1A47BA) and, in the geometry stage, 5 (its one fog pass, apply_pass 0x1A50FA); techniques 3 and 4, the two fog passes of 0.11e (effect_atmospheric_scattering::compile 0x1D2585, 0x1D2722), are compiled and never drawn
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scattering_effect(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0x50).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0x50 (ptr<vostok::render::res_effect>): its effect_atmospheric_scattering (create_effect 0x1A5F90 from the ctor, 0x1A3A74 with EDI = this+50h): execute applies technique 0 (the lookup tables, 0x1A4422), 2 (the sun disc, 0x1A47BA) and, in the geometry stage, 5 (its one fog pass, apply_pass 0x1A50FA); techniques 3 and 4, the two fog passes of 0.11e (effect_atmospheric_scattering::compile 0x1D2585, 0x1D2722), are compiled and never drawn
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_scattering_effect(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0x50).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+
+    /// +0x6c (ptr<vostok::render::shader_constant_host>): the host of to_sun_direction_parameter (the ctor 0x1A3B68..0x1A3B9B): execute sets it after technique 0 (0x1A4465) to minus environment_sun_direction (0x1A4276..0x1A42B1), .w the environment +48h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn to_sun_constant(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x6c).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x6c (ptr<vostok::render::shader_constant_host>): the host of to_sun_direction_parameter (the ctor 0x1A3B68..0x1A3B9B): execute sets it after technique 0 (0x1A4465) to minus environment_sun_direction (0x1A4276..0x1A42B1), .w the environment +48h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_to_sun_constant(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x6c).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0xa4 (ptr<vostok::render::shader_constant_host>): the host of inscatter_parameters (the ctor 0x1A3C94..0x1A3CC7); 0.26g never sets it (0.11e sets its stage's to the weather's inscatter distance before its two fog passes, 0.11e 0x60E243)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn inscatter_constant(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0xa4).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0xa4 (ptr<vostok::render::shader_constant_host>): the host of inscatter_parameters (the ctor 0x1A3C94..0x1A3CC7); 0.26g never sets it (0.11e sets its stage's to the weather's inscatter distance before its two fog passes, 0.11e 0x60E243)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_inscatter_constant(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0xa4).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0xa8 (ptr<vostok::render::shader_constant_host>): the host of s_eye_ray_corner: execute sets it after the geometry fog's apply_pass (0x1A50FF..0x1A510C) to the renderer context's +53A8h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn eye_ray_constant(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0xa8).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0xa8 (ptr<vostok::render::shader_constant_host>): the host of s_eye_ray_corner: execute sets it after the geometry fog's apply_pass (0x1A50FF..0x1A510C) to the renderer context's +53A8h
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_eye_ray_constant(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0xa8).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::res_effect (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResEffect(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ResEffect {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x5620 (u32): the technique res_effect::apply_pass (0x3D7230) applies the first pass of: stage_atmosphere::execute writes 5 before the geometry fog's (0x1A50F0), res_effect::apply ECX
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn technique(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x5620).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::shader_constant_host (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ShaderConstantHost(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ShaderConstantHost {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x28 (u32): the program the host was resolved for: set_ps_constant (0x132A90) writes the bound pixel shader's constant only while this is the backend's +2A3Ch (else it writes nothing), so a constant is set after its program's apply_pass
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resolved(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x28).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::environment_properties (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EnvironmentProperties(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl EnvironmentProperties {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x48 (f32): the sun's intensity (stage_atmosphere::execute 0x1A42A6: to_sun_direction_parameter.w)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn sun_intensity(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x48).cast::<f32>().as_ptr() }
     }
 }
 
@@ -32129,6 +32319,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<GodRaysEntryFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(GodRaysEntryFrame)
+        }
+    }
+
+    /// atmosphere.geometry_fog (0x1a50f0): stage_atmosphere::execute, the geometry stage's fog (mode 1, the option [2260498h]+116h on): mov dword [eax+5620h],5 before res_effect::apply_pass 0x3D7230 at 0x1A50FA (EAX the stage's effect, its +50h, loaded at 0x1A50E7); applied skips the write
+    pub mod atmosphere_geometry_fog {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_atmosphere (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAtmosphere> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageAtmosphere)
+        }
+    }
+
+    /// atmosphere.geometry_fog_applied (0x1a50ff): after the geometry fog's apply_pass (0x1A50FA): mov eax,[ebp+0A8h], the pass's pixel shader bound (its constants can be set now); then s_eye_ray_corner, the target 37h and fill_surfaces (0x1A510C..0x1A512E)
+    pub mod atmosphere_geometry_fog_applied {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_atmosphere (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAtmosphere> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageAtmosphere)
         }
     }
 }

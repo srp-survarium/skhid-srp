@@ -59,3 +59,4 @@ handler = "on_water_texture"
 [[hook]]
 site = "atmosphere.god_rays"
 handler = "on_god_rays"
+order = 1
