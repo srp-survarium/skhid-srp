@@ -6134,7 +6134,9 @@ Crouched, the eye is 1.06 m up in a 1.1 m capsule, and the near plane (0.05 m) w
 the capsule touched; objects with shot but no walker collision let the capsule in. A lohook at
 update_camera's eye (`camera.eye`, after the ragdoll's) casts one ray from 0.4 m under the eye to
 0.12 m past it against the level's shot collision and puts the view's eye 0.12 m short of a hit at
-once, easing back when it clears. The view alone: the shots, the hit models and the movement are
+once, easing back when it clears. The ray goes through leaves (the game materials foliage_coniferous,
+foliage_deciduous and foliage_dry): the vine bushes are shot collision a walker goes into, and the
+eye dropped up to 0.4 m in them, the hands jumping up the screen (the owner, 2026-11-18). The view alone: the shots, the hit models and the movement are
 the game's. `check_head_clearance_026g.py` (`tools/check head-clearance`) runs update_camera in
 both exes. Not run in a game.
 

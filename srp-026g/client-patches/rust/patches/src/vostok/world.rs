@@ -17,6 +17,7 @@ use ::ragdoll::math::Pose;
 
 use super::geometry::{Aabb, WorldPoint};
 use super::shape::Shape;
+use super::step::GroundMaterial;
 use super::hook::Thread;
 use super::options::MapId;
 use super::ui::{Movie, movie_of};
@@ -698,6 +699,41 @@ impl<'t> PhysicsWorld<'t> {
         }
     }
 
+    /// [`Self::ray_test`]'s first hit on a triangle whose game material is
+    /// not one `passed` lets the ray through (a bush's leaves): after such a
+    /// hit the ray goes on from `PAST_LEAF` behind it, through at most
+    /// `MOST_LEAVES` of them (then nothing is met).
+    pub fn ray_test_past(&self, origin: [f32; 3], direction: [f32; 3], length: f32, group: u32, mask: u32,
+                         passed: impl Fn(GroundMaterial) -> bool)
+                         -> Option<RayHit> {
+        let _ = self.thread;
+        let mut gone = 0.0;
+        for _ in 0..MOST_LEAVES {
+            let rest = length - gone;
+            if rest <= 0.0 {
+                break;
+            }
+            let from = [0, 1, 2].map(|i| origin[i] + direction[i] * gone);
+            let mut room = raw::RayResultStorage::zeroed();
+            let result = room.handle();
+            // SAFETY: as ray_test; the object hit is alive in the world, its
+            // triangle's material read as on_step reads its ground's
+            // (0x248B66), whose ray meets every object this one can.
+            unsafe {
+                raw::engine_ray_test(Some(self.this), Some(result), from.as_ptr(), direction.as_ptr(), rest, group,
+                                     mask, core::ptr::null(), 0);
+                let object = result.object()?;
+                let material =
+                    raw::engine_triangle_material(Some(object), read(result.part()), u32::from(read(result.part_kind())));
+                if !passed(GroundMaterial::of(material)) {
+                    return Some(RayHit { point: floats(result.point()), normal: floats(result.normal()) });
+                }
+                gone += read(result.fraction()) * rest + PAST_LEAF;
+            }
+        }
+        None
+    }
+
     /// Each object of the world (m_collisionObjects, in its order) that is
     /// in its broadphase: its filter group, whether it is static, the box
     /// the broadphase holds for it (the game's frame), its pose and shape
@@ -726,6 +762,11 @@ impl<'t> PhysicsWorld<'t> {
         }
     }
 }
+
+/// The most leaves [`PhysicsWorld::ray_test_past`] goes through, and how far
+/// behind one its ray goes on (m).
+const MOST_LEAVES: usize = 16;
+const PAST_LEAF: f32 = 0.01;
 
 /// m_collisionFlags' CF_STATIC_OBJECT.
 const STATIC_OBJECT: u32 = 1;
