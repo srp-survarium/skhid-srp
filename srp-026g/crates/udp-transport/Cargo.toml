@@ -9,6 +9,6 @@ workspace = true
 [dependencies]
 log = { workspace = true }
 # srp-relay: report the open flows when it is stopped
-ctrlc = { workspace = true }
+libc = { workspace = true }
 # the client reports' carrier length (client patch 126 on), from their codec
 srp-validate = { workspace = true }

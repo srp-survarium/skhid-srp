@@ -403,23 +403,43 @@ fn copy(source: &mut TcpStream, destination: &mut TcpStream) -> Half {
     let end = pass();
     Half { bytes, end }
 }
+/// Blocks SIGTERM and SIGINT in this thread and the threads it starts after,
+/// so that only the one waiting for them in `sigwait` takes them.
+fn block_stop_signals() -> io::Result<libc::sigset_t> {
+    // SAFETY: calls on a signal set of our own.
+    unsafe {
+        let mut set = std::mem::zeroed();
+        libc::sigemptyset(&mut set);
+        libc::sigaddset(&mut set, libc::SIGTERM);
+        libc::sigaddset(&mut set, libc::SIGINT);
+        match libc::pthread_sigmask(libc::SIG_BLOCK, &set, std::ptr::null_mut()) {
+            0 => Ok(set),
+            error => Err(io::Error::from_raw_os_error(error)),
+        }
+    }
+}
 fn main() -> io::Result<()> {
     let config = Config::parse()?;
+    let stop = block_stop_signals()?;
     let login = TcpListener::bind((config.bind, config.login))?;
     let mut ports = Vec::new();
     for service in Service::ALL {
         ports.push((service, udp(config, service)?));
     }
     // A stop reports the flows still open, which no idle expiry will.
-    ctrlc::set_handler(move || {
-        for (service, peers) in &ports {
-            for (client, flow) in &lock(peers).seen {
-                eprintln!("{service} {client} at stop: {flow}");
+    std::thread::Builder::new()
+        .name("stop".into())
+        .spawn(move || {
+            let mut signal = 0;
+            // SAFETY: `stop` is the set blocked in every thread.
+            unsafe { libc::sigwait(&stop, &mut signal) };
+            for (service, peers) in &ports {
+                for (client, flow) in &lock(peers).seen {
+                    eprintln!("{service} {client} at stop: {flow}");
+                }
             }
-        }
-        std::process::exit(0);
-    })
-    .map_err(io::Error::other)?;
+            std::process::exit(0);
+        })?;
     eprintln!(
         "ready: {}:{} -> {} (native UDP, WireGuard backend)",
         config.public, config.login, config.backend
