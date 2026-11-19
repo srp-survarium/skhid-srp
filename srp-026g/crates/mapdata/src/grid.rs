@@ -98,7 +98,7 @@ mod gap_flown;
 pub mod held_floors;
 mod line_tops;
 mod rest_floors;
-pub use gap::{Aim, GapStats, Mask, OffLink, OffMeshLinks, PressLead, Share, SpeedBand, TakeoffWindow};
+pub use gap::{Aim, GapStats, GridWay, Mask, OffLink, OffMeshLinks, PressLead, Share, SpeedBand, TakeoffWindow};
 pub use rim::{Riser, LAND_HEIGHT_M};
 pub use line_tops::{LineTop, TopFace, ACROSS_WAYS, MEASURE_STEP_M};
 pub use wall_give_back::{give_back_stands, GiveBackStands, STAND_MOVED_M};
@@ -3384,6 +3384,10 @@ impl WalkGrid {
             if !l.aim.is_straight() {
                 digest.u32(0x4149_4d00 | u32::from(l.aim.byte()));
             }
+            // [retarget] A press flown along a grid way only: a grid with none digests as before.
+            if l.way.is_some() {
+                digest.u32(0x5741_5900 | u32::from(gap::GridWay::nibble(l.way)));
+            }
             // [F1b] A flown share's neighbourhood mask.
             if let Some(m) = l.share.mask() {
                 digest.u32(0x4d41_0000 | u32::from(m.bits()));
@@ -3495,12 +3499,13 @@ impl WalkGrid {
             {
                 return Ok(());
             }
-            // [A385] 16 bytes: from, to, kind, [R83] the aim, press, share, a sprint link's walking press (0: none) and its share.
+            // [A385] 16 bytes: from, to, kind ([retarget] the grid way its press was flown along in the high nibble, 0: its own
+            // line), [R83] the aim, press, share, a sprint link's walking press (0: none) and its share.
             out.plain(&self.off, |l| {
                 let mut bytes = [0u8; 16];
                 bytes[..4].copy_from_slice(&l.from.to_le_bytes());
                 bytes[4..8].copy_from_slice(&l.to.to_le_bytes());
-                bytes[8] = l.kind as u8;
+                bytes[8] = l.kind as u8 | (gap::GridWay::nibble(l.way) << 4);
                 bytes[9] = l.aim.byte();
                 bytes[10..12].copy_from_slice(&l.press.centimetres().to_le_bytes());
                 bytes[12] = l.share.byte();
@@ -3639,10 +3644,17 @@ impl WalkGrid {
                         };
                         let half = |i: usize| u16::from_le_bytes([bytes[i], bytes[i + 1]]);
                         // An unknown kind is caught by `check`.
-                        let kind = LinkKind::from_u8(bytes[8]).unwrap_or(LinkKind::Walk);
+                        let kind = LinkKind::from_u8(bytes[8] & 0x0F).unwrap_or(LinkKind::Walk);
+                        let press = gap::Takeoff::from_centimetres(half(10));
+                        // [retarget] A grid way only on a flown press (a GapJump's or a GapDrop's, neither walked off nor
+                        // released); any other, or a nibble that is no way, is bad.
+                        let way = gap::GridWay::from_nibble(bytes[8] >> 4).filter(|way| {
+                            way.is_none()
+                                || (matches!(kind, LinkKind::GapJump | LinkKind::GapDrop)
+                                    && !matches!(press, gap::Takeoff::WalkOff | gap::Takeoff::Release { .. }))
+                        });
                         // [R83] An aim only on a jump's press (a rim jump's or a gap link's: a GapJump or a GapDrop pressed at a walk
                         // or a sprint); any other is bad.
-                        let press = gap::Takeoff::from_centimetres(half(10));
                         let aim = gap::Aim::from_byte(bytes[9]).filter(|aim| {
                             aim.is_straight()
                                 || (matches!(kind, LinkKind::GapJump | LinkKind::GapDrop)
@@ -3657,8 +3669,8 @@ impl WalkGrid {
                             _ => None,
                         };
                         let (from, to) = (word(0), word(4));
-                        match (share, walk, aim) {
-                            (Some(share), Some(walk), Some(aim)) => OffLink { from, to, kind, press, share, walk, aim },
+                        match (share, walk, aim, way) {
+                            (Some(share), Some(walk), Some(aim), Some(way)) => OffLink { from, to, kind, press, share, walk, aim, way },
                             _ => OffLink {
                                 from,
                                 to: from,
@@ -3667,6 +3679,7 @@ impl WalkGrid {
                                 share: gap::Share::UNFLOWN,
                                 walk: None,
                                 aim: gap::Aim::STRAIGHT,
+                                way: None,
                             },
                         }
                     })?

@@ -871,14 +871,14 @@ impl WalkGrid {
             let old = wide.links[a as usize][d];
             if let Some((press, share)) = release {
                 wide.links[a as usize][d] = NONE;
-                let link = OffLink { from: a, to: b, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT };
+                let link = OffLink { from: a, to: b, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, way: None };
                 if let Some(l) = wide.off.iter_mut().find(|l| l.from == a && l.to == b) {
                     // Of two releases the higher share, as within the pass; anything else takes the release's press.
                     if matches!(l.press, Takeoff::Release { .. }) && l.share.rank() >= share.rank() {
                         pairs.earlier_kept += 1;
                     } else {
                         pairs.earlier_replaced += 1;
-                        *l = OffLink { kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, ..*l };
+                        *l = OffLink { kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, way: None, ..*l };
                     }
                 } else if let Some(&i) = index.get(&(a, b)) {
                     pairs.merged += 1;
@@ -911,7 +911,7 @@ impl WalkGrid {
                 }
             } else if !wide.out(a as usize).any(|x| x == b) {
                 index.insert((a, b), added.len());
-                added.push(OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: Aim::STRAIGHT });
+                added.push(OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: Aim::STRAIGHT, way: None });
             }
         }
         if !added.is_empty() {
@@ -960,6 +960,7 @@ mod tests {
                 share: Share::UNFLOWN,
                 walk: None,
                 aim: super::super::gap::Aim::STRAIGHT,
+                way: None,
             };
             wide.off = (1..=3).map(later).collect();
             let ds: Vec<usize> = (0..8).filter(|&d| wide.links[a as usize][d] != NONE).take(2).collect();
@@ -998,6 +999,7 @@ mod tests {
                 share: Share::landed(there),
                 walk: None,
                 aim: super::super::gap::Aim::STRAIGHT,
+                way: None,
             }];
             let (_, pairs) = grid.reaim_drops(&mut wide, &vec![(a, d, b, Some((released, Share::landed(new))))]);
             assert_eq!((wide.off.len(), wide.off[0].share), (1, Share::landed(kept)));

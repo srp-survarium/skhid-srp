@@ -851,6 +851,42 @@ impl Aim {
     }
 }
 
+/// [retarget] One of the grid's 8 ways (`DIRS`): the line a jump link's press was flown along. The rim and the gap passes fly
+/// every press along a grid way from the take-off and keep the link to the floor its flight rests on ([F1] the link's own
+/// top), which can lie off that way (Vector Laboratory day_2: 4,327 of 15,045 pressed links 1 deg or more off it, 1,938 of them
+/// 15-22.5 deg), so the line from the take-off to the landing is not the line the press was proven on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct GridWay(u8);
+
+impl GridWay {
+    /// The way `DIRS[d]`.
+    pub(crate) fn of_dir(d: usize) -> Self {
+        assert!(d < DIRS.len(), "a grid way: {d}");
+        Self(d as u8)
+    }
+
+    /// The way's unit vector on the ground (x, z).
+    pub fn unit(self) -> (f32, f32) {
+        let (di, dk) = DIRS[usize::from(self.0)];
+        let len = ((di * di + dk * dk) as f32).sqrt();
+        (di as f32 / len, dk as f32 / len)
+    }
+
+    /// A record's nibble: 0 for none (the link's own line, as every file before), else the way's index + 1.
+    pub(crate) fn nibble(way: Option<Self>) -> u8 {
+        way.map_or(0, |w| w.0 + 1)
+    }
+
+    /// The way of a record's nibble: Some(None) for 0, None for a nibble that is no way.
+    pub(crate) fn from_nibble(nibble: u8) -> Option<Option<Self>> {
+        match nibble {
+            0 => Some(None),
+            n if usize::from(n) <= DIRS.len() => Some(Some(Self(n - 1))),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OffLink {
     pub from: NodeId,
@@ -865,12 +901,30 @@ pub struct OffLink {
     pub walk: Option<(PressLead, Share)>,
     /// [R83] Where its press is aimed ([`Aim::STRAIGHT`] for every link but a rim jump made only off the line).
     pub aim: Aim,
+    /// [retarget] The grid way its press was flown along ([`GridWay`]); None: along its own line, from the take-off to the
+    /// landing (every link no grid way flew, and every file before). Read it through [`Self::press_way`].
+    pub way: Option<GridWay>,
 }
 
 impl OffLink {
     /// [F1b] Where its press lands from ([`Share::window`]); None for a link not flown or whose own press does not land.
     pub fn window(&self) -> Option<TakeoffWindow> {
         self.share.window(self.press, self.aim)
+    }
+
+    /// [retarget] The line its press is flown along, a unit vector on the ground (x, z), given its take-off's and landing's
+    /// positions: the grid way it was flown along ([`Self::way`]), else the line from the take-off to the landing. The press
+    /// point and heading are on this line (`controller::jump::press_point`, with [`Self::aim`]), not on the take-off to the
+    /// landing where the two differ.
+    pub fn press_way(&self, from: Vec3, to: Vec3) -> (f32, f32) {
+        self.way.map_or_else(
+            || {
+                let (dx, dz) = (to.x - from.x, to.z - from.z);
+                let len = (dx * dx + dz * dz).sqrt().max(1e-6);
+                (dx / len, dz / len)
+            },
+            GridWay::unit,
+        )
     }
 }
 
@@ -1609,6 +1663,7 @@ impl WalkGrid {
                         share: Share::UNFLOWN,
                         walk: None,
                         aim: Aim::STRAIGHT,
+                        way: None,
                     });
                     stats.made += 1;
                     stats.sprint += 1;
@@ -1828,7 +1883,7 @@ impl WalkGrid {
             && to_y - h <= -self.body.step
             && self.ceiling[to as usize] - to_y >= self.body.stand_height
             && Self::lands(wide, to as usize, d))
-        .then_some(OffLink { from: a as NodeId, to, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: Aim::STRAIGHT })
+        .then_some(OffLink { from: a as NodeId, to, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: Aim::STRAIGHT, way: None })
     }
 
     /// The walking gap links from floor `a` along `d` with `behind` metres
@@ -1943,6 +1998,7 @@ impl WalkGrid {
                         share: Share::UNFLOWN,
                         walk: None,
                         aim: Aim::STRAIGHT,
+                        way: None,
                     });
                     stats.made += 1;
                 } else {
@@ -2221,6 +2277,51 @@ mod tests {
         assert_eq!(Aim::new(8, 0), None);
         let r83 = Aim::new(-6, 4).unwrap();
         assert!((r83.side_m() + 0.3).abs() < 1e-6 && (r83.turn_rad() - 0.2).abs() < 1e-6);
+    }
+
+    /// [retarget] A link's flown grid way is its press line, not the line to its landing, and the grid's file reads it back;
+    /// with none the line is the one to the landing (every file before). A way on a walk-off is refused. Vector Laboratory
+    /// day_2's pit-ledge link 210855 (4.51, 17.00, 5.96) -> 211924 (3.76, 18.56, 6.21), flown west, 18.4 deg off that line.
+    #[test]
+    fn a_links_flown_way_is_its_press_line_and_reads_back() {
+        assert_eq!(GridWay::from_nibble(0), Some(None));
+        assert_eq!(GridWay::from_nibble(9), None);
+        for d in 0..DIRS.len() {
+            let w = GridWay::of_dir(d);
+            assert_eq!(GridWay::from_nibble(GridWay::nibble(Some(w))), Some(Some(w)));
+            let (x, z) = w.unit();
+            let (di, dk) = DIRS[d];
+            assert!((x * x + z * z - 1.0).abs() < 1e-6 && x * dk as f32 == z * di as f32 && x * di as f32 + z * dk as f32 > 0.0);
+        }
+        let (from, to) = (Vec3::new(4.51, 17.0, 5.96), Vec3::new(3.76, 18.56, 6.21));
+        let west = GridWay::of_dir(DIRS.iter().position(|&w| w == (-1, 0)).unwrap());
+        let slow = Takeoff::Slow { lead: PressLead::from_metres(1.6), steps: 0 };
+        let line = OffLink { from: 0, to: 1, kind: LinkKind::GapJump, press: slow, share: Share::landed(9), walk: None, aim: Aim::STRAIGHT, way: None };
+        let (x, z) = line.press_way(from, to);
+        assert!((x + 0.9487).abs() < 1e-3 && (z - 0.3162).abs() < 1e-3, "{x} {z}");
+        assert_eq!(OffLink { way: Some(west), ..line }.press_way(from, to), (-1.0, 0.0));
+
+        let mut tris = Vec::new();
+        tris.extend(quad(0.0, 0.0, 10.0, 10.0, 0.0));
+        let file = |link: OffLink, tag: &str| {
+            let mut grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, Body::default());
+            let a = grid.locate(Vec3::new(5.0, 0.0, 5.0), 0.3).unwrap();
+            let b = grid.locate(Vec3::new(4.25, 0.0, 5.25), 0.3).unwrap();
+            grid.off = vec![OffLink { from: a, to: b, ..link }];
+            grid.flags[a as usize] |= OFF_OUT;
+            grid.flags[b as usize] |= OFF_IN;
+            let path = std::env::temp_dir().join(format!("srp-flown-way-{}-{tag}.bin", std::process::id()));
+            grid.write(&path, 7).unwrap();
+            let back = WalkGrid::read(&path, 7, Body::default());
+            std::fs::remove_file(&path).ok();
+            back.map(|g| g.off_links().to_vec())
+        };
+        for (way, tag) in [(None, "none"), (Some(west), "west")] {
+            let back = file(OffLink { way, ..line }, tag).expect("reads back");
+            assert_eq!(back[0].way, way);
+            assert_eq!(back[0].press, slow);
+        }
+        assert!(file(OffLink { press: Takeoff::WalkOff, share: Share::UNFLOWN, way: Some(west), ..line }, "walk-off").is_err());
     }
 
     fn quad(x0: f32, z0: f32, x1: f32, z1: f32, y: f32) -> [Triangle; 2] {

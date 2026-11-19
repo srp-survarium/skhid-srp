@@ -2294,6 +2294,7 @@ mod tests {
             share: Share::landed(11),
             walk,
             aim: mapdata::grid::Aim::STRAIGHT,
+            way: None,
         };
         let lead = PressLead::from_metres(0.9);
         assert_eq!(

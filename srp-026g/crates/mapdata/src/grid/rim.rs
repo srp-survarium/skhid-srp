@@ -20,7 +20,7 @@
 //! away). Made after the erosion, with no press from a floor only a crouched body fits (a jump is never pressed from a crouch:
 //! the jump's gate 0x2FBDC0 -> 0x2FC230 reads `on_ground` 0x7EF90, false for a crouched capsule, exactness 2026-11-14), and
 //! before the reach, so a top only a rim jump gets to is kept.
-use super::gap::{self, Aim, OffLink, PressLead, Share, Takeoff};
+use super::gap::{self, Aim, GridWay, OffLink, PressLead, Share, Takeoff};
 use super::{LinkKind, NodeId, WalkGrid, Wide, DIRS, NONE, RIM_REACH_M};
 use crate::controller::jump::{self, FlightStep, Kind, Kits, Neighbour};
 use crate::controller::tick::Settings;
@@ -892,7 +892,7 @@ impl WalkGrid {
                 stats.retargeted += usize::from(to != b);
                 stats.with_walk += usize::from(walk.is_some());
                 stats.by_share[share.class()] += 1;
-                wide.off.push(OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk, aim });
+                wide.off.push(OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk, aim, way: Some(GridWay::of_dir(d)) });
             }
         }
         stats.jumps_replaced = replaced.len();
@@ -948,10 +948,13 @@ impl WalkGrid {
             self.best_press(world, s, a, b, ((q.x - p.x) / len, (q.z - p.z) / len), leads, |st| self.rim_lands_on(st, a, &linked), kits)
         });
         let mut moved = 0;
-        for (&(i, a, _), p) in jobs.iter().zip(&flown) {
+        // [retarget] Only a press onto the link's own landing: this flight's line is the one from the standing floor to it, which
+        // is the moved link's own line (no grid way), so a press resting on another floor of the top would be pressed on a line
+        // it was not flown on.
+        for (&(i, a, b), p) in jobs.iter().zip(&flown) {
             stats.flights += p.flights;
-            if let Some(&Made { to, press, share, walk, aim, .. }) = p.made.first() {
-                wide.off[i] = OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk, aim };
+            if let Some(&Made { to, press, share, walk, aim, .. }) = p.made.iter().find(|m| m.to == b) {
+                wide.off[i] = OffLink { from: a, to, kind: LinkKind::GapJump, press, share, walk, aim, way: None };
                 moved += 1;
             }
         }
