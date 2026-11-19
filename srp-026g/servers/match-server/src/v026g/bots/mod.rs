@@ -383,6 +383,9 @@ pub struct Bot {
     /// avoid, the rest point); `None` when the tick walked to none (the stood count reads this, not the play's goal).
     #[cfg(test)]
     pub(crate) bench_go: Option<plays::Go>,
+    /// TEST ONLY: the spot suite's goal (`tests/spot_suite.rs`): the bot plays nothing and walks there.
+    #[cfg(test)]
+    pub(crate) bench_pin: Option<Vec3>,
     /// The side step of the last motor tick: 0 none, 1 standing and taken, 2 woven into a walk and taken, 3 refused.
     #[cfg(test)]
     pub(crate) bench_stepped: u8,
@@ -665,6 +668,8 @@ impl Bot {
             bench_legs_why: None,
             #[cfg(test)]
             bench_go: None,
+            #[cfg(test)]
+            bench_pin: None,
             #[cfg(test)]
             bench_stepped: 0,
             #[cfg(test)]
