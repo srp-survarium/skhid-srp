@@ -857,7 +857,9 @@ dependencies = [
  "match-server",
  "openssl",
  "session",
+ "socket2",
  "survarium",
+ "udp-transport",
  "vostok",
  "web-server",
 ]

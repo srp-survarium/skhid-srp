@@ -512,6 +512,8 @@ pub struct Lobby {
     host: Arc<dyn MatchHost>,
     inbox: Arc<Inbox>,
     settings: Settings,
+    /// The relays whose tunnel addresses may say a datagram's own address.
+    relays: udp_transport::relay::Relays,
     /// "Watch replay" (`replay`): srp's replays, shared with the match
     /// server and the web page; none, every ask is answered `off`.
     replays: Option<Arc<Replays>>,
@@ -523,6 +525,7 @@ const WAIT: Duration = Duration::from_millis(2);
 impl Lobby {
     pub fn bind(
         settings: Settings,
+        relays: udp_transport::relay::Relays,
         store: Arc<SessionStore>,
         accounts: Arc<GameAccounts>,
         results: Arc<Results>,
@@ -539,6 +542,7 @@ impl Lobby {
             host,
             inbox,
             settings,
+            relays,
             replays: None,
         })
     }
@@ -573,12 +577,12 @@ impl Lobby {
         core.packet_log = PacketLog::from_env();
         core.replays = self.replays.as_deref();
         let mut socket = udp_transport::relay::Datagrams::new(
-            &self.socket, udp_transport::relay::Relays::from_env()?,
+            &self.socket, self.relays.clone(),
         )?;
         let mut buffer = [0_u8; 2048];
         while !self.inbox.stopped() {
             match socket.recv_from(&mut buffer) {
-                Ok((len, peer)) => core.datagram_via(peer, &buffer[..len], Instant::now()),
+                Ok((len, peer)) => core.datagram(peer, &buffer[..len], Instant::now()),
                 Err(error)
                     if matches!(
                         error.kind(),
@@ -614,5 +618,6 @@ pub fn run(
     host: Arc<dyn MatchHost>,
     inbox: Arc<Inbox>,
 ) -> io::Result<()> {
-    Lobby::bind(Settings::from_env(), store, accounts, results, host, inbox)?.run()
+    let relays = udp_transport::relay::Relays::from_env()?;
+    Lobby::bind(Settings::from_env(), relays, store, accounts, results, host, inbox)?.run()
 }

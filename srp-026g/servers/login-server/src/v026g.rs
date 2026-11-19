@@ -214,9 +214,9 @@ impl Lobby {
     }
 
     fn address_for_origin(&self, origin: Peer, reached: Option<IpAddr>) -> (Ipv4Addr, u16) {
-        match origin.route {
-            Route::Direct => self.address_for(origin.address.ip(), reached),
-            Route::Relayed(public) => (public, self.lobby.port),
+        match origin.route() {
+            Route::Direct => self.address_for(origin.ip(), reached),
+            Route::Relay(relay) => (relay.public(), self.lobby.port),
         }
     }
 
@@ -254,7 +254,7 @@ pub fn run(store: Arc<SessionStore>) -> io::Result<()> {
     let config = config::get();
     let lobby = Lobby::new(&config.login_server, &config.lobby_server)?;
     let listener = TcpListener::bind(config.login_server.bind_addr())?;
-    accept(&listener, store, key, lobby, RevisionGate::default())
+    accept(&listener, store, key, lobby, RevisionGate::default(), Relays::from_env()?)
 }
 
 /// Where a login server started with [`serve`] sends its clients, and the
@@ -275,6 +275,9 @@ pub struct Endpoint {
     pub key: ServerKey,
     /// The games refused for their patch revision (the default: none).
     pub revision_gate: RevisionGate,
+    /// The relays whose tunnel addresses may say a sign-in's own address
+    /// (`SRP_RELAYS`, parsed once by the caller).
+    pub relays: Relays,
 }
 
 /// [`run`] on a listener already bound (a caller that picks the address
@@ -307,6 +310,7 @@ pub fn serve(
         Arc::new(key),
         lobby,
         endpoint.revision_gate.clone(),
+        endpoint.relays.clone(),
     )
 }
 
@@ -317,6 +321,7 @@ fn accept(
     key: Arc<ServerKey>,
     lobby: Lobby,
     gate: RevisionGate,
+    relays: Relays,
 ) -> io::Result<()> {
     log::info!(
         "0.26g sign-ins on TCP {}; the lobby is at UDP {}:{}",
@@ -331,7 +336,7 @@ fn accept(
         );
     }
     let gate = Arc::new(gate);
-    let relays = Arc::new(Relays::from_env()?);
+    let relays = Arc::new(relays);
 
     for stream in listener.incoming() {
         let stream = match stream {
@@ -566,7 +571,7 @@ fn handle_sign_in(
     mut stream: TcpStream,
 ) {
     let mut buffer = [0; 1024];
-    let peer = origin.address;
+    let peer = origin.address();
     let reached = stream.local_addr().ok().map(|reached| reached.ip());
     let len = match read_message(&mut stream, &mut buffer, sign_in_length) {
         Ok(len) => len,
@@ -758,12 +763,14 @@ mod tests {
     fn relay_sign_in_advertises_its_lobby_without_changing_the_client_ip() {
         let lobby = Lobby::new(server("203.0.113.67", 1234, false),
                                server("203.0.113.67", 1235, false)).unwrap();
-        let address = "198.51.100.9:45000".parse().unwrap();
-        let relay: Ipv4Addr = "203.0.113.8".parse().unwrap();
-        let peer = Peer { address, route: Route::Relayed(relay) };
-        assert_eq!(lobby.address_for_origin(peer, Some("10.77.0.1".parse().unwrap())), (relay, 1235));
-        assert_eq!(peer.address, address);
-        assert_eq!(lobby.address_for_origin(Peer { address, route: Route::Direct }, None),
+        let address: std::net::SocketAddrV4 = "198.51.100.9:45000".parse().unwrap();
+        let relay = Relays::parse("10.77.0.2=203.0.113.8").unwrap()
+            .relay("10.77.0.2".parse().unwrap()).unwrap();
+        let peer = Peer::relayed(address, relay);
+        assert_eq!(lobby.address_for_origin(peer, Some("10.77.0.1".parse().unwrap())),
+                   ("203.0.113.8".parse().unwrap(), 1235));
+        assert_eq!(peer.address(), std::net::SocketAddr::V4(address));
+        assert_eq!(lobby.address_for_origin(Peer::direct(std::net::SocketAddr::V4(address)), None),
                    ("203.0.113.67".parse().unwrap(), 1235));
     }
 

@@ -9,6 +9,8 @@
 
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
+
+use udp_transport::relay::{Peer, Route};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
@@ -295,10 +297,10 @@ struct Inner {
     /// A growing roster's admission as the match last said it.
     admitting: HashMap<u32, Admitting>,
     live: HashMap<u32, Live>,
-    /// The IP each place's game connected to the match from (its latest
+    /// Where each place's game connected to the match from (its latest
     /// 0xD8): what the voice relay checks a talker's datagrams against
     /// (`super::voice`).
-    connections: HashMap<(u32, u8), IpAddr>,
+    connections: HashMap<(u32, u8), Connection>,
 }
 
 /// Whose radio a seat talks and listens on: two seats of a match hear each
@@ -335,8 +337,34 @@ pub struct VoiceSeat {
     /// The roster place: the speaker's slot on the voice wire.
     pub place: u8,
     pub radio: RadioChannel,
-    /// The IP of the place's match connection; `None` before its 0xD8.
-    pub ip: Option<IpAddr>,
+    /// The place's match connection; `None` before its 0xD8.
+    pub connection: Option<Connection>,
+}
+
+/// Where a place's game connected to its match from: the client's IP and the
+/// route its datagrams came by. Its voice is taken only by that route and
+/// from that IP's network ([`Connection::admits`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Connection {
+    ip: IpAddr,
+    route: Route,
+}
+
+impl Connection {
+    pub fn of(peer: Peer) -> Self {
+        Self {
+            ip: peer.ip().to_canonical(),
+            route: peer.route(),
+        }
+    }
+
+    /// Whether a voice datagram from `peer` may be this connection's game's:
+    /// by the same route, and from the same network
+    /// ([`super::voice::same_network`]). A datagram by another route is
+    /// another peer's, whatever address it names.
+    pub fn admits(self, peer: Peer) -> bool {
+        self.route == peer.route() && super::voice::same_network(self.ip, peer.ip())
+    }
 }
 
 /// A growing roster's admission as the match loop last said it
@@ -769,13 +797,13 @@ impl MatchRegistry {
         self.inner().seats.get(&session_id).copied()
     }
 
-    /// The place's game connected to its match from `ip` (its 0xD8).
-    pub(crate) fn set_connection(&self, seat: Seat, ip: IpAddr) {
+    /// The place's game connected to its match from `peer` (its 0xD8).
+    pub(crate) fn set_connection(&self, seat: Seat, peer: Peer) {
         let mut inner = self.inner();
         if inner.matches.contains_key(&seat.match_id) {
             inner
                 .connections
-                .insert((seat.match_id, seat.place), ip.to_canonical());
+                .insert((seat.match_id, seat.place), Connection::of(peer));
         }
     }
 
@@ -810,7 +838,7 @@ impl MatchRegistry {
             match_id: seat.match_id,
             place: seat.place,
             radio: RadioChannel::of(formed.played.mode(), place.team),
-            ip: inner.connections.get(&(seat.match_id, seat.place)).copied(),
+            connection: inner.connections.get(&(seat.match_id, seat.place)).copied(),
         })
     }
 
