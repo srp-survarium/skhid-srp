@@ -957,6 +957,9 @@ va	status	ref_021d	name
 0x00176000	inferred-medium	0x0010964e	vostok::buffer_vector<vostok::render::caster_model>::push_back
 0x00176940	inferred-medium	0x00109bae	vostok::render::fill_surface
 0x001785f0	inferred-medium	0x0010b009	vostok::render::stage_decals_accumulate::debug_render
+0x00179650	inferred-high		stlp_std::sort<vostok::render::decal_instance * *,`vostok::render::stage_decals_accumulate::execute'::sort_by_priority_predicate>
+0x0017b110	inferred-high		stlp_std::priv::__introsort_loop<vostok::render::decal_instance * *,vostok::render::decal_instance *,int,`vostok::render::stage_decals_accumulate::execute'::sort_by_priority_predicate>
+0x0017b200	inferred-high		stlp_std::priv::__final_insertion_sort<vostok::render::decal_instance * *,`vostok::render::stage_decals_accumulate::execute'::sort_by_priority_predicate>
 0x0017d260	inferred-medium	0x0010cf13	vostok::render::fill_surface
 0x001a1180	inferred-medium	0x0011d4bd	vostok::render::stage_shadow_mask::stage_shadow_mask
 0x001a1810	inferred-medium	0x0011d8ca	vostok::render::stage_shadow_mask::is_effects_ready
