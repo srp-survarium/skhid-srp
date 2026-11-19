@@ -194,3 +194,56 @@ fn drop_spots() {
         }
     }
 }
+
+/// [drop give-ups] The other way of the stand-in's walk-off rule (a walk off its top does not land back on it where the client's
+/// walker has no ground, `standin_jump::fly`): a lip the exe keeps a body on stays ground. A body walks straight along the level_02
+/// edge strip's rim (+z, forward held, yaw 0) from z 37.10 for 24 ticks at x 11.20 .. 10.95; the exe keeps it on ground every tick at
+/// every x (`strip_rim_exe_v1` on the game's objects, 2026-11-19: 0 air ticks, lowest y 19.28 .. 18.93, the rim sloping down), and
+/// so must the stand-in: never down to the 16.4 m floor under the strip.
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn strip_rim_walks_stay_on_the_top() {
+    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    let t = Tuning::default();
+    let project = "level_02/day_2";
+    let bytes = std::fs::read(dir.join(mapdata::format::file_name(project))).unwrap();
+    let map_file = {
+        let mut digest = mapdata::digest::Digest::new();
+        digest.bytes(&bytes);
+        digest.finish()
+    };
+    let map = mapdata::MapData::from_bytes(&bytes).unwrap();
+    let extras = mapdata::GridExtras {
+        wall_clearance: t.needs_wall_clearance(),
+        open_sides: t.needs_open_sides(),
+        pull_hold: t.grid.wall_clear_pull.then_some(crate::v026g::bots::tuning::PULL_HOLD_M),
+        pull_walk: t.grid.pull_walk,
+        walker_shapes: t.grid.walker_shapes,
+    };
+    let world = Arc::new(super::grid_cache::world(map, map_file, mapdata::CELL, t.grid_body(), t.off_mesh_links(), extras));
+    let gun = Arms::fallback().primary.0;
+    let mut fell = Vec::new();
+    for x in [11.20f32, 11.15, 11.10, 11.05, 11.00, 10.95] {
+        let start = Vec3::new(x, 19.40, 37.10);
+        let mut game = Game::new(world.clone(), &[0u8, 1], 3, None, None);
+        game.bodies[0].node = world.grid.locate(start, 1.0);
+        game.bodies[0].feet = start;
+        game.bodies[1].alive = false;
+        let mut lowest = start.y;
+        for _ in 0..24 {
+            let at = game.tick + TICK_MS;
+            game.inputs[0].push_back((at, key::FORWARD, (0.0, 0.0), None, gun));
+            game.step();
+            lowest = lowest.min(game.bodies[0].feet.y);
+        }
+        let end = game.bodies[0].feet;
+        eprintln!("RIM x {x:.2}: lowest y {lowest:.2}, end ({:.2}, {:.2}, {:.2})", end.x, end.y, end.z);
+        if lowest < 18.0 {
+            fell.push(x);
+        }
+    }
+    assert!(fell.is_empty(), "the stand-in let bodies fall off the rim the exe keeps them on, at x {fell:?}");
+}
