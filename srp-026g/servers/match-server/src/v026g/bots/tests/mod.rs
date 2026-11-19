@@ -91,6 +91,7 @@ mod pace_gate;
 mod pocket_runs;
 mod press_reach;
 mod reference_replay;
+mod refused_sprint;
 mod settings;
 mod sight;
 mod soak;
