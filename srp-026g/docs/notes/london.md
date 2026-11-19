@@ -43,7 +43,9 @@ Each weather project is the shipped day with 0.31a2's own day-to-weather differe
 - the environment: the shipped day's settings plus native 0.26g `level_01` rain/evening's, each set
   from 0.31a2's first key frame, as patch 14 made the day's from native `level_01/day_2`'s names.
 - evening's `mie_fog_base_height` is London's tone-curve marker 32929 (three-maps-021-lighting@9);
-  rain keeps 0.31a2's 100 and 0.26g's tone curve until 0.31a2's rain composition is fitted.
+  rain's is 32919, London's marker for its probes (pack london-probes), which the tone profile does not
+  use: rain keeps 0.26g's tone curve until 0.31a2's rain composition is fitted. Every native shader reads
+  the field only above the eye, so the fog does not change.
 
 The conversion rules are patch 14's own, read off the shipped day: `is_enabled` is a light's
 `enabled` and is dropped elsewhere, an ambient light's colour is packed ARGB (`round(c*255)`), a
