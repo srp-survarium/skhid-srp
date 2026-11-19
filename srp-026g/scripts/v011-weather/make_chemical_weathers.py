@@ -4,7 +4,8 @@ Chemical Plant v0.11's evening and rain, made from its own day.
 0.11 shipped Chemical Plant (`level_04`) as day only, in every build (0.11a, b, c, e). Its evening and rain
 are a recreation: each is a copy of the day project as players have it (its geometry, objects, lights and
 gameplay), with the environment of Vostok v0.11's same weather (pack v011e-radar-weather, 0.11e's own
-evening and rain of the same build and art era: sun, ambient, fog, sky, clouds, rain, wind, post), and the
+evening and rain of the same build and art era: sun, ambient, fog, sky, clouds, rain, wind, post; with what
+the edit lists above this one set on it, such as v011e-radar-weather-light-1.json's probe light), and the
 key exe patch 162 (v011w_render) draws a 0.11 weather by. The probes keep the day project's own
 `textures.<weather>` cubemaps (native Chemical Plant's evening and rain ones, which the v0.11 port already
 named), until probes rendered for the v0.11 layout replace them.
@@ -50,6 +51,10 @@ def profile(source, suffix):
 # with the sun so that its painted glow stays on it (Vostok's -14.2 plus the same 178.39). Vostok's rain
 # sun (219.68) is within 3 degrees of Chemical's own (222.2): kept.
 SUN = {'evening': (74.86, -14.2 + (74.86 - 253.2528))}
+
+
+def out_name(folder, weather, suffix):
+    return f'projects/{folder}/{weather}_{suffix}'
 
 
 def entry_values(buf, entry):
@@ -104,6 +109,23 @@ def later_sets(path):
     return before
 
 
+def earlier_sets(path, index):
+    """{environment key: value} that `set` rows of the lists above this one's place give the environment
+    object (client_objects[index]) of Vostok's project `path` (v011e-radar-weather-light-1.json's probe light)."""
+    rows = [line.split('\t') for line in (REPO / 'release/content.tsv').read_text().splitlines()
+            if line.startswith('edit\t')]
+    names = [r[1] for r in rows]
+    prefix = f'client_objects[{index}]/'
+    out = {}
+    for name in names[:names.index(NAME)]:
+        if name.endswith('.tsv') or not (EDITS / name).exists():
+            continue
+        for e in json.loads((EDITS / name).read_text()).get('set', []):
+            if e.get('file') == path and e['path'].startswith(prefix):
+                out[e['path'][len(prefix):]] = (name, e['to'])
+    return out
+
+
 def number_type(t):
     return 'float' if t == ce.T_FLOAT else 'int'
 
@@ -130,7 +152,11 @@ def main():
         for weather, (folder, source, short) in WEATHERS.items():
             out = f'projects/{folder}/{weather}_{suffix}/client_project'
             src = bytearray((pack / 'files/projects' / f'{source}_{suffix}' / 'client_project').read_bytes())
-            _, _, want = environment(src)
+            vi, _, want = environment(src)
+            for k, (lst, v) in earlier_sets(f'projects/{source}_{suffix}/client_project', vi).items():
+                assert k in want, f'{lst} sets {k}, which Vostok\'s environment lacks'
+                want[k] = (want[k][0], v)
+                notes.append(f'{out_name(folder, weather, suffix)} {k}: {v} as {lst} gives Vostok')
             if weather in SUN:
                 azimuth, clouds = SUN[weather]
                 clouds = (clouds + 180) % 360 - 180
