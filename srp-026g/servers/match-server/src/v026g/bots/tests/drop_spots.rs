@@ -16,29 +16,42 @@ use crate::v026g::bots::view::Clock;
 
 /// A spot: its project, a take-off and landing of it (map frame), and its name in the report. The exe lands the walk-off the bots
 /// play here (walked on, let go at the first tick off the ground) 0.26 m from each of the strip's landings (owner-16's
-/// `drop_exe_v1` on the game's objects, 2026-11-19); a walk-off the exe does not make (the roof at (36.49, 21.76, 113.97): a walk is
+/// `drop_exe_v1` on the game's objects, 2026-11-19), and the walk the port plays here (over the bar onto the strip, turned at the
+/// take-off (11.20, 19.40, 38.47) to its landing (10.70, 16.36, 37.97)) 0.09 m from that landing (`strip_turn_exe_v1`, the port's
+/// own feet steps, then the client's 6-tick blend); a walk-off the exe does not make (the roof at (36.49, 21.76, 113.97): a walk is
 /// held on its top) is a link fault, not this test's. A route's drop is the spot's when it
-/// leaves within [`SPOT_TAKE_OFF_M`] of the take-off for a floor within [`SPOT_LANDING_M`] of the landing.
+/// leaves within `take_off_m` of the take-off for a floor within `landing_m` of the landing.
 struct Spot {
     name: &'static str,
     project: &'static str,
     take_off: Vec3,
     landing: Vec3,
+    /// How near the take-off a route's drop leaves to be the spot's, m.
+    take_off_m: f32,
+    /// How near the landing its landing lies, m.
+    landing_m: f32,
 }
 
-const SPOTS: [Spot; 1] = [
+const SPOTS: [Spot; 2] = [
+    // The strip as the match gave its drops up: any of its walk-offs side by side 0.25 m apart, the one a route pulls straight to.
     Spot {
         name: "level_02 edge strip walk-off 3.2 m down, 1.77 m across",
         project: "level_02/day_2",
         take_off: Vec3::new(11.20, 19.40, 37.97),
         landing: Vec3::new(9.95, 16.18, 39.22),
+        take_off_m: 1.3,
+        landing_m: 1.6,
+    },
+    // The match's own link of the strip, exactly.
+    Spot {
+        name: "level_02 edge strip, the match's link (11.20, 19.40, 37.97) -> (9.95, 16.18, 39.22)",
+        project: "level_02/day_2",
+        take_off: Vec3::new(11.20, 19.40, 37.97),
+        landing: Vec3::new(9.95, 16.18, 39.22),
+        take_off_m: 0.3,
+        landing_m: 0.3,
     },
 ];
-
-/// How near the spot's take-off a route's drop leaves to be the spot's, m: the strip's walk-offs side by side 0.25 m apart.
-const SPOT_TAKE_OFF_M: f32 = 1.3;
-/// How near the spot's landing its landing lies, m.
-const SPOT_LANDING_M: f32 = 1.6;
 
 /// What one run down the drop came to.
 #[derive(Debug, Default)]
@@ -148,9 +161,9 @@ fn drop_spots() {
                 let (p, q) = (w[0].at, w[1].at);
                 (w[1].jump.is_none()
                     && p.y - q.y >= mapdata::grid::LIP_DROP_M
-                    && p.distance_xz(spot.take_off) <= SPOT_TAKE_OFF_M
+                    && p.distance_xz(spot.take_off) <= spot.take_off_m
                     && (p.y - spot.take_off.y).abs() <= 0.3
-                    && q.distance_xz(spot.landing) <= SPOT_LANDING_M
+                    && q.distance_xz(spot.landing) <= spot.landing_m
                     && (q.y - spot.landing.y).abs() <= 0.5)
                     .then_some((p, q))
             })
