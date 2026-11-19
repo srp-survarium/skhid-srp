@@ -681,12 +681,16 @@ pub fn documents() -> Option<String> {
     Some(from_wide(&folder[..end]))
 }
 
+/// The game's `<documents>\survarium\user.cfg`, as the launcher reads it
+/// (64 KiB at most); read only.
+fn user_cfg(documents: &str) -> Option<Vec<u8>> {
+    read_file(&alloc::format!("{documents}\\survarium\\user.cfg"), 1 << 16).ok()
+}
+
 /// The game's language, which its Settings and the launcher's menu keep
-/// (`localization` of `<documents>\survarium\user.cfg`), as a number of
-/// `replay::LANGUAGES`; read only.
+/// (`localization` of user.cfg), as a number of `replay::LANGUAGES`.
 pub fn game_language(documents: &str) -> Option<u32> {
-    let path = alloc::format!("{documents}\\survarium\\user.cfg");
-    updater_logic::replay::language_of_user_cfg(&read_file(&path, 1 << 16).ok()?)
+    updater_logic::replay::language_of_user_cfg(&user_cfg(documents)?)
 }
 
 /// Whether the game, which reads its command line as ANSI text
@@ -921,4 +925,14 @@ pub fn run_wait(
         return Err(last_error());
     }
     Ok(code)
+}
+
+/// The launcher's "Allow torrent" in user.cfg (`updater_logic::user_cfg`).
+/// Off until the launcher's one-time reset of the original game's default
+/// `on` (launcher patch 15), so a line the player never chose is never taken.
+pub fn launcher_torrent_allowed() -> bool {
+    documents().is_some_and(|documents| {
+        let reset = alloc::format!("{documents}\\survarium\\{}", updater_logic::user_cfg::RESET_FILE);
+        exists(&reset) && user_cfg(&documents).is_some_and(|text| updater_logic::user_cfg::torrent_allowed(&text))
+    })
 }

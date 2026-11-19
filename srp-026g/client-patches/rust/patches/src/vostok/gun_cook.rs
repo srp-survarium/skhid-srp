@@ -80,7 +80,7 @@ const LABEL: &CStr = c"srp pickup gun";
 pub const TICKETS: usize = 192;
 
 /// The resources' allocator (the global every query passes).
-fn allocator() -> Option<*mut c_void> {
+pub(in crate::vostok) fn allocator() -> Option<*mut c_void> {
     // SAFETY: an image VA (the global at 0x1F1D9C4), set before any resource
     // is queried; a cook runs only after.
     let allocator = unsafe { raw::image::game_allocator().allocator() }?;

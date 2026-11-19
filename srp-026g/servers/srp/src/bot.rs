@@ -180,10 +180,22 @@ pub fn sign_in_with_revision(
     password: &str,
     revision: u8,
 ) -> io::Result<SignIn> {
+    let stream = TcpStream::connect_timeout(&login, LOGIN_TIMEOUT)?;
+    sign_in_over(stream, server_key, user_name, password, revision)
+}
+
+/// [`sign_in_with_revision`] over a connection the caller made (from an
+/// address of its choosing, say).
+pub fn sign_in_over(
+    mut stream: TcpStream,
+    server_key: ServerPublicKey,
+    user_name: &str,
+    password: &str,
+    revision: u8,
+) -> io::Result<SignIn> {
     let too_long = |what: &str| io::Error::other(format!("the {what} is longer than 255 bytes"));
     let name_len = u8::try_from(user_name.len()).map_err(|_| too_long("user name"))?;
     let password_len = u8::try_from(password.len()).map_err(|_| too_long("password"))?;
-    let mut stream = TcpStream::connect_timeout(&login, LOGIN_TIMEOUT)?;
     stream.set_read_timeout(Some(LOGIN_TIMEOUT))?;
     stream.set_write_timeout(Some(LOGIN_TIMEOUT))?;
     let mut message = vec![0x01, name_len];

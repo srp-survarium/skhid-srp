@@ -1,0 +1,9 @@
+# Patch 151: a gun-stock hit disarms a trap (docs/notes/trap-stock-hit.md). The
+# site (booby_trap_core::hit's entry) is sites_026g.tsv's; the logic is
+# trap_stock_hit.rs.
+name = "trap_stock_hit"
+patch = 151
+
+[[hook]]
+site = "trap.hit"
+handler = "on_hit"

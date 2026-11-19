@@ -879,7 +879,7 @@ va	name	location	role	basis
 0x0011d950	vostok::render::system_renderer::fill_surface	entry ESP+20	color target3 by-value intrusive resource	observed
 0x0011d950	vostok::render::system_renderer::fill_surface	entry ESP+24	depth target by-value intrusive resource	observed
 0x0011d950	vostok::render::system_renderer::fill_surface	entry ESP+28	byte flag: use default depth when nonzero	observed
-0x0011dd60	vostok::render::system_renderer::draw_aabb	EAX	owner	observed
+0x0011dd60	vostok::render::system_renderer::draw_aabb	EAX	owner: the system renderer ([2260480h], as its callers load it at 0x14C1FE and 0x195ACC); is_effects_ready 0x11C900 asks it first, nothing drawn until its effects are made	observed
 0x0011dd60	vostok::render::system_renderer::draw_aabb	EDI	AABB min/max floats	observed
 0x0011dd60	vostok::render::system_renderer::draw_aabb	entry ESP+4	packed color pointer	observed
 0x0011df10	vostok::render::system_renderer::draw_obb	EAX	owner	observed
@@ -890,7 +890,7 @@ va	name	location	role	basis
 0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+12	vertex-end pointer	observed
 0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+16	index-begin pointer	observed
 0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+20	index-end pointer	observed
-0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+24 low byte	technique override flag	observed
+0x0011e370	vostok::render::system_renderer::draw_triangles	entry ESP+24 low byte	technique override flag: set, technique 3 (cover); clear, 2 while the color write +150h is off, else 1 in grid mode +140h, else 0 (alpha-blended, the default); then always a second pass with technique 4 (wireframe, blended) at 0x11E4BC	observed
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	entry ESP+4	owner	observed
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	entry ESP+8	input TL vertices	observed
 0x0011e510	vostok::render::system_renderer::draw_ui_vertices	entry ESP+12	vertex count reference	observed
@@ -1177,7 +1177,7 @@ va	name	location	role	basis
 0x0014ef90	vostok::render::scene::particle_engine::create_render_emitter_instance	stack+36	color float4 reference	inferred
 0x0014ef90	vostok::render::scene::particle_engine::create_render_emitter_instance	stack+40	final unsigned value, full semantics unverified	inferred
 0x0014f000	vostok::render::scene::particle_engine::destroy	stack+4	emitter pointer reference to destroy and clear	inferred
-0x0014f080	vostok::render::scene::particle_engine::get_scene	ECX	particle-engine receiver	inferred
+0x0014f080	vostok::render::scene::particle_engine::get_scene	ECX	particle-engine receiver; +8 is its render::scene pointer, copied directly and refcounted at scene+D0h	verified
 0x0014f080	vostok::render::scene::particle_engine::get_scene	stack+4	caller-provided resource-pointer result storage	inferred
 0x0014f200	vostok::render::scene::particle_engine::add_light	ECX	particle engine receiver	inferred
 0x0014f200	vostok::render::scene::particle_engine::add_light	stack+4	light ID	inferred
@@ -1192,7 +1192,7 @@ va	name	location	role	basis
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+8	float scalar property input	inferred
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+12	by-value float4 first component	inferred
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+28	by-value matrix16dwords start	inferred
-0x0014f260	vostok::render::scene::particle_engine::update_light	stack+96	scalar multiplied by3 before property write	inferred
+0x0014f260	vostok::render::scene::particle_engine::update_light	stack+96	authored particle-light intensity, multiplied by 3.0 at 0x14F30A into light_props+44h; fill_light passes it unchanged to light+210h	verified
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+108	first tail bool	inferred
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+112	second tail bool	inferred
 0x0014f260	vostok::render::scene::particle_engine::update_light	stack+116	tail float	inferred
@@ -1627,6 +1627,7 @@ va	name	location	role	basis
 0x00174240	vostok::render::stage_shadow_direct::calculate_matrices	stack+12	destination cascade index	inferred
 0x00174240	vostok::render::stage_shadow_direct::calculate_matrices	stack+16	shadow-map resolution	inferred
 0x00174240	vostok::render::stage_shadow_direct::calculate_matrices	stack+20	cascade bank selector	inferred
+0x00174240	vostok::render::stage_shadow_direct::calculate_matrices	stage+4 -> context+54A4h/+54B4h	camera position/forward used at 0x1742C1..0x174332; read-only observer confirms requested camera for all four cascades after settling in School indoor and outdoor views; context+4170h -> scene_view+1DE08h update counter advances (0x1741FA..0x174200)	observed
 0x001750c0	vostok::render::stage_shadow_direct::prepare_visibile_objects	ECX	shadow stage receiver	inferred
 0x001750c0	vostok::render::stage_shadow_direct::prepare_visibile_objects	stack+4	view-position float3 reference	inferred
 0x001750c0	vostok::render::stage_shadow_direct::prepare_visibile_objects	stack+8	cascade index	inferred
@@ -1754,6 +1755,7 @@ va	name	location	role	basis
 0x001a39d0	vostok::render::stage_atmosphere::stage_atmosphere	EAX	renderer context	inferred
 0x001a39d0	vostok::render::stage_atmosphere::stage_atmosphere	stack+8	stage type	inferred
 0x001a4200	vostok::render::stage_atmosphere::execute	ECX	atmosphere stage receiver	inferred
+0x001a5520	vostok::render::stage_atmosphere::god_rays_pass	ESP+4	the stage_atmosphere (+ACh 0 the sky's, 1 the geometry's); its one call is stage_atmosphere::execute's end (push ebp / call at 0x1A5133); ret 4 at 0x1A575C, the only exit	observed
 0x001a6ee0	vostok::render::effect_debug_modify_gbuffer::compile	entry ESP+4	effect compiler object	observed
 0x001a7280	vostok::render::stage_composition::stage_composition	ESI	composition stage receiver	inferred
 0x001a7280	vostok::render::stage_composition::stage_composition	ECX	renderer	inferred
@@ -2246,8 +2248,8 @@ va	name	location	role	basis
 0x001f48a0	vostok::network_core::buffer_writer::w<unsigned int>	stack+20	diagnostic value label	observed
 0x001f6d50	survarium::game_world::register_cooks	EDI	game-world receiver	inferred
 0x001f7620	survarium::game_world::on_after_tick	ECX	game-world receiver	inferred
-0x001f7660	survarium::game_world::get_player	ECX	game-world interface receiver, complete-world+0xec	inferred
-0x001f7660	survarium::game_world::get_player	stack+4	requested player ID	inferred
+0x001f7660	survarium::game_world::get_player	ECX	the bullet manager's engine: the game world's interface (complete world+0ECh; this-50h read, 0x1F7660)	observed
+0x001f7660	survarium::game_world::get_player	stack+4	the place (passed on to the client's get_player, 0x1F7673)	observed
 0x001f77e0	survarium::game_world::tick	byte [ESP+0Fh] at 0x1F7C3C	the join after game_world_core::move (0x1F7C37; je targets 0x1F7C24, 0x1F7C2D): the simulation stepped, before the place loop; EBX the game world, [ESP+1Ch] not yet the match options (0x1F79C6 set it); no relocation in 0x1F7C3C..0x1F7C40	observed
 0x001f8190	survarium::game_world::switch_to_warmup_camera	EDX	game-world receiver	inferred
 0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver: input +4D58h; camera interface input+4 passed at 1F824B..1F8254	observed
@@ -3521,7 +3523,7 @@ va	name	location	role	basis
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+4	the state (+1Ch the battery, its +8 the user)	observed
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+8	out matrix (world)	observed
 0x00344e40	survarium::victory_item_core_base_state::compute_carried_transform	entry ESP+0Ch	out matrix (before the user's transform)	observed
-0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	XMM0 low32	float, 0.0 from the take and put expressions	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	XMM0 low32	the hands' weight interpolator's time, s: 0.0 from the take (0x338B32: at once, the instant interpolator 0xA17130 at 0x344F92), 0.3 from the carry (0x338DF7) and the put (0x339107)	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+20	float time scale of the hands' animation ([state+0E8h] at the take and put)	observed
 0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+4	the victory item state; its item [+1Ch], whose user [+8] is animated	observed
 0x0034be30	vostok::render::culling::portal_sector_structure::portal_sector_structure	EAX	owner storage copied ESI	observed
@@ -5927,6 +5929,8 @@ va	name	location	role	basis
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EAX	first	observed
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	ESI	last	observed
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	EDI	pointer to the value (a resource_ptr: its pointer compared)	observed
+0x002acc20	vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::push_back	ESI	the list: begin, end, capacity end (a particle presenter's m_effects at +0Ch, 18h an entry; deserialize 0x2AC870's local at ESP+50h)	observed
+0x002acc20	vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::push_back	entry ESP+4	the entry to copy (0x2ACFE0 copies it to end, then end += 18h)	observed
 0x002010e0	survarium::game_options::process_key_input	EDX	the key: a DIK code (1 Esc), 151h..153h a mouse button, 159h/15Ah the wheel	observed
 0x002010e0	survarium::game_options::process_key_input	entry ESP+4	the main menu (game_options): +3Ch the action awaited	observed
 0x002015a0	survarium::game_options::finish_binding	EDI	the main menu (game_options) whose key wait ends: the options' +0Ch menu movie, +10h cursor movie, +30h scene, +3Ch awaited action	observed
@@ -6189,6 +6193,64 @@ va	name	location	role	basis
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	EDI	the value (patch pointer)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+4	last (the value's slot)	observed
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	entry ESP+8	the camera position by value (3 floats)	observed
+0x00301920	survarium::victory_item_core::initialize_logic	EAX	the battery	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+4	the take state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+8	take_time (f32)	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+12	the carry state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+16	the put state's 6 clips	observed
+0x00301920	survarium::victory_item_core::initialize_logic	entry ESP+20	put_time (f32)	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	ESI	the state's room (0ECh bytes)	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+4	the battery	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+8	its 6 clips	observed
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	entry ESP+12	the time its first player clip is scaled to (f32)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+4	the bullet manager (a gun's +5A0h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+8	the start point (3 f32: the eye's position row, matrix +30h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+12	the velocity (3 f32: the eye's forward row +20h times the speed; melee: the distance)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+16	the bullet data (a gun's +268h of its ammo, or +53Ch its melee)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+20	the time (ms)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+24	the owner (the player's +110h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+28	the second owner (the player's +118h)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	entry ESP+32	unused: 0 (both callers)	observed
+0x00322830	survarium::bullet_manager::emit_bullet	EDI	the gun (the bullet's constructor 0x32BA60 calls its vtable +7Ch)	observed
+0x00372420	survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition	entry ESP+4	the predicate buffer, as a function-pointer functor's invoker 0x303450 leaves it (unread)	observed
+0x00397c20	survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]	ECX	the state (unread)	observed
+0x003737f0	vostok::network::torrent_client::start_seeding	entry ESP+4	the torrent_client (network client vtable +48h: network_client+1EE8B8h); +0 the network world (+94h task queue, +11Ch allocator), +4 the pipe, +8 the debug flag sent, +0Ch debug info (u8 seeding, u32 upload rate, u32 limit, u32 peers), +1Ch in a match	observed
+0x00373910	vostok::network::torrent_client::stop_seeding	entry ESP+4	the torrent_client	observed
+0x003739e0	vostok::network::torrent_client::change_upload_speed_limit	entry ESP+4	the torrent_client	observed
+0x00373ad0	vostok::network::torrent_client::set_debug_info_state	entry ESP+4	the torrent_client	observed
+0x00373c20	vostok::network::torrent_client::start_seeding_impl	ECX	the torrent_client	observed
+0x00373c20	vostok::network::torrent_client::start_seeding_impl	entry ESP+4	bool debug (lobby_torrent_stats): argv 7 "true"/"false"	observed
+0x00373c20	vostok::network::torrent_client::start_seeding_impl	entry ESP+8	u32 upload limit in KiB/s (change_seeding_upload_rate); argv 8 is it x 1024	observed
+0x00374020	vostok::network::torrent_client::stop_seeding_impl	ECX	the torrent_client	observed
+0x00374050	vostok::network::torrent_client::change_upload_speed_limit_impl	ECX	the torrent_client	observed
+0x00374050	vostok::network::torrent_client::change_upload_speed_limit_impl	entry ESP+4	u32 limit in KiB/s	observed
+0x00374260	vostok::network::torrent_client::set_debug_info_state_impl	ECX	the torrent_client	observed
+0x00374260	vostok::network::torrent_client::set_debug_info_state_impl	entry ESP+4	bool flag	observed
+0x00373bd0	vostok::network::torrent_client::start_seeding_impl's pipe message handler (seeding debug info)	entry ESP+4	the debug info (torrent_client+0Ch)	observed
+0x00373bd0	vostok::network::torrent_client::start_seeding_impl's pipe message handler (seeding debug info)	entry ESP+8	the received packet (+4 its bytes: u16 length, u8 id, fields)	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	ESI	wide buffer	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	EDI	buffer capacity in characters	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	entry ESP+4	pointer to the open HKEY	observed
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	entry ESP+8	wide value name	observed
+0x003e36a1	get_install_location (InstallLocation of an uninstall key, HKCU then HKLM)	entry ESP+4	wide uninstall key path	observed
+0x003e36a1	get_install_location (InstallLocation of an uninstall key, HKCU then HKLM)	entry ESP+8	wide out buffer, 104h characters	observed
+0x00373090	vostok::win_utils::pipe::pipe	ESI	the pipe (10D0h bytes, allocated with pipe's RTTI 0xAE7728 as tag)	observed
+0x00373090	vostok::win_utils::pipe::pipe	EDI	the io_service (stored at +94h)	observed
+0x00373140	vostok::win_utils::pipe::~pipe	entry ESP+4	the pipe (~network_client 0x219F98 and start_seeding_impl, then freed)	observed
+0x00373230	vostok::win_utils::pipe::accept (CreateNamedPipeW server, overlapped ConnectNamedPipe)	ECX	the pipe	observed
+0x00373230	vostok::win_utils::pipe::accept (CreateNamedPipeW server, overlapped ConnectNamedPipe)	EAX	wide pipe name	observed
+0x003733c0	vostok::win_utils::pipe::disconnect	EDI	the pipe	observed
+0x00373400	vostok::win_utils::pipe::send	EAX	the pipe	observed
+0x00373400	vostok::win_utils::pipe::send	ECX	the packet (mutable_buffer: +4 bytes, +0Ch size)	observed
+0x001f60a0	survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)	EAX	the stats screen (+2CCh its movie)	observed
+0x001f60a0	survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)	entry ESP+4	the 16-byte debug info by value (from network_client::draw_match_stats 0x27FD3B)	observed
+0x00262250	survarium::options_torrent_seeding_selector's read of change_seeding_upload_rate	ECX	the selector (+8 the command, +18h labels, +1Ch count 7, +1Dh selected)	observed
+0x002622a0	survarium::options_torrent_seeding_selector's apply (executes change_seeding_upload_rate <KiB/s>)	ECX	the selector	observed
+0x001ed1e0	survarium::game::switch_to_lobby	EAX	the game (+53ACh the network client, +5390h the lobby menu, +539Ch the active scene)	observed
+0x001ed260	survarium::game::switch_to_login	EAX	the game (+53ACh the network client, +5394h the login menu, +539Ch the active scene)	observed
+0x001ed260	survarium::game::switch_to_login	entry ESP+4	the login menu's status, handed to login_menu::set_status (0x21EEA0)	observed
+0x003745b0	a wide snprintf into EDX's buffer (start_seeding_impl's names)	EDX	the wide buffer	observed
+0x003745b0	a wide snprintf into EDX's buffer (start_seeding_impl's names)	entry ESP+4	the wide format, its arguments after it	observed
 0x0005c060	vostok::sound::sound_scene::process_fade	ESI	the sound scene (sound_scene::tick)	observed
 0x0005c060	vostok::sound::sound_scene::process_fade	ECX	the ms since the world's last tick	observed
 0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	ECX	the respawn rule	observed
@@ -6208,3 +6270,122 @@ va	name	location	role	basis
 0x0030ebf0	survarium::weapon_core_fire_state_base::on_shot_event	entry ESP+4	the animation_callback_params: +10h the event's time in ms (the shot's; replays of 0x30ffba2c, fire-queue-assert.md); with +13Ch (the queue) 0 it asserts m_bullets_in_queue > 0 and fires nothing	observed
 0x0030ecc0	survarium::weapon_core_fire_state_base::reset_fire_queue [descriptive]	ESI	the fire state: +13Ch the queue = min(fire_queue_types[weapon core +5E6h] (+5E0h the table), magazine +5E5h + (chambered +5F1h != 0)), +13Dh (may refill) 0; called by execute 0x30EA00 on a press (weapon object +330h bit 5) while +13Dh is set	observed
 0x0030ea50	survarium::weapon_core_fire_state_base::on_animation_end_impl	ECX	the fire state: over (+12Dh and both flags) when its queue +13Ch is spent, or for fire_queue_types 0FFh with the trigger up; a semi-automatic state a press refilled is not over at its clip's end, and each later input change starts its clip again (fire-queue-assert.md)	observed
+0x00305540	survarium::booby_trap_core::hit	ECX	the booby trap (hit_receiver slot +24h of its first vtable, 0xA141A4 and 0xA0455C): +194h its set, +220h a byte that sends a defusing hit to slot +40h (0x3056D0: the trap removed and bullet_manager::explode) instead of defuse_completed	observed
+0x00305540	survarium::booby_trap_core::hit	entry ESP+4	the initiator (bullet::try_pierce 0x32DA33: the bullet +60h), all slot +40h is given	observed
+0x00305540	survarium::booby_trap_core::hit	entry ESP+10h	the hit type (hit_type_enum; try_pierce 0x32DA00 pushes the bullet ammo damage_type, ammo_data +4Ch): the hit defuses only when it is the set defuse_by_hit (+298h, 8 none; data/defuse_by_hit, ranged in blackmarket_trap), 0x30554C	observed
+0x00305580	survarium::booby_trap_core::hit	ECX	the booby trap (hit_receiver slot +20h): defuses whatever the hit type, by the byte +220h as 0x305540	observed
+0x003050c0	survarium::booby_trap_core::defuse_completed	EAX	the booby trap: an armed one (+198h 1) leaves the physics world (its users ended, usable_object::remove, collision_sensor::remove, the hittable body unless defuse_by_hit is 8), then state 3 disarmed with the set disarmed_life_time (+290h) as its timer (+268h), or removed at once (0x304F00) when that is 0	observed
+0x0032c520	survarium::bullet::compute_damage_speed	ESI	the bullet	observed
+0x002da5b0	survarium::base_player::recompute_damage_collision_bones	entry ESP+4 (reads)	only [arg+8]+4 is read (0x2DA5E3; +8 of its frame is a local after 0x2DA5FF): the ray requester needsCollision 0x75BD0 hands it (0x75BFB), a bullet or any object whose +8 is a bullet_owner	observed
+0x0032d4e0	survarium::bullet::check_collision	the ray result's object at 0x32D705	its +0Ch (the game object) cast by its vtable +0 to the hit target (0x32D70D); none: the level (a back-face hit then goes on through 0x32E740); its vtable +10h the material (0x32D839: a hit model's body, bt_animated_rigid_body 0x9E2AF4, gives +38h, 10 actor, 0x70C00)	observed
+0x002da170	survarium::base_player::generate_killed_event	EDX at 0x2DA3CB	the kill event's weapon icon about to be written to its node's +2 (EAX the node): the bullet's data +50h, else the damage source's +224h (0x2DA35A..0x2DA382); read by the hud's event handler 0x23B5F0 as on_player_killed's object_icon	observed
+0x003917d0	vostok::animation::animation_player::tick	ESI	the animation player (its mixing tree at +0E100h)	observed
+0x003917d0	vostok::animation::animation_player::tick	stack+4	u32 time, ms	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+12	the time synchronization group (parameters +4Ch): 2 from the take and the put, 3 from the carry; a new clip starts where another of its group stands only if that one is not frozen at its end	observed
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	stack+16	the playback type (parameters +48h): 1 once and frozen at the end (the take, the put), 0 cyclic (the carry)	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	EAX	the battery	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+4	the state's room (0E0h bytes, initialize_logic 0x301974)	observed
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	entry ESP+8	its 6 clips	observed
+0x0013ced0	vostok::render::renderer::render_flash_ui	stack+8	the output window: its +30ACh the render output the frame presents with (0x13DD3F, res_render_output::present 0x3CF7F0), its +30B0h the flash renderer (0x13CEE9); called once a frame at 0x13DB3D, the scene already on the back buffer (a read-back there in a game: the world, no interface)	observed
+0x001f0e70	survarium::match_options::deserialize	EAX	the reader {begin, cursor, size} the options are read from; called only at 0x27B928 (process_static_match_info) and 0x1F096C (a replay's chunk 1)	observed
+0x001f0e70	survarium::match_options::deserialize	entry ESP+8	the items dictionary (process_static_match_info: [edi+14h]+53A4h, 0x27B91A)	observed
+0x0027b880	survarium::network_client::process_static_match_info	[ESI+577B8h] at 0x27BB57	the options' "match maker id" dword, logged only: the one reference to +577B8h in .text (nothing writes it); patch 154 keeps the whole maps_dict id there, and turns the six byte reads of +577B4h (0x234CFD, 0x27AFA7, 0x27BC26, 0x27BE8B, 0x2A3603, 0x2D01F3) into dword reads of it	observed
+0x001f63e0	survarium::game_world::get_step_manager	ECX	the game world (this)	observed
+0x001f3bd0	survarium::player::is_first_view	ECX	the player (+0F474h its game world, +9Ch the game, +53ACh the network client, +4 its local player)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	entry ESP+4	the player's landing parameters (player+0F460h, 0x1F3BAC): +0 the foot materials (player+0F2C8h), +4 the fall threshold, +8 the hard one, +0Ch the last landing's time (50 ms apart, 0x23FBF0)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	entry ESP+8	the step manager (game_world::get_step_manager, 0x1F3B60)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	entry ESP+0Ch	the position (float3*: the player's root, +30h of the transform 0x1F3BA4)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	entry ESP+10h	the direction (float3*, +20h of the transform)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	XMM0	the fall value compared with the thresholds	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	EDX	the time (kept at params+0Ch)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	CL	the view flag on_step gets (1: not is_first_view)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	ESI at 0x23FC2C	the movement id whose foot material is played, 2 (run) up to the hard threshold, 4 (jump) over it; on_step pushes it (its frame +4 at 0x248B5A)	observed
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	EDI at 0x23FC2C	on_landing's player (kept from 0x1F3B6A); on_step pushes it (its frame +0)	observed
+0x002a63c0	survarium::player_equipment_sound_effect::update_feet	ESI	the effect (+30h, +34h its toe bones' indices; handed to set_feet)	observed
+0x002a63c0	survarium::player_equipment_sound_effect::update_feet	EDI	the user's bone matrices (64 bytes each, by the toe bones' indices)	observed
+0x002a6410	survarium::player_equipment_sound_effect::set_feet	ECX	the left foot's matrix: its +30h the effect's +0 (the foot's position), its +20h the effect's +0Ch (its direction)	observed
+0x002a6410	survarium::player_equipment_sound_effect::set_feet	EDX	the right foot's matrix: +30h to the effect's +18h, +20h to its +24h	observed
+0x002a6410	survarium::player_equipment_sound_effect::set_feet	entry ESP+4	the effect: its +44h (the feet read) set to 1	observed
+0x002a6520	survarium::player_equipment_sound_effect::on_foot_step	ESI at 0x2A6572	the effect, unchanged: on_step pushes it (its frame +4 at 0x248B5A); the return address is 0x2A6577	observed
+0x0009ff40	btCollisionWorld::updateSingleAabb	ESI	the collision world (its +2Ch m_forceUpdateAllAabbs, +4Ch the broadphase, +18h the dispatcher)	observed
+0x0009ff40	btCollisionWorld::updateSingleAabb	EDI	the collision object (+0CCh its shape, +0C8h its broadphase proxy)	observed
+0x000205e0	boost::function1<void,bool>::operator()	EAX	the boost function (its word 0 the manager, empty: bad_function_call)	observed
+0x000205e0	boost::function1<void,bool>::operator()	entry ESP+4	the bool	observed
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	ECX	the broadphase	observed
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+4	the proxy (its +10h and +20h take aabbMin and aabbMax)	observed
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+8	aabbMin	observed
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+12	aabbMax	observed
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	entry ESP+16	the dispatcher	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	ECX	the shape (+30h its mesh interface, +40h its BVH)	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	entry ESP+4	the triangle callback (its vtable +4 processTriangle, called for each triangle found)	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	entry ESP+8	aabbMin, the shape's local space (the mesh's scaled vertices')	observed
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	entry ESP+12	aabbMax	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	ECX	the callback	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+4	the triangle: three btVector3 of 10h bytes, the shape's local space (processNode passes its +10h)	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+8	the part (the mesh's subpart)	observed
+0x000c5600	btConvexTriangleCallback::processTriangle	entry ESP+12	the triangle's index in its part	observed
+0x0001eaa0	vostok::console_impl::on_keyboard_action	EAX	the key's kind: 1 down, 2 up, 3 held (game_console's slot 0x1C7F0 moves its third argument here)	observed
+0x0001eaa0	vostok::console_impl::on_keyboard_action	ECX	the console (this: the game console, its input handler at +268h)	observed
+0x0001eaa0	vostok::console_impl::on_keyboard_action	entry ESP+4	the input world	observed
+0x0001eaa0	vostok::console_impl::on_keyboard_action	entry ESP+8	the key, a DirectInput code (29h ~, 1 Esc, C8h Up, D0h Down, 0Fh Tab, 3Ah Caps Lock)	observed
+0x0001c810	vostok::engine::game_console::on_mouse_move	ECX	the console's input handler (this: the game console's +268h; its dialog at -254h)	observed
+0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+4	the input world	observed
+0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+8	x, the mouse's move	observed
+0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+12	y, the mouse's move	observed
+0x0001c810	vostok::engine::game_console::on_mouse_move	entry ESP+16	z, the wheel's turn since the last poll (signed; 120 a notch, forward positive)	observed
+0x0001d0d0	vostok::console_impl::tick	entry ESP+4	the console (this, on the stack: game_console::tick 0x1C74B pushes it)	observed
+0x0001d0d0	vostok::console_impl::tick	entry ESP+8	the scene view the dialog is drawn with	observed
+0x00349c60	vostok::ui::ui_scroll_view::set_follow_last_line	ECX	the scroll view (this: its scroll_view interface at +0, its window at +4)	observed
+0x00349c60	vostok::ui::ui_scroll_view::set_follow_last_line	entry ESP+4	follow (its low byte): nonzero follows the last line, 0 stops	observed
+0x00349ca0	vostok::ui::ui_scroll_v_source::set_position	ECX	the scroll source (the scroll view's +1C8h; its pad at +4)	observed
+0x00349ca0	vostok::ui::ui_scroll_v_source::set_position	entry ESP+4	float: the new position, the pad's y (0 at the top, -(length - height) at the end)	observed
+0x0001c760	vostok::engine::game_console::on_activate	ECX	the game console (vtable 0x9DC020; console_impl's +1Ch text edit focused, +264h set to 1 at 0x1C77E, +26Ch the input world it adds +268h to)	observed
+0x0001c7a0	vostok::engine::game_console::on_deactivate	ECX	the game console (its text edit and tips +1Ch, +18h unfocused, +264h cleared at 0x1C7D3, +268h removed from the input world +26Ch)	observed
+0x0034b4d0	vostok::ui::insert_char_action::execute	ECX	the action (+4 its ui_text_edit, Shift and Caps Lock at its +2ACh bits 30h; +8 the key, a DirectInput code; +14h the input world, 0 for none; +18h named: the character is the first letter of the key's DirectInput name, get_dik_name 0x34B552, when the text edit's locale says it is a letter, lowercased; +19h its character, +1Ah with Shift); the character typed at [esp+8] after its two pushes, inserted at 0x34B5E2 (0x348000)	observed
+0x0034b4d0	vostok::ui::insert_char_action::execute	entry ESP+4	not read	observed
+0x0034a4c0	vostok::ui::create_char_action	EDI	the ui_text_edit (its allocator +0Ch)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+4	the key, a DirectInput code (+8)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+8	the character (+19h)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+12	the character with Shift (+1Ah)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+16	named (+18h): 1 for the letters and the punctuation keys, 0 for the digits, the numeric keypad, Space and the grave key (ui_text_edit::init_internals 0x34A5E0)	observed
+0x0034a4c0	vostok::ui::create_char_action	entry ESP+20	the input world (+14h, [[text edit+264h]+4])	observed
+0x003482c0	vostok::ui::ui_text_edit::paste_from_clipboard	ECX	the text edit (this; unused by the stub): Ctrl+V's and Shift+Insert's key binding (init_internals 0x34AA5C) calls it through 0x34B4C0	observed
+0x003479d0	vostok::ui::ui_text_edit::set_text	ECX	the text edit's ui_text part (the text edit + 4; its -4 the text edit): the line's text at its +44h, the max length +2A0h, the caret +2A2h	observed
+0x003479d0	vostok::ui::ui_text_edit::set_text	entry ESP+4	the new text, a C string (the line is it cut at the max length; the line's buffer ends at +4Ch, 200h bytes)	observed
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	ECX	the text edit	observed
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	entry ESP+4	the caret's new position (its low word), clamped to the line's length	observed
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	entry ESP+8	select (its low byte): nonzero with Shift held moves one end of the selection with the caret; zero collapses the selection to the caret	observed
+0x003486a0	vostok::ui::ui_text_edit's delete of the selection	ESI	the text edit (kept): its selection [+2A8h, +2AAh) deleted; a typed character's binding (0x34B5D5) calls it before the insert (0x348000)	observed
+0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	ECX	the binding (+8 its key, +0Ch its kind, 0 any; +10h its modifiers; +14h the object, +18h the method)	observed
+0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	entry ESP+4	the key's kind (1 down, 2 up; unused): the keyboard action pushes it (0x348A75)	observed
+0x00290930	survarium::object_ambient_light::insert	ECX	ambient-light object; packed colour at +150h is ABGR (R low byte, G bits 8..15, B bits 16..23), extracted at 0x29094F..0x2909BC and linearized with pow 2.2 at 0x2909C0..0x290A06 before submitting render-light RGB	observed
+0x00290930	survarium::object_ambient_light::insert	ESP at 0x290A3F	outgoing linear RGB at +6Ch/+70h/+74h and clamped intensity at +78h; object in EBX, owning scene at object+108h, game at scene+9Ch; original 0.21 0x1A7008 uses the same object fields	observed
+0x001858e0	vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity	ECX	end of input pointer range	observed
+0x001858e0	vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity	entry ESP+4	pass selector: 0 retains intensity <= 1; 1 retains intensity > 1	observed
+0x0034d9a0	vostok::render::environment_properties::environment_properties	ESI	destination environment properties	observed
+0x0034d9a0	vostok::render::environment_properties::environment_properties	entry ESP+4	initialize-defaults boolean, tested at 0x34D9D0	observed
+0x002aa870	vostok::buffer_vector<survarium::sound_game_effect_presenter::effect_data>::push_back	ESI	the list: begin, end, capacity end (a sound presenter's at +18h, 14h an entry)	observed
+0x002aa870	vostok::buffer_vector<survarium::sound_game_effect_presenter::effect_data>::push_back	entry ESP+4	the entry to copy (0x2AB660 copies it to end, then end += 14h)	observed
+0x0034e1e0	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >	entry ESP+4	environment properties destination (EBX); stratosphere_rotation +D8h, sky_clouds_fog_power +118h, mie_fog_base_height +168h, rain_u_scale +1D0h, wind_strength +1ECh, vignette_effect_power +1FCh: optional numeric scalars; type 2 loads movss, otherwise cvtsi2ss at 34E84F/34EA16/34ED27/34F0BB/34F1F0/34F2DA; legacy sky_clouds_color_multiplier and mie_fog_falloff have no native key/read	observed
+0x0034e1e0	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >	entry ESP+8	binary-config properties table (EBP); value_exists then value lookup for each named property; never rewrites input	observed
+0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1DE124..0x1DE237	vertex_blend_technique.value defaults to 0; stored in permutation bits5..6 of stack byte21h; technique1 enables diffuse/normal blending, use_tiled_vertex_blended_mask adds bit7; old use_vertex_blended_textures is not consulted here	verified
+0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1DF764..0x1DF99C	vertex_blend_parameters receives (constant_vertex_blended_falloff, constant_vertex_blended_strength, constant_vertex_blended_textures_tile); technique1 binds texture_vertex_blended_diffuse; tiled mask has separate rotation/scale and texture binding	verified
+0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1DF77F..0x1DF78F and 0x1DF7AE..0x1DF7BE	falloff and strength config type2 loads f32 directly; other numeric types convert i32 with cvtsi2ss. Integer original-blend selectors up to magnitude2^24 are exact; fractional original falloff uses existing f32 branch.	observed
+0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1DFCE2..0x1DFD25	base-normal flag (stack byte1Ah bit80h) binds texture_normal as t_normal, independently of vertex-blended-normal enablement; supplies original normal-off shader even in constant-alpha vertex layouts.	observed
+0x001ddd50	vostok::render::effect_gstage_default_materials::compile	0x1DE237..0x1DE27B	optional use_vertex_alpha_test still becomes stack byte1Ah bit20h; original vertex_alpha_test_parameters/texture_alpha_multiply_vertex_alpha binders are absent from026g. Observed Vostok trash_dirt__vc draw with flagtrue selects stock alpha-only PS1035c925e2d60626b86fd99a17486a09; its vertex shader exports painted alpha at v9.x.	observed
+0x001c0d70	vostok::render::depth_accumulate_material_effect::compile	0x1C0D85..0x1C0DCA	use_alpha_test.value alone selects permutation bit4 of stack byte22h; shader construction at0x1C0E43(depth_accumulate) and0x1C0FF8(depth_accumulate_batched) uses that flag, before reading alpha_ref.	observed
+0x001c0d70	vostok::render::depth_accumulate_material_effect::compile	0x1C0F03..0x1C0F50 and0x1C104C..0x1C1096	When alpha testing is enabled, alpha_ref.value type2 loads f32 directly, otherwise cvtsi2ss; passed unchanged to alpha_ref_parameter binding via0x1C0960. No sign test/clamp in this compiler; negative private selectors do not disable its alpha-test permutation.	observed
+0x0017cc90	vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>	EAX	the effect manager ([2260494h]); its byte +0 force_sync picks create_new_effect 0x3CB510 (waits) over 0x3CB3C0 (async)	observed
+0x0017cc90	vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>	EDI	the res_effect_ptr written (stage_pre_rain +18h from the ctor 0x17BC2C); descriptor static 0x2261118, vtable 0x9F3440 (slot 2 compile 0x1CE100, slot 1 should_recompile 0x54E10 false)	observed
+0x001ae110	vostok::render::effect_manager::create_effect<vostok::render::effect_rain>	EAX	the effect manager ([2260494h]), as create_effect<effect_wet_surface>	observed
+0x001ae110	vostok::render::effect_manager::create_effect<vostok::render::effect_rain>	EDI	the res_effect_ptr written (stage_rain +34h, EDI set at the ctor's 0x1AD856); descriptor static 0x2260F8C, vtable 0x9F5108 (slot 2 compile 0x1D3B90, slot 1 should_recompile 0x54E10 false)	observed
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	EDX	the grass world (its VS host wind_info_parameters at +1C8h)	observed
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	EAX	float2: the wind direction's x and z	observed
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	entry ESP+4	float: the wind strength	observed
+0x001cbb70	vostok::render::pack_direction	EAX	float3 to pack ((v+1)/2*255 a byte); the packed u32 back in EAX	observed
+0x00070e30	vostok::math::random32::random_f	ECX	the random32 state (x = x*8088405h+1)	observed
+0x00070e30	vostok::math::random32::random_f	entry ESP+4	float: min	observed
+0x00070e30	vostok::math::random32::random_f	entry ESP+8	float: max	observed
+0x001cd0b0	vostok::render::effect_material_base::compile_begin	entry ESP+16	byte +6 bits 0..5: the vertex input type, written from the options record's byte 0 (0x1CD0C1..0x1CD0CD) before begin_pass; 0Bh grassmesh_vertex_input	observed
+0x0030f5a0	survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme	EDI	reload state; weapon at +120h (its user [+8] the kit read for index 13), clip speed +138h	observed
+0x00311070	survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme	EDI	reload substate; weapon at +120h (its user [+8] the kit read for index 13), clip speed +14Ch	observed

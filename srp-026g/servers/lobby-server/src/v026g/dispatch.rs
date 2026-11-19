@@ -12,7 +12,7 @@
 //! failure. Clans are `clans`, items' changes `items`, the premium shop,
 //! the daily bonus, the tutorial and a nickname change `shop`.
 
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 use std::time::Instant;
 
 use session::LockExt;
@@ -31,7 +31,7 @@ mod text {
 
 impl Core<'_> {
     /// One request of a signed-in client.
-    pub(super) fn handle(&mut self, addr: SocketAddr, message: ClientMessage, now: Instant) {
+    pub(super) fn handle(&mut self, addr: Peer, message: ClientMessage, now: Instant) {
         use ClientMessage as M;
         let Some(who) = self.who(addr) else {
             return;
@@ -418,7 +418,7 @@ impl Core<'_> {
         }
     }
 
-    pub(super) fn refuse_comment(&mut self, addr: SocketAddr) {
+    pub(super) fn refuse_comment(&mut self, addr: Peer) {
         self.deny(addr, id::PROFILE, text::COMMENT);
     }
 

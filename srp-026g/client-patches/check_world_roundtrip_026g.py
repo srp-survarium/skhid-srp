@@ -146,6 +146,8 @@ OWN_CHECKS = {
     (0x32BE12, 7): "bullet.load_quiet: the quiet byte always read, as bullet.save_quiet",
     (0x32BDBA, 5): "bullet.load_ordinal: an ordinal past the loading gun's ammo is none (the same in a world whose "
                    "guns match); check_weapon_pickup_026g.py `bullet_record`",
+    (0x321CA0, 6): "bullets.load_record: a record whose shooter has no gun in its slot passed over, no bullet made "
+                   "(none in a world whose guns match); check_weapon_pickup_026g.py `bullet_record`",
     (0x334F66, 10): "battery.save: patch 92's life after each battery's record (the statistics, modes 2 and 3; "
                     "none in the recorded match); check_battery_progress_026g.py (a load gives every life back)",
     (0x3350D0, 6): "battery.load: as battery.save",

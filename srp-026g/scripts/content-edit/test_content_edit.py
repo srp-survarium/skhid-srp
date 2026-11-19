@@ -105,6 +105,26 @@ class MapEditorEdits(unittest.TestCase):
             ce.set_vector(data, 'bounding_box/max', [2, 1, 1], [0, 0, 0])
         self.assertEqual(data, before)
 
+    def test_set_vector_preserves_native_float2_and_float4(self):
+        for original, target in [((1.0, 2.0), [3.0, 4.0]),
+                                 ((0.25, 0.25, 0.25, 1.0), [1.0, 1.0, 1.0, 1.0])]:
+            with self.subTest(dimensions=len(original)):
+                data = config({'vector': original, 'neighbor': 'unchanged'})
+                before_type = ce.rec(data, ce.find(data, 'vector'))[3]
+                ce.set_vector(data, 'vector', list(original), target)
+                at, _, _, kind, _ = ce.rec(data, ce.find(data, 'vector'))
+                self.assertEqual(kind, before_type)
+                self.assertEqual(struct.unpack_from('<%df' % len(target), data, at), tuple(target))
+                self.assertEqual(value(data, 'neighbor'), 'unchanged')
+                before = bytes(data)
+                with self.assertRaises(ValueError):
+                    ce.set_vector(data, 'vector', list(original), target)
+                self.assertEqual(data, before)
+                for frm, to in [(target[:-1], target), (target, target[:-1])]:
+                    with self.assertRaises(TypeError):
+                        ce.set_vector(data, 'vector', frm, to)
+                    self.assertEqual(data, before)
+
     def test_nested_copy_does_not_change_the_model(self):
         data = fixture()
         ce.add_entry(data, 'objects', {'full_name': 'first'}, {'full_name': 'first'},
@@ -466,6 +486,21 @@ def row_of(text, name):
 
 def cells_of(damage, rpm=600, k_damage=2):
     return {'damage': damage, 'rpm': str(rpm), 'weight': '3', 'melee': str(k_damage)}
+
+
+class CollisionMesh(unittest.TestCase):
+    def test_remove_faces_drops_the_triangle_and_its_face_entry(self):
+        chunk = lambda kind, body: struct.pack('<II', kind, len(body)) + body
+        points = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
+        vertices = chunk(0x19, b''.join(struct.pack('<3f', *p) for p in points))
+        indices = chunk(0x1a, struct.pack('<6I', 0, 1, 2, 0, 2, 3))
+        names = struct.pack('<H', 2) + b'a\0b\0'
+        face_data = chunk(0x1b, names) + chunk(0x1c, struct.pack('<2H', 0, 1))
+        new_indices, new_faces = ce.remove_faces(vertices, indices, face_data, [[(0, 0, 0), (0, 1, 0), (0, 0, 1)]])
+        self.assertEqual(new_indices, chunk(0x1a, struct.pack('<3I', 0, 1, 2)))
+        self.assertEqual(new_faces, chunk(0x1b, names) + chunk(0x1c, struct.pack('<H', 0)))
+        with self.assertRaises(ValueError):
+            ce.remove_faces(vertices, indices, face_data, [[(0, 0, 0), (0, 1, 0), (0, 0, 2)]])
 
 
 class WeaponTable(unittest.TestCase):

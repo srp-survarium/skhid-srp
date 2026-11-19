@@ -19,7 +19,7 @@ package
     // Settings owns it as a change of the tab, as the Language list: a pick is pending, Apply saves it
     // (the call "srp_microphone" with the device's id, "" for the default), Cancel or leaving without
     // Apply puts the saved one back, and "srp_microphone_use" with no id has the DLL use the saved one
-    // again. Its label in the sensitivity slider's look, the list under it (Settings.layoutVoice). Script-added
+    // again. Its label in the hidden sensitivity slider's look and place, the list under it (Settings.layoutVoice). Script-added
     // children of the tab content, shown on the Sound frame once the exe has answered (without the voice
     // DLL it never does).
     public class SrpMicrophone
