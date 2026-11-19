@@ -162,22 +162,227 @@ impl Contract {
     /// Every battery spawner of `world`'s map for each team that has a container ([module documentation](self)); `stands` the
     /// containers' stands at the client's ray ([`UseStands::build_ray`] with [`USE_RAY_CLIENT_M`]).
     pub fn build(world: &World, stands: &UseStands, inputs: &ContractInputs) -> Self {
+        // Per team one search from its spawns (the ways in) and one back from its put stands (the ways home), shared by every
+        // battery: four searches a map, not two a row (a row's own two cost 387 s on Vector Laboratory's 321,604 floors).
+        let back = Backward::of(&world.grid);
+        let teams: Vec<TeamTrees> = teams(world).into_iter().map(|team| TeamTrees::grow(world, stands, &back, team)).collect();
         let spawners: Vec<Vec3> = world.map.battery_spawners.iter().map(|s| s.item).collect();
-        let rows = spawners.iter().enumerate().flat_map(|(i, &at)| Self::rows_at(world, stands, inputs, Some(i), at)).collect();
+        let rows = spawners
+            .iter()
+            .enumerate()
+            .flat_map(|(i, &at)| {
+                let takes = take_stands(&world.grid, &world.sight, inputs, at);
+                teams.iter().map(move |t| t.row(&world.grid, Some(i), at, &takes)).collect::<Vec<_>>()
+            })
+            .collect();
         Self { rows }
     }
 
-    /// The rows of a battery resting at `at` (dropped, not at a spawner), one per team.
+    /// The rows of a battery resting at `at` (dropped, not at a spawner), one per team: each way by one search
+    /// ([`nearest_path`]).
     pub fn rows_for(world: &World, stands: &UseStands, inputs: &ContractInputs, at: Vec3) -> Vec<Row> {
-        Self::rows_at(world, stands, inputs, None, at)
+        let takes = take_stands(&world.grid, &world.sight, inputs, at);
+        teams(world).into_iter().map(|team| row(world, stands, None, at, team, &takes)).collect()
+    }
+}
+
+/// The teams that have a container, in order.
+fn teams(world: &World) -> Vec<i32> {
+    let mut teams: Vec<i32> = world.map.containers.iter().map(|c| c.team).collect();
+    teams.sort_unstable();
+    teams.dedup();
+    teams
+}
+
+/// A team's spawn floors.
+fn spawn_floors(world: &World, team: i32) -> Vec<NodeId> {
+    world.map.spawns.iter().filter(|s| s.team == team).filter_map(|s| world.grid.locate(s.position, SPAWN_FLOOR_M)).collect()
+}
+
+/// A team's put stands (its containers' stands, [`UseStands`]).
+fn put_stands(world: &World, stands: &UseStands, team: i32) -> Vec<Stand> {
+    world
+        .map
+        .containers
+        .iter()
+        .filter(|c| c.team == team)
+        .flat_map(|c| stands.of(c.id))
+        .filter_map(|s| world.grid.locate(s.feet, 0.3).map(|node| Stand { node, crouch: !s.standing, look_down_rad: -s.pitch }))
+        .collect()
+}
+
+/// The links into each floor, every link of [`WalkGrid::links`] turned round (`WalkGrid::incoming` sees only the slot links of
+/// the next cell): a search back from the put stands takes the same links at the same costs as one forward to them.
+struct Backward {
+    first: Vec<u32>,
+    from: Vec<(NodeId, LinkKind)>,
+}
+
+impl Backward {
+    fn of(grid: &WalkGrid) -> Self {
+        let n = grid.len();
+        let mut first = vec![0u32; n + 1];
+        for u in 0..n as NodeId {
+            for (v, _) in grid.links(u) {
+                first[v as usize + 1] += 1;
+            }
+        }
+        for v in 0..n {
+            first[v + 1] += first[v];
+        }
+        let mut at = first.clone();
+        let mut from = vec![(0, LinkKind::Walk); first[n] as usize];
+        for u in 0..n as NodeId {
+            for (v, kind) in grid.links(u) {
+                from[at[v as usize] as usize] = (u, kind);
+                at[v as usize] += 1;
+            }
+        }
+        Self { first, from }
     }
 
-    fn rows_at(world: &World, stands: &UseStands, inputs: &ContractInputs, spawner: Option<usize>, at: Vec3) -> Vec<Row> {
-        let mut teams: Vec<i32> = world.map.containers.iter().map(|c| c.team).collect();
-        teams.sort_unstable();
-        teams.dedup();
-        let takes = take_stands(&world.grid, &world.sight, inputs, at);
-        teams.into_iter().map(|team| row(world, stands, spawner, at, team, &takes)).collect()
+    fn links_into(&self, v: NodeId) -> &[(NodeId, LinkKind)] {
+        &self.from[self.first[v as usize] as usize..self.first[v as usize + 1] as usize]
+    }
+}
+
+/// A search's tree: each floor's cost from the seeds (or, searched back, to them) and the link to its neighbour on the way.
+struct Tree {
+    cost: Vec<f32>,
+    /// Forward: the floor it was reached from and the link's kind; back: the floor it goes on to and the link's kind; a seed: itself.
+    next: Vec<(NodeId, LinkKind)>,
+    back: bool,
+}
+
+impl Tree {
+    /// The Dijkstra from every seed at once over the links' costs for `reach` ([`WalkGrid::link_cost_reaching`]); back over the
+    /// links into each floor (`back`), each priced as the forward link it is.
+    fn grow(grid: &WalkGrid, seeds: &[NodeId], reach: Reach, back: Option<&Backward>, links: Links) -> Self {
+        let n = grid.len();
+        let mut cost = vec![f32::INFINITY; n];
+        let mut next: Vec<(NodeId, LinkKind)> = (0..n as NodeId).map(|v| (v, LinkKind::Walk)).collect();
+        let mut open = Open::default();
+        for &a in seeds {
+            if (a as usize) < n && cost[a as usize] > 0.0 {
+                cost[a as usize] = 0.0;
+                open.push(Entry(0.0, a));
+            }
+        }
+        let mut out: Vec<(NodeId, NodeId, LinkKind, f32)> = Vec::new();
+        while let Some(Entry(c, u)) = open.pop() {
+            // A stale entry: a cheaper one of `u` was settled.
+            if c > cost[u as usize] {
+                continue;
+            }
+            out.clear();
+            match back {
+                None => out.extend(
+                    grid.links(u)
+                        .filter(|&(v, kind)| links.take(grid, u, v, kind, reach))
+                        .map(|(v, kind)| (v, u, kind, grid.link_cost_reaching(u, v, kind, reach))),
+                ),
+                Some(b) => out.extend(
+                    b.links_into(u)
+                        .iter()
+                        .filter(|&&(w, kind)| links.take(grid, w, u, kind, reach))
+                        .map(|&(w, kind)| (w, u, kind, grid.link_cost_reaching(w, u, kind, reach))),
+                ),
+            }
+            for &(v, via, kind, price) in &out {
+                let cv = c + price;
+                if cv < cost[v as usize] {
+                    cost[v as usize] = cv;
+                    next[v as usize] = (via, kind);
+                    open.push(Entry(cv, v));
+                }
+            }
+        }
+        Self { cost, next, back: back.is_some() }
+    }
+
+    /// The path from the seeds to `v` (forward) or from `v` to the seeds (back), as [`WalkGrid::path_where_reaching`] gives
+    /// one (`kinds[i]` the link into `nodes[i]`, the first a Walk); None where the search did not get.
+    fn path(&self, v: NodeId) -> Option<Path> {
+        let cost = *self.cost.get(v as usize)?;
+        if !cost.is_finite() {
+            return None;
+        }
+        let (mut nodes, mut kinds) = (vec![v], vec![LinkKind::Walk]);
+        let mut x = v;
+        while self.next[x as usize].0 != x {
+            let (y, kind) = self.next[x as usize];
+            nodes.push(y);
+            // Forward the kind is of the link into `x`; back, of the link into `y`.
+            if self.back {
+                kinds.push(kind);
+            } else {
+                *kinds.last_mut().expect("a kind") = kind;
+                kinds.push(LinkKind::Walk);
+            }
+            x = y;
+        }
+        if !self.back {
+            nodes.reverse();
+            kinds.reverse();
+        }
+        Some(Path { nodes, kinds, cost })
+    }
+}
+
+/// A team's two trees: from its spawns for the grid's own body (the ways in), back from its put stands for a carrier's (the
+/// ways home, [`Reach::no_sprint`]).
+struct TeamTrees {
+    team: i32,
+    spawns: Vec<NodeId>,
+    /// Over proven links only ([`Links::Proven`]).
+    from_spawns: Tree,
+    /// Over proven links only, back from the put stands.
+    to_puts: Tree,
+    puts: Vec<Stand>,
+}
+
+impl TeamTrees {
+    fn grow(world: &World, stands: &UseStands, back: &Backward, team: i32) -> Self {
+        let puts = put_stands(world, stands, team);
+        let put_nodes: Vec<NodeId> = puts.iter().map(|s| s.node).collect();
+        let spawns = spawn_floors(world, team);
+        Self {
+            team,
+            from_spawns: Tree::grow(&world.grid, &spawns, Reach::FULL, None, Links::Proven),
+            to_puts: Tree::grow(&world.grid, &put_nodes, Reach::no_sprint(None), Some(back), Links::Proven),
+            spawns,
+            puts,
+        }
+    }
+
+    /// The row of a battery at `at` with its take stands: the cheapest take stand in, its way home.
+    fn row(&self, grid: &WalkGrid, spawner: Option<usize>, at: Vec3, takes: &[Stand]) -> Row {
+        let take = takes
+            .iter()
+            .filter(|s| self.from_spawns.cost[s.node as usize].is_finite())
+            .min_by(|a, b| self.from_spawns.cost[a.node as usize].total_cmp(&self.from_spawns.cost[b.node as usize]))
+            .copied();
+        let take_nodes: Vec<NodeId> = takes.iter().map(|s| s.node).collect();
+        let mut any_take = None;
+        let way_in = way_of(grid, Reach::FULL, take.and_then(|t| self.from_spawns.path(t.node)), || {
+            let p = nearest_path(grid, &self.spawns, &take_nodes, Reach::FULL, Links::Any);
+            any_take = p.as_ref().and_then(|p| p.nodes.last()).and_then(|&n| takes.iter().find(|s| s.node == n).copied());
+            p
+        });
+        let take = take.or(any_take).or_else(|| takes.first().copied());
+        let put_nodes: Vec<NodeId> = self.puts.iter().map(|s| s.node).collect();
+        let proven_home = take.and_then(|t| self.to_puts.path(t.node));
+        let mut home_end = proven_home.as_ref().map(|p| *p.nodes.last().expect("a path has its end"));
+        let way_home = match take {
+            Some(t) => way_of(grid, Reach::no_sprint(None), proven_home, || {
+                let p = nearest_path(grid, &[t.node], &put_nodes, Reach::no_sprint(None), Links::Any);
+                home_end = p.as_ref().map(|p| *p.nodes.last().expect("a path has its end"));
+                p
+            }),
+            None => Way::Fails { at: None, why: WayFail::NoPath },
+        };
+        let put = home_end.and_then(|n| self.puts.iter().find(|s| s.node == n).copied()).or_else(|| self.puts.first().copied());
+        verdict_row(spawner, at, self.team, take, way_in, put, way_home)
     }
 }
 
@@ -185,7 +390,8 @@ impl Contract {
 /// crouched, whose eye's use ray meets the battery ([`battery_reach`]) with the look down within the view's stop.
 fn take_stands(grid: &WalkGrid, sight: &RayTree, inputs: &ContractInputs, at: Vec3) -> Vec<Stand> {
     let mut out = Vec::new();
-    for node in 0..grid.len() as NodeId {
+    let r = STAND_SEARCH_M;
+    for node in grid.floors_in([at.x - r, at.z - r, at.x + r, at.z + r]) {
         let feet = grid.position(node);
         if feet.distance_xz(at) > STAND_SEARCH_M || (feet.y - at.y).abs() > STAND_SEARCH_M {
             continue;
@@ -222,74 +428,103 @@ fn played(l: &OffLink, reach: Reach) -> Option<(Takeoff, Share, Aim)> {
     }
 }
 
-/// Whether the path's links are each the client's own for a body of `reach`: every off-mesh link and every riser (a Walk link
-/// jumped up, [`WalkGrid::riser`]) by a flown press whose own flight lands ([`Share::window`]), no plain Jump link (no press
-/// stored for it); the first that is not, as the way's failure. Walks and drops are the build's own (a drop judged by where
-/// its flight rests, F2).
+/// Whether the link `a` -> `b` of `kind` is the client's own for a body of `reach`: an off-mesh link and a riser (a Walk link
+/// jumped up, [`WalkGrid::riser`]) by a flown press whose own flight lands ([`Share::window`]); a walk-off as the build's drop
+/// (no press, no share: where its flight rests is the drop check's, F2, as a Drop link's); no plain Jump link (no press stored
+/// for it); walks and drops the build's own. Ok: the flown share counted (None for a link with none) and whether it sprints.
+fn link_judged(grid: &WalkGrid, a: NodeId, b: NodeId, kind: LinkKind, reach: Reach) -> Result<(Option<u8>, bool), WayFail> {
+    match kind {
+        LinkKind::GapJump | LinkKind::GapDrop => {
+            let l = grid.off_link(a, b).ok_or(WayFail::Unproven)?;
+            if l.press == Takeoff::WalkOff {
+                return Ok((None, false));
+            }
+            let (press, share, aim) = played(&l, reach).ok_or(WayFail::NoWalkingPress)?;
+            share.flown().ok_or(WayFail::Unflown)?;
+            share.window(press, aim).ok_or(WayFail::PressMisses)?;
+            Ok((share.flown(), press.sprint_run_m().is_some()))
+        }
+        LinkKind::Walk => match grid.riser(a, b) {
+            None => Ok((None, false)),
+            Some(Riser::Pressed { press: Takeoff::Sprint(_) | Takeoff::SprintHeld(_), .. })
+                if matches!(reach.sprint, SprintReach::Cannot { .. }) =>
+            {
+                Err(WayFail::NoWalkingPress)
+            }
+            Some(Riser::Pressed { press, share }) => {
+                share.window(press, Aim::STRAIGHT).ok_or(WayFail::PressMisses)?;
+                Ok((share.flown(), press.sprint_run_m().is_some()))
+            }
+            Some(Riser::NoPress) => Err(WayFail::PressMisses),
+        },
+        LinkKind::Jump => Err(WayFail::PlainJump),
+        LinkKind::Drop => Ok((None, false)),
+    }
+}
+
+/// Whether the path's links are each the client's own for a body of `reach` ([`link_judged`]); the first that is not, as the
+/// way's failure.
 fn judge(grid: &WalkGrid, path: &Path, reach: Reach) -> Way {
     let mut min_share: Option<u8> = None;
     let mut sprint = false;
-    let mut flown = |share: Share| {
-        if let Some(n) = share.flown() {
-            min_share = Some(min_share.map_or(n, |m| m.min(n)));
-        }
-    };
     for (pair, &kind) in path.nodes.windows(2).zip(&path.kinds[1..]) {
         let (a, b) = (pair[0], pair[1]);
-        let fail = |why| Way::Fails { at: Some((a, b, kind)), why };
-        match kind {
-            LinkKind::GapJump | LinkKind::GapDrop => {
-                let Some(l) = grid.off_link(a, b) else { return fail(WayFail::Unproven) };
-                let Some((press, share, aim)) = played(&l, reach) else { return fail(WayFail::NoWalkingPress) };
-                if share.flown().is_none() {
-                    return fail(WayFail::Unflown);
+        match link_judged(grid, a, b, kind, reach) {
+            Ok((share, sprints)) => {
+                if let Some(n) = share {
+                    min_share = Some(min_share.map_or(n, |m| m.min(n)));
                 }
-                if share.window(press, aim).is_none() {
-                    return fail(WayFail::PressMisses);
-                }
-                flown(share);
-                sprint |= press.sprint_run_m().is_some();
+                sprint |= sprints;
             }
-            LinkKind::Walk => match grid.riser(a, b) {
-                None => {}
-                Some(Riser::Pressed { press, share }) => {
-                    let (press, share) = match (reach.sprint, press) {
-                        (SprintReach::Cannot { .. }, Takeoff::Sprint(_) | Takeoff::SprintHeld(_)) => {
-                            return fail(WayFail::NoWalkingPress);
-                        }
-                        _ => (press, share),
-                    };
-                    if share.window(press, Aim::STRAIGHT).is_none() {
-                        return fail(WayFail::PressMisses);
-                    }
-                    flown(share);
-                    sprint |= press.sprint_run_m().is_some();
-                }
-                Some(Riser::NoPress) => return fail(WayFail::PressMisses),
-            },
-            LinkKind::Jump => return fail(WayFail::PlainJump),
-            LinkKind::Drop => {}
+            Err(why) => return Way::Fails { at: Some((a, b, kind)), why },
         }
     }
     Way::Proven { cost: path.cost, min_share, sprint }
 }
 
-/// The cheapest way from any of `from` to any of `to` for `reach`, judged ([`judge`]); with the goal it reached.
-fn best_way(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -> (Way, Option<NodeId>) {
-    match nearest_path(grid, from, to, reach) {
-        Some(path) => {
-            let b = *path.nodes.last().expect("a path has its goal");
-            (judge(grid, &path, reach), Some(b))
-        }
-        None => (Way::Fails { at: None, why: WayFail::NoPath }, None),
+/// [F4] Which links a search takes: every link, or only those [`link_judged`] proves (a way of them is a proven way).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Links {
+    Any,
+    Proven,
+}
+
+impl Links {
+    fn take(self, grid: &WalkGrid, a: NodeId, b: NodeId, kind: LinkKind, reach: Reach) -> bool {
+        self == Links::Any || link_judged(grid, a, b, kind, reach).is_ok()
     }
+}
+
+/// A way from the cheapest proven path (`proven`), else the first failing link of the cheapest path of any links (`any`,
+/// searched only then), else no path: a battery a body reaches by a longer proven way is not refused for a cheaper unproven one.
+fn way_of(grid: &WalkGrid, reach: Reach, proven: Option<Path>, any: impl FnOnce() -> Option<Path>) -> Way {
+    match proven {
+        Some(path) => judge(grid, &path, reach),
+        None => match any() {
+            Some(path) => judge(grid, &path, reach),
+            None => Way::Fails { at: None, why: WayFail::NoPath },
+        },
+    }
+}
+
+/// The cheapest way from any of `from` to any of `to` for `reach` ([`way_of`]); with the goal it reached.
+fn best_way(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -> (Way, Option<NodeId>) {
+    let proven = nearest_path(grid, from, to, reach, Links::Proven);
+    let goal = proven.as_ref().map(|p| *p.nodes.last().expect("a path has its goal"));
+    let mut any_goal = None;
+    let way = way_of(grid, reach, proven, || {
+        let p = nearest_path(grid, from, to, reach, Links::Any);
+        any_goal = p.as_ref().map(|p| *p.nodes.last().expect("a path has its goal"));
+        p
+    });
+    (way, goal.or(any_goal))
 }
 
 /// The cheapest path for `reach` from any of `from` to any of `to`, in one search (the batteries' session's ask: a search per
 /// pair of spawn floor and take stand cost 3.5 s on a 50,423-floor field): a Dijkstra from every floor of `from` at once over
 /// the links' costs for `reach` ([`WalkGrid::link_cost_reaching`], what [`WalkGrid::path_where_reaching`] prices), stopped at
 /// the first floor of `to` it settles. The same cost as the best of the pairs' searches; None when no floor of `to` is reached.
-fn nearest_path(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -> Option<Path> {
+fn nearest_path(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach, links: Links) -> Option<Path> {
     let n = grid.len();
     let mut goal = vec![false; n];
     for &b in to {
@@ -324,7 +559,7 @@ fn nearest_path(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -
             kinds.reverse();
             return Some(Path { nodes, kinds, cost: c });
         }
-        for (v, kind) in grid.links(u) {
+        for (v, kind) in grid.links(u).filter(|&(v, kind)| links.take(grid, u, v, kind, reach)) {
             let cv = c + grid.link_cost_reaching(u, v, kind, reach);
             if cv < cost[v as usize] {
                 cost[v as usize] = cv;
@@ -338,8 +573,7 @@ fn nearest_path(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -
 
 fn row(world: &World, stands: &UseStands, spawner: Option<usize>, at: Vec3, team: i32, takes: &[Stand]) -> Row {
     let grid = &world.grid;
-    let spawns: Vec<NodeId> =
-        world.map.spawns.iter().filter(|s| s.team == team).filter_map(|s| grid.locate(s.position, SPAWN_FLOOR_M)).collect();
+    let spawns = spawn_floors(world, team);
     let take_nodes: Vec<NodeId> = takes.iter().map(|s| s.node).collect();
     let (way_in, reached) = if take_nodes.is_empty() {
         (Way::Fails { at: None, why: WayFail::NoPath }, None)
@@ -347,20 +581,18 @@ fn row(world: &World, stands: &UseStands, spawner: Option<usize>, at: Vec3, team
         best_way(grid, &spawns, &take_nodes, Reach::FULL)
     };
     let take = reached.and_then(|n| takes.iter().find(|s| s.node == n).copied()).or_else(|| takes.first().copied());
-    let puts: Vec<Stand> = world
-        .map
-        .containers
-        .iter()
-        .filter(|c| c.team == team)
-        .flat_map(|c| stands.of(c.id))
-        .filter_map(|s| grid.locate(s.feet, 0.3).map(|node| Stand { node, crouch: !s.standing, look_down_rad: -s.pitch }))
-        .collect();
+    let puts = put_stands(world, stands, team);
     let put_nodes: Vec<NodeId> = puts.iter().map(|s| s.node).collect();
     let (way_home, put_node) = match take {
         Some(t) if !put_nodes.is_empty() => best_way(grid, &[t.node], &put_nodes, Reach::no_sprint(None)),
         _ => (Way::Fails { at: None, why: WayFail::NoPath }, None),
     };
     let put = put_node.and_then(|n| puts.iter().find(|s| s.node == n).copied()).or_else(|| puts.first().copied());
+    verdict_row(spawner, at, team, take, way_in, put, way_home)
+}
+
+/// A row with its verdict: the first failing step in order.
+fn verdict_row(spawner: Option<usize>, at: Vec3, team: i32, take: Option<Stand>, way_in: Way, put: Option<Stand>, way_home: Way) -> Row {
     let verdict = if take.is_none() {
         Verdict::NoTakeStand
     } else if !way_in.proven() {
@@ -432,7 +664,7 @@ mod tests {
         let from = [at(-8.0, 5.0), at(-8.0, -5.0), at(0.0, 8.0)];
         let to = [at(4.0, 1.0), at(5.0, 0.0), at(8.0, -6.0)];
         for reach in [Reach::FULL, Reach::no_sprint(None)] {
-            let one = nearest_path(g, &from, &to, reach).expect("a path");
+            let one = nearest_path(g, &from, &to, reach, Links::Any).expect("a path");
             let pairs = from
                 .iter()
                 .flat_map(|&a| to.iter().filter_map(move |&b| g.path_where_reaching(a, b, |_| true, reach)))
@@ -445,7 +677,47 @@ mod tests {
         let shut = world(true);
         let inside = shut.grid.locate(Vec3::new(4.0, 0.0, 0.0), 0.3).unwrap();
         let outside = shut.grid.locate(Vec3::new(-8.0, 0.0, 5.0), 0.3).unwrap();
-        assert!(nearest_path(&shut.grid, &[outside], &[inside], Reach::FULL).is_none());
+        assert!(nearest_path(&shut.grid, &[outside], &[inside], Reach::FULL, Links::Any).is_none());
+    }
+
+    /// The map's rows by the teams' shared trees equal each battery's own searches ([`Contract::rows_for`]): the same verdicts and
+    /// ways, the same costs; the backward tree's way home from a stand costs what a forward search from it to the put stands does.
+    #[test]
+    fn the_teams_trees_give_each_batterys_own_rows() {
+        for boxed in [false, true] {
+            let w = world(boxed);
+            let stands = UseStands::build_ray(&w, crate::stands::EYE_STANDING, crate::stands::EYE_CROUCHED, USE_RAY_CLIENT_M);
+            let shared = Contract::build(&w, &stands, &INPUTS);
+            let own: Vec<Row> = w
+                .map
+                .battery_spawners
+                .iter()
+                .enumerate()
+                .flat_map(|(i, s)| Contract::rows_for(&w, &stands, &INPUTS, s.item).into_iter().map(move |r| Row { spawner: Some(i), ..r }))
+                .collect();
+            assert_eq!(shared.rows.len(), own.len());
+            let cost = |w: &Way| match w {
+                Way::Proven { cost, .. } => Some(*cost),
+                Way::Fails { .. } => None,
+            };
+            for (a, b) in shared.rows.iter().zip(&own) {
+                assert_eq!((a.verdict, a.team), (b.verdict, b.team), "{boxed}: {}\n{}", a.line(&w.grid), b.line(&w.grid));
+                for (x, y) in [(cost(&a.way_in), cost(&b.way_in)), (cost(&a.way_home), cost(&b.way_home))] {
+                    assert!(x.zip(y).is_none_or(|(x, y)| (x - y).abs() < 1e-3) && x.is_some() == y.is_some(), "{x:?} {y:?}");
+                }
+            }
+        }
+        // Back from the put stands: the same cost as forward from a stand to them.
+        let w = world(false);
+        let stands = UseStands::build_ray(&w, crate::stands::EYE_STANDING, crate::stands::EYE_CROUCHED, USE_RAY_CLIENT_M);
+        let puts: Vec<NodeId> = put_stands(&w, &stands, 0).iter().map(|s| s.node).collect();
+        let back = Tree::grow(&w.grid, &puts, Reach::no_sprint(None), Some(&Backward::of(&w.grid)), Links::Proven);
+        let from = w.grid.locate(Vec3::new(4.0, 0.0, 3.0), 0.3).unwrap();
+        let forward = nearest_path(&w.grid, &[from], &puts, Reach::no_sprint(None), Links::Proven).unwrap();
+        let backward = back.path(from).unwrap();
+        assert!((forward.cost - backward.cost).abs() < 1e-3, "{} {}", forward.cost, backward.cost);
+        assert_eq!(backward.nodes[0], from);
+        assert!(puts.contains(backward.nodes.last().unwrap()) && backward.kinds.len() == backward.nodes.len());
     }
 
     /// The use ray meets a battery 1.5 m from the eye in the open, not one 2.0 m away, nor one behind a wall.
