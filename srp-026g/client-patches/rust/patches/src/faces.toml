@@ -33,3 +33,8 @@ order = 5
 site = "game_world.deactivate"
 handler = "on_world_left"
 order = 2
+
+[[hook]]
+site = "match_dispatch.message"
+handler = "on_match_message"
+order = 2                           # after patch 114's check (message_check.toml)

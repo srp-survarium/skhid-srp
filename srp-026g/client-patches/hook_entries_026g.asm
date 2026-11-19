@@ -4644,6 +4644,48 @@ voice_on_deactivate_replay:
     db 0x53, 0x56, 0x57, 0x8b, 0xf9
     jmp 0x1f9525
 
+; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
+global message_check_on_message
+extern hook_message_check_on_message_chain
+message_check_on_message:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_message_check_on_message_chain
+    mov edx, message_check_on_message_replay
+    cmp eax, 0
+    je message_check_on_message_go
+    mov edx, 0x27a327
+    cmp eax, 1
+    je message_check_on_message_go
+    mov edx, 0x27a72c
+    cmp eax, 2
+    je message_check_on_message_go
+    ud2
+message_check_on_message_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+message_check_on_message_replay:
+    db 0x89, 0x45, 0x0c, 0x05, 0x1d, 0xff, 0xff, 0xff
+    jmp 0x27a327
+
 ; 0x2a6485 player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0: lohook -> footsteps_on_step_guard
 global footsteps_on_step_guard
 extern hook_footsteps_on_step_guard
@@ -7583,48 +7625,6 @@ memory_profile_on_out_of_memory_go:
 memory_profile_on_out_of_memory_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0xe4d76
-
-; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
-global message_check_on_message
-extern hook_message_check_on_message
-message_check_on_message:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_message_check_on_message
-    mov edx, message_check_on_message_replay
-    cmp eax, 0
-    je message_check_on_message_go
-    mov edx, 0x27a327
-    cmp eax, 1
-    je message_check_on_message_go
-    mov edx, 0x27a72c
-    cmp eax, 2
-    je message_check_on_message_go
-    ud2
-message_check_on_message_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-message_check_on_message_replay:
-    db 0x89, 0x45, 0x0c, 0x05, 0x1d, 0xff, 0xff, 0xff
-    jmp 0x27a327
 
 ; module_watch.thread patch 125's TLS callback (module_watch_026g.asm module_watch_tls, the one callback of the exe's TLS directory): Windows calls it, the loader's lock held, on the main thread before the exe's entry point (reason 1) and on every thread the process gets before that thread's own start (reason 2); stdcall (the module, the reason, reserved), our code pushes the address of module_watch_dll before its call and returns with ret 0Ch: entry -> module_report_on_thread
 global module_report_on_thread

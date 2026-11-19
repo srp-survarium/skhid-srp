@@ -594,8 +594,9 @@ pub const SRPX_FREE_FOR_ALL: u8 = 3;
 /// client load the whole id.
 pub const SRPX_MAP_ID: u8 = 4;
 /// The faces entry (exe patch `faces`, `face-choice.md`): one byte a place,
-/// the roster's length, each place's face. Sent only when a face is not 0:
-/// no entry is every face 0.
+/// each place's face: the roster's in the options, the one place's after a
+/// late joiner's profile (`late_join::Prepare`). Sent only when a face is
+/// not 0: no entry is every face 0.
 pub const SRPX_FACES: u8 = 5;
 
 /// Why options cannot go to a client, or why bytes are no options.
@@ -853,8 +854,10 @@ fn write_profile(profile: &MatchProfile, dictionary: &Dictionary, out: &mut Vec<
     }
 }
 
-/// A single validated native profile body, without its squad byte.
-/// Used by the experimental growing-roster protocol as well as static info.
+/// A late joiner's profile (the growing-roster protocol, `late_join`): the
+/// native body, without its squad byte, then srp's block with the faces
+/// entry of its one place when its face is not 0 ([`write_srp_block`], as
+/// after the options).
 pub(super) fn profile_bytes(
     player: usize,
     profile: &MatchProfile,
@@ -863,18 +866,25 @@ pub(super) fn profile_bytes(
     check_sent(player, profile, dictionary)?;
     let mut bytes = Vec::new();
     write_profile(profile, dictionary, &mut bytes);
+    write_srp_block(None, SrpBlock::Plain, &[profile.face], &mut bytes);
     Ok(bytes)
 }
 
+/// [`profile_bytes`]' reader: a block with another entry than the faces
+/// one is refused.
 pub(super) fn parse_profile(
     bytes: &[u8],
     player: usize,
     dictionary: &Dictionary,
 ) -> Result<MatchProfile, StaticInfoError> {
     let mut reader = Reader { bytes };
-    let profile = read_profile(&mut reader, player, dictionary)?;
-    if !reader.bytes.is_empty() {
-        return Err(StaticInfoError::Trailing(reader.bytes.len()));
+    let mut profile = read_profile(&mut reader, player, dictionary)?;
+    let SrpEntries { wide, mode, faces } = read_srp_block(&mut reader, 1)?;
+    if wide.is_some() || mode != SrpBlock::Plain {
+        return Err(StaticInfoError::SrpBlock);
+    }
+    if let Some([face]) = faces.as_deref() {
+        profile.face = *face;
     }
     check_profile(player, &profile, dictionary)?;
     check_team(player, profile.team, None)?;
@@ -914,7 +924,7 @@ pub fn options_bytes(
     }
     out.extend(squads);
     let faces: Vec<Face> = options.players.iter().map(|profile| profile.face).collect();
-    write_srp_block(map_id, SrpBlock::of(options.map), &faces, &mut out);
+    write_srp_block(Some(map_id), SrpBlock::of(options.map), &faces, &mut out);
     if out.len() > OPTIONS_BUFFER {
         return Err(StaticInfoError::TooLarge(out.len()));
     }
@@ -1196,12 +1206,13 @@ struct SrpEntries {
     faces: Option<Vec<Face>>,
 }
 
-/// srp's block after the options, if any: as patches 65, 142, 154 and the
-/// faces patch read it, but strict (an unknown tag, a tag twice or a short
-/// entry is refused, so a test sees it; so is a faces entry of another
-/// length than the `roster` or of none but face 0). A face this data does
-/// not list is face 0 ([`Faces::recorded`]): a recording may be older or
-/// newer than the data it is read with.
+/// srp's block after the options or a late joiner's profile, if any: as
+/// patches 65, 142, 154 and the faces patch read it, but strict (an unknown
+/// tag, a tag twice or a short entry is refused, so a test sees it; so is a
+/// faces entry of another length than the `roster` (1 for a late joiner) or
+/// of none but face 0). A face this data does not list is face 0
+/// ([`Faces::recorded`]): a recording may be older or newer than the data it
+/// is read with.
 fn read_srp_block(reader: &mut Reader, roster: usize) -> Result<SrpEntries, StaticInfoError> {
     if reader.bytes.is_empty() {
         return Ok(SrpEntries { wide: None, mode: SrpBlock::Plain, faces: None });
@@ -1245,12 +1256,13 @@ fn read_srp_block(reader: &mut Reader, roster: usize) -> Result<SrpEntries, Stat
     Ok(SrpEntries { wide, mode: block.unwrap_or(SrpBlock::Plain), faces })
 }
 
-/// srp's block after the options: the whole map id when it is over a
-/// byte, then the mode's entry, then the roster's `faces` when one is not 0;
-/// nothing when it has none of them.
-fn write_srp_block(map_id: MapId, block: SrpBlock, faces: &[Face], out: &mut Vec<u8>) {
+/// srp's block after the options, or after a late joiner's profile (no
+/// map, no mode, the faces of its one place): the whole map id when it is
+/// over a byte, then the mode's entry, then the places' `faces` when one is
+/// not 0; nothing when it has none of them.
+fn write_srp_block(map_id: Option<MapId>, block: SrpBlock, faces: &[Face], out: &mut Vec<u8>) {
     let mut entries = Vec::new();
-    if map_id.over_a_byte() {
+    if let Some(map_id) = map_id.filter(|id| id.over_a_byte()) {
         entries.extend([SRPX_MAP_ID, 2]);
         entries.extend(map_id.get().to_le_bytes());
     }
@@ -1481,8 +1493,10 @@ mod tests {
         let read = parse_options(&unlisted, dictionary()).unwrap();
         assert_eq!(read.players[0].face, Faces::shared().face(1).unwrap());
         assert_eq!(read.players[1].face, Face::DEFAULT);
-        // Another length than the roster's, twice, none but face 0: refused.
+        // A block with no entry, another length than the roster's, twice,
+        // none but face 0: refused.
         for bad in [
+            &b"SRPX"[..],
             &b"SRPX\x05\x01\x02"[..],
             &b"SRPX\x05\x03\x00\x02\x01"[..],
             &b"SRPX\x05\x02\x00\x01\x05\x02\x00\x01"[..],
@@ -1504,16 +1518,16 @@ mod tests {
         let wide = MapId::new(300);
         let read = |bytes: &[u8]| read_srp_block(&mut Reader { bytes }, 1);
         let mut block = Vec::new();
-        write_srp_block(wide, SrpBlock::Plain, &[], &mut block);
+        write_srp_block(Some(wide), SrpBlock::Plain, &[], &mut block);
         assert_eq!(block, b"SRPX\x04\x02\x2c\x01");
         let entries = |mode| Ok(SrpEntries { wide: Some(wide), mode, faces: None });
         assert_eq!(read(&block), entries(SrpBlock::Plain));
         let mut block = Vec::new();
-        write_srp_block(wide, SrpBlock::FreeForAll { kills_to_win: 30 }, &[], &mut block);
+        write_srp_block(Some(wide), SrpBlock::FreeForAll { kills_to_win: 30 }, &[], &mut block);
         assert_eq!(block, b"SRPX\x04\x02\x2c\x01\x03\x02\x1e\x00");
         assert_eq!(read(&block), entries(SrpBlock::FreeForAll { kills_to_win: 30 }));
         let mut block = Vec::new();
-        write_srp_block(MapId::new(255), SrpBlock::Plain, &[], &mut block);
+        write_srp_block(Some(MapId::new(255)), SrpBlock::Plain, &[], &mut block);
         assert!(block.is_empty());
         // The entry of an id of a byte, twice, short, or a block of none:
         // refused.

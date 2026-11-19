@@ -263,8 +263,17 @@ fn current_emitted_messages_and_late_join_headers_are_accepted() {
     for len in 0..14 {
         assert!(messages::check(messages::id::STATIC_INFO, &prepare[..len]).is_err());
     }
-    let mut bad = prepare; bad[8..12].fill(0);
+    let mut bad = prepare.clone(); bad[8..12].fill(0);
     assert!(messages::check(messages::id::STATIC_INFO, &bad).is_err());
+    // A face but 0: srp's block after the profile, the header as before.
+    let mut faced = options(false).players.remove(0);
+    faced.face = survarium::v026g::faces::Faces::shared().face(1).unwrap();
+    let faced = late_join::Prepare {
+        proposal: late_join::Proposal { match_id: 42, serial: 1, place: 19 },
+        profile: faced,
+    }.encode(Dictionary::shared()).unwrap();
+    assert_eq!(faced, [&prepare[..], b"SRPX\x05\x01\x01"].concat());
+    assert_eq!(messages::check(messages::id::STATIC_INFO, &faced), Ok(()));
 }
 
 /// The test archive with a map 300 more: the map an id over a byte names.

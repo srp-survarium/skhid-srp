@@ -2917,6 +2917,46 @@ pub extern "C" fn hook_faces_on_world_left(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- message_check (patch 114) ----
+
+/// The named exits of message_check::on_message (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MessageCheckOnMessageExit { Refused }
+/// The entry `message_check_on_message` (0x27a31f, on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_message_check_on_message(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `message_check_on_message` calls this, from the game's jump at 0x27a31f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::message_check::on_message(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The named exits of faces::on_match_message (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FacesOnMatchMessageExit { Refused }
+/// The entry `faces_on_match_message` (0x27a31f, on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_match_message(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_match_message` calls this, from the game's jump at 0x27a31f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_match_message(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- footsteps (patch 101) ----
 
 /// The named exits of footsteps::on_step_guard (the order the shim's Flow code
@@ -4656,26 +4696,6 @@ pub extern "C" fn hook_memory_profile_on_out_of_memory(frame: &mut Frame) -> u32
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- message_check (patch 114) ----
-
-/// The named exits of message_check::on_message (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum MessageCheckOnMessageExit { Refused }
-/// The entry `message_check_on_message` (0x27a31f, on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_message_check_on_message(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `message_check_on_message` calls this, from the game's jump at 0x27a31f,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::message_check::on_message(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -6498,6 +6518,15 @@ pub extern "C" fn hook_voice_on_deactivate_chain(frame: &mut Frame) -> u32 {
     let flow = hook_voice_on_deactivate(frame);
     if flow != 0 { return flow; }
     let flow = hook_faces_on_world_left(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_message_check_on_message_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_message_check_on_message(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_faces_on_match_message(frame);
     if flow != 0 { return flow; }
     0
 }

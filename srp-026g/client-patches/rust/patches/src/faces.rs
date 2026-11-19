@@ -9,13 +9,17 @@
 //!   its squad members' (`lobby_client.squad_member`, after `0x88`), by
 //!   name; and the faces of the match or replay being shown, by place
 //!   (`static_info.options_read`, `replay.options_read`: srp's block entry 5
-//!   after the options, a byte a place; no entry, every face 0), until its
-//!   scene is left (`game_world.deactivate`);
+//!   after the options, a byte a place; no entry, every face 0), with its
+//!   late joiners' (`match_dispatch.message`, after patch 114's check: srp's
+//!   block after its proposal's profile, the face of its one place), until
+//!   its scene is left (`game_world.deactivate`);
 //! - the character's cook (`skin_cook.head`, profile_skin_visual_cook's
 //!   default head, reached only when no item's `remove_head_model` took the
 //!   head): a profile that is a place of the match shown is drawn by the
-//!   match's options, any other (the lobby's own and squad characters) by
-//!   the lobby's messages; the head is that face's, its variant by what the kit's
+//!   match's options, a late joiner's own copy of its profile (the late
+//!   join cooks from it) by its name among the match's late joiners, any
+//!   other (the lobby's own and squad characters) by the lobby's messages;
+//!   the head is that face's, its variant by what the kit's
 //!   models cover (a mask, else a helmet, else none), a missing variant the
 //!   face's `data`, a face the data does not list face 0; its additional
 //!   models (hair) records of the head too; the skin's name (the cache key)
@@ -29,12 +33,15 @@ use core::ffi::CStr;
 
 use crate::vostok::config::{ConfigEntries, ConfigTable};
 use crate::vostok::lobby_menu::{OwnAccountRead, SquadMemberRead};
+use crate::vostok::match_message::Message;
 use crate::vostok::log::{self, Piece::*};
 use crate::vostok::parse::Reader;
 use crate::vostok::skin_cook::{Cover, HeadCook, Model};
-use crate::vostok::{Context, FacesOnHeadExit, Flow, Lock, NoExit, OptionsRead, PLACES, Places, Thread};
+use crate::vostok::{
+    Context, FacesOnHeadExit, FacesOnMatchMessageExit, Flow, Lock, NoExit, OptionsRead, PLACES, Places, Thread,
+};
 
-/// srp's block after the options: its magic, then `{u8 tag, u8 len, bytes}`.
+/// srp's block after the options (or a late joiner's profile): its magic, then `{u8 tag, u8 len, bytes}`.
 const SRPX: [u8; 4] = *b"SRPX";
 /// The faces' entry: a byte a place.
 const TAG_FACES: u8 = 5;
@@ -106,8 +113,12 @@ pub struct Name {
 
 impl Name {
     pub fn of(name: &CStr) -> Option<Name> {
-        let text = name.to_bytes();
-        if text.is_empty() || text.len() > NAME {
+        Name::of_bytes(name.to_bytes())
+    }
+
+    /// A name's bytes, without its zero (a zero in them: none).
+    pub fn of_bytes(text: &[u8]) -> Option<Name> {
+        if text.is_empty() || text.len() > NAME || text.contains(&0) {
             return None;
         }
         let mut bytes = [0; NAME];
@@ -138,25 +149,43 @@ impl Squad {
     }
 }
 
-/// The match or replay being shown: where its places are, and srp's face
-/// of each (a place srp's entry does not reach: face 0).
+/// The match or replay being shown: where its places are, srp's face of
+/// each (a place srp's entry does not reach: face 0), and the name of each
+/// place a late joiner took.
 struct Roster {
     places: Places,
     faces: [Face; PLACES],
+    late: [Option<Name>; PLACES],
 }
 
 impl Roster {
     fn new(places: Places, faces: &[u8]) -> Roster {
-        let mut roster = Roster { places, faces: [Face::FIRST; PLACES] };
+        let mut roster = Roster { places, faces: [Face::FIRST; PLACES], late: [None; PLACES] };
         for (face, &byte) in roster.faces.iter_mut().zip(faces) {
             *face = Face::of_byte(byte);
         }
         roster
     }
 
-    /// The face of the profile at `profile`, when it is one of its places.
-    fn face_at(&self, profile: u32) -> Option<Face> {
-        self.places.place_of(profile).and_then(|place| self.faces.get(place).copied())
+    /// A late joiner's proposal: its place's name and face.
+    fn join(&mut self, place: usize, name: Name, face: Face) {
+        if let (Some(at), Some(late)) = (self.faces.get_mut(place), self.late.get_mut(place)) {
+            *at = face;
+            *late = Some(name);
+        }
+    }
+
+    /// The face of the profile at `profile`, when it is one of its places;
+    /// else of a late joiner by `name` (the late join cooks its characters
+    /// from its own copy of the profile), its latest place (one who left and
+    /// came back has a new place).
+    fn face_of(&self, profile: u32, name: Option<&Name>) -> Option<Face> {
+        if let Some(place) = self.places.place_of(profile) {
+            return self.faces.get(place).copied();
+        }
+        let name = name?;
+        let place = self.late.iter().rposition(|late| late.as_ref() == Some(name))?;
+        self.faces.get(place).copied()
     }
 }
 
@@ -167,7 +196,7 @@ struct Known {
     /// Its squad members' (`0x88`).
     squad: Squad,
     /// The match or replay shown, from its options' read until its scene
-    /// is left.
+    /// is left, its late joiners too.
     roster: Option<Roster>,
 }
 
@@ -178,11 +207,12 @@ impl Known {
 
     /// The face a profile is drawn with. A place of the match shown: the
     /// match's options', whatever the lobby says of its name (a replay is
-    /// drawn as recorded; a player seen by every game alike). Any other
-    /// profile is the lobby's: its own account's or a squad member's, by
-    /// its name; else face 0.
+    /// drawn as recorded; a player seen by every game alike); a late
+    /// joiner's own profile: its proposal's. Any other profile is the
+    /// lobby's: its own account's or a squad member's, by its name; else
+    /// face 0.
     fn face_of(&self, profile: u32, name: Option<&Name>) -> Face {
-        if let Some(face) = self.roster.as_ref().and_then(|roster| roster.face_at(profile)) {
+        if let Some(face) = self.roster.as_ref().and_then(|roster| roster.face_of(profile, name)) {
             return face;
         }
         let Some(name) = name else { return Face::FIRST };
@@ -256,6 +286,43 @@ pub fn on_static_info(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// A replay's chunk 1 after its deserialize (0x1F0971).
 pub fn on_replay_options(ctx: &mut Context<'_>) -> Flow<NoExit> {
     options_read(ctx.thread(), OptionsRead::at_replay(ctx))
+}
+
+/// srp's block after a late joiner's profile: none (face 0), or its magic
+/// and the faces entry of its one place, any byte. Anything else is no
+/// block srp sends: none.
+fn late_joiner_face(block: &[u8]) -> Option<Face> {
+    match block {
+        [] => Some(Face::FIRST),
+        [b'S', b'R', b'P', b'X', TAG_FACES, 1, face] => Some(Face::of_byte(*face)),
+        _ => None,
+    }
+}
+
+/// A match message at the dispatch (0x27A31F), after patch 114's check: a
+/// late joiner's proposal says its place, its name and, in srp's block
+/// after the profile, its face. Kept before the late join's code takes the
+/// proposal and cooks its characters (`lj_prepare`, the native handler
+/// after this), and the block taken off the message: that code reads the
+/// native profile to the message's end. Bytes after the profile that are no
+/// such block are left for its check to refuse the proposal.
+pub fn on_match_message(ctx: &mut Context<'_>) -> Flow<FacesOnMatchMessageExit> {
+    let Some(mut message) = Message::at_dispatch(ctx) else { return Flow::Continue };
+    let Some(proposal) = message.proposal() else { return Flow::Continue };
+    let Some(face) = late_joiner_face(proposal.block) else {
+        log::line(&[Text("faces: a late joiner's proposal ends in bytes that are no srp block; left as they are")]);
+        return Flow::Continue;
+    };
+    if let Some(name) = Name::of_bytes(proposal.name) {
+        let place = usize::from(proposal.place);
+        KNOWN.with(ctx.thread(), |known| {
+            if let Some(roster) = known.roster.as_mut() {
+                roster.join(place, name, face);
+            }
+        });
+    }
+    message.end_at_profile(proposal);
+    Flow::Continue
 }
 
 /// game_world::on_deactivate (0x1F9520): the match's or the replay's scene
@@ -389,6 +456,39 @@ mod tests {
         known.roster = None;
         assert_eq!(known.face_of(place(0), Some(&name(c"else"))), Face::FIRST);
         assert_eq!(known.face_of(place(0), Some(&name(c"me"))), Face(2));
+    }
+
+    #[test]
+    fn a_late_joiner_is_drawn_by_its_place_and_by_its_name_in_the_match() {
+        let mut known = Known::new();
+        known.squad.learn(name(c"late"), Face(1));
+        known.roster = Some(Roster::new(Places::at(OPTIONS), &[2]));
+        let roster = known.roster.as_mut().unwrap();
+        roster.join(1, name(c"late"), Face(5));
+        // Its place once installed, and its own copy of the profile (a
+        // profile of none of the places) by its name, over the lobby's.
+        assert_eq!(known.face_of(place(1), None), Face(5));
+        assert_eq!(known.face_of(LOBBY_PROFILE, Some(&name(c"late"))), Face(5));
+        assert_eq!(known.face_of(place(0), Some(&name(c"late"))), Face(2));
+        // One who left and came back: its new place's.
+        known.roster.as_mut().unwrap().join(2, name(c"late"), Face(6));
+        assert_eq!(known.face_of(LOBBY_PROFILE, Some(&name(c"late"))), Face(6));
+        // No place past the 20; the match left, the lobby's again.
+        known.roster.as_mut().unwrap().join(PLACES, name(c"none"), Face(7));
+        assert_eq!(known.face_of(LOBBY_PROFILE, Some(&name(c"none"))), Face::FIRST);
+        known.roster = None;
+        assert_eq!(known.face_of(LOBBY_PROFILE, Some(&name(c"late"))), Face(1));
+        assert!(Name::of_bytes(b"").is_none() && Name::of_bytes(b"a\0b").is_none());
+    }
+
+    #[test]
+    fn a_late_joiners_block_is_its_one_face_or_none() {
+        assert_eq!(late_joiner_face(b""), Some(Face::FIRST));
+        assert_eq!(late_joiner_face(b"SRPX\x05\x01\x09"), Some(Face(9)));
+        for other in [&b"SRPX"[..], b"SRPX\x05\x01", b"SRPX\x05\x02\x01\x01", b"SRPX\x02\x01\x01",
+                      b"SRPX\x05\x01\x01\x00", b"SRPY\x05\x01\x01", b"\x00"] {
+            assert_eq!(late_joiner_face(other), None, "{other:?}");
+        }
     }
 
     #[test]

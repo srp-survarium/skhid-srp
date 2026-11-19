@@ -34,6 +34,10 @@ marked [pick] is a worker's choice the owner may change.
   the data no longer lists reads as face 0.
 - Bots: one face a bot, fixed for the match (drawn over all the faces from the second the match
   is made and the bot's number in it). [pick]
+- Every game draws every player with that face: the match's players, its late joiners, its
+  bots. The server's bots never join late (they are put in when a match is made; the registry
+  takes none into a running match); a test bot (an srp-bot account) joins as any account, with
+  its account's face.
 
 ## What is drawn
 
@@ -77,6 +81,10 @@ marked [pick] is a worker's choice the owner may change.
   each place's face. Sent only when a place's face is not 0; no entry: every face 0, so older
   replays read as before. A face the reader's data does not list (a recording read with a
   shorter list) reads as face 0, in srp's readers of recordings as in the exe.
+- `E4` (a late joiner's proposal, `FF 'L' 'J' 01`, to the games already in; `late_join.rs`):
+  after its profile, srp's block as after the options with the faces entry of its one place,
+  `SRPX 05 01 <face>`. Sent only when its face is not 0; no block: face 0. The late joiner's own
+  `E4` is the options, every place's face in it, its own too.
 
 ## Client (exe patch)
 
@@ -84,6 +92,15 @@ marked [pick] is a worker's choice the owner may change.
   given that is a place of the options shown has that place's face, whatever the lobby says of
   its name. So every game draws a player alike, and a replay as it was recorded. The options'
   faces are kept from their read until the match's scene is left (game_world::on_deactivate).
+- A late joiner's proposal is read at the dispatch (`match_dispatch.message`, after patch 114's
+  check): its place, its name, its profile stepped over with the items dictionary (an item id
+  looked up among the dictionary's own entries, as the late join's check does), the block after
+  it. Its face is kept at that place of the match shown, and by its name among the match's late
+  joiners: the late join cooks its characters from its own copy of the profile, which is no
+  place of the options until it is installed. The block is then taken off the message: the late
+  join's code (`lj_prepare`) reads the native profile to the message's end, as its check wants
+  it. Bytes after the profile that are no such block are logged and left there: that check
+  refuses the proposal.
 - Any other profile is the lobby's (its own character, the squad's, a results screen's player),
   drawn by the lobby's messages by the player's name (the profile's +8h): the account's own
   (`87`), a squad member's (`88`; the eight told last). A name neither says: face 0.
@@ -92,8 +109,6 @@ marked [pick] is a worker's choice the owner may change.
   the worn helmet (tag 5) and mask (tag 6) records, its base model, part and material, and a
   record for each additional model (tag 0, hidden in first person with the head); `f<face>_` is
   added to the skin's name for a face other than 0.
-- A late joiner is face 0 to the players already in (its late-join options carry no srp block),
-  but to its squad. [open]
 - Without `heads` in the data the native head is made, as today.
 
 ## Lobby
@@ -136,3 +151,6 @@ marked [pick] is a worker's choice the owner may change.
   `SRP_MIN_PATCH_REVISION` under the newest patch of its game data (`check_min_patch_revision`),
   so with the pack live only a game of the pack's revision or later signs in. That holds for
   the faces when the exe with the patch ships no later than the pack.
+- A late joiner's proposal with srp's block is the one thing such an exe refuses: its late join
+  check takes the profile to the message's end (`late_join_validate_026g.c`), so the
+  preparation fails and the joiner is not let in.
