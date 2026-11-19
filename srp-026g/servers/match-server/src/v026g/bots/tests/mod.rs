@@ -64,6 +64,7 @@ mod bench_spread;
 mod blind_walk;
 mod camper;
 mod door_walk;
+mod drop_spots;
 mod drift_replay;
 mod driving;
 mod eye;
