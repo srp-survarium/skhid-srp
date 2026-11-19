@@ -358,6 +358,9 @@ fn a_bot_pushed_into_a_zone_stands_there_with_zone_lines_off() {
         pushed.tuning.kin.mixer = crate::v026g::bots::kin::Mixer::Frozen;
         pushed.tuning.kin.fix_blend = crate::v026g::bots::kin::FixBlend::Measured;
         pushed.tuning.kin.step_input = crate::v026g::bots::kin::StepInput::Same;
+        // And the turn cap before #2217 (the flat `max_turn_speed`, not raised with the skill toward the humans' P99): the
+        // unstick that ends the stand turns the body, and a faster turn ends it sooner (3.7 s at the default skill's cap).
+        pushed.tuning.feel.max_turn_speed_top = pushed.tuning.feel.max_turn_speed;
         drive(pushed)
     };
     // Off, the stand ends only when the unstick moves it (8.4 s here); on, it is out at once.

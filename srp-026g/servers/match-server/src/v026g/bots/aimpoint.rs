@@ -1068,8 +1068,9 @@ mod tests {
     /// noticed), four seconds of ticks: the bot's view is its base pitch
     /// and its weapon's kick as the client moves it (`recoil`); each tick
     /// the view is turned onto where the reflex aims, with the reflex's
-    /// pull. Returns the longest run of ticks it fired.
-    fn kicked_burst(world: &Arc<World>, enemy: PlaceView, aim: &AimTuning) -> u32 {
+    /// pull. Returns the longest run of ticks it fired, and the ticks it fired with the view's line (the shot's, kick and all)
+    /// meeting the world short of the enemy.
+    fn kicked_burst(world: &Arc<World>, enemy: PlaceView, aim: &AimTuning) -> (u32, u32) {
         let mut me = body(0, 0, Vec3::ZERO, false);
         let mut view = view_of(vec![me.clone(), enemy.clone()]);
         let mut memory = Memory::default();
@@ -1088,7 +1089,8 @@ mod tests {
         memory.update(&[seen(1_300)], 1_300, |_| 300, 3_000, 20_000);
         reflex.think(&me, &memory, 1_300, aim, 1.0, &mut rng);
         let mut base = 0.0;
-        let (mut run, mut longest) = (0, 0);
+        let (mut run, mut longest, mut into_world) = (0, 0, 0);
+        let reach = (enemy.chest() - body(0, 0, Vec3::ZERO, false).eye()).length();
         for k in 0..80 {
             let now = 1_300 + k * 50;
             memory.update(&[seen(now)], now, |_| 300, 3_000, 20_000);
@@ -1097,6 +1099,11 @@ mod tests {
             me.pitch = base + kick;
             reflex.look(&me, &view, world, &mut memory, &SenseTuning::default(), now);
             let o = reflex.tick(&me, &view, &memory, now, true, aim, 1.0, &mut rng);
+            if o.fire {
+                let [fx, fz] = forward(me.yaw);
+                let (c, s) = (me.pitch.cos(), me.pitch.sin());
+                into_world += u32::from(ray_cast(&world.sight, me.eye(), Vec3::new(fx * c, s, fz * c), reach).is_some());
+            }
             let before = me.pitch;
             facing(&mut me, o.look_at.unwrap());
             let turn = me.pitch - before + o.pull;
@@ -1105,7 +1112,7 @@ mod tests {
             run = if o.fire { run + 1 } else { 0 };
             longest = longest.max(run);
         }
-        longest
+        (longest, into_world)
     }
 
     #[test]
@@ -1122,11 +1129,14 @@ mod tests {
         let enemy = body(1, 1, Vec3::new(0.0, 0.0, 20.0), false);
         let eye = body(0, 0, Vec3::ZERO, false).eye();
         assert_eq!(aim_part(eye, &enemy, &world.sight), Some(Part::Head));
-        let longest = kicked_burst(&world, enemy.clone(), &AimTuning::default());
-        // Bursts are 500-1000 ms: at least 400 ms of them held.
+        let (longest, into_world) = kicked_burst(&world, enemy.clone(), &AimTuning::default());
+        // Bursts are 500-1000 ms: at least 400 ms of them held, every shot through the slit.
         assert!(longest >= 8, "longest burst {} ms", longest * 50);
+        assert_eq!(into_world, 0, "shots into the wall or the beam");
         // Left to lift the view, the kick of the first shot takes the line
-        // into the beam by the next tick, and the burst stops there.
+        // into the beam by the next tick. [D8, #2218] The burst is held on there while the head shows (the client fires whatever
+        // the ray, `fire_pred` 0x2E3CB0; the bursts are drawn as the live humans hold them): it no longer stops at the beam,
+        // its shots go into it. Before #2218 this asserted the burst stopped (at most 2 ticks).
         let lifted = AimTuning {
             combat: CombatTuning {
                 recoil_pull: 0.0,
@@ -1135,8 +1145,9 @@ mod tests {
             },
             ..AimTuning::default()
         };
-        let longest = kicked_burst(&world, enemy, &lifted);
-        assert!(longest <= 2, "longest burst {} ms", longest * 50);
+        let (longest, into_world) = kicked_burst(&world, enemy, &lifted);
+        assert!(longest >= 8, "held on: longest burst {} ms", longest * 50);
+        assert!(into_world >= 4, "the kick takes the shots into the beam: {into_world}");
     }
 
     /// A duel in the open at 20 m with a smoke cloud between from `hides_at` (its puffs dense enough then),
