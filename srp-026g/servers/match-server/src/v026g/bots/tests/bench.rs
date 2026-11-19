@@ -296,12 +296,12 @@ fn thread_cpu() -> std::time::Duration {
     }
 }
 
-fn bench_wall_clearance() -> bool {
+pub(super) fn bench_wall_clearance() -> bool {
     bench_tuning().needs_wall_clearance() || (bench_settings().flag("SRP_BENCH_ONE_SIDE") && bench_tuning_of(true).needs_wall_clearance())
 }
 
 /// The support of the maps' table of open sides when either side's tuning needs it ([`Tuning::needs_open_sides`]).
-fn bench_open_sides() -> Option<f32> {
+pub(super) fn bench_open_sides() -> Option<f32> {
     let side1 = bench_settings().flag("SRP_BENCH_ONE_SIDE").then(|| bench_tuning_of(true));
     bench_tuning().needs_open_sides().or_else(|| side1?.needs_open_sides())
 }
