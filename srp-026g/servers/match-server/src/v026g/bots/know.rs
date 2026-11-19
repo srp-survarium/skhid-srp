@@ -220,6 +220,57 @@ pub struct Percept {
     pub busy: bool,
 }
 
+/// [dead tracks] Why a percept of an enemy is of a dead man, if it is: he is dead in the view now, or the percept was sensed
+/// no later than his latest death the view knows (`MatchView::deaths`, the last half minute; a callout or a sound made before
+/// he died and taken after). Only a sight skipped the dead before (`sense.rs`); the sounds, the footsteps and the mates'
+/// callouts did not, so a dead man came back as a track whose spot `Ctx::spot_lives` kept 20 s: 746 of 3,453 battery
+/// refusals for "enemies by it" in the owner's final local matches of 2026-11-19 rested on dead men (match 6d6a4356: man 14
+/// dead from 99,450 ms, weighed by bot 15 at 102,102).
+pub fn dead_percept(percept: &Percept, view: &MatchView) -> Option<DeadPercept> {
+    if view.place(percept.who).is_some_and(|p| !p.alive) {
+        return Some(DeadPercept::DeadNow);
+    }
+    view.deaths
+        .iter()
+        .filter(|d| d.place == percept.who && percept.time <= d.time)
+        .map(|d| d.time)
+        .max()
+        .map(|died| DeadPercept::BeforeDeath { died })
+}
+
+/// [dead tracks] How a percept is of a dead man ([`dead_percept`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DeadPercept {
+    /// He is dead in the view now.
+    DeadNow,
+    /// He died at `died`, after the percept was sensed (he may have respawned since).
+    BeforeDeath { died: u32 },
+}
+
+/// [dead tracks] The percepts of living men only ([`dead_percept`]); each one dropped is logged with its source, the proof of
+/// the path that made it.
+pub fn living(percepts: Vec<Percept>, view: &MatchView, me: Place) -> Vec<Percept> {
+    percepts
+        .into_iter()
+        .filter(|p| match dead_percept(p, view) {
+            Some(why) => {
+                log::info!(
+                    "player {me} (the server's bot) at {} ms: percept of dead player {} dropped ({why:?}): {:?} sensed at {} ms at ({:.1}, {:.1}, {:.1})",
+                    view.clock,
+                    p.who,
+                    p.source,
+                    p.time,
+                    p.at.x,
+                    p.at.y,
+                    p.at.z
+                );
+                false
+            }
+            None => true,
+        })
+        .collect()
+}
+
 /// What a bot knows of one enemy.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Track {
@@ -1969,6 +2020,24 @@ mod tests {
             grenades: Vec::new(),
             smoke: Default::default(),
         }
+    }
+
+    /// [dead tracks] A percept of a man dead now is dropped, whatever its source; one sensed before his latest death (a
+    /// callout made then, taken after he respawned) is dropped too; one sensed after his respawn is kept.
+    #[test]
+    fn a_dead_man_makes_no_percept() {
+        use crate::v026g::bots::view::Death;
+        let heard = |time: u32, source: Source| Percept { who: 1, at: Vec3::new(5.0, 0.0, 5.0), error_m: 1.0, time, source, busy: false };
+        let mut view = battery_view(vec![]);
+        view.places[1].alive = false;
+        view.deaths.push(Death { place: 1, at: Vec3::new(5.0, 0.0, 5.0), time: 9_000 });
+        assert_eq!(dead_percept(&heard(9_500, Source::Heard), &view), Some(DeadPercept::DeadNow));
+        assert!(living(vec![heard(9_500, Source::Heard), heard(9_800, Source::Told { by: 0 })], &view, 0).is_empty());
+        // Respawned since: what was sensed before the death is his old self.
+        view.places[1].alive = true;
+        assert_eq!(dead_percept(&heard(8_900, Source::Told { by: 0 }), &view), Some(DeadPercept::BeforeDeath { died: 9_000 }));
+        assert_eq!(dead_percept(&heard(9_600, Source::Heard), &view), None);
+        assert_eq!(living(vec![heard(8_900, Source::Heard), heard(9_600, Source::Heard)], &view, 0), vec![heard(9_600, Source::Heard)]);
     }
 
     /// The client's HUD mask (`hud_update`): a battery that appears is on
