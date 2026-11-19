@@ -6314,14 +6314,15 @@ another map's project takes a 0.11 weather by giving it one:
 
 **The patch** (the Rust patch `v011w_render`, `rust/patches/src/v011w_render.rs`, the stage's side in
 `vostok/render_stage.rs`, the twins' rounds in `vostok/effect_compile.rs`, shared with patch 130;
-forty-one lohooks): `atmosphere.geometry_fog` (technique 3 in 5's place), `atmosphere.geometry_fog_applied` (its
+forty-two lohooks): `atmosphere.geometry_fog` (technique 3 in 5's place), `atmosphere.geometry_fog_applied` (its
 constant, set once its program is bound), `atmosphere.god_rays` (the additive pass; after patch 130's),
 `scattering.compiled`, `scattering.tables_pass`, `scattering.sky_pass` (the twins), `atmosphere.tables_due`,
 `atmosphere.tables_apply`, `atmosphere.tables_constants`, `atmosphere.sky_apply` (the tables and the sky), `post_blend_00/10/11.compiled`
 and `.pass` (the post's twins), `postprocess.blend_apply`, `postprocess.blend_constants` (the post),
 `skylight.compiled`, `skylight.pass_0/1`, `ambient.skylight_gate`, `ambient.skylight_apply`,
 `ambient.skylight_constants` (the skylight), `clouds_<ab>.compiled`, `clouds_<ab>.pass_0/1` (ab 00, 10, 01, 11),
-`atmosphere.clouds_apply`, `atmosphere.clouds_constants` (the clouds),
+`atmosphere.clouds_apply`, `atmosphere.clouds_constants` (the clouds), `material.begin_pass` (0.11e's lamp
+cones for a material with `srp_cone_v011w`: forward_volume_cone_base_v011w_<vertex input 1-6>; after patch 130's grass),
 `project.insert`, `project.removed`, `project.destroy` (the map).
 Nothing a match computes. Checked with `check_v011w_render_026g.py` (Unicorn, original and patched exe) and
 the patch crate's tests. Needs the pack and the edit list in the same release.
