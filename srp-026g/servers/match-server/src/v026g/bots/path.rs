@@ -282,7 +282,7 @@ impl Leap {
             })),
             // [S1] A sprint climb presses nothing: its top is a riser of the route (`Route::risers`), sprinted into.
             // [A1b] A walk-off at release presses nothing either: the route keeps it ([`Route::walk_off_at`]).
-            Takeoff::Climb | Takeoff::WalkOff | Takeoff::Release { .. } => None,
+            Takeoff::Climb | Takeoff::WalkOff | Takeoff::WalkOffCrouched | Takeoff::Release { .. } => None,
         }
     }
 }

@@ -274,7 +274,7 @@ impl Riser {
         match press {
             Takeoff::Press(lead) | Takeoff::Sprint(lead) => in_leads(lead),
             Takeoff::Slow { .. } | Takeoff::Climb => press.is_valid(),
-            Takeoff::WalkOff | Takeoff::SprintHeld(_) | Takeoff::Release { .. } => false,
+            Takeoff::WalkOff | Takeoff::WalkOffCrouched | Takeoff::SprintHeld(_) | Takeoff::Release { .. } => false,
         }
     }
 }

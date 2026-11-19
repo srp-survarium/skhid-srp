@@ -376,7 +376,7 @@ impl WalkGrid {
             }
         }
         let before = wide.off.len();
-        wide.off.retain(|l| !(l.kind == LinkKind::GapDrop && l.press == gap::Takeoff::WalkOff && blocked(l.from, l.to)));
+        wide.off.retain(|l| !(l.kind == LinkKind::GapDrop && l.press.is_walk_off() && blocked(l.from, l.to)));
         cut + before - wide.off.len()
     }
 
