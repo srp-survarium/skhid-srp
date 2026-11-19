@@ -82,7 +82,7 @@
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
 
 use std::collections::{HashMap, HashSet};
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 use std::time::Instant;
 
 use session::matchmaking_policy::{self as policy, Closed, Worth};
@@ -145,7 +145,7 @@ pub struct Config {
     pub max_rooms: usize,
     /// `SRP_ROOMS_EXTRA_MAPS`: playable ids a pool may hold besides the
     /// match pool.
-    pub extra_maps: Vec<u8>,
+    pub extra_maps: Vec<maps::MapId>,
 }
 
 impl Default for Config {
@@ -184,13 +184,13 @@ impl Config {
 }
 
 /// `SRP_ROOMS_EXTRA_MAPS`: playable ids, comma-separated; empty is none.
-fn parse_extra(value: &str) -> Option<Vec<u8>> {
+fn parse_extra(value: &str) -> Option<Vec<maps::MapId>> {
     value
         .split(',')
         .map(str::trim)
         .filter(|id| !id.is_empty())
         .map(|id| {
-            let id: u8 = id.parse().ok()?;
+            let id: maps::MapId = id.parse().ok()?;
             maps::map_mode(id)
                 .filter(|map| map.is_playable())
                 .map(|_| id)
@@ -248,7 +248,9 @@ impl Core<'_> {
     /// 6), then the experimental maps, the STALKER maps of both after every
     /// other (the owner's of 2026-11-15: "also when creating private rooms,
     /// stalker maps should be at the bottom of the list"), each part in its
-    /// order.
+    /// order. A map's weathers come day, evening, rain whatever their ids
+    /// (the owner's of 2026-11-18: "it should be day, evening, rain like in
+    /// others"; the 0.21 School's rain is id 1, its day 174).
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -257,7 +259,7 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        let mut entries: Vec<(bool, PoolEntry)> = pool
+        let mut entries: Vec<(maps::Build, PoolEntry)> = pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
@@ -271,11 +273,16 @@ impl Core<'_> {
                     extra,
                     bots: self.settings.pvb.bot_maps.contains(&id),
                 };
-                Some((map.is_stalker(), entry))
+                Some((map.build(), entry))
             })
             .collect();
-        // Stable: the others first, the STALKER maps after, each as it came.
-        entries.sort_by_key(|&(stalker, _)| stalker);
+        // Stable: by build (0.26, 0.11, 0.21, 0.69, STALKER), each map where
+        // its first id came, its weathers in the list's order.
+        let levels: Vec<u8> = entries.iter().map(|(_, entry)| entry.level).collect();
+        entries.sort_by_key(|&(build, entry)| {
+            let map = levels.iter().position(|&level| level == entry.level);
+            (build, map, maps::weather::list_place(entry.weather))
+        });
         entries
             .into_iter()
             .map(|(_, entry)| entry)
@@ -865,7 +872,7 @@ impl Core<'_> {
         bots: bool,
         now: Instant,
     ) -> Result<u32, Refused> {
-        let entries: Vec<u8> = self
+        let entries: Vec<maps::MapId> = self
             .room_entries()
             .iter()
             .map(|entry| entry.map_id)
@@ -873,7 +880,7 @@ impl Core<'_> {
         // The whole pool but the experimental maps: the match pool,
         // Blackout's maps with it (the owner's of 2026-10-25: Blackout
         // is part of the standard pool).
-        let default: Vec<u8> = self
+        let default: Vec<maps::MapId> = self
             .room_entries()
             .iter()
             .filter(|entry| !entry.extra)
@@ -1583,7 +1590,7 @@ impl Core<'_> {
                     Stage::InMatch { .. } => room.last,
                     _ => room.leading(),
                 };
-                let map_id = shown.map_or(0, |played| played.map().id);
+                let map_id = shown.map(|played| played.map().id);
                 RoomRow {
                     key: room.key,
                     level: self.room_level(room),
@@ -1898,7 +1905,7 @@ impl Core<'_> {
 
     /// The member's link if it is free in the lobby: its game told its
     /// room, in no match, not on its way to one.
-    fn room_free(&self, account_id: u32) -> Option<SocketAddr> {
+    fn room_free(&self, account_id: u32) -> Option<Peer> {
         // Its game started anew and does not know of the room yet.
         if self.room_unseen.contains_key(&account_id) {
             return None;
@@ -2588,7 +2595,7 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.max_rooms, wire::rules().rooms_most);
         assert_eq!(parse_extra(""), Some(vec![]));
-        assert_eq!(parse_extra("61, 117"), Some(vec![61, 117]));
+        assert_eq!(parse_extra("61, 117"), Some(vec![maps::MapId::new(61), maps::MapId::new(117)]));
         // 107: level_08 night, which has no project.
         assert_eq!(parse_extra("107"), None);
         assert_eq!(parse_extra("x"), None);

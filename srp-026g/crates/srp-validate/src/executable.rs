@@ -1,5 +1,7 @@
-//! The running executable only: a hash offer, then server-requested windows
-//! of file bytes on the match connection. No client-supplied path is accepted.
+//! The running executable, then each code allocation that is no module (as
+//! `modules::CodeScan` tells them, read from the game's own memory): a hash
+//! offer, then server-requested windows of bytes on the match connection. No
+//! client-supplied path is accepted.
 //! E0 upload carriers have an impossible world-chunk prefix. E4 replies are
 //! consumed before native options parsing. All integers are little endian.
 
@@ -8,6 +10,8 @@ pub const REPLY_MAGIC: [u8; 4] = [255, b'E', b'X', 1];
 pub const CHUNK: usize = 400;
 pub const WINDOW: u32 = 16 * CHUNK as u32;
 pub const MAX_FILE: u32 = 16 * 1024 * 1024;
+/// The largest code allocation offered.
+pub const MAX_CODE: u32 = 1024 * 1024;
 pub const MAX_PACKET: usize = 480;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -37,7 +41,10 @@ impl core::fmt::Display for Identity {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Upload<'a> {
+    /// The running executable's file.
     Offer(Identity),
+    /// A code allocation's bytes, at most [`MAX_CODE`].
+    Code(Identity),
     Data { sha256: [u8; 32], offset: u32, bytes: &'a [u8] },
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -62,6 +69,7 @@ impl<'a> Carrier<'a> {
         let rest = bytes.get(51..)?;
         let upload = match *bytes.get(14)? {
             0 if rest.is_empty() => Upload::Offer(Identity::new(value, hash)?),
+            2 if rest.is_empty() && value <= MAX_CODE => Upload::Code(Identity::new(value, hash)?),
             1 if value < MAX_FILE && value.is_multiple_of(CHUNK as u32) && !rest.is_empty() && rest.len() <= CHUNK =>
                 Upload::Data { sha256: hash, offset: value, bytes: rest },
             _ => return None,
@@ -74,6 +82,7 @@ impl<'a> Carrier<'a> {
         out[10..14].copy_from_slice(&self.match_id.to_le_bytes());
         let (kind, hash, value, data) = match self.upload {
             Upload::Offer(identity) => (0, identity.sha256, identity.size, &[][..]),
+            Upload::Code(identity) => (2, identity.sha256, identity.size, &[][..]),
             Upload::Data { sha256, offset, bytes } => (1, sha256, offset, bytes),
         };
         let len = 51usize.checked_add(data.len())?;
@@ -122,7 +131,8 @@ mod tests {
     #[test]
     fn carriers_are_bounded_and_unambiguous_in_joined_datagrams() {
         let identity = Identity::new(MAX_FILE, [0xa5; 32]).unwrap();
-        for upload in [Upload::Offer(identity), Upload::Data { sha256: identity.sha256, offset: WINDOW, bytes: &[9; CHUNK] }] {
+        let code = Identity::new(MAX_CODE, [0x5a; 32]).unwrap();
+        for upload in [Upload::Offer(identity), Upload::Code(code), Upload::Data { sha256: identity.sha256, offset: WINDOW, bytes: &[9; CHUNK] }] {
             let carrier = Carrier { match_id: 42, upload };
             let (bytes, len) = carrier.encode().unwrap();
             assert_eq!(Carrier::parse(&bytes[..len]), Some(carrier));
@@ -132,6 +142,7 @@ mod tests {
             assert!(Carrier::parse(&joined).is_none());
             assert!(crate::report::Carrier::parse(&bytes[..len]).is_none());
         }
+        assert!(Carrier { match_id: 42, upload: Upload::Code(identity) }.encode().is_none(), "larger than MAX_CODE");
         assert!(Identity::new(0, [0; 32]).is_none());
         assert!(Identity::new(MAX_FILE + 1, [0; 32]).is_none());
         assert_eq!(identity.chunk_len(MAX_FILE - MAX_FILE % CHUNK as u32), Some(MAX_FILE as usize % CHUNK));

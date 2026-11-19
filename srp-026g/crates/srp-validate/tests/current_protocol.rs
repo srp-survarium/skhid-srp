@@ -7,8 +7,8 @@ impl GuardDictionary for Data {
     fn item(&self, id: u16) -> Option<bool> {
         self.0.item(id).map(|item| item.is_stack)
     }
-    fn map(&self, id: u8) -> bool {
-        maps::map_mode(id).is_some_and(|map| map.is_playable())
+    fn map(&self, id: u16) -> bool {
+        maps::map_mode(maps::MapId::new(id)).is_some_and(|map| map.is_playable())
     }
 }
 
@@ -37,7 +37,7 @@ fn options(blackout: bool) -> info::MatchOptions {
                 .and_then(|map| maps::MatchMap::of(map.id))
                 .expect("a Blackout map")
         } else {
-            maps::MatchMap::of(61).unwrap()
+            maps::MatchMap::of(maps::MapId::new(61)).unwrap()
         },
         match_id: 0x1234_5678,
         match_level: 3,
@@ -101,7 +101,7 @@ fn a_free_for_alls_own_sides_and_kill_target_go_together() {
         info::options_bytes(&teams, data.0),
         Err(info::StaticInfoError::Team { player: 0, team: 0 })
     );
-    let mut own = options_on(maps::MatchMap::of(61).unwrap());
+    let mut own = options_on(maps::MatchMap::of(maps::MapId::new(61)).unwrap());
     own.players[0].team = 4;
     assert_eq!(
         info::options_bytes(&own, data.0),
@@ -121,7 +121,7 @@ fn a_free_for_alls_own_sides_and_kill_target_go_together() {
         assert!(messages::options(&bad, &data).is_err(), "{suffix:?}");
         assert!(info::parse_options(&bad, data.0).is_err(), "{suffix:?}");
     }
-    let plain = info::options_bytes(&options_on(maps::MatchMap::of(61).unwrap()), data.0).unwrap();
+    let plain = info::options_bytes(&options_on(maps::MatchMap::of(maps::MapId::new(61)).unwrap()), data.0).unwrap();
     let bad = [&plain[..], entry].concat();
     assert!(messages::options(&bad, &data).is_err());
     assert!(info::parse_options(&bad, data.0).is_err());
@@ -221,4 +221,44 @@ fn current_emitted_messages_and_late_join_headers_are_accepted() {
     }
     let mut bad = prepare; bad[8..12].fill(0);
     assert!(messages::check(messages::id::STATIC_INFO, &bad).is_err());
+}
+
+/// The test archive with a map 300 more: the map an id over a byte names.
+struct Wide(Data);
+impl GuardDictionary for Wide {
+    fn item(&self, id: u16) -> Option<bool> {
+        self.0.item(id)
+    }
+    fn map(&self, id: u16) -> bool {
+        id == 300 || self.0.map(id)
+    }
+}
+
+/// A map id over a byte (exe patch 154): the options' byte its low byte,
+/// srp's entry `{4, 2, id}` the whole id the client loads, before a
+/// free-for-all's entry as the server writes them. The clients' check takes
+/// the whole id, and refuses another low byte, an id of a byte in the
+/// entry, the entry twice, or the wide id of a map the client lacks.
+#[test]
+fn a_map_id_over_a_byte_is_its_low_byte_and_srps_entry() {
+    let data = Wide(Data(Dictionary::shared()));
+    let plain = info::options_bytes(&options_on(maps::MatchMap::of(maps::MapId::new(61)).unwrap()), data.0.0).unwrap();
+    // The map's byte: the first of the 140 after the profiles.
+    let at = plain.len() - 140;
+    let wide = |byte: u8, block: &[u8]| {
+        let mut bytes = [&plain[..], block].concat();
+        bytes[at] = byte;
+        bytes
+    };
+    assert_eq!(messages::options(&wide(44, b"SRPX\x04\x02\x2c\x01"), &data), Ok(1));
+    assert!(messages::options(&wide(44, b"SRPX\x04\x02\x2d\x01"), &data).is_err(), "map 301");
+    for (byte, block) in [
+        (61, &b"SRPX\x04\x02\x2c\x01"[..]),
+        (61, b"SRPX\x04\x02\x3d\x00"),
+        (44, b"SRPX\x04\x02\x2c\x01\x04\x02\x2c\x01"),
+        (44, b"SRPX\x04\x01\x2c"),
+        (44, b"SRPX"),
+    ] {
+        assert!(messages::options(&wide(byte, block), &data).is_err(), "{byte} {block:?}");
+    }
 }

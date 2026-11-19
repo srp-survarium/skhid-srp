@@ -17,18 +17,23 @@ appends; the local time is 2026-11-15 14:03:07. Checked:
 - the two hooks in place (`jmp` to their entries); allocate_arenas' chain
   this patch's first, patch 83's after it; the engine's site the
   original's `mov eax,[esp+0Ch]` / `push eax`;
-- a first run: new_log_file is given `Survarium_tester.2026-11-15_14-03-07.log`
-  in the same folder (the string's end and NUL as assign makes them, its room
-  as it was); nothing deleted; the patches' log a new file made with
-  CREATE_NEW, `srp_patches.2026-11-15_14-03-07.log`, holding the patch's line;
-- a folder with 100 of the user's run logs, the old `Survarium_tester.log`,
+- a first run: new_log_file is given `..\\..\\logs\\Survarium_tester.2026-11-15_14-03-07.log`
+  (game\\logs; the string's end and NUL as assign makes them, its room
+  as it was); nothing deleted;
+- the user's run logs and old unstamped log an earlier exe left in
+  Documents\\Survarium deleted, but one Windows does not delete;
+  another user's runs, user.cfg and the launcher's log untouched; the patches' log a new file made with
+  CREATE_NEW, `..\\..\\logs\\srp_patches.2026-11-15_14-03-07.log` (game\\logs, made
+  first with CreateDirectoryA), holding the patch's line;
+- a folder with 100 of the user's run logs,
   another user's run logs and other files: the oldest run log alone deleted
   (100 with the new one), nothing else touched;
 - 600 MiB in three run logs: the oldest deleted (400 MiB left, under 500);
 - a name taken (another game started in the same second): `_2`, and the
   patches' log's `_2` likewise, the files there kept as they were;
-- 120 old patches' logs and the old srp_patches.log / srp_patches.old.log:
-  the 21 oldest run logs deleted, the two old ones kept;
+- 120 old patches' logs, and beside the exe the old srp_patches.log /
+  srp_patches.old.log and a run log: the 21 oldest run logs deleted, the
+  ones beside the exe kept;
 - a folder whose path leaves no room for the stamp: the engine's name kept,
   the line says so;
 - the clock set back (the earliest stamp written last): the least recently
@@ -57,7 +62,7 @@ KERNEL32 = {   # IAT slot: (name, stdcall argument count)
     0x87022C: ("FileTimeToSystemTime", 2), 0x870238: ("FindFirstFileA", 2), 0x87023C: ("FindNextFileA", 2),
     0x870228: ("FindClose", 1), 0x87021C: ("DeleteFileA", 1), 0x870048: ("CreateFileA", 7),
     0x870108: ("WriteFile", 5), 0x870040: ("CloseHandle", 1), 0x870118: ("GetCurrentThreadId", 0),
-    0x87003C: ("GetModuleHandleA", 1), 0x870084: ("GetProcAddress", 2),
+    0x87003C: ("GetModuleHandleA", 1), 0x870084: ("GetProcAddress", 2), 0x870220: ("CreateDirectoryA", 2),
 }
 DYNAMIC = {"IsDBCSLeadByte": 1}           # kernel32's, by GetProcAddress (vostok::run_log::lead_byte)
 KERNEL32_MODULE = 0x7C800000
@@ -65,6 +70,7 @@ RETURN = 0x30000F00                       # where a made-up call of ours returns
 STUBS, STACK, HEAP = 0x30000000, 0x31000000, 0x32000000
 INVALID = 0xFFFFFFFF
 DOCS = "c:\\users\\tester\\documents\\survarium\\"
+LOGS = "..\\..\\logs\\"                    # game\logs from the exe's folder, the working folder
 STAMP = "2026-11-15_14-03-07"
 MB = 1 << 20
 
@@ -85,7 +91,8 @@ def check(ok, what):
 
 class Disk:
     """Files by full path (the exe's folder is ''): their sizes, last writes (by default in the
-    order of their names) and the ones DeleteFileA refuses (read-only); made files' bytes."""
+    order of their names) and the ones DeleteFileA refuses (read-only); made files' bytes and
+    the folders CreateDirectoryA was asked for."""
 
     def __init__(self, files, written=None, stuck=()):
         self.sizes = dict(files)
@@ -93,7 +100,7 @@ class Disk:
         self.written.update(written or {})
         self.stuck = set(stuck)
         self.bytes = {}
-        self.deleted, self.made = [], []
+        self.deleted, self.made, self.folders = [], [], []
 
     def folder(self, path):
         """Up to the last separator, as Windows reads a Shift-JIS path (a lead byte's trail
@@ -197,11 +204,12 @@ class Game:
             result = int(self.finds.pop(a[0], None) is not None)
         elif name == "DeleteFileA":
             path = self.text(a[0])
-            if path in self.disk.stuck:
+            if path in self.disk.stuck or path not in self.disk.sizes:   # read-only, or no such file
                 result = 0
             else:
                 self.disk.deleted.append(path)
-                result = int(self.disk.sizes.pop(path, None) is not None)
+                del self.disk.sizes[path]
+                result = 1
         elif name == "CreateFileA":
             path, disposition = self.text(a[0]), a[4]
             if disposition == 1 and path in self.disk.sizes:      # CREATE_NEW on a name there
@@ -228,6 +236,8 @@ class Game:
             wanted = self.text(a[1])
             result = next((at for at, (n, _) in self.stubs.items() if n == wanted and n in DYNAMIC), 0) \
                 if a[0] == KERNEL32_MODULE else 0
+        elif name == "CreateDirectoryA":
+            self.disk.folders.append(self.text(a[0]))
         elif name == "IsDBCSLeadByte":
             result = int(self.lead(a[0] & 0xFF))
         emu.reg_write(UC_X86_REG_EAX, result)
@@ -311,8 +321,8 @@ def main():
     check(len(ours) == 2 and site and site[0][1] == bytes.fromhex("8b44240c50"),
           "the engine's site: mov eax,[esp+0Ch] / push eax")
 
-    new_engine = DOCS + f"Survarium_tester.{STAMP}.log"
-    new_patches = f"srp_patches.{STAMP}.log"
+    new_engine = LOGS + f"Survarium_tester.{STAMP}.log"
+    new_patches = LOGS + f"srp_patches.{STAMP}.log"
 
     print("a first run")
     disk, named, fault = run(built, {})
@@ -321,54 +331,72 @@ def main():
     made, logs = patches_log(disk)
     check(made == [(new_patches, 1)] and not disk.deleted,
           f"the patches' log: {new_patches} made with CREATE_NEW, nothing deleted ({made}, {disk.deleted})")
-    check(logs.get(new_patches) == b"srp: run_logs: the game's log is the run's, 0 old ones deleted\r\n",
-          f"its line ({logs.get(new_patches)!r})")
+    check(disk.folders and set(disk.folders) == {LOGS[:-1]}, f"game\\logs made first ({disk.folders})")
+    check(logs.get(new_patches) == b"srp: run_logs: the game's log is the run's, 0 in its old folder and "
+                                   b"0 old ones deleted\r\n", f"its line ({logs.get(new_patches)!r})")
+
+    print("the logs an earlier exe left in Documents\\Survarium")
+    left = {DOCS + f"Survarium_tester.2026-10-0{day}_00-00-00.log": day for day in (1, 2, 3)}
+    left[DOCS + "Survarium_tester.log"] = 50     # of before the runs were named
+    held = DOCS + "Survarium_tester.2026-10-04_00-00-00.log"
+    stay = {held: 4, DOCS + "Survarium_other.2026-10-01_00-00-00.log": 60,
+            DOCS + "user.cfg": 70, DOCS + "survarium_launcher_tester.log": 80}
+    disk, named, fault = run(built, {**left, **stay}, stuck=[held])
+    _, logs = patches_log(disk)
+    check(fault is None and named == (new_engine, True, True) and sorted(disk.deleted) == sorted(left)
+          and all(disk.sizes.get(p) == n for p, n in stay.items()),
+          f"the kind's runs and its old unstamped log deleted; a held one, another user's, user.cfg and the "
+          f"launcher's log stay ({disk.deleted})")
+    check(logs.get(new_patches, b"").endswith(b", 4 in its old folder and 0 old ones deleted\r\n"),
+          f"the line counts them ({logs})")
     access = [(a, s) for p, _, a, s in disk.made]
     check(access == [(4, 7)], f"appends only, every sharing ({access})")
 
     print("100 run logs of the user's, and others")
-    old = {DOCS + f"Survarium_tester.2026-10-{day:02}_{hour:02}-00-00.log": 1000
+    old = {LOGS + f"Survarium_tester.2026-10-{day:02}_{hour:02}-00-00.log": 1000
            for day in range(1, 26) for hour in (1, 2, 3, 4)}
-    others = {DOCS + "Survarium_tester.log": 5000, DOCS + f"Survarium_other.2026-09-01_00-00-00.log": 10,
+    others = {DOCS + f"Survarium_other.2026-09-01_00-00-00.log": 10,
               DOCS + "user.cfg": 10, DOCS + "Survarium_tester.2026-09-01_00-00-00.txt": 10}
     disk, named, fault = run(built, {**old, **others})
-    oldest = DOCS + "Survarium_tester.2026-10-01_01-00-00.log"
+    oldest = LOGS + "Survarium_tester.2026-10-01_01-00-00.log"
     check(fault is None and named == (new_engine, True, True), f"the run's name ({fault or named})")
     check(disk.deleted == [oldest], f"the oldest alone deleted ({disk.deleted})")
-    kept = [p for p in disk.sizes if p.startswith(DOCS + "Survarium_tester.2026") and p.endswith(".log")]
+    kept = [p for p in disk.sizes if p.startswith(LOGS + "Survarium_tester.2026") and p.endswith(".log")]
     check(len(kept) == 99 and all(p in disk.sizes for p in others),
           f"99 kept (100 with the new one), the others untouched ({len(kept)})")
     _, logs = patches_log(disk)
-    check(logs.get(new_patches, b"").endswith(b", 1 old ones deleted\r\n"), f"the line counts it ({logs})")
+    check(logs.get(new_patches, b"").endswith(b", 0 in its old folder and 1 old ones deleted\r\n"), f"the line counts it ({logs})")
 
     print("600 MiB in three")
-    big = {DOCS + f"Survarium_tester.2026-10-0{day}_00-00-00.log": 200 * MB for day in (1, 2, 3)}
+    big = {LOGS + f"Survarium_tester.2026-10-0{day}_00-00-00.log": 200 * MB for day in (1, 2, 3)}
     disk, named, fault = run(built, big)
-    check(disk.deleted == [DOCS + "Survarium_tester.2026-10-01_00-00-00.log"] and named and named[0] == new_engine,
+    check(disk.deleted == [LOGS + "Survarium_tester.2026-10-01_00-00-00.log"] and named and named[0] == new_engine,
           f"the oldest deleted, 400 MiB left ({disk.deleted})")
 
     print("a name taken")
     taken = {new_engine: 7, new_patches: 9}
     disk, named, fault = run(built, taken)
-    second = DOCS + f"Survarium_tester.{STAMP}_2.log"
+    second = LOGS + f"Survarium_tester.{STAMP}_2.log"
     made, logs = patches_log(disk)
     check(named and named[0] == second, f"the engine's {second} ({named})")
-    check(made == [(f"srp_patches.{STAMP}_2.log", 1)] and disk.sizes[new_engine] == 7
+    check(made == [(LOGS + f"srp_patches.{STAMP}_2.log", 1)] and disk.sizes[new_engine] == 7
           and disk.sizes[new_patches] == 9 and not disk.deleted,
           f"the patches' `_2`, the files there as they were ({made})")
 
     print("120 old patches' logs")
-    srp = {f"srp_patches.2026-10-{day:02}_{hour:02}-00-00.log": 100 for day in range(1, 31) for hour in (1, 2, 3, 4)}
-    legacy = {"srp_patches.log": 50, "srp_patches.old.log": 60}
+    srp = {LOGS + f"srp_patches.2026-10-{day:02}_{hour:02}-00-00.log": 100
+           for day in range(1, 31) for hour in (1, 2, 3, 4)}
+    # beside the exe: the old names, and run logs the updater did not move
+    legacy = {"srp_patches.log": 50, "srp_patches.old.log": 60, "srp_patches.2026-09-01_00-00-00.log": 70}
     disk, named, fault = run(built, {**srp, **legacy})
     gone = sorted(srp)[:21]
     check(disk.deleted == gone, f"the 21 oldest deleted ({len(disk.deleted)}: {disk.deleted[:2]}...)")
     check(all(p in disk.sizes for p in legacy) and sum(p in disk.sizes for p in srp) == 99,
-          "the old srp_patches.log and srp_patches.old.log kept, 99 run logs and the new one")
+          "the files beside the exe kept, 99 run logs and the new one")
 
     print("no room for the stamp")
-    deep = "c:\\" + "d" * 210 + "\\survarium\\Survarium_tester.log"
-    assert len(deep) < 0x104 and len(deep) + len(STAMP) + 1 > 259
+    deep = "c:\\s\\Survarium_" + "u" * 240 + ".log"     # a user name near MAX_PATH
+    assert len(deep) < 0x104 and len(LOGS) + len(deep) - len("c:\\s\\") + len(STAMP) + 1 > 259
     disk, named, fault = run(built, {}, deep)
     _, logs = patches_log(disk)
     check(fault is None and named == (deep, True, True), f"the engine's name kept ({fault or named})")
@@ -376,26 +404,27 @@ def main():
           f"the line says so ({logs})")
 
     print("the clock set back")
-    hundred = {DOCS + f"Survarium_tester.2026-10-{day:02}_{hour:02}-00-00.log": 1 for day in range(1, 26)
+    hundred = {LOGS + f"Survarium_tester.2026-10-{day:02}_{hour:02}-00-00.log": 1 for day in range(1, 26)
                for hour in (1, 2, 3, 4)}
-    first = DOCS + "Survarium_tester.2026-10-01_01-00-00.log"     # the earliest stamp, written last
+    first = LOGS + "Survarium_tester.2026-10-01_01-00-00.log"     # the earliest stamp, written last
     disk, named, fault = run(built, hundred, written={first: 1 << 30})
-    check(disk.deleted == [DOCS + "Survarium_tester.2026-10-01_02-00-00.log"] and first in disk.sizes,
+    check(disk.deleted == [LOGS + "Survarium_tester.2026-10-01_02-00-00.log"] and first in disk.sizes,
           f"the least recently written deleted, not the earliest stamp ({disk.deleted})")
 
     print("a read-only oldest")
-    disk, named, fault = run(built, {**hundred, DOCS + "Survarium_tester.2026-09-30_00-00-00.log": 1},
-                             stuck=[DOCS + "Survarium_tester.2026-09-30_00-00-00.log"])
-    check(disk.deleted == [first, DOCS + "Survarium_tester.2026-10-01_02-00-00.log"]
+    disk, named, fault = run(built, {**hundred, LOGS + "Survarium_tester.2026-09-30_00-00-00.log": 1},
+                             stuck=[LOGS + "Survarium_tester.2026-09-30_00-00-00.log"])
+    check(disk.deleted == [first, LOGS + "Survarium_tester.2026-10-01_02-00-00.log"]
           and named and named[0] == new_engine,
           f"passed over, the next two deleted: 99 left ({disk.deleted})")
 
     print("this second's files")
-    mine = {f"srp_patches.{STAMP}.log": 300 * MB, f"srp_patches.{STAMP}_3.log": 300 * MB,
-            "srp_patches.2026-10-01_00-00-00.log": 1}
+    mine = {LOGS + f"srp_patches.{STAMP}.log": 300 * MB, LOGS + f"srp_patches.{STAMP}_3.log": 300 * MB,
+            LOGS + "srp_patches.2026-10-01_00-00-00.log": 1}
     disk, named, fault = run(built, mine)
     made, _ = patches_log(disk)
-    check(disk.deleted == ["srp_patches.2026-10-01_00-00-00.log"] and made == [(f"srp_patches.{STAMP}_4.log", 1)],
+    check(disk.deleted == [LOGS + "srp_patches.2026-10-01_00-00-00.log"]
+          and made == [(LOGS + f"srp_patches.{STAMP}_4.log", 1)],
           f"600 MiB of this second's kept, the older run deleted, the next name past the highest ({disk.deleted}, {made})")
 
     print("a Japanese user name (Shift-JIS, a trail byte 5Ch)")
@@ -404,10 +433,10 @@ def main():
     old_run = folder + user + ".2026-10-01_00-00-00.log"
     full = {folder + user + f".2026-10-{day:02}_{hour:02}-00-00.log": 1 for day in range(1, 26) for hour in (1, 2, 3, 4)}
     disk, named, fault = run(built, full, folder + user + ".log", lead=shift_jis)
-    check(fault is None and named and named[0] == folder + user + f".{STAMP}.log",
-          f"the run's name in the same folder ({fault or named and named[0]!a})")
-    check(disk.deleted == [folder + user + ".2026-10-01_01-00-00.log"] and old_run not in disk.deleted,
-          f"its kind's oldest deleted ({[d.encode('latin-1') for d in disk.deleted]})")
+    check(fault is None and named and named[0] == LOGS + user + f".{STAMP}.log",
+          f"the run's name in game\\logs ({fault or named and named[0]!a})")
+    check(sorted(disk.deleted) == sorted(full) and old_run not in disk.deleted,
+          f"its kind's 100 in its old folder deleted ({len(disk.deleted)})")
 
     print("patch 100's C log line")
     ad_log = linked.symbols.get("ad_log")

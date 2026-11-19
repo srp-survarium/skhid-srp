@@ -31,7 +31,7 @@
 //! - An account's `clan_tag` (chat, friends, the match) is its registered
 //!   clan's abbreviation, kept in step here.
 
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 use std::time::Instant;
 
 use session::LockExt;
@@ -102,7 +102,7 @@ impl Core<'_> {
     }
 
     /// The members of a clan in the lobby.
-    fn clan_links(&self, clan: &Clan) -> Vec<(u32, SocketAddr)> {
+    fn clan_links(&self, clan: &Clan) -> Vec<(u32, Peer)> {
         clan.accepted()
             .filter_map(|member| {
                 Some((member.account_id, *self.by_account.get(&member.account_id)?))
@@ -229,7 +229,7 @@ impl Core<'_> {
         }
     }
 
-    fn send_clan(&mut self, to: SocketAddr, info: &ClanInfo) {
+    fn send_clan(&mut self, to: Peer, info: &ClanInfo) {
         self.send_made(to, lobby::clan_info(info));
     }
 

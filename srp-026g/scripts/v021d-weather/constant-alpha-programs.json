@@ -1,0 +1,62 @@
+[
+  {
+    "quality": 0,
+    "vertex": 0,
+    "path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____0_____0__1_0110____00000____000__________0__",
+    "sha256": "a6aba7d41d28d390a3a076b2f8a99ae3ab8a7c38619abce972a909f7ad9bbda7"
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____10_____0__1_0110____00000____000__________0__",
+    "sha256": "ae03d361701127f5629d327a05375893f711d0a8b1112686b1cb6130159c8488"
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____12_____0__1_0110____00000____000__________0__",
+    "sha256": "634a8f8224a3cb5bf7d29f969e00f3dcf909025f536fd4c70b2ab9234aa9bb1b"
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____13_____0__1_0110____00000____000__________0__",
+    "sha256": "cddf975383b4af26f82c357cf46d88fd9d28f99dcac11b860b79869818c98680"
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____14_____0__1_0110____00000____000__________0__",
+    "sha256": "ef97345fa56fae96b2a8b753cd99f90497feca46a8ecd68b55f7267acd20fa05"
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____0_____0__1_0110____00000____000__________0__",
+    "sha256": "a6aba7d41d28d390a3a076b2f8a99ae3ab8a7c38619abce972a909f7ad9bbda7"
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____10_____0__1_0110____00000____000__________0__",
+    "sha256": "ae03d361701127f5629d327a05375893f711d0a8b1112686b1cb6130159c8488"
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____12_____0__1_0110____00000____000__________0__",
+    "sha256": "634a8f8224a3cb5bf7d29f969e00f3dcf909025f536fd4c70b2ab9234aa9bb1b"
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____13_____0__1_0110____00000____000__________0__",
+    "sha256": "cddf975383b4af26f82c357cf46d88fd9d28f99dcac11b860b79869818c98680"
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____14_____0__1_0110____00000____000__________0__",
+    "sha256": "ef97345fa56fae96b2a8b753cd99f90497feca46a8ecd68b55f7267acd20fa05"
+  }
+]

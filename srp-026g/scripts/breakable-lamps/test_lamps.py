@@ -10,6 +10,21 @@ import make_pack as pack
 
 
 class Lamps(unittest.TestCase):
+    def test_restored_lights_bind_once_without_mutating_fixtures(self):
+        fixture = dict(min_x=-0.1, min_y=-0.1, min_z=-0.1,
+                       max_x=0.1, max_y=0.1, max_z=0.1,
+                       lights={'old': {'name': 'native'}})
+        lamps = {'lamp000': fixture}
+        before = json.dumps(lamps, sort_keys=True)
+        lights = [dict(game_object_type='light', position=[0., 0.2, 0.], full_name='donor'),
+                  dict(game_object_type='light', position=[20., 0., 0.], full_name='distant'),
+                  dict(game_object_type='ambient_light', position=[0., 0., 0.], full_name='ambient')]
+        self.assertEqual(edits.rebound_lights('map', lamps, lights), {
+            'lamp000': {'light0': dict(x=0., y=0.2, z=0., name='donor')}})
+        self.assertEqual(json.dumps(lamps, sort_keys=True), before)
+        with self.assertRaisesRegex(ValueError, 'ambiguous'):
+            edits.rebound_lights('map', dict(lamp000=fixture, lamp001=fixture), lights)
+
     def test_legacy_glow_follows_bulb_and_break_state(self):
         # Reproduce v0.11 Vostok's offset shaft above a hanging lamp.
         # Another shaft far away belongs to scenery and must stay separate.
@@ -299,8 +314,9 @@ class Lamps(unittest.TestCase):
             self.assertEqual(len(light_positions), len(set(light_positions)))
             self.assertLessEqual(len(visual_ids) + len(light_positions), 1024)
         self.assertEqual(maps, {f'level_0{i}' for i in range(2, 10)} |
-                         {'v011e_level_03', 'v011e_level_04', 'v021d_level_03', 'v021d_level_06'})
-        self.assertEqual(len(source['add_value']), 96)
+                         {'v011e_level_03', 'v011e_level_04', 'v021d_level_02', 'v021d_level_04',
+                          'v021d_level_03', 'v021d_level_05', 'v021d_level_06'})
+        self.assertEqual(len(source['add_value']), 102)  # School/Fort/Chemical Plant battery and TDM projects included.
         # Each of Vostok v0.11's ten hanging-lamp shafts must disappear
         # with its fixture. The two outdoor scenery shafts have no owner.
         for project in source['add_value']:

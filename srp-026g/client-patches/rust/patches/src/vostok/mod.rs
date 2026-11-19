@@ -23,6 +23,7 @@
 //!
 //! It grows with what the patches need, and no further.
 
+pub mod back_buffer;
 pub mod baker;
 pub mod breadcrumbs;
 pub mod bullet;
@@ -34,8 +35,14 @@ pub mod carry_runtime;
 pub mod carry_ground;
 pub mod carry_flower;
 mod cell;
+pub mod clipboard;
 pub mod clock;
 pub mod console;
+pub mod text_edit;
+pub mod debug_lines;
+pub mod shape;
+pub mod contact;
+pub mod console_view;
 pub mod controller;
 pub mod crc32;
 mod context;
@@ -57,12 +64,15 @@ pub mod mouse;
 pub mod log;
 pub mod run_log;
 pub mod melee;
+pub mod battery;
 pub mod memory;
 pub mod memory_profile;
 mod options;
 pub mod parse;
 pub mod resources;
 pub mod renderer;
+pub mod render_stage;
+pub mod effect_compile;
 pub mod gun_cook;
 pub mod pickup;
 pub mod use_scan;
@@ -70,6 +80,7 @@ pub mod streaming;
 pub mod ray_test;
 mod rt;
 pub mod sound;
+pub mod step;
 pub mod system;
 pub mod modules;
 pub mod executable;
@@ -79,6 +90,7 @@ pub mod voice;
 pub mod settings;
 mod sync;
 pub mod trace;
+pub mod trap;
 pub mod trig;
 pub mod types;
 mod upgrades;
@@ -108,6 +120,10 @@ mod generated {
     #[allow(unused_imports)]
     use super::console::{ConsoleArguments, ConsoleCommand};
     #[allow(unused_imports)]
+    use super::battery::{BatteryState, PredicateBuffer};
+    #[allow(unused_imports)]
+    use super::shape::{Triangle, TriangleSink};
+    #[allow(unused_imports)]
     use core::ffi::c_void;
     include!("../../../../hooks_026g.rs");
 }
@@ -121,7 +137,7 @@ pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, Keyb
 pub use keyboard::{Dik, GameWorldButton, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
 pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
-pub use options::OptionsRead;
+pub use options::{MapId, OptionsRead};
 pub use world_load::WorldLoad;
 pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;
@@ -160,6 +176,7 @@ pub mod effect_presenter;
 pub mod match_message;
 pub mod packet_recovery;
 pub mod match_close;
+pub mod seeding;
 
 mod world_context;
 

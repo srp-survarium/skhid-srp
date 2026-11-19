@@ -18,7 +18,7 @@ import make_edits as base
 
 OUTPUT = base.HERE.parent / 'content-edit/ffa-projects-1.json'
 LISTS = ['ffa-1.json', 'ffa-ported-1.json', 'ffa-london-center-1.json', 'ffa-radius-1.json',
-         'ffa-stalker-1.json', 'ffa-stalker-radius-1.json', 'training-camp-arena-1.json']
+         'ffa-stalker-1.json', 'ffa-stalker-radius-1.json', 'ffa-stalker-2.json', 'training-camp-arena-1.json']
 
 
 def copies():

@@ -1,6 +1,7 @@
-//! Hash and, when requested, send only the running executable. File ownership
-//! lasts one match connection; close/error/completion all drop it. Hashing and
-//! transfer are bounded per frame, with no catch-up burst after a stall.
+//! Hash and, when requested, send the running executable, then the game's
+//! code that is no module (`vostok::executable`). Ownership lasts one match
+//! connection; close/error/completion all drop it. Hashing and transfer are
+//! bounded per frame, with no catch-up burst after a stall.
 //! [`Hashing`] alone also reads the exe files of the windows over the game's
 //! (`vostok::modules`): those are never offered or sent.
 #![forbid(unsafe_code)]
@@ -87,9 +88,15 @@ impl<F> State<F> {
         }
     }
 }
-pub struct Client<F> { state: State<F> }
+pub struct Client<F> { state: State<F>, offer: fn(Identity) -> Upload<'static> }
 impl<F: Source> Client<F> {
-    pub fn new(file: F) -> Self { Self { state: State::hashed(Hashing::start(file)) } }
+    /// The running executable's file.
+    pub fn new(file: F) -> Self { Self { state: State::hashed(Hashing::start(file)), offer: Upload::Offer } }
+    /// A code allocation's bytes, at most [`srp_validate::executable::MAX_CODE`]
+    /// (`vostok::modules::Blocks` holds no larger one).
+    pub fn code(block: F) -> Self { Self { state: State::hashed(Hashing::start(block)), offer: Upload::Code } }
+    /// Stored, refused, unread or failed: nothing more to send.
+    pub fn done(&self) -> bool { matches!(self.state, State::Done) }
     pub fn reply(&mut self, reply: Reply) {
         let old = core::mem::replace(&mut self.state, State::Done);
         self.state = match old {
@@ -112,7 +119,7 @@ impl<F: Source> Client<F> {
             State::Hashing(hashing) => State::hashed(hashing.step()),
             State::Offering { file, identity, last } => {
                 if last.is_none_or(|last| now.wrapping_sub(last) >= 1000)
-                    && send(Carrier { match_id, upload: Upload::Offer(identity) }) {
+                    && send(Carrier { match_id, upload: (self.offer)(identity) }) {
                     State::Offering { file, identity, last: Some(now) }
                 } else { State::Offering { file, identity, last } }
             }
@@ -192,5 +199,16 @@ mod tests {
         client.reply(Reply { match_id: 7, sha256: identity.sha256, answer: Answer::Stored });
         assert!(dropped.get());
         client.tick(now.wrapping_add(9999), 7, |_| panic!("done"));
+    }
+    #[test]
+    fn a_code_block_is_offered_as_code_and_done_when_refused() {
+        let mut client = Client::code(File { bytes: std::vec![0xcc; 5000], at: 0, dropped: Rc::default() });
+        let mut offered = None;
+        for now in 0..100 { client.tick(now, 7, |c| { if let Upload::Code(i) = c.upload { offered = Some(i); } true }); }
+        let identity = offered.expect("offered as code");
+        assert_eq!(identity.size(), 5000);
+        assert!(!client.done());
+        client.reply(Reply { match_id: 7, sha256: identity.sha256, answer: Answer::Refused });
+        assert!(client.done());
     }
 }

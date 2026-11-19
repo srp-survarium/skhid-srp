@@ -1,0 +1,45 @@
+{
+ "_about": "London (level_09) day: its probes' reflection strength as 0.31a2 authors it, environment_probes_specular_intensity_multiplier 1.2 (0.31a2's day key frame). Patch 14 made the day's environment from native level_01 day's settings, which leave this one out, so 0.26g drew London's probe reflections at its default; native maps set it where they mean it (level_08 day 0.3, level_01 rain and evening 1). The rain and evening projects (pack london-weathers) carry 0.31a2's own values. Every day project: day_2, day_3, day_4, day_5 and Free for All's day_8.",
+ "add_value": [
+  {
+   "files": [
+    "projects/level_09/day_2/client_project"
+   ],
+   "table": "client_objects[417]/properties",
+   "key": "environment_probes_specular_intensity_multiplier",
+   "value": 1.2
+  },
+  {
+   "files": [
+    "projects/level_09/day_3/client_project"
+   ],
+   "table": "client_objects[429]/properties",
+   "key": "environment_probes_specular_intensity_multiplier",
+   "value": 1.2
+  },
+  {
+   "files": [
+    "projects/level_09/day_4/client_project"
+   ],
+   "table": "client_objects[415]/properties",
+   "key": "environment_probes_specular_intensity_multiplier",
+   "value": 1.2
+  },
+  {
+   "files": [
+    "projects/level_09/day_5/client_project"
+   ],
+   "table": "client_objects[413]/properties",
+   "key": "environment_probes_specular_intensity_multiplier",
+   "value": 1.2
+  },
+  {
+   "files": [
+    "projects/level_09/day_8/client_project"
+   ],
+   "table": "client_objects[411]/properties",
+   "key": "environment_probes_specular_intensity_multiplier",
+   "value": 1.2
+  }
+ ]
+}

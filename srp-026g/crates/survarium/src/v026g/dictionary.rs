@@ -44,11 +44,68 @@ pub struct Bundle {
     pub cfg: String,
 }
 
+/// A `maps_dict` id: the map and mode a match names. The file's ids are
+/// 32-bit; srp's go up to `u16::MAX`. The match options carry its low byte,
+/// and srp's block the whole id when it is over a byte (exe patch 154,
+/// [`super::match_msgs::static_info`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(transparent)]
+pub struct MapId(u16);
+
+impl MapId {
+    pub const fn new(id: u16) -> Self {
+        Self(id)
+    }
+
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+
+    /// The match options' `u8 map_id`: the id, or its low byte with the
+    /// whole id in srp's block ([`Self::over_a_byte`]).
+    pub const fn low_byte(self) -> u8 {
+        self.0.to_le_bytes()[0]
+    }
+
+    /// Whether the options' byte cannot hold the id.
+    pub const fn over_a_byte(self) -> bool {
+        self.0 > u8::MAX as u16
+    }
+}
+
+impl From<u8> for MapId {
+    fn from(id: u8) -> Self {
+        Self(u16::from(id))
+    }
+}
+
+impl TryFrom<i32> for MapId {
+    type Error = std::num::TryFromIntError;
+
+    fn try_from(id: i32) -> Result<Self, Self::Error> {
+        u16::try_from(id).map(Self)
+    }
+}
+
+impl std::fmt::Display for MapId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::str::FromStr for MapId {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(text: &str) -> Result<Self, Self::Err> {
+        text.parse().map(Self)
+    }
+}
+
 /// A row of `maps_dict`: the id a match names its map and mode by, and the
 /// file under `gameplay/game_modes/` it stands for ([`super::maps`]).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Map {
-    pub id: u8,
+    pub id: MapId,
     pub cfg_mode_name: String,
 }
 
@@ -536,7 +593,7 @@ mod tests {
         );
         assert_eq!(dictionary.bundles[13].id, 14);
 
-        let map = |id| dictionary.maps.iter().find(|map| map.id == id).unwrap();
+        let map = |id| dictionary.maps.iter().find(|map| map.id == MapId::new(id)).unwrap();
         assert_eq!(map(61).cfg_mode_name, "level_01_day_2.options");
         assert_eq!(map(109).cfg_mode_name, "level_08_prerain_2.options");
         assert_eq!(map(140).cfg_mode_name, "level_08_prerain_4.options");

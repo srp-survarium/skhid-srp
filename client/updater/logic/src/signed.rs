@@ -1,0 +1,127 @@
+//! The release's signature on a revision's torrent, its top-level `skhid`
+//! (`srp-026g/docs/notes/torrent-downloads.md`, "Signed releases" and "The
+//! signature"). A torrent is trusted by this alone, whoever handed it over:
+//! the signature covers `info`, and `info` every piece's hash.
+
+use crate::bencode::{self, Value};
+use crate::sha256::digest;
+
+/// So that a signature made for anything else is never one of these.
+pub const DOMAIN: &[u8; 26] = b"skhid torrent signature 1\0";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SignedError {
+    /// No `skhid` signature, or not one of this form.
+    Unsigned,
+    /// A signature, not the release's key's for this torrent.
+    Wrong,
+}
+
+/// The 59 bytes a release signs: [`DOMAIN`], the revision, the SHA-256 of
+/// `info`.
+pub fn message(revision: u8, info_sha256: &[u8; 32]) -> [u8; 59] {
+    let mut message = [0_u8; 59];
+    message[..26].copy_from_slice(DOMAIN);
+    message[26] = revision;
+    message[27..].copy_from_slice(info_sha256);
+    message
+}
+
+/// The revision the torrent is of, when `public_key` signed it.
+pub fn verify(torrent: &[u8], public_key: &[u8; 32]) -> Result<u8, SignedError> {
+    let document = bencode::parse(torrent).ok_or(SignedError::Unsigned)?;
+    let (_, info) = document.entry(b"info").ok_or(SignedError::Unsigned)?;
+    let skhid = document.get(b"skhid").ok_or(SignedError::Unsigned)?;
+    let revision = skhid
+        .get(b"revision")
+        .and_then(Value::int)
+        .and_then(|revision| u8::try_from(revision).ok())
+        .filter(|&revision| revision > 0)
+        .ok_or(SignedError::Unsigned)?;
+    let signature = skhid
+        .get(b"signature")
+        .and_then(Value::bytes)
+        .and_then(|bytes| ed25519_compact::Signature::from_slice(bytes).ok())
+        .ok_or(SignedError::Unsigned)?;
+    let key = ed25519_compact::PublicKey::new(*public_key);
+    key.verify(message(revision, &digest(info)), &signature)
+        .map(|()| revision)
+        .map_err(|_| SignedError::Wrong)
+}
+
+/// A public key as `release/signing.pub` holds it: 64 hex digits (and a
+/// line end).
+pub fn public_key(text: &str) -> Option<[u8; 32]> {
+    crate::sha256::from_hex(text.trim().as_bytes())
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use alloc::format;
+    use alloc::vec::Vec;
+
+    fn key() -> ed25519_compact::KeyPair {
+        ed25519_compact::KeyPair::from_seed(ed25519_compact::Seed::new([7; 32]))
+    }
+
+    /// Appended at the end: `skhid` sorts after `info` and `piece layers`.
+    pub(crate) fn sign(torrent: &[u8], revision: u8, pair: &ed25519_compact::KeyPair) -> Vec<u8> {
+        let info = bencode::parse(torrent).unwrap().entry(b"info").unwrap().1;
+        let signature = pair.sk.sign(message(revision, &digest(info)), None);
+        let mut out = torrent[..torrent.len() - 1].to_vec();
+        out.extend_from_slice(format!("5:skhidd8:revisioni{revision}e9:signature64:").as_bytes());
+        out.extend_from_slice(signature.as_ref());
+        out.extend_from_slice(b"ee");
+        out
+    }
+
+    #[test]
+    fn only_the_releases_signature_of_this_torrent_is_taken() {
+        let torrent = crate::torrent::make(&[("game/a", b"abc")], 32 * 1024, &[]);
+        let public = *key().pk;
+        let signed = sign(&torrent, 60, &key());
+        assert_eq!(verify(&signed, &public), Ok(60));
+        assert!(crate::torrent::parse(&signed).is_ok());
+        assert_eq!(verify(&torrent, &public), Err(SignedError::Unsigned));
+        // Another key's.
+        let other = ed25519_compact::KeyPair::from_seed(ed25519_compact::Seed::new([8; 32]));
+        assert_eq!(verify(&sign(&torrent, 60, &other), &public), Err(SignedError::Wrong));
+        // Another revision said than the one signed.
+        let text = signed.clone();
+        let at = text.windows(4).position(|w| w == b"i60e").unwrap();
+        let mut changed = text.clone();
+        changed[at + 2] = b'1';
+        assert_eq!(verify(&changed, &public), Err(SignedError::Wrong));
+        // Another info.
+        let mut other_info = signed.clone();
+        let at = other_info.windows(3).position(|w| w == b"1:a").map(|at| at + 2).unwrap();
+        other_info[at] = b'b';
+        assert_eq!(verify(&other_info, &public), Err(SignedError::Wrong));
+        assert_eq!(public_key(&format!("{}\n", "ab".repeat(32))), Some([0xAB; 32]));
+        assert_eq!(public_key("ab"), None);
+    }
+}
+
+#[cfg(test)]
+mod release {
+    use super::*;
+
+    /// Made by `release/build_torrent.py` (revision 61), signed with the
+    /// throwaway key of `tests/test_torrent.py` (seed bytes 0 to 31).
+    const RELEASE: &[u8] = include_bytes!("../tests/data/release.torrent");
+    const KEY: &str = "03a107bff3ce10be1d70dd18e74bc09967e4d6309ba50d5f1ddc8664125531b8";
+
+    #[test]
+    fn the_release_builders_torrent_is_read_and_verified() {
+        assert_eq!(verify(RELEASE, &public_key(KEY).unwrap()), Ok(61));
+        let torrent = crate::torrent::parse(RELEASE).unwrap();
+        let paths: alloc::vec::Vec<&str> = torrent.files.iter().map(|file| file.path.as_str()).collect();
+        assert_eq!(paths, ["README.txt", "game/binaries/x86/updater_skhid.exe", "game/resources.db.patch_12"]);
+        assert_eq!(torrent.piece_length, 4 << 20);
+        let sizes: alloc::vec::Vec<u64> = torrent.files.iter().map(|file| file.size).collect();
+        assert_eq!(sizes[0], 9);
+        // The updater: two pieces, the README one, the patch the rest.
+        assert_eq!(torrent.pieces, 1 + 2 + sizes[2].div_ceil(4 << 20) as u32);
+    }
+}
