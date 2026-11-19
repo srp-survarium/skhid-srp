@@ -2025,16 +2025,21 @@ impl Motor {
                 if let Some(gate) = route.gate_within(s, ahead) {
                     ahead = (gate - s).max(MIN_AHEAD_M);
                 }
-                match (self.aim_point(route, s, ahead, &clear), self.precise.line()) {
-                    // [S5] Along a thin top: on its line.
-                    (Aim::Clear(_) | Aim::Unclear(_), Some((line, forward))) => line.target(pose.feet, forward, ahead),
-                    (Aim::Clear(target), None) => match lane {
-                        Some(lane) if !self.precise.holds_line() => self.laned(route, s, ahead, pose.feet, target, lane, &clear),
-                        _ => target,
-                    },
-                    (Aim::Unclear(target), None) => target,
-                    // No point of the route is one the body walks to in a line: it is off it.
-                    (Aim::None, _) => return (Decision::default(), Walked::Off(off_m.max(off) + 0.01)),
+                // [retarget] On the leg of a drop flown along a grid way: along that way, as the builder walked it.
+                if let Some(target) = route.flown_drop_target(s, pose.feet, ahead) {
+                    target
+                } else {
+                    match (self.aim_point(route, s, ahead, &clear), self.precise.line()) {
+                        // [S5] Along a thin top: on its line.
+                        (Aim::Clear(_) | Aim::Unclear(_), Some((line, forward))) => line.target(pose.feet, forward, ahead),
+                        (Aim::Clear(target), None) => match lane {
+                            Some(lane) if !self.precise.holds_line() => self.laned(route, s, ahead, pose.feet, target, lane, &clear),
+                            _ => target,
+                        },
+                        (Aim::Unclear(target), None) => target,
+                        // No point of the route is one the body walks to in a line: it is off it.
+                        (Aim::None, _) => return (Decision::default(), Walked::Off(off_m.max(off) + 0.01)),
+                    }
                 }
             }
         };
@@ -2420,13 +2425,18 @@ impl Motor {
             Some(jump) => jump.aim,
             None => {
                 let ahead = self.feel.look_ahead_m.min(self.ahead_cap.unwrap_or(f32::INFINITY));
-                match (self.aim_point(route, s, ahead, &clear), self.precise.line()) {
-                    // [S5] Along a thin top: on its line.
-                    (Aim::Clear(_) | Aim::Unclear(_), Some((line, forward))) => line.target(pose.feet, forward, ahead),
-                    (Aim::Clear(target) | Aim::Unclear(target), None) => target,
-                    (Aim::None, _) => {
-                        let turn = self.aim_toward(pose, aim.0, aim.1);
-                        return (Decision { keys: 0, turn }, Walked::Off(off_m.max(off) + 0.01));
+                // [retarget] On the leg of a drop flown along a grid way: along that way, as on a lane walk.
+                if let Some(target) = route.flown_drop_target(s, pose.feet, ahead) {
+                    target
+                } else {
+                    match (self.aim_point(route, s, ahead, &clear), self.precise.line()) {
+                        // [S5] Along a thin top: on its line.
+                        (Aim::Clear(_) | Aim::Unclear(_), Some((line, forward))) => line.target(pose.feet, forward, ahead),
+                        (Aim::Clear(target) | Aim::Unclear(target), None) => target,
+                        (Aim::None, _) => {
+                            let turn = self.aim_toward(pose, aim.0, aim.1);
+                            return (Decision { keys: 0, turn }, Walked::Off(off_m.max(off) + 0.01));
+                        }
                     }
                 }
             }
