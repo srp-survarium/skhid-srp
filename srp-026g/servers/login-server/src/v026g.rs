@@ -597,11 +597,10 @@ fn handle_sign_in(
     key: &ServerKey,
     lobby: Lobby,
     gate: &RevisionGate,
-    origin: Peer,
+    peer: Peer,
     mut stream: TcpStream,
 ) {
     let mut buffer = [0; 1024];
-    let peer = origin.address();
     let reached = stream.local_addr().ok().map(|reached| reached.ip());
     let len = match read_message(&mut stream, &mut buffer, sign_in_length) {
         Ok(len) => len,
@@ -734,7 +733,7 @@ fn handle_sign_in(
         return;
     };
     store.signed_in_from(account_id, peer.ip());
-    let (lobby_ip, lobby_port) = lobby.address_for_origin(origin, reached);
+    let (lobby_ip, lobby_port) = lobby.address_for_origin(peer, reached);
     log::info!(
         "Sign-in: account={account_id:#x} from {peer} session={session_id:#x}, \
          sent to the lobby at UDP {lobby_ip}:{lobby_port}"
