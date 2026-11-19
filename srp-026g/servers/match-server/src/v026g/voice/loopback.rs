@@ -39,7 +39,7 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
                 match_id: ticket.match_id,
                 place,
             },
-            "127.0.0.1".parse().unwrap(),
+            udp_transport::relay::Peer::direct("127.0.0.1:1".parse().unwrap()),
         );
     }
     let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
@@ -49,7 +49,7 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
     let _server = Server {
         stop,
         thread: Some(std::thread::spawn(move || {
-            run(&socket, registry, [7; 32], &worker_stop)
+            run(&socket, registry, [7; 32], Default::default(), &worker_stop)
         })),
     };
     let games: Vec<_> = (0..2)
@@ -77,7 +77,9 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
     let mut senders = [Sender::new(session_of(0), 1), Sender::new(session_of(2), 1)];
     let mut output = [Vec::<i16>::new(), Vec::<i16>::new()];
     for index in 0..2 {
-        games[index].send(&senders[index].start(0)).unwrap();
+        games[index]
+            .send(&senders[index].start(0, wire::Channel::Near))
+            .unwrap();
         cores[1 - index].receive(&receive(&games[1 - index]), 0);
     }
     // 0.8s, 20 audio datagrams each, at the real audio clock: the relay takes
@@ -99,7 +101,7 @@ fn two_clients_pass_opus_audio_through_the_udp_relay() {
         for index in 0..2 {
             output[index].extend(
                 cores[index]
-                    .mix(1.0, &Hearing::radio(0), now)
+                    .mix(1.0, &Hearing::UNITY, now)
                     .map(|[left, _]| left),
             );
         }

@@ -364,8 +364,9 @@ def com_method(row, name, params, ret, vostok):
     if not match:
         raise Refused(f"{name}: a COM method's va {row['va']!r} is <Interface>+<slot> (ID3D11DeviceContext+0x3c)")
     interface, slot = match.group(1), number(match.group(2))
-    if slot % 4 or not 12 <= slot < 0x400:
-        raise Refused(f"{name}: {row['va']}: a method's slot is a multiple of 4, past IUnknown's three, under 0x400")
+    if slot % 4 or not 8 <= slot < 0x400:
+        raise Refused(f"{name}: {row['va']}: a method's slot is a multiple of 4, Release (8) or past IUnknown's three, "
+                      "under 0x400")
     if name != row["symbol"] or not re.fullmatch(r"engine_[a-z0-9_]+", name):
         raise Refused(f"{row['symbol']}: the prototype names {name}; a symbol is engine_<what>")
     if row["arguments"].strip() != "-":

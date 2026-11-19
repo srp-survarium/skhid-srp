@@ -46,7 +46,7 @@
         SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
         outputHashMode = "recursive";
         outputHashAlgo = "sha256";
-        outputHash = "sha256-F4ErAyoePkNwxGseI36VfaoPnFfvfje0Ldnekrzlg/8=";
+        outputHash = "sha256-6zcZRikmlQJDIIfxHqC4jgBkvJcPxvr089AfDjoEElQ=";
         # (This file has CRLF line ends; bash takes none.)
         buildCommand = builtins.replaceStrings [ "\r" ] [ "" ] (''
           xwin --accept-license --log-level warn --http-retry 3 --timeout 600s \
@@ -139,6 +139,8 @@
       # The portable Rust core has no registry dependencies. This hermetic
       # check runs the same tests as cargo test -p skhid-voice, plus builds
       # the WAV listening tool; the real relay test lives in match-server.
+      skhidTorrent = import ../client/updater/torrent-dll { inherit pkgs; };
+
       voiceLoopback = pkgs.stdenv.mkDerivation {
         name = "skhid-voice-loopback";
         src = ./client-voice;
@@ -162,6 +164,11 @@
       packages.${system} = {
         voice-opus = voiceOpusMsvc;
         skhid-voice-smoke = skhidVoiceSmoke;
+        # skhid_torrent.dll (beside updater_skhid.exe: its BitTorrent) and
+        # skhid-dht (the release puts its DHT item with it):
+        # client/updater/torrent-dll.
+        skhid-torrent-dll = skhidTorrent.dll;
+        skhid-dht = skhidTorrent.dht;
       };
 
       checks.${system}.voice-loopback = voiceLoopback;

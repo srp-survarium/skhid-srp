@@ -1,4 +1,5 @@
 use super::*;
+use survarium::v026g::maps::MapId;
 
 fn play(world: &mut World, index: usize) {
     rows(world, index, ROOM_PLAY, 1);
@@ -112,7 +113,7 @@ fn two_wait_but_three_open_another_room_and_all_stay_in_it_after_its_match() {
     world
         .core
         .rooms
-        .started(next, 123, survarium::v026g::twist::Played::plain(survarium::v026g::maps::MatchMap::of(61).unwrap()), &accounts, world.now);
+        .started(next, 123, survarium::v026g::twist::Played::plain(survarium::v026g::maps::MatchMap::of(MapId::new(61)).unwrap()), &accounts, world.now);
     world.core.room_match_over(123);
     assert!(waiting.iter().all(|&player| key(&world, player) == next));
 }

@@ -1,0 +1,15 @@
+# Patch 154: a maps_dict id over a byte (map_id.rs). The two options reads
+# are patches 65's (order 0), 86's (1), 83's (2), 88's (3) and 142's (4) too:
+# this one runs first, so each reads the whole id it writes.
+name = "map_id"
+patch = 154
+
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = -1
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = -1

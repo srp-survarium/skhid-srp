@@ -9,6 +9,105 @@ release that made it what it is now.
 
 ---
 
+## 19 Nov, 14:50 — TODO: the owner's words (update required)
+
+<!-- Revision 67 (026g-rev67), released 2026-11-19 14:50 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2178 Chemical Plant v0.21: day, rain and evening
+- TODO: #2213 London in rain and evening: maps 276-281 (pack london-weathers@3)
+- TODO: #2224 London's probes as 0.31a2: reflection-only windows, specular 1.2, box projection per probe, authored shapes
+- TODO: #2235 London's cupboards wood-brown, as in 0.31a2 (pack london-textures@1)
+- TODO: #2236 London drawn with its own build's tone curve (three-maps-021-lighting@9)
+- TODO: #2210 Relay: peers are identified by address and route
+- TODO: #2253 Content: Flag of Kosovo and Coat of arms of Kosovo decals
+
+## 18 Nov, 19:54 — TODO: the owner's words (update required)
+
+<!-- Revision 66 (026g-rev66), released 2026-11-18 19:54 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2159 Record revision 64 test patch baseline
+- TODO: #2162 Publish torrent downloader with tracker and peer diagnostics
+- TODO: #2163 Add automatic regional relay fallback with native UDP forwarding
+- TODO: #2164 Relay: a probe, a reset sign-in or an idle client no longer takes the service down
+- TODO: #2165 Patch 150: the game shares by BitTorrent in matches too
+- TODO: #2166 Black Market Medkit: heals in 1 s (2 s to activate as before)
+- TODO: #2167 Patch 58: kit keys pick nothing for 1 s after the kits appear
+- TODO: #2168 Chemical Plant v0.11: a picture of its own
+- TODO: #2170 The five 0.21 maps in day, rain and evening, drawn the 0.21 way
+- TODO: #2171 Patch 158: the eye's ray goes through leaves
+- TODO: #2169 Relay: the site under the relay's own name (by.skhid.link)
+- TODO: #1543 Patch 122: room for 32 particle effects in each presenter, no entry past a full list (crash at 0x2ACC7F)
+- TODO: #2172 Patch 158, reviewed: the leaves' ray keeps its own filter; a surface under a leaf is met
+- TODO: #2174 simulation_changes.tsv: one next row for the two pending changes
+
+## 17 Nov, 16:28 — TODO: the owner's words (update required)
+
+<!-- Revision 64 (026g-rev64), released 2026-11-17 16:28 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2142 AKMSU optics stay on the gun: weapons-069@19, scope-fits@13
+- TODO: #2143 Patch 157: Ctrl+V pastes into the console's line
+- TODO: #2145 Patch 156: collision fill (translucent surfaces) and room for 131072 lines
+- TODO: #2144 Patch 125: the game sends its code blocks that are no module
+- TODO: #2150 Updater: with torrent on, don't wait on an unreachable site; HTTPS whenever it answers
+- TODO: #2151 Vostok v0.21: no sky seam where the mountains meet the terrain
+- TODO: #2146 Patch 107: the console types the keyboard layout's text, as the chat
+- TODO: #2148 Patch 158: the first-person eye stays out of the level's surfaces
+- TODO: #2152 Wiki: Simulators section (recoil and spread by aim, stance, skills, gloves, arms)
+- TODO: #2149 Patch 159: the console's output scrolls
+- TODO: #2153 Patch 85: a bullet record whose shooter has no gun in its slot is not made
+- TODO: #2141 Run logs in game\logs; the old ones deleted
+- TODO: #2154 Add Croatian game localization
+- TODO: #2157 Port three 0.21 maps and preserve original lighting across five day maps
+- TODO: #2158 Use the patch server by default for releases
+
+## 17 Nov, 00:33 — TODO: the owner's words (update required)
+
+<!-- Revision 63 (026g-rev63), released 2026-11-17 00:33 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2139 Tab list, names only: long names no longer cut
+- TODO: #2138 Mamayev Kurgan: the tunnel top open to players
+- TODO: #2130 Patch 156: console command `collision` draws the level's collision geometry
+
+## 16 Nov, 14:53 — TODO: the owner's words (update required)
+
+<!-- Revision 62 (026g-rev62), released 2026-11-16 14:53 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2093 Patch 151: a gun-stock hit disarms a trap
+- TODO: #2107 Voice: two push-to-talk keys, the radio's (team) and the 10 m voice's (everyone near)
+- TODO: #2108 Voice: steadier sound (quiet microphones raised, a limiter that turns the mix down, a deeper capture queue, Opus FEC)
+- TODO: #2111 Voice: the listener's game brings every speaker to one loudness
+- TODO: #2113 Patch 152: F11 saves a screenshot, F12 one without the interface
+- TODO: #2112 Voice: "Microphone sensitivity" is gone (the listeners' games level every speaker)
+- TODO: #1841 Torrent downloads: signed torrent in the ZIP, the site's links, the bootstrap, the updater's BitTorrent by libtorrent
+- TODO: #2115 Voice: a wall between two players makes the 10 m voice quieter and dull
+- TODO: #2117 Rank badges: end-game price ladder (Alpha 100M)
+- TODO: #2118 Voice: the nearby voice falls to nothing at 12 m
+- TODO: #1846 Battery hit: strike with a carried battery (ram and shove)
+- TODO: #1860 STALKER maps: Fire Station in Free for All (Dark Valley, Vehicle Station, Sports Center held)
+- TODO: #2119 London Free for All spawns at the owner's picks
+- TODO: #2121 Patch 153: a step in water wades (pack water-steps)
+- TODO: #2123 Fire Station Free for All spawns at the owner's picks
+- TODO: #2124 Snow-20: vest, pants and gloves match the Sniper set
+- TODO: #2125 Step sounds: dry leaves step as the default step, as 0.69d
+- TODO: #2128 Patch 153: a step finds what the capsule rests on (thin walkways, rails)
+- TODO: #2131 Patch 153: a step on a miss sounds on what the capsule touched, as 0.69d
+- TODO: #2132 Release: the torrents' signing public keys (live and test)
+- TODO: #2133 Chemical Plant Free for All spawns at the owner's picks
+- TODO: #2135 Dev shell: the Microsoft libraries' hash as Microsoft serves them now
+
+## 15 Nov, 21:20 — TODO: the owner's words (update required)
+
+<!-- Revision 61 (026g-rev61), released 2026-11-15 21:20 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2078 Winchester 1894: damage 0.94, two body hits through every armour
+- TODO: #2079 Training Camp: no map theme
+- TODO: #2083 Training Camp: its bonfires burn (the game's own fire zone)
+- TODO: #2080 Shop: "Hide owned" remembered with the account
+- TODO: #2084 Training Camp minimap: the three trucks in their gateways
+- TODO: #2085 Training Camp Free for All at the owner's 47 picks; the map test's counts brought to the data
+- TODO: #2086 Vostok Free for All: a spawn on the checkpoint's roof, and roofs walkers stand on
+- TODO: #2095 Complete 0.69 scope coverage and fix attachment alignment
+
 ## 15 Nov, 16:26 — TODO: the owner's words (update required)
 
 <!-- Revision 60 (026g-rev60), released 2026-11-15 16:26 UTC. To be worded for players; what it shipped: -->

@@ -17,10 +17,10 @@
 
 use std::fs::{self, File};
 use std::io::{self, LineWriter, Write};
-use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::relay::{Peer, Route};
 use crate::table::{Direction, Table};
 use crate::wire::{self, ParseError};
 
@@ -64,8 +64,8 @@ impl PacketLog {
 
     /// A new file for one connection:
     /// `<kind>-<ip>_<port>-<unix ms>.log`, the kind being `match` or
-    /// `lobby`.
-    pub fn connection(&self, table: Table, peer: SocketAddr) -> io::Result<ConnectionLog> {
+    /// `lobby`; a relayed peer's has `-via-<relay>` after its port.
+    pub fn connection(&self, table: Table, peer: Peer) -> io::Result<ConnectionLog> {
         let kind = match table {
             Table::Match => "match",
             Table::Lobby => "lobby",
@@ -76,7 +76,15 @@ impl PacketLog {
             .chars()
             .map(|c| if c == ':' { '-' } else { c })
             .collect();
-        let name = format!("{kind}-{address}_{}-{}.log", peer.port(), unix_ms());
+        let via = match peer.route() {
+            Route::Direct => String::new(),
+            Route::Relay(relay) => format!("-via-{}", relay.public()),
+        };
+        let name = format!(
+            "{kind}-{address}_{}{via}-{}.log",
+            peer.address().port(),
+            unix_ms()
+        );
         let path = self.directory.join(name);
         let file = File::create(&path)?;
         Ok(ConnectionLog {
@@ -313,7 +321,7 @@ mod tests {
             unix_ms()
         ));
         let log = PacketLog::new(&directory).unwrap();
-        let peer: SocketAddr = "127.0.0.1:50000".parse().unwrap();
+        let peer = Peer::direct("127.0.0.1:50000".parse().unwrap());
         let mut connection = log.connection(Table::Match, peer).unwrap();
         connection.note("connected");
         connection.datagram(Direction::ToClient, &[0, 0, 0, 0xE3, 0xD4, 4, 0xD4, 4], 0);

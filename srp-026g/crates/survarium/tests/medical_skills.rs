@@ -5,12 +5,12 @@ use survarium::v026g::skills::{SkillError, SkillsTree};
 /// modifier carrying the packed ranks (43 the tree's first ten, 45 the
 /// combo skills) and the rank field's first bit (medical-skills.md).
 #[rustfmt::skip]
-const TREE: [(u16, u8, u32, u8, u8, usize, u32); 13] = [
-    (342, 1, 0, 1, 1, 43, 21), (301, 3, 0, 2, 1, 43, 0), (302, 2, 0, 3, 1, 43, 3),
-    (311, 5, 3, 1, 2, 43, 6), (313, 2, 3, 3, 2, 45, 2), (312, 3, 3, 4, 2, 43, 9),
-    (303, 2, 10, 2, 3, 45, 0), (321, 3, 10, 4, 3, 43, 12),
-    (332, 5, 15, 2, 4, 43, 17), (323, 4, 15, 3, 4, 45, 4), (333, 4, 15, 4, 4, 45, 7),
-    (331, 1, 20, 2, 5, 43, 16), (322, 1, 20, 3, 5, 43, 15),
+const TREE: [(u16, u8, u32, u8, u8, usize, u32); 14] = [
+    (342, 1, 0, 2, 1, 43, 21), (302, 2, 0, 3, 1, 43, 3),
+    (301, 3, 3, 1, 2, 43, 0), (311, 4, 3, 2, 2, 43, 6), (312, 3, 3, 3, 2, 43, 9), (314, 3, 3, 4, 2, 45, 12),
+    (303, 2, 7, 1, 3, 45, 0), (321, 3, 7, 2, 3, 43, 12), (324, 3, 7, 4, 3, 45, 10),
+    (323, 4, 12, 1, 4, 45, 4), (332, 5, 12, 2, 4, 43, 17), (333, 3, 12, 4, 4, 45, 7),
+    (331, 1, 17, 2, 5, 43, 16), (322, 1, 17, 3, 5, 43, 15),
 ];
 
 #[test]
@@ -42,6 +42,7 @@ fn medical_tree_progression_and_native_payload() {
     expected.sort_unstable();
     assert_eq!(medical, expected, "Medic (341) left the tree");
     assert!(tree.skill(341).is_none());
+    assert!(tree.skill(313).is_none(), "Take Cover left the tree");
     let mut positions = std::collections::HashSet::new();
     for &(id, ranks, branch_points, column, row, ..) in &TREE {
         let skill = tree.skill(id).unwrap();
@@ -69,39 +70,34 @@ fn medical_tree_progression_and_native_payload() {
             Err(SkillError::TooManyPoints { .. })
         ));
     }
-    // Each tier needs its threshold in the rows above: 0/3/10/15/20.
-    let tier_one = [(301, 3), (302, 2)];
-    tree.validate(100, &[(301, 3), (311, 1)]).unwrap();
-    tree.validate(100, &[(301, 1), (302, 2), (311, 1)]).unwrap();
-    // Brothers in Arms (342) is a tier-1 skill: its one point counts.
-    tree.validate(100, &[(342, 1), (301, 2), (311, 1)]).unwrap();
-    assert!(matches!(
-        tree.validate(100, &[(301, 2), (311, 1)]),
-        Err(SkillError::Locked { skill: 311, .. })
-    ));
-    let mut nine = tier_one.to_vec();
-    nine.extend([(311, 4), (303, 1)]);
-    assert!(matches!(
-        tree.validate(100, &nine),
-        Err(SkillError::Locked { skill: 303, .. })
-    ));
-    let mut ten = tier_one.to_vec();
-    ten.extend([(311, 5), (303, 1)]);
-    tree.validate(100, &ten).unwrap();
-    let mut fourteen = tier_one.to_vec();
-    fourteen.extend([(311, 5), (312, 3), (313, 1), (323, 1)]);
-    assert!(matches!(
-        tree.validate(100, &fourteen),
-        Err(SkillError::Locked { skill: 323, .. })
-    ));
-    let mut fifteen = tier_one.to_vec();
-    fifteen.extend([(311, 5), (312, 3), (313, 2), (323, 1)]);
-    tree.validate(100, &fifteen).unwrap();
+    // Each tier needs its threshold in the rows above: 0/3/7/12/17.
+    // Each row first locked one point short, then open with that point.
+    let locked_then_open = |short: &[(u16, u8)], open: &[(u16, u8)], skill: u16| {
+        assert!(
+            matches!(tree.validate(100, short), Err(SkillError::Locked { skill: s, .. }) if s == skill),
+            "{skill} with {short:?}"
+        );
+        tree.validate(100, open).unwrap();
+    };
+    locked_then_open(&[(302, 2), (301, 1)], &[(342, 1), (302, 2), (301, 1)], 301);
+    let row_one = [(342, 1), (302, 2)];
+    let with = |more: &[(u16, u8)]| [&row_one[..], more].concat();
+    locked_then_open(&with(&[(311, 3), (303, 1)]), &with(&[(311, 4), (303, 1)]), 303);
+    locked_then_open(
+        &with(&[(311, 4), (301, 3), (312, 1), (323, 1)]),
+        &with(&[(311, 4), (301, 3), (312, 2), (323, 1)]),
+        323,
+    );
+    locked_then_open(
+        &with(&[(311, 4), (301, 3), (312, 3), (303, 2), (323, 1), (331, 1)]),
+        &with(&[(311, 4), (301, 3), (312, 3), (303, 2), (323, 2), (331, 1)]),
+        331,
+    );
     // A full build: every skill at its top rank but one of the tier-5 pair
-    // and one of tier 4's Unflinching and Concentration.
+    // (Unflinching and Concentration go together).
     let mut spent = Vec::new();
     for &(id, ranks, ..) in &TREE {
-        if id == 322 || id == 333 {
+        if id == 322 {
             continue;
         }
         for n in 1..=ranks {
@@ -111,7 +107,7 @@ fn medical_tree_progression_and_native_payload() {
         }
         spent.push((id, ranks));
     }
-    assert_eq!(spent.iter().map(|(_, n)| u32::from(*n)).sum::<u32>(), 31);
+    assert_eq!(spent.iter().map(|(_, n)| u32::from(*n)).sum::<u32>(), 37);
     let mut medicine = spent.clone();
     medicine.retain(|&(id, _)| id != 331);
     medicine.push((322, 1));
@@ -132,21 +128,8 @@ fn medical_tree_progression_and_native_payload() {
         assert!(tree.skill(old).unwrap().antiskills.contains(&331));
         assert!(tree.skill(331).unwrap().antiskills.contains(&old));
     }
-    // Concentration instead of Unflinching: the same 31 points; both refused.
-    let concentration: Vec<(u16, u8)> = spent
-        .iter()
-        .map(|&(id, n)| if id == 323 { (333, n) } else { (id, n) })
-        .collect();
-    tree.validate(100, &concentration).unwrap();
-    let mut both = spent.clone();
-    both.push((333, 1));
-    assert!(matches!(
-        tree.validate(100, &both),
-        Err(SkillError::Exclusive(..))
-    ));
-    assert_eq!(tree.skill(323).unwrap().antiskills, [333]);
-    assert_eq!(tree.skill(333).unwrap().antiskills, [323]);
-    assert_eq!(tree.modifiers(&concentration)[45], 522.0);
+    assert!(tree.skill(323).unwrap().antiskills.is_empty());
+    assert!(tree.skill(333).unwrap().antiskills.is_empty());
     // Both tier-5 unlocks' packed bits, to check the transport of each.
     let mut all = spent.clone();
     all.push((322, 1));
@@ -160,7 +143,8 @@ fn medical_tree_progression_and_native_payload() {
         assert_eq!(modifiers[slot], encoded as f32, "modifier {slot}");
         assert_eq!(modifiers[slot] as u32, encoded);
     }
-    assert_eq!(modifiers[45], 74.0);
+    // Numb Legs 2, Unflinching 4 << 4, Concentration 3 << 7, Second Wind 3 << 10, Sharp Eye 3 << 12.
+    assert_eq!(modifiers[45], 15810.0);
     assert_eq!(modifiers[33], 0.0); // activation is filtered by native medicine kind
     assert!((modifiers[57] - 0.24).abs() < 1e-6);
     assert_eq!(modifiers[15], 1.0);

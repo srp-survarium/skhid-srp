@@ -667,7 +667,7 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
     let world = world();
     let stats = || world.web.route(&get("/api/stats"), "t").body;
     let live = |phase, time_left: Option<Duration>| crate::LiveMatch {
-        map_id: 117,
+        map_id: survarium::v026g::maps::MapId::new(117),
         phase,
         players: [4, 3],
         played: None,
@@ -707,7 +707,7 @@ fn public_stats_say_when_the_last_match_ends_at_the_latest() {
     assert!(stats().ends_with(r#""last_match_ends_in":925}"#));
     // A map the client does not have: the time every playable mode has.
     *world.told.live.locked() = vec![crate::LiveMatch {
-        map_id: 0,
+        map_id: survarium::v026g::maps::MapId::new(0),
         ..live(crate::LivePhase::Gathering, None)
     }];
     assert!(stats().ends_with(r#""last_match_ends_in":925}"#));
@@ -764,7 +764,7 @@ fn the_launchers_page_and_its_fresh_numbers_come_with_the_launchers_policy() {
         .store(3, std::sync::atomic::Ordering::Relaxed);
     // A Team Deathmatch on Rudnya in play.
     *world.told.live.locked() = vec![crate::LiveMatch {
-        map_id: 117,
+        map_id: survarium::v026g::maps::MapId::new(117),
         phase: crate::LivePhase::Playing,
         players: [4, 3],
         played: Some(Duration::from_secs(130)),

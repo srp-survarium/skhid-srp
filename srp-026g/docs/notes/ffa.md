@@ -67,7 +67,9 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
     `channel`, by patch 142's `free_for_all::running`): everyone a mate. The relay sends every
     match whole since 2026-11-15, when opponents near became heard in the team modes too (it
     decided by the mode until then, `registry::VoiceChannel::of`). The Tab menu's voice mute and the
-    talking list take every player (in Blackout the list still only on Tab).
+    talking list take every player (in Blackout the list still only on Tab). Since 2026-11-16
+    there are two keys (voice-chat.md, "Two keys"): the radio's reaches every player of a
+    free-for-all at any distance (`registry::RadioChannel::Match`), the nearby voice's those near (12 m since 2026-11-16).
   - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"); the chat
     goes by these sides, never by the seating:
     - The HUD offers no team tab ("The player's screens", below).
@@ -329,6 +331,15 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - The owner's against the checks: 17, 30 and 31, 1.01, 1.77 and 0.17 m from `fire_soft_damage`,
     and 55 and 57, inside and 1.44 m from `frogs_damage_zone`. 35 hold the rule; 33 have no cover
     or stand in the perimeter band, kept as his.
+  - Six more (2026-11-16, on evening_8 once the tunnel roof opened, `level06-tunnel-top.md`:
+    `private/spawn-examples/mamayev026-tunnel-2026-11-16.tsv`): content edit
+    `ffa-mamayev-tunnel-picks-1`, after `level06-tunnel-top-1`, from
+    `scripts/ffa-mode/mamayev-tunnel-picks.tsv` (`picks --as-stood 3 --project
+    level_06/<weather>_8`, its moved rows: the places, not their point ids), new points 98-103
+    after 97, copies of point 30. One on the west hill, three on the roof, two at the west edge;
+    all on their ground and 2 m from harmful zones but 3, kept as he stood over a seam of the roof
+    (the floor the check finds is 2.93 m below); all fail the cover rule, kept as his. 68 -> 74
+    points.
 - **Training Camp at the owner's picks** (2026-11-15: 47 `where` places on day_8, "i also set
   spawns", `private/spawn-examples/training-camp-2026-11-15.tsv`). Content edit
   `ffa-training-camp-picks-1`, from `scripts/ffa-mode/training-camp-picks.tsv` (`picks --as-stood
@@ -344,6 +355,42 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     spawns, so no way down is checked there. Every one body clear, 2 m from the bonfires' fire
     zones and inside the fence (the nearest 4.1 m from it); 37 hold the rule, 10 have no cover,
     kept as his.
+- **London at the owner's picks** (2026-11-16: 50 `where` places on day_8,
+  `private/spawn-examples/london-2026-11-16.tsv`). Content edit `ffa-london-picks-1`, from
+  `scripts/ffa-mode/london-picks.tsv` (`picks --project level_09/day_8`) and `make_picks_edits.py
+  london`, in its own project only, after `ffa-center-1`, `ffa-london-underpass-1` and
+  `ffa-cover-maps-1`:
+  - All 50 facing as he faced, in point_ids 20-69 (position and rotation only); 70-83 go. 64 -> 50
+    points: only his, none of the centre move's, the underpass list's or the cover rule's left.
+  - 19 on the rotunda's second storey (14.06; 1-14, 43-47), 20 on the street and mounds (5.7 to
+    11.0; 15-28, 40-42, 48-50) and 11 in the underpass (0.58 to 1.27; 29-39); none on the third
+    storey.
+  - Every one on its ground (0 to 9 cm: 15, 21, 31, 40 and 48 lowered), body clear, 2 m from
+    harmful zones, and every one holds the spawn rule: no override needed.
+- **Fire Station at the owner's picks** (2026-11-16: 42 `where` places on day_8,
+  `private/spawn-examples/fire-station-2026-11-16.tsv`). Content edit `ffa-fire-station-picks-1`,
+  from `scripts/ffa-mode/fire-station-picks.tsv` (`picks --project v010b_cs_mp_firestation/day_8`)
+  and `make_picks_edits.py fire-station`, in its own project only, after `ffa-stalker-2`:
+  - All 42 facing as he faced, in point_ids 0-41 (position and rotation only); 42-47 go. 48 -> 42
+    points: only his, none of the spawn rule's left.
+  - Every one on its ground (0 to 22 cm: 6, 9 and 24 lowered), body clear and 2 m from harmful
+    zones; 39 hold the spawn rule, 18, 31 and 34 have no cover, kept as his. 16 and 28 stand
+    0.35 m apart, both kept.
+- **Chemical Plant at the owner's picks** (2026-11-16: 97 `where` places on day_8,
+  `private/spawn-examples/chemical-plant-2026-11-16.txt`). Content edit
+  `ffa-chemical-plant-picks-1`, from `scripts/ffa-mode/chemical-plant-picks.tsv` (`picks --project
+  level_04/<weather>_8` for day, evening and rain; no pick needed `--harmful-ok` or `--as-stood`)
+  and `make_picks_edits.py chemical-plant`, in its three own projects, after `ffa-center-1` and
+  `ffa-cover-maps-1`:
+  - All 97 facing as he faced: the first 60 in point_ids 75-134 (position and rotation only), 37
+    new 135-171, copies of the first solo spawn (20 m exclusion, 500 ms protection, no zones).
+    60 -> 97 points: only his, none of the centre move's or the cover rule's left.
+  - Every one on its ground (0 to 14 cm: 26, 28, 44, 56, 84, 87 and 97 lowered), body clear and
+    2 m from harmful zones, the same in the three weathers; 1.5 to 12.7 m up.
+  - 52 hold the spawn rule; kept as his: 17, 18, 23, 25, 26, 41, 82, 83, 84 and 93 have no cover,
+    1, 2, 4, 5, 7-12, 19-21, 54, 56-58, 62-65, 68, 69, 73, 76, 77, 79, 86 and 97 stand in the
+    perimeter band (6.1 m), 24, 66, 67 and 70-72 both. 89 and 91 are 0.2 m apart in plan, on
+    floors 4 m apart.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
