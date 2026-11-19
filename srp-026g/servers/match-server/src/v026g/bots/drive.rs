@@ -647,6 +647,7 @@ fn drive_tick_inner(
         bot.sight_counts.add(lapse);
     }
     bot.motor.turn_time = over.turn_time_s;
+    bot.motor.skill = bot.skill;
     let eye = aiming_me.eye();
     let aim_at = |p: Vec3| {
         let (dx, dz) = (p.x - eye.x, p.z - eye.z);

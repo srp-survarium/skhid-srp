@@ -72,8 +72,14 @@ pub struct Feel {
     /// The time to take most of a turn, seconds: the turning speed asked is
     /// the remaining angle over this.
     pub turn_time_s: f32,
-    /// Top turning speed, radians a second.
+    /// Top turning speed, radians a second (at skill 0, [`Motor::skill`]).
     pub max_turn_speed: f32,
+    /// [A416, human-steering 2.6] Top turning speed at skill 1, radians a second: the cap rises with the bot's skill from
+    /// [`Self::max_turn_speed`] to this. The client has no turn cap (one yaw for view and body, 0x2D8AD0, human-steering
+    /// `exe-movement-rules.md`, PROVEN); live humans while moving turn at P95 288 and P99 604 degrees a second (P99 standing 631),
+    /// the bots were held at 286.5 (`max_turn_speed` 5.0 rad/s, their P99). So skill 0 keeps the humans' P95 and skill 1 reaches
+    /// their P99 (10.54 rad/s). The skill's own turn time (`settle_s`, the reflex) still sets how fast a turn is asked.
+    pub max_turn_speed_top: f32,
     /// Top change of the turning speed, radians a second per second.
     pub max_turn_accel: f32,
     /// The walk's keys are let go for a target more than this off the
@@ -390,6 +396,7 @@ impl Default for Feel {
         Self {
             turn_time_s: 0.15,
             max_turn_speed: 5.0,
+            max_turn_speed_top: 604f32.to_radians(),
             max_turn_accel: 45.0,
             stop_turn: 1.4,
             go_turn: 0.7,
@@ -987,6 +994,8 @@ pub struct Motor {
     /// The turn's time constant for this tick when not the feel's (the
     /// reflex aims faster or slower by skill).
     pub turn_time: Option<f32>,
+    /// [A416] The bot's skill, 0 to 1, for the turn cap ([`Feel::max_turn_speed_top`]); set by the driver each tick.
+    pub skill: f32,
     /// The aim's turn rate this tick, yaw and pitch, radians a second (the
     /// reflex's, at a seen target: `CombatTuning::turn_feed`): a turn onto
     /// the aim follows it ([`Motor::aim_toward`]).
@@ -1560,6 +1569,7 @@ impl Motor {
             look: None,
             lane_use: super::apart::LaneUse::Idle,
             turn_time: None,
+            skill: 0.0,
             track: None,
             exact_end: None,
             drop_aim_run: 0,
@@ -1718,11 +1728,12 @@ impl Motor {
     /// of it, and that is what is added (none at a tick's time constant).
     fn turn_fed(&mut self, pose: &Pose, yaw: f32, pitch: f32, feed: (f32, f32)) -> (f32, f32) {
         let feel = &self.feel;
+        let skill = self.skill;
         let turn_time = self.turn_time.unwrap_or(feel.turn_time_s).max(0.02);
         let share = (1.0 - TICK_S / turn_time).max(0.0);
         let ease = |rate: &mut f32, left: f32, feed: f32| {
-            let want = (left / turn_time + feed * share)
-                .clamp(-feel.max_turn_speed, feel.max_turn_speed);
+            let cap = feel.max_turn_speed + skill.clamp(0.0, 1.0) * (feel.max_turn_speed_top - feel.max_turn_speed).max(0.0);
+            let want = (left / turn_time + feed * share).clamp(-cap, cap);
             let step = feel.max_turn_accel * TICK_S;
             *rate += (want - *rate).clamp(-step, step);
             let mut turn = *rate * TICK_S;
@@ -7373,6 +7384,30 @@ mod tests {
         assert!(off40.iter().any(|&k| k & key::SPRINT != 0), "W+side sprints: {off40:x?}");
         let off90 = run(90f32.to_radians());
         assert!(off90.iter().all(|&k| k & key::FORWARD == 0 && k & key::SPRINT == 0), "a side key alone: no sprint {off90:x?}");
+    }
+
+    /// [A416] The turn cap rises with the skill: a fast turn (a short turn time) at skill 0 stays under the humans' P95 (5.0 rad/s),
+    /// at skill 1 it goes past it and stays under their P99 ([`Feel::max_turn_speed_top`]).
+    #[test]
+    fn the_turn_cap_rises_with_the_skill_to_the_humans_p99() {
+        let fastest = |skill: f32| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel::default(), &mut rng);
+            motor.skill = skill;
+            motor.turn_time = Some(0.02);
+            let mut pose = Pose { yaw: 0.0, ..Default::default() };
+            let mut most = 0.0f32;
+            for _ in 0..30 {
+                let (turn, _) = motor.turn_toward(&pose, PI * 0.95, 0.0);
+                pose.yaw += turn;
+                most = most.max(turn.abs() / TICK_S);
+            }
+            most
+        };
+        let feel = Feel::default();
+        assert!(fastest(0.0) <= feel.max_turn_speed + 1e-3, "{}", fastest(0.0));
+        let top = fastest(1.0);
+        assert!(top > feel.max_turn_speed + 1.0 && top <= feel.max_turn_speed_top + 1e-3, "{top}");
     }
 
     #[test]
