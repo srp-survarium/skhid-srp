@@ -252,15 +252,25 @@ def main():
   if line and not line.startswith('#'):
    name,sha,size,urls=line.split('\t',3);archive=a.patch_cache/name
    assert archive.stat().st_size==int(size);layers.append(archive);archive_pins[name]=sha
+ # A released patch that carries a program of this pack (this version or an earlier one, released
+ # before it) leaves the layer below it in force.
+ def dxbc_digest(blob):
+  at=blob.find(b'DXBC');return blob[at+4:at+20].hex()
+ own={}
+ for version in a.pack.parent.glob('v021d-forward-fog-*'):
+  for path in operations:
+   if (version/'files'/path).is_file():own.setdefault(path,set()).add(dxbc_digest((version/'files'/path).read_bytes()))
  effective={}
  for archive in layers:
   for line in subprocess.check_output([str(a.shader_indexer),str(archive)],text=True).splitlines():
    digest,path=line.split('\t',1)
-   if path.startswith('shaders/sm_4_0/') and path.split('/')[-2] in SPECS:effective[path]=(archive,digest)
+   if path.startswith('shaders/sm_4_0/') and path.split('/')[-2] in SPECS and not (archive!=a.stock and digest in own.get(path,())):effective[path]=(archive,digest)
  expected={path for path,(_,digest) in effective.items() if digest in supported}
  assert operations.keys()==expected, ('effective forward alias coverage differs', sorted(expected-operations.keys())[:5],sorted(operations.keys()-expected)[:5])
  provenance=json.loads((a.pack/'source-archives.json').read_text())
- assert provenance['published_manifest_sha256']==hashlib.sha256(a.patches.read_bytes()).hexdigest()
+ # Built over the release list of its day: the current one up to the rows released since.
+ published=a.patches.read_bytes().splitlines(keepends=True)
+ assert any(hashlib.sha256(b''.join(published[:n])).hexdigest()==provenance['published_manifest_sha256'] for n in range(len(published)+1))
  used={effective[path][0].name for path in expected}
  assert {r['archive']:r['sha256'] for r in provenance['used_archives']}=={name:archive_pins[name] for name in used}
  markers={struct.unpack('<I',struct.pack('<f',s['marker']))[0]:s for s in specs};assert len(markers)==len(specs)

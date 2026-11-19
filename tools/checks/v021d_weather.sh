@@ -13,7 +13,7 @@ python3 srp-026g/scripts/v021d-weather/source_projects.py \
 python3 srp-026g/scripts/v021d-weather/make_geometry.py \
     --donor "$common/private/v021d-five-weathers/donor-layout" \
     --imported "$common/private/v021d-five-weathers/geometry-import" \
-    --pack "$SKHID_PACKS_DIR/maps-021d-weathers-2" --pack "$SKHID_PACKS_DIR/maps-021d-chemical-weathers-1" \
+    --pack "$SKHID_PACKS_DIR/maps-021d-weathers-2" --pack "$SKHID_PACKS_DIR/maps-021d-chemical-weathers-3" \
     --out "$CHECK_WORK/geometry.json" --provenance "$CHECK_WORK/geometry-inputs.json"
 cmp "$CHECK_WORK/geometry.json" srp-026g/scripts/content-edit/v021d-weather-geometry-1.json
 cmp "$CHECK_WORK/geometry-inputs.json" srp-026g/scripts/v021d-weather/geometry-inputs.json

@@ -15,7 +15,7 @@ spec.loader.exec_module(lamps)
 # Each weather pack's maps: rain 2/4 and evening 2/4 a level.
 PACKS = {'maps-021d-weathers-2': {'03': (170, 171, 172, 173), '06': (179, 180, 253, 254),
                                   '02': (1, 2, 3, 4), '05': (5, 6, 7, 8), '01': (262, 263, 264, 265)},
-         'maps-021d-chemical-weathers-1': {'04': (268, 269, 270, 271)}}
+         'maps-021d-chemical-weathers-3': {'04': (268, 269, 270, 271)}}
 MAPS = {level: ids for maps in PACKS.values() for level, ids in maps.items()}
 DAY_MARKERS = (-32281, -32195, -32198, -32187, -32196, -32287)
 LIGHTING_PACK = 'three-maps-021-lighting-8'

@@ -9,6 +9,7 @@ import subprocess
 from make_material_visibility import make
 from check_visibility_shaders import check as check_shaders
 from make_vertex_alpha import prior_material
+import later_edits
 
 
 def digest(values):
@@ -59,6 +60,7 @@ def check(porter, donor, patch):
         for key, values in alpha_changes.get(row['target_material'], {}).items():
             assert key not in row['changes'] and rest[key] == values['to']
             rest[key] = values['from']
+        rest = later_edits.undo(rest, row['target_material'])
         assert digest(rest) == row['unchanged_leaves_sha256'], (row['target_material'], 'finish/schema drift')
         if row['current_material'] != row['target_material']:
             assert f"material_instances/{row['current_material']}.material" not in paths, 'native material modified'
