@@ -107,13 +107,7 @@
    "file": "projects/v011w_level_04_evn/evening_2/client_project",
    "path": "client_objects[98]/properties/environment_probes_diffuse_intensity_multiplier",
    "from": 1,
-   "to": 4
-  },
-  {
-   "file": "projects/v011w_level_04_evn/evening_2/client_project",
-   "path": "client_objects[98]/properties/environment_probes_specular_intensity_multiplier",
-   "from": 1,
-   "to": 4
+   "to": 3
   },
   {
    "file": "projects/v011w_level_04_evn/evening_2/client_project",
@@ -463,13 +457,7 @@
    "file": "projects/v011w_level_04_evn/evening_4/client_project",
    "path": "client_objects[96]/properties/environment_probes_diffuse_intensity_multiplier",
    "from": 1,
-   "to": 4
-  },
-  {
-   "file": "projects/v011w_level_04_evn/evening_4/client_project",
-   "path": "client_objects[96]/properties/environment_probes_specular_intensity_multiplier",
-   "from": 1,
-   "to": 4
+   "to": 3
   },
   {
    "file": "projects/v011w_level_04_evn/evening_4/client_project",
@@ -1392,67 +1380,6 @@
   },
   {
    "files": [
-    "projects/v011w_level_04_evn/evening_2/client_project"
-   ],
-   "table": "",
-   "key": "srp_renderer_v011w",
-   "value": {
-    "inscatter_distance": 200,
-    "skylight_light": [
-     0.320029,
-     0.393267,
-     0.5
-    ],
-    "skylight_lower": 0,
-    "skylight_upper": 5,
-    "skylight_power": 0.1,
-    "environment_skycolor_x": [
-     0.509804,
-     0.529412,
-     0.564706
-    ],
-    "environment_skycolor_minus_x": [
-     0.509804,
-     0.529412,
-     0.564706
-    ],
-    "environment_skycolor_z": [
-     0.509804,
-     0.529412,
-     0.564706
-    ],
-    "environment_skycolor_minus_z": [
-     0.509804,
-     0.529412,
-     0.564706
-    ],
-    "environment_skycolor_up": [
-     1,
-     1,
-     1
-    ],
-    "environment_skycolor_down": [
-     1,
-     1,
-     1
-    ],
-    "sun_tint": [
-     0,
-     0,
-     0
-    ],
-    "clouds_color": [
-     2.2955,
-     1.3838,
-     0.7473
-    ],
-    "clouds_u_tile": 1,
-    "clouds_fog_power": 10,
-    "clouds_fog_up_limit": 0.15
-   }
-  },
-  {
-   "files": [
     "projects/v011w_level_04_rain/rain_2/client_project"
    ],
    "table": "client_objects[98]/properties",
@@ -1614,67 +1541,6 @@
     0.0,
     1.0
    ]
-  },
-  {
-   "files": [
-    "projects/v011w_level_04_evn/evening_4/client_project"
-   ],
-   "table": "",
-   "key": "srp_renderer_v011w",
-   "value": {
-    "inscatter_distance": 200,
-    "skylight_light": [
-     0.320029,
-     0.393267,
-     0.5
-    ],
-    "skylight_lower": 0,
-    "skylight_upper": 5,
-    "skylight_power": 0.1,
-    "environment_skycolor_x": [
-     0.509804,
-     0.529412,
-     0.564706
-    ],
-    "environment_skycolor_minus_x": [
-     0.509804,
-     0.529412,
-     0.564706
-    ],
-    "environment_skycolor_z": [
-     0.509804,
-     0.529412,
-     0.564706
-    ],
-    "environment_skycolor_minus_z": [
-     0.509804,
-     0.529412,
-     0.564706
-    ],
-    "environment_skycolor_up": [
-     1,
-     1,
-     1
-    ],
-    "environment_skycolor_down": [
-     1,
-     1,
-     1
-    ],
-    "sun_tint": [
-     0,
-     0,
-     0
-    ],
-    "clouds_color": [
-     2.2955,
-     1.3838,
-     0.7473
-    ],
-    "clouds_u_tile": 1,
-    "clouds_fog_power": 10,
-    "clouds_fog_up_limit": 0.15
-   }
   },
   {
    "files": [

@@ -39,12 +39,13 @@ RENDERER = EDITS / 'v011w-renderer-1.json'
 
 
 def profile(source, suffix):
-    """The srp_renderer_v011w table v011w-renderer-1.json gives Vostok's project `source`_`suffix`."""
+    """The srp_renderer_v011w table v011w-renderer-1.json gives Vostok's project `source`_`suffix`, or None
+    when that weather has none (patch 162 then leaves the weather 0.26g's: the evening, owner 2026-11-19)."""
     want = f'projects/{source}_{suffix}/client_project'
     found = [e['value'] for e in json.loads(RENDERER.read_text())['add_value']
              if e['key'] == 'srp_renderer_v011w' and want in e['files']]
-    assert len(found) == 1 and isinstance(found[0], dict), f'no one profile for {want} in {RENDERER.name}'
-    return found[0]
+    assert len(found) <= 1 and all(isinstance(f, dict) for f in found), f'not one profile for {want} in {RENDERER.name}'
+    return found[0] if found else None
 # Where Chemical's layout asks for its own value. Vostok's evening sun stands at azimuth 253.25, set for
 # Vostok; Chemical Plant's own authored evening (0.21d's, pack maps-021d-chemical-weathers@1, evening_2)
 # puts it at 74.86, and the map's lit facades and its sun views face that way. The cloud texture turns
@@ -198,8 +199,9 @@ def main():
                 edits['set_entry'].append({'file': out, 'list': 'client_objects',
                                            'where': {'game_object_type': 'environment'},
                                            'from': strings_from, 'to': strings_to})
-            edits['add_value'].append({'files': [out], 'table': '', 'key': 'srp_renderer_v011w',
-                                       'value': profile(source, suffix)})
+            if (renderer := profile(source, suffix)) is not None:
+                edits['add_value'].append({'files': [out], 'table': '', 'key': 'srp_renderer_v011w',
+                                           'value': renderer})
             config = f'gameplay/game_modes/v011e_level_04_{day}.options'
             new = f'gameplay/game_modes/{folder}_{suffix}.options'
             edits['copy'].append({'files': config, 'from': config, 'to': new})
