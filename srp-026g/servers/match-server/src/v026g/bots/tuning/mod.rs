@@ -200,6 +200,7 @@ pub use team::Personality;
 pub use team::PinFromCover;
 pub use team::PinRule;
 pub use team::PushRule;
+pub use team::SecondTaker;
 pub use team::RaidApproach;
 pub use team::RaidRegroup;
 pub use team::RaidReplan;

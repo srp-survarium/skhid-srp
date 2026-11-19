@@ -806,6 +806,11 @@ impl Bots {
     /// each living bot.
     /// The enemies team `team` knows by its own senses (sight, hearing, callouts), each where it last had him.
     fn known_enemies(&self, team: u8) -> Vec<Vec3> {
+        self.known_enemies_by(team).into_iter().map(|(_, at)| at).collect()
+    }
+
+    /// [`Self::known_enemies`] with each man's place.
+    fn known_enemies_by(&self, team: u8) -> Vec<(Place, Vec3)> {
         let mut known: Vec<(Place, Vec3, u32)> = Vec::new();
         for bot in self.bots.iter().flatten().filter(|b| b.team == team) {
             for t in bot.memory.tracks() {
@@ -818,7 +823,7 @@ impl Bots {
                 }
             }
         }
-        known.into_iter().map(|k| k.1).collect()
+        known.into_iter().map(|k| (k.0, k.1)).collect()
     }
 
     pub(super) fn commander(&mut self, team: u8, view: &MatchView, notes: &mut Vec<Note>) {
@@ -1292,14 +1297,15 @@ impl Bots {
                 .filter_map(|b| view.place(b.place).filter(|p| p.alive))
                 .map(|p| super::push::Member { place: p.place, at: p.feet, health: p.health, carrying: p.carrying.is_some() })
                 .collect();
-            let enemies = self.known_enemies(team);
+            let known = self.known_enemies_by(team);
+            let enemies: Vec<Vec3> = known.iter().map(|&(_, at)| at).collect();
             let targets: Vec<(super::push::Target, usize)> = view
                 .containers
                 .iter()
                 .filter(|c| c.team != team && c.batteries > 0)
                 .map(|c| {
                     let near = enemies.iter().filter(|e| e.distance_xz(c.at) < plays::ENEMIES_NEAR_M).count();
-                    (super::push::Target::Container { id: c.id, at: c.at }, near)
+                    (super::push::Target::Container { id: c.id, at: c.at, batteries: c.batteries }, near)
                 })
                 .collect();
             // [fix-team push (b)] The lying batteries as the team knows them (`Ctx::battery_lying`'s rule), each with its known
@@ -1322,6 +1328,13 @@ impl Bots {
             }));
             let enemy_carrier = view.places.iter().any(|p| p.team != team && p.alive && p.carrying.is_some());
             let home = view.container_of(team).map(|c| c.at);
+            // [fix-team push, second taker] The escape from the target, only on a tick that may pick a second taker.
+            let wanted = self.teams[usize::from(team)].knowledge.push.second_wanted(&targets, &rule);
+            let escape = wanted.zip(home).map(|(target, home)| {
+                let side = self.bots.iter().flatten().find(|b| b.team == team).and_then(|b| b.side);
+                let held = &self.teams[usize::from(team)].knowledge.threat.held;
+                push_escape(tactics, &tuning, now, side, target.at(), home, &known, held)
+            });
             let state = &mut self.teams[usize::from(team)];
             let picture = super::push::Picture {
                 now,
@@ -1330,11 +1343,13 @@ impl Bots {
                 bots: &bots,
                 home: home.unwrap_or(Vec3::new(0.0, 0.0, 0.0)),
                 targets: &targets,
+                escape,
             };
             let before = std::mem::take(&mut state.knowledge.push);
-            let (next, event) = before.clone().next(&picture, &rule);
-            // [fix-team push, item 3] One line a push event: target, group, defenders known, net count, outcome.
-            if let Some(event) = event {
+            let (next, events) = before.clone().next(&picture, &rule);
+            // [fix-team push, item 3] One line a push event: target, group, defenders known, net count, outcome; a second
+            // taker's pick, with its net count, its escape and why.
+            for event in events {
                 notes.push(Note { place: usize::MAX, time: now, text: format!("team {team}: {}", event.line(&before, &next, &picture)) });
             }
             state.knowledge.push = next;
@@ -1849,6 +1864,47 @@ fn bot_facts<'a>(
 
 pub(super) fn team_no_way(own: &[(Vec3, u32)], team: &[(Vec3, u32)]) -> Vec<(Vec3, u32)> {
     own.iter().chain(team).copied().collect()
+}
+
+/// [fix-team push, second taker] The escape of a carrier at `from` to our container `home` (`push::Escape::of`): its way the
+/// side's route (`Tactics::route`, Intercept's own), else the straight way times Intercept's `path_factor`, its points every
+/// Intercept's `meet_step_m`; the known enemies `known`; the held lines `held` whose lanes cover a point of it. The speeds are
+/// the game data's: a carrier walks (it cannot sprint: Intercept's `carrier_speed` note, 0x2DBF9B -> 0x397C20), at the body's
+/// forward walk; a man after it sprints (`kin::Kinematics::default()`, F5).
+#[allow(clippy::too_many_arguments)]
+fn push_escape(
+    tactics: &Tactics,
+    tuning: &Tuning,
+    now: u32,
+    side: Option<i32>,
+    from: Vec3,
+    home: Vec3,
+    known: &[(Place, Vec3)],
+    held: &[threat::HeldLine],
+) -> super::push::Escape {
+    use super::path::RouteHeight;
+    let num = |name| tuning.number(plays::PlayKind::Intercept, name);
+    let step = num("meet_step_m").max(0.5);
+    let along = |length: f32, at: &dyn Fn(f32) -> Vec3| -> Vec<(f32, Vec3)> {
+        let n = (length / step).ceil() as usize;
+        (0..=n).map(|i| (i as f32 * step).min(length)).map(|s| (s, at(s))).collect()
+    };
+    let (way, way_m) = match tactics.route(from, home, now, side) {
+        Some(route) => {
+            let height = if tuning.feel.floor_height_clear { RouteHeight::Floor } else { RouteHeight::Chord };
+            let length = route.length();
+            (along(length, &|s| route.at(s, height)), length)
+        }
+        None => {
+            let (straight, factor) = (from.distance_xz(home), num("path_factor"));
+            let way = along(straight, &|s| if straight > 0.0 { from + (home - from) * (s / straight) } else { from });
+            (way.into_iter().map(|(s, q)| (s * factor, q)).collect::<Vec<_>>(), straight * factor)
+        }
+    };
+    let covering: Vec<Place> =
+        held.iter().filter(|line| way.iter().any(|&(_, q)| line.covers(q))).map(|line| line.shooter).collect();
+    let kin = super::kin::Kinematics::default();
+    super::push::Escape::of(&way, way_m, known, &covering, kin.walk[0], kin.sprint)
 }
 
 /// [fix-team push] How a push member's running play `a` is held (`team::Commit`), if it is its push play: the taker's take
