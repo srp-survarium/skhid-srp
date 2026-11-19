@@ -981,15 +981,18 @@ mod tests {
         ]
     }
 
-    /// [walk-face chain] The client's body (the port's tick) walks up a `walk` face just within `WALK_FACE_CLIMB_NORMAL_Y`
-    /// (84.2 deg) to its top, 6 m and 20 m high, at a walk and slowly, and does not leave the ground at the foot of one just past
-    /// it (84.3 deg): the limit the grid's `walk` floors name a body down to (`grid::walk_chain_low`).
+    /// [walk-face chain] The client's body (the port's tick) walks up a `walk` face of 84.0 deg (normal up 0.1045, within
+    /// `WALK_FACE_CLIMB_NORMAL_Y`) to its top, 6 m and 20 m high, at a walk and slowly, and does not leave the ground at the foot
+    /// of one of 84.34 deg (0.0987, past it): the limit the grid's `walk` floors name a body down to (`grid::walk_chain_low`).
+    /// (At 6 m the change is between 84.2 deg, 0.1004, climbed, and 84.3 deg, 0.0987, not; a face that close to it is climbed
+    /// slowly.)
     #[test]
     fn the_client_walks_up_a_walk_face_to_its_climb_limit_and_no_steeper() {
         let walk = WalkerBehaviour::Walk;
         let t = |v: [Vec3; 3]| Triangle { v, walker: walk };
         let limit = super::super::WALK_FACE_CLIMB_NORMAL_Y;
-        for (up, climbs) in [(limit + 0.0005, true), (limit - 0.0015, false)] {
+        assert!(84f32.to_radians().cos() > limit && 84.34f32.to_radians().cos() < limit);
+        for (up, climbs) in [(84f32.to_radians().cos(), true), (84.34f32.to_radians().cos(), false)] {
             for high in [6.0f32, 20.0] {
                 for mps in [WALK_MPS, 1.0] {
                     let run = high * up / (1.0 - up * up).sqrt();
@@ -1004,7 +1007,7 @@ mod tests {
                     let s = Settings::LIVE;
                     let mut c = body_at(&world, WalkStart::Clear, Stance::Standing, Vec3::new(4.5, 0.0, 5.0));
                     let mut top = 0.0f32;
-                    for _ in 0..300 {
+                    for _ in 0..600 {
                         let input = TickInput {
                             walk: Vec3::new(mps * LAND_DT, 0.0, 0.0),
                             air_control: Vec3::ZERO,

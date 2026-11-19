@@ -1080,8 +1080,8 @@ mod tests {
 
     /// [walk-face chain] Vector Laboratory day_2 (8.01, 11.59, -17.04): a box top 1 m up beside a 10 m pillar, all `walk`, the
     /// pillar's side vertical and in the same cells as the box top's edge. With `walk_face_stands` a body on the box top in those
-    /// cells is not named on the pillar's top (the pillar's side is no way up: `WALK_FACE_CLIMB_NORMAL_Y`); a body on a climbable
-    /// `walk` slope under a top is still named on it (A389).
+    /// cells is not named on the pillar's top (the pillar's side is no way up: `WALK_FACE_CLIMB_NORMAL_Y`); climbing `walk`
+    /// pieces chained up to a top still name a body down them (A389), `walk_chain_low`.
     #[test]
     fn a_box_top_beside_a_pillar_is_not_named_on_the_pillars_top() {
         let walk = WalkerBehaviour::Walk;
@@ -1101,17 +1101,11 @@ mod tests {
             assert!(named.is_none_or(|h| (h - 1.0).abs() < 0.2), "a body on the box top at x {x}: named on {named:?}");
         }
         assert_eq!(grid.floor_under(Vec3::new(6.0, 10.0, 5.0)).map(|f| grid.height[f as usize]), Some(10.0), "the pillar's top");
-        // A climbable `walk` slope (60 deg) under a top 3 m up: a body halfway up it is named on the top.
-        let mut slope = Vec::new();
-        slope.extend(rect(0.0, 10.0, 0.0));
-        let run = 3.0 / 60f32.to_radians().tan();
-        slope.push(t([Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.0, 10.0), Vec3::new(5.0 + run, 3.0, 10.0)]));
-        slope.push(t([Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0 + run, 3.0, 10.0), Vec3::new(5.0 + run, 3.0, 0.0)]));
-        slope.extend(rect(5.0 + run, 9.0, 3.0));
-        let grid = WalkGrid::build(&slope, [0.0, 0.0, 10.0, 10.0], 0.25, body);
-        let x = 5.0 + run * 0.5;
-        let named = grid.floor_under(Vec3::new(x, 1.5, 5.0)).map(|f| grid.height[f as usize]);
-        assert!(named.is_some_and(|h| h > 1.5), "a body on the slope at x {x} is named up it: {named:?}");
+        // The chain itself: pieces (low, high) of a merged span under its top.
+        assert_eq!(super::super::walk_chain_low(10.0, &mut [(1.0, 1.0), (10.0, 10.0)]), 10.0, "a box top under the pillar's top: not chained");
+        assert_eq!(super::super::walk_chain_low(1.0, &mut [(0.0, 0.6), (0.55, 1.0)]), 0.0, "a climbing face up to the top: chained down");
+        assert_eq!(super::super::walk_chain_low(3.0, &mut [(0.0, 0.5), (1.0, 3.0)]), 1.0, "a piece under a gap: not chained");
+        assert_eq!(super::super::walk_chain_low(3.0, &mut [(0.0, 0.5)]), f32::INFINITY, "no climbing piece at the top: no naming down");
     }
 
     /// [row 5] The 1.30 m block's top reaches out 0.5 m over the ground as a lip (as the Vector Laboratory pit's rim over its
