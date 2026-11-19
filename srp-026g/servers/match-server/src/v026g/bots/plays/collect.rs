@@ -6585,9 +6585,9 @@ mod tests {
         let score = |s: &Scenario| battery_candidate(&s.cx(0), 0).map_or(0.0, |c| c.score.get());
         assert_eq!(score(&s), 0.0, "no push: four men weigh it out");
         let target = Target::Battery { index: 0, at: TAKE_AT };
-        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4], short_since: None };
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4], short_since: None, second: None };
         assert!(score(&s) > 0.0, "the push's taker with two members by it: net of its own");
-        s.team.push = Push::Commit { target, taker: 2, escorts: vec![4], short_since: None };
+        s.team.push = Push::Commit { target, taker: 2, escorts: vec![4], short_since: None, second: None };
         assert_eq!(score(&s), 0.0, "a bot not in the push: the men weigh it out");
     }
 
