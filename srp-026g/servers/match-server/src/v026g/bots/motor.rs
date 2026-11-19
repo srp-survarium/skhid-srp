@@ -3219,8 +3219,10 @@ impl Motor {
         let facing = if ahead.leap.flown() { FlownWindow::TURN_RAD } else { JUMP_FACING };
         if !(ahead.lined && ahead.going && self.walking && still <= facing && near && rested) {
             // [loops] At the press point and not pressing: the wait's clock, from its first tick at this try; once it has
-            // lasted [`PRESS_WAIT_S`] the try is spent as a back-off spends it, so the link fails after [`JUMP_TRIES`].
-            if near && rested {
+            // lasted [`PRESS_WAIT_S`] the try is spent as a back-off spends it, so the link fails after [`JUMP_TRIES`]. Only
+            // with the take-off within the feet's reach: a body a floor under it is held and walks the route's legs up, and
+            // only [`Feel::press_in_reach`] gives that up (the reach test is its own).
+            if near && rested && !ahead.out_of_reach(most) {
                 let wait = match jump.wait {
                     Some(wait) if wait.tries == jump.tries => wait,
                     _ => PressWait { since: self.clock, tries: jump.tries },
