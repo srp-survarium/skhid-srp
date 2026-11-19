@@ -18,7 +18,7 @@
 //! crossed (walking would go down and up again), no higher than a gap link reaches (above is the rim pass's) and no lower than
 //! the harmless drop; within the clip pass's own reach ([`SPRINT_REACH_M`] past the take-off's cell).
 
-use super::gap::{GapStats, OffLink, SPRINT_REACH_M};
+use super::gap::{GapStats, GridWay, OffLink, SPRINT_REACH_M};
 use super::rim::{gap_leads, Made};
 use super::*;
 use crate::controller::jump::{self, FlightStep, Kits};
@@ -333,7 +333,7 @@ impl WalkGrid {
                         .map(|m| {
                             let rise = self.height[m.to as usize] - self.height[l.from as usize];
                             let kind = if rise > -self.body.step { LinkKind::GapJump } else { LinkKind::GapDrop };
-                            (OffLink { from: l.from, to: m.to, kind, press: m.press, share: m.share, walk: m.walk, aim: m.aim }, d)
+                            (OffLink { from: l.from, to: m.to, kind, press: m.press, share: m.share, walk: m.walk, aim: m.aim, way: Some(GridWay::of_dir(d)) }, d)
                         })
                         .collect();
                     return (links, flights);
@@ -482,7 +482,7 @@ impl WalkGrid {
                 stats.made += 1;
                 stats.sprint += usize::from(matches!(press, super::gap::Takeoff::Sprint(_) | super::gap::Takeoff::SprintHeld(_)));
                 stats.by_share[share.class()] += 1;
-                found.push((OffLink { from: g.a, to, kind, press, share, walk, aim }, g.d));
+                found.push((OffLink { from: g.a, to, kind, press, share, walk, aim, way: Some(GridWay::of_dir(g.d)) }, g.d));
             }
         }
         let proven = self.prove_clip_presses(wide, solids, &found, clip, world, s, kits, stats);

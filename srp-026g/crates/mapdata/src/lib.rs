@@ -205,8 +205,10 @@ pub const WALK_CEILING_STALLS_ALGO: u32 = 0x5364_0c03;
 /// alone), then the most landing neighbours. 0b13: [row 5] a rim link whose take-off floor only a crouched body fits is moved
 /// to the standing floor behind it on its line and flown again from there (`grid::rim` `reanchor_crouched`), kept where it was
 /// where no press from there lands. 0b14: [row 31] a floor overhead with room under it (`grid::gap_flown` `overhead`) ends no
-/// search for an edge up (0b11 was its value before the merge with 0b12 and 0b13).
-pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b14;
+/// search for an edge up (0b11 was its value before the merge with 0b12 and 0b13). 0b15: [retarget] each rim link keeps the grid
+/// way its press was flown along (`grid::gap::GridWay`, the off-link record's kind byte), and a re-anchored link only a press
+/// onto its own landing.
+pub const RIM_JUMPS_ALGO: u32 = 0x5364_0b15;
 /// The same for the jumps onto a narrow top a wall beyond holds the body on ([`Body::wall_held_tops`], the routes corpus), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
@@ -236,8 +238,9 @@ pub const DROP_LANDS_ALGO: u32 = 0x5067_000b;
 /// that lands, or not kept (`grid::gap_flown` `prove_clip_presses`); and the own-top share of `RIM_JUMPS_ALGO` 0b0f. 0009: [F1b]
 /// the shares' neighbourhood masks (`RIM_JUMPS_ALGO` 0b10). 000b: [knife edge] a press with width across the way before a
 /// knife edge (`RIM_JUMPS_ALGO` 0b12). 000c: [row 31] a floor overhead with room under it (`overhead`) is no wall and no thin
-/// top to the gap searches (000a was its value before the merge with 000b).
-pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_000c;
+/// top to the gap searches (000a was its value before the merge with 000b). 000d: [retarget] each flown gap link keeps the grid
+/// way its press was flown along (`grid::gap::GridWay`).
+pub const GAP_FLIGHTS_ALGO: u32 = 0x5389_000d;
 /// The same for the taken floors given back where the client's body rests and no floor names the place ([`Body::rest_floors`],
 /// A389), in [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0102: the own-point stand test
 /// (`rest_floors::settle_near`: a standing body on the floor's own point, no push out of the walls, and 0.05-0.10 m around it
