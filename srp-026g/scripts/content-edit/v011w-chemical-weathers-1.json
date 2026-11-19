@@ -1,5 +1,5 @@
 {
- "_about": "Chemical Plant v0.11's evening and rain, made by srp-026g/scripts/v011-weather/make_chemical_weathers.py (read it for the why). 0.11 shipped Chemical Plant as day only; each weather is a copy of the day project as players have it, its environment object set to Vostok v0.11's same weather (pack v011e-radar-weather@6, 0.11e's own evening and rain), the key exe patch 162 draws a 0.11 weather by (srp_renderer_v011w, Vostok's distances), and a mode config a copy of the day's naming its project. The probes keep the day project's textures.<weather> cubemaps (native Chemical Plant's evening and rain). Above modes.tsv, which gives the configs their weather; the maps_dict rows are v011w-chemical-weathers-maps-1.json, last.",
+ "_about": "Chemical Plant v0.11's evening and rain, made by srp-026g/scripts/v011-weather/make_chemical_weathers.py (read it for the why). 0.11 shipped Chemical Plant as day only; each weather is a copy of the day project as players have it, its environment object set to Vostok v0.11's same weather (pack v011e-radar-weather@6, 0.11e's own evening and rain), the profile exe patch 162 draws a 0.11 weather by (srp_renderer_v011w, Vostok's own of that weather, from v011w-renderer-1.json), and a mode config a copy of the day's naming its project. The probes keep the day project's textures.<weather> cubemaps (native Chemical Plant's evening and rain). Above modes.tsv, which gives the configs their weather; the maps_dict rows are v011w-chemical-weathers-maps-1.json, last.",
  "copy": [
   {
    "files": "projects/v011e_level_04/day_2/client_project",
@@ -1360,7 +1360,9 @@
    ],
    "table": "",
    "key": "srp_renderer_v011w",
-   "value": 200
+   "value": {
+    "inscatter_distance": 200
+   }
   },
   {
    "files": [
@@ -1458,7 +1460,9 @@
    ],
    "table": "",
    "key": "srp_renderer_v011w",
-   "value": 300
+   "value": {
+    "inscatter_distance": 300
+   }
   },
   {
    "files": [
@@ -1479,7 +1483,9 @@
    ],
    "table": "",
    "key": "srp_renderer_v011w",
-   "value": 200
+   "value": {
+    "inscatter_distance": 200
+   }
   },
   {
    "files": [
@@ -1577,7 +1583,9 @@
    ],
    "table": "",
    "key": "srp_renderer_v011w",
-   "value": 300
+   "value": {
+    "inscatter_distance": 300
+   }
   }
  ]
 }

@@ -33,8 +33,17 @@ WEATHERS = {
     'evening': ('v011w_level_04_evn', 'v011w_level_03_evn/evening', 'evn'),
     'rain': ('v011w_level_04_rain', 'v011w_level_03_rain/rain', 'rain'),
 }
-# exe patch 162's key: the weather's inscatter distance in metres (v011w-renderer-1.json, Vostok's own)
-MARKER = {'evening': 200, 'rain': 300}
+# exe patch 162's key: the weather's profile, Vostok's own for the same weather (v011w-renderer-1.json)
+RENDERER = EDITS / 'v011w-renderer-1.json'
+
+
+def profile(source, suffix):
+    """The srp_renderer_v011w table v011w-renderer-1.json gives Vostok's project `source`_`suffix`."""
+    want = f'projects/{source}_{suffix}/client_project'
+    found = [e['value'] for e in json.loads(RENDERER.read_text())['add_value']
+             if e['key'] == 'srp_renderer_v011w' and want in e['files']]
+    assert len(found) == 1 and isinstance(found[0], dict), f'no one profile for {want} in {RENDERER.name}'
+    return found[0]
 # Where Chemical's layout asks for its own value. Vostok's evening sun stands at azimuth 253.25, set for
 # Vostok; Chemical Plant's own authored evening (0.21d's, pack maps-021d-chemical-weathers@1, evening_2)
 # puts it at 74.86, and the map's lit facades and its sun views face that way. The cloud texture turns
@@ -164,7 +173,7 @@ def main():
                                            'where': {'game_object_type': 'environment'},
                                            'from': strings_from, 'to': strings_to})
             edits['add_value'].append({'files': [out], 'table': '', 'key': 'srp_renderer_v011w',
-                                       'value': MARKER[weather]})
+                                       'value': profile(source, suffix)})
             config = f'gameplay/game_modes/v011e_level_04_{day}.options'
             new = f'gameplay/game_modes/{folder}_{suffix}.options'
             edits['copy'].append({'files': config, 'from': config, 'to': new})
@@ -178,8 +187,8 @@ def main():
         "Chemical Plant v0.11's evening and rain, made by srp-026g/scripts/v011-weather/make_chemical_weathers.py "
         "(read it for the why). 0.11 shipped Chemical Plant as day only; each weather is a copy of the day "
         "project as players have it, its environment object set to Vostok v0.11's same weather (pack "
-        "v011e-radar-weather@6, 0.11e's own evening and rain), the key exe patch 162 draws a 0.11 weather by "
-        "(srp_renderer_v011w, Vostok's distances), and a mode config a copy of the day's naming its project. "
+        "v011e-radar-weather@6, 0.11e's own evening and rain), the profile exe patch 162 draws a 0.11 weather by "
+        "(srp_renderer_v011w, Vostok's own of that weather, from v011w-renderer-1.json), and a mode config a copy of the day's naming its project. "
         "The probes keep the day project's textures.<weather> cubemaps (native Chemical Plant's evening and "
         "rain). Above modes.tsv, which gives the configs their weather; the maps_dict rows are "
         "v011w-chemical-weathers-maps-1.json, last.")
