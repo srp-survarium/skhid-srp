@@ -165,8 +165,10 @@ pub const RAMP_FACES_ALGO: u32 = 0x5304_0101;
 /// sphere and low cylinder each cast to their own end (0x85F50: the end moved as the start), not by the main cylinder's way. 0007:
 /// and their callbacks take the main start (0x860BD, 0x8632F), which the fraction-0 test and the wall ray read. 0008: [row 6]
 /// the walks are checked on the game's shapes where the build has them (`grid::controlled` `controlled_links`), the world every
-/// other pass walks and flies the body on, not the walker triangles (a primitive's drawn stand-in).
-pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0008;
+/// other pass walks and flies the body on, not the walker triangles (a primitive's drawn stand-in). 0009: [row 6] a walk's share
+/// counts the way along only while the feet are on the way's level (`grid::controlled` `walk_on_at`): a body sliding down beside
+/// a riser no longer keeps it from the cut.
+pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0009;
 /// The same for the walk-off walls with the steep `walk` faces ([`Body::drop_room_walk_faces`], A304), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own.
 pub const DROP_ROOM_WALK_FACES_ALGO: u32 = 0x5304_0201;
