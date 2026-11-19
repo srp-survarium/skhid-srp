@@ -691,7 +691,7 @@ impl WalkGrid {
     /// cells with no floor within a step of it, the first cell no farther than [`RIM_GAP_ACROSS_M`] with a floor rising more
     /// than `low` and no more than `high` (a floor higher than `high` is a wall and ends the search), as (from, to, way); none
     /// where `from` has an off-mesh link to `to` already.
-    fn edges_up(&self, wide: &Wide, low: f32, high: f32) -> Vec<(u32, u32, usize)> {
+    fn edges_up(&self, wide: &Wide, solids: &super::Solids, low: f32, high: f32) -> Vec<(u32, u32, usize)> {
         let step = self.body.step;
         let mut todo: Vec<(u32, u32, usize)> = Vec::new();
         for a in 0..self.height.len() {
@@ -715,10 +715,11 @@ impl WalkGrid {
                         }
                         break;
                     }
-                    // A floor within a step goes on (no gap), one higher than the reach is a wall: either ends the search.
+                    // A floor within a step goes on (no gap), one higher than the reach is a wall: either ends the search. [row 31]
+                    // Not a floor overhead with room under it (`gap_flown`'s `overhead`): a deck the jump passes beneath.
                     if floors.clone().any(|f| {
                         let rise = self.height[f as usize] - ha;
-                        rise.abs() <= step || rise > high
+                        rise.abs() <= step || (rise > high && !self.overhead(solids, cell, f, ha, high))
                     }) {
                         break;
                     }
@@ -751,10 +752,11 @@ impl WalkGrid {
         wide: &mut Wide,
         world: &Collision,
         s: &Settings,
+        solids: &super::Solids,
     ) -> RimFlown {
         // [S1] From a step up: a sprinting body climbs an edge from 0.80 to 1.15 m with no jump ([`Kind::Climb`]), and an
         // edge there whose side has no link (no Jump link) is the builder's to fly.
-        let todo = self.edges_up(wide, self.body.step, RIM_REACH_M);
+        let todo = self.edges_up(wide, solids, self.body.step, RIM_REACH_M);
         self.fly_rim_todo(wide, world, s, todo)
     }
 

@@ -918,7 +918,15 @@ const ENEMIES_OUT: f32 = 4.0;
 /// distance from it ([`held_weight`]); any other remembered enemy within [`ENEMIES_NEAR_M`] one, as
 /// [`Input::EnemiesNearTarget`] counts him. A man reloading or kept busy is one the take goes past, as the take itself
 /// reads him.
-fn enemies_weighed(cx: &Ctx, at: Vec3) -> Weighed {
+///
+/// [own battery] With `own` (a battery the HUD showed stolen from our container lately, `TeamKnowledge::thefts`): a man
+/// known by his spot alone, not seen now, weighs as the count does (one within [`ENEMIES_NEAR_M`]) and holds nothing. The
+/// battery stays a Collect candidate, whose walk in at his spot is `take.clear_first`'s: the look that clears his spot, then
+/// the take. Before, the thief's last spot by our own battery, dropped by our container, held it out until a mate looked the
+/// spot clear or his track dropped (about 40 s); a lone bot raided instead (the theft-drop test's (12, 0, 33) case: taken
+/// at 45 s against 14.4 s). An own flag lying loose is returned first, as the CTF bots' rule has it. A man seen weighs as
+/// before.
+fn enemies_weighed(cx: &Ctx, at: Vec3, own: bool) -> Weighed {
     let num = |name| cx.num(PlayKind::Collect, name);
     let (held_m, exposed_m, cover_m) = (num("hold_near_m"), num("exposed_m"), num("cover_m"));
     let reload_ms = (num("reload_cover_s") * 1000.0) as u32;
@@ -930,6 +938,7 @@ fn enemies_weighed(cx: &Ctx, at: Vec3) -> Weighed {
     };
     cx.memory.tracks().iter().fold(Weighed { sum: 0.0, held: false }, |w, t| {
         match t.own.filter(|&(_, time)| cx.spot_lives(t.who, time)) {
+            Some(_) if own && !seen_now(t) => Weighed { sum: w.sum + count(t), ..w },
             Some((spot, _))
                 if !cx.reloading(t.who, reload_ms)
                     && !(seen_now(t) && mates.iter().any(|mate| cx.covers(mate, Ctx::standing_eye(spot), cover_m, veil))) =>
@@ -1000,7 +1009,8 @@ fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
     let counted = cx.input(Input::EnemiesNearTarget, PlayKind::Collect, target);
     let near = match cx.battery_lying(battery) {
         Some(at) if cx.tuning.take.known_threats => {
-            let weighed = enemies_weighed(cx, at);
+            let own = cx.team.thefts.iter().any(|theft| theft.battery == battery);
+            let weighed = enemies_weighed(cx, at, own);
             if weighed.sum > counted {
                 take_counts::count(take_counts::Count::ScoreWeighed);
             }
@@ -3287,22 +3297,24 @@ fn meets_from_fetch(cx: &Ctx, at: Vec3, stand: Vec3) -> bool {
     let lead = meet_aim(eye, at);
     let across = eye.distance_xz(at);
     let meet = eye.distance_xz(lead).min(across);
-    let speed = cx.me.velocity[0].hypot(cx.me.velocity[1]);
+    // At least the walk's forward speed (`Kinematics::walk`): a body slowing from a sprint to this stretch's walk would
+    // shrink the window about as fast as it closes the distance, and the look would come and go.
+    let speed = cx.me.velocity[0].hypot(cx.me.velocity[1]).max(cx.tuning.kin.walk[0]);
     let think_s = cx.tuning.think.think_ms.1 as f32 / 1000.0;
     across - meet <= speed * (think_s + look_turn_s(cx, eye, lead))
 }
 
-/// [take.on_the_move, F7] How long the motor's view takes from the bot's view now onto the look at `p` from `eye`, to within
-/// the battery's inner ball seen from the reach's edge ([`BATTERY_INNER_M`] over the use ray less it), s: the motor eases
-/// the remaining angle at `left / turn_time_s` (`motor::Motor::turn_fed`, `Feel::turn_time_s`), an exponential with that
-/// time constant, so `turn_time_s ln(angle / tolerance)`.
+/// [take.on_the_move, F7] How long the motor's view takes from a level view along the bearing (the walk's own look, along its
+/// way) onto the look at `p` from `eye`, to within the battery's inner ball seen from the reach's edge ([`BATTERY_INNER_M`]
+/// over the use ray less it), s: the motor eases the remaining angle at `left / turn_time_s` (`motor::Motor::turn_fed`,
+/// `Feel::turn_time_s`), an exponential with that time constant, so `turn_time_s ln(angle / tolerance)`. From the level view,
+/// not the view now: read from the view now, the time fell to nothing once the view was on the lead, the window shut, the
+/// fetch let the look go for a think and took it up again too late (the full-loop test at a sprint's 5 m/s, 2026-11-19).
 fn look_turn_s(cx: &Ctx, eye: Vec3, p: Vec3) -> f32 {
-    use crate::v026g::bots::kin::{wrap, yaw_of};
     let to = p - eye;
-    let yaw = wrap(yaw_of([to.x, to.z]) - cx.me.yaw);
-    let pitch = to.y.atan2(to.x.hypot(to.z)) - cx.me.pitch;
+    let angle = to.y.atan2(to.x.hypot(to.z)).abs();
     let tolerance = BATTERY_INNER_M / (view::use_ray_m() - BATTERY_INNER_M);
-    cx.tuning.feel.turn_time_s * (yaw.hypot(pitch).max(tolerance) / tolerance).ln()
+    cx.tuning.feel.turn_time_s * (angle.max(tolerance) / tolerance).ln()
 }
 
 /// [take.on_the_move] The walk in of a take's first press: to the battery's stand ([`Tactics::stand_to_take`]) upright at

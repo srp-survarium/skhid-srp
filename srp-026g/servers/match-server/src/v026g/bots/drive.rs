@@ -647,6 +647,7 @@ fn drive_tick_inner(
         bot.sight_counts.add(lapse);
     }
     bot.motor.turn_time = over.turn_time_s;
+    bot.motor.skill = bot.skill;
     let eye = aiming_me.eye();
     let aim_at = |p: Vec3| {
         let (dx, dz) = (p.x - eye.x, p.z - eye.z);
@@ -694,6 +695,36 @@ fn drive_tick_inner(
             Look::Use(p) => Some(aim_at(p)),
             _ => None,
         });
+    // [A416, human-steering part D] The view schedule: a walking body's look that is no threat and no use is a glance of the
+    // humans' length, then the course (`view_schedule.rs`); a threat (a target seen, its own shot, the aim key held) or a use
+    // takes it at once, and a body not walking anywhere keeps any look.
+    let look_urgent = using || over.fire || over.keys & key::AIM != 0 || bot.reflex.target().is_some() || matches!(intent.look, Look::Use(_));
+    let walking = matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
+    let before = bot.view;
+    let ask = view_schedule::Ask {
+        look: aim.is_some(),
+        urgent: look_urgent || tuning.feel.view_rule == motor::ViewRule::Free,
+        walking,
+    };
+    let (looked, take) = before.step(ask, time);
+    bot.view = looked;
+    match (before, looked, take) {
+        (_, view_schedule::View::Glance { .. }, view_schedule::Take::Look) if !matches!(before, view_schedule::View::Glance { .. }) => {
+            view_schedule::counts::add(view_schedule::counts::BEGUN);
+        }
+        (view_schedule::View::Glance { .. }, view_schedule::View::Course { .. }, _) if ask.look => {
+            view_schedule::counts::add(view_schedule::counts::CUT);
+        }
+        (_, _, view_schedule::Take::Course) if ask.look => view_schedule::counts::add(view_schedule::counts::HELD),
+        _ => {}
+    }
+    let aim = match take {
+        view_schedule::Take::Look => aim,
+        view_schedule::Take::Course => {
+            bot.motor.track = None;
+            None
+        }
+    };
     // [traps] The bear-trap habit: when nothing calls the bot away (no
     // target, no shot, no use), the view goes down at the floor point and the
     // trap's key is pressed one tick and let go the next. A tick it does
