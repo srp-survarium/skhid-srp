@@ -81,6 +81,26 @@ fn human<'a>(cx: &Ctx<'a>, place: Place) -> Option<&'a PlaceView> {
     })
 }
 
+/// [fix-team push `mods.push`] The push's taker this bot escorts (`push::Role::Escort`), a live teammate.
+fn push_taker<'a>(cx: &Ctx<'a>, place: Place) -> Option<&'a PlaceView> {
+    match cx.team.push.role(cx.me.place) {
+        Some(crate::v026g::bots::push::Role::Escort { taker }) if taker == place => {
+            cx.view.place(place).filter(|p| p.alive && p.team == cx.me.team && p.place != cx.me.place)
+        }
+        _ => None,
+    }
+}
+
+/// [fix-team push `mods.push`] The cover of the push's taker for one of its escorts (UT2003's squad formation centre on the
+/// taker): this play's following and watching, in the objective band with the taker's take, by its full support weight.
+pub fn push_candidate(cx: &Ctx, taker: Place) -> Option<Candidate> {
+    push_taker(cx, taker)?;
+    let mut candidate =
+        cx.candidate_given(PlayKind::CoverHuman, TargetRef::Place(taker), Some(taker as u32), &[(Input::Personality, 2.0)])?;
+    candidate.rank = candidate.rank.max(Rank::Objective);
+    Some(candidate)
+}
+
 pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     let far = cx.num(PlayKind::CoverHuman, "max_m");
     let support = cx.bot.personality.support >= cx.num(PlayKind::CoverHuman, "support_band");
@@ -143,7 +163,7 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, rng: &mut Rng) -> St
     let TargetRef::Place(place) = target else {
         return Step::Failed("no human to cover");
     };
-    let Some(him) = human(cx, place) else {
+    let Some(him) = human(cx, place).or_else(|| push_taker(cx, place)) else {
         return Step::Done("the human is gone, dead or back at base");
     };
     let State::Follow {

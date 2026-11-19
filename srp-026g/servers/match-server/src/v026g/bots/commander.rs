@@ -804,6 +804,23 @@ fn under_cloud(
 impl Bots {
     /// A team's commander tick: signals, modifiers, skill, and a play for
     /// each living bot.
+    /// The enemies team `team` knows by its own senses (sight, hearing, callouts), each where it last had him.
+    fn known_enemies(&self, team: u8) -> Vec<Vec3> {
+        let mut known: Vec<(Place, Vec3, u32)> = Vec::new();
+        for bot in self.bots.iter().flatten().filter(|b| b.team == team) {
+            for t in bot.memory.tracks() {
+                if let Some((at, time)) = t.own {
+                    match known.iter_mut().find(|k| k.0 == t.who) {
+                        Some(k) if k.2 < time => *k = (t.who, at, time),
+                        Some(_) => {}
+                        None => known.push((t.who, at, time)),
+                    }
+                }
+            }
+        }
+        known.into_iter().map(|k| k.1).collect()
+    }
+
     pub(super) fn commander(&mut self, team: u8, view: &MatchView, notes: &mut Vec<Note>) {
         let Some(tactics) = self.tactics.as_ref() else {
             return;
@@ -1265,6 +1282,40 @@ impl Bots {
         }
         // [fix-team 2] A suspended play goes with its bot's life.
         self.teams[usize::from(team)].suspended.retain(|s| view.place(s.place).is_some_and(|p| p.alive && p.spawned <= s.at));
+        // [fix-team push `mods.push`] The team's push: its picture this tick and its one transition (`push::Push::next`).
+        if let Some(rule) = tuning.mods.push {
+            let bots: Vec<super::push::Member> = self
+                .bots
+                .iter()
+                .flatten()
+                .filter(|b| b.team == team && b.entered.is_some())
+                .filter_map(|b| view.place(b.place).filter(|p| p.alive))
+                .map(|p| super::push::Member { place: p.place, at: p.feet, health: p.health, carrying: p.carrying.is_some() })
+                .collect();
+            let enemies = self.known_enemies(team);
+            let targets: Vec<(super::push::Target, usize)> = view
+                .containers
+                .iter()
+                .filter(|c| c.team != team && c.batteries > 0)
+                .map(|c| {
+                    let near = enemies.iter().filter(|e| e.distance_xz(c.at) < plays::ENEMIES_NEAR_M).count();
+                    (super::push::Target::Container { id: c.id, at: c.at }, near)
+                })
+                .collect();
+            let enemy_carrier = view.places.iter().any(|p| p.team != team && p.alive && p.carrying.is_some());
+            let home = view.container_of(team).map(|c| c.at);
+            let state = &mut self.teams[usize::from(team)];
+            let picture = super::push::Picture {
+                now,
+                behind: view.objective().has_homes() && home.is_some() && rule.behind(state.signals.score_gap),
+                enemy_carrier,
+                bots: &bots,
+                home: home.unwrap_or(Vec3::new(0.0, 0.0, 0.0)),
+                targets: &targets,
+            };
+            let (next, _event) = std::mem::take(&mut state.knowledge.push).next(&picture, &rule);
+            state.knowledge.push = next;
+        }
         let state = &self.teams[usize::from(team)];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         let mut asked_lines: Vec<(Place, Vec<super::nav_log::Line>)> = Vec::new();
@@ -1302,6 +1353,11 @@ impl Bots {
             };
             let mut candidates = Vec::new();
             plays::candidates(&cx, &mut candidates);
+            // [fix-team push] A push's escort follows its taker (CoverHuman on it, in the objective band).
+            let push_role = tuning.mods.push.and(state.knowledge.push.role(bot.place));
+            if let Some(super::push::Role::Escort { taker }) = push_role {
+                candidates.extend(plays::cover_human::push_candidate(&cx, taker));
+            }
             // [owner-5] The log's lines the candidates wrote, for the bot's log once this pass lets go of the bots.
             asked_lines.push((bot.place, cx.lines.take()));
             // [A391] The job role offers the candidates made, for the bot's last offers (written back with the lines).
@@ -1343,6 +1399,10 @@ impl Bots {
                 || goal.into_iter().chain(target).any(|at| cx.no_way_lately(at))
             {
                 shaky.push(bot.place);
+            } else if let Some(commit) = push_role.and_then(|role| push_commit(role, bot.assignment.as_ref()?)) {
+                // [fix-team push] A member's push play is held: the taker's take against all but a named interrupter (an alarm,
+                // survival), an escort's cover of the taker against its band.
+                commits.push((bot.place, commit));
             } else if tuning.commit.finish_take
                 && let Some(a) = bot.assignment.as_ref()
                 && bot.running.as_ref().is_some_and(|r| r.finishing_take(a.target, &cx))
@@ -1398,20 +1458,7 @@ impl Bots {
                     Some((*place, view.place(*place).filter(|p| p.alive)?.feet, container_at(a.target)?))
                 })
                 .collect();
-            // The enemies the team knows by its own senses (sight, hearing, callouts), each where it last had him.
-            let mut known: Vec<(Place, Vec3, u32)> = Vec::new();
-            for bot in self.bots.iter().flatten().filter(|b| b.team == team) {
-                for t in bot.memory.tracks() {
-                    if let Some((at, time)) = t.own {
-                        match known.iter_mut().find(|k| k.0 == t.who) {
-                            Some(k) if k.2 < time => *k = (t.who, at, time),
-                            Some(_) => {}
-                            None => known.push((t.who, at, time)),
-                        }
-                    }
-                }
-            }
-            let enemies: Vec<Vec3> = known.iter().map(|k| k.1).collect();
+            let enemies = self.known_enemies(team);
             // The kill feed's deaths: an enemy's is our kill, ours a loss.
             let (mut kills, mut losses) = (Vec::new(), Vec::new());
             for d in &view.deaths {
@@ -1779,4 +1826,18 @@ fn bot_facts<'a>(
 
 pub(super) fn team_no_way(own: &[(Vec3, u32)], team: &[(Vec3, u32)]) -> Vec<(Vec3, u32)> {
     own.iter().chain(team).copied().collect()
+}
+
+/// [fix-team push] How a push member's running play `a` is held (`team::Commit`), if it is its push play: the taker's take
+/// [`team::Commit::Held`], an escort's cover of the taker [`team::Commit::Band`]; a member escorting our carrier home runs
+/// Escort's own plays (the alarm band), none.
+fn push_commit(role: super::push::Role, a: &Assignment) -> Option<team::Commit> {
+    use super::push::Role;
+    match role {
+        Role::Taker(target) => ((a.kind, a.target) == target.play()).then_some(team::Commit::Held),
+        Role::Escort { taker } => {
+            (a.kind == plays::PlayKind::CoverHuman && a.target == plays::TargetRef::Place(taker)).then_some(team::Commit::Band)
+        }
+        Role::Home { .. } => None,
+    }
 }

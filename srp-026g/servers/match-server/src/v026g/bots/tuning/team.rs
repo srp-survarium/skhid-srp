@@ -111,19 +111,53 @@ impl Comeback {
 pub struct PushRule {
     /// Points behind (the HUD's score, `MatchSignals::score_gap`) from which the team pushes.
     pub behind_by: f32,
-    /// A teammate this near the bot is in its group, metres (the comeback's `group_m`).
+    /// A member this near the bot is in its group, metres (the comeback's `group_m`).
     pub group_m: f32,
+    /// [fix-team push state, `push.rs`] A push needs at least this many bots, or as many as the defenders known near its
+    /// target, whichever is more; it takes one more.
+    pub min_group: u8,
+    /// The taker is the member nearest the target with health over this (the raid's own `health_above`).
+    pub taker_health: f32,
+    /// The group commits once this many metres of the taker hold as many escorts as the known defenders, ...
+    pub gather_m: f32,
+    /// ... or after this long gathering, seconds.
+    pub gather_s: f32,
+    /// Committed, it ends once the known defenders outnumber the group (within `group_m` of the taker) this long, seconds.
+    pub short_s: f32,
+    /// After a push, the next one waits this long (the respawns), seconds.
+    pub rest_s: f32,
+    /// A carrier that lets go this near our container brought it home, metres.
+    pub home_m: f32,
 }
 
 impl Default for PushRule {
     fn default() -> Self {
-        Self { behind_by: 1.0, group_m: 25.0 }
+        Self {
+            behind_by: 1.0,
+            group_m: 25.0,
+            min_group: 3,
+            taker_health: 0.5,
+            gather_m: 15.0,
+            gather_s: 20.0,
+            short_s: 8.0,
+            rest_s: 15.0,
+            home_m: 6.0,
+        }
     }
 }
 
 impl PushRule {
     pub fn check(&self) -> Result<(), String> {
-        if !(self.behind_by > 0.0 && (5.0..=100.0).contains(&self.group_m)) {
+        let ok = self.behind_by > 0.0
+            && (5.0..=100.0).contains(&self.group_m)
+            && (2..=10).contains(&self.min_group)
+            && (0.0..1.0).contains(&self.taker_health)
+            && (2.0..=60.0).contains(&self.gather_m)
+            && (1.0..=120.0).contains(&self.gather_s)
+            && (1.0..=60.0).contains(&self.short_s)
+            && (0.0..=120.0).contains(&self.rest_s)
+            && (1.0..=20.0).contains(&self.home_m);
+        if !ok {
             return Err("mods.push".into());
         }
         Ok(())
