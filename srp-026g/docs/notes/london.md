@@ -58,6 +58,7 @@ found every London day file unchanged against the manifest, so it is the manifes
 Six new maps raise the pinned `maps_dict` counts of five edit lists by six; a PR adding maps after
 this one renumbers again.
 ## The window probes (pack probe-specular)
+## The probes (pack london-probes)
 
 London has ten box probes `environment_and_lights/probes/reflection_window(…)` along its window
 facades with `affect_diffuse = false`, as 0.31a2 authored them; no 0.26g map has such a probe
@@ -66,7 +67,7 @@ probe adds only its reflection: its `environment_probe_lighting.ps` permutations
 accumulator alone. 0.26g's write the surface's own albedo into the diffuse accumulator under the
 probe's falloff (`renderer-026g.md` 5.3), which lit the walls by the windows in their own colour.
 
-Pack `probe-specular@1` (resource-porter `probe_specular`) changes the 16 `TDIFFUSE` 0 permutations
+Pack `london-probes@1` (resource-porter `probe_specular`) changes the 16 `TDIFFUSE` 0 permutations
 of 0.26g's shader: the diffuse output's alpha is zero, so with the probes' blend (SRC_ALPHA /
 INV_SRC_ALPHA per target) the diffuse light stays as it was; the reflection is drawn as before.
 One instruction per permutation (`mov o0.w, <falloff>` → `mov o0.w, l(0)`); the permutations
@@ -76,3 +77,13 @@ London's day also sets `environment_probes_specular_intensity_multiplier` 1.2 in
 built the day's environment from native `level_01` day's settings, which leave it out, so 0.26g drew
 London's probe reflections at its default. `london-environment-1.json` adds it to the five day
 projects (rain and evening carry 0.31a2's 0.6 and 1.5 from pack london-weathers).
+
+0.31a2 also looks a box probe's reflection up box-projected (parallax-corrected) where the probe has
+`use_parallax_correction` (137 of London's 160 probes: every room probe and the ten window probes;
+not the 23 background-building and outdoor ones): the cubemap is read where the reflection ray leaves
+the probe's box, not along the ray from the probe's centre. Patch 14 dropped the field; 0.26g's box
+programs have every constant it needs and read along the ray. `london-probes@1` (resource-porter
+`probe_parallax`) gives the 16 box permutations, before their specular sample, a branch taken only on
+London's marked scenes (`mie_fog_base_height` 32909 day, 32929 evening, 32919 rain once rain carries it)
+that replaces the lookup direction with the box-projected one. On London it applies to all its box
+probes (no per-probe switch reaches the shader); other maps never take the branch.
