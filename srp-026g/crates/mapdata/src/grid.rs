@@ -1924,7 +1924,7 @@ impl WalkGrid {
             wide.slips = grid.slip_landings(&wide, &solids);
         }
         if body.client_controller {
-            let (controlled, failing) = grid.controlled_links(&mut wide, triangles);
+            let (controlled, failing) = grid.controlled_links(&mut wide, triangles, shapes);
             stats.controlled = controlled;
             // The walk links the client's body does not walk go, but none that is a floor's only way in from the seeds and spawns
             // or its only way back (a 39 deg log on Cologne humans jump onto and stand on: ~70 floors lost with its two ends).
