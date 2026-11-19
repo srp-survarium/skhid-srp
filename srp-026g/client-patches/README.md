@@ -6295,8 +6295,9 @@ another map's project takes a 0.11 weather by giving it one:
   another vignette, and never sets the filmic constants it still registers. Each of its three blend effects
   compiles a twin of its one technique (1: `complex_post_process_blend_v011w`, 0.11e's equations on 0.26g's
   inputs, from source); on the marked scene whose profile names the curve the post stage applies it and
-  sets filmic_tonemap_packed_parameters_0/1 from the profile, packed as 0.11e. No profile names it yet: the
-  twin draws without its frame (`../docs/notes/v011-weather.md`).
+  sets filmic_tonemap_packed_parameters_0/1 from the profile, packed as 0.11e. No profile names it yet: on the
+  port's too-dark shade 0.11e's curve measures worse (`../docs/notes/v011-weather.md`). Its program is the
+  pack's under the family's plain key (`shaders/masks` lists no define of the new family).
 
 **The patch** (the Rust patch `v011w_render`, `rust/patches/src/v011w_render.rs`, the stage's side in
 `vostok/render_stage.rs`, the twins' rounds in `vostok/effect_compile.rs`, shared with patch 130; twenty

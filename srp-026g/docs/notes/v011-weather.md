@@ -80,14 +80,20 @@ port for it. This work is Vostok's two weathers only.
 - **The post is not drawn yet** (the edit list names no curve). Measured: 0.11e's equations replacing
   0.26g's post on every map (a local test) took evening 0.159 -> 0.167 and rain 0.090 -> 0.095, because the
   port's shade is near black (pixels under 0.1: 0.11e about 5 %, the port 16-53 %) and 0.11e's curve crushes
-  it further; and the twin itself draws a flat image, with the uploaded curve and with the curve as literals
-  alike: the post stage gives technique 0 something per frame (its frame texture, presumably) that the
-  twin's pass does not get. Both wait on the darkness below.
+  it further. The twin first drew a flat image: a pass's permutation key comes from `shaders/masks`, which
+  names no define of a family it does not list, so the engine asks for the plain key of
+  `complex_post_process_blend_v011w`, which the pack lacked; under the plain key (pack @7) it draws as the
+  test does (evening 0.167, rain 0.104 with each weather's curve). It waits on the darkness below.
 - **The darkness**: 0.26g's `skylight.ps` writes one flat colour (`skylight_parameters0`); 0.11e's (0.10b's
   source, byte-identical, now in `srp-026g/shaders/v011w`) lights shade with height, a six-face sky colour,
   wrap light, the sun colour and AO, and 0.26g's skylight vertex shader (0.11e's) already feeds it. 0.26g's
-  effect_skylight still binds its inputs, but render_skylight uploads only `skylight_parameters0`: a twin
-  needs parameters 1..7 (and 6 as a vertex constant, `engine_set_vs_constant`) from the profile.
+  effect_skylight still binds its inputs, but render_skylight uploads only `skylight_parameters0`. More: 0.26g
+  never draws its skylight at all (stage_ambient_lighting's +E4h, zeroed by the constructor at 0x17F58D, is
+  never set; the call 0x182768 sits behind it). A twin drawn through that gate with all eight parameters
+  (tried, measured, not kept) changed nothing measurable (evening 0.159 -> 0.154..0.157 with the encoded,
+  the linear and the AO-less output alike): 0.26g's frame does not use that target. 0.26g lights shade
+  with its probes and its height-based ambient (`apply_ssao_and_hba`: hba_parameters, hba_low/high_color);
+  0.11e's skylight (height, six faces) is to be mapped onto that next.
 - **Measured** against the 0.11e originals (`private/renders/v011-weathers/`, 1280x720, mean RMSE of the
   display RGB over ten views): before the fog work evening 0.169, rain 0.136; with the fog (c4) evening
   0.167, rain 0.095; with the tables and the sky too (c6) evening 0.159, rain 0.090. The port is still

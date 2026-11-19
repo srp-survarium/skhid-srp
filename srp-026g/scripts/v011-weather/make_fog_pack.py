@@ -1,7 +1,7 @@
 """make_fog_pack.py STOCK_DB OUT: the pack v011e-radar-fog, 0.11e's atmosphere programs for exe patch
 v011w_render: its additive geometry fog in 0.26g's own additive fog program, and its scattering tables,
 sky and post as the twin families the patch compiles (make_mie_rayleigh_texture_v011w, atmosphere_v011w,
-complex_post_process_blend_v011w: 0.11e's post on 0.26g's inputs, under each of 0.26g's post keys).
+complex_post_process_blend_v011w: 0.11e's post on 0.26g's inputs, under the plain key: shaders/masks lists no define of a family it does not name).
 
 0.11e fogs the geometry in two passes of its effect_atmospheric_scattering: technique 6 multiplies the
 frame by 1 - min(depth, D) * 0.1 / D (`atmospheric_scattering_on_geometry_mul.ps`), technique 7 adds the
@@ -44,7 +44,7 @@ def main():
             (out / 'files' / name).parent.mkdir(parents=True, exist_ok=True)
             (out / 'files' / name).write_bytes(Path(tmp, 'built', name).read_bytes())
     pack = {
-        'format_version': 1, 'id': 'v011e-radar-fog', 'version': '4', 'target_build': '0.26g',
+        'format_version': 1, 'id': 'v011e-radar-fog', 'version': '7', 'target_build': '0.26g',
         'description': "0.11e's atmosphere for exe patch v011w_render: its additive geometry fog in 0.26g's own "
                        "additive fog program (technique 4 of effect_atmospheric_scattering, which only the patch "
                        "draws), its scattering tables, sky and post as the twin families the patch compiles",
