@@ -911,7 +911,7 @@ impl WalkGrid {
 
     /// Whether solid lies within `r` of the ground point (`x`, `z`) (the
     /// cells overlapping that square) between heights `low` and `high`.
-    fn solid_within(&self, solids: &Solids, x: f32, z: f32, r: f32, low: f32, high: f32) -> bool {
+    pub(super) fn solid_within(&self, solids: &Solids, x: f32, z: f32, r: f32, low: f32, high: f32) -> bool {
         let lo_i = ((x - r - self.x0) / self.cell).floor() as i32;
         let hi_i = ((x + r - self.x0) / self.cell).floor() as i32;
         let lo_k = ((z - r - self.z0) / self.cell).floor() as i32;

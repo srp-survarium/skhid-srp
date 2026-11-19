@@ -9007,12 +9007,14 @@ impl Reflex {
         } else {
             None
         };
-        if let Some(blocked) = blocked {
+        let burst = matches!(gun.handling, Handling::Burst(_));
+        // [D8] A burst's trigger already held is not let go on the bot's own ray while a part of the target shows.
+        let stops = ray_stops(blocked, burst && now < self.burst_until && self.held_ms > 0, &aimed);
+        if let Some(blocked) = stops {
             failed |= blocked_gate(blocked);
         }
         let mut wants = false;
-        let burst = matches!(gun.handling, Handling::Burst(_));
-        if open && blocked.is_none() {
+        if open && stops.is_none() {
             if self.shot_wanted(gun, now, distance, (aim, skill), rng) {
                 wants = true;
             } else {
@@ -9477,6 +9479,45 @@ impl Reflex {
     }
 }
 
+/// [D8] What of `blocked` stops this tick's shot. The client fires whatever lies along the view (`fire_pred` 0x2E3CB0: the
+/// weapon usable, no jump, FIRE, a round; no ray, `docs/notes/weapon_fire.md`): the ray tests are the bot's own. Before a burst
+/// they stand: the first shot waits for its view and its aim to be clear. A burst's trigger already `holding` is held to the
+/// burst's end, as the live humans' bursts are drawn (`burst_human`), while the sight test shows a part of the target
+/// ([`super::aimpoint::Aim::Shows`]): its view's or its aim's ray to the aim point meeting an edge then does not let it go
+/// (it did in 62 % of the cuts, the diagnostic bench's D8, a cut burst firing a median 2 of its 11 planned shots). Nothing of the
+/// target in sight ([`super::aimpoint::Blocked::Hidden`], or a spray's point) still stops it.
+fn ray_stops(
+    blocked: Option<super::aimpoint::Blocked>,
+    holding: bool,
+    aimed: &super::aimpoint::Aim,
+) -> Option<super::aimpoint::Blocked> {
+    use super::aimpoint::Blocked;
+    match blocked {
+        Some(ray @ (Blocked::View(_) | Blocked::Aim(_))) if holding && aimed.sees_body() => {
+            burst_rays::held(ray);
+            None
+        }
+        other => other,
+    }
+}
+
+/// [D8] The ticks a burst under way was held through a closed ray with a part of its target in sight ([`ray_stops`]).
+pub mod burst_rays {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static HELD: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub fn held(ray: super::super::aimpoint::Blocked) {
+        let i = usize::from(matches!(ray, super::super::aimpoint::Blocked::Aim(_)));
+        HELD[i].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Held ticks [view ray, aim ray].
+    pub fn counts() -> [u64; 2] {
+        HELD.each_ref().map(|a| a.load(Ordering::Relaxed))
+    }
+}
+
 /// [measure] The gate of what kept a shot from going clear.
 fn blocked_gate(blocked: super::aimpoint::Blocked) -> u32 {
     match blocked {
@@ -9523,6 +9564,22 @@ mod tests {
     /// the launch needs the let-go well before it; a human's tap launches at the press + 900 whatever the hold).
     fn even_hold() -> HoldDraw {
         HoldDraw::new(vec![(0.0, 500), (1.0, 800)]).unwrap()
+    }
+
+    /// [D8] A burst's trigger held is not let go on the bot's own view or aim ray while a part of the target shows; the first
+    /// shot still waits for both rays, and nothing in sight (hidden, or a spray's point) still stops a held burst.
+    #[test]
+    fn a_held_burst_goes_on_through_its_own_ray_while_the_target_shows() {
+        use crate::v026g::bots::aimpoint::{Aim, Blocked};
+        use super::*;
+        let at = Vec3::new(10.0, 1.4, 0.0);
+        for ray in [Blocked::View(3.0), Blocked::Aim(9.5)] {
+            assert_eq!(ray_stops(Some(ray), true, &Aim::Shows(at)), None, "{ray:?}: held through");
+            assert_eq!(ray_stops(Some(ray), false, &Aim::Shows(at)), Some(ray), "{ray:?}: the first shot waits");
+            assert_eq!(ray_stops(Some(ray), true, &Aim::Spray(at)), Some(ray), "{ray:?}: a spray's point is no part in sight");
+        }
+        assert_eq!(ray_stops(Some(Blocked::Hidden), true, &Aim::Hidden(at)), Some(Blocked::Hidden));
+        assert_eq!(ray_stops(None, true, &Aim::Shows(at)), None);
     }
 
     /// [hold] The bots' hold is drawn as the live humans hold it ([`HUMAN_FRAG_HOLD_MS`]): of 20,000 draws the median is a

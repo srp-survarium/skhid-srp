@@ -48,6 +48,22 @@ pub const OVER_TOP_M: f32 = 1.2;
 pub const THIN_TOP_M: f32 = 0.5;
 
 impl WalkGrid {
+    /// [row 31] Whether the floor `f` of `cell` lies overhead a jump from the height `h` that rises at most `reach`: more than
+    /// `reach` over `h`, and nothing solid in the cell's column ([`super::Solids`]) from [`super::gap::AIR_FEET_M`] over `h` to
+    /// `reach` and a standing body's height ([`super::Body::stand_height`]) over it: a deck the jump passes beneath, not a wall.
+    /// The Vector Laboratory battery spawner's ledge (-2.24, 16.88, -11.04) lies four cells across a gap from the east ledge's
+    /// 16.40, every cell between holding the walkway 20.6 m up (its underside 20.41); the gap search ended at the walkway as at a
+    /// wall, so no jump onto the ledge was flown (the exe lands that jump, 8 of 31 presses, part 3 §18b). Only bounds the
+    /// searches; each link is flown on the game's shapes.
+    pub(super) fn overhead(&self, solids: &Solids, cell: usize, f: NodeId, h: f32, reach: f32) -> bool {
+        if self.height[f as usize] - h <= reach {
+            return false;
+        }
+        let (i, k) = self.cell_xz(cell);
+        let (x, z) = (self.x0 + (i as f32 + 0.5) * self.cell, self.z0 + (k as f32 + 0.5) * self.cell);
+        !self.solid_within(solids, x, z, 0.0, h + super::gap::AIR_FEET_M, h + reach + self.body.stand_height)
+    }
+
     /// The floor across the gap from `a` along `d` (module documentation) and the gap's bottom: the highest floor crossed, and at
     /// least the floor a body walking off the edge comes down on (the way's Drop link, the walk-off at the walk cap,
     /// [`WalkGrid::walk_off`]: the cells by the edge may have no floor, the erosion's under a face, and the gap's floor beyond
@@ -69,7 +85,8 @@ impl WalkGrid {
             let floors = self.start[cell]..self.start[cell + 1];
             if g == 1 {
                 // A floor within a step in the next cell: no gap; one up within a gap link's reach is the Jump links' (a ledge).
-                if floors.clone().any(|f| self.height[f as usize] - h > -body.step) {
+                // [row 31] Not a floor overhead with room under it ([`Self::overhead`]).
+                if floors.clone().any(|f| self.height[f as usize] - h > -body.step && !self.overhead(solids, cell, f, h, reach)) {
                     return None;
                 }
             } else {
@@ -84,10 +101,11 @@ impl WalkGrid {
                 if let Some(f) = target.min_by(|&p, &q| (self.height[p as usize] - h).abs().total_cmp(&(self.height[q as usize] - h).abs())) {
                     return Some((f, crossed));
                 }
-                // A floor within a step goes on (no gap), a higher one than the reach is a wall: either ends the search.
+                // A floor within a step goes on (no gap), a higher one than the reach is a wall: either ends the search. [row 31]
+                // Not a floor overhead with room under it ([`Self::overhead`]): a deck the jump passes beneath.
                 if floors.clone().any(|f| {
                     let rise = self.height[f as usize] - h;
-                    rise.abs() <= body.step || rise > reach
+                    rise.abs() <= body.step || (rise > reach && !self.overhead(solids, cell, f, h, reach))
                 }) {
                     return None;
                 }
@@ -123,7 +141,12 @@ impl WalkGrid {
                 return None;
             }
             let cell = self.cell_index(i + g * di, k + dk * g)?;
-            let up: Vec<f32> = (self.start[cell]..self.start[cell + 1]).map(|f| self.height[f as usize]).filter(|&y| y > h - body.step).collect();
+            // [row 31] A floor overhead with room under it ([`Self::overhead`]) is no top: the body passes beneath it.
+            let up: Vec<f32> = (self.start[cell]..self.start[cell + 1])
+                .filter(|&f| !self.overhead(solids, cell, f, h, OVER_TOP_M))
+                .map(|f| self.height[f as usize])
+                .filter(|&y| y > h - body.step)
+                .collect();
             if !up.is_empty() {
                 if up.iter().any(|&y| y - h <= body.step || y - h > OVER_TOP_M) {
                     return None;
@@ -168,8 +191,9 @@ impl WalkGrid {
             if let Some(f) = target.max_by(|&p, &q| self.height[p as usize].total_cmp(&self.height[q as usize])) {
                 return Some((f, crossed, past, on_top));
             }
-            // A floor higher than a step under the top past it: a wider top or a wall, the rim jumps' and the gap links'.
-            if floors.clone().any(|f| self.height[f as usize] > top - body.step) {
+            // A floor higher than a step under the top past it: a wider top or a wall, the rim jumps' and the gap links'. [row 31]
+            // Not a floor overhead with room under it ([`Self::overhead`]).
+            if floors.clone().any(|f| self.height[f as usize] > top - body.step && !self.overhead(solids, cell, f, h, reach)) {
                 return None;
             }
             g += 1;
@@ -566,6 +590,28 @@ mod tests {
                 assert!(crossing.iter().any(|l| l.share.flown().is_some()), "{gap} m: {crossing:?} {:?}", stats.gaps);
             }
         }
+    }
+
+    /// [row 31] A gap of 1.5 m between blocks 2.0 and 2.4 m high under a deck over the whole area (the Vector Laboratory battery
+    /// ledge under its walkway): with the deck 4.4 m over the take-off the gap is searched under it and a flown link made
+    /// across; with the deck 2.3 m over the take-off (no room for a jump under it) the deck ends the search as a wall.
+    #[test]
+    fn a_gap_under_a_deck_is_jumped_across() {
+        let under = |deck: Option<f32>| {
+            let mut t = blocks(2.0, 2.4, 1.5, -1.5);
+            if let Some(deck) = deck {
+                t.extend(quad(0.0, 14.0, deck));
+            }
+            let body = Body { gap_flights: true, exe_collision: true, start_witness: true, max_jump: STANDING_JUMP_M, ..Body::client() };
+            let start = [Vec3::new(3.0, 2.0, 5.0), Vec3::new(11.0, 2.4, 5.0)];
+            let (g, stats) = WalkGrid::build_kept_with_links(&t, AREA, 0.25, body, &start, &start, OffMeshLinks::Gaps);
+            let links: Vec<OffLink> = across(&g, 7.5).into_iter().filter(|l| l.share.flown().is_some()).collect();
+            println!("deck {deck:?}: {} flown links across; {:?}", links.len(), stats.gaps);
+            links
+        };
+        assert!(!under(None).is_empty(), "a flown link with no deck");
+        assert!(!under(Some(6.4)).is_empty(), "a flown link under the high deck");
+        assert!(under(Some(4.3)).is_empty(), "a low deck is a wall");
     }
 
     /// A level gap of 6 m: no press of the client's lands across (the sprint jump from a 0.6-1.6 m lead comes down about 4 m on),
