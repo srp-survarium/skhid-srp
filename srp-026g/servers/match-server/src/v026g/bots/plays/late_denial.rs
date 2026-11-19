@@ -67,7 +67,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         return;
     }
     // [A296 item 4, `mods.behind_open`] A team behind reads the time left shorter (`BehindOpen::time_left`).
-    let given: Vec<(Input, f32)> = cx
+    let mut given: Vec<(Input, f32)> = cx
         .tuning
         .mods
         .behind_open
@@ -75,6 +75,8 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         .map(|open| (Input::TimeLeftBehind, open.time_left(cx.sig.time_left_s, cx.sig.score_gap)))
         .into_iter()
         .collect();
+    // [fix-team push `mods.push`] In a push the guard is counted net of the bot's group (`Ctx::push_net`).
+    given.extend(cx.push_net(theirs.at).map(|net| (Input::EnemiesNearTarget, net)));
     out.extend(cx.candidate_given(
         PlayKind::LateDenial,
         TargetRef::Container(theirs.id),
