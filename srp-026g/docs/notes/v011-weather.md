@@ -112,16 +112,10 @@ port for it. This work is Vostok's two weathers only.
   the tables are equal and the frame's mean luma 0.141, then 0.179 with the clouds (0.11e 0.174): evening 0.126,
   rain 0.087 (c15). The clouds are 0.26g's use_sky_clouds block (env +C9h; 0x1A4DE6), drawn with 0.11e's programs
   and parameters: rain 0.073 (c16).
-- **Looks as maps** (the owner, 2026-11-19): a weather can have two looks, each its own map. "(0.11.2)" is the
-  look 0.26g's rendering gives the map, "(0.11)" its own build's drawn our way (the profile names what of 0.11e's
-  is drawn; without `inscatter_distance` the atmosphere is 0.26g's). Vostok v0.11: Day (0.11.2) the live day
-  (weather 1), Day (0.11) maps 288-289 (weather 8), Evening (0.11.2) maps 286-287 (weather 3: 0.26g's fog, tables,
-  sky and clouds, the probes at 0.11e's scale), Evening (0.11) 272-273 (weather 6), Rain (0.11) 274-275
-  (weather 2). The server keys a map by (level, weather, mode), so a second look of a weather takes a weather id
-  of its own (maps.rs `weather::EVENING_ORIGINAL` 6, `DAY_ORIGINAL` 8; 7 kept); the lobby movie names a level's
-  looks (`RoomsText.LOOKS`, "13_6": Evening (0.11)), the room orders day, its second look, evening, its second,
-  rain. The game never reads `map_weather_id`. The maps are made by `v011w-variants-1.json`, last in the
-  manifest: each copies its original's final project and options.
+- **What ships** (the owner, 2026-11-19): the rain as above (patch 162's atmosphere, skylight and clouds,
+  the probes times four). The evening keeps 0.26g's atmosphere (no profile; the look before the fog work,
+  c2) with the probes' diffuse times three. Other looks of a weather as maps of their own are on
+  `feat/v011-variants`.
 - The 0.11e reference runner is rebuilt (`/mnt/hdd/Projects/v011-weather/ref/ref011e.py`: the legacy
   0.10b match server with a rain profile and a port setting, the 0.11e exe with the camera DLL, an
   Xorg dummy display). The legacy server must run with `SRP_STOCK_PROFILE_ONLY=1` and

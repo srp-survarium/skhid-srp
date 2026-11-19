@@ -2943,14 +2943,9 @@ st_srp_weapon_with_kit	З комплектом
 st_srp_weapon_with_kit_skills	З комплектом і навичками
 st_srp_weather_before_rain	перед дощем
 st_srp_weather_day	день
-st_srp_weather_day_v011	день (0.11)
-st_srp_weather_day_v0112	день (0.11.2)
 st_srp_weather_evening	вечір
-st_srp_weather_evening_v011	вечір (0.11)
-st_srp_weather_evening_v0112	вечір (0.11.2)
 st_srp_weather_night	ніч
 st_srp_weather_rain	дощ
-st_srp_weather_rain_v011	дощ (0.11)
 st_srp_weight_base	Базова межа
 st_srp_weight_no_sprint_heavyweight	Спринт недоступний: навичка «Важковаговик».
 st_srp_weight_no_sprint_limit	Спринт недоступний: перевантаження.

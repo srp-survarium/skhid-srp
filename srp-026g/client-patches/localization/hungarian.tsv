@@ -2943,14 +2943,9 @@ st_srp_weapon_with_kit	Összeállítással
 st_srp_weapon_with_kit_skills	Összeállítással és képességekkel
 st_srp_weather_before_rain	eső előtt
 st_srp_weather_day	nappal
-st_srp_weather_day_v011	nappal (0.11)
-st_srp_weather_day_v0112	nappal (0.11.2)
 st_srp_weather_evening	este
-st_srp_weather_evening_v011	este (0.11)
-st_srp_weather_evening_v0112	este (0.11.2)
 st_srp_weather_night	éjszaka
 st_srp_weather_rain	eső
-st_srp_weather_rain_v011	eső (0.11)
 st_srp_weight_base	Alapkorlát
 st_srp_weight_no_sprint_heavyweight	Nem sprintelhetsz: Nehézsúlyú képesség.
 st_srp_weight_no_sprint_limit	Nem sprintelhetsz: túlterhelés.

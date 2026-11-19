@@ -2943,14 +2943,9 @@ st_srp_weapon_with_kit	With kit
 st_srp_weapon_with_kit_skills	With kit and skills
 st_srp_weather_before_rain	before rain
 st_srp_weather_day	day
-st_srp_weather_day_v011	day (0.11)
-st_srp_weather_day_v0112	day (0.11.2)
 st_srp_weather_evening	evening
-st_srp_weather_evening_v011	evening (0.11)
-st_srp_weather_evening_v0112	evening (0.11.2)
 st_srp_weather_night	night
 st_srp_weather_rain	rain
-st_srp_weather_rain_v011	rain (0.11)
 st_srp_weight_base	Base limit
 st_srp_weight_no_sprint_heavyweight	Cannot sprint: Heavyweight skill.
 st_srp_weight_no_sprint_limit	Cannot sprint: carry limit reached.

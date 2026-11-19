@@ -121,8 +121,8 @@ pack	v011e-radar-weather@6	ca3aae5d615398b2e61d66b152ff841ec97130592bb4ce18b41aa
 pack	v011e-radar-fog@11	302dcaa3fbbcad5e9f0273a85814dcd74fc94eb65dff87870f996da3484b5194	0.11e's atmosphere, skylight, clouds and post for exe patch 162: its additive geometry fog in 0.26g's own (unused) additive fog pass, technique 4 of effect_atmospheric_scattering, and its scattering tables, sky, skylight, clouds and post as the twin families the patch compiles, on the 0.11 weathers' projects (compiled from srp-026g/shaders/v011w)
 edit	v011e-vostok-research-config-1.json	-	Vostok v0.11 Research config from native Vostok; before modes.tsv and music
 edit	v011e-radar-weather-names-1.json	-	Vostok v0.11 evening and rain (maps 272-275) carry the v0.11 map's own name, st_level_13_name, as its day configs do
-edit	v011e-radar-weather-light-1.json	-	Vostok v0.11 evening and rain: the environment probes' diffuse and specular light times four (diffuse evening 1 -> 4, rain 0.7 -> 2.8; specular 1 -> 4): 0.26g lights a probe texel at a quarter of the scale 0.11e does, and the cubes are 0.11e's own
-edit	v011w-renderer-1.json	-	the key exe patch 162 reads: srp_renderer_v011w at the root of Vostok v0.11's four evening and rain projects, their inscatter distance (200 m evening, 300 m rain), so their geometry takes 0.11e's two fog passes
+edit	v011e-radar-weather-light-1.json	-	Vostok v0.11 evening and rain: the environment probes' light. Rain (drawn by exe patch 162 with 0.11e's sky, fog and skylight): diffuse and specular times four (0.7 -> 2.8, 1 -> 4), since 0.26g lights a probe texel at a quarter of 0.11e's scale; evening (0.26g's own atmosphere): the diffuse times three (1 -> 3), the owner's pick
+edit	v011w-renderer-1.json	-	the profile exe patch 162 reads: srp_renderer_v011w at the root of Vostok v0.11 rain's two projects (inscatter distance 300 m, skylight, clouds), so the rain takes 0.11e's fog, scattering tables, sky, skylight and clouds; the evening keeps 0.26g's
 edit	weapon-balance-1.json	resources.db.patch_21	weapon balance 1 (#182)
 edit	grenade-bounce-1.json	-	grenade bounces louder: the bounce samples' impact settings (#266)
 edit	death-poses-1.json	-	the face-down death pose out of the rifles' and pistols' death animations (the death camera looked into the arms)
@@ -174,7 +174,6 @@ edit	throwables.tsv	-	the grenades' and the trap's stats
 edit	artefacts.tsv	-	the artefacts' stats (client patch 54 reads aim_time_mod and stopping_power_mod)
 edit	character.tsv	-	the character's movement, stamina, fall, stealth, dispersion and breath numbers (gameplay/players/default.player)
 edit	battery.tsv	-	the battery's pick-up and put times and its movement penalty
-edit	v011w-variants-options-1.json	-	the options of Vostok v0.11's looks as maps (286-289) and Evening (0.11)'s weather 6 for 272-273; before modes.tsv, which needs each config to exist
 edit	modes.tsv	-	the game modes' rules, a row per mode config (battery modes respawn in 10 s)
 edit	maps.tsv	-	the maps' rules, a row per level over its projects: spawn protection, spawn zones, resupply, artefact search and cooldown
 edit	rooms.tsv	-	the rooms' and Player vs Bots' settings (gameplay/srp/rooms.options): srp reads them from its game data; the lobby movie gets what it shows from srp's messages
@@ -264,4 +263,3 @@ edit	v021d-renderer-2.json	-	Chemical Plant v0.21's keys for exe patch 130, as v
 edit	london-environment-1.json	-	London day: its probes' reflection strength as 0.31a2 authors it (environment_probes_specular_intensity_multiplier 1.2), the setting patch 14 left out
 edit	london-probe-channel-1.json	-	London: smart_attenuation on the 137 probes 0.31a2 box-projects (use_parallax_correction), the per-probe switch of pack london-probes@2; every London project
 edit	london-probe-shapes-1.json	-	London: seven environment probes' boxes, places, radii and side widths as 0.31a2 authors them in each project (Skhid's London came from an earlier build); the radii set the order overlapping probes draw in
-edit	v011w-variants-1.json	-	Vostok v0.11 looks as their own maps: Evening (0.11.2) 286-287 (0.26g atmosphere, weather 3), the evening 272-273 becomes Evening (0.11) (weather 6), Day (0.11) 288-289 (0.11e day profile, probes x4, weather 8); applied last, each copies its original's final project and options

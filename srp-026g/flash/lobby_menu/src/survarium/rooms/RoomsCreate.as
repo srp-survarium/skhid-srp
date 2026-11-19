@@ -367,7 +367,7 @@ package survarium.rooms
                     edge.graphics.lineStyle(2, lit ? RoomsLook.GOLD : 0x26323C);
                     edge.graphics.drawRect(0, 0, cw, ch);
                     chip.addChild(edge);
-                    look.text(chip, win.weatherName(one.weather, one.level).toUpperCase() + (one.extra ? " · " + win.say("st_srp_rooms_experimental").toUpperCase() : ""),
+                    look.text(chip, win.weatherName(one.weather).toUpperCase() + (one.extra ? " · " + win.say("st_srp_rooms_experimental").toUpperCase() : ""),
                         0, ch - 22 + 3, cw, 12, oneUsable ? 0xFFFFFF : 0x6A747C, "center");
                     chip.mouseChildren = false;
                     chip.name = one.key;

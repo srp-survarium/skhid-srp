@@ -244,24 +244,15 @@ pub mod weather {
     pub const EVENING: u8 = 3;
     pub const NIGHT: u8 = 4;
     pub const PRERAIN: u8 = 5;
-    /// A map's second look of a weather (srp's; the game never reads the id):
-    /// a ported map drawn the way its source build drew it beside the look
-    /// it has with 0.26g's own rendering (Vostok v0.11's "(0.11)" beside its
-    /// "(0.11.2)"). The lobby names them per map. 7 is kept for a rain's.
-    pub const EVENING_ORIGINAL: u8 = 6;
-    pub const DAY_ORIGINAL: u8 = 8;
 
     /// Where a weather stands among a map's weathers in a list: day, evening,
-    /// rain, as the stock maps' ids have them, whatever a ported map's ids
-    /// are, each second look after its weather's first.
+    /// rain, as the stock maps' ids have them, whatever a ported map's ids are.
     pub fn list_place(weather: u8) -> u8 {
         match weather {
             DAY => 0,
-            DAY_ORIGINAL => 1,
-            EVENING => 2,
-            EVENING_ORIGINAL => 3,
-            RAIN => 4,
-            other => other + 5,
+            EVENING => 1,
+            RAIN => 2,
+            other => other,
         }
     }
 }
