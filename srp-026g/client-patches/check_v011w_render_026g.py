@@ -29,6 +29,10 @@ environment_sun_direction):
   marked project and on the lobby's scene; on the marked scene technique 6 for the tables and 7 for the
   sky, and the tables remade (the decision's CL 1 though the ids are equal) whenever a frame's look is
   not the one they were made with, and not otherwise.
+- effect_material_base::compile_begin (0x1CD0B0) to its begin_pass (0x1CD1BC), with patch 130's grass
+  case on the same site: a pass of forward_volume_cone_base whose material config has srp_cone_v011w, at
+  vertex input 1..6, begins with forward_volume_cone_base_v011w_<input>; every other family, input or
+  config the original's PS; the VS and the configuration as the original's.
 """
 import struct
 import sys
@@ -603,6 +607,38 @@ def check_tables_constants(stock, patched):
           " mieSun, rayleighPi and miePi (0.26g sends the sun's intensity first)")
 
 
+def cone_pass(m, ps, vertex_input, config):
+    """compile_begin to its begin_pass: (the VS in EAX, the PS pushed for it, the configuration)."""
+    emu = m.emu
+    emu.mem_write(rig.COMPILER, bytes(rig.COMPILER_SIZE))
+    emu.mem_write(rig.COMPILER + 0x61F4C, b"\x01")
+    emu.mem_write(rig.SHADER_CONFIG, bytes(range(0x10, 0x20)))
+    emu.mem_write(rig.MATERIAL_OPTIONS, struct.pack("<BxxxiIi", vertex_input, -1, 0, -1))
+    emu.mem_write(rig.CFG, rig.relocated_config(config, rig.CFG))
+    m.run(0x1CD0B0, {0x1CD1BC}, stack=(RET, m.name("vertex_base"), m.name(ps), rig.COMPILER, rig.SHADER_CONFIG,
+                                       rig.CFG, rig.MATERIAL_OPTIONS))
+    esp = emu.reg_read(rig.UC_X86_REG_ESP)
+    return (m.text(emu.reg_read(UC_X86_REG_EAX)), m.text(m.r(esp + 8)), bytes(emu.mem_read(rig.SHADER_CONFIG, 16)))
+
+
+def check_cones(stock, patched):
+    marked = {"srp_cone_v011w": {"value": True, "is_model_parameter": False}, "use_tdiffuse": {"value": True}}
+    cases = 0
+    for ps in ("forward_volume_cone_base", "forward_volume_sphere_base", "forward_base"):
+        for vertex_input in (0, 1, 2, 3, 4, 5, 6, 7, 8, 0x0B, 14, 0xC1):
+            for config in (marked, {"use_tdiffuse": {"value": True}}, {}):
+                native = cone_pass(stock, ps, vertex_input, config)
+                ours = cone_pass(patched, ps, vertex_input, config)
+                assert native[:2] == ("vertex_base", ps), native
+                n = vertex_input & 0x3F
+                twin = ps == "forward_volume_cone_base" and 1 <= n <= 6 and config is marked
+                assert ours == (native[0], f"{ps}_v011w_{n}" if twin else ps, native[2]), (ps, vertex_input, ours)
+                cases += 1
+    print(f"  ok compile_begin's begin_pass: a marked forward_volume_cone_base pass at input 1..6 takes"
+          f" forward_volume_cone_base_v011w_<input>, every other ({cases} cases) the original's PS; the VS and"
+          f" the configuration as the original's")
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -626,6 +662,8 @@ def main():
     check_clouds(stock, patched)
     stock, patched = Machine(original), Machine(bytes(built))
     check_tables_constants(stock, patched)
+    stock, patched = Machine(original), Machine(bytes(built))
+    check_cones(stock, patched)
 
 
 if __name__ == "__main__":
