@@ -2667,24 +2667,29 @@ st_srp_medical_312_description	Бонус да здароўя, якое адна
 st_srp_medical_312_name	Медыцынская падрыхтоўка
 st_srp_medical_313_description	Бонус да здароўя, якое аднаўляюць аптэчкі і бінты, у прысядзе:
 st_srp_medical_313_name	У сховішча
+st_srp_medical_314_description	Пакуль дзейнічае антытаксін, зніжэнне часу прыцэльвання:
+st_srp_medical_314_name	Пільнае вока
 st_srp_medical_321_description	Бонус да хуткасці руху пры здароўі ніжэй за 30:
 st_srp_medical_321_name	Адрэналін
 st_srp_medical_322_description	Кожная кішэня з лекамі змяшчае на адзін прадмет больш.
 st_srp_medical_322_name	Дадатковыя лекі
 st_srp_medical_323_description	Пакуль дзейнічае абязбольвальнае, зніжэнне спыняльнай сілы варожых трапленняў:
 st_srp_medical_323_name	Непахісны
+st_srp_medical_324_description	Калі антытаксін пачынае дзейнічаць, аднаўленне энергіі:
+st_srp_medical_324_name	Другое дыханне
 st_srp_medical_331_description	Замяняе слот дадатковай зброі дадатковай кішэняй для прыпасаў.
 st_srp_medical_331_name	Кішэня для прыпасаў
 st_srp_medical_332_description	Бонус да максімальнага здароўя рук і ног:
 st_srp_medical_332_name	Моцныя косці
-st_srp_medical_333_description	Пакуль дзейнічае абязбольвальнае, зніжэнне разгойдвання прыцэла:
+st_srp_medical_333_description	Пакуль дзейнічае антытаксін, бонус да хуткасці перазарадкі:
 st_srp_medical_333_name	Канцэнтрацыя
 st_srp_medical_342_description	Зніжэнне шкоды ад саюзнікаў:
 st_srp_medical_342_name	Браты па зброі
 st_srp_medical_seconds	 с
+st_srp_medicine_aim_time	Час прыцэльвання
 st_srp_medicine_crouched_healing	Лячэнне ў прысядзе
 st_srp_medicine_hit_slow	Запаволенне ад куль
-st_srp_medicine_sight_sway	Разгойдванне
+st_srp_medicine_reload_speed	Хуткасць перазарадкі
 st_srp_medicine_sprint_stamina	Энергія на спрынт
 st_srp_melee_knockback	Адкідванне прыкладам
 st_srp_mic_test	Праверыць мікрафон

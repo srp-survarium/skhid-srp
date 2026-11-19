@@ -4,7 +4,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 37,
+      "expected_count": 38,
       "unique_key": "id",
       "value": {
         "id": 501,
@@ -65,7 +65,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 38,
+      "expected_count": 39,
       "unique_key": "id",
       "value": {
         "id": 502,
@@ -144,7 +144,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 39,
+      "expected_count": 40,
       "unique_key": "id",
       "value": {
         "id": 512,
@@ -223,7 +223,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 40,
+      "expected_count": 41,
       "unique_key": "id",
       "value": {
         "id": 513,
@@ -250,7 +250,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 41,
+      "expected_count": 42,
       "unique_key": "id",
       "value": {
         "id": 521,
@@ -277,7 +277,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 42,
+      "expected_count": 43,
       "unique_key": "id",
       "value": {
         "id": 522,
@@ -305,7 +305,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 43,
+      "expected_count": 44,
       "unique_key": "id",
       "value": {
         "id": 523,
@@ -375,7 +375,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 44,
+      "expected_count": 45,
       "unique_key": "id",
       "value": {
         "id": 531,
@@ -402,7 +402,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 45,
+      "expected_count": 46,
       "unique_key": "id",
       "value": {
         "id": 532,
@@ -429,7 +429,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 46,
+      "expected_count": 47,
       "unique_key": "id",
       "value": {
         "id": 533,
@@ -456,7 +456,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 47,
+      "expected_count": 48,
       "unique_key": "id",
       "value": {
         "id": 541,
@@ -486,7 +486,7 @@
     {
       "file": "gameplay/skills/skills_tree.options",
       "list": "skills_tree",
-      "expected_count": 48,
+      "expected_count": 49,
       "unique_key": "id",
       "value": {
         "id": 542,

@@ -2667,24 +2667,29 @@ st_srp_medical_312_description	Az elsősegélycsomagok és kötszerek által vis
 st_srp_medical_312_name	Egészségügyi képzés
 st_srp_medical_313_description	Az elsősegélycsomagok és kötszerek által visszaállított életerő bónusza guggolás közben:
 st_srp_medical_313_name	Fedezékbe
+st_srp_medical_314_description	Antitoxin hatása alatt a célzási idő csökkenése:
+st_srp_medical_314_name	Éles szem
 st_srp_medical_321_description	Mozgási sebesség bónusza 30 alatti életerőnél:
 st_srp_medical_321_name	Adrenalin
 st_srp_medical_322_description	Minden gyógyszert tartalmazó zsebben eggyel több tárgy fér el.
 st_srp_medical_322_name	Több gyógyszer
 st_srp_medical_323_description	Fájdalomcsillapító hatása alatt az ellenséges találatok megállítóerejének csökkenése:
 st_srp_medical_323_name	Rendíthetetlen
+st_srp_medical_324_description	Amikor az antitoxin hatni kezd, visszanyert állóképesség:
+st_srp_medical_324_name	Második szél
 st_srp_medical_331_description	A másodlagos fegyver helyét egy további felszerelészsebre cseréli.
 st_srp_medical_331_name	Felszerelészseb
 st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza:
 st_srp_medical_332_name	Erős csontok
-st_srp_medical_333_description	Fájdalomcsillapító hatása alatt az irányzék kilengésének csökkenése:
+st_srp_medical_333_description	Antitoxin hatása alatt az újratöltési sebesség bónusza:
 st_srp_medical_333_name	Összpontosítás
 st_srp_medical_342_description	A szövetségesektől kapott sebzés csökkenése:
 st_srp_medical_342_name	Fegyvertársak
 st_srp_medical_seconds	 mp
+st_srp_medicine_aim_time	Célzási idő
 st_srp_medicine_crouched_healing	Gyógyulás guggolva
 st_srp_medicine_hit_slow	Lassítás golyóktól
-st_srp_medicine_sight_sway	Irányzék kilengése
+st_srp_medicine_reload_speed	Újratöltési sebesség
 st_srp_medicine_sprint_stamina	Sprint állóképesség
 st_srp_melee_knockback	Tusütés lökőereje
 st_srp_mic_test	Mikrofon tesztelése

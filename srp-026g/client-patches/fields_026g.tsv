@@ -599,6 +599,10 @@ survarium::inventory_holder	player	-0x108	obj<survarium::player>	base_player inv
 survarium::medkit	item	0x0	obj<survarium::item>	Medical hook typed object boundary; medical-skills.md
 survarium::medkit	protection	0x294	ptr<survarium::medical_protection>	configured protection records
 survarium::medkit	protection_count	0x298	u8	number of protection records
+survarium::medkit	heals	0x280	ptr<survarium::medical_influence>	data/influences' records, the pools it heals, `influences` of them (medkit::tick 0x33D8F5, 14h apart: 0x33DA1B)
+survarium::medical_influence	name	0x0	u8	the pool it heals, its name inline (16 bytes; medkit::tick looks it up, 0x2E58B9 comparing the record's own bytes)
+survarium::medical_influence	amount	0x10	f32	what it heals over the active time (0x33D92C; 0 for a pool the drug does not heal: the antitoxin keeps the medkit template's seven at 0)
+survarium::medical_influence	size	0x14	size	one data/influences record (medkit::tick's stride, 0x33DA1B; its amount at +10h, 0x33D92C)
 survarium::medical_protection	name	0x70	u8	inline body part name (16 bytes)
 survarium::medical_protection	hit_kind	0x80	u32	hit type discriminator
 survarium::medical_protection	coefficient	0x84	f32	damage coefficient
@@ -657,8 +661,6 @@ vostok::physics::bt_character_controller	controller	0x0	ptr<vostok::physics::bul
 vostok::physics::bullet_character_controller	effective_crouch	0x201	u8	effective crouch: set by the crouch states (0x337810), cleared only when it can stand (+202h, 0x337830) or on jump (0x2D793E); serialized (0x7FBA0); player_step 0x7BDAE shapes the capsule from it
 survarium::medical_stopping_frame	player	0x4	ptr<survarium::player>	medical.stopping's first argument (by the site ESP, the return address at +0): the staggered player
 survarium::medical_stopping_frame	sum	0x8	f32	its second: the recent hits' stopping power after Spring's list 42, written back
-survarium::breath_vibration_calculator	player	0x3C	ptr<survarium::player>	its weapon's holder (weapon+2C4h): weapon_core::set_user writes it (0x2E29F3) and deactivate clears it (0x2E2EBE); tick reads its kit modifiers ([+115h] x 704h + [+6B8h] + 0F4h, 0x31D6F3) and its stamina (+6C0h, 0x31D768)
-survarium::breath_tick_frame	dispersion	0x8	f32	breath_vibration_calculator::tick's first argument (by its EBP, push ebp / mov ebp,esp at 0x31D6E0; read at 0x31D71C, never written): the weapon's dispersion now, weapon_core::tick's m_weapon_dispersion +418h plus m_character_dispersion +404h (0x2E0A23), what apply_modifier 61 then scales
 vostok::animation::registry_key	first	0x0	ptr<vostok::resources::managed_resource>	an animation pair's first resource, the registry's key (the 1st-view clip; animations_registry::register_animation 0x2EF130 keeps it at the entry's +0, the lookup 0x2D6590 compares it first)
 vostok::animation::registry_key	second	0x4	ptr<vostok::resources::managed_resource>	the pair's second resource (the 3rd-view clip, the one an id resolves to: 0x1F18B0 returns the entry's +4; the same resource as first for most pairs)
 survarium::animation_id_frame	registry	0x10	ptr<survarium::animations_registry>	ESP+10h at animations.id_missing: the lookup's registry argument (0x2D6590 pushed EBX, ESI, EDI after its return address)
@@ -1341,6 +1343,7 @@ survarium::weapon	melee_data	0x53C	u32	the gun-stock hit's bullet data (melee/da
 survarium::weapon	melee_distance	0x578	f32	melee/data/distance (1.7 m): the gun-stock bullet's speed, the eye's forward times it (0x33AB9B)
 survarium::victory_item_core	user_animations	0x1AC	ptr<survarium::user_animations>	its carrier's clip set (gameplay/victory_items/default.user_animations), ticked with it (victory_item_core::tick 0x301250); +20h its posture now (selected_animations 0x3012C1)
 survarium::weapon	user	0x8	ptr<survarium::player>	its user (weapon_core::set_user 0x2E2996); 0 once deactivated (0x2E2EE0), as a gun is while its player carries a battery; the bullet's constructor reads it through the gun's vtable +7Ch (0x2E43A0) and melee damage (0x2E1CFD)
+survarium::reload_state	weapon	0x120	ptr<survarium::weapon>	a reload state's weapon: the four reload states' get_weapon_lexeme read modifier 13 on its user's kit, [[+120h]+8] (0x30E23D, 0x30F600, 0x30FEEA, 0x3110B8)
 survarium::weapon	user_animations	0x278	ptr<survarium::user_animations>	its clip set (weapon_core 0x30AAE1); +20h its posture now, 0 while the gun is deactivated; read by the shot's stance (vtable +7Ch, 0x2E43B0)
 survarium::user_animations	posture	0x20	ptr<survarium::posture_state>	the posture state now of its machine (+10h the list's count, +18h its head): 0x2E43B6, 0x301450; 0 for a deactivated gun's
 survarium::posture_state	kind	0x20	u32	what posture it is (0x2E43B9 tests 1, 0x301450 tests 1)

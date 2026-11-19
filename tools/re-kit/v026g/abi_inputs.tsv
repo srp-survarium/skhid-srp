@@ -6387,3 +6387,5 @@ va	name	location	role	basis
 0x00070e30	vostok::math::random32::random_f	entry ESP+4	float: min	observed
 0x00070e30	vostok::math::random32::random_f	entry ESP+8	float: max	observed
 0x001cd0b0	vostok::render::effect_material_base::compile_begin	entry ESP+16	byte +6 bits 0..5: the vertex input type, written from the options record's byte 0 (0x1CD0C1..0x1CD0CD) before begin_pass; 0Bh grassmesh_vertex_input	observed
+0x0030f5a0	survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme	EDI	reload state; weapon at +120h (its user [+8] the kit read for index 13), clip speed +138h	observed
+0x00311070	survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme	EDI	reload substate; weapon at +120h (its user [+8] the kit read for index 13), clip speed +14Ch	observed

@@ -3523,3 +3523,5 @@ va	status	ref_021d	name
 0x00132a90	inferred-medium		vostok::render::backend::set_ps_constant
 0x0014e800	inferred-medium		vostok::math::normalize_safe
 0x00133f50	inferred-medium		vostok::render::stage_rain::rain_rotation_basis
+0x0030f5a0	inferred-medium		survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme
+0x00311070	inferred-medium		survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme

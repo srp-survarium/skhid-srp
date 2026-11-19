@@ -2667,24 +2667,29 @@ st_srp_medical_312_description	Bonus auf die Heilung durch Erste-Hilfe-Sets und 
 st_srp_medical_312_name	Medizinische Ausbildung
 st_srp_medical_313_description	Bonus auf die Heilung durch Erste-Hilfe-Sets und Verbände in der Hocke:
 st_srp_medical_313_name	In Deckung
+st_srp_medical_314_description	Solange ein Gegengift wirkt, Verringerung der Zielzeit:
+st_srp_medical_314_name	Scharfes Auge
 st_srp_medical_321_description	Bonus auf die Bewegungsgeschwindigkeit bei weniger als 30 Gesundheit:
 st_srp_medical_321_name	Adrenalin
 st_srp_medical_322_description	Jede Tasche mit Medizin fasst einen weiteren Gegenstand.
 st_srp_medical_322_name	Zusätzliche Medizin
 st_srp_medical_323_description	Solange ein Schmerzmittel wirkt, Verringerung der Verlangsamung durch feindliche Treffer:
 st_srp_medical_323_name	Standhaft
+st_srp_medical_324_description	Wenn ein Gegengift zu wirken beginnt, wiederhergestellte Energie:
+st_srp_medical_324_name	Zweiter Atem
 st_srp_medical_331_description	Ersetzt den Platz für die Sekundärwaffe durch eine zusätzliche Vorratstasche.
 st_srp_medical_331_name	Vorratstasche
 st_srp_medical_332_description	Bonus auf die maximale Gesundheit von Armen und Beinen:
 st_srp_medical_332_name	Starke Knochen
-st_srp_medical_333_description	Solange ein Schmerzmittel wirkt, Verringerung des Verwackelns des Zielfernrohrs:
+st_srp_medical_333_description	Solange ein Gegengift wirkt, Bonus auf die Nachladegeschwindigkeit:
 st_srp_medical_333_name	Konzentration
 st_srp_medical_342_description	Verringerung des durch Verbündete erlittenen Schadens:
 st_srp_medical_342_name	Waffenbrüder
 st_srp_medical_seconds	 s
+st_srp_medicine_aim_time	Zielzeit
 st_srp_medicine_crouched_healing	Heilung in der Hocke
 st_srp_medicine_hit_slow	Trefferverlangsamung
-st_srp_medicine_sight_sway	Verwackeln
+st_srp_medicine_reload_speed	Nachladegeschwindigkeit
 st_srp_medicine_sprint_stamina	Sprint-Energie
 st_srp_melee_knockback	Kolbenschlag-Wucht
 st_srp_mic_test	Mikrofon testen

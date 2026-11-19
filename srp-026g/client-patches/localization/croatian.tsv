@@ -2667,24 +2667,29 @@ st_srp_medical_312_description	Bonus zdravlju obnovljenom prvom pomoći i zavoji
 st_srp_medical_312_name	Medicinska obuka
 st_srp_medical_313_description	Bonus zdravlju obnovljenom prvom pomoći i zavojima u čučnju:
 st_srp_medical_313_name	U zaklon
+st_srp_medical_314_description	Dok antitoksin djeluje, smanjenje vremena ciljanja:
+st_srp_medical_314_name	Oštro oko
 st_srp_medical_321_description	Bonus brzini kretanja dok je zdravlje ispod 30:
 st_srp_medical_321_name	Adrenalin
 st_srp_medical_322_description	Svaki džep s lijekovima prima jedan dodatni predmet.
 st_srp_medical_322_name	Dodatni lijekovi
 st_srp_medical_323_description	Dok analgetik djeluje, smanjenje zaustavne moći neprijateljskih pogodaka:
 st_srp_medical_323_name	Nepokolebljiv
+st_srp_medical_324_description	Kad antitoksin počne djelovati, vraćena izdržljivost:
+st_srp_medical_324_name	Drugi dah
 st_srp_medical_331_description	Zamjenjuje mjesto za sporedno oružje dodatnim džepom za zalihe.
 st_srp_medical_331_name	Džep za zalihe
 st_srp_medical_332_description	Bonus najvećem zdravlju ruku i nogu:
 st_srp_medical_332_name	Čvrste kosti
-st_srp_medical_333_description	Dok analgetik djeluje, smanjenje njihanja ciljnika:
+st_srp_medical_333_description	Dok antitoksin djeluje, bonus brzini punjenja:
 st_srp_medical_333_name	Koncentracija
 st_srp_medical_342_description	Smanjenje štete primljene od saveznika:
 st_srp_medical_342_name	Braća po oružju
 st_srp_medical_seconds	 s
+st_srp_medicine_aim_time	Vrijeme ciljanja
 st_srp_medicine_crouched_healing	Liječenje u čučnju
 st_srp_medicine_hit_slow	Usporavanje metcima
-st_srp_medicine_sight_sway	Njihanje ciljnika
+st_srp_medicine_reload_speed	Brzina punjenja
 st_srp_medicine_sprint_stamina	Izdržljivost pri sprintu
 st_srp_melee_knockback	Odbacivanje u bliskoj borbi
 st_srp_mic_test	Testiraj mikrofon
