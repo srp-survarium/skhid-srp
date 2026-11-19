@@ -2551,6 +2551,8 @@ impl Bot {
             } else {
                 format!("{line}, aimed: side {:+.2} m, turn {:+.2} rad", route.aim.side_m(), route.aim.turn_rad())
             };
+            // [F3] A jump that missed its landing says the body at its press against the stored window (decides nothing).
+            let line = if outcome.missed() { format!("{line}; {}", route.state.text()) } else { line };
             self.nav_log.push(super::nav_log::Kind::Jump, time, line);
         }
         if self.tracing {
