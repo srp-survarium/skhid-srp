@@ -1347,6 +1347,12 @@ fn pull_straight(
                 // fall and the rest): the crouch held on its leg and through its let-go ([`WalkOffRelease::crouched`]); no sprint.
                 let crouched = link.press.walks_off_crouched();
                 sprint_drops.push((grid.position(nodes[i]), !crouched));
+                // The flight starts crouched on the take-off floor's centre: the drop's leg is low, so both walks crouch (and
+                // let the sprint go) from `motor::LOW_AHEAD_M` before the take-off; the client's capsule crouches on the key's
+                // tick (`setup_crouch_state` 0x7F1A0, `controller::tick` `set_crouched`).
+                if crouched && let Some(point) = points.last_mut() {
+                    point.low = true;
+                }
                 walk_offs.push(WalkOffRelease {
                     take_off: grid.position(nodes[i - 1]),
                     landing: grid.position(nodes[i]),
