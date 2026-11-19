@@ -76,12 +76,12 @@ mod grid_cache;
 mod grid_digests;
 mod hump_deck;
 mod job_spot_stages;
-mod loops_spots;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
 mod kits;
 mod late_map;
 mod live_zones;
+mod loops_spots;
 mod match_wide;
 mod narrow_doors;
 mod nav_spots;
