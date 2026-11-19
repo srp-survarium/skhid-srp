@@ -217,12 +217,14 @@ mod tests {
         for end in plain.len() + 1..bytes.len() {
             assert!(Prepare::decode(&bytes[..end], dictionary).is_err(), "{end}");
         }
-        // Another length than one place, a face the data does not list
-        // (the test data has three), the Blackout entry, the entry twice,
-        // an unknown tag: refused.
+        // A face the data does not list (the test data has three): face 0,
+        // as the options' read.
+        let unlisted = Prepare::decode(&[&plain[..], b"SRPX\x05\x01\x03"].concat(), dictionary).unwrap();
+        assert_eq!(unlisted, prepare());
+        // Another length than one place, the Blackout entry, the entry
+        // twice, an unknown tag: refused.
         for bad in [
             &b"SRPX\x05\x02\x01\x01"[..],
-            b"SRPX\x05\x01\x03",
             b"SRPX\x02\x01\x01",
             b"SRPX\x05\x01\x01\x05\x01\x01",
             b"SRPX\x01\x01\x01",
