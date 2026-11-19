@@ -113,6 +113,11 @@ pub enum CompileSite {
     PostBlend00Pass,
     PostBlend10Pass,
     PostBlend11Pass,
+    /// `skylight.compiled`: effect_skylight::compile's epilogue.
+    SkylightEnd,
+    /// `skylight.pass_<n>`: its technique n's begin_pass.
+    SkylightPass0,
+    SkylightPass1,
 }
 
 fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
@@ -135,6 +140,9 @@ fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
             CompileSite::PostBlend00Pass => raw::site::post_blend_00_pass::compiler(ctx),
             CompileSite::PostBlend10Pass => raw::site::post_blend_10_pass::compiler(ctx),
             CompileSite::PostBlend11Pass => raw::site::post_blend_11_pass::compiler(ctx),
+            CompileSite::SkylightEnd => raw::site::skylight_compiled::compiler(ctx),
+            CompileSite::SkylightPass0 => raw::site::skylight_pass_0::compiler(ctx),
+            CompileSite::SkylightPass1 => raw::site::skylight_pass_1::compiler(ctx),
         }
     }
     .expect("the compile's compiler")
@@ -184,6 +192,9 @@ pub enum PassSite {
     PostBlend00,
     PostBlend10,
     PostBlend11,
+    /// `skylight.pass_<n>`: effect_skylight's technique n.
+    Skylight0,
+    Skylight1,
 }
 
 /// Makes `name` the pixel shader of the begin_pass at `site` (its pushed
@@ -200,6 +211,8 @@ pub fn set_pixel_shader(ctx: &Context<'_>, site: PassSite, name: &'static CStr) 
             PassSite::PostBlend00 => raw::site::post_blend_00_pass::frame(ctx),
             PassSite::PostBlend10 => raw::site::post_blend_10_pass::frame(ctx),
             PassSite::PostBlend11 => raw::site::post_blend_11_pass::frame(ctx),
+            PassSite::Skylight0 => raw::site::skylight_pass_0::frame(ctx),
+            PassSite::Skylight1 => raw::site::skylight_pass_1::frame(ctx),
         };
         frame.expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast())
     }

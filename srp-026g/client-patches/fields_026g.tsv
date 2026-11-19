@@ -465,6 +465,7 @@ survarium::image	ai_allocator	0x1F1DA44	obj<survarium::allocator_slot>	the ai ar
 survarium::image	render_allocator	0x1F1D960	obj<survarium::allocator_slot>	the render's allocator's slot (set at 0x13C61; read by the render's resource code 0x1F00B..0x1F3C3; a baked texture resource's 108h bytes come from it, mov esi,[0x1F1D960] before 0xE4F90, 0x12F184 and 0x12DDA9)
 survarium::allocator_slot	allocator	0x0	ptr<vostok::memory::game_allocator>	the allocator (a doug_lea_allocator: query_resources' allocator, the late join's)
 vostok::engine_cfg	text	0x0	ptr<u8>	a text node's (type 5) string, its offset relocated to an address by the loader as a table's children (the count +16h its bytes with the zero)
+vostok::engine_cfg	vector	0x0	ptr<f32>	a vector node's (types 6, 7, 8: 2, 3, 4 floats; its count their bytes) floats, their offset relocated to an address by the loader as a text's (content_edit.py value_record writes them so)
 vostok::sound::sound_instance_proxy	references	0x28	u32	its references, not atomic (single_threading_policy: intrusive_ptr::dec 0x56807; at 0 free_object 0x5B390)
 vostok::console_commands::cc_float	size	0x4C	size	a cc_float console variable's object (s_general_volume's at 0xA7D3C8, made by its static initializer 0x84D440: cc_value<bool>::cc_value's base fields, +40h the value's address, +44h the least, +48h the most)
 vostok::console_commands::cc_float	vtable	0x0	u32	its vtable: CC_FLOAT_VTABLE, written after cc_value<bool>::cc_value (which leaves its own), as s_general_volume's (0x84D48D)
@@ -1418,6 +1419,18 @@ vostok::render::compile_begin_frame	config	0x3C	ptr<vostok::engine_cfg>	its fift
 vostok::render::shader_configuration	vertex_input	0x6	u8	the 16-byte shader_configuration's byte 6: bits 0..5 the vertex input type, which compile_begin writes from its options (0x1CD0C1..0x1CD0CD); 0Bh grassmesh_vertex_input
 vostok::render::water_compile_frame	config	0xC	ptr<vostok::engine_cfg>	effect_fstage_simpe_water_materials::compile's (0x1E5FE0) EBP frame: +0Ch its config tree, the material's (compile_begin's fifth argument, 0x1E6026)
 vostok::render::god_rays_entry_frame	stage	0x4	ptr<vostok::render::stage_atmosphere>	the god-rays pass's (0x1A5520) one argument at its entry, the stage_atmosphere it draws for (pushed at 0x1A5133)
+vostok::render::stage_ambient_lighting	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (render_skylight 0x1824D3)
+vostok::render::stage_ambient_lighting	skylight_effect	0x58	ptr<vostok::render::res_effect>	its effect_skylight (render_skylight 0x18245C applies its technique 1)
+vostok::render::stage_ambient_lighting	eye_ray_constant	0xF0	ptr<vostok::render::shader_constant_host>	the host of s_eye_ray_corner (the constructor 0x17F946)
+vostok::render::stage_ambient_lighting	skylight_constant_0	0x114	ptr<vostok::render::shader_constant_host>	the host of skylight_parameters0 (the constructor 0x17FB9F); 0.26g sets only 0
+vostok::render::stage_ambient_lighting	skylight_constant_1	0x118	ptr<vostok::render::shader_constant_host>	the host of skylight_parameters1 (the constructor 0x17FBEA); 0.26g sets only 0
+vostok::render::stage_ambient_lighting	skylight_constant_2	0x11C	ptr<vostok::render::shader_constant_host>	the host of skylight_parameters2 (the constructor 0x17FC35); 0.26g sets only 0
+vostok::render::stage_ambient_lighting	skylight_constant_3	0x120	ptr<vostok::render::shader_constant_host>	the host of skylight_parameters3 (the constructor 0x17FC80); 0.26g sets only 0
+vostok::render::stage_ambient_lighting	skylight_constant_4	0x124	ptr<vostok::render::shader_constant_host>	the host of skylight_parameters4 (the constructor 0x17FCCB); 0.26g sets only 0
+vostok::render::stage_ambient_lighting	skylight_constant_5	0x128	ptr<vostok::render::shader_constant_host>	the host of skylight_parameters5 (the constructor 0x17FD16); 0.26g sets only 0
+vostok::render::stage_ambient_lighting	skylight_constant_6	0x12C	ptr<vostok::render::shader_constant_host>	the host of skylight_parameters6 (the constructor 0x17FD61); 0.26g sets only 0
+vostok::render::stage_ambient_lighting	skylight_constant_7	0x130	ptr<vostok::render::shader_constant_host>	the host of skylight_parameters7 (the constructor 0x17FDAC); 0.26g sets only 0
+vostok::render::skylight_fill_frame	default_depth	0x10	u32	render_skylight's fill_surface (0x11D950) arguments as pushed at 0x1824D3: +0 target1, +4 target2, +8 target3, +0Ch the depth target (0), +10h the flag pushed 1 at 0x1824AD (fill_surface binds the default depth-stencil when nonzero, and the skylight's stencil test, NOT_EQUAL 0 (0x1CF5FC), then fails on every pixel of 0.26g's frame)
 vostok::render::stage_postprocess	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (execute passes it to renderer_context::get_rt at 0x1B2C63)
 vostok::render::stage_postprocess	blend_00	0xA4	ptr<vostok::render::res_effect>	its effect_complex_post_process_blend<0,0> (the constructor's 0x1B00CC; execute's blend index 0)
 vostok::render::stage_postprocess	blend_01	0xA8	ptr<vostok::render::res_effect>	the blend of index 1 (the constructor makes none)

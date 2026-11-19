@@ -45,6 +45,7 @@ pub const MAP_KEY: &CStr = c"srp_renderer_v011w";
 const TABLES_PS: &CStr = c"make_mie_rayleigh_texture_v011w";
 const SKY_PS: &CStr = c"atmosphere_v011w";
 const POST_PS: &CStr = c"complex_post_process_blend_v011w_026g";
+const SKYLIGHT_PS: &CStr = c"skylight_v011w";
 
 /// A project's inscatter distance, metres: above 0 (both passes divide by it).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -56,7 +57,65 @@ struct Distance(f32);
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Profile {
     distance: Distance,
+    sky: Sky,
     post: Post,
+}
+
+/// A 0.11 weather's skylight: 0.11e's (the twin, lighting shade by height
+/// and a six-face sky colour) when the profile names its values, else 0.26g's.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Sky {
+    Native,
+    V011w(Skylight),
+}
+
+/// 0.11e's skylight values (its post material's): `skylight_light` the
+/// light, linear (skylight_color^2.2 * skylight_multiplier, as 0.11e's
+/// stage_ambient_lighting computes it); the lower and upper heights and the
+/// power; the six faces' sky colours (+x, -x, +y up, -y down, +z, -z); the
+/// sun's tint (environment_suncolor * environment_sun_color).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Skylight {
+    light: [f32; 3],
+    lower: f32,
+    upper: f32,
+    power: f32,
+    faces: [[f32; 3]; 6],
+    sun_tint: [f32; 3],
+}
+
+/// The skylight's keys: the numbers, then the vectors.
+const SKY_NUMBER_KEYS: [&CStr; 3] = [c"skylight_lower", c"skylight_upper", c"skylight_power"];
+const SKY_VECTOR_KEYS: [&CStr; 8] = [
+    c"skylight_light",
+    c"environment_skycolor_x",
+    c"environment_skycolor_minus_x",
+    c"environment_skycolor_up",
+    c"environment_skycolor_down",
+    c"environment_skycolor_z",
+    c"environment_skycolor_minus_z",
+    c"sun_tint",
+];
+
+impl Skylight {
+    /// skylight_parameters0..7 as 0.11e's stage_ambient_lighting::execute
+    /// packs them, for a sun of `direction` (toward the ground) and
+    /// `intensity`.
+    fn parameters(&self, direction: [f32; 3], intensity: f32) -> [[f32; 4]; 8] {
+        let [plus_x, minus_x, plus_y, minus_y, plus_z, minus_z] = self.faces;
+        let with = |v: [f32; 3], w: f32| [v[0], v[1], v[2], w];
+        let sun = self.sun_tint.map(|c| c * intensity);
+        [
+            with(self.light, 0.0),
+            [self.lower, self.upper - self.lower, self.power, 0.0],
+            with(plus_x, plus_z[0]),
+            with(minus_x, plus_z[1]),
+            with(minus_y, plus_z[2]),
+            with(minus_z, plus_y[0]),
+            with(direction, plus_y[1]),
+            with(sun, plus_y[2]),
+        ]
+    }
 }
 
 /// A 0.11 weather's post.
@@ -86,7 +145,7 @@ const FILMIC_KEYS: [&CStr; 8] = [
 impl Profile {
     /// From the table's numbers by key (`number` is None for a missing key
     /// and panics on a value that is not a number).
-    fn parse(number: impl Fn(&CStr) -> Option<f32>) -> Profile {
+    fn parse(number: impl Fn(&CStr) -> Option<f32>, vector: impl Fn(&CStr) -> Option<[f32; 3]>) -> Profile {
         let metres = number(c"inscatter_distance").expect("srp_renderer_v011w names its inscatter_distance");
         assert!(metres.is_finite() && metres > 0.0, "srp_renderer_v011w.inscatter_distance is a distance above 0");
         let values = FILMIC_KEYS.map(&number);
@@ -96,16 +155,40 @@ impl Profile {
             let v = values.map(|value| value.expect("srp_renderer_v011w names all eight filmic values or none"));
             Post::Filmic([[v[0], v[1], v[2], v[3]], [v[4], v[5], v[6], v[7]]])
         };
-        Profile { distance: Distance(metres), post }
+        let numbers = SKY_NUMBER_KEYS.map(&number);
+        let vectors = SKY_VECTOR_KEYS.map(&vector);
+        let sky = if numbers.iter().all(Option::is_none) && vectors.iter().all(Option::is_none) {
+            Sky::Native
+        } else {
+            let n = numbers.map(|value| value.expect("srp_renderer_v011w names all the skylight's values or none"));
+            let v = vectors.map(|value| value.expect("srp_renderer_v011w names all the skylight's values or none"));
+            Sky::V011w(Skylight {
+                light: v[0],
+                lower: n[0],
+                upper: n[1],
+                power: n[2],
+                faces: [v[1], v[2], v[3], v[4], v[5], v[6]],
+                sun_tint: v[7],
+            })
+        };
+        Profile { distance: Distance(metres), sky, post }
     }
 
     fn of_table(table: ConfigTable<'_>) -> Profile {
-        Profile::parse(|key| match table.get(key).expect("a project's config reads") {
-            None => None,
-            Some(ConfigValue::Integer(n)) => Some(n as f32),
-            Some(ConfigValue::Number(n)) => Some(n),
-            Some(_) => panic!("srp_renderer_v011w: {key:?} is a number"),
-        })
+        let value = |key: &CStr| table.get(key).expect("a project's config reads");
+        Profile::parse(
+            |key| match value(key) {
+                None => None,
+                Some(ConfigValue::Integer(n)) => Some(n as f32),
+                Some(ConfigValue::Number(n)) => Some(n),
+                Some(_) => panic!("srp_renderer_v011w: {key:?} is a number"),
+            },
+            |key| match value(key) {
+                None => None,
+                Some(ConfigValue::Vector(v)) => Some(v.xyz().expect("a colour of three or four")),
+                Some(_) => panic!("srp_renderer_v011w: {key:?} is a vector"),
+            },
+        )
     }
 }
 
@@ -205,6 +288,7 @@ static TABLES: Lock<Tables> = Lock::new(Tables::Unmade);
 enum Twins {
     Scattering,
     PostBlend,
+    Skylight,
 }
 
 static ROUNDS_NOW: Lock<Rounds<Twins>> = Lock::new(Rounds::new());
@@ -460,6 +544,62 @@ pub fn on_post_blend_constants(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// effect_skylight::compile's end: the first time back to technique 0, for
+/// the twins; the second time its return.
+pub fn on_skylight_compiled(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnSkylightCompiledExit> {
+    use vostok::V011WRenderOnSkylightCompiledExit as Exit;
+    let compiler = effect_compile::compiler_id(ctx, CompileSite::SkylightEnd);
+    match ROUNDS_NOW.with(ctx.thread(), |rounds| rounds.end(compiler, Twins::Skylight)) {
+        End::Return => Flow::Continue,
+        End::Twins => Flow::Exit(match effect_compile::pass(ctx, CompileSite::SkylightEnd) {
+            Pass::Building => Exit::Begin,
+            Pass::Caching => Exit::Cached,
+        }),
+    }
+}
+
+/// effect_skylight's techniques begin their passes: the twins' with 0.11e's.
+pub fn on_skylight_pass_0(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    twin_pass(ctx, CompileSite::SkylightPass0, PassSite::Skylight0, Twins::Skylight, SKYLIGHT_PS);
+    Flow::Continue
+}
+
+pub fn on_skylight_pass_1(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    twin_pass(ctx, CompileSite::SkylightPass1, PassSite::Skylight1, Twins::Skylight, SKYLIGHT_PS);
+    Flow::Continue
+}
+
+/// The skylight's gate: 0.26g never draws its skylight (the stage's +E4h,
+/// zeroed by its constructor, is never set); a 0.11 weather's scene whose
+/// profile names the skylight draws it.
+pub fn on_skylight_gate(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnSkylightGateExit> {
+    match look(ctx, StageSite::SkylightGate) {
+        Look::V011w(Profile { sky: Sky::V011w(_), .. }) => Flow::Exit(vostok::V011WRenderOnSkylightGateExit::Render),
+        Look::V011w(Profile { sky: Sky::Native, .. }) | Look::Native => Flow::Continue,
+    }
+}
+
+/// The skylight's pass: 0.11e's on the 0.11 weather's scene whose profile
+/// names the skylight.
+pub fn on_skylight_apply(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnSkylightApplyExit> {
+    match look(ctx, StageSite::SkylightApply) {
+        Look::V011w(Profile { sky: Sky::V011w(_), .. }) => {
+            render_stage::set_skylight_technique(ctx, render_stage::SKYLIGHT_V011W);
+            Flow::Exit(vostok::V011WRenderOnSkylightApplyExit::Applied)
+        }
+        Look::V011w(Profile { sky: Sky::Native, .. }) | Look::Native => Flow::Continue,
+    }
+}
+
+/// Its constants: 0.11e's eight, which 0.26g does not set (but the first).
+pub fn on_skylight_constants(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Look::V011w(Profile { sky: Sky::V011w(skylight), .. }) = look(ctx, StageSite::SkylightConstants) {
+        let (direction, intensity) = render_stage::skylight_sun(ctx);
+        render_stage::set_skylight(ctx, &skylight.parameters(direction, intensity));
+    }
+    Flow::Continue
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -506,22 +646,44 @@ mod tests {
         assert_eq!(made.step(TablesEvent::Due(Native)), (made, TablesAction::Remake));
     }
 
-    /// 0.11e's Vostok evening (its post material level_03_evn).
-    fn evening() -> Profile {
-        Profile::parse(|key| {
-            Some(match key.to_bytes() {
-                b"inscatter_distance" => 200.0,
-                b"shoulder_strength" => 0.05,
-                b"linear_strength" => 7.0,
-                b"linear_angle" => 0.3,
-                b"toe_strength" => 6.2,
-                b"toe_numerator" => 2.0,
-                b"toe_denominator" => 0.02,
-                b"linear_white" => 10000.0,
-                b"dark_desaturation_limit" => 4.5,
-                other => panic!("no {other:?}"),
-            })
+    /// 0.11e's Vostok evening (its post material level_03_evn), its numbers.
+    fn evening_number(key: &CStr) -> Option<f32> {
+        Some(match key.to_bytes() {
+            b"inscatter_distance" => 200.0,
+            b"shoulder_strength" => 0.05,
+            b"linear_strength" => 7.0,
+            b"linear_angle" => 0.3,
+            b"toe_strength" => 6.2,
+            b"toe_numerator" => 2.0,
+            b"toe_denominator" => 0.02,
+            b"linear_white" => 10000.0,
+            b"dark_desaturation_limit" => 4.5,
+            b"skylight_lower" => 0.0,
+            b"skylight_upper" => 5.0,
+            b"skylight_power" => 0.1,
+            other => panic!("no {other:?}"),
         })
+    }
+
+    /// Its vectors: the light (0.11e's colour^2.2 * 0.5), the faces, no sun tint.
+    fn evening_vector(key: &CStr) -> Option<[f32; 3]> {
+        const SIDE: [f32; 3] = [0.509_804, 0.529_412, 0.564_706];
+        Some(match key.to_bytes() {
+            b"skylight_light" => [0.32, 0.39, 0.5],
+            b"environment_skycolor_x" | b"environment_skycolor_minus_x" => SIDE,
+            b"environment_skycolor_z" | b"environment_skycolor_minus_z" => SIDE,
+            b"environment_skycolor_up" | b"environment_skycolor_down" => [1.0, 1.0, 1.0],
+            b"sun_tint" => [0.0, 0.0, 0.0],
+            other => panic!("no {other:?}"),
+        })
+    }
+
+    fn evening() -> Profile {
+        Profile::parse(evening_number, evening_vector)
+    }
+
+    fn none(_: &CStr) -> Option<[f32; 3]> {
+        None
     }
 
     #[test]
@@ -529,15 +691,41 @@ mod tests {
         let profile = evening();
         assert_eq!(profile.distance, Distance(200.0));
         assert_eq!(profile.post, Post::Filmic([[0.05, 7.0, 0.3, 6.2], [2.0, 0.02, 10000.0, 4.5]]));
-        // without the curve the post stays 0.26g's
+        // without the curve and the sky, 0.26g's post and skylight
         let distance_only = |key: &CStr| (key == c"inscatter_distance").then_some(300.0);
-        assert_eq!(Profile::parse(distance_only), Profile { distance: Distance(300.0), post: Post::Native });
+        assert_eq!(
+            Profile::parse(distance_only, none),
+            Profile { distance: Distance(300.0), sky: Sky::Native, post: Post::Native }
+        );
         // all eight or none
-        assert!(std::panic::catch_unwind(|| Profile::parse(|key| {
-            (key == c"inscatter_distance" || key == c"shoulder_strength").then_some(1.0)
-        }))
+        assert!(std::panic::catch_unwind(|| Profile::parse(
+            |key| (key == c"inscatter_distance" || key == c"shoulder_strength").then_some(1.0),
+            none
+        ))
         .is_err());
         // the distance divides both fog passes
-        assert!(std::panic::catch_unwind(|| Profile::parse(|_| Some(0.0))).is_err());
+        assert!(std::panic::catch_unwind(|| Profile::parse(|_| Some(0.0), none)).is_err());
+    }
+
+    #[test]
+    fn the_skylight_packs_as_0_11e_stage_ambient_lighting() {
+        let Sky::V011w(skylight) = evening().sky else { panic!("the evening names its skylight") };
+        let side = [0.509_804, 0.529_412, 0.564_706];
+        let p = skylight.parameters([0.1, -0.9, 0.2], 3.0);
+        assert_eq!(p[0], [0.32, 0.39, 0.5, 0.0]);
+        assert_eq!(p[1], [0.0, 5.0, 0.1, 0.0]);
+        // +x with +z.x, -x with +z.y, -y (down) with +z.z, -z with +y.x
+        assert_eq!(p[2], [side[0], side[1], side[2], side[0]]);
+        assert_eq!(p[3], [side[0], side[1], side[2], side[1]]);
+        assert_eq!(p[4], [1.0, 1.0, 1.0, side[2]]);
+        assert_eq!(p[5], [side[0], side[1], side[2], 1.0]);
+        // the sun's direction with +y.y, the tinted sun with +y.z
+        assert_eq!(p[6], [0.1, -0.9, 0.2, 1.0]);
+        assert_eq!(p[7], [0.0, 0.0, 0.0, 1.0]);
+        // a skylight named in part is refused
+        assert!(std::panic::catch_unwind(|| Profile::parse(evening_number, |key| {
+            (key == c"skylight_light").then_some([1.0, 1.0, 1.0])
+        }))
+        .is_err());
     }
 }

@@ -5920,6 +5920,111 @@ pub extern "C" fn hook_v011w_render_on_post_blend_constants(frame: &mut Frame) -
     }
 }
 
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_skylight_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnSkylightCompiledExit { Begin, Cached }
+/// The entry `v011w_render_on_skylight_compiled` (0x1cf638, effect_skylight::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its two techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CF386's jne), EDI zeroed on both paths and ESI before technique 1 (0x1CF50F)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_skylight_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_skylight_compiled` calls this, from the game's jump at 0x1cf638,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_skylight_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_skylight_pass_0` (0x1cf3dc, effect_skylight::compile, technique 0, its begin_pass's arguments being pushed (push edi / movq [eax+8],xmm0 / push ebx; then mov eax,9F7470h and the call 0x3D9F60 at 0x1CF3E8): ESP the PS name's slot (skylight 0x9F7470, pushed at 0x1CF3B2), EAX the shader configuration's; EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_skylight_pass_0(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_skylight_pass_0` calls this, from the game's jump at 0x1cf3dc,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_skylight_pass_0(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_skylight_pass_1` (0x1cf540, effect_skylight::compile, technique 1 (render_skylight's), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then the call 0x3D9F60 at 0x1CF54C): ESP the PS name's slot (skylight, pushed at 0x1CF516); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_skylight_pass_1(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_skylight_pass_1` calls this, from the game's jump at 0x1cf540,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_skylight_pass_1(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_skylight_gate (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnSkylightGateExit { Render }
+/// The entry `v011w_render_on_skylight_gate` (0x18275f, stage_ambient_lighting::execute's skylight gate: cmp byte [esi+0E4h],0 (replayed; its je 0x18276F after) around mov eax,esi / call render_skylight 0x182440 at 0x182768; the constructor zeroes +0E4h (0x17F58D) and nothing sets it, so 0.26g never draws its skylight; render takes the call; ESI the stage) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_skylight_gate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_skylight_gate` calls this, from the game's jump at 0x18275f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_skylight_gate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_skylight_apply (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnSkylightApplyExit { Applied }
+/// The entry `v011w_render_on_skylight_apply` (0x18245f, stage_ambient_lighting::render_skylight: mov dword [eax+5620h],1 before res_effect::apply_pass 0x3D7230 at 0x182469 (EAX the stage's skylight effect, its +58h, loaded at 0x18245C); applied skips the write; ESI the stage (render_skylight's EAX, 0x182455)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_skylight_apply(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_skylight_apply` calls this, from the game's jump at 0x18245f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_skylight_apply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_skylight_constants` (0x1824d3, stage_ambient_lighting::render_skylight after its one constant (skylight_parameters0, set_ps_constant 0x1824A8; the skylight's program bound since 0x182469) and the fill's last five arguments pushed (0x1824AD..0x1824D1): mov esi,[esi+4] / mov eax,[esi+119Ch], then the target and the owner pushed and fill_surface 0x11D950 at 0x182505; ESI the stage, ESP the pushed arguments; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_skylight_constants(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_skylight_constants` calls this, from the game's jump at 0x1824d3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_skylight_constants(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- v021d_render (patch 130) ----
 
 /// The named exits of v021d_render::on_wet_surface_compiled (the order the shim's Flow code

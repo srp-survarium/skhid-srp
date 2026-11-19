@@ -335,6 +335,136 @@ def check_post(stock, patched):
           " the marked scene technique 1 and filmic_tonemap_packed_parameters_0/1 the profile's, packed as 0.11e")
 
 
+# -- the skylight ------------------------------------------------------------------------------------------
+
+AMBIENT = HEAP + 0x3E0000
+SKYLIGHT_EFFECT = HEAP + 0x3E1000
+SKY_HOSTS = [HEAP + 0x3E2000 + 0x100 * k for k in range(8)]
+SKY_EYE_HOST = HEAP + 0x3E2800
+SET_VS_CONSTANT = 0x14AE40
+SIDE = [0.509804, 0.529412, 0.564706]
+SKY = {"skylight_light": [0.32, 0.39, 0.5], "skylight_lower": 0, "skylight_upper": 5, "skylight_power": 0.1,
+       "environment_skycolor_x": SIDE, "environment_skycolor_minus_x": SIDE, "environment_skycolor_z": SIDE,
+       "environment_skycolor_minus_z": SIDE, "environment_skycolor_up": [1, 1, 1],
+       "environment_skycolor_down": [1, 1, 1], "sun_tint": [0.25, 0.5, 1.0]}
+
+
+def check_skylight_compile(stock, patched):
+    for m in (stock, patched):
+        compile_stubs(m)
+    for caching in (0, 1):
+        native = run_compile(stock, 0x1CF370, caching)
+        assert [next(e[4] for e in t if e[0] == "begin_pass") for t in native] == ["skylight", "skylight"]
+        for _ in range(2):
+            ours = run_compile(patched, 0x1CF370, caching)
+            assert len(ours) == 4 and ours[:2] == native, len(ours)
+            for twin, original in ((2, 0), (3, 1)):
+                want = [("begin_pass", e[1], e[2], e[3], "skylight_v011w", e[5]) if e[0] == "begin_pass" else e
+                        for e in native[original]]
+                assert ours[twin] == want, twin
+    for m in (stock, patched):
+        m.stubs = {}
+    print("  ok effect_skylight::compile (building, caching): techniques 0..1 the original's, 2..3 their twins with"
+          " ps skylight_v011w (every texture and state the same), twice")
+
+
+def ambient_stage(m, drawn):
+    m.w(AMBIENT + 4, CONTEXT)
+    m.w(AMBIENT + 0x58, SKYLIGHT_EFFECT)
+    m.w(AMBIENT + 0xF0, SKY_EYE_HOST)
+    for k, host in enumerate(SKY_HOSTS):
+        m.w(AMBIENT + 0x114 + 4 * k, host)
+    m.w(CONTEXT + 0x416C, drawn)
+    m.w(CONTEXT + 0x4170, VIEW)
+    m.emu.mem_write(CONTEXT + 0x53A8, struct.pack("<3f", *EYE_RAY))
+    m.emu.mem_write(VIEW + 0x118 + 0x48, struct.pack("<f", 2.0))
+    m.w(BACKEND_SLOT, BACKEND)
+
+
+def skylight_gate(m, drawn):
+    """Where execute goes from its skylight gate: "render" the call, "skip" past it."""
+    ambient_stage(m, drawn)
+    m.emu.mem_write(AMBIENT + 0xE4, b"\x00")             # as the constructor leaves it, for good
+    at, _ = m.run(0x18275F, {0x182768, 0x18276F}, regs={UC_X86_REG_ESI: AMBIENT})
+    return {0x182768: "render", 0x18276F: "skip"}[at]
+
+
+def skylight_technique(m, drawn):
+    ambient_stage(m, drawn)
+    m.w(SKYLIGHT_EFFECT + 0x5620, 0)
+    m.run(0x18245C, {0x182469}, regs={UC_X86_REG_ESI: AMBIENT})
+    assert m.emu.reg_read(UC_X86_REG_EAX) == SKYLIGHT_EFFECT
+    return m.r(SKYLIGHT_EFFECT + 0x5620)
+
+
+def skylight_constants(m, drawn):
+    """The constants set before the skylight's fill, and its default-depth flag (pushed 1 at 0x1824AD)."""
+    ambient_stage(m, drawn)
+    names = {host: f"skylight_parameters{k}" for k, host in enumerate(SKY_HOSTS)}
+    names[SKY_EYE_HOST] = "s_eye_ray_corner"
+
+    def ps(esp):
+        data = struct.unpack("<4f", bytes(m.emu.mem_read(m.r(esp + 4), 16)))
+        return 4, ("ps", names.get(m.emu.reg_read(UC_X86_REG_EAX)), m.emu.reg_read(UC_X86_REG_EDI) == BACKEND,
+                   tuple(round(x, 5) for x in data))
+
+    def vs(esp):
+        data = struct.unpack("<4f", bytes(m.emu.mem_read(m.emu.reg_read(UC_X86_REG_EAX), 16)))
+        return 4, ("vs", names.get(m.r(esp + 4)), m.emu.reg_read(UC_X86_REG_ESI) == BACKEND,
+                   tuple(round(x, 5) for x in data))
+
+    def sun(esp):
+        out = m.emu.reg_read(UC_X86_REG_ESI)
+        m.emu.mem_write(out, struct.pack("<3f", *SUN_DIRECTION))
+        m.emu.reg_write(UC_X86_REG_EAX, out)
+        return 0, None
+
+    m.stubs = {SET_PS_CONSTANT: ps, SET_VS_CONSTANT: vs, SUN: sun}
+    m.events = []
+    _, sp = m.run(0x1824D3, {0x1824DC}, regs={UC_X86_REG_ESI: AMBIENT}, stack=(0, 0, 0, 0, 1))
+    assert m.emu.reg_read(UC_X86_REG_ESI) == CONTEXT, "mov esi,[esi+4] replayed"
+    events, m.events, m.stubs = m.events, None, {}
+    return events, m.r(sp + 0x10)
+
+
+def expected_skylight():
+    r = lambda v: tuple(round(x, 5) for x in v)
+    plus_y = [1.0, 1.0, 1.0]
+    p = [(0.32, 0.39, 0.5, 0.0), (0.0, 5.0, 0.1, 0.0), (*SIDE, SIDE[0]), (*SIDE, SIDE[1]), (1.0, 1.0, 1.0, SIDE[2]),
+         (*SIDE, plus_y[0]), (*SUN_DIRECTION, plus_y[1]), (0.5, 1.0, 2.0, plus_y[2])]
+    return ([("ps", f"skylight_parameters{k}", True, r(v)) for k, v in enumerate(p)]
+            + [("vs", "skylight_parameters6", True, r(p[6])), ("ps", "s_eye_ray_corner", True, r(EYE_RAY + (0.0,)))])
+
+
+def check_skylight(stock, patched):
+    for m, label in ((stock, "the original"), (patched, "before any project")):
+        for drawn in (RENDER_SCENE, LOBBY_SCENE):
+            assert skylight_gate(m, drawn) == "skip", label
+            assert skylight_technique(m, drawn) == 1 and skylight_constants(m, drawn) == ([], 1), label
+    patched.w(GAME_SCENE + 4, RENDER_SCENE)
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": {"inscatter_distance": 200, **SKY}})
+    insert(patched, PROJECT)
+    assert skylight_gate(patched, LOBBY_SCENE) == "skip"
+    assert skylight_technique(patched, LOBBY_SCENE) == 1 and skylight_constants(patched, LOBBY_SCENE) == ([], 1)
+    assert skylight_gate(patched, RENDER_SCENE) == "render", "the marked scene draws the skylight"
+    assert skylight_technique(patched, RENDER_SCENE) == 3, "0.11e's skylight"
+    assert skylight_constants(patched, RENDER_SCENE) == (expected_skylight(), 0), \
+        "0.11e's constants, the fill without the default depth-stencil"
+    remove(patched, PROJECT)
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": {"inscatter_distance": 200}})
+    insert(patched, PROJECT)
+    assert skylight_gate(patched, RENDER_SCENE) == "skip", "a profile without the skylight: 0.26g's (none)"
+    assert skylight_technique(patched, RENDER_SCENE) == 1 and skylight_constants(patched, RENDER_SCENE) == ([], 1), \
+        "a profile without the skylight: 0.26g's"
+    remove(patched, PROJECT)
+    assert skylight_technique(patched, RENDER_SCENE) == 1
+    print("  ok the skylight: 0.26g's gate skips it (its +E4h never set) and technique 1 with no constant of ours"
+          " before a marked project, on the lobby's scene,"
+          " for a profile without the skylight and after the removal; on the marked scene drawn, technique 3 and"
+          " skylight_parameters0..7 packed as 0.11e (the sun's direction and its tinted intensity), 6 to the"
+          " vertex shader too, s_eye_ray_corner, and its fill without the default depth-stencil")
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -350,6 +480,9 @@ def main():
     stock, patched = Machine(original), Machine(bytes(built))
     check_post_compiles(stock, patched)
     check_post(stock, patched)
+    stock, patched = Machine(original), Machine(bytes(built))
+    check_skylight_compile(stock, patched)
+    check_skylight(stock, patched)
 
 
 if __name__ == "__main__":

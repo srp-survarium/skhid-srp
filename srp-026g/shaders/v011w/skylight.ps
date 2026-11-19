@@ -73,5 +73,9 @@ float4 	main	( v2p_skylight I ) : SV_TARGET
 
 	color					*= ramp*occlusion*skylight_parameters0.xyz;
 
+#if TARGET_026G		// 0.26g's light accumulator is linear (its lights write light*diffuse)
+	return	float4( color, 1 );
+#else
 	return	1.f/rsqrt( saturate( float4( color, 1 )*0.125 ) );
+#endif
 }

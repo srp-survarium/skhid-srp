@@ -68,6 +68,12 @@ pub enum StageSite {
     PostBlendApply,
     /// `postprocess.blend_constants`.
     PostBlendConstants,
+    /// `ambient.skylight_gate`.
+    SkylightGate,
+    /// `ambient.skylight_apply`.
+    SkylightApply,
+    /// `ambient.skylight_constants`.
+    SkylightConstants,
 }
 
 /// The renderer context of the stage at `site`.
@@ -89,6 +95,9 @@ fn context(ctx: &Context<'_>, site: StageSite) -> Option<raw::RendererContext> {
             StageSite::SkyApply => raw::site::atmosphere_sky_apply::stage(ctx)?.context(),
             StageSite::PostBlendApply => raw::site::postprocess_blend_apply::stage(ctx)?.context(),
             StageSite::PostBlendConstants => raw::site::postprocess_blend_constants::stage(ctx)?.context(),
+            StageSite::SkylightGate => raw::site::ambient_skylight_gate::stage(ctx)?.context(),
+            StageSite::SkylightApply => raw::site::ambient_skylight_apply::stage(ctx)?.context(),
+            StageSite::SkylightConstants => raw::site::ambient_skylight_constants::stage(ctx)?.context(),
         }
     }
 }
@@ -251,6 +260,80 @@ pub fn set_filmic(ctx: &Context<'_>, packed_0: [f32; 4], packed_1: [f32; 4]) {
         let backend = backend();
         raw::engine_set_ps_constant(Some(backend), stage.filmic_0_constant(), packed_0.as_ptr());
         raw::engine_set_ps_constant(Some(backend), stage.filmic_1_constant(), packed_1.as_ptr());
+    }
+}
+
+/// 0.11e's skylight (patch v011w_render): technique 3, the twin
+/// effect_skylight compiles of render_skylight's technique 1 with
+/// `skylight_v011w` (0.11e's program, which lights shade by height, a
+/// six-face sky colour, wrap light, the sun's colour and AO; 0.26g's writes
+/// skylight_parameters0 flat).
+pub const SKYLIGHT_V011W: Technique = Technique::new(3);
+
+/// Sets the technique the skylight's pass applies (`ambient.skylight_apply`;
+/// the caller takes its `applied` exit).
+pub fn set_skylight_technique(ctx: &Context<'_>, technique: Technique) {
+    // SAFETY: the site's ESI is the ambient stage (render_skylight's EAX), on
+    // the render thread; +58h its skylight effect, the constructor's; +5620h
+    // the technique apply_pass reads next.
+    unsafe {
+        let effect = raw::site::ambient_skylight_apply::stage(ctx)
+            .and_then(|stage| stage.skylight_effect())
+            .expect("the ambient stage's skylight effect");
+        effect.technique().write(technique.0);
+    }
+}
+
+/// The frame's sun: its direction (toward the ground) and intensity, as the
+/// view's environment holds them (`ambient.skylight_constants`).
+pub fn skylight_sun(ctx: &Context<'_>) -> ([f32; 3], f32) {
+    // SAFETY: the frame's scene view (see `context`) and its environment,
+    // read on the render thread that draws it; environment_sun_direction
+    // writes the three floats it is given.
+    unsafe {
+        let view = context(ctx, StageSite::SkylightConstants)
+            .and_then(|context| context.scene_view())
+            .expect("the frame's scene view");
+        let environment = view.environment();
+        let mut direction = [0.0f32; 3];
+        raw::engine_sun_direction(Some(environment), direction.as_mut_ptr());
+        (direction, environment.sun_intensity().read())
+    }
+}
+
+/// Uploads 0.11e's skylight constants for the bound skylight program
+/// (`ambient.skylight_constants`): skylight_parameters0..7 as 0.11e's
+/// stage_ambient_lighting::execute packs them, 6 to the vertex shader too,
+/// and s_eye_ray_corner the context's; and its fill without the default
+/// depth-stencil, as 0.11e draws it (reset_depth_stencil_target): bound, its
+/// stencil test (NOT_EQUAL 0) fails on every pixel of 0.26g's frame.
+pub fn set_skylight(ctx: &Context<'_>, parameters: &[[f32; 4]; 8]) {
+    // SAFETY: the site's ESI is the ambient stage; its hosts are its
+    // constructor's; the skylight's program is bound (0x182469), so
+    // set_ps_constant writes them for it; the context's eye rays are the
+    // frame's.
+    unsafe {
+        let stage = raw::site::ambient_skylight_constants::stage(ctx).expect("the ambient stage executing");
+        let context = stage.context().expect("the stage's renderer context");
+        let backend = backend();
+        let hosts = [
+            stage.skylight_constant_0(),
+            stage.skylight_constant_1(),
+            stage.skylight_constant_2(),
+            stage.skylight_constant_3(),
+            stage.skylight_constant_4(),
+            stage.skylight_constant_5(),
+            stage.skylight_constant_6(),
+            stage.skylight_constant_7(),
+        ];
+        for (host, values) in hosts.into_iter().zip(parameters) {
+            raw::engine_set_ps_constant(Some(backend), host, values.as_ptr());
+        }
+        raw::engine_set_vs_constant(Some(backend), stage.skylight_constant_6(), parameters[6].as_ptr());
+        let eye_ray = [context.eye_ray_x().read(), context.eye_ray_y().read(), context.eye_ray_z().read(), 0.0];
+        raw::engine_set_ps_constant(Some(backend), stage.eye_ray_constant(), eye_ray.as_ptr());
+        let fill = raw::site::ambient_skylight_constants::frame(ctx).expect("the site's ESP");
+        fill.default_depth().write(0);
     }
 }
 

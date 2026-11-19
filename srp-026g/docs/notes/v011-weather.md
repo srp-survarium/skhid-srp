@@ -85,16 +85,21 @@ port for it. This work is Vostok's two weathers only.
   under that name the weather pack `v011e-radar-weather` ships a byte copy of 0.11e's own program (0.11e's
   layout, never meant to run in 0.26g). The twin is now `complex_post_process_blend_v011w_026g` under its plain
   key (pack @8) and draws as the test does (evening 0.167, rain 0.104 with each weather's curve). It waits on the darkness below.
-- **The darkness**: 0.26g's `skylight.ps` writes one flat colour (`skylight_parameters0`); 0.11e's (0.10b's
-  source, byte-identical, now in `srp-026g/shaders/v011w`) lights shade with height, a six-face sky colour,
-  wrap light, the sun colour and AO, and 0.26g's skylight vertex shader (0.11e's) already feeds it. 0.26g's
-  effect_skylight still binds its inputs, but render_skylight uploads only `skylight_parameters0`. More: 0.26g
-  never draws its skylight at all (stage_ambient_lighting's +E4h, zeroed by the constructor at 0x17F58D, is
-  never set; the call 0x182768 sits behind it). A twin drawn through that gate with all eight parameters
-  (tried, measured, not kept) changed nothing measurable (evening 0.159 -> 0.154..0.157 with the encoded,
-  the linear and the AO-less output alike): 0.26g's frame does not use that target. 0.26g lights shade
-  with its probes and its height-based ambient (`apply_ssao_and_hba`: hba_parameters, hba_low/high_color);
-  0.11e's skylight (height, six faces) is to be mapped onto that next.
+- **The darkness**: 0.26g never draws its skylight (stage_ambient_lighting +E4h, zeroed by the constructor,
+  never set). Patch 162 now draws 0.11e's on the marked scene (its program from source, its eight parameters
+  from the profile: skylight_light = skylight_color^2.2 * skylight_multiplier, lower, upper, power, the six
+  faces, the sun's tint), with no depth-stencil bound as 0.11e. It changes little on Radar (c11: evening 0.153,
+  rain 0.091): the environment probes blend over the skylight with their attenuation as alpha (0.10b's source
+  and 0.26g alike), so where a probe covers a pixel its light replaces the skylight's; a constant-colour
+  skylight gives the same frames. The shade's light is the probes' (a probe pass writing white light brings
+  the darkest view to 0.11e's brightness; dropping the AO pass adds only a tenth). The cubes are 0.11e's own,
+  byte for byte, and 0.11e lights a texel as (c/a)^2.2 (two taps of the cube at a blurred mip, times AO*2.5),
+  0.26g as (c/a)^2 / 4 (its diffuse cube and its specular taps alike, times its AO pass): the probes'
+  multipliers are now four times 0.11e's, diffuse and specular (`v011e-radar-weather-light-1.json`, which
+  had the diffuse three times): c12, evening 0.142, rain 0.089; near-black pixels 9% and 17% (0.11e 4% and
+  7%). The same factor with the cubes' alpha halved instead measured the same (c12x). The height-based ambient (0.26g's, off on these projects) multiplies the
+  accumulated ambient rather than adding to it: switched on it darkens the shade further (c10: evening 0.198).
+  Eye adaptation is not it: 0.11e and the port shot after 20 s instead of 6 s move by under 1/255.
 - **Measured** against the 0.11e originals (`private/renders/v011-weathers/`, 1280x720, mean RMSE of the
   display RGB over ten views): before the fog work evening 0.169, rain 0.136; with the fog (c4) evening
   0.167, rain 0.095; with the tables and the sky too (c6) evening 0.159, rain 0.090. The port is still

@@ -6317,6 +6317,24 @@ impl EngineCfg {
         unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
     }
 
+    /// +0x0 (ptr<f32>): a vector node's (types 6, 7, 8: 2, 3, 4 floats; its count their bytes) floats, their offset relocated to an address by the loader as a text's (content_edit.py value_record writes them so)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vector(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut f32>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<f32>): a vector node's (types 6, 7, 8: 2, 3, 4 floats; its count their bytes) floats, their offset relocated to an address by the loader as a text's (content_edit.py value_record writes them so)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_vector(self, value: *mut f32) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut f32>().write_volatile(value) }
+    }
+
     /// 0x18 bytes: binary config record stride, cfg_child 0xF6B10
     pub const SIZE: usize = 0x18;
 
@@ -26511,6 +26529,243 @@ impl GodRaysEntryFrame {
     }
 }
 
+/// A vostok::render::stage_ambient_lighting (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StageAmbientLighting(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StageAmbientLighting {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (render_skylight 0x1824D3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (render_skylight 0x1824D3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+
+    /// +0x58 (ptr<vostok::render::res_effect>): its effect_skylight (render_skylight 0x18245C applies its technique 1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skylight_effect(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0x58).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0x58 (ptr<vostok::render::res_effect>): its effect_skylight (render_skylight 0x18245C applies its technique 1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_skylight_effect(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0x58).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+
+    /// +0xf0 (ptr<vostok::render::shader_constant_host>): the host of s_eye_ray_corner (the constructor 0x17F946)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn eye_ray_constant(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0xf0).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0xf0 (ptr<vostok::render::shader_constant_host>): the host of s_eye_ray_corner (the constructor 0x17F946)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_eye_ray_constant(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0xf0).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x114 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters0 (the constructor 0x17FB9F); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skylight_constant_0(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x114).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x114 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters0 (the constructor 0x17FB9F); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_skylight_constant_0(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x114).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x118 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters1 (the constructor 0x17FBEA); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skylight_constant_1(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x118).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x118 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters1 (the constructor 0x17FBEA); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_skylight_constant_1(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x118).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x11c (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters2 (the constructor 0x17FC35); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skylight_constant_2(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x11c).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x11c (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters2 (the constructor 0x17FC35); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_skylight_constant_2(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x11c).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x120 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters3 (the constructor 0x17FC80); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skylight_constant_3(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x120).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x120 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters3 (the constructor 0x17FC80); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_skylight_constant_3(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x120).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x124 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters4 (the constructor 0x17FCCB); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skylight_constant_4(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x124).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x124 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters4 (the constructor 0x17FCCB); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_skylight_constant_4(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x124).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x128 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters5 (the constructor 0x17FD16); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skylight_constant_5(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x128).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x128 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters5 (the constructor 0x17FD16); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_skylight_constant_5(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x128).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x12c (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters6 (the constructor 0x17FD61); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skylight_constant_6(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x12c (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters6 (the constructor 0x17FD61); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_skylight_constant_6(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x12c).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x130 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters7 (the constructor 0x17FDAC); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn skylight_constant_7(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x130).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x130 (ptr<vostok::render::shader_constant_host>): the host of skylight_parameters7 (the constructor 0x17FDAC); 0.26g sets only 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_skylight_constant_7(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x130).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::skylight_fill_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SkylightFillFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl SkylightFillFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (u32): render_skylight's fill_surface (0x11D950) arguments as pushed at 0x1824D3: +0 target1, +4 target2, +8 target3, +0Ch the depth target (0), +10h the flag pushed 1 at 0x1824AD (fill_surface binds the default depth-stencil when nonzero, and the skylight's stencil test, NOT_EQUAL 0 (0x1CF5FC), then fails on every pixel of 0.26g's frame)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn default_depth(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A vostok::render::stage_postprocess (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -32765,6 +33020,123 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn stage(machine: &impl Machine) -> Option<StagePostprocess> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StagePostprocess)
+        }
+    }
+
+    /// skylight.pass_0 (0x1cf3dc): effect_skylight::compile, technique 0, its begin_pass's arguments being pushed (push edi / movq [eax+8],xmm0 / push ebx; then mov eax,9F7470h and the call 0x3D9F60 at 0x1CF3E8): ESP the PS name's slot (skylight 0x9F7470, pushed at 0x1CF3B2), EAX the shader configuration's; EBX the compiler; no base relocation in the span
+    pub mod skylight_pass_0 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// skylight.pass_1 (0x1cf540): effect_skylight::compile, technique 1 (render_skylight's), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then the call 0x3D9F60 at 0x1CF54C): ESP the PS name's slot (skylight, pushed at 0x1CF516); EBX the compiler; no base relocation in the span
+    pub mod skylight_pass_1 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// skylight.compiled (0x1cf638): effect_skylight::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its two techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CF386's jne), EDI zeroed on both paths and ESI before technique 1 (0x1CF50F)
+    pub mod skylight_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// ambient.skylight_gate (0x18275f): stage_ambient_lighting::execute's skylight gate: cmp byte [esi+0E4h],0 (replayed; its je 0x18276F after) around mov eax,esi / call render_skylight 0x182440 at 0x182768; the constructor zeroes +0E4h (0x17F58D) and nothing sets it, so 0.26g never draws its skylight; render takes the call; ESI the stage
+    pub mod ambient_skylight_gate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::stage_ambient_lighting (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAmbientLighting> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StageAmbientLighting)
+        }
+    }
+
+    /// ambient.skylight_apply (0x18245f): stage_ambient_lighting::render_skylight: mov dword [eax+5620h],1 before res_effect::apply_pass 0x3D7230 at 0x182469 (EAX the stage's skylight effect, its +58h, loaded at 0x18245C); applied skips the write; ESI the stage (render_skylight's EAX, 0x182455)
+    pub mod ambient_skylight_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::stage_ambient_lighting (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAmbientLighting> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StageAmbientLighting)
+        }
+    }
+
+    /// ambient.skylight_constants (0x1824d3): stage_ambient_lighting::render_skylight after its one constant (skylight_parameters0, set_ps_constant 0x1824A8; the skylight's program bound since 0x182469) and the fill's last five arguments pushed (0x1824AD..0x1824D1): mov esi,[esi+4] / mov eax,[esi+119Ch], then the target and the owner pushed and fill_surface 0x11D950 at 0x182505; ESI the stage, ESP the pushed arguments; no base relocation in the span
+    pub mod ambient_skylight_constants {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::stage_ambient_lighting (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAmbientLighting> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(StageAmbientLighting)
+        }
+
+        /// the site's ESP: a vostok::render::skylight_fill_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<SkylightFillFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(SkylightFillFrame)
         }
     }
 }

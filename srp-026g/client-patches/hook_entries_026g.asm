@@ -10195,6 +10195,252 @@ v011w_render_on_post_blend_constants_replay:
     db 0x8b, 0x85, 0x14, 0x03, 0x00, 0x00
     jmp 0x1b2c19
 
+; 0x1cf638 effect_skylight::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its two techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CF386's jne), EDI zeroed on both paths and ESI before technique 1 (0x1CF50F): lohook -> v011w_render_on_skylight_compiled
+global v011w_render_on_skylight_compiled
+extern hook_v011w_render_on_skylight_compiled
+v011w_render_on_skylight_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_skylight_compiled
+    mov edx, v011w_render_on_skylight_compiled_replay
+    cmp eax, 0
+    je v011w_render_on_skylight_compiled_go
+    mov edx, 0x1cf63e
+    cmp eax, 1
+    je v011w_render_on_skylight_compiled_go
+    mov edx, 0x1cf388
+    cmp eax, 2
+    je v011w_render_on_skylight_compiled_go
+    mov edx, 0x1cf3ab
+    cmp eax, 3
+    je v011w_render_on_skylight_compiled_go
+    ud2
+v011w_render_on_skylight_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_skylight_compiled_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1cf63e
+
+; 0x1cf3dc effect_skylight::compile, technique 0, its begin_pass's arguments being pushed (push edi / movq [eax+8],xmm0 / push ebx; then mov eax,9F7470h and the call 0x3D9F60 at 0x1CF3E8): ESP the PS name's slot (skylight 0x9F7470, pushed at 0x1CF3B2), EAX the shader configuration's; EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_skylight_pass_0
+global v011w_render_on_skylight_pass_0
+extern hook_v011w_render_on_skylight_pass_0
+v011w_render_on_skylight_pass_0:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_skylight_pass_0
+    mov edx, v011w_render_on_skylight_pass_0_replay
+    cmp eax, 0
+    je v011w_render_on_skylight_pass_0_go
+    mov edx, 0x1cf3e3
+    cmp eax, 1
+    je v011w_render_on_skylight_pass_0_go
+    ud2
+v011w_render_on_skylight_pass_0_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_skylight_pass_0_replay:
+    db 0x57, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1cf3e3
+
+; 0x1cf540 effect_skylight::compile, technique 1 (render_skylight's), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then the call 0x3D9F60 at 0x1CF54C): ESP the PS name's slot (skylight, pushed at 0x1CF516); EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_skylight_pass_1
+global v011w_render_on_skylight_pass_1
+extern hook_v011w_render_on_skylight_pass_1
+v011w_render_on_skylight_pass_1:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_skylight_pass_1
+    mov edx, v011w_render_on_skylight_pass_1_replay
+    cmp eax, 0
+    je v011w_render_on_skylight_pass_1_go
+    mov edx, 0x1cf547
+    cmp eax, 1
+    je v011w_render_on_skylight_pass_1_go
+    ud2
+v011w_render_on_skylight_pass_1_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_skylight_pass_1_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1cf547
+
+; 0x18275f stage_ambient_lighting::execute's skylight gate: cmp byte [esi+0E4h],0 (replayed; its je 0x18276F after) around mov eax,esi / call render_skylight 0x182440 at 0x182768; the constructor zeroes +0E4h (0x17F58D) and nothing sets it, so 0.26g never draws its skylight; render takes the call; ESI the stage: lohook -> v011w_render_on_skylight_gate
+global v011w_render_on_skylight_gate
+extern hook_v011w_render_on_skylight_gate
+v011w_render_on_skylight_gate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_skylight_gate
+    mov edx, v011w_render_on_skylight_gate_replay
+    cmp eax, 0
+    je v011w_render_on_skylight_gate_go
+    mov edx, 0x182766
+    cmp eax, 1
+    je v011w_render_on_skylight_gate_go
+    mov edx, 0x182768
+    cmp eax, 2
+    je v011w_render_on_skylight_gate_go
+    ud2
+v011w_render_on_skylight_gate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_skylight_gate_replay:
+    db 0x80, 0xbe, 0xe4, 0x00, 0x00, 0x00, 0x00
+    jmp 0x182766
+
+; 0x18245f stage_ambient_lighting::render_skylight: mov dword [eax+5620h],1 before res_effect::apply_pass 0x3D7230 at 0x182469 (EAX the stage's skylight effect, its +58h, loaded at 0x18245C); applied skips the write; ESI the stage (render_skylight's EAX, 0x182455): lohook -> v011w_render_on_skylight_apply
+global v011w_render_on_skylight_apply
+extern hook_v011w_render_on_skylight_apply
+v011w_render_on_skylight_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_skylight_apply
+    mov edx, v011w_render_on_skylight_apply_replay
+    cmp eax, 0
+    je v011w_render_on_skylight_apply_go
+    mov edx, 0x182469
+    cmp eax, 1
+    je v011w_render_on_skylight_apply_go
+    mov edx, 0x182469
+    cmp eax, 2
+    je v011w_render_on_skylight_apply_go
+    ud2
+v011w_render_on_skylight_apply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_skylight_apply_replay:
+    db 0xc7, 0x80, 0x20, 0x56, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
+    jmp 0x182469
+
+; 0x1824d3 stage_ambient_lighting::render_skylight after its one constant (skylight_parameters0, set_ps_constant 0x1824A8; the skylight's program bound since 0x182469) and the fill's last five arguments pushed (0x1824AD..0x1824D1): mov esi,[esi+4] / mov eax,[esi+119Ch], then the target and the owner pushed and fill_surface 0x11D950 at 0x182505; ESI the stage, ESP the pushed arguments; no base relocation in the span: lohook -> v011w_render_on_skylight_constants
+global v011w_render_on_skylight_constants
+extern hook_v011w_render_on_skylight_constants
+v011w_render_on_skylight_constants:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_skylight_constants
+    mov edx, v011w_render_on_skylight_constants_replay
+    cmp eax, 0
+    je v011w_render_on_skylight_constants_go
+    mov edx, 0x1824dc
+    cmp eax, 1
+    je v011w_render_on_skylight_constants_go
+    ud2
+v011w_render_on_skylight_constants_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_skylight_constants_replay:
+    db 0x8b, 0x76, 0x04, 0x8b, 0x86, 0x9c, 0x11, 0x00, 0x00
+    jmp 0x1824dc
+
 ; 0x1ce5be effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v021d_render_on_wet_surface_compiled
 global v021d_render_on_wet_surface_compiled
 extern hook_v021d_render_on_wet_surface_compiled

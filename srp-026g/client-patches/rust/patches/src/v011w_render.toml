@@ -78,3 +78,24 @@ handler = "on_post_blend_apply"
 [[hook]]
 site = "postprocess.blend_constants"
 handler = "on_post_blend_constants"
+
+# The skylight (the shade's light): effect_skylight's twins of its two techniques (2, 3: 0.11e's
+# skylight.ps), render_skylight's technique 3 on the marked scene with 0.11e's eight constants.
+[[hook]]
+site = "skylight.compiled"
+handler = "on_skylight_compiled"
+[[hook]]
+site = "skylight.pass_0"
+handler = "on_skylight_pass_0"
+[[hook]]
+site = "skylight.pass_1"
+handler = "on_skylight_pass_1"
+[[hook]]
+site = "ambient.skylight_gate"
+handler = "on_skylight_gate"
+[[hook]]
+site = "ambient.skylight_apply"
+handler = "on_skylight_apply"
+[[hook]]
+site = "ambient.skylight_constants"
+handler = "on_skylight_constants"
