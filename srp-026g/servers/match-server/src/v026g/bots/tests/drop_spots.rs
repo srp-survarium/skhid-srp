@@ -60,9 +60,12 @@ const SPOTS: [Spot; 2] = [
 struct Run {
     /// The clock the feet were first on the landing (0.6 m across, 0.5 m in height), ms.
     landed: Option<u32>,
-    /// The ticks the lip guard swapped or braked the keys with the feet on the drop's top within 2 m of its take-off, on the line
-    /// ([`body::RECKONING_M`]) of a route that takes this drop.
+    /// The lip guard's verdicts that swapped or braked the keys with the feet it judged (the bot's own, `Bot::bench_guard_at`) on the
+    /// drop's top within 2 m of its take-off, on the line ([`body::RECKONING_M`]) of a route that takes this drop.
     braked: u32,
+    /// The same verdicts with those feet off that line: reported, not asserted (a body the stand-in put back on a lip node while
+    /// the bot's reckoning of it falls beside the line, its world fix a second apart).
+    off_line: u32,
     stuck: usize,
 }
 
@@ -113,14 +116,24 @@ fn run(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, until: u3
             game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, gun));
         }
         out.stuck += notes.iter().filter(|n| n.text.contains("is stuck at")).count();
-        let feet = game.bodies[0].feet;
-        let guarded = bots.bots[0].as_ref().is_some_and(|bot| matches!(bot.bench_guard, 2 | 3));
-        let on_the_drop = bots.bots[0].as_mut().and_then(|bot| bot.route.as_mut()).is_some_and(|(route, _)| {
-            route.points().windows(2).any(|w| w[0].at == take_off && w[1].at == landing) && route.progress(feet).1 <= body::RECKONING_M
-        });
-        if guarded && on_the_drop && feet.distance_xz(take_off) <= 2.0 && (feet.y - take_off.y).abs() <= 0.6 {
-            out.braked += 1;
+        // The guard's verdict of this tick, judged on the bot's own feet (its reckoning, not the stand-in's body), taken once: the
+        // bot drives every other tick and an unstick replay skips the guard, so it is cleared once read.
+        if let Some(bot) = bots.bots[0].as_mut() {
+            let (guarded, judged) = (matches!(bot.bench_guard, 2 | 3), bot.bench_guard_at.1);
+            bot.bench_guard = 0;
+            if guarded && judged.distance_xz(take_off) <= 2.0 && (judged.y - take_off.y).abs() <= 0.6 {
+                // `progress` moves the route's cursor: asked only here, of the feet the bot itself asked it of this tick.
+                let on_the_drop = bot.route.as_mut().is_some_and(|(route, _)| {
+                    route.points().windows(2).any(|w| w[0].at == take_off && w[1].at == landing) && route.progress(judged).1 <= body::RECKONING_M
+                });
+                if on_the_drop {
+                    out.braked += 1;
+                } else {
+                    out.off_line += 1;
+                }
+            }
         }
+        let feet = game.bodies[0].feet;
         if feet.distance_xz(landing) <= 0.6 && (feet.y - landing.y).abs() <= 0.5 && game.bodies[0].alive {
             out.landed = Some(clock);
             break;
