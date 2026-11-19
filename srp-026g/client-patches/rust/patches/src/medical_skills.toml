@@ -77,10 +77,36 @@ handler = "on_medicine_heal"
 site = "medical.stopping"
 handler = "on_stopping"
 
-# Concentration: the aimed weapon's sway while the painkiller is active.
+# Concentration: every reload state's clip speed while an antitoxin is active.
 [[hook]]
-site = "medical.sway"
-handler = "on_sway"
+site = "medical.reload"
+handler = "on_reload"
+
+[[hook]]
+site = "medical.reload_double"
+handler = "on_reload_double"
+
+[[hook]]
+site = "medical.reload_pistol"
+handler = "on_reload_pistol"
+
+[[hook]]
+site = "medical.reload_shotgun"
+handler = "on_reload_shotgun"
+
+# Sharp Eye: the sight's aim time, up and down, while an antitoxin is active.
+[[hook]]
+site = "medical.aim_start"
+handler = "on_aim_start"
+
+[[hook]]
+site = "medical.aim_end"
+handler = "on_aim_end"
+
+# Second Wind: an antitoxin's active time begins.
+[[hook]]
+site = "medical.drug_begin"
+handler = "on_drug_begin"
 
 [[hook]]
 site = "medical.regenerate"

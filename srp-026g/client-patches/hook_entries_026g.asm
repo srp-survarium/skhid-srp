@@ -7244,10 +7244,10 @@ medical_skills_on_stopping_go:
     lea esp, [esp + 4]
     ret
 
-; 0x31d727 breath_vibration_calculator::tick after apply_modifier of breath_vibration (61) at 0x31D722, before it stores the result (mov eax,[ebp+0Ch] / fild dword [ebp+0Ch], then movss [esp+10h],xmm0 at 0x31D72D): XMM0 the dispersion that drives the aimed weapon's sway, B x max(0, 1 + S61); EDI the calculator (weapon+288h), EBP the tick's frame: lohook -> medical_skills_on_sway
-global medical_skills_on_sway
-extern hook_medical_skills_on_sway
-medical_skills_on_sway:
+; 0x30e25f weapon_core_reload_state::get_weapon_lexeme after apply_modifier of reload_speed (13) at 0x30E25A (push 1 / push -1 / push 1, then movss [esp+20h],xmm0 at 0x30E26A): XMM0 the hands clip's speed, +138h x max(0, 1 + S13); EDI the state, [[EDI+120h]+8] the player whose kit it read: lohook -> medical_skills_on_reload
+global medical_skills_on_reload
+extern hook_medical_skills_on_reload
+medical_skills_on_reload:
     lea esp, [esp - 4]
     pushfd
     pushad
@@ -7264,24 +7264,258 @@ medical_skills_on_sway:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_medical_skills_on_sway
-    mov edx, medical_skills_on_sway_replay
+    call hook_medical_skills_on_reload
+    mov edx, medical_skills_on_reload_replay
     cmp eax, 0
-    je medical_skills_on_sway_go
-    mov edx, 0x31d72d
+    je medical_skills_on_reload_go
+    mov edx, 0x30e265
     cmp eax, 1
-    je medical_skills_on_sway_go
+    je medical_skills_on_reload_go
     ud2
-medical_skills_on_sway_go:
+medical_skills_on_reload_go:
     mov [ebp + 36], edx
     fxrstor [edi]
     mov esp, ebp
     popad
     popfd
     ret
-medical_skills_on_sway_replay:
-    db 0x8b, 0x45, 0x0c, 0xdb, 0x45, 0x0c
-    jmp 0x31d72d
+medical_skills_on_reload_replay:
+    db 0x6a, 0x01, 0x6a, 0xff, 0x6a, 0x01
+    jmp 0x30e265
+
+; 0x30f622 double_barreled_weapon_core_reload_state::get_weapon_lexeme (0x30F5A0) after apply_modifier of reload_speed (13) at 0x30F61D (mov edx,[esp+14h] / push 1, then movss [esp+20h],xmm0): XMM0 the clip's speed, +138h x max(0, 1 + S13); EDI the state: lohook -> medical_skills_on_reload_double
+global medical_skills_on_reload_double
+extern hook_medical_skills_on_reload_double
+medical_skills_on_reload_double:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_reload_double
+    mov edx, medical_skills_on_reload_double_replay
+    cmp eax, 0
+    je medical_skills_on_reload_double_go
+    mov edx, 0x30f628
+    cmp eax, 1
+    je medical_skills_on_reload_double_go
+    ud2
+medical_skills_on_reload_double_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_reload_double_replay:
+    db 0x8b, 0x54, 0x24, 0x14, 0x6a, 0x01
+    jmp 0x30f628
+
+; 0x30ff0c pistol_weapon_core_reload_state::get_weapon_lexeme (0x30FE90, state 314) after apply_modifier of reload_speed (13) at 0x30FF07 (push 1 / push -1 / push 1, then movss [esp+20h],xmm0): XMM0 the clip's speed, +138h x max(0, 1 + S13); EDI the state: lohook -> medical_skills_on_reload_pistol
+global medical_skills_on_reload_pistol
+extern hook_medical_skills_on_reload_pistol
+medical_skills_on_reload_pistol:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_reload_pistol
+    mov edx, medical_skills_on_reload_pistol_replay
+    cmp eax, 0
+    je medical_skills_on_reload_pistol_go
+    mov edx, 0x30ff12
+    cmp eax, 1
+    je medical_skills_on_reload_pistol_go
+    ud2
+medical_skills_on_reload_pistol_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_reload_pistol_replay:
+    db 0x6a, 0x01, 0x6a, 0xff, 0x6a, 0x01
+    jmp 0x30ff12
+
+; 0x3110da the shotgun reload substate's get_weapon_lexeme (0x311070) after apply_modifier of reload_speed (13) at 0x3110D5 (mov ecx,[edi+154h], then movss [esp+20h],xmm0 at 0x3110F0): XMM0 the clip's speed, +14Ch x max(0, 1 + S13); EDI the state: lohook -> medical_skills_on_reload_shotgun
+global medical_skills_on_reload_shotgun
+extern hook_medical_skills_on_reload_shotgun
+medical_skills_on_reload_shotgun:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_reload_shotgun
+    mov edx, medical_skills_on_reload_shotgun_replay
+    cmp eax, 0
+    je medical_skills_on_reload_shotgun_go
+    mov edx, 0x3110e0
+    cmp eax, 1
+    je medical_skills_on_reload_shotgun_go
+    ud2
+medical_skills_on_reload_shotgun_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_reload_shotgun_replay:
+    db 0x8b, 0x8f, 0x54, 0x01, 0x00, 0x00
+    jmp 0x3110e0
+
+; 0x2e1b9f weapon_core::instant_aim_start after apply_modifier of aim_time (49) at 0x2E1B9A (movss xmm2,[edi+604h], then XMM0 stored at +608h, 0x2E1BD2): XMM0 the sight's raising time, +5F8h x max(0, 1 + S49); EDI the weapon, [EDI+8] the player whose kit it read: lohook -> medical_skills_on_aim_start
+global medical_skills_on_aim_start
+extern hook_medical_skills_on_aim_start
+medical_skills_on_aim_start:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_aim_start
+    mov edx, medical_skills_on_aim_start_replay
+    cmp eax, 0
+    je medical_skills_on_aim_start_go
+    mov edx, 0x2e1ba7
+    cmp eax, 1
+    je medical_skills_on_aim_start_go
+    ud2
+medical_skills_on_aim_start_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_aim_start_replay:
+    db 0xf3, 0x0f, 0x10, 0x97, 0x04, 0x06, 0x00, 0x00
+    jmp 0x2e1ba7
+
+; 0x2e1c40 weapon_core::instant_aim_end after apply_modifier of aim_time (49) at 0x2E1C3B (movss xmm2,[edi+604h], then XMM0 stored at +608h, 0x2E1C6E): XMM0 the sight's lowering time, +5F8h x max(0, 1 + S49); EDI the weapon: lohook -> medical_skills_on_aim_end
+global medical_skills_on_aim_end
+extern hook_medical_skills_on_aim_end
+medical_skills_on_aim_end:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_aim_end
+    mov edx, medical_skills_on_aim_end_replay
+    cmp eax, 0
+    je medical_skills_on_aim_end_go
+    mov edx, 0x2e1c48
+    cmp eax, 1
+    je medical_skills_on_aim_end_go
+    ud2
+medical_skills_on_aim_end_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_aim_end_replay:
+    db 0xf3, 0x0f, 0x10, 0x97, 0x04, 0x06, 0x00, 0x00
+    jmp 0x2e1c48
+
+; 0x33d872 medkit::tick on the first tick of the active time (remaining == the whole active time, 0x33D860), after remove_affects (0x33D86D), before the drug_activity link (movzx edx,byte [ebp+115h]): EDI the drug, EBP its holder: lohook -> medical_skills_on_drug_begin
+global medical_skills_on_drug_begin
+extern hook_medical_skills_on_drug_begin
+medical_skills_on_drug_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_medical_skills_on_drug_begin
+    mov edx, medical_skills_on_drug_begin_replay
+    cmp eax, 0
+    je medical_skills_on_drug_begin_go
+    mov edx, 0x33d879
+    cmp eax, 1
+    je medical_skills_on_drug_begin_go
+    ud2
+medical_skills_on_drug_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+medical_skills_on_drug_begin_replay:
+    db 0x0f, 0xb6, 0x95, 0x15, 0x01, 0x00, 0x00
+    jmp 0x33d879
 
 ; 0xe12bf allocate_region (0xE1120) after memory::initialize (0xE12D0) made each registered allocator's heap in its arena (lea esp,[ebp-58h] / pop edi / pop esi / pop ebx): every arena is where it stays while the game runs; patch 127 reads SKHID_MEMORY_PROFILE here, once: lohook -> memory_profile_on_start
 global memory_profile_on_start

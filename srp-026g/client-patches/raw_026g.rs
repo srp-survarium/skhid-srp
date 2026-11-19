@@ -4495,6 +4495,24 @@ impl Medkit {
     pub unsafe fn protection_count(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x298).cast::<u8>().as_ptr() }
     }
+
+    /// +0x280 (ptr<survarium::medical_influence>): data/influences' records, the pools it heals, `influences` of them (medkit::tick 0x33D8F5, 14h apart: 0x33DA1B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn heals(self) -> Option<MedicalInfluence> {
+        unsafe { self.0.byte_add(0x280).cast::<Option<MedicalInfluence>>().read_volatile() }
+    }
+
+    /// +0x280 (ptr<survarium::medical_influence>): data/influences' records, the pools it heals, `influences` of them (medkit::tick 0x33D8F5, 14h apart: 0x33DA1B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_heals(self, value: Option<MedicalInfluence>) {
+        unsafe { self.0.byte_add(0x280).cast::<Option<MedicalInfluence>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::profile_kit (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -13318,6 +13336,82 @@ impl InventoryHolder {
     }
 }
 
+/// A survarium::medical_influence (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MedicalInfluence(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl MedicalInfluence {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u8): the pool it heals, its name inline (16 bytes; medkit::tick looks it up, 0x2E58B9 comparing the record's own bytes)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x10 (f32): what it heals over the active time (0x33D92C; 0 for a pool the drug does not heal: the antitoxin keeps the medkit template's seven at 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn amount(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x10).cast::<f32>().as_ptr() }
+    }
+
+    /// 0x14 bytes: one data/influences record (medkit::tick's stride, 0x33DA1B; its amount at +10h, 0x33D92C)
+    pub const SIZE: usize = 0x14;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::medical_influences (0x14 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct MedicalInfluenceStorage([u8; 0x14]);
+
+#[allow(dead_code)]
+impl MedicalInfluenceStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x14])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> MedicalInfluence {
+        MedicalInfluence(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<MedicalInfluence> {
+        (!rooms.is_empty()).then(|| MedicalInfluence(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A survarium::medical_protection (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -14547,63 +14641,6 @@ impl MedicalStoppingFrame {
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
     pub unsafe fn sum(self) -> *mut f32 {
-        unsafe { self.0.byte_add(0x8).cast::<f32>().as_ptr() }
-    }
-}
-
-/// A survarium::breath_vibration_calculator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BreathVibrationCalculator(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl BreathVibrationCalculator {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-
-    /// +0x3c (ptr<survarium::player>): its weapon's holder (weapon+2C4h): weapon_core::set_user writes it (0x2E29F3) and deactivate clears it (0x2E2EBE); tick reads its kit modifiers ([+115h] x 704h + [+6B8h] + 0F4h, 0x31D6F3) and its stamina (+6C0h, 0x31D768)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn player(self) -> Option<Player> {
-        unsafe { self.0.byte_add(0x3c).cast::<Option<Player>>().read_volatile() }
-    }
-
-    /// +0x3c (ptr<survarium::player>): its weapon's holder (weapon+2C4h): weapon_core::set_user writes it (0x2E29F3) and deactivate clears it (0x2E2EBE); tick reads its kit modifiers ([+115h] x 704h + [+6B8h] + 0F4h, 0x31D6F3) and its stamina (+6C0h, 0x31D768)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn set_player(self, value: Option<Player>) {
-        unsafe { self.0.byte_add(0x3c).cast::<Option<Player>>().write_volatile(value) }
-    }
-}
-
-/// A survarium::breath_tick_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BreathTickFrame(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl BreathTickFrame {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-
-    /// +0x8 (f32): breath_vibration_calculator::tick's first argument (by its EBP, push ebp / mov ebp,esp at 0x31D6E0; read at 0x31D71C, never written): the weapon's dispersion now, weapon_core::tick's m_weapon_dispersion +418h plus m_character_dispersion +404h (0x2E0A23), what apply_modifier 61 then scales
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn dispersion(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x8).cast::<f32>().as_ptr() }
     }
 }
@@ -25204,6 +25241,39 @@ impl TakeStateMethodsStorage {
     }
 }
 
+/// A survarium::reload_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ReloadState(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ReloadState {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x120 (ptr<survarium::weapon>): a reload state's weapon: the four reload states' get_weapon_lexeme read modifier 13 on its user's kit, [[+120h]+8] (0x30E23D, 0x30F600, 0x30FEEA, 0x3110B8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn weapon(self) -> Option<Weapon> {
+        unsafe { self.0.byte_add(0x120).cast::<Option<Weapon>>().read_volatile() }
+    }
+
+    /// +0x120 (ptr<survarium::weapon>): a reload state's weapon: the four reload states' get_weapon_lexeme read modifier 13 on its user's kit, [[+120h]+8] (0x30E23D, 0x30F600, 0x30FEEA, 0x3110B8)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_weapon(self, value: Option<Weapon>) {
+        unsafe { self.0.byte_add(0x120).cast::<Option<Weapon>>().write_volatile(value) }
+    }
+}
+
 /// A survarium::posture_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -29618,27 +29688,117 @@ pub mod site {
         }
     }
 
-    /// medical.sway (0x31d727): breath_vibration_calculator::tick after apply_modifier of breath_vibration (61) at 0x31D722, before it stores the result (mov eax,[ebp+0Ch] / fild dword [ebp+0Ch], then movss [esp+10h],xmm0 at 0x31D72D): XMM0 the dispersion that drives the aimed weapon's sway, B x max(0, 1 + S61); EDI the calculator (weapon+288h), EBP the tick's frame
-    pub mod medical_sway {
+    /// medical.reload (0x30e25f): weapon_core_reload_state::get_weapon_lexeme after apply_modifier of reload_speed (13) at 0x30E25A (push 1 / push -1 / push 1, then movss [esp+20h],xmm0 at 0x30E26A): XMM0 the hands clip's speed, +138h x max(0, 1 + S13); EDI the state, [[EDI+120h]+8] the player whose kit it read
+    pub mod medical_reload {
         #[allow(unused_imports)]
         use super::*;
 
-        /// EDI: a survarium::breath_vibration_calculator (None for 0).
+        /// EDI: a survarium::reload_state (None for 0).
         ///
         /// # Safety
         /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn calculator(machine: &impl Machine) -> Option<BreathVibrationCalculator> {
-            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BreathVibrationCalculator)
+        pub unsafe fn state(machine: &impl Machine) -> Option<ReloadState> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ReloadState)
+        }
+    }
+
+    /// medical.reload_double (0x30f622): double_barreled_weapon_core_reload_state::get_weapon_lexeme (0x30F5A0) after apply_modifier of reload_speed (13) at 0x30F61D (mov edx,[esp+14h] / push 1, then movss [esp+20h],xmm0): XMM0 the clip's speed, +138h x max(0, 1 + S13); EDI the state
+    pub mod medical_reload_double {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::reload_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<ReloadState> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ReloadState)
+        }
+    }
+
+    /// medical.reload_pistol (0x30ff0c): pistol_weapon_core_reload_state::get_weapon_lexeme (0x30FE90, state 314) after apply_modifier of reload_speed (13) at 0x30FF07 (push 1 / push -1 / push 1, then movss [esp+20h],xmm0): XMM0 the clip's speed, +138h x max(0, 1 + S13); EDI the state
+    pub mod medical_reload_pistol {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::reload_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<ReloadState> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ReloadState)
+        }
+    }
+
+    /// medical.reload_shotgun (0x3110da): the shotgun reload substate's get_weapon_lexeme (0x311070) after apply_modifier of reload_speed (13) at 0x3110D5 (mov ecx,[edi+154h], then movss [esp+20h],xmm0 at 0x3110F0): XMM0 the clip's speed, +14Ch x max(0, 1 + S13); EDI the state
+    pub mod medical_reload_shotgun {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::reload_state (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn state(machine: &impl Machine) -> Option<ReloadState> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(ReloadState)
+        }
+    }
+
+    /// medical.aim_start (0x2e1b9f): weapon_core::instant_aim_start after apply_modifier of aim_time (49) at 0x2E1B9A (movss xmm2,[edi+604h], then XMM0 stored at +608h, 0x2E1BD2): XMM0 the sight's raising time, +5F8h x max(0, 1 + S49); EDI the weapon, [EDI+8] the player whose kit it read
+    pub mod medical_aim_start {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Weapon)
+        }
+    }
+
+    /// medical.aim_end (0x2e1c40): weapon_core::instant_aim_end after apply_modifier of aim_time (49) at 0x2E1C3B (movss xmm2,[edi+604h], then XMM0 stored at +608h, 0x2E1C6E): XMM0 the sight's lowering time, +5F8h x max(0, 1 + S49); EDI the weapon
+    pub mod medical_aim_end {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Weapon)
+        }
+    }
+
+    /// medical.drug_begin (0x33d872): medkit::tick on the first tick of the active time (remaining == the whole active time, 0x33D860), after remove_affects (0x33D86D), before the drug_activity link (movzx edx,byte [ebp+115h]): EDI the drug, EBP its holder
+    pub mod medical_drug_begin {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::medkit (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn item(machine: &impl Machine) -> Option<Medkit> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Medkit)
         }
 
-        /// EBP: a survarium::breath_tick_frame (None for 0).
+        /// EBP: a survarium::player (None for 0).
         ///
         /// # Safety
         /// `machine` is at this site.
         #[inline(always)]
-        pub unsafe fn frame(machine: &impl Machine) -> Option<BreathTickFrame> {
-            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(BreathTickFrame)
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Player)
         }
     }
 

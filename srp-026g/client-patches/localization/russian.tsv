@@ -2669,24 +2669,29 @@ st_srp_medical_312_description	Бонус к здоровью, восстана�
 st_srp_medical_312_name	Медицинская подготовка
 st_srp_medical_313_description	Бонус к здоровью, восстанавливаемому аптечками и бинтами в приседе:
 st_srp_medical_313_name	В укрытие
+st_srp_medical_314_description	Пока действует антитоксин, снижение времени прицеливания:
+st_srp_medical_314_name	Зоркий глаз
 st_srp_medical_321_description	Бонус к скорости передвижения при здоровье ниже 30:
 st_srp_medical_321_name	Адреналин
 st_srp_medical_322_description	Каждый карман с медикаментами вмещает ещё один предмет.
 st_srp_medical_322_name	Дополнительные медикаменты
 st_srp_medical_323_description	Пока действует обезболивающее, снижение останавливающей силы вражеских попаданий:
 st_srp_medical_323_name	Непоколебимый
+st_srp_medical_324_description	Когда антитоксин начинает действовать, восстановление энергии:
+st_srp_medical_324_name	Второе дыхание
 st_srp_medical_331_description	Заменяет ячейку дополнительного оружия дополнительным карманом для припасов.
 st_srp_medical_331_name	Карман для припасов
 st_srp_medical_332_description	Бонус к максимальному здоровью рук и ног:
 st_srp_medical_332_name	Крепкие кости
-st_srp_medical_333_description	Пока действует обезболивающее, снижение раскачивания прицела:
+st_srp_medical_333_description	Пока действует антитоксин, бонус к скорости перезарядки:
 st_srp_medical_333_name	Концентрация
 st_srp_medical_342_description	Снижение урона, получаемого от союзников:
 st_srp_medical_342_name	Братья по оружию
 st_srp_medical_seconds	 s
+st_srp_medicine_aim_time	Время прицеливания
 st_srp_medicine_crouched_healing	Лечение в приседе
 st_srp_medicine_hit_slow	Замедление от пуль
-st_srp_medicine_sight_sway	Раскачивание
+st_srp_medicine_reload_speed	Темп перезарядки
 st_srp_medicine_sprint_stamina	Энергия на спринт
 st_srp_melee_knockback	Отбрасывание прикладом
 st_srp_mic_test	Проверить микрофон
