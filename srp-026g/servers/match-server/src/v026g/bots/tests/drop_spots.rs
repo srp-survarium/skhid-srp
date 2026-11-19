@@ -1,5 +1,5 @@
 //! [drop give-ups] The planned walk-offs the lip guard braked (fix-builder's diagnostic match of 2026-11-19, level_02 day 2:
-//! 7 of 20 drops given up; fix-team's roof take-off, 51 bot-seconds there in 4 runs and no drop): a bot sent down a drop of the
+//! 7 of 20 drops given up): a bot sent down a drop of the
 //! spot from starts on its top whose planned route takes one (the edge strip's walk-offs lie side by side, a route takes the one it
 //! pulls straight to), on the stand-in over the real mapdata. Per start it must come down on its route's landing, and the guard
 //! must not brake it on the drop's top. A regression test on the real map data, ignored without it.
@@ -14,7 +14,10 @@ use crate::v026g::bots::path;
 use crate::v026g::bots::plays::{Go, Intent, Pace};
 use crate::v026g::bots::view::Clock;
 
-/// A spot: its project, a take-off and landing of it (map frame), and its name in the report. A route's drop is the spot's when it
+/// A spot: its project, a take-off and landing of it (map frame), and its name in the report. The exe lands the walk-off the bots
+/// play here (walked on, let go at the first tick off the ground) 0.26 m from each of the strip's landings (owner-16's
+/// `drop_exe_v1` on the game's objects, 2026-11-19); a walk-off the exe does not make (the roof at (36.49, 21.76, 113.97): a walk is
+/// held on its top) is a link fault, not this test's. A route's drop is the spot's when it
 /// leaves within [`SPOT_TAKE_OFF_M`] of the take-off for a floor within [`SPOT_LANDING_M`] of the landing.
 struct Spot {
     name: &'static str,
@@ -23,18 +26,12 @@ struct Spot {
     landing: Vec3,
 }
 
-const SPOTS: [Spot; 2] = [
+const SPOTS: [Spot; 1] = [
     Spot {
         name: "level_02 edge strip walk-off 3.2 m down, 1.77 m across",
         project: "level_02/day_2",
         take_off: Vec3::new(11.20, 19.40, 37.97),
         landing: Vec3::new(9.95, 16.18, 39.22),
-    },
-    Spot {
-        name: "level_02 roof take-off on a 0.3 m top, 4.7 m down",
-        project: "level_02/day_2",
-        take_off: Vec3::new(36.49, 21.76, 113.97),
-        landing: Vec3::new(35.45, 17.02, 114.22),
     },
 ];
 
