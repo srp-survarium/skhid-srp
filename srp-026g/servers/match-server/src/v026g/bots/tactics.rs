@@ -182,6 +182,10 @@ pub struct TacticsBase {
     /// first use before, inside a match tick: the first world or the first decided tick paid it, 0.17-0.32 s on Rudnya and
     /// Cologne (the bench's first world at 500 or 1,000 ms, on the thread's CPU clock).
     walker_walls: Arc<RayTree>,
+    /// [F4] The map's objective contract (`mapdata::objective`): a row per battery spawner and team (take stand, way in, way
+    /// home, put stand, verdict), built with the base once for the map, off the match loop, not stored with it; every row is
+    /// logged once as it is built ([`objective_contract`]). Collect reads it (`plays::collect`, `Ctx::take_block`).
+    contract: mapdata::objective::Contract,
     /// How far forward each region is, by the walk ([`progress`]): worked out
     /// with the base, once for the map, off the match loop (the map store's
     /// thread), not stored with it. [A276] Made at its first ask (before), it
@@ -590,6 +594,29 @@ pub struct Spot {
     pub score: f32,
 }
 
+/// [F4] The objective contract of `world`'s map (`mapdata::objective::Contract::build`) at the client's use ray, with the take's
+/// own eye heights and look-down stop (`plays::collect::contract_inputs`); each row logged once (the map's table).
+fn objective_contract(world: &World) -> mapdata::objective::Contract {
+    let stands = mapdata::UseStands::build_ray(
+        world,
+        mapdata::stands::EYE_STANDING,
+        mapdata::stands::EYE_CROUCHED,
+        mapdata::stands::USE_RAY_CLIENT_M,
+    );
+    let started = std::time::Instant::now();
+    let contract = mapdata::objective::Contract::build(world, &stands, &super::plays::collect::contract_inputs());
+    log::info!(
+        "objective contract: {} rows on {} floors in {} ms",
+        contract.rows.len(),
+        world.grid.len(),
+        started.elapsed().as_millis()
+    );
+    for row in &contract.rows {
+        log::info!("objective contract: {}", row.line(&world.grid));
+    }
+    contract
+}
+
 impl TacticsBase {
     /// Builds them: the hazard marks, the floors' labels, the regions, the
     /// bases' exits, the walker walls. 0.15-0.3 s on the big maps on a fast
@@ -624,8 +651,10 @@ impl TacticsBase {
         let walkable = walkable_from_spawns(&world);
         let progress = progress::Progress::build(&world.grid, &regions, &world.map.spawns);
         let walker_walls = super::body::walker_walls(&world);
+        let contract = objective_contract(&world);
         let mut base = Self {
             walker_walls,
+            contract,
             world,
             hazards,
             exits: Vec::new(),
@@ -754,8 +783,10 @@ impl TacticsBase {
                     .collect();
                 let progress = progress::Progress::build(&world.grid, &regions, &world.map.spawns);
                 let walker_walls = super::body::walker_walls(&world);
+                let contract = objective_contract(&world);
                 Ok(Self {
                     walker_walls,
+                    contract,
                     world,
                     hazards: Hazards::with_marks(zones, Arc::new(marks), marking),
                     exits,
@@ -779,6 +810,7 @@ impl TacticsBase {
     pub fn memory_bytes(&self) -> usize {
         let walker_walls = if Arc::ptr_eq(&self.walker_walls, &self.world.sight) { 0 } else { self.walker_walls.memory_bytes() };
         walker_walls
+            + self.contract.rows.len() * std::mem::size_of::<mapdata::objective::Row>()
             + self.hazards.marks().memory_bytes()
             + self.spawn_areas.len()
             + self.regions.memory_bytes()
@@ -908,6 +940,11 @@ impl Tactics {
 
     /// A match's tactics on a shared base: its own copy of the zones (the
     /// marks stay shared), no routes yet.
+    /// [F4] The map's objective contract (`TacticsBase::contract`).
+    pub fn contract(&self) -> &mapdata::objective::Contract {
+        &self.base.contract
+    }
+
     /// The map's walker walls (`TacticsBase::walker_walls`), for the tracker's jump arc.
     pub fn walker_walls(&self) -> Arc<RayTree> {
         self.base.walker_walls.clone()

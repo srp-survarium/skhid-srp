@@ -523,6 +523,55 @@ fn take_pitch_limits(cx: &Ctx) -> (f32, f32) {
     }
 }
 
+/// [F4] What the map's objective contract takes from the take (`mapdata::objective::ContractInputs`): the still eye standing
+/// and crouched (`view::eye_height`) and the first press's steepest look down at the client's pitch stop (`pitch.rs`, 67.48
+/// degrees, less the margin [`take_pitch_limits`] keeps). The client's pitch unit, not the tuning's: the contract is the
+/// client's rules, built once a map before any tuning is read.
+pub(in crate::v026g::bots) fn contract_inputs() -> mapdata::objective::ContractInputs {
+    use crate::v026g::bots::pitch::{Pitch, PitchScale};
+    let stop = -Pitch::new(-1.0).elevation(PitchScale::Client);
+    mapdata::objective::ContractInputs {
+        eye_standing: view::eye_height(false, 0.0, 0.0),
+        eye_crouched: view::eye_height(true, 0.0, 0.0),
+        look_down_max_rad: stop - (OLD_VIEW_STOP_RAD - FIRST_PITCH_MAX_RAD),
+    }
+}
+
+/// [F4] A lying battery is at a spawner of the map's contract when its position is this near the spawner's item, metres
+/// across and up or down: the worlds' positions are the item's own while it lies there untouched.
+const CONTRACT_SPAWNER_M: f32 = 0.5;
+
+/// [F4] Why the map's objective contract refuses a battery lying at `at` to the bot's team (`Tactics::contract`): a battery
+/// at a spawner whose row's verdict is not `Ok`. Its reason is that row's: no take stand, no proven way in, no put stand, or
+/// no carrier's way home. A way failed only for a link with no flown share (`WayFail::Unflown`) is the grid builder's gap,
+/// not a client fact: not refused. Every row is logged once as the map's contract is built (`tactics::objective_contract`),
+/// and the refusal once by the bot ([`take_blocks`]' note). None: no row (a battery away from every spawner, a dropped one:
+/// F4's `rows_for` at rest is not read yet) or the row is Ok.
+fn contract_refusal(cx: &Ctx, at: Vec3) -> Option<&'static str> {
+    use mapdata::objective::{Verdict, Way, WayFail};
+    let spawners = &cx.tactics.world.map.battery_spawners;
+    let spawner = spawners
+        .iter()
+        .position(|s| s.item.distance_xz(at) <= CONTRACT_SPAWNER_M && (s.item.y - at.y).abs() <= CONTRACT_SPAWNER_M)?;
+    let row = cx.tactics.contract().rows.iter().find(|r| r.spawner == Some(spawner) && r.team == i32::from(cx.me.team))?;
+    let unflown = |w: &Way| matches!(w, Way::Fails { why: WayFail::Unflown, .. });
+    match row.verdict {
+        Verdict::Ok => None,
+        Verdict::NoWayIn if unflown(&row.way_in) => None,
+        Verdict::NoWayHome if unflown(&row.way_home) => None,
+        Verdict::NoTakeStand => Some(CONTRACT_NO_TAKE_STAND),
+        Verdict::NoWayIn => Some(CONTRACT_NO_WAY_IN),
+        Verdict::NoPutStand => Some(CONTRACT_NO_PUT_STAND),
+        Verdict::NoWayHome => Some(CONTRACT_NO_WAY_HOME),
+    }
+}
+
+/// [F4] The contract's reasons ([`contract_refusal`]).
+pub const CONTRACT_NO_TAKE_STAND: &str = "the map's contract: no stand its use ray meets it from";
+pub const CONTRACT_NO_WAY_IN: &str = "the map's contract: no proven way in";
+pub const CONTRACT_NO_PUT_STAND: &str = "the map's contract: no put stand at our container";
+pub const CONTRACT_NO_WAY_HOME: &str = "the map's contract: no carrier's way home";
+
 /// A world younger than the arrival by less than this tells nothing yet of the stand, ms: the body's last steps onto it
 /// reach the client after the bot decided them (a bot leads the clock; a world is a second apart). GUESS.
 const WORLD_SETTLE_MS: u32 = 500;
@@ -1654,6 +1703,10 @@ impl Ctx<'_> {
     /// the first reason found; `None`: it may.
     pub fn take_block(&self, at: Vec3) -> Option<&'static str> {
         let num = |name| self.num(PlayKind::Collect, name);
+        // [F4] The map's objective contract: a spawner's battery no proven way in and out leads to is not offered.
+        if let Some(why) = contract_refusal(self, at) {
+            return Some(why);
+        }
         let Some(stand) = self.tactics.stand_to_take(at) else {
             // No way is planned into a pocket the grid knows no way out of,
             // so none of its floors is a stand; a battery there is its.
