@@ -65,9 +65,12 @@ impl Bots {
                 sense::think_most(tuning.sense.battery_rays),
             ));
         }
-        let sensed = sense(&due, bot, rays);
+        // [dead tracks] No percept of a dead man is shared or remembered (`know::living`): its own senses', and the
+        // callouts and sounds made before he died.
+        let mut sensed = sense(&due, bot, rays);
+        sensed.percepts = know::living(std::mem::take(&mut sensed.percepts), view, bot.place);
         let state = &mut self.teams[team];
-        let percepts = share(&due, bot, state, &self.tracker, sensed, &self.features.weapons);
+        let percepts = know::living(share(&due, bot, state, &self.tracker, sensed, &self.features.weapons), view, bot.place);
         sense_batteries(&due, bot, state, rays, notes);
         rays.allow(None);
         remember(&due, bot, &percepts);
