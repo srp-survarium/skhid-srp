@@ -523,6 +523,17 @@ fn region_walks_to(regions: &Regions, goal: u32) -> Vec<f32> {
 /// At most this many of the enemy's route points are cast to for one spot's exposure.
 const EXPOSURE_POINTS: usize = 160;
 
+/// [fix-team D5] One sample of a spot query, as [`Tactics::spots_samples`] judges it.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug)]
+pub struct SpotSample {
+    pub stage: &'static str,
+    /// The floor judged (a stage of a floor).
+    pub at: Option<Vec3>,
+    /// A probe with no floor at the anchor's height: the nearest floor's height over the anchor in the probe's column.
+    pub column: Option<f32>,
+}
+
 /// What a spot is for.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SpotQuery {
@@ -2579,8 +2590,16 @@ impl Tactics {
     /// the query's order: the first test of [`Self::spots`] that left it out, `other_filter` for one that passed them all.
     #[cfg(test)]
     pub fn spots_stages(&self, query: &SpotQuery, time: u32, rng: &mut Rng) -> Vec<&'static str> {
+        self.spots_samples(query, time, rng).into_iter().map(|s| s.stage).collect()
+    }
+
+    /// [fix-team D5] [`Self::spots_stages`] with each sample's floor (a stage of a floor) or, for a probe with no floor at the
+    /// anchor's height, the height over the anchor of the nearest floor in the probe's column (1 m round it; none: no floor
+    /// there at any height).
+    #[cfg(test)]
+    pub fn spots_samples(&self, query: &SpotQuery, time: u32, rng: &mut Rng) -> Vec<SpotSample> {
         let grid = &self.world.grid;
-        let mut fails: Vec<&'static str> = Vec::new();
+        let mut fails: Vec<SpotSample> = Vec::new();
         let mut by_walk: Option<Arc<WalkUp>> = None;
         for _ in 0..query.samples {
             let angle = rng.range(0.0, std::f32::consts::TAU);
@@ -2595,13 +2614,17 @@ impl Tactics {
             }
             if nodes.is_empty() {
                 let off = grid.locate(Vec3::new(probe.x, probe.y + 1.0, probe.z), 30.0).is_some();
-                fails.push(if off { "floor_off_height" } else { "no_floor" });
+                let column = grid
+                    .floors_in([probe.x - 1.0, probe.z - 1.0, probe.x + 1.0, probe.z + 1.0])
+                    .map(|n| grid.position(n).y - probe.y)
+                    .min_by(|a, b| a.abs().total_cmp(&b.abs()));
+                fails.push(SpotSample { stage: if off { "floor_off_height" } else { "no_floor" }, at: None, column });
                 continue;
             }
             for node in nodes {
                 let at = grid.position(node);
                 let d = at.distance_xz(query.around);
-                fails.push(if d < query.min_m || d > query.max_m {
+                let stage = if d < query.min_m || d > query.max_m {
                     "off_ring"
                 } else if !self.walkable(node) {
                     "not_walkable"
@@ -2617,7 +2640,8 @@ impl Tactics {
                     "no_sight"
                 } else {
                     "other_filter"
-                });
+                };
+                fails.push(SpotSample { stage, at: Some(at), column: None });
             }
         }
         fails
