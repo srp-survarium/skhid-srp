@@ -159,11 +159,11 @@ fn job_spot_stages() {
         groups.entry((f[0].to_owned(), f[1].to_owned())).or_default().push((f[2].to_owned(), Vec3::new(v(3), v(4), v(5))));
     }
     let t = Tuning::default();
-    // `SRP_JOB_LEVELS=level_01,level_07`: only these.
+    // `SRP_JOB_LEVELS=level_01,level_07/4`: only these (a level, or a level and its mode).
     let only: Option<Vec<String>> = std::env::var("SRP_JOB_LEVELS").ok().map(|v| v.split(',').map(str::to_owned).collect());
     let (mut flank_all, mut pin_all) = (Tally::default(), Tally::default());
     for ((mode, level), centres) in groups {
-        if only.as_ref().is_some_and(|o| !o.contains(&level)) {
+        if only.as_ref().is_some_and(|o| !o.contains(&level) && !o.contains(&format!("{level}/{mode}"))) {
             continue;
         }
         let file = dir.join(mapdata::format::file_name(&format!("{level}/day_{mode}")));
