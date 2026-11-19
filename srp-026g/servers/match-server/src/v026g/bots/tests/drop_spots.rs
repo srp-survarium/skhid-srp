@@ -71,6 +71,9 @@ struct Run {
     /// The same verdicts with those feet off that line: reported, not asserted (a body the stand-in put back on a lip node while
     /// the bot's reckoning of it falls beside the line, its world fix a second apart).
     off_line: u32,
+    /// The body's falls of a lip's height or more ([`mapdata::grid::LIP_DROP_M`]) that came to rest off the drop's landing
+    /// ([`body::PLANNED_LANDING_M`]): reported, compared before and after a change of the guard.
+    unplanned: u32,
     stuck: usize,
 }
 
@@ -86,6 +89,8 @@ fn run(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, until: u3
     bots.entered(0, true, 0);
     let (mut clock, mut next_world) = (0, 1_000);
     let mut out = Run::default();
+    // The height the body last rested or walked at (a tick that moved it under 1 cm up or down).
+    let (mut rest_y, mut last_y) = (start.y, start.y);
     while clock < until {
         clock += 25;
         while game.tick + TICK_MS <= clock {
@@ -139,6 +144,13 @@ fn run(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, until: u3
             }
         }
         let feet = game.bodies[0].feet;
+        if (feet.y - last_y).abs() < 0.01 {
+            if rest_y - feet.y >= mapdata::grid::LIP_DROP_M && feet.distance_xz(landing) > body::PLANNED_LANDING_M {
+                out.unplanned += 1;
+            }
+            rest_y = feet.y;
+        }
+        last_y = feet.y;
         if feet.distance_xz(landing) <= 0.6 && (feet.y - landing.y).abs() <= 0.5 && game.bodies[0].alive {
             out.landed = Some(clock);
             break;
