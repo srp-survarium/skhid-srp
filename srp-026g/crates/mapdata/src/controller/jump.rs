@@ -723,6 +723,28 @@ pub fn neighbour_flights(
     n: Neighbour,
     kits: Kits,
 ) -> Option<Vec<Vec<FlightStep>>> {
+    neighbour_flights_for(world, s, takeoff, way, kind, lead, n, kits, STAY_STEPS)
+}
+
+/// [jump down] [`neighbour_flights`] with `ground_steps` steps after the landing step instead of [`STAY_STEPS`]: a jump off an
+/// edge high enough that the body is still in the air at the clip's `end_jump` falls on for them. The client ends the jump on
+/// the clip's clock, not on ground contact (`end_jump` 0x7F050's callers are the landing states' `initialize` 0x3421F4,
+/// 0x344104 and the stand-jump state's `finalize` 0x3373BB, each moved to by the clip's end; `on_ground` 0x7EF90 is read only
+/// by the jump's gate 0x2FC285), and the fall after it is the walk branch's (`player_step` 0x7BDA0) with no air control
+/// (`get_air_control_vector` 0x2D7990 only while the jump flag +2C70Ch is set; exactness `exe-movement-rules.md` section 6):
+/// the ground steps [`fly_as`] runs. Not [`Kind::SprintHeld`]'s held steps or a climb, which take their own.
+#[allow(clippy::too_many_arguments)]
+pub fn neighbour_flights_for(
+    world: &Collision,
+    s: &Settings,
+    takeoff: Vec3,
+    way: (f32, f32),
+    kind: Kind,
+    lead: f32,
+    n: Neighbour,
+    kits: Kits,
+    ground_steps: u32,
+) -> Option<Vec<Vec<FlightStep>>> {
     let flight = Flight { cap: if n.fastest { kits.fastest } else { kits.body }, dy: n.dy };
     let (c, sn) = (n.turn.cos(), n.turn.sin());
     let heading = (way.0 * c - way.1 * sn, way.0 * sn + way.1 * c);
@@ -730,12 +752,12 @@ pub fn neighbour_flights(
     match kind {
         Kind::Walk => {
             let RunUp { body: mut b, speed } = run_up(world, s, at, heading, flight.cap, false)?;
-            Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, STAY_STEPS, flight)])
+            Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, ground_steps, flight)])
         }
         Kind::Climb => climb_flight(world, s, takeoff, way, lead, n, kits).map(|st| vec![st]),
         Kind::Slow(steps) => {
             let RunUp { body: mut b, speed } = run_up_slow(world, s, at, heading, flight.cap, steps)?;
-            Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, STAY_STEPS, flight)])
+            Some(vec![fly_as(world, s, &mut b, heading, Press::Walk { speed }, STAY_KEYS, ground_steps, flight)])
         }
         Kind::Sprint | Kind::SprintHeld => {
             let run = run_up(world, s, at, heading, flight.sprint_ms(), true)?;
@@ -751,7 +773,7 @@ pub fn neighbour_flights(
                         if kind == Kind::SprintHeld {
                             held_flight(world, s, &mut b, heading, press, flight)
                         } else {
-                            fly_as(world, s, &mut b, heading, press, STAY_KEYS, STAY_STEPS, flight)
+                            fly_as(world, s, &mut b, heading, press, STAY_KEYS, ground_steps, flight)
                         }
                     })
                     .collect(),
