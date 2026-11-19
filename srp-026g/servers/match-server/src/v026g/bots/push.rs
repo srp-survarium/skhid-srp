@@ -134,6 +134,47 @@ pub enum Event {
     Ended(End),
 }
 
+impl Event {
+    /// [fix-team push, item 3] The event's log line (the team's note, after "team T: "): the target, the group, the defenders
+    /// the team knows within 25 m of the target, the net count, the outcome. `before` is the push the tick began with, `after`
+    /// the one it left, `p` its picture.
+    pub fn line(&self, before: &Push, after: &Push, p: &Picture) -> String {
+        let target = |t: Target| match t {
+            Target::Container { id, .. } => format!("their container {id}"),
+        };
+        let net = |defenders: usize, group: usize| defenders.saturating_sub(group);
+        match self {
+            Event::Started { target: t, taker, group, defenders } => format!(
+                "push on {} started: taker {taker}, group {group} {:?}, {defenders} defenders known, net {}",
+                target(*t),
+                after.members(),
+                net(*defenders, *group)
+            ),
+            Event::Committed { near, defenders, waited } => format!(
+                "push on {} committed: {near} on the taker, {defenders} defenders known, net {}, {}",
+                before.target().map_or_else(|| "?".to_string(), target),
+                net(*defenders, *near),
+                if *waited { "after the gather time" } else { "gathered" }
+            ),
+            Event::Took { carrier } => {
+                let group = before.members();
+                format!("push: {carrier} took a battery, home with {:?}", group.iter().filter(|&&m| m != *carrier).collect::<Vec<_>>())
+            }
+            Event::Ended(why) => {
+                let members = before.members();
+                let alive = members.iter().filter(|&&m| p.bot(m).is_some()).count();
+                let defenders = before.target().and_then(|t| p.defenders(t));
+                format!(
+                    "push{} ended: {why:?} (group {:?}, {alive} alive{})",
+                    before.target().map_or_else(String::new, |t| format!(" on {}", target(t))),
+                    members,
+                    defenders.map_or_else(String::new, |d| format!(", {d} defenders known, net {}", net(d, alive)))
+                )
+            }
+        }
+    }
+}
+
 impl Push {
     /// `place`'s part in it, if any.
     pub fn role(&self, place: Place) -> Option<Role> {
@@ -378,6 +419,23 @@ mod tests {
         let (push, event) = push.next(&picture(30_000, &home, &[(THEIRS, 0)]), &rule);
         assert_eq!(event, Some(Event::Ended(End::Home)));
         assert!(matches!(push, Push::Resting { .. }));
+    }
+
+    /// [item 3] The push's lines name the target, the group, the known defenders, the net count and the outcome.
+    #[test]
+    fn a_push_logs_its_target_group_defenders_net_and_outcome() {
+        let rule = PushRule::default();
+        let bots = [bot(1, 5.0), bot(2, 40.0), bot(3, 50.0), bot(4, 60.0), bot(5, 70.0)];
+        let targets = [(THEIRS, 2)];
+        let p = picture(0, &bots, &targets);
+        let (push, event) = Push::Idle.next(&p, &rule);
+        let line = event.expect("started").line(&Push::Idle, &push, &p);
+        assert_eq!(line, "push on their container 1 started: taker 5, group 4 [5, 4, 3, 2], 2 defenders known, net 0");
+        let gone = [bot(1, 5.0)];
+        let p = picture(1_000, &gone, &targets);
+        let (after, event) = push.clone().next(&p, &rule);
+        let line = event.expect("ended").line(&push, &after, &p);
+        assert_eq!(line, "push on their container 1 ended: NoTaker (group [5, 4, 3, 2], 0 alive, 2 defenders known, net 2)");
     }
 
     /// No push level on points, with an enemy carrying ours (Intercept's), or with too few bots.
