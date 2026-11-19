@@ -3382,19 +3382,19 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         return;
     }
     let truth = bot.motor.feel.drop_truth;
-    // [drop give-ups] The route's own walk-off at release, from the stop forecast's reach before its take-off to its landing: the
-    // body goes over this lip by the walk-off's script (walked on along its line, let go at the release: the flight the builder
-    // made the link by, landing on the link's landing top), which the forecast of a stop does not play. A link re-aimed by
-    // `drop_lands` lands 1.3-3.5 m across from its take-off, so the stop's fall at the lip is past [`body::PLANNED_LANDING_M`] of
-    // that landing and was braked as unplanned: the route lost the drop and planned again (7 of 20 drops given up, fix-builder's
-    // diagnostic match of 2026-11-19, level_02). Only on the route's line (within [`body::RECKONING_M`] of it).
+    // [drop give-ups] The route's own drop, from the stop forecast's reach before its take-off to its landing: the body goes over
+    // this lip by the drop's own script (walked on along its line, let go: the walk the builder proved lands on the drop's landing,
+    // `drop_check` / `drop_lands`), which the forecast of a stop does not play. The stop's fall at the lip was judged unplanned
+    // where it came down off [`body::PLANNED_LANDING_M`] of the landing, and the guard braked the route's own drop: the route lost it
+    // and planned again (7 of 20 drops given up, fix-builder's diagnostic match of 2026-11-19, level_02; on its edge strip a drop
+    // 0.71 m across braked 30 ticks). Only on the route's line (within [`body::RECKONING_M`] of it).
     let reach = me.velocity[0].hypot(me.velocity[1]) * kin::TICK_S * (tuning.kin.blend_ticks + bot.motor.feel.lip_guard_ticks + 2) as f32
         + body::RECKONING_M;
     let (planned, own_walk_off) = bot.route.as_mut().map_or_else(
         || (Vec::new(), false),
         |(route, _)| {
             let (walked, off) = route.progress(me.feet);
-            (route.drop_landings(walked, PLANNED_DROP_M, truth), off <= body::RECKONING_M && route.walk_off_within(walked, reach, body::PLANNED_LANDING_M))
+            (route.drop_landings(walked, PLANNED_DROP_M, truth), off <= body::RECKONING_M && route.walk_off_within(walked, reach))
         },
     );
     if own_walk_off {
