@@ -57,7 +57,7 @@ The source day is what players have (patch 51's London projects): revision 66's 
 found every London day file unchanged against the manifest, so it is the manifest's own output.
 Six new maps raise the pinned `maps_dict` counts of five edit lists by six; a PR adding maps after
 this one renumbers again.
-## The window probes (pack probe-specular)
+
 ## The probes (pack london-probes)
 
 London has ten box probes `environment_and_lights/probes/reflection_window(…)` along its window
