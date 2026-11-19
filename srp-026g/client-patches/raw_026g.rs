@@ -2850,6 +2850,49 @@ impl ItemEntry {
     pub unsafe fn dict_id(self) -> *mut u16 {
         unsafe { self.0.byte_add(0x0).cast::<u16>().as_ptr() }
     }
+
+    /// 0x3a0 bytes: an entry of the items dictionary (item_by_id 0x1F00B1: imul eax,eax,3A0h)
+    pub const SIZE: usize = 0x3a0;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::item_entrys (0x3a0 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ItemEntryStorage([u8; 0x3a0]);
+
+#[allow(dead_code)]
+impl ItemEntryStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x3a0])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ItemEntry {
+        ItemEntry(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ItemEntry> {
+        (!rooms.is_empty()).then(|| ItemEntry(NonNull::from(rooms).cast()))
+    }
 }
 
 /// A survarium::bullet (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -10216,6 +10259,15 @@ impl ItemsDictionary {
     #[inline(always)]
     pub unsafe fn set_entries(self, value: Option<ItemEntry>) {
         unsafe { self.0.byte_add(0x130).cast::<Option<ItemEntry>>().write_volatile(value) }
+    }
+
+    /// +0x134 (u32): the entries' count (item_by_id 0x1F00AB: the search's end is entries + count x 3A0h; late_join_validate_026g.c's item() bounds its search by it)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn entry_count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x134).cast::<u32>().as_ptr() }
     }
 }
 

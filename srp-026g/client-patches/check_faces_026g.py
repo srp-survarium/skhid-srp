@@ -39,12 +39,15 @@ head ends too). Checked:
   count stays 20, logged;
 - a `0x87` without srp's byte: logged, nothing learnt;
 - a late joiner's proposal at the dispatch (`match_dispatch.message`, after
-  patch 114's check, its profile stepped over with the dictionary): srp's
+  patch 114's check, its profile stepped over with the dictionary's own
+  entries, never item_by_id): srp's
   block after the profile (the faces entry of its one place) gives the
   joiner's place its face, and its own copy of the profile (no place) the
   same by its name; the block taken off the message (its reader 7 bytes
   shorter, the span replayed); without a block, face 0 and the message as it
-  was; bytes that are no block: logged, left for the late join's check.
+  was; bytes that are no block: logged, left for the late join's check; an
+  item the dictionary does not have: the proposal left as it is, nothing
+  learnt.
 
 Not run: the match scene's end (`game_world.deactivate`, after patch 66's
 handler in its chain); the faces forgotten there are the crate's unit test.
@@ -66,6 +69,7 @@ OPTIONS, OPTIONS_END = 0x27B92D, 0x27B932   # static_info.options_read, span 5
 REPLAY, REPLAY_END = 0x1F0971, 0x1F0976     # replay.options_read, span 5 (pop esi / pop ebx / add esp,34h)
 WORLD_LEFT = 0x1F9520                       # game_world.deactivate
 DISPATCH, DISPATCH_END = 0x27A31F, 0x27A327 # match_dispatch.message, span 8 (patch 114's check first)
+ITEM_BY_ID = 0x1F0090                       # items_dictionary::item_by_id
 THREAD_SLOT, QPC_SLOT, QPF_SLOT = 0x870118, 0x870158, 0x870150
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870108, 0x870040
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
@@ -115,6 +119,11 @@ class Game:
         emu.hook_add(UC_HOOK_CODE, self.write_file, begin=STUBS + 0xA0, end=STUBS + 0xA0)
         self.texts = TEXTS
         self.configs = CONFIG
+        self.item_by_id = 0
+        emu.hook_add(UC_HOOK_CODE, self.count_item_by_id, begin=ITEM_BY_ID, end=ITEM_BY_ID)
+
+    def count_item_by_id(self, *_):
+        self.item_by_id += 1
 
     def word(self, at, value):
         self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
@@ -431,6 +440,14 @@ def main():
     check(cut == 0 and b"no srp block" in patched.logged[before:]
           and face(patched.cook(faces(patched), "odd", [2])) == of(0),
           "bytes after the profile that are no block: logged, left for the late join's check, nothing learnt")
+    before = len(patched.logged)
+    cut, _, _ = patched.proposal(5, "unknown", b"SRPX\x05\x01\x01", item=999)
+    check(cut == 0 and patched.logged[before:] == b""
+          and face(patched.cook(faces(patched), "unknown", [2])) == of(0)
+          and face(patched.cook(faces(patched), "unknown", [2], place=5)) == of(0),
+          "an item the dictionary does not have: the proposal left as it is, nothing learnt")
+    check(patched.item_by_id == 0, "the proposals' items looked up among the dictionary's entries, never by "
+          "item_by_id (0x1F0090)")
     patched.options(["you"], b"")
 
     if failed:

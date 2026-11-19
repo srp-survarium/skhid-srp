@@ -32,6 +32,36 @@ pub struct Proposal<'t> {
     pub block: &'t [u8],
 }
 
+/// The items dictionary's entries, read once at the dispatch: where they
+/// begin and how many. An id is looked up among them alone, as the late
+/// join's C check's `item()` does (`late_join_validate_026g.c`).
+struct Items {
+    first: raw::ItemEntry,
+    count: usize,
+}
+
+impl Items {
+    /// # Safety
+    /// `dictionary` is the game's, alive and loaded, on the game's thread.
+    unsafe fn of(dictionary: raw::ItemsDictionary) -> Option<Items> {
+        // SAFETY: the caller's; the entries' array and its count, as
+        // item_by_id (0x1F00A5..0x1F00B1) reads them.
+        unsafe { Some(Items { first: dictionary.entries()?, count: read(dictionary.entry_count()) as usize }) }
+    }
+
+    /// Whether the entry of `id` is a stack; none when no entry has it.
+    fn stack(&self, id: u16) -> Option<bool> {
+        (0..self.count).find_map(|i| {
+            // SAFETY: an entry below the dictionary's count, 3A0h bytes
+            // each; its id and its stack byte plain values.
+            unsafe {
+                let entry = self.first.at(i);
+                (read(entry.dict_id()) == id).then(|| read(entry.stack()) != 0)
+            }
+        })
+    }
+}
+
 /// Steps over a native profile (`player_profile::deserialize_static`
 /// 0x1F1070, as the late join's C check reads it): the team, the name, the
 /// clan, the protection, the kits and the items, each item's length by
@@ -142,13 +172,8 @@ impl<'t> Message<'t> {
         reader.u8()?; // the squad
         // SAFETY: the dispatch's live client and its game, on the game's
         // thread; the dictionary is the game's, loaded once.
-        let dictionary = unsafe { self.client.game()?.dictionary()? };
-        let stack = |id: u16| {
-            // SAFETY: item_by_id only looks the id up (0x1F0090); an entry
-            // it finds is the dictionary's, its stack byte a plain value.
-            unsafe { raw::engine_item_by_id(Some(dictionary), u32::from(id)).map(|item| read(item.stack()) != 0) }
-        };
-        let name = step_over_profile(&mut reader, stack)?;
+        let items = unsafe { Items::of(self.client.game()?.dictionary()?)? };
+        let name = step_over_profile(&mut reader, |id| items.stack(id))?;
         Some(Proposal { place, name, block: reader.remaining() })
     }
 

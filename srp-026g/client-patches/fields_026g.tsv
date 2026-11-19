@@ -1432,3 +1432,5 @@ vostok::render::skeleton_combined_part	base_model	0x0	obj<vostok::buffer_string>
 vostok::render::skeleton_combined_part	part_name	0x114	obj<vostok::buffer_string>	the model's part (assigned 0x2056E1, 0x20543C)
 vostok::render::skeleton_combined_part	material	0x228	obj<vostok::buffer_string>	the item's optional `material` (0x205468, an additional model's 0x2055FE)
 vostok::render::skeleton_combined_part	tag	0xC08	u32	what the part is: 0 the head (0x2056E6), 1 + the slot table's index (0xA79870: gloves, torso, boots, pants, helmet, mask, back) for an item's model and its additional models (0x204A44, 0x205540); player::set_head_visibility 0x1F37A0 hides 0, 5, 6, 7 in first person
+survarium::items_dictionary	entry_count	0x134	u32	the entries' count (item_by_id 0x1F00AB: the search's end is entries + count x 3A0h; late_join_validate_026g.c's item() bounds its search by it)
+survarium::item_entry	size	0x3A0	size	an entry of the items dictionary (item_by_id 0x1F00B1: imul eax,eax,3A0h)
