@@ -34,7 +34,21 @@ package survarium.rooms
             "2": "st_srp_weather_rain",
             "3": "st_srp_weather_evening",
             "4": "st_srp_weather_night",
-            "5": "st_srp_weather_before_rain"
+            "5": "st_srp_weather_before_rain",
+            // A map's second look of a weather (the server's weather::*_ORIGINAL): the weather's own name
+            // unless the map names it (LOOKS).
+            "6": "st_srp_weather_evening",
+            "8": "st_srp_weather_day"
+        };
+        // A map's own names for its weathers' looks, by "level_weather": Vostok v0.11 (13) as the owner
+        // names them (2026-11-19): "(0.11.2)" the look 0.26g's rendering gives it, "(0.11)" its own build's
+        // (its one rain is the latter).
+        private static const LOOKS:Object = {
+            "13_1": "st_srp_weather_day_v0112",
+            "13_8": "st_srp_weather_day_v011",
+            "13_3": "st_srp_weather_evening_v0112",
+            "13_6": "st_srp_weather_evening_v011",
+            "13_2": "st_srp_weather_rain_v011"
         };
         // A refused request's code (RoomCode); RoomCode.NONE has none.
         private static const CODES:Object = {
@@ -71,9 +85,9 @@ package survarium.rooms
             return key != null ? LocalizationData.getName(key) : LocalizationData.getName("st_srp_rooms_level") + " " + level;
         }
 
-        public static function weatherName(weather:int):String
+        public static function weatherName(weather:int, level:int):String
         {
-            var key:String = WEATHER[String(weather)] as String;
+            var key:String = (LOOKS[level + "_" + weather] || WEATHER[String(weather)]) as String;
             return key != null ? LocalizationData.getName(key) : "";
         }
 

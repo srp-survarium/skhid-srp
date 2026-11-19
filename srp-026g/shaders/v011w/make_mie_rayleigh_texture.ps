@@ -3,7 +3,7 @@
 #include "common.h"
 
 uniform float4	to_sun_direction_parameter;
-#if TARGET_026G		// 0.26g sets it under this name (the same four multipliers in the same order)
+#if TARGET_026G		// 0.26g's host of this name; exe patch 162 sets 0.11e's four multipliers in it (0.26g sends the sun's intensity first)
 #define	atmosphere_parameters	atmosphere_rayleigh_mie_parameters
 #endif
 uniform float4	atmosphere_parameters;

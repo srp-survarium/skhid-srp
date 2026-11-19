@@ -2941,9 +2941,14 @@ st_srp_weapon_with_kit	S opremom
 st_srp_weapon_with_kit_skills	S opremom i vještinama
 st_srp_weather_before_rain	prije kiše
 st_srp_weather_day	dan
+st_srp_weather_day_v011	dan (0.11)
+st_srp_weather_day_v0112	dan (0.11.2)
 st_srp_weather_evening	večer
+st_srp_weather_evening_v011	večer (0.11)
+st_srp_weather_evening_v0112	večer (0.11.2)
 st_srp_weather_night	noć
 st_srp_weather_rain	kiša
+st_srp_weather_rain_v011	kiša (0.11)
 st_srp_weight_base	Osnovna granica
 st_srp_weight_no_sprint_heavyweight	Sprint nije moguć: vještina Teškaš.
 st_srp_weight_no_sprint_limit	Sprint nije moguć: dosegnuta nosivost.

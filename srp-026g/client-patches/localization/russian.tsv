@@ -2941,9 +2941,14 @@ st_srp_weapon_with_kit	С комплектом
 st_srp_weapon_with_kit_skills	С комплектом и навыками
 st_srp_weather_before_rain	перед дождём
 st_srp_weather_day	день
+st_srp_weather_day_v011	день (0.11)
+st_srp_weather_day_v0112	день (0.11.2)
 st_srp_weather_evening	вечер
+st_srp_weather_evening_v011	вечер (0.11)
+st_srp_weather_evening_v0112	вечер (0.11.2)
 st_srp_weather_night	ночь
 st_srp_weather_rain	дождь
+st_srp_weather_rain_v011	дождь (0.11)
 st_srp_weight_base	Базовый предел
 st_srp_weight_no_sprint_heavyweight	Спринт недоступен: навык «Тяжеловес».
 st_srp_weight_no_sprint_limit	Спринт недоступен: перегруз.

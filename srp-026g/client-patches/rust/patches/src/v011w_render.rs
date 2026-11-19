@@ -1,14 +1,17 @@
-//! The ported 0.11 weathers render their atmosphere the 0.11 way (Vostok
-//! Radar Station v0.11's evening and rain; srp-026g/docs/notes/v011-weather.md):
-//! the geometry's fog, the scattering tables and the sky.
+//! The ported 0.11 weathers render the 0.11 way what their profile names
+//! (Vostok Radar Station v0.11's evening and rain;
+//! srp-026g/docs/notes/v011-weather.md): the geometry's fog, the scattering
+//! tables and the sky (with the inscatter distance), the clouds, the skylight
+//! and the post. A profile names any of them, so a weather can keep 0.26g's
+//! atmosphere and take only some of 0.11e's.
 //!
 //! 0.11e draws the geometry's fog in two passes of its scattering effect: it
 //! multiplies the frame by 1 - min(depth, D) / D / 10, then adds the light
 //! the air scatters toward the eye, read from the Rayleigh and Mie tables;
 //! D is the weather's inscatter distance. 0.26g draws one pass of another
 //! equation (technique 5) but still compiles 0.11e's two (3 and 4). On the
-//! scene of a project whose config root names its inscatter distance
-//! ([`MAP_KEY`]) the geometry stage draws 3 in 5's place and 4 after it; the
+//! scene of a project whose profile ([`MAP_KEY`]) names its inscatter
+//! distance the geometry stage draws 3 in 5's place and 4 after it; the
 //! content pack v011e-radar-fog gives 4 0.11e's program (nothing else draws
 //! it). The map is that project's own scene, as patch 130's is.
 //!
@@ -58,10 +61,18 @@ struct Distance(f32);
 /// curve (all eight [`FILMIC_KEYS`] or none).
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Profile {
-    distance: Distance,
+    atmosphere: Atmosphere,
     sky: Sky,
     clouds: Clouds,
     post: Post,
+}
+
+/// A 0.11 weather's atmosphere: 0.11e's fog, scattering tables and sky when
+/// the profile names its inscatter distance, else 0.26g's.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Atmosphere {
+    Native,
+    V011w(Distance),
 }
 
 /// A 0.11 weather's sky clouds: 0.11e's programs and parameters when the
@@ -180,8 +191,13 @@ impl Profile {
     /// From the table's numbers by key (`number` is None for a missing key
     /// and panics on a value that is not a number).
     fn parse(number: impl Fn(&CStr) -> Option<f32>, vector: impl Fn(&CStr) -> Option<[f32; 3]>) -> Profile {
-        let metres = number(c"inscatter_distance").expect("srp_renderer_v011w names its inscatter_distance");
-        assert!(metres.is_finite() && metres > 0.0, "srp_renderer_v011w.inscatter_distance is a distance above 0");
+        let atmosphere = match number(c"inscatter_distance") {
+            None => Atmosphere::Native,
+            Some(metres) => {
+                assert!(metres.is_finite() && metres > 0.0, "srp_renderer_v011w.inscatter_distance is a distance above 0");
+                Atmosphere::V011w(Distance(metres))
+            }
+        };
         let values = FILMIC_KEYS.map(&number);
         let post = if values.iter().all(Option::is_none) {
             Post::Native
@@ -214,7 +230,7 @@ impl Profile {
             let n = numbers.map(|value| value.expect(all));
             Clouds::V011w(CloudLayer { color: color.expect(all), u_tile: n[0], fade_power: n[1], fade_band: n[2] })
         };
-        Profile { distance: Distance(metres), sky, clouds, post }
+        Profile { atmosphere, sky, clouds, post }
     }
 
     fn of_table(table: ConfigTable<'_>) -> Profile {
@@ -278,7 +294,8 @@ impl Look {
     fn programs(self) -> Programs {
         match self {
             Look::Native => Programs::Native,
-            Look::V011w(_) => Programs::V011w,
+            Look::V011w(Profile { atmosphere: Atmosphere::V011w(_), .. }) => Programs::V011w,
+            Look::V011w(Profile { atmosphere: Atmosphere::Native, .. }) => Programs::Native,
         }
     }
 }
@@ -381,8 +398,8 @@ fn look(ctx: &Context<'_>, site: StageSite) -> Look {
     MAP.with(ctx.thread(), |map| map.look(drawn))
 }
 
-/// project.insert (after patch 130's): a project whose config names its
-/// inscatter distance makes its scene the 0.11 weather's.
+/// project.insert (after patch 130's): a project whose config root has a
+/// profile ([`MAP_KEY`]) makes its scene the 0.11 weather's.
 pub fn on_project_insert(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let project = ProjectView::at_insert(ctx).expect("project.insert's project");
     let root = project.root().ok().and_then(|root| root.table().ok()).expect("a project's config has a root table");
@@ -391,7 +408,7 @@ pub fn on_project_insert(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let profile = Profile::of_table(table);
         let scene = project.render_scene().expect("a project being inserted has its scene");
         MAP.with(ctx.thread(), |map| *map = map.step(MapEvent::Inserted { project: project.id(), scene, profile }));
-        log::line(&[Text("v011w_render: a 0.11 weather; its scene's atmosphere and post drawn the 0.11 way")]);
+        log::line(&[Text("v011w_render: a 0.11 weather; its scene drawn the 0.11 way where its profile says")]);
     }
     Flow::Continue
 }
@@ -418,12 +435,12 @@ pub fn on_project_destroy(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// weather's scene.
 pub fn on_geometry_fog(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnGeometryFogExit> {
     match look(ctx, StageSite::GeometryFog) {
-        Look::V011w(Profile { distance, .. }) => {
+        Look::V011w(Profile { atmosphere: Atmosphere::V011w(distance), .. }) => {
             render_stage::set_fog_technique(ctx, render_stage::FOG_MULTIPLY);
             FOG.with(ctx.thread(), |fog| *fog = fog.step(FogEvent::Multiply(distance)).0);
             Flow::Exit(vostok::V011WRenderOnGeometryFogExit::Applied)
         }
-        Look::Native => Flow::Continue,
+        Look::V011w(Profile { atmosphere: Atmosphere::Native, .. }) | Look::Native => Flow::Continue,
     }
 }
 
@@ -511,6 +528,15 @@ pub fn on_tables_apply(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnTable
         }
         Programs::Native => Flow::Continue,
     }
+}
+
+/// The tables' constant: on the 0.11 weather's scene 0.11e's four
+/// multipliers, which its tables program reads.
+pub fn on_tables_constants(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if look(ctx, StageSite::TablesConstants).programs() == Programs::V011w {
+        render_stage::set_scattering_multipliers(ctx);
+    }
+    Flow::Continue
 }
 
 /// The sky's pass: 0.11e's on the 0.11 weather's scene.
@@ -843,13 +869,13 @@ mod tests {
     #[test]
     fn a_profile_packs_the_filmic_curve_as_0_11e() {
         let profile = evening();
-        assert_eq!(profile.distance, Distance(200.0));
+        assert_eq!(profile.atmosphere, Atmosphere::V011w(Distance(200.0)));
         assert_eq!(profile.post, Post::Filmic([[0.05, 7.0, 0.3, 6.2], [2.0, 0.02, 10000.0, 4.5]]));
         // without the curve and the sky, 0.26g's post and skylight
         let distance_only = |key: &CStr| (key == c"inscatter_distance").then_some(300.0);
         assert_eq!(
             Profile::parse(distance_only, none),
-            Profile { distance: Distance(300.0), sky: Sky::Native, clouds: Clouds::Native, post: Post::Native }
+            Profile { atmosphere: Atmosphere::V011w(Distance(300.0)), sky: Sky::Native, clouds: Clouds::Native, post: Post::Native }
         );
         // all eight or none
         assert!(std::panic::catch_unwind(|| Profile::parse(
@@ -857,6 +883,8 @@ mod tests {
             none
         ))
         .is_err());
+        // without the distance, 0.26g's fog, tables and sky
+        assert_eq!(Profile::parse(|_| None, none).atmosphere, Atmosphere::Native);
         // the distance divides both fog passes
         assert!(std::panic::catch_unwind(|| Profile::parse(|_| Some(0.0), none)).is_err());
     }

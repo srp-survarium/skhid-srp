@@ -128,7 +128,7 @@ package survarium.rooms
                 if (e != null)
                 {
                     RoomsLook.fitName(look.text(row, "", columnX(3, tw), 4, columnW(3, tw), 14, RoomsLook.GREY), win.levelName(e.level), "");
-                    look.text(row, win.weatherName(e.weather), columnX(3, tw), 21, columnW(3, tw), 12, RoomsLook.DIM);
+                    look.text(row, win.weatherName(e.weather, e.level), columnX(3, tw), 21, columnW(3, tw), 12, RoomsLook.DIM);
                 }
                 else
                     look.text(row, room.phase == RoomPhase.VOTE ? win.say("st_srp_rooms_voting") : "", columnX(3, tw), 10, columnW(3, tw), 15,
@@ -261,7 +261,7 @@ package survarium.rooms
             {
                 // The map and its weather, the mode under them (the three
                 // are too long for one line in most languages).
-                look.text(look._content, win.levelName(e.level) + " · " + win.weatherName(e.weather), x + 16, y, SIDE_W - 32, 15,
+                look.text(look._content, win.levelName(e.level) + " · " + win.weatherName(e.weather, e.level), x + 16, y, SIDE_W - 32, 15,
                     RoomsLook.GREY);
                 look.text(look._content, win.modeName(e.mode), x + 16, y + 20, SIDE_W - 32, 15, RoomsLook.GREY);
             }

@@ -145,3 +145,8 @@ handler = "on_clouds_apply"
 [[hook]]
 site = "atmosphere.clouds_constants"
 handler = "on_clouds_constants"
+
+# The scattering tables' constant: 0.11e's four multipliers (0.26g sends the sun's intensity as the first).
+[[hook]]
+site = "atmosphere.tables_constants"
+handler = "on_tables_constants"

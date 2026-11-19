@@ -6232,10 +6232,10 @@ pub extern "C" fn hook_v011w_render_on_clouds_11_pass_1(frame: &mut Frame) -> u3
 #[repr(u32)]
 #[allow(dead_code)]
 pub enum V011WRenderOnCloudsApplyExit { Apply }
-/// The entry `v011w_render_on_clouds_apply` (0x1a4c0b, stage_atmosphere::execute, the sky clouds' pass: xor ecx,ecx / cmp [ebx+0E8h],ecx / sete cl (the technique: 1 for blend mode 0) before res_effect::apply 0x11C1B0 at 0x1A4C16 (EAX the cloud effect, [ebp+ecx*8+40h] loaded at 0x1A4C07); EBP the stage, EBX the scene view's environment (+118h)) calls this with the saved machine.
+/// The entry `v011w_render_on_clouds_apply` (0x1a4e85, stage_atmosphere::execute, the sky clouds' pass (use_sky_clouds, the environment's +C9h, 0x1A4DE6): xor ecx,ecx / cmp [ebx+0E8h],ecx / lea eax,[edi+edx*2+10h] / mov eax,[ebp+eax*4] / sete cl before res_effect::apply 0x11C1B0 at 0x1A4E98: EAX the cloud effect (the stage's +40h + 4*(EDI + 2*EDX), EDX loaded at 0x1A4E7E, EDI at 0x1A4E6C), ECX the technique (1 for blend mode 0); EBP the stage, EBX the scene view's environment (+118h)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_v011w_render_on_clouds_apply(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `v011w_render_on_clouds_apply` calls this, from the game's jump at 0x1a4c0b,
+    // SAFETY: only the entry `v011w_render_on_clouds_apply` calls this, from the game's jump at 0x1a4e85,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::v011w_render::on_clouds_apply(&mut ctx) {
@@ -6247,13 +6247,28 @@ pub extern "C" fn hook_v011w_render_on_clouds_apply(frame: &mut Frame) -> u32 {
 
 // ---- v011w_render (patch 162) ----
 
-/// The entry `v011w_render_on_clouds_constants` (0x1a4d90, stage_atmosphere::execute after the clouds' parameters 0..2 are set (0x1A4CA7, 0x1A4CE2, the VS's 0x1A4D8B), their program bound since 0x1A4C16: lea eax,[ebx+108h] before parameters 3 and 4 and the draw 0x1D18C0 at 0x1A4DE1; EBP the stage) calls this with the saved machine.
+/// The entry `v011w_render_on_clouds_constants` (0x1a503d, stage_atmosphere::execute after the sky clouds' parameters 0..2 are set (0x1A4F54, 0x1A4F8F, the VS's 0x1A5038), their program bound since 0x1A4E98: mov eax,[ebp+8Ch] before parameters 3 and 4 and the draw 0x1D18C0 at 0x1A508E; EBP the stage) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_v011w_render_on_clouds_constants(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `v011w_render_on_clouds_constants` calls this, from the game's jump at 0x1a4d90,
+    // SAFETY: only the entry `v011w_render_on_clouds_constants` calls this, from the game's jump at 0x1a503d,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::v011w_render::on_clouds_constants(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_tables_constants` (0x1a44ac, stage_atmosphere::execute, the scattering tables' pass after its two constants (to_sun_direction_parameter 0x1A4465, atmosphere_rayleigh_mie_parameters 0x1A44A7), its program bound since 0x1A4422: push 0 / push ecx / mov eax,esp, the fill's arguments; EBP the stage, EBX the scene view's environment (+118h)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_tables_constants(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_tables_constants` calls this, from the game's jump at 0x1a44ac,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_tables_constants(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},

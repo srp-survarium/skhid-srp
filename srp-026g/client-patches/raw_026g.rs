@@ -27017,6 +27017,24 @@ impl StageAtmosphere {
         unsafe { self.0.byte_add(0x6c).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
     }
 
+    /// +0x70 (ptr<vostok::render::shader_constant_host>): the host of atmosphere_rayleigh_mie_parameters: the scattering tables' pass sets it to (sun_intensity, mieSun, rayleighPi, miePi) of the environment at 0x1A44A7
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scattering_constant(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x70).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x70 (ptr<vostok::render::shader_constant_host>): the host of atmosphere_rayleigh_mie_parameters: the scattering tables' pass sets it to (sun_intensity, mieSun, rayleighPi, miePi) of the environment at 0x1A44A7
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_scattering_constant(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x70).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
     /// +0xa4 (ptr<vostok::render::shader_constant_host>): the host of inscatter_parameters (the ctor 0x1A3C94..0x1A3CC7); 0.26g never sets it (0.11e sets its stage's to the weather's inscatter distance before its two fog passes, 0.11e 0x60E243)
     ///
     /// # Safety
@@ -27051,6 +27069,78 @@ impl StageAtmosphere {
     #[inline(always)]
     pub unsafe fn set_eye_ray_constant(self, value: Option<ShaderConstantHost>) {
         unsafe { self.0.byte_add(0xa8).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x40 (ptr<vostok::render::res_effect>): its effect_atmosphere_clouds of index 0 (execute applies +40h + 4*(EDI + 2*EDX) at 0x1A4E91)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cloud_effect_0(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0x40).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0x40 (ptr<vostok::render::res_effect>): its effect_atmosphere_clouds of index 0 (execute applies +40h + 4*(EDI + 2*EDX) at 0x1A4E91)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cloud_effect_0(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0x40).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+
+    /// +0x44 (ptr<vostok::render::res_effect>): its effect_atmosphere_clouds of index 1 (execute applies +40h + 4*(EDI + 2*EDX) at 0x1A4E91)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cloud_effect_1(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0x44).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0x44 (ptr<vostok::render::res_effect>): its effect_atmosphere_clouds of index 1 (execute applies +40h + 4*(EDI + 2*EDX) at 0x1A4E91)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cloud_effect_1(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0x44).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+
+    /// +0x48 (ptr<vostok::render::res_effect>): its effect_atmosphere_clouds of index 2 (execute applies +40h + 4*(EDI + 2*EDX) at 0x1A4E91)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cloud_effect_2(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0x48).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0x48 (ptr<vostok::render::res_effect>): its effect_atmosphere_clouds of index 2 (execute applies +40h + 4*(EDI + 2*EDX) at 0x1A4E91)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cloud_effect_2(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0x48).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+
+    /// +0x4c (ptr<vostok::render::res_effect>): its effect_atmosphere_clouds of index 3 (execute applies +40h + 4*(EDI + 2*EDX) at 0x1A4E91)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cloud_effect_3(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0x4c).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0x4c (ptr<vostok::render::res_effect>): its effect_atmosphere_clouds of index 3 (execute applies +40h + 4*(EDI + 2*EDX) at 0x1A4E91)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cloud_effect_3(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0x4c).cast::<Option<ResEffect>>().write_volatile(value) }
     }
 
     /// +0x80 (ptr<vostok::render::shader_constant_host>): the host of sky_clouds_parameters0 (the ctor 0x1A3D30..0x1A3D63); execute sets it (the clouds' colour, w 0) at 0x1A4CA7
@@ -27161,13 +27251,49 @@ impl EnvironmentProperties {
         unsafe { self.0.byte_add(0x48).cast::<f32>().as_ptr() }
     }
 
-    /// +0xe8 (u32): the sky clouds' blend mode (the post material's sky_clouds_blend_mode): stage_atmosphere::execute applies technique 1 of its cloud effect when 0 (modulate), 0 when not (alpha blend) (cmp [ebx+0E8h],ecx / sete cl, 0x1A4C0D)
+    /// +0xe8 (u32): sky_clouds_blend_mode (the project reader 0x34E8CC): stage_atmosphere::execute applies technique 1 of its cloud effect when 0 (modulate), 0 when not (alpha blend) (cmp [ebx+0E8h],ecx / sete cl, 0x1A4E87)
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
     #[inline(always)]
     pub unsafe fn clouds_blend_mode(self) -> *mut u32 {
         unsafe { self.0.byte_add(0xe8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xb8 (f32): atmosphere_rayleighSun_multiplier (the project reader 0x34E693); 0.26g's scattering-tables pass does not upload it (0x1A446A..0x1A44A7 send sun_intensity in its place); 0.10b/0.11e's atmosphere_parameters.x
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rayleigh_sun(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xb8).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xbc (f32): atmosphere_mieSun_multiplier (0x34E6C5); the tables pass's atmosphere_rayleigh_mie_parameters.y
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mie_sun(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xbc).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xc0 (f32): atmosphere_rayleighPi_multiplier (0x34E6F7); .z
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rayleigh_pi(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xc0).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xc4 (f32): atmosphere_miePi_multiplier (0x34E729); .w
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn mie_pi(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xc4).cast::<f32>().as_ptr() }
     }
 }
 
@@ -33470,7 +33596,7 @@ pub mod site {
         }
     }
 
-    /// atmosphere.clouds_apply (0x1a4c0b): stage_atmosphere::execute, the sky clouds' pass: xor ecx,ecx / cmp [ebx+0E8h],ecx / sete cl (the technique: 1 for blend mode 0) before res_effect::apply 0x11C1B0 at 0x1A4C16 (EAX the cloud effect, [ebp+ecx*8+40h] loaded at 0x1A4C07); EBP the stage, EBX the scene view's environment (+118h)
+    /// atmosphere.clouds_apply (0x1a4e85): stage_atmosphere::execute, the sky clouds' pass (use_sky_clouds, the environment's +C9h, 0x1A4DE6): xor ecx,ecx / cmp [ebx+0E8h],ecx / lea eax,[edi+edx*2+10h] / mov eax,[ebp+eax*4] / sete cl before res_effect::apply 0x11C1B0 at 0x1A4E98: EAX the cloud effect (the stage's +40h + 4*(EDI + 2*EDX), EDX loaded at 0x1A4E7E, EDI at 0x1A4E6C), ECX the technique (1 for blend mode 0); EBP the stage, EBX the scene view's environment (+118h)
     pub mod atmosphere_clouds_apply {
         #[allow(unused_imports)]
         use super::*;
@@ -33494,7 +33620,7 @@ pub mod site {
         }
     }
 
-    /// atmosphere.clouds_constants (0x1a4d90): stage_atmosphere::execute after the clouds' parameters 0..2 are set (0x1A4CA7, 0x1A4CE2, the VS's 0x1A4D8B), their program bound since 0x1A4C16: lea eax,[ebx+108h] before parameters 3 and 4 and the draw 0x1D18C0 at 0x1A4DE1; EBP the stage
+    /// atmosphere.clouds_constants (0x1a503d): stage_atmosphere::execute after the sky clouds' parameters 0..2 are set (0x1A4F54, 0x1A4F8F, the VS's 0x1A5038), their program bound since 0x1A4E98: mov eax,[ebp+8Ch] before parameters 3 and 4 and the draw 0x1D18C0 at 0x1A508E; EBP the stage
     pub mod atmosphere_clouds_constants {
         #[allow(unused_imports)]
         use super::*;
@@ -33506,6 +33632,30 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn stage(machine: &impl Machine) -> Option<StageAtmosphere> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageAtmosphere)
+        }
+    }
+
+    /// atmosphere.tables_constants (0x1a44ac): stage_atmosphere::execute, the scattering tables' pass after its two constants (to_sun_direction_parameter 0x1A4465, atmosphere_rayleigh_mie_parameters 0x1A44A7), its program bound since 0x1A4422: push 0 / push ecx / mov eax,esp, the fill's arguments; EBP the stage, EBX the scene view's environment (+118h)
+    pub mod atmosphere_tables_constants {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_atmosphere (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAtmosphere> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageAtmosphere)
+        }
+
+        /// EBX: a vostok::render::environment_properties (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn environment(machine: &impl Machine) -> Option<EnvironmentProperties> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EnvironmentProperties)
         }
     }
 }

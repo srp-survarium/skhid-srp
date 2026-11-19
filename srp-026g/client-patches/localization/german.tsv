@@ -2941,9 +2941,14 @@ st_srp_weapon_with_kit	Mit Loadout
 st_srp_weapon_with_kit_skills	Mit Loadout und Fähigkeiten
 st_srp_weather_before_rain	vor dem Regen
 st_srp_weather_day	Tag
+st_srp_weather_day_v011	Tag (0.11)
+st_srp_weather_day_v0112	Tag (0.11.2)
 st_srp_weather_evening	Abend
+st_srp_weather_evening_v011	Abend (0.11)
+st_srp_weather_evening_v0112	Abend (0.11.2)
 st_srp_weather_night	Nacht
 st_srp_weather_rain	Regen
+st_srp_weather_rain_v011	Regen (0.11)
 st_srp_weight_base	Grundlimit
 st_srp_weight_no_sprint_heavyweight	Kein Sprint: Fertigkeit „Schwergewichtler“.
 st_srp_weight_no_sprint_limit	Sprint nicht möglich: Traglast erreicht.

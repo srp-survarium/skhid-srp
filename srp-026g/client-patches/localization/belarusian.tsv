@@ -2941,9 +2941,14 @@ st_srp_weapon_with_kit	З камплектам
 st_srp_weapon_with_kit_skills	З камплектам і навыкамі
 st_srp_weather_before_rain	перад дажджом
 st_srp_weather_day	дзень
+st_srp_weather_day_v011	дзень (0.11)
+st_srp_weather_day_v0112	дзень (0.11.2)
 st_srp_weather_evening	вечар
+st_srp_weather_evening_v011	вечар (0.11)
+st_srp_weather_evening_v0112	вечар (0.11.2)
 st_srp_weather_night	ноч
 st_srp_weather_rain	дождж
+st_srp_weather_rain_v011	дождж (0.11)
 st_srp_weight_base	Базавы ліміт
 st_srp_weight_no_sprint_heavyweight	Спрынт недаступны: навык «Цяжкавагавік».
 st_srp_weight_no_sprint_limit	Спрынт недаступны: перагруз.

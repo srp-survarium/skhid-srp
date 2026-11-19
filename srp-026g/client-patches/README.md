@@ -6290,7 +6290,8 @@ another map's project takes a 0.11 weather by giving it one:
   another sky equation). effect_atmospheric_scattering compiles twins of its techniques 0 and 1 after its six
   (6 and 7: the same passes with the pixel shaders `make_mie_rayleigh_texture_v011w` and `atmosphere_v011w`,
   the pack's builds of 0.11e's sources), on every map, as patch 130's effects do; on the marked scene the sky
-  stage applies 6 for the tables and 7 for the sky. The tables are made once and kept while nothing changes;
+  stage applies 6 for the tables and 7 for the sky, and gives the tables 0.11e's four scattering multipliers
+  (0.26g sends the sun's intensity in place of the first, rayleighSun: its Rayleigh table came out 0.42 of 0.11e's). The tables are made once and kept while nothing changes;
   a frame whose look (0.11 or native) is not theirs remakes them.
 - The post: 0.26g's blend has another exposure clamp, an exponential tone curve, an sRGB-coded grading and
   another vignette, and never sets the filmic constants it still registers. Each of its three blend effects
@@ -6313,10 +6314,10 @@ another map's project takes a 0.11 weather by giving it one:
 
 **The patch** (the Rust patch `v011w_render`, `rust/patches/src/v011w_render.rs`, the stage's side in
 `vostok/render_stage.rs`, the twins' rounds in `vostok/effect_compile.rs`, shared with patch 130;
-forty lohooks): `atmosphere.geometry_fog` (technique 3 in 5's place), `atmosphere.geometry_fog_applied` (its
+forty-one lohooks): `atmosphere.geometry_fog` (technique 3 in 5's place), `atmosphere.geometry_fog_applied` (its
 constant, set once its program is bound), `atmosphere.god_rays` (the additive pass; after patch 130's),
 `scattering.compiled`, `scattering.tables_pass`, `scattering.sky_pass` (the twins), `atmosphere.tables_due`,
-`atmosphere.tables_apply`, `atmosphere.sky_apply` (the tables and the sky), `post_blend_00/10/11.compiled`
+`atmosphere.tables_apply`, `atmosphere.tables_constants`, `atmosphere.sky_apply` (the tables and the sky), `post_blend_00/10/11.compiled`
 and `.pass` (the post's twins), `postprocess.blend_apply`, `postprocess.blend_constants` (the post),
 `skylight.compiled`, `skylight.pass_0/1`, `ambient.skylight_gate`, `ambient.skylight_apply`,
 `ambient.skylight_constants` (the skylight), `clouds_<ab>.compiled`, `clouds_<ab>.pass_0/1` (ab 00, 10, 01, 11),

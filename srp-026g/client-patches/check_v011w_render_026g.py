@@ -33,7 +33,8 @@ environment_sun_direction):
 import struct
 import sys
 
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_ESI
+from unicorn.x86_const import (UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI,
+                               UC_X86_REG_EDX, UC_X86_REG_ESI)
 
 import patch_026g as base
 import check_rain_v021d_026g as rig
@@ -468,7 +469,6 @@ def check_skylight(stock, patched):
 # -- the clouds --------------------------------------------------------------------------------------------
 
 CLOUD_COMPILES = {"<0,0>": 0x1A5760, "<1,0>": 0x1A6170, "<0,1>": 0x1A65F0, "<1,1>": 0x1A6A60}
-CLOUD_EFFECT = HEAP + 0x3F0000
 ENVIRONMENT = HEAP + 0x3F1000
 CLOUD_HOSTS = {"sky_clouds_parameters0": HEAP + 0x3F2000, "sky_clouds_parameters1": HEAP + 0x3F2100}
 CLOUDS = {"clouds_color": [2.2955, 1.3838, 0.7473], "clouds_u_tile": 1, "clouds_fog_power": 10,
@@ -508,13 +508,18 @@ def cloud_stage(m, drawn):
     m.w(BACKEND_SLOT, BACKEND)
 
 
-def cloud_technique(m, drawn, mode):
-    """The technique the clouds' pass applies for the environment's blend mode."""
+CLOUD_EFFECTS = [HEAP + 0x3F0000 + 0x100 * i for i in range(4)]
+
+
+def cloud_technique(m, drawn, mode, index=1):
+    """The effect and technique the clouds' pass applies for the environment's blend mode."""
     cloud_stage(m, drawn)
+    for i, effect in enumerate(CLOUD_EFFECTS):
+        m.w(ATMOSPHERE + 0x40 + 4 * i, effect)
     m.w(ENVIRONMENT + 0xE8, mode)
-    m.run(0x1A4C0B, {0x1A4C16}, regs={UC_X86_REG_EBP: ATMOSPHERE, UC_X86_REG_EBX: ENVIRONMENT,
-                                      UC_X86_REG_EAX: CLOUD_EFFECT})
-    assert m.emu.reg_read(UC_X86_REG_EAX) == CLOUD_EFFECT, "the effect kept"
+    m.run(0x1A4E85, {0x1A4E98}, regs={UC_X86_REG_EBP: ATMOSPHERE, UC_X86_REG_EBX: ENVIRONMENT,
+                                      UC_X86_REG_EDI: index % 2, UC_X86_REG_EDX: index // 2})
+    assert m.emu.reg_read(UC_X86_REG_EAX) == CLOUD_EFFECTS[index], "the effect of the index"
     return m.emu.reg_read(UC_X86_REG_ECX)
 
 
@@ -527,8 +532,9 @@ def cloud_constants(m, drawn):
         return 4, (name, m.emu.reg_read(UC_X86_REG_EDI) == BACKEND, tuple(round(x, 5) for x in data))
     m.stubs = {SET_PS_CONSTANT: constant}
     m.events = []
-    m.run(0x1A4D90, {0x1A4D96}, regs={UC_X86_REG_EBP: ATMOSPHERE, UC_X86_REG_EBX: ENVIRONMENT})
-    assert m.emu.reg_read(UC_X86_REG_EAX) == ENVIRONMENT + 0x108, "the replayed lea eax,[ebx+108h]"
+    m.w(ATMOSPHERE + 0x8C, 0x8C8C8C8C)
+    m.run(0x1A503D, {0x1A5043}, regs={UC_X86_REG_EBP: ATMOSPHERE, UC_X86_REG_EBX: ENVIRONMENT})
+    assert m.emu.reg_read(UC_X86_REG_EAX) == 0x8C8C8C8C, "the replayed mov eax,[ebp+8Ch]"
     events, m.events, m.stubs = m.events, None, {}
     return events
 
@@ -543,8 +549,8 @@ def check_clouds(stock, patched):
     set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": {"inscatter_distance": 200, **CLOUDS}})
     insert(patched, PROJECT)
     assert native(patched, LOBBY_SCENE), "the lobby's clouds"
-    assert cloud_technique(patched, RENDER_SCENE, 1) == 3, "0.11e's alpha-blended clouds"
-    assert cloud_technique(patched, RENDER_SCENE, 0) == 4, "0.11e's modulating clouds"
+    assert all(cloud_technique(patched, RENDER_SCENE, 1, i) == 3 for i in range(4)), "0.11e's alpha-blended clouds"
+    assert all(cloud_technique(patched, RENDER_SCENE, 0, i) == 4 for i in range(4)), "0.11e's modulating clouds"
     r = lambda v: tuple(round(x, 5) for x in v)
     assert cloud_constants(patched, RENDER_SCENE) == [
         ("sky_clouds_parameters0", True, r((2.2955, 1.3838, 0.7473, 1.0))),
@@ -558,6 +564,43 @@ def check_clouds(stock, patched):
     print("  ok the clouds: technique 0 (blend mode 1) or 1 (mode 0) and no constant of ours before a marked project,"
           " on the lobby's scene, after the removal and for a profile without the clouds; on the marked scene 3 or 4"
           " and sky_clouds_parameters0/1 the profile's, as 0.11e sets them")
+
+
+SCATTERING_HOST = HEAP + 0x3F3000
+MULTIPLIERS = (1.8, 20.0, 1.5, 2.0)
+
+
+def tables_constants(m, drawn):
+    """The constants of ours set after the tables pass's own."""
+    sky_stage(m, drawn)
+    m.w(ATMOSPHERE + 0x70, SCATTERING_HOST)
+    m.w(BACKEND_SLOT, BACKEND)
+    m.emu.mem_write(ENVIRONMENT + 0xB8, struct.pack("<4f", *MULTIPLIERS))
+    def constant(esp):
+        host = m.emu.reg_read(UC_X86_REG_EAX)
+        data = struct.unpack("<4f", bytes(m.emu.mem_read(m.r(esp + 4), 16)))
+        return 4, (host == SCATTERING_HOST, m.emu.reg_read(UC_X86_REG_EDI) == BACKEND, tuple(round(x, 5) for x in data))
+    m.stubs = {SET_PS_CONSTANT: constant}
+    m.events = []
+    m.run(0x1A44AC, {0x1A44B1}, regs={UC_X86_REG_EBP: ATMOSPHERE, UC_X86_REG_EBX: ENVIRONMENT})
+    events, m.events, m.stubs = m.events, None, {}
+    return events
+
+
+def check_tables_constants(stock, patched):
+    for m, label in ((stock, "the original"), (patched, "before any project")):
+        for drawn in (RENDER_SCENE, LOBBY_SCENE):
+            assert tables_constants(m, drawn) == [], label
+    patched.w(GAME_SCENE + 4, RENDER_SCENE)
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": {"inscatter_distance": 200}})
+    insert(patched, PROJECT)
+    assert tables_constants(patched, LOBBY_SCENE) == [], "the lobby's tables"
+    assert tables_constants(patched, RENDER_SCENE) == [(True, True, MULTIPLIERS)], "0.11e's four multipliers"
+    remove(patched, PROJECT)
+    assert tables_constants(patched, RENDER_SCENE) == []
+    print("  ok the scattering tables' constant: 0.26g's alone before a marked project, on the lobby's scene and after"
+          " the removal; on the marked scene atmosphere_rayleigh_mie_parameters = the environment's rayleighSun,"
+          " mieSun, rayleighPi and miePi (0.26g sends the sun's intensity first)")
 
 
 def main():
@@ -581,6 +624,8 @@ def main():
     stock, patched = Machine(original), Machine(bytes(built))
     check_clouds_compile(stock, patched)
     check_clouds(stock, patched)
+    stock, patched = Machine(original), Machine(bytes(built))
+    check_tables_constants(stock, patched)
 
 
 if __name__ == "__main__":

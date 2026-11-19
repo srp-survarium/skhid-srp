@@ -1,0 +1,93 @@
+{
+ "_about": "The game-modes options of Vostok v0.11's looks as their own maps (v011w-variants-1.json, which makes the rest last): each a copy of its original's, before modes.tsv (which gives every config its rules and needs each new one to exist: their rows there), its project and name its own; Evening (0.11.2) 286-287 weather 3, the originals 272-273 become Evening (0.11) weather 6, Day (0.11) 288-289 weather 8.",
+ "copy": [
+  {
+   "files": "gameplay/game_modes/v011w_level_03_evn_2.options",
+   "from": "gameplay/game_modes/v011w_level_03_evn_2",
+   "to": "gameplay/game_modes/v011w_level_03_evn_0112_2"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_03_evn_4.options",
+   "from": "gameplay/game_modes/v011w_level_03_evn_4",
+   "to": "gameplay/game_modes/v011w_level_03_evn_0112_4"
+  },
+  {
+   "files": "gameplay/game_modes/v011e_level_03_day_2.options",
+   "from": "gameplay/game_modes/v011e_level_03_day_2",
+   "to": "gameplay/game_modes/v011e_level_03_day_011_2"
+  },
+  {
+   "files": "gameplay/game_modes/v011e_level_03_day_4.options",
+   "from": "gameplay/game_modes/v011e_level_03_day_4",
+   "to": "gameplay/game_modes/v011e_level_03_day_011_4"
+  }
+ ],
+ "replace_string": [
+  {
+   "files": "gameplay/game_modes/v011w_level_03_evn_0112_2.options",
+   "from": "v011w_level_03_evn/evening_2",
+   "to": "v011w_level_03_evn/evening_0112_2"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_03_evn_0112_2.options",
+   "from": "v011w_level_03_2",
+   "to": "v011w_level_03_0112_2"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_03_evn_0112_4.options",
+   "from": "v011w_level_03_evn/evening_4",
+   "to": "v011w_level_03_evn/evening_0112_4"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_03_evn_0112_4.options",
+   "from": "v011w_level_03_4",
+   "to": "v011w_level_03_0112_4"
+  },
+  {
+   "files": "gameplay/game_modes/v011e_level_03_day_011_2.options",
+   "from": "v011e_level_03/day_2",
+   "to": "v011e_level_03/day_011_2"
+  },
+  {
+   "files": "gameplay/game_modes/v011e_level_03_day_011_2.options",
+   "from": "v011e_level_03_2",
+   "to": "v011e_level_03_011_2"
+  },
+  {
+   "files": "gameplay/game_modes/v011e_level_03_day_011_4.options",
+   "from": "v011e_level_03/day_4",
+   "to": "v011e_level_03/day_011_4"
+  },
+  {
+   "files": "gameplay/game_modes/v011e_level_03_day_011_4.options",
+   "from": "v011e_level_03_4",
+   "to": "v011e_level_03_011_4"
+  }
+ ],
+ "set": [
+  {
+   "file": "gameplay/game_modes/v011w_level_03_evn_2.options",
+   "path": "mode/match_making_params/map_weather_id",
+   "from": 3,
+   "to": 6
+  },
+  {
+   "file": "gameplay/game_modes/v011w_level_03_evn_4.options",
+   "path": "mode/match_making_params/map_weather_id",
+   "from": 3,
+   "to": 6
+  },
+  {
+   "file": "gameplay/game_modes/v011e_level_03_day_011_2.options",
+   "path": "mode/match_making_params/map_weather_id",
+   "from": 1,
+   "to": 8
+  },
+  {
+   "file": "gameplay/game_modes/v011e_level_03_day_011_4.options",
+   "path": "mode/match_making_params/map_weather_id",
+   "from": 1,
+   "to": 8
+  }
+ ]
+}

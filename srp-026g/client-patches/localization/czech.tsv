@@ -2941,9 +2941,14 @@ st_srp_weapon_with_kit	S výbavou
 st_srp_weapon_with_kit_skills	S výbavou a dovednostmi
 st_srp_weather_before_rain	před deštěm
 st_srp_weather_day	den
+st_srp_weather_day_v011	den (0.11)
+st_srp_weather_day_v0112	den (0.11.2)
 st_srp_weather_evening	večer
+st_srp_weather_evening_v011	večer (0.11)
+st_srp_weather_evening_v0112	večer (0.11.2)
 st_srp_weather_night	noc
 st_srp_weather_rain	déšť
+st_srp_weather_rain_v011	déšť (0.11)
 st_srp_weight_base	Základní limit
 st_srp_weight_no_sprint_heavyweight	Nelze sprintovat: dovednost Těžká váha.
 st_srp_weight_no_sprint_limit	Nelze sprintovat: dosažena nosnost.

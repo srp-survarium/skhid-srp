@@ -10921,7 +10921,7 @@ v011w_render_on_clouds_11_pass_1_replay:
     db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
     jmp 0x1a6c6e
 
-; 0x1a4c0b stage_atmosphere::execute, the sky clouds' pass: xor ecx,ecx / cmp [ebx+0E8h],ecx / sete cl (the technique: 1 for blend mode 0) before res_effect::apply 0x11C1B0 at 0x1A4C16 (EAX the cloud effect, [ebp+ecx*8+40h] loaded at 0x1A4C07); EBP the stage, EBX the scene view's environment (+118h): lohook -> v011w_render_on_clouds_apply
+; 0x1a4e85 stage_atmosphere::execute, the sky clouds' pass (use_sky_clouds, the environment's +C9h, 0x1A4DE6): xor ecx,ecx / cmp [ebx+0E8h],ecx / lea eax,[edi+edx*2+10h] / mov eax,[ebp+eax*4] / sete cl before res_effect::apply 0x11C1B0 at 0x1A4E98: EAX the cloud effect (the stage's +40h + 4*(EDI + 2*EDX), EDX loaded at 0x1A4E7E, EDI at 0x1A4E6C), ECX the technique (1 for blend mode 0); EBP the stage, EBX the scene view's environment (+118h): lohook -> v011w_render_on_clouds_apply
 global v011w_render_on_clouds_apply
 extern hook_v011w_render_on_clouds_apply
 v011w_render_on_clouds_apply:
@@ -10945,10 +10945,10 @@ v011w_render_on_clouds_apply:
     mov edx, v011w_render_on_clouds_apply_replay
     cmp eax, 0
     je v011w_render_on_clouds_apply_go
-    mov edx, 0x1a4c16
+    mov edx, 0x1a4e98
     cmp eax, 1
     je v011w_render_on_clouds_apply_go
-    mov edx, 0x1a4c16
+    mov edx, 0x1a4e98
     cmp eax, 2
     je v011w_render_on_clouds_apply_go
     ud2
@@ -10960,10 +10960,10 @@ v011w_render_on_clouds_apply_go:
     popfd
     ret
 v011w_render_on_clouds_apply_replay:
-    db 0x33, 0xc9, 0x39, 0x8b, 0xe8, 0x00, 0x00, 0x00, 0x0f, 0x94, 0xc1
-    jmp 0x1a4c16
+    db 0x33, 0xc9, 0x39, 0x8b, 0xe8, 0x00, 0x00, 0x00, 0x8d, 0x44, 0x57, 0x10, 0x8b, 0x44, 0x85, 0x00, 0x0f, 0x94, 0xc1
+    jmp 0x1a4e98
 
-; 0x1a4d90 stage_atmosphere::execute after the clouds' parameters 0..2 are set (0x1A4CA7, 0x1A4CE2, the VS's 0x1A4D8B), their program bound since 0x1A4C16: lea eax,[ebx+108h] before parameters 3 and 4 and the draw 0x1D18C0 at 0x1A4DE1; EBP the stage: lohook -> v011w_render_on_clouds_constants
+; 0x1a503d stage_atmosphere::execute after the sky clouds' parameters 0..2 are set (0x1A4F54, 0x1A4F8F, the VS's 0x1A5038), their program bound since 0x1A4E98: mov eax,[ebp+8Ch] before parameters 3 and 4 and the draw 0x1D18C0 at 0x1A508E; EBP the stage: lohook -> v011w_render_on_clouds_constants
 global v011w_render_on_clouds_constants
 extern hook_v011w_render_on_clouds_constants
 v011w_render_on_clouds_constants:
@@ -10987,7 +10987,7 @@ v011w_render_on_clouds_constants:
     mov edx, v011w_render_on_clouds_constants_replay
     cmp eax, 0
     je v011w_render_on_clouds_constants_go
-    mov edx, 0x1a4d96
+    mov edx, 0x1a5043
     cmp eax, 1
     je v011w_render_on_clouds_constants_go
     ud2
@@ -10999,8 +10999,47 @@ v011w_render_on_clouds_constants_go:
     popfd
     ret
 v011w_render_on_clouds_constants_replay:
-    db 0x8d, 0x83, 0x08, 0x01, 0x00, 0x00
-    jmp 0x1a4d96
+    db 0x8b, 0x85, 0x8c, 0x00, 0x00, 0x00
+    jmp 0x1a5043
+
+; 0x1a44ac stage_atmosphere::execute, the scattering tables' pass after its two constants (to_sun_direction_parameter 0x1A4465, atmosphere_rayleigh_mie_parameters 0x1A44A7), its program bound since 0x1A4422: push 0 / push ecx / mov eax,esp, the fill's arguments; EBP the stage, EBX the scene view's environment (+118h): lohook -> v011w_render_on_tables_constants
+global v011w_render_on_tables_constants
+extern hook_v011w_render_on_tables_constants
+v011w_render_on_tables_constants:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_tables_constants
+    mov edx, v011w_render_on_tables_constants_replay
+    cmp eax, 0
+    je v011w_render_on_tables_constants_go
+    mov edx, 0x1a44b1
+    cmp eax, 1
+    je v011w_render_on_tables_constants_go
+    ud2
+v011w_render_on_tables_constants_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_tables_constants_replay:
+    db 0x6a, 0x00, 0x51, 0x8b, 0xc4
+    jmp 0x1a44b1
 
 ; 0x1ce5be effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v021d_render_on_wet_surface_compiled
 global v021d_render_on_wet_surface_compiled

@@ -128,7 +128,7 @@ package survarium.rooms
                     tag.graphics.endFill();
                     cell.addChildAt(tag, cell.getChildIndex(mode));
                     look.text(cell, win.levelName(e.level), 12, ch - 54, cw - 12 - votes.textWidth - 22, 21, 0xFFFFFF);
-                    look.text(cell, win.weatherName(e.weather).toUpperCase(), 12, ch - 30, cw - 80, 13, 0xCDD8E0);
+                    look.text(cell, win.weatherName(e.weather, e.level).toUpperCase(), 12, ch - 30, cw - 80, 13, 0xCDD8E0);
                 }
                 cell.buttonMode = true;
                 cell.mouseChildren = false;
@@ -420,7 +420,7 @@ package survarium.rooms
                 _banner.text = RoomsText.clock(win._room.secs - passed);
                 var e:Object = win.entry(win._room.next);
                 _bannerHint.text = unfit != "" ? unfit : (e != null ? win.say("st_srp_rooms_next_map") + ": " + win.levelName(e.level) + " · "
-                    + win.weatherName(e.weather) + " · " + win.modeName(e.mode) : "");
+                    + win.weatherName(e.weather, e.level) + " · " + win.modeName(e.mode) : "");
             }
             else if (win._room.phase == RoomPhase.IN_MATCH)
             {

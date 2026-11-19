@@ -559,9 +559,9 @@ package survarium.rooms
             return RoomsText.levelName(level);
         }
 
-        internal function weatherName(weather:int):String
+        internal function weatherName(weather:int, level:int):String
         {
-            return RoomsText.weatherName(weather);
+            return RoomsText.weatherName(weather, level);
         }
 
         internal function modeName(mode:int):String

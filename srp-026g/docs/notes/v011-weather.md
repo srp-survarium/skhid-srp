@@ -104,6 +104,24 @@ port for it. This work is Vostok's two weathers only.
   display RGB over ten views): before the fog work evening 0.169, rain 0.136; with the fog (c4) evening
   0.167, rain 0.095; with the tables and the sky too (c6) evening 0.159, rain 0.090. The port is still
   about half as bright as 0.11e in every view: the post (exposure) is the largest error left.
+- **The HDR scale** (stage buffer captures, render-compare's camera hook with SRP_CAPTURE_BUFFERS at the tower
+  view, 0.11e and the port): the post's input frame was 0.45 of 0.11e's (mean luma 0.078 / 0.174) and the
+  adaptation followed it, so the post was not at fault. The sky draw matched 0.11e's in program and constants
+  but sampled a Rayleigh table 0.42 of 0.11e's: 0.26g sends the sun's intensity (0.75) where 0.11e's tables
+  program reads the rayleighSun multiplier (1.8). With 0.11e's four multipliers (`atmosphere.tables_constants`)
+  the tables are equal and the frame's mean luma 0.141, then 0.179 with the clouds (0.11e 0.174): evening 0.126,
+  rain 0.087 (c15). The clouds are 0.26g's use_sky_clouds block (env +C9h; 0x1A4DE6), drawn with 0.11e's programs
+  and parameters: rain 0.073 (c16).
+- **Looks as maps** (the owner, 2026-11-19): a weather can have two looks, each its own map. "(0.11.2)" is the
+  look 0.26g's rendering gives the map, "(0.11)" its own build's drawn our way (the profile names what of 0.11e's
+  is drawn; without `inscatter_distance` the atmosphere is 0.26g's). Vostok v0.11: Day (0.11.2) the live day
+  (weather 1), Day (0.11) maps 288-289 (weather 8), Evening (0.11.2) maps 286-287 (weather 3: 0.26g's fog, tables,
+  sky and clouds, the probes at 0.11e's scale), Evening (0.11) 272-273 (weather 6), Rain (0.11) 274-275
+  (weather 2). The server keys a map by (level, weather, mode), so a second look of a weather takes a weather id
+  of its own (maps.rs `weather::EVENING_ORIGINAL` 6, `DAY_ORIGINAL` 8; 7 kept); the lobby movie names a level's
+  looks (`RoomsText.LOOKS`, "13_6": Evening (0.11)), the room orders day, its second look, evening, its second,
+  rain. The game never reads `map_weather_id`. The maps are made by `v011w-variants-1.json`, last in the
+  manifest: each copies its original's final project and options.
 - The 0.11e reference runner is rebuilt (`/mnt/hdd/Projects/v011-weather/ref/ref011e.py`: the legacy
   0.10b match server with a rain profile and a port setting, the 0.11e exe with the camera DLL, an
   Xorg dummy display). The legacy server must run with `SRP_STOCK_PROFILE_ONLY=1` and

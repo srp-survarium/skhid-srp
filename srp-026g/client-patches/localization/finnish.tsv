@@ -2941,9 +2941,14 @@ st_srp_weapon_with_kit	Varustesetillä
 st_srp_weapon_with_kit_skills	Varustesetillä ja taidoilla
 st_srp_weather_before_rain	ennen sadetta
 st_srp_weather_day	päivä
+st_srp_weather_day_v011	päivä (0.11)
+st_srp_weather_day_v0112	päivä (0.11.2)
 st_srp_weather_evening	ilta
+st_srp_weather_evening_v011	ilta (0.11)
+st_srp_weather_evening_v0112	ilta (0.11.2)
 st_srp_weather_night	yö
 st_srp_weather_rain	sade
+st_srp_weather_rain_v011	sade (0.11)
 st_srp_weight_base	Perusraja
 st_srp_weight_no_sprint_heavyweight	Et voi sprintata: Raskassarjalainen-taito.
 st_srp_weight_no_sprint_limit	Et voi sprintata: kantokyky täynnä.

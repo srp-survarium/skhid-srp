@@ -74,6 +74,8 @@ pub enum StageSite {
     SkylightApply,
     /// `ambient.skylight_constants`.
     SkylightConstants,
+    /// `atmosphere.tables_constants`.
+    TablesConstants,
     /// `atmosphere.clouds_apply`.
     CloudsApply,
     /// `atmosphere.clouds_constants`.
@@ -102,6 +104,7 @@ fn context(ctx: &Context<'_>, site: StageSite) -> Option<raw::RendererContext> {
             StageSite::SkylightGate => raw::site::ambient_skylight_gate::stage(ctx)?.context(),
             StageSite::SkylightApply => raw::site::ambient_skylight_apply::stage(ctx)?.context(),
             StageSite::SkylightConstants => raw::site::ambient_skylight_constants::stage(ctx)?.context(),
+            StageSite::TablesConstants => raw::site::atmosphere_tables_constants::stage(ctx)?.context(),
             StageSite::CloudsApply => raw::site::atmosphere_clouds_apply::stage(ctx)?.context(),
             StageSite::CloudsConstants => raw::site::atmosphere_clouds_constants::stage(ctx)?.context(),
         }
@@ -439,15 +442,28 @@ impl RenderSceneId {
 /// `atmosphere_clouds_modulate_v011w`). Its third technique lights clouds.
 const CLOUDS_TWINS: u32 = 3;
 
-/// `atmosphere.clouds_apply`: the technique 0.26g picks by the environment's
-/// blend mode (1 for 0, modulate; 0 else, alpha blend), as its twin; EAX
-/// keeps the effect (the caller takes the `apply` exit).
+/// `atmosphere.clouds_apply`: the cloud effect 0.26g picks (the stage's
+/// +40h + 4*(EDI + 2*EDX)) in EAX and the technique it picks by the
+/// environment's blend mode (1 for 0, modulate; 0 else, alpha blend) as its
+/// twin in ECX (the caller takes the `apply` exit, past 0.26g's own).
 pub fn set_clouds_technique(ctx: &mut Context<'_>) {
-    // SAFETY: the site's EBX is the frame's scene view's environment (its
-    // +118h, set at 0x1A4267), read on the render thread that draws it.
-    let mode = unsafe {
-        raw::site::atmosphere_clouds_apply::environment(ctx).expect("the frame's environment").clouds_blend_mode().read()
+    let index = ctx.reg(Reg::Edi) + 2 * ctx.reg(Reg::Edx);
+    // SAFETY: the site's EBP is the stage executing and EBX the frame's scene
+    // view's environment (its +118h, 0x1A4267), read on the render thread
+    // that draws it; the effects are the constructor's.
+    let (effect, mode) = unsafe {
+        let stage = raw::site::atmosphere_clouds_apply::stage(ctx).expect("the atmosphere stage executing");
+        let effect = match index {
+            0 => stage.cloud_effect_0(),
+            1 => stage.cloud_effect_1(),
+            2 => stage.cloud_effect_2(),
+            3 => stage.cloud_effect_3(),
+            index => panic!("a cloud effect index past 3: {index}"),
+        };
+        let mode = raw::site::atmosphere_clouds_apply::environment(ctx).expect("the frame's environment").clouds_blend_mode().read();
+        (effect.expect("the stage's cloud effect").address(), mode)
     };
+    ctx.set_reg(Reg::Eax, effect);
     ctx.set_reg(Reg::Ecx, CLOUDS_TWINS + u32::from(mode == 0));
 }
 
@@ -457,7 +473,7 @@ pub fn set_clouds_technique(ctx: &mut Context<'_>) {
 pub fn set_clouds(ctx: &Context<'_>, parameters_0: [f32; 4], parameters_1: [f32; 4]) {
     // SAFETY: the site's EBP is the stage executing, on the render thread;
     // its hosts are its constructor's (0x1A3D30, 0x1A3D7E); the cloud program
-    // is bound (0x1A4C16), so set_ps_constant writes them for it.
+    // is bound (0x1A4E98), so set_ps_constant writes them for it.
     unsafe {
         let stage = raw::site::atmosphere_clouds_constants::stage(ctx).expect("the atmosphere stage executing");
         let backend = backend();
@@ -465,3 +481,25 @@ pub fn set_clouds(ctx: &Context<'_>, parameters_0: [f32; 4], parameters_1: [f32;
         raw::engine_set_ps_constant(Some(backend), stage.clouds_constant_1(), parameters_1.as_ptr());
     }
 }
+
+/// `atmosphere.tables_constants`: 0.11e's atmosphere_parameters for the
+/// bound tables program, the environment's four scattering multipliers
+/// (rayleighSun, mieSun, rayleighPi, miePi), over 0.26g's (which sends the
+/// sun's intensity in the first's place).
+pub fn set_scattering_multipliers(ctx: &Context<'_>) {
+    // SAFETY: the site's EBP is the stage executing and EBX the frame's scene
+    // view's environment (its +118h, 0x1A4267), on the render thread; the
+    // host is the constructor's; the tables program is bound (0x1A4422).
+    unsafe {
+        let stage = raw::site::atmosphere_tables_constants::stage(ctx).expect("the atmosphere stage executing");
+        let environment = raw::site::atmosphere_tables_constants::environment(ctx).expect("the frame's environment");
+        let values = [
+            environment.rayleigh_sun().read(),
+            environment.mie_sun().read(),
+            environment.rayleigh_pi().read(),
+            environment.mie_pi().read(),
+        ];
+        raw::engine_set_ps_constant(Some(backend()), stage.scattering_constant(), values.as_ptr());
+    }
+}
+

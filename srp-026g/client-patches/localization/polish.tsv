@@ -2941,9 +2941,14 @@ st_srp_weapon_with_kit	Z zestawem
 st_srp_weapon_with_kit_skills	Z zestawem i umiejętnościami
 st_srp_weather_before_rain	przed deszczem
 st_srp_weather_day	dzień
+st_srp_weather_day_v011	dzień (0.11)
+st_srp_weather_day_v0112	dzień (0.11.2)
 st_srp_weather_evening	wieczór
+st_srp_weather_evening_v011	wieczór (0.11)
+st_srp_weather_evening_v0112	wieczór (0.11.2)
 st_srp_weather_night	noc
 st_srp_weather_rain	deszcz
+st_srp_weather_rain_v011	deszcz (0.11)
 st_srp_weight_base	Limit bazowy
 st_srp_weight_no_sprint_heavyweight	Sprint niedostępny: umiejętność „Mocarz”.
 st_srp_weight_no_sprint_limit	Sprint niedostępny: przeciążenie.

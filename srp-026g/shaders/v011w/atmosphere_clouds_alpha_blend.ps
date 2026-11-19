@@ -10,9 +10,9 @@ struct v2p_sky_clouds
 	float4	hpos			: SV_Position;
 	float3	world_position	: TEXCOORD0;
 	float3	object_position	: TEXCOORD1;
-#if TARGET_026G		// 0.26g's atmosphere_clouds.vs: the view direction, then the uv with v times 0.96
+#if TARGET_026G		// 0.26g's atmosphere_clouds.vs: the view direction, then its mesh's uv
 	float3	view_direction	: TEXCOORD2;
-	float2	tc				: TEXCOORD3;
+	float2	tc				: TEXCOORD3;		// its own mesh's, not read: replaced below
 #else
 	float2	tc				: TEXCOORD2;
 #endif
@@ -20,6 +20,11 @@ struct v2p_sky_clouds
 
 void main( v2p_sky_clouds I, out float4 result : SV_Target )
 {
+#if TARGET_026G		// 0.11e's dome uv (sphere_geometry: u the azimuth atan2(z, x), v the polar angle, both over
+	// their range) from the dome's object position: 0.26g's cloud mesh lays its uv out otherwise
+	float3	direction	= normalize( I.object_position);
+	I.tc				= float2( frac( atan2( direction.z, direction.x)/6.2831853f), acos( clamp( direction.y, -1.0f, 1.0f))/3.1415927f);
+#endif
 	clip( I.tc.y >= 0.5f ? -1.0f : 1.0f);
 
 	float	fade		= min( pow( 1.0f - saturate( ( 1.0f - I.tc.y*2.0f)/sky_clouds_parameters1.y), sky_clouds_parameters1.x), 1.0f);
