@@ -263,8 +263,11 @@ pub const REST_FLOORS_ALGO: u32 = 0x5389_0103;
 /// 0203: the held test's fall is measured from the floor's own height until a step finds ground; no ring under a low roof.
 pub const HELD_FLOORS_ALGO: u32 = 0x5389_0203;
 /// The same for a body named by a `walk` face's floor anywhere down the face in the cell ([`Body::walk_face_stands`], A389), in
-/// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
-pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0301;
+/// [`grid_key_with_links`] only for a body that asks for it. A value of its own. 0302: [walk-face chain] a floor names a body
+/// down only the climbing `walk` pieces chained to its top (`grid` `walk_chain_low`), none steeper than the client walks up
+/// (`WALK_FACE_CLIMB_NORMAL_Y`); before, the lowest `walk` piece anywhere in its merged span (a pillar's top named a body on a box
+/// top 20.6 m under it, Vector Laboratory day_2 (8.01, 11.59, -17.04)).
+pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0302;
 /// The same for the floors given back beside walls the body clears ([`Body::wall_give_back`], A318), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own. 0103: the stand test runs the client's steps (A364 C2 row 45). 0104: the
 /// test body comes down onto the floor from up to 0.6 m over it and must rest there (A389 follow-up (a)). 0105: on the game's

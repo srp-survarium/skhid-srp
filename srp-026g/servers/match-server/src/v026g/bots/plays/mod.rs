@@ -1117,7 +1117,8 @@ impl Ctx<'_> {
         let rule = self.tuning.mods.push?;
         let push = &self.team.push;
         push.role(self.me.place)?;
-        push.target().filter(|t| t.play().1 == target)?;
+        // [second taker] Either taker's target: the first's, a second taker's.
+        push.takers().iter().find(|(_, t)| t.play().1 == target)?;
         let members = push.members();
         let mates = self
             .view
@@ -1127,6 +1128,19 @@ impl Ctx<'_> {
             })
             .count();
         Some(mates)
+    }
+
+    /// [fix-team push, second taker] The push's takers on `target` when the bot is one of them (two: the first and a second
+    /// taker on their container, each its own raid slot); 0 otherwise.
+    pub fn push_takers(&self, target: TargetRef) -> usize {
+        if self.tuning.mods.push.is_none() {
+            return 0;
+        }
+        let takers = self.team.push.takers();
+        if !takers.iter().any(|&(place, t)| place == self.me.place && t.play().1 == target) {
+            return 0;
+        }
+        takers.iter().filter(|(_, t)| t.play().1 == target).count()
     }
 
     /// Teammates (alive) within `m` of `at`, the bot itself not counted.
