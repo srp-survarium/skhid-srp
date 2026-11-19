@@ -1,0 +1,1017 @@
+{
+ "_about": "London (level_09): its decals' places and projection depths as 0.31a2 authors them, project by project (0.31a2's day_2/3/4, rain_2/3/4 and evening_2/3/4; day_5 and Free for All's day_8 take day_2's). Skhid's London came from an earlier build of the map, where the wall mural's graffiti london_blue_02 and london_red_02 sat up to 0.64 m from 0.31a2's places with a projection depth of 0.1 m instead of 0.5 m: on that wall the two showed in patches through each other and london_red_01/03 (the owner, 2026-11-19, evening_3). Two more decals (london_red_03, puddle_rust_01 decal(50)) move to 0.31a2's places. Every London project.",
+ "set_entry": [
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/rain_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/rain_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(10)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.714,
+     7.422,
+     1.872
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.006,
+     7.428,
+     1.981
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(11)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     39.036,
+     7.485,
+     5.04
+    ]
+   },
+   "to": {
+    "position": [
+     39.026,
+     7.485,
+     5.037
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(2)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     40.396,
+     7.493,
+     -0.691
+    ],
+    "decal_far_distance": 0.1
+   },
+   "to": {
+    "position": [
+     40.485,
+     7.28,
+     -0.049
+    ],
+    "decal_far_distance": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "editor decals/decal(50)",
+    "game_object_type": "decal"
+   },
+   "from": {
+    "position": [
+     -29.197,
+     5.54,
+     48.592
+    ]
+   },
+   "to": {
+    "position": [
+     -28.906,
+     5.558,
+     48.456
+    ]
+   }
+  }
+ ]
+}

@@ -127,3 +127,13 @@ of `hall_2_floor`, `hall_box(1)`, `ladder(1)`; places of `hall_2_floor`, `gerkin
 `hall_2_floor`, `gerkin(22)`). With radius 5, `gerkin(3)` tied `gerkin_hall_centre` and could draw
 under it; with 0.31a2's 4 it draws after, as there (the corridor of the owner's FFA pick 11).
 `london-probe-shapes-1.json` sets the seven as 0.31a2 authors them in each project.
+
+## Decals (`london-decals-1.json`)
+
+Skhid's London came from an earlier build of the map, and four of its decals sit elsewhere than in
+0.31a2. On the wall mural east of the square (the owner, 2026-11-19, evening_3) the graffiti
+`london_blue_02` and `london_red_02` stood up to 0.64 m off 0.31a2's places, with a projection depth
+(`decal_far_distance`) of 0.1 m where 0.31a2 has 0.5 m: they showed in patches through each other and
+`london_red_01`/`london_red_03`. The list sets the four (with `london_red_03` and the puddle
+`decal(50)`) as 0.31a2 authors them in each project. The one decal 0.31a2 lacks (`decal(51)`, a
+puddle) stays.
