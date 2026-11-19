@@ -71,3 +71,8 @@ of 0.26g's shader: the diffuse output's alpha is zero, so with the probes' blend
 INV_SRC_ALPHA per target) the diffuse light stays as it was; the reflection is drawn as before.
 One instruction per permutation (`mov o0.w, <falloff>` → `mov o0.w, l(0)`); the permutations
 with `affect_diffuse = true`, the ones every other map draws, are untouched.
+
+London's day also sets `environment_probes_specular_intensity_multiplier` 1.2 in 0.31a2; patch 14
+built the day's environment from native `level_01` day's settings, which leave it out, so 0.26g drew
+London's probe reflections at its default. `london-environment-1.json` adds it to the five day
+projects (rain and evening carry 0.31a2's 0.6 and 1.5 from pack london-weathers).
