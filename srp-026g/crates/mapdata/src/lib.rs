@@ -229,8 +229,10 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// PROVEN: `step_down` 0x7E527..0x7E6D1 and 0x7E408..0x7E4F2 keep the tick's starting speed for the landing's callback).
 /// 000a: [F2] every way down is judged by where its flight RESTS on the link's own top (`grid::drop_check::walk_off_rest`: the
 /// forward key let go on the landing step), not by a step of a walk carried on past the landing. 000b: [knife edge] of two
-/// releases the one with width across the way first (`RIM_JUMPS_ALGO` 0b12).
-pub const DROP_LANDS_ALGO: u32 = 0x5067_000b;
+/// releases the one with width across the way first (`RIM_JUMPS_ALGO` 0b12). 000c: [retarget] a drop re-aimed at where it was
+/// released to or taught down along its own way keeps that way (`grid::gap::GridWay`): its walk is on that line, not on the
+/// line to its new landing; a link walked at its new landing (`grid::drop_check` Reaim) has its own line.
+pub const DROP_LANDS_ALGO: u32 = 0x5067_000c;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own. 0007: [S3] the floors on the thin tops the gaps over one cross carry their top's
 /// centre line where a body is held on it (`grid::line_tops`), in the grid file. 0008: [F1] no clip pass press is kept unflown:
