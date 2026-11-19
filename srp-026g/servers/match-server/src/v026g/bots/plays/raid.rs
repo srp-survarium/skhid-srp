@@ -79,7 +79,7 @@ pub mod raid_counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     #[cfg(test)]
-    static COUNTS: [AtomicU64; 6] = [const { AtomicU64::new(0) }; 6];
+    static COUNTS: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
 
     pub enum Count {
         EarlyOffered,
@@ -88,6 +88,12 @@ pub mod raid_counts {
         RegroupTimedOut,
         ApproachRoute,
         ApproachRing,
+        /// [fix-team raid re-plan] The approach priced again on the way.
+        Repriced,
+        /// Another approach taken by the margin.
+        Switched,
+        /// Another approach taken at once, the lane having turned bad.
+        SwitchedLane,
     }
 
     #[cfg(test)]
@@ -99,8 +105,8 @@ pub mod raid_counts {
     pub fn count(_: Count) {}
 
     #[cfg(test)]
-    pub fn counts() -> [u64; 6] {
-        [0, 1, 2, 3, 4, 5].map(|k| COUNTS[k].load(Ordering::Relaxed))
+    pub fn counts() -> [u64; 9] {
+        [0, 1, 2, 3, 4, 5, 6, 7, 8].map(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
 
@@ -180,8 +186,8 @@ fn raid_candidate(cx: &Ctx, target: TargetRef, slot: u32) -> Option<Candidate> {
 pub enum State {
     Approach,
     /// [fix-team `mods.raid_approach`] On its chosen approach: to `points[next]`, the last its gather point; there it regroups
-    /// (`mods.raid_regroup`) or goes in.
-    Via { points: Vec<Vec3>, next: usize },
+    /// (`mods.raid_regroup`) or goes in. `priced`: when it was last priced ([fix-team `mods.raid_replan`]).
+    Via { points: Vec<Vec3>, next: usize, priced: u32 },
     /// [A296 item 5, `mods.raid_regroup`] Stopped short of their container for a teammate to come, to `until`.
     Regroup { until: u32 },
     /// In after a regroup (or with no mate to wait for): no second stop.
@@ -192,7 +198,7 @@ pub enum State {
 pub fn start(target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> State {
     match (cx.tuning.mods.raid_approach, cx.point_of(target)) {
         (Some(rule), Some(container)) => match approach(cx, container, &rule) {
-            Some(points) => State::Via { points, next: 0 },
+            Some(points) => State::Via { points, next: 0, priced: cx.now },
             None => State::Approach,
         },
         _ => State::Approach,
@@ -247,6 +253,24 @@ fn way_risk(cx: &Ctx, way: &[Vec3], rule: &crate::v026g::bots::tuning::RaidAppro
 /// round the container at `stage_m` (the regroup's ring) on a floor the bot can go to. Each priced as its length plus
 /// `risk_m` times its risk ([`way_risk`]) over the whole way, the last leg to the container included. None: no approach.
 fn approach(cx: &Ctx, container: Vec3, rule: &crate::v026g::bots::tuning::RaidApproach) -> Option<Vec<Vec3>> {
+    let (best, kind) = cheapest(cx, container, rule)?;
+    raid_counts::count(kind);
+    Some(best.1)
+}
+
+/// [fix-team `mods.raid_approach`] The price of walking `points` (an approach's points, the last its gather point) from the bot
+/// to the container: the bot's path distance to the first point (as `Input::PathDist`), the approach's own legs and the last
+/// leg to the container, and `risk_m` times the whole way's risk ([`way_risk`]). One price for an approach chosen at the start
+/// and for one priced again on the way ([`replan`]).
+fn price(cx: &Ctx, container: Vec3, rule: &crate::v026g::bots::tuning::RaidApproach, points: &[Vec3]) -> f32 {
+    let way: Vec<Vec3> = std::iter::once(cx.me.feet).chain(points.iter().copied()).chain(std::iter::once(container)).collect();
+    let length = cx.path_dist(points[0]) + way[1..].windows(2).map(|w| w[0].distance_xz(w[1])).sum::<f32>();
+    length + rule.risk_m * way_risk(cx, &way, rule)
+}
+
+/// [fix-team `mods.raid_approach`] The cheapest approach from where the bot is ([`approach`]'s candidates, [`price`]), with its
+/// price and whether it is a route's or the ring's.
+fn cheapest(cx: &Ctx, container: Vec3, rule: &crate::v026g::bots::tuning::RaidApproach) -> Option<((f32, Vec<Vec3>), raid_counts::Count)> {
     let feet = cx.me.feet;
     let routes: Vec<Vec<Vec3>> = cx
         .bot
@@ -301,18 +325,51 @@ fn approach(cx: &Ctx, container: Vec3, rule: &crate::v026g::bots::tuning::RaidAp
             .collect()
     };
     let (candidates, kind) = if routes.is_empty() { (ring(), raid_counts::Count::ApproachRing) } else { (routes, raid_counts::Count::ApproachRoute) };
-    // [review of #2195] The walk to the approach's first point by the bot's path distance (as `Input::PathDist`), the rest
-    // along the approach's own points.
-    let cost = |points: &Vec<Vec3>| {
-        let way: Vec<Vec3> = std::iter::once(feet).chain(points.iter().copied()).chain(std::iter::once(container)).collect();
-        let length = cx.path_dist(points[0]) + way[1..].windows(2).map(|w| w[0].distance_xz(w[1])).sum::<f32>();
-        length + rule.risk_m * way_risk(cx, &way, rule)
+    let best = candidates.into_iter().map(|p| (price(cx, container, rule, &p), p)).min_by(|a, b| a.0.total_cmp(&b.0))?;
+    Some((best, kind))
+}
+
+/// [fix-team `mods.raid_replan`] Whether the lane of the way `way` turned bad since `since`: an enemy the team's own senses put
+/// within `enemy_m` of it, or a team death within `death_m` of it, both after `since` (Killzone 3's influence map counts the
+/// enemies and the recent deaths).
+fn lane_turned(cx: &Ctx, way: &[Vec3], since: u32, rule: &crate::v026g::bots::tuning::RaidApproach) -> bool {
+    let near = |p: Vec3, reach: f32| way.windows(2).any(|w| crate::v026g::bots::team::to_segment(p, w[0], w[1]) <= reach);
+    let enemy = cx.memory.tracks().iter().filter_map(|t| t.own).any(|(at, time)| time > since && near(at, rule.enemy_m));
+    let death = cx.team.losses.iter().any(|l| l.time > since && l.time <= cx.now && near(l.at, rule.death_m));
+    enemy || death
+}
+
+/// [fix-team `mods.raid_replan`] The approach on the way: priced again every `every_s` or at once when its lane turned bad
+/// ([`lane_turned`]), never within `lock_m` of its gather point; another approach from where the bot is taken when it costs at
+/// most `1 - margin` of what is left of this one (any cheaper one when the lane turned bad). True when it switched.
+fn replan(cx: &Ctx, container: Vec3, points: &mut Vec<Vec3>, next: &mut usize, priced: &mut u32) -> bool {
+    let (Some(rule), Some(again)) = (cx.tuning.mods.raid_approach, cx.tuning.mods.raid_replan) else {
+        return false;
     };
-    let best = candidates.into_iter().map(|p| (cost(&p), p)).min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, p)| p);
-    if best.is_some() {
-        raid_counts::count(kind);
+    let (Some(rest), Some(&gather)) = (points.get(*next..).filter(|r| !r.is_empty()), points.last()) else {
+        return false;
+    };
+    if cx.me.feet.distance_xz(gather) <= again.lock_m {
+        return false;
     }
-    best
+    let way: Vec<Vec3> = std::iter::once(cx.me.feet).chain(rest.iter().copied()).chain(std::iter::once(container)).collect();
+    let turned = lane_turned(cx, &way, *priced, &rule);
+    if !turned && cx.now < priced.saturating_add((again.every_s * 1000.0) as u32) {
+        return false;
+    }
+    *priced = cx.now;
+    raid_counts::count(raid_counts::Count::Repriced);
+    let left = price(cx, container, &rule, rest);
+    let Some(((cost, best), _)) = cheapest(cx, container, &rule) else {
+        return false;
+    };
+    let margin = if turned { 0.0 } else { again.margin };
+    if cost < left * (1.0 - margin) && best != rest {
+        raid_counts::count(if turned { raid_counts::Count::SwitchedLane } else { raid_counts::Count::Switched });
+        (*points, *next) = (best, 0);
+        return true;
+    }
+    false
 }
 
 pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> Step {
@@ -341,11 +398,12 @@ pub fn step(state: &mut State, target: TargetRef, cx: &Ctx, _rng: &mut Rng) -> S
         return Step::Done("their container is empty");
     }
     // [fix-team `mods.raid_approach`] Its chosen approach first; at its gather point the regroup (or in).
-    if let State::Via { points, next } = state {
+    if let State::Via { points, next, priced } = state {
         let reach = num("reach_m");
         while *next < points.len() && cx.me.feet.distance_xz(points[*next]) <= reach {
             *next += 1;
         }
+        replan(cx, at, points, next, priced);
         if let Some(&p) = points.get(*next) {
             return Step::Continue(Intent::to(p, cx.pace_toward(p)).within(reach * 0.7).into_base());
         }
@@ -482,7 +540,7 @@ mod tests {
         s.enemy(5, 1, Vec3::new(93.0, 0.0, 30.0), Some(Source::Heard));
         s.view.places[0].feet = Vec3::new(5.0, 0.0, 30.0);
         let mut state = start(target, &s.cx(0), &mut rng);
-        let State::Via { points, next: 0 } = &state else { panic!("{state:?}") };
+        let State::Via { points, next: 0, .. } = &state else { panic!("{state:?}") };
         let points = points.clone();
         let gather = *points.last().unwrap();
         assert!(points.iter().all(|p| (p.distance_xz(at) - 40.0).abs() < 3.5), "round the ring: {points:?}");
@@ -498,6 +556,38 @@ mod tests {
         // Already inside the ring: no ring approach (it would walk back out), the straight way.
         s.view.places[0].feet = Vec3::new(40.0, 0.0, 30.0);
         assert_eq!(start(target, &s.cx(0), &mut rng), State::Approach);
+    }
+
+    /// [fix-team `mods.raid_replan`] On the way the approach is priced again every `every_s`: a much dearer one (a detour) is
+    /// left for the cheapest from where the bot is; before `every_s` it is kept. A death on the lane makes the pricing due at once.
+    #[test]
+    fn a_raider_prices_its_approach_again_on_the_way() {
+        use crate::v026g::bots::tuning::{RaidApproach, RaidReplan};
+        let target = TargetRef::Container(1);
+        let mut rng = Rng::new(1);
+        let mut s = raid(2);
+        s.tuning.mods.raid_approach = Some(RaidApproach::default());
+        s.tuning.mods.raid_replan = Some(RaidReplan::default());
+        s.tuning.mods.raid_regroup = None;
+        s.view.places[0].feet = Vec3::new(5.0, 0.0, 30.0);
+        let t0 = s.view.clock;
+        // A detour: far north, then a gather point north of the container, 40 m off it.
+        let detour = vec![Vec3::new(5.0, 0.0, 90.0), Vec3::new(68.0, 0.0, 90.0), Vec3::new(68.0, 0.0, 70.0)];
+        let mut state = State::Via { points: detour.clone(), next: 0, priced: t0 };
+        s.view.clock = t0 + 500;
+        let _ = step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(&state, State::Via { points, priced, .. } if *points == detour && *priced == t0), "kept before every_s: {state:?}");
+        s.view.clock = t0 + 2_000;
+        let _ = step(&mut state, target, &s.cx(0), &mut rng);
+        let State::Via { points, next: 0, priced } = &state else { panic!("{state:?}") };
+        assert_ne!(*points, detour, "the detour left");
+        assert_eq!(*priced, t0 + 2_000);
+        // A team death on the lane since: priced at once, before `every_s`.
+        let first = points[0];
+        s.view.clock = t0 + 2_300;
+        s.team.losses.push(crate::v026g::bots::know::Loss { at: first, time: s.view.clock, spawner: None });
+        let _ = step(&mut state, target, &s.cx(0), &mut rng);
+        assert!(matches!(&state, State::Via { priced, .. } if *priced == t0 + 2_300), "{state:?}");
     }
 
     fn raids(s: &Scenario) -> Vec<Candidate> {

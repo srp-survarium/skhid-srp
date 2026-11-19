@@ -205,8 +205,8 @@ pub(super) fn raid_switches() -> Box<dyn RouteTopic> {
         || crate::v026g::bots::plays::raid::raid_counts::counts().to_vec(),
         |d, line| {
             line.main.push(format!(
-                "raid_early_offered {} raid_regroup_stops {} raid_regroup_mate {} raid_regroup_timed_out {} raid_approach_route {} raid_approach_ring {}",
-                d[0], d[1], d[2], d[3], d[4], d[5]
+                "raid_early_offered {} raid_regroup_stops {} raid_regroup_mate {} raid_regroup_timed_out {} raid_approach_route {} raid_approach_ring {} raid_repriced {} raid_switched {} raid_switched_lane {}",
+                d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8]
             ));
         },
     )
