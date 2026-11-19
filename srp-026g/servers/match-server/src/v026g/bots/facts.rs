@@ -333,6 +333,10 @@ impl Bots {
                         continue;
                     };
                     let team = usize::from(container.team & 1);
+                    // [own battery] Taken from home and dropped between two worlds is a theft too, its thief unseen: the
+                    // team knows the battery for its own (`TeamKnowledge::thefts`), as when a world showed it carried.
+                    self.teams[team].knowledge.thefts_match += 1;
+                    self.teams[team].knowledge.thefts.push(Theft { battery, at: container.at, time, thief: None });
                     self.theft_drop(team, battery, container.at, time, None, time, &mut notes);
                 }
                 _ => {}

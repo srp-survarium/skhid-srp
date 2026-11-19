@@ -1905,7 +1905,7 @@ impl WalkGrid {
         if body.rim_jumps && gaps {
             let world = world.expect("a world");
             let (unmade, cut);
-            (stats.rim, unmade, cut) = grid.fly_rim_jumps(&mut wide, world, &s);
+            (stats.rim, unmade, cut) = grid.fly_rim_jumps(&mut wide, world, &s, &solids);
             // [C2 rows 11/12/14] The plain jumps no press lands on go, but none that is a floor's only way in or back.
             (stats.rim.jumps_cut, stats.rim.jumps_kept) = grid.cut_keeping_reach(&mut wide, cut, seeds, spawns, body.keep_last_resorts, false);
             grid.fly_risers(&mut wide, world, &s, &mut stats.rim);

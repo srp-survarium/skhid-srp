@@ -59,10 +59,12 @@ owner-test threat answer: K1 routes checked 0 exposed 0; searches round the lane
   "job_ended_time": 0,
   "job_ended_unheld": 0,
   "job_given": 0,
+  "job_no_spot": 0,
   "job_not_opened": 0,
   "job_offers": {},
   "job_passed_no_play": 0,
   "job_passed_not_free": 0,
+  "job_role_no_spot": 0,
   "jobs_team0": {
     "down_by_other": 0,
     "down_by_shooter": 0,
@@ -79,7 +81,8 @@ owner-test threat answer: K1 routes checked 0 exposed 0; searches round the lane
     "given_unsensed": 0,
     "jobs": 0,
     "life_median_s": 0.0,
-    "life_p90_s": 0.0
+    "life_p90_s": 0.0,
+    "not_opened_no_spot": 0
   },
   "jobs_team1": {
     "down_by_other": 0,
@@ -97,7 +100,8 @@ owner-test threat answer: K1 routes checked 0 exposed 0; searches round the lane
     "given_unsensed": 0,
     "jobs": 0,
     "life_median_s": 0.0,
-    "life_p90_s": 0.0
+    "life_p90_s": 0.0,
+    "not_opened_no_spot": 0
   },
   "k1_budget": 0,
   "k1_checked": 0,

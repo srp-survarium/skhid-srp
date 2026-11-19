@@ -124,3 +124,30 @@ fn a_trap_let_go_by_the_plane_rule_lies_nowhere_this_often() {
         pct(all.meshes_differ),
     );
 }
+
+/// [fix-team trap pose] The proof cast of `TRAP-POSE.md` §3: at the three level_07 presses where the server promised a trap the
+/// client did not place, a ray straight down onto the sight tree (the bullet mesh the promise was cast on before #2208) and onto
+/// the walker tree (the trap's filter, 0x404 / 0x202): the height each meets. Prints; asserts nothing (`--ignored`).
+#[test]
+#[ignore]
+fn the_level_07_trap_presses_meet_the_bullet_mesh_above_the_walk_floor() {
+    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+        eprintln!("skipping: SRP_MAPDATA_DIR is not set");
+        return;
+    };
+    for project in ["level_07/day_2", "level_07/day_4"] {
+        let file = std::path::Path::new(&dir).join(mapdata::format::file_name(project));
+        let Ok(map) = MapData::read(&file) else {
+            eprintln!("{project}: no map file");
+            continue;
+        };
+        let sight = map.bullet_mesh().build_tree();
+        let walker = RayTree::build(&map.walker_triangles());
+        for (x, z) in [(-41.0, 5.5), (-41.0, 5.6), (-40.55, 5.56), (-41.11, 5.38), (-3.5, -24.0), (-3.47, -23.47)] {
+            let from = Vec3::new(x, 24.0, z);
+            let down = Vec3::new(0.0, -1.0, 0.0);
+            let hit = |tree: &RayTree| tree.ray_hit(from, down, 10.0).map(|h| (from.y - h.t, h.normal.y));
+            eprintln!("trap pose proof {project} at ({x}, {z}): sight tree {:?}, walker tree {:?}", hit(&sight), hit(&walker));
+        }
+    }
+}
