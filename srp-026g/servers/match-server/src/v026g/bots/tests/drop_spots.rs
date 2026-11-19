@@ -195,8 +195,8 @@ fn drop_spots() {
     }
 }
 
-/// [drop give-ups] The other way of the stand-in's walk-off rule (a walk off its top does not land back on it where the client's
-/// walker has no ground, `standin_jump::fly`): a lip the exe keeps a body on stays ground. A body walks straight along the level_02
+/// [drop give-ups] The other way of the strip's walk-offs: a lip the exe keeps a body on stays ground in the stand-in (a check on
+/// any change of the stand-in's walk off a top; a landing rule that let the strip's turn down did let these fall). A body walks straight along the level_02
 /// edge strip's rim (+z, forward held, yaw 0) from z 37.10 for 24 ticks at x 11.20 .. 10.95; the exe keeps it on ground every tick at
 /// every x (`strip_rim_exe_v1` on the game's objects, 2026-11-19: 0 air ticks, lowest y 19.28 .. 18.93, the rim sloping down), and
 /// so must the stand-in: never down to the 16.4 m floor under the strip.
