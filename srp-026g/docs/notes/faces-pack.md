@@ -4,9 +4,9 @@ The content half of the face choice: the faces players choose from, how they sit
 under the game's helmets, masks and collars, the picker's icons and the list the
 game reads. The plumbing (the account's face, the exe's cook, the lobby picker) is
 its own work (`face-choice.md`); this note is what the pack gives it and what the
-cook must still learn to read. The port is resource-porter's `faces_026`,
+cook reads of it. The port is resource-porter's `faces_026`,
 `face_shape` and `face_fit` (branch `feat/faces-pack`, `docs/faces-026.md` there);
-the pack is `faces@3`.
+the pack is `faces@4`.
 
 ## What the game reads
 
@@ -39,20 +39,18 @@ heads[i].icon         [row, col]                                   the picker's 
 | 6 | `069d_head_05` | 0.69d0 `head_05`, with its hair |
 | 7 | `069d_head_06` | 0.69d0 `head_06` |
 | 8 | `069d_head_07` | 0.69d0 `head_07`, with its hair |
-| 9 | `stk2_neutral_01_head` | STK2, the Novice: his knit cap off, a scalp joined on |
+| 9 | `stk2_neutral_01_head` | STK2, the Novice: his knit cap and hair off, 0.69d0 `head_01`'s scalp joined on |
 
 The STK2 loner's face (`neutral_03_head`) and the STK2 bandit's (`bandit_01_head_03`) are left
 out (the owner, 2026-11-09).
 
-## What the cook must still read: an item's model for a face
+## A mask's model for a face
 
-The faces fit the live masks, and some helmets, only with a model of the item for the face
-(below: 0.69d0's own way for what is worn on the face). The pack's build makes those models,
-but `faces@3` ships without them: today's cook (exe patch 123) draws every item's `data` and
-could not draw them, and they have not been seen in the game. This is the data form they come
-in, for the exe's change to follow.
+The faces fit the live masks only with a model of the mask for the face (0.69d0's own way for
+what is worn on the face, below). `faces@4` ships them; the cook reads them since patch 123's
+lookup on `feat/face-choice` (b5c88345a).
 
-In the item's config, `gameplay/items/armour/<helmet|mask>/<item>.options`, beside `data`:
+In the item's config, `gameplay/items/armour/mask/<item>.options`, beside `data`:
 
 ```
 data_head_<i>         {base_model, part_name, additional_models, type, ...}   the item as face i wears it
@@ -61,39 +59,36 @@ data_head_<i>         {base_model, part_name, additional_models, type, ...}   th
 - `<i>` is the face: the index into `body_parts.heads` (1 to 9; face 0 has none).
 - The entry is the item's `data` with other models (`ported/faces/items/<face>/<the item's
   model>`): the same fields, the same parts in the same order.
-- **The rule, 0.69d0's:** for a worn helmet or mask, the entry is `data_head_<face>` if the config
-  has it, else `data` (0.69d0: `has(models, "head_<n>") ? models["head_<n>"] : models["base"]`,
+- **The rule, 0.69d0's:** for a worn mask, the entry is `data_head_<face>` if the config has it,
+  else `data` (0.69d0: `has(models, "head_<n>") ? models["head_<n>"] : models["base"]`,
   0x200150126). The native 0.26g cook has no such check (the key goes straight into
-  `operator[]`, which stops on a missing one), so the patch must test that the key is there.
+  `operator[]`, which stops on a missing one), so the patch tests that the key is there.
 - Everything else the cook does with the entry is as for `data` (its model and part, its
-  additional models, the record's tag).
+  additional models, `remove_head_model`, the record's tag).
 - The skin's name (the cache key) already carries the face (`_f<face>`, patch 123), so two faces
   in the same gear stay two skins.
-- 0.69d0 looks `head_<n>` up for the mask and face-wear slots only; its helmets are keyed by the
-  worn mask's `model_type` instead (below). Here helmets have `data_head_<i>` too: an addition
-  in 0.69d0's spelling, which the measurements ask for (5 to 11 of the 29 helmets a face, 16 helmets in all).
-- Not in the pack, not asked of the cook: 0.69d0's mask-type keys of helmets (no live helmet
-  has a model for a mask) and `remove_head_model` in a per-face entry (0.69d0's balaclavas carry
-  the face's eyes in the balaclava's model; ours are worn over the face).
+- **Masks only**, as in 0.69d0 (which looks `head_<n>` up for the mask and face-wear slots only;
+  its helmets are keyed by the worn mask's `model_type`). No helmet has a `data_head_<i>`.
+- **More than the form said before: `remove_head_model` and an additional model in a per-face
+  entry.** 0.69d0's face-wear models for a face are the cloth and the face it shows in the eye
+  holes (`head_s`: that face's mask head there), drawn with `remove_head_model` (no head from
+  `heads`). Their entries here are the same: `remove_head_model: true`, the cloth as
+  `base_model`/`part_name`, and `head_s` of the same model as an additional model, drawn with
+  the face's own material (`ported/faces/<face>`, in the model's `settings`). The face's head
+  model is not drawn under them.
 
-### The items that need one
+### The items that have one
 
-By the gate, over the stock db and patches 12 .. 64: 229 models, of 16 helmets and 18 masks.
+155 models, over the stock db and patches 12 .. 65:
 
-- **Masks** (all 18 that draw the head, nearly each for every face): `army_026` (9), `bandit_026` (9), `bm_mask_1` (9), `bm_mask_8` (8), `edge_resp_1` (9), `edge_resp_3` (8), `eq046_edge_mask_6` (8), `eq046_edge_mask_7` (9), `eq069_league_shadow_mask` (9), `face_069d_balaclava` (9), `face_069d_balaclava_3_hole` (9), `face_069d_buff` (9), `face_069d_keffiyeh` (9), `face_069d_protective_mask` (7), `renesanse_mask_3` (9), `renesanse_mask_5` (9), `scavenger_mask_9` (8), `scavenger_resp_1` (9).
-- **Helmets** (16 of 29): `blackmarket_helmet_1` (6), `blackmarket_helmet_5` (1), `blackmarket_helmet_9` (3), `edge_helmet_1` (8), `edge_helmet_4` (7), `edge_helmet_6` (7), `eq046_blackmarket_helmet_10` (3), `eq046_edge_helmet_6` (3), `eq046_edge_helmet_7` (7), `novice_026` (4), `renesanse_helmet_1` (2), `renesanse_helmet_2` (2), `renesanse_helmet_5` (8), `scavenger_helmet_10` (1), `scavenger_helmet_3` (9), `stk2_novice_026_hood` (2).
-- In brackets: the faces (of 9) the item has a model for. The other 13 helmets fit every face as they are.
-
-**They are not in `faces@3`.** The build makes them (resource-porter `face_shape::Carry`, `face_fit::settle`) and the
-gate measures them, but they have only been looked at in software renders, and they are not right yet:
-
-- with them a face shows through a helmet or mask as it sits (the bind pose) in 12 cases of a face and an item; without them, over the face as it is, in 135, and over 0.69d0's mask heads as the pack ships in 117;
-- 92 of them stand off the face at a seen edge by more than 4 mm (the carry is smoothed and never under what the skin needs, and the settling only moves out);
-- 88 still meet the jaw or throat in a pose (a hood's drape, a balaclava's neck: cloth that follows the neck), as the collars do;
-- settling in the sampled poses too pushed such cloth out by up to 48 mm; it is done in the bind pose only, at most 6 mm a vertex.
-
-So the pack ships the faces without them, the open list names every helmet and mask that waits for its model, and
-the models come with the cook's change, after the owner has seen them (`v3/offline-items/`).
+- **0.69d0's own** (32): `face_069d_balaclava`, `face_069d_balaclava_3_hole`, `face_069d_keffiyeh`
+  and `face_069d_buff`, each for the eight 0.69d0 faces (1 to 8).
+- **Carried** (123): `army_026`, `bandit_026`, `bm_mask_1`, `bm_mask_8`, `edge_resp_1`,
+  `edge_resp_3`, `eq046_edge_mask_6`, `eq046_edge_mask_7`, `eq069_league_shadow_mask`,
+  `renesanse_mask_3`, `renesanse_mask_5`, `scavenger_mask_9`, `scavenger_resp_1` for all nine
+  faces, `face_069d_protective_mask` for six.
+- The Novice wears the game's four balaclavas (0.69d0 has no model for him; carried, their
+  rolled insides came through the cloth).
 
 ## How 0.69d0 does it
 
@@ -152,8 +147,8 @@ Read from the retail 0.69d0 x64 exe (sha256 1e1ae04d..., preferred base 0x200000
   diffuse less it), the hair's alpha test at 0.69d0's 0.2 and its two sides.
 - No subsurface scattering. 0.69d0 names it in its materials but never reads it: the key is not
   in its exe and no shader of it has one.
-- The Novice: his model has his knit cap modelled on and no scalp under it. The cap is taken
-  off and today's head's scalp joined on (below).
+- The Novice: his model has his knit cap modelled on and no scalp under it. The cap and his own
+  hair are taken off at his hairline and a 0.69d0 face's short scalp joined on (below).
 
 ## How the faces fit
 
@@ -173,30 +168,39 @@ What 0.69d0 modelled is the reference: a face is never reshaped to fit an item.
    lowest point is at about 1.55 m).
 3. **Under a helmet** a face is 0.69d0's own helmet head where it has one (`head_default` and
    `head_04` to `head_07`: the hair and scalp pressed, the face as it is), else the bare face
-   without its hair. **Under a mask** it is, for now, 0.69d0's own mask head where it has one
+   without its hair. **Under a mask** it is 0.69d0's own mask head where it has one
    (`head_default`, `head_05` to `head_07`), else the helmet head.
    - **0.69d0's own helmet and mask heads are not cuts.** Each has every vertex and triangle of
      the bare head; what differs is where vertices are. Its helmet heads move hair and scalp
-     only (0 to 225 vertices, up to 14 mm; 0 to 156 of them are in sight under some live helmet, by up to 11 mm: 0.69d0's own look of that face in a helmet). Its mask heads push the face itself in under 0.69d0's masks
-     (1,054 to 1,789 vertices by more than half a millimetre, up to 8 to 18 mm), and every one of those vertices is in sight under at least one live mask:
-     under a respirator the forehead and cheeks are not quite the bare face's.
-   - **They stay in `faces@3` all the same**, as 0.69d0 draws a masked face. A build with the
-     face as it is under the masks was looked at in the game (`v3/ingame/trial-masks-over-the-face-as-it-is/`):
-     without the masks made for faces it shows through the live masks far more than `faces@2`
-     did (the nose and cheeks through `face_069d_balaclava`). When the masks made for faces
-     ship, the mask state becomes the helmet head, the face as it is.
+     only (0 to 225 vertices, up to 14 mm). Its mask heads push the face itself in under 0.69d0's
+     masks (1,054 to 1,789 vertices by more than half a millimetre, up to 8 to 18 mm): 0.69d0's
+     face-wear is made over them (the face it shows in its eye holes is the mask head's skin).
    - **Skin no one can see is not drawn**, but there is little of it: the live helmets include
      ones that cover almost nothing (`eq046_blackmarket_helmet_7`, `novice_026`) and the masks a
      pair of goggles (`eq046_edge_mask_6`), so what every helmet hides is 4 to 58 triangles of
-     the scalp's top, and what every mask hides nothing. The cut is in the helmet models; it
-     cannot do the fitting.
-4. **The item follows the face** (built and measured, not in `faces@3` yet: above). A helmet or mask a
-   face shows through, or whose edge stands off it, gets a model for that face: the item carried
-   from today's head onto the face (each vertex
-   keeps the distance from the skin its maker gave it; the moves smoothed so a hard shell keeps
-   its shape), then settled on the face in the bind pose. That is 0.69d0's `models.head_<n>`
-   (above), and the measurements ask for it widely: 0.69d0's faces are larger than today's head
-   at the nose, the jaw and the chin, and the live masks were made close on today's head.
+     the scalp's top, and what every mask hides nothing.
+4. **A mask for the face.** Two kinds of `data_head_<i>` (above):
+   - **0.69d0's own face-wear**, for each 0.69d0 face, whatever the fit: `face_069d_balaclava`,
+     `_balaclava_3_hole`, `_keffiyeh` and `_buff` are 0.69d0's `renesanse_balaclava`,
+     `scavenger_balaclava`, `edge_balaclava` and `bm_balaclava`, and 0.69d0 has a model of each
+     for each of its eight faces (`<kind>_balaclava_head_0<n>`). Face n gets it as 0.69d0 draws
+     it: its cloth (0.69d0's vertices, skin, basis and UVs) and the face it shows in the eye
+     holes, no head. One change: the part of the cloth that bends with the neck is laid where
+     the game's model of the item has it (tucked into the game's collars; by UV, each vertex as
+     much as a face's neck is laid onto today's), as each face's neck is joined to the body.
+     0.69d0's other face-wear with `head_<n>` (the balaclavas with glasses, `paintball_mask_1`,
+     the three `medical_mask_4`) is not live. The Novice, who has no 0.69d0 model, gets them
+     carried as the other masks.
+   - **Carried**, for a mask a face shows through or whose seen edge stands off it: the game's
+     mask moved from today's head onto the face. Each vertex moves along today's head's normal
+     at the point of it nearest the vertex, by how far along that normal the face's skin is
+     from that point: an eye hole stays on the eyes (the eye bones, where `mask_fit` put it),
+     an edge on the same part of the head, and every vertex keeps the distance from the skin
+     its maker gave it. The moves are smoothed (6 rounds), but on the open edges. Then it is
+     settled on the face in the bind pose (where the face is still nearer its skin than the
+     gate allows, it moves out, at most 16 mm a vertex: 0.69d0's ears are farther back than
+     today's, under straps). A mask that fits a face as the game's gets no model for it.
+   - No helmet is made for a face.
 5. **The gate.** `face_fit` measures every face in every state against every live worn set (111
    torso and back models, 29 helmets, 18 masks and the 486 helmet-over-mask pairs that can be
    worn), in the bind pose and 456 poses, and the pack's build stops on a misfit its open list
@@ -210,61 +214,69 @@ What 0.69d0 modelled is the reference: a face is never reshaped to fit an item.
    - **contact** is recorded and is not a misfit: skin a torso does not cover in the bind pose
      (the chin, the jaw) that comes down into its collar when the head bows, where today's chin
      only touches it.
-6. **The Novice's scalp** is cut along his skin's open top (where his cap sat), its cut edge laid
-   on that open edge and the rest of it moved with the edge (`faces@2` hung it 2 mm over his
-   skin: a ledge, and facets of it over his forehead). **Not right yet**, seen in the game: the
-   ledge and the facets are gone, but the band his cap shadowed stays a pale strip across his
-   forehead and temples (his own colour map), and behind the ears, where his skin's open edge
-   runs lower than the cut follows, a dark gap stays between scalp and skin down to the nape. A
-   trial with the scalp's band laid on his skin under the edge closed the gap and left flaps at
-   the ears' tops (`v3/offline/novice-scalp-closeup-shipped-and-band-trial.png`). He needs his
-   cap line and colour map worked by hand, or another scalp.
+6. **The Novice's scalp.** His cap, the band it shadowed and his own longer hair are taken off
+   along his hairline (across the forehead under the band, over the ears, behind them down to the
+   nape; his ears whole), and 0.69d0 `head_01`'s scalp above the same line is joined on: its cut
+   edge laid on his, the rest moved with it, and a strip of its triangles closing the seam (no
+   gap). `head_01` is the short cut whose edge moves least onto his (4.0 mm on average; the
+   others 4.1 to 9.4). Its colour map is toned to his skin (his forehead just under the seam over
+   `head_01`'s just above it, a gain a channel); its normal map is `head_01`'s, its gloss and
+   Fresnel his face's. `faces@2` and `faces@3` grafted today's head's scalp; seen in the game it
+   left a pale band across his forehead, a dark gap behind the ears and his own hair below a
+   shaved scalp (a skullcap).
 
 ### The numbers
 
-Worn sets a face shows through, of 111 (bare), 140 (helmet) and 615 (mask), over the stock db and
-patches 12 .. 64:
+Under a mask, `faces@3` -> `faces@4`, over the stock db and the released patches (the gate's
+masks worn alone):
 
-| face | bare | helmet | mask | with the items made for the face (bare, helmet, mask) | chin and jaw meet a collar in a pose: collars, deepest |
-|---|---|---|---|---|---|
-| `069d_head_default` | 43 -> 13 | 57 -> 19 | 495 -> 417 | 13, 19, 252 (7 helmets and 18 masks made) | 83, 18 mm -> 62, 8 mm |
-| `069d_head_01` | 38 -> 13 | 50 -> 18 | 489 -> 431 | 13, 15, 203 (5 helmets and 18 masks made) | 78, 18 mm -> 68, 9 mm |
-| `069d_head_02` | 47 -> 12 | 58 -> 18 | 427 -> 288 | 12, 16, 125 (6 helmets and 17 masks made) | 79, 17 mm -> 56, 5 mm |
-| `069d_head_03` | 42 -> 12 | 52 -> 20 | 447 -> 398 | 12, 16, 207 (10 helmets and 18 masks made) | 83, 18 mm -> 67, 13 mm |
-| `069d_head_04` | 41 -> 14 | 53 -> 23 | 526 -> 456 | 14, 19, 234 (11 helmets and 17 masks made) | 86, 18 mm -> 81, 12 mm |
-| `069d_head_05` | 22 -> 5 | 31 -> 9 | 431 -> 229 | 5, 10, 163 (6 helmets and 17 masks made) | 61, 34 mm -> 34, 33 mm |
-| `069d_head_06` | 49 -> 19 | 63 -> 29 | 528 -> 471 | 19, 23, 237 (11 helmets and 18 masks made) | 86, 18 mm -> 83, 15 mm |
-| `069d_head_07` | 44 -> 14 | 58 -> 22 | 474 -> 351 | 14, 18, 254 (11 helmets and 18 masks made) | 89, 28 mm -> 78, 28 mm |
-| `stk2_neutral_01_head` | 27 -> 22 | 32 -> 26 | 458 -> 376 | 22, 26, 202 (6 helmets and 15 masks made) | 76, 19 mm -> 73, 13 mm |
+| face | masks it shows through as it sits (deepest) | in a pose only | seen edges standing off | models: 0.69d0's own, carried |
+|---|---|---|---|---|
+| `069d_head_default` | 12 (3.5 mm) -> 0 | 4 (6.6 mm) -> 8 (2.1 mm) | 5 (4.8 mm) -> 1 (9.9 mm) | 4, 13 |
+| `069d_head_01` | 13 (5.3 mm) -> 0 | 5 (6.5 mm) -> 6 (4.1 mm) | 9 (6.8 mm) -> 4 (9.7 mm) | 4, 14 |
+| `069d_head_02` | 9 (4.9 mm) -> 0 | 5 (5.7 mm) -> 5 (5.2 mm) | 8 (9.0 mm) -> 3 (8.3 mm) | 4, 13 |
+| `069d_head_03` | 15 (6.2 mm) -> 0 | 3 (7.8 mm) -> 10 (6.6 mm) | 6 (6.4 mm) -> 4 (7.6 mm) | 4, 14 |
+| `069d_head_04` | 8 (10.3 mm) -> 0 | 9 (11.1 mm) -> 8 (8.2 mm) | 11 (13.2 mm) -> 3 (7.7 mm) | 4, 13 |
+| `069d_head_05` | 10 (2.5 mm) -> 0 | 3 (2.7 mm) -> 9 (4.9 mm) | 10 (9.2 mm) -> 2 (7.5 mm) | 4, 14 |
+| `069d_head_06` | 11 (8.8 mm) -> 0 | 7 (12.4 mm) -> 11 (13.3 mm) | 10 (8.2 mm) -> 2 (11.4 mm) | 4, 14 |
+| `069d_head_07` | 8 (4.0 mm) -> 0 | 6 (3.7 mm) -> 10 (5.2 mm) | 9 (9.3 mm) -> 1 (4.0 mm) | 4, 14 |
+| `stk2_neutral_01_head` | 10 (4.8 mm) -> 4 (0.7 mm) | 4 (7.4 mm) -> 5 (3.0 mm) | 10 (43.9 mm) -> 9 (43.9 mm) | 0, 14 |
 
-Each cell of the first three: `faces@2` -> `faces@3` as it ships. A helmet over a mask counts as a set of its own, so one mask a face
-shows through is up to 28 sets. `faces@2` is its shapes measured by this gate (its own, stricter report said
-71 to 89, 80 to 104 and 482 to 578).
+- **`face_069d_balaclava`** (the owner's report): `faces@3` showed `head_default`, `head_01` ..
+  `head_07` through it by 1.0 to 9.5 mm as they sit (`head_04` 9.5, `head_06` 7.8, `head_07` 3.7)
+  and its edges stood off five of them by 4.2 to 10 mm. In `faces@4` they wear 0.69d0's own
+  model of it: no head is drawn under it, nothing shows through.
+- Worn sets a face shows through in the mask state (masks, helmets over masks, torsos), of 615:
+  417, 431, 288, 398, 456, 229, 471, 351, 376 -> 199, 177, 142, 266, 219, 220, 290, 261, 252
+  (`head_default` .. `head_07`, the Novice); the 0.69d0 faces bare and under helmets are as in `faces@3`.
+- **In a pose only**: the jaw or throat against the part of a mask that follows the neck when the
+  head bows (the models are settled in the bind pose only).
+- **Standing off** (20 lines): straps of `edge_resp_1`, `renesanse_mask_5`, `bm_mask_1`,
+  `scavenger_resp_1` beside the ears: 0.69d0's ears stand farther back than today's, the strap
+  is settled out over the ear and its edge beside it lifts (4 to 11 mm). The Novice's nine are
+  his nape: a mask's lower edge lies on today's neck there, his own neck ends higher (as in
+  `faces@3`; the bare faces are not changed).
 
 ### What is open
 
 `ports/faces-026-open.tsv` (resource-porter) names every misfit left, with the most it may be;
-a new one, or a deeper one, stops the build.
+a new one, or a deeper one, stops the build. 398 lines, a face and an item each:
 
-493 lines, a face and an item each:
+- masks: 130 in a pose only, 20 seen edges standing off beside the ears, 9 the Novice's nape, 4
+  the Novice under the game's balaclavas by under a millimetre (no model for him), and no mask
+  a face shows through as it sits where it has a model;
+- helmets (no model for a face): 39 in a pose only, 21 as they sit, 10 standing off, and 36 a
+  helmet over a mask, deeper than under either alone (the ear or the crown under the helmet, the
+  face being the mask head there);
+- torsos: 129 in a pose only (the throat behind the chin against a collar), 0 as they sit.
 
-- 129: a torso or back piece, in a pose only (the throat behind the chin against a collar);
-- 117: a helmet or mask shown through as it sits (the bind pose);
-- 88: a helmet's or mask's seen edge standing off;
-- 85: a helmet or mask, in a pose only (the jaw or throat against cloth that follows the neck);
-- 74: a helmet over a mask that is deeper than under either alone;
-
-- **The helmets and masks** wait for their models for the face (above). Until then a face shows through them as
-  `faces@2`'s did: by 2 to 20 mm at the nose, the jaw and the chin under the masks made close on today's head.
 - **The torsos**: the throat right behind the chin follows the Head, so it is 0.69d0's and is not moved; it is
   fuller than today's head's, and a high collar that touches today's throat when the head bows in a lobby idle is
   entered by up to 14 mm (the deepest of a face: 1 to 14 mm). The cures are a collar for each face (0.69d0 has
   none either: its torsos are keyed by the gloves' sleeves only) or the owner's word to lay that ring of the
   throat onto today's too.
-- **Hair and a hood that is a torso** (`head_05`'s mohawk by up to 33 mm, `head_07`'s hair by up to 28 mm; by the
-  first measure under `stk2_loner_026_torso`, `renesanse_torso_2` and `scavenger_torso_7`) is in the contact
-  record, not the list: the hood does not cover the hair in the bind pose (nothing of it within 2 cm), the hair
-  goes into it in a pose. 0.69d0's cook knows no torso that hides hair either.
+- **Hair and a hood that is a torso** (`head_05`'s mohawk by up to 33 mm, `head_07`'s hair by up to 28 mm) is in the
+  contact record, not the list: the hood does not cover the hair in the bind pose, the hair goes into it in a pose.
 
 ## Why the first pack (faces@1) looked wrong
 
@@ -284,36 +296,33 @@ a new one, or a deeper one, stops the build.
 
 `private/renders/face-choice/` of the main checkout (its `README.md` is the index):
 
-- `v3/ingame/pairs/`: in the game (the lobby's character, a headless client, one camera, one
-  scene): `faces@2` | `faces@3`, each face bare, under four helmets, four masks and two helmets
-  over masks, from the front, the side and the back, with 0.69d0's own picture of the face.
-  The test exe is patch 123's cook as it is today: it draws the faces' new necks, helmet and
-  mask models and the Novice's scalp, and every item as the game's own model.
-- `v3/offline/`: software renders (`render-faces-026-pairs.py`: the colour map under a flat
-  light, the bind pose) of the same sets, `faces@3` as it ships.
-- `v3/offline-items/`: the same with the items made for each face on the right: the only
-  pictures of those until the cook reads `data_head_<i>`.
+- `v4/ingame/masks/<outfit>.png`: in the game (the lobby's character, a headless client, one
+  camera, one exposure): `faces@3` | `faces@4`, a row a face (with 0.69d0's own picture of it),
+  front, side and back, under `face_069d_balaclava`, `_keffiyeh`, `_balaclava_3_hole`, `_buff`,
+  `bandit_026`, `scavenger_resp_1`, `eq069_league_shadow_mask`, `edge_resp_1` and two helmets
+  over masks. The exe: `feat/face-choice` d75dc43a0 (patch 123 reading `data_head_<face>`) as
+  the rig's capture build; the server and content: that tree's, `faces@3` or `faces@4` in the
+  manifest (a quick build).
+- `v4/ingame/novice-bare.png`: the Novice bare, front, both sides and back.
+- `v3/`: `faces@2` | `faces@3`, and the software renders of the items made for faces then.
 
 What is checked, and how:
 
 - **By the build** (every time): each face's vertices that follow the Head against the donor's, bit
   for bit; the gate over every worn set and pose; the bundle's models (`validate_overlay_on`).
-- **By `vostok-port pack check`**: the pack over the stock db and patches 12 .. 64 (232 operations).
-- **By `tools/check build-content`**: the manifest with `faces@3` composes over what players have.
-- **In the game** (the lobby captures above): the ten faces bare, under `renesanse_helmet_2`,
-  `scavenger_helmet_3`, `edge_helmet_4`, `novice_026`, `face_069d_balaclava`, `bandit_026`,
-  `scavenger_resp_1`, `eq069_league_shadow_mask` and two helmets over masks, over
-  `scavenger_torso_1`, standing straight. Not in the game: a match, the idles, other torsos.
-- **Only in software renders**: the items made for faces.
+- **By `vostok-port pack check`**: the pack with the packs it requires.
+- **By `tools/check build-content`**: the manifest with `faces@4` composes over what players have.
+- **In the game** (the lobby captures above): the ten faces bare and under the masks above, over
+  `scavenger_torso_1`, standing straight; the masks' models for faces drawn by patch 123.
+  Not in the game: a match, the idles, other torsos, the helmets (not changed).
 - **Not built with `release/build-content --full`**: that is the release's step.
 
 ## Release
 
-- One `pack` row in `release/content.tsv`, `faces@3`, built as resource-porter's
-  `docs/faces-026.md` says over the stock db and the patches of `release/patches.tsv` (12 .. 64
-  on 2026-11-18). The release PC keeps it in `$SKHID_PACKS_DIR/faces-3`.
-- It ships with the server and the exe of the face choice, the server first (the spec). Players'
-  clients without the exe's cook ignore `heads` and draw today's head.
-- The items' models for faces come as a later version of the pack, with the exe that reads
-  `data_head_<i>`; a client without that exe ignores the key.
+- One `pack` row in `release/content.tsv`, `faces@4`, built as resource-porter's
+  `docs/faces-026.md` says over the stock db and the patches of `release/patches.tsv` (12 .. 65
+  on 2026-11-19). The release PC keeps it in `$SKHID_PACKS_DIR/faces-4`.
+- It ships with the server and the exe of the face choice (patch 123 with its `data_head_<face>`
+  lookup), the server first (the spec). Players' clients without the exe's cook ignore `heads`
+  and `data_head_<i>` and draw today's head and the game's items.
 - Cosmetic only: no simulation change.
