@@ -182,12 +182,11 @@ pub use tdm::Approach;
 pub use tdm::GroupUp;
 pub use tdm::Squad;
 pub use tdm::TdmTuning;
+pub use team::AttackGate;
 pub use team::AvoidTuning;
 pub use team::BehindOpen;
 pub use team::CampFlank;
-pub use team::AttackGate;
 pub use team::Comeback;
-pub use team::RaidApproach;
 pub use team::CommitTuning;
 pub use team::Concede;
 pub use team::GangRule;
@@ -200,7 +199,9 @@ pub use team::Personalities;
 pub use team::Personality;
 pub use team::PinFromCover;
 pub use team::PinRule;
+pub use team::RaidApproach;
 pub use team::RaidRegroup;
+pub use team::RaidReplan;
 pub use team::RefuseFights;
 pub use team::RoamAvoid;
 pub use team::SEARCH_FLOORS_PER_POLL;
@@ -357,6 +358,9 @@ impl Tuning {
         }
         if let Some(approach) = self.mods.raid_approach {
             approach.check()?;
+        }
+        if let Some(replan) = self.mods.raid_replan {
+            replan.check()?;
         }
         if let Some(comeback) = self.mods.comeback {
             comeback.check()?;

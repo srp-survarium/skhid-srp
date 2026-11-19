@@ -72,8 +72,14 @@ pub struct Feel {
     /// The time to take most of a turn, seconds: the turning speed asked is
     /// the remaining angle over this.
     pub turn_time_s: f32,
-    /// Top turning speed, radians a second.
+    /// Top turning speed, radians a second (at skill 0, [`Motor::skill`]).
     pub max_turn_speed: f32,
+    /// [A416, human-steering 2.6] Top turning speed at skill 1, radians a second: the cap rises with the bot's skill from
+    /// [`Self::max_turn_speed`] to this. The client has no turn cap (one yaw for view and body, 0x2D8AD0, human-steering
+    /// `exe-movement-rules.md`, PROVEN); live humans while moving turn at P95 288 and P99 604 degrees a second (P99 standing 631),
+    /// the bots were held at 286.5 (`max_turn_speed` 5.0 rad/s, their P99). So skill 0 keeps the humans' P95 and skill 1 reaches
+    /// their P99 (10.54 rad/s). The skill's own turn time (`settle_s`, the reflex) still sets how fast a turn is asked.
+    pub max_turn_speed_top: f32,
     /// Top change of the turning speed, radians a second per second.
     pub max_turn_accel: f32,
     /// The walk's keys are let go for a target more than this off the
@@ -99,6 +105,8 @@ pub struct Feel {
     pub sprint_after_s: f32,
     /// [A416, human-steering part D] What a walk's sprint asks of the way faced ([`SprintBy`]).
     pub sprint_by: SprintBy,
+    /// [A416, human-steering part D] Whether a walking body's look follows the view schedule ([`ViewRule`]).
+    pub view_rule: ViewRule,
     /// A corner sharper than this ends a straight stretch, radians.
     pub corner: f32,
     /// The heading's sway: amplitude (radians) and period (seconds).
@@ -356,6 +364,18 @@ pub enum SprintBy {
     Keys,
 }
 
+/// [A416, human-steering part D] Whether a walking body's look follows the view schedule ([`Feel::view_rule`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewRule {
+    /// As before: any look the reflex or the play gives is held while it lasts.
+    Free,
+    /// A look that is no threat and no use is a glance of the live humans' length, then the course
+    /// ([`super::view_schedule::View`]).
+    #[default]
+    Schedule,
+}
+
 /// [A416] The way within this of the view is a W, W+A or W+D key set ([`Motor::pick_keys`]'s nearest sector 0 or 1): 67.5 degrees.
 const SPRINT_KEYS_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
 
@@ -376,6 +396,7 @@ impl Default for Feel {
         Self {
             turn_time_s: 0.15,
             max_turn_speed: 5.0,
+            max_turn_speed_top: 604f32.to_radians(),
             max_turn_accel: 45.0,
             stop_turn: 1.4,
             go_turn: 0.7,
@@ -388,6 +409,7 @@ impl Default for Feel {
             sprint_facing: 0.17,
             sprint_after_s: 0.3,
             sprint_by: SprintBy::Keys,
+            view_rule: ViewRule::Schedule,
             corner: 0.6,
             sway: 0.025,
             sway_period_s: 3.7,
@@ -972,6 +994,8 @@ pub struct Motor {
     /// The turn's time constant for this tick when not the feel's (the
     /// reflex aims faster or slower by skill).
     pub turn_time: Option<f32>,
+    /// [A416] The bot's skill, 0 to 1, for the turn cap ([`Feel::max_turn_speed_top`]); set by the driver each tick.
+    pub skill: f32,
     /// The aim's turn rate this tick, yaw and pitch, radians a second (the
     /// reflex's, at a seen target: `CombatTuning::turn_feed`): a turn onto
     /// the aim follows it ([`Motor::aim_toward`]).
@@ -1217,6 +1241,53 @@ pub struct RoutePress {
     pub sprint_gate: Option<SprintGate>,
     /// [A386 R83/R94] The press's aim off the link's line ([`PressAim`]; the log's line says it when not straight).
     pub aim: PressAim,
+    /// [F3] The body at the press, against the window the grid flew (the log's line of a jump that missed).
+    pub state: PressState,
+}
+
+/// [F3] The body at a route press, as the entry gate measures it ([`flown_press_off`], [`lead_off`]), and the window the grid
+/// stored for the link's press ([`path::Leap::window`]): decides nothing, the log's line of a jump that missed its landing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PressState {
+    /// Where the jump's first step starts, m before the take-off (the key acts a step later: [`press_due`]).
+    pub lead_m: f32,
+    /// The lead the grid flew the press from, m (none for a ledge).
+    pub flown_lead_m: Option<f32>,
+    /// The feet off the jump's line, m.
+    pub side_m: f32,
+    /// The view off the jump's way, rad.
+    pub turn_rad: f32,
+    /// The feet over the take-off's height, m.
+    pub above_m: f32,
+    /// The speed along the jump's way, m/s.
+    pub along_ms: f32,
+    /// The stored window, if the link has one.
+    pub window: Option<mapdata::grid::gap::TakeoffWindow>,
+}
+
+impl PressState {
+    /// The state as the log writes it.
+    pub fn text(&self) -> String {
+        let flown = self.flown_lead_m.map_or_else(|| "none".to_string(), |l| format!("{l:.2}"));
+        let window = match self.window {
+            Some(w) => format!(
+                "window lead {:.2}..{:.2} m, side -{:.2}..+{:.2} m, turn -{:.3}..+{:.3} rad, {:?}{}",
+                w.lead_m.0,
+                w.lead_m.1,
+                w.side_m.0,
+                w.side_m.1,
+                w.turn_rad.1,
+                w.turn_rad.0,
+                w.speed,
+                if w.fastest_kit { ", fastest kit lands" } else { "" }
+            ),
+            None => "no window".to_string(),
+        };
+        format!(
+            "pressed at lead {:.2} m (flown {flown}), side {:.2} m, turn {:.3} rad, {:+.2} m over the take-off, {:.2} m/s along; {window}",
+            self.lead_m, self.side_m, self.turn_rad, self.above_m, self.along_ms
+        )
+    }
 }
 
 /// [owner-5] Why a sprint link's press went without sprint, the first gate that held it (`Motor::jump_key`'s `sprinted`):
@@ -1545,6 +1616,7 @@ impl Motor {
             look: None,
             lane_use: super::apart::LaneUse::Idle,
             turn_time: None,
+            skill: 0.0,
             track: None,
             exact_end: None,
             drop_aim_run: 0,
@@ -1703,11 +1775,12 @@ impl Motor {
     /// of it, and that is what is added (none at a tick's time constant).
     fn turn_fed(&mut self, pose: &Pose, yaw: f32, pitch: f32, feed: (f32, f32)) -> (f32, f32) {
         let feel = &self.feel;
+        let skill = self.skill;
         let turn_time = self.turn_time.unwrap_or(feel.turn_time_s).max(0.02);
         let share = (1.0 - TICK_S / turn_time).max(0.0);
         let ease = |rate: &mut f32, left: f32, feed: f32| {
-            let want = (left / turn_time + feed * share)
-                .clamp(-feel.max_turn_speed, feel.max_turn_speed);
+            let cap = feel.max_turn_speed + skill.clamp(0.0, 1.0) * (feel.max_turn_speed_top - feel.max_turn_speed).max(0.0);
+            let want = (left / turn_time + feed * share).clamp(-cap, cap);
             let step = feel.max_turn_accel * TICK_S;
             *rate += (want - *rate).clamp(-step, step);
             let mut turn = *rate * TICK_S;
@@ -2058,16 +2131,7 @@ impl Motor {
             keys |= self.jump_key(&jump, still, pose, false);
         }
         keys = self.stay_keys(pose, keys);
-        // [A1b] A drop link walked off at release: crouched on its leg, every move key let go from its point until down and still.
-        let (walk_off, effect) = super::walk_off::step(
-            self.walk_off,
-            super::walk_off::Input { on_leg: route.walk_off_at(s, pose.feet), feet: pose.feet, footing: pose.footing, speed: pose.speed, clock: self.clock },
-        );
-        self.walk_off = walk_off;
-        keys = effect.keys(keys);
-        if let Some(ended) = effect.ended {
-            self.walk_off_line = Some(super::walk_off::line(ended));
-        }
+        keys = self.walk_off_keys(route, pose, s, keys);
         // A landing run against the way is braked, not walked out.
         let mut braked = false;
         if !self.letting_go()
@@ -2109,6 +2173,28 @@ impl Motor {
             let stop = rng.range(stop_lo, stop_hi);
             (stop, stop + rng.range(gap_lo, gap_hi))
         });
+    }
+
+    /// [A1b, F2/F3] A walk-off link's let-go ([`super::walk_off`]): a release's at its point, crouched on its leg; a walked-off drop's
+    /// on its first step standing under the height it has left the take-off by (`drop_check::left_take_off`, `walk_off_rest`).
+    /// Every move key let go from there until down and still. Both walks run it.
+    fn walk_off_keys(&mut self, route: &Route, pose: &Pose, s: f32, keys: u32) -> u32 {
+        let (walk_off, effect) = super::walk_off::step(
+            self.walk_off,
+            super::walk_off::Input {
+                on_leg: route.walk_off_at(s, pose.feet),
+                standing: pose.footing == Footing::Ground,
+                feet: pose.feet,
+                footing: pose.footing,
+                speed: pose.speed,
+                clock: self.clock,
+            },
+        );
+        self.walk_off = walk_off;
+        if let Some(ended) = effect.ended {
+            self.walk_off_line = Some(super::walk_off::line(ended));
+        }
+        effect.keys(keys)
     }
 
     /// [A1b] Whether the body was let go at a walk-off's release and is not yet down and still ([`super::walk_off::WalkOff::LetGo`]),
@@ -2390,8 +2476,10 @@ impl Motor {
             keys |= self.jump_key(&jump, still, pose, true);
         }
         keys = self.stay_keys(pose, keys);
+        // [F2/F3] The drop's script plays on an aimed walk too: it was walked over the edge and let go by the walk's keys alone.
+        keys = self.walk_off_keys(route, pose, s, keys);
         // A landing run against the way is braked, not walked out ([item 10] not a held sprint's held steps).
-        if !self.holding_landing()
+        if !self.letting_go()
             && let Some(brake) = self.landing_brake(route, pose, s, &clear)
         {
             keys = (keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT)) | brake;
@@ -3196,6 +3284,18 @@ impl Motor {
             facing: still,
             sprint_gate,
             aim: ahead.leap.aim(),
+            state: PressState {
+                lead_m: ahead.before - along.max(0.0) * TICK_S,
+                flown_lead_m: match ahead.leap {
+                    Leap::Gap(GapPress { lead, .. }) | Leap::SprintGap(SprintPress { lead, .. }) => Some(lead.metres()),
+                    Leap::Ledge | Leap::SprintLedge => None,
+                },
+                side_m: ahead.side,
+                turn_rad: still,
+                above_m: -ahead.take_off_above,
+                along_ms: along,
+                window: ahead.leap.window(),
+            },
         });
         self.jump = Some(JumpBy::Route);
         // [item 10] A held sprint holds the forward key on after its landing whether or not the route goes on off the top; only
@@ -7343,6 +7443,30 @@ mod tests {
         assert!(off40.iter().any(|&k| k & key::SPRINT != 0), "W+side sprints: {off40:x?}");
         let off90 = run(90f32.to_radians());
         assert!(off90.iter().all(|&k| k & key::FORWARD == 0 && k & key::SPRINT == 0), "a side key alone: no sprint {off90:x?}");
+    }
+
+    /// [A416] The turn cap rises with the skill: a fast turn (a short turn time) at skill 0 stays under the humans' P95 (5.0 rad/s),
+    /// at skill 1 it goes past it and stays under their P99 ([`Feel::max_turn_speed_top`]).
+    #[test]
+    fn the_turn_cap_rises_with_the_skill_to_the_humans_p99() {
+        let fastest = |skill: f32| {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel::default(), &mut rng);
+            motor.skill = skill;
+            motor.turn_time = Some(0.02);
+            let mut pose = Pose { yaw: 0.0, ..Default::default() };
+            let mut most = 0.0f32;
+            for _ in 0..30 {
+                let (turn, _) = motor.turn_toward(&pose, PI * 0.95, 0.0);
+                pose.yaw += turn;
+                most = most.max(turn.abs() / TICK_S);
+            }
+            most
+        };
+        let feel = Feel::default();
+        assert!(fastest(0.0) <= feel.max_turn_speed + 1e-3, "{}", fastest(0.0));
+        let top = fastest(1.0);
+        assert!(top > feel.max_turn_speed + 1.0 && top <= feel.max_turn_speed_top + 1e-3, "{top}");
     }
 
     #[test]

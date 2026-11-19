@@ -1753,11 +1753,46 @@ pub fn client_landing(mesh: &mapdata::RayTree, eye: Vec3, yaw: f32, pitch: f32, 
     Ok(at)
 }
 
-/// The eye a body at `feet` has with the view at `view_pitch` (up positive), crouched or standing, the crouched one at
-/// the height of holding still (`view::eye_height`): the lower, so a trap lands at least as far as counted on.
-fn eye_for(feet: Vec3, crouched: bool, view_pitch: f32) -> Vec3 {
-    feet + Vec3::new(0.0, super::view::eye_height(crouched, 0.0, view_pitch), 0.0)
+/// [fix-team trap pose] How far ahead of the feet, along the view's yaw, the client's trap ray starts, metres, by the view's
+/// pitch in the game's unit from -1 (the steepest look down) to 0 (level), a row every 0.1, standing and crouched. The ray
+/// starts at the head transform the bullet leaves along (`base_player+0x47C`, the `Item` bone times the body, 0x3063E0 ->
+/// 0x2DA4B0), not over the feet. The rows are the stock look clip posed by the pose port (`hbpose.py`, the rifle's
+/// `on_site_idle` + `on_site_idle_look`, as `pitch.rs`'s curve): at the stop 0.159 m standing, where the worlds measure the
+/// eye 0.135-0.17 m ahead of the feet at battery uses (`using_the_world.md`), PROVEN there; between, the clip's own pose.
+const ITEM_AHEAD_STANDING_M: [f32; 11] = [0.159, 0.153, 0.143, 0.131, 0.114, 0.095, 0.072, 0.046, 0.017, -0.014, -0.048];
+const ITEM_AHEAD_CROUCHED_M: [f32; 11] = [0.117, 0.108, 0.098, 0.086, 0.073, 0.057, 0.039, 0.020, -0.001, -0.025, -0.050];
+
+/// [fix-team trap pose] [`ITEM_AHEAD_STANDING_M`] / [`ITEM_AHEAD_CROUCHED_M`] at the view `view_pitch` (an elevation,
+/// radians, up positive; the client's unit by `PitchScale::Client`), straight between the rows; a look up as level.
+pub(crate) fn item_ahead_m(crouched: bool, view_pitch: f32) -> f32 {
+    let rows = if crouched { &ITEM_AHEAD_CROUCHED_M } else { &ITEM_AHEAD_STANDING_M };
+    let units = super::pitch::Pitch::of_elevation(view_pitch, super::pitch::PitchScale::Client).units().clamp(-1.0, 0.0);
+    let at = (units + 1.0) * 10.0;
+    let i = (at.floor() as usize).min(rows.len() - 2);
+    let f = at - i as f32;
+    rows[i] + (rows[i + 1] - rows[i]) * f
 }
+
+/// [fix-team trap pose] Where the client's trap ray starts for a body at `feet` with the view `yaw`, `view_pitch` (an
+/// elevation, up positive), crouched or standing, at `speed`: [`item_ahead_m`] ahead of the feet along the yaw, at the eye's
+/// height (`view::eye_height`, measured within sd 0.03 m).
+pub(crate) fn item_eye(feet: Vec3, yaw: f32, crouched: bool, speed: f32, view_pitch: f32) -> Vec3 {
+    let d = dir(yaw);
+    let ahead = item_ahead_m(crouched, view_pitch);
+    feet + Vec3::new(d[0] * ahead, super::view::eye_height(crouched, speed, view_pitch), d[1] * ahead)
+}
+
+/// The eye a body at `feet` has with the view `yaw`, `view_pitch` (up positive), crouched or standing ([`item_eye`]), the
+/// crouched one at the height of holding still (`view::eye_height`): the lower, so a trap lands at least as far as counted on.
+fn eye_for(feet: Vec3, yaw: f32, crouched: bool, view_pitch: f32) -> Vec3 {
+    item_eye(feet, yaw, crouched, 0.0, view_pitch)
+}
+
+/// [fix-team trap pose] How far the body's own reckoned feet may be off the client's at a press, metres, along the view: the
+/// press holds only where the landing holds from the feet moved this far back and forth. The reckoning's error a walker has
+/// about a second after a world is a median 0.20 m, p90 0.45 m (`fact-own-eye` cause 2, PROVEN live); 0.25 m is that median
+/// and a margin, a design value.
+pub const FEET_ERROR_M: f32 = 0.25;
 
 /// The point to look at for a yaw: along it and down at `pitch`, as far as the head ray goes.
 pub fn look_point(eye: Vec3, yaw: f32, pitch: f32) -> Vec3 {
@@ -3711,11 +3746,8 @@ pub(super) fn drive(
         // not the spot planned before the look down and the steps taken
         // since (1.8 m off at 3 m/s); a ray too short puts nothing down.
         // With the landing rule the eye is the held pose's.
-        let eye = if t.press_landing_m.is_some() {
-            me.feet + Vec3::new(0.0, super::view::eye_height(crouched, me.speed(), me.pitch), 0.0)
-        } else {
-            me.eye()
-        };
+        // [fix-team trap pose] From the client's ray start, the `Item` bone ahead of the feet ([`item_eye`]).
+        let eye = if t.press_landing_m.is_some() { item_eye(me.feet, me.yaw, crouched, me.speed(), me.pitch) } else { me.eye() };
         // [A324] By the client's rule: no promise where the client puts nothing, and the promise on the trap itself.
         let landed = match (t.release, mesh) {
             (TrapRelease::Client, Some(mesh)) => client_landing(mesh, eye, me.yaw, me.pitch, bot.features.traps.field.discs()).ok(),
@@ -3824,10 +3856,21 @@ fn aim_of(bot: &Bot, me: &PlaceView, crouched: bool, t: &TrapTuning, mesh: Optio
             let lead = Vec3::new(me.velocity[0] * RELEASE_LEAD_S, 0.0, me.velocity[1] * RELEASE_LEAD_S);
             let feet = me.feet + lead;
             let view = (me.pitch - PRESS_SLACK).max(-STEEPEST.0);
-            let eye = eye_for(feet, crouched, view);
+            let eye = eye_for(feet, me.yaw, crouched, view);
             // [A324] Where the client puts it, or why it puts nothing there (`traps.release`).
             let landed = match (t.release, mesh) {
-                (TrapRelease::Client, Some(mesh)) => client_landing(mesh, eye, me.yaw, view, bot.features.traps.field.discs()),
+                (TrapRelease::Client, Some(mesh)) => {
+                    let discs = bot.features.traps.field.discs();
+                    // [fix-team trap pose] It holds from the feet [`FEET_ERROR_M`] back and forth along the view too: the
+                    // reckoned feet are that far off the client's (the landing promised is the middle one's).
+                    let d = dir(me.yaw);
+                    let off = |m: f32| eye_for(feet + Vec3::new(d[0] * m, 0.0, d[1] * m), me.yaw, crouched, view);
+                    client_landing(mesh, eye, me.yaw, view, discs).and_then(|at| {
+                        client_landing(mesh, off(-FEET_ERROR_M), me.yaw, view, discs)?;
+                        client_landing(mesh, off(FEET_ERROR_M), me.yaw, view, discs)?;
+                        Ok(at)
+                    })
+                }
                 _ => landing(eye, me.yaw, view, spot.y).ok_or(Why::NoFloor),
             };
             let press = match landed {
@@ -4453,6 +4496,28 @@ impl super::Bots {
             sums[usize::from(bot.team.min(1))].add(&bot.features.traps.tally);
         }
         format!("team 0: {}; team 1: {}", sums[0].line(), sums[1].line())
+    }
+}
+
+#[cfg(test)]
+mod item_eye_tests {
+    use super::*;
+
+    /// [fix-team trap pose] The ray starts ahead of the feet as the posed clip has it: 0.159 m at the stop standing (the worlds
+    /// measure 0.135-0.17 m), less as the view rises, about none level; straight up by `view::eye_height`.
+    #[test]
+    fn the_trap_ray_starts_ahead_of_the_feet_by_the_view() {
+        let stop = super::super::pitch::Pitch::new(-1.0).elevation(super::super::pitch::PitchScale::Client);
+        assert!((item_ahead_m(false, stop) - 0.159).abs() < 1e-3);
+        assert!((item_ahead_m(true, stop) - 0.117).abs() < 1e-3);
+        let mid = super::super::pitch::Pitch::new(-0.75).elevation(super::super::pitch::PitchScale::Client);
+        assert!((item_ahead_m(false, mid) - 0.137).abs() < 1e-3, "{}", item_ahead_m(false, mid));
+        assert!(item_ahead_m(false, 0.3).abs() < 0.05);
+        let feet = Vec3::new(1.0, 2.0, 3.0);
+        let eye = item_eye(feet, 0.0, false, 0.0, stop);
+        let d = dir(0.0);
+        assert!((eye.x - feet.x - d[0] * 0.159).abs() < 1e-3 && (eye.z - feet.z - d[1] * 0.159).abs() < 1e-3);
+        assert!((eye.y - feet.y - super::super::view::eye_height(false, 0.0, stop)).abs() < 1e-6);
     }
 }
 
@@ -5351,7 +5416,7 @@ mod tests {
                         let lead = Vec3::new(3.0 * d[0] * RELEASE_LEAD_S, 0.0, 3.0 * d[1] * RELEASE_LEAD_S);
                         let released = feet + lead;
                         let checked = (down + PRESS_SLACK).min(LOOK_DOWN);
-                        let landed = landing(eye_for(released, crouched, -checked), yaw, -checked, floor);
+                        let landed = landing(eye_for(released, yaw, crouched, -checked), yaw, -checked, floor);
                         if press_of(&t, landed, released, true, Vec::new) != Press::Ready {
                             continue;
                         }
@@ -5359,7 +5424,7 @@ mod tests {
                         // What happens: the view is anywhere from `down` to `down + slack`.
                         for extra in [0.0, PRESS_SLACK / 2.0, PRESS_SLACK] {
                             let at_release = (down + extra).min(LOOK_DOWN);
-                            let at = landing(eye_for(released, crouched, -at_release), yaw, -at_release, floor)
+                            let at = landing(eye_for(released, yaw, crouched, -at_release), yaw, -at_release, floor)
                                 .expect("lands");
                             assert!(
                                 at.distance_xz(released) >= min_m - 1e-3,

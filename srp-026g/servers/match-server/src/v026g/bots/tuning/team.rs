@@ -27,6 +27,10 @@ pub struct ModTuning {
     /// [fix-team] A raider takes the approach the team's knowledge covers least, and gathers on it ([`RaidApproach`],
     /// `raid::approach`). Off: the straight way to the container, the regroup on its ring.
     pub raid_approach: Option<RaidApproach>,
+    /// [fix-team raid re-plan] A raider on its approach prices it again on the way and takes a clearly better one, or a better
+    /// one at once when its lane turns bad ([`RaidReplan`]; read only with `raid_approach`). Off: the approach chosen at the
+    /// play's start is walked to its end.
+    pub raid_replan: Option<RaidReplan>,
     /// [fix-team 4] A comeback that gathers, then commits ([`Comeback`]): attacks only while the team is not outnumbered, and
     /// no container holder behind late. The gather is `raid_regroup`, the commit `commit.hold_started`. Not `team_plan`: no
     /// play is weighed up. Off: attacks at any strength, the holder at any score.
@@ -259,6 +263,36 @@ impl Default for RaidApproach {
     }
 }
 
+/// [fix-team raid re-plan] The approach priced again on the way in (Killzone 3's bots rerun their planner at a fixed rate and
+/// take only a better plan; its squads path on an influence map of bots and deaths; Mark's tactical maps are fresh at 0.5-2 s;
+/// Halo 2's running choice keeps a bonus over the others). Every `every_s` the remaining approach and every approach from where
+/// the bot is now are priced alike (`raid::price`); another is taken when it costs at most `1 - margin` of the remaining one.
+/// An enemy newly sensed within `raid_approach.enemy_m` of the remaining way, or a team death within its `death_m`, since the
+/// last pricing makes the pricing due at once and drops the margin (any cheaper approach). No switch within `lock_m` of the
+/// gather point. Start values from the sources' ranges, none measured.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RaidReplan {
+    pub every_s: f32,
+    pub margin: f32,
+    pub lock_m: f32,
+}
+
+impl Default for RaidReplan {
+    fn default() -> Self {
+        Self { every_s: 2.0, margin: 0.25, lock_m: 15.0 }
+    }
+}
+
+impl RaidReplan {
+    pub fn check(&self) -> Result<(), String> {
+        if !(self.every_s > 0.0 && (0.0..1.0).contains(&self.margin) && self.lock_m >= 0.0) {
+            return Err("mods.raid_replan".into());
+        }
+        Ok(())
+    }
+}
+
 impl RaidApproach {
     pub fn check(&self) -> Result<(), String> {
         let positive = [self.route_near_m, self.stage_m, self.sample_m, self.enemy_m, self.known_s, self.death_m, self.lane_m];
@@ -309,6 +343,7 @@ impl Default for ModTuning {
             behind_open: None,
             raid_regroup: Some(RaidRegroup::default()),
             raid_approach: Some(RaidApproach::default()),
+            raid_replan: Some(RaidReplan::default()),
             comeback: Some(Comeback::default()),
         }
     }

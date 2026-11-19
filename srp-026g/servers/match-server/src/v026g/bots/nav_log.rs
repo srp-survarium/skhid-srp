@@ -67,6 +67,11 @@ impl JumpOutcome {
         }
     }
 
+    /// [F3] Whether the jump missed its landing: short, not down, or given up.
+    pub fn missed(self) -> bool {
+        !matches!(self, Self::Up | Self::Down)
+    }
+
     pub fn word(self) -> &'static str {
         match self {
             Self::Up => "up",
