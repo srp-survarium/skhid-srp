@@ -84,8 +84,17 @@ not the 23 background-building and outdoor ones): the cubemap is read where the 
 the probe's box, not along the ray from the probe's centre. Patch 14 dropped the field; 0.26g's box
 programs have every constant it needs and read along the ray. `london-probes@2` (resource-porter
 `probe_parallax`) gives the 8 smart box permutations, before their specular sample, a branch taken only on
-London's marked scenes (`mie_fog_base_height` 32909 day, 32929 evening, 32919 rain once rain carries it)
+London's marked scenes (`mie_fog_base_height` 32909 day, 32929 evening, 32919 rain)
 that replaces the lookup direction with the box-projected one. It reaches only the
 probes 0.31a2 projects: `london-probe-channel-1.json` gives those 137 probes smart attenuation, which no
 London probe has, and only the smart box programs carry the branch; on London's marked scenes they
 also draw the plain box falloff instead of the smart one. Other maps never take either branch.
+
+Overlapping probes draw one over another, largest radius first: both executables sort the visible
+probes the same way (`std::sort` on the render probe's radius, 0.26g 0x1B9E82, 0.31a2 0x7DBC6A), so
+the radii decide whose reflection lies on top. Skhid's London came from an earlier build of the map,
+and seven probes differ from 0.31a2's (radii of `gerkin(1)`, `gerkin(3)`, `hall_box_1_floor(2)`; boxes
+of `hall_2_floor`, `hall_box(1)`, `ladder(1)`; places of `hall_2_floor`, `gerkin(3)`; side widths of
+`hall_2_floor`, `gerkin(22)`). With radius 5, `gerkin(3)` tied `gerkin_hall_centre` and could draw
+under it; with 0.31a2's 4 it draws after, as there (the corridor of the owner's FFA pick 11).
+`london-probe-shapes-1.json` sets the seven as 0.31a2 authors them in each project.
