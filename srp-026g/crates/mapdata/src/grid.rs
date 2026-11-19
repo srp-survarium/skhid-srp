@@ -1304,6 +1304,32 @@ struct Span {
     /// 0 not a floor, [`STEEP`] a floor too steep to walk up, 2 a floor
     /// by slope, 3 a `walk` face (the higher wins where spans merge).
     walk: u8,
+    /// [walk-face chain] A `walk` piece the client's body walks up ([`WALK_FACE_CLIMB_NORMAL_Y`]): only such pieces carry a
+    /// floor's naming down a `walk` face ([`Body::walk_face_stands`]).
+    climbs: bool,
+}
+
+/// [walk-face chain] The steepest `walk` face the client's body walks up, as the cosine of its slope (its normal's up part): the
+/// port's tick (`controller::tick`, the exe's `player_step` 0x7BDA0, a `walk` hit's ground normal UP, 0x84561..0x84584) walks a
+/// body at 1 to 3.5 m/s up a 6 m and a 20 m `walk` face of 84.2 deg (0.1004) to its top, and not one of 84.3 deg (0.0987):
+/// `grid::drop_check` test `the_client_walks_up_a_walk_face_to_its_climb_limit_and_no_steeper`. A steeper `walk` face (a
+/// pillar's side) is a wall the body stands at the foot of, not a way up to its top.
+const WALK_FACE_CLIMB_NORMAL_Y: f32 = 0.1;
+
+/// [walk-face chain] How far down a `walk` floor of top `top` names a body ([`Body::walk_face_stands`]): from the lowest point of
+/// the climbing `walk` pieces chained to its top (each touching, within [`MERGE_GAP`], one already chained, starting at the
+/// pieces whose top is the floor's within [`SAME_TOP`]); none (infinity) when no climbing piece reaches the top. A `walk` piece
+/// joined to the span only through a face the body does not walk up (a box top beside a pillar whose side it cannot climb) names
+/// nothing on the pillar's top.
+fn walk_chain_low(top: f32, pieces: &mut [(f32, f32)]) -> f32 {
+    pieces.sort_by(|p, q| q.1.total_cmp(&p.1));
+    let mut low = f32::INFINITY;
+    for &(l, h) in pieces.iter() {
+        if (top - h).abs() <= SAME_TOP || h >= low - MERGE_GAP {
+            low = low.min(l);
+        }
+    }
+    low
 }
 
 /// [`Span::walk`] of a face between 50° and 60°.
@@ -1751,15 +1777,15 @@ impl WalkGrid {
                 }
             }
             let mut merged: Vec<Span> = Vec::with_capacity(column.len());
-            // [A389] Each merged span's lowest `walk` piece (the floor on it stands from there to its top).
-            let mut lows: Vec<f32> = Vec::with_capacity(column.len());
+            // [A389, walk-face chain] Each merged span's climbing `walk` pieces (low, high): the floor on it names a body from
+            // the lowest of those chained to its top ([`walk_chain_low`]).
+            let mut climbing: Vec<Vec<(f32, f32)>> = Vec::with_capacity(column.len());
             for span in column {
                 if let Some(last) = merged.last_mut()
                     && span.low <= last.high + MERGE_GAP
                 {
-                    let low = lows.last_mut().expect("one a merged span");
-                    if span.walk == 3 {
-                        *low = low.min(span.low);
+                    if span.climbs {
+                        climbing.last_mut().expect("one a merged span").push((span.low, span.high));
                     }
                     if (span.high - last.high).abs() <= SAME_TOP {
                         last.walk = last.walk.max(span.walk);
@@ -1770,9 +1796,10 @@ impl WalkGrid {
                     }
                     continue;
                 }
-                lows.push(if span.walk == 3 { span.low } else { f32::INFINITY });
+                climbing.push(if span.climbs { vec![(span.low, span.high)] } else { Vec::new() });
                 merged.push(span);
             }
+            let lows: Vec<f32> = merged.iter().zip(climbing.iter_mut()).map(|(span, pieces)| walk_chain_low(span.high, pieces)).collect();
             solids
                 .spans
                 .extend(merged.iter().map(|span| (span.low, span.high)));
@@ -5368,6 +5395,7 @@ fn rasterize(
             WalkerBehaviour::BySlope if up >= STEEP_NORMAL_Y => STEEP,
             _ => 0,
         };
+        let climbs = walk == 3 && up >= WALK_FACE_CLIMB_NORMAL_Y;
         // Cells are half-open: a mesh ending on a cell line stops before it,
         // a wall standing on one belongs to one column.
         let first = |low: f32, origin: f32| ((low - origin) / cell).floor();
@@ -5401,7 +5429,7 @@ fn rasterize(
                     low = low.min(p.y);
                     high = high.max(p.y);
                 }
-                columns[k * nx + i].push(Span { low, high, walk });
+                columns[k * nx + i].push(Span { low, high, walk, climbs });
                 stats.spans += 1;
             }
         }
