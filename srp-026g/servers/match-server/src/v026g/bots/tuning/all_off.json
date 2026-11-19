@@ -75,12 +75,14 @@
     "lip_guard_full": false,
     "lip_guard_ticks": 0,
     "lip_look_ahead_m": 0.0,
+    "max_turn_speed_top": 5.0,
     "precise_tops": false,
     "sprint_by": "facing",
     "sprint_gaps": false,
     "sprint_through": false,
     "sprint_turns": null,
     "unclear_aim": false,
+    "view_rule": "free",
     "zone_lines": false
   },
   "grid": {

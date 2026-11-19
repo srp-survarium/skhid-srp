@@ -2716,6 +2716,9 @@ pub(crate) fn real_bot_cost() {
             // [D8] Bursts held through the bot's own closed ray with the target in sight.
             let held = crate::v026g::bots::reflex::burst_rays::counts();
             eprintln!("burst rays so far: held ticks view ray {}, aim ray {}", held[0], held[1]);
+            // [A416] The view schedule.
+            let view = crate::v026g::bots::view_schedule::counts::counts();
+            eprintln!("view schedule so far: glances begun {}, cut at their most {}, look ticks held on the course {}", view[0], view[1], view[2]);
             let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
             eprintln!(
                 "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"
