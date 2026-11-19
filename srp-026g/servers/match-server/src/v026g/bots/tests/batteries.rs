@@ -525,6 +525,9 @@ pub(crate) struct LostBattery {
     pub(crate) look: Option<u32>,
     pub(crate) sent: Option<u32>,
     pub(crate) took: Option<u32>,
+    /// [A394 (b)] After the look and before it was sent, the last ms its bot was on a take of another battery (its Collect of
+    /// it, or carrying it), and whether that battery was then home (scored).
+    pub(crate) other: Option<(u32, bool)>,
 }
 
 /// Match 0x15aa5b99 in small: an enemy (place 1, no bot) steals battery 0
@@ -648,6 +651,19 @@ pub(crate) fn lost_battery_run(look_weight: Option<f32>, limit: u32, refresh: bo
             total_s: 900.0,
             playing: true,
         });
+        if out.look.is_some() && out.sent.is_none() {
+            let on_other = bots.bots[0].as_ref().is_some_and(|b| {
+                b.assignment.as_ref().is_some_and(|a| {
+                    a.kind == super::plays::PlayKind::Collect && matches!(a.target, super::plays::TargetRef::Battery(n) if n != 0)
+                })
+            }) || game.bodies[0].carrying.is_some_and(|n| n != 0);
+            if on_other {
+                out.other = Some((clock, false));
+            } else if let Some((at, false)) = out.other {
+                let home = game.batteries.iter().enumerate().any(|(n, lying)| n != 0 && matches!(lying, Lying::Home(0)));
+                out.other = Some((at, home));
+            }
+        }
         if out.sent.is_none()
             && bots.bots[0].as_ref().is_some_and(|b| {
                 b.assignment.as_ref().is_some_and(|a| {
@@ -699,7 +715,18 @@ fn a_killed_thief_case(refresh: bool) {
     // The world showing the death comes 300 ms behind, a second apart.
     assert!(look >= died && look <= died + 2_500, "{run:?}");
     let sent = run.sent.unwrap_or_else(|| panic!("nobody sent: {run:?}"));
-    assert!(sent <= look + 5_000, "{run:?}");
+    // [A394 (b), `commit.finish_take`] A take within reach of a free battery, unseen, is finished first: a battery that
+    // spawns within reach as the look comes (here battery 1 at 13.75 s, its spawner the bot's play before the chase) is taken
+    // and brought home first, then the look. The send is timed from the later of the look and the end of that take, which
+    // must have scored. Before A394 (b) this asserted the send within 5 s of the look whatever else lay within reach.
+    let free = match run.other {
+        Some((until, home)) => {
+            assert!(home, "the other take went home: {run:?}");
+            look.max(until)
+        }
+        None => look,
+    };
+    assert!(sent <= free + 5_000, "{run:?}");
     let took = run.took.unwrap_or_else(|| panic!("not taken: {run:?}"));
     assert!(took <= died + 30_000, "{run:?}");
     let without = lost_battery_run(Some(0.0), took + 10_000, refresh);
