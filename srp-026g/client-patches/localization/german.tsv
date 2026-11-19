@@ -2691,7 +2691,7 @@ st_srp_medical_seconds	 s
 st_srp_medicine_aim_time	Zielzeit
 st_srp_medicine_crouched_healing	Heilung in der Hocke
 st_srp_medicine_hit_slow	Trefferverlangsamung
-st_srp_medicine_reload_speed	Nachladegeschwindigkeit
+st_srp_medicine_reload_speed	Nachladetempo
 st_srp_medicine_sprint_stamina	Sprint-Energie
 st_srp_melee_knockback	Kolbenschlag-Wucht
 st_srp_mic_test	Mikrofon testen

@@ -2691,7 +2691,7 @@ st_srp_medical_seconds	 s
 st_srp_medicine_aim_time	Czas celowania
 st_srp_medicine_crouched_healing	Leczenie w kucki
 st_srp_medicine_hit_slow	Spowolnienie od kul
-st_srp_medicine_reload_speed	Szybkość przeładowania
+st_srp_medicine_reload_speed	Przeładowanie
 st_srp_medicine_sprint_stamina	Energia na sprint
 st_srp_melee_knockback	Siła ciosu kolbą
 st_srp_mic_test	Testuj mikrofon

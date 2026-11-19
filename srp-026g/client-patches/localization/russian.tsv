@@ -2691,7 +2691,7 @@ st_srp_medical_seconds	 s
 st_srp_medicine_aim_time	Время прицеливания
 st_srp_medicine_crouched_healing	Лечение в приседе
 st_srp_medicine_hit_slow	Замедление от пуль
-st_srp_medicine_reload_speed	Скорость перезарядки
+st_srp_medicine_reload_speed	Темп перезарядки
 st_srp_medicine_sprint_stamina	Энергия на спринт
 st_srp_melee_knockback	Отбрасывание прикладом
 st_srp_mic_test	Проверить микрофон

@@ -2691,7 +2691,7 @@ st_srp_medical_seconds	 с
 st_srp_medicine_aim_time	Час прыцэльвання
 st_srp_medicine_crouched_healing	Лячэнне ў прысядзе
 st_srp_medicine_hit_slow	Запаволенне ад куль
-st_srp_medicine_reload_speed	Хуткасць перазарадкі
+st_srp_medicine_reload_speed	Тэмп перазарадкі
 st_srp_medicine_sprint_stamina	Энергія на спрынт
 st_srp_melee_knockback	Адкідванне прыкладам
 st_srp_mic_test	Праверыць мікрафон
