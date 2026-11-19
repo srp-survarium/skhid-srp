@@ -22,8 +22,8 @@ struct Spot {
 }
 
 const SPOTS: [Spot; 4] = [
-    Spot { name: "map 97 top spot", project: "level_07/day_2", take_off: Vec3::new(65.0, 25.0, -31.0), landing: Vec3::new(64.0, 24.1, -30.8) },
-    Spot { name: "map 97 x = 58 ledge", project: "level_07/day_2", take_off: Vec3::new(58.0, 25.0, -10.5), landing: Vec3::new(57.0, 26.1, -10.5) },
+    Spot { name: "map 97 top spot", project: "level_07/day_2", take_off: Vec3::new(65.01, 25.01, -31.04), landing: Vec3::new(64.01, 24.09, -30.79) },
+    Spot { name: "map 97 x = 58 ledge", project: "level_07/day_2", take_off: Vec3::new(58.01, 25.01, -10.54), landing: Vec3::new(57.26, 26.1, -10.54) },
     Spot { name: "map 103 rise 1.8 m", project: "level_08/day_2", take_off: Vec3::new(5.5, 32.6, 54.6), landing: Vec3::new(5.7, 34.4, 54.1) },
     Spot { name: "map 91 rise 1.5 m", project: "level_06/day_2", take_off: Vec3::new(-22.6, 24.3, 57.9), landing: Vec3::new(-21.9, 25.8, 57.9) },
 ];
