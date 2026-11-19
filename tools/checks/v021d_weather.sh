@@ -44,6 +44,11 @@ while read -r patch _; do
 done <release/patches.tsv
 candidate=("$CHECK_WORK"/content/resources.db.patch_*)
 [[ ${#candidate[@]} == 1 && -f ${candidate[0]} ]]
+# A released map's files live in its released patch, not in a later candidate: the checkers read
+# one resource of the candidate as the game mounts it, through to the offered patches and stock.
+below=$(tac release/patches.tsv | awk -v d="$cache/patches/" -F'\t' '/^resources\.db\.patch_/ {printf "%s%s:", d, $1}')
+export LAYERED_PORTER=$weather_porter LAYERED_CANDIDATE=${candidate[0]} LAYERED_BELOW="$below$SKHID_STOCK_DB"
+weather_porter=$PWD/tools/checks/layered_porter.py
 python3 srp-026g/scripts/v021d-weather/check_material_visibility.py \
     --porter "$weather_porter" \
     --donor "$common/private/v021d-five-weathers/original-resources.db" \

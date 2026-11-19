@@ -16,12 +16,12 @@ Ids over 255 need exe patch 154.
 
 ## The packs
 
-- `maps-021d-chemical@1`, resource-porter `tools/content/chemical_021d.sh`
+- `maps-021d-chemical@2`, resource-porter `tools/content/chemical_021d.sh`
   (branch `port/v021d-chemical`): donor geometry, local lights, probe volumes
   and cubemaps with native material schemas; native level_04's ammo crates at
   its spots, set on 0.21d's floor (3 cm). 151 shared `ported/v021d` paths keep
   the live bytes (`chemical_021d.keep-live.txt` says why).
-- Rain and evening are four projects of their own pack, `maps-021d-chemical-weathers@1`, made from
+- Rain and evening are four projects of their own pack, `maps-021d-chemical-weathers@2`, made from
   the authored day source by the same builder
   ([the weather README](../../scripts/v021d-weather/README.md)). 0.21d's rain
   has two hanging lamps its day has not; `v021d-weather-geometry-1.json` adds
@@ -56,6 +56,21 @@ donor render stage that carries visibility; otherwise the donor material is
 converted like one 0.26 does not have (here on `level_4_anomaly/bugs`, a
 forward particle) and stays 0.21's.
 
+A particle effect 0.26 also ships under the same path stays 0.26's (its
+retunes are kept, as a material's finish is), unless 0.26's lacks one of the
+donor's emitters: then part of the effect itself is gone and the donor's
+effect is imported (resource-porter `survarium_026.rs`, `particle_emitters`).
+0.26 dropped the second, green emitter of the anomaly's
+`fx/level_4_anomaly/radial_smoke`, so `maps-021d-chemical@1` drew no green
+haze over the toxic moss (held 150 s: 0.21d shows it the whole time, 15-17%
+of the frame strongly green, the port never), and the smoke materials
+`v021d-chemical-materials-1.json` tunes were not used by anything.
+`maps-021d-chemical@2` imports the effect as
+`particles/ported/v021d/fx/level_4_anomaly/radial_smoke` with both emitters on
+the ported materials. Of the 16 particles the six 0.21 maps take from 0.26
+by name, the rule matches only this one, so the five released maps do not
+change; the other 15 differ from 0.21d in values only.
+
 A particle material's transparency texture keeps 0.26's file where the
 full-size image is the same (the anomaly's `bug` and `spori`, the candle
 light): 0.21's small mips raise alpha, and 0.26's particle pass would draw
@@ -76,21 +91,22 @@ weather, of the pool's 88.
 | evening | 96 | 8 | 5 |
 
 All six projects load with no missing shader. The day sun views match 0.21d's.
-Open, none of them fixed here:
+What that comparison left open, and where it stands (2026-11-19, the completion pass over released
+revision 66: day pack `@2`, weather pack `@2`):
 
-- **Rain: the anomaly's liquid is pale white** (`battery_3`, `roof_1_out`); it is
-  teal in 0.21d's rain, in native 0.26 rain at the same cameras, and in the
-  port's day and evening. Lighting quality 0 or 1 makes no difference. The
-  material (`anomaly/anomaly_liquid`) is 0.26's own with 0.21d's diffuse;
-  0.21d's rain fog is dense and white (Mie far distance 60 m against the
-  native rain's 1200), which is where to look.
-- **Sunlight missing indoors**: day `in_18_wall` (one sun patch on the floor)
-  and evening `in_03_near` (a room the low sun floods in 0.21d is unlit): the
-  sun's shadow covers them, as on School's gym wall.
-- **Water** (`in_32_wall`, every weather): 0.21d's water mirrors the sky at the
-  far edge, the port's does not (water surface lighting is 0.26's).
-- **Roof metal** (day `in_31_near`): 0.26's finish is glossier and bluer than
-  0.21d's matte rust (the native-finish rule of these ports).
-- The anomaly's green haze and bright spores in 0.21d's rain and evening shots
-  are its active state at the time of the shot (the day shots of both builds
-  have neither); the port's static captures show it idle.
+- **Rain: the anomaly's liquid was pale white** (`battery_3`, `roof_1_out`): fixed by the
+  original forward fog (`v021d-forward-fog@5`): difference from 0.21d 40.9 -> 11.2 and
+  28.3 -> 6.1.
+- **Sunlight indoors** (day `in_18_wall`, evening `in_03_near`): 0.21d's own stale shadow map,
+  not the port. Shot in a fresh 0.21d session (one camera a session, kept apart from the
+  references), both rooms are unlit as in the port: difference 5.7 and 2.5 there, against
+  22.0 and 31.6 between the kept shot and the fresh one. The kept shots were taken after the
+  capture route, which leaves 0.21d's sun shadow map stale (as on School's gym wall).
+- **Anomaly haze**: a port bug, fixed (the particle rule above). It is not an active state:
+  held 150 s, 0.21d shows it all the time.
+- **Roof metal** (day `in_31_near`): now 5.8 from 0.21d (was 20.6).
+- **Water** (`in_32_wall`, every weather) still differs: 0.21d's water mirrors a bright
+  sky and the pillars, the port's neither, at the rig's settings and the owner's. The two
+  water programs do the same arithmetic (the reflection cube times 0.25, mixed with the
+  screen-space reflection by its alpha); what differs is what the engine binds to them, so
+  it is a renderer difference shared by every ported map's water, not a content fix.
