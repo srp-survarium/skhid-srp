@@ -959,14 +959,19 @@ pub fn tuning() -> PlayTuning {
 /// at which it scores out of Collect: the consideration's top in [`tuning`].
 const ENEMIES_OUT: f32 = 4.0;
 
-/// [take.known_threats] The enemies known by a battery lying at `at`, for its score: each whose last spot the team's own
-/// senses gave and that still lives (`Track::own`, [`Ctx::spot_lives`], as [`Ctx::take_threat`] reads him), not heard
-/// reloading within
-/// `reload_cover_s` ([`Ctx::reloading`]), and not kept busy by a teammate (only a man the bot sees now can be: a clear
-/// line to him within `cover_m`, no cloud on it, [`Ctx::covers`]; a line to a spot nobody sees keeps nobody busy) by his
-/// distance from it ([`held_weight`]); any other remembered enemy within [`ENEMIES_NEAR_M`] one, as
+/// [take.known_threats] The enemies known by a battery lying at `at`, for its score: a man at the battery holds it. Each
+/// whose last spot the team's own senses gave and that still lives (`Track::own`, [`Ctx::spot_lives`], as
+/// [`Ctx::take_threat`] reads him), not heard reloading within `reload_cover_s` ([`Ctx::reloading`]), and not kept busy by
+/// a teammate (only a man the bot sees now can be: a clear line to him within `cover_m`, no cloud on it, [`Ctx::covers`];
+/// a line to a spot nobody sees keeps nobody busy), with that spot within the take's `hold_near_m` of the battery, weighs
+/// [`ENEMIES_OUT`] alone and holds it ([`Weighed::held`]): there the take itself waits for him ([`Ctx::take_threat`]).
+/// Every other remembered enemy weighs as the count: one within [`ENEMIES_NEAR_M`] by his latest place, as
 /// [`Input::EnemiesNearTarget`] counts him. A man reloading or kept busy is one the take goes past, as the take itself
 /// reads him.
+///
+/// [hold near only] Between `hold_near_m` and `exposed_m` a spot weighed by a straight line from [`ENEMIES_OUT`] down to
+/// one before, so one or two men heard 4-10 m off weighed a battery out (one at 3.6 m weighed 3.9). Now beyond
+/// `hold_near_m` each man counts one, against [`ENEMIES_OUT`] as the count always went: four of them put it out.
 ///
 /// [own battery] With `own` (a battery the HUD showed stolen from our container lately, `TeamKnowledge::thefts`): a man
 /// known by his spot alone, not seen now, weighs as the count does (one within [`ENEMIES_NEAR_M`]) and holds nothing. The
@@ -998,11 +1003,11 @@ fn enemies_weighed(cx: &Ctx, at: Vec3, own: bool) -> Weighed {
         match t.own.filter(|&(_, time)| cx.spot_lives(t.who, time) && tells(t, time)) {
             Some(_) if own && !seen_now(t) => Weighed { sum: w.sum + count(t), ..w },
             Some((spot, _))
-                if !cx.reloading(t.who, reload_ms)
+                if spot.distance_xz(at) <= held_m
+                    && !cx.reloading(t.who, reload_ms)
                     && !(seen_now(t) && mates.iter().any(|mate| cx.covers(mate, Ctx::standing_eye(spot), cover_m, veil))) =>
             {
-                let d = spot.distance_xz(at);
-                Weighed { sum: w.sum + held_weight(d, held_m, exposed_m), held: w.held || d <= held_m }
+                Weighed { sum: w.sum + ENEMIES_OUT, held: true }
             }
             _ => Weighed { sum: w.sum + count(t), ..w },
         }
@@ -1012,23 +1017,10 @@ fn enemies_weighed(cx: &Ctx, at: Vec3, own: bool) -> Weighed {
 /// [take.known_threats] A battery's enemies weighed by their distance ([`enemies_weighed`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct Weighed {
-    /// The sum of their weights ([`held_weight`]; one for a remembered enemy with no spot of the team's own).
+    /// The sum of their weights: [`ENEMIES_OUT`] for a man at it, one for any other within [`ENEMIES_NEAR_M`].
     sum: f32,
     /// One of them stands by it: his spot within the take's `hold_near_m` (the take's own threat, [`Ctx::take_threat`]).
     held: bool,
-}
-
-/// [take.known_threats] One enemy known lately `d` metres from a battery, on its score's enemies (out at [`ENEMIES_OUT`]):
-/// within the take's `hold_near_m` he is at the battery, where the take itself waits for him ([`Ctx::take_threat`]): the
-/// battery is held, [`ENEMIES_OUT`] alone. From the take's `exposed_m` the take does not read him: one, as the count
-/// ([`Input::EnemiesNearTarget`]), to [`ENEMIES_NEAR_M`]; none past it. Between the two a straight line: the plainest join
-/// of the two ends, not a measured curve (the bench reads it, by side).
-fn held_weight(d: f32, held_m: f32, exposed_m: f32) -> f32 {
-    if d >= ENEMIES_NEAR_M.max(exposed_m) {
-        return 0.0;
-    }
-    let share = if exposed_m > held_m { ((exposed_m - d) / (exposed_m - held_m)).clamp(0.0, 1.0) } else { f32::from(d <= held_m) };
-    1.0 + (ENEMIES_OUT - 1.0) * share
 }
 
 /// How many enemies over [`ENEMIES_OUT`] a bot already on a battery's
@@ -6573,7 +6565,7 @@ mod tests {
         );
     }
 
-    /// [fix-team push `mods.push`] Two men heard 12 m off a battery weigh it out of Collect; the taker of the team's push on it,
+    /// [fix-team push `mods.push`] Four men heard 12-13 m off a battery weigh it out of Collect; the taker of the team's push on it,
     /// with two of its members by it, has it back (the guard net of its group); a bot not in the push does not.
     #[test]
     fn a_push_counts_a_batterys_guard_net_of_its_own() {
@@ -6584,13 +6576,14 @@ mod tests {
         s.tuning.mods.push = Some(crate::v026g::bots::tuning::PushRule::default());
         s.battery(BatteryState::Free(TAKE_AT));
         s.bot(0, 0, TAKE_AT + Vec3::new(0.0, 0.0, 20.0));
-        s.enemy(1, 1, TAKE_AT + Vec3::new(12.0, 0.0, 0.0), Some(Source::Heard));
-        s.enemy(3, 1, TAKE_AT + Vec3::new(-12.0, 0.0, 0.0), Some(Source::Heard));
+        for (p, x, z) in [(1, 12.0, 0.0), (3, -12.0, 0.0), (5, 12.0, -6.0), (7, -12.0, -6.0)] {
+            s.enemy(p, 1, TAKE_AT + Vec3::new(x, 0.0, z), Some(Source::Heard));
+        }
         for (p, x) in [(2, -3.0), (4, 3.0)] {
             s.bot(p, 0, TAKE_AT + Vec3::new(x, 0.0, 22.0));
         }
         let score = |s: &Scenario| battery_candidate(&s.cx(0), 0).map_or(0.0, |c| c.score.get());
-        assert_eq!(score(&s), 0.0, "no push: two men weigh it out");
+        assert_eq!(score(&s), 0.0, "no push: four men weigh it out");
         let target = Target::Battery { index: 0, at: TAKE_AT };
         s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4], short_since: None };
         assert!(score(&s) > 0.0, "the push's taker with two members by it: net of its own");
@@ -6614,19 +6607,12 @@ mod tests {
         assert!(score(&s) > 0.0, "older than a sprint out of 25 m: not held");
     }
 
-    /// [take.known_threats] A battery's enemies weighed by distance: a man within `hold_near_m` of it holds it alone
-    /// (`ENEMIES_OUT`), one at `exposed_m` or past it counts one to `ENEMIES_NEAR_M` and none beyond, a straight line
-    /// between. A man heard 2 m from a battery scores it out of Collect, and at 3.6 m leaves it under a tenth of what the
-    /// count left (which read him as a quarter off), also for a bot already on it; a man seen whom a teammate keeps busy
-    /// weighs one, a man only heard is kept busy by nobody; off, the count as before.
+    /// [take.known_threats] A man at a battery holds it: one heard 2 m from it (within `hold_near_m`) scores it out of
+    /// Collect, also for a bot already on it; at 3.6 m he counts one, as the count read him (a quarter off); a man seen whom
+    /// a teammate keeps busy weighs one, a man only heard is kept busy by nobody; off, the count as before.
     #[test]
     fn a_man_heard_by_a_battery_holds_it_by_his_distance() {
         use crate::v026g::bots::know::Source;
-        assert_eq!(held_weight(0.0, 3.0, 25.0), ENEMIES_OUT);
-        assert_eq!(held_weight(3.0, 3.0, 25.0), ENEMIES_OUT);
-        assert!((held_weight(14.0, 3.0, 25.0) - 2.5).abs() < 1e-5);
-        assert!((held_weight(24.9, 3.0, 40.0) - (1.0 + 3.0 * 15.1 / 37.0)).abs() < 1e-4);
-        assert_eq!(held_weight(25.0, 3.0, 25.0), 0.0);
         let scene = |on: bool, off_it: Vec3| {
             let mut s = Scenario::field(Mode::Batteries);
             s.tuning.take.known_threats = on;
@@ -6641,7 +6627,7 @@ mod tests {
         assert!(score(false, at_it) > 0.0, "off: a quarter off");
         assert_eq!(score(true, at_it), 0.0, "on: within hold_near_m, held");
         let (off, on) = (score(false, by_it), score(true, by_it));
-        assert!(on > 0.0 && on < 0.1 * off, "on: 3.6 m off it, {on} against {off}");
+        assert!(on > 0.0 && (on - off).abs() < 1e-6, "on: 3.6 m off it counts one, {on} against {off}");
         // A teammate 15 m off with a line to his spot keeps a heard man busy no more than the take reads him: held.
         let mate = TAKE_AT + at_it + Vec3::new(0.0, 0.0, -15.0);
         let mut s = scene(true, at_it);
@@ -6663,12 +6649,38 @@ mod tests {
         let mut s = scene(true, at_it);
         s.current = Some((PlayKind::Collect, TargetRef::Battery(0), s.view.clock));
         assert_eq!(score_of(&s), 0.0, "on it, heard at it: held");
-        // [#2052 hysteresis] The margin goes by the weighed sum: one man heard 3.6 m off (weighing 3.9, one track by the
-        // count) leaves the battery to a bot already on it by the margin, and a bot not on it reads the sum as it is.
-        let mut s = scene(true, by_it);
-        let fresh = score_of(&s);
+        // [#2052 hysteresis] The margin goes by the weighed sum: four men heard 5 m off (one each) put the battery out for
+        // a bot not on it, and leave it to a bot already on it by the margin.
+        let mut s = scene(true, Vec3::new(5.0, 0.0, 0.0));
+        for (p, off_it) in [(3, Vec3::new(-5.0, 0.0, 0.0)), (5, Vec3::new(0.0, 0.0, 5.0)), (7, Vec3::new(0.0, 0.0, -5.0))] {
+            s.enemy(p, 1, TAKE_AT + off_it, Some(Source::Heard));
+        }
+        assert_eq!(score_of(&s), 0.0, "four men 5 m off: out");
         s.current = Some((PlayKind::Collect, TargetRef::Battery(0), s.view.clock));
-        let kept = score_of(&s);
-        assert!(kept > 2.0 * fresh, "on it, heard 3.6 m off: kept by the margin, {kept} against {fresh}");
+        assert!(score_of(&s) > 0.0, "on it, four men 5 m off: kept by the margin");
+    }
+
+    /// [hold near only] Beyond `hold_near_m` each man counts one: three men heard 4 m from a battery leave it a Collect
+    /// candidate (the straight line weighed them out); a fourth puts it out, and one at it (2 m) holds it alone.
+    #[test]
+    fn men_beyond_hold_near_count_one_each() {
+        use crate::v026g::bots::know::Source;
+        let mut s = Scenario::field(Mode::Batteries);
+        s.tuning.take.known_threats = true;
+        s.battery(BatteryState::Free(TAKE_AT));
+        s.bot(0, 0, TAKE_AT + Vec3::new(0.0, 0.0, 20.0));
+        for (p, off_it) in [(1, Vec3::new(4.0, 0.0, 0.0)), (3, Vec3::new(-4.0, 0.0, 0.0)), (5, Vec3::new(0.0, 0.0, -4.0))] {
+            s.enemy(p, 1, TAKE_AT + off_it, Some(Source::Heard));
+        }
+        let score = |s: &Scenario| battery_candidate(&s.cx(0), 0).map_or(0.0, |c| c.score.get());
+        assert!(score(&s) > 0.0, "three men 4 m off: a candidate");
+        s.enemy(7, 1, TAKE_AT + Vec3::new(0.0, 0.0, 4.0), Some(Source::Heard));
+        assert_eq!(score(&s), 0.0, "four men 4 m off: out");
+        let mut s = Scenario::field(Mode::Batteries);
+        s.tuning.take.known_threats = true;
+        s.battery(BatteryState::Free(TAKE_AT));
+        s.bot(0, 0, TAKE_AT + Vec3::new(0.0, 0.0, 20.0));
+        s.enemy(1, 1, TAKE_AT + Vec3::new(2.0, 0.0, 0.0), Some(Source::Heard));
+        assert_eq!(score(&s), 0.0, "one man 2 m off: held");
     }
 }
