@@ -6730,6 +6730,24 @@ mod tests {
         assert!(motor.jump_try.is_none_or(|t| t.tries == 0), "no try spent");
     }
 
+    /// [slow walk press] A refused sprint link whose walking press is a standing one (`WalkPress::Slow(0)`, the grid's
+    /// `WalkingPress::Slow`) plays the standing press's window, not a walking press: walked in at the walk cap from -1.3 m, its rest
+    /// is inside the window (-0.8..-0.4 about the run-up point at -0.6), so it lets go there: no move key, no jump yet, no
+    /// sprint, and the route goes on (not refused).
+    #[test]
+    fn a_refused_sprint_link_with_a_standing_walk_press_plays_the_standing_window() {
+        let walk = GapPress { lead: mapdata::PressLead::from_metres(0.6), walk: WalkPress::Slow(0), share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None };
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel { sprint_gaps: true, sway: 0.0, ..Feel::default() }, &mut rng);
+        motor.walking = true;
+        let moves = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
+        let early = slow_rests::count();
+        let (keys, walked) = gap_tick(&mut motor, &mut gap_route(sprint_link(Some(walk))), -1.3, 3.5, Some(SprintBlock::Reloading));
+        assert_eq!(walked, Walked::OnTheWay, "taken by its walking press, not refused");
+        assert_eq!(keys & (moves | key::JUMP | key::SPRINT), 0, "let go to rest in the standing window: {keys:#x}");
+        assert!(slow_rests::count() > early, "the standing press's rest");
+    }
+
     /// [A386] A gap link's landing stays as flown: after the press the reckoned body goes into the air; on its first step on the
     /// ground the move keys and the sprint are let go until it is at rest, then the walk goes on. A route going on on the same
     /// top is walked on at once.
