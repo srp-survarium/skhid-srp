@@ -177,6 +177,43 @@ class Lamps(unittest.TestCase):
         edits.c.add_value(built, spec['table'], spec['key'], spec['value'])
         self.assertEqual(edits.check_built('p', built), [])
 
+    def test_a_weather_made_from_a_lamp_day_is_authored_over_its_carried_table(self):
+        # London's rain: a pack's copy of the day with the day's broken model
+        # and table, and a kerosene lamp the day's table does not bind.
+        bulb = dict(visual_name='props/light/lamp_on', position=[0., 5., 0.], rotation=[0., 0., 0.], scale=[1., 1., 1.])
+        frame = dict(bulb, visual_name='props/light/stand_group_batlamp', position=[20., 0., 0.])
+        glass = dict(frame, visual_name='props/light/stand_group_batlamp_glass_emit')
+        flame = dict(game_object_type='particle', lib_name=edits.FLAME, full_name='f', position=[20., .2, 0.])
+        def record(value):
+            return (3, [(k, (7 if isinstance(v, list) else 5, v)) for k, v in value.items()])
+        for v in (bulb, frame, glass):
+            v['lib_name'] = v['visual_name']
+        bounds = {bulb['visual_name']: ([-.056, -.209, -.056], [.056, 0., .055]),
+                  frame['visual_name']: ([-.12, 0., -.12], [.12, .62, .12]),
+                  glass['visual_name']: ([-.07, .11, -.07], [.07, .39, .07])}
+        def day(*visuals):
+            data = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in visuals])),
+                                                 ('client_objects', (4, [record(flame)]))])))
+            _, additions, spec = edits.author('day', data, bounds, 29, 7)
+            for add in additions:
+                edits.c.add_entry(data, add['list'], add['after'], add['like'], add['values'])
+            edits.c.add_value(data, spec['table'], spec['key'], spec['value'])
+            return data
+        self.assertEqual(edits.author('rain', day(bulb, frame, glass), bounds, 29, 7), ([], [], None))
+        moves, additions, spec = edits.author('rain', day(bulb, frame), bounds, 29, 7)
+        self.assertEqual((moves, additions, spec), ([], [], None))
+        carried = day(bulb)
+        rain = bytearray(pack.serialize((3, [('render_visuals', (4, [record(v) for v in
+                                                                    edits.tree(carried)['render_visuals'] + [frame, glass]])),
+                                             ('client_objects', (4, [record(flame)]))])))
+        edits.c.add_value(rain, '', 'srp_lamps', edits.tree(carried)['srp_lamps'])
+        moves, additions, spec = edits.author('rain', rain, bounds, 29, 7)
+        self.assertEqual((moves, additions, spec.pop('replaces')), ([], [], True))
+        self.assertEqual(sorted(len(row.get('particles', {})) for row in spec['value']['lamps'].values()), [0, 1])
+        edits.c.remove_key(rain, 'srp_lamps')
+        edits.c.add_value(rain, spec['table'], spec['key'], spec['value'])
+        self.assertEqual(edits.check_built('rain', rain), [])
+
     def assert_glow_alignment(self, fixture, cone, box, expected_tip, moves_expected=1):
         scenery = dict(cone, position=[100., 10., 100.])
         for v in (fixture, cone, scenery):
@@ -316,7 +353,11 @@ class Lamps(unittest.TestCase):
         self.assertEqual(maps, {f'level_0{i}' for i in range(2, 10)} |
                          {'v011e_level_03', 'v011e_level_04', 'v021d_level_02', 'v021d_level_04',
                           'v021d_level_03', 'v021d_level_05', 'v021d_level_06'})
-        self.assertEqual(len(source['add_value']), 102)  # School/Fort/Chemical Plant battery and TDM projects included.
+        # School/Fort/Chemical Plant battery and TDM projects, and London's rain and evening, whose
+        # tables replace the day's they carry.
+        self.assertEqual(len(source['add_value']), 108)
+        self.assertEqual(sorted(e['files'] for e in source['remove_key']),
+                         [f'projects/level_09/{w}_{m}/client_project' for w in ('evening', 'rain') for m in (2, 3, 4)])
         # Each of Vostok v0.11's ten hanging-lamp shafts must disappear
         # with its fixture. The two outdoor scenery shafts have no owner.
         for project in source['add_value']:

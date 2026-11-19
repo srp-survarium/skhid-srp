@@ -28,6 +28,13 @@ goes out with it (below).
 in `release/content.tsv`. `scripts/breakable-lamps/make_edits.py` authored it
 from the manifest's base projects plus Research, using model bounds from
 those same layers (including the ported models).
+Its input is the base with the manifest's packs composed over it. A pack that
+copies a lamp day into another weather (London's rain and evening, the 0.21
+maps' rain and evening) carries the day's broken models and table: the
+generator authors such a project over them and replaces its table
+(`remove_key`, then the new value) only where the rule now binds otherwise
+(London's weathers: their kerosene lamps, and the battery modes' extra
+hanging lamp).
 The list adds the broken visuals and a project-root `srp_lamps` table:
 
 - `version = 3`, `break_material`: the glass material id read from

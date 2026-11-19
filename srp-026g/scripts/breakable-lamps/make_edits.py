@@ -169,8 +169,21 @@ def rebound_lights(path, lamps, objects):
     return bindings
 
 
+def close(a, b):
+    """Two lamp tables alike: the same keys and values, numbers within the f32 rounding of a file."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(close(a[k], b[k]) for k in a)
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        return abs(a - b) <= 1e-4 * max(1, abs(a))
+    return a == b
+
+
 def author(path, data, bounds, break_material, effect_material):
+    """A project's lamp edits. A project a pack made from a lamp-carrying day (London's and the
+    0.21 maps' rain and evening) has the day's broken models and table already: its fixtures are
+    authored over them, and the table is replaced only where this rule now binds otherwise."""
     root = tree(data)
+    carried = root.get('srp_lamps')
     visuals = root.get('render_visuals', [])
     components = [(i, v) for i, v in enumerate(visuals) if v.get('visual_name') in PARTS]
     # Overlapping bulb/cover meshes form one fixture (level_06). A shot
@@ -251,6 +264,8 @@ def author(path, data, bounds, break_material, effect_material):
                 tip = emitters[0]['position']
             start = world_bounds(v, CONE_LIGHT_START, CONE_LIGHT_START)[0]
             position = [p + t - a for p, t, a in zip(v['position'], tip, start)]
+            if carried is not None and close(dict(enumerate(position)), dict(enumerate(v['position']))):
+                continue
             edit = {'file': path, 'list': 'render_visuals', 'where': selector(v),
                     'from': {'position': v['position']}, 'to': {'position': position}}
             c.set_entry(result, edit['list'], edit['where'], edit['from'], edit['to'])
@@ -267,6 +282,9 @@ def author(path, data, bounds, break_material, effect_material):
         if broken_key in added:
             continue
         added.add(broken_key)
+        if carried is not None and any(all(k in f and c.same(f[k], val) for k, val in
+                                           dict(match, visual_name=replacement).items()) for f in visuals):
+            continue
         edit = {'files': path, 'list': 'render_visuals', 'after': match, 'like': match,
                 'values': {'visual_name': replacement, 'lib_name': replacement}}
         assert c.add_entry(result, edit['list'], match, match, edit['values']) is not None
@@ -309,9 +327,11 @@ def author(path, data, bounds, break_material, effect_material):
                 rows[f'lamp{i:03d}'][table] = {
                     f'{key}{j}': dict(zip(('x', 'y', 'z'), o['position']), name=o['full_name'])
                     for j, o in enumerate(objects)}
-    return placements, additions, {'files': [path], 'table': '', 'key': 'srp_lamps',
-                       'value': {'version': 3, 'break_material': break_material,
-                                 'effect_material': effect_material, 'lamps': rows}}
+    value = {'version': 3, 'break_material': break_material, 'effect_material': effect_material, 'lamps': rows}
+    if carried is not None and close(carried, value):
+        return [], [], None
+    return placements, additions, {'files': [path], 'table': '', 'key': 'srp_lamps', 'value': value,
+                                   'replaces': carried is not None}
 
 
 def check_built(path, data):
@@ -398,6 +418,8 @@ def main():
         placements, adds, spec = author(str(p.relative_to(args.projects)), p.read_bytes(), bounds,
                                         live['glass'][0], live['bullet'][0])
         if spec:
+            if spec.pop('replaces'):
+                edits.setdefault('remove_key', []).append({'files': spec['files'][0], 'keys': ['srp_lamps']})
             edits['set_entry'].extend(placements)
             edits['add_entry'].extend(adds); edits['add_value'].append(spec)
             rows = spec['value']['lamps']
