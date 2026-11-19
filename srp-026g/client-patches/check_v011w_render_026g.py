@@ -33,7 +33,7 @@ environment_sun_direction):
 import struct
 import sys
 
-from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_ESI
+from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDI, UC_X86_REG_ESI
 
 import patch_026g as base
 import check_rain_v021d_026g as rig
@@ -465,6 +465,101 @@ def check_skylight(stock, patched):
           " vertex shader too, s_eye_ray_corner, and its fill without the default depth-stencil")
 
 
+# -- the clouds --------------------------------------------------------------------------------------------
+
+CLOUD_COMPILES = {"<0,0>": 0x1A5760, "<1,0>": 0x1A6170, "<0,1>": 0x1A65F0, "<1,1>": 0x1A6A60}
+CLOUD_EFFECT = HEAP + 0x3F0000
+ENVIRONMENT = HEAP + 0x3F1000
+CLOUD_HOSTS = {"sky_clouds_parameters0": HEAP + 0x3F2000, "sky_clouds_parameters1": HEAP + 0x3F2100}
+CLOUDS = {"clouds_color": [2.2955, 1.3838, 0.7473], "clouds_u_tile": 1, "clouds_fog_power": 10,
+          "clouds_fog_up_limit": 0.15}
+
+
+def check_clouds_compile(stock, patched):
+    for m in (stock, patched):
+        compile_stubs(m)
+    twin_ps = {0: "atmosphere_clouds_alpha_blend_v011w", 1: "atmosphere_clouds_modulate_v011w"}
+    for name, start in CLOUD_COMPILES.items():
+        for caching in (0, 1):
+            native = run_compile(stock, start, caching)
+            assert [next(e[4] for e in t if e[0] == "begin_pass") for t in native] == \
+                ["atmosphere_clouds", "atmosphere_clouds", "atmosphere_clouds_lighting"], name
+            for _ in range(2):
+                ours = run_compile(patched, start, caching)
+                assert len(ours) == 6 and ours[:3] == native, (name, len(ours))
+                for original in range(3):
+                    ps = twin_ps.get(original)
+                    want = [("begin_pass", e[1], e[2], e[3], ps, e[5]) if e[0] == "begin_pass" and ps else e
+                            for e in native[original]]
+                    assert ours[3 + original] == want, (name, original)
+        print(f"  ok effect_atmosphere_clouds{name}::compile (building, caching): techniques 0..2 the original's,"
+              " 3..5 their twins, 3 with ps atmosphere_clouds_alpha_blend_v011w and 4 with"
+              " atmosphere_clouds_modulate_v011w (every texture and state the same), twice")
+    for m in (stock, patched):
+        m.stubs = {}
+
+
+def cloud_stage(m, drawn):
+    m.w(ATMOSPHERE + 4, CONTEXT)
+    m.w(ATMOSPHERE + 0x80, CLOUD_HOSTS["sky_clouds_parameters0"])
+    m.w(ATMOSPHERE + 0x84, CLOUD_HOSTS["sky_clouds_parameters1"])
+    m.w(CONTEXT + 0x416C, drawn)
+    m.w(CONTEXT + 0x4170, VIEW)
+    m.w(BACKEND_SLOT, BACKEND)
+
+
+def cloud_technique(m, drawn, mode):
+    """The technique the clouds' pass applies for the environment's blend mode."""
+    cloud_stage(m, drawn)
+    m.w(ENVIRONMENT + 0xE8, mode)
+    m.run(0x1A4C0B, {0x1A4C16}, regs={UC_X86_REG_EBP: ATMOSPHERE, UC_X86_REG_EBX: ENVIRONMENT,
+                                      UC_X86_REG_EAX: CLOUD_EFFECT})
+    assert m.emu.reg_read(UC_X86_REG_EAX) == CLOUD_EFFECT, "the effect kept"
+    return m.emu.reg_read(UC_X86_REG_ECX)
+
+
+def cloud_constants(m, drawn):
+    cloud_stage(m, drawn)
+    def constant(esp):
+        host = m.emu.reg_read(UC_X86_REG_EAX)
+        name = next((n for n, at in CLOUD_HOSTS.items() if at == host), hex(host))
+        data = struct.unpack("<4f", bytes(m.emu.mem_read(m.r(esp + 4), 16)))
+        return 4, (name, m.emu.reg_read(UC_X86_REG_EDI) == BACKEND, tuple(round(x, 5) for x in data))
+    m.stubs = {SET_PS_CONSTANT: constant}
+    m.events = []
+    m.run(0x1A4D90, {0x1A4D96}, regs={UC_X86_REG_EBP: ATMOSPHERE, UC_X86_REG_EBX: ENVIRONMENT})
+    assert m.emu.reg_read(UC_X86_REG_EAX) == ENVIRONMENT + 0x108, "the replayed lea eax,[ebx+108h]"
+    events, m.events, m.stubs = m.events, None, {}
+    return events
+
+
+def check_clouds(stock, patched):
+    def native(m, drawn):
+        return cloud_technique(m, drawn, 1) == 0 and cloud_technique(m, drawn, 0) == 1 and cloud_constants(m, drawn) == []
+    for m, label in ((stock, "the original"), (patched, "before any project")):
+        for drawn in (RENDER_SCENE, LOBBY_SCENE):
+            assert native(m, drawn), label
+    patched.w(GAME_SCENE + 4, RENDER_SCENE)
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": {"inscatter_distance": 200, **CLOUDS}})
+    insert(patched, PROJECT)
+    assert native(patched, LOBBY_SCENE), "the lobby's clouds"
+    assert cloud_technique(patched, RENDER_SCENE, 1) == 3, "0.11e's alpha-blended clouds"
+    assert cloud_technique(patched, RENDER_SCENE, 0) == 4, "0.11e's modulating clouds"
+    r = lambda v: tuple(round(x, 5) for x in v)
+    assert cloud_constants(patched, RENDER_SCENE) == [
+        ("sky_clouds_parameters0", True, r((2.2955, 1.3838, 0.7473, 1.0))),
+        ("sky_clouds_parameters1", True, r((10.0, 0.15, 0.0, 0.0)))]
+    remove(patched, PROJECT)
+    assert native(patched, RENDER_SCENE), "after the removal"
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": {"inscatter_distance": 200}})
+    insert(patched, PROJECT)
+    assert native(patched, RENDER_SCENE), "a profile without the clouds: 0.26g's"
+    remove(patched, PROJECT)
+    print("  ok the clouds: technique 0 (blend mode 1) or 1 (mode 0) and no constant of ours before a marked project,"
+          " on the lobby's scene, after the removal and for a profile without the clouds; on the marked scene 3 or 4"
+          " and sky_clouds_parameters0/1 the profile's, as 0.11e sets them")
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -483,6 +578,9 @@ def main():
     stock, patched = Machine(original), Machine(bytes(built))
     check_skylight_compile(stock, patched)
     check_skylight(stock, patched)
+    stock, patched = Machine(original), Machine(bytes(built))
+    check_clouds_compile(stock, patched)
+    check_clouds(stock, patched)
 
 
 if __name__ == "__main__":

@@ -26388,6 +26388,39 @@ impl BeginPassFrame {
     }
 }
 
+/// A vostok::render::compile_return_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CompileReturnFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CompileReturnFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::effect_compiler>): an effect compile's (stdcall, ret 0Ch) first argument, by ESP at its ret: +0 the return address, +4 the compiler
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn compiler(self) -> Option<EffectCompiler> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<EffectCompiler>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::effect_compiler>): an effect compile's (stdcall, ret 0Ch) first argument, by ESP at its ret: +0 the return address, +4 the compiler
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_compiler(self, value: Option<EffectCompiler>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<EffectCompiler>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::render::compile_begin_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -27019,6 +27052,42 @@ impl StageAtmosphere {
     pub unsafe fn set_eye_ray_constant(self, value: Option<ShaderConstantHost>) {
         unsafe { self.0.byte_add(0xa8).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
     }
+
+    /// +0x80 (ptr<vostok::render::shader_constant_host>): the host of sky_clouds_parameters0 (the ctor 0x1A3D30..0x1A3D63); execute sets it (the clouds' colour, w 0) at 0x1A4CA7
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn clouds_constant_0(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x80).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x80 (ptr<vostok::render::shader_constant_host>): the host of sky_clouds_parameters0 (the ctor 0x1A3D30..0x1A3D63); execute sets it (the clouds' colour, w 0) at 0x1A4CA7
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_clouds_constant_0(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x80).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x84 (ptr<vostok::render::shader_constant_host>): the host of sky_clouds_parameters1 (the ctor 0x1A3D7E..0x1A3DB1); execute sets it at 0x1A4CE2
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn clouds_constant_1(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x84).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x84 (ptr<vostok::render::shader_constant_host>): the host of sky_clouds_parameters1 (the ctor 0x1A3D7E..0x1A3DB1); execute sets it at 0x1A4CE2
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_clouds_constant_1(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x84).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
 }
 
 /// A vostok::render::res_effect (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -27090,6 +27159,15 @@ impl EnvironmentProperties {
     #[inline(always)]
     pub unsafe fn sun_intensity(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x48).cast::<f32>().as_ptr() }
+    }
+
+    /// +0xe8 (u32): the sky clouds' blend mode (the post material's sky_clouds_blend_mode): stage_atmosphere::execute applies technique 1 of its cloud effect when 0 (modulate), 0 when not (alpha blend) (cmp [ebx+0E8h],ecx / sete cl, 0x1A4C0D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn clouds_blend_mode(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xe8).cast::<u32>().as_ptr() }
     }
 }
 
@@ -33137,6 +33215,297 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<SkylightFillFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(SkylightFillFrame)
+        }
+    }
+
+    /// clouds_00.pass_0 (0x1a57d7): effect_atmosphere_clouds<0,0>::compile (0x1A5760), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span
+    pub mod clouds_00_pass_0 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// clouds_00.pass_1 (0x1a5957): effect_atmosphere_clouds<0,0>::compile (0x1A5760), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span
+    pub mod clouds_00_pass_1 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// clouds_00.compiled (0x1a5bc8): effect_atmosphere_clouds<0,0>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments
+    pub mod clouds_00_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::compile_return_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CompileReturnFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CompileReturnFrame)
+        }
+    }
+
+    /// clouds_10.pass_0 (0x1a61ee): effect_atmosphere_clouds<1,0>::compile (0x1A6170), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span
+    pub mod clouds_10_pass_0 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// clouds_10.pass_1 (0x1a6377): effect_atmosphere_clouds<1,0>::compile (0x1A6170), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span
+    pub mod clouds_10_pass_1 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// clouds_10.compiled (0x1a65e8): effect_atmosphere_clouds<1,0>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments
+    pub mod clouds_10_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::compile_return_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CompileReturnFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CompileReturnFrame)
+        }
+    }
+
+    /// clouds_01.pass_0 (0x1a6667): effect_atmosphere_clouds<0,1>::compile (0x1A65F0), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span
+    pub mod clouds_01_pass_0 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// clouds_01.pass_1 (0x1a67e7): effect_atmosphere_clouds<0,1>::compile (0x1A65F0), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span
+    pub mod clouds_01_pass_1 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// clouds_01.compiled (0x1a6a58): effect_atmosphere_clouds<0,1>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments
+    pub mod clouds_01_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::compile_return_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CompileReturnFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CompileReturnFrame)
+        }
+    }
+
+    /// clouds_11.pass_0 (0x1a6ade): effect_atmosphere_clouds<1,1>::compile (0x1A6A60), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span
+    pub mod clouds_11_pass_0 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// clouds_11.pass_1 (0x1a6c67): effect_atmosphere_clouds<1,1>::compile (0x1A6A60), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span
+    pub mod clouds_11_pass_1 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// clouds_11.compiled (0x1a6ed8): effect_atmosphere_clouds<1,1>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments
+    pub mod clouds_11_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::compile_return_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<CompileReturnFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(CompileReturnFrame)
+        }
+    }
+
+    /// atmosphere.clouds_apply (0x1a4c0b): stage_atmosphere::execute, the sky clouds' pass: xor ecx,ecx / cmp [ebx+0E8h],ecx / sete cl (the technique: 1 for blend mode 0) before res_effect::apply 0x11C1B0 at 0x1A4C16 (EAX the cloud effect, [ebp+ecx*8+40h] loaded at 0x1A4C07); EBP the stage, EBX the scene view's environment (+118h)
+    pub mod atmosphere_clouds_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_atmosphere (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAtmosphere> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageAtmosphere)
+        }
+
+        /// EBX: a vostok::render::environment_properties (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn environment(machine: &impl Machine) -> Option<EnvironmentProperties> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EnvironmentProperties)
+        }
+    }
+
+    /// atmosphere.clouds_constants (0x1a4d90): stage_atmosphere::execute after the clouds' parameters 0..2 are set (0x1A4CA7, 0x1A4CE2, the VS's 0x1A4D8B), their program bound since 0x1A4C16: lea eax,[ebx+108h] before parameters 3 and 4 and the draw 0x1D18C0 at 0x1A4DE1; EBP the stage
+    pub mod atmosphere_clouds_constants {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_atmosphere (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAtmosphere> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageAtmosphere)
         }
     }
 }

@@ -28,7 +28,7 @@
 use core::ffi::CStr;
 
 use crate::vostok::config::{ConfigTable, ConfigValue};
-use crate::vostok::effect_compile::{self, CompileSite, End, Pass, PassSite, Rounds};
+use crate::vostok::effect_compile::{self, CloudEffect, CloudPass, CompileSite, End, Pass, PassSite, Rounds};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::project::{ProjectId, ProjectView};
 use crate::vostok::render_stage::{self, ApplySite, AtmosphereStage, RenderSceneId, StageSite};
@@ -46,6 +46,8 @@ const TABLES_PS: &CStr = c"make_mie_rayleigh_texture_v011w";
 const SKY_PS: &CStr = c"atmosphere_v011w";
 const POST_PS: &CStr = c"complex_post_process_blend_v011w_026g";
 const SKYLIGHT_PS: &CStr = c"skylight_v011w";
+const CLOUDS_ALPHA_BLEND_PS: &CStr = c"atmosphere_clouds_alpha_blend_v011w";
+const CLOUDS_MODULATE_PS: &CStr = c"atmosphere_clouds_modulate_v011w";
 
 /// A project's inscatter distance, metres: above 0 (both passes divide by it).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -58,7 +60,39 @@ struct Distance(f32);
 struct Profile {
     distance: Distance,
     sky: Sky,
+    clouds: Clouds,
     post: Post,
+}
+
+/// A 0.11 weather's sky clouds: 0.11e's programs and parameters when the
+/// profile names them, else 0.26g's.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Clouds {
+    Native,
+    V011w(CloudLayer),
+}
+
+/// 0.11e's cloud values (its post material's): `clouds_color` the clouds'
+/// linear colour (sky_clouds_color^2.2 * sky_clouds_color_multiplier, as
+/// 0.11e's material_manager computes it), the u tiling, the horizon fade's
+/// power and band (sky_clouds_fog_power, sky_clouds_fog_up_limit).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct CloudLayer {
+    color: [f32; 3],
+    u_tile: f32,
+    fade_power: f32,
+    fade_band: f32,
+}
+
+/// The clouds' number keys (`clouds_color` is the vector).
+const CLOUD_NUMBER_KEYS: [&CStr; 3] = [c"clouds_u_tile", c"clouds_fog_power", c"clouds_fog_up_limit"];
+
+impl CloudLayer {
+    /// sky_clouds_parameters0 and 1 as 0.11e's stage_atmosphere sets them.
+    fn parameters(&self) -> ([f32; 4], [f32; 4]) {
+        let [r, g, b] = self.color;
+        ([r, g, b, self.u_tile], [self.fade_power, self.fade_band, 0.0, 0.0])
+    }
 }
 
 /// A 0.11 weather's skylight: 0.11e's (the twin, lighting shade by height
@@ -171,7 +205,16 @@ impl Profile {
                 sun_tint: v[7],
             })
         };
-        Profile { distance: Distance(metres), sky, post }
+        let numbers = CLOUD_NUMBER_KEYS.map(&number);
+        let color = vector(c"clouds_color");
+        let clouds = if numbers.iter().all(Option::is_none) && color.is_none() {
+            Clouds::Native
+        } else {
+            let all = "srp_renderer_v011w names all the clouds' values or none";
+            let n = numbers.map(|value| value.expect(all));
+            Clouds::V011w(CloudLayer { color: color.expect(all), u_tile: n[0], fade_power: n[1], fade_band: n[2] })
+        };
+        Profile { distance: Distance(metres), sky, clouds, post }
     }
 
     fn of_table(table: ConfigTable<'_>) -> Profile {
@@ -289,6 +332,7 @@ enum Twins {
     Scattering,
     PostBlend,
     Skylight,
+    Clouds,
 }
 
 static ROUNDS_NOW: Lock<Rounds<Twins>> = Lock::new(Rounds::new());
@@ -600,6 +644,111 @@ pub fn on_skylight_constants(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// An effect_atmosphere_clouds compile's ret: the first time back to its
+/// start (a fresh call), for the twins; the second time its return.
+fn clouds_end(ctx: &Context<'_>, effect: CloudEffect) -> End {
+    let compiler = effect_compile::compiler_id(ctx, CompileSite::CloudsEnd(effect));
+    ROUNDS_NOW.with(ctx.thread(), |rounds| rounds.end(compiler, Twins::Clouds))
+}
+
+pub fn on_clouds_00_compiled(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnClouds00CompiledExit> {
+    match clouds_end(ctx, CloudEffect::C00) {
+        End::Twins => Flow::Exit(vostok::V011WRenderOnClouds00CompiledExit::Entry),
+        End::Return => Flow::Continue,
+    }
+}
+
+pub fn on_clouds_10_compiled(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnClouds10CompiledExit> {
+    match clouds_end(ctx, CloudEffect::C10) {
+        End::Twins => Flow::Exit(vostok::V011WRenderOnClouds10CompiledExit::Entry),
+        End::Return => Flow::Continue,
+    }
+}
+
+pub fn on_clouds_01_compiled(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnClouds01CompiledExit> {
+    match clouds_end(ctx, CloudEffect::C01) {
+        End::Twins => Flow::Exit(vostok::V011WRenderOnClouds01CompiledExit::Entry),
+        End::Return => Flow::Continue,
+    }
+}
+
+pub fn on_clouds_11_compiled(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnClouds11CompiledExit> {
+    match clouds_end(ctx, CloudEffect::C11) {
+        End::Twins => Flow::Exit(vostok::V011WRenderOnClouds11CompiledExit::Entry),
+        End::Return => Flow::Continue,
+    }
+}
+
+/// A cloud technique begins its pass: the twin's with 0.11e's program.
+fn clouds_pass(ctx: &Context<'_>, effect: CloudEffect, pass: CloudPass) {
+    let name = match pass {
+        CloudPass::AlphaBlend => CLOUDS_ALPHA_BLEND_PS,
+        CloudPass::Modulate => CLOUDS_MODULATE_PS,
+    };
+    twin_pass(ctx, CompileSite::CloudsPass(effect, pass), PassSite::Clouds(effect, pass), Twins::Clouds, name);
+}
+
+pub fn on_clouds_00_pass_0(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    clouds_pass(ctx, CloudEffect::C00, CloudPass::AlphaBlend);
+    Flow::Continue
+}
+
+pub fn on_clouds_00_pass_1(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    clouds_pass(ctx, CloudEffect::C00, CloudPass::Modulate);
+    Flow::Continue
+}
+
+pub fn on_clouds_10_pass_0(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    clouds_pass(ctx, CloudEffect::C10, CloudPass::AlphaBlend);
+    Flow::Continue
+}
+
+pub fn on_clouds_10_pass_1(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    clouds_pass(ctx, CloudEffect::C10, CloudPass::Modulate);
+    Flow::Continue
+}
+
+pub fn on_clouds_01_pass_0(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    clouds_pass(ctx, CloudEffect::C01, CloudPass::AlphaBlend);
+    Flow::Continue
+}
+
+pub fn on_clouds_01_pass_1(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    clouds_pass(ctx, CloudEffect::C01, CloudPass::Modulate);
+    Flow::Continue
+}
+
+pub fn on_clouds_11_pass_0(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    clouds_pass(ctx, CloudEffect::C11, CloudPass::AlphaBlend);
+    Flow::Continue
+}
+
+pub fn on_clouds_11_pass_1(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    clouds_pass(ctx, CloudEffect::C11, CloudPass::Modulate);
+    Flow::Continue
+}
+
+/// The clouds' pass: 0.11e's on the 0.11 weather's scene whose profile names
+/// the clouds.
+pub fn on_clouds_apply(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnCloudsApplyExit> {
+    match look(ctx, StageSite::CloudsApply) {
+        Look::V011w(Profile { clouds: Clouds::V011w(_), .. }) => {
+            render_stage::set_clouds_technique(ctx);
+            Flow::Exit(vostok::V011WRenderOnCloudsApplyExit::Apply)
+        }
+        Look::V011w(Profile { clouds: Clouds::Native, .. }) | Look::Native => Flow::Continue,
+    }
+}
+
+/// Their constants: 0.11e's parameters 0 and 1 over 0.26g's.
+pub fn on_clouds_constants(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Look::V011w(Profile { clouds: Clouds::V011w(layer), .. }) = look(ctx, StageSite::CloudsConstants) {
+        let (parameters_0, parameters_1) = layer.parameters();
+        render_stage::set_clouds(ctx, parameters_0, parameters_1);
+    }
+    Flow::Continue
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -661,11 +810,15 @@ mod tests {
             b"skylight_lower" => 0.0,
             b"skylight_upper" => 5.0,
             b"skylight_power" => 0.1,
+            b"clouds_u_tile" => 1.0,
+            b"clouds_fog_power" => 10.0,
+            b"clouds_fog_up_limit" => 0.15,
             other => panic!("no {other:?}"),
         })
     }
 
-    /// Its vectors: the light (0.11e's colour^2.2 * 0.5), the faces, no sun tint.
+    /// Its vectors: the light (0.11e's colour^2.2 * 0.5), the faces, no sun
+    /// tint; the clouds' colour (0.11e's colour^2.2 * 2.5).
     fn evening_vector(key: &CStr) -> Option<[f32; 3]> {
         const SIDE: [f32; 3] = [0.509_804, 0.529_412, 0.564_706];
         Some(match key.to_bytes() {
@@ -674,6 +827,7 @@ mod tests {
             b"environment_skycolor_z" | b"environment_skycolor_minus_z" => SIDE,
             b"environment_skycolor_up" | b"environment_skycolor_down" => [1.0, 1.0, 1.0],
             b"sun_tint" => [0.0, 0.0, 0.0],
+            b"clouds_color" => [2.296, 1.382, 0.748],
             other => panic!("no {other:?}"),
         })
     }
@@ -695,7 +849,7 @@ mod tests {
         let distance_only = |key: &CStr| (key == c"inscatter_distance").then_some(300.0);
         assert_eq!(
             Profile::parse(distance_only, none),
-            Profile { distance: Distance(300.0), sky: Sky::Native, post: Post::Native }
+            Profile { distance: Distance(300.0), sky: Sky::Native, clouds: Clouds::Native, post: Post::Native }
         );
         // all eight or none
         assert!(std::panic::catch_unwind(|| Profile::parse(
@@ -725,6 +879,17 @@ mod tests {
         // a skylight named in part is refused
         assert!(std::panic::catch_unwind(|| Profile::parse(evening_number, |key| {
             (key == c"skylight_light").then_some([1.0, 1.0, 1.0])
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn the_clouds_pack_as_0_11e_stage_atmosphere() {
+        let Clouds::V011w(layer) = evening().clouds else { panic!("the evening names its clouds") };
+        assert_eq!(layer.parameters(), ([2.296, 1.382, 0.748, 1.0], [10.0, 0.15, 0.0, 0.0]));
+        // clouds named in part are refused
+        assert!(std::panic::catch_unwind(|| Profile::parse(evening_number, |key| {
+            (key != c"clouds_color").then(|| evening_vector(key)).flatten()
         }))
         .is_err());
     }

@@ -1,7 +1,7 @@
 """make_fog_pack.py STOCK_DB OUT: the pack v011e-radar-fog, 0.11e's atmosphere programs for exe patch
 v011w_render: its additive geometry fog in 0.26g's own additive fog program, and its scattering tables,
-sky, skylight and post as the twin families the patch compiles (make_mie_rayleigh_texture_v011w,
-atmosphere_v011w, skylight_v011w,
+sky, skylight, clouds and post as the twin families the patch compiles (make_mie_rayleigh_texture_v011w,
+atmosphere_v011w, skylight_v011w, atmosphere_clouds_alpha_blend_v011w, atmosphere_clouds_modulate_v011w,
 complex_post_process_blend_v011w_026g: 0.11e's post on 0.26g's inputs, under the plain key: shaders/masks lists no define of a family it does not name).
 
 0.11e fogs the geometry in two passes of its effect_atmospheric_scattering: technique 6 multiplies the
@@ -40,15 +40,16 @@ def main():
                                    check=True, capture_output=True, text=True).stdout.split()
             return [Path(line).relative_to(f'{tmp}/built').as_posix() for line in lines]
         [path] = build()
-        twins = build('--twin', 'make_mie_rayleigh_texture', 'atmosphere', 'skylight') + build('--post-twin')
+        twins = (build('--twin', 'make_mie_rayleigh_texture', 'atmosphere', 'skylight') + build('--post-twin')
+                 + build('--twin-of', 'atmosphere_clouds', 'atmosphere_clouds_alpha_blend', 'atmosphere_clouds_modulate'))
         for name in [path, *twins]:
             (out / 'files' / name).parent.mkdir(parents=True, exist_ok=True)
             (out / 'files' / name).write_bytes(Path(tmp, 'built', name).read_bytes())
     pack = {
-        'format_version': 1, 'id': 'v011e-radar-fog', 'version': '9', 'target_build': '0.26g',
+        'format_version': 1, 'id': 'v011e-radar-fog', 'version': '10', 'target_build': '0.26g',
         'description': "0.11e's atmosphere for exe patch v011w_render: its additive geometry fog in 0.26g's own "
                        "additive fog program (technique 4 of effect_atmospheric_scattering, which only the patch "
-                       "draws), its scattering tables, sky, skylight and post as the twin families the patch compiles",
+                       "draws), its scattering tables, sky, skylight, clouds and post as the twin families the patch compiles",
         'requires': [], 'base_db_sha256': STOCK_DB_SHA,
         'operations': [{'op': 'replace_file', 'path': path, 'base_sha256': STOCK_SHA}]
                       + [{'op': 'add_file', 'path': name} for name in twins],

@@ -99,3 +99,49 @@ handler = "on_skylight_apply"
 [[hook]]
 site = "ambient.skylight_constants"
 handler = "on_skylight_constants"
+
+# The clouds: effect_atmosphere_clouds's four compiles make twins of their techniques 0 and 1 with 0.11e's
+# cloud programs (atmosphere_clouds_alpha_blend_v011w, atmosphere_clouds_modulate_v011w); on the marked scene
+# whose profile names the clouds the stage applies technique 3 or 4 and sets 0.11e's parameters 0 and 1.
+[[hook]]
+site = "clouds_00.compiled"
+handler = "on_clouds_00_compiled"
+[[hook]]
+site = "clouds_10.compiled"
+handler = "on_clouds_10_compiled"
+[[hook]]
+site = "clouds_01.compiled"
+handler = "on_clouds_01_compiled"
+[[hook]]
+site = "clouds_11.compiled"
+handler = "on_clouds_11_compiled"
+[[hook]]
+site = "clouds_00.pass_0"
+handler = "on_clouds_00_pass_0"
+[[hook]]
+site = "clouds_00.pass_1"
+handler = "on_clouds_00_pass_1"
+[[hook]]
+site = "clouds_10.pass_0"
+handler = "on_clouds_10_pass_0"
+[[hook]]
+site = "clouds_10.pass_1"
+handler = "on_clouds_10_pass_1"
+[[hook]]
+site = "clouds_01.pass_0"
+handler = "on_clouds_01_pass_0"
+[[hook]]
+site = "clouds_01.pass_1"
+handler = "on_clouds_01_pass_1"
+[[hook]]
+site = "clouds_11.pass_0"
+handler = "on_clouds_11_pass_0"
+[[hook]]
+site = "clouds_11.pass_1"
+handler = "on_clouds_11_pass_1"
+[[hook]]
+site = "atmosphere.clouds_apply"
+handler = "on_clouds_apply"
+[[hook]]
+site = "atmosphere.clouds_constants"
+handler = "on_clouds_constants"

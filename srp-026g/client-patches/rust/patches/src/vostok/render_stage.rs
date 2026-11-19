@@ -74,6 +74,10 @@ pub enum StageSite {
     SkylightApply,
     /// `ambient.skylight_constants`.
     SkylightConstants,
+    /// `atmosphere.clouds_apply`.
+    CloudsApply,
+    /// `atmosphere.clouds_constants`.
+    CloudsConstants,
 }
 
 /// The renderer context of the stage at `site`.
@@ -98,6 +102,8 @@ fn context(ctx: &Context<'_>, site: StageSite) -> Option<raw::RendererContext> {
             StageSite::SkylightGate => raw::site::ambient_skylight_gate::stage(ctx)?.context(),
             StageSite::SkylightApply => raw::site::ambient_skylight_apply::stage(ctx)?.context(),
             StageSite::SkylightConstants => raw::site::ambient_skylight_constants::stage(ctx)?.context(),
+            StageSite::CloudsApply => raw::site::atmosphere_clouds_apply::stage(ctx)?.context(),
+            StageSite::CloudsConstants => raw::site::atmosphere_clouds_constants::stage(ctx)?.context(),
         }
     }
 }
@@ -424,5 +430,38 @@ pub fn draw_fog_add(ctx: &Context<'_>, distance: f32) {
 impl RenderSceneId {
     pub fn for_test(address: u32) -> RenderSceneId {
         RenderSceneId(NonZeroU32::new(address).expect("a test id is not 0"))
+    }
+}
+
+/// 0.11e's clouds (patch v011w_render): technique 3 or 4, the twins each
+/// effect_atmosphere_clouds compiles of its technique 0 (alpha blended) and 1
+/// (modulating) with 0.11e's programs (`atmosphere_clouds_alpha_blend_v011w`,
+/// `atmosphere_clouds_modulate_v011w`). Its third technique lights clouds.
+const CLOUDS_TWINS: u32 = 3;
+
+/// `atmosphere.clouds_apply`: the technique 0.26g picks by the environment's
+/// blend mode (1 for 0, modulate; 0 else, alpha blend), as its twin; EAX
+/// keeps the effect (the caller takes the `apply` exit).
+pub fn set_clouds_technique(ctx: &mut Context<'_>) {
+    // SAFETY: the site's EBX is the frame's scene view's environment (its
+    // +118h, set at 0x1A4267), read on the render thread that draws it.
+    let mode = unsafe {
+        raw::site::atmosphere_clouds_apply::environment(ctx).expect("the frame's environment").clouds_blend_mode().read()
+    };
+    ctx.set_reg(Reg::Ecx, CLOUDS_TWINS + u32::from(mode == 0));
+}
+
+/// `atmosphere.clouds_constants`: 0.11e's sky_clouds_parameters0 (the
+/// clouds' linear colour, the u tiling) and 1 (the horizon fade's power and
+/// band) for the bound cloud program, over 0.26g's.
+pub fn set_clouds(ctx: &Context<'_>, parameters_0: [f32; 4], parameters_1: [f32; 4]) {
+    // SAFETY: the site's EBP is the stage executing, on the render thread;
+    // its hosts are its constructor's (0x1A3D30, 0x1A3D7E); the cloud program
+    // is bound (0x1A4C16), so set_ps_constant writes them for it.
+    unsafe {
+        let stage = raw::site::atmosphere_clouds_constants::stage(ctx).expect("the atmosphere stage executing");
+        let backend = backend();
+        raw::engine_set_ps_constant(Some(backend), stage.clouds_constant_0(), parameters_0.as_ptr());
+        raw::engine_set_ps_constant(Some(backend), stage.clouds_constant_1(), parameters_1.as_ptr());
     }
 }

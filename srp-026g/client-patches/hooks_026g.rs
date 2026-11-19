@@ -6025,6 +6025,241 @@ pub extern "C" fn hook_v011w_render_on_skylight_constants(frame: &mut Frame) -> 
     }
 }
 
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_clouds_00_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnClouds00CompiledExit { Entry }
+/// The entry `v011w_render_on_clouds_00_compiled` (0x1a5bc8, effect_atmosphere_clouds<0,0>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_00_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_00_compiled` calls this, from the game's jump at 0x1a5bc8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_00_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_clouds_10_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnClouds10CompiledExit { Entry }
+/// The entry `v011w_render_on_clouds_10_compiled` (0x1a65e8, effect_atmosphere_clouds<1,0>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_10_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_10_compiled` calls this, from the game's jump at 0x1a65e8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_10_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_clouds_01_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnClouds01CompiledExit { Entry }
+/// The entry `v011w_render_on_clouds_01_compiled` (0x1a6a58, effect_atmosphere_clouds<0,1>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_01_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_01_compiled` calls this, from the game's jump at 0x1a6a58,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_01_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_clouds_11_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnClouds11CompiledExit { Entry }
+/// The entry `v011w_render_on_clouds_11_compiled` (0x1a6ed8, effect_atmosphere_clouds<1,1>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_11_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_11_compiled` calls this, from the game's jump at 0x1a6ed8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_11_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_clouds_00_pass_0` (0x1a57d7, effect_atmosphere_clouds<0,0>::compile (0x1A5760), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_00_pass_0(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_00_pass_0` calls this, from the game's jump at 0x1a57d7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_00_pass_0(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_clouds_00_pass_1` (0x1a5957, effect_atmosphere_clouds<0,0>::compile (0x1A5760), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_00_pass_1(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_00_pass_1` calls this, from the game's jump at 0x1a5957,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_00_pass_1(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_clouds_10_pass_0` (0x1a61ee, effect_atmosphere_clouds<1,0>::compile (0x1A6170), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_10_pass_0(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_10_pass_0` calls this, from the game's jump at 0x1a61ee,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_10_pass_0(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_clouds_10_pass_1` (0x1a6377, effect_atmosphere_clouds<1,0>::compile (0x1A6170), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_10_pass_1(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_10_pass_1` calls this, from the game's jump at 0x1a6377,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_10_pass_1(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_clouds_01_pass_0` (0x1a6667, effect_atmosphere_clouds<0,1>::compile (0x1A65F0), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_01_pass_0(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_01_pass_0` calls this, from the game's jump at 0x1a6667,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_01_pass_0(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_clouds_01_pass_1` (0x1a67e7, effect_atmosphere_clouds<0,1>::compile (0x1A65F0), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_01_pass_1(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_01_pass_1` calls this, from the game's jump at 0x1a67e7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_01_pass_1(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_clouds_11_pass_0` (0x1a6ade, effect_atmosphere_clouds<1,1>::compile (0x1A6A60), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_11_pass_0(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_11_pass_0` calls this, from the game's jump at 0x1a6ade,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_11_pass_0(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_clouds_11_pass_1` (0x1a6c67, effect_atmosphere_clouds<1,1>::compile (0x1A6A60), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_11_pass_1(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_11_pass_1` calls this, from the game's jump at 0x1a6c67,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_11_pass_1(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_clouds_apply (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnCloudsApplyExit { Apply }
+/// The entry `v011w_render_on_clouds_apply` (0x1a4c0b, stage_atmosphere::execute, the sky clouds' pass: xor ecx,ecx / cmp [ebx+0E8h],ecx / sete cl (the technique: 1 for blend mode 0) before res_effect::apply 0x11C1B0 at 0x1A4C16 (EAX the cloud effect, [ebp+ecx*8+40h] loaded at 0x1A4C07); EBP the stage, EBX the scene view's environment (+118h)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_apply(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_apply` calls this, from the game's jump at 0x1a4c0b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_apply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_clouds_constants` (0x1a4d90, stage_atmosphere::execute after the clouds' parameters 0..2 are set (0x1A4CA7, 0x1A4CE2, the VS's 0x1A4D8B), their program bound since 0x1A4C16: lea eax,[ebx+108h] before parameters 3 and 4 and the draw 0x1D18C0 at 0x1A4DE1; EBP the stage) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_clouds_constants(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_clouds_constants` calls this, from the game's jump at 0x1a4d90,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_clouds_constants(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- v021d_render (patch 130) ----
 
 /// The named exits of v021d_render::on_wet_surface_compiled (the order the shim's Flow code

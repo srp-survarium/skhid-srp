@@ -118,11 +118,34 @@ pub enum CompileSite {
     /// `skylight.pass_<n>`: its technique n's begin_pass.
     SkylightPass0,
     SkylightPass1,
+    /// `clouds_<ab>.compiled`: effect_atmosphere_clouds<a,b>::compile's ret.
+    CloudsEnd(CloudEffect),
+    /// `clouds_<ab>.pass_<n>`: its technique n's begin_pass.
+    CloudsPass(CloudEffect, CloudPass),
+}
+
+/// effect_atmosphere_clouds's four instances, `<a,b>`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloudEffect {
+    C00,
+    C10,
+    C01,
+    C11,
+}
+
+/// Its two cloud techniques (the third lights them).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloudPass {
+    /// Technique 0: alpha blended.
+    AlphaBlend,
+    /// Technique 1: modulating.
+    Modulate,
 }
 
 fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
     // SAFETY: the context is the site's own; EBX (ESI in the post blends'
-    // compiles) is the compile's effect_compiler there (each compile loads it from its first argument,
+    // compiles; at a cloud compile's ret its first argument, ESP+4) is the
+    // compile's effect_compiler there (each compile loads it from its first argument,
     // 0x1CE10A, 0x1D3B9A), alive while its compile runs.
     unsafe {
         match site {
@@ -143,6 +166,23 @@ fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
             CompileSite::SkylightEnd => raw::site::skylight_compiled::compiler(ctx),
             CompileSite::SkylightPass0 => raw::site::skylight_pass_0::compiler(ctx),
             CompileSite::SkylightPass1 => raw::site::skylight_pass_1::compiler(ctx),
+            CompileSite::CloudsEnd(effect) => match effect {
+                CloudEffect::C00 => raw::site::clouds_00_compiled::frame(ctx),
+                CloudEffect::C10 => raw::site::clouds_10_compiled::frame(ctx),
+                CloudEffect::C01 => raw::site::clouds_01_compiled::frame(ctx),
+                CloudEffect::C11 => raw::site::clouds_11_compiled::frame(ctx),
+            }
+            .and_then(|frame| frame.compiler()),
+            CompileSite::CloudsPass(effect, pass) => match (effect, pass) {
+                (CloudEffect::C00, CloudPass::AlphaBlend) => raw::site::clouds_00_pass_0::compiler(ctx),
+                (CloudEffect::C00, CloudPass::Modulate) => raw::site::clouds_00_pass_1::compiler(ctx),
+                (CloudEffect::C10, CloudPass::AlphaBlend) => raw::site::clouds_10_pass_0::compiler(ctx),
+                (CloudEffect::C10, CloudPass::Modulate) => raw::site::clouds_10_pass_1::compiler(ctx),
+                (CloudEffect::C01, CloudPass::AlphaBlend) => raw::site::clouds_01_pass_0::compiler(ctx),
+                (CloudEffect::C01, CloudPass::Modulate) => raw::site::clouds_01_pass_1::compiler(ctx),
+                (CloudEffect::C11, CloudPass::AlphaBlend) => raw::site::clouds_11_pass_0::compiler(ctx),
+                (CloudEffect::C11, CloudPass::Modulate) => raw::site::clouds_11_pass_1::compiler(ctx),
+            },
         }
     }
     .expect("the compile's compiler")
@@ -195,6 +235,8 @@ pub enum PassSite {
     /// `skylight.pass_<n>`: effect_skylight's technique n.
     Skylight0,
     Skylight1,
+    /// `clouds_<ab>.pass_<n>`: effect_atmosphere_clouds<a,b>'s technique n.
+    Clouds(CloudEffect, CloudPass),
 }
 
 /// Makes `name` the pixel shader of the begin_pass at `site` (its pushed
@@ -213,6 +255,16 @@ pub fn set_pixel_shader(ctx: &Context<'_>, site: PassSite, name: &'static CStr) 
             PassSite::PostBlend11 => raw::site::post_blend_11_pass::frame(ctx),
             PassSite::Skylight0 => raw::site::skylight_pass_0::frame(ctx),
             PassSite::Skylight1 => raw::site::skylight_pass_1::frame(ctx),
+            PassSite::Clouds(effect, pass) => match (effect, pass) {
+                (CloudEffect::C00, CloudPass::AlphaBlend) => raw::site::clouds_00_pass_0::frame(ctx),
+                (CloudEffect::C00, CloudPass::Modulate) => raw::site::clouds_00_pass_1::frame(ctx),
+                (CloudEffect::C10, CloudPass::AlphaBlend) => raw::site::clouds_10_pass_0::frame(ctx),
+                (CloudEffect::C10, CloudPass::Modulate) => raw::site::clouds_10_pass_1::frame(ctx),
+                (CloudEffect::C01, CloudPass::AlphaBlend) => raw::site::clouds_01_pass_0::frame(ctx),
+                (CloudEffect::C01, CloudPass::Modulate) => raw::site::clouds_01_pass_1::frame(ctx),
+                (CloudEffect::C11, CloudPass::AlphaBlend) => raw::site::clouds_11_pass_0::frame(ctx),
+                (CloudEffect::C11, CloudPass::Modulate) => raw::site::clouds_11_pass_1::frame(ctx),
+            },
         };
         frame.expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast())
     }

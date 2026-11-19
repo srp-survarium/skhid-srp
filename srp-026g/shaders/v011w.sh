@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # v011w.sh check <0.11e resources.db>
-# v011w.sh build <0.26g stock resources.db> <out files dir> [--twin] [program ...] | --post-twin
+# v011w.sh build <0.26g stock resources.db> <out files dir> [--twin] [program ...] | --post-twin | --twin-of <family> program ...
 #
 # 0.11e's atmosphere programs from v011w/ (vostok's 0.10b sources with 0.11e's changes, README.md):
-#   check: compile the four atmosphere programs and every permutation of the post blend for 0.11e and
+#   check: compile the atmosphere, skylight and cloud programs and every permutation of the post blend for 0.11e and
 #          compare with 0.11e's shipped DXBC; all must be byte-identical (container, checksum and all).
 #   build: compile each program (default atmospheric_scattering_on_geometry_add, the file of the pack
 #          v011e-radar-fog) for 0.26g (/D TARGET_026G=1: 0.26g's static_globals and table order) into a
@@ -11,7 +11,9 @@
 #          --twin: as the family <program>_v011w (the twins exe patch 162 compiles), not the program's own;
 #          --post-twin: complex_post_process_blend_v011w_026g.ps (0.11e's post on 0.26g's inputs) into the family
 #          complex_post_process_blend_v011w_026g under the plain key (shaders/masks names no define of a family it
-#          does not list, so the engine asks for that one; the program reads none of the post's defines).
+#          does not list, so the engine asks for that one; the program reads none of the post's defines);
+#          --twin-of <family>: each program as the new family <program>_v011w under the plain key, with
+#          <family>'s include records (0.26g has no family of that name: atmosphere_clouds for 0.11e's clouds).
 # The shipped blobs are read with dbgrab (tools/re-kit/common/dbgrab; DBGRAB overrides). Needs Wine,
 # python3 and fxc (fxc.sh).
 set -eu
@@ -21,7 +23,7 @@ dbgrab=${DBGRAB:-$repo/tools/re-kit/common/dbgrab/target/release/dbgrab}
 [ -x "$dbgrab" ] || { echo "no dbgrab at $dbgrab: cargo build --release in tools/re-kit/common/dbgrab, or set DBGRAB" >&2; exit 2; }
 winpath() { echo "Z:$(echo "$1" | tr / '\\')"; }
 mode=${1:-}; db=${2:-}
-[ -f "$db" ] || { sed -n 2,13p "$0"; exit 2; }
+[ -f "$db" ] || { sed -n 2,17p "$0"; exit 2; }
 tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT
 dxbc() { python3 -c 'import sys,struct; d=open(sys.argv[1],"rb").read(); n=struct.unpack_from("<I",d)[0]; sys.stdout.buffer.write(d[4+264*n:])' "$1"; }
 compile() {  # compile <program> <out.dxbc> [fxc /D ...]
@@ -36,7 +38,8 @@ shipped() {  # shipped <program>: the one blob of its family in $db (0.11e's and
 case $mode in
 check)
   bad=0
-  for program in atmosphere make_mie_rayleigh_texture atmospheric_scattering_on_geometry_mul atmospheric_scattering_on_geometry_add skylight; do
+  for program in atmosphere make_mie_rayleigh_texture atmospheric_scattering_on_geometry_mul atmospheric_scattering_on_geometry_add skylight \
+      atmosphere_clouds_alpha_blend atmosphere_clouds_modulate; do
     compile $program "$tmp/out.dxbc"
     if cmp -s <(dxbc "$(shipped $program)") "$tmp/out.dxbc"; then echo "$program byte-identical"
     else echo "$program DIFF"; bad=$((bad + 1)); fi
@@ -72,6 +75,21 @@ build)
     echo "$dest"
     exit 0
   fi
+  if [ "${1:-}" = --twin-of ]; then
+    family=${2:?the 0.26g family whose include records the new families take}; shift 2
+    rm -rf "$tmp/of"; "$dbgrab" "$db" get "$family.ps/" "$tmp/of" > /dev/null
+    stock=$(ls "$tmp/of"/* | head -1)
+    key=${stock##*.ps__}; plain=$(printf '%*s' ${#key} '' | tr ' ' _)
+    for program in "$@"; do
+      compile $program "$tmp/out.dxbc" /D TARGET_026G=1
+      dest="$out/shaders/sm_4_0/${program}_v011w.ps/$plain"
+      mkdir -p "$(dirname "$dest")"
+      python3 -c 'import sys,struct; d=open(sys.argv[1],"rb").read(); n=struct.unpack_from("<I",d)[0]; open(sys.argv[3],"wb").write(d[:4+264*n]+open(sys.argv[2],"rb").read())' \
+        "$stock" "$tmp/out.dxbc" "$dest"
+      echo "$dest"
+    done
+    exit 0
+  fi
   suffix=; [ "${1:-}" = --twin ] && { suffix=_v011w; shift; }
   for program in "${@:-atmospheric_scattering_on_geometry_add}"; do
     compile $program "$tmp/out.dxbc" /D TARGET_026G=1
@@ -82,5 +100,5 @@ build)
       "$stock" "$tmp/out.dxbc" "$out/shaders/sm_4_0/$name"
     echo "$out/shaders/sm_4_0/$name"
   done ;;
-*) sed -n 2,13p "$0"; exit 2 ;;
+*) sed -n 2,17p "$0"; exit 2 ;;
 esac

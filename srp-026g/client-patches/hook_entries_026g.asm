@@ -10441,6 +10441,567 @@ v011w_render_on_skylight_constants_replay:
     db 0x8b, 0x76, 0x04, 0x8b, 0x86, 0x9c, 0x11, 0x00, 0x00
     jmp 0x1824dc
 
+; 0x1a5bc8 effect_atmosphere_clouds<0,0>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments: lohook -> v011w_render_on_clouds_00_compiled
+global v011w_render_on_clouds_00_compiled
+extern hook_v011w_render_on_clouds_00_compiled
+v011w_render_on_clouds_00_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_00_compiled
+    mov edx, v011w_render_on_clouds_00_compiled_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_00_compiled_go
+    mov edx, 0x1a5bcd
+    cmp eax, 1
+    je v011w_render_on_clouds_00_compiled_go
+    mov edx, 0x1a5760
+    cmp eax, 2
+    je v011w_render_on_clouds_00_compiled_go
+    ud2
+v011w_render_on_clouds_00_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_00_compiled_replay:
+    db 0xc2, 0x0c, 0x00, 0xcc, 0xcc
+    jmp 0x1a5bcd
+
+; 0x1a65e8 effect_atmosphere_clouds<1,0>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments: lohook -> v011w_render_on_clouds_10_compiled
+global v011w_render_on_clouds_10_compiled
+extern hook_v011w_render_on_clouds_10_compiled
+v011w_render_on_clouds_10_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_10_compiled
+    mov edx, v011w_render_on_clouds_10_compiled_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_10_compiled_go
+    mov edx, 0x1a65ed
+    cmp eax, 1
+    je v011w_render_on_clouds_10_compiled_go
+    mov edx, 0x1a6170
+    cmp eax, 2
+    je v011w_render_on_clouds_10_compiled_go
+    ud2
+v011w_render_on_clouds_10_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_10_compiled_replay:
+    db 0xc2, 0x0c, 0x00, 0xcc, 0xcc
+    jmp 0x1a65ed
+
+; 0x1a6a58 effect_atmosphere_clouds<0,1>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments: lohook -> v011w_render_on_clouds_01_compiled
+global v011w_render_on_clouds_01_compiled
+extern hook_v011w_render_on_clouds_01_compiled
+v011w_render_on_clouds_01_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_01_compiled
+    mov edx, v011w_render_on_clouds_01_compiled_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_01_compiled_go
+    mov edx, 0x1a6a5d
+    cmp eax, 1
+    je v011w_render_on_clouds_01_compiled_go
+    mov edx, 0x1a65f0
+    cmp eax, 2
+    je v011w_render_on_clouds_01_compiled_go
+    ud2
+v011w_render_on_clouds_01_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_01_compiled_replay:
+    db 0xc2, 0x0c, 0x00, 0xcc, 0xcc
+    jmp 0x1a6a5d
+
+; 0x1a6ed8 effect_atmosphere_clouds<1,1>::compile's ret 0Ch (and two bytes of the int3 padding after it, never run), its three techniques ended and its registers popped: ESP the return address, +4 the compiler; entry is the function's own start, a fresh call with the same arguments: lohook -> v011w_render_on_clouds_11_compiled
+global v011w_render_on_clouds_11_compiled
+extern hook_v011w_render_on_clouds_11_compiled
+v011w_render_on_clouds_11_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_11_compiled
+    mov edx, v011w_render_on_clouds_11_compiled_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_11_compiled_go
+    mov edx, 0x1a6edd
+    cmp eax, 1
+    je v011w_render_on_clouds_11_compiled_go
+    mov edx, 0x1a6a60
+    cmp eax, 2
+    je v011w_render_on_clouds_11_compiled_go
+    ud2
+v011w_render_on_clouds_11_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_11_compiled_replay:
+    db 0xc2, 0x0c, 0x00, 0xcc, 0xcc
+    jmp 0x1a6edd
+
+; 0x1a57d7 effect_atmosphere_clouds<0,0>::compile (0x1A5760), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_clouds_00_pass_0
+global v011w_render_on_clouds_00_pass_0
+extern hook_v011w_render_on_clouds_00_pass_0
+v011w_render_on_clouds_00_pass_0:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_00_pass_0
+    mov edx, v011w_render_on_clouds_00_pass_0_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_00_pass_0_go
+    mov edx, 0x1a57de
+    cmp eax, 1
+    je v011w_render_on_clouds_00_pass_0_go
+    ud2
+v011w_render_on_clouds_00_pass_0_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_00_pass_0_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a57de
+
+; 0x1a5957 effect_atmosphere_clouds<0,0>::compile (0x1A5760), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_clouds_00_pass_1
+global v011w_render_on_clouds_00_pass_1
+extern hook_v011w_render_on_clouds_00_pass_1
+v011w_render_on_clouds_00_pass_1:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_00_pass_1
+    mov edx, v011w_render_on_clouds_00_pass_1_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_00_pass_1_go
+    mov edx, 0x1a595e
+    cmp eax, 1
+    je v011w_render_on_clouds_00_pass_1_go
+    ud2
+v011w_render_on_clouds_00_pass_1_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_00_pass_1_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a595e
+
+; 0x1a61ee effect_atmosphere_clouds<1,0>::compile (0x1A6170), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_clouds_10_pass_0
+global v011w_render_on_clouds_10_pass_0
+extern hook_v011w_render_on_clouds_10_pass_0
+v011w_render_on_clouds_10_pass_0:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_10_pass_0
+    mov edx, v011w_render_on_clouds_10_pass_0_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_10_pass_0_go
+    mov edx, 0x1a61f5
+    cmp eax, 1
+    je v011w_render_on_clouds_10_pass_0_go
+    ud2
+v011w_render_on_clouds_10_pass_0_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_10_pass_0_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a61f5
+
+; 0x1a6377 effect_atmosphere_clouds<1,0>::compile (0x1A6170), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_clouds_10_pass_1
+global v011w_render_on_clouds_10_pass_1
+extern hook_v011w_render_on_clouds_10_pass_1
+v011w_render_on_clouds_10_pass_1:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_10_pass_1
+    mov edx, v011w_render_on_clouds_10_pass_1_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_10_pass_1_go
+    mov edx, 0x1a637e
+    cmp eax, 1
+    je v011w_render_on_clouds_10_pass_1_go
+    ud2
+v011w_render_on_clouds_10_pass_1_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_10_pass_1_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a637e
+
+; 0x1a6667 effect_atmosphere_clouds<0,1>::compile (0x1A65F0), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_clouds_01_pass_0
+global v011w_render_on_clouds_01_pass_0
+extern hook_v011w_render_on_clouds_01_pass_0
+v011w_render_on_clouds_01_pass_0:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_01_pass_0
+    mov edx, v011w_render_on_clouds_01_pass_0_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_01_pass_0_go
+    mov edx, 0x1a666e
+    cmp eax, 1
+    je v011w_render_on_clouds_01_pass_0_go
+    ud2
+v011w_render_on_clouds_01_pass_0_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_01_pass_0_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a666e
+
+; 0x1a67e7 effect_atmosphere_clouds<0,1>::compile (0x1A65F0), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_clouds_01_pass_1
+global v011w_render_on_clouds_01_pass_1
+extern hook_v011w_render_on_clouds_01_pass_1
+v011w_render_on_clouds_01_pass_1:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_01_pass_1
+    mov edx, v011w_render_on_clouds_01_pass_1_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_01_pass_1_go
+    mov edx, 0x1a67ee
+    cmp eax, 1
+    je v011w_render_on_clouds_01_pass_1_go
+    ud2
+v011w_render_on_clouds_01_pass_1_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_01_pass_1_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a67ee
+
+; 0x1a6ade effect_atmosphere_clouds<1,1>::compile (0x1A6A60), technique 0 (the alpha-blended clouds, SRC_ALPHA / INV_SRC_ALPHA), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_clouds_11_pass_0
+global v011w_render_on_clouds_11_pass_0
+extern hook_v011w_render_on_clouds_11_pass_0
+v011w_render_on_clouds_11_pass_0:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_11_pass_0
+    mov edx, v011w_render_on_clouds_11_pass_0_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_11_pass_0_go
+    mov edx, 0x1a6ae5
+    cmp eax, 1
+    je v011w_render_on_clouds_11_pass_0_go
+    ud2
+v011w_render_on_clouds_11_pass_0_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_11_pass_0_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a6ae5
+
+; 0x1a6c67 effect_atmosphere_clouds<1,1>::compile (0x1A6A60), technique 1 (the modulated clouds, ZERO / SRC_COLOR), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F4AB8h and the call 0x3D9F60): ESP the PS name's slot (atmosphere_clouds 0x9F4AB8, pushed just before); EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_clouds_11_pass_1
+global v011w_render_on_clouds_11_pass_1
+extern hook_v011w_render_on_clouds_11_pass_1
+v011w_render_on_clouds_11_pass_1:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_11_pass_1
+    mov edx, v011w_render_on_clouds_11_pass_1_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_11_pass_1_go
+    mov edx, 0x1a6c6e
+    cmp eax, 1
+    je v011w_render_on_clouds_11_pass_1_go
+    ud2
+v011w_render_on_clouds_11_pass_1_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_11_pass_1_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1a6c6e
+
+; 0x1a4c0b stage_atmosphere::execute, the sky clouds' pass: xor ecx,ecx / cmp [ebx+0E8h],ecx / sete cl (the technique: 1 for blend mode 0) before res_effect::apply 0x11C1B0 at 0x1A4C16 (EAX the cloud effect, [ebp+ecx*8+40h] loaded at 0x1A4C07); EBP the stage, EBX the scene view's environment (+118h): lohook -> v011w_render_on_clouds_apply
+global v011w_render_on_clouds_apply
+extern hook_v011w_render_on_clouds_apply
+v011w_render_on_clouds_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_apply
+    mov edx, v011w_render_on_clouds_apply_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_apply_go
+    mov edx, 0x1a4c16
+    cmp eax, 1
+    je v011w_render_on_clouds_apply_go
+    mov edx, 0x1a4c16
+    cmp eax, 2
+    je v011w_render_on_clouds_apply_go
+    ud2
+v011w_render_on_clouds_apply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_apply_replay:
+    db 0x33, 0xc9, 0x39, 0x8b, 0xe8, 0x00, 0x00, 0x00, 0x0f, 0x94, 0xc1
+    jmp 0x1a4c16
+
+; 0x1a4d90 stage_atmosphere::execute after the clouds' parameters 0..2 are set (0x1A4CA7, 0x1A4CE2, the VS's 0x1A4D8B), their program bound since 0x1A4C16: lea eax,[ebx+108h] before parameters 3 and 4 and the draw 0x1D18C0 at 0x1A4DE1; EBP the stage: lohook -> v011w_render_on_clouds_constants
+global v011w_render_on_clouds_constants
+extern hook_v011w_render_on_clouds_constants
+v011w_render_on_clouds_constants:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_clouds_constants
+    mov edx, v011w_render_on_clouds_constants_replay
+    cmp eax, 0
+    je v011w_render_on_clouds_constants_go
+    mov edx, 0x1a4d96
+    cmp eax, 1
+    je v011w_render_on_clouds_constants_go
+    ud2
+v011w_render_on_clouds_constants_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_clouds_constants_replay:
+    db 0x8d, 0x83, 0x08, 0x01, 0x00, 0x00
+    jmp 0x1a4d96
+
 ; 0x1ce5be effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v021d_render_on_wet_surface_compiled
 global v021d_render_on_wet_surface_compiled
 extern hook_v021d_render_on_wet_surface_compiled
