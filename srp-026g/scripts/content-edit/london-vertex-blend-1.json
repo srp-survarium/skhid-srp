@@ -1,0 +1,176 @@
+{
+ "_about": "London's own materials (first shipped by patch 14, from an earlier build of the map) with their vertex blending as 0.31a2 authors it: the technique (vertex_blend_technique), the tiled blend masks and their scale, rotation and falloff, and which layers blend. Patch 14's values blended differently, as on London rain's sand over stones (the owner, 2026-11-19: 'rough edge of stone', sand_base_alpha_vc technique 1 for 0.31a2's 2). 15 materials, all London's own (none is a stock 0.26g file); their other values are unchanged.",
+ "set": [
+  {
+   "file": "material_instances/flora_2/l9_anom_tile_top_vc.material",
+   "path": "material/g_stage/effect/vertex_blend_technique/value",
+   "from": 0,
+   "to": 2
+  },
+  {
+   "file": "material_instances/level/level_09/carpeting_alpha_vc.material",
+   "path": "material/g_stage/effect/vertex_blend_technique/value",
+   "from": 1,
+   "to": 2
+  },
+  {
+   "file": "material_instances/level/level_09/floor_02_trash_vc.material",
+   "path": "material/g_stage/effect/vertex_blend_technique/value",
+   "from": 0,
+   "to": 1
+  },
+  {
+   "file": "material_instances/level/level_09/gari_vc.material",
+   "path": "material/g_stage/effect/vertex_blend_technique/value",
+   "from": 0,
+   "to": 1
+  },
+  {
+   "file": "material_instances/level/level_09/metal_gari_vc.material",
+   "path": "material/g_stage/effect/vertex_blend_technique/value",
+   "from": 0,
+   "to": 1
+  },
+  {
+   "file": "material_instances/level/level_09/pol.material",
+   "path": "material/g_stage/effect/vertex_blend_technique/value",
+   "from": 1,
+   "to": 0
+  },
+  {
+   "file": "material_instances/level/level_09/stucco_01_stucco_bl_vc.material",
+   "path": "material/g_stage/effect/constant_tiled_mask_uv_rotation/value",
+   "from": 0,
+   "to": 45
+  },
+  {
+   "file": "material_instances/level/level_09/stucco_01_stucco_bl_vc.material",
+   "path": "material/g_stage/effect/constant_tiled_mask_uv_scale/value",
+   "from": 1,
+   "to": 0.7,
+   "as_float": true
+  },
+  {
+   "file": "material_instances/level/level_09/stucco_01_stucco_bl_vc.material",
+   "path": "material/g_stage/effect/constant_vertex_blended_falloff/value",
+   "from": 10,
+   "to": 7
+  },
+  {
+   "file": "material_instances/level/level_09/stucco_bl_crack_vc.material",
+   "path": "material/g_stage/effect/vertex_blend_technique/value",
+   "from": 0,
+   "to": 1
+  },
+  {
+   "file": "material_instances/level/level_09/stucco_dirt_vc.material",
+   "path": "material/g_stage/effect/constant_tiled_mask_uv_rotation/value",
+   "from": 0,
+   "to": 45
+  },
+  {
+   "file": "material_instances/level/level_09/stucco_dirt_vc.material",
+   "path": "material/g_stage/effect/constant_tiled_mask_uv_scale/value",
+   "from": 1,
+   "to": 0.9,
+   "as_float": true
+  },
+  {
+   "file": "material_instances/level/level_09/stucco_dirt_vc.material",
+   "path": "material/g_stage/effect/constant_vertex_blended_strength/value",
+   "from": 1,
+   "to": 4
+  },
+  {
+   "file": "material_instances/level/level_09/stucco_dirt_vc.material",
+   "path": "material/g_stage/effect/vertex_blend_technique/value",
+   "from": 0,
+   "to": 1
+  },
+  {
+   "file": "material_instances/terrain_tile_aref/sand_base_alpha_vc.material",
+   "path": "material/g_stage/effect/vertex_blend_technique/value",
+   "from": 1,
+   "to": 2
+  }
+ ],
+ "set_bool": [
+  {
+   "file": "material_instances/flora_2/saksaul_tile_blend_vc.material",
+   "path": "material/g_stage/effect/use_vertex_blended_normal/value",
+   "from": true,
+   "to": false
+  },
+  {
+   "file": "material_instances/level/level_09/floor_02_trash_vc.material",
+   "path": "material/g_stage/effect/use_tiled_vertex_blended_mask/value",
+   "from": false,
+   "to": true
+  },
+  {
+   "file": "material_instances/level/level_09/floor_02_trash_vc.material",
+   "path": "material/g_stage/effect/use_vertex_blended_normal/value",
+   "from": false,
+   "to": true
+  },
+  {
+   "file": "material_instances/level/level_09/gari_vc.material",
+   "path": "material/g_stage/effect/use_tiled_vertex_blended_mask/value",
+   "from": false,
+   "to": true
+  },
+  {
+   "file": "material_instances/level/level_09/metal_gari_vc.material",
+   "path": "material/g_stage/effect/use_tiled_vertex_blended_mask/value",
+   "from": false,
+   "to": true
+  },
+  {
+   "file": "material_instances/level/level_09/stena_wood.material",
+   "path": "material/g_stage/effect/use_tiled_vertex_blended_mask/value",
+   "from": true,
+   "to": false
+  },
+  {
+   "file": "material_instances/level/level_09/stucco_bl_crack_vc.material",
+   "path": "material/g_stage/effect/use_tiled_vertex_blended_mask/value",
+   "from": false,
+   "to": true
+  },
+  {
+   "file": "material_instances/level/level_09/stucco_dirt_vc.material",
+   "path": "material/g_stage/effect/use_tiled_vertex_blended_mask/value",
+   "from": false,
+   "to": true
+  },
+  {
+   "file": "material_instances/tiled/stucco/stucco_mask_02_blue.material",
+   "path": "material/g_stage/effect/use_vertex_blended_mask/value",
+   "from": false,
+   "to": true
+  },
+  {
+   "file": "material_instances/tiled/trash/debris_trash_noop_vc.material",
+   "path": "material/g_stage/effect/use_vertex_blended_diffuse/value",
+   "from": false,
+   "to": true
+  }
+ ],
+ "replace_string": [
+  {
+   "files": "material_instances/level/level_09/stucco_01_crack_vc.material",
+   "from": "tiled/vertex_blend_masks/tiled_mask_01",
+   "to": "tiled/vertex_blend_masks/tiled_mask_03"
+  },
+  {
+   "files": "material_instances/level/level_09/stucco_01_stucco_bl_vc.material",
+   "from": "tiled/vertex_blend_masks/tiled_mask_01",
+   "to": "tiled/vertex_blend_masks/tiled_mask_03"
+  },
+  {
+   "files": "material_instances/level/level_09/stucco_dirt_vc.material",
+   "from": "tiled/vertex_blend_masks/tiled_mask_01",
+   "to": "tiled/vertex_blend_masks/tiled_mask_03"
+  }
+ ]
+}

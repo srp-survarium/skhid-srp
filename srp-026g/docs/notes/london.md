@@ -42,6 +42,16 @@ shipped as a cream image while 0.31a2's is wood-brown: London's cupboards with t
 set (`office_cupboard_high[1]` and the like, used by no other project) were white. Pack
 `london-textures@1` gives them 0.31a2's file.
 
+## Vertex blending (`london-vertex-blend-1.json`)
+
+Patch 14 shipped London's own materials from an earlier build of the map. In 15 of them the vertex
+blending differs from 0.31a2: the technique (`vertex_blend_technique`), the tiled blend mask and its
+scale, rotation and falloff, or which layers blend. On rain's sand over stones
+(`terrain_tile_aref/sand_base_alpha_vc`, technique 1 for 0.31a2's 2) the stones showed through
+with a hard edge (the owner, 2026-11-19: "rough edge of stone"). The list sets those values as
+0.31a2 authors them; every other value of the 15 (emissive maps, detail normals, shadow casting and
+the rest that also differ) is unchanged. None of the 15 is a stock 0.26g file.
+
 Source and checks: `scripts/content-edit/london-1.json` and its README section. The server data,
 bots' generated map files and website maps must be built from the same released content.
 
