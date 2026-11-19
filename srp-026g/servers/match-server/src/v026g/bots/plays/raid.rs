@@ -165,10 +165,13 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
 /// spawn is 7 m from it.
 fn raid_candidate(cx: &Ctx, target: TargetRef, slot: u32) -> Option<Candidate> {
     let running = matches!(cx.bot.current, Some((PlayKind::Raid, t, _)) if t == target);
+    // [fix-team push `mods.push`] In a push the guard is counted net of the bot's group (`Ctx::push_net`), for the score and the
+    // running raid's `guarded` test alike.
+    let net = cx.point_of(target).and_then(|at| cx.push_net(at));
     let committed = running
         && cx.point_of(target).is_some_and(|at| {
-            let near = cx.enemies_near(at, cx.num(PlayKind::Raid, "guard_m"));
-            (near as f32) < cx.num(PlayKind::Raid, "guarded")
+            let near = net.unwrap_or_else(|| cx.enemies_near(at, cx.num(PlayKind::Raid, "guard_m")) as f32);
+            near < cx.num(PlayKind::Raid, "guarded")
         });
     if committed {
         cx.candidate_given(
@@ -177,6 +180,8 @@ fn raid_candidate(cx: &Ctx, target: TargetRef, slot: u32) -> Option<Candidate> {
             Some(slot),
             &[(Input::EnemiesDead, 1.0), (Input::EnemiesNearTarget, 0.0)],
         )
+    } else if let Some(net) = net {
+        cx.candidate_given(PlayKind::Raid, target, Some(slot), &[(Input::EnemiesNearTarget, net)])
     } else {
         cx.candidate(PlayKind::Raid, target, Some(slot))
     }
@@ -588,6 +593,29 @@ mod tests {
         s.team.losses.push(crate::v026g::bots::know::Loss { at: first, time: s.view.clock, spawner: None });
         let _ = step(&mut state, target, &s.cx(0), &mut rng);
         assert!(matches!(&state, State::Via { priced, .. } if *priced == t0 + 2_300), "{state:?}");
+    }
+
+    /// [fix-team push `mods.push`] Three defenders known by their container: a raider with three mates by it, its team two
+    /// points behind, is offered the raid (the guard net of its group is 0); alone, or level on points, it is not.
+    #[test]
+    fn a_pushing_group_counts_the_guard_net_of_its_own() {
+        let mut s = raid(2);
+        s.time_left(100.0);
+        for (p, x) in [(5, 66.0), (7, 70.0), (9, 68.0)] {
+            s.enemy(p, 1, Vec3::new(x, 0.0, 36.0), Some(Source::Heard));
+        }
+        let raid_offered = |s: &Scenario| raids(s).iter().any(|c| c.kind == PlayKind::Raid);
+        s.points(0, 2);
+        assert!(!raid_offered(&s), "alone: the guard of 3 scores it 0");
+        for (p, z) in [(2, 26.0), (4, 30.0), (6, 34.0)] {
+            s.bot(p, 0, Vec3::new(38.0, 0.0, z));
+        }
+        assert!(raid_offered(&s), "with 3 mates the net guard is 0");
+        s.points(2, 2);
+        assert!(!raid_offered(&s), "level: the defenders alone");
+        s.points(0, 2);
+        s.tuning.mods.push = None;
+        assert!(!raid_offered(&s), "off: the defenders alone");
     }
 
     fn raids(s: &Scenario) -> Vec<Candidate> {

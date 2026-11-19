@@ -35,6 +35,9 @@ pub struct ModTuning {
     /// no container holder behind late. The gather is `raid_regroup`, the commit `commit.hold_started`. Not `team_plan`: no
     /// play is weighed up. Off: attacks at any strength, the holder at any score.
     pub comeback: Option<Comeback>,
+    /// [fix-team push] A team behind on points pushes: its attackers' gates count both sides at the target ([`PushRule`]).
+    /// Off: the gates count the defenders alone (the sneak raid into a thin guard), whatever the score.
+    pub push: Option<PushRule>,
 }
 
 /// [fix-team 4] The comeback's rules (Days Gone's squad confidence, Killzone 3's decimated attack reported up). The confidence
@@ -94,6 +97,41 @@ impl Comeback {
         } else {
             AttackGate::Open
         }
+    }
+}
+
+/// [fix-team push] A team `behind_by` points or more behind pushes (the owner's local matches of 2026-11-19: "pushing alone in
+/// battery matches when they are behind is not enough"; `owner-final3/PUSH-DESIGN.md` P1): the gates of its Raid and Late
+/// Denial count the known enemies within 25 m of the target net of the bot's teammates within `group_m` of it, never below 0
+/// (the raid's own `EnemiesNearTarget` and its `guarded` test counted the defenders alone, so a group that brought 3-4 of them
+/// to the container had its raid scored 0 by the second: all 21 Raid / Late Denial drops in the pushes of those matches were
+/// `EnemiesNearTarget` 3-4). The comeback's local-strength gate (`mods.comeback`) still drops an outnumbered attack.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PushRule {
+    /// Points behind (the HUD's score, `MatchSignals::score_gap`) from which the team pushes.
+    pub behind_by: f32,
+    /// A teammate this near the bot is in its group, metres (the comeback's `group_m`).
+    pub group_m: f32,
+}
+
+impl Default for PushRule {
+    fn default() -> Self {
+        Self { behind_by: 1.0, group_m: 25.0 }
+    }
+}
+
+impl PushRule {
+    pub fn check(&self) -> Result<(), String> {
+        if !(self.behind_by > 0.0 && (5.0..=100.0).contains(&self.group_m)) {
+            return Err("mods.push".into());
+        }
+        Ok(())
+    }
+
+    /// Whether a team `score_gap` points ahead (negative: behind) pushes.
+    pub fn behind(&self, score_gap: f32) -> bool {
+        score_gap <= -self.behind_by
     }
 }
 
@@ -345,6 +383,7 @@ impl Default for ModTuning {
             raid_approach: Some(RaidApproach::default()),
             raid_replan: Some(RaidReplan::default()),
             comeback: Some(Comeback::default()),
+            push: Some(PushRule::default()),
         }
     }
 }
