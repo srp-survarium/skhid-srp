@@ -248,9 +248,9 @@ class Lamps(unittest.TestCase):
             self.assertEqual(len(light_positions), len(set(light_positions)))
             self.assertLessEqual(len(visual_ids) + len(light_positions), 1024)
         self.assertEqual(maps, {f'level_0{i}' for i in range(2, 10)} |
-                         {'v011e_level_03', 'v011e_level_04', 'v021d_level_02',
+                         {'v011e_level_03', 'v011e_level_04', 'v021d_level_02', 'v021d_level_04',
                           'v021d_level_03', 'v021d_level_05', 'v021d_level_06'})
-        self.assertEqual(len(source['add_value']), 100)  # School/Fort battery and TDM projects included.
+        self.assertEqual(len(source['add_value']), 102)  # School/Fort/Chemical Plant battery and TDM projects included.
         # Each of Vostok v0.11's ten hanging-lamp shafts must disappear
         # with its fixture. The two outdoor scenery shafts have no owner.
         for project in source['add_value']:

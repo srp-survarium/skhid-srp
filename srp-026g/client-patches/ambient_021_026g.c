@@ -28,8 +28,7 @@ static enum ambient_model model_for_game(const void *game)
         if (name[i] != prefix[i]) return NATIVE_AMBIENT;
     name += sizeof(prefix) - 1;
     const char level = *name++;
-    if (level != '1' && level != '2' && level != '3' && level != '5' && level != '6')
-        return NATIVE_AMBIENT;
+    if (level < '1' || level > '6') return NATIVE_AMBIENT;
     const char *mode = after_prefix(name, "/day_");
     if (mode) {
         if ((*mode != '2' && *mode != '4' && *mode != '8') || mode[1])

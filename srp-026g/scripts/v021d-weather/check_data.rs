@@ -9,10 +9,11 @@ use survarium::v026g::{
 fn main() {
     let path = PathBuf::from(std::env::args_os().nth(1).expect("server-game-data.db"));
     game_data::init_from(&path).expect("server must accept the composed data");
-    let cases: [(u8, u8, [u16; 4]); 5] = [
+    let cases: [(u8, u8, [u16; 4]); 6] = [
         (1, 29, [262, 263, 264, 265]),
         (2, 25, [1, 2, 3, 4]),
         (3, 10, [170, 171, 172, 173]),
+        (4, 31, [268, 269, 270, 271]),
         (5, 26, [5, 6, 7, 8]),
         (6, 11, [179, 180, 253, 254]),
     ];
@@ -35,5 +36,8 @@ fn main() {
             println!("{id}: {project}, level {level}, playable without map-ID truncation");
         }
     }
-    println!("All 20 weather entries resolve through MatchMap::of(MapId) in composed server data");
+    println!(
+        "All {} weather entries resolve through MatchMap::of(MapId) in composed server data",
+        4 * cases.len()
+    );
 }

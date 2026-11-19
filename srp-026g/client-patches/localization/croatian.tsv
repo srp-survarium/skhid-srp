@@ -1428,6 +1428,7 @@ st_level_14_name	Rudnja (v0.69)
 st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovska utvrda (v0.21)
 st_level_29_name	Rudnja (v0.21)
+st_level_31_name	Kemijska tvornica (v0.21)
 st_lifebone_activation_hint	Kokotić je aktiviran! Sve su kritične rane izliječene! Zdravlje je obnovljeno!
 st_lifebone_pickup_hint	Artefakt Kokotić. Povećava obnovu zdravlja. 
 st_lightning_quality_option	Kvaliteta osvjetljenja
@@ -2605,6 +2606,7 @@ st_srp_login_ban_ends	Završava %1$s (za %2$s).
 st_srp_login_ban_forever	Zabrana je trajna.
 st_srp_map_chemical_plant	Kemijska tvornica
 st_srp_map_chemical_plant_v011	Kemijska tvornica (v0.11)
+st_srp_map_chemical_plant_v021	Kemijska tvornica (v0.21)
 st_srp_map_cologne	Köln
 st_srp_map_cs_mp_atp	Vozni park
 st_srp_map_cs_mp_bath	Pokusni bazen

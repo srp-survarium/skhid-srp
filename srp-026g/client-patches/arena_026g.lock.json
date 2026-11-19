@@ -1,8 +1,8 @@
 {
   "generated": "by link_026g.py --write from patch_026g.py's ARENA and its sources: do not edit",
   "va": "0xa42d000",
-  "size": 1345124,
-  "sha256": "b23a3a86e414fe19b224b71784fe7b4452272c1fa759cfad8c4092e59104c949",
+  "size": 1345116,
+  "sha256": "1f92f76efd3fc841f14fbf2f8f85f1091bb8cc1b1a7d787b851dc87e779ebc8e",
   "blocks": {
     "bullet_bounds.code": {
       "kind": "code",
@@ -122,13 +122,13 @@
     "ambient_021.code": {
       "kind": "code",
       "va": "0xa575450",
-      "size": 532
+      "size": 524
     }
   },
   "symbols": {
     "SRP_DIAGNOSTICS": "0xa4ce6ec",
     "_RNvNtNtCsgEaDafe65MU_7patches6vostok8gun_cook12cooked_entry": "0xa443000",
-    "__rodata_ambient_021_code": "0xa575648",
+    "__rodata_ambient_021_code": "0xa575640",
     "__rodata_audio_device_code": "0xa44080b",
     "__rodata_detail_code": "0xa5752fb",
     "__rodata_hide_ui_code": "0xa43a1e2",
@@ -147,7 +147,7 @@
     "ad_now": "0xa44070f",
     "ad_tick": "0xa44054b",
     "ad_xaudio2_create": "0xa4406bd",
-    "ambient_021_insert": "0xa5755dd",
+    "ambient_021_insert": "0xa5755d5",
     "ambient_021_insert_hook": "0xa575450",
     "animation_id_log_on_id_missing": "0xa4c67b0",
     "animation_math_domain": "0xa4ccf50",
@@ -992,7 +992,7 @@
     "music_on_unload": "0xa4ca5d8",
     "packet_recovery_on_loaded": "0xa4c775a",
     "particle_021_intensity_hook": "0xa575484",
-    "particle_021_original_intensity": "0xa5755ad",
+    "particle_021_original_intensity": "0xa5755a5",
     "particle_room_on_first_person_made": "0xa4cb052",
     "particle_room_on_read_room": "0xa4cb109",
     "particle_room_on_start": "0xa4cb1cd",

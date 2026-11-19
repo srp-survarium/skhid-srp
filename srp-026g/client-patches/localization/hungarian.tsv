@@ -1428,6 +1428,7 @@ st_level_14_name	Rudnya (v0.69)
 st_level_25_name	Iskola (v0.21)
 st_level_26_name	Tarakanovi erőd (v0.21)
 st_level_29_name	Rudnya (v0.21)
+st_level_31_name	Vegyi üzem (v0.21)
 st_lifebone_activation_hint	Szarkaláb aktiválva! Minden súlyos seb begyógyult! Életerő helyreállítva!
 st_lifebone_pickup_hint	Szarkaláb artefaktum. Gyorsítja az életerő regenerálódását. 
 st_lightning_quality_option	Megvilágítás minősége
@@ -2605,6 +2606,7 @@ st_srp_login_ban_ends	Lejár: %1$s (%2$s múlva).
 st_srp_login_ban_forever	A tiltás végleges.
 st_srp_map_chemical_plant	Vegyi üzem
 st_srp_map_chemical_plant_v011	Vegyi üzem (v0.11)
+st_srp_map_chemical_plant_v021	Vegyi üzem (v0.21)
 st_srp_map_cologne	Köln
 st_srp_map_cs_mp_atp	Vehicle Station
 st_srp_map_cs_mp_bath	Experimental Pool
