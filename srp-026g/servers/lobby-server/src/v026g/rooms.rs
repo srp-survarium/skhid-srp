@@ -259,7 +259,7 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        let mut entries: Vec<(bool, PoolEntry)> = pool
+        let mut entries: Vec<(maps::Build, PoolEntry)> = pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
@@ -273,15 +273,15 @@ impl Core<'_> {
                     extra,
                     bots: self.settings.pvb.bot_maps.contains(&id),
                 };
-                Some((map.is_stalker(), entry))
+                Some((map.build(), entry))
             })
             .collect();
-        // Stable: the others first, the STALKER maps after, each map where
+        // Stable: by build (0.26, 0.11, 0.21, 0.69, STALKER), each map where
         // its first id came, its weathers in the list's order.
         let levels: Vec<u8> = entries.iter().map(|(_, entry)| entry.level).collect();
-        entries.sort_by_key(|&(stalker, entry)| {
+        entries.sort_by_key(|&(build, entry)| {
             let map = levels.iter().position(|&level| level == entry.level);
-            (stalker, map, maps::weather::list_place(entry.weather))
+            (build, map, maps::weather::list_place(entry.weather))
         });
         entries
             .into_iter()

@@ -344,8 +344,30 @@ impl MapMode {
     /// mp_bath, mp_military_1, mp_training_camp and mp_rembasa, the SoC Station and Depository),
     /// in every mode.
     pub fn is_stalker(&self) -> bool {
-        self.project.starts_with("v010b_")
+        self.build() == Build::Stalker
     }
+
+    /// The build its scene comes from, by its project's prefix.
+    pub fn build(&self) -> Build {
+        match self.project.split_once('_').map(|(prefix, _)| prefix) {
+            Some("v011e") => Build::V011,
+            Some("v021d") => Build::V021,
+            Some("v069d") => Build::V069,
+            Some("v010b") => Build::Stalker,
+            _ => Build::V026,
+        }
+    }
+}
+
+/// The build a map's scene comes from, in the order lists show them (the owner,
+/// 2026-11-19: 0.26 maps, 0.11, 0.21, 0.69, the STALKER maps).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Build {
+    V026,
+    V011,
+    V021,
+    V069,
+    Stalker,
 }
 
 /// A number of a game mode config; a missing one is 0.
