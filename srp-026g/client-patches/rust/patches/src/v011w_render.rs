@@ -44,7 +44,7 @@ pub const MAP_KEY: &CStr = c"srp_renderer_v011w";
 /// pack's): 0.11e's scattering tables, sky and post.
 const TABLES_PS: &CStr = c"make_mie_rayleigh_texture_v011w";
 const SKY_PS: &CStr = c"atmosphere_v011w";
-const POST_PS: &CStr = c"complex_post_process_blend_v011w";
+const POST_PS: &CStr = c"complex_post_process_blend_v011w_026g";
 
 /// A project's inscatter distance, metres: above 0 (both passes divide by it).
 #[derive(Clone, Copy, Debug, PartialEq)]

@@ -236,7 +236,7 @@ pub fn set_sky_technique(ctx: &Context<'_>, technique: Technique) {
 
 /// 0.11e's post (patch v011w_render): technique 1 of each post blend, the
 /// twin effect_complex_post_process_blend compiles of its one technique with
-/// `complex_post_process_blend_v011w` (0.11e's equations on 0.26g's inputs).
+/// `complex_post_process_blend_v011w_026g` (0.11e's equations on 0.26g's inputs).
 pub const POST_V011W: Technique = Technique::new(1);
 
 /// Sets 0.11e's two filmic constants for the bound post blend

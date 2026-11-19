@@ -71,7 +71,7 @@ port for it. This work is Vostok's two weathers only.
   `fill_shader_configuration_macros` (0.11e 0x00732E30), 68 characters (0.10b's: 82).
 - **The post, the 0.11 way** (patch 162; pack `v011e-radar-fog@4`): 0.26g's post blend is another
   program on other inputs (client_patch.md 3.87), so the twin is 0.11e's equations on 0.26g's inputs
-  (`complex_post_process_blend_v011w.ps`), with each weather's filmic curve from the project's profile.
+  (`complex_post_process_blend_v011w_026g.ps`), with each weather's filmic curve from the project's profile.
 - **The profile** (`srp_renderer_v011w`, a table): `inscatter_distance` and, optionally (all eight or
   none), the filmic values named as in 0.11e's post materials (evening: 200, .05, 7, .3, 6.2, 2, .02, 10000,
   4.5; rain: 300, .01, 6.2, .3, 6.2, 2, .02, 8, 6). Without them the post stays 0.26g's. Chemical Plant
@@ -81,9 +81,10 @@ port for it. This work is Vostok's two weathers only.
   0.26g's post on every map (a local test) took evening 0.159 -> 0.167 and rain 0.090 -> 0.095, because the
   port's shade is near black (pixels under 0.1: 0.11e about 5 %, the port 16-53 %) and 0.11e's curve crushes
   it further. The twin first drew a flat image: a pass's permutation key comes from `shaders/masks`, which
-  names no define of a family it does not list, so the engine asks for the plain key of
-  `complex_post_process_blend_v011w`, which the pack lacked; under the plain key (pack @7) it draws as the
-  test does (evening 0.167, rain 0.104 with each weather's curve). It waits on the darkness below.
+  names no define of a family it does not list, so the engine asked for the twin family's plain key, and
+  under that name the weather pack `v011e-radar-weather` ships a byte copy of 0.11e's own program (0.11e's
+  layout, never meant to run in 0.26g). The twin is now `complex_post_process_blend_v011w_026g` under its plain
+  key (pack @8) and draws as the test does (evening 0.167, rain 0.104 with each weather's curve). It waits on the darkness below.
 - **The darkness**: 0.26g's `skylight.ps` writes one flat colour (`skylight_parameters0`); 0.11e's (0.10b's
   source, byte-identical, now in `srp-026g/shaders/v011w`) lights shade with height, a six-face sky colour,
   wrap light, the sun colour and AO, and 0.26g's skylight vertex shader (0.11e's) already feeds it. 0.26g's

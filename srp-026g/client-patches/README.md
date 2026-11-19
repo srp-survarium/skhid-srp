@@ -6293,7 +6293,7 @@ another map's project takes a 0.11 weather by giving it one:
   a frame whose look (0.11 or native) is not theirs remakes them.
 - The post: 0.26g's blend has another exposure clamp, an exponential tone curve, an sRGB-coded grading and
   another vignette, and never sets the filmic constants it still registers. Each of its three blend effects
-  compiles a twin of its one technique (1: `complex_post_process_blend_v011w`, 0.11e's equations on 0.26g's
+  compiles a twin of its one technique (1: `complex_post_process_blend_v011w_026g`, 0.11e's equations on 0.26g's
   inputs, from source); on the marked scene whose profile names the curve the post stage applies it and
   sets filmic_tonemap_packed_parameters_0/1 from the profile, packed as 0.11e. No profile names it yet: on the
   port's too-dark shade 0.11e's curve measures worse (`../docs/notes/v011-weather.md`). Its program is the

@@ -267,11 +267,11 @@ def check_post_compiles(stock, patched):
             for _ in range(2):
                 ours = run_compile(patched, start, caching)
                 assert len(ours) == 2 and ours[0] == native[0], (name, len(ours))
-                twin = [("begin_pass", e[1], e[2], e[3], "complex_post_process_blend_v011w", e[5]) if e[0] == "begin_pass"
+                twin = [("begin_pass", e[1], e[2], e[3], "complex_post_process_blend_v011w_026g", e[5]) if e[0] == "begin_pass"
                         else e for e in native[0]]
                 assert ours[1] == twin, (name, "the twin: the same pass with 0.11e's post")
         print(f"  ok effect_complex_post_process_blend{name}::compile (building, caching): its technique, then the"
-              " twin with ps complex_post_process_blend_v011w (every texture and state the same), twice")
+              " twin with ps complex_post_process_blend_v011w_026g (every texture and state the same), twice")
     for m in (stock, patched):
         m.stubs = {}
 
