@@ -193,6 +193,33 @@ weather (48/48/29 new poses); three exactly matching cameras reuse the initial
 references. Its plan is `/tmp/v011-weather-reference/sweep/plan.json` and log
 `/tmp/v011-weather-reference/sweep.log`. No original frame is overwritten.
 
+## The frame: 0.11e against 0.26g (2026-11-19)
+
+One frame of a marked weather scene, stage by stage, in the order both renderers run them (0.10b source:
+`vostok/render/engine/sources/renderer.cpp` builds the stages; its `render_stage_names` is the order;
+0.11e matches 0.10b in every program read so far). "0.26g" is the stock exe; "patch 162" is what this
+branch draws on a scene whose project carries `srp_renderer_v011w`.
+
+| # | Stage (source) | 0.11e | 0.26g | Patch 162 | Left |
+| --- | --- | --- | --- | --- | --- |
+| 1 | g-buffer | albedo, normal (R10G10B10A2 XY sphere map), position/depth | the same contents; normal R16G16_FLOAT, depth R16_FLOAT ("Original ambient pipeline" below) | - | none known |
+| 2 | decals, distortion, pre-rain normal | - | - | - | not compared |
+| 3 | ambient occlusion | temporal SSAO: accumulation R16G16F half size, history mask R8G8, temporal resolve R8G8 + R16F depth | 0.26g's own SSAO | - | small: the original's three programs replay byte for byte (below); not drawn in game |
+| 4 | ambient: skylight | `skylight` pass 1 into `rt_accumulator_diffuse` (skylight_color x ambient multiplier, six skycolor faces, sun term), writes sqrt(L/8) | the same family, linear | 0.11e's programs and constants | none: the probes overwrite it in both (their alpha lerp) |
+| 5 | ambient: probes | `environment_probe_lighting` into the diffuse and specular accumulators, SRC_ALPHA/INV_SRC_ALPHA by attenuation, texel (c/a)^2.2, writes sqrt(L/8) | the same blend; texel (c/a)^2 / 4, linear | data: multipliers x4 (rain), diffuse x3 (evening) | the decode exactly, with 6 |
+| 6 | sun, deferred lights | `sun.ps`, `point/spot/obb_light_accumulator.ps`: every light adds `1/rsqrt(saturate(L*0.125))` = sqrt(L/8) into R10G10B10A2 accumulators | every light adds L linearly | - | **large**: a sum of square roots, decoded 8·sum² in 7, brightens overlapping lights (the lamp over probe light, the rain's near shade) |
+| 7 | resolve lighting | `resolve_lighting.ps`: `saturate(acc)² · 8` per accumulator, x albedo | linear sum x albedo | - | with 6 |
+| 8 | sky: scattering tables | `make_mie_rayleigh` into rt_rayleigh / rt_mie: rayleighSun, mieSun, rayleighPi, miePi (env +B8h..+C4h) | sun_intensity where 0.11e reads rayleighSun | `atmosphere.tables_constants`: 0.11e's four | none |
+| 9 | sky: atmosphere, clouds, sun/moon | `atmosphere_pass` on rt_generic_0, the clouds (alpha blend or modulate by `sky_clouds_blend_mode`) | the same order; clouds in the use_sky_clouds block (env +C9h) | 0.11e's sky and cloud programs, dome uv | none known |
+| 10 | forward | forward materials on rt_generic_0; `forward_volume_cone_base`: alpha = depth fade x distance fade (attenuation_scale·z) x spot falloff x **sphere falloff** x volume alpha x constant_transparency | 0.26g's cone program: (spot falloff - 0.1) x 0.1 x volume alpha x constant_transparency x depth fade, no sphere falloff; 0.26g's own cones carry constant_transparency 0.05, 0.11e's 1 | - | **medium**: 0.11e's program as a twin per marked material at `material.begin_pass` (patch 130's grass mechanism, the PS family instead of the VS) and 0.11e's `fx/sphere_falloff`; until then the opacity is calibrated |
+| 11 | atmosphere on geometry | two passes, `scattering_on_geometry_pass_mul` then `_add`, over rt_generic_0 | one pass | 0.11e's two passes and tables | none |
+| 12 | forward sky, rain, particles, volume fog | `stage_rain` drops (effect_rain technique 1), particles, volume fog | the same families | - | not compared pass by pass |
+| 13 | post | `complex_post_process_blend`: key = 1.03 - 2/(20·(log10(avg+1)+2)), exposure (key/avg)^0.2, avg clamped to [0.09, 0.4], 0.11e's filmic curve (eight numbers a weather), bloom, grain, colour grading | the same key formula, avg floored at 0.001 without the clamp, an exponential curve | the twin (0.11e's program) compiles; drawn without its frame inputs it is darker (f16): not used | **medium-large**: the twin's inputs (its adaptation and bloom chain), then the filmic numbers |
+
+What it leaves, in the order it moves the picture (rain, factory_upper, mean luma of the upper, middle and
+lower thirds, 0.11e against c16): the post (13), 140/86 against 115/71 far and middle; the light encoding
+(6, 7), 59 against 36 near; the cones (10); the probe decode (5), covered by the multipliers.
+
 ## Evening fog numeric type
 
 Original evening `volume_fog:environment_and_lights/volume_fog` has

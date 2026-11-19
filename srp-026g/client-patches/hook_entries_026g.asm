@@ -11041,6 +11041,45 @@ v011w_render_on_tables_constants_replay:
     db 0x6a, 0x00, 0x51, 0x8b, 0xc4
     jmp 0x1a44b1
 
+; 0x1cd1b6 effect_material_base::compile_begin's one begin_pass (0x1CD1BC): mov eax,[esp+2Ch] (the VS family name) / push esi / push ebp; EBX the shader configuration (its vertex input type in byte 6), [esp+3Ch] the merged config tree; every material effect's every pass, cache and build compiles alike: lohook -> v021d_render_on_material_pass
+global v021d_render_on_material_pass
+extern hook_v021d_render_on_material_pass_chain
+v021d_render_on_material_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v021d_render_on_material_pass_chain
+    mov edx, v021d_render_on_material_pass_replay
+    cmp eax, 0
+    je v021d_render_on_material_pass_go
+    mov edx, 0x1cd1bc
+    cmp eax, 1
+    je v021d_render_on_material_pass_go
+    ud2
+v021d_render_on_material_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v021d_render_on_material_pass_replay:
+    db 0x8b, 0x44, 0x24, 0x2c, 0x56, 0x55
+    jmp 0x1cd1bc
+
 ; 0x1ce5be effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v021d_render_on_wet_surface_compiled
 global v021d_render_on_wet_surface_compiled
 extern hook_v021d_render_on_wet_surface_compiled
@@ -11373,45 +11412,6 @@ v021d_render_on_drops_apply_go:
 v021d_render_on_drops_apply_replay:
     db 0x8b, 0x45, 0x34, 0xb9, 0x01, 0x00, 0x00, 0x00
     jmp 0x1adfac
-
-; 0x1cd1b6 effect_material_base::compile_begin's one begin_pass (0x1CD1BC): mov eax,[esp+2Ch] (the VS family name) / push esi / push ebp; EBX the shader configuration (its vertex input type in byte 6), [esp+3Ch] the merged config tree; every material effect's every pass, cache and build compiles alike: lohook -> v021d_render_on_material_pass
-global v021d_render_on_material_pass
-extern hook_v021d_render_on_material_pass
-v021d_render_on_material_pass:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_v021d_render_on_material_pass
-    mov edx, v021d_render_on_material_pass_replay
-    cmp eax, 0
-    je v021d_render_on_material_pass_go
-    mov edx, 0x1cd1bc
-    cmp eax, 1
-    je v021d_render_on_material_pass_go
-    ud2
-v021d_render_on_material_pass_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-v021d_render_on_material_pass_replay:
-    db 0x8b, 0x44, 0x24, 0x2c, 0x56, 0x55
-    jmp 0x1cd1bc
 
 ; 0x1e603c effect_fstage_simpe_water_materials::compile (the forward_water and forward_water_local_reflections passes, the loop at 0x1E6015), after compile_begin's return, before the pushes of its set_texture (0x3D98B0, at 0x1E6053) of t_normal_map (fld1 / push 1 / push ecx; then fstp [esp], push esi, push -1, push esi, push engine/water_waves2 0x9F9FA4, push t_normal_map 0x9F3204, push ebx): EBX the compiler, [ebp+0Ch] the material's config tree; bound is after the call (0x1E6058), the stack as here: lohook -> v021d_render_on_water_texture
 global v021d_render_on_water_texture

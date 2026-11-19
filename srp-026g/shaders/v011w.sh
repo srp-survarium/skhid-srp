@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # v011w.sh check <0.11e resources.db>
-# v011w.sh build <0.26g stock resources.db> <out files dir> [--twin] [program ...] | --post-twin | --twin-of <family> program ...
+# v011w.sh build <0.26g stock resources.db> <out files dir> [--twin] [program ...] | --post-twin | --twin-of <family> program ... | --cone
 #
 # 0.11e's atmosphere programs from v011w/ (vostok's 0.10b sources with 0.11e's changes, README.md):
 #   check: compile the atmosphere, skylight and cloud programs and every permutation of the post blend for 0.11e and
@@ -13,7 +13,11 @@
 #          complex_post_process_blend_v011w_026g under the plain key (shaders/masks names no define of a family it
 #          does not list, so the engine asks for that one; the program reads none of the post's defines);
 #          --twin-of <family>: each program as the new family <program>_v011w under the plain key, with
-#          <family>'s include records (0.26g has no family of that name: atmosphere_clouds for 0.11e's clouds).
+#          <family>'s include records (0.26g has no family of that name: atmosphere_clouds for 0.11e's clouds);
+#          --cone: forward_volume_cone_base (the diffuse texture on, no transparency texture) for each vertex input
+#          1..6 as the family forward_volume_cone_base_v011w_<input> under the plain key, with the include records
+#          of 0.26g's blob of that configuration (exe patch 162 names the family by the pass's input).
+#   check also compiles the cone program for those six inputs and compares with 0.11e's blobs of them.
 # The shipped blobs are read with dbgrab (tools/re-kit/common/dbgrab; DBGRAB overrides). Needs Wine,
 # python3 and fxc (fxc.sh).
 set -eu
@@ -59,6 +63,14 @@ check)
     if cmp -s <(dxbc "$blob") "$tmp/out.dxbc"; then same=$((same + 1)); else echo "complex_post_process_blend $key DIFF"; fi
   done
   echo "complex_post_process_blend: $same of $count permutations byte-identical"
+  # forward_volume_cone_base: 0.11e's key ____<tdiffuse>___________<subuv><ttransparency>___<input>______...
+  rm -rf "$tmp/cone"; "$dbgrab" "$db" get forward_volume_cone_base.ps/ "$tmp/cone" > /dev/null
+  for input in 1 2 3 4 5 6; do
+    set -- "$tmp/cone"/*.ps______1___________00___${input}______*
+    compile forward_volume_cone_base "$tmp/out.dxbc" /D CONFIG_TDIFFUSE=1 /D CONFIG_TTRANSPARENCY=0 /D CONFIG_VERTEX_INPUT_TYPE=$input
+    if cmp -s <(dxbc "$1") "$tmp/out.dxbc"; then echo "forward_volume_cone_base input $input byte-identical"
+    else echo "forward_volume_cone_base input $input DIFF"; bad=$((bad + 1)); fi
+  done
   [ $bad = 0 ] && [ $same = $count ] && [ $count -gt 0 ] ;;
 build)
   out=${3:?the out files dir}; shift 3
@@ -83,6 +95,22 @@ build)
     for program in "$@"; do
       compile $program "$tmp/out.dxbc" /D TARGET_026G=1
       dest="$out/shaders/sm_4_0/${program}_v011w.ps/$plain"
+      mkdir -p "$(dirname "$dest")"
+      python3 -c 'import sys,struct; d=open(sys.argv[1],"rb").read(); n=struct.unpack_from("<I",d)[0]; open(sys.argv[3],"wb").write(d[:4+264*n]+open(sys.argv[2],"rb").read())' \
+        "$stock" "$tmp/out.dxbc" "$dest"
+      echo "$dest"
+    done
+    exit 0
+  fi
+  if [ "${1:-}" = --cone ]; then
+    rm -rf "$tmp/cone"; "$dbgrab" "$db" get forward_volume_cone_base.ps/ "$tmp/cone" > /dev/null
+    for input in 1 2 3 4 5 6; do
+      set -- "$tmp/cone"/*.ps_______1___________00___${input}________*
+      [ $# = 1 ] || { echo "$# 0.26g cone blobs for input $input" >&2; exit 1; }
+      stock=$1; key=${stock##*.ps__}; plain=$(printf '%*s' ${#key} '' | tr ' ' _)
+      compile forward_volume_cone_base "$tmp/out.dxbc" /D TARGET_026G=1 /D CONFIG_TDIFFUSE=1 /D CONFIG_TTRANSPARENCY=0 \
+        /D CONFIG_VERTEX_INPUT_TYPE=$input
+      dest="$out/shaders/sm_4_0/forward_volume_cone_base_v011w_$input.ps/$plain"
       mkdir -p "$(dirname "$dest")"
       python3 -c 'import sys,struct; d=open(sys.argv[1],"rb").read(); n=struct.unpack_from("<I",d)[0]; open(sys.argv[3],"wb").write(d[:4+264*n]+open(sys.argv[2],"rb").read())' \
         "$stock" "$tmp/out.dxbc" "$dest"

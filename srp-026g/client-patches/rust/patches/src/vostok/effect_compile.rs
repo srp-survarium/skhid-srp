@@ -317,6 +317,11 @@ impl VertexInput {
     pub fn parse(byte: u8) -> VertexInput {
         VertexInput(byte & 0x3F)
     }
+
+    /// The type's number (CONFIG_VERTEX_INPUT_TYPE).
+    pub fn number(self) -> u8 {
+        self.0
+    }
 }
 
 /// A material effect's pass at compile_begin's begin_pass
@@ -363,6 +368,21 @@ impl<'c> MaterialPass<'c> {
     pub fn set_vertex_shader(&mut self, name: &'static CStr) {
         // SAFETY: compile_begin's own argument slot (see `at`).
         unsafe { self.frame.set_vertex_shader(name.as_ptr().cast_mut().cast()) }
+    }
+
+    /// The PS family name the pass is about to begin with.
+    pub fn pixel_shader(&self) -> Option<&'c CStr> {
+        // SAFETY: the name compile_begin pushed for begin_pass, its second
+        // argument (a C string of the exe's, or one of ours).
+        unsafe { super::ui::c_string(self.frame.pixel_shader(), 128) }
+    }
+
+    /// Makes `name` the PS family of this pass (the pushed argument
+    /// begin_pass reads; compile_begin's own slot stays).
+    pub fn set_pixel_shader(&mut self, name: &'static CStr) {
+        // SAFETY: the pushed argument at the site's ESP (see `at`), read only
+        // by begin_pass.
+        unsafe { self.frame.set_pixel_shader(name.as_ptr().cast_mut().cast()) }
     }
 }
 

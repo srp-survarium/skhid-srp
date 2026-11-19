@@ -150,3 +150,9 @@ handler = "on_clouds_constants"
 [[hook]]
 site = "atmosphere.tables_constants"
 handler = "on_tables_constants"
+
+# The cones under Vostok v0.11's lamps: a marked material's passes take 0.11e's cone program.
+[[hook]]
+site = "material.begin_pass"
+handler = "on_material_pass"
+order = 2

@@ -24,6 +24,11 @@
 //! tables are made once and kept while nothing changes, for whichever scene
 //! made them, so a frame whose look differs from theirs remakes them.
 //!
+//! The light cones under Vostok v0.11's lamps are 0.11e's too, wherever their
+//! material is compiled (the day as well as the weathers): a material whose
+//! effect config has [`CONE_KEY`] begins its forward_volume_cone_base passes
+//! with 0.11e's program (its sphere falloff and distance fade, [`cone_twin`]).
+//!
 //! Presentation only: nothing a match computes reads any of it.
 
 #![forbid(unsafe_code)]
@@ -31,7 +36,7 @@
 use core::ffi::CStr;
 
 use crate::vostok::config::{ConfigTable, ConfigValue};
-use crate::vostok::effect_compile::{self, CloudEffect, CloudPass, CompileSite, End, Pass, PassSite, Rounds};
+use crate::vostok::effect_compile::{self, CloudEffect, CloudPass, CompileSite, End, MaterialPass, Pass, PassSite, Rounds, VertexInput};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::project::{ProjectId, ProjectView};
 use crate::vostok::render_stage::{self, ApplySite, AtmosphereStage, RenderSceneId, StageSite};
@@ -51,6 +56,23 @@ const POST_PS: &CStr = c"complex_post_process_blend_v011w_026g";
 const SKYLIGHT_PS: &CStr = c"skylight_v011w";
 const CLOUDS_ALPHA_BLEND_PS: &CStr = c"atmosphere_clouds_alpha_blend_v011w";
 const CLOUDS_MODULATE_PS: &CStr = c"atmosphere_clouds_modulate_v011w";
+
+/// The key of a material's effect config (`material/forward/effect`) whose
+/// volume cones are 0.11e's; only its presence counts.
+pub const CONE_KEY: &CStr = c"srp_cone_v011w";
+/// 0.26g's cone family, the one a marked material's pass swaps.
+const CONE_PS: &CStr = c"forward_volume_cone_base";
+/// 0.11e's cone program for 0.26g's vertex outputs of each input type it is
+/// built for (shaders/sm_4_0/<name>.ps/ + 67 `_`, the content pack's; the
+/// diffuse texture on, no transparency texture, as the ported material).
+const CONE_TWINS: [&CStr; 6] = [
+    c"forward_volume_cone_base_v011w_1",
+    c"forward_volume_cone_base_v011w_2",
+    c"forward_volume_cone_base_v011w_3",
+    c"forward_volume_cone_base_v011w_4",
+    c"forward_volume_cone_base_v011w_5",
+    c"forward_volume_cone_base_v011w_6",
+];
 
 /// A project's inscatter distance, metres: above 0 (both passes divide by it).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -775,6 +797,30 @@ pub fn on_clouds_constants(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// The cone twin of a marked material's pass: 0.26g's cone family with a
+/// vertex input the pack builds a twin for (1 to 6, the static meshes').
+fn cone_twin(input: VertexInput, family: &CStr, marked: bool) -> Option<&'static CStr> {
+    if !marked || family != CONE_PS {
+        return None;
+    }
+    CONE_TWINS.get(usize::from(input.number()).checked_sub(1)?).copied()
+}
+
+/// A material effect's pass: a marked material's cones take 0.11e's program.
+pub fn on_material_pass(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(mut pass) = MaterialPass::at(ctx)
+        && let Some(family) = pass.pixel_shader()
+        && let Some(twin) = cone_twin(pass.vertex_input(), family, has_key(pass.config(), CONE_KEY))
+    {
+        pass.set_pixel_shader(twin);
+    }
+    Flow::Continue
+}
+
+fn has_key(config: Option<&ConfigTable<'_>>, key: &CStr) -> bool {
+    config.is_some_and(|table| matches!(table.get(key), Ok(Some(_))))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -920,5 +966,21 @@ mod tests {
             (key != c"clouds_color").then(|| evening_vector(key)).flatten()
         }))
         .is_err());
+    }
+
+    #[test]
+    fn cone_twins_need_the_cone_family_an_input_and_the_mark() {
+        for (n, twin) in CONE_TWINS.iter().enumerate() {
+            let input = VertexInput::parse(n as u8 + 1);
+            assert_eq!(cone_twin(input, CONE_PS, true), Some(*twin));
+            assert_eq!(cone_twin(input, CONE_PS, false), None);
+            assert_eq!(cone_twin(input, c"forward_volume_sphere_base", true), None);
+            assert!(twin.to_str().unwrap().ends_with(&std::format!("_v011w_{}", n + 1)));
+        }
+        for other in [0u8, 7, 8, 11, 14] {
+            assert_eq!(cone_twin(VertexInput::parse(other), CONE_PS, true), None);
+        }
+        // the type's two top bits are not the input's
+        assert_eq!(cone_twin(VertexInput::parse(0xC1), CONE_PS, true), Some(CONE_TWINS[0]));
     }
 }

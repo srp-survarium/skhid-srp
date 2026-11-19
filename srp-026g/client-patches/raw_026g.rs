@@ -26435,6 +26435,24 @@ impl CompileBeginFrame {
         self.0.as_ptr() as usize as u32
     }
 
+    /// +0x0 (ptr<u8>): its second argument, the PS family name, as begin_pass takes it: pushed at 0x1CD1B5 (begin_pass's last argument, read from [esp+2Ch] at 0x1CD1B1), on top of the stack at 0x1CD1B6; begin_pass reads it, nothing before
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pixel_shader(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): its second argument, the PS family name, as begin_pass takes it: pushed at 0x1CD1B5 (begin_pass's last argument, read from [esp+2Ch] at 0x1CD1B1), on top of the stack at 0x1CD1B6; begin_pass reads it, nothing before
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_pixel_shader(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
     /// +0x2c (ptr<u8>): effect_material_base::compile_begin's (0x1CD0B0) first argument, the VS family name, at 0x1CD1B6 (the entry's ESP less 28h): the mov there reads it for begin_pass, nothing after
     ///
     /// # Safety

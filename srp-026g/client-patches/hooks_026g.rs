@@ -6277,6 +6277,36 @@ pub extern "C" fn hook_v011w_render_on_tables_constants(frame: &mut Frame) -> u3
 
 // ---- v021d_render (patch 130) ----
 
+/// The entry `v021d_render_on_material_pass` (0x1cd1b6, effect_material_base::compile_begin's one begin_pass (0x1CD1BC): mov eax,[esp+2Ch] (the VS family name) / push esi / push ebp; EBX the shader configuration (its vertex input type in byte 6), [esp+3Ch] the merged config tree; every material effect's every pass, cache and build compiles alike) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_material_pass(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_material_pass` calls this, from the game's jump at 0x1cd1b6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_material_pass(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_material_pass` (0x1cd1b6, effect_material_base::compile_begin's one begin_pass (0x1CD1BC): mov eax,[esp+2Ch] (the VS family name) / push esi / push ebp; EBX the shader configuration (its vertex input type in byte 6), [esp+3Ch] the merged config tree; every material effect's every pass, cache and build compiles alike) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_material_pass(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_material_pass` calls this, from the game's jump at 0x1cd1b6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_material_pass(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
 /// The named exits of v021d_render::on_wet_surface_compiled (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]
@@ -6422,21 +6452,6 @@ pub extern "C" fn hook_v021d_render_on_drops_apply(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- v021d_render (patch 130) ----
-
-/// The entry `v021d_render_on_material_pass` (0x1cd1b6, effect_material_base::compile_begin's one begin_pass (0x1CD1BC): mov eax,[esp+2Ch] (the VS family name) / push esi / push ebp; EBX the shader configuration (its vertex input type in byte 6), [esp+3Ch] the merged config tree; every material effect's every pass, cache and build compiles alike) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_v021d_render_on_material_pass(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `v021d_render_on_material_pass` calls this, from the game's jump at 0x1cd1b6,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::v021d_render::on_material_pass(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
     }
 }
 
@@ -7299,6 +7314,15 @@ pub extern "C" fn hook_v021d_render_on_god_rays_chain(frame: &mut Frame) -> u32 
     let flow = hook_v021d_render_on_god_rays(frame);
     if flow != 0 { return flow; }
     let flow = hook_v011w_render_on_god_rays(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_material_pass_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_v021d_render_on_material_pass(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_v011w_render_on_material_pass(frame);
     if flow != 0 { return flow; }
     0
 }
