@@ -358,6 +358,20 @@ pub fn stance_mps(stance: Stance) -> f32 {
     speed::desired(speed::Gait::Move { stance, heading: speed::Heading::Forward, aiming: false })
 }
 
+/// [row 6] How far along the way `from` -> `to` (a share of its flat length) feet at `feet` are, counted only while they are on
+/// the way's level: no lower than its lower end by more than the arrival band ([`AT_HEIGHT_M`]); 0 under it. A body sliding down
+/// a slope beside a riser goes along the way's line too: on Mamayev Kurgan (26.0, 25.5, 91.7) a line of the walk 366489 ->
+/// 365709 up 0.36 m slid 1.3 m across and 0.9 m down and scored 0.63 of the way, so the failing riser was not cut
+/// ([`CUT_SHARE`]), where the exe's tick gets up it from no line, standing or crouched.
+fn way_along(from: Vec3, to: Vec3, feet: Vec3) -> f32 {
+    let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
+    let length = flat.length();
+    if length < 1e-4 || feet.y < from.y.min(to.y) - AT_HEIGHT_M {
+        return 0.0;
+    }
+    Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(flat) / (length * length)
+}
+
 /// [`walk_on`] at `mps` m/s.
 #[allow(clippy::too_many_arguments)]
 pub fn walk_on_at(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, to: Vec3, spare: usize, above: f32, mps: f32) -> Walked {
@@ -369,6 +383,7 @@ pub fn walk_on_at(world: &Collision, s: &Settings, c: &mut Controller, from: Vec
     let dir = flat * (1.0 / length);
     let step = mps * 0.05;
     let ticks = (length / step).ceil() as usize + 2 + spare;
+    let along_on_level = |feet: Vec3| way_along(from, to, feet);
     let mut best = 0.0f32;
     for _ in 0..ticks {
         let feet = c.feet();
@@ -376,8 +391,7 @@ pub fn walk_on_at(world: &Collision, s: &Settings, c: &mut Controller, from: Vec
         if left.length() <= AT_FLAT_M && feet.y - to.y >= -AT_HEIGHT_M && feet.y - to.y <= above {
             return Walked::At;
         }
-        let along = Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length;
-        best = best.max(along);
+        best = best.max(along_on_level(feet));
         // Toward the target, at most what is left.
         let go = left.length().min(step);
         c.walk = if left.length() > 1e-6 { left * (go / left.length()) } else { Vec3::ZERO };
@@ -394,7 +408,7 @@ pub fn walk_on_at(world: &Collision, s: &Settings, c: &mut Controller, from: Vec
     }
     let feet = c.feet();
     let left = Vec3::new(to.x - feet.x, 0.0, to.z - feet.z);
-    let share = best.max(Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length);
+    let share = best.max(along_on_level(feet));
     if left.length() <= AT_FLAT_M && feet.y - to.y >= -AT_HEIGHT_M && feet.y - to.y <= above {
         Walked::AtEnd(share)
     } else if spare > 0 && walks_on_to_level(world, s, c, to, dir, mps) {
@@ -617,11 +631,29 @@ impl WalkGrid {
     /// The controller pass ([`Body::client_controller`], module documentation).
     /// The bridges are made here; the walk links that fail their check are returned (a floor, a direction and the share the body
     /// got), for the build to take away with `cut_keeping_reach`.
-    pub(super) fn controlled_links(&self, wide: &mut Wide, triangles: &[Triangle]) -> (ControlledStats, Vec<(u32, usize, f32)>) {
+    /// [row 6] `shapes`: the game's shapes ([`Collision::build_exe`]), the world every other pass flies and walks the client's
+    /// body on; the walks are checked on them when given, else on the walker triangles with the body's caster (a map with no
+    /// shapes). The walker triangles are a primitive's drawn stand-in, not the object the client's controller sweeps: on
+    /// Mamayev Kurgan the walk 366489 -> 365709 up the slope at (26.0, 25.5, 91.7) passes the check on them and fails it on the
+    /// shapes (best share 0.49 of 0.5), and the exe's own tick does not climb it from the floor's centre or either line (it
+    /// slides 0.06-0.37 m down) nor from 5 stuck bots' feet (51 stuck notes there in 1 match).
+    pub(super) fn controlled_links(
+        &self,
+        wide: &mut Wide,
+        triangles: &[Triangle],
+        shapes: Option<&Collision>,
+    ) -> (ControlledStats, Vec<(u32, usize, f32)>) {
         let body = self.body;
         let (caster, s) = body.controller();
         let start = body.walk_start();
-        let world = Collision::build(triangles).with_caster(caster);
+        let walker;
+        let world: &Collision = match shapes {
+            Some(shapes) => shapes,
+            None => {
+                walker = Collision::build(triangles).with_caster(caster);
+                &walker
+            }
+        };
         let s = &s;
         let mut stats = ControlledStats::default();
         let cells_apart = |a: usize, b: usize| {
@@ -645,7 +677,7 @@ impl WalkGrid {
         stats.bridges_tried = bridges.len();
         let walked = parallel(&bridges, |&i| {
             let l: &OffLink = &wide.off[i];
-            walk_lines(&world, s, start, self.position(l.from), self.position(l.to)).1
+            walk_lines(world, s, start, self.position(l.from), self.position(l.to)).1
         });
         let old: Vec<usize> = bridges.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&i, _)| i).collect();
         // Bridges with no link yet: two cells on, a floor within a step, the cell between with no floor near that height (a
@@ -701,7 +733,7 @@ impl WalkGrid {
             }
         }
         stats.bridges_tried += new.len();
-        let walked = parallel(&new, |&(a, b)| walk_lines(&world, s, start, self.position(a), self.position(b)).1);
+        let walked = parallel(&new, |&(a, b)| walk_lines(world, s, start, self.position(a), self.position(b)).1);
         let new: Vec<(u32, u32)> = new.iter().zip(walked).filter(|&(_, ok)| ok).map(|(&p, _)| p).collect();
         // Only the bridges in a run at least [`BRIDGE_MIN_RUN`] wide are walked: a narrower one is crossed only by a body
         // inside its columns, which a bot steering at a point ahead of it does not keep to.
@@ -726,7 +758,7 @@ impl WalkGrid {
         }
         wide.off.sort_by_key(|l| (l.from, l.to));
         if body.walk_every_link {
-            let (stats, failing, held, mut crouch) = self.walk_every_link(wide, &world, s, start, stats);
+            let (stats, failing, held, mut crouch) = self.walk_every_link(wide, world, s, start, stats);
             // The risers with no walking way round stay, marked (the caller marks the cut's kept ones beside them).
             wide.marked = held;
             crouch.sort_unstable();
@@ -756,7 +788,7 @@ impl WalkGrid {
         stats.checks = checks.len();
         let shares = parallel(&checks, |&(a, d)| {
             let b = wide.links[a][d];
-            walk_lines(&world, s, start, self.position(a as NodeId), self.position(b)).0
+            walk_lines(world, s, start, self.position(a as NodeId), self.position(b)).0
         });
         let failing = checks
             .iter()
@@ -1134,6 +1166,20 @@ mod tests {
         assert!(!grid.can_stand(under) && grid.reached(under));
     }
 
+    /// [row 6] A walk's share counts the way along only on the way's level ([`way_along`]): feet 0.63 of the way along a
+    /// 0.36 m riser's line and 0.9 m under its start (the Mamayev Kurgan line's slide) count nothing; at the start's height,
+    /// within the arrival band under it, or over it, they count their way along.
+    #[test]
+    fn a_walk_sliding_down_beside_its_way_has_no_share_of_it() {
+        let (from, to) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.36, 0.0));
+        assert_eq!(way_along(from, to, Vec3::new(0.63, -0.9, 0.5)), 0.0);
+        assert!((way_along(from, to, Vec3::new(0.63, 0.0, 0.5)) - 0.63).abs() < 1e-5);
+        assert!((way_along(from, to, Vec3::new(0.4, -0.15, 0.0)) - 0.4).abs() < 1e-5);
+        assert!((way_along(from, to, Vec3::new(0.9, 0.36, 0.0)) - 0.9).abs() < 1e-5);
+        // A way down: its lower end is the floor of its level.
+        assert!((way_along(to, from, Vec3::new(0.5, -0.1, 0.0)) - 0.5).abs() < 1e-5);
+    }
+
     /// [2c] A platform whose only way up is a 0.785 m vertical step (a Walk link with the clients' 0.8 m step, which the
     /// client's tick does not climb: the exe climbs a vertical face up to 0.75 m, Unicorn): with [`Body::walk_every_link`] its
     /// failing links up are kept as the platform's only way and marked; without, none is marked.
@@ -1162,6 +1208,31 @@ mod tests {
             .filter(|&(a, b, _)| on.walk_marked(a, b))
             .collect::<Vec<_>>();
         assert!(!marked.is_empty() && marked.iter().all(|&(_, _, kind)| kind == LinkKind::Walk));
+    }
+
+    /// [row 6] The walks are checked on the build's shapes where it has them, not on the walker triangles: a 0.5 m step the
+    /// walker triangles hold (walked) is, in the shapes, a 0.785 m vertical one (the client's tick does not climb it): with the
+    /// shapes its links up fail and are kept marked as the platform's only way up; with none, none is marked.
+    #[test]
+    fn the_walks_are_checked_on_the_shapes() {
+        let mut walker = Vec::new();
+        floor(&mut walker, 0.0, 0.0, 5.0, 6.0, 0.0);
+        floor(&mut walker, 5.0, 0.0, 10.0, 6.0, 0.5);
+        quad(&mut walker, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.5, 0.0), Vec3::new(5.0, 0.5, 6.0), Vec3::new(5.0, 0.0, 6.0));
+        let mut shaped = Vec::new();
+        floor(&mut shaped, 0.0, 0.0, 5.0, 6.0, 0.0);
+        floor(&mut shaped, 5.0, 0.0, 10.0, 6.0, 0.785);
+        quad(&mut shaped, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, 0.785, 0.0), Vec3::new(5.0, 0.785, 6.0), Vec3::new(5.0, 0.0, 6.0));
+        let body = Body { client_controller: true, walk_start_clear: true, walk_every_link: true, ..Body::client() };
+        let shapes = Collision::build(&shaped).with_caster(body.controller().0);
+        let start = [Vec3::new(1.0, 0.0, 3.0)];
+        let build = |shapes: Option<&Collision>| {
+            WalkGrid::build_kept_with_shapes(&walker, shapes, [0.0, 0.0, 10.0, 6.0], 0.25, body, &start, &start, OffMeshLinks::None)
+        };
+        let (walked, stats) = build(None);
+        assert_eq!(walked.walk_marked_count(), 0, "on the walker triangles the 0.5 m step is walked: {:?}", stats.controlled);
+        let (checked, stats) = build(Some(&shapes));
+        assert!(checked.walk_marked_count() > 0, "on the shapes the step is 0.785 m: {:?}", stats.controlled);
     }
 
     /// [A313] A riser bare its whole width is bridged; bare over a 0.5 m strip only (two columns of the grid, the rest

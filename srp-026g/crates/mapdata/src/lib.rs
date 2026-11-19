@@ -163,8 +163,12 @@ pub const RAMP_FACES_ALGO: u32 = 0x5304_0101;
 /// tests a hit against the floor limit it was made with (0x84479, +90h), not one lowered to the hit's fraction. 0005: the step's
 /// millimetre rounding (0x7B7F0) in the exe's frame, so a z at an exact half rounds as the game's. 0006: the move test's top
 /// sphere and low cylinder each cast to their own end (0x85F50: the end moved as the start), not by the main cylinder's way. 0007:
-/// and their callbacks take the main start (0x860BD, 0x8632F), which the fraction-0 test and the wall ray read.
-pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0007;
+/// and their callbacks take the main start (0x860BD, 0x8632F), which the fraction-0 test and the wall ray read. 0008: [row 6]
+/// the walks are checked on the game's shapes where the build has them (`grid::controlled` `controlled_links`), the world every
+/// other pass walks and flies the body on, not the walker triangles (a primitive's drawn stand-in). 0009: [row 6] a walk's share
+/// counts the way along only while the feet are on the way's level (`grid::controlled` `walk_on_at`): a body sliding down beside
+/// a riser no longer keeps it from the cut.
+pub const CLIENT_CONTROLLER_ALGO: u32 = 0x5313_0009;
 /// The same for the walk-off walls with the steep `walk` faces ([`Body::drop_room_walk_faces`], A304), in [`grid_key_with_links`]
 /// only for a body that asks for it. A value of its own.
 pub const DROP_ROOM_WALK_FACES_ALGO: u32 = 0x5304_0201;
@@ -409,7 +413,7 @@ impl World {
     /// [`Self::map_grid`] with the build's counts ([`BuildStats`]), for a log.
     pub fn map_grid_with_stats(map: &MapData, walker: &[Triangle], cell: f32, body: Body, links: OffMeshLinks) -> (WalkGrid, BuildStats) {
         // [A389] Every pass that walks or flies the client's body takes the shapes: the rim jumps, the gap flights, the Drop links'
-        // walk, the rest and held floors.
+        // walk, the rest and held floors, [row 6] the walk check.
         let shapes = Self::takes_shapes(body).then(|| controller::Collision::build_exe(map)).flatten();
         let spawns: Vec<Vec3> = map.spawns.iter().map(|s| s.position).collect();
         let area = map.play_area(AREA_MARGIN);
@@ -444,7 +448,13 @@ impl World {
     /// Whether `body`'s grid build steps the client's body on the game's shapes ([`Self::map_grid`]): the rim jumps, [A389] the gap
     /// flights, the rest and held floors, the Drop links' walk, the wall give-back's stand test.
     pub fn takes_shapes(body: Body) -> bool {
-        body.rim_jumps || body.gap_flights || body.rest_floors || body.held_floors || body.wall_give_back || (body.drop_check && body.drop_lands)
+        body.rim_jumps
+            || body.gap_flights
+            || body.rest_floors
+            || body.held_floors
+            || body.wall_give_back
+            || (body.drop_check && body.drop_lands)
+            || body.client_controller
     }
 
     /// A world of a grid and a tree built before, from this map's geometry
