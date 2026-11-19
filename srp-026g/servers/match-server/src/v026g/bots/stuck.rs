@@ -276,7 +276,11 @@ struct WalkWindow {
 /// The window of the progress watch: since when, how far along the route the body was then, and which route (its goal and length).
 #[derive(Clone, Copy, Debug)]
 struct ProgressWindow {
-    since: u32,
+    /// The world before this one, ms.
+    last: u32,
+    /// [loops] The time a walk key was held since the window began, ms: a world with no walk key adds nothing and restarts
+    /// nothing.
+    held_ms: u32,
     from_s: f32,
     goal: Vec3,
     length: f32,
@@ -333,21 +337,29 @@ impl Stuck {
     }
 
     /// The progress watch: a world showed the body `s` metres along its route (to `goal`, `length` long) with `keys` held. True when
-    /// it held a walk key for `window_ms` without gaining [`PROGRESS_M`] and is not at the route's end; then the leg ahead (`leg`,
-    /// the route's point [`PROGRESS_LEG_M`] on) is kept clear of ([`Self::avoided`]) and the watch starts again. A new route (another
-    /// goal or length), keys let go, or a gain of [`PROGRESS_M`] starts the window again.
+    /// it held a walk key for `window_ms` in all without gaining [`PROGRESS_M`] and is not at the route's end; then the leg ahead
+    /// (`leg`, the route's point [`PROGRESS_LEG_M`] on) is kept clear of ([`Self::avoided`]) and the watch starts again. A new route
+    /// (another goal or length) or a gain of [`PROGRESS_M`] starts the window again. [loops] Keys let go pause it: the time since
+    /// the world before counts only when this world shows a walk key held. It restarted on every let-go, so a body that let go
+    /// every few ticks at a press point it never reached (the owner's 3 matches on the final build, LOOPS.md cause 1) was never
+    /// caught: the watch fired 10 times in 3 matches while bots circled one take-off for minutes.
     #[allow(clippy::too_many_arguments)]
     pub fn no_progress(&mut self, time: u32, s: f32, keys: u32, goal: Vec3, length: f32, window_ms: u32, leg: Vec3) -> bool {
-        let fresh = ProgressWindow { since: time, from_s: s, goal, length };
-        let Some(window) = self.progress.filter(|w| w.goal == goal && (w.length - length).abs() < 0.05) else {
+        let fresh = ProgressWindow { last: time, held_ms: 0, from_s: s, goal, length };
+        let Some(mut window) = self.progress.filter(|w| w.goal == goal && (w.length - length).abs() < 0.05) else {
             self.progress = Some(fresh);
             return false;
         };
-        if keys & HELD_KEYS == 0 || s >= window.from_s + PROGRESS_M {
+        if s >= window.from_s + PROGRESS_M {
             self.progress = Some(fresh);
             return false;
         }
-        if time < window.since + window_ms {
+        if keys & HELD_KEYS != 0 {
+            window.held_ms = window.held_ms.saturating_add(time.saturating_sub(window.last));
+        }
+        window.last = time;
+        if window.held_ms < window_ms {
+            self.progress = Some(window);
             return false;
         }
         self.progress = Some(fresh);
@@ -1491,8 +1503,8 @@ mod tests {
     /// searches for as long as the motor refuses the jump, and a floor within
     /// the motor's "same jump" of it is shut with it; no other floor, nor
     /// after the lockout.
-    /// A body that walks without gaining on its route is stopped after the window and the leg is kept clear of; a gain, keys let go,
-    /// the route's end and a new route start the window again.
+    /// A body that walks without gaining on its route is stopped after the window and the leg is kept clear of; a gain, the route's
+    /// end and a new route start the window again; keys let go pause it ([loops]).
     #[test]
     fn a_body_that_walks_without_gaining_on_its_route_is_stopped() {
         let goal = Vec3::new(40.0, 0.0, 0.0);
@@ -1518,11 +1530,29 @@ mod tests {
         assert!(!walk(&mut stuck, 5_000, 11.6, key::FORWARD, 40.0));
         assert!(!walk(&mut stuck, 7_000, 11.7, key::FORWARD, 40.0), "the window is 2 s old");
         assert!(walk(&mut stuck, 11_000, 11.8, key::FORWARD, 40.0));
-        // Keys let go start it again.
+        // [loops] Keys let go pause it: only the held time counts.
         let mut stuck = Stuck::default();
         assert!(!walk(&mut stuck, 1_000, 10.0, key::FORWARD, 40.0));
-        assert!(!walk(&mut stuck, 5_000, 10.0, 0, 40.0));
-        assert!(!walk(&mut stuck, 7_500, 10.0, key::FORWARD, 40.0));
+        assert!(!walk(&mut stuck, 5_000, 10.0, 0, 40.0), "4 s let go: not counted");
+        assert!(!walk(&mut stuck, 7_500, 10.0, key::FORWARD, 40.0), "2.5 s held");
+        assert!(walk(&mut stuck, 11_000, 10.0, key::FORWARD, 40.0), "6 s held in all");
+        // [loops] A body that lets go every other world at a point it never leaves: caught once its held worlds add up to the
+        // window (they restarted it before, so it never was).
+        let mut stuck = Stuck::default();
+        let mut fired = None;
+        for k in 0..60u32 {
+            let keys = if k % 2 == 0 { key::FORWARD } else { 0 };
+            if walk(&mut stuck, 1_000 + k * 500, 10.2, keys, 40.0) {
+                fired = Some(1_000 + k * 500);
+                break;
+            }
+        }
+        assert_eq!(fired, Some(13_000), "12 held half-seconds of 24");
+        // Standing on purpose (no key at all) is never a stall.
+        let mut stuck = Stuck::default();
+        for k in 0..60u32 {
+            assert!(!walk(&mut stuck, 1_000 + k * 500, 10.0, 0, 40.0));
+        }
         // At the route's end holding keys is no stall.
         let mut stuck = Stuck::default();
         assert!(!walk(&mut stuck, 1_000, 39.0, key::FORWARD, 40.0));
