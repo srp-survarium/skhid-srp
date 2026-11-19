@@ -32,6 +32,8 @@ struct Spot {
     take_off_m: f32,
     /// How near the landing its landing lies, m.
     landing_m: f32,
+    /// The least distance of a start from the take-off, m (the most is 8 m).
+    start_m: f32,
 }
 
 const SPOTS: [Spot; 2] = [
@@ -43,8 +45,10 @@ const SPOTS: [Spot; 2] = [
         landing: Vec3::new(9.95, 16.18, 39.22),
         take_off_m: 1.3,
         landing_m: 1.6,
+        start_m: 3.0,
     },
-    // The match's own link of the strip, exactly.
+    // The match's own link of the strip, exactly (a gap drop). No route planned from the strip's top 3-8 m off takes it (they take
+    // the strip's neighbouring walk-offs), and the plan from the link's take-off node does: its starts begin 0.5 m off.
     Spot {
         name: "level_02 edge strip, the match's link (11.20, 19.40, 37.97) -> (9.95, 16.18, 39.22)",
         project: "level_02/day_2",
@@ -52,6 +56,7 @@ const SPOTS: [Spot; 2] = [
         landing: Vec3::new(9.95, 16.18, 39.22),
         take_off_m: 0.3,
         landing_m: 0.3,
+        start_m: 0.5,
     },
 ];
 
@@ -184,13 +189,13 @@ fn drop_spots() {
                     .then_some((p, q))
             })
         };
-        // Starts on the drop's top 3-8 m off whose planned route takes a drop of the spot: up to 3, spread round it.
+        // Starts on the drop's top `start_m`-8 m off whose planned route takes a drop of the spot: up to 3, spread round it.
         let a = spot.take_off;
         let mut starts: Vec<(Vec3, Vec3, Vec3)> = Vec::new();
         for n in grid.floors_in([a.x - 8.0, a.z - 8.0, a.x + 8.0, a.z + 8.0]) {
             let p = grid.position(n);
             let d = p.distance_xz(a);
-            if !(3.0..=8.0).contains(&d) || (p.y - a.y).abs() > 0.5 || starts.iter().any(|s| s.0.distance_xz(p) < 2.5) {
+            if !(spot.start_m..=8.0).contains(&d) || (p.y - a.y).abs() > 0.5 || starts.iter().any(|s| s.0.distance_xz(p) < 2.5) {
                 continue;
             }
             let Some(route) = path::plan(grid, n, to) else { continue };
