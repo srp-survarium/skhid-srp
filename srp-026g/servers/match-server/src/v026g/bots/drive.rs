@@ -2970,6 +2970,7 @@ pub mod walk_off_guards {
     }
 
     /// The ticks left so far.
+    #[cfg(test)]
     pub fn count() -> u64 {
         LEFT.load(Ordering::Relaxed)
     }
