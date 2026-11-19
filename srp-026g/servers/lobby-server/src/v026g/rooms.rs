@@ -1820,7 +1820,7 @@ impl Core<'_> {
     /// the room, as by Leave: it may join again, and while the match is
     /// played it goes into it again as a new place (the owner's of
     /// 2026-10-19).
-    fn room_left_matches(&mut self) {
+    pub(super) fn room_left_matches(&mut self) {
         for (match_id, account_id) in self.store.matchmaking().take_left() {
             let left = self.rooms.of(account_id).is_some_and(|room| {
                 matches!(room.stage, Stage::InMatch { match_id: id, .. } if id == match_id)
