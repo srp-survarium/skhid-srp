@@ -30,6 +30,13 @@
 //!
 //! A spot passes when every start reaches G with 0 errors. A start whose bot walked to another goal than G (the server's
 //! `off_lip` moved it: the `resolved` columns) is a SETUP error of the suite, not of the spot (`setup` 1).
+//!
+//! STANDIN-FIDELITY (a tag on a failing start, the start still fails): fix-move found the stand-in body wrong at some drops and
+//! rims (a sloped rim kept as one flat lip cell, a fixed velocity through the fall where the game's keys keep steering, a snap
+//! to a lip node up to 0.36 m away). A failing start of a drop spot (P lower than A by `DROP_M`) is tagged (`standin`: how the
+//! bot pressed) when the bot pressed the drop at A (`press`: a route jump down from A; stuck at A with its route's next point at
+//! P; or the body went over A's edge with no "unplanned" fall from A, a planned drop), the body did not come down on P (the
+//! `over` and `land` columns: where it went over and came down), and no error came before the press.
 
 use std::collections::{BinaryHeap, HashMap};
 use std::io::Write;
@@ -66,6 +73,19 @@ const REACH_M: f32 = 1.2;
 const REACH_Y_M: f32 = 1.0;
 /// A lip guard brake counts when within this of A or P, m.
 const LIP_NEAR_M: f32 = 2.0;
+/// [standin-fidelity] A spot whose landing P is this much lower than its take-off A is a drop (the client's step is 0.80 m).
+const DROP_M: f32 = 0.8;
+/// [standin-fidelity] The body is at the take-off within `LIP_NEAR_M` across the ground and this in height, m.
+const EDGE_Y_M: f32 = 0.6;
+/// [standin-fidelity] The body went over the edge when it was this much under A within this long after it was last at A, ms.
+const OVER_MS: u32 = 3_000;
+/// [standin-fidelity] A falling body came down when it sank less than this in one tick, m, or after `OVER_MS` of falling.
+const STILL_M: f32 = 0.03;
+/// [standin-fidelity] The body came down on the landing within this of P across the ground and this in height, m.
+const LAND_M: f32 = 2.0;
+const LAND_Y_M: f32 = 1.0;
+/// [standin-fidelity] An error note this long before the press is the bot's own (on the approach), not the drop's, ms.
+const NOTE_LAG_MS: u32 = 2_000;
 
 fn flat(a: Vec3, b: Vec3) -> f32 {
     ((a.x - b.x).powi(2) + (a.z - b.z).powi(2)).sqrt()
@@ -361,9 +381,103 @@ struct Outcome {
     noway: u32,
     died: bool,
     first: Option<String>,
+    /// The clock of the first error note (or death).
+    first_ms: Option<u32>,
     end: Vec3,
     /// The goal the bot's motor walked to (after `off_lip` and every override), at its first motor tick.
     resolved: Option<Vec3>,
+    /// [standin-fidelity] The bot's own press of the spot's drop: the clock and how it shows (`press_word`).
+    press: Option<(u32, Press)>,
+    /// [standin-fidelity] A "nav: fell ... (unplanned)" from the take-off: the model did not go over, the body did.
+    unplanned_at_edge: bool,
+    /// [standin-fidelity] What the stand-in body did at the take-off.
+    edge: Edge,
+}
+
+/// [standin-fidelity] How the bot showed it pressed the spot's drop.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Press {
+    /// A route jump down from the take-off ("nav: route jump <word>: from A ..., rise under -`DROP_M`").
+    Jump(JumpWord),
+    /// Stuck at the take-off with the route's next point at the landing.
+    StuckAtEdge,
+    /// The body went over the take-off's edge and no "unplanned" fall came from there (a planned drop: the model went too).
+    WentOver,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum JumpWord {
+    Down,
+    NotDown,
+    GaveUp,
+    Other,
+}
+
+impl Press {
+    fn word(self) -> &'static str {
+        match self {
+            Self::Jump(JumpWord::Down) => "jump-down",
+            Self::Jump(JumpWord::NotDown) => "jump-not-down",
+            Self::Jump(JumpWord::GaveUp) => "jump-gave-up",
+            Self::Jump(JumpWord::Other) => "jump-other",
+            Self::StuckAtEdge => "stuck-at-edge",
+            Self::WentOver => "went-over",
+        }
+    }
+}
+
+/// [standin-fidelity] The stand-in body at the spot's take-off, tick by tick.
+#[derive(Clone, Copy, Debug, Default)]
+enum Edge {
+    /// Never at the take-off yet.
+    #[default]
+    Top,
+    /// At the take-off last at `tick`, there at `at`.
+    AtTop { at: Vec3, tick: u32 },
+    /// Over the edge (under A by `DROP_M` within `OVER_MS` of the last tick at A), still sinking.
+    Falling { over: Vec3, since: u32, prev: Vec3 },
+    /// Came down (the first drop only).
+    Landed { over: Vec3, since: u32, landing: Vec3 },
+}
+
+impl Edge {
+    fn step(self, feet: Vec3, tick: u32, a: Vec3) -> Self {
+        let at_a = flat(feet, a) <= LIP_NEAR_M && (feet.y - a.y).abs() <= EDGE_Y_M;
+        match self {
+            Self::Top | Self::AtTop { .. } if at_a => Self::AtTop { at: feet, tick },
+            Self::AtTop { at, tick: last } if feet.y < a.y - DROP_M && tick.saturating_sub(last) <= OVER_MS => {
+                Self::Falling { over: at, since: tick, prev: feet }
+            }
+            Self::Falling { over, since, prev } if prev.y - feet.y < STILL_M || tick.saturating_sub(since) > OVER_MS => {
+                Self::Landed { over, since, landing: feet }
+            }
+            Self::Falling { over, since, .. } => Self::Falling { over, since, prev: feet },
+            other => other,
+        }
+    }
+
+    /// Where the body went over the edge, and its tick.
+    fn over(self) -> Option<(Vec3, u32)> {
+        match self {
+            Self::Falling { over, since, .. } | Self::Landed { over, since, .. } => Some((over, since)),
+            Self::Top | Self::AtTop { .. } => None,
+        }
+    }
+
+    fn landing(self) -> Option<Vec3> {
+        match self {
+            Self::Landed { landing, .. } => Some(landing),
+            Self::Falling { prev, .. } => Some(prev),
+            Self::Top | Self::AtTop { .. } => None,
+        }
+    }
+}
+
+/// The numbers inside the first "(x, y, z)" or "[x, y, z]" after `key`.
+fn point_after(text: &str, key: &str, close: char) -> Option<Vec3> {
+    let rest = text.split(key).nth(1)?;
+    let n: Vec<f32> = rest.split(close).next()?.split(',').filter_map(|v| v.trim().parse().ok()).collect();
+    (n.len() == 3).then(|| Vec3::new(n[0], n[1], n[2]))
 }
 
 impl Outcome {
@@ -371,20 +485,52 @@ impl Outcome {
         self.stuck + self.jump + self.dead + self.fall + self.lip + self.noway + u32::from(self.died) + u32::from(timeout)
     }
 
+    /// [standin-fidelity] The press, when this failed start of a drop spot is the stand-in's: the bot pressed the drop
+    /// (`Press`), the body did not come down on the landing, and no error came before the press (the approach was the bot's).
+    fn standin(&self, leg: &Leg, failed: bool) -> Option<Press> {
+        if !failed || leg.p.y >= leg.a.y - DROP_M {
+            return None;
+        }
+        let (pressed_ms, press) =
+            self.press.or_else(|| self.edge.over().filter(|_| !self.unplanned_at_edge).map(|(_, since)| (since, Press::WentOver)))?;
+        let landed = self.edge.landing().is_some_and(|l| flat(l, leg.p) <= LAND_M && (l.y - leg.p.y).abs() <= LAND_Y_M);
+        let before = self.first_ms.is_some_and(|f| f + NOTE_LAG_MS < pressed_ms);
+        (!landed && !before).then_some(press)
+    }
+
     fn note(&mut self, text: &str, clock: u32, a: Vec3, p: Vec3) {
+        let at_a = |at: Vec3| flat(at, a) <= LIP_NEAR_M && (at.y - a.y).abs() <= EDGE_Y_M;
         let error = if text.contains("is stuck at") {
             self.stuck += 1;
+            let next = text.split(" next ").nth(1).and_then(|rest| {
+                let n: Vec<f32> = rest.split(' ').next()?.split(',').filter_map(|v| v.trim().parse().ok()).collect();
+                (n.len() == 3).then(|| Vec3::new(n[0], n[1], n[2]))
+            });
+            if point_after(text, "is stuck at [", ']').is_some_and(at_a) && next.is_some_and(|n| flat(n, p) <= LAND_M && n.y < a.y - DROP_M) {
+                self.press.get_or_insert((clock, Press::StuckAtEdge));
+            }
             true
         } else if let Some(rest) = text.split("nav: route jump ").nth(1) {
             let end = rest.rsplit('(').next().unwrap_or("");
             let bad = !end.starts_with("went on");
             self.jump += u32::from(bad);
+            let rise = rest.split("rise ").nth(1).and_then(|r| r.split(' ').next()).and_then(|r| r.parse::<f32>().ok());
+            if point_after(rest, "from (", ')').is_some_and(at_a) && rise.is_some_and(|r| r < -DROP_M) {
+                let word = match rest.split(':').next().unwrap_or("") {
+                    "down" => JumpWord::Down,
+                    "not down" => JumpWord::NotDown,
+                    "gave up" => JumpWord::GaveUp,
+                    _ => JumpWord::Other,
+                };
+                self.press.get_or_insert((clock, Press::Jump(word)));
+            }
             bad
         } else if text.contains("dead link on map") {
             self.dead += 1;
             true
         } else if text.contains("nav: fell ") && text.contains("(unplanned") {
             self.fall += 1;
+            self.unplanned_at_edge |= point_after(text, "from (", ')').is_some_and(at_a);
             true
         } else if let Some(rest) = text.split("nav: lip guard braked at (").nth(1) {
             let n: Vec<f32> = rest.split(')').next().unwrap_or("").split(',').filter_map(|v| v.trim().parse().ok()).collect();
@@ -399,6 +545,7 @@ impl Outcome {
             false
         };
         if error && self.first.is_none() {
+            self.first_ms = Some(clock);
             self.first = Some(format!("{clock} {}", text.chars().take(240).collect::<String>().replace('\t', " ")));
         }
     }
@@ -481,9 +628,11 @@ fn walk(world: &Arc<World>, project: &str, leg: &Leg, limit_ms: u32, seed: u32) 
             if !body.alive {
                 out.died = true;
                 out.first.get_or_insert_with(|| format!("{clock} died"));
+                out.first_ms.get_or_insert(clock);
                 end_at = clock;
             }
             out.passed |= near(body.feet, p);
+            out.edge = out.edge.step(body.feet, game.tick, a);
             if out.reached_ms.is_none() && flat(body.feet, goal) <= REACH_M && (body.feet.y - goal.y).abs() <= REACH_Y_M {
                 out.reached_ms = Some(game.tick);
                 // The notes of the last moments still come in.
@@ -570,7 +719,7 @@ fn spot_suite_run() {
     let out = Mutex::new(std::fs::File::create(&out_path).unwrap_or_else(|e| panic!("{out_path}: {e}")));
     writeln!(
         out.lock().unwrap(),
-        "spot\tproject\tstart\tvia\tlink_kind\treached\treach_ms\tpassed\terrors\tstuck\tjump\tdead\tfall\tlip\tnoway\tdied\ttimeout\tend_x\tend_y\tend_z\tsetup\tresolved_x\tresolved_y\tresolved_z\tfirst_error"
+        "spot\tproject\tstart\tvia\tlink_kind\treached\treach_ms\tpassed\terrors\tstuck\tjump\tdead\tfall\tlip\tnoway\tdied\ttimeout\tend_x\tend_y\tend_z\tsetup\tresolved_x\tresolved_y\tresolved_z\tpress\tover_x\tover_y\tover_z\tland_x\tland_y\tland_z\tstandin\tfirst_error"
     )
     .unwrap();
     for project in projects {
@@ -596,9 +745,14 @@ fn spot_suite_run() {
                             let timeout = o.reached_ms.is_none() && !o.died;
                             // SETUP: the bot's own goal is not G (moved off a lip, or never walked to).
                             let setup = o.resolved.is_none_or(|r| flat(r, g) > RESOLVED_M || (r.y - g.y).abs() > RESOLVED_M);
-                            let r = o.resolved.unwrap_or(Vec3::new(f32::NAN, f32::NAN, f32::NAN));
+                            let nan = Vec3::new(f32::NAN, f32::NAN, f32::NAN);
+                            let r = o.resolved.unwrap_or(nan);
+                            let failed = o.reached_ms.is_none() || o.errors(timeout) > 0;
+                            let standin = o.standin(&Leg { start: s, goal: g, a, p }, failed);
+                            let over = o.edge.over().map_or(nan, |(at, _)| at);
+                            let land = o.edge.landing().unwrap_or(nan);
                             format!(
-                                "{head}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.2}\t{:.2}\t{:.2}\t{}\t{:.2}\t{:.2}\t{:.2}\t{}",
+                                "{head}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.2}\t{:.2}\t{:.2}\t{}\t{:.2}\t{:.2}\t{:.2}\t{}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{:.2}\t{}\t{}",
                                 u8::from(o.reached_ms.is_some()),
                                 o.reached_ms.map_or("-".to_owned(), |t| t.to_string()),
                                 u8::from(o.passed),
@@ -618,10 +772,18 @@ fn spot_suite_run() {
                                 r.x,
                                 r.y,
                                 r.z,
+                                o.press.map_or("-", |(_, press)| press.word()),
+                                over.x,
+                                over.y,
+                                over.z,
+                                land.x,
+                                land.y,
+                                land.z,
+                                standin.map_or("-", Press::word),
                                 o.first.clone().unwrap_or_else(|| if timeout { "timeout".into() } else { "-".into() })
                             )
                         }
-                        _ => format!("{head}\t0\t-\t0\t1\t0\t0\t0\t0\t0\t0\t0\t0\tnan\tnan\tnan\t0\tnan\tnan\tnan\tno grid way through the spot"),
+                        _ => format!("{head}\t0\t-\t0\t1\t0\t0\t0\t0\t0\t0\t0\t0\tnan\tnan\tnan\t0\tnan\tnan\tnan\t-\tnan\tnan\tnan\tnan\tnan\tnan\t-\tno grid way through the spot"),
                     };
                     writeln!(out.lock().unwrap(), "{line}").unwrap();
                 });
@@ -629,4 +791,31 @@ fn spot_suite_run() {
         });
         eprintln!("{project}: {} starts in {:.0} s", list.len(), started.elapsed().as_secs_f32());
     }
+}
+
+/// [standin-fidelity] A drop the bot pressed (a route jump down from A) whose body came down 3.4 m off the landing is tagged; one
+/// that came down on it, or a spot that is no drop, is not.
+#[test]
+fn standin_tag_of_a_pressed_drop_landed_off() {
+    let (a, p) = (Vec3::new(0.0, 10.0, 0.0), Vec3::new(3.0, 6.0, 0.0));
+    let leg = Leg { start: Vec3::new(-20.0, 10.0, 0.0), goal: Vec3::new(5.0, 6.0, 0.0), a, p };
+    let walked = |landing: Vec3| {
+        let mut o = Outcome::default();
+        for (tick, feet) in [(4_000, Vec3::new(0.2, 10.0, 0.0)), (4_050, Vec3::new(1.0, 8.5, 0.0)), (4_100, landing), (4_150, landing)] {
+            o.edge = o.edge.step(feet, tick, a);
+        }
+        o.note(
+            "nav: route jump not down: from (0.2, 10.0, 0.0) to (3.0, 6.0, 0.0), rise -4.00 m, try 1, after 3000 ms (went on)",
+            5_000,
+            a,
+            p,
+        );
+        o
+    };
+    let off = walked(Vec3::new(1.5, 6.0, -3.0));
+    assert_eq!(off.edge.over().map(|(_, tick)| tick), Some(4_050));
+    assert_eq!(off.standin(&leg, true), Some(Press::Jump(JumpWord::NotDown)));
+    assert_eq!(off.standin(&leg, false), None);
+    assert_eq!(walked(Vec3::new(3.0, 6.0, 0.5)).standin(&leg, true), None);
+    assert_eq!(off.standin(&Leg { p: Vec3::new(3.0, 9.5, 0.0), ..leg }, true), None);
 }
