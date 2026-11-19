@@ -257,7 +257,7 @@ struct Tree {
 impl Tree {
     /// The Dijkstra from every seed at once over the links' costs for `reach` ([`WalkGrid::link_cost_reaching`]); back over the
     /// links into each floor (`back`), each priced as the forward link it is.
-    fn grow(grid: &WalkGrid, seeds: &[NodeId], reach: Reach, back: Option<&Backward>) -> Self {
+    fn grow(grid: &WalkGrid, seeds: &[NodeId], reach: Reach, back: Option<&Backward>, links: Links) -> Self {
         let n = grid.len();
         let mut cost = vec![f32::INFINITY; n];
         let mut next: Vec<(NodeId, LinkKind)> = (0..n as NodeId).map(|v| (v, LinkKind::Walk)).collect();
@@ -276,8 +276,17 @@ impl Tree {
             }
             out.clear();
             match back {
-                None => out.extend(grid.links(u).map(|(v, kind)| (v, u, kind, grid.link_cost_reaching(u, v, kind, reach)))),
-                Some(b) => out.extend(b.links_into(u).iter().map(|&(w, kind)| (w, u, kind, grid.link_cost_reaching(w, u, kind, reach)))),
+                None => out.extend(
+                    grid.links(u)
+                        .filter(|&(v, kind)| links.take(grid, u, v, kind, reach))
+                        .map(|(v, kind)| (v, u, kind, grid.link_cost_reaching(u, v, kind, reach))),
+                ),
+                Some(b) => out.extend(
+                    b.links_into(u)
+                        .iter()
+                        .filter(|&&(w, kind)| links.take(grid, w, u, kind, reach))
+                        .map(|&(w, kind)| (w, u, kind, grid.link_cost_reaching(w, u, kind, reach))),
+                ),
             }
             for &(v, via, kind, price) in &out {
                 let cv = c + price;
@@ -324,7 +333,10 @@ impl Tree {
 /// ways home, [`Reach::no_sprint`]).
 struct TeamTrees {
     team: i32,
+    spawns: Vec<NodeId>,
+    /// Over proven links only ([`Links::Proven`]).
     from_spawns: Tree,
+    /// Over proven links only, back from the put stands.
     to_puts: Tree,
     puts: Vec<Stand>,
 }
@@ -333,10 +345,12 @@ impl TeamTrees {
     fn grow(world: &World, stands: &UseStands, back: &Backward, team: i32) -> Self {
         let puts = put_stands(world, stands, team);
         let put_nodes: Vec<NodeId> = puts.iter().map(|s| s.node).collect();
+        let spawns = spawn_floors(world, team);
         Self {
             team,
-            from_spawns: Tree::grow(&world.grid, &spawn_floors(world, team), Reach::FULL, None),
-            to_puts: Tree::grow(&world.grid, &put_nodes, Reach::no_sprint(None), Some(back)),
+            from_spawns: Tree::grow(&world.grid, &spawns, Reach::FULL, None, Links::Proven),
+            to_puts: Tree::grow(&world.grid, &put_nodes, Reach::no_sprint(None), Some(back), Links::Proven),
+            spawns,
             puts,
         }
     }
@@ -348,23 +362,26 @@ impl TeamTrees {
             .filter(|s| self.from_spawns.cost[s.node as usize].is_finite())
             .min_by(|a, b| self.from_spawns.cost[a.node as usize].total_cmp(&self.from_spawns.cost[b.node as usize]))
             .copied();
-        let way_in = match take.and_then(|t| self.from_spawns.path(t.node)) {
-            Some(path) => judge(grid, &path, Reach::FULL),
+        let take_nodes: Vec<NodeId> = takes.iter().map(|s| s.node).collect();
+        let mut any_take = None;
+        let way_in = way_of(grid, Reach::FULL, take.and_then(|t| self.from_spawns.path(t.node)), || {
+            let p = nearest_path(grid, &self.spawns, &take_nodes, Reach::FULL, Links::Any);
+            any_take = p.as_ref().and_then(|p| p.nodes.last()).and_then(|&n| takes.iter().find(|s| s.node == n).copied());
+            p
+        });
+        let take = take.or(any_take).or_else(|| takes.first().copied());
+        let put_nodes: Vec<NodeId> = self.puts.iter().map(|s| s.node).collect();
+        let proven_home = take.and_then(|t| self.to_puts.path(t.node));
+        let mut home_end = proven_home.as_ref().map(|p| *p.nodes.last().expect("a path has its end"));
+        let way_home = match take {
+            Some(t) => way_of(grid, Reach::no_sprint(None), proven_home, || {
+                let p = nearest_path(grid, &[t.node], &put_nodes, Reach::no_sprint(None), Links::Any);
+                home_end = p.as_ref().map(|p| *p.nodes.last().expect("a path has its end"));
+                p
+            }),
             None => Way::Fails { at: None, why: WayFail::NoPath },
         };
-        let take = take.or_else(|| takes.first().copied());
-        let home = take.and_then(|t| self.to_puts.path(t.node));
-        let put = match &home {
-            Some(path) => {
-                let end = *path.nodes.last().expect("a path has its end");
-                self.puts.iter().find(|s| s.node == end).copied()
-            }
-            None => self.puts.first().copied(),
-        };
-        let way_home = match &home {
-            Some(path) => judge(grid, path, Reach::no_sprint(None)),
-            None => Way::Fails { at: None, why: WayFail::NoPath },
-        };
+        let put = home_end.and_then(|n| self.puts.iter().find(|s| s.node == n).copied()).or_else(|| self.puts.first().copied());
         verdict_row(spawner, at, self.team, take, way_in, put, way_home)
     }
 }
@@ -411,79 +428,103 @@ fn played(l: &OffLink, reach: Reach) -> Option<(Takeoff, Share, Aim)> {
     }
 }
 
-/// Whether the path's links are each the client's own for a body of `reach`: every off-mesh link and every riser (a Walk link
-/// jumped up, [`WalkGrid::riser`]) by a flown press whose own flight lands ([`Share::window`]), no plain Jump link (no press
-/// stored for it); the first that is not, as the way's failure. Walks and drops are the build's own (a drop judged by where
-/// its flight rests, F2).
+/// Whether the link `a` -> `b` of `kind` is the client's own for a body of `reach`: an off-mesh link and a riser (a Walk link
+/// jumped up, [`WalkGrid::riser`]) by a flown press whose own flight lands ([`Share::window`]); a walk-off as the build's drop
+/// (no press, no share: where its flight rests is the drop check's, F2, as a Drop link's); no plain Jump link (no press stored
+/// for it); walks and drops the build's own. Ok: the flown share counted (None for a link with none) and whether it sprints.
+fn link_judged(grid: &WalkGrid, a: NodeId, b: NodeId, kind: LinkKind, reach: Reach) -> Result<(Option<u8>, bool), WayFail> {
+    match kind {
+        LinkKind::GapJump | LinkKind::GapDrop => {
+            let l = grid.off_link(a, b).ok_or(WayFail::Unproven)?;
+            if l.press == Takeoff::WalkOff {
+                return Ok((None, false));
+            }
+            let (press, share, aim) = played(&l, reach).ok_or(WayFail::NoWalkingPress)?;
+            share.flown().ok_or(WayFail::Unflown)?;
+            share.window(press, aim).ok_or(WayFail::PressMisses)?;
+            Ok((share.flown(), press.sprint_run_m().is_some()))
+        }
+        LinkKind::Walk => match grid.riser(a, b) {
+            None => Ok((None, false)),
+            Some(Riser::Pressed { press: Takeoff::Sprint(_) | Takeoff::SprintHeld(_), .. })
+                if matches!(reach.sprint, SprintReach::Cannot { .. }) =>
+            {
+                Err(WayFail::NoWalkingPress)
+            }
+            Some(Riser::Pressed { press, share }) => {
+                share.window(press, Aim::STRAIGHT).ok_or(WayFail::PressMisses)?;
+                Ok((share.flown(), press.sprint_run_m().is_some()))
+            }
+            Some(Riser::NoPress) => Err(WayFail::PressMisses),
+        },
+        LinkKind::Jump => Err(WayFail::PlainJump),
+        LinkKind::Drop => Ok((None, false)),
+    }
+}
+
+/// Whether the path's links are each the client's own for a body of `reach` ([`link_judged`]); the first that is not, as the
+/// way's failure.
 fn judge(grid: &WalkGrid, path: &Path, reach: Reach) -> Way {
     let mut min_share: Option<u8> = None;
     let mut sprint = false;
-    let mut flown = |share: Share| {
-        if let Some(n) = share.flown() {
-            min_share = Some(min_share.map_or(n, |m| m.min(n)));
-        }
-    };
     for (pair, &kind) in path.nodes.windows(2).zip(&path.kinds[1..]) {
         let (a, b) = (pair[0], pair[1]);
-        let fail = |why| Way::Fails { at: Some((a, b, kind)), why };
-        match kind {
-            LinkKind::GapJump | LinkKind::GapDrop => {
-                let Some(l) = grid.off_link(a, b) else { return fail(WayFail::Unproven) };
-                // A walk-off has no press and so no share: where its flight rests is the build's drop check (F2, as a Drop
-                // link's), not a press's neighbourhood.
-                if l.press == Takeoff::WalkOff {
-                    continue;
+        match link_judged(grid, a, b, kind, reach) {
+            Ok((share, sprints)) => {
+                if let Some(n) = share {
+                    min_share = Some(min_share.map_or(n, |m| m.min(n)));
                 }
-                let Some((press, share, aim)) = played(&l, reach) else { return fail(WayFail::NoWalkingPress) };
-                if share.flown().is_none() {
-                    return fail(WayFail::Unflown);
-                }
-                if share.window(press, aim).is_none() {
-                    return fail(WayFail::PressMisses);
-                }
-                flown(share);
-                sprint |= press.sprint_run_m().is_some();
+                sprint |= sprints;
             }
-            LinkKind::Walk => match grid.riser(a, b) {
-                None => {}
-                Some(Riser::Pressed { press, share }) => {
-                    let (press, share) = match (reach.sprint, press) {
-                        (SprintReach::Cannot { .. }, Takeoff::Sprint(_) | Takeoff::SprintHeld(_)) => {
-                            return fail(WayFail::NoWalkingPress);
-                        }
-                        _ => (press, share),
-                    };
-                    if share.window(press, Aim::STRAIGHT).is_none() {
-                        return fail(WayFail::PressMisses);
-                    }
-                    flown(share);
-                    sprint |= press.sprint_run_m().is_some();
-                }
-                Some(Riser::NoPress) => return fail(WayFail::PressMisses),
-            },
-            LinkKind::Jump => return fail(WayFail::PlainJump),
-            LinkKind::Drop => {}
+            Err(why) => return Way::Fails { at: Some((a, b, kind)), why },
         }
     }
     Way::Proven { cost: path.cost, min_share, sprint }
 }
 
-/// The cheapest way from any of `from` to any of `to` for `reach`, judged ([`judge`]); with the goal it reached.
-fn best_way(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -> (Way, Option<NodeId>) {
-    match nearest_path(grid, from, to, reach) {
-        Some(path) => {
-            let b = *path.nodes.last().expect("a path has its goal");
-            (judge(grid, &path, reach), Some(b))
-        }
-        None => (Way::Fails { at: None, why: WayFail::NoPath }, None),
+/// [F4] Which links a search takes: every link, or only those [`link_judged`] proves (a way of them is a proven way).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Links {
+    Any,
+    Proven,
+}
+
+impl Links {
+    fn take(self, grid: &WalkGrid, a: NodeId, b: NodeId, kind: LinkKind, reach: Reach) -> bool {
+        self == Links::Any || link_judged(grid, a, b, kind, reach).is_ok()
     }
+}
+
+/// A way from the cheapest proven path (`proven`), else the first failing link of the cheapest path of any links (`any`,
+/// searched only then), else no path: a battery a body reaches by a longer proven way is not refused for a cheaper unproven one.
+fn way_of(grid: &WalkGrid, reach: Reach, proven: Option<Path>, any: impl FnOnce() -> Option<Path>) -> Way {
+    match proven {
+        Some(path) => judge(grid, &path, reach),
+        None => match any() {
+            Some(path) => judge(grid, &path, reach),
+            None => Way::Fails { at: None, why: WayFail::NoPath },
+        },
+    }
+}
+
+/// The cheapest way from any of `from` to any of `to` for `reach` ([`way_of`]); with the goal it reached.
+fn best_way(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -> (Way, Option<NodeId>) {
+    let proven = nearest_path(grid, from, to, reach, Links::Proven);
+    let goal = proven.as_ref().map(|p| *p.nodes.last().expect("a path has its goal"));
+    let mut any_goal = None;
+    let way = way_of(grid, reach, proven, || {
+        let p = nearest_path(grid, from, to, reach, Links::Any);
+        any_goal = p.as_ref().map(|p| *p.nodes.last().expect("a path has its goal"));
+        p
+    });
+    (way, goal.or(any_goal))
 }
 
 /// The cheapest path for `reach` from any of `from` to any of `to`, in one search (the batteries' session's ask: a search per
 /// pair of spawn floor and take stand cost 3.5 s on a 50,423-floor field): a Dijkstra from every floor of `from` at once over
 /// the links' costs for `reach` ([`WalkGrid::link_cost_reaching`], what [`WalkGrid::path_where_reaching`] prices), stopped at
 /// the first floor of `to` it settles. The same cost as the best of the pairs' searches; None when no floor of `to` is reached.
-fn nearest_path(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -> Option<Path> {
+fn nearest_path(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach, links: Links) -> Option<Path> {
     let n = grid.len();
     let mut goal = vec![false; n];
     for &b in to {
@@ -518,7 +559,7 @@ fn nearest_path(grid: &WalkGrid, from: &[NodeId], to: &[NodeId], reach: Reach) -
             kinds.reverse();
             return Some(Path { nodes, kinds, cost: c });
         }
-        for (v, kind) in grid.links(u) {
+        for (v, kind) in grid.links(u).filter(|&(v, kind)| links.take(grid, u, v, kind, reach)) {
             let cv = c + grid.link_cost_reaching(u, v, kind, reach);
             if cv < cost[v as usize] {
                 cost[v as usize] = cv;
@@ -623,7 +664,7 @@ mod tests {
         let from = [at(-8.0, 5.0), at(-8.0, -5.0), at(0.0, 8.0)];
         let to = [at(4.0, 1.0), at(5.0, 0.0), at(8.0, -6.0)];
         for reach in [Reach::FULL, Reach::no_sprint(None)] {
-            let one = nearest_path(g, &from, &to, reach).expect("a path");
+            let one = nearest_path(g, &from, &to, reach, Links::Any).expect("a path");
             let pairs = from
                 .iter()
                 .flat_map(|&a| to.iter().filter_map(move |&b| g.path_where_reaching(a, b, |_| true, reach)))
@@ -636,7 +677,7 @@ mod tests {
         let shut = world(true);
         let inside = shut.grid.locate(Vec3::new(4.0, 0.0, 0.0), 0.3).unwrap();
         let outside = shut.grid.locate(Vec3::new(-8.0, 0.0, 5.0), 0.3).unwrap();
-        assert!(nearest_path(&shut.grid, &[outside], &[inside], Reach::FULL).is_none());
+        assert!(nearest_path(&shut.grid, &[outside], &[inside], Reach::FULL, Links::Any).is_none());
     }
 
     /// The map's rows by the teams' shared trees equal each battery's own searches ([`Contract::rows_for`]): the same verdicts and
@@ -670,9 +711,9 @@ mod tests {
         let w = world(false);
         let stands = UseStands::build_ray(&w, crate::stands::EYE_STANDING, crate::stands::EYE_CROUCHED, USE_RAY_CLIENT_M);
         let puts: Vec<NodeId> = put_stands(&w, &stands, 0).iter().map(|s| s.node).collect();
-        let back = Tree::grow(&w.grid, &puts, Reach::no_sprint(None), Some(&Backward::of(&w.grid)));
+        let back = Tree::grow(&w.grid, &puts, Reach::no_sprint(None), Some(&Backward::of(&w.grid)), Links::Proven);
         let from = w.grid.locate(Vec3::new(4.0, 0.0, 3.0), 0.3).unwrap();
-        let forward = nearest_path(&w.grid, &[from], &puts, Reach::no_sprint(None)).unwrap();
+        let forward = nearest_path(&w.grid, &[from], &puts, Reach::no_sprint(None), Links::Proven).unwrap();
         let backward = back.path(from).unwrap();
         assert!((forward.cost - backward.cost).abs() < 1e-3, "{} {}", forward.cost, backward.cost);
         assert_eq!(backward.nodes[0], from);
