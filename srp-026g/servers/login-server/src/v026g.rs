@@ -415,13 +415,7 @@ fn handle_client(
         return;
     }
     if request_type[0] == udp_transport::relay::PROBE_PREFIX[0] {
-        let mut probe = [0; 22];
-        probe[0] = request_type[0];
-        if io::Read::read_exact(&mut stream, &mut probe[1..]).is_ok()
-            && udp_transport::relay::is_probe(&probe)
-        {
-            let _ = stream.write_all(&probe);
-        }
+        let _ = echo_probe(stream, request_type[0]);
         return;
     }
     // The 0.26g client connects only to sign in: it signs out without a word
@@ -433,6 +427,42 @@ fn handle_client(
             "Unknown login request type {}; dropped the connection",
             request_type[0]
         );
+    }
+}
+
+/// The updater's route check: its bytes echoed as they come, so never more
+/// than were sent, up to `PROBE_BYTES` and for `PROBE_TIME` at most.
+fn echo_probe(mut stream: TcpStream, first: u8) -> io::Result<()> {
+    use udp_transport::relay::{PROBE_BYTES, PROBE_PREFIX};
+    const PROBE_TIME: std::time::Duration = std::time::Duration::from_secs(30);
+    let deadline = Instant::now() + PROBE_TIME;
+    // The time left, or a timed-out error once there is none.
+    let wait = || {
+        Some(deadline.saturating_duration_since(Instant::now()))
+            .filter(|wait| !wait.is_zero())
+            .ok_or_else(|| io::Error::from(io::ErrorKind::TimedOut))
+    };
+    let mut buffer = [0; 16384];
+    buffer[0] = first;
+    io::Read::read_exact(&mut stream, &mut buffer[1..PROBE_PREFIX.len()])?;
+    if &buffer[..PROBE_PREFIX.len()] != PROBE_PREFIX {
+        return Ok(());
+    }
+    let mut length = PROBE_PREFIX.len();
+    let mut left = PROBE_BYTES;
+    loop {
+        stream.set_write_timeout(Some(wait()?))?;
+        stream.write_all(&buffer[..length])?;
+        left -= length as u64;
+        if left == 0 {
+            return Ok(());
+        }
+        stream.set_read_timeout(Some(wait()?))?;
+        let want = buffer.len().min(usize::try_from(left).unwrap_or(usize::MAX));
+        length = io::Read::read(&mut stream, &mut buffer[..want])?;
+        if length == 0 {
+            return Ok(());
+        }
     }
 }
 
@@ -725,6 +755,34 @@ mod tests {
     /// SHA-1 of `test-password-1`, and a digest of no password used here.
     const DIGEST_1: &[u8; 40] = b"f5358b98af5ac658c4a219f518bd0fa5ed2ffd65";
     const DIGEST_2: &[u8; 40] = b"0000000000000000000000000000000000000000";
+
+    #[test]
+    fn the_route_check_is_echoed_whole_and_then_ends() {
+        use udp_transport::relay::{PROBE_BYTES, PROBE_PREFIX};
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let mut sent = PROBE_PREFIX.to_vec();
+        sent.extend((0..PROBE_BYTES - PROBE_PREFIX.len() as u64).map(|i| i as u8));
+        std::thread::scope(|scope| {
+            scope.spawn(|| {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut first = [0];
+                stream.read_exact(&mut first).unwrap();
+                echo_probe(stream, first[0]).unwrap();
+            });
+            let mut stream = TcpStream::connect(address).unwrap();
+            stream
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            let (mut writer, sent) = (stream.try_clone().unwrap(), &sent);
+            let sending = scope.spawn(move || writer.write_all(sent));
+            // The server ends the connection once it has echoed the check.
+            let mut echo = Vec::new();
+            stream.read_to_end(&mut echo).unwrap();
+            sending.join().unwrap().unwrap();
+            assert!(echo == *sent);
+        });
+    }
 
     /// A 0.26g sign-in after its type byte, as `sign_in_on_connected` writes it.
     fn sign_in_message(email: &[u8], version: &[u8], eula: u8, queue: u32) -> Vec<u8> {

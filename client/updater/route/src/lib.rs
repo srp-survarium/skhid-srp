@@ -1,12 +1,24 @@
 //! Select the direct route first, then a configured regional relay. Probes
-//! exercise login TCP and lobby/match UDP without signing in or joining a game.
+//! exercise login TCP and lobby/match UDP without signing in or joining a game:
+//! each carries `PROBE_BYTES` each way, which the server echoes.
 use std::io::{self, Read, Write};
-use std::net::{Ipv4Addr, SocketAddr, TcpStream, ToSocketAddrs, UdpSocket};
+use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpStream, ToSocketAddrs, UdpSocket};
 use std::sync::mpsc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 pub const PROBE_PREFIX: &[u8] = b"SKHID-ROUTE-1:";
-const TIMEOUT: Duration = Duration::from_millis(1500);
+/// What each protocol's probe carries each way, the servers'
+/// `udp_transport::relay::PROBE_BYTES`. Some providers cut a flow to foreign
+/// hosting after its first 15-20 KB: a small echo passes, the game does not.
+pub const PROBE_BYTES: usize = 64 * 1024;
+/// The game's largest datagram (`udp_transport::wire::MAX_DATAGRAM`).
+const DATAGRAM: usize = 508;
+const DATAGRAMS: usize = PROBE_BYTES.div_ceil(DATAGRAM);
+/// The three probes move about 200 KB each way together: some 1.6 s at
+/// 1 Mbit/s, with time left to send again what a lossy link dropped.
+const TIMEOUT: Duration = Duration::from_secs(5);
+/// How long the UDP probe waits for answers before it sends the missing again.
+const RESEND: Duration = Duration::from_millis(500);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Endpoint {
@@ -121,23 +133,24 @@ fn probe(endpoint: &Endpoint, timeout: Duration) -> io::Result<SocketAddr> {
     let nonce = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
-        .as_nanos()
-        .to_le_bytes();
-    let mut packet = PROBE_PREFIX.to_vec();
-    packet.extend_from_slice(&nonce[..8]);
+        .as_nanos() as u64;
+    let stream = challenge(nonce, 0, PROBE_BYTES);
+    let datagrams: Vec<_> = (1..=DATAGRAMS)
+        .map(|part| challenge(nonce, part, DATAGRAM))
+        .collect();
     std::thread::scope(|scope| {
-        let tcp = scope.spawn(|| probe_tcp(address, &packet, timeout));
+        let tcp = scope.spawn(|| probe_tcp(address, &stream, timeout));
         let lobby = scope.spawn(|| {
             probe_udp(
                 SocketAddr::new(address.ip(), address.port() + 1),
-                &packet,
+                &datagrams,
                 timeout,
             )
         });
         let game = scope.spawn(|| {
             probe_udp(
                 SocketAddr::new(address.ip(), address.port() + 2),
-                &packet,
+                &datagrams,
                 timeout,
             )
         });
@@ -152,13 +165,46 @@ fn probe(endpoint: &Endpoint, timeout: Duration) -> io::Result<SocketAddr> {
     })
 }
 
-fn probe_tcp(address: SocketAddr, packet: &[u8], timeout: Duration) -> io::Result<()> {
+/// The prefix, the nonce and the part's number, then filler that does not
+/// compress, so that the wire carries every byte.
+fn challenge(nonce: u64, part: usize, length: usize) -> Vec<u8> {
+    let mut bytes = PROBE_PREFIX.to_vec();
+    bytes.extend(nonce.to_le_bytes());
+    bytes.extend((part as u16).to_le_bytes());
+    let mut state = (nonce ^ ((part as u64) << 32)) | 1;
+    while bytes.len() < length {
+        // xorshift64
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        bytes.extend(state.to_le_bytes());
+    }
+    bytes.truncate(length);
+    bytes
+}
+
+fn probe_tcp(address: SocketAddr, challenge: &[u8], timeout: Duration) -> io::Result<()> {
     let deadline = Instant::now() + timeout;
     let mut stream = TcpStream::connect_timeout(&address, timeout)?;
-    stream.set_read_timeout(Some(timeout))?;
     stream.set_write_timeout(Some(timeout))?;
-    stream.write_all(packet)?;
-    let mut reply = vec![0; packet.len()];
+    let mut writer = stream.try_clone()?;
+    std::thread::scope(|scope| {
+        // Sent while the echo is read: no buffer on the way need hold it all.
+        let sending = scope.spawn(move || writer.write_all(challenge));
+        let echo = read_echo(&mut stream, challenge.len(), deadline);
+        let _ = stream.shutdown(Shutdown::Both);
+        sending
+            .join()
+            .map_err(|_| io::Error::other("TCP probe panicked"))??;
+        if echo? != challenge {
+            return Err(io::Error::other("wrong TCP probe answer"));
+        }
+        Ok(())
+    })
+}
+
+fn read_echo(stream: &mut TcpStream, length: usize, deadline: Instant) -> io::Result<Vec<u8>> {
+    let mut reply = vec![0; length];
     let mut read = 0;
     while read < reply.len() {
         let remaining = deadline.saturating_duration_since(Instant::now());
@@ -178,40 +224,54 @@ fn probe_tcp(address: SocketAddr, packet: &[u8], timeout: Duration) -> io::Resul
         }
         read += count;
     }
-    if reply != packet {
-        return Err(io::Error::other("wrong TCP probe answer"));
-    }
-    Ok(())
+    Ok(reply)
 }
 
-fn probe_udp(address: SocketAddr, packet: &[u8], timeout: Duration) -> io::Result<()> {
+/// Every datagram answered by the deadline; the unanswered are sent again
+/// each `RESEND`.
+fn probe_udp(address: SocketAddr, datagrams: &[Vec<u8>], timeout: Duration) -> io::Result<()> {
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.connect(address)?;
     let deadline = Instant::now() + timeout;
-    let mut reply = [0; 64];
-    while Instant::now() < deadline {
-        socket.send(packet)?;
-        socket.set_read_timeout(Some(
-            deadline
-                .saturating_duration_since(Instant::now())
-                .max(Duration::from_millis(1))
-                .min(Duration::from_millis(400)),
-        ))?;
-        match socket.recv(&mut reply) {
-            Ok(n) if &reply[..n] == packet => return Ok(()),
-            Ok(_) => {}
-            Err(error)
-                if matches!(
-                    error.kind(),
-                    io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
-                ) => {}
-            Err(error) => return Err(error),
+    let mut answered = vec![false; datagrams.len()];
+    let mut left = datagrams.len();
+    let mut reply = [0; DATAGRAM + 1];
+    while left > 0 {
+        if Instant::now() >= deadline {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "UDP probe timed out",
+            ));
+        }
+        for (datagram, _) in datagrams.iter().zip(&answered).filter(|(_, done)| !**done) {
+            socket.send(datagram)?;
+        }
+        let round = (Instant::now() + RESEND).min(deadline);
+        while left > 0 {
+            let wait = round.saturating_duration_since(Instant::now());
+            if wait.is_zero() {
+                break;
+            }
+            socket.set_read_timeout(Some(wait))?;
+            match socket.recv(&mut reply) {
+                Ok(n) => {
+                    if let Some(part) = datagrams.iter().position(|d| d[..] == reply[..n])
+                        && !answered[part]
+                    {
+                        answered[part] = true;
+                        left -= 1;
+                    }
+                }
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::TimedOut | io::ErrorKind::WouldBlock
+                    ) => {}
+                Err(error) => return Err(error),
+            }
         }
     }
-    Err(io::Error::new(
-        io::ErrorKind::TimedOut,
-        "UDP probe timed out",
-    ))
+    Ok(())
 }
 
 #[cfg(test)]
@@ -263,57 +323,84 @@ mod tests {
         );
     }
 
-    #[test]
-    fn a_reachable_login_with_blocked_udp_selects_the_relay() {
-        fn sockets() -> (std::net::TcpListener, UdpSocket, UdpSocket) {
-            loop {
-                let tcp = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-                let port = tcp.local_addr().unwrap().port();
-                if port > 65532 {
-                    continue;
-                }
-                if let (Ok(lobby), Ok(game)) = (
-                    UdpSocket::bind((Ipv4Addr::LOCALHOST, port + 1)),
-                    UdpSocket::bind((Ipv4Addr::LOCALHOST, port + 2)),
-                ) {
-                    return (tcp, lobby, game);
-                }
+    /// A stand-in server whose login, lobby and match echo `cuts` bytes each
+    /// at most, as a provider that cuts a flow after so much would.
+    fn stand_in(cuts: [usize; 3]) -> Endpoint {
+        let (tcp, udp) = loop {
+            let tcp = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let port = tcp.local_addr().unwrap().port();
+            if port > 65532 {
+                continue;
             }
+            if let (Ok(lobby), Ok(game)) = (
+                UdpSocket::bind((Ipv4Addr::LOCALHOST, port + 1)),
+                UdpSocket::bind((Ipv4Addr::LOCALHOST, port + 2)),
+            ) {
+                break (tcp, [lobby, game]);
+            }
+        };
+        let endpoint = Endpoint::parse(&tcp.local_addr().unwrap().to_string()).unwrap();
+        let [login, lobby, game] = cuts;
+        std::thread::spawn(move || {
+            let (mut stream, _) = tcp.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut left = login;
+            let mut buffer = [0; 4096];
+            // Past the cut, what comes is taken and nothing answered.
+            while let Ok(n @ 1..) = stream.read(&mut buffer) {
+                let echoed = n.min(left);
+                stream.write_all(&buffer[..echoed]).unwrap();
+                left -= echoed;
+            }
+        });
+        for (udp, mut left) in udp.into_iter().zip([lobby, game]) {
+            std::thread::spawn(move || {
+                udp.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+                let mut buffer = [0; 2048];
+                while let Ok((n, peer)) = udp.recv_from(&mut buffer) {
+                    if n <= left {
+                        udp.send_to(&buffer[..n], peer).unwrap();
+                        left -= n;
+                    }
+                }
+            });
         }
-        let (direct, blocked_lobby, blocked_game) = sockets();
-        let (relay, lobby, game) = sockets();
-        // Bound but silent UDP ports model a provider dropping the replies.
-        let _blocked = (blocked_lobby, blocked_game);
-        let direct_endpoint = Endpoint::parse(&direct.local_addr().unwrap().to_string()).unwrap();
-        let relay_endpoint = Endpoint::parse(&relay.local_addr().unwrap().to_string()).unwrap();
-        std::thread::scope(|scope| {
-            for tcp in [direct, relay] {
-                scope.spawn(move || {
-                    let (mut stream, _) = tcp.accept().unwrap();
-                    stream
-                        .set_read_timeout(Some(Duration::from_secs(2)))
-                        .unwrap();
-                    let mut packet = [0; 22];
-                    stream.read_exact(&mut packet).unwrap();
-                    stream.write_all(&packet).unwrap();
-                });
-            }
-            for udp in [lobby, game] {
-                scope.spawn(move || {
-                    udp.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
-                    let mut packet = [0; 64];
-                    let (n, peer) = udp.recv_from(&mut packet).unwrap();
-                    udp.send_to(&packet[..n], peer).unwrap();
-                });
-            }
-            let result = choose(&direct_endpoint, &relay_endpoint, |endpoint| {
-                probe(endpoint, Duration::from_millis(100))
+        endpoint
+    }
+
+    #[test]
+    fn a_route_that_cuts_any_flow_short_selects_the_relay() {
+        const ALL: usize = usize::MAX;
+        // Silent UDP: a provider dropping the replies. 20 KB: one cutting
+        // a flow after that much.
+        for cuts in [
+            [ALL, 0, 0],
+            [20_000, ALL, ALL],
+            [ALL, 20_000, ALL],
+            [ALL, ALL, 20_000],
+        ] {
+            let direct = stand_in(cuts);
+            let relay = stand_in([ALL; 3]);
+            let result = choose(&direct, &relay, |endpoint| {
+                probe(endpoint, Duration::from_millis(500))
             });
             assert_eq!(
                 result,
-                Selection::Relay(relay_endpoint.address().parse().unwrap())
+                Selection::Relay(relay.address().parse().unwrap()),
+                "{cuts:?}"
             );
-        });
+        }
+    }
+
+    #[test]
+    fn a_whole_echo_passes_well_inside_the_timeout() {
+        let direct = stand_in([usize::MAX; 3]);
+        let started = Instant::now();
+        probe(&direct, TIMEOUT).unwrap();
+        eprintln!("probe on loopback: {:?}", started.elapsed());
+        assert!(started.elapsed() < TIMEOUT / 5);
     }
 
     #[test]
@@ -323,19 +410,25 @@ mod tests {
         let tcp_address = tcp.local_addr().unwrap();
         let udp_address = udp.local_addr().unwrap();
         std::thread::scope(|scope| {
+            // Each answers with its last byte changed.
             scope.spawn(|| {
                 let (mut stream, _) = tcp.accept().unwrap();
                 let mut buffer = [0; 5];
                 stream.read_exact(&mut buffer).unwrap();
+                buffer[4] ^= 1;
                 stream.write_all(&buffer).unwrap();
             });
             scope.spawn(|| {
+                udp.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
                 let mut buffer = [0; 64];
-                let (n, peer) = udp.recv_from(&mut buffer).unwrap();
-                udp.send_to(&buffer[..n], peer).unwrap();
+                while let Ok((n, peer)) = udp.recv_from(&mut buffer) {
+                    buffer[n - 1] ^= 1;
+                    udp.send_to(&buffer[..n], peer).unwrap();
+                }
             });
-            probe_tcp(tcp_address, b"nonce", Duration::from_secs(1)).unwrap();
-            probe_udp(udp_address, b"nonce", Duration::from_secs(1)).unwrap();
+            let timeout = Duration::from_millis(300);
+            assert!(probe_tcp(tcp_address, b"nonce", timeout).is_err());
+            assert!(probe_udp(udp_address, &[b"nonce".to_vec()], timeout).is_err());
         });
     }
 }
