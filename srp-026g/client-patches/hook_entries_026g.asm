@@ -9871,6 +9871,330 @@ v011w_render_on_sky_apply_replay:
     db 0xc7, 0x80, 0x20, 0x56, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
     jmp 0x1a45aa
 
+; 0x1b542e effect_complex_post_process_blend<0,0>::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its one technique ended; ESI the compiler and EBX 0 throughout (set at the prologue, callee-saved after); begin is the prologue after its pushes (the configuration's locals written again, then the caching test at its own cmp), which needs ESI, EBX and EBP alone: lohook -> v011w_render_on_post_blend_00_compiled
+global v011w_render_on_post_blend_00_compiled
+extern hook_v011w_render_on_post_blend_00_compiled
+v011w_render_on_post_blend_00_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_post_blend_00_compiled
+    mov edx, v011w_render_on_post_blend_00_compiled_replay
+    cmp eax, 0
+    je v011w_render_on_post_blend_00_compiled_go
+    mov edx, 0x1b5434
+    cmp eax, 1
+    je v011w_render_on_post_blend_00_compiled_go
+    mov edx, 0x1b51e9
+    cmp eax, 2
+    je v011w_render_on_post_blend_00_compiled_go
+    ud2
+v011w_render_on_post_blend_00_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_post_blend_00_compiled_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1b5434
+
+; 0x1b569f effect_complex_post_process_blend<1,0>::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its one technique ended; ESI the compiler and EBX 0 throughout (set at the prologue, callee-saved after); begin is the prologue after its pushes (the configuration's locals written again, then the caching test at its own cmp), which needs ESI, EBX and EBP alone: lohook -> v011w_render_on_post_blend_10_compiled
+global v011w_render_on_post_blend_10_compiled
+extern hook_v011w_render_on_post_blend_10_compiled
+v011w_render_on_post_blend_10_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_post_blend_10_compiled
+    mov edx, v011w_render_on_post_blend_10_compiled_replay
+    cmp eax, 0
+    je v011w_render_on_post_blend_10_compiled_go
+    mov edx, 0x1b56a5
+    cmp eax, 1
+    je v011w_render_on_post_blend_10_compiled_go
+    mov edx, 0x1b5459
+    cmp eax, 2
+    je v011w_render_on_post_blend_10_compiled_go
+    ud2
+v011w_render_on_post_blend_10_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_post_blend_10_compiled_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1b56a5
+
+; 0x1b590f effect_complex_post_process_blend<1,1>::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its one technique ended; ESI the compiler and EBX 0 throughout (set at the prologue, callee-saved after); begin is the prologue after its pushes (the configuration's locals written again, then the caching test at its own cmp), which needs ESI, EBX and EBP alone: lohook -> v011w_render_on_post_blend_11_compiled
+global v011w_render_on_post_blend_11_compiled
+extern hook_v011w_render_on_post_blend_11_compiled
+v011w_render_on_post_blend_11_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_post_blend_11_compiled
+    mov edx, v011w_render_on_post_blend_11_compiled_replay
+    cmp eax, 0
+    je v011w_render_on_post_blend_11_compiled_go
+    mov edx, 0x1b5915
+    cmp eax, 1
+    je v011w_render_on_post_blend_11_compiled_go
+    mov edx, 0x1b56c9
+    cmp eax, 2
+    je v011w_render_on_post_blend_11_compiled_go
+    ud2
+v011w_render_on_post_blend_11_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_post_blend_11_compiled_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1b5915
+
+; 0x1b523b effect_complex_post_process_blend<0,0>::compile, its one technique's begin_pass arguments being pushed (push ebx / movq [eax+8],xmm0 / push esi; then mov eax,9F5844h and the call 0x3D9F60): ESP the PS name's slot (complex_post_process_blend 0x9F5828, pushed just before), EAX the shader configuration's; ESI the compiler, EBX 0; no base relocation in the span: lohook -> v011w_render_on_post_blend_00_pass
+global v011w_render_on_post_blend_00_pass
+extern hook_v011w_render_on_post_blend_00_pass
+v011w_render_on_post_blend_00_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_post_blend_00_pass
+    mov edx, v011w_render_on_post_blend_00_pass_replay
+    cmp eax, 0
+    je v011w_render_on_post_blend_00_pass_go
+    mov edx, 0x1b5242
+    cmp eax, 1
+    je v011w_render_on_post_blend_00_pass_go
+    ud2
+v011w_render_on_post_blend_00_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_post_blend_00_pass_replay:
+    db 0x53, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x56
+    jmp 0x1b5242
+
+; 0x1b54ac effect_complex_post_process_blend<1,0>::compile, its one technique's begin_pass arguments being pushed (push ebx / movq [eax+8],xmm0 / push esi; then mov eax,9F5844h and the call 0x3D9F60): ESP the PS name's slot (complex_post_process_blend 0x9F5828, pushed just before), EAX the shader configuration's; ESI the compiler, EBX 0; no base relocation in the span: lohook -> v011w_render_on_post_blend_10_pass
+global v011w_render_on_post_blend_10_pass
+extern hook_v011w_render_on_post_blend_10_pass
+v011w_render_on_post_blend_10_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_post_blend_10_pass
+    mov edx, v011w_render_on_post_blend_10_pass_replay
+    cmp eax, 0
+    je v011w_render_on_post_blend_10_pass_go
+    mov edx, 0x1b54b3
+    cmp eax, 1
+    je v011w_render_on_post_blend_10_pass_go
+    ud2
+v011w_render_on_post_blend_10_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_post_blend_10_pass_replay:
+    db 0x53, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x56
+    jmp 0x1b54b3
+
+; 0x1b571c effect_complex_post_process_blend<1,1>::compile, its one technique's begin_pass arguments being pushed (push ebx / movq [eax+8],xmm0 / push esi; then mov eax,9F5844h and the call 0x3D9F60): ESP the PS name's slot (complex_post_process_blend 0x9F5828, pushed just before), EAX the shader configuration's; ESI the compiler, EBX 0; no base relocation in the span: lohook -> v011w_render_on_post_blend_11_pass
+global v011w_render_on_post_blend_11_pass
+extern hook_v011w_render_on_post_blend_11_pass
+v011w_render_on_post_blend_11_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_post_blend_11_pass
+    mov edx, v011w_render_on_post_blend_11_pass_replay
+    cmp eax, 0
+    je v011w_render_on_post_blend_11_pass_go
+    mov edx, 0x1b5723
+    cmp eax, 1
+    je v011w_render_on_post_blend_11_pass_go
+    ud2
+v011w_render_on_post_blend_11_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_post_blend_11_pass_replay:
+    db 0x53, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x56
+    jmp 0x1b5723
+
+; 0x1b2a35 stage_postprocess::execute, the post blend's pass: mov eax,[ebp+eax*4+0A4h] (EAX the blend's index, 0..3: the stage's +0A4h, +0A8h, +0ACh, +0B0h) / xor ecx,ecx before res_effect::apply 0x11C1B0 (EAX the effect, ECX the technique) at 0x1B2A3E: lohook -> v011w_render_on_post_blend_apply
+global v011w_render_on_post_blend_apply
+extern hook_v011w_render_on_post_blend_apply
+v011w_render_on_post_blend_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_post_blend_apply
+    mov edx, v011w_render_on_post_blend_apply_replay
+    cmp eax, 0
+    je v011w_render_on_post_blend_apply_go
+    mov edx, 0x1b2a3e
+    cmp eax, 1
+    je v011w_render_on_post_blend_apply_go
+    mov edx, 0x1b2a3e
+    cmp eax, 2
+    je v011w_render_on_post_blend_apply_go
+    ud2
+v011w_render_on_post_blend_apply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_post_blend_apply_replay:
+    db 0x8b, 0x84, 0x85, 0xa4, 0x00, 0x00, 0x00, 0x33, 0xc9
+    jmp 0x1b2a3e
+
+; 0x1b2c13 stage_postprocess::execute after 0x1AFB10 (the upload of its constant block at +330h, the blend's program bound since 0x1B2A3E): mov eax,[ebp+314h]; the blend's constants can be set here, before its draw: lohook -> v011w_render_on_post_blend_constants
+global v011w_render_on_post_blend_constants
+extern hook_v011w_render_on_post_blend_constants
+v011w_render_on_post_blend_constants:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_post_blend_constants
+    mov edx, v011w_render_on_post_blend_constants_replay
+    cmp eax, 0
+    je v011w_render_on_post_blend_constants_go
+    mov edx, 0x1b2c19
+    cmp eax, 1
+    je v011w_render_on_post_blend_constants_go
+    ud2
+v011w_render_on_post_blend_constants_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_post_blend_constants_replay:
+    db 0x8b, 0x85, 0x14, 0x03, 0x00, 0x00
+    jmp 0x1b2c19
+
 ; 0x1ce5be effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v021d_render_on_wet_surface_compiled
 global v021d_render_on_wet_surface_compiled
 extern hook_v021d_render_on_wet_surface_compiled

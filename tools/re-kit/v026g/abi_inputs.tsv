@@ -1136,6 +1136,9 @@ va	name	location	role	basis
 0x0014a6f0	vostok::render::renderer_context::set_p	entry ESP+4	renderer context receiver	observed
 0x0014a960	vostok::render::renderer_context::reset_matrices	ESI	renderer context receiver	observed
 0x0014aa50	vostok::render::renderer_context::update_eye_rays	EAX	renderer context receiver	observed
+0x0014ae40	vostok::render::backend::set_vs_constant	ESI	backend receiver (its callers 0x1A5030, 0x192867 load it)	observed
+0x0014ae40	vostok::render::backend::set_vs_constant	EAX	constant data reference (0x1A502C, 0x19288D)	observed
+0x0014ae40	vostok::render::backend::set_vs_constant	entry ESP+4	shader_constant_host pointer (pushed at 0x1A502B, 0x19288C; ret 4)	observed
 0x0014af70	vostok::render::effect_resolve_particles::compile	entry ESP+4	effect compiler object	observed
 0x0014b730	vostok::render::particle_shader_constants::particle_shader_constants	EDI	particle_shader_constants receiver stored in global singleton and filled with registered host pointers	observed
 0x0014ba90	vostok::render::stage_particles::stage_particles	ESI	stage receiver	inferred

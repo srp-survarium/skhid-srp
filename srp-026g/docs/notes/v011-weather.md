@@ -68,8 +68,26 @@ port for it. This work is Vostok's two weathers only.
 - **0.11e's post from source**: vostok's 0.10b `complex_post_process_blend.ps` matches none of 0.11e's 24
   permutations; with 0.11e's changes (srp-026g/shaders/README.md) all 24 are byte-identical
   (`v011w.sh check`). 0.11e's define registry is 4 globals and the 64 configuration defines of
-  `fill_shader_configuration_macros` (0.11e 0x00732E30), 68 characters (0.10b's: 82). Not drawn yet: the
-  post twin is the next step.
+  `fill_shader_configuration_macros` (0.11e 0x00732E30), 68 characters (0.10b's: 82).
+- **The post, the 0.11 way** (patch 162; pack `v011e-radar-fog@4`): 0.26g's post blend is another
+  program on other inputs (client_patch.md 3.87), so the twin is 0.11e's equations on 0.26g's inputs
+  (`complex_post_process_blend_v011w.ps`), with each weather's filmic curve from the project's profile.
+- **The profile** (`srp_renderer_v011w`, a table): `inscatter_distance` and, optionally (all eight or
+  none), the filmic values named as in 0.11e's post materials (evening: 200, .05, 7, .3, 6.2, 2, .02, 10000,
+  4.5; rain: 300, .01, 6.2, .3, 6.2, 2, .02, 8, 6). Without them the post stays 0.26g's. Chemical Plant
+  v0.11's recreated weathers would give their projects such a table and their environment values; no exe
+  change.
+- **The post is not drawn yet** (the edit list names no curve). Measured: 0.11e's equations replacing
+  0.26g's post on every map (a local test) took evening 0.159 -> 0.167 and rain 0.090 -> 0.095, because the
+  port's shade is near black (pixels under 0.1: 0.11e about 5 %, the port 16-53 %) and 0.11e's curve crushes
+  it further; and the twin itself draws a flat image, with the uploaded curve and with the curve as literals
+  alike: the post stage gives technique 0 something per frame (its frame texture, presumably) that the
+  twin's pass does not get. Both wait on the darkness below.
+- **The darkness**: 0.26g's `skylight.ps` writes one flat colour (`skylight_parameters0`); 0.11e's (0.10b's
+  source, byte-identical, now in `srp-026g/shaders/v011w`) lights shade with height, a six-face sky colour,
+  wrap light, the sun colour and AO, and 0.26g's skylight vertex shader (0.11e's) already feeds it. 0.26g's
+  effect_skylight still binds its inputs, but render_skylight uploads only `skylight_parameters0`: a twin
+  needs parameters 1..7 (and 6 as a vertex constant, `engine_set_vs_constant`) from the profile.
 - **Measured** against the 0.11e originals (`private/renders/v011-weathers/`, 1280x720, mean RMSE of the
   display RGB over ten views): before the fog work evening 0.169, rain 0.136; with the fog (c4) evening
   0.167, rain 0.095; with the tables and the sky too (c6) evening 0.159, rain 0.090. The port is still

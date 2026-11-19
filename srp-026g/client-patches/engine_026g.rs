@@ -337,6 +337,8 @@ unsafe extern "C" {
     pub fn engine_apply_effect_pass(effect: *mut c_void) -> u8;
     /// 0x132a90 vostok::render::backend::set_ps_constant: backend EDI, host EAX, data ESP+4; pops 4
     pub fn engine_set_ps_constant(backend: *mut c_void, host: *mut c_void, data: *const f32);
+    /// 0x14ae40 vostok::render::backend::set_vs_constant: backend ESI, host ESP+4, data EAX; pops 4
+    pub fn engine_set_vs_constant(backend: *mut c_void, host: *mut c_void, data: *const f32);
     /// 0x11c1d0 vostok::render::renderer_context::get_rt: context ESP+4, index ECX, storage EAX; pops 4
     pub fn engine_render_target(context: *mut c_void, index: u32, storage: *mut *mut c_void);
     /// 0x1a3690 vostok::render::stage_atmosphere::fill_surfaces: stage ESP+4, primary ESP+8, secondary ESP+12, flag ESP+16; pops 16

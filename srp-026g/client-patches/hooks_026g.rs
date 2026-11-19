@@ -5780,6 +5780,146 @@ pub extern "C" fn hook_v011w_render_on_sky_apply(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_post_blend_00_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnPostBlend00CompiledExit { Begin }
+/// The entry `v011w_render_on_post_blend_00_compiled` (0x1b542e, effect_complex_post_process_blend<0,0>::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its one technique ended; ESI the compiler and EBX 0 throughout (set at the prologue, callee-saved after); begin is the prologue after its pushes (the configuration's locals written again, then the caching test at its own cmp), which needs ESI, EBX and EBP alone) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_post_blend_00_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_post_blend_00_compiled` calls this, from the game's jump at 0x1b542e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_post_blend_00_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_post_blend_10_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnPostBlend10CompiledExit { Begin }
+/// The entry `v011w_render_on_post_blend_10_compiled` (0x1b569f, effect_complex_post_process_blend<1,0>::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its one technique ended; ESI the compiler and EBX 0 throughout (set at the prologue, callee-saved after); begin is the prologue after its pushes (the configuration's locals written again, then the caching test at its own cmp), which needs ESI, EBX and EBP alone) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_post_blend_10_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_post_blend_10_compiled` calls this, from the game's jump at 0x1b569f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_post_blend_10_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_post_blend_11_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnPostBlend11CompiledExit { Begin }
+/// The entry `v011w_render_on_post_blend_11_compiled` (0x1b590f, effect_complex_post_process_blend<1,1>::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its one technique ended; ESI the compiler and EBX 0 throughout (set at the prologue, callee-saved after); begin is the prologue after its pushes (the configuration's locals written again, then the caching test at its own cmp), which needs ESI, EBX and EBP alone) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_post_blend_11_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_post_blend_11_compiled` calls this, from the game's jump at 0x1b590f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_post_blend_11_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_post_blend_00_pass` (0x1b523b, effect_complex_post_process_blend<0,0>::compile, its one technique's begin_pass arguments being pushed (push ebx / movq [eax+8],xmm0 / push esi; then mov eax,9F5844h and the call 0x3D9F60): ESP the PS name's slot (complex_post_process_blend 0x9F5828, pushed just before), EAX the shader configuration's; ESI the compiler, EBX 0; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_post_blend_00_pass(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_post_blend_00_pass` calls this, from the game's jump at 0x1b523b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_post_blend_00_pass(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_post_blend_10_pass` (0x1b54ac, effect_complex_post_process_blend<1,0>::compile, its one technique's begin_pass arguments being pushed (push ebx / movq [eax+8],xmm0 / push esi; then mov eax,9F5844h and the call 0x3D9F60): ESP the PS name's slot (complex_post_process_blend 0x9F5828, pushed just before), EAX the shader configuration's; ESI the compiler, EBX 0; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_post_blend_10_pass(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_post_blend_10_pass` calls this, from the game's jump at 0x1b54ac,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_post_blend_10_pass(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_post_blend_11_pass` (0x1b571c, effect_complex_post_process_blend<1,1>::compile, its one technique's begin_pass arguments being pushed (push ebx / movq [eax+8],xmm0 / push esi; then mov eax,9F5844h and the call 0x3D9F60): ESP the PS name's slot (complex_post_process_blend 0x9F5828, pushed just before), EAX the shader configuration's; ESI the compiler, EBX 0; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_post_blend_11_pass(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_post_blend_11_pass` calls this, from the game's jump at 0x1b571c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_post_blend_11_pass(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_post_blend_apply (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnPostBlendApplyExit { Apply }
+/// The entry `v011w_render_on_post_blend_apply` (0x1b2a35, stage_postprocess::execute, the post blend's pass: mov eax,[ebp+eax*4+0A4h] (EAX the blend's index, 0..3: the stage's +0A4h, +0A8h, +0ACh, +0B0h) / xor ecx,ecx before res_effect::apply 0x11C1B0 (EAX the effect, ECX the technique) at 0x1B2A3E) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_post_blend_apply(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_post_blend_apply` calls this, from the game's jump at 0x1b2a35,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_post_blend_apply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_post_blend_constants` (0x1b2c13, stage_postprocess::execute after 0x1AFB10 (the upload of its constant block at +330h, the blend's program bound since 0x1B2A3E): mov eax,[ebp+314h]; the blend's constants can be set here, before its draw) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_post_blend_constants(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_post_blend_constants` calls this, from the game's jump at 0x1b2c13,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_post_blend_constants(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- v021d_render (patch 130) ----
 
 /// The named exits of v021d_render::on_wet_surface_compiled (the order the shim's Flow code

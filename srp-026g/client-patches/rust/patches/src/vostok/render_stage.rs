@@ -64,6 +64,10 @@ pub enum StageSite {
     TablesApply,
     /// `atmosphere.sky_apply`.
     SkyApply,
+    /// `postprocess.blend_apply`.
+    PostBlendApply,
+    /// `postprocess.blend_constants`.
+    PostBlendConstants,
 }
 
 /// The renderer context of the stage at `site`.
@@ -83,6 +87,8 @@ fn context(ctx: &Context<'_>, site: StageSite) -> Option<raw::RendererContext> {
             StageSite::TablesDue => raw::site::atmosphere_tables_due::stage(ctx)?.context(),
             StageSite::TablesApply => raw::site::atmosphere_tables_apply::stage(ctx)?.context(),
             StageSite::SkyApply => raw::site::atmosphere_sky_apply::stage(ctx)?.context(),
+            StageSite::PostBlendApply => raw::site::postprocess_blend_apply::stage(ctx)?.context(),
+            StageSite::PostBlendConstants => raw::site::postprocess_blend_constants::stage(ctx)?.context(),
         }
     }
 }
@@ -126,6 +132,8 @@ pub enum ApplySite {
     Drops,
     /// `atmosphere.tables_apply` (the scattering tables, technique 0).
     Tables,
+    /// `postprocess.blend_apply` (the post blend of the index in EAX, technique 0).
+    PostBlend,
 }
 
 /// The machine for the site's exit to its res_effect::apply call with
@@ -142,6 +150,15 @@ pub fn apply_technique(ctx: &mut Context<'_>, site: ApplySite, technique: Techni
             ApplySite::Drops => raw::site::rain_drops_apply::stage(ctx).map(|stage| stage.drops_effect().read()),
             ApplySite::Tables => raw::site::atmosphere_tables_apply::stage(ctx)
                 .and_then(|stage| stage.scattering_effect())
+                .map(|effect| effect.address()),
+            ApplySite::PostBlend => raw::site::postprocess_blend_apply::stage(ctx)
+                .and_then(|stage| match ctx.reg(Reg::Eax) {
+                    0 => stage.blend_00(),
+                    1 => stage.blend_01(),
+                    2 => stage.blend_10(),
+                    3 => stage.blend_11(),
+                    index => panic!("a post blend index past 3: {index}"),
+                })
                 .map(|effect| effect.address()),
         }
     }
@@ -214,6 +231,26 @@ pub fn set_sky_technique(ctx: &Context<'_>, technique: Technique) {
             .and_then(|stage| stage.scattering_effect())
             .expect("the stage's scattering effect");
         effect.technique().write(technique.0);
+    }
+}
+
+/// 0.11e's post (patch v011w_render): technique 1 of each post blend, the
+/// twin effect_complex_post_process_blend compiles of its one technique with
+/// `complex_post_process_blend_v011w` (0.11e's equations on 0.26g's inputs).
+pub const POST_V011W: Technique = Technique::new(1);
+
+/// Sets 0.11e's two filmic constants for the bound post blend
+/// (`postprocess.blend_constants`): the hosts 0.26g registers at its
+/// constant block and never sets.
+pub fn set_filmic(ctx: &Context<'_>, packed_0: [f32; 4], packed_1: [f32; 4]) {
+    // SAFETY: the site's EBP is the post stage executing, on the render
+    // thread; its two hosts are its constructor's (0x1AF7C0); the blend's
+    // program is bound (0x1B2A3E), so set_ps_constant writes them for it.
+    unsafe {
+        let stage = raw::site::postprocess_blend_constants::stage(ctx).expect("the post stage executing");
+        let backend = backend();
+        raw::engine_set_ps_constant(Some(backend), stage.filmic_0_constant(), packed_0.as_ptr());
+        raw::engine_set_ps_constant(Some(backend), stage.filmic_1_constant(), packed_1.as_ptr());
     }
 }
 

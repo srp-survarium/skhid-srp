@@ -105,11 +105,19 @@ pub enum CompileSite {
     ScatteringTablesPass,
     /// `scattering.sky_pass`: its technique 1's begin_pass.
     ScatteringSkyPass,
+    /// `post_blend_<ab>.compiled`: effect_complex_post_process_blend<a,b>::compile's epilogue.
+    PostBlend00End,
+    PostBlend10End,
+    PostBlend11End,
+    /// `post_blend_<ab>.pass`: its one technique's begin_pass.
+    PostBlend00Pass,
+    PostBlend10Pass,
+    PostBlend11Pass,
 }
 
 fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
-    // SAFETY: the context is the site's own; EBX is the compile's
-    // effect_compiler there (each compile loads it from its first argument,
+    // SAFETY: the context is the site's own; EBX (ESI in the post blends'
+    // compiles) is the compile's effect_compiler there (each compile loads it from its first argument,
     // 0x1CE10A, 0x1D3B9A), alive while its compile runs.
     unsafe {
         match site {
@@ -121,6 +129,12 @@ fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
             CompileSite::ScatteringEnd => raw::site::scattering_compiled::compiler(ctx),
             CompileSite::ScatteringTablesPass => raw::site::scattering_tables_pass::compiler(ctx),
             CompileSite::ScatteringSkyPass => raw::site::scattering_sky_pass::compiler(ctx),
+            CompileSite::PostBlend00End => raw::site::post_blend_00_compiled::compiler(ctx),
+            CompileSite::PostBlend10End => raw::site::post_blend_10_compiled::compiler(ctx),
+            CompileSite::PostBlend11End => raw::site::post_blend_11_compiled::compiler(ctx),
+            CompileSite::PostBlend00Pass => raw::site::post_blend_00_pass::compiler(ctx),
+            CompileSite::PostBlend10Pass => raw::site::post_blend_10_pass::compiler(ctx),
+            CompileSite::PostBlend11Pass => raw::site::post_blend_11_pass::compiler(ctx),
         }
     }
     .expect("the compile's compiler")
@@ -166,6 +180,10 @@ pub enum PassSite {
     ScatteringTables,
     /// `scattering.sky_pass`: its technique 1.
     ScatteringSky,
+    /// `post_blend_<ab>.pass`: effect_complex_post_process_blend<a,b>'s technique.
+    PostBlend00,
+    PostBlend10,
+    PostBlend11,
 }
 
 /// Makes `name` the pixel shader of the begin_pass at `site` (its pushed
@@ -179,6 +197,9 @@ pub fn set_pixel_shader(ctx: &Context<'_>, site: PassSite, name: &'static CStr) 
             PassSite::WetSurface => raw::site::wet_surface_begin_pass::frame(ctx),
             PassSite::ScatteringTables => raw::site::scattering_tables_pass::frame(ctx),
             PassSite::ScatteringSky => raw::site::scattering_sky_pass::frame(ctx),
+            PassSite::PostBlend00 => raw::site::post_blend_00_pass::frame(ctx),
+            PassSite::PostBlend10 => raw::site::post_blend_10_pass::frame(ctx),
+            PassSite::PostBlend11 => raw::site::post_blend_11_pass::frame(ctx),
         };
         frame.expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast())
     }

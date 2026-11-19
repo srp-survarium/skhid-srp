@@ -51,3 +51,30 @@ handler = "on_tables_apply"
 [[hook]]
 site = "atmosphere.sky_apply"
 handler = "on_sky_apply"
+
+# The post: each effect_complex_post_process_blend compiles a twin of its one technique (1: 0.11e's
+# equations on 0.26g's inputs), applied on the marked scene with the weather's filmic curve.
+[[hook]]
+site = "post_blend_00.compiled"
+handler = "on_post_blend_00_compiled"
+[[hook]]
+site = "post_blend_10.compiled"
+handler = "on_post_blend_10_compiled"
+[[hook]]
+site = "post_blend_11.compiled"
+handler = "on_post_blend_11_compiled"
+[[hook]]
+site = "post_blend_00.pass"
+handler = "on_post_blend_00_pass"
+[[hook]]
+site = "post_blend_10.pass"
+handler = "on_post_blend_10_pass"
+[[hook]]
+site = "post_blend_11.pass"
+handler = "on_post_blend_11_pass"
+[[hook]]
+site = "postprocess.blend_apply"
+handler = "on_post_blend_apply"
+[[hook]]
+site = "postprocess.blend_constants"
+handler = "on_post_blend_constants"

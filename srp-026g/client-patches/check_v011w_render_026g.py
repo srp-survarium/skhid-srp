@@ -110,6 +110,15 @@ def god_rays(m, drawn, mode):
 
 ORIGINAL_CONSTANTS = [("constant", "eye_ray", True, (0.7, 0.4, 1.0, 0.0))]
 
+# A weather's profile as the edit list v011w-renderer-1.json writes it (the evening's tone values).
+FILMIC = {"shoulder_strength": 0.05, "linear_strength": 7, "linear_angle": 0.3, "toe_strength": 6.2,
+          "toe_numerator": 2, "toe_denominator": 0.02, "linear_white": 10000, "dark_desaturation_limit": 4.5}
+PACKED = ((0.05, 7.0, 0.3, 6.2), (2.0, 0.02, 10000.0, 4.5))
+
+
+def profile(distance):
+    return {"inscatter_distance": distance, **FILMIC}
+
 
 def add_pass(distance):
     to_sun = tuple(round(-x, 5) for x in SUN_DIRECTION) + (1.0,)
@@ -136,7 +145,7 @@ def check(stock, patched):
     native(patched, "a project without the key")
     remove(patched, PROJECT)
     for distance, gone in ((200, remove), (300.0, destroy)):
-        set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": distance})
+        set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": profile(distance)})
         insert(patched, PROJECT)
         assert fog(patched, LOBBY_SCENE) == (5, ORIGINAL_CONSTANTS), "the lobby's scene"
         assert god_rays(patched, LOBBY_SCENE, 1) == ("drawn", []), "the lobby's god rays"
@@ -220,7 +229,7 @@ def check_sky(stock, patched):
         for drawn in (RENDER_SCENE, LOBBY_SCENE):
             assert remake(m, drawn) == 0 and tables_technique(m, drawn) == 0 and sky_technique(m, drawn) == 1, label
     patched.w(GAME_SCENE + 4, RENDER_SCENE)
-    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": 200})
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": profile(200)})
     insert(patched, PROJECT)
     assert tables_technique(patched, LOBBY_SCENE) == 0, "the lobby's tables"
     assert sky_technique(patched, LOBBY_SCENE) == 1, "the lobby's sky"
@@ -239,6 +248,93 @@ def check_sky(stock, patched):
           " when a frame's look differs from theirs (both ways), kept otherwise")
 
 
+# -- the post ----------------------------------------------------------------------------------------------
+
+POST_STAGE = HEAP + 0x3D0000
+BLENDS = {0: HEAP + 0x3D1000, 2: HEAP + 0x3D2000, 3: HEAP + 0x3D3000}
+FILMIC_HOSTS = {"filmic_0": HEAP + 0x3D4000, "filmic_1": HEAP + 0x3D4100}
+POST_COMPILES = {"<0,0>": 0x1B51D0, "<1,0>": 0x1B5440, "<1,1>": 0x1B56B0}
+
+
+def check_post_compiles(stock, patched):
+    for m in (stock, patched):
+        compile_stubs(m)
+    for name, start in POST_COMPILES.items():
+        for caching in (0, 1):
+            native = run_compile(stock, start, caching)
+            assert len(native) == 1, len(native)
+            assert next(e[4] for e in native[0] if e[0] == "begin_pass") == "complex_post_process_blend"
+            for _ in range(2):
+                ours = run_compile(patched, start, caching)
+                assert len(ours) == 2 and ours[0] == native[0], (name, len(ours))
+                twin = [("begin_pass", e[1], e[2], e[3], "complex_post_process_blend_v011w", e[5]) if e[0] == "begin_pass"
+                        else e for e in native[0]]
+                assert ours[1] == twin, (name, "the twin: the same pass with 0.11e's post")
+        print(f"  ok effect_complex_post_process_blend{name}::compile (building, caching): its technique, then the"
+              " twin with ps complex_post_process_blend_v011w (every texture and state the same), twice")
+    for m in (stock, patched):
+        m.stubs = {}
+
+
+def post_stage(m, drawn):
+    m.w(POST_STAGE + 4, CONTEXT)
+    for index, effect in BLENDS.items():
+        m.w(POST_STAGE + 0xA4 + 4 * index, effect)
+    m.w(POST_STAGE + 0xA8, 0)
+    m.w(POST_STAGE + 0x344, FILMIC_HOSTS["filmic_0"])
+    m.w(POST_STAGE + 0x348, FILMIC_HOSTS["filmic_1"])
+    m.w(CONTEXT + 0x416C, drawn)
+    m.w(BACKEND_SLOT, BACKEND)
+
+
+def blend_apply(m, drawn, index):
+    post_stage(m, drawn)
+    m.run(0x1B2A35, {0x1B2A3E}, regs={UC_X86_REG_EBP: POST_STAGE, UC_X86_REG_EAX: index})
+    assert m.emu.reg_read(UC_X86_REG_EAX) == BLENDS[index], "EAX the blend of the index"
+    return m.emu.reg_read(UC_X86_REG_ECX)
+
+
+def blend_constants(m, drawn):
+    post_stage(m, drawn)
+    def constant(esp):
+        host = m.emu.reg_read(UC_X86_REG_EAX)
+        name = next((n for n, at in FILMIC_HOSTS.items() if at == host), hex(host))
+        data = struct.unpack("<4f", bytes(m.emu.mem_read(m.r(esp + 4), 16)))
+        return 4, (name, m.emu.reg_read(UC_X86_REG_EDI) == BACKEND, tuple(round(x, 5) for x in data))
+    m.stubs = {SET_PS_CONSTANT: constant}
+    m.events = []
+    m.emu.mem_write(POST_STAGE + 0x314, struct.pack("<I", 0x31431431))
+    m.run(0x1B2C13, {0x1B2C19}, regs={UC_X86_REG_EBP: POST_STAGE})
+    assert m.emu.reg_read(UC_X86_REG_EAX) == 0x31431431, "the replayed mov eax,[ebp+314h]"
+    events, m.events, m.stubs = m.events, None, {}
+    return events
+
+
+def check_post(stock, patched):
+    for m, label in ((stock, "the original"), (patched, "before any project")):
+        for drawn in (RENDER_SCENE, LOBBY_SCENE):
+            assert all(blend_apply(m, drawn, i) == 0 for i in BLENDS), label
+            assert blend_constants(m, drawn) == [], label
+    patched.w(GAME_SCENE + 4, RENDER_SCENE)
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": profile(200)})
+    insert(patched, PROJECT)
+    assert all(blend_apply(patched, LOBBY_SCENE, i) == 0 for i in BLENDS), "the lobby's post"
+    assert blend_constants(patched, LOBBY_SCENE) == [], "the lobby's constants"
+    assert all(blend_apply(patched, RENDER_SCENE, i) == 1 for i in BLENDS), "0.11e's post on the marked scene"
+    rounded = tuple(tuple(round(x, 5) for x in p) for p in PACKED)
+    assert blend_constants(patched, RENDER_SCENE) == [("filmic_0", True, rounded[0]), ("filmic_1", True, rounded[1])]
+    remove(patched, PROJECT)
+    assert all(blend_apply(patched, RENDER_SCENE, i) == 0 for i in BLENDS) and blend_constants(patched, RENDER_SCENE) == []
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": {"inscatter_distance": 300}})
+    insert(patched, PROJECT)
+    assert all(blend_apply(patched, RENDER_SCENE, i) == 0 for i in BLENDS), "a profile without the curve: 0.26g's post"
+    assert blend_constants(patched, RENDER_SCENE) == []
+    remove(patched, PROJECT)
+    print("  ok the post: technique 0 of the blend of each index (0, 2, 3) and no constant of ours before a marked"
+          " project, on the lobby's scene, after the project's removal and for a profile without the curve; on"
+          " the marked scene technique 1 and filmic_tonemap_packed_parameters_0/1 the profile's, packed as 0.11e")
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -251,6 +347,9 @@ def main():
     stock, patched = Machine(original), Machine(bytes(built))
     check_compile(stock, patched)
     check_sky(stock, patched)
+    stock, patched = Machine(original), Machine(bytes(built))
+    check_post_compiles(stock, patched)
+    check_post(stock, patched)
 
 
 if __name__ == "__main__":

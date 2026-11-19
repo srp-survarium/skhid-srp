@@ -273,6 +273,7 @@ global engine_global_unlock
 global engine_set_texture
 global engine_apply_effect_pass
 global engine_set_ps_constant
+global engine_set_vs_constant
 global engine_render_target
 global engine_fill_atmosphere
 global engine_sun_direction
@@ -3225,6 +3226,23 @@ engine_set_ps_constant:
     mov edi, [esp + 24]   ; backend
     mov eax, [esp + 28]   ; host
     call 0x132a90
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_vs_constant:
+    ; 0x14ae40 vostok::render::backend::set_vs_constant: backend ESI, host ESP+4, data EAX; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; host -> 4
+    mov esi, [esp + 24]   ; backend
+    mov eax, [esp + 32]   ; data
+    call 0x14ae40
     pop edi
     pop esi
     pop ebx

@@ -962,6 +962,9 @@ unsigned char engine_apply_effect_pass(struct res_effect *effect);
 /* 0x132a90 vostok::render::backend::set_ps_constant: backend EDI, host EAX, data ESP+4; pops 4 */
 void engine_set_ps_constant(struct backend *backend, struct shader_constant_host *host, const float *data);
 
+/* 0x14ae40 vostok::render::backend::set_vs_constant: backend ESI, host ESP+4, data EAX; pops 4 */
+void engine_set_vs_constant(struct backend *backend, struct shader_constant_host *host, const float *data);
+
 /* 0x11c1d0 vostok::render::renderer_context::get_rt: context ESP+4, index ECX, storage EAX; pops 4 */
 void engine_render_target(struct renderer_context *context, unsigned int index, void **storage);
 

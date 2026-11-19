@@ -431,6 +431,7 @@ va	name	source	ret_cleanup	result
 0x0014a6f0	vostok::render::renderer_context::set_p	manual	4	
 0x0014a960	vostok::render::renderer_context::reset_matrices	manual	0	
 0x0014aa50	vostok::render::renderer_context::update_eye_rays	manual	0	
+0x0014ae40	vostok::render::backend::set_vs_constant	manual	4	void
 0x0014af70	vostok::render::effect_resolve_particles::compile	manual	12	
 0x0014b730	vostok::render::particle_shader_constants::particle_shader_constants	manual	0	EAX (32bits): receiver
 0x0014ba90	vostok::render::stage_particles::stage_particles	manual	4	

@@ -1,7 +1,27 @@
 {
- "_about": "The key exe patch 162 (v011w_render) reads to fog Vostok v0.11's evening and rain the 0.11 way: srp_renderer_v011w at the root of their four client projects, the weather's inscatter distance in metres as 0.11e's post-process materials give it (material_instances/post_process/level_03_evn: atmosphere_inscatter_distance 200; level_03_rain: 300). On those scenes the geometry stage draws 0.11e's two fog passes (techniques 3 and 4 of effect_atmospheric_scattering, the second 0.11e's program from pack v011e-radar-fog) in place of 0.26g's one. No other project has the key.",
+ "_about": "The profile exe patch 162 (v011w_render) reads to draw a 0.11 weather the 0.11 way: srp_renderer_v011w at the root of each of its client projects, a table of 0.11e's post-process material values of that weather (material_instances/post_process/level_03_evn and level_03_rain: atmosphere_inscatter_distance). On those scenes the patch draws 0.11e's fog, scattering tables and sky. The table may also name 0.11e's filmic curve (shoulder_strength, linear_strength, linear_angle, toe_strength, toe_numerator, toe_denominator, linear_white, dark_desaturation_limit: evening .05, 7, .3, 6.2, 2, .02, 10000, 4.5; rain .01, 6.2, .3, 6.2, 2, .02, 8, 6) for 0.11e's post; these do not yet: the post twin draws without its frame (docs/notes/v011-weather.md). Another map takes a 0.11 weather by giving its projects such a table. No other project has the key.",
  "add_value": [
-  {"files": ["projects/v011w_level_03_evn/evening_2/client_project", "projects/v011w_level_03_evn/evening_4/client_project"], "table": "", "key": "srp_renderer_v011w", "value": 200},
-  {"files": ["projects/v011w_level_03_rain/rain_2/client_project", "projects/v011w_level_03_rain/rain_4/client_project"], "table": "", "key": "srp_renderer_v011w", "value": 300}
+  {
+   "files": [
+    "projects/v011w_level_03_evn/evening_2/client_project",
+    "projects/v011w_level_03_evn/evening_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_renderer_v011w",
+   "value": {
+    "inscatter_distance": 200
+   }
+  },
+  {
+   "files": [
+    "projects/v011w_level_03_rain/rain_2/client_project",
+    "projects/v011w_level_03_rain/rain_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_renderer_v011w",
+   "value": {
+    "inscatter_distance": 300
+   }
+  }
  ]
 }

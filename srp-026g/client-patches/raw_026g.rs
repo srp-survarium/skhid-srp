@@ -343,6 +343,8 @@ unsafe extern "C" {
     pub fn engine_apply_effect_pass(effect: Option<ResEffect>) -> u8;
     /// 0x132a90 vostok::render::backend::set_ps_constant: backend EDI, host EAX, data ESP+4; pops 4
     pub fn engine_set_ps_constant(backend: Option<Backend>, host: Option<ShaderConstantHost>, data: *const f32);
+    /// 0x14ae40 vostok::render::backend::set_vs_constant: backend ESI, host ESP+4, data EAX; pops 4
+    pub fn engine_set_vs_constant(backend: Option<Backend>, host: Option<ShaderConstantHost>, data: *const f32);
     /// 0x11c1d0 vostok::render::renderer_context::get_rt: context ESP+4, index ECX, storage EAX; pops 4
     pub fn engine_render_target(context: Option<RendererContext>, index: u32, storage: *mut *mut c_void);
     /// 0x1a3690 vostok::render::stage_atmosphere::fill_surfaces: stage ESP+4, primary ESP+8, secondary ESP+12, flag ESP+16; pops 16
@@ -26509,6 +26511,147 @@ impl GodRaysEntryFrame {
     }
 }
 
+/// A vostok::render::stage_postprocess (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StagePostprocess(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StagePostprocess {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (execute passes it to renderer_context::get_rt at 0x1B2C63)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (execute passes it to renderer_context::get_rt at 0x1B2C63)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+
+    /// +0xa4 (ptr<vostok::render::res_effect>): its effect_complex_post_process_blend<0,0> (the constructor's 0x1B00CC; execute's blend index 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn blend_00(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0xa4).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0xa4 (ptr<vostok::render::res_effect>): its effect_complex_post_process_blend<0,0> (the constructor's 0x1B00CC; execute's blend index 0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_blend_00(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0xa4).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+
+    /// +0xa8 (ptr<vostok::render::res_effect>): the blend of index 1 (the constructor makes none)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn blend_01(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0xa8).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0xa8 (ptr<vostok::render::res_effect>): the blend of index 1 (the constructor makes none)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_blend_01(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0xa8).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+
+    /// +0xac (ptr<vostok::render::res_effect>): its effect_complex_post_process_blend<1,0> (0x1B00DC; index 2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn blend_10(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0xac).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0xac (ptr<vostok::render::res_effect>): its effect_complex_post_process_blend<1,0> (0x1B00DC; index 2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_blend_10(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0xac).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+
+    /// +0xb0 (ptr<vostok::render::res_effect>): its effect_complex_post_process_blend<1,1> (0x1B00EC; index 3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn blend_11(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0xb0).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0xb0 (ptr<vostok::render::res_effect>): its effect_complex_post_process_blend<1,1> (0x1B00EC; index 3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_blend_11(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0xb0).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+
+    /// +0x344 (ptr<vostok::render::shader_constant_host>): the host of filmic_tonemap_packed_parameters_0 (0x1AF7C0, the block at +330h: +14h), which 0.26g registers and never sets
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn filmic_0_constant(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x344).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x344 (ptr<vostok::render::shader_constant_host>): the host of filmic_tonemap_packed_parameters_0 (0x1AF7C0, the block at +330h: +14h), which 0.26g registers and never sets
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_filmic_0_constant(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x344).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+
+    /// +0x348 (ptr<vostok::render::shader_constant_host>): the host of filmic_tonemap_packed_parameters_1 (+18h of the block), never set by 0.26g
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn filmic_1_constant(self) -> Option<ShaderConstantHost> {
+        unsafe { self.0.byte_add(0x348).cast::<Option<ShaderConstantHost>>().read_volatile() }
+    }
+
+    /// +0x348 (ptr<vostok::render::shader_constant_host>): the host of filmic_tonemap_packed_parameters_1 (+18h of the block), never set by 0.26g
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_filmic_1_constant(self, value: Option<ShaderConstantHost>) {
+        unsafe { self.0.byte_add(0x348).cast::<Option<ShaderConstantHost>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::render::stage_atmosphere (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -32475,6 +32618,153 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn stage(machine: &impl Machine) -> Option<StageAtmosphere> {
             NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageAtmosphere)
+        }
+    }
+
+    /// post_blend_00.pass (0x1b523b): effect_complex_post_process_blend<0,0>::compile, its one technique's begin_pass arguments being pushed (push ebx / movq [eax+8],xmm0 / push esi; then mov eax,9F5844h and the call 0x3D9F60): ESP the PS name's slot (complex_post_process_blend 0x9F5828, pushed just before), EAX the shader configuration's; ESI the compiler, EBX 0; no base relocation in the span
+    pub mod post_blend_00_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// post_blend_00.compiled (0x1b542e): effect_complex_post_process_blend<0,0>::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its one technique ended; ESI the compiler and EBX 0 throughout (set at the prologue, callee-saved after); begin is the prologue after its pushes (the configuration's locals written again, then the caching test at its own cmp), which needs ESI, EBX and EBP alone
+    pub mod post_blend_00_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// post_blend_10.pass (0x1b54ac): effect_complex_post_process_blend<1,0>::compile, its one technique's begin_pass arguments being pushed (push ebx / movq [eax+8],xmm0 / push esi; then mov eax,9F5844h and the call 0x3D9F60): ESP the PS name's slot (complex_post_process_blend 0x9F5828, pushed just before), EAX the shader configuration's; ESI the compiler, EBX 0; no base relocation in the span
+    pub mod post_blend_10_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// post_blend_10.compiled (0x1b569f): effect_complex_post_process_blend<1,0>::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its one technique ended; ESI the compiler and EBX 0 throughout (set at the prologue, callee-saved after); begin is the prologue after its pushes (the configuration's locals written again, then the caching test at its own cmp), which needs ESI, EBX and EBP alone
+    pub mod post_blend_10_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// post_blend_11.pass (0x1b571c): effect_complex_post_process_blend<1,1>::compile, its one technique's begin_pass arguments being pushed (push ebx / movq [eax+8],xmm0 / push esi; then mov eax,9F5844h and the call 0x3D9F60): ESP the PS name's slot (complex_post_process_blend 0x9F5828, pushed just before), EAX the shader configuration's; ESI the compiler, EBX 0; no base relocation in the span
+    pub mod post_blend_11_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// post_blend_11.compiled (0x1b590f): effect_complex_post_process_blend<1,1>::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its one technique ended; ESI the compiler and EBX 0 throughout (set at the prologue, callee-saved after); begin is the prologue after its pushes (the configuration's locals written again, then the caching test at its own cmp), which needs ESI, EBX and EBP alone
+    pub mod post_blend_11_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// postprocess.blend_apply (0x1b2a35): stage_postprocess::execute, the post blend's pass: mov eax,[ebp+eax*4+0A4h] (EAX the blend's index, 0..3: the stage's +0A4h, +0A8h, +0ACh, +0B0h) / xor ecx,ecx before res_effect::apply 0x11C1B0 (EAX the effect, ECX the technique) at 0x1B2A3E
+    pub mod postprocess_blend_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_postprocess (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StagePostprocess> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StagePostprocess)
+        }
+    }
+
+    /// postprocess.blend_constants (0x1b2c13): stage_postprocess::execute after 0x1AFB10 (the upload of its constant block at +330h, the blend's program bound since 0x1B2A3E): mov eax,[ebp+314h]; the blend's constants can be set here, before its draw
+    pub mod postprocess_blend_constants {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_postprocess (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StagePostprocess> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StagePostprocess)
         }
     }
 }

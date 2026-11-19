@@ -6265,15 +6265,17 @@ release.
 ## The 0.11 weathers render their atmosphere the 0.11 way (patch 162, unreleased)
 
 The owner (2026-11-18): Vostok Radar Station v0.11's evening and rain rendered as 0.11e renders them,
-compared with 0.11e itself (`../docs/notes/v011-weather.md`): the geometry's fog, the scattering tables and the
-sky (`../docs/notes/client_patch.md` section 3.87):
+compared with 0.11e itself (`../docs/notes/v011-weather.md`): the geometry's fog, the scattering tables, the
+sky and the post (`../docs/notes/client_patch.md` section 3.87). Everything keys on the project's profile, so
+another map's project takes a 0.11 weather by giving it one:
 
 - 0.11e fogs the geometry in two passes of `effect_atmospheric_scattering`: it multiplies the frame by
   1 - min(depth, D) / D / 10 (blend ZERO, SRC_COLOR), then adds the light the air scatters toward the eye,
   read from the Rayleigh and Mie tables (ONE, ONE); D is the weather's `atmosphere_inscatter_distance`.
   0.26g still compiles both (techniques 3 and 4) but draws only technique 5, one pass of another equation.
-- On the scene of a project whose config root names its inscatter distance (`srp_renderer_v011w: <metres>`,
-  edit list `v011w-renderer-1.json`: 200 for the evenings, 300 for the rains) the geometry stage draws 3 in
+- On the scene of a project whose config root has the table `srp_renderer_v011w` (its profile: 0.11e's post
+  material values of the weather, `inscatter_distance` and the filmic curve's eight; edit list
+  `v011w-renderer-1.json`: Vostok's evening, 200 m, and rain, 300 m) the geometry stage draws 3 in
   5's place and, at its god rays' entry, 4: the constants 0.11e sets for it (to_sun_direction_parameter as
   minus the sun's direction with .w 1, inscatter_parameters, s_eye_ray_corner), target 37h
   and fill_surfaces as stage_atmosphere::execute's own pass. Once a frame; the sky stage never.
@@ -6289,13 +6291,20 @@ sky (`../docs/notes/client_patch.md` section 3.87):
   the pack's builds of 0.11e's sources), on every map, as patch 130's effects do; on the marked scene the sky
   stage applies 6 for the tables and 7 for the sky. The tables are made once and kept while nothing changes;
   a frame whose look (0.11 or native) is not theirs remakes them.
+- The post: 0.26g's blend has another exposure clamp, an exponential tone curve, an sRGB-coded grading and
+  another vignette, and never sets the filmic constants it still registers. Each of its three blend effects
+  compiles a twin of its one technique (1: `complex_post_process_blend_v011w`, 0.11e's equations on 0.26g's
+  inputs, from source); on the marked scene whose profile names the curve the post stage applies it and
+  sets filmic_tonemap_packed_parameters_0/1 from the profile, packed as 0.11e. No profile names it yet: the
+  twin draws without its frame (`../docs/notes/v011-weather.md`).
 
 **The patch** (the Rust patch `v011w_render`, `rust/patches/src/v011w_render.rs`, the stage's side in
-`vostok/render_stage.rs`, the twins' rounds in `vostok/effect_compile.rs`, shared with patch 130; twelve
+`vostok/render_stage.rs`, the twins' rounds in `vostok/effect_compile.rs`, shared with patch 130; twenty
 lohooks): `atmosphere.geometry_fog` (technique 3 in 5's place), `atmosphere.geometry_fog_applied` (its
 constant, set once its program is bound), `atmosphere.god_rays` (the additive pass; after patch 130's),
 `scattering.compiled`, `scattering.tables_pass`, `scattering.sky_pass` (the twins), `atmosphere.tables_due`,
-`atmosphere.tables_apply`, `atmosphere.sky_apply` (the tables and the sky), `project.insert`,
-`project.removed`, `project.destroy` (the map).
+`atmosphere.tables_apply`, `atmosphere.sky_apply` (the tables and the sky), `post_blend_00/10/11.compiled`
+and `.pass` (the post's twins), `postprocess.blend_apply`, `postprocess.blend_constants` (the post),
+`project.insert`, `project.removed`, `project.destroy` (the map).
 Nothing a match computes. Checked with `check_v011w_render_026g.py` (Unicorn, original and patched exe) and
 the patch crate's tests. Needs the pack and the edit list in the same release.
