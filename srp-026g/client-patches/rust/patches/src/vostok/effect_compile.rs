@@ -118,6 +118,10 @@ pub enum CompileSite {
     /// `skylight.pass_<n>`: its technique n's begin_pass.
     SkylightPass0,
     SkylightPass1,
+    /// `copy.compiled`: effect_copy_image::compile's epilogue.
+    CopyEnd,
+    /// `copy.pass_0`: its technique 0's (the gamma copy's) begin_pass.
+    CopyPass0,
     /// `clouds_<ab>.compiled`: effect_atmosphere_clouds<a,b>::compile's ret.
     CloudsEnd(CloudEffect),
     /// `clouds_<ab>.pass_<n>`: its technique n's begin_pass.
@@ -166,6 +170,8 @@ fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
             CompileSite::SkylightEnd => raw::site::skylight_compiled::compiler(ctx),
             CompileSite::SkylightPass0 => raw::site::skylight_pass_0::compiler(ctx),
             CompileSite::SkylightPass1 => raw::site::skylight_pass_1::compiler(ctx),
+            CompileSite::CopyEnd => raw::site::copy_compiled::compiler(ctx),
+            CompileSite::CopyPass0 => raw::site::copy_pass_0::compiler(ctx),
             CompileSite::CloudsEnd(effect) => match effect {
                 CloudEffect::C00 => raw::site::clouds_00_compiled::frame(ctx),
                 CloudEffect::C10 => raw::site::clouds_10_compiled::frame(ctx),
@@ -237,6 +243,8 @@ pub enum PassSite {
     Skylight1,
     /// `clouds_<ab>.pass_<n>`: effect_atmosphere_clouds<a,b>'s technique n.
     Clouds(CloudEffect, CloudPass),
+    /// `copy.pass_0`: effect_copy_image's technique 0.
+    Copy,
 }
 
 /// Makes `name` the pixel shader of the begin_pass at `site` (its pushed
@@ -255,6 +263,7 @@ pub fn set_pixel_shader(ctx: &Context<'_>, site: PassSite, name: &'static CStr) 
             PassSite::PostBlend11 => raw::site::post_blend_11_pass::frame(ctx),
             PassSite::Skylight0 => raw::site::skylight_pass_0::frame(ctx),
             PassSite::Skylight1 => raw::site::skylight_pass_1::frame(ctx),
+            PassSite::Copy => raw::site::copy_pass_0::frame(ctx),
             PassSite::Clouds(effect, pass) => match (effect, pass) {
                 (CloudEffect::C00, CloudPass::AlphaBlend) => raw::site::clouds_00_pass_0::frame(ctx),
                 (CloudEffect::C00, CloudPass::Modulate) => raw::site::clouds_00_pass_1::frame(ctx),

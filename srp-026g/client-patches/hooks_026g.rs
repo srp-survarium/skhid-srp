@@ -6305,6 +6305,61 @@ pub extern "C" fn hook_v011w_render_on_material_pass(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_copy_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnCopyCompiledExit { Begin, Cached }
+/// The entry `v011w_render_on_copy_compiled` (0x1d535a, effect_copy_image::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its two techniques (copy_image, copy_image_simple) ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1D5146's jne), ESI zeroed on both paths and again before technique 1 (0x1D5241)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_copy_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_copy_compiled` calls this, from the game's jump at 0x1d535a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_copy_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The entry `v011w_render_on_copy_pass_0` (0x1d519c, effect_copy_image::compile (0x1D5130), technique 0 (the gamma copy), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F5844h and the call 0x3D9F60 at 0x1D51A8): ESP the PS name's slot (copy_image 0x9F5844, pushed at 0x1D5172); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_copy_pass_0(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_copy_pass_0` calls this, from the game's jump at 0x1d519c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_copy_pass_0(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v011w_render (patch 162) ----
+
+/// The named exits of v011w_render::on_copy_apply (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V011WRenderOnCopyApplyExit { Applied }
+/// The entry `v011w_render_on_copy_apply` (0x1bd3c4, stage_screen_image::execute, the gamma copy: mov [eax+5620h],ebx (EBX 0, technique 0) before res_effect::apply_pass 0x3D7230 at 0x1BD3CA (EAX the stage's copy effect, its +10h, loaded at 0x1BD3C1); applied skips the write; EDI the stage (execute's ECX, 0x1BD336)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v011w_render_on_copy_apply(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v011w_render_on_copy_apply` calls this, from the game's jump at 0x1bd3c4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v011w_render::on_copy_apply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- v021d_render (patch 130) ----
 
 /// The named exits of v021d_render::on_wet_surface_compiled (the order the shim's Flow code

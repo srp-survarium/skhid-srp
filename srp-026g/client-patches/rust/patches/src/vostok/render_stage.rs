@@ -78,6 +78,8 @@ pub enum StageSite {
     TablesConstants,
     /// `atmosphere.clouds_apply`.
     CloudsApply,
+    /// `screen.copy_apply`.
+    CopyApply,
     /// `atmosphere.clouds_constants`.
     CloudsConstants,
 }
@@ -106,6 +108,7 @@ fn context(ctx: &Context<'_>, site: StageSite) -> Option<raw::RendererContext> {
             StageSite::SkylightConstants => raw::site::ambient_skylight_constants::stage(ctx)?.context(),
             StageSite::TablesConstants => raw::site::atmosphere_tables_constants::stage(ctx)?.context(),
             StageSite::CloudsApply => raw::site::atmosphere_clouds_apply::stage(ctx)?.context(),
+            StageSite::CopyApply => raw::site::screen_copy_apply::stage(ctx)?.context(),
             StageSite::CloudsConstants => raw::site::atmosphere_clouds_constants::stage(ctx)?.context(),
         }
     }
@@ -278,6 +281,24 @@ pub fn set_filmic(ctx: &Context<'_>, packed_0: [f32; 4], packed_1: [f32; 4]) {
 /// six-face sky colour, wrap light, the sun's colour and AO; 0.26g's writes
 /// skylight_parameters0 flat).
 pub const SKYLIGHT_V011W: Technique = Technique::new(3);
+
+/// effect_copy_image's twin of its technique 0 (the gamma copy): 0 copy,
+/// 1 copy_image_simple, then the two again, 2 with 0.11e's program.
+pub const COPY_V011W: Technique = Technique::new(2);
+
+/// Sets the technique the screen's gamma copy applies (`screen.copy_apply`;
+/// the caller takes its `applied` exit).
+pub fn set_copy_technique(ctx: &Context<'_>, technique: Technique) {
+    // SAFETY: the site's EDI is the screen stage executing, on the render
+    // thread; +10h its copy effect, the constructor's; +5620h the technique
+    // apply_pass reads next.
+    unsafe {
+        let effect = raw::site::screen_copy_apply::stage(ctx)
+            .and_then(|stage| stage.copy_effect())
+            .expect("the screen stage's copy effect");
+        effect.technique().write(technique.0);
+    }
+}
 
 /// Sets the technique the skylight's pass applies (`ambient.skylight_apply`;
 /// the caller takes its `applied` exit).

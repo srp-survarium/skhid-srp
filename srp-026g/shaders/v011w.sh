@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # v011w.sh check <0.11e resources.db>
-# v011w.sh build <0.26g stock resources.db> <out files dir> [--twin] [program ...] | --post-twin | --twin-of <family> program ... | --cone
+# v011w.sh build <0.26g stock resources.db> <out files dir> [--twin] [program ...] | --post-twin | --twin-of <family> program ... | --cone | --copy
 #
 # 0.11e's atmosphere programs from v011w/ (vostok's 0.10b sources with 0.11e's changes, README.md):
 #   check: compile the atmosphere, skylight and cloud programs and every permutation of the post blend for 0.11e and
@@ -17,6 +17,8 @@
 #          --cone: forward_volume_cone_base (the diffuse texture on, no transparency texture) for each vertex input
 #          1..6 as the family forward_volume_cone_base_v011w_<input> under the plain key, with the include records
 #          of 0.26g's blob of that configuration (exe patch 162 names the family by the pass's input).
+#          --copy: copy_image (0.11e's gamma copy, pow(x, 1/(2.2*gamma))) for 0.26g's copy_image.vs as the family
+#          copy_image_v011w_026g under 0.26g's copy_image key (the weather pack's copy_image_v011w is 0.11e's own blob).
 #   check also compiles the cone program for those six inputs and compares with 0.11e's blobs of them.
 # The shipped blobs are read with dbgrab (tools/re-kit/common/dbgrab; DBGRAB overrides). Needs Wine,
 # python3 and fxc (fxc.sh).
@@ -43,7 +45,7 @@ case $mode in
 check)
   bad=0
   for program in atmosphere make_mie_rayleigh_texture atmospheric_scattering_on_geometry_mul atmospheric_scattering_on_geometry_add skylight \
-      atmosphere_clouds_alpha_blend atmosphere_clouds_modulate; do
+      atmosphere_clouds_alpha_blend atmosphere_clouds_modulate copy_image; do
     compile $program "$tmp/out.dxbc"
     if cmp -s <(dxbc "$(shipped $program)") "$tmp/out.dxbc"; then echo "$program byte-identical"
     else echo "$program DIFF"; bad=$((bad + 1)); fi
@@ -100,6 +102,17 @@ build)
         "$stock" "$tmp/out.dxbc" "$dest"
       echo "$dest"
     done
+    exit 0
+  fi
+  if [ "${1:-}" = --copy ]; then
+    compile copy_image "$tmp/out.dxbc" /D TARGET_026G=1
+    stock=$(shipped copy_image)
+    key=${stock##*.ps__}
+    dest="$out/shaders/sm_4_0/copy_image_v011w_026g.ps/$key"
+    mkdir -p "$(dirname "$dest")"
+    python3 -c 'import sys,struct; d=open(sys.argv[1],"rb").read(); n=struct.unpack_from("<I",d)[0]; open(sys.argv[3],"wb").write(d[:4+264*n]+open(sys.argv[2],"rb").read())' \
+      "$stock" "$tmp/out.dxbc" "$dest"
+    echo "$dest"
     exit 0
   fi
   if [ "${1:-}" = --cone ]; then

@@ -33,6 +33,10 @@ environment_sun_direction):
   case on the same site: a pass of forward_volume_cone_base whose material config has srp_cone_v011w, at
   vertex input 1..6, begins with forward_volume_cone_base_v011w_<input>; every other family, input or
   config the original's PS; the VS and the configuration as the original's.
+- effect_copy_image::compile (0x1D5130), building and caching, twice each: techniques 0..1 the original's,
+  2..3 their twins, 2 with ps copy_image_v011w_026g; stage_screen_image::execute's gamma copy (0x1BD3C1 to
+  apply_pass at 0x1BD3CA): technique 0 before a marked project, on the lobby's scene, after the removal and
+  for a profile without 0.11e's post; 2 on the marked scene with it.
 """
 import struct
 import sys
@@ -607,6 +611,56 @@ def check_tables_constants(stock, patched):
           " mieSun, rayleighPi and miePi (0.26g sends the sun's intensity first)")
 
 
+SCREEN, COPY_EFFECT = HEAP + 0x3F0000, HEAP + 0x3F1000
+
+
+def check_copy_compile(stock, patched):
+    for m in (stock, patched):
+        compile_stubs(m)
+    for caching in (0, 1):
+        native = run_compile(stock, 0x1D5130, caching)
+        assert [next(e[4] for e in t if e[0] == "begin_pass") for t in native] == ["copy_image", "copy_image_simple"]
+        for _ in range(2):
+            ours = run_compile(patched, 0x1D5130, caching)
+            assert len(ours) == 4 and ours[:2] == native, len(ours)
+            want = [("begin_pass", e[1], e[2], e[3], "copy_image_v011w_026g", e[5]) if e[0] == "begin_pass" else e
+                    for e in native[0]]
+            assert ours[2] == want and ours[3] == native[1]
+    for m in (stock, patched):
+        m.stubs = {}
+    print("  ok effect_copy_image::compile (building, caching): techniques 0..1 the original's, 2..3 their twins,"
+          " 2 with ps copy_image_v011w_026g (every state the same), twice")
+
+
+def copy_technique(m, drawn):
+    m.w(SCREEN + 4, CONTEXT)
+    m.w(SCREEN + 0x10, COPY_EFFECT)
+    m.w(CONTEXT + 0x416C, drawn)
+    m.w(COPY_EFFECT + 0x5620, 7)
+    m.run(0x1BD3C1, {0x1BD3CA}, regs={UC_X86_REG_EDI: SCREEN, UC_X86_REG_EBX: 0})
+    assert m.emu.reg_read(UC_X86_REG_EAX) == COPY_EFFECT
+    return m.r(COPY_EFFECT + 0x5620)
+
+
+def check_copy(stock, patched):
+    for m, label in ((stock, "the original"), (patched, "before any project")):
+        for drawn in (RENDER_SCENE, LOBBY_SCENE):
+            assert copy_technique(m, drawn) == 0, label
+    patched.w(GAME_SCENE + 4, RENDER_SCENE)
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": profile(300)})
+    insert(patched, PROJECT)
+    assert copy_technique(patched, LOBBY_SCENE) == 0, "the lobby's frame"
+    assert copy_technique(patched, RENDER_SCENE) == 2, "0.11e's gamma copy on the marked scene"
+    remove(patched, PROJECT)
+    assert copy_technique(patched, RENDER_SCENE) == 0, "removed"
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": {"inscatter_distance": 300}})
+    insert(patched, PROJECT)
+    assert copy_technique(patched, RENDER_SCENE) == 0, "a profile without 0.11e's post"
+    remove(patched, PROJECT)
+    print("  ok the screen's gamma copy: technique 0 before a marked project, on the lobby's scene, after the"
+          " removal and for a profile without 0.11e's post; on the marked scene with it technique 2")
+
+
 def cone_pass(m, ps, vertex_input, config):
     """compile_begin to its begin_pass: (the VS in EAX, the PS pushed for it, the configuration)."""
     emu = m.emu
@@ -664,6 +718,9 @@ def main():
     check_tables_constants(stock, patched)
     stock, patched = Machine(original), Machine(bytes(built))
     check_cones(stock, patched)
+    stock, patched = Machine(original), Machine(bytes(built))
+    check_copy_compile(stock, patched)
+    check_copy(stock, patched)
 
 
 if __name__ == "__main__":

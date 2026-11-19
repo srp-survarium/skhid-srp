@@ -56,6 +56,8 @@ const POST_PS: &CStr = c"complex_post_process_blend_v011w_026g";
 const SKYLIGHT_PS: &CStr = c"skylight_v011w";
 const CLOUDS_ALPHA_BLEND_PS: &CStr = c"atmosphere_clouds_alpha_blend_v011w";
 const CLOUDS_MODULATE_PS: &CStr = c"atmosphere_clouds_modulate_v011w";
+/// 0.11e's gamma copy (pow(x, 1/(2.2 gamma)), 0.26g's copy_image.vs inputs).
+const COPY_PS: &CStr = c"copy_image_v011w_026g";
 
 /// The key of a material's effect config (`material/forward/effect`) whose
 /// volume cones are 0.11e's; only its presence counts.
@@ -190,7 +192,7 @@ impl Skylight {
 enum Post {
     /// 0.26g's blend.
     Native,
-    /// 0.11e's (the twin), with its filmic curve packed as 0.11e's
+    /// 0.11e's (the twin) and its gamma copy at the screen, with its filmic curve packed as 0.11e's
     /// stage_postprocess packs it: filmic_tonemap_packed_parameters_0
     /// (shoulder strength, linear strength, linear angle, toe strength) and _1
     /// (toe numerator, toe denominator, linear white, dark desaturation limit).
@@ -372,6 +374,7 @@ enum Twins {
     PostBlend,
     Skylight,
     Clouds,
+    Copy,
 }
 
 static ROUNDS_NOW: Lock<Rounds<Twins>> = Lock::new(Rounds::new());
@@ -614,6 +617,38 @@ pub fn on_post_blend_10_pass(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_post_blend_11_pass(ctx: &mut Context<'_>) -> Flow<NoExit> {
     twin_pass(ctx, CompileSite::PostBlend11Pass, PassSite::PostBlend11, Twins::PostBlend, POST_PS);
     Flow::Continue
+}
+
+/// effect_copy_image::compile's end: the first time back to technique 0, for
+/// the twins (2, 3); the second time its return.
+pub fn on_copy_compiled(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnCopyCompiledExit> {
+    use vostok::V011WRenderOnCopyCompiledExit as Exit;
+    let compiler = effect_compile::compiler_id(ctx, CompileSite::CopyEnd);
+    match ROUNDS_NOW.with(ctx.thread(), |rounds| rounds.end(compiler, Twins::Copy)) {
+        End::Return => Flow::Continue,
+        End::Twins => Flow::Exit(match effect_compile::pass(ctx, CompileSite::CopyEnd) {
+            Pass::Building => Exit::Begin,
+            Pass::Caching => Exit::Cached,
+        }),
+    }
+}
+
+/// Its technique 0 (the gamma copy) begins its pass: the twin's with 0.11e's.
+pub fn on_copy_pass_0(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    twin_pass(ctx, CompileSite::CopyPass0, PassSite::Copy, Twins::Copy, COPY_PS);
+    Flow::Continue
+}
+
+/// The screen's gamma copy: 0.11e's for a frame of the 0.11 weather's scene
+/// whose profile names 0.11e's post.
+pub fn on_copy_apply(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnCopyApplyExit> {
+    match look(ctx, StageSite::CopyApply) {
+        Look::V011w(Profile { post: Post::Filmic(_), .. }) => {
+            render_stage::set_copy_technique(ctx, render_stage::COPY_V011W);
+            Flow::Exit(vostok::V011WRenderOnCopyApplyExit::Applied)
+        }
+        Look::V011w(Profile { post: Post::Native, .. }) | Look::Native => Flow::Continue,
+    }
 }
 
 /// The post blend's pass: 0.11e's on the 0.11 weather's scene.

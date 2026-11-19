@@ -211,14 +211,17 @@ branch draws on a scene whose project carries `srp_renderer_v011w`.
 | 7 | resolve lighting | `resolve_lighting.ps`: `saturate(acc)² · 8` per accumulator, x albedo | linear sum x albedo | - | with 6 |
 | 8 | sky: scattering tables | `make_mie_rayleigh` into rt_rayleigh / rt_mie: rayleighSun, mieSun, rayleighPi, miePi (env +B8h..+C4h) | sun_intensity where 0.11e reads rayleighSun | `atmosphere.tables_constants`: 0.11e's four | none |
 | 9 | sky: atmosphere, clouds, sun/moon | `atmosphere_pass` on rt_generic_0, the clouds (alpha blend or modulate by `sky_clouds_blend_mode`) | the same order; clouds in the use_sky_clouds block (env +C9h) | 0.11e's sky and cloud programs, dome uv | none known |
-| 10 | forward | forward materials on rt_generic_0; `forward_volume_cone_base`: alpha = depth fade x distance fade (attenuation_scale·z) x spot falloff x **sphere falloff** x volume alpha x constant_transparency | 0.26g's cone program: (spot falloff - 0.1) x 0.1 x volume alpha x constant_transparency x depth fade, no sphere falloff; 0.26g's own cones carry constant_transparency 0.05, 0.11e's 1 | - | **medium**: 0.11e's program as a twin per marked material at `material.begin_pass` (patch 130's grass mechanism, the PS family instead of the VS) and 0.11e's `fx/sphere_falloff`; until then the opacity is calibrated |
+| 10 | forward | forward materials on rt_generic_0; `forward_volume_cone_base`: alpha = depth fade x distance fade (attenuation_scale·z) x spot falloff x **sphere falloff** x volume alpha x constant_transparency | 0.26g's cone program: (spot falloff - 0.1) x 0.1 x volume alpha x constant_transparency x depth fade, no sphere falloff; 0.26g's own cones carry constant_transparency 0.05, 0.11e's 1 | - | done: 0.11e's program (forward_volume_cone_base_v011w_<input>) per marked material at `material.begin_pass`, and 0.11e's `fx/sphere_falloff` |
 | 11 | atmosphere on geometry | two passes, `scattering_on_geometry_pass_mul` then `_add`, over rt_generic_0 | one pass | 0.11e's two passes and tables | none |
 | 12 | forward sky, rain, particles, volume fog | `stage_rain` drops (effect_rain technique 1), particles, volume fog | the same families | - | not compared pass by pass |
-| 13 | post | `complex_post_process_blend`: key = 1.03 - 2/(20·(log10(avg+1)+2)), exposure (key/avg)^0.2, avg clamped to [0.09, 0.4], 0.11e's filmic curve (eight numbers a weather), bloom, grain, colour grading | the same key formula, avg floored at 0.001 without the clamp, an exponential curve | the twin (0.11e's program) compiles; drawn without its frame inputs it is darker (f16): not used | **medium-large**: the twin's inputs (its adaptation and bloom chain), then the filmic numbers |
+| 13 | post | `complex_post_process_blend`: key = 1.03 - 2/(20·(log10(avg+1)+2)), exposure (key/avg)^0.2, avg clamped to [0.09, 0.4], 0.11e's filmic curve (eight numbers a weather), bloom, grain, colour grading | the same key formula, avg floored at 0.001 without the clamp, an exponential curve | the twin, on a profile with the filmic curve (the rain's) | the rest is the light encoding's |
+| 14 | screen (gamma copy) | `copy_image.ps`: x^(1/(2.2·gamma)) | 1.055·x^(1/(2.4·gamma)) − 0.055: darker in the shade (0.002 linear: 15 against 6 of 255) | 0.11e's (`copy_image_v011w_026g`) with 0.11e's post, on a profile with the filmic curve (the rain) | none |
 
 What it leaves, in the order it moves the picture (rain, factory_upper, mean luma of the upper, middle and
-lower thirds, 0.11e against c16): the post (13), 140/86 against 115/71 far and middle; the light encoding
-(6, 7), 59 against 36 near; the cones (10); the probe decode (5), covered by the multipliers.
+lower thirds, 0.11e against c16): the post (13) and its gamma copy (14), 140/86 against 115/71 far and middle
+(the post's input frame and its adapted luminance match 0.11e's at the tower: 0.179 / 0.174, 0.128 / 0.136);
+the light encoding (6, 7), 59 against 36 near; the probe decode (5), covered by the multipliers. The cones (10)
+are 0.11e's program now (patch 162, `srp_cone_v011w`).
 
 ## Evening fog numeric type
 

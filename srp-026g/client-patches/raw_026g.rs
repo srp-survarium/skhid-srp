@@ -26793,6 +26793,57 @@ impl StageAmbientLighting {
     }
 }
 
+/// A vostok::render::stage_screen_image (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StageScreenImage(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl StageScreenImage {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (stage's m_context, written by the constructor at 0x1BD207)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn context(self) -> Option<RendererContext> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (stage's m_context, written by the constructor at 0x1BD207)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_context(self, value: Option<RendererContext>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().write_volatile(value) }
+    }
+
+    /// +0x10 (ptr<vostok::render::res_effect>): its effect_copy_image (execute applies technique 0 at 0x1BD3CA, the effect loaded at 0x1BD3C1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn copy_effect(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<vostok::render::res_effect>): its effect_copy_image (execute applies technique 0 at 0x1BD3CA, the effect loaded at 0x1BD3C1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_copy_effect(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+}
+
 /// A vostok::render::skylight_fill_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -33305,6 +33356,60 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// copy.pass_0 (0x1d519c): effect_copy_image::compile (0x1D5130), technique 0 (the gamma copy), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F5844h and the call 0x3D9F60 at 0x1D51A8): ESP the PS name's slot (copy_image 0x9F5844, pushed at 0x1D5172); EBX the compiler; no base relocation in the span
+    pub mod copy_pass_0 {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// copy.compiled (0x1d535a): effect_copy_image::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its two techniques (copy_image, copy_image_simple) ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1D5146's jne), ESI zeroed on both paths and again before technique 1 (0x1D5241)
+    pub mod copy_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// screen.copy_apply (0x1bd3c4): stage_screen_image::execute, the gamma copy: mov [eax+5620h],ebx (EBX 0, technique 0) before res_effect::apply_pass 0x3D7230 at 0x1BD3CA (EAX the stage's copy effect, its +10h, loaded at 0x1BD3C1); applied skips the write; EDI the stage (execute's ECX, 0x1BD336)
+    pub mod screen_copy_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::render::stage_screen_image (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageScreenImage> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(StageScreenImage)
         }
     }
 

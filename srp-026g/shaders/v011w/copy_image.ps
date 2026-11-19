@@ -1,0 +1,21 @@
+#include "common.h"
+#include "gamma_correction.h"
+
+uniform float gamma_correction_factor;
+
+#if TARGET_026G		// 0.26g's copy_image.vs: the position, then the uv (its own copy_image.ps's input)
+struct v2p_copy_026g
+{
+	float4	HPos	: SV_POSITION;
+	float2	Tex0	: TEXCOORD0;
+};
+
+float4 main( v2p_copy_026g vin) : SV_TARGET
+#else
+float4 main( v2p_TL vin) : SV_TARGET
+#endif
+{
+	float4 color = t_base.Sample( s_accumulator, vin.Tex0);
+
+	return float4( convert_from_linear_space( color.xyz, gamma_correction_factor), 1.0f);
+}

@@ -11080,6 +11080,132 @@ v021d_render_on_material_pass_replay:
     db 0x8b, 0x44, 0x24, 0x2c, 0x56, 0x55
     jmp 0x1cd1bc
 
+; 0x1d535a effect_copy_image::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its two techniques (copy_image, copy_image_simple) ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1D5146's jne), ESI zeroed on both paths and again before technique 1 (0x1D5241): lohook -> v011w_render_on_copy_compiled
+global v011w_render_on_copy_compiled
+extern hook_v011w_render_on_copy_compiled
+v011w_render_on_copy_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_copy_compiled
+    mov edx, v011w_render_on_copy_compiled_replay
+    cmp eax, 0
+    je v011w_render_on_copy_compiled_go
+    mov edx, 0x1d5360
+    cmp eax, 1
+    je v011w_render_on_copy_compiled_go
+    mov edx, 0x1d5148
+    cmp eax, 2
+    je v011w_render_on_copy_compiled_go
+    mov edx, 0x1d516b
+    cmp eax, 3
+    je v011w_render_on_copy_compiled_go
+    ud2
+v011w_render_on_copy_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_copy_compiled_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1d5360
+
+; 0x1d519c effect_copy_image::compile (0x1D5130), technique 0 (the gamma copy), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F5844h and the call 0x3D9F60 at 0x1D51A8): ESP the PS name's slot (copy_image 0x9F5844, pushed at 0x1D5172); EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_copy_pass_0
+global v011w_render_on_copy_pass_0
+extern hook_v011w_render_on_copy_pass_0
+v011w_render_on_copy_pass_0:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_copy_pass_0
+    mov edx, v011w_render_on_copy_pass_0_replay
+    cmp eax, 0
+    je v011w_render_on_copy_pass_0_go
+    mov edx, 0x1d51a3
+    cmp eax, 1
+    je v011w_render_on_copy_pass_0_go
+    ud2
+v011w_render_on_copy_pass_0_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_copy_pass_0_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1d51a3
+
+; 0x1bd3c4 stage_screen_image::execute, the gamma copy: mov [eax+5620h],ebx (EBX 0, technique 0) before res_effect::apply_pass 0x3D7230 at 0x1BD3CA (EAX the stage's copy effect, its +10h, loaded at 0x1BD3C1); applied skips the write; EDI the stage (execute's ECX, 0x1BD336): lohook -> v011w_render_on_copy_apply
+global v011w_render_on_copy_apply
+extern hook_v011w_render_on_copy_apply
+v011w_render_on_copy_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_copy_apply
+    mov edx, v011w_render_on_copy_apply_replay
+    cmp eax, 0
+    je v011w_render_on_copy_apply_go
+    mov edx, 0x1bd3ca
+    cmp eax, 1
+    je v011w_render_on_copy_apply_go
+    mov edx, 0x1bd3ca
+    cmp eax, 2
+    je v011w_render_on_copy_apply_go
+    ud2
+v011w_render_on_copy_apply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_copy_apply_replay:
+    db 0x89, 0x98, 0x20, 0x56, 0x00, 0x00
+    jmp 0x1bd3ca
+
 ; 0x1ce5be effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v021d_render_on_wet_surface_compiled
 global v021d_render_on_wet_surface_compiled
 extern hook_v021d_render_on_wet_surface_compiled

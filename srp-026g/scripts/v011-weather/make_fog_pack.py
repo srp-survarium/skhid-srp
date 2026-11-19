@@ -3,7 +3,7 @@ v011w_render: its additive geometry fog in 0.26g's own additive fog program, and
 sky, skylight, clouds and post as the twin families the patch compiles (make_mie_rayleigh_texture_v011w,
 atmosphere_v011w, skylight_v011w, atmosphere_clouds_alpha_blend_v011w, atmosphere_clouds_modulate_v011w,
 complex_post_process_blend_v011w_026g: 0.11e's post on 0.26g's inputs, under the plain key: shaders/masks lists no define of a family it does not name);
-and 0.11e's light cones: its forward_volume_cone_base for vertex inputs 1..6 (forward_volume_cone_base_v011w_<n>,
+its gamma copy (copy_image_v011w_026g, pow(x, 1/(2.2*gamma)) where 0.26g's copy is sRGB-like); and 0.11e's light cones: its forward_volume_cone_base for vertex inputs 1..6 (forward_volume_cone_base_v011w_<n>,
 which the patch gives a marked cone material's passes) and the falloff its cones read and 0.26g has none of,
 textures/fx/sphere_falloff (from ORIGINAL_DB, 0.11e's resources.db; 0.26g's effect binds it by that name).
 
@@ -47,7 +47,7 @@ def main():
         [path] = build()
         twins = (build('--twin', 'make_mie_rayleigh_texture', 'atmosphere', 'skylight') + build('--post-twin')
                  + build('--twin-of', 'atmosphere_clouds', 'atmosphere_clouds_alpha_blend', 'atmosphere_clouds_modulate')
-                 + build('--cone'))
+                 + build('--cone') + build('--copy'))
         for name in [path, *twins]:
             (out / 'files' / name).parent.mkdir(parents=True, exist_ok=True)
             (out / 'files' / name).write_bytes(Path(tmp, 'built', name).read_bytes())
@@ -59,7 +59,7 @@ def main():
             (out / 'files' / name).write_bytes(data)
         twins += list(SPHERE_FALLOFF)
     pack = {
-        'format_version': 1, 'id': 'v011e-radar-fog', 'version': '12', 'target_build': '0.26g',
+        'format_version': 1, 'id': 'v011e-radar-fog', 'version': '13', 'target_build': '0.26g',
         'description': "0.11e's atmosphere for exe patch v011w_render: its additive geometry fog in 0.26g's own "
                        "additive fog program (technique 4 of effect_atmospheric_scattering, which only the patch "
                        "draws), its scattering tables, sky, skylight, clouds and post as the twin families the patch compiles, "
