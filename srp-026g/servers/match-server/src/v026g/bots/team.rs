@@ -246,7 +246,7 @@ pub struct AttackPicture<'a> {
 }
 
 /// The ground distance from `p` to the segment `a`-`b`.
-fn to_segment(p: Vec3, a: Vec3, b: Vec3) -> f32 {
+pub(crate) fn to_segment(p: Vec3, a: Vec3, b: Vec3) -> f32 {
     let (dx, dz) = (b.x - a.x, b.z - a.z);
     let len2 = dx * dx + dz * dz;
     let t = if len2 > 0.0 { (((p.x - a.x) * dx + (p.z - a.z) * dz) / len2).clamp(0.0, 1.0) } else { 0.0 };
