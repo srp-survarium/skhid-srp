@@ -10,10 +10,12 @@
 //! Two runs, both `#[ignore]`d and driven by the environment (with the bench's own: `SRP_MAPDATA_DIR`, `SRP_GAME_DATA`,
 //! `SRP_BENCH_GRID_CACHE`, the preset's `SRP_BENCH_*`):
 //! - `spot_suite_plan`: `SRP_SPOT_SUITE_SPOTS=<spots-v1.tsv>`, `SRP_SPOT_SUITE_STARTS=<out tsv>`: per spot, its point P (the
-//!   link's landing, or the spot's centre), its take-off A (the link's start); the goal G: the grid floor 4-10 m of way past P,
-//!   furthest from A (from P when A is P); the starts: grid floors 10-30 m from P (flat) whose shortest grid way to G passes A
-//!   then P, the three most direct ones of different bearings. With no such floor, G = P; with none still, the spot has no
-//!   grid way through it (`via` no-route). Made once and kept, so every commit walks the same starts.
+//!   link's landing, or the spot's centre), its take-off A (the link's start); the goal G: a floor on P's own top 1.5-4 m from
+//!   P, furthest from A (from P when A is P), that the server's `off_lip` leaves where it is (`via` top); else one 4-10 m of
+//!   grid way past P (`via` past); the starts: floors 10-30 m from P (12 bearings x 4 distances) whose route to G by the
+//!   server's own planner (`path::plan`) passes A then P, the three most direct ones of different bearings. With no such
+//!   start for any of those goals, G = P when `off_lip` leaves P where it is (`via` goal-at-spot); with none still, no route
+//!   of the planner goes through the spot (`via` no-route). Made once and kept, so every commit walks the same starts.
 //! - `spot_suite_run`: `SRP_SPOT_SUITE_STARTS=<starts tsv>`, `SRP_SPOT_SUITE_OUT=<results tsv>`, optional
 //!   `SRP_SPOT_SUITE_ONLY=S001,S017`, `SRP_SPOT_SUITE_THREADS=<n>` (default 2), `SRP_SPOT_SUITE_SECONDS` (default 60).
 //!   One line a start: whether the bot reached G, passed P, and its ERRORS, read from its own notes:
@@ -25,7 +27,9 @@
 //!   - `noway`: "no way" to its goal;
 //!   - `died`: the body died;
 //!   - `timeout`: not at G after the limit.
-//!   A spot passes when every start reaches G with 0 errors.
+//!
+//! A spot passes when every start reaches G with 0 errors. A start whose bot walked to another goal than G (the server's
+//! `off_lip` moved it: the `resolved` columns) is a SETUP error of the suite, not of the spot (`setup` 1).
 
 use std::collections::{BinaryHeap, HashMap};
 use std::io::Write;
@@ -40,9 +44,16 @@ use super::settings::bench_settings;
 /// The starts: this far from P across the ground, m.
 const START_MIN_M: f32 = 10.0;
 const START_MAX_M: f32 = 30.0;
-/// The goal: this much grid way past P, m.
-const GOAL_MIN_M: f32 = 4.0;
-const GOAL_MAX_M: f32 = 10.0;
+/// The goal: on P's own top (within this in height), this far past P across the ground, m, and off any lip (the server's
+/// `path::off_lip` leaves it where it is: a goal on or near a lip is moved, possibly down off the top, fix-move's map 91 case).
+const GOAL_TOP_Y_M: f32 = 0.3;
+const GOAL_MIN_M: f32 = 1.5;
+const GOAL_MAX_M: f32 = 4.0;
+/// With no such floor: one this much grid way past P (any height), still off any lip.
+const GOAL_FAR_MIN_M: f32 = 4.0;
+const GOAL_FAR_MAX_M: f32 = 10.0;
+/// The bot's resolved goal (its motor's, after every override) farther than this from G is a SETUP error, m.
+const RESOLVED_M: f32 = 0.3;
 /// The floors looked at around P: half the side of the square, m.
 const BOX_M: f32 = 45.0;
 /// A way passes a point within this across the ground and this in height, m.
@@ -136,12 +147,11 @@ fn floor_of(grid: &WalkGrid, p: Vec3) -> Option<NodeId> {
         .or_else(|| grid.locate(p, 2.0))
 }
 
-/// The floors in the box around P, with their links inside it (forward and reverse).
+/// The floors in the box around P, with their links inside it.
 struct Local {
     nodes: Vec<NodeId>,
     index: HashMap<NodeId, usize>,
     fwd: Vec<Vec<usize>>,
-    rev: Vec<Vec<usize>>,
 }
 
 impl Local {
@@ -149,20 +159,18 @@ impl Local {
         let nodes: Vec<NodeId> = grid.floors_in([p.x - BOX_M, p.z - BOX_M, p.x + BOX_M, p.z + BOX_M]).collect();
         let index: HashMap<NodeId, usize> = nodes.iter().enumerate().map(|(i, &n)| (n, i)).collect();
         let mut fwd = vec![Vec::new(); nodes.len()];
-        let mut rev = vec![Vec::new(); nodes.len()];
         for (i, &n) in nodes.iter().enumerate() {
             for (m, _) in grid.links(n) {
                 if let Some(&j) = index.get(&m) {
                     fwd[i].push(j);
-                    rev[j].push(i);
                 }
             }
         }
-        Self { nodes, index, fwd, rev }
+        Self { nodes, index, fwd }
     }
 
-    /// Dijkstra from `from` over `fwd` (or `rev`), cost flat + rise, up to `limit_m`: (cost mm, the next node toward `from`).
-    fn dijkstra(&self, grid: &WalkGrid, from: usize, reverse: bool, limit_m: f32) -> Vec<Option<(u32, usize)>> {
+    /// Dijkstra from `from` over the links, cost flat + rise, up to `limit_m`: (cost mm, the node before).
+    fn dijkstra(&self, grid: &WalkGrid, from: usize, limit_m: f32) -> Vec<Option<(u32, usize)>> {
         let mut best: Vec<Option<(u32, usize)>> = vec![None; self.nodes.len()];
         best[from] = Some((0, from));
         let mut heap = BinaryHeap::from([(std::cmp::Reverse(0u32), from)]);
@@ -172,10 +180,9 @@ impl Local {
                 continue;
             }
             let p = grid.position(self.nodes[i]);
-            let next = if reverse { &self.rev[i] } else { &self.fwd[i] };
-            for &j in next {
+            for &j in &self.fwd[i] {
                 let q = grid.position(self.nodes[j]);
-                let nd = d + if reverse { cost(q, p) } else { cost(p, q) };
+                let nd = d + cost(p, q);
                 if nd <= limit && best[j].is_none_or(|(b, _)| nd < b) {
                     best[j] = Some((nd, i));
                     heap.push((std::cmp::Reverse(nd), j));
@@ -197,67 +204,104 @@ fn plan_spot(grid: &WalkGrid, p: Vec3, a: Vec3) -> Option<(Vec3, Vec<Start>, &'s
     let pn = floor_of(grid, p).and_then(|n| local.index.get(&n).copied())?;
     let p_at = grid.position(local.nodes[pn]);
     let a_distinct = flat(a, p_at) >= 0.5 || (a.y - p_at.y).abs() >= 0.5;
-    let past = local.dijkstra(grid, pn, false, GOAL_MAX_M);
+    let past = local.dijkstra(grid, pn, GOAL_FAR_MAX_M);
     let away_from = if a_distinct { a } else { p_at };
-    let goal = past
-        .iter()
-        .enumerate()
-        .filter_map(|(i, b)| b.filter(|(d, _)| (GOAL_MIN_M * 1000.0) as u32 <= *d).map(|_| i))
-        .max_by(|&i, &j| flat(grid.position(local.nodes[i]), away_from).total_cmp(&flat(grid.position(local.nodes[j]), away_from)));
-    for (g, via) in [(goal, "link"), (Some(pn), "goal-at-spot")] {
+    // Where the server leaves a goal: its own floor (`locate`), and not moved off a lip.
+    let stays = |i: usize| {
+        let at = grid.position(local.nodes[i]);
+        grid.locate(at, 1.0) == Some(local.nodes[i]) && crate::v026g::bots::path::off_lip(grid, at).is_none()
+    };
+    let furthest = |pick: &dyn Fn(usize, u32) -> bool| {
+        past.iter()
+            .enumerate()
+            .filter_map(|(i, b)| b.filter(|&(d, _)| pick(i, d) && stays(i)).map(|_| i))
+            .max_by(|&i, &j| flat(grid.position(local.nodes[i]), away_from).total_cmp(&flat(grid.position(local.nodes[j]), away_from)))
+    };
+    let on_top = furthest(&|i, _| {
+        let q = grid.position(local.nodes[i]);
+        (q.y - p_at.y).abs() <= GOAL_TOP_Y_M && (GOAL_MIN_M..=GOAL_MAX_M).contains(&flat(q, p_at))
+    });
+    let far = furthest(&|_, d| (GOAL_FAR_MIN_M * 1000.0) as u32 <= d);
+    // A second goal past P, away from the first (the way on may fork).
+    let far2 = far.and_then(|f| {
+        let first = grid.position(local.nodes[f]);
+        furthest(&|i, d| (GOAL_FAR_MIN_M * 1000.0) as u32 <= d && flat(grid.position(local.nodes[i]), first) >= 4.0)
+    });
+    let at_spot = stays(pn).then_some(pn);
+    // The candidate starts: the floor nearest P's height near each of 12 bearings x 4 distances from P, one a body can be at
+    // (reached from a spawn and back).
+    let mut candidates: Vec<NodeId> = Vec::new();
+    for k in 0..12 {
+        let angle = k as f32 * std::f32::consts::TAU / 12.0;
+        for d in [12.0, 18.0, 24.0, 30.0f32] {
+            let c = Vec3::new(p_at.x + d * angle.cos(), p_at.y, p_at.z + d * angle.sin());
+            if let Some(n) = grid
+                .floors_in([c.x - 1.5, c.z - 1.5, c.x + 1.5, c.z + 1.5])
+                .filter(|&n| grid.reached(n) && grid.returns(n) && (START_MIN_M..=START_MAX_M).contains(&flat(grid.position(n), p_at)))
+                .min_by(|&x, &y| (grid.position(x).y - c.y).abs().total_cmp(&(grid.position(y).y - c.y).abs()))
+                && !candidates.contains(&n)
+            {
+                candidates.push(n);
+            }
+        }
+    }
+    for (g, via) in [(on_top, "top"), (far, "past"), (far2, "past"), (at_spot, "goal-at-spot")] {
         let Some(g) = g else { continue };
-        let to_goal = local.dijkstra(grid, g, true, 3.0 * START_MAX_M);
-        let mut found: Vec<(f32, f32, usize, f32)> = Vec::new(); // (directness, bearing, node, way m)
-        for (i, b) in to_goal.iter().enumerate() {
-            let Some((d, _)) = *b else { continue };
-            let s = grid.position(local.nodes[i]);
-            let r = flat(s, p_at);
-            if !(START_MIN_M..=START_MAX_M).contains(&r) || !grid.reached(local.nodes[i]) || !grid.returns(local.nodes[i]) {
-                continue;
-            }
-            // Follow the way to G: A then P (P alone when A is P).
-            let (mut k, mut seen_a, mut seen_p) = (i, !a_distinct, false);
-            let mut hops = 0;
-            while let Some((_, next)) = to_goal[k] {
-                let q = grid.position(local.nodes[k]);
-                seen_a |= near(q, a);
-                seen_p |= seen_a && near(q, p_at);
-                if k == g || hops > 100_000 {
-                    break;
-                }
-                k = next;
-                hops += 1;
-            }
-            if seen_p {
-                let way_m = d as f32 / 1000.0;
-                let bearing = (s.z - p_at.z).atan2(s.x - p_at.x).to_degrees();
-                found.push((way_m / (flat(s, grid.position(local.nodes[g])) + 1.0), bearing, i, way_m));
+        let goal = local.nodes[g];
+        // (directness, bearing, start, route m): the server's own route (`path::plan`) passes A, then P.
+        let mut found: Vec<(f32, f32, NodeId, f32)> = Vec::new();
+        for &s in &candidates {
+            let Some(route) = crate::v026g::bots::path::plan(grid, s, goal) else { continue };
+            let points: Vec<Vec3> = route.points().iter().map(|w| w.at).collect();
+            let hit = |q: Vec3| (0..points.len()).find(|&i| passes(&points, i, q));
+            let ok = match (a_distinct, hit(p_at)) {
+                (_, None) => false,
+                (false, Some(_)) => true,
+                (true, Some(pi)) => hit(a).is_some_and(|ai| ai <= pi),
+            };
+            if ok {
+                let at = grid.position(s);
+                let bearing = (at.z - p_at.z).atan2(at.x - p_at.x).to_degrees();
+                found.push((route.length() / (flat(at, grid.position(goal)) + 1.0), bearing, s, route.length()));
             }
         }
         if found.is_empty() {
             continue;
         }
         found.sort_by(|x, y| x.0.total_cmp(&y.0));
-        let mut chosen: Vec<(f32, f32, usize, f32)> = Vec::new();
+        let mut chosen: Vec<(f32, f32, NodeId, f32)> = Vec::new();
         for apart in [BEARING_APART_DEG, 15.0, 0.0] {
             for f in &found {
                 if chosen.len() >= 3 {
                     break;
                 }
-                let off = |c: &(f32, f32, usize, f32)| {
+                let off = |c: &(f32, f32, NodeId, f32)| {
                     let d = (c.1 - f.1).rem_euclid(360.0);
                     d.min(360.0 - d)
                 };
-                let far = |c: &(f32, f32, usize, f32)| flat(grid.position(local.nodes[c.2]), grid.position(local.nodes[f.2])) >= 3.0;
+                let far = |c: &(f32, f32, NodeId, f32)| flat(grid.position(c.2), grid.position(f.2)) >= 3.0;
                 if chosen.iter().all(|c| c.2 != f.2 && off(c) >= apart && far(c)) {
                     chosen.push(*f);
                 }
             }
         }
-        let starts = chosen.iter().map(|c| Start { at: grid.position(local.nodes[c.2]), way_m: c.3 }).collect();
-        return Some((grid.position(local.nodes[g]), starts, via));
+        let starts = chosen.iter().map(|c| Start { at: grid.position(c.2), way_m: c.3 }).collect();
+        return Some((grid.position(goal), starts, via));
     }
     None
+}
+
+/// Whether the route's leg from point `i` to the next (or point `i` itself, for the last) passes `q`: within PASS_M across
+/// the ground of the leg, at the leg's height there within PASS_Y_M.
+fn passes(points: &[Vec3], i: usize, q: Vec3) -> bool {
+    let a = points[i];
+    let Some(&b) = points.get(i + 1) else { return near(a, q) };
+    let (dx, dz) = (b.x - a.x, b.z - a.z);
+    let len2 = dx * dx + dz * dz;
+    let t = if len2 < 1e-6 { 0.0 } else { (((q.x - a.x) * dx + (q.z - a.z) * dz) / len2).clamp(0.0, 1.0) };
+    let on = Vec3::new(a.x + t * dx, a.y + t * (b.y - a.y), a.z + t * dz);
+    // A link's leg (a jump, a drop) changes height at its end: either end's height counts.
+    flat(on, q) <= PASS_M && [on.y, a.y, b.y].iter().any(|y| (y - q.y).abs() <= PASS_Y_M)
 }
 
 #[test]
@@ -296,7 +340,7 @@ fn spot_suite_plan() {
                         lines.push(format!("{spot}\t{project}\t{k}\t{via}\t{kind}\t{}\t{}\t{}\t{}\t{:.1}", fmt(s.at), fmt(g), fmt(p), fmt(a), s.way_m));
                     }
                 }
-                _ => lines.push(format!("{spot}\t{project}\t-\tno-route\t{kind}\tnan\tnan\tnan\tnan\tnan\tnan\t{}\t{}\tnan")),
+                _ => lines.push(format!("{spot}\t{project}\t-\tno-route\t{kind}\tnan\tnan\tnan\tnan\tnan\tnan\t{}\t{}\tnan", fmt(p), fmt(a))),
             }
             eprintln!("{spot} {project} planned");
         }
@@ -318,6 +362,8 @@ struct Outcome {
     died: bool,
     first: Option<String>,
     end: Vec3,
+    /// The goal the bot's motor walked to (after `off_lip` and every override), at its first motor tick.
+    resolved: Option<Vec3>,
 }
 
 impl Outcome {
@@ -359,7 +405,17 @@ impl Outcome {
 }
 
 /// One walk: the lone bot from `start` to `goal` through A and P.
-fn walk(world: &Arc<World>, project: &str, start: Vec3, goal: Vec3, a: Vec3, p: Vec3, limit_ms: u32, seed: u32) -> Outcome {
+/// One start of a spot: where the bot starts, its goal, the take-off and the spot's point.
+#[derive(Clone, Copy)]
+struct Leg {
+    start: Vec3,
+    goal: Vec3,
+    a: Vec3,
+    p: Vec3,
+}
+
+fn walk(world: &Arc<World>, project: &str, leg: &Leg, limit_ms: u32, seed: u32) -> Outcome {
+    let Leg { start, goal, a, p } = *leg;
     let (level, mode) = rule_mode(project);
     let teams = [0u8, 1];
     let driven = [true, false];
@@ -477,6 +533,11 @@ fn walk(world: &Arc<World>, project: &str, start: Vec3, goal: Vec3, a: Vec3, p: 
                 out.note(&note.text, clock, a, p);
             }
         }
+        if out.resolved.is_none()
+            && let Some(Some(crate::v026g::bots::plays::Go::To { at, .. })) = bots.bots[0].as_ref().map(|bot| bot.bench_go)
+        {
+            out.resolved = Some(at);
+        }
         for made in made {
             let r = made.input.rotation;
             let turn = (half_value(u16::from_le_bytes([r[0], r[1]])), half_value(u16::from_le_bytes([r[2], r[3]])));
@@ -509,7 +570,7 @@ fn spot_suite_run() {
     let out = Mutex::new(std::fs::File::create(&out_path).unwrap_or_else(|e| panic!("{out_path}: {e}")));
     writeln!(
         out.lock().unwrap(),
-        "spot\tproject\tstart\tvia\tlink_kind\treached\treach_ms\tpassed\terrors\tstuck\tjump\tdead\tfall\tlip\tnoway\tdied\ttimeout\tend_x\tend_y\tend_z\tfirst_error"
+        "spot\tproject\tstart\tvia\tlink_kind\treached\treach_ms\tpassed\terrors\tstuck\tjump\tdead\tfall\tlip\tnoway\tdied\ttimeout\tend_x\tend_y\tend_z\tsetup\tresolved_x\tresolved_y\tresolved_z\tfirst_error"
     )
     .unwrap();
     for project in projects {
@@ -531,10 +592,13 @@ fn spot_suite_run() {
                     let line = match (v3(row, "sx", "sy", "sz"), v3(row, "gx", "gy", "gz"), v3(row, "px", "py", "pz")) {
                         (Some(s), Some(g), Some(p)) => {
                             let a = v3(row, "ax", "ay", "az").unwrap_or(p);
-                            let o = walk(&world, &project, s, g, a, p, limit_ms, i as u32);
+                            let o = walk(&world, &project, &Leg { start: s, goal: g, a, p }, limit_ms, i as u32);
                             let timeout = o.reached_ms.is_none() && !o.died;
+                            // SETUP: the bot's own goal is not G (moved off a lip, or never walked to).
+                            let setup = o.resolved.is_none_or(|r| flat(r, g) > RESOLVED_M || (r.y - g.y).abs() > RESOLVED_M);
+                            let r = o.resolved.unwrap_or(Vec3::new(f32::NAN, f32::NAN, f32::NAN));
                             format!(
-                                "{head}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.2}\t{:.2}\t{:.2}\t{}",
+                                "{head}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.2}\t{:.2}\t{:.2}\t{}\t{:.2}\t{:.2}\t{:.2}\t{}",
                                 u8::from(o.reached_ms.is_some()),
                                 o.reached_ms.map_or("-".to_owned(), |t| t.to_string()),
                                 u8::from(o.passed),
@@ -550,10 +614,14 @@ fn spot_suite_run() {
                                 o.end.x,
                                 o.end.y,
                                 o.end.z,
+                                u8::from(setup),
+                                r.x,
+                                r.y,
+                                r.z,
                                 o.first.clone().unwrap_or_else(|| if timeout { "timeout".into() } else { "-".into() })
                             )
                         }
-                        _ => format!("{head}\t0\t-\t0\t1\t0\t0\t0\t0\t0\t0\t0\t0\tnan\tnan\tnan\tno grid way through the spot"),
+                        _ => format!("{head}\t0\t-\t0\t1\t0\t0\t0\t0\t0\t0\t0\t0\tnan\tnan\tnan\t0\tnan\tnan\tnan\tno grid way through the spot"),
                     };
                     writeln!(out.lock().unwrap(), "{line}").unwrap();
                 });
