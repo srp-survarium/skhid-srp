@@ -100,6 +100,9 @@ pub struct GapPress {
     pub share: mapdata::Share,
     /// [A386 R83/R94] Where the press is aimed off the link's line ([`PressAim`]).
     pub aim: PressAim,
+    /// [retarget] The grid way the press was flown along (`mapdata::grid::gap::OffLink::way`); None: the link's own line, from
+    /// the take-off to the landing ([`Leap::press_way`]).
+    pub way: Option<mapdata::grid::GridWay>,
 }
 
 /// [A386 R83/R94] A press aimed off its link's line, as the grid flew it: the builder's [`mapdata::grid::Aim`] (`R83-FORMAT.md`,
@@ -119,6 +122,8 @@ pub struct SprintPress {
     pub aim: PressAim,
     /// [item 10] What the keys do once the jump has landed, as the grid flew it ([`AfterLanding`]).
     pub after: AfterLanding,
+    /// [retarget] The grid way the press was flown along, as [`GapPress::way`].
+    pub way: Option<mapdata::grid::GridWay>,
 }
 
 /// [item 10] The keys after a sprint link's landing, as the grid flew it (`mapdata::controller::jump::Kind::SprintHeld`).
@@ -155,7 +160,7 @@ impl RiserPress {
     fn of(riser: Option<mapdata::grid::Riser>) -> Self {
         match riser {
             None => Self::Unflown,
-            Some(mapdata::grid::Riser::Pressed { press, share }) => Leap::of_press(press, share, None, PressAim::STRAIGHT).map_or(Self::NoPress, Self::Flown),
+            Some(mapdata::grid::Riser::Pressed { press, share }) => Leap::of_press(press, share, None, PressAim::STRAIGHT, None).map_or(Self::NoPress, Self::Flown),
             Some(mapdata::grid::Riser::NoPress) => Self::NoPress,
         }
     }
@@ -167,7 +172,7 @@ impl RiserPress {
     fn of_climb(link: &mapdata::grid::gap::OffLink) -> Self {
         match link.walk {
             Some((lead, share)) if link.aim == PressAim::STRAIGHT => {
-                Self::Flown(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share, aim: PressAim::STRAIGHT }))
+                Self::Flown(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share, aim: PressAim::STRAIGHT, way: None }))
             }
             _ => Self::NoPress,
         }
@@ -180,7 +185,7 @@ impl Leap {
     pub fn window(self) -> Option<mapdata::grid::gap::TakeoffWindow> {
         use mapdata::grid::gap::Takeoff;
         match self {
-            Leap::Gap(GapPress { lead, walk, share, aim }) => {
+            Leap::Gap(GapPress { lead, walk, share, aim, .. }) => {
                 let press = match walk {
                     WalkPress::Cap => Takeoff::Press(lead),
                     WalkPress::Slow(steps) => Takeoff::Slow { lead, steps },
@@ -214,9 +219,34 @@ impl Leap {
         }
     }
 
+
+    /// [retarget] The line this press is lined up and pressed along, flat and unit, for a link from `take_off` to `landing`: the
+    /// grid way the builder flew it along ([`GapPress::way`]) where it has one, else the line from the take-off to the landing
+    /// (a ledge, a link no grid way flew, a file before). The builder flies every rim and gap press along one of the grid's 8 ways
+    /// and keeps the link to the floor the flight rests on, which can lie off that way (Vector Laboratory day_2: 4,327 of 15,045
+    /// pressed links 1 deg or more off it, 1,938 of them 15-22.5 deg); the press point and heading are on the way
+    /// (`controller::jump::press_point`). None where the take-off and landing are one point across and no way is stored.
+    pub fn press_way(self, take_off: Vec3, landing: Vec3) -> Option<[f32; 2]> {
+        let stored = match self {
+            Leap::Gap(GapPress { way, .. }) | Leap::SprintGap(SprintPress { way, .. }) => way,
+            Leap::Ledge | Leap::SprintLedge => None,
+        };
+        match stored {
+            Some(way) => {
+                let (x, z) = way.unit();
+                Some([x, z])
+            }
+            None => {
+                let (dx, dz) = (landing.x - take_off.x, landing.z - take_off.z);
+                let len = dx.hypot(dz);
+                (len > 1e-6).then(|| [dx / len, dz / len])
+            }
+        }
+    }
+
     /// [A386] A gap link's press, from the grid's link (`gap::OffLink`): None for a walk-off (no key).
     pub fn of_link(link: &mapdata::grid::gap::OffLink) -> Option<Self> {
-        Self::of_press(link.press, link.share, link.walk, link.aim)
+        Self::of_press(link.press, link.share, link.walk, link.aim, link.way)
     }
 
     /// [A386] A flown press with its share (and a sprint press's walking one): None for a walk-off (no key).
@@ -227,25 +257,28 @@ impl Leap {
         share: mapdata::Share,
         walk: Option<(mapdata::PressLead, mapdata::Share)>,
         aim: PressAim,
+        way: Option<mapdata::grid::GridWay>,
     ) -> Option<Self> {
         use mapdata::grid::gap::Takeoff;
         match press {
-            Takeoff::Press(lead) => Some(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share, aim })),
-            Takeoff::Slow { lead, steps } => Some(Leap::Gap(GapPress { lead, walk: WalkPress::Slow(steps), share, aim })),
+            Takeoff::Press(lead) => Some(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share, aim, way })),
+            Takeoff::Slow { lead, steps } => Some(Leap::Gap(GapPress { lead, walk: WalkPress::Slow(steps), share, aim, way })),
             Takeoff::Sprint(lead) => Some(Leap::SprintGap(SprintPress {
                 lead,
                 share,
-                walk: walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share, aim }),
+                walk: walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share, aim, way }),
                 aim,
                 after: AfterLanding::LetGo,
+                way,
             })),
             // [item 10] The held sprint: the same jump, the forward key held on after the landing.
             Takeoff::SprintHeld(lead) => Some(Leap::SprintGap(SprintPress {
                 lead,
                 share,
-                walk: walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share, aim }),
+                walk: walk.map(|(lead, share)| GapPress { lead, walk: WalkPress::Cap, share, aim, way }),
                 aim,
                 after: AfterLanding::Held { steps: mapdata::controller::jump::HELD_STEPS },
+                way,
             })),
             // [S1] A sprint climb presses nothing: its top is a riser of the route (`Route::risers`), sprinted into.
             // [A1b] A walk-off at release presses nothing either: the route keeps it ([`Route::walk_off_at`]).
@@ -2299,11 +2332,11 @@ mod tests {
         let lead = PressLead::from_metres(0.9);
         assert_eq!(
             Leap::of_link(&link(Takeoff::Press(lead), None)),
-            Some(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share: Share::landed(11), aim: PressAim::STRAIGHT }))
+            Some(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share: Share::landed(11), aim: PressAim::STRAIGHT, way: None }))
         );
         assert_eq!(
             Leap::of_link(&link(Takeoff::Slow { lead, steps: 2 }, None)),
-            Some(Leap::Gap(GapPress { lead, walk: WalkPress::Slow(2), share: Share::landed(11), aim: PressAim::STRAIGHT }))
+            Some(Leap::Gap(GapPress { lead, walk: WalkPress::Slow(2), share: Share::landed(11), aim: PressAim::STRAIGHT, way: None }))
         );
         let walk = PressLead::from_metres(1.2);
         assert_eq!(
@@ -2311,9 +2344,10 @@ mod tests {
             Some(Leap::SprintGap(SprintPress {
                 lead,
                 share: Share::landed(11),
-                walk: Some(GapPress { lead: walk, walk: WalkPress::Cap, share: Share::landed(4), aim: PressAim::STRAIGHT }),
+                walk: Some(GapPress { lead: walk, walk: WalkPress::Cap, share: Share::landed(4), aim: PressAim::STRAIGHT, way: None }),
                 aim: PressAim::STRAIGHT,
                 after: AfterLanding::LetGo,
+                way: None,
             }))
         );
         // [item 10] A held sprint: the same press, the forward key held on after the landing.
@@ -2334,7 +2368,7 @@ mod tests {
         assert_eq!(RiserPress::of(Some(mapdata::grid::Riser::NoPress)), RiserPress::NoPress);
         assert_eq!(
             RiserPress::of(Some(mapdata::grid::Riser::Pressed { press: Takeoff::Press(lead), share: Share::landed(7) })),
-            RiserPress::Flown(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share: Share::landed(7), aim: PressAim::STRAIGHT }))
+            RiserPress::Flown(Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share: Share::landed(7), aim: PressAim::STRAIGHT, way: None }))
         );
     }
     use crate::v026g::bots::body::tests::walled;
