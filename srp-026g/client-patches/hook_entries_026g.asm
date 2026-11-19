@@ -11164,7 +11164,7 @@ v011w_render_on_copy_pass_0_replay:
     db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
     jmp 0x1d51a3
 
-; 0x1bd3c4 stage_screen_image::execute, the gamma copy: mov [eax+5620h],ebx (EBX 0, technique 0) before res_effect::apply_pass 0x3D7230 at 0x1BD3CA (EAX the stage's copy effect, its +10h, loaded at 0x1BD3C1); applied skips the write; EDI the stage (execute's ECX, 0x1BD336): lohook -> v011w_render_on_copy_apply
+; 0x1b2dab stage_postprocess::execute, the gamma copy to the screen's target: mov dword [eax+5620h],0 before res_effect::apply_pass 0x3D7230 at 0x1B2DB5 (EAX the stage's effect_copy_image, its +B4h, loaded at 0x1B2DA5; the constructor's create_effect 0x1B3E90 at 0x1B0102); applied skips the write. stage_screen_image's own effect is effect_present (PS present, 0x1BCFD0), not this copy: lohook -> v011w_render_on_copy_apply
 global v011w_render_on_copy_apply
 extern hook_v011w_render_on_copy_apply
 v011w_render_on_copy_apply:
@@ -11188,10 +11188,10 @@ v011w_render_on_copy_apply:
     mov edx, v011w_render_on_copy_apply_replay
     cmp eax, 0
     je v011w_render_on_copy_apply_go
-    mov edx, 0x1bd3ca
+    mov edx, 0x1b2db5
     cmp eax, 1
     je v011w_render_on_copy_apply_go
-    mov edx, 0x1bd3ca
+    mov edx, 0x1b2db5
     cmp eax, 2
     je v011w_render_on_copy_apply_go
     ud2
@@ -11203,8 +11203,8 @@ v011w_render_on_copy_apply_go:
     popfd
     ret
 v011w_render_on_copy_apply_replay:
-    db 0x89, 0x98, 0x20, 0x56, 0x00, 0x00
-    jmp 0x1bd3ca
+    db 0xc7, 0x80, 0x20, 0x56, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    jmp 0x1b2db5
 
 ; 0x1ce5be effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v021d_render_on_wet_surface_compiled
 global v021d_render_on_wet_surface_compiled

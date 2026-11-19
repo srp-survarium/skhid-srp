@@ -6347,10 +6347,10 @@ pub extern "C" fn hook_v011w_render_on_copy_pass_0(frame: &mut Frame) -> u32 {
 #[repr(u32)]
 #[allow(dead_code)]
 pub enum V011WRenderOnCopyApplyExit { Applied }
-/// The entry `v011w_render_on_copy_apply` (0x1bd3c4, stage_screen_image::execute, the gamma copy: mov [eax+5620h],ebx (EBX 0, technique 0) before res_effect::apply_pass 0x3D7230 at 0x1BD3CA (EAX the stage's copy effect, its +10h, loaded at 0x1BD3C1); applied skips the write; EDI the stage (execute's ECX, 0x1BD336)) calls this with the saved machine.
+/// The entry `v011w_render_on_copy_apply` (0x1b2dab, stage_postprocess::execute, the gamma copy to the screen's target: mov dword [eax+5620h],0 before res_effect::apply_pass 0x3D7230 at 0x1B2DB5 (EAX the stage's effect_copy_image, its +B4h, loaded at 0x1B2DA5; the constructor's create_effect 0x1B3E90 at 0x1B0102); applied skips the write. stage_screen_image's own effect is effect_present (PS present, 0x1BCFD0), not this copy) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_v011w_render_on_copy_apply(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `v011w_render_on_copy_apply` calls this, from the game's jump at 0x1bd3c4,
+    // SAFETY: only the entry `v011w_render_on_copy_apply` calls this, from the game's jump at 0x1b2dab,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::v011w_render::on_copy_apply(&mut ctx) {

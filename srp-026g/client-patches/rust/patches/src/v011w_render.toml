@@ -157,7 +157,7 @@ site = "material.begin_pass"
 handler = "on_material_pass"
 order = 2
 
-# The gamma copy: effect_copy_image's twins (2, 3: technique 0's with 0.11e's copy_image), the screen's
+# The gamma copy: effect_copy_image's twins (2, 3: technique 0's with 0.11e's copy_image), the post stage's
 # technique 2 on frames of the marked scene whose profile names 0.11e's post.
 [[hook]]
 site = "copy.compiled"
@@ -166,5 +166,5 @@ handler = "on_copy_compiled"
 site = "copy.pass_0"
 handler = "on_copy_pass_0"
 [[hook]]
-site = "screen.copy_apply"
+site = "postprocess.copy_apply"
 handler = "on_copy_apply"

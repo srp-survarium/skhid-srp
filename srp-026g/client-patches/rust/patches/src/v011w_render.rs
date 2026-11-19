@@ -639,7 +639,7 @@ pub fn on_copy_pass_0(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
-/// The screen's gamma copy: 0.11e's for a frame of the 0.11 weather's scene
+/// The post stage's gamma copy: 0.11e's for a frame of the 0.11 weather's scene
 /// whose profile names 0.11e's post.
 pub fn on_copy_apply(ctx: &mut Context<'_>) -> Flow<vostok::V011WRenderOnCopyApplyExit> {
     match look(ctx, StageSite::CopyApply) {

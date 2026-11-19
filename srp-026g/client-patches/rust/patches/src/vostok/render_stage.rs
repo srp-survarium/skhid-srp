@@ -78,7 +78,7 @@ pub enum StageSite {
     TablesConstants,
     /// `atmosphere.clouds_apply`.
     CloudsApply,
-    /// `screen.copy_apply`.
+    /// `postprocess.copy_apply`.
     CopyApply,
     /// `atmosphere.clouds_constants`.
     CloudsConstants,
@@ -108,7 +108,7 @@ fn context(ctx: &Context<'_>, site: StageSite) -> Option<raw::RendererContext> {
             StageSite::SkylightConstants => raw::site::ambient_skylight_constants::stage(ctx)?.context(),
             StageSite::TablesConstants => raw::site::atmosphere_tables_constants::stage(ctx)?.context(),
             StageSite::CloudsApply => raw::site::atmosphere_clouds_apply::stage(ctx)?.context(),
-            StageSite::CopyApply => raw::site::screen_copy_apply::stage(ctx)?.context(),
+            StageSite::CopyApply => raw::site::postprocess_copy_apply::stage(ctx)?.context(),
             StageSite::CloudsConstants => raw::site::atmosphere_clouds_constants::stage(ctx)?.context(),
         }
     }
@@ -286,16 +286,16 @@ pub const SKYLIGHT_V011W: Technique = Technique::new(3);
 /// 1 copy_image_simple, then the two again, 2 with 0.11e's program.
 pub const COPY_V011W: Technique = Technique::new(2);
 
-/// Sets the technique the screen's gamma copy applies (`screen.copy_apply`;
-/// the caller takes its `applied` exit).
+/// Sets the technique the post stage's gamma copy applies
+/// (`postprocess.copy_apply`; the caller takes its `applied` exit).
 pub fn set_copy_technique(ctx: &Context<'_>, technique: Technique) {
-    // SAFETY: the site's EDI is the screen stage executing, on the render
-    // thread; +10h its copy effect, the constructor's; +5620h the technique
-    // apply_pass reads next.
+    // SAFETY: the site's EBP is the post stage executing, on the render
+    // thread; +B4h its effect_copy_image, the constructor's; +5620h the
+    // technique apply_pass reads next.
     unsafe {
-        let effect = raw::site::screen_copy_apply::stage(ctx)
+        let effect = raw::site::postprocess_copy_apply::stage(ctx)
             .and_then(|stage| stage.copy_effect())
-            .expect("the screen stage's copy effect");
+            .expect("the post stage's copy effect");
         effect.technique().write(technique.0);
     }
 }

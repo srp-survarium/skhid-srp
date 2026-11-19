@@ -34,8 +34,8 @@ environment_sun_direction):
   vertex input 1..6, begins with forward_volume_cone_base_v011w_<input>; every other family, input or
   config the original's PS; the VS and the configuration as the original's.
 - effect_copy_image::compile (0x1D5130), building and caching, twice each: techniques 0..1 the original's,
-  2..3 their twins, 2 with ps copy_image_v011w_026g; stage_screen_image::execute's gamma copy (0x1BD3C1 to
-  apply_pass at 0x1BD3CA): technique 0 before a marked project, on the lobby's scene, after the removal and
+  2..3 their twins, 2 with ps copy_image_v011w_026g; stage_postprocess::execute's gamma copy (0x1B2DA5 to
+  apply_pass at 0x1B2DB5): technique 0 before a marked project, on the lobby's scene, after the removal and
   for a profile without 0.11e's post; 2 on the marked scene with it.
 """
 import struct
@@ -611,7 +611,7 @@ def check_tables_constants(stock, patched):
           " mieSun, rayleighPi and miePi (0.26g sends the sun's intensity first)")
 
 
-SCREEN, COPY_EFFECT = HEAP + 0x3F0000, HEAP + 0x3F1000
+COPY_EFFECT = HEAP + 0x3F1000
 
 
 def check_copy_compile(stock, patched):
@@ -633,11 +633,10 @@ def check_copy_compile(stock, patched):
 
 
 def copy_technique(m, drawn):
-    m.w(SCREEN + 4, CONTEXT)
-    m.w(SCREEN + 0x10, COPY_EFFECT)
-    m.w(CONTEXT + 0x416C, drawn)
+    post_stage(m, drawn)
+    m.w(POST_STAGE + 0xB4, COPY_EFFECT)
     m.w(COPY_EFFECT + 0x5620, 7)
-    m.run(0x1BD3C1, {0x1BD3CA}, regs={UC_X86_REG_EDI: SCREEN, UC_X86_REG_EBX: 0})
+    m.run(0x1B2DA5, {0x1B2DB5}, regs={UC_X86_REG_EBP: POST_STAGE})
     assert m.emu.reg_read(UC_X86_REG_EAX) == COPY_EFFECT
     return m.r(COPY_EFFECT + 0x5620)
 
@@ -657,7 +656,7 @@ def check_copy(stock, patched):
     insert(patched, PROJECT)
     assert copy_technique(patched, RENDER_SCENE) == 0, "a profile without 0.11e's post"
     remove(patched, PROJECT)
-    print("  ok the screen's gamma copy: technique 0 before a marked project, on the lobby's scene, after the"
+    print("  ok the post stage's gamma copy: technique 0 before a marked project, on the lobby's scene, after the"
           " removal and for a profile without 0.11e's post; on the marked scene with it technique 2")
 
 

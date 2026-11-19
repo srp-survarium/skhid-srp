@@ -26793,57 +26793,6 @@ impl StageAmbientLighting {
     }
 }
 
-/// A vostok::render::stage_screen_image (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
-/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
-#[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct StageScreenImage(NonNull<c_void>);
-
-#[allow(dead_code)]
-impl StageScreenImage {
-    /// Its address as a value (an id, a compare): never read through.
-    #[inline(always)]
-    pub fn address(self) -> u32 {
-        self.0.as_ptr() as usize as u32
-    }
-
-    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (stage's m_context, written by the constructor at 0x1BD207)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn context(self) -> Option<RendererContext> {
-        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().read_volatile() }
-    }
-
-    /// +0x4 (ptr<vostok::render::renderer_context>): the renderer context (stage's m_context, written by the constructor at 0x1BD207)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn set_context(self, value: Option<RendererContext>) {
-        unsafe { self.0.byte_add(0x4).cast::<Option<RendererContext>>().write_volatile(value) }
-    }
-
-    /// +0x10 (ptr<vostok::render::res_effect>): its effect_copy_image (execute applies technique 0 at 0x1BD3CA, the effect loaded at 0x1BD3C1)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn copy_effect(self) -> Option<ResEffect> {
-        unsafe { self.0.byte_add(0x10).cast::<Option<ResEffect>>().read_volatile() }
-    }
-
-    /// +0x10 (ptr<vostok::render::res_effect>): its effect_copy_image (execute applies technique 0 at 0x1BD3CA, the effect loaded at 0x1BD3C1)
-    ///
-    /// # Safety
-    /// `self` is alive (its fields are its kind's: the type says so).
-    #[inline(always)]
-    pub unsafe fn set_copy_effect(self, value: Option<ResEffect>) {
-        unsafe { self.0.byte_add(0x10).cast::<Option<ResEffect>>().write_volatile(value) }
-    }
-}
-
 /// A vostok::render::skylight_fill_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -26970,6 +26919,24 @@ impl StagePostprocess {
     #[inline(always)]
     pub unsafe fn set_blend_11(self, value: Option<ResEffect>) {
         unsafe { self.0.byte_add(0xb0).cast::<Option<ResEffect>>().write_volatile(value) }
+    }
+
+    /// +0xb4 (ptr<vostok::render::res_effect>): its effect_copy_image (the constructor's create_effect 0x1B3E90 at 0x1B0102; execute applies technique 0 at 0x1B2DB5, execute_disabled at 0x1B173C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn copy_effect(self) -> Option<ResEffect> {
+        unsafe { self.0.byte_add(0xb4).cast::<Option<ResEffect>>().read_volatile() }
+    }
+
+    /// +0xb4 (ptr<vostok::render::res_effect>): its effect_copy_image (the constructor's create_effect 0x1B3E90 at 0x1B0102; execute applies technique 0 at 0x1B2DB5, execute_disabled at 0x1B173C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_copy_effect(self, value: Option<ResEffect>) {
+        unsafe { self.0.byte_add(0xb4).cast::<Option<ResEffect>>().write_volatile(value) }
     }
 
     /// +0x344 (ptr<vostok::render::shader_constant_host>): the host of filmic_tonemap_packed_parameters_0 (0x1AF7C0, the block at +330h: +14h), which 0.26g registers and never sets
@@ -33296,6 +33263,21 @@ pub mod site {
         }
     }
 
+    /// postprocess.copy_apply (0x1b2dab): stage_postprocess::execute, the gamma copy to the screen's target: mov dword [eax+5620h],0 before res_effect::apply_pass 0x3D7230 at 0x1B2DB5 (EAX the stage's effect_copy_image, its +B4h, loaded at 0x1B2DA5; the constructor's create_effect 0x1B3E90 at 0x1B0102); applied skips the write. stage_screen_image's own effect is effect_present (PS present, 0x1BCFD0), not this copy
+    pub mod postprocess_copy_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_postprocess (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StagePostprocess> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StagePostprocess)
+        }
+    }
+
     /// skylight.pass_0 (0x1cf3dc): effect_skylight::compile, technique 0, its begin_pass's arguments being pushed (push edi / movq [eax+8],xmm0 / push ebx; then mov eax,9F7470h and the call 0x3D9F60 at 0x1CF3E8): ESP the PS name's slot (skylight 0x9F7470, pushed at 0x1CF3B2), EAX the shader configuration's; EBX the compiler; no base relocation in the span
     pub mod skylight_pass_0 {
         #[allow(unused_imports)]
@@ -33395,21 +33377,6 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
             NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
-        }
-    }
-
-    /// screen.copy_apply (0x1bd3c4): stage_screen_image::execute, the gamma copy: mov [eax+5620h],ebx (EBX 0, technique 0) before res_effect::apply_pass 0x3D7230 at 0x1BD3CA (EAX the stage's copy effect, its +10h, loaded at 0x1BD3C1); applied skips the write; EDI the stage (execute's ECX, 0x1BD336)
-    pub mod screen_copy_apply {
-        #[allow(unused_imports)]
-        use super::*;
-
-        /// EDI: a vostok::render::stage_screen_image (None for 0).
-        ///
-        /// # Safety
-        /// `machine` is at this site.
-        #[inline(always)]
-        pub unsafe fn stage(machine: &impl Machine) -> Option<StageScreenImage> {
-            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(StageScreenImage)
         }
     }
 

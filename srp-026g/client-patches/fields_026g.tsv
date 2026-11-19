@@ -1422,8 +1422,6 @@ vostok::render::shader_configuration	vertex_input	0x6	u8	the 16-byte shader_conf
 vostok::render::water_compile_frame	config	0xC	ptr<vostok::engine_cfg>	effect_fstage_simpe_water_materials::compile's (0x1E5FE0) EBP frame: +0Ch its config tree, the material's (compile_begin's fifth argument, 0x1E6026)
 vostok::render::god_rays_entry_frame	stage	0x4	ptr<vostok::render::stage_atmosphere>	the god-rays pass's (0x1A5520) one argument at its entry, the stage_atmosphere it draws for (pushed at 0x1A5133)
 vostok::render::stage_ambient_lighting	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (render_skylight 0x1824D3)
-vostok::render::stage_screen_image	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (stage's m_context, written by the constructor at 0x1BD207)
-vostok::render::stage_screen_image	copy_effect	0x10	ptr<vostok::render::res_effect>	its effect_copy_image (execute applies technique 0 at 0x1BD3CA, the effect loaded at 0x1BD3C1)
 vostok::render::stage_ambient_lighting	skylight_effect	0x58	ptr<vostok::render::res_effect>	its effect_skylight (render_skylight 0x18245C applies its technique 1)
 vostok::render::stage_ambient_lighting	eye_ray_constant	0xF0	ptr<vostok::render::shader_constant_host>	the host of s_eye_ray_corner (the constructor 0x17F946)
 vostok::render::stage_ambient_lighting	skylight_constant_0	0x114	ptr<vostok::render::shader_constant_host>	the host of skylight_parameters0 (the constructor 0x17FB9F); 0.26g sets only 0
@@ -1440,6 +1438,7 @@ vostok::render::stage_postprocess	blend_00	0xA4	ptr<vostok::render::res_effect>	
 vostok::render::stage_postprocess	blend_01	0xA8	ptr<vostok::render::res_effect>	the blend of index 1 (the constructor makes none)
 vostok::render::stage_postprocess	blend_10	0xAC	ptr<vostok::render::res_effect>	its effect_complex_post_process_blend<1,0> (0x1B00DC; index 2)
 vostok::render::stage_postprocess	blend_11	0xB0	ptr<vostok::render::res_effect>	its effect_complex_post_process_blend<1,1> (0x1B00EC; index 3)
+vostok::render::stage_postprocess	copy_effect	0xB4	ptr<vostok::render::res_effect>	its effect_copy_image (the constructor's create_effect 0x1B3E90 at 0x1B0102; execute applies technique 0 at 0x1B2DB5, execute_disabled at 0x1B173C)
 vostok::render::stage_postprocess	filmic_0_constant	0x344	ptr<vostok::render::shader_constant_host>	the host of filmic_tonemap_packed_parameters_0 (0x1AF7C0, the block at +330h: +14h), which 0.26g registers and never sets
 vostok::render::stage_postprocess	filmic_1_constant	0x348	ptr<vostok::render::shader_constant_host>	the host of filmic_tonemap_packed_parameters_1 (+18h of the block), never set by 0.26g
 vostok::render::stage_atmosphere	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (the god-rays pass 0x1A5528: its +4170h scene view)
