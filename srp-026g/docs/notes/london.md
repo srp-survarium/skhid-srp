@@ -57,3 +57,44 @@ The source day is what players have (patch 51's London projects): revision 66's 
 found every London day file unchanged against the manifest, so it is the manifest's own output.
 Six new maps raise the pinned `maps_dict` counts of five edit lists by six; a PR adding maps after
 this one renumbers again.
+
+## The probes (pack london-probes)
+
+London has ten box probes `environment_and_lights/probes/reflection_window(…)` along its window
+facades with `affect_diffuse = false`, as 0.31a2 authored them; no 0.26g map has such a probe
+(a census of every live project: only London's 5 day projects and its weathers). In 0.31a2 such a
+probe adds only its reflection: its `environment_probe_lighting.ps` permutations write the specular
+accumulator alone. 0.26g's write the surface's own albedo into the diffuse accumulator under the
+probe's falloff (`renderer-026g.md` 5.3), which lit the walls by the windows in their own colour.
+
+Pack `london-probes@1` (resource-porter `probe_specular`) changes the 16 `TDIFFUSE` 0 permutations
+of 0.26g's shader: the diffuse output's alpha is zero, so with the probes' blend (SRC_ALPHA /
+INV_SRC_ALPHA per target) the diffuse light stays as it was; the reflection is drawn as before.
+One instruction per permutation (`mov o0.w, <falloff>` → `mov o0.w, l(0)`); the permutations
+with `affect_diffuse = true`, the ones every other map draws, are untouched.
+
+London's day also sets `environment_probes_specular_intensity_multiplier` 1.2 in 0.31a2; patch 14
+built the day's environment from native `level_01` day's settings, which leave it out, so 0.26g drew
+London's probe reflections at its default. `london-environment-1.json` adds it to the five day
+projects (rain and evening carry 0.31a2's 0.6 and 1.5 from pack london-weathers).
+
+0.31a2 also looks a box probe's reflection up box-projected (parallax-corrected) where the probe has
+`use_parallax_correction` (137 of London's 160 probes: every room probe and the ten window probes;
+not the 23 background-building and outdoor ones): the cubemap is read where the reflection ray leaves
+the probe's box, not along the ray from the probe's centre. Patch 14 dropped the field; 0.26g's box
+programs have every constant it needs and read along the ray. `london-probes@2` (resource-porter
+`probe_parallax`) gives the 8 smart box permutations, before their specular sample, a branch taken only on
+London's marked scenes (`mie_fog_base_height` 32909 day, 32929 evening, 32919 rain)
+that replaces the lookup direction with the box-projected one. It reaches only the
+probes 0.31a2 projects: `london-probe-channel-1.json` gives those 137 probes smart attenuation, which no
+London probe has, and only the smart box programs carry the branch; on London's marked scenes they
+also draw the plain box falloff instead of the smart one. Other maps never take either branch.
+
+Overlapping probes draw one over another, largest radius first: both executables sort the visible
+probes the same way (`std::sort` on the render probe's radius, 0.26g 0x1B9E82, 0.31a2 0x7DBC6A), so
+the radii decide whose reflection lies on top. Skhid's London came from an earlier build of the map,
+and seven probes differ from 0.31a2's (radii of `gerkin(1)`, `gerkin(3)`, `hall_box_1_floor(2)`; boxes
+of `hall_2_floor`, `hall_box(1)`, `ladder(1)`; places of `hall_2_floor`, `gerkin(3)`; side widths of
+`hall_2_floor`, `gerkin(22)`). With radius 5, `gerkin(3)` tied `gerkin_hall_centre` and could draw
+under it; with 0.31a2's 4 it draws after, as there (the corridor of the owner's FFA pick 11).
+`london-probe-shapes-1.json` sets the seven as 0.31a2 authors them in each project.
