@@ -2378,7 +2378,7 @@ enum Down {
 
 /// Whether `node`'s link to `next` is an off-mesh walk-off (a `GapDrop` walked off with no key).
 fn is_walk_off(grid: &WalkGrid, node: NodeId, next: NodeId) -> bool {
-    grid.off_link(node, next).is_some_and(|l| l.kind == LinkKind::GapDrop && l.press == mapdata::grid::gap::Takeoff::WalkOff)
+    grid.off_link(node, next).is_some_and(|l| l.kind == LinkKind::GapDrop && l.press.is_walk_off())
 }
 
 /// [A313] How a slide takes a walk-off bridge (an off-mesh `GapJump` walked off with no key, two cells on over a cell no floor
@@ -2611,7 +2611,7 @@ fn walk_off_drops(grid: &WalkGrid, node: NodeId) -> impl Iterator<Item = NodeId>
                 || (kind == LinkKind::GapDrop
                     && grid
                         .off_link(node, next)
-                        .is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::WalkOff))
+                        .is_some_and(|l| l.press.is_walk_off()))
         })
         .map(|(next, _)| next)
 }

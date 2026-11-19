@@ -338,7 +338,7 @@ impl DropLine {
 pub enum LetGo {
     /// [A1b] `mapdata::grid::gap::Takeoff::Release`: once the body's centre is this far along the way past the take-off, m.
     At(f32),
-    /// [F2] A drop walked off (a `Drop` link, or a gap drop `Takeoff::WalkOff`): forward held over the edge and through the fall,
+    /// [F2] A drop walked off (a `Drop` link, or a gap drop `Takeoff::WalkOff` / `WalkOffCrouched`): forward held over the edge and through the fall,
     /// let go on the first step the body stands (on the ground) at or under the height it has left the take-off by
     /// (`mapdata::grid::drop_check::left_take_off`), as `drop_check::walk_off_rest` flies the drop's landing (F2, #2180).
     Standing,
@@ -1335,19 +1335,30 @@ fn pull_straight(
                 });
             } else if grid.body().walk_off_lips
                 && into[i] == LinkKind::GapDrop
-                && grid.off_link(nodes[i - 1], nodes[i]).is_some_and(|l| l.press == mapdata::grid::gap::Takeoff::WalkOff)
+                && let Some(link) = grid.off_link(nodes[i - 1], nodes[i])
+                && link.press.is_walk_off()
             {
                 // A drop walked off the edge: made only where the body lands on one level at every walk-off speed, a
                 // sprint's included (`gap::WALK_OFF_SPEEDS`), so it is harmless at a sprint. It is the route's own
                 // fall: the lip guard (its take-off is a lip) lets the body over the edge. Only with `grid.walk_off_lips`:
                 // without it the take-off is no lip and nothing brakes the body there.
-                sprint_drops.push((grid.position(nodes[i]), true));
+                // [taught presses] A crouched walk-off (`Takeoff::WalkOffCrouched`) lands only as the builder flew it, crouched
+                // at the crouch speed (`drop_check::walk_off_rest` with the crouch key held from the take-off floor, through the
+                // fall and the rest): the crouch held on its leg and through its let-go ([`WalkOffRelease::crouched`]); no sprint.
+                let crouched = link.press.walks_off_crouched();
+                sprint_drops.push((grid.position(nodes[i]), !crouched));
+                // The flight starts crouched on the take-off floor's centre: the drop's leg is low, so both walks crouch (and
+                // let the sprint go) from `motor::LOW_AHEAD_M` before the take-off; the client's capsule crouches on the key's
+                // tick (`setup_crouch_state` 0x7F1A0, `controller::tick` `set_crouched`).
+                if crouched && let Some(point) = points.last_mut() {
+                    point.low = true;
+                }
                 walk_offs.push(WalkOffRelease {
                     take_off: grid.position(nodes[i - 1]),
                     landing: grid.position(nodes[i]),
                     let_go: LetGo::Standing,
-                    crouched: false,
-                    line: grid.off_link(nodes[i - 1], nodes[i]).map_or(DropLine::ToLanding, |l| DropLine::of_link(&l)),
+                    crouched,
+                    line: DropLine::of_link(&link),
                 });
             } else if into[i] == LinkKind::GapDrop
                 && let Some(link) = grid.off_link(nodes[i - 1], nodes[i])
