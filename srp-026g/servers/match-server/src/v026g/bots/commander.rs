@@ -1313,7 +1313,12 @@ impl Bots {
                 home: home.unwrap_or(Vec3::new(0.0, 0.0, 0.0)),
                 targets: &targets,
             };
-            let (next, _event) = std::mem::take(&mut state.knowledge.push).next(&picture, &rule);
+            let before = std::mem::take(&mut state.knowledge.push);
+            let (next, event) = before.clone().next(&picture, &rule);
+            // [fix-team push, item 3] One line a push event: target, group, defenders known, net count, outcome.
+            if let Some(event) = event {
+                notes.push(Note { place: usize::MAX, time: now, text: format!("team {team}: {}", event.line(&before, &next, &picture)) });
+            }
             state.knowledge.push = next;
         }
         let state = &self.teams[usize::from(team)];
