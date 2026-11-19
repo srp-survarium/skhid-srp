@@ -1241,6 +1241,53 @@ pub struct RoutePress {
     pub sprint_gate: Option<SprintGate>,
     /// [A386 R83/R94] The press's aim off the link's line ([`PressAim`]; the log's line says it when not straight).
     pub aim: PressAim,
+    /// [F3] The body at the press, against the window the grid flew (the log's line of a jump that missed).
+    pub state: PressState,
+}
+
+/// [F3] The body at a route press, as the entry gate measures it ([`flown_press_off`], [`lead_off`]), and the window the grid
+/// stored for the link's press ([`path::Leap::window`]): decides nothing, the log's line of a jump that missed its landing.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PressState {
+    /// Where the jump's first step starts, m before the take-off (the key acts a step later: [`press_due`]).
+    pub lead_m: f32,
+    /// The lead the grid flew the press from, m (none for a ledge).
+    pub flown_lead_m: Option<f32>,
+    /// The feet off the jump's line, m.
+    pub side_m: f32,
+    /// The view off the jump's way, rad.
+    pub turn_rad: f32,
+    /// The feet over the take-off's height, m.
+    pub above_m: f32,
+    /// The speed along the jump's way, m/s.
+    pub along_ms: f32,
+    /// The stored window, if the link has one.
+    pub window: Option<mapdata::grid::gap::TakeoffWindow>,
+}
+
+impl PressState {
+    /// The state as the log writes it.
+    pub fn text(&self) -> String {
+        let flown = self.flown_lead_m.map_or_else(|| "none".to_string(), |l| format!("{l:.2}"));
+        let window = match self.window {
+            Some(w) => format!(
+                "window lead {:.2}..{:.2} m, side -{:.2}..+{:.2} m, turn -{:.3}..+{:.3} rad, {:?}{}",
+                w.lead_m.0,
+                w.lead_m.1,
+                w.side_m.0,
+                w.side_m.1,
+                w.turn_rad.1,
+                w.turn_rad.0,
+                w.speed,
+                if w.fastest_kit { ", fastest kit lands" } else { "" }
+            ),
+            None => "no window".to_string(),
+        };
+        format!(
+            "pressed at lead {:.2} m (flown {flown}), side {:.2} m, turn {:.3} rad, {:+.2} m over the take-off, {:.2} m/s along; {window}",
+            self.lead_m, self.side_m, self.turn_rad, self.above_m, self.along_ms
+        )
+    }
 }
 
 /// [owner-5] Why a sprint link's press went without sprint, the first gate that held it (`Motor::jump_key`'s `sprinted`):
@@ -3237,6 +3284,18 @@ impl Motor {
             facing: still,
             sprint_gate,
             aim: ahead.leap.aim(),
+            state: PressState {
+                lead_m: ahead.before - along.max(0.0) * TICK_S,
+                flown_lead_m: match ahead.leap {
+                    Leap::Gap(GapPress { lead, .. }) | Leap::SprintGap(SprintPress { lead, .. }) => Some(lead.metres()),
+                    Leap::Ledge | Leap::SprintLedge => None,
+                },
+                side_m: ahead.side,
+                turn_rad: still,
+                above_m: -ahead.take_off_above,
+                along_ms: along,
+                window: ahead.leap.window(),
+            },
         });
         self.jump = Some(JumpBy::Route);
         // [item 10] A held sprint holds the forward key on after its landing whether or not the route goes on off the top; only
