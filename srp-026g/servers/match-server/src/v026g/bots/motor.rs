@@ -1496,6 +1496,15 @@ fn lead_off(at: f32, lead: f32, window: Option<mapdata::grid::gap::TakeoffWindow
     d > earlier || -d > later
 }
 
+/// [loops] How far a body walking at `speed` m/s goes after every key is let go on this tick's decision, m: one step more on the
+/// keys held before (the client's step ending at an input's stamp answers the input before it, `kin.rs` `StepInput::Previous`,
+/// PROVEN; [`super::walk_off`]'s let-go), then the client's stop blend, 1 - k/6 of the last step over 6 steps
+/// (`drop_check::released_rest`, the rig's `tapN` rows A1b was measured by): (5 + 4 + 3 + 2 + 1) / 6 of a step, which is
+/// `jump::blend_steps_m(speed, 5)`. 0.61 m from the walk cap's 3.5 m/s, three times [`FlownWindow::LEAD_M`].
+pub fn let_go_travel_m(speed: f32) -> f32 {
+    speed * TICK_S + mapdata::controller::jump::blend_steps_m(speed, 5)
+}
+
 /// [F3] A window side narrower than this has no width (the neighbours are 0.1 m apart; the stored leads are centimetres), m.
 const LEAD_WIDTH_EPS_M: f32 = 0.005;
 
@@ -3003,19 +3012,35 @@ impl Motor {
         }
         // [A386] A flown slow press rests within the flight's tested window of its run-up point ([`FlownWindow`]): the walk-up
         // carries a rest off the line on to the press.
-        let rest_near = if leap.flown() {
-            (along + run_up).abs() <= FlownWindow::LEAD_M && side <= FlownWindow::SIDE_M
-        } else if stand_ledge {
-            // [fix-move] Within the leads the exe landed from a stand ([`LEDGE_STAND_LEAD_M`] either side of the middle).
-            (along + run_up).abs() <= LEDGE_STAND_LEAD_M && side <= LINED_SIDE_M
-        } else {
-            at(run_up).distance_xz(feet) <= AT_RUN_UP_M
+        let rest_near_at = |p: Vec3| {
+            let (dx, dz) = (p.x - line_from.x, p.z - line_from.z);
+            let (along, side) = (dx * way[0] + dz * way[1], (dx * way[1] - dz * way[0]).abs());
+            if leap.flown() {
+                (along + run_up).abs() <= FlownWindow::LEAD_M && side <= FlownWindow::SIDE_M
+            } else if stand_ledge {
+                // [fix-move] Within the leads the exe landed from a stand ([`LEDGE_STAND_LEAD_M`] either side of the middle).
+                (along + run_up).abs() <= LEDGE_STAND_LEAD_M && side <= LINED_SIDE_M
+            } else {
+                at(run_up).distance_xz(p) <= AT_RUN_UP_M
+            }
         };
+        let rest_near = rest_near_at(feet);
         let at_rest_point = slow && jump.walk_up == WalkUp::ToRest && !in_the_air && rest_near;
         if at_rest_point && pose.speed < STILL_MS {
             jump.walk_up = WalkUp::Walking;
         }
-        let stand = at_rest_point && jump.walk_up == WalkUp::ToRest;
+        // [loops] The keys are let go where the body comes to rest inside the window, not where the feet enter it: a body walked
+        // in at the walk cap and let go only inside the window slid out of it before it was still (the owner's 3 matches on the
+        // final build: 313 of 350 slow-press waits inside the window were at 0.3 m/s or more; LOOPS.md cause 1), and the slow
+        // press was waited at forever. Its rest if every key goes now: [`let_go_travel_m`] along its last step's way.
+        let travel = let_go_travel_m(pose.speed);
+        let moving = pose.velocity[0].hypot(pose.velocity[1]).max(1e-6);
+        let rest = Vec3::new(feet.x + pose.velocity[0] / moving * travel, feet.y, feet.z + pose.velocity[1] / moving * travel);
+        let stops_near = slow && jump.walk_up == WalkUp::ToRest && !in_the_air && pose.speed >= STILL_MS && rest_near_at(rest);
+        if stops_near && !rest_near {
+            slow_rests::let_go_early();
+        }
+        let stand = (at_rest_point || stops_near) && jump.walk_up == WalkUp::ToRest;
         // [A386] A gap or rim link's landing stays as flown ([`Stay`]) unless the route's next corner is on the same top: a walk
         // on within a step of the landing's height.
         let let_go = matches!(leap, Leap::Gap(_) | Leap::SprintGap(_))
@@ -4349,6 +4374,22 @@ pub mod walk_reach {
     /// Backed off, pressed short, pressed with the walk that reaches.
     pub fn counts() -> [u64; 3] {
         [BACKED_OFF.load(Ordering::Relaxed), PRESSED.load(Ordering::Relaxed), REACHED.load(Ordering::Relaxed)]
+    }
+}
+
+/// [loops] The ticks a slow press's body was let go before its window, its rest predicted inside it ([`let_go_travel_m`]).
+pub mod slow_rests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static EARLY: AtomicU64 = AtomicU64::new(0);
+
+    pub fn let_go_early() {
+        EARLY.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The ticks let go early.
+    pub fn count() -> u64 {
+        EARLY.load(Ordering::Relaxed)
     }
 }
 
@@ -6940,6 +6981,36 @@ mod tests {
         let mut route = gap_route(slow(0));
         let (keys, _) = gap_tick(&mut motor, &mut route, -0.6, 0.0, None);
         assert_ne!(keys & key::JUMP, 0, "the standing jump: {keys:#x}");
+    }
+
+    /// [loops] A slow press's body walked in at the walk cap is let go where it comes to rest inside the window
+    /// ([`let_go_travel_m`]), not where its feet enter it; a slow body short of that walks on.
+    #[test]
+    fn a_slow_press_lets_go_where_the_body_comes_to_rest_in_its_window() {
+        let slow = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.6), walk: WalkPress::Slow(0), share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None });
+        let travel = let_go_travel_m(3.5);
+        assert!((travel - 0.6125).abs() < 1e-4, "{travel}");
+        let fresh = || {
+            let mut rng = Rng::new(3);
+            let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+            motor.walking = true;
+            motor
+        };
+        let moves = key::FORWARD | key::BACK | key::LEFT | key::RIGHT;
+        // The run-up point at -0.6; its window -0.8..-0.4. At -1.3 at 3.5 m/s the rest is at -0.69: let go.
+        let (mut motor, mut route) = (fresh(), gap_route(slow));
+        let early = slow_rests::count();
+        let (keys, _) = gap_tick(&mut motor, &mut route, -1.3, 3.5, None);
+        assert_eq!(keys & moves, 0, "its rest is in the window: let go: {keys:#x}");
+        assert!(slow_rests::count() > early);
+        // At -1.3 at 0.5 m/s the rest is at -1.21, short of it: walks on.
+        let (mut motor, mut route) = (fresh(), gap_route(slow));
+        let (keys, _) = gap_tick(&mut motor, &mut route, -1.3, 0.5, None);
+        assert_ne!(keys & key::FORWARD, 0, "short of the window: walks on: {keys:#x}");
+        // At -1.6 at 3.5 m/s the rest is at -0.99, short of it: walks on.
+        let (mut motor, mut route) = (fresh(), gap_route(slow));
+        let (keys, _) = gap_tick(&mut motor, &mut route, -1.6, 3.5, None);
+        assert_ne!(keys & key::FORWARD, 0, "short of the window: walks on: {keys:#x}");
     }
 
     /// [loops] A slow standing press whose body never comes to rest at its point (it arrives at 2 m/s every tick) is not waited
