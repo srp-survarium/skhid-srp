@@ -119,6 +119,7 @@ Fort's and Mamayev's rain loaded headless with no debug break):
   references), both rooms are unlit as in the port: difference 5.7 and 2.5 there, against
   22.0 and 31.6 between the kept shot and the fresh one. The kept shots were taken after the
   capture route, which leaves 0.21d's sun shadow map stale (as on School's gym wall).
+  With 20 s to settle and one camera a session on both sides: 6.3 and 2.8 apart.
 - **Anomaly haze**: a port bug, fixed (the particle and material rules above). It is not an
   active state: held 150 s, 0.21d shows it all the time. Share of the frame strongly green
   over the moss, 0.21d / first build / `@3`: rain 30 / 4 / 31% (`horizon_edge_s`), 15 / 7 / 17%
@@ -131,6 +132,7 @@ Fort's and Mamayev's rain loaded headless with no debug break):
   sky and the pillars, the port's neither, at the rig's settings and the owner's. The two
   water programs do the same arithmetic (the reflection cube times 0.25, mixed with the
   screen-space reflection by its alpha); what differs is what the engine binds to them, so
-  it is a renderer difference shared by every ported map's water, not a content fix.
+  it is a renderer difference shared by every ported map's water, not a content fix. It is not eye
+  adaptation: with 20 s to settle on both sides the views stay 13.3, 7.2 and 12.8 apart.
 - `radial_smoke` plays no frame sequence (see the importer rules): the one open content
   difference; no 0.26 material draws its switches with the sequence on.
