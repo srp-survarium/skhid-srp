@@ -1244,6 +1244,8 @@ pub struct TeamKnowledge {
     claims: Vec<Claim>,
     /// [take.clear_first] The men the team's bots hold off from at a loose battery ([`BatteryHold`]), one a man, the latest.
     pub battery_holds: Vec<BatteryHold>,
+    /// [fix-team push `mods.push`] The team's push (`push::Push`), set by the commander at its tick.
+    pub push: super::push::Push,
     /// The routes the team's Roam runs were drawn on, one a bot ([`Self::claim_route`]).
     route_claims: Vec<RouteClaim>,
     /// The places the team's bots decided to throw at, each throw a claim

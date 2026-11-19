@@ -595,26 +595,29 @@ mod tests {
         assert!(matches!(&state, State::Via { priced, .. } if *priced == t0 + 2_300), "{state:?}");
     }
 
-    /// [fix-team push `mods.push`] Three defenders known by their container: a raider with three mates by it, its team two
-    /// points behind, is offered the raid (the guard net of its group is 0); alone, or level on points, it is not.
+    /// [fix-team push `mods.push`] Three defenders known by their container: the taker of the team's push on it, with three
+    /// members of the push by it, is offered the raid (the guard net of its group is 0); with no push, or its mates not in the
+    /// push, or the switch off, it is not.
     #[test]
     fn a_pushing_group_counts_the_guard_net_of_its_own() {
+        use crate::v026g::bots::push::{Push, Target};
         let mut s = raid(2);
         s.tuning.mods.push = Some(crate::v026g::bots::tuning::PushRule::default());
-        s.time_left(100.0);
+        s.time_left(100.0).points(0, 2);
         for (p, x) in [(5, 66.0), (7, 70.0), (9, 68.0)] {
             s.enemy(p, 1, Vec3::new(x, 0.0, 36.0), Some(Source::Heard));
         }
-        let raid_offered = |s: &Scenario| raids(s).iter().any(|c| c.kind == PlayKind::Raid);
-        s.points(0, 2);
-        assert!(!raid_offered(&s), "alone: the guard of 3 scores it 0");
         for (p, z) in [(2, 26.0), (4, 30.0), (6, 34.0)] {
             s.bot(p, 0, Vec3::new(38.0, 0.0, z));
         }
-        assert!(raid_offered(&s), "with 3 mates the net guard is 0");
-        s.points(2, 2);
-        assert!(!raid_offered(&s), "level: the defenders alone");
-        s.points(0, 2);
+        let raid_offered = |s: &Scenario| raids(s).iter().any(|c| c.kind == PlayKind::Raid);
+        assert!(!raid_offered(&s), "no push: the guard of 3 scores it 0");
+        let target = Target::Container { id: 1, at: Vec3::new(68.0, 0.0, 30.0) };
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4, 6], short_since: None };
+        assert!(raid_offered(&s), "a push of 4: the net guard is 0");
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![], short_since: None };
+        assert!(!raid_offered(&s), "its mates not in the push: the defenders alone");
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4, 6], short_since: None };
         s.tuning.mods.push = None;
         assert!(!raid_offered(&s), "off: the defenders alone");
     }
