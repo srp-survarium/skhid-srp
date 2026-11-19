@@ -9,6 +9,7 @@ import tempfile
 from make_alpha_textures import make
 from check_material_visibility import digest, read
 from make_vertex_alpha import prior_material
+import later_edits
 
 
 def check(porter, donor, stock, pack, patch=None, patches=None, patch_cache=None):
@@ -78,7 +79,8 @@ def check(porter, donor, stock, pack, patch=None, patches=None, patch_cache=None
                 assert original[key] == change['source_texture'], (row['original_material'], key)
                 assert original[change['selector']] is True and actual[change['selector']] is True
                 assert actual[key] == change['to'], (row['target_material'], key)
-            assert digest({k: v for k, v in actual.items() if k not in row['changes']}) == row['unchanged_leaves_sha256'], (row['target_material'], 'unrelated material drift')
+            rest = later_edits.undo({k: v for k, v in actual.items() if k not in row['changes']}, row['target_material'])
+            assert digest(rest) == row['unchanged_leaves_sha256'], (row['target_material'], 'unrelated material drift')
             if row['current_material'] != row['target_material']:
                 assert f"material_instances/{row['current_material']}.material" not in paths, 'native material modified'
                 for binding in row['bindings']:

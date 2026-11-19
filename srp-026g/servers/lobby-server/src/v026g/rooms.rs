@@ -82,7 +82,7 @@
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
 
 use std::collections::{HashMap, HashSet};
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 use std::time::Instant;
 
 use session::matchmaking_policy::{self as policy, Closed, Worth};
@@ -1905,7 +1905,7 @@ impl Core<'_> {
 
     /// The member's link if it is free in the lobby: its game told its
     /// room, in no match, not on its way to one.
-    fn room_free(&self, account_id: u32) -> Option<SocketAddr> {
+    fn room_free(&self, account_id: u32) -> Option<Peer> {
         // Its game started anew and does not know of the room yet.
         if self.room_unseen.contains_key(&account_id) {
             return None;

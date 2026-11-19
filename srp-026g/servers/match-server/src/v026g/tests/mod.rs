@@ -19,6 +19,7 @@ mod resync_gate;
 mod packet_safety;
 mod packet_input;
 mod refused_worlds;
+mod relay_routes;
 mod sockets;
 mod start;
 mod units;
@@ -130,7 +131,7 @@ pub struct Bench {
     pub clients: Vec<Client>,
     pub match_id: u32,
     /// Each client's address; a client that comes back has a new one.
-    addrs: Vec<SocketAddr>,
+    addrs: Vec<udp_transport::relay::Peer>,
     start: Instant,
     pub ms: u64,
     /// Each place's one-way delay, both ways, in ms (none if not given).
@@ -257,7 +258,7 @@ impl Bench {
                 .collect(),
             match_id: ticket.match_id,
             addrs: (0..players)
-                .map(|place| SocketAddr::from(([127, 0, 0, 1], 40_000 + place as u16)))
+                .map(|place| direct_peer(40_000 + place as u16))
                 .collect(),
             start,
             ms: 0,
@@ -284,11 +285,11 @@ impl Bench {
         let port = self
             .addrs
             .iter()
-            .map(SocketAddr::port)
+            .map(|peer| peer.address().port())
             .max()
             .unwrap_or(40_000)
             + 100;
-        self.addrs[place] = SocketAddr::from(([127, 0, 0, 1], port));
+        self.addrs[place] = direct_peer(port);
     }
 
     /// `ms` pass: the clients send, the server answers. A place with a
@@ -453,7 +454,7 @@ impl Net {
             let (registry, stop) = (registry.clone(), stop.clone());
             std::thread::spawn(move || {
                 serve(
-                    &socket,
+                    crate::v026g::server::listen(&socket, Default::default()).unwrap(),
                     server.port(),
                     registry,
                     store(),
@@ -608,4 +609,9 @@ pub fn log_to_stderr() {
             log::set_max_level(log::LevelFilter::Debug);
         }
     });
+}
+
+/// A game on this machine at `port` that reached the server itself.
+pub(crate) fn direct_peer(port: u16) -> udp_transport::relay::Peer {
+    udp_transport::relay::Peer::direct(SocketAddr::from(([127, 0, 0, 1], port)))
 }

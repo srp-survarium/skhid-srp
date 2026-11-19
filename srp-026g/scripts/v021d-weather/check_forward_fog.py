@@ -232,8 +232,8 @@ SPECS={
 def main():
  ap=argparse.ArgumentParser()
  for k in ['porter','donor','stock','pack','profiles','patches','patch_cache','shader_indexer']:ap.add_argument('--'+k.replace('_','-'),type=Path,required=True)
- ap.add_argument('--patch',type=Path);a=ap.parse_args();manifest=json.loads((a.pack/'pack.json').read_text());specs=json.loads(a.profiles.read_text())['profiles'];assert len(specs)==15
- assert manifest['id']=='v021d-forward-fog' and manifest['version']=='4' and manifest['operations']
+ ap.add_argument('--patch',type=Path);a=ap.parse_args();manifest=json.loads((a.pack/'pack.json').read_text());specs=json.loads(a.profiles.read_text())['profiles'];assert specs and len(specs)%3==0
+ assert manifest['id']=='v021d-forward-fog' and manifest['version']=='5' and manifest['operations']
  expected_observed={
  'shaders/sm_4_0/forward_base.ps/______0________1_010__1________0_0______________1__0_0_0________0__':'11a0d17017593951bf8c850e2a5b5f7646413f03a196a1b236995822f5c88028',
  'shaders/sm_4_0/forward_probe_lighting.ps/_____11_0___001__00___1________0_0______________0__0_0__________0__':'b15ac0326fad1fbecb7b6e5457f05543a98d2461e2f9b241575136e98fc42046',
@@ -252,18 +252,28 @@ def main():
   if line and not line.startswith('#'):
    name,sha,size,urls=line.split('\t',3);archive=a.patch_cache/name
    assert archive.stat().st_size==int(size);layers.append(archive);archive_pins[name]=sha
+ # A released patch that carries a program of this pack (this version or an earlier one, released
+ # before it) leaves the layer below it in force.
+ def dxbc_digest(blob):
+  at=blob.find(b'DXBC');return blob[at+4:at+20].hex()
+ own={}
+ for version in a.pack.parent.glob('v021d-forward-fog-*'):
+  for path in operations:
+   if (version/'files'/path).is_file():own.setdefault(path,set()).add(dxbc_digest((version/'files'/path).read_bytes()))
  effective={}
  for archive in layers:
   for line in subprocess.check_output([str(a.shader_indexer),str(archive)],text=True).splitlines():
    digest,path=line.split('\t',1)
-   if path.startswith('shaders/sm_4_0/') and path.split('/')[-2] in SPECS:effective[path]=(archive,digest)
+   if path.startswith('shaders/sm_4_0/') and path.split('/')[-2] in SPECS and not (archive!=a.stock and digest in own.get(path,())):effective[path]=(archive,digest)
  expected={path for path,(_,digest) in effective.items() if digest in supported}
  assert operations.keys()==expected, ('effective forward alias coverage differs', sorted(expected-operations.keys())[:5],sorted(operations.keys()-expected)[:5])
  provenance=json.loads((a.pack/'source-archives.json').read_text())
- assert provenance['published_manifest_sha256']==hashlib.sha256(a.patches.read_bytes()).hexdigest()
+ # Built over the release list of its day: the current one up to the rows released since.
+ published=a.patches.read_bytes().splitlines(keepends=True)
+ assert any(hashlib.sha256(b''.join(published[:n])).hexdigest()==provenance['published_manifest_sha256'] for n in range(len(published)+1))
  used={effective[path][0].name for path in expected}
  assert {r['archive']:r['sha256'] for r in provenance['used_archives']}=={name:archive_pins[name] for name in used}
- markers={struct.unpack('<I',struct.pack('<f',s['marker']))[0]:s for s in specs};assert len(markers)==15
+ markers={struct.unpack('<I',struct.pack('<f',s['marker']))[0]:s for s in specs};assert len(markers)==len(specs)
  with tempfile.TemporaryDirectory() as tmp:
   cache={}
   def read(db,path):
@@ -336,5 +346,5 @@ def main():
    assert adaptable(program,ways) is None,('an adaptable program was left native',path)
    fogged=any(op[i:i+2]==(g,18) for op in program for g in (1,2,3) for i in range(2,len(op)-1))
    reason='reads more of the fog' if found else 'fogged otherwise' if fogged else 'no fog';reasons[reason]=reasons.get(reason,0)+1
-  print(json.dumps(dict(status='PASS',left_native=reasons,generic_programs=len(any_way),families=coverage,effective_layers=len(layers),effective_forward_paths=len(effective),aliases=len(operations),unique_programs=len(unique),all15_scene_guards=True,unmarked_native_instructions='byte-identical',original_fog_blocks='exact after established register/schema bindings',composed=a.patch is not None),indent=2))
+  print(json.dumps(dict(status='PASS',left_native=reasons,generic_programs=len(any_way),families=coverage,effective_layers=len(layers),effective_forward_paths=len(effective),aliases=len(operations),unique_programs=len(unique),scene_guards=len(markers),unmarked_native_instructions='byte-identical',original_fog_blocks='exact after established register/schema bindings',composed=a.patch is not None),indent=2))
 if __name__=='__main__':main()

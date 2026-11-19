@@ -6,6 +6,15 @@ cipher's secret key. Source addresses travel in a strict IPv4 PROXY v2 envelope;
 only configured WireGuard peers may supply it. Direct players still use the
 original sockets and wire format. This changes no simulation or world data.
 
+The servers know a peer by its address and the route it came by, direct or
+through a given relay (`udp_transport::relay::Peer`): login, lobby, match seats
+and voice all key by it, and an answer leaves by the route its peer came by.
+Datagrams that name an address by another route are another peer's: they never
+continue, redirect or displace a link that came the other way. Limits and bans
+still count the client's own address (the PROXY header's for a relayed peer).
+srp parses `SRP_RELAYS` once at its start and gives the result to the four
+servers; a wrong value starts none of them.
+
 Automatic fallback runs before PLAY starts the game. With `updater_skhid.relay`
 installed, the updater probes direct login TCP and lobby/match UDP concurrently,
 then tries the relay if any fails. The server echoes a 22-byte nonce challenge

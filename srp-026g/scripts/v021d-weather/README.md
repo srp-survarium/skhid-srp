@@ -1,15 +1,22 @@
-# Five 0.21 map weathers
+# The 0.21 maps' weathers
 
-Rain and evening for Rudnya, School, Vostok Radar, Tarakanovsky Fort and
-Mamayev Kurgan. Each has Protective device (mode 2) and Team Deathmatch
-(mode 4). Resource-porter commit `a9d8e64` on `port/v021d-five-weathers` makes
-`maps-021d-weathers@2` and `three-maps-021-lighting@7` together.
+Rain and evening for Rudnya, School, Vostok Radar, Chemical Plant,
+Tarakanovsky Fort and Mamayev Kurgan. Each has Protective device (mode 2) and Team Deathmatch
+(mode 4). Resource-porter commit `a9d8e64` on `port/v021d-five-weathers` made
+`maps-021d-weathers@2` (five maps); Chemical Plant's four projects are
+`maps-021d-chemical-weathers@1`, by the same builder and script with
+`WEATHER_MANIFEST=ports/survarium-021d-chemical-weathers-to-026g.json` on
+`port/v021d-chemical`, which also makes `three-maps-021-lighting@8` (eighteen
+profiles). The five maps' pack is not rebuilt: the importer has since kept
+alpha mip chains and visibility in private copies, which the edit lists below
+retrofit to it; Chemical Plant's files are made that way from the start.
 
 | Map | Rain 2 / 4 | Evening 2 / 4 |
 | --- | --- | --- |
 | Rudnya | 262 / 263 | 264 / 265 |
 | School | 1 / 2 | 3 / 4 |
 | Vostok Radar | 170 / 171 | 172 / 173 |
+| Chemical Plant | 268 / 269 | 270 / 271 |
 | Tarakanovsky Fort | 5 / 6 | 7 / 8 |
 | Mamayev Kurgan | 179 / 180 | 253 / 254 |
 
@@ -17,7 +24,7 @@ The weather builder replaces only the environment, local lighting, probes
 and weather-layer client objects of the **authored day source**. The day
 source includes the ordered content edits: gameplay, anomalies, existing lamp fixtures and Keeper pools are retained.
 The source geometry edit restores the original weather-only deltas: School
-rain adds two hanging lamp assemblies (six donor visuals, four collisions,
+rain and Chemical Plant rain each add two hanging lamp assemblies (six donor visuals, four collisions,
 two broken-state visuals and two breakable fixtures); Fort rain/evening each
 omit three barrel groups and their six collisions. Existing lamp indices
 follow those removals; day variants are unchanged. These geometry differences
@@ -194,6 +201,12 @@ grass and water materials with 0.21d's grass vertex shaders and wave normals.
   `srp_grass_v021d` in the five grass materials their vegetation layers' models use, `srp_water_v021d`
   in the six ported water materials. The weather packs themselves stay without the key
   (`check_packs.py`).
+- Chemical Plant's keys are `v021d-renderer-2.json` (its six projects, `flora/grass_l04`, its two
+  water materials).
+- The day-source export (`source_projects.py`) leaves the `v021d-renderer-*` lists out, as it leaves
+  the weather packs and the `v021d-weather-*` lists out: the keys are laid over the finished
+  projects, the weather packs' too, and are no part of the day source those packs are made from.
+  (With them in, the export stopped on the weather projects the first list names.)
 
 ## Anomaly materials keep 0.21d's look
 

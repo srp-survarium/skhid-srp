@@ -135,9 +135,20 @@ def check(porter, stock, patch, pack, blend_pack, patches, patch_cache):
     # Additions cannot shadow any existing native or published map behavior.
     archives = [stock] + [patch_cache / line.split()[0] for line in patches.read_text().splitlines()
                           if line.startswith('resources.db.patch_')]
-    for archive in archives:
-        existing = set(subprocess.check_output([str(porter), 'list', '--db', str(archive)], text=True).splitlines())
-        assert paths.isdisjoint(existing), ('existing shader replaced', str(archive))
+    # A released patch may hold them: then it holds this pack's own bytes (the release that shipped
+    # it), never another program under the same path.
+    assert paths.isdisjoint(set(subprocess.check_output([str(porter), 'list', '--db', str(stock)], text=True).splitlines())), \
+        ('existing shader replaced', str(stock))
+    shipped = 0
+    with tempfile.TemporaryDirectory() as tmp:
+        for archive in archives[1:]:
+            existing = paths & set(subprocess.check_output([str(porter), 'list', '--db', str(archive)], text=True).splitlines())
+            for path in sorted(existing):
+                out = Path(tmp) / 'shipped'
+                subprocess.run([str(porter), 'extract', '--db', str(archive), '--path', path, '--output', str(out)],
+                               check=True, stdout=subprocess.DEVNULL)
+                assert out.read_bytes() == (pack / 'files' / path).read_bytes(), ('existing shader replaced', str(archive), path)
+                shipped += 1
     cache = {}
     with tempfile.TemporaryDirectory() as tmp:
         def read(db, path):

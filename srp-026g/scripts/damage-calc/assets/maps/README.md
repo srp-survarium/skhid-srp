@@ -20,6 +20,7 @@ elevation grid for every map.
 | v021d_level_01 | Rudnya (v0.21) | 0.1693 | 260, 261 (ported, pack maps-021d-rudnya@4) |
 | v021d_level_02 | School (v0.21) | 0.1432 | 174, 176 (ported, pack maps-021d-school-fort@4) |
 | v021d_level_05 | Tarakanovsky Fort (v0.21) | 0.1172 | 177, 178 (ported, pack maps-021d-school-fort@4) |
+| v021d_level_04 | Chemical Plant (v0.21) | 0.1497 | 266, 267 (ported, pack maps-021d-chemical@1) |
 | level_09 | London | 0.1823 | 181-183 (skhid patch 14) |
 | v011e_level_03 | Vostok Radar Station (v0.11) | 0.1302 | 208, 209 (ported, patch 22) |
 | v011e_level_04 | Chemical Plant (v0.11) | 0.1823 | 206, 207 (ported, patch 22) |
@@ -166,6 +167,8 @@ Always use `python3 -I`.
     # School and Tarakanovsky Fort v0.21 (pack maps-021d-school-fort@4): the pack, and the live patches for the
     # ported/v021d files it shares with patch 20
     for l in 02 05; do python3 -I extract_level.py $DBGRAB $DB v021d_level_$l/day_2 $W/lv/v021d_level_$l <packs>/maps-021d-school-fort-4/files $ALL; done
+    # Chemical Plant v0.21 (pack maps-021d-chemical@1) the same way: native Chemical Plant's frame (project_name level_04)
+    python3 -I extract_level.py $DBGRAB $DB v021d_level_04/day_2 $W/lv/v021d_level_04 <packs>/maps-021d-chemical-1/files $ALL
     # the maps a released patch added (London: patch 14; the 0.11e ports: patch 22) are read with the
     # released patches mounted over the db, as the game does (the highest patch with a file wins)
     PATCHES=$(for n in 12 14 17 19 20 21 22; do printf ' --patch %s' <patches>/resources.db.patch_$n; done)

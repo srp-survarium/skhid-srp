@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Author original weather geometry deltas over corrected day-derived projects.
 
-School rain's two extra hanging lamps are converted by the same breakable-lamp
-rule as day fixtures. Fort rain/evening omit three original day barrel groups.
+School rain's and Chemical Plant rain's two extra hanging lamps are converted by
+the same breakable-lamp rule as day fixtures. Fort rain/evening omit three
+original day barrel groups.
 Only those donor differences change; existing lamp indices follow removals.
 Input: pinned original donor projects, the porter's source import bundle, and
-the weather content pack. Output is an edit list, never a binary patch.
+the weather content packs. Output is an edit list, never a binary patch.
 """
 import argparse
 from collections import Counter
@@ -66,17 +67,18 @@ def apply(data, path, edits):
     return result
 
 
-def make(donor, imported, pack):
+def make(donor, imported, packs):
     edits = {'_about': __doc__.strip(), 'set': [], 'append_entry': [], 'add_value': [], 'remove_entry': []}
     provenance = {}
 
     def read(root, path):
         data = (root / path).read_bytes()
-        label = {donor: 'donor', imported: 'import', pack / 'files': 'pack'}[root]
+        label = {donor: 'donor', imported: 'import'}.get(root, 'pack')
         provenance[f'{label}:{path}'] = hashlib.sha256(data).hexdigest()
         return data
 
-    for level, weather, counts in [('02', 'rain', (6, 4)), ('05', 'rain', (-3, -6)), ('05', 'evening', (-3, -6))]:
+    for level, weather, counts in [('02', 'rain', (6, 4)), ('05', 'rain', (-3, -6)), ('05', 'evening', (-3, -6)),
+                                   ('04', 'rain', (6, 4))]:
         day = lamps.tree(read(donor, f'projects/level_{level}/day/client_project'))
         original = lamps.tree(read(donor, f'projects/level_{level}/{weather}/client_project'))
         adapted = lamps.tree(read(imported, f'projects/v021d_level_{level}/{weather}_2/client_project'))
@@ -86,9 +88,10 @@ def make(donor, imported, pack):
         assert all(not extras[g] or not missing[g] for g in GROUPS)
         for mode in (2, 4):
             path = f'projects/v021d_level_{level}/{weather}_{mode}/client_project'
+            pack, = (p for p in packs if (p / 'files' / path).exists())
             data = read(pack / 'files', path)
             root = lamps.tree(data)
-            if level == '02':
+            if extras['render_visuals']:
                 visuals = [converted(v, adapted['render_visuals']) for v in extras['render_visuals']]
                 bounds = {}
                 for visual in visuals:
@@ -137,7 +140,7 @@ def make(donor, imported, pack):
             assert not lamps.check_built(path, final), path
             now = lamps.tree(final)
             for group, expected in zip(GROUPS, counts):
-                broken = 2 if level == '02' and group == 'render_visuals' else 0
+                broken = 2 if extras['render_visuals'] and group == 'render_visuals' else 0
                 assert len(now[group]) - len(root[group]) == expected + broken
             assert now['server_objects'] == root['server_objects']
             assert now['client_objects'] == root['client_objects']
@@ -146,13 +149,14 @@ def make(donor, imported, pack):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('donor', 'imported', 'pack', 'out', 'provenance'):
+    for name in ('donor', 'imported', 'out', 'provenance'):
         parser.add_argument('--' + name, type=Path, required=True)
+    parser.add_argument('--pack', type=Path, required=True, action='append', help='each weather pack')
     args = parser.parse_args()
     edits, provenance = make(args.donor, args.imported, args.pack)
     args.out.write_text(json.dumps(edits, indent=2) + '\n')
     args.provenance.write_text(json.dumps(provenance, indent=2, sort_keys=True) + '\n')
-    print('School rain: two complete breakable fixtures; Fort rain/evening: three donor-omitted barrel groups removed')
+    print('School and Chemical Plant rain: two complete breakable fixtures each; Fort rain/evening: three donor-omitted barrel groups removed')
 
 
 if __name__ == '__main__':
