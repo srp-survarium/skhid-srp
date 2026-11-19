@@ -257,6 +257,24 @@ class MapEditorEdits(unittest.TestCase):
             self.assertEqual(value(data, 'parameters/item_level'), 4)
             self.assertNotEqual(run(['parameters/buckshot'], 'out2').returncode, 0)
 
+    def test_cli_replaces_a_key_removed_and_added_again(self):
+        # A table a pack carried from another file (the lamps' srp_lamps), made anew.
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live').mkdir()
+            (root / 'live/p').write_bytes(bytes(config({'t': {'a': 1, 'b': 2.0}, 'keep': 3})))
+            (root / 'edits.json').write_text(json.dumps({
+                'remove_key': [{'files': 'p', 'keys': ['t']}],
+                'add_value': [{'files': ['p'], 'table': '', 'key': 't', 'value': {'a': 5, 'c': 'x'}}]}))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            data = bytearray((root / 'out/p').read_bytes())
+            self.assertEqual((value(data, 't/a'), value(data, 'keep')), (5, 3))
+            self.assertEqual({q for q, _, _ in ce.walk(data)}, {'', '/t', '/t/a', '/t/c', '/keep'})
+
     def test_cli_promotes_rolled_defaults_of_equipment_only(self):
         """Built-in bonuses of a kind that rolls are raised to its second-strongest row, on equipment
         only; a stronger one, a kind that never rolls and a wear-only one stay; the check afterwards
