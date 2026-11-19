@@ -25,7 +25,8 @@ pub use inventory::{
 };
 mod player_tail;
 pub use player_tail::{
-    ArtefactSlots, BatteryAnimation, BatteryMotion, BatteryState, CarriedBattery, Head, HitEffect,
+    ArtefactSlots, BatteryAnimation, BatteryMotion, BatteryState, BatteryStrike, CarriedBattery,
+    Head, HitEffect,
     HitEmitter, MAX_HIT_EFFECTS, MAX_PLAYER_EFFECTS,
     InventoryHeader, PlayerState, Stamina, player_head, player_tail,
 };

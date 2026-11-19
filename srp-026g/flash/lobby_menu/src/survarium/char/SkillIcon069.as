@@ -20,17 +20,14 @@ package survarium.char
    import MedicalSkill069302;
    import MedicalSkill069311;
    import MedicalSkill069312;
-   import MedicalSkill069313;
    import MedicalSkill069321;
    import MedicalSkill069322;
-   import MedicalSkill069323;
    import MedicalSkill069331;
    import MedicalSkill069332;
-   import MedicalSkill069333;
    import MedicalSkill069341;
    import MedicalSkill069342;
 
-   // Original 0.69d skill icons of our trees (medical: survival, Take Cover physical; artefact:
+   // Original 0.69d skill icons of our trees (medical: survival; artefact:
    // anomaly), copied unchanged; scripts/{medical,artefact}-skills/icons-069.tsv record their provenance.
    public class SkillIcon069 extends Sprite
    {
@@ -57,13 +54,14 @@ package survarium.char
             case 303: type = MedicalSkill069301; break;
             case 311: type = MedicalSkill069311; break;
             case 312: type = MedicalSkill069312; break;
-            case 313: type = MedicalSkill069313; break;
+            case 314: type = MedicalSkill069322; break;
             case 321: type = MedicalSkill069321; break;
             case 322: type = MedicalSkill069322; break;
-            case 323: type = MedicalSkill069323; break;
+            case 323: type = MedicalSkill069301; break;
+            case 324: type = MedicalSkill069322; break;
             case 331: type = MedicalSkill069331; break;
             case 332: type = MedicalSkill069332; break;
-            case 333: type = MedicalSkill069333; break;
+            case 333: type = MedicalSkill069322; break;
             case 341: type = MedicalSkill069341; break;
             case 342: type = MedicalSkill069342; break;
             case 501: type = ArtefactSkill069501; break;

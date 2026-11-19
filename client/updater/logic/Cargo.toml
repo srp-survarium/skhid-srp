@@ -5,9 +5,14 @@ edition = "2024"
 
 # Everything the updater does that needs no Windows: the checksum, the ZIP
 # reader, the server's answer, the installed-state file, the launcher's pipe
-# messages. No dependencies; `cargo test` here runs on any host.
+# messages, BitTorrent's rules. `cargo test` here runs on any host.
 
 [lib]
 name = "updater_logic"
 
 [dependencies]
+# The one dependency: Ed25519, to check the release's signature on a torrent
+# (src/signed.rs). Signatures are not code to write here; this crate has no
+# dependencies of its own (default features off: no randomness, no PEM),
+# is no_std, and is pinned.
+ed25519-compact = { version = "=2.6.0", default-features = false, features = ["opt_size"] }

@@ -1,7 +1,8 @@
-//! A line to the client patches' log in the game's folder (its working
-//! folder): what a patch wants the owner to see after the fact, and the panic
-//! handler's last word before the crash. No `core::fmt` (its code would
-//! take kilobytes of the arena): a line is [`Piece`]s.
+//! A line to the client patches' log in the game's `logs` folder
+//! (`game\logs`, two up from its working folder, made when missing): what a
+//! patch wants the owner to see after the fact, and the panic handler's last
+//! word before the crash. No `core::fmt` (its code would take kilobytes of
+//! the arena): a line is [`Piece`]s.
 //!
 //! ```
 //! use crate::vostok::log::{line, Piece::*};
@@ -402,6 +403,7 @@ fn begin() -> Option<*mut c_void> {
     match run_log::started() {
         Some(stamp) => {
             let kind = Kind::PATCHES;
+            kind.make_folder();
             kind.prune(stamp);
             let name = kind.next_name(stamp)?;
             open(name.bytes(), CREATE_NEW)

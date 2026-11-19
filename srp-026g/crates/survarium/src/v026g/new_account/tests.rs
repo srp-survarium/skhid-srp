@@ -20,12 +20,13 @@ fn sorted(mut worn: Vec<(u8, &str)>) -> Vec<(u8, &str)> {
 fn the_grant_is_the_tables() {
     let grant = shared();
     // Level 15, its 15 points spent (the owner's of 2026-11-06): Quick
-    // Response 5, Battle Stance 2, Potent Painkiller 1, Fast Bandaging 2,
-    // Metabolism 5.
+    // Response 5, Battle Stance 2, Potent Painkiller 1, Fast Bandaging 2 and
+    // Metabolism 4 with Brothers in Arms 1 (the medical tree of 2026-11-19:
+    // Metabolism's fifth rank gone, Potent Painkiller in row 2 behind row 1's 3).
     assert_eq!(grant.level, 15);
     assert_eq!(
         grant.skills,
-        [(101, 5), (102, 2), (301, 1), (302, 2), (311, 5)]
+        [(101, 5), (102, 2), (301, 1), (302, 2), (311, 4), (342, 1)]
     );
     // The test data lacks the medical tree (`medical-skills-1.json`); the
     // released data takes them (`session`'s `tests/starter_kit.rs`).

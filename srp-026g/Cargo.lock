@@ -488,6 +488,7 @@ dependencies = [
  "openssl",
  "session",
  "sign-in-cipher",
+ "udp-transport",
  "vostok",
 ]
 
@@ -525,6 +526,7 @@ dependencies = [
  "srp-validate",
  "survarium",
  "udp-transport",
+ "voice-abi",
  "vostok",
  "weapon-pickup",
  "world-frame",
@@ -855,7 +857,9 @@ dependencies = [
  "match-server",
  "openssl",
  "session",
+ "socket2",
  "survarium",
+ "udp-transport",
  "vostok",
  "web-server",
 ]

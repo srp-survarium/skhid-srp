@@ -135,6 +135,32 @@ def is_red(colour):
     return red >= 2 * max(green, blue)
 
 
+def nearest_fixture(path, position, centers, limit, among=None):
+    among = range(len(centers)) if among is None else among
+    distances = sorted((math.dist(position, centers[i]), i) for i in among)
+    if not distances or distances[0][0] > limit:
+        return None
+    if len(distances) > 1 and distances[1][0] - distances[0][0] < 0.15:
+        raise ValueError(f'{path}: ambiguous light/cone at {position}')
+    return distances[0][1]
+
+
+def rebound_lights(path, lamps, objects):
+    """Bind a replacement lighting set to existing fixtures without moving them."""
+    names = sorted(lamps)
+    centers = [[(lamps[name]['min_' + axis] + lamps[name]['max_' + axis]) / 2
+                for axis in 'xyz'] for name in names]
+    bindings = {name: {} for name in names}
+    for light in objects:
+        if light.get('game_object_type') != 'light':
+            continue
+        near = nearest_fixture(path, light['position'], centers, 0.85)
+        if near is not None:
+            row = bindings[names[near]]
+            row[f'light{len(row)}'] = dict(zip(('x', 'y', 'z'), light['position']), name=light['full_name'])
+    return bindings
+
+
 def author(path, data, bounds, break_material, effect_material):
     root = tree(data)
     visuals = root.get('render_visuals', [])
@@ -161,14 +187,8 @@ def author(path, data, bounds, break_material, effect_material):
     centers = [[(a + b) / 2 for a, b in zip(lo, hi)] for lo, hi in boxes]
     lights, cones = [[] for _ in lamps], [[] for _ in lamps]
 
-    def nearest(position, limit, among=range(len(lamps))):
-        distances = sorted((math.dist(position, centers[i]), i) for i in among)
-        if not distances or distances[0][0] > limit:
-            return None
-        # Ambiguous fixtures need an explicit map edit, never two owners.
-        if len(distances) > 1 and distances[1][0] - distances[0][0] < 0.15:
-            raise ValueError(f'{path}: ambiguous light/cone at {position}')
-        return distances[0][1]
+    def nearest(position, limit, among=None):
+        return nearest_fixture(path, position, centers, limit, among)
 
     alarms = [i for i, group in enumerate(lamps) if any(v['visual_name'] in LIT_ALARMS for _, v in group)]
     glows = [[] for _ in lamps]

@@ -707,6 +707,7 @@ st_character_decals_4_72_name	Angola zászlaja
 st_character_decals_4_73_name	Nigéria zászlaja
 st_character_decals_4_74_name	Dél-Afrika zászlaja
 st_character_decals_4_75_name	Wales zászlaja
+st_character_decals_4_76_name	Koszovó zászlaja
 st_character_decals_4_7_name	Litvánia zászlaja
 st_character_decals_4_8_name	Észtország zászlaja
 st_character_decals_4_9_name	Moldova zászlaja
@@ -746,6 +747,7 @@ st_character_decals_5_3_name	Ukrajna címere
 st_character_decals_5_40_name	Írország címere
 st_character_decals_5_41_name	Horvátország címere
 st_character_decals_5_42_name	Bosznia-Hercegovina címere
+st_character_decals_5_43_name	Koszovó címere
 st_character_decals_5_4_name	Fehéroroszország címere
 st_character_decals_5_5_name	Kazahsztán címere
 st_character_decals_5_6_name	Lettország címere
@@ -883,9 +885,13 @@ st_crosshair_static_option	Statikus célkereszt
 st_crosshair_type_option	Célkereszt
 st_crouch_action	Guggolás (nyomva tartva)
 st_crouch_toggle_action	Guggolás
+st_cs_mp_atp_name	Vehicle Station
 st_cs_mp_bath_name	Experimental Pool
+st_cs_mp_darkvalley_name	Dark Valley
+st_cs_mp_firestation_name	Fire Station
 st_cs_mp_military_1_name	Military Warehouses
 st_cs_mp_rembasa_name	Repair Depot
+st_cs_mp_sport_center_name	Sports Center
 st_cs_training_camp_name	Training Camp
 st_ct_max_members_count_error	Nem adható hozzá több játékos. A kláncsapat megtelt.
 st_current_value	\nJelenlegi érték:
@@ -1421,6 +1427,10 @@ st_level_11_name	Mamajev-kurgán (v0.21)
 st_level_12_name	Vegyi üzem (v0.11)
 st_level_13_name	Vosztok radarállomás (v0.11)
 st_level_14_name	Rudnya (v0.69)
+st_level_25_name	Iskola (v0.21)
+st_level_26_name	Tarakanovi erőd (v0.21)
+st_level_29_name	Rudnya (v0.21)
+st_level_31_name	Vegyi üzem (v0.21)
 st_lifebone_activation_hint	Szarkaláb aktiválva! Minden súlyos seb begyógyult! Életerő helyreállítva!
 st_lifebone_pickup_hint	Szarkaláb artefaktum. Gyorsítja az életerő regenerálódását. 
 st_lightning_quality_option	Megvilágítás minősége
@@ -1777,8 +1787,9 @@ st_profile_selection_warning	Profilváltáskor +20 másodperc újraéledési id�
 st_profile_warning_weapon	A profil nem aktív: nincs fegyver
 st_profile_warning_weapon_ammo	A profil nem aktív: kevés a lőszer a hátizsákban
 st_profile_warning_weapon_ammo_in_inv	A profil nem aktív: kevés a lőszer a raktárban
-st_ptt_action	Beszéd (nyomva tartva)
+st_ptt_action	Beszéd (rádió)
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Beszéd (közelben)
 st_put_item	Lerakás ({USE})
 st_quest_change_warning	Figyelem! A feladatcsere csökkenti a frakcióhűséged!
 st_quest_completed	Feladat teljesítve!
@@ -2088,6 +2099,8 @@ st_scavengers_win_x_games_obj	Nyerj meccseket:
 st_science_medkit_description	Teljesen meggyógyítja a karokat, a lábakat, a törzset és a fejet. 50%-kal csökkenti a fájdalmat. Meggyógyítja a mérgezést és a sugárbetegséget.
 st_science_medkit_name	Tudományos elsősegélycsomag
 st_scientists_faction	Intézet
+st_screenshot_action	Képernyőkép
+st_screenshot_no_ui_action	Képernyőkép UI nélkül
 st_search_label	Keresés
 st_search_range	Meccsszint
 st_second_weapon_action	2. fegyver
@@ -2109,10 +2122,16 @@ st_shop	Bolt
 st_shop_label	Bolt
 st_shop_scope_1p69_hyperon_description	4x nagyítású távcső
 st_shop_scope_1p69_hyperon_name	Zenit Hyperion távcső, 4x
+st_shop_scope_acog_ta01_description	4x nagyítású távcső
+st_shop_scope_acog_ta01_name	TA01 távcső, 4x
 st_shop_scope_acog_ta31_description	4x nagyítású távcső
 st_shop_scope_acog_ta31_name	TA31 távcső, 4x
 st_shop_scope_aimpoint_compm4_description	Svéd vöröspontos irányzék 2 MOA ponttal, akár nyolc év folyamatos használatra elég elemmel. Az amerikai hadsereg M68 CCO néven rendszeresítette. Picatinny-sínre szerelhető.
-st_shop_scope_aimpoint_compm4_name	CompM4 irányzék
+st_shop_scope_aimpoint_compm4_name	CompM4 irányzék, 2x
+st_shop_scope_aperture_description	3x nagyítású távcső
+st_shop_scope_aperture_name	Aperture távcső, 3x
+st_shop_scope_belomo_pk01_description	2x nagyítású vöröspontos irányzék.
+st_shop_scope_belomo_pk01_name	PK-01VI irányzék, 2x
 st_shop_scope_cobra_ekp_8_description	Orosz irányzék négy választható vörös célképpel. Gyors célzást tesz lehetővé két nyitott szemmel. Kalasnyikov-típusú fegyverek oldalsínjére szerelhető.
 st_shop_scope_cobra_ekp_8_name	Kobra EKP-8 irányzék
 st_shop_scope_docter_description	Kompakt német nyitott reflexirányzék vörös ponttal. Könnyű és gyorsan célozható, sörétes puskákhoz, pisztolyokhoz és rövid fegyverekhez készült.
@@ -2121,10 +2140,18 @@ st_shop_scope_elcan_specterdr_description	4x nagyítású távcső
 st_shop_scope_elcan_specterdr_name	SpecterDR távcső, 4x
 st_shop_scope_eotech_552_description	Amerikai holografikus irányzék: 65 MOA gyűrű, középen 1 MOA ponttal, AA elemekkel. Gyors célzás közeli és közepes távolságon. Picatinny-sínre szerelhető.
 st_shop_scope_eotech_552_name	EOTech 552 irányzék
+st_shop_scope_eotech_xps2_description	Vöröspontos irányzék a gyors célzáshoz.
+st_shop_scope_eotech_xps2_name	EOTech XPS2 irányzék
+st_shop_scope_hensoldt_rsas_description	2x nagyítású vöröspontos irányzék.
+st_shop_scope_hensoldt_rsas_name	RSA-S irányzék, 2x
+st_shop_scope_leupold_3_7_description	6x nagyítású távcső
+st_shop_scope_leupold_3_7_name	Leupold 3-7 távcső, 6x
 st_shop_scope_leupold_deltapoint_description	Kompakt amerikai reflexirányzék vörös háromszög céljellel. Pisztolyokhoz és könnyű fegyverekhez készült, kis mérete nem zavarja a használatot.
 st_shop_scope_leupold_deltapoint_name	Leupold DeltaPoint irányzék
 st_shop_scope_leupold_mk4_description	4x nagyítású távcső
 st_shop_scope_leupold_mk4_name	Leupold MK4 távcső, 4x
+st_shop_scope_ncstar_4_description	Vöröspontos irányzék a gyors célzáshoz.
+st_shop_scope_ncstar_4_name	NcSTAR 4 irányzék
 st_shop_scope_pso_1_description	4x nagyítású távcső
 st_shop_scope_pso_1_name	PSO-1 távcső, 4x
 st_shop_scope_pso_1_old_description	4x nagyítású távcső
@@ -2581,21 +2608,29 @@ st_srp_login_ban_ends	Lejár: %1$s (%2$s múlva).
 st_srp_login_ban_forever	A tiltás végleges.
 st_srp_map_chemical_plant	Vegyi üzem
 st_srp_map_chemical_plant_v011	Vegyi üzem (v0.11)
+st_srp_map_chemical_plant_v021	Vegyi üzem (v0.21)
 st_srp_map_cologne	Köln
+st_srp_map_cs_mp_atp	Vehicle Station
 st_srp_map_cs_mp_bath	Experimental Pool
+st_srp_map_cs_mp_darkvalley	Dark Valley
+st_srp_map_cs_mp_firestation	Fire Station
 st_srp_map_cs_mp_military_1	Military Warehouses
 st_srp_map_cs_mp_rembasa	Repair Depot
+st_srp_map_cs_mp_sport_center	Sports Center
 st_srp_map_cs_training_camp	Training Camp
 st_srp_map_london	London
 st_srp_map_mamayev_kurgan	Mamajev-kurgán
 st_srp_map_mamayev_kurgan_v021	Mamajev-kurgán (v0.21)
 st_srp_map_names_option	Nevek a térképen
 st_srp_map_rudnya	Rudnya
+st_srp_map_rudnya_v021	Rudnya (v0.21)
 st_srp_map_rudnya_v069	Rudnya (v0.69)
 st_srp_map_school	Iskola
+st_srp_map_school_v021	Iskola (v0.21)
 st_srp_map_soc_ug_depository	Depository
 st_srp_map_soc_ug_station	Station
 st_srp_map_tarakanovsky_fort	Tarakanovi erőd
+st_srp_map_tarakanovsky_fort_v021	Tarakanovi erőd (v0.21)
 st_srp_map_vector	Vektor laboratórium
 st_srp_map_vostok	Vosztok radarállomás
 st_srp_map_vostok_v011	Vosztok radarállomás (v0.11)
@@ -2634,24 +2669,29 @@ st_srp_medical_312_description	Az elsősegélycsomagok és kötszerek által vis
 st_srp_medical_312_name	Egészségügyi képzés
 st_srp_medical_313_description	Az elsősegélycsomagok és kötszerek által visszaállított életerő bónusza guggolás közben:
 st_srp_medical_313_name	Fedezékbe
+st_srp_medical_314_description	Antitoxin hatása alatt a célzási idő csökkenése:
+st_srp_medical_314_name	Éles szem
 st_srp_medical_321_description	Mozgási sebesség bónusza 30 alatti életerőnél:
 st_srp_medical_321_name	Adrenalin
 st_srp_medical_322_description	Minden gyógyszert tartalmazó zsebben eggyel több tárgy fér el.
 st_srp_medical_322_name	Több gyógyszer
 st_srp_medical_323_description	Fájdalomcsillapító hatása alatt az ellenséges találatok megállítóerejének csökkenése:
 st_srp_medical_323_name	Rendíthetetlen
+st_srp_medical_324_description	Amikor az antitoxin hatni kezd, visszanyert állóképesség:
+st_srp_medical_324_name	Második szél
 st_srp_medical_331_description	A másodlagos fegyver helyét egy további felszerelészsebre cseréli.
 st_srp_medical_331_name	Felszerelészseb
 st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza:
 st_srp_medical_332_name	Erős csontok
-st_srp_medical_333_description	Fájdalomcsillapító hatása alatt az irányzék kilengésének csökkenése:
+st_srp_medical_333_description	Antitoxin hatása alatt az újratöltési sebesség bónusza:
 st_srp_medical_333_name	Összpontosítás
 st_srp_medical_342_description	A szövetségesektől kapott sebzés csökkenése:
 st_srp_medical_342_name	Fegyvertársak
 st_srp_medical_seconds	 mp
+st_srp_medicine_aim_time	Célzási idő
 st_srp_medicine_crouched_healing	Gyógyulás guggolva
 st_srp_medicine_hit_slow	Lassítás golyóktól
-st_srp_medicine_sight_sway	Irányzék kilengése
+st_srp_medicine_reload_speed	Újratöltési sebesség
 st_srp_medicine_sprint_stamina	Sprint állóképesség
 st_srp_melee_knockback	Tusütés lökőereje
 st_srp_mic_test	Mikrofon tesztelése
@@ -2728,10 +2768,10 @@ st_srp_replay_not_yours	Csak olyan meccset nézhetsz vissza, amelyen részt vett
 st_srp_replay_off	A visszajátszás ki van kapcsolva ezen a szerveren.
 st_srp_replay_old_game	Ez a játékverzió nem támogatja a visszajátszást. Frissítsd a játékot: indítsd újra az indítóprogramból.
 st_srp_replay_place_in_line	Helyed a sorban: %1$s. Várakozás: %2$s mp.
-st_srp_replay_ready	A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
-st_srp_replay_ready_size	A meccs felvétele: %1$s.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F11 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
+st_srp_replay_ready	A meccs visszajátszása elkészült.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F9 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
+st_srp_replay_ready_size	A meccs felvétele: %1$s.\n\nA meccs hiteles felvételét tároló szerverről töltődik le. Egy második játékablakban indul el, a lobby nyitva marad.\n\nLejátszás közben az F9 nyitja meg a vezérlőket: játékosok, kamera, tekerés, sebesség.
 st_srp_replay_size	%1$s,%2$s MB
-st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F11 nyitja meg a vezérlőket.
+st_srp_replay_starting	A visszajátszás indul: egy második játékablak nyílik meg, a lobby nyitva marad. Ha hiba történik, a frissítőprogram jelzi az okát.\n\nLejátszás közben az F9 nyitja meg a vezérlőket.
 st_srp_replay_still_preparing	A szerver még készíti a felvételt. Egy perc múlva nyisd meg újra a Visszajátszás ablakot.
 st_srp_replay_title	Visszajátszás
 st_srp_replay_waiting	Várakozás: %1$s mp.

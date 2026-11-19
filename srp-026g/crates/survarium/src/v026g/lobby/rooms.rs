@@ -18,6 +18,7 @@ use binary_config_parser::tree::ConfigValue;
 
 use super::push::{Ranked, elo_rows};
 use super::{ServerMessage, WireError, at_most};
+use crate::v026g::dictionary::MapId;
 
 /// The first start of a room request: the list of the rooms.
 pub const ROOMS_FIRST: u32 = 2_060_000_000;
@@ -597,8 +598,8 @@ pub struct RoomRow {
     pub players: u8,
     pub phase: RoomPhase,
     pub secs: u32,
-    /// The map being played, or the one ahead in the vote; 0: none.
-    pub map_id: u8,
+    /// The map being played, or the one ahead in the vote (the row's 0: none).
+    pub map_id: Option<MapId>,
     pub door: ListDoor,
     /// The owner's name: the room's.
     pub name: String,
@@ -643,7 +644,7 @@ pub struct Card {
 /// names on a card and on the banner of a match being played.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Shown {
-    pub map_id: u8,
+    pub map_id: MapId,
     pub mode: u8,
 }
 
@@ -826,7 +827,7 @@ pub struct RoomForm {
 /// A map a pool may hold, in [`room_pool`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PoolEntry {
-    pub map_id: u8,
+    pub map_id: MapId,
     /// Of its `maps_dict` entry (`maps::MapMode`).
     pub level: u8,
     pub weather: u8,
@@ -901,7 +902,7 @@ pub fn room_list(
             room.players,
             room.phase as u8,
             room.secs,
-            room.map_id,
+            room.map_id.map_or(0, MapId::get),
             room.door as u8,
             row_name(&room.name)
         )

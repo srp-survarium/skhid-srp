@@ -47,6 +47,9 @@ server logs it at its start.
               walk, sprint, crouch, fire, reload, weapon 2, turn back),
               again and again; each input is printed (srp::drive)
 
+SRP_GAME_DATA: use the same server-game-data.db as the local server.
+Without it the bot uses the embedded test archive.
+
 The server must name the bots' accounts: SRP_BOT_ACCOUNTS=bot-1,bot-2
 (testing only: never on a public server).
 ";
@@ -135,6 +138,14 @@ fn main() {
         fail("the name must be 1 to 255 bytes");
     }
     let password = password.unwrap_or_else(|| DEFAULT_PASSWORD.to_owned());
+
+    // Use the same catalogue as the local server before the client model reads
+    // any tables. The embedded test archive cannot describe ported/live items.
+    if env(survarium::v026g::game_data::GAME_DATA_ENV).is_some()
+        && let Err(error) = survarium::v026g::game_data::init()
+    {
+        fail(&format!("SRP_GAME_DATA: {error}"));
+    }
 
     let names = bot::names(&name, count);
     println!(

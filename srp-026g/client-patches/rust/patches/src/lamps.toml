@@ -4,12 +4,15 @@ patch = 81
 [[hook]]
 site = "project.insert"
 handler = "on_bind"
+order = 1
 [[hook]]
 site = "project.removed"
 handler = "on_remove"
+order = 1
 [[hook]]
 site = "project.destroy"
 handler = "on_destroy"
+order = 1
 [[hook]]
 site = "game_world.after_move"
 handler = "on_present"

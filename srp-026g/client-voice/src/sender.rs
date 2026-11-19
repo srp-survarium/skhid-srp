@@ -1,6 +1,7 @@
-use crate::wire::Message;
+use crate::wire::{Channel, Message};
 struct Utterance {
     id: u16,
+    channel: Channel,
     seq: u16,
     frames: u16,
     pending: Option<Vec<u8>>,
@@ -18,11 +19,13 @@ impl Sender {
             active: None,
         }
     }
-    pub fn start(&mut self, now: u32) -> Vec<u8> {
+    /// A new utterance on `channel` (the key held): its START.
+    pub fn start(&mut self, now: u32, channel: Channel) -> Vec<u8> {
         let id = self.next_utt;
         self.next_utt = self.next_utt.wrapping_add(1);
         self.active = Some(Utterance {
             id,
+            channel,
             seq: 0,
             frames: 0,
             pending: None,
@@ -30,6 +33,7 @@ impl Sender {
         Message::Start {
             session: self.session,
             utt: id,
+            channel,
             ms: now,
         }
         .encode()
@@ -55,6 +59,7 @@ impl Sender {
         let out = Message::Audio {
             session: self.session,
             utt: active.id,
+            channel: active.channel,
             seq: active.seq,
             frames,
         }

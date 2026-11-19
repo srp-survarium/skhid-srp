@@ -329,7 +329,7 @@ pub struct PlayerResult {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchResult {
     pub match_id: u32,
-    pub map_id: u8,
+    pub map_id: survarium::v026g::maps::MapId,
     /// Its mode; in Blackout (`docs/notes/blackout.md`) every point a
     /// player earns counts twice, in its score and in what the score pays
     /// ([`BLACKOUT_FACTOR`]); the counts (kills, batteries) are as played.

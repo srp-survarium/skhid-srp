@@ -148,10 +148,10 @@ if site:
     markup = rest.split('<script id="calc-data"')[0]
     script = ('"use strict";\n// Built by srp-026g/scripts/damage-calc/build_page.py --site; do not edit.\n'
               f"const DATA = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};\n"
-              f'{engine}\n{read("rules.js")}\n{read("ui.js")}')
+              f'{engine}\n{read("hud.js")}\n{read("rules.js")}\n{read("ui.js")}')
     page = ('<!doctype html>\n<html lang="{{LANG}}">\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
-            f"{title}\n<style>\n{style.replace('/*__FONT__*/', faces)}</style>\n<!--SITE-HEADER-->\n"
+            f"{title}\n<style>\n{style.replace('/*__FONT__*/', faces).replace('/*__HUD__*/', read('hud.css'))}</style>\n<!--SITE-HEADER-->\n"
             f'{markup.strip()}\n<script src="/damage/calc.js?v={version(script.encode())}"></script>\n')
     for sub_dir in ("fonts", "maps"):
         os.makedirs(os.path.join(out_path, sub_dir), exist_ok=True)
@@ -172,8 +172,9 @@ font = uri(os.path.join(assets, "fonts", "carlito-bold.woff2"), "font/woff2")
 page = (read("template.html")
         .replace("/*__FONT__*/", f'@font-face {{ font-family: "Carlito"; font-weight: 700; src: url("{font}") format("woff2"); }}')
         .replace("/*__DATA__*/", payload)
+        .replace("/*__HUD__*/", read("hud.css"))
         .replace("/*__ENGINE__*/", engine)
-        .replace("/*__RULES__*/", read("rules.js"))
+        .replace("/*__RULES__*/", read("hud.js") + "\n" + read("rules.js"))
         .replace("/*__UI__*/", read("ui.js")))
 with open(out_path, "w", encoding="utf-8") as f:
     f.write(page)
