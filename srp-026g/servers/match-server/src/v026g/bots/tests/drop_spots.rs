@@ -35,6 +35,8 @@ struct Run {
     landed: Option<u32>,
     /// The ticks the lip guard swapped or braked the keys with the feet on the drop's top within 2 m of its take-off.
     braked: u32,
+    /// The ticks the guard left the body to the route's walk-off ([`crate::v026g::bots::drive::walk_off_guards`]).
+    left: u64,
     stuck: usize,
 }
 
@@ -50,6 +52,7 @@ fn run(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, until: u3
     bots.entered(0, true, 0);
     let (mut clock, mut next_world) = (0, 1_000);
     let mut out = Run::default();
+    let left_before = crate::v026g::bots::drive::walk_off_guards::count();
     while clock < until {
         clock += 25;
         while game.tick + TICK_MS <= clock {
@@ -98,6 +101,7 @@ fn run(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, until: u3
             break;
         }
     }
+    out.left = crate::v026g::bots::drive::walk_off_guards::count() - left_before;
     out
 }
 

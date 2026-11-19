@@ -2194,6 +2194,16 @@ impl Route {
             .collect()
     }
 
+    /// [drop give-ups] Whether a drop the route walks off at release ([`Self::walk_off_at`]'s links) landing farther than `across`
+    /// flat from its take-off has its take-off from `s` to `within` metres on, or is the leg the body at `s` is on (its take-off
+    /// behind `s`, its landing ahead).
+    pub fn walk_off_within(&self, s: f32, within: f32, across: f32) -> bool {
+        let first = self.along.partition_point(|&a| a <= s).max(1);
+        (first..self.points.len())
+            .take_while(|&k| self.along[k - 1] <= s + within)
+            .any(|k| self.walk_offs.iter().any(|w| w.landing == self.points[k].at && w.landing.distance_xz(w.take_off) > across))
+    }
+
     /// Whether the route drops onto a floor within `within` metres of `feet` (anywhere along it): a drop the planner
     /// recorded ([`DropTruth::Links`]), whatever its height, so a drop link under a lip's height counts, and the
     /// body that lands on a lower floor beside its landing (a shelf at a ledge's foot) is the route's.
@@ -2616,6 +2626,34 @@ mod tests {
         let down = [Vec3::new(2.0, 3.0, 0.0), Vec3::new(4.6, 3.0, 0.3), Vec3::new(4.4, 0.0, 0.62)];
         assert_eq!(on(PastDrop::Window, &down), 2);
         assert_eq!(on(PastDrop::Landed, &down), 2);
+    }
+
+    /// [drop give-ups] The route's own walk-off landing across from its take-off is within reach from the forecast's reach before
+    /// its take-off through its leg, and not before or after; a drop landing under its lip (within `across`) or a plain walk is not.
+    /// The level_02 walk-off of fix-builder's diagnostic match: (11.20, 19.40, 37.97) to (9.95, 16.18, 39.22), 1.77 m across.
+    #[test]
+    fn a_walk_off_landing_across_is_within_from_its_reach_through_its_leg() {
+        let wp = |x: f32, y: f32, z: f32| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
+        let (take_off, landing) = (Vec3::new(11.20, 19.40, 37.97), Vec3::new(9.95, 16.18, 39.22));
+        let mut route = Route::new(vec![wp(16.20, 19.40, 37.97), wp(take_off.x, take_off.y, take_off.z), wp(landing.x, landing.y, landing.z), wp(6.0, 16.18, 39.22)]);
+        let release = WalkOffRelease { take_off, landing, let_go: LetGo::Standing, crouched: false, line: DropLine::ToLanding };
+        route.walk_offs = vec![release];
+        let within = |route: &Route, s: f32| route.walk_off_within(s, 1.0, super::super::body::PLANNED_LANDING_M);
+        // The take-off is 5 m along: from 4 m on (1 m before it) through its leg (to 5 + 1.77 m), not at 3.9 m nor past the landing.
+        assert!(!within(&route, 3.9));
+        assert!(within(&route, 4.05));
+        assert!(within(&route, 5.0));
+        assert!(within(&route, 6.5));
+        assert!(!within(&route, 7.0));
+        // A drop landing under its lip is the guard's own planned landing: not left to the walk-off.
+        let mut under = route.clone();
+        under.walk_offs = vec![WalkOffRelease { landing: Vec3::new(10.6, 16.18, 37.97), ..release }];
+        under.points[2].at = Vec3::new(10.6, 16.18, 37.97);
+        assert!(!within(&under, 5.0));
+        // No walk-off on the route.
+        let mut plain = route.clone();
+        plain.walk_offs.clear();
+        assert!(!within(&plain, 5.0));
     }
 
     #[test]

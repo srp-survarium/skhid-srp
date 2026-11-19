@@ -2958,6 +2958,22 @@ pub(crate) mod riser_window {
 
 /// The route's drops this far on (m along it) are the guard's planned falls.
 const PLANNED_DROP_M: f32 = 6.0;
+
+/// [drop give-ups] The ticks the lip guard left a body to its route's own walk-off at release (`guard_keys`).
+pub mod walk_off_guards {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static LEFT: AtomicU64 = AtomicU64::new(0);
+
+    pub fn left() {
+        LEFT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The ticks left so far.
+    pub fn count() -> u64 {
+        LEFT.load(Ordering::Relaxed)
+    }
+}
 /// The guard also looks this far on along the velocity (s) for a lip's floor.
 const LIP_LOOK_S: f32 = 0.4;
 /// A tick that changed the keys adds this to the [`LipWatch`] score, and one that did not takes 1 off.
@@ -3365,10 +3381,29 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         return;
     }
     let truth = bot.motor.feel.drop_truth;
-    let planned = bot.route.as_mut().map_or_else(Vec::new, |(route, _)| {
-        let (walked, _) = route.progress(me.feet);
-        route.drop_landings(walked, PLANNED_DROP_M, truth)
-    });
+    // [drop give-ups] The route's own walk-off at release, from the stop forecast's reach before its take-off to its landing: the
+    // body goes over this lip by the walk-off's script (walked on along its line, let go at the release: the flight the builder
+    // made the link by, landing on the link's landing top), which the forecast of a stop does not play. A link re-aimed by
+    // `drop_lands` lands 1.3-3.5 m across from its take-off, so the stop's fall at the lip is past [`body::PLANNED_LANDING_M`] of
+    // that landing and was braked as unplanned: the route lost the drop and planned again (7 of 20 drops given up, fix-builder's
+    // diagnostic match of 2026-11-19, level_02). Only on the route's line (within [`body::RECKONING_M`] of it).
+    let reach = me.velocity[0].hypot(me.velocity[1]) * kin::TICK_S * (tuning.kin.blend_ticks + bot.motor.feel.lip_guard_ticks + 2) as f32
+        + body::RECKONING_M;
+    let (planned, own_walk_off) = bot.route.as_mut().map_or_else(
+        || (Vec::new(), false),
+        |(route, _)| {
+            let (walked, off) = route.progress(me.feet);
+            (route.drop_landings(walked, PLANNED_DROP_M, truth), off <= body::RECKONING_M && route.walk_off_within(walked, reach, body::PLANNED_LANDING_M))
+        },
+    );
+    if own_walk_off {
+        walk_off_guards::left();
+        #[cfg(test)]
+        {
+            bot.bench_guard = 5;
+        }
+        return;
+    }
     let full = bot.motor.feel.lip_guard_full;
     let guard = if matches!(bot.lip_watch, LipWatch::Off(until) if time < until) {
         LipGuard::Clear
