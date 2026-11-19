@@ -358,6 +358,20 @@ pub fn stance_mps(stance: Stance) -> f32 {
     speed::desired(speed::Gait::Move { stance, heading: speed::Heading::Forward, aiming: false })
 }
 
+/// [row 6] How far along the way `from` -> `to` (a share of its flat length) feet at `feet` are, counted only while they are on
+/// the way's level: no lower than its lower end by more than the arrival band ([`AT_HEIGHT_M`]); 0 under it. A body sliding down
+/// a slope beside a riser goes along the way's line too: on Mamayev Kurgan (26.0, 25.5, 91.7) a line of the walk 366489 ->
+/// 365709 up 0.36 m slid 1.3 m across and 0.9 m down and scored 0.63 of the way, so the failing riser was not cut
+/// ([`CUT_SHARE`]), where the exe's tick gets up it from no line, standing or crouched.
+fn way_along(from: Vec3, to: Vec3, feet: Vec3) -> f32 {
+    let flat = Vec3::new(to.x - from.x, 0.0, to.z - from.z);
+    let length = flat.length();
+    if length < 1e-4 || feet.y < from.y.min(to.y) - AT_HEIGHT_M {
+        return 0.0;
+    }
+    Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(flat) / (length * length)
+}
+
 /// [`walk_on`] at `mps` m/s.
 #[allow(clippy::too_many_arguments)]
 pub fn walk_on_at(world: &Collision, s: &Settings, c: &mut Controller, from: Vec3, to: Vec3, spare: usize, above: f32, mps: f32) -> Walked {
@@ -369,12 +383,7 @@ pub fn walk_on_at(world: &Collision, s: &Settings, c: &mut Controller, from: Vec
     let dir = flat * (1.0 / length);
     let step = mps * 0.05;
     let ticks = (length / step).ceil() as usize + 2 + spare;
-    // [row 6] The way along counts only while the feet are on the way's level: no lower than its lower end by more than the
-    // arrival band. A body sliding down a slope beside a riser goes along the way's line too (Mamayev Kurgan (26.0, 25.5, 91.7):
-    // a line of the walk 366489 -> 365709 up 0.36 m slid 1.3 m across and 0.9 m down and scored 0.63 of the way, so the
-    // failing riser was not cut, where the exe's tick gets up it from no line, standing or crouched).
-    let floor = from.y.min(to.y) - AT_HEIGHT_M;
-    let along_on_level = |feet: Vec3| if feet.y >= floor { Vec3::new(feet.x - from.x, 0.0, feet.z - from.z).dot(dir) / length } else { 0.0 };
+    let along_on_level = |feet: Vec3| way_along(from, to, feet);
     let mut best = 0.0f32;
     for _ in 0..ticks {
         let feet = c.feet();
@@ -1157,23 +1166,18 @@ mod tests {
         assert!(!grid.can_stand(under) && grid.reached(under));
     }
 
-    /// [row 6] A walk's share counts the way along only on the way's level: a body walked toward a point 0.36 m up and 1 m on,
-    /// down a ramp falling 0.5 m a metre (it never arrives), went the whole metre along but 0.5 m under its start: its share is
-    /// the way it made before it was 0.2 m under the lower end, under half, not the whole way.
+    /// [row 6] A walk's share counts the way along only on the way's level ([`way_along`]): feet 0.63 of the way along a
+    /// 0.36 m riser's line and 0.9 m under its start (the Mamayev Kurgan line's slide) count nothing; at the start's height,
+    /// within the arrival band under it, or over it, they count their way along.
     #[test]
     fn a_walk_sliding_down_beside_its_way_has_no_share_of_it() {
-        let mut tris = Vec::new();
-        quad(&mut tris, Vec3::new(-1.0, 0.5, -2.0), Vec3::new(-1.0, 0.5, 2.0), Vec3::new(3.0, -1.5, 2.0), Vec3::new(3.0, -1.5, -2.0));
-        let body = Body { client_controller: true, walk_start_clear: true, ..Body::client() };
-        let (caster, s) = body.controller();
-        let world = Collision::build(&tris).with_caster(caster);
         let (from, to) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.36, 0.0));
-        let mut c = body_at(&world, body.walk_start(), Stance::Standing, from);
-        match walk_on_at(&world, &s, &mut c, from, to, SPARE_TICKS, body.step, stance_mps(Stance::Standing)) {
-            Walked::Short(share) => assert!(share < CUT_SHARE, "share {share}, feet {:?}", c.feet()),
-            other => panic!("{other:?}, feet {:?}", c.feet()),
-        }
-        assert!(c.feet().y < from.y - AT_HEIGHT_M, "the body went down the ramp: {:?}", c.feet());
+        assert_eq!(way_along(from, to, Vec3::new(0.63, -0.9, 0.5)), 0.0);
+        assert!((way_along(from, to, Vec3::new(0.63, 0.0, 0.5)) - 0.63).abs() < 1e-5);
+        assert!((way_along(from, to, Vec3::new(0.4, -0.15, 0.0)) - 0.4).abs() < 1e-5);
+        assert!((way_along(from, to, Vec3::new(0.9, 0.36, 0.0)) - 0.9).abs() < 1e-5);
+        // A way down: its lower end is the floor of its level.
+        assert!((way_along(to, from, Vec3::new(0.5, -0.1, 0.0)) - 0.5).abs() < 1e-5);
     }
 
     /// [2c] A platform whose only way up is a 0.785 m vertical step (a Walk link with the clients' 0.8 m step, which the
