@@ -97,6 +97,7 @@ mod soak;
 mod soaks;
 mod sorted;
 mod sorted_use;
+mod spot_suite;
 mod standin;
 mod standin_aim;
 mod standin_body;
