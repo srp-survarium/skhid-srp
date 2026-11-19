@@ -861,8 +861,11 @@ impl WalkGrid {
         let n = ((GAP_PRESS_MAX_M - GAP_PRESS_MIN_M) / GAP_PRESS_STEP_M).round() as usize;
         // The floor every flight of a press (one, or one per sprint variant) rests on, if one: a sprint press lands only when
         // every variant does (A385-FORMAT §1, rule (b)), here on one floor.
+        // [jump down] Flown on after the clip's `end_jump` for as long as a walk-off's landing may take ([`LAND_STEPS`]): off an
+        // edge about 3 m high the body is still in the air at the clip's last ground step ([`jump::STAY_STEPS`]).
+        let ground_steps = jump::STAY_STEPS + LAND_STEPS as u32;
         let rests = |kind: jump::Kind, lead: f32, n: jump::Neighbour| -> Option<u32> {
-            let flights = jump::neighbour_flights(world, s, from, way, kind, lead, n, kits)?;
+            let flights = jump::neighbour_flights_for(world, s, from, way, kind, lead, n, kits, ground_steps)?;
             let floors: Vec<Option<u32>> = flights
                 .iter()
                 .map(|st| jump::landing_and_rest(st, |f| below(f.feet).is_some()).and_then(|(_, rest)| below(rest.feet)))
@@ -1123,24 +1126,28 @@ mod tests {
     }
 
     /// [taught presses] A jump off the edge gives the link its press (the short jump or the sprint jump at a gap lead) and its
-    /// share (the neighbourhood's flights resting on the same floor), not only the floor it comes down on: a slab 2 m over the
-    /// ground, jumped off along +x (a flight's steps end before a 3 m fall's landing).
+    /// share (the neighbourhood's flights resting on the same floor), not only the floor it comes down on: slabs 2 m and [jump
+    /// down] 3 m and 6 m over the ground, jumped off along +x. Off 3 m the body is still in the air at the clip's last ground
+    /// step (0.25 m up at the 24th step); the flight falls on to the ground.
     #[test]
     fn a_jump_off_the_edge_gives_its_press_and_share() {
-        let mut tris = Vec::new();
-        tris.extend(quad(0.0, 10.0, 0.0, 10.0, 0.0));
-        tris.extend(quad(0.0, 5.0, 0.0, 10.0, 2.0));
-        let grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, super::super::Body::default());
-        let world = Collision::build(&tris);
-        let a = grid.locate(Vec3::new(4.8, 2.0, 5.0), 0.3).unwrap();
-        let (b, press, share) = grid.jumped_down(&world, &Settings::LIVE, a, grid.position(a), (1.0, 0.0)).expect("lands below");
-        assert!(grid.position(b).y < 0.1 && grid.position(b).x > 5.0, "{:?}", grid.position(b));
-        let lead = match press {
-            Takeoff::Press(lead) | Takeoff::Sprint(lead) => lead.metres(),
-            other => panic!("a jump's press: {other:?}"),
-        };
-        assert!((GAP_PRESS_MIN_M - 1e-3..=GAP_PRESS_MAX_M + 1e-3).contains(&lead), "{lead}");
-        assert!(share.flown().is_some_and(|n| n >= 1), "{share:?}");
+        for high in [2.0f32, 3.0, 6.0] {
+            let mut tris = Vec::new();
+            tris.extend(quad(0.0, 10.0, 0.0, 10.0, 0.0));
+            tris.extend(quad(0.0, 5.0, 0.0, 10.0, high));
+            let grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, super::super::Body::default());
+            let world = Collision::build(&tris);
+            let a = grid.locate(Vec3::new(4.8, high, 5.0), 0.3).unwrap();
+            let (b, press, share) =
+                grid.jumped_down(&world, &Settings::LIVE, a, grid.position(a), (1.0, 0.0)).unwrap_or_else(|| panic!("{high} m: lands below"));
+            assert!(grid.position(b).y < 0.1 && grid.position(b).x > 5.0, "{high} m: {:?}", grid.position(b));
+            let lead = match press {
+                Takeoff::Press(lead) | Takeoff::Sprint(lead) => lead.metres(),
+                other => panic!("{high} m: a jump's press: {other:?}"),
+            };
+            assert!((GAP_PRESS_MIN_M - 1e-3..=GAP_PRESS_MAX_M + 1e-3).contains(&lead), "{high} m: {lead}");
+            assert!(share.flown().is_some_and(|n| n >= 1), "{high} m: {share:?}");
+        }
     }
 
     /// [item 2] A walk off a deck 17 m up falls onto a 65 deg face under it (steeper than the 55 deg a body stands on, met
