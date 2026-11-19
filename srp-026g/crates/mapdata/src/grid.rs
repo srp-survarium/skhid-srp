@@ -5024,7 +5024,7 @@ impl WalkGrid {
             return true;
         }
         if self.body.walk_off_lips && self.off_out(node).iter().any(|l| {
-            l.kind == LinkKind::GapDrop && l.press == gap::Takeoff::WalkOff && y - self.height[l.to as usize] >= LIP_DROP_M
+            l.kind == LinkKind::GapDrop && l.press.is_walk_off() && y - self.height[l.to as usize] >= LIP_DROP_M
         }) {
             return true;
         }

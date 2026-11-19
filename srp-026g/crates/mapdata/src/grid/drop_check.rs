@@ -486,13 +486,17 @@ pub struct DropStats {
     pub walk_offs: usize,
     pub walk_offs_reaimed: usize,
     pub walk_offs_unlanded: usize,
-    /// [A1b] Of the re-aimed Drop links, those taken down by the walk-off at release ([`Verdict::Released`]); of the walk-offs,
+    /// [A1b] Of the re-aimed Drop links, those taken down by the walk-off at release ([`Verdict::Pressed`]); of the walk-offs,
     /// those turned into one.
     pub released: usize,
     pub walk_offs_released: usize,
     /// [F2] Of the links walked (Drop links and walk-offs), those whose release was not made because their take-off is a thin
     /// top ([`WalkGrid::on_thin_top`]).
     pub releases_held_thin: usize,
+    /// [taught presses] Of the Drop links, those only the crouched walk-off takes down ([`Takeoff::WalkOffCrouched`]), and those
+    /// only a jump off the edge does (a short or a sprint jump): each an off-mesh GapDrop carrying that press.
+    pub walked_off_crouched: usize,
+    pub jumped_down: usize,
 }
 
 /// [feed 67] What [`super::Body::drop_lands`] does with one Drop link.
@@ -503,12 +507,14 @@ enum Verdict {
     Keep,
     /// The body lands on another floor of the grid, and walked at that floor it arrives there: the link goes there.
     Reaim(u32),
-    /// [A389] No walk line arrives or re-aims as [`Self::Reaim`]; a client way down (a walk line's own landing, the crouched
-    /// walk-off, a jump off the edge) comes to stand on this floor: the link goes there.
+    /// [A389] No walk line arrives or re-aims as [`Self::Reaim`]; a standing walk line's own landing is this floor: the link (a
+    /// standing walk-off) goes there.
     Taught(u32),
-    /// [A1b] No walk line arrives, and the walk-off at release (crouched or standing, the key let go on the step before the body
-    /// leaves the top) comes to rest on this floor lower than the take-off: the link goes there with that press and its share.
-    Released(u32, Takeoff, Share),
+    /// [A1b] No walk line arrives, and another client way down comes to rest on this floor (on the link's own top, or lower than
+    /// the take-off): the walk-off at release (crouched or standing, the key let go on the step before the body leaves the top),
+    /// [taught presses] the crouched walk-off ([`Takeoff::WalkOffCrouched`]) or a jump off the edge (a short or a sprint jump at
+    /// a gap lead). The link goes there with that press and its share: no standing walk-off takes the body there.
+    Pressed(u32, Takeoff, Share),
     /// No client way down tried stands on a floor of the grid: the walk lines, the crouched walk-off, the short and sprint
     /// jumps at the gap leads.
     Cut,
@@ -581,17 +587,17 @@ impl WalkGrid {
         for (&i, (v, _)) in todo.iter().zip(verdicts) {
             match v {
                 Verdict::Keep => {}
-                Verdict::Released(b, press, share) => {
+                Verdict::Pressed(b, press, share) => {
                     let (from, to) = (wide.off[i].from, wide.off[i].to);
                     if b == to || (b != from && !wide.out(from as usize).any(|x| x == b)) {
                         moved += usize::from(b != to);
-                        // [retarget] Released along the walk-off's own line: its way, kept where the landing moves.
+                        // [retarget] Pressed along the walk-off's own line: its way, kept where the landing moves.
                         let way = wide.off[i].way.or_else(|| self.grid_way_of(from, to));
                         wide.off[i].to = b;
                         wide.off[i].way = way;
                         wide.off[i].press = press;
                         wide.off[i].share = share;
-                        released += 1;
+                        released += usize::from(matches!(press, Takeoff::Release { .. }));
                     }
                 }
                 Verdict::Reaim(b) | Verdict::Taught(b) => {
@@ -644,8 +650,9 @@ impl WalkGrid {
             let lip = match v {
                 Verdict::Keep => self.stops_below(world, &s, start, from, to),
                 Verdict::Reaim(b) | Verdict::Taught(b) => self.stops_below(world, &s, start, from, self.position(b)),
-                // [A1b] Let go at its release, the body rests on its landing: no lip by a stop past it.
-                Verdict::Released(..) | Verdict::Cut => false,
+                // [A1b] Let go at its release, or a press flown to its rest (a crouched walk-off, a jump): the body rests on its
+                // landing, no lip by a stop past it.
+                Verdict::Pressed(..) | Verdict::Cut => false,
             };
             (v, lip, held)
         });
@@ -657,8 +664,12 @@ impl WalkGrid {
             match v {
                 Verdict::Keep if lip => lips.push((a, wide.links[a as usize][d])),
                 Verdict::Keep => {}
-                Verdict::Released(b, press, share) => {
-                    stats.released += 1;
+                Verdict::Pressed(b, press, share) => {
+                    match press {
+                        Takeoff::Release { .. } => stats.released += 1,
+                        Takeoff::WalkOffCrouched => stats.walked_off_crouched += 1,
+                        _ => stats.jumped_down += 1,
+                    }
                     reaim.push((a, d, b, Some((press, share)), Some(GridWay::of_dir(d))));
                 }
                 Verdict::Reaim(b) | Verdict::Taught(b) => {
@@ -765,28 +776,30 @@ impl WalkGrid {
         if let Some((g, press, share)) = release
             && self.own_top(b, g)
         {
-            return Verdict::Released(g, press, share);
+            return Verdict::Pressed(g, press, share);
         }
         if let Some(b) = walks.iter().find_map(|w| if let DropWalk::LandsAt(feet, _) = *w { lower(feet) } else { None }) {
             return Verdict::Taught(b);
         }
         if let Some((g, press, share)) = release {
-            return Verdict::Released(g, press, share);
+            return Verdict::Pressed(g, press, share);
         }
+        // [taught presses] The crouched walk-off and the jumps off the edge are other key scripts than the standing walk-off: the
+        // link carries the one that takes the body down (before, it was stored as a standing walk-off, and kept as the plain
+        // Drop link where it came down on the link's own top).
         for off in STARTS {
             let w = rest(Stance::Crouched, CROUCH_MPS, off, to);
             if on_top(&w, b) {
-                return Verdict::Keep;
+                return Verdict::Pressed(b, Takeoff::WalkOffCrouched, Share::UNFLOWN);
             }
             if let DropWalk::LandsAt(feet, _) = w
                 && let Some(g) = lower(feet)
             {
-                return Verdict::Taught(g);
+                return Verdict::Pressed(g, Takeoff::WalkOffCrouched, Share::UNFLOWN);
             }
         }
         match self.jumped_down(world, s, a, from, ((to.x - from.x) / len, (to.z - from.z) / len)) {
-            Some(g) if self.own_top(b, g) => Verdict::Keep,
-            Some(g) => Verdict::Taught(g),
+            Some((g, press, share)) => Verdict::Pressed(g, press, share),
             None => Verdict::Cut,
         }
     }
@@ -830,8 +843,10 @@ impl WalkGrid {
     /// stays on: the short jump at the body's walk cap, then the sprint jump (every variant on one floor), pressed at each of the
     /// gap links' leads before the take-off's centre (A385's presses, `jump::neighbour_flights` at the press itself, the keys
     /// let go at the landing, A385-FORMAT §1); the first that lands. None from a floor only a crouched body fits (no jump is
-    /// pressed from a crouch, rule (e): 0x2FBDC0 -> 0x2FC230 -> `on_ground` 0x7EF90).
-    fn jumped_down(&self, world: &Collision, s: &Settings, a: u32, from: Vec3, way: (f32, f32)) -> Option<u32> {
+    /// pressed from a crouch, rule (e): 0x2FBDC0 -> 0x2FC230 -> `on_ground` 0x7EF90). [taught presses] With the press that lands
+    /// and its share, its neighbourhood's flights resting on the same floor ([`jump::neighbourhood`], A385-FORMAT §2), as every
+    /// flown press's: the link carries them.
+    fn jumped_down(&self, world: &Collision, s: &Settings, a: u32, from: Vec3, way: (f32, f32)) -> Option<(u32, Takeoff, Share)> {
         if !self.can_stand(a) {
             return None;
         }
@@ -844,20 +859,31 @@ impl WalkGrid {
             })
         };
         let n = ((GAP_PRESS_MAX_M - GAP_PRESS_MIN_M) / GAP_PRESS_STEP_M).round() as usize;
+        // The floor every flight of a press (one, or one per sprint variant) rests on, if one: a sprint press lands only when
+        // every variant does (A385-FORMAT §1, rule (b)), here on one floor.
+        let rests = |kind: jump::Kind, lead: f32, n: jump::Neighbour| -> Option<u32> {
+            let flights = jump::neighbour_flights(world, s, from, way, kind, lead, n, kits)?;
+            let floors: Vec<Option<u32>> = flights
+                .iter()
+                .map(|st| jump::landing_and_rest(st, |f| below(f.feet).is_some()).and_then(|(_, rest)| below(rest.feet)))
+                .collect();
+            floors.first().copied().flatten().filter(|&b| floors.iter().all(|&f| f == Some(b)))
+        };
         for kind in [jump::Kind::Walk, jump::Kind::Sprint] {
             for i in 0..=n {
                 let lead = GAP_PRESS_MIN_M + GAP_PRESS_STEP_M * i as f32;
-                let Some(flights) = jump::neighbour_flights(world, s, from, way, kind, lead, own, kits) else { continue };
-                let floors: Vec<Option<u32>> = flights
-                    .iter()
-                    .map(|st| jump::landing_and_rest(st, |f| below(f.feet).is_some()).and_then(|(_, rest)| below(rest.feet)))
-                    .collect();
-                // A sprint press lands only when every variant does (A385-FORMAT §1, rule (b)), here on one floor.
-                if let Some(&Some(b)) = floors.first()
-                    && floors.iter().all(|&f| f == Some(b))
-                {
-                    return Some(b);
+                let Some(b) = rests(kind, lead, own) else { continue };
+                let mut bits: u16 = 0;
+                for (k, nb) in jump::neighbourhood().into_iter().enumerate() {
+                    let lands = k == 0 || rests(kind, lead, nb) == Some(b);
+                    bits |= u16::from(lands) << k;
                 }
+                let share = Share::of_mask(super::gap::Mask::of_bits(bits).expect("a bit a neighbour"));
+                let press = match kind {
+                    jump::Kind::Sprint => Takeoff::Sprint(PressLead::from_metres(lead)),
+                    _ => Takeoff::Press(PressLead::from_metres(lead)),
+                };
+                return Some((b, press, share));
             }
         }
         None
@@ -870,6 +896,8 @@ impl WalkGrid {
     ///
     /// [A1b] A re-aim with a release press is always an off-mesh GapDrop carrying it and its share (in its landing's cell too);
     /// an off-mesh link the take-off already has to that landing takes the press (a release one only at a higher share).
+    /// [taught presses] The same for every press but the standing walk-off: the crouched walk-off and a jump off the edge too
+    /// (the "release" counts of [`ReaimPairs`] count them all).
     ///
     /// One link a (take-off, landing) pair: the links this pass adds are kept apart from `wide.off` (whose lookup,
     /// [`Wide::out`], is a binary search over it sorted) until the end, and looked up there too. Two re-aims of one take-off
@@ -885,9 +913,11 @@ impl WalkGrid {
             if let Some((press, share)) = release {
                 wide.links[a as usize][d] = NONE;
                 let link = OffLink { from: a, to: b, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, way };
+                // [taught presses] A press is any but the standing walk-off: a release, the crouched walk-off, a jump off the edge.
+                let pressed = |p: Takeoff| p != Takeoff::WalkOff;
                 if let Some(l) = wide.off.iter_mut().find(|l| l.from == a && l.to == b) {
-                    // Of two releases the higher share, as within the pass; anything else takes the release's press.
-                    if matches!(l.press, Takeoff::Release { .. }) && l.share.rank() >= share.rank() {
+                    // Of two presses the higher share, as within the pass; a walk-off takes the press.
+                    if pressed(l.press) && l.share.rank() >= share.rank() {
                         pairs.earlier_kept += 1;
                     } else {
                         pairs.earlier_replaced += 1;
@@ -896,8 +926,8 @@ impl WalkGrid {
                 } else if let Some(&i) = index.get(&(a, b)) {
                     pairs.merged += 1;
                     match added[i].press {
-                        Takeoff::Release { .. } if added[i].share.rank() >= share.rank() => pairs.releases_kept_first += 1,
-                        Takeoff::Release { .. } => {
+                        p if pressed(p) && added[i].share.rank() >= share.rank() => pairs.releases_kept_first += 1,
+                        p if pressed(p) => {
                             pairs.releases_kept_later += 1;
                             added[i] = link;
                         }
@@ -919,7 +949,7 @@ impl WalkGrid {
             wide.links[a as usize][d] = NONE;
             if let Some(&i) = index.get(&(a, b)) {
                 pairs.merged += 1;
-                if matches!(added[i].press, Takeoff::Release { .. }) {
+                if added[i].press != Takeoff::WalkOff {
                     pairs.release_over_walk_off += 1;
                 }
             } else if !wide.out(a as usize).any(|x| x == b) {
@@ -1090,6 +1120,27 @@ mod tests {
         let mut deck = tris.clone();
         deck.extend(quad(0.0, 5.0, -2.0, 2.0, 2.0));
         assert_eq!(walk_drop(&Collision::build(&deck), &s, start, from, to), DropWalk::Held);
+    }
+
+    /// [taught presses] A jump off the edge gives the link its press (the short jump or the sprint jump at a gap lead) and its
+    /// share (the neighbourhood's flights resting on the same floor), not only the floor it comes down on: a slab 3 m over the
+    /// ground, jumped off along +x.
+    #[test]
+    fn a_jump_off_the_edge_gives_its_press_and_share() {
+        let mut tris = Vec::new();
+        tris.extend(quad(0.0, 10.0, 0.0, 10.0, 0.0));
+        tris.extend(quad(0.0, 5.0, 0.0, 10.0, 3.0));
+        let grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, super::super::Body::default());
+        let world = Collision::build(&tris);
+        let a = grid.locate(Vec3::new(4.8, 3.0, 5.0), 0.3).unwrap();
+        let (b, press, share) = grid.jumped_down(&world, &Settings::LIVE, a, grid.position(a), (1.0, 0.0)).expect("lands below");
+        assert!(grid.position(b).y < 0.1 && grid.position(b).x > 5.0, "{:?}", grid.position(b));
+        let lead = match press {
+            Takeoff::Press(lead) | Takeoff::Sprint(lead) => lead.metres(),
+            other => panic!("a jump's press: {other:?}"),
+        };
+        assert!((GAP_PRESS_MIN_M - 1e-3..=GAP_PRESS_MAX_M + 1e-3).contains(&lead), "{lead}");
+        assert!(share.flown().is_some_and(|n| n >= 1), "{share:?}");
     }
 
     /// [item 2] A walk off a deck 17 m up falls onto a 65 deg face under it (steeper than the 55 deg a body stands on, met
