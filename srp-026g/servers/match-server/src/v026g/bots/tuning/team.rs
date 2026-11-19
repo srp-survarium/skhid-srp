@@ -134,21 +134,20 @@ pub struct PushRule {
 }
 
 /// [fix-team push, second taker] When an escort of a committed push also takes a battery: the target holds another (their
-/// container two or more, or a second lying battery within 25 m of it) and the net count is at most `net_max`, or the second
-/// carrier's chance of getting away (`push::Escape::chance`) is at least `escape_min`. Both the owner's (2026-11-19).
+/// container two or more, or a second lying battery within 25 m of it) and the second carrier's chance of getting away
+/// (`push::Escape::chance`) is at least `escape_min` (the owner, 2026-11-19: the escape alone decides).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SecondTaker {
-    /// The known defenders near the target less the push's group by the taker: at most this many (the owner's 2).
-    pub net_max: u8,
     /// The chance at least this: the escorts left at least two for each who can stop the carrier (2/3; 0.66 for the float's
-    /// rounding). A policy, the owner's "high", not a measured value.
+    /// rounding). Measured on the 51 carries of the owner's 3 matches of 2026-11-19: scored 0.66 or more, 26 of 36 came home;
+    /// under it, 5 of 15 (under 0.5, 1 of 8).
     pub escape_min: f32,
 }
 
 impl Default for SecondTaker {
     fn default() -> Self {
-        Self { net_max: 2, escape_min: 0.66 }
+        Self { escape_min: 0.66 }
     }
 }
 
@@ -180,7 +179,7 @@ impl PushRule {
             && (1.0..=60.0).contains(&self.short_s)
             && (0.0..=120.0).contains(&self.rest_s)
             && (1.0..=20.0).contains(&self.home_m)
-            && self.second.is_none_or(|s| s.net_max <= 10 && (0.0..=1.0).contains(&s.escape_min));
+            && self.second.is_none_or(|s| (0.0..=1.0).contains(&s.escape_min));
         if !ok {
             return Err("mods.push".into());
         }

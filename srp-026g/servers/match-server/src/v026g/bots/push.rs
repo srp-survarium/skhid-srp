@@ -14,8 +14,9 @@
 //!   defenders known near the target, or after `gather_s`. Gathering and committed, the members' plays are held against
 //!   their band; only the alarm band (a theft, a mate's death to trade, a carrier) takes them.
 //! - **A second taker** (`second`): committed on a target that holds another battery (their container two or more, or a
-//!   second lying battery within 25 m), one escort takes that one too when the net count is at most `net_max`, or when its
-//!   chance of getting away ([`Escape::chance`]) is at least `escape_min`. The two carriers go home under the escorts left.
+//!   second lying battery within 25 m), one escort takes that one too when its chance of getting away ([`Escape::chance`]:
+//!   the escorts left against the enemies by the target, those who can cut its way home off and the known shooters' lanes on
+//!   it) is at least `escape_min`. The two carriers go home under the escorts left.
 //! - **Home:** a taker carries: the push brings it home (today's Escort plays on our carrier), the other taker still taking.
 //! - **End:** the batteries home, the carriers lost, the group outnumbered by the known defenders for `short_s`, no taker left,
 //!   or the target gone (the container empty). Being level again does not end a push (the owner, 2026-11-19); starting one
@@ -75,7 +76,9 @@ pub struct Member {
 pub struct Escape {
     /// The carrier's way home, metres (the side's route, else the straight way times Intercept's `path_factor`).
     pub way_m: f32,
-    /// Known enemies who can be on a point of that way no later than the carrier ([`cuts_off`]).
+    /// Known enemies within 25 m of the target ([`ENEMIES_NEAR_M`], the push's defenders).
+    pub near: usize,
+    /// The other known enemies within 25 m of a point of that way they can be on no later than the carrier ([`cuts_off`]).
     pub cut_offs: usize,
     /// The team's held threat lines (its threat map, `threat::Picture::held`) whose lanes cover a point of the way, their
     /// shooters not among the cut-offs: a known shooter who need not come to the way to stop it.
@@ -84,8 +87,9 @@ pub struct Escape {
 
 impl Escape {
     /// The escape of a carrier walking `way` (`(metres along it, point)`, its first point the target, its last our container,
-    /// `way_m` long) at `carrier_mps`, from the known enemies `enemies` (each `(place, at)`) sprinting at `hunter_mps`, and the
-    /// shooters of the held lines that cover a point of it (`covering`).
+    /// `way_m` long) at `carrier_mps`, from the known enemies `enemies` (each `(place, at)`: those within 25 m of the target,
+    /// the others who cut the way off sprinting at `hunter_mps`), and the shooters of the held lines that cover a point of it
+    /// (`covering`); each man counted once.
     ///
     /// The speeds are the game data's (PROVEN): a carrier does not sprint (the battery's hands refuse it, 0x2DBF9B ->
     /// 0x397C20; Intercept's `carrier_speed`), so it walks at the body's forward walk, 3.5 m/s; a man after it sprints,
@@ -98,19 +102,31 @@ impl Escape {
         carrier_mps: f32,
         hunter_mps: f32,
     ) -> Escape {
-        let cut: Vec<Place> =
-            enemies.iter().filter(|&&(_, at)| cuts_off(at, way, carrier_mps, hunter_mps)).map(|&(place, _)| place).collect();
-        let mut lanes: Vec<Place> = covering.iter().copied().filter(|shooter| !cut.contains(shooter)).collect();
+        let target = way.first().map(|&(_, q)| q);
+        let by_target = |at: Vec3| target.is_some_and(|t| at.distance_xz(t) < ENEMIES_NEAR_M);
+        let near: Vec<Place> = enemies.iter().filter(|&&(_, at)| by_target(at)).map(|&(place, _)| place).collect();
+        let cut: Vec<Place> = enemies
+            .iter()
+            .filter(|&&(place, at)| !near.contains(&place) && cuts_off(at, way, carrier_mps, hunter_mps))
+            .map(|&(place, _)| place)
+            .collect();
+        let mut lanes: Vec<Place> =
+            covering.iter().copied().filter(|shooter| !near.contains(shooter) && !cut.contains(shooter)).collect();
         lanes.sort_unstable();
         lanes.dedup();
-        Escape { way_m, cut_offs: cut.len(), lanes: lanes.len() }
+        Escape { way_m, near: near.len(), cut_offs: cut.len(), lanes: lanes.len() }
     }
 
     /// The chance a carrier gets away with `cover` escorts by it: the escorts' share of all who meet on its way,
-    /// `cover / (cover + cut_offs + lanes)`, 1 when nobody can stop it. Each who can stop it counts one, each escort one: the
+    /// `cover / (cover + near + cut_offs + lanes)`, 1 when nobody can stop it. Each who can stop it counts one, each escort one: the
     /// push's own rule of numbers (it commits when its escorts on the taker match the defenders, it ends outnumbered).
+    ///
+    /// Measured on the 51 carries of the owner's 3 matches of 2026-11-19 (recordings, true positions, the way straight times
+    /// 1.25): of the enemies alive at the pick-up, those within 25 m of it came within 20 m of the carrier in 25 of 30, the
+    /// cut-offs in 6 of 21, all others in 15 of 323; carries this scored 0.66 or more came home 26 of 36, under it 5 of 15
+    /// (under 0.5: 1 of 8). `wsl-out/push/st_carries.py`.
     pub fn chance(&self, cover: usize) -> f32 {
-        let against = self.cut_offs + self.lanes;
+        let against = self.near + self.cut_offs + self.lanes;
         if against == 0 {
             return 1.0;
         }
@@ -118,12 +134,16 @@ impl Escape {
     }
 }
 
-/// Whether a man at `at` sprinting at `hunter_mps` can be at a point of `way` no later than a carrier that walks it from its
-/// start at `carrier_mps`. His walk is the straight line (a lower bound of his: a man walls hold back still counts), and he must
-/// reach the point itself (one who could shoot it from farther does not count: the held lines count the team's known
-/// shooters of long lanes).
+/// Whether a man at `at` is within 25 m ([`ENEMIES_NEAR_M`], the ring a target's defenders are counted in) of a point of `way`
+/// he can be at, sprinting at `hunter_mps`, no later than a carrier that walks it from its start at `carrier_mps`. His walk is
+/// the straight line (a lower bound of his). The ring is measured: anyone who could sprint to some point first (the test
+/// without it) took in 142 enemies of the owner's carries of whom 13 came at the carrier; within 25 m of the way, 6 of 21
+/// ([`Escape::chance`]).
 pub fn cuts_off(at: Vec3, way: &[(f32, Vec3)], carrier_mps: f32, hunter_mps: f32) -> bool {
-    way.iter().any(|&(s, q)| at.distance_xz(q) / hunter_mps.max(0.1) <= s / carrier_mps.max(0.1))
+    way.iter().any(|&(s, q)| {
+        let d = at.distance_xz(q);
+        d < ENEMIES_NEAR_M && d / hunter_mps.max(0.1) <= s / carrier_mps.max(0.1)
+    })
 }
 
 /// What the commander knows at its tick, for the push.
@@ -230,15 +250,6 @@ pub enum End {
     TargetGone,
 }
 
-/// [second taker] Why the second taker was picked: by the net count, or by its chance of getting away.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Why {
-    /// The net count is at most `max`.
-    Net { max: u8 },
-    /// The escape's chance is at least `min`.
-    Escape { min: f32 },
-}
-
 /// [second taker] A second carrier's chance of getting away and what it was made of.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Chance {
@@ -253,9 +264,9 @@ pub struct Chance {
 pub enum Event {
     Started { target: Target, taker: Place, group: usize, defenders: usize },
     Committed { near: usize, defenders: usize, waited: bool },
-    /// [second taker] An escort takes a second battery: the net count, its chance of getting away (none: no way home known
-    /// this tick), why.
-    Second { second: Second, net: usize, chance: Option<Chance>, why: Why },
+    /// [second taker] An escort takes a second battery: its chance of getting away, what it was made of, and the bar `min` it
+    /// met.
+    Second { second: Second, chance: Chance, min: f32 },
     Took { carrier: Place },
     /// [second taker] One of two carriers let go, home or not; the push goes on with the other.
     Carried { carrier: Place, home: bool },
@@ -288,22 +299,18 @@ impl Event {
                 net(*defenders, *near),
                 if *waited { "after the gather time" } else { "gathered" }
             ),
-            Event::Second { second, net, chance, why } => format!(
-                "push on {}: second taker {} on {}, net {net}, {}; {}",
+            Event::Second { second, chance: c, min } => format!(
+                "push on {}: second taker {} on {}, escape {:.2} (at least {min:.2}): cover {} against {} by the target, {} \
+                 cut-offs and {} lanes on a {:.0} m way home",
                 after.target().map_or_else(|| "?".to_string(), target_name),
                 second.place,
                 target_name(second.target),
-                chance.map_or_else(
-                    || "escape unknown (no way home)".to_string(),
-                    |c| format!(
-                        "escape {:.2} (cover {} against {} cut-offs and {} lanes on a {:.0} m way home)",
-                        c.chance, c.cover, c.escape.cut_offs, c.escape.lanes, c.escape.way_m
-                    )
-                ),
-                match why {
-                    Why::Net { max } => format!("picked by the net count (at most {max})"),
-                    Why::Escape { min } => format!("picked by the escape (at least {min:.2})"),
-                }
+                c.chance,
+                c.cover,
+                c.escape.near,
+                c.escape.cut_offs,
+                c.escape.lanes,
+                c.escape.way_m
             ),
             Event::Took { carrier } => {
                 let group = before.members();
@@ -438,7 +445,7 @@ impl Push {
                             (false, _) => None,
                         };
                         let picked = match second {
-                            None => pick_second(target, taker, &escorts, strength, defenders, p, rule),
+                            None => pick_second(target, taker, &escorts, p, rule),
                             Some(_) => None,
                         };
                         match picked {
@@ -549,17 +556,9 @@ fn group(
 }
 
 /// [second taker] The escort that takes a second battery of `target` this tick, if any: the one nearest that battery with health
-/// over `taker_health`, when the net count (the defenders less the group's `strength`) is at most `net_max`, or its chance of
-/// getting away with the escorts left by the taker ([`Escape::chance`]) is at least `escape_min`.
-fn pick_second(
-    target: Target,
-    taker: Place,
-    escorts: &[Place],
-    strength: usize,
-    defenders: usize,
-    p: &Picture,
-    rule: &PushRule,
-) -> Option<(Second, Event)> {
+/// over `taker_health`, when its chance of getting away with the escorts left by the taker ([`Escape::chance`]) is at least
+/// `escape_min`.
+fn pick_second(target: Target, taker: Place, escorts: &[Place], p: &Picture, rule: &PushRule) -> Option<(Second, Event)> {
     let second: &SecondTaker = rule.second.as_ref()?;
     let aim = second_target(p.targets, target)?;
     let place = escorts
@@ -568,18 +567,14 @@ fn pick_second(
         .filter(|e| !e.carrying && e.health > rule.taker_health)
         .min_by(|a, b| a.at.distance_xz(aim.at()).total_cmp(&b.at.distance_xz(aim.at())))?
         .place;
-    let net = defenders.saturating_sub(strength);
     let cover = near_taker(taker, escorts.iter().copied().filter(|&e| e != place), p, rule.group_m);
-    let chance = p.escape.map(|escape| Chance { chance: escape.chance(cover), cover, escape });
-    let why = if net <= usize::from(second.net_max) {
-        Why::Net { max: second.net_max }
-    } else if chance.is_some_and(|c| c.chance >= second.escape_min) {
-        Why::Escape { min: second.escape_min }
-    } else {
+    let escape = p.escape?;
+    let chance = Chance { chance: escape.chance(cover), cover, escape };
+    if chance.chance < second.escape_min {
         return None;
-    };
+    }
     let pick = Second { place, target: aim };
-    Some((pick, Event::Second { second: pick, net, chance, why }))
+    Some((pick, Event::Second { second: pick, chance, min: second.escape_min }))
 }
 
 /// Bringing it home: the other taker's take or its own carry, each carrier that lets go home or lost; once none carries the
@@ -822,19 +817,28 @@ mod tests {
         assert!(matches!(push, Push::Commit { .. }) && events.is_empty(), "{push:?} {events:?}");
     }
 
-    /// A second taker on their container holding two: the net count at most 2 picks the escort nearest, its Raid on the same
-    /// container; the line says who, on what, and why. One holding one battery gets none.
+    /// The rule with the second taker's bar at 2/3 (two escorts for each who can stop the carrier).
+    fn second_rule() -> PushRule {
+        PushRule { second: Some(SecondTaker { escape_min: 0.66 }), ..PushRule::default() }
+    }
+
+    /// A second taker on their container holding two, its escape high (two escorts left against one defender, 0.67): the
+    /// escort nearest takes, its Raid on the same container; the line says who, on what, the escape and its parts. One
+    /// holding one battery gets none; no escape known, none.
     #[test]
-    fn a_second_taker_raids_a_container_of_two_by_the_net_count() {
-        let rule = PushRule::default();
+    fn a_second_taker_raids_a_container_of_two_when_it_would_get_away() {
+        let rule = second_rule();
         let two = Target::Container { id: 1, at: Vec3::new(100.0, 0.0, 0.0), batteries: 2 };
         let bots = [bot(2, 90.0), bot(3, 95.0), bot(4, 97.0), bot(5, 100.0)];
-        let one = [(THEIRS, 4)];
-        let (push, events) = commit(THEIRS, 5, vec![2, 3, 4]).next(&picture(0, &bots, &one), &rule);
+        let one = [(THEIRS, 1)];
+        let escape = Some(Escape { way_m: 125.0, near: 1, cut_offs: 0, lanes: 0 });
+        let p = Picture { escape, ..picture(0, &bots, &one) };
+        let (push, events) = commit(THEIRS, 5, vec![2, 3, 4]).next(&p, &rule);
         assert!(events.is_empty() && matches!(push, Push::Commit { second: None, .. }), "{push:?} {events:?}");
-        // Four known against four: net 0.
-        let targets = [(two, 4)];
-        let p = picture(1_000, &bots, &targets);
+        let targets = [(two, 1)];
+        let (push, events) = commit(THEIRS, 5, vec![2, 3, 4]).next(&picture(0, &bots, &targets), &rule);
+        assert!(events.is_empty() && matches!(push, Push::Commit { second: None, .. }), "no escape: {push:?} {events:?}");
+        let p = Picture { escape, ..picture(1_000, &bots, &targets) };
         let before = commit(THEIRS, 5, vec![2, 3, 4]);
         let (push, events) = before.clone().next(&p, &rule);
         let Push::Commit { second: Some(second), ref escorts, .. } = push else { panic!("{push:?}") };
@@ -845,37 +849,30 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(
             events[0].line(&before, &push, &p),
-            "push on their container 1: second taker 4 on their container 1, net 0, escape unknown (no way home); picked by the \
-             net count (at most 2)"
+            "push on their container 1: second taker 4 on their container 1, escape 0.67 (at least 0.66): cover 2 against 1 by \
+             the target, 0 cut-offs and 0 lanes on a 125 m way home"
         );
     }
 
-    /// A high net count (seven known against three or four): a second lying battery 10 m off is taken only when its carrier's
-    /// chance of getting away is high: two escorts left against one cut-off are 0.67; one against three, 0.25.
+    /// In a crowd no second taker: one escort left against two by the target and one cut-off is 0.25; the nearer of two lying
+    /// batteries is the second's when two escorts are left against one cut-off (0.67).
     #[test]
-    fn a_second_taker_by_the_escape_when_the_net_count_is_high() {
-        let rule = PushRule::default();
+    fn no_second_taker_in_a_crowd() {
+        let rule = second_rule();
         let first = Target::Battery { index: 3, at: Vec3::new(100.0, 0.0, 0.0) };
         let near = Target::Battery { index: 6, at: Vec3::new(100.0, 0.0, 10.0) };
         let far = Target::Battery { index: 7, at: Vec3::new(100.0, 0.0, 40.0) };
         let bots = [bot(2, 92.0), bot(3, 94.0), bot(4, 96.0), bot(5, 100.0)];
-        let targets = [(first, 7), (near, 2), (far, 0)];
-        let low = Escape { way_m: 120.0, cut_offs: 3, lanes: 0 };
-        let p = Picture { escape: Some(low), ..picture(0, &bots, &targets) };
-        let before = commit(first, 5, vec![2, 3]);
-        let (push, events) = before.clone().next(&p, &rule);
+        let targets = [(first, 2), (near, 2), (far, 0)];
+        let crowd = Escape { way_m: 120.0, near: 2, cut_offs: 1, lanes: 0 };
+        let p = Picture { escape: Some(crowd), ..picture(0, &bots, &targets) };
+        let (push, events) = commit(first, 5, vec![2, 3]).next(&p, &rule);
         assert!(events.is_empty() && matches!(push, Push::Commit { second: None, .. }), "{push:?} {events:?}");
-        let high = Escape { way_m: 120.0, cut_offs: 1, lanes: 0 };
-        let before = commit(first, 5, vec![2, 3, 4]);
-        let p = Picture { escape: Some(high), ..picture(0, &bots, &targets) };
-        let (push, events) = before.clone().next(&p, &rule);
+        let clear = Escape { way_m: 120.0, near: 0, cut_offs: 1, lanes: 0 };
+        let p = Picture { escape: Some(clear), ..picture(0, &bots, &targets) };
+        let (push, events) = commit(first, 5, vec![2, 3, 4]).next(&p, &rule);
         let Push::Commit { second: Some(second), .. } = push else { panic!("{push:?} {events:?}") };
         assert_eq!(second, Second { place: 4, target: near }, "the nearer battery, by the escort nearest it");
-        assert_eq!(
-            events[0].line(&before, &push, &p),
-            "push on battery 3: second taker 4 on battery 6, net 3, escape 0.67 (cover 2 against 1 cut-offs and 0 lanes on a \
-             120 m way home); picked by the escape (at least 0.66)"
-        );
     }
 
     /// Both take: the first carries, the second still takes (the push turns home, the second held on its battery); it
@@ -928,21 +925,21 @@ mod tests {
         assert_eq!((push.target(), push.role(4), push.role(5)), (Some(near), Some(Role::Taker(near)), Some(Role::Escort { taker: 4 })));
     }
 
-    /// [second taker] The escape from game data: a carrier walks 3.5 m/s, a man sprints 4.9587. A man 10 m behind the target
-    /// catches it before home (110 m in 22 s against its 100 m in 29 s); one 150 m off the way does not; a lane whose shooter
-    /// is a cut-off counts once.
+    /// [second taker] The escape from game data: a carrier walks 3.5 m/s, a man sprints 4.9587. A man 20 m off the way's 60th
+    /// metre is there in 4 s against its 17 s: a cut-off; one 150 m off it is not, nor one 30 m behind the target (no point of
+    /// the way within 25 m of him); one by the target counts as near, not as a cut-off; a lane whose shooter is already
+    /// counted counts once, and each man once.
     #[test]
     fn the_escape_counts_cut_offs_and_lanes_from_the_game_speeds() {
         let (carrier, hunter) = (3.5, 4.9587);
         let way: Vec<(f32, Vec3)> = (0..=25).map(|i| (i as f32 * 4.0, Vec3::new(100.0 - i as f32 * 4.0, 0.0, 0.0))).collect();
-        assert!(cuts_off(Vec3::new(110.0, 0.0, 0.0), &way, carrier, hunter));
+        assert!(cuts_off(Vec3::new(40.0, 0.0, 20.0), &way, carrier, hunter));
         assert!(!cuts_off(Vec3::new(50.0, 0.0, 150.0), &way, carrier, hunter));
-        // Ahead on the way: there first.
-        assert!(cuts_off(Vec3::new(40.0, 0.0, 30.0), &way, carrier, hunter));
-        let enemies = [(7, Vec3::new(110.0, 0.0, 0.0)), (8, Vec3::new(50.0, 0.0, 150.0))];
-        let escape = Escape::of(&way, 100.0, &enemies, &[7, 9, 9], carrier, hunter);
-        assert_eq!(escape, Escape { way_m: 100.0, cut_offs: 1, lanes: 1 });
-        assert!((escape.chance(2) - 0.5).abs() < 1e-6);
-        assert_eq!(Escape { way_m: 100.0, cut_offs: 0, lanes: 0 }.chance(0), 1.0);
+        assert!(!cuts_off(Vec3::new(130.0, 0.0, 0.0), &way, carrier, hunter));
+        let enemies = [(7, Vec3::new(40.0, 0.0, 20.0)), (8, Vec3::new(50.0, 0.0, 150.0)), (6, Vec3::new(105.0, 0.0, 5.0))];
+        let escape = Escape::of(&way, 100.0, &enemies, &[7, 6, 9, 9], carrier, hunter);
+        assert_eq!(escape, Escape { way_m: 100.0, near: 1, cut_offs: 1, lanes: 1 });
+        assert!((escape.chance(3) - 0.5).abs() < 1e-6);
+        assert_eq!(Escape { way_m: 100.0, near: 0, cut_offs: 0, lanes: 0 }.chance(0), 1.0);
     }
 }
