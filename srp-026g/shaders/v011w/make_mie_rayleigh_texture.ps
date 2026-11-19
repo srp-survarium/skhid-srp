@@ -3,6 +3,9 @@
 #include "common.h"
 
 uniform float4	to_sun_direction_parameter;
+#if TARGET_026G		// 0.26g sets it under this name (the same four multipliers in the same order)
+#define	atmosphere_parameters	atmosphere_rayleigh_mie_parameters
+#endif
 uniform float4	atmosphere_parameters;
 
 struct v2p_make_mie_rayleigh_texture

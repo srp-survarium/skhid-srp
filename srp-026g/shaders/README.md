@@ -73,12 +73,14 @@ own, like `movie`: a row naming the shader family, built by `release/build-conte
 
 The 0.11 weathers' programs (`../docs/notes/v011-weather.md`). `v011w/` is vostok's 0.10b shader
 sources (`resources/sources/shaders/sm_4_0`, vostok commit 2abd75e36, GPL-3.0 as this repository): the
-four atmosphere programs and the ten headers they include, with 0.11e's changes (the additive fog's
-near fade, the scattering tables' atmosphere) and a switch `TARGET_026G` for 0.26g's constant layout.
+four atmosphere programs, the post blend and the headers they include, with 0.11e's changes (the additive
+fog's near fade, the scattering tables' atmosphere; the post's exposure key, shoulder add-back, dark
+desaturation after the tone curve, light scattering in the bloom's place, grading at every quality,
+vignette from quality 2, bokeh at quality 3 only) and a switch `TARGET_026G` for 0.26g's constant layout.
 
 ```
-v011w.sh check <0.11e resources.db>               # all four byte-identical with 0.11e's, or exit 1
-v011w.sh build <0.26g stock resources.db> <out>   # the additive fog for 0.26g (pack v011e-radar-fog)
+v011w.sh check <0.11e resources.db>               # the four and all 24 post permutations byte-identical
+v011w.sh build <0.26g stock resources.db> <out> [--twin] [program ...]   # for 0.26g (pack v011e-radar-fog)
 ```
 
 For 0.26g, `TARGET_026G=1` declares 0.26g's `static_globals` (as `sm_4_0/point_light_accumulator.ps`),

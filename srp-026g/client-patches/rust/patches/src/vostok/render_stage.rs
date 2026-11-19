@@ -58,6 +58,12 @@ pub enum StageSite {
     GeometryFog,
     /// `atmosphere.geometry_fog_applied`.
     GeometryFogApplied,
+    /// `atmosphere.tables_due`.
+    TablesDue,
+    /// `atmosphere.tables_apply`.
+    TablesApply,
+    /// `atmosphere.sky_apply`.
+    SkyApply,
 }
 
 /// The renderer context of the stage at `site`.
@@ -74,6 +80,9 @@ fn context(ctx: &Context<'_>, site: StageSite) -> Option<raw::RendererContext> {
             StageSite::GodRays => raw::site::atmosphere_god_rays::frame(ctx)?.stage()?.context(),
             StageSite::GeometryFog => raw::site::atmosphere_geometry_fog::stage(ctx)?.context(),
             StageSite::GeometryFogApplied => raw::site::atmosphere_geometry_fog_applied::stage(ctx)?.context(),
+            StageSite::TablesDue => raw::site::atmosphere_tables_due::stage(ctx)?.context(),
+            StageSite::TablesApply => raw::site::atmosphere_tables_apply::stage(ctx)?.context(),
+            StageSite::SkyApply => raw::site::atmosphere_sky_apply::stage(ctx)?.context(),
         }
     }
 }
@@ -115,6 +124,8 @@ pub fn god_rays_stage(ctx: &Context<'_>) -> Option<AtmosphereStage> {
 pub enum ApplySite {
     Wet,
     Drops,
+    /// `atmosphere.tables_apply` (the scattering tables, technique 0).
+    Tables,
 }
 
 /// The machine for the site's exit to its res_effect::apply call with
@@ -129,6 +140,9 @@ pub fn apply_technique(ctx: &mut Context<'_>, site: ApplySite, technique: Techni
         match site {
             ApplySite::Wet => raw::site::pre_rain_wet_apply::stage(ctx).map(|stage| stage.wet_effect().read()),
             ApplySite::Drops => raw::site::rain_drops_apply::stage(ctx).map(|stage| stage.drops_effect().read()),
+            ApplySite::Tables => raw::site::atmosphere_tables_apply::stage(ctx)
+                .and_then(|stage| stage.scattering_effect())
+                .map(|effect| effect.address()),
         }
     }
     .expect("the stage executing");
@@ -169,6 +183,39 @@ pub fn set_drop_parameters(ctx: &Context<'_>, z: f32, w: f32) {
 /// god rays (`atmosphere.god_rays`, the geometry stage).
 pub const FOG_MULTIPLY: Technique = Technique::new(3);
 pub const FOG_ADD: Technique = Technique::new(4);
+
+/// 0.11e's scattering tables and sky (patch v011w_render): techniques 6
+/// and 7, the twins effect_atmospheric_scattering compiles of its 0 and 1
+/// (the same passes with 0.11e's pixel shaders; `vostok::effect_compile`).
+pub const TABLES_V011W: Technique = Technique::new(6);
+pub const SKY_V011W: Technique = Technique::new(7);
+
+/// Makes the sky stage remake its scattering tables this frame
+/// (`atmosphere.tables_due`): the scene view's targets id made unequal to
+/// the context's (ECX), as a resize makes it; the tables' pass writes the
+/// context's again once it made them (0x1A44EB).
+pub fn remake_tables(ctx: &Context<'_>) {
+    let targets = ctx.reg(Reg::Ecx);
+    // SAFETY: the site's ESI is the frame's scene view (execute loaded it
+    // from the context's +4170h at 0x1A42EB), read and written only by this
+    // stage on the render thread; the replayed cmp reads the field next.
+    unsafe {
+        let view = raw::site::atmosphere_tables_due::view(ctx).expect("the frame's scene view");
+        view.atmosphere_targets().write(!targets);
+    }
+}
+
+/// Sets the technique the sky's pass applies (`atmosphere.sky_apply`; the
+/// caller takes its `applied` exit, past the game's write of 1).
+pub fn set_sky_technique(ctx: &Context<'_>, technique: Technique) {
+    // SAFETY: as `set_fog_technique`, at this site.
+    unsafe {
+        let effect = raw::site::atmosphere_sky_apply::stage(ctx)
+            .and_then(|stage| stage.scattering_effect())
+            .expect("the stage's scattering effect");
+        effect.technique().write(technique.0);
+    }
+}
 
 /// The render target the geometry fog draws into (renderer_context::get_rt
 /// 0x11C1D0 with 37h, as execute takes it at 0x1A5123).

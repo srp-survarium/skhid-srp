@@ -56,6 +56,24 @@ port for it. This work is Vostok's two weathers only.
   `v011w.sh build` compiles the additive one for 0.26g (`TARGET_026G`: 0.26g's static_globals, where
   near_far_invn_invf lives, and its table order). Built so, it has the same reflection and instructions
   as 0.11e's program with its operands moved (the pack's first version), only its declarations in order.
+- **The scattering tables and the sky, the 0.11 way** (patch 162 again; pack `v011e-radar-fog@3`): 0.26g
+  changed both programs (the tables: half the samples, 20/50 to 10/16, a greener Rayleigh extinction,
+  1.488 to 1.847, and a Rayleigh scale height half as long; the sky: another equation). On the marked
+  scene the sky stage draws 0.11e's from source, as twin techniques of the effect, and remakes the shared
+  tables whenever the drawn scene's look is not the one they were made with. The project's scattering
+  multipliers were already 0.11e's (0.26g's names: atmosphere_rayleighSun/mieSun/rayleighPi/miePi). The
+  live pack `three-maps-021-lighting` replaces both programs with guarded ones whose 0.21 branch a scene
+  takes with `mie_fog_base_height` -32281; the v0.11 projects have 75, the native branch, so the twins
+  leave that pack alone.
+- **0.11e's post from source**: vostok's 0.10b `complex_post_process_blend.ps` matches none of 0.11e's 24
+  permutations; with 0.11e's changes (srp-026g/shaders/README.md) all 24 are byte-identical
+  (`v011w.sh check`). 0.11e's define registry is 4 globals and the 64 configuration defines of
+  `fill_shader_configuration_macros` (0.11e 0x00732E30), 68 characters (0.10b's: 82). Not drawn yet: the
+  post twin is the next step.
+- **Measured** against the 0.11e originals (`private/renders/v011-weathers/`, 1280x720, mean RMSE of the
+  display RGB over ten views): before the fog work evening 0.169, rain 0.136; with the fog (c4) evening
+  0.167, rain 0.095; with the tables and the sky too (c6) evening 0.159, rain 0.090. The port is still
+  about half as bright as 0.11e in every view: the post (exposure) is the largest error left.
 - The 0.11e reference runner is rebuilt (`/mnt/hdd/Projects/v011-weather/ref/ref011e.py`: the legacy
   0.10b match server with a rain profile and a port setting, the 0.11e exe with the camera DLL, an
   Xorg dummy display). The legacy server must run with `SRP_STOCK_PROFILE_ONLY=1` and

@@ -9625,6 +9625,252 @@ v021d_render_on_god_rays_replay:
     db 0x83, 0xec, 0x14, 0x53, 0x8b, 0x5c, 0x24, 0x1c
     jmp 0x1a5528
 
+; 0x1d2a2a effect_atmospheric_scattering::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its six techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1D2206's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v011w_render_on_scattering_compiled
+global v011w_render_on_scattering_compiled
+extern hook_v011w_render_on_scattering_compiled
+v011w_render_on_scattering_compiled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_scattering_compiled
+    mov edx, v011w_render_on_scattering_compiled_replay
+    cmp eax, 0
+    je v011w_render_on_scattering_compiled_go
+    mov edx, 0x1d2a30
+    cmp eax, 1
+    je v011w_render_on_scattering_compiled_go
+    mov edx, 0x1d2208
+    cmp eax, 2
+    je v011w_render_on_scattering_compiled_go
+    mov edx, 0x1d222b
+    cmp eax, 3
+    je v011w_render_on_scattering_compiled_go
+    ud2
+v011w_render_on_scattering_compiled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_scattering_compiled_replay:
+    db 0x5f, 0x5e, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x1d2a30
+
+; 0x1d225c effect_atmospheric_scattering::compile, technique 0 (the scattering tables), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F76CCh and the call 0x3D9F60 at 0x1D2268): ESP the PS name's slot (make_mie_rayleigh_texture 0x9F76CC, pushed at 0x1D2232), EAX the shader configuration's; EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_scattering_tables_pass
+global v011w_render_on_scattering_tables_pass
+extern hook_v011w_render_on_scattering_tables_pass
+v011w_render_on_scattering_tables_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_scattering_tables_pass
+    mov edx, v011w_render_on_scattering_tables_pass_replay
+    cmp eax, 0
+    je v011w_render_on_scattering_tables_pass_go
+    mov edx, 0x1d2263
+    cmp eax, 1
+    je v011w_render_on_scattering_tables_pass_go
+    ud2
+v011w_render_on_scattering_tables_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_scattering_tables_pass_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1d2263
+
+; 0x1d22f6 effect_atmospheric_scattering::compile, technique 1 (the sky), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9EEF14h and the call 0x3D9F60 at 0x1D2302): ESP the PS name's slot (atmosphere 0x9EEF14, pushed at 0x1D22CC), EAX the shader configuration's; EBX the compiler; no base relocation in the span: lohook -> v011w_render_on_scattering_sky_pass
+global v011w_render_on_scattering_sky_pass
+extern hook_v011w_render_on_scattering_sky_pass
+v011w_render_on_scattering_sky_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_scattering_sky_pass
+    mov edx, v011w_render_on_scattering_sky_pass_replay
+    cmp eax, 0
+    je v011w_render_on_scattering_sky_pass_go
+    mov edx, 0x1d22fd
+    cmp eax, 1
+    je v011w_render_on_scattering_sky_pass_go
+    ud2
+v011w_render_on_scattering_sky_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_scattering_sky_pass_replay:
+    db 0x56, 0x66, 0x0f, 0xd6, 0x40, 0x08, 0x53
+    jmp 0x1d22fd
+
+; 0x1a4300 stage_atmosphere::execute, the sky stage's decision to remake the scattering tables: cmp [esi+1DE38h],ecx (the scene view's targets id against the context's targets' id, ECX; unequal remakes them, as do the flags [ebp+8]+18h and +19h); ESI the frame's scene view, EBP the stage: lohook -> v011w_render_on_tables_due
+global v011w_render_on_tables_due
+extern hook_v011w_render_on_tables_due
+v011w_render_on_tables_due:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_tables_due
+    mov edx, v011w_render_on_tables_due_replay
+    cmp eax, 0
+    je v011w_render_on_tables_due_go
+    mov edx, 0x1a4306
+    cmp eax, 1
+    je v011w_render_on_tables_due_go
+    ud2
+v011w_render_on_tables_due_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_tables_due_replay:
+    db 0x39, 0x8e, 0x38, 0xde, 0x01, 0x00
+    jmp 0x1a4306
+
+; 0x1a441d stage_atmosphere::execute, the scattering tables' pass: mov eax,[ebp+50h] / xor ecx,ecx before res_effect::apply 0x11C1B0 (EAX the effect, ECX the technique) at 0x1A4422; then the tables' constants, targets 47h and 48h and fill_surfaces (0x1A4427..0x1A44D1): lohook -> v011w_render_on_tables_apply
+global v011w_render_on_tables_apply
+extern hook_v011w_render_on_tables_apply
+v011w_render_on_tables_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_tables_apply
+    mov edx, v011w_render_on_tables_apply_replay
+    cmp eax, 0
+    je v011w_render_on_tables_apply_go
+    mov edx, 0x1a4422
+    cmp eax, 1
+    je v011w_render_on_tables_apply_go
+    mov edx, 0x1a4422
+    cmp eax, 2
+    je v011w_render_on_tables_apply_go
+    ud2
+v011w_render_on_tables_apply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_tables_apply_replay:
+    db 0x8b, 0x45, 0x50, 0x33, 0xc9
+    jmp 0x1a4422
+
+; 0x1a45a0 stage_atmosphere::execute, the sky's pass: mov dword [eax+5620h],1 before res_effect::apply_pass 0x3D7230 at 0x1A45AA (EAX the stage's effect, its +50h, loaded at 0x1A459D); applied skips the write: lohook -> v011w_render_on_sky_apply
+global v011w_render_on_sky_apply
+extern hook_v011w_render_on_sky_apply
+v011w_render_on_sky_apply:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v011w_render_on_sky_apply
+    mov edx, v011w_render_on_sky_apply_replay
+    cmp eax, 0
+    je v011w_render_on_sky_apply_go
+    mov edx, 0x1a45aa
+    cmp eax, 1
+    je v011w_render_on_sky_apply_go
+    mov edx, 0x1a45aa
+    cmp eax, 2
+    je v011w_render_on_sky_apply_go
+    ud2
+v011w_render_on_sky_apply_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v011w_render_on_sky_apply_replay:
+    db 0xc7, 0x80, 0x20, 0x56, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
+    jmp 0x1a45aa
+
 ; 0x1ce5be effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone: lohook -> v021d_render_on_wet_surface_compiled
 global v021d_render_on_wet_surface_compiled
 extern hook_v021d_render_on_wet_surface_compiled

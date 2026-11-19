@@ -39,7 +39,7 @@
 use core::ffi::CStr;
 
 use crate::vostok::config::{ConfigTable, ConfigValue};
-use crate::vostok::effect_compile::{self, CompileSite, CompilerId, MaterialPass, Pass, TextureSite, VertexInput};
+use crate::vostok::effect_compile::{self, CompileSite, End, MaterialPass, Pass, Rounds, TextureSite, VertexInput};
 use crate::vostok::log::{self, Piece::Text};
 use crate::vostok::project::{ProjectId, ProjectView};
 use crate::vostok::render_stage::{self, ApplySite, AtmosphereStage, RenderSceneId, StageSite, Technique};
@@ -132,61 +132,7 @@ enum Twins {
     RainDrops,
 }
 
-/// A compiler between an effect's end and its second end: compiling the twins.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Round {
-    compiler: CompilerId,
-    twins: Twins,
-}
-
-/// What a compile does at its end.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum End {
-    /// Compile the twins: back to the techniques' start.
-    Twins,
-    /// Return, the twins compiled.
-    Return,
-}
-
-/// Compiles at once: one per resource thread at most; past this many the
-/// game stops (a round lost would leave an effect without its twin).
-const ROUNDS: usize = 64;
-
-/// The compilers compiling twins.
-struct Rounds([Option<Round>; ROUNDS]);
-
-impl Rounds {
-    const fn new() -> Rounds {
-        Rounds([None; ROUNDS])
-    }
-
-    fn find(&self, compiler: CompilerId) -> Option<(usize, Round)> {
-        self.0.iter().enumerate().find_map(|(i, slot)| slot.filter(|round| round.compiler == compiler).map(|round| (i, round)))
-    }
-
-    /// The compile of `twins`'s effect by `compiler` is at its end.
-    fn end(&mut self, compiler: CompilerId, twins: Twins) -> End {
-        match self.find(compiler) {
-            None => {
-                let free = self.0.iter_mut().find(|slot| slot.is_none()).expect("fewer compiles at once than ROUNDS");
-                *free = Some(Round { compiler, twins });
-                End::Twins
-            }
-            Some((i, round)) => {
-                assert_eq!(round.twins, twins, "a compiler compiles one effect at a time");
-                self.0[i] = None;
-                End::Return
-            }
-        }
-    }
-
-    /// The twins `compiler` compiles now, if any.
-    fn twins(&self, compiler: CompilerId) -> Option<Twins> {
-        self.find(compiler).map(|(_, round)| round.twins)
-    }
-}
-
-static ROUNDS_NOW: Lock<Rounds> = Lock::new(Rounds::new());
+static ROUNDS_NOW: Lock<Rounds<Twins>> = Lock::new(Rounds::new());
 
 /// A float's mantissa bits, and its implicit leading one.
 const MANTISSA: u32 = (1 << 23) - 1;
@@ -328,7 +274,7 @@ pub fn on_wet_surface_compiled(ctx: &mut Context<'_>) -> Flow<vostok::V021DRende
 pub fn on_wet_surface_pass(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let compiler = effect_compile::compiler_id(ctx, CompileSite::WetSurfacePass);
     if ROUNDS_NOW.with(ctx.thread(), |rounds| rounds.twins(compiler)) == Some(Twins::WetSurface) {
-        effect_compile::set_wet_surface_pixel_shader(ctx, WET_SURFACE_PS);
+        effect_compile::set_pixel_shader(ctx, effect_compile::PassSite::WetSurface, WET_SURFACE_PS);
     }
     Flow::Continue
 }
@@ -430,6 +376,7 @@ pub fn on_water_texture(ctx: &mut Context<'_>) -> Flow<vostok::V021DRenderOnWate
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::vostok::effect_compile::CompilerId;
 
     fn project(n: u32) -> ProjectId {
         ProjectId::for_test(n)
@@ -466,7 +413,7 @@ mod tests {
 
     #[test]
     fn a_compile_ends_twice_once_for_its_twins() {
-        let mut rounds = Rounds::new();
+        let mut rounds = Rounds::<Twins>::new();
         let (a, b) = (CompilerId::for_test(0x100), CompilerId::for_test(0x200));
         assert_eq!(rounds.twins(a), None);
         assert_eq!(rounds.end(a, Twins::WetSurface), End::Twins);
@@ -485,8 +432,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "fewer compiles at once")]
     fn too_many_compiles_at_once_stop() {
-        let mut rounds = Rounds::new();
-        for i in 1..=ROUNDS as u32 + 1 {
+        let mut rounds = Rounds::<Twins>::new();
+        for i in 1..=effect_compile::ROUNDS as u32 + 1 {
             rounds.end(CompilerId::for_test(i), Twins::WetSurface);
         }
     }

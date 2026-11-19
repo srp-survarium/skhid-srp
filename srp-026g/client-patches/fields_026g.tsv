@@ -1404,6 +1404,7 @@ vostok::render::renderer_context	scene	0x416C	ptr<vostok::render::scene>	the sce
 vostok::render::renderer_context	scene_view	0x4170	ptr<vostok::render::scene_view>	that frame's scene view, its environment at +118h (stage_rain::execute 0x1ADB55, stage_pre_rain::execute 0x17CA64)
 vostok::render::scene_view	rain_u_scale	0x2E8	f32	the environment's rain_u_scale (environment +1D0h; stage_rain::execute 0x1ADD90 multiplies it by 0.05 into rain_drops_parameters1.z)
 vostok::render::scene_view	rain_v_scale	0x2EC	f32	the environment's rain_v_scale (environment +1D4h; 0x1ADDB1, times 0.4 into rain_drops_parameters1.w)
+vostok::render::scene_view	atmosphere_targets	0x1DE38	u32	the id of the targets its scattering tables were last made for (stage_atmosphere::execute writes the context's targets' id at 0x1A44EB after making them, compares it at 0x1A4300; unequal remakes them)
 vostok::render::stage_pre_rain	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (stage_pre_rain::execute 0x17CA61)
 vostok::render::stage_pre_rain	wet_effect	0x18	u32	its effect_wet_surface (a res_effect, kept as the address res_effect::apply takes in EAX): create_effect<effect_wet_surface> (0x17CC90) from the ctor (0x17BC2F); execute applies technique 2 (copy, 0x17CB35) and 0 (wet, 0x17CB90)
 vostok::render::stage_rain	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (stage_rain::execute 0x1ADB52)

@@ -26175,6 +26175,15 @@ impl SceneView {
         unsafe { self.0.byte_add(0x2ec).cast::<f32>().as_ptr() }
     }
 
+    /// +0x1de38 (u32): the id of the targets its scattering tables were last made for (stage_atmosphere::execute writes the context's targets' id at 0x1A44EB after making them, compares it at 0x1A4300; unequal remakes them)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn atmosphere_targets(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x1de38).cast::<u32>().as_ptr() }
+    }
+
     /// +0x118 (obj<vostok::render::environment_properties>): its environment record: stage_atmosphere::execute passes +118h to environment_sun_direction (0x1A4267..0x1A4276); stage_rain reads its +1D0h as the view's +2E8h
     ///
     /// # Safety
@@ -32339,6 +32348,123 @@ pub mod site {
 
     /// atmosphere.geometry_fog_applied (0x1a50ff): after the geometry fog's apply_pass (0x1A50FA): mov eax,[ebp+0A8h], the pass's pixel shader bound (its constants can be set now); then s_eye_ray_corner, the target 37h and fill_surfaces (0x1A510C..0x1A512E)
     pub mod atmosphere_geometry_fog_applied {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_atmosphere (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAtmosphere> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageAtmosphere)
+        }
+    }
+
+    /// scattering.tables_pass (0x1d225c): effect_atmospheric_scattering::compile, technique 0 (the scattering tables), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F76CCh and the call 0x3D9F60 at 0x1D2268): ESP the PS name's slot (make_mie_rayleigh_texture 0x9F76CC, pushed at 0x1D2232), EAX the shader configuration's; EBX the compiler; no base relocation in the span
+    pub mod scattering_tables_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// scattering.sky_pass (0x1d22f6): effect_atmospheric_scattering::compile, technique 1 (the sky), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9EEF14h and the call 0x3D9F60 at 0x1D2302): ESP the PS name's slot (atmosphere 0x9EEF14, pushed at 0x1D22CC), EAX the shader configuration's; EBX the compiler; no base relocation in the span
+    pub mod scattering_sky_pass {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+
+        /// the site's ESP: a vostok::render::begin_pass_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<BeginPassFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(BeginPassFrame)
+        }
+    }
+
+    /// scattering.compiled (0x1d2a2a): effect_atmospheric_scattering::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its six techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1D2206's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone
+    pub mod scattering_compiled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::effect_compiler (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn compiler(machine: &impl Machine) -> Option<EffectCompiler> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EffectCompiler)
+        }
+    }
+
+    /// atmosphere.tables_due (0x1a4300): stage_atmosphere::execute, the sky stage's decision to remake the scattering tables: cmp [esi+1DE38h],ecx (the scene view's targets id against the context's targets' id, ECX; unequal remakes them, as do the flags [ebp+8]+18h and +19h); ESI the frame's scene view, EBP the stage
+    pub mod atmosphere_tables_due {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_atmosphere (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAtmosphere> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageAtmosphere)
+        }
+
+        /// ESI: a vostok::render::scene_view (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn view(machine: &impl Machine) -> Option<SceneView> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(SceneView)
+        }
+    }
+
+    /// atmosphere.tables_apply (0x1a441d): stage_atmosphere::execute, the scattering tables' pass: mov eax,[ebp+50h] / xor ecx,ecx before res_effect::apply 0x11C1B0 (EAX the effect, ECX the technique) at 0x1A4422; then the tables' constants, targets 47h and 48h and fill_surfaces (0x1A4427..0x1A44D1)
+    pub mod atmosphere_tables_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::stage_atmosphere (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn stage(machine: &impl Machine) -> Option<StageAtmosphere> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(StageAtmosphere)
+        }
+    }
+
+    /// atmosphere.sky_apply (0x1a45a0): stage_atmosphere::execute, the sky's pass: mov dword [eax+5620h],1 before res_effect::apply_pass 0x3D7230 at 0x1A45AA (EAX the stage's effect, its +50h, loaded at 0x1A459D); applied skips the write
+    pub mod atmosphere_sky_apply {
         #[allow(unused_imports)]
         use super::*;
 

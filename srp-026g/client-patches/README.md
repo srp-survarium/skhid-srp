@@ -6262,11 +6262,11 @@ with `check_rain_v021d_026g.py` (with the 0.21d exe, 0.21d's own drop parameters
 patch crate's tests. Not run in a game. It needs the content pack's files and keys in the same
 release.
 
-## The 0.11 weathers fog their geometry the 0.11 way (patch 162, unreleased)
+## The 0.11 weathers render their atmosphere the 0.11 way (patch 162, unreleased)
 
 The owner (2026-11-18): Vostok Radar Station v0.11's evening and rain rendered as 0.11e renders them,
-compared with 0.11e itself (`../docs/notes/v011-weather.md`). The fog is the first step (`../docs/notes/client_patch.md`
-section 3.87):
+compared with 0.11e itself (`../docs/notes/v011-weather.md`): the geometry's fog, the scattering tables and the
+sky (`../docs/notes/client_patch.md` section 3.87):
 
 - 0.11e fogs the geometry in two passes of `effect_atmospheric_scattering`: it multiplies the frame by
   1 - min(depth, D) / D / 10 (blend ZERO, SRC_COLOR), then adds the light the air scatters toward the eye,
@@ -6277,15 +6277,25 @@ section 3.87):
   5's place and, at its god rays' entry, 4: the constants 0.11e sets for it (to_sun_direction_parameter as
   minus the sun's direction with .w 1, inscatter_parameters, s_eye_ray_corner), target 37h
   and fill_surfaces as stage_atmosphere::execute's own pass. Once a frame; the sky stage never.
-- 0.26g's program for technique 4 is another equation, so the content pack `v011e-radar-fog@2` gives its
+- 0.26g's program for technique 4 is another equation, so the content pack `v011e-radar-fog@3` gives its
   file 0.11e's program, compiled from source for 0.26g's layout (`../shaders/v011w.sh`,
   `scripts/v011-weather/make_fog_pack.py`).
   Nothing else draws technique 4: no other map changes. The lobby's scene, unmarked projects and every
   native map draw technique 5 as before.
+- The scattering tables (the 256x128 Rayleigh and Mie targets the sky and the fog read) and the sky are
+  another program each in 0.26g (half the tables' samples, another Rayleigh extinction and scale height;
+  another sky equation). effect_atmospheric_scattering compiles twins of its techniques 0 and 1 after its six
+  (6 and 7: the same passes with the pixel shaders `make_mie_rayleigh_texture_v011w` and `atmosphere_v011w`,
+  the pack's builds of 0.11e's sources), on every map, as patch 130's effects do; on the marked scene the sky
+  stage applies 6 for the tables and 7 for the sky. The tables are made once and kept while nothing changes;
+  a frame whose look (0.11 or native) is not theirs remakes them.
 
 **The patch** (the Rust patch `v011w_render`, `rust/patches/src/v011w_render.rs`, the stage's side in
-`vostok/render_stage.rs`; six lohooks): `atmosphere.geometry_fog` (technique 3 in 5's place),
-`atmosphere.geometry_fog_applied` (its constant, set once its program is bound), `atmosphere.god_rays`
-(the additive pass; after patch 130's), `project.insert`, `project.removed`, `project.destroy` (the map).
+`vostok/render_stage.rs`, the twins' rounds in `vostok/effect_compile.rs`, shared with patch 130; twelve
+lohooks): `atmosphere.geometry_fog` (technique 3 in 5's place), `atmosphere.geometry_fog_applied` (its
+constant, set once its program is bound), `atmosphere.god_rays` (the additive pass; after patch 130's),
+`scattering.compiled`, `scattering.tables_pass`, `scattering.sky_pass` (the twins), `atmosphere.tables_due`,
+`atmosphere.tables_apply`, `atmosphere.sky_apply` (the tables and the sky), `project.insert`,
+`project.removed`, `project.destroy` (the map).
 Nothing a match computes. Checked with `check_v011w_render_026g.py` (Unicorn, original and patched exe) and
 the patch crate's tests. Needs the pack and the edit list in the same release.

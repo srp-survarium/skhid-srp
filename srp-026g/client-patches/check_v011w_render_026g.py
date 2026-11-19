@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Patch 162 (v011w_render): the ported 0.11 weathers fog their geometry the 0.11 way
+"""Patch 162 (v011w_render): the ported 0.11 weathers render their atmosphere the 0.11 way
 (srp-026g/docs/notes/v011-weather.md, README "The 0.11 weathers' fog").
 
     python check_v011w_render_026g.py <original survarium.exe>
@@ -21,6 +21,14 @@ environment_sun_direction):
   with that target, no secondary and the flag 1 (as execute's 0x1A5111..0x1A512E); once: the next
   god rays without a new multiplicative pass draw nothing more; the sky stage's never; the body
   then runs as the original's.
+- effect_atmospheric_scattering::compile (0x1D21F0), building and caching, twice each: the original's six
+  techniques, then the six again, 6 and 7 with the pixel shaders make_mie_rayleigh_texture_v011w and
+  atmosphere_v011w (all else as 0 and 1), 8..11 as 2..5;
+- the sky stage's tables (0x1A4300's decision, run to its setne at 0x1A430F; 0x1A441D's apply, to its
+  call at 0x1A4422) and sky (0x1A459D, to apply_pass at 0x1A45AA): the original's everywhere before a
+  marked project and on the lobby's scene; on the marked scene technique 6 for the tables and 7 for the
+  sky, and the tables remade (the decision's CL 1 though the ids are equal) whenever a frame's look is
+  not the one they were made with, and not otherwise.
 """
 import struct
 import sys
@@ -29,8 +37,8 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_EBP, UC_X86_REG_ECX, UC
 
 import patch_026g as base
 import check_rain_v021d_026g as rig
-from check_rain_v021d_026g import (Machine, set_project, insert, remove, destroy, HEAP, RET, PROJECT, GAME_SCENE,
-                                   RENDER_SCENE, LOBBY_SCENE, CONTEXT, VIEW, ATMOSPHERE)
+from check_rain_v021d_026g import (Machine, set_project, insert, remove, destroy, compile_stubs, run_compile, HEAP, RET,
+                                   PROJECT, GAME_SCENE, RENDER_SCENE, LOBBY_SCENE, CONTEXT, VIEW, ATMOSPHERE)
 
 EFFECT = HEAP + 0x380000
 HOSTS = {"to_sun": HEAP + 0x390000, "inscatter": HEAP + 0x390100, "eye_ray": HEAP + 0x390200}
@@ -147,6 +155,90 @@ def check(stock, patched):
           " the god rays' body after it as the original's")
 
 
+# -- the scattering tables and the sky ----------------------------------------------------------------------
+
+TARGETS_ID = 0x5150
+FLAGS = HEAP + 0x3C0000                     # execute's [ebp+8]: its +18h and +19h the remake flags (0)
+
+
+def check_compile(stock, patched):
+    for m in (stock, patched):
+        compile_stubs(m)
+    for caching in (0, 1):
+        native = run_compile(stock, 0x1D21F0, caching)
+        pss = [next(e[4] for e in t if e[0] == "begin_pass") for t in native]
+        assert pss[:2] == ["make_mie_rayleigh_texture", "atmosphere"] and len(native) == 6, pss
+        for _ in range(2):
+            ours = run_compile(patched, 0x1D21F0, caching)
+            assert len(ours) == 12 and ours[:6] == native, len(ours)
+            for twin, original, ps in ((6, 0, "make_mie_rayleigh_texture_v011w"), (7, 1, "atmosphere_v011w")):
+                want = [("begin_pass", e[1], e[2], e[3], ps, e[5]) if e[0] == "begin_pass" else e for e in native[original]]
+                assert ours[twin] == want, (twin, ours[twin][:2], want[:2])
+            assert ours[8:] == native[2:], "2..5 again, unchanged"
+        print(f"  ok effect_atmospheric_scattering::compile ({'caching' if caching else 'building'}): techniques 0..5"
+              " the original's, 6..11 the six again, 6 with ps make_mie_rayleigh_texture_v011w and 7 with"
+              " atmosphere_v011w, the same at a second compile")
+    for m in (stock, patched):
+        m.stubs = {}
+
+
+def sky_stage(m, drawn):
+    m.w(ATMOSPHERE + 4, CONTEXT)
+    m.w(ATMOSPHERE + 0x50, EFFECT)
+    m.w(ATMOSPHERE + 0xAC, 0)
+    m.w(CONTEXT + 0x416C, drawn)
+    m.w(CONTEXT + 0x4170, VIEW)
+    m.emu.mem_write(FLAGS, bytes(0x40))
+
+
+def remake(m, drawn):
+    """The tables' decision with the ids equal: 1 when it remakes them."""
+    sky_stage(m, drawn)
+    m.w(VIEW + 0x1DE38, TARGETS_ID)
+    m.run(0x1A4300, {0x1A430F}, regs={UC_X86_REG_EBP: ATMOSPHERE, UC_X86_REG_ESI: VIEW, UC_X86_REG_ECX: TARGETS_ID,
+                                      UC_X86_REG_EAX: FLAGS})
+    return m.emu.reg_read(UC_X86_REG_ECX) & 0xFF
+
+
+def tables_technique(m, drawn):
+    sky_stage(m, drawn)
+    m.run(0x1A441D, {0x1A4422}, regs={UC_X86_REG_EBP: ATMOSPHERE})
+    assert m.emu.reg_read(UC_X86_REG_EAX) == EFFECT, "EAX the stage's effect"
+    return m.emu.reg_read(UC_X86_REG_ECX)
+
+
+def sky_technique(m, drawn):
+    sky_stage(m, drawn)
+    m.w(EFFECT + 0x5620, 0)
+    m.run(0x1A459D, {0x1A45AA}, regs={UC_X86_REG_EBP: ATMOSPHERE})
+    assert m.emu.reg_read(UC_X86_REG_EAX) == EFFECT
+    return m.r(EFFECT + 0x5620)
+
+
+def check_sky(stock, patched):
+    for m, label in ((stock, "the original"), (patched, "before any project")):
+        for drawn in (RENDER_SCENE, LOBBY_SCENE):
+            assert remake(m, drawn) == 0 and tables_technique(m, drawn) == 0 and sky_technique(m, drawn) == 1, label
+    patched.w(GAME_SCENE + 4, RENDER_SCENE)
+    set_project(patched, PROJECT, GAME_SCENE, {"srp_renderer_v011w": 200})
+    insert(patched, PROJECT)
+    assert tables_technique(patched, LOBBY_SCENE) == 0, "the lobby's tables"
+    assert sky_technique(patched, LOBBY_SCENE) == 1, "the lobby's sky"
+    assert remake(patched, LOBBY_SCENE) == 0, "the lobby's tables kept"
+    assert remake(patched, RENDER_SCENE) == 1, "the marked scene remakes the lobby's tables"
+    assert tables_technique(patched, RENDER_SCENE) == 6, "0.11e's tables"
+    assert remake(patched, RENDER_SCENE) == 0, "0.11e's tables kept"
+    assert sky_technique(patched, RENDER_SCENE) == 7, "0.11e's sky"
+    assert remake(patched, LOBBY_SCENE) == 1, "the lobby remakes the 0.11 tables"
+    assert tables_technique(patched, LOBBY_SCENE) == 0
+    remove(patched, PROJECT)
+    assert remake(patched, RENDER_SCENE) == 0 and tables_technique(patched, RENDER_SCENE) == 0
+    assert sky_technique(patched, RENDER_SCENE) == 1, "removed"
+    print("  ok the sky stage: technique 0 for the tables and 1 for the sky, as the original, before a marked project,"
+          " on the lobby's scene and after the project's removal; on the marked scene 6 and 7; the tables remade"
+          " when a frame's look differs from theirs (both ways), kept otherwise")
+
+
 def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
@@ -154,7 +246,11 @@ def main():
     code = open(base.default_bin("section"), "rb").read()
     built, _ = base.build(original, "section", code, None, open(base.late_join_bin(), "rb").read())
     print("patch 162 (v011w_render), original and patched exe")
-    check(Machine(original), Machine(bytes(built)))
+    stock, patched = Machine(original), Machine(bytes(built))
+    check(stock, patched)
+    stock, patched = Machine(original), Machine(bytes(built))
+    check_compile(stock, patched)
+    check_sky(stock, patched)
 
 
 if __name__ == "__main__":

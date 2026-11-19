@@ -1,4 +1,4 @@
-# Patch 162: the ported 0.11 weathers fog their geometry the 0.11 way (README "The 0.11
+# Patch 162: the ported 0.11 weathers render their atmosphere the 0.11 way (README "The 0.11
 # weathers' fog", srp-026g/docs/notes/v011-weather.md). Only the decisions; the logic is
 # v011w_render.rs, the stage's side vostok/render_stage.rs.
 name = "v011w_render"
@@ -30,3 +30,24 @@ handler = "on_geometry_fog_applied"
 site = "atmosphere.god_rays"
 handler = "on_god_rays"
 order = 2
+
+# The scattering tables and the sky: effect_atmospheric_scattering's twins of techniques 0 and 1
+# (0.11e's pixel shaders), applied on the marked scene; the tables remade when the look changes.
+[[hook]]
+site = "scattering.compiled"
+handler = "on_scattering_compiled"
+[[hook]]
+site = "scattering.tables_pass"
+handler = "on_scattering_tables_pass"
+[[hook]]
+site = "scattering.sky_pass"
+handler = "on_scattering_sky_pass"
+[[hook]]
+site = "atmosphere.tables_due"
+handler = "on_tables_due"
+[[hook]]
+site = "atmosphere.tables_apply"
+handler = "on_tables_apply"
+[[hook]]
+site = "atmosphere.sky_apply"
+handler = "on_sky_apply"

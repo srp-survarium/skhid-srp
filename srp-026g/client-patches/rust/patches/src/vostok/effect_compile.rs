@@ -24,6 +24,68 @@ pub struct CompilerId(NonZeroU32);
 
 impl CompilerId {}
 
+/// A compiler between an effect's end and its second end: compiling the
+/// twins `T` names (patches 130 and 162: an effect compiles its techniques
+/// again, with a name changed, after its own).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Round<T> {
+    compiler: CompilerId,
+    twins: T,
+}
+
+/// What a compile does at its end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum End {
+    /// Compile the twins: back to the techniques' start.
+    Twins,
+    /// Return, the twins compiled.
+    Return,
+}
+
+/// Compiles at once: one per resource thread at most; past this many the
+/// game stops (a round lost would leave an effect without its twin).
+pub const ROUNDS: usize = 64;
+
+/// The compilers compiling twins.
+pub struct Rounds<T>([Option<Round<T>>; ROUNDS]);
+
+impl<T: Copy + Eq + core::fmt::Debug> Default for Rounds<T> {
+    fn default() -> Rounds<T> {
+        Rounds::new()
+    }
+}
+
+impl<T: Copy + Eq + core::fmt::Debug> Rounds<T> {
+    pub const fn new() -> Rounds<T> {
+        Rounds([None; ROUNDS])
+    }
+
+    fn find(&self, compiler: CompilerId) -> Option<(usize, Round<T>)> {
+        self.0.iter().enumerate().find_map(|(i, slot)| slot.filter(|round| round.compiler == compiler).map(|round| (i, round)))
+    }
+
+    /// The compile of `twins`'s effect by `compiler` is at its end.
+    pub fn end(&mut self, compiler: CompilerId, twins: T) -> End {
+        match self.find(compiler) {
+            None => {
+                let free = self.0.iter_mut().find(|slot| slot.is_none()).expect("fewer compiles at once than ROUNDS");
+                *free = Some(Round { compiler, twins });
+                End::Twins
+            }
+            Some((i, round)) => {
+                assert_eq!(round.twins, twins, "a compiler compiles one effect at a time");
+                self.0[i] = None;
+                End::Return
+            }
+        }
+    }
+
+    /// The twins `compiler` compiles now, if any.
+    pub fn twins(&self, compiler: CompilerId) -> Option<T> {
+        self.find(compiler).map(|(_, round)| round.twins)
+    }
+}
+
 /// The compile sites whose EBX is the compiler.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CompileSite {
@@ -37,6 +99,12 @@ pub enum CompileSite {
     RainDropTexture,
     /// `water.normal_texture`: the forward water's t_normal_map.
     WaterTexture,
+    /// `scattering.compiled`: effect_atmospheric_scattering::compile's epilogue.
+    ScatteringEnd,
+    /// `scattering.tables_pass`: its technique 0's begin_pass.
+    ScatteringTablesPass,
+    /// `scattering.sky_pass`: its technique 1's begin_pass.
+    ScatteringSkyPass,
 }
 
 fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
@@ -50,6 +118,9 @@ fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
             CompileSite::RainEnd => raw::site::rain_compiled::compiler(ctx),
             CompileSite::RainDropTexture => raw::site::rain_drop_texture::compiler(ctx),
             CompileSite::WaterTexture => raw::site::water_normal_texture::compiler(ctx),
+            CompileSite::ScatteringEnd => raw::site::scattering_compiled::compiler(ctx),
+            CompileSite::ScatteringTablesPass => raw::site::scattering_tables_pass::compiler(ctx),
+            CompileSite::ScatteringSkyPass => raw::site::scattering_sky_pass::compiler(ctx),
         }
     }
     .expect("the compile's compiler")
@@ -85,13 +156,32 @@ pub fn enter_rain_technique(ctx: &mut Context<'_>) {
     ctx.set_reg(Reg::Esi, 0);
 }
 
-/// Makes `name` the pixel shader of the begin_pass at `wet_surface.begin_pass`
-/// (its pushed argument; the VS and the configuration stay).
-pub fn set_wet_surface_pixel_shader(ctx: &Context<'_>, name: &'static CStr) {
+/// The begin_pass sites a patch names its own pixel shader at: each is
+/// while the pass's arguments are pushed, ESP the PS name's slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PassSite {
+    /// `wet_surface.begin_pass`: effect_wet_surface's technique 0.
+    WetSurface,
+    /// `scattering.tables_pass`: effect_atmospheric_scattering's technique 0.
+    ScatteringTables,
+    /// `scattering.sky_pass`: its technique 1.
+    ScatteringSky,
+}
+
+/// Makes `name` the pixel shader of the begin_pass at `site` (its pushed
+/// argument; the VS and the configuration stay).
+pub fn set_pixel_shader(ctx: &Context<'_>, site: PassSite, name: &'static CStr) {
     // SAFETY: the site's ESP: the PS name begin_pass's caller pushed (its
     // third argument once the gs name and the compiler follow), which only
     // begin_pass reads.
-    unsafe { raw::site::wet_surface_begin_pass::frame(ctx).expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast()) }
+    unsafe {
+        let frame = match site {
+            PassSite::WetSurface => raw::site::wet_surface_begin_pass::frame(ctx),
+            PassSite::ScatteringTables => raw::site::scattering_tables_pass::frame(ctx),
+            PassSite::ScatteringSky => raw::site::scattering_sky_pass::frame(ctx),
+        };
+        frame.expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast())
+    }
 }
 
 /// The set_texture blocks a patch binds its own texture at instead: each
