@@ -19,6 +19,8 @@ const TAKE_OFF: Vec3 = Vec3::new(19.70, 16.08, 64.47);
 const LANDING: Vec3 = Vec3::new(20.70, 17.32, 64.72);
 /// The plain jump 2 m aside, which needs the sprint as well (1.25 m over the standing jump's 0.998).
 const SPRINT_JUMP_FROM: Vec3 = Vec3::new(17.70, 16.08, 64.47);
+/// How near the landing across the feet count as on its top, m (the top's floors round the landing).
+const ON_TOP_M: f32 = 1.2;
 /// The time over the no-sprint route's walk the bot may take (its turns, the refusal itself), s.
 const MARGIN_S: f32 = 4.0;
 
@@ -34,7 +36,8 @@ fn link_at(grid: &mapdata::grid::WalkGrid, take_off: Vec3, landing: Vec3) -> Opt
 /// What a run to the goal came to.
 #[derive(Debug)]
 struct Run {
-    /// The clock the feet were first on the goal (0.6 m across, 0.5 m in height), ms.
+    /// The clock the feet were first on the landing's top: within [`ON_TOP_M`] of the landing across, 0.3 m in height, ms (the
+    /// bot's own goal is the floor its arrival takes, `Go::To`, which may be a step off the link's landing).
     arrived: Option<u32>,
     /// Ticks the bot sent the sprint key.
     sprint_keys: u32,
@@ -100,8 +103,10 @@ fn run(world: &Arc<World>, start: Vec3, goal: Vec3, until: u32) -> Run {
                 out.rest_at_sprint_jump_ms += TICK_MS;
             }
         }
-        // The bot's own arrival (`exact_arrive_m`) is on its goal's floor; the feet within 0.6 m of the landing count.
-        if feet.distance_xz(goal) <= 0.6 && (feet.y - goal.y).abs() <= 0.5 && game.bodies[0].alive {
+        if clock % 2_000 == 0 {
+            eprintln!("REFUSED t {clock} feet ({:.2}, {:.2}, {:.2})", feet.x, feet.y, feet.z);
+        }
+        if feet.distance_xz(goal) <= ON_TOP_M && (feet.y - goal.y).abs() <= 0.3 && game.bodies[0].alive {
             out.arrived = Some(clock);
             break;
         }
