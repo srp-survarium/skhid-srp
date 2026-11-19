@@ -6,7 +6,7 @@ game reads. The plumbing (the account's face, the exe's cook, the lobby picker) 
 its own work (`face-choice.md`); this note is what the pack gives it and what the
 cook reads of it. The port is resource-porter's `faces_026`,
 `face_shape` and `face_fit` (branch `feat/faces-pack`, `docs/faces-026.md` there);
-the pack is `faces@4`.
+the pack is `faces@5`.
 
 ## What the game reads
 
@@ -39,7 +39,7 @@ heads[i].icon         [row, col]                                   the picker's 
 | 6 | `069d_head_05` | 0.69d0 `head_05`, with its hair |
 | 7 | `069d_head_06` | 0.69d0 `head_06` |
 | 8 | `069d_head_07` | 0.69d0 `head_07`, with its hair |
-| 9 | `stk2_neutral_01_head` | STK2, the Novice: his knit cap and hair off, 0.69d0 `head_01`'s scalp joined on |
+| 9 | `stk2_neutral_01_head` | STK2, the Novice: his knit cap and hair off, 0.69d0 `head_01`'s scalp joined on (one surface, one map) |
 
 The STK2 loner's face (`neutral_03_head`) and the STK2 bandit's (`bandit_01_head_03`) are left
 out (the owner, 2026-11-09).
@@ -47,7 +47,7 @@ out (the owner, 2026-11-09).
 ## A mask's model for a face
 
 The faces fit the live masks only with a model of the mask for the face (0.69d0's own way for
-what is worn on the face, below). `faces@4` ships them; the cook reads them since patch 123's
+what is worn on the face, below). The pack ships them (since `faces@4`); the cook reads them since patch 123's
 lookup on `feat/face-choice` (b5c88345a).
 
 In the item's config, `gameplay/items/armour/mask/<item>.options`, beside `data`:
@@ -214,16 +214,33 @@ What 0.69d0 modelled is the reference: a face is never reshaped to fit an item.
    - **contact** is recorded and is not a misfit: skin a torso does not cover in the bind pose
      (the chin, the jaw) that comes down into its collar when the head bows, where today's chin
      only touches it.
-6. **The Novice's scalp.** His cap, the band it shadowed and his own longer hair are taken off
-   along his hairline (across the forehead under the band, over the ears, behind them down to the
-   nape; his ears whole), and 0.69d0 `head_01`'s scalp above the same line is joined on: its cut
-   edge laid on his, the rest moved with it, and a strip of its triangles closing the seam (no
-   gap). `head_01` is the short cut whose edge moves least onto his (4.0 mm on average; the
-   others 4.1 to 9.4). Its colour map is toned to his skin (his forehead just under the seam over
-   `head_01`'s just above it, a gain a channel); its normal map is `head_01`'s, its gloss and
-   Fresnel his face's. `faces@2` and `faces@3` grafted today's head's scalp; seen in the game it
-   left a pale band across his forehead, a dark gap behind the ears and his own hair below a
-   shaved scalp (a skullcap).
+6. **The Novice's head is one surface with one map and one material.** His cap, the band it
+   shadowed and his own longer hair are taken off along his hairline (across the forehead under
+   the band, over the ears, behind them down to the nape; his ears whole), and 0.69d0 `head_01`'s
+   scalp above the same line is joined on: its cut edge laid on his edge vertex for vertex (the
+   two edges matched by the least total move), the rest moved with it, a strip of triangles over
+   the shared vertices closing the seam (no gap, no T-joint). On the seam the scalp takes his
+   skin weights and normals; the normals 12 mm either side are made again from the joined
+   surface. The scalp's UVs go into his cap's old place in his own map, painted with `head_01`'s
+   scalp (toned to his forehead); over 15 mm either side of the seam the tone gives way to both
+   sides' mean there, the detail thins and the normal map goes flat, so at the seam both sides
+   are alike. His map is 2048 (0.69d0's faces' size).
+   - What made the seam in `faces@4`, seen in the game: two surfaces with two maps and two
+     normal maps meeting on a line (the tone and the detail changed across it), the scalp's
+     edge vertices on the sides of his edge's triangles (T-joints: a light crack line along the
+     seam against a light background), and, at the ear, the scalp's edge snapped to the nearest
+     points of his edge, which skipped part of it round the ear (a dark notch filled by a
+     stretched strip).
+   - What still made a line with one surface: his map has the cap's shadow and brim painted
+     under his hairline (down to 84 texels under the cut at the temples, darkest above the ears),
+     which `faces@4` covered with a fill of repeated texels ending in a hard edge where his skin
+     starts; and past the scalp's part of his map lay the rest of `head_01`'s map (its face),
+     which the texture filtering drew along the seam. `faces@5` paints his own skin over the
+     band (each column's skin mirrored up from where it starts, the normal map with it) and
+     carries the edge texels 48 texels past both parts. With flat maps the joined head shows no
+     line in the game: what is left of a seam is in the maps.
+   - `faces@2` and `faces@3` grafted today's head's scalp: a pale band across his forehead, a
+     dark gap behind the ears and his own hair below a shaved scalp (a skullcap).
 
 ### The numbers
 
@@ -260,9 +277,10 @@ masks worn alone):
 ### What is open
 
 `ports/faces-026-open.tsv` (resource-porter) names every misfit left, with the most it may be;
-a new one, or a deeper one, stops the build. 398 lines, a face and an item each:
+a new one, or a deeper one, stops the build. 401 lines, a face and an item each:
 
-- masks: 130 in a pose only, 20 seen edges standing off beside the ears, 9 the Novice's nape, 4
+- masks: 133 in a pose only (`faces@5`: three new and two deeper for the Novice, the masks
+  carried onto his new head; 0.3 to 3.6 mm), 20 seen edges standing off beside the ears, 9 the Novice's nape, 4
   the Novice under the game's balaclavas by under a millimetre (no model for him), and no mask
   a face shows through as it sits where it has a model;
 - helmets (no model for a face): 39 in a pose only, 21 as they sit, 10 standing off, and 36 a
