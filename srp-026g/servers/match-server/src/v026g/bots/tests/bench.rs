@@ -2713,6 +2713,9 @@ pub(crate) fn real_bot_cost() {
                  quiet looks yielded ticks riser {}, jump {}",
                 picks[0], picks[1], picks[2], aimed[0], aimed[1], yields[0], yields[1]
             );
+            // [A416] The view schedule.
+            let view = crate::v026g::bots::view_schedule::counts::counts();
+            eprintln!("view schedule so far: glances begun {}, cut at their most {}, look ticks held on the course {}", view[0], view[1], view[2]);
             let (ground, hard, client, moved) = crate::v026g::bots::body::client_steps::all();
             eprintln!(
                 "client_step so far: reckoned ground steps {ground}, hard {hard}, client steps {client}, moved otherwise {moved}"

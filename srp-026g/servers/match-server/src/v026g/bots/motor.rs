@@ -99,6 +99,8 @@ pub struct Feel {
     pub sprint_after_s: f32,
     /// [A416, human-steering part D] What a walk's sprint asks of the way faced ([`SprintBy`]).
     pub sprint_by: SprintBy,
+    /// [A416, human-steering part D] Whether a walking body's look follows the view schedule ([`ViewRule`]).
+    pub view_rule: ViewRule,
     /// A corner sharper than this ends a straight stretch, radians.
     pub corner: f32,
     /// The heading's sway: amplitude (radians) and period (seconds).
@@ -356,6 +358,18 @@ pub enum SprintBy {
     Keys,
 }
 
+/// [A416, human-steering part D] Whether a walking body's look follows the view schedule ([`Feel::view_rule`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ViewRule {
+    /// As before: any look the reflex or the play gives is held while it lasts.
+    Free,
+    /// A look that is no threat and no use is a glance of the live humans' length, then the course
+    /// ([`super::view_schedule::View`]).
+    #[default]
+    Schedule,
+}
+
 /// [A416] The way within this of the view is a W, W+A or W+D key set ([`Motor::pick_keys`]'s nearest sector 0 or 1): 67.5 degrees.
 const SPRINT_KEYS_RAD: f32 = 3.0 * std::f32::consts::FRAC_PI_8;
 
@@ -388,6 +402,7 @@ impl Default for Feel {
             sprint_facing: 0.17,
             sprint_after_s: 0.3,
             sprint_by: SprintBy::Keys,
+            view_rule: ViewRule::Schedule,
             corner: 0.6,
             sway: 0.025,
             sway_period_s: 3.7,

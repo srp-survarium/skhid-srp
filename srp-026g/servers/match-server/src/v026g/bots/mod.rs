@@ -110,6 +110,7 @@ pub mod trap_react;
 pub mod traps;
 pub mod tuning;
 pub mod view;
+pub mod view_schedule;
 pub mod walk_off;
 pub mod worth;
 pub mod zone_cost;
@@ -499,6 +500,8 @@ pub struct Bot {
     reckoned_creep: body::Creep,
     /// Its falls and route jumps for the log (A285, `nav_log.rs`): written, never read back.
     nav_log: nav_log::NavLog,
+    /// [A416] Where its walking view is: on the course, in a glance, or free ([`view_schedule::View`]).
+    view: view_schedule::View,
     /// [A391] Its last offer of each job role since it was given ([`threat::LastOffers`]): the class of a role let go.
     offers: threat::LastOffers,
     /// Its drift over the match for the match-end table (A294, `nav_drift.rs`): written, never read back.
@@ -730,6 +733,7 @@ impl Bot {
             reckoned_kept: None,
             reckoned_creep: body::Creep::Unknown,
             nav_log: nav_log::NavLog::default(),
+            view: view_schedule::View::default(),
             offers: threat::LastOffers::default(),
             drift: nav_drift::Tally::default(),
             tracing: false,
