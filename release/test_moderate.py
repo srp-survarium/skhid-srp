@@ -71,5 +71,14 @@ class RenameTests(unittest.TestCase):
         admin.assert_not_called()
 
 
+class JoinLineTests(unittest.TestCase):
+    def test_a_relayed_sign_in_is_the_clients_address(self):
+        for route in ("", " via relay 203.0.113.8"):
+            for line, kind in ((f"Sign-in: account=0x1f from 198.51.100.9:5000{route} session=0x2, sent", "joined"),
+                               (f"Sign-in of bob from 198.51.100.9:5000{route} refused: TooManyFromAddress", "refused")):
+                found = [(k, p.match(line)["addr"]) for k, _, p in moderate.JOIN_LINES if p.match(line)]
+                self.assertEqual(found[0], (kind, "198.51.100.9:5000"))
+
+
 if __name__ == "__main__":
     unittest.main()
