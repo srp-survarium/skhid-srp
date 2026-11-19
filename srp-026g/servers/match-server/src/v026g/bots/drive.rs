@@ -3407,11 +3407,23 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     };
     let top = me.velocity[0].hypot(me.velocity[1]).max(mapdata::controller::speed::cap(gait, 1.0));
     let reach = top * kin::TICK_S * (tuning.kin.blend_ticks + bot.motor.feel.lip_guard_ticks + 2) as f32 + body::RECKONING_M;
+    // And only the route's way there: the guard's own stop forecast of these keys (`lip_guard_with`'s main body) stays on the route's
+    // line ([`body::RECKONING_M`]) until it is down a lip's height. Keys that carry the body off the line first (a side step toward a
+    // side rim, a swerve) are not the drop's walk, and the guard judges them as any other.
+    let kept = bot.reckoned_kept;
+    let hold = bot.motor.feel.lip_guard_ticks;
     let (planned, own_walk_off) = bot.route.as_mut().map_or_else(
         || (Vec::new(), false),
         |(route, _)| {
             let (walked, off) = route.progress(me.feet);
-            (route.drop_landings(walked, PLANNED_DROP_M, truth), off <= body::RECKONING_M && route.walk_off_within(walked, reach))
+            let planned = route.drop_landings(walked, PLANNED_DROP_M, truth);
+            let own = off <= body::RECKONING_M && route.walk_off_within(walked, reach) && {
+                let grid = &tactics.world.grid;
+                let at = body::Estimate { kept, ..body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
+                let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid, planned: &planned, hold };
+                route.walk_off_path_on_line(walked, reach, &body::stop_path(&at, decision.keys, decision.turn.0, &stop), body::RECKONING_M)
+            };
+            (planned, own)
         },
     );
     if own_walk_off {
