@@ -127,8 +127,8 @@ float 43 as above):
 |---|---|---|
 | Sprint stamina (`sprint_stamina`) | a pain protector | Numb Legs: the sprint's stamina x (1 - 0.2 x rank) while it is active (100 -> 60 % at rank 2) |
 | Slow from bullets (`hit_slow`) | a pain protector | Unflinching: the hits' stopping power x (1 - 0.1 x rank) while it is active (100 -> 60 % at rank 4) |
-| Reload speed (stock `st_inv_reload`) | an antitoxin | Concentration: reload speed + 0.10/0.15/0.20 while it is active (100 -> 120 % at rank 3; in a match added to the kit's own reload bonuses) |
-| Aiming speed (stock `st_aiming_speed_correction_perc_name`) | an antitoxin | Sharp Eye: aim time - 0.05/0.10/0.15 while it is active (100 -> 85 % at rank 3; added to the kit's own) |
+| Reload speed (`reload_speed`) | an antitoxin | Concentration: reload speed + 0.10/0.15/0.20 while it is active (100 -> 120 % at rank 3; in a match added to the kit's own reload bonuses) |
+| Aim time (`aim_time`) | an antitoxin | Sharp Eye: aim time - 0.05/0.10/0.15 while it is active (100 -> 85 % at rank 3; added to the kit's own) |
 | Healing crouched (`crouched_healing`) | a medicine that heals | Take Cover (out of the tree since 2026-11-19): each heal tick x (1 + 0.1 x rank) while crouched, after Medical Training (100 -> 120 % at rank 2) |
 
 The other medical skills (Metabolism, Adrenalin, Strong Bones, Brothers in Arms, the pockets;

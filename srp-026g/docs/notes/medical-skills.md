@@ -76,7 +76,7 @@ full build 37.
   it opened (Potent Painkiller in row 2 now needs 3 points in row 1). The
   kits are sent again.
 - Held Alt, the antitoxin's card shows Concentration ("Reload speed") and
-  Sharp Eye ("Aiming speed", the stock words of the aim time) lines;
+  Sharp Eye ("Aim time") lines (srp's texts, st_srp_medicine_*);
   Second Wind's is a flat amount and has none.
 - It changes what a match computes: words in `simulation_changes.tsv`'s
   `next` row.
