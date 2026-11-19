@@ -1123,16 +1123,16 @@ mod tests {
     }
 
     /// [taught presses] A jump off the edge gives the link its press (the short jump or the sprint jump at a gap lead) and its
-    /// share (the neighbourhood's flights resting on the same floor), not only the floor it comes down on: a slab 3 m over the
-    /// ground, jumped off along +x.
+    /// share (the neighbourhood's flights resting on the same floor), not only the floor it comes down on: a slab 2 m over the
+    /// ground, jumped off along +x (a flight's steps end before a 3 m fall's landing).
     #[test]
     fn a_jump_off_the_edge_gives_its_press_and_share() {
         let mut tris = Vec::new();
         tris.extend(quad(0.0, 10.0, 0.0, 10.0, 0.0));
-        tris.extend(quad(0.0, 5.0, 0.0, 10.0, 3.0));
+        tris.extend(quad(0.0, 5.0, 0.0, 10.0, 2.0));
         let grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, super::super::Body::default());
         let world = Collision::build(&tris);
-        let a = grid.locate(Vec3::new(4.8, 3.0, 5.0), 0.3).unwrap();
+        let a = grid.locate(Vec3::new(4.8, 2.0, 5.0), 0.3).unwrap();
         let (b, press, share) = grid.jumped_down(&world, &Settings::LIVE, a, grid.position(a), (1.0, 0.0)).expect("lands below");
         assert!(grid.position(b).y < 0.1 && grid.position(b).x > 5.0, "{:?}", grid.position(b));
         let lead = match press {
