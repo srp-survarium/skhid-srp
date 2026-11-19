@@ -7,7 +7,13 @@
         "projects/level_09/day_3/client_project",
         "projects/level_09/day_4/client_project",
         "projects/level_09/day_5/client_project",
-        "projects/level_09/day_8/client_project"
+        "projects/level_09/day_8/client_project",
+        "projects/level_09/evening_2/client_project",
+        "projects/level_09/evening_3/client_project",
+        "projects/level_09/evening_4/client_project",
+        "projects/level_09/rain_2/client_project",
+        "projects/level_09/rain_3/client_project",
+        "projects/level_09/rain_4/client_project"
       ],
       "list": "client_objects",
       "expected_counts": [
@@ -15,7 +21,13 @@
         539,
         489,
         503,
-        485
+        485,
+        515,
+        558,
+        510,
+        472,
+        515,
+        466
       ],
       "unique_key": "full_name",
       "value": {
@@ -100,7 +112,13 @@
         "projects/level_09/day_3/client_project",
         "projects/level_09/day_4/client_project",
         "projects/level_09/day_5/client_project",
-        "projects/level_09/day_8/client_project"
+        "projects/level_09/day_8/client_project",
+        "projects/level_09/evening_2/client_project",
+        "projects/level_09/evening_3/client_project",
+        "projects/level_09/evening_4/client_project",
+        "projects/level_09/rain_2/client_project",
+        "projects/level_09/rain_3/client_project",
+        "projects/level_09/rain_4/client_project"
       ],
       "list": "client_objects",
       "expected_counts": [
@@ -108,7 +126,13 @@
         540,
         490,
         504,
-        486
+        486,
+        516,
+        559,
+        511,
+        473,
+        516,
+        467
       ],
       "unique_key": "full_name",
       "value": {

@@ -132,7 +132,7 @@ under it; with 0.31a2's 4 it draws after, as there (the corridor of the owner's 
 
 "Fireplaces which don't do damage" (`2026-11-15-20-43-24.png`, the campfire by the skeleton). London
 has two lit bonfires (`props/light/bonefire_02_on`, each with its `fx/lights/bonfire` particle), at
-(0.88, 14.06, 18.73) and (14.04, 10.35, 4.87), the same in its five projects. The port never had a
+(0.88, 14.06, 18.73) and (14.04, 10.35, 4.87), the same in its eleven projects (the day's five and the six of rain and evening, maps 276-281). The port never had a
 damage zone for them (its seven zones were the anomalies', which `london-1` removed).
 
 `port-campfires-1.json` (`scripts/port-fires/make_edits.py`, from the stock
