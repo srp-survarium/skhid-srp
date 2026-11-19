@@ -290,7 +290,7 @@ pub struct TakeTuning {
     /// the battery is a threat of the take as one seen now is (`Ctx::take_threat`): within `hold_near_m` the take waits,
     /// looking at his spot, until he is dead (the kill feed), reloading (heard), seen and kept busy by a mate whose line
     /// to him no cloud hides, or his spot fades (a man known only by his spot is kept busy by nobody); `commit.finish_take` does not hold such a take; and the battery's score reads each
-    /// such enemy by his distance from it (`collect::held_weight`). Off: only an enemy seen within 700 ms with a line eye to
+    /// such enemy within `hold_near_m` as the battery held (`ENEMIES_OUT` alone), any other as one, as the count. Off: only an enemy seen within 700 ms with a line eye to
     /// eye is a threat, and every remembered enemy within 25 m weighs one on the score. The live recordings of 2026-11-13
     /// (`owner-5/own-base-smoke-and-bait-findings.md`, part 2): 13 bots killed walking to a battery a player stood by, all
     /// 13 knowing of him (heard 8, told 3, seen 2), none aiming at him, 7 never firing, at a median 3.4 m.
