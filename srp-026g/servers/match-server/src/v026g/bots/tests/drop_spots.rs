@@ -231,6 +231,8 @@ fn strip_rim_walks_stay_on_the_top() {
         let mut game = Game::new(world.clone(), &[0u8, 1], 3, None, None);
         game.bodies[0].node = world.grid.locate(start, 1.0);
         game.bodies[0].feet = start;
+        // Facing +z (`kin::forward`); the inputs' turn is a change of it.
+        game.bodies[0].yaw = 0.0;
         game.bodies[1].alive = false;
         let mut lowest = start.y;
         for _ in 0..24 {
