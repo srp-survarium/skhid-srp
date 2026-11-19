@@ -1,0 +1,45 @@
+{
+ "_about": "Chemical Plant v0.11's evening and rain (v011w-chemical-weathers-1.json makes their projects and mode configs) as maps: 282 evening Protective device, 283 evening Team Deathmatch, 284 rain Protective device, 285 rain Team Deathmatch. The last list of release/content.tsv, so that no earlier list's pinned maps_dict count moves; a list added below it counts these four.",
+ "append_entry": [
+  {
+   "file": "gameplay/db_static_dictionaries",
+   "list": "maps_dict",
+   "expected_count": 223,
+   "unique_key": "id",
+   "value": {
+    "cfg_mode_name": "v011w_level_04_evn_2.options",
+    "id": 282
+   }
+  },
+  {
+   "file": "gameplay/db_static_dictionaries",
+   "list": "maps_dict",
+   "expected_count": 224,
+   "unique_key": "id",
+   "value": {
+    "cfg_mode_name": "v011w_level_04_evn_4.options",
+    "id": 283
+   }
+  },
+  {
+   "file": "gameplay/db_static_dictionaries",
+   "list": "maps_dict",
+   "expected_count": 225,
+   "unique_key": "id",
+   "value": {
+    "cfg_mode_name": "v011w_level_04_rain_2.options",
+    "id": 284
+   }
+  },
+  {
+   "file": "gameplay/db_static_dictionaries",
+   "list": "maps_dict",
+   "expected_count": 226,
+   "unique_key": "id",
+   "value": {
+    "cfg_mode_name": "v011w_level_04_rain_4.options",
+    "id": 285
+   }
+  }
+ ]
+}

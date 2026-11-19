@@ -26,6 +26,8 @@ elevation grid for every map.
 | v011e_level_04 | Chemical Plant (v0.11) | 0.1823 | 206, 207 (ported, patch 22) |
 | v011w_level_03_evn | Vostok Radar Station (v0.11), evening | 0.1302 | 272, 273 (pack v011e-radar-weather@6; v011e_level_03's image) |
 | v011w_level_03_rain | Vostok Radar Station (v0.11), rain | 0.1302 | 274, 275 (pack v011e-radar-weather@6; v011e_level_03's image) |
+| v011w_level_04_evn | Chemical Plant (v0.11), evening | 0.1823 | 282, 283 (edit list v011w-chemical-weathers-1; v011e_level_04's image) |
+| v011w_level_04_rain | Chemical Plant (v0.11), rain | 0.1823 | 284, 285 (edit list v011w-chemical-weathers-1; v011e_level_04's image) |
 | v069d_level_01 | Rudnya (v0.69) | 0.1693 | 204, 216, 217 (ported, patch 40) |
 | v010b_cs_mp_bath | Experimental Pool | 0.0952 | 42 (STALKER port, patch 57; Free for All) |
 | v010b_cs_mp_military_1 | Military Warehouses | 0.1843 | 43 (STALKER port, patch 57; Free for All) |

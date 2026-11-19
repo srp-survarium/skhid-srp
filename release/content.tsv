@@ -175,6 +175,7 @@ edit	throwables.tsv	-	the grenades' and the trap's stats
 edit	artefacts.tsv	-	the artefacts' stats (client patch 54 reads aim_time_mod and stopping_power_mod)
 edit	character.tsv	-	the character's movement, stamina, fall, stealth, dispersion and breath numbers (gameplay/players/default.player)
 edit	battery.tsv	-	the battery's pick-up and put times and its movement penalty
+edit	v011w-chemical-weathers-1.json	-	Chemical Plant v0.11 in evening and rain (0.11 shipped it day only): copies of its day projects and mode configs, each with Vostok v0.11's same weather's environment and exe patch 162's key (make_chemical_weathers.py)
 edit	modes.tsv	-	the game modes' rules, a row per mode config (battery modes respawn in 10 s)
 edit	maps.tsv	-	the maps' rules, a row per level over its projects: spawn protection, spawn zones, resupply, artefact search and cooldown
 edit	rooms.tsv	-	the rooms' and Player vs Bots' settings (gameplay/srp/rooms.options): srp reads them from its game data; the lobby movie gets what it shows from srp's messages
@@ -264,3 +265,4 @@ edit	v021d-renderer-2.json	-	Chemical Plant v0.21's keys for exe patch 130, as v
 edit	london-environment-1.json	-	London day: its probes' reflection strength as 0.31a2 authors it (environment_probes_specular_intensity_multiplier 1.2), the setting patch 14 left out
 edit	london-probe-channel-1.json	-	London: smart_attenuation on the 137 probes 0.31a2 box-projects (use_parallax_correction), the per-probe switch of pack london-probes@2; every London project
 edit	london-probe-shapes-1.json	-	London: seven environment probes' boxes, places, radii and side widths as 0.31a2 authors them in each project (Skhid's London came from an earlier build); the radii set the order overlapping probes draw in
+edit	v011w-chemical-weathers-maps-1.json	-	Chemical Plant v0.11's evening and rain in maps_dict: 282, 283 (evening Protective device, Team Deathmatch), 284, 285 (rain); last, so no earlier list's counts move
