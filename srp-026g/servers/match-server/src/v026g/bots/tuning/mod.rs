@@ -199,6 +199,7 @@ pub use team::Personalities;
 pub use team::Personality;
 pub use team::PinFromCover;
 pub use team::PinRule;
+pub use team::PushRule;
 pub use team::RaidApproach;
 pub use team::RaidRegroup;
 pub use team::RaidReplan;
@@ -364,6 +365,9 @@ impl Tuning {
         }
         if let Some(comeback) = self.mods.comeback {
             comeback.check()?;
+        }
+        if let Some(push) = self.mods.push {
+            push.check()?;
         }
         self.tdm.check()?;
         self.think.check()?;

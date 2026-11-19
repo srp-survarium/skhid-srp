@@ -1102,6 +1102,18 @@ impl Ctx<'_> {
             .count()
     }
 
+    /// [fix-team push `mods.push`] In a push (the team `behind_by` points behind), the known enemies within 25 m of `at` net of
+    /// the bot's live teammates within `group_m` of it, never below 0: the count its attack gates read. None outside a push.
+    pub fn push_net(&self, at: Vec3) -> Option<f32> {
+        let rule = self.tuning.mods.push.filter(|rule| rule.behind(self.sig.score_gap))?;
+        let mates = self
+            .view
+            .team(self.me.team)
+            .filter(|p| p.place != self.me.place && p.alive && p.feet.distance_xz(self.me.feet) < rule.group_m)
+            .count();
+        Some(self.enemies_near(at, ENEMIES_NEAR_M).saturating_sub(mates) as f32)
+    }
+
     /// Teammates (alive) within `m` of `at`, the bot itself not counted.
     pub fn friends_near(&self, at: Vec3, m: f32) -> usize {
         self.view
