@@ -2673,6 +2673,7 @@ impl Motor {
                 walk: WalkPress::Slow(0),
                 share: mapdata::Share::UNFLOWN,
                 aim: PressAim::STRAIGHT,
+                way: None,
             })
         } else {
             leap
@@ -2681,7 +2682,10 @@ impl Motor {
             self.links.lost(link_time::Lost::Far);
             return None;
         }
-        let way = unit(landing.x - take_off.x, landing.z - take_off.z)?;
+        // [retarget] The line the grid flew the press along (`Leap::press_way`): its stored grid way where the link's landing
+        // lies off it, else the take-off to the landing. Everything after (the line-up, the press point, the gate, the window,
+        // the log) is measured on it.
+        let way = leap.press_way(take_off, landing)?;
         let feet = pose.feet;
         if is_up(feet, take_off, landing) {
             if sprint_ledge
@@ -6270,7 +6274,7 @@ mod tests {
         let p = |x: f32, y: f32, z: f32, jump: bool| Waypoint {
             at: Vec3::new(x, y, z),
             node: 0,
-            jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None, aim: PressAim::STRAIGHT, after: AfterLanding::LetGo })),
+            jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None, aim: PressAim::STRAIGHT, after: AfterLanding::LetGo, way: None })),
             low: false,
         };
         let keeps = |gate: bool| {
@@ -6416,7 +6420,7 @@ mod tests {
             let p = |x: f32, jump: bool| Waypoint {
                 at: Vec3::new(x, if jump { -1.7 } else { 0.0 }, 0.0),
                 node: 0,
-                jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None, aim: PressAim::STRAIGHT, after: AfterLanding::LetGo })),
+                jump: jump.then_some(Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk: None, aim: PressAim::STRAIGHT, after: AfterLanding::LetGo, way: None })),
                 low: false,
             };
             let route = Route::new(vec![p(-20.0, false), p(0.0, false), p(3.0, true), p(6.0, false)]);
@@ -6519,7 +6523,7 @@ mod tests {
     }
 
     fn sprint_link(walk: Option<GapPress>) -> Leap {
-        Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk, aim: PressAim::STRAIGHT, after: AfterLanding::LetGo })
+        Leap::SprintGap(SprintPress { lead: mapdata::PressLead::from_metres(0.5), share: mapdata::Share::FULL, walk, aim: PressAim::STRAIGHT, after: AfterLanding::LetGo, way: None })
     }
 
     /// [F3] The lead gate ([`lead_off`]): the stored window's span on each side where it has width, today's 0.2 m elsewhere.
@@ -6601,7 +6605,7 @@ mod tests {
     /// the link has one (A385-FORMAT §5), with no sprint; with none it is refused ([`Walked::JumpRefused`]), no try spent.
     #[test]
     fn a_refused_sprint_link_takes_its_walking_press_or_is_refused() {
-        let walk = GapPress { lead: mapdata::PressLead::from_metres(0.8), walk: WalkPress::Cap, share: mapdata::Share::landed(9), aim: PressAim::STRAIGHT };
+        let walk = GapPress { lead: mapdata::PressLead::from_metres(0.8), walk: WalkPress::Cap, share: mapdata::Share::landed(9), aim: PressAim::STRAIGHT, way: None };
         let mut rng = Rng::new(3);
         let mut motor = Motor::new(Feel { sprint_gaps: true, sway: 0.0, ..Feel::default() }, &mut rng);
         motor.walking = true;
@@ -6626,7 +6630,7 @@ mod tests {
     /// top is walked on at once.
     #[test]
     fn a_gap_links_landing_lets_go_until_at_rest_unless_the_route_goes_on_on_its_top() {
-        let walk = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT });
+        let walk = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None });
         let run = |route_on_top: bool| {
             let p = |x: f32, y: f32, jump: Option<Leap>| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump, low: false };
             // The landing 3 m on, 1.7 m down; the next corner on its top, or a drop 2 m lower.
@@ -6668,11 +6672,11 @@ mod tests {
     fn an_aimed_press_is_lined_up_on_the_flights_own_line() {
         let take_off = Vec3::new(10.0, 2.0, -4.0);
         let way = [0.6, 0.8];
-        let straight = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(1.2), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT });
+        let straight = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(1.2), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None });
         assert_eq!(aimed_line(take_off, way, straight), (take_off, way));
         let aim = PressAim::new(-6, 4).expect("within the record's steps");
         let lead = mapdata::PressLead::from_metres(1.2);
-        let aimed = Leap::SprintGap(SprintPress { lead, share: mapdata::Share::FULL, walk: None, aim, after: AfterLanding::LetGo });
+        let aimed = Leap::SprintGap(SprintPress { lead, share: mapdata::Share::FULL, walk: None, aim, after: AfterLanding::LetGo, way: None });
         let (origin, heading) = aimed_line(take_off, way, aimed);
         let n = mapdata::controller::jump::Neighbour { lead: 0.0, side: aim.side_m(), turn: aim.turn_rad(), dy: 0.0, fastest: false };
         let flown = mapdata::controller::jump::press_point(take_off, (way[0], way[1]), lead.metres(), n);
@@ -6688,7 +6692,7 @@ mod tests {
             let lead = mapdata::PressLead::from_metres(lead);
             for (side, turn) in [(6, 6), (-6, -6), (6, -6), (3, 4), (-3, -4), (3, -6), (-3, 6)] {
                 let aim = PressAim::new(side, turn).expect("within the record's steps");
-                let leap = Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share: mapdata::Share::FULL, aim });
+                let leap = Leap::Gap(GapPress { lead, walk: WalkPress::Cap, share: mapdata::Share::FULL, aim, way: None });
                 let (origin, heading) = aimed_line(take_off, way, leap);
                 let n = mapdata::controller::jump::Neighbour { lead: 0.0, side: aim.side_m(), turn: aim.turn_rad(), dy: 0.0, fastest: false };
                 let flown = mapdata::controller::jump::press_point(take_off, (way[0], way[1]), lead.metres(), n);
@@ -6721,6 +6725,7 @@ mod tests {
                 walk: WalkPress::Slow(0),
                 share: mapdata::Share::landed(14),
                 aim: PressAim::STRAIGHT,
+                way: None,
             }),
             approach: Approach::Walk,
             rise: 1.1,
@@ -6740,7 +6745,7 @@ mod tests {
         assert_eq!(flown_press_off(&ahead(0.4, 0.2), &pose, 0.0), Some(FlownOff::Side));
         // A walking press: the jump's first step starts a step's travel on (0.5 m now at 2 m/s: 0.4 m).
         let walking = |before: f32| Ahead {
-            leap: Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.4), walk: WalkPress::Cap, share: mapdata::Share::landed(14), aim: PressAim::STRAIGHT }),
+            leap: Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.4), walk: WalkPress::Cap, share: mapdata::Share::landed(14), aim: PressAim::STRAIGHT, way: None }),
             ..ahead(before, 0.0)
         };
         assert_eq!(flown_press_off(&walking(0.5), &pose, 2.0), None);
@@ -6775,7 +6780,7 @@ mod tests {
             span: 0.5,
         };
         let slow = |k: u8, share: mapdata::Share| {
-            Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.1), walk: WalkPress::Slow(k), share, aim: PressAim::STRAIGHT })
+            Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.1), walk: WalkPress::Slow(k), share, aim: PressAim::STRAIGHT, way: None })
         };
         let pose = Pose::default();
         let flown = mapdata::Share::landed(9);
@@ -6848,7 +6853,7 @@ mod tests {
     /// point, at rest.
     #[test]
     fn a_slow_link_comes_to_rest_at_its_run_up_then_walks_up_and_presses() {
-        let slow = |steps: u8| Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.6), walk: WalkPress::Slow(steps), share: mapdata::Share::FULL, aim: PressAim::STRAIGHT });
+        let slow = |steps: u8| Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.6), walk: WalkPress::Slow(steps), share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None });
         let walk_up = mapdata::controller::jump::blend_steps_m(mapdata::controller::jump::WALK_CAP_MS, 3);
         let mut rng = Rng::new(3);
         let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
@@ -7069,7 +7074,7 @@ mod tests {
         assert!(!ahead(0.25, 0.9, Leap::SprintLedge).out_of_reach(SPRINT_JUMP_LOW_M));
         assert!(ahead(0.35, 0.7, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
         // A gap link is pressed at its own point: not asked.
-        assert!(!ahead(1.0, 1.0, Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT })).out_of_reach(SPRINT_JUMP_LOW_M));
+        assert!(!ahead(1.0, 1.0, Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None })).out_of_reach(SPRINT_JUMP_LOW_M));
     }
 
     /// A route's end up a ledge is not arrived at from under it; up it, it
