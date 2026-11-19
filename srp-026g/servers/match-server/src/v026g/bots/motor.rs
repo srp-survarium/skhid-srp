@@ -877,6 +877,10 @@ const UP_NEAR_M: f32 = 1.5;
 /// press 29 times in 124, at the one after 15 times
 /// (`player_bots_stuck.md` §8.9).
 pub const JUMP_TRIES: u32 = 3;
+/// [loops] How long a wait at a route jump's press point lasts before it spends a try ([`PressWait`]), s. The owner's 3 matches
+/// on the final build (LOOPS.md, the D11 lines): the slow standing presses that were made waited a median 0.6 s, 25 of 27 within
+/// 4 s; the waits that never pressed went on up to 33 s.
+pub const PRESS_WAIT_S: f32 = 4.0;
 /// The press's own state (its band hold, its lift, the carry after it) is kept over a route planned again to the jump within
 /// this, seconds. The TRIES at a link are kept for the match ([`LinkTries`], A387): a link retried more than 10 s apart was
 /// never counted failed (owner-5 R3: one bot pressed a Mamayev Kurgan link 14 times in 190 s).
@@ -1094,6 +1098,18 @@ struct JumpTry {
     faced: bool,
     /// [A386] A slow press's walk-up from a stand ([`WalkPress::Slow`]).
     walk_up: WalkUp,
+    /// [loops] The wait at the press point under way, if any ([`PressWait`]).
+    wait: Option<PressWait>,
+}
+
+/// [loops] A wait at a route jump's press point: begun at motor tick `since`, at try `tries`. A wait at the press point that
+/// lasts [`PRESS_WAIT_S`] spends a try as a back-off does, so a press the body never makes ends in [`JUMP_TRIES`] and the link
+/// fails ([`JumpEnd::Failed`], its landing shut to the searches) instead of being waited at forever (the owner's 3 matches on
+/// the final build: 300 of 507 stuck lines and 30 of 40 loop places were waits at slow presses that spent no try).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PressWait {
+    since: u32,
+    tries: u32,
 }
 
 /// [A386] Where a slow press's walk-up is (A385-FORMAT §1 `Kind::Slow`: the body comes to rest at the run-up point, then walks
@@ -2779,6 +2795,7 @@ impl Motor {
                 lift_refused_at_face: None,
                 faced: false,
                 walk_up: WalkUp::ToRest,
+                wait: None,
             },
         };
         let in_the_air = jump.pressed.is_some_and(|at| self.since(at) < CARRY_S);
@@ -3176,6 +3193,24 @@ impl Motor {
         // waits for it.
         let facing = if ahead.leap.flown() { FlownWindow::TURN_RAD } else { JUMP_FACING };
         if !(ahead.lined && ahead.going && self.walking && still <= facing && near && rested) {
+            // [loops] At the press point and not pressing: the wait's clock, from its first tick at this try; once it has
+            // lasted [`PRESS_WAIT_S`] the try is spent as a back-off spends it, so the link fails after [`JUMP_TRIES`].
+            if near && rested {
+                let wait = match jump.wait {
+                    Some(wait) if wait.tries == jump.tries => wait,
+                    _ => PressWait { since: self.clock, tries: jump.tries },
+                };
+                if self.since(wait.since) >= PRESS_WAIT_S {
+                    jump.tries += 1;
+                    jump.back = true;
+                    jump.wait = None;
+                    self.links.backed_off();
+                    press_waits::spent();
+                } else {
+                    jump.wait = Some(wait);
+                }
+                self.keep_try(jump);
+            }
             return 0;
         }
         // [A386] A gap or rim link is pressed only as the grid flew it ([`flown_press_off`]): else no press, a back-off for another
@@ -4312,6 +4347,22 @@ pub mod walk_reach {
     /// Backed off, pressed short, pressed with the walk that reaches.
     pub fn counts() -> [u64; 3] {
         [BACKED_OFF.load(Ordering::Relaxed), PRESSED.load(Ordering::Relaxed), REACHED.load(Ordering::Relaxed)]
+    }
+}
+
+/// [loops] The waits at a route jump's press point that lasted [`PRESS_WAIT_S`] and spent a try ([`PressWait`]).
+pub mod press_waits {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static SPENT: AtomicU64 = AtomicU64::new(0);
+
+    pub fn spent() {
+        SPENT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The tries spent by a wait.
+    pub fn count() -> u64 {
+        SPENT.load(Ordering::Relaxed)
     }
 }
 
@@ -6055,6 +6106,7 @@ mod tests {
             lift_refused_at_face: Some(lifts::Refused::Blocked),
             faced: false,
             walk_up: WalkUp::ToRest,
+            wait: None,
         });
         let before = lifts::left_counts();
         let band = 2; // 0.95-1.05
@@ -6886,6 +6938,37 @@ mod tests {
         let mut route = gap_route(slow(0));
         let (keys, _) = gap_tick(&mut motor, &mut route, -0.6, 0.0, None);
         assert_ne!(keys & key::JUMP, 0, "the standing jump: {keys:#x}");
+    }
+
+    /// [loops] A slow standing press whose body never comes to rest at its point (it arrives at 2 m/s every tick) is not waited
+    /// at forever: each wait of [`PRESS_WAIT_S`] at the press point spends a try, none before it, and after [`JUMP_TRIES`] the
+    /// link fails ([`Walked::JumpFailed`]) with no press made.
+    #[test]
+    fn a_wait_at_the_press_point_spends_a_try_and_the_link_fails() {
+        let slow = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.6), walk: WalkPress::Slow(0), share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None });
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng);
+        motor.walking = true;
+        let mut route = gap_route(slow);
+        let per_wait = (PRESS_WAIT_S / TICK_S).ceil() as usize;
+        let spent = press_waits::count();
+        for tick in 0..per_wait - 2 {
+            let (keys, walked) = gap_tick(&mut motor, &mut route, -0.6, 2.0, None);
+            assert_eq!(keys & key::JUMP, 0, "tick {tick}: not at rest, no press");
+            assert_eq!(walked, Walked::OnTheWay, "tick {tick}");
+        }
+        assert_eq!(press_waits::count(), spent, "no try spent before {PRESS_WAIT_S} s");
+        let mut failed = None;
+        for tick in 0..per_wait * (JUMP_TRIES as usize + 1) {
+            let (keys, walked) = gap_tick(&mut motor, &mut route, -0.6, 2.0, None);
+            assert_eq!(keys & key::JUMP, 0, "tick {tick}: no press");
+            if walked != Walked::OnTheWay {
+                failed = Some(walked);
+                break;
+            }
+        }
+        assert!(matches!(failed, Some(Walked::JumpFailed(_))), "{failed:?}");
+        assert!(press_waits::count() >= spent + u64::from(JUMP_TRIES), "each wait spent a try");
     }
 
     /// A jump that does not get the body up is tried again only from the
