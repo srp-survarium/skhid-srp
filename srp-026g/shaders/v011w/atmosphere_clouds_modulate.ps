@@ -1,0 +1,47 @@
+#include "common.h"
+
+uniform float4	sky_clouds_parameters0;	// rgb - tint, w - uv scale
+uniform float4	sky_clouds_parameters1;	// x - horizon fade power, y - fade band
+
+Texture2D		sky_clouds_texture;
+
+struct v2p_sky_clouds
+{
+	float4	hpos			: SV_Position;
+	float3	world_position	: TEXCOORD0;
+	float3	object_position	: TEXCOORD1;
+#if TARGET_026G		// 0.26g's atmosphere_clouds.vs: the view direction, then its mesh's uv
+	float3	view_direction	: TEXCOORD2;
+	float2	tc				: TEXCOORD3;		// its own mesh's, not read: replaced below
+#else
+	float2	tc				: TEXCOORD2;
+#endif
+};
+
+void main( v2p_sky_clouds I, out float4 result : SV_Target )
+{
+#if TARGET_026G		// 0.11e's dome uv (sphere_geometry: u the azimuth atan2(z, x), v the polar angle, both over
+	// their range) from the dome's object position: 0.26g's cloud mesh lays its uv out otherwise
+	float3	direction	= normalize( I.object_position);
+	I.tc				= float2( frac( atan2( direction.z, direction.x)/6.2831853f), acos( clamp( direction.y, -1.0f, 1.0f))/3.1415927f);
+#endif
+	clip( I.tc.y >= 0.5f ? -1.0f : 1.0f);
+
+	float	fade		= min( pow( 1.0f - saturate( ( 1.0f - I.tc.y*2.0f)/sky_clouds_parameters1.y), sky_clouds_parameters1.x), 1.0f);
+
+	float2	uv			= float2( I.tc.x*sky_clouds_parameters0.w, I.tc.y*2.0f);
+
+	float4	mip2		= sky_clouds_texture.SampleLevel( s_linear, uv, 2);
+	float4	mip1		= sky_clouds_texture.SampleLevel( s_linear, uv, 1);
+	float4	mip0		= sky_clouds_texture.SampleLevel( s_linear, uv, 0);
+	float4	sum			= mip2 + mip1;
+	sum					= mip0 + sum;
+
+	float	alpha_avg	= sum.w/3.0f;
+	float3	tinted		= sum.xyz*sky_clouds_parameters0.xyz;
+	float	alpha		= lerp( alpha_avg, 0.0f, fade);
+	float	one_minus	= 1.0f - alpha;
+
+	result.w			= alpha_avg;
+	result.xyz			= one_minus*( 1.0f - tinted/3.0f) + tinted/3.0f;
+}

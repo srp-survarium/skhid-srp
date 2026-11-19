@@ -105,6 +105,14 @@ TYPE_ALLOWLIST = {
        "Same authored Rudnya day swamp sensor's 0.02; damage_zone_core::hit_objects 0x319AF0 "
        "reads float +1C4h beside max_hit +1C0h (mapdata f32_or), retained in both original weathers"
        for weather in ('rain', 'evening') for mode in (2, 4)},
+    # Vostok v0.11 evening (pack v011e-radar-weather): the original fog's fractional density.
+    **{(f'projects/v011w_level_03_evn/evening_{mode}/client_project',
+        '/client_objects[volume_fog]/density_offset'):
+       'Original 0.11e evening fog uses 5.2. Verified stock 0.26g load at '
+       '0x291362 reads density_offset, branches on config type 2 (float) at '
+       '0x29137b, otherwise converts int, and stores float at object+0x178. '
+       'Keep the authored fractional density; see docs/notes/v011-weather.md.'
+       for mode in (2, 4)},
 }
 
 SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'

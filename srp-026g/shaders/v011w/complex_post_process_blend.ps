@@ -1,0 +1,675 @@
+////////////////////////////////////////////////////////////////////////////
+//	Created		: 13.12.2012
+//	Author		: Nikolay Partas
+//	Copyright (C) Vostok Games - 2012
+////////////////////////////////////////////////////////////////////////////
+
+/*$DEFINES$:
+	GLOBAL_USE_GOD_RAYS,
+	GLOBAL_USE_16BIT_RT
+	GLOBAL_POST_PROCESS_QUALITY,
+	CONFIG_USE_BOKEH_DOF,
+	CONFIG_USE_BOKEH_IMAGE,
+	CONFIG_USE_IMAGE_GRAIN
+*/
+
+
+#include "common.h"
+#include "gbuffer.h"
+#include "dof_functions.h"
+#include "light_ps_helper.h"
+#include "gamma_correction.h"
+#include "log_luv_color_space.h"
+#include "luminance.h"
+#include "debug.h"
+
+float4		frame_height_lights_and_desaturation;
+float3		frame_mid_tones;
+float3		frame_shadows;
+float4  	frame_fade;
+float		gamma_correction_factor;
+
+Texture2D 	t_grain_noise;
+
+Texture2D 	t_blurred_frame_color;
+Texture2D 	t_blurred_frame_bloom_only_color;
+Texture2D 	t_blurred_frame_bloom_only_color2;
+Texture2D 	t_frame_color;
+Texture2D 	t_frame_luminance;
+//Texture2D 	t_frame_luminance_previous;
+//Texture2D 	t_frame_luminance_histogram;
+
+Texture2D 	t_light_scattering_mask;
+Texture2D 	t_light_scattering_result;
+
+//Texture2D 	t_skin_position;
+Texture2D 	t_sphere_falloff;
+Texture2D 	t_bokeh_image;
+Texture2D	t_lens_flares;
+
+Texture3D	t_color_grading_lut;
+
+//Texture2D 	t_base_noise;
+
+Texture2D 	t_hiz_depth;
+
+Texture2D 	t_lighting_buffer;
+
+
+//Texture3D 	t_jitter_lookup;
+
+//Texture2D 	t_skin_scattering_temp;
+//Texture2D 	t_skin_scattering;
+//Texture2D 	t_skin_scattering_blurred_0;
+//Texture2D 	t_skin_scattering_blurred_1;
+//Texture2D 	t_skin_scattering_blurred_2;
+//Texture2D 	t_skin_scattering_blurred_3;
+//Texture2D 	t_skin_scattering_blurred_4;
+
+
+//Texture2D 	t_bug;
+//Texture2D 	t_mlaa_edges;
+//Texture2D 	t_mlaa_blend;
+
+Texture2D 	t_lpv_rsm_albedo;
+//Texture2D 	t_lpv_rsm_normal;
+//Texture2D 	t_lpv_rsm_position;
+Texture2D 	t_lpv_rsm_albedo_source;
+//Texture2D 	t_lpv_rsm_normal_source;
+//Texture2D 	t_lpv_rsm_position_source;
+
+//uniform half4 screen_res;
+
+float4 		bokeh_dof_parameters;
+static const float bokeh_dof_radius  = bokeh_dof_parameters.x;
+static const float bokeh_dof_density = bokeh_dof_parameters.y;
+
+float3 sun_direction_parameter;
+static const float3 sun_position 	= -sun_direction_parameter * 500.0h;
+
+float4 god_rays_parameters0;
+float4 god_rays_parameters1;
+
+static const float3 god_rays_color_0 			= 	god_rays_parameters0.xyz;
+static const float3 god_rays_color_1 			= 	god_rays_parameters1.xyz;
+static const float god_rays_color_blend_power 	= 	god_rays_parameters0.w;
+static const float god_rays_intensity 			= 	god_rays_parameters1.w;
+
+// x - average frame luminance
+// y - min frame luminance
+// z - max frame luminance
+// w - middle gray
+float4 frame_luminance_parameter;
+
+// xy - random values 0..1
+// z  - image grain scale
+// w  - vignette power
+float4 	image_grain_parameters;
+
+/*
+half3 scattered_color(half3 frame_color, half2 screen_uv)
+{
+	half scattering_power			= 1.0h - saturate(get_luminance(frame_color));
+	
+	// TODO: optimize, do in lower resolution target
+	static const int num_samples 	= 100;
+	
+	half4 projected_sun_position 	= mul(m_VP, half4(sun_position, 1.0h));
+	projected_sun_position.xy 		/= projected_sun_position.w;
+	projected_sun_position.y		*= -1.0h;
+	projected_sun_position.xy		= projected_sun_position.xy * 0.5h + 0.5h + 0.0h * screen_uv * 0.2h;
+	
+	half2 to_sun_vector_delta		= (screen_uv - projected_sun_position.xy) / num_samples;
+	
+	half3 final_color				= 0.0h;
+	
+	half dist						= pow(distance(screen_uv, projected_sun_position.xy), 0.5h);
+	//to_sun_vector_delta				*= 2.0h * (1.0h - dist);
+	
+	half2 current_uv = screen_uv;
+	for (int i = 0; i < num_samples; i++)
+	{
+		current_uv 				-= to_sun_vector_delta;
+		half3 occluder_color 	= t_light_scattering_mask.Sample(s_base, current_uv).rgb;
+		final_color				+= occluder_color;
+	}
+	
+	half alpha = max((1.0h - dist) * scattering_power * final_color.r / num_samples, 0);
+	
+	half3 out_c = lerp(god_rays_color_0, god_rays_color_1, saturate(pow(alpha, god_rays_color_blend_power)));
+	
+	return god_rays_intensity * alpha * out_c;//sun_color * max((1.0h - dist) * scattering_power * final_color / num_samples, 0);
+}
+*/
+
+half3 color_lookup_table(half3 color)
+{
+	return t_color_grading_lut.SampleLevel(s_material1, color.rgb * 15.0h / 16.0h + 0.5h / 16.0h, 0).rgb;
+}
+
+// TODO: remove texture reading, one constants
+#define USE_LUMINANCE_FROM_HISTOGRAM	0
+
+half get_min_frame_luminance		( )
+{
+#if USE_LUMINANCE_FROM_HISTOGRAM
+	return							frame_luminance_parameter.y;
+#else // #if USE_LUMINANCE_FROM_HISTOGRAM
+	half sum_of_logarithms			= t_frame_luminance.Sample(s_accumulator, half2(0.5h, 0.5h)).g;
+	return							sum_of_logarithms;
+#endif // #if USE_LUMINANCE_FROM_HISTOGRAM
+}
+
+half get_max_frame_luminance		( )
+{
+#if USE_LUMINANCE_FROM_HISTOGRAM
+	half sum_of_logarithms			= frame_luminance_parameter.z;
+#else // #if USE_LUMINANCE_FROM_HISTOGRAM
+	half sum_of_logarithms			= t_frame_luminance.Sample(s_accumulator, half2(0.5h, 0.5h)).b;
+#endif // #if USE_LUMINANCE_FROM_HISTOGRAM
+	return							max( sum_of_logarithms, 1.0h );
+}
+
+half get_average_frame_luminance	( )
+{
+	half sum_of_logarithms			= t_frame_luminance.Sample(s_accumulator, half2(0.5h, 0.5h)).r;
+#if USE_LUMINANCE_FROM_HISTOGRAM
+	return							frame_luminance_parameter.x;//clamp( frame_luminance_parameter.x, 0.1h, 1.0h );
+#else // #if USE_LUMINANCE_FROM_HISTOGRAM
+	return							sum_of_logarithms;//clamp( sum_of_logarithms, 0.1h, 4.0h );
+#endif // #if USE_LUMINANCE_FROM_HISTOGRAM
+}
+
+half get_frame_middle_gray_luminance( )
+{
+#if USE_LUMINANCE_FROM_HISTOGRAM
+	return							frame_luminance_parameter.w;
+#else // #if USE_LUMINANCE_FROM_HISTOGRAM
+	return							0.5h;
+#endif // #if USE_LUMINANCE_FROM_HISTOGRAM
+}
+
+half3 tone_mapped_reinhard_modified( half3 frame_color )
+{
+	// tone mapping
+	half min_frame_luminance		= get_min_frame_luminance( );
+	half max_frame_luminance		= get_max_frame_luminance( );
+	half average_frame_luminance	= get_average_frame_luminance( );
+	half luminance					= max( get_luminance( frame_color ), min_frame_luminance );
+	half middle_gray				= get_frame_middle_gray_luminance();
+	half scaled_luminance			= middle_gray * max( luminance - min_frame_luminance, 0.f ) / average_frame_luminance;
+	half tone_mapper				= scaled_luminance*(1.f + scaled_luminance/( square(max_frame_luminance)) ) / (1.f + scaled_luminance);
+	
+	//half4 log_luv_pixel_color		= log_luv_encode( frame_color/luminance );
+	//log_luv_set_lightness			( log_luv_pixel_color, tone_mapper );
+	//frame_color						= log_luv_decode( log_luv_pixel_color );
+	frame_color						*= tone_mapper/luminance;
+	
+	return 							saturate( frame_color );
+}
+
+
+//half4 aberration_parameters;
+//static const float aberration_max_variance	=	aberration_parameters.x;
+//static const float aberration_min_variance	=	aberration_parameters.y;
+//static const float aberration_power			=	aberration_parameters.z;
+
+float4 	filmic_tonemap_packed_parameters_0;
+float4 	filmic_tonemap_packed_parameters_1;
+
+static const float shoulder_strength	= filmic_tonemap_packed_parameters_0.x;//0.22h;
+static const float linear_strength		= filmic_tonemap_packed_parameters_0.y;//0.30f;
+static const float linear_angle			= filmic_tonemap_packed_parameters_0.z;//0.10f;
+static const float toe_strength			= filmic_tonemap_packed_parameters_0.w;//0.20f;
+static const float toe_numerator		= filmic_tonemap_packed_parameters_1.x;//0.01h;
+static const float toe_denominator		= filmic_tonemap_packed_parameters_1.y;//0.30f;
+static const float liner_white			= filmic_tonemap_packed_parameters_1.z;//11.2h;
+
+static const float frame_dark_desaturation_limit			= filmic_tonemap_packed_parameters_1.w;
+
+// Function used by the Uncharted 2D tone mapping curve
+half3 filmic_func(half3 x)
+{
+    const half A = shoulder_strength;
+    const half B = linear_strength;
+    const half C = linear_angle;
+    const half D = toe_strength;
+    const half E = toe_numerator;
+    const half F = toe_denominator;
+	
+    return ((x*(A*x+C*B)+D*E)/(x*(A*x+B)+D*F)) - E/F;
+}
+
+half3 tone_mapped_filmic_alu( half3 frame_color )
+{
+
+
+	const half A = shoulder_strength*0.01;
+    const half B = linear_strength;
+    const half C = linear_angle;
+    const half D = toe_strength;
+    const half E = toe_numerator;
+    const half F = toe_denominator;
+
+
+	//frame_color = max(0, frame_color - 0.0015h);
+    //frame_color = (frame_color * (6.2h * frame_color + 0.2h)) / (frame_color * (5.9h * frame_color + 1.5h)+ 0.04h);
+	
+	frame_color = max(0, frame_color - A) + A;		// 0.11e: the shoulder added back
+    frame_color = (frame_color * (B * frame_color + C)) / (frame_color * (D * frame_color + E)+ F);
+
+	// 0.11e: the dark desaturation after the tone curve (0.10b's desaturate_low_diapason before it)
+	half lum		= dot(half3(0.3h, 0.7h, 0.2h), frame_color);
+	frame_color	= lerp(lum * half3(0.8h, 0.8h, 1.4h), frame_color, saturate(lum * frame_dark_desaturation_limit + 0.21h));
+	
+    // result has 1/2.2 baked in
+    return pow(frame_color, 2.2h);
+}
+
+half tone_mapped_filmic_alu2( half U )
+{
+	const half A = shoulder_strength*0.01;
+    const half B = linear_strength;
+    const half C = linear_angle;
+    const half D = toe_strength;
+    const half E = toe_numerator;
+    const half F = toe_denominator;
+
+	U = max(0, U - A);
+    U = (U * (B * U + C)) / (U * (D * U + E)+ F);
+	U = U;
+    // result has 1/2.2 baked in
+    return pow(U, 1.0h);
+}
+
+half3 tone_mapped_filmic_u2( half3 frame_color )
+{
+	return filmic_func( frame_color ) / filmic_func( liner_white );
+}
+
+// Exponential mapping
+half3 tone_mapped_exponential( half3 frame_color )
+{
+	const half white_level				= 5.0h;
+	const half luminance_saturation	= 1.0h;
+	const half pixel_luminance 		= get_luminance( frame_color );    
+    const half tone_mapped_luminance 	= 1.0h - exp(-pixel_luminance / white_level);
+	
+	return tone_mapped_luminance * pow(frame_color / pixel_luminance, luminance_saturation);
+}
+
+// Determines the color based on exposure settings.
+half3 calc_exposed_color(half3 color, half avg_luminance, half threshold, out half exposure)
+{    
+    exposure 				= 0.0h;
+	avg_luminance 			= max(avg_luminance, 0.001h);
+	
+	// 0.11e (0.10b: 0.25h)
+	half key_value 		= 1.03h - (2.0h / ((log10(avg_luminance + 1.0h) + 2.0h) * 20.0h));
+	
+	half linearExposure 	= (key_value / avg_luminance);
+	exposure 				= 0.2*log2(max(linearExposure, 0.0001h));
+    exposure 				-= threshold;
+	
+    return exp2(exposure) * color;
+}
+
+half3 tone_mapped_color			( half3 frame_color )
+{
+#if 0
+	return tone_mapped_reinhard_modified( frame_color );
+#else
+	half 		exposure				= 1.0h;
+	const half pixel_luminance 			= get_luminance(frame_color);
+	const half average_frame_luminance  = clamp( get_average_frame_luminance(), 0.09h, 0.4h );
+	const half threshold				= 0.0h;
+	
+	frame_color	= calc_exposed_color	( frame_color, average_frame_luminance, threshold, exposure);
+	
+#	if 0
+		return tone_mapped_filmic_u2( frame_color );
+		//return tone_mapped_exponential( frame_color );
+#	else
+		return tone_mapped_filmic_alu( frame_color );
+#	endif // #if 0
+	
+#endif // #if 0
+}
+
+half3 graded_color					( half3 frame_color )
+{
+#define USE_COLOR_GRADING_LUT 		1
+
+#if USE_COLOR_GRADING_LUT
+	frame_color						=
+		convert_to_linear_space(
+			color_lookup_table(
+				convert_from_linear_space(
+					frame_color,
+					1.0h + 0*gamma_correction_factor
+				)
+			)
+		);
+#else // #if USE_COLOR_GRADING_LUT
+	// TODO: do convert_to_linear_space(frame_fade.rgb) and convert_to_linear_space(frame_shadows) in c++
+	frame_color 					= pow( ABS_TO_REMOVE_WARNING(max(frame_color - convert_to_linear_space(frame_shadows), 0.0h) * frame_height_lights_and_desaturation.xyz), frame_mid_tones);
+	frame_color 					= lerp(frame_color, get_luminance(frame_color), frame_height_lights_and_desaturation.a);
+	//frame_color 				 	= lerp(frame_color, convert_to_linear_space(frame_fade.rgb), frame_fade.a);
+#endif // #if USE_COLOR_GRADING_LUT
+	
+	return							frame_color;
+}
+
+#define USE_RADIANCE_DOF 0
+
+bool in_rect(half2 p, half left, half top, half right, half buttom, inout half2 in_rect_p)
+{
+	bool res 				=	p.x > left && p.x < right && p.y > top && p.y < buttom;
+	
+	if (res)
+	{
+		const half size_x 		= 	right - left;
+		const half size_y 		= 	buttom - top;
+		in_rect_p 				= 	half2(p.x - left, p.y - top) / half2(size_x, size_y);		
+	}
+	
+	return res;
+}
+
+half3 desaturate_low_diapason(in Texture2D in_lighting_buffer, half2 uv, half3 frame_color)
+{
+	half des 					= 	0.0h;
+	half lum					=	dot(half3(0.3h, 0.7h, 0.2h), frame_color);//IN_HDR_COLOR(in_lighting_buffer.SampleLevel(s_accumulator, uv, 0).xyz));
+	
+	const half alpha			=	pow(1.0h - saturate(lum / frame_dark_desaturation_limit), 2.0h);
+	
+	if (lum < frame_dark_desaturation_limit)
+	{
+		return 	desaturate(frame_color, alpha);
+	}
+	
+	return 	frame_color;
+}
+
+half3 pseudo_random_texture ( half2 uv )
+{
+	return pow(t_grain_noise.SampleLevel( s_nofilter, screen_res.xy * uv / 64.0h, 0 ).rgb, 1.0h);
+}
+
+half3 	grained_color( half3 in_frame_color, half2 uv )
+{
+	const half image_grain_scale 	= 	image_grain_parameters.z;
+	
+	half3 grain_amount 			= 	pow(in_frame_color, 0.6) * image_grain_scale;
+	
+	// 1/256 to fight 8 bit quantization artifacts, image grain itself should only affect the darks
+	in_frame_color 					= 	saturate(
+		in_frame_color + 
+		(pseudo_random_texture(uv + image_grain_parameters.xy * 2 - 1) - 0.0h) * (grain_amount + 0.0h / 256.0h)
+	);
+	
+	return in_frame_color;
+}
+/*
+uniform half4 s_eye_ray_corner;
+
+half3 get_image_space_lighting(half2 uv)
+{
+	half3 	result;
+	half 	fresnel			=	0.5h;
+	
+	half3 	position;
+	half3 eye_ray						=	0;
+	eye_ray.xy							= 	s_eye_ray_corner.xy * (1.0h - uv.xy * 2.0h);
+	eye_ray.z							= 	s_eye_ray_corner.z;
+	gbuffer_read_rt_position			(uv, eye_ray, position);
+	
+	half3 	blurred_color				=	0.0h;
+	
+	for (int i = -2; i <= 2; i++)
+	for (int j = -2; j <= 2; j++)
+	{
+		half3 readed		=	t_final_frame_donwsampled.SampleLevel(s_material1, uv, 0, int2(i, j)).rgb;
+		
+		//if (dot(readed, readed) > dot(blurred_color, blurred_color))
+			blurred_color	+=	readed;
+	}
+	
+	blurred_color			/=	25.0h;
+	
+	half3	up_vector		=	mul(m_V, half3(0.0h, -1.0h, 0.0h)).xyz;
+	
+	half up_attenuation	=	1.0h;//saturate(-dot(up_vector, normal) + 0.75h);
+	
+	return 1.000001h * saturate((gbuffer_read_roughness(uv) - 1.0h - 0.0h) / 300.0h + 0.0h) * 2.00001h * up_attenuation * fresnel * blurred_color;
+}
+*/
+
+half4 main( v2p_TL vin) : SV_TARGET
+{
+	half2 uv							= 	vin.Tex0;
+	
+
+	half frame_depth 					= 	gbuffer_read_frame_depth(uv);
+	
+	half3 frame_color 					= 	0;
+	frame_color							=	IN_HDR_COLOR(t_frame_color.SampleLevel(s_material1, uv, 0));
+
+	half3 dof_c							=	0;
+	half inv_blurriness					=	0;
+	
+#if GLOBAL_POST_PROCESS_QUALITY != 0	
+#if !CONFIG_USE_BOKEH_DOF || GLOBAL_POST_PROCESS_QUALITY < 3	// 0.11e: the bokeh loop at quality 3 only (0.10b: !CONFIG_USE_BOKEH_DOF)
+	inv_blurriness 						= 	saturate(1.0h - get_blurriness(frame_depth));
+	half4 frame_color_and_depth 		= 	half4(frame_color, frame_depth);
+	half4 blurred_color_and_depth  		= 	t_blurred_frame_color.Sample(s_linear, uv);
+	//blurred_color_and_depth.rgb     	*= 	dof_height_lights.rgb;
+	dof_c								=	frame_color_and_depth.rgb * inv_blurriness + 
+											(1.0h - inv_blurriness) * blurred_color_and_depth.rgb / saturate(inv_blurriness + blurred_color_and_depth.a);
+	dof_c								=	blurred_color_and_depth.rgb;// * (1.0h - inv_blurriness);
+	
+#	if USE_RADIANCE_DOF
+	half radiance_alpha					= saturate( pow( 2.0h * length( abs( uv - 0.5h ) ), 1.0h ) );
+	half falloff						= (1.0h - radiance_alpha) * pow(t_sphere_falloff.Sample(s_linear, uv), 2.0h);
+	
+	half3 blurred_color					= frame_color_and_depth.rgb * inv_blurriness + blurred_color_and_depth.rgb / saturate(inv_blurriness + blurred_color_and_depth.a);
+	frame_color 						= lerp(frame_color, blurred_color, falloff);
+#	else // #if USE_RADIANCE_DOF
+
+	frame_color 						= (frame_color_and_depth.rgb * inv_blurriness + blurred_color_and_depth.rgb) / (inv_blurriness + blurred_color_and_depth.a);
+	frame_color 						= lerp(frame_color, frame_color_and_depth.rgb, inv_blurriness);
+	//frame_color 						+= blurred_color_and_depth.rgb * saturate(1.0h - blurred_color_and_depth.a);
+	
+	//half3 bloom_color					= max(t_blurred_frame_bloom_only_color.Sample(s_linear, uv).rgb, 0);
+	
+#	endif // #if USE_RADIANCE_DOF
+
+#else // #if !CONFIG_USE_BOKEH_DOF
+	static const int radius 			= clamp(bokeh_dof_radius, 0.0h, 12.0h);	// 0.11e (0.10b: min(r, 24))
+	half  current_radius 				= saturate(get_blurriness(frame_depth)) * radius + 0.5h;
+	half3 avg_blurred_color 			= half3(0.0h, 0.0h, 0.0h);
+	half  total_attenuation			= 0.0h;
+	
+	LOOP for(int y = -radius; y <= radius; y++)
+	{
+		LOOP for(int x = -radius; x <= radius; x++)
+		{
+			half image_template		= 1.0h;
+			
+#if CONFIG_USE_BOKEH_IMAGE		
+			image_template				= t_bokeh_image.Sample(s_linear, 0.5h * half2(x, y) / radius + 0.5h).r;
+#endif // CONFIG_USE_BOKEH_IMAGE
+			
+			half2 sample_uv 			= uv + bokeh_dof_density * half2(x, y) * screen_res.zw;
+			
+			half3 sample_frame_color	= IN_HDR_COLOR(t_frame_color.SampleLevel(s_material1, sample_uv, 0).rgb);
+			half  sample_depth			= gbuffer_read_frame_depth(sample_uv);
+			half  sample_radius 		= saturate(get_blurriness(sample_depth)) * radius + 0.5h;
+			
+			sample_radius 				= lerp(
+				sample_radius, 
+				current_radius, 
+				sample_depth > frame_depth && current_radius < sample_radius
+				);
+			
+			half to_current_center 	= length( half2(x, y) );
+			half attenuation 			= image_template * saturate( sample_radius - to_current_center ) / pow(sample_radius, 2);
+			
+			total_attenuation			+= attenuation;
+			avg_blurred_color 			+= attenuation * sample_frame_color.rgb;
+		}
+	}
+	
+	frame_color							= avg_blurred_color.rgb / total_attenuation;
+	
+	//half inv_blurriness 				= saturate(1.0h - get_blurriness(frame_depth));
+	//half4 blurred_color_and_depth  	= t_blurred_frame_color.Sample(s_base, uv);
+	//frame_color 						= frame_color * inv_blurriness + blurred_color_and_depth.rgb / saturate(inv_blurriness + blurred_color_and_depth.a);
+	
+#endif // #if !CONFIG_USE_BOKEH_DOF
+#endif // #if GLOBAL_POST_PROCESS_QUALITY != 0
+
+	
+	//return half4						(get_luminance(frame_color)>0.2h, 0, 0, 1);
+	
+	
+	//frame_color							= 1.000001h * frame_color + 0.00001h * (5.0h * pow(frame_color, 0.5h) + 1.25h) * 3.000001h * get_image_space_lighting(uv);
+	
+#if GLOBAL_POST_PROCESS_QUALITY != 0
+	// 0.11e: no bloom and no dark desaturation here (it follows the tone curve); the light scattering always
+	frame_color							+=	UNPACK_LIGHTING_COLOR( t_light_scattering_result.Sample(s_linear, uv).rgb );
+
+#endif // #if GLOBAL_POST_PROCESS_QUALITY != 0
+
+	frame_color							+=	t_lens_flares.SampleLevel( s_linear, uv, 0 ).rgb;
+
+	// tone mapping
+	frame_color							= tone_mapped_color( frame_color );
+
+	
+	
+#if GLOBAL_POST_PROCESS_QUALITY != 0
+	
+#if CONFIG_USE_IMAGE_GRAIN
+	frame_color							= grained_color( frame_color, uv );
+#endif // #if CONFIG_USE_IMAGE_GRAIN
+#endif // #if GLOBAL_POST_PROCESS_QUALITY != 0 (0.11e: the grading at every quality; 0.10b: not at 0)
+	// color grading
+	frame_color							= graded_color( frame_color );
+#if 0 // 0.10b: the quality-0 branch
+
+	//frame_color							= convert_from_linear_space( frame_color, gamma_correction_factor );
+
+#endif // #if GLOBAL_POST_PROCESS_QUALITY != 0	
+
+	
+	//if (uv.x <= 0.5h && uv.y <= 0.5h)
+	//{
+	//	frame_color							*=0.0001h;
+	//	frame_color							+= t_skin_scattering_blurred_4.Sample(s_base, uv * 2.0h).rgb;
+	//	//frame_color							+= t_skin_scattering.Sample(s_accumulator, uv * 3.0h).rgb;
+	//}
+	
+	// gamma correction: conversion from linear space to pc gamma space
+	// in other shader (mlaa or copy_image)
+	//frame_color							= convert_from_linear_space( frame_color, gamma_correction_factor );
+	
+	//return								0.001h * frame_color.rgbr + half4(t_bug.Sample(s_nofilter, uv * screen_res.xy / 16.0h));
+	
+	//return 								0.001h * frame_color.rgbr + t_skin_scattering.Sample(s_nofilter, uv);
+	/*
+	if (uv.x <= 0.25h && uv.y <= 0.25h)
+	{
+		return half4(t_lpv_rsm_albedo.SampleLevel(s_accumulator, uv * 4.0h, 0));
+		//return max(half4(t_lpv_rsm_normal_source.Sample(s_accumulator, uv * 4.0h)),0);
+		//return half4(t_lpv_rsm_position_source.Sample(s_accumulator, uv * 4.0h));		
+	}
+	*/
+	/*
+	bool doit = false;
+	int mip_level = -1;
+	half2 new_uv;
+	
+	half ssc = 0.125h / 1.5h;
+	
+		 if (in_rect(uv.xy, 0.0h, 0.0h, ssc, ssc, new_uv))					mip_level = 0;
+	else if (in_rect(uv.xy, 1.0h  * ssc, 0.0h, 2.0h  * ssc, ssc, new_uv)) 	mip_level = 1;
+	else if (in_rect(uv.xy, 2.0h  * ssc, 0.0h, 3.0h  * ssc, ssc, new_uv)) 	mip_level = 2;
+	else if (in_rect(uv.xy, 3.0h  * ssc, 0.0h, 4.0h  * ssc, ssc, new_uv)) 	mip_level = 3;
+	else if (in_rect(uv.xy, 4.0h  * ssc, 0.0h, 5.0h  * ssc, ssc, new_uv)) 	mip_level = 4;
+	else if (in_rect(uv.xy, 5.0h  * ssc, 0.0h, 6.0h  * ssc, ssc, new_uv)) 	mip_level = 5;
+	else if (in_rect(uv.xy, 6.0h  * ssc, 0.0h, 7.0h  * ssc, ssc, new_uv)) 	mip_level = 6;
+	else if (in_rect(uv.xy, 7.0h  * ssc, 0.0h, 8.0h  * ssc, ssc, new_uv)) 	mip_level = 7;
+	else if (in_rect(uv.xy, 8.0h  * ssc, 0.0h, 9.0h  * ssc, ssc, new_uv)) 	mip_level = 8;
+	else if (in_rect(uv.xy, 9.0h  * ssc, 0.0h, 10.0h * ssc, ssc, new_uv)) 	mip_level = 9;
+	else if (in_rect(uv.xy, 10.0h * ssc, 0.0h, 11.0h * ssc, ssc, new_uv)) 	mip_level = 10;
+	else if (in_rect(uv.xy, 11.0h * ssc, 0.0h, 12.0h * ssc, ssc, new_uv)) 	mip_level = 11;
+	
+	if (mip_level >= 0)
+		return t_hiz_depth.SampleLevel(s_accumulator, new_uv, mip_level).r / 50.0h;
+	*/
+		
+	//if (mip_level == -1)
+	//	return t_hiz_depth.SampleLevel(s_accumulator, uv.xy, 6).r < 1.0;
+
+	/*half2 new_uv = 0;
+	if (in_rect(uv.xy, 0.0h, 0.0h, 0.1h, 0.1h, new_uv))
+	{
+		
+		return half4( 0.00001h * frame_color + get_average_frame_luminance( ).xxx, 0 );
+	}*/
+
+#if GLOBAL_POST_PROCESS_QUALITY > 1 // 0.11e: the vignette from quality 2 (0.10b: != 0)
+	// hardcoded vignette effect
+	if ( image_grain_parameters.w > 0.1h )
+	{
+		half 	atten		=	saturate( 1.0h * pow( saturate( 1.0h - ( length( abs( uv * 2.0h - 1.0h ) ) ) / 1.4h ), image_grain_parameters.w ) );
+		
+		half2 	in_tex 		= 	uv - 0.5h;
+		half 	vignette  	= 	1.0h - dot( in_tex, in_tex );
+		half 	radius 		= 	( 1.0h + image_grain_parameters.w ) * 0.1h;		// 0.11e (0.10b: no 0.1)
+		half 	darkness 	= 	0.0h;
+		half 	s 			=  saturate( pow( vignette, radius ) + darkness );
+
+		frame_color			=	s * frame_color;
+	}
+#endif // #if GLOBAL_POST_PROCESS_QUALITY != 0
+
+	//frame_color 	=	0.00001h * frame_color + dof_c;
+	
+	//frame_color				=	0.0000001h * frame_color + aberration_variance_mult;
+	
+	//if ( uv.x < 0.1h && uv.y < 0.1h )
+	//{
+	//	return								half4( 0.000001h * frame_color + get_average_frame_luminance() , 0.0h );
+	//}
+
+	//half V	=	tone_mapped_filmic_alu2( uv.x );
+	//if ( abs( V - 1 + uv.y ) < 0.001f )
+	//	return 1;
+	//else
+#if 0 // show tonemapping curve
+	half V	=	tone_mapped_filmic_alu2( uv.x );
+	if ( abs( V - 1 + uv.y ) < 0.001f )
+	return 1;
+#else
+	return								half4( frame_color, 0.0h );
+#endif 
+		return								half4( frame_color, 0.0h );
+	
+	//return								half4( convert_from_linear_space(frame_color, gamma_correction_factor), 1.0h );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+

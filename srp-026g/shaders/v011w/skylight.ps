@@ -1,0 +1,81 @@
+#include "common.h"
+#include "gbuffer.h"
+#include "gamma_correction.h"
+
+uniform float4	s_eye_ray_corner;
+uniform float4	skylight_parameters0;	// rgb - overall skylight color scale
+uniform float4	skylight_parameters1;	// x - band lower bound (world height), y - band height, z - exponent
+uniform float4	skylight_parameters2;	// rgb - cube -x color, w - cube -z color r
+uniform float4	skylight_parameters3;	// rgb - cube +x color, w - cube -z color g
+uniform float4	skylight_parameters4;	// rgb - cube +y color, w - cube -z color b
+uniform float4	skylight_parameters5;	// rgb - cube +z color, w - cube -y color r
+uniform float4	skylight_parameters6;	// xyz - wrap light direction, w - cube -y color g
+uniform float4	skylight_parameters7;	// rgb - wrap light color, w - cube -y color b
+
+Texture2D		t_ssao_accumulator;
+
+static const float4x4 identity_matrix =
+{
+	1, 0, 0, 0,
+	0, 1, 0, 0,
+	0, 0, 1, 0,
+	0, 0, 0, 1
+};
+
+struct	v2p_skylight
+{
+	float4	hpos	: SV_POSITION;
+	float2	tc		: TEXCOORD0;
+	float3	basis_x	: TEXCOORD1;
+	float3	basis_y	: TEXCOORD2;
+	float3	basis_z	: TEXCOORD3;
+};
+
+float4 	main	( v2p_skylight I ) : SV_TARGET
+{
+	float3	normal			= gbuffer_read_frame_normal( I.tc );
+	normal.z				= -normal.z;
+
+	float3	world_normal	= mul( (float3x3)m_V2W, normal );
+
+	float3	basis_normal	=
+		world_normal.x*I.basis_x +
+		world_normal.y*I.basis_y +
+		world_normal.z*I.basis_z;
+	float3	weights			= basis_normal*basis_normal;
+	int3	negative		= basis_normal < 0;
+
+	float3	color			=
+		weights.x*(
+			identity_matrix[negative.x].y*skylight_parameters2.xyz +
+			identity_matrix[negative.x].x*skylight_parameters3.xyz
+		) +
+		weights.y*(
+			identity_matrix[negative.y].x*skylight_parameters4.xyz +
+			identity_matrix[negative.y].y*float3( skylight_parameters5.w, skylight_parameters6.w, skylight_parameters7.w)
+		) +
+		weights.z*(
+			identity_matrix[negative.z].x*skylight_parameters5.xyz +
+			identity_matrix[negative.z].y*float3( skylight_parameters2.w, skylight_parameters3.w, skylight_parameters4.w)
+		);
+
+	color					+= saturate( dot( world_normal, -skylight_parameters6.xyz))*skylight_parameters7.xyz;
+
+	float	occlusion		= t_ssao_accumulator.Sample( s_linear, I.tc ).x*2.5;
+
+	float3	eye_ray;
+	eye_ray.xy				= s_eye_ray_corner.xy*( 1 - I.tc*2 )/s_eye_ray_corner.z;
+	eye_ray.z				= 1;
+
+	float3	position		= eye_ray*gbuffer_read_frame_depth( I.tc );
+	float	height			= mul( m_V2W, float4( position, 1)).y;
+	float	ramp			= pow( saturate( ( height - skylight_parameters1.x )/skylight_parameters1.y ), skylight_parameters1.z );
+
+	color					*= ramp*occlusion*skylight_parameters0.xyz;
+
+#if TARGET_026G		// 0.26g's light accumulator is linear (its lights write light*diffuse)
+	return	float4( color, 1 );
+#else
+	return	1.f/rsqrt( saturate( float4( color, 1 )*0.125 ) );
+#endif
+}

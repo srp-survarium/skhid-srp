@@ -1,0 +1,35 @@
+#include "common.h"
+
+uniform float4	to_sun_direction_parameter;
+
+Texture2D		t_mie_scattering;
+Texture2D		t_rayleigh_scattering;
+
+struct v2p_atmosphere
+{
+	float4	hpos			: SV_Position;
+	float3	world_position	: TEXCOORD0;
+	float3	object_position	: TEXCOORD1;
+	float2	tc				: TEXCOORD2;
+};
+
+float4 main( v2p_atmosphere I ) : SV_Target
+{
+	float3	view		= normalize( eye_position - I.world_position);
+	float	cos_angle	= dot( to_sun_direction_parameter.xyz, view)/sqrt( dot( view, view));
+
+	float	denominator	= 1.990025f - cos_angle*-1.99f;
+	float	common_term	= cos_angle*cos_angle + 1.0f;
+	float	phase_ray	= common_term*0.7500075f;
+	float	phase_mie	= common_term*0.0050041387f/pow( abs( denominator), 1.5f);
+
+	float4	mie			= t_mie_scattering.Sample( s_base, I.tc);
+	float3	mie_term	= max( phase_mie*mie.xyz, 0.0f);
+	float3	rayleigh	= t_rayleigh_scattering.Sample( s_base, I.tc).xyz;
+	float3	base		= phase_ray*rayleigh + mie.xyz;
+
+	float	intensity	= min( max( to_sun_direction_parameter.w, 0.0f), 2.0f);
+	mie_term			= min( mie_term, 10.0f);
+
+	return	float4( min( intensity*mie_term + base, 10000.0f), 1.0f);
+}

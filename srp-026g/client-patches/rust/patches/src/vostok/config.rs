@@ -16,7 +16,28 @@ pub enum ConfigValue<'t> {
     Array(ConfigEntries<'t>),
     /// A text (type 5): its bytes, without the zero.
     Text(&'t CStr),
+    /// A vector (types 6, 7, 8).
+    Vector(Vector),
     Unsupported,
+}
+
+/// A config vector: its floats.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Vector {
+    Two([f32; 2]),
+    Three([f32; 3]),
+    Four([f32; 4]),
+}
+
+impl Vector {
+    /// Its first three floats (a colour or a direction); None for a two.
+    pub fn xyz(self) -> Option<[f32; 3]> {
+        match self {
+            Vector::Two(_) => None,
+            Vector::Three(v) => Some(v),
+            Vector::Four([x, y, z, _]) => Some([x, y, z]),
+        }
+    }
 }
 
 impl<'t> ConfigValue<'t> {
@@ -44,6 +65,16 @@ impl<'t> ConfigValue<'t> {
                 // read no further than that.
                 5 => super::ui::c_string(node.text(), usize::from(node.count().read()))
                     .map_or(Self::Unsupported, Self::Text),
+                // a vector's floats are where its relocated offset points, its count their bytes
+                kind @ 6..=8 if usize::from(node.count().read()) == 4 * usize::from(kind - 4) => {
+                    let at = node.vector();
+                    let float = |i: usize| at.add(i).read_unaligned();
+                    Self::Vector(match kind {
+                        6 => Vector::Two([float(0), float(1)]),
+                        7 => Vector::Three([float(0), float(1), float(2)]),
+                        _ => Vector::Four([float(0), float(1), float(2), float(3)]),
+                    })
+                }
                 _ => Self::Unsupported,
             })
         }

@@ -1,0 +1,71 @@
+// complex_post_process_blend_v011w_026g.ps: 0.11e's post equations (complex_post_process_blend.ps here, byte for
+// byte 0.11e's) on 0.26g's post inputs, for the 0.11 weathers: 0.26g's post stage binds the frame, the grading
+// LUT, the frame luminance, the light scattering and the bloom (unused: 0.11e has none), and does its depth
+// of field elsewhere. Exposure: 0.11e's key over the average luminance clamped to [0.09, 0.4]; 0.11e's filmic
+// curve with the shoulder added back (filmic_tonemap_packed_parameters_0: shoulder, linear strength, linear
+// angle, toe strength; _1: toe numerator, toe denominator, white, dark desaturation limit); 0.11e's dark
+// desaturation after it; the LUT indexed with the curve's gamma-space result, as 0.11e; 0.11e's vignette.
+// V011W_LITERALS: the parameters as the evening's authored values, for a measurement without the exe's upload.
+#include "common.h"
+
+#ifndef V011W_LITERALS
+#define V011W_LITERALS 0
+#endif
+
+#if V011W_LITERALS
+static const float4 filmic_tonemap_packed_parameters_0 = float4(0.05f, 7.0f, 0.3f, 6.2f);
+static const float4 filmic_tonemap_packed_parameters_1 = float4(2.0f, 0.02f, 10000.0f, 4.5f);
+#else
+uniform float4 filmic_tonemap_packed_parameters_0;
+uniform float4 filmic_tonemap_packed_parameters_1;
+#endif
+uniform float4 image_grain_parameters;		// w: the vignette's power
+
+Texture2D	t_frame_color;
+Texture3D	t_color_grading_lut;
+Texture2D	t_frame_luminance;
+Texture2D	t_light_scattering_result;
+
+struct v2p_post
+{
+	float4	hpos	: SV_POSITION;
+	float2	tc		: TEXCOORD0;
+};
+
+float4 main( v2p_post I ) : SV_TARGET
+{
+	float2 uv				= I.tc;
+	float3 color			= t_frame_color.SampleLevel(s_material1, uv, 0).rgb;
+	color					+= t_light_scattering_result.Sample(s_linear, uv).rgb;		// 0.26g's: linear
+
+	// 0.11e's exposure
+	float average			= clamp(t_frame_luminance.Sample(s_accumulator, float2(0.5f, 0.5f)).r, 0.09f, 0.4f);
+	float key				= 1.03f - (2.0f / ((log10(average + 1.0f) + 2.0f) * 20.0f));
+	color					*= exp2(0.2f * log2(key / average));
+
+	// 0.11e's filmic curve, the shoulder added back; its result has 1/2.2 baked in
+	float A					= filmic_tonemap_packed_parameters_0.x * 0.01f;
+	float B					= filmic_tonemap_packed_parameters_0.y;
+	float C					= filmic_tonemap_packed_parameters_0.z;
+	float D					= filmic_tonemap_packed_parameters_0.w;
+	float E					= filmic_tonemap_packed_parameters_1.x;
+	float F					= filmic_tonemap_packed_parameters_1.y;
+	color					= max(0, color - A) + A;
+	color					= (color * (B * color + C)) / (color * (D * color + E) + F);
+
+	// 0.11e's dark desaturation after the curve
+	float lum				= dot(float3(0.3f, 0.7f, 0.2f), color);
+	color					= lerp(lum * float3(0.8f, 0.8f, 1.4f), color, saturate(lum * filmic_tonemap_packed_parameters_1.w + 0.21f));
+
+	// the grading, indexed in gamma space as 0.11e's, back to linear
+	color					= t_color_grading_lut.SampleLevel(s_material1, color * 15.0f / 16.0f + 0.5f / 16.0f, 0).rgb;
+	color					= pow(abs(color), 2.2f);
+
+	// 0.11e's vignette
+	if (image_grain_parameters.w > 0.1f)
+	{
+		float2 centred		= uv - 0.5f;
+		color				*= pow(1.0f - dot(centred, centred), (1.0f + image_grain_parameters.w) * 0.1f);
+	}
+	return float4(color, 0.0f);
+}

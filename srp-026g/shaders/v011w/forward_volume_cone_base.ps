@@ -1,0 +1,368 @@
+////////////////////////////////////////////////////////////////////////////
+//	Created		: 17.12.2010
+//	Author		: Nikolay Partas
+//	Copyright (C) GSC Game World - 2010
+////////////////////////////////////////////////////////////////////////////
+/*	$DEFINES$:
+		GLOBAL_USE_VEGETATION_TRAMPLE,
+		CONFIG_TDIFFUSE,
+		CONFIG_USE_SUBUV,
+		CONFIG_TTRANSPARENCY,
+		CONFIG_VERTEX_INPUT_TYPE,
+		CONFIG_USE_BOUND_NORMALS,
+		CONFIG_USE_UP_DIRECTIONAL_NORMALS,
+		CONFIG_LOD_INDEX,
+		CONFIG_WIND_MOTION,
+*/
+
+#include "common.h"
+#include "gbuffer.h"
+
+static const float far_clip = near_far_invn_invf.y;
+
+float4 mode_direction_and_uv_tile;
+
+Texture2D t_sphere_falloff;
+Texture2D t_spot_falloff;
+Texture2D t_transparency;
+float 	  solid_transparency;
+float 	  attenuation_scale;
+
+#include "material.h"
+
+#if CONFIG_VERTEX_INPUT_TYPE==1 || CONFIG_VERTEX_INPUT_TYPE==2
+
+#if TARGET_026G		// 0.26g's vertex_base outputs for these inputs (its own cone programs' input signature)
+struct vertex_output_struct
+{
+	float4  homogeneous_position: SV_Position;
+	float4	tbn_x				: TEXCOORD0;
+	float4	tbn_y				: TEXCOORD1;
+	float4	tbn_z				: TEXCOORD2;
+	float4	position			: TEXCOORD3;
+	float4	view_position		: TEXCOORD4;
+	float4	normal				: TEXCOORD5;
+	float4	tc					: TEXCOORD6;
+#if CONFIG_VERTEX_INPUT_TYPE==2
+	float4	color				: TEXCOORD7;
+	float4	occlusion			: TEXCOORD8;
+#endif // #if CONFIG_VERTEX_INPUT_TYPE==2
+};
+#else
+struct vertex_output_struct
+{
+	float4  homogeneous_position: SV_Position;
+	float3	tbn_x				: TEXCOORD0;
+	float3	tbn_y				: TEXCOORD1;
+	float3	tbn_z				: TEXCOORD2;
+	float3	position			: TEXCOORD3;
+	float3	view_position		: TEXCOORD4;
+	float2	tc					: TEXCOORD5;
+#if CONFIG_VERTEX_INPUT_TYPE==2
+	float3	color				: TEXCOORD6;
+	float	occlusion			: TEXCOORD7;
+#endif // #if CONFIG_VERTEX_INPUT_TYPE==2
+};
+#endif // #if TARGET_026G
+
+material_parameters get_material_parameters(inout vertex_output_struct input)
+{
+	material_parameters 				parameters;
+	clear_material_parameters			(parameters);
+	parameters.world_position			= input.position.xyz;
+	parameters.world_view_position 		= float4(input.view_position.xyz, 1.0f);
+	parameters.tc 						= input.tc.xy;
+	parameters.detail_tc 				= input.tc.xy;
+	parameters.normal 					= float3( input.tbn_x.z, input.tbn_y.z, input.tbn_z.z);
+	parameters.tangent_to_viewspace 	= float3x3( input.tbn_x.xyz, input.tbn_y.xyz, input.tbn_z.xyz);
+#if CONFIG_VERTEX_INPUT_TYPE==2
+	parameters.color 					= float4(input.color.xyz, 1.0f);
+#endif // #if CONFIG_VERTEX_INPUT_TYPE==2
+
+	return parameters;
+}
+
+#elif CONFIG_VERTEX_INPUT_TYPE>=3 && CONFIG_VERTEX_INPUT_TYPE<=6
+
+struct vertex_output_struct
+{
+	float3	tbn_x				: TEXCOORD0;
+	float3	tbn_y				: TEXCOORD1;
+	float3	tbn_z				: TEXCOORD2;
+	float4  homogeneous_position: SV_Position;
+	float3	view_position		: TEXCOORD3;
+	float3	position			: TEXCOORD4;
+	float3	normal				: TEXCOORD5;
+	float2	tc					: TEXCOORD6;
+#if TARGET_026G		// 0.26g's vertex_base adds a pair after the uv
+	float2	tc1					: TEXCOORD7;
+#endif
+};
+
+material_parameters get_material_parameters(inout vertex_output_struct input)
+{
+	material_parameters 				parameters;
+	clear_material_parameters			(parameters);
+	parameters.world_position			= input.position;
+	parameters.world_view_position 		= float4(input.view_position, 1.0f);
+	parameters.tc 						= input.tc;
+	parameters.detail_tc 				= input.tc;
+	parameters.normal 					= float3( input.tbn_x.z, input.tbn_y.z, input.tbn_z.z);
+	parameters.tangent_to_viewspace 	= float3x3( input.tbn_x, input.tbn_y, input.tbn_z);
+
+	return parameters;
+}
+
+#elif CONFIG_VERTEX_INPUT_TYPE==7 || CONFIG_VERTEX_INPUT_TYPE==8
+
+float3   up_view_vector;
+float3   right_view_vector;
+
+float	 use_align_by_dir;
+float3   view_location;
+
+float	 use_fixed_axis;
+float3   rotation_fixed_axis;
+
+float locked_no_ratate_axis_index;
+
+struct vertex_output_struct
+{
+	float4  homogeneous_position: SV_Position;
+	float3	position			: TEXCOORD0;
+	float3	normal				: NORMAL;
+	float4	color				: COLOR;
+	float2	tc					: TEXCOORD1;
+	float3  tangent				: TEXCOORD2;
+	float3  binormal			: TEXCOORD3;
+#if CONFIG_USE_SUBUV
+	float4	tc1					: TEXCOORD4;
+#endif // #if CONFIG_USE_SUBUV
+};
+
+material_parameters get_material_parameters(inout vertex_output_struct input)
+{
+	material_parameters 				parameters;
+	clear_material_parameters			(parameters);
+	parameters.world_position			= input.position;
+	parameters.world_view_position 		= float4(mul(m_V, float4( input.position, 1.f)), 1.0f);
+	parameters.world_view_proj_position = float4(0.0f, 0.0f, 0.0f, 1.0f);
+	parameters.tc 						= input.tc;
+#if CONFIG_USE_SUBUV
+	parameters.sub_uv					= input.tc1;
+#endif // #if CONFIG_USE_SUBUV
+	parameters.detail_tc 				= input.tc;
+	parameters.color 					= input.color;
+	parameters.normal 					= mul(m_V, float4(input.normal, 0.0f)).xyz;
+	parameters.tangent_to_viewspace 	= mul((float3x3)m_V, transpose(float3x3(input.tangent, input.binormal, input.normal)));
+	return parameters;
+}
+
+#elif CONFIG_VERTEX_INPUT_TYPE==9
+
+struct vertex_output_struct
+{
+	float4  homogeneous_position: SV_Position;
+	float3	position			: TEXCOORD0;
+	float4	color				: TEXCOORD1;
+	float2	tc					: TEXCOORD2;
+};
+
+material_parameters get_material_parameters(inout vertex_output_struct input)
+{
+	material_parameters 				parameters;
+	clear_material_parameters			(parameters);
+	parameters.world_position			= input.position;
+	parameters.world_view_position 		= float4(mul(m_V, float4( input.position, 1.f)), 1.0f);
+	parameters.tc 						= input.tc;
+	parameters.detail_tc 				= input.tc;
+	parameters.color 					= input.color;
+
+	return parameters;
+}
+
+#elif CONFIG_VERTEX_INPUT_TYPE==10
+
+struct vertex_output_struct
+{
+	float4  homogeneous_position: SV_Position;
+	float3	position			: TEXCOORD0;
+};
+
+material_parameters get_material_parameters(inout vertex_output_struct input)
+{
+	material_parameters parameters;
+	clear_material_parameters(parameters);
+
+	parameters.world_position			= input.position;
+	parameters.world_view_position 		= float4(mul(m_V, float4( input.position, 1.f)), 1.0f);
+
+	return parameters;
+}
+
+#elif CONFIG_VERTEX_INPUT_TYPE==11
+
+float4 patch_parameters;
+
+struct vertex_output_struct
+{
+	float3	tbn_x				: TEXCOORD0;
+	float3	tbn_y				: TEXCOORD1;
+	float3	tbn_z				: TEXCOORD2;
+	float4	color				: TEXCOORD3;
+	float4  homogeneous_position: SV_Position;
+	float4	patch_color			: TEXCOORD4;
+	float3	view_position		: TEXCOORD5;
+	float3	position			: TEXCOORD6;
+	float2	tc					: TEXCOORD7;
+};
+
+material_parameters get_material_parameters(inout vertex_output_struct input)
+{
+	material_parameters 				parameters;
+	clear_material_parameters			(parameters);
+	parameters.world_position			= input.position;
+	parameters.world_view_position 		= float4(input.view_position, 1.0f);
+	parameters.tc 						= input.tc;
+	parameters.detail_tc 				= input.tc;
+	parameters.color 					= input.color;
+	parameters.normal 					= normalize(float3( input.tbn_x.z, input.tbn_y.z, input.tbn_z.z));
+	parameters.tangent_to_viewspace 	= float3x3( input.tbn_x, input.tbn_y, input.tbn_z);
+
+	return parameters;
+}
+
+#elif CONFIG_VERTEX_INPUT_TYPE==12
+
+struct vertex_output_struct
+{
+	float4  homogeneous_position: SV_Position;
+	float3	position			: TEXCOORD0;
+};
+
+material_parameters get_material_parameters(vertex_output_struct input)
+{
+	material_parameters 		parameters;
+	clear_material_parameters	(parameters);
+	return parameters;
+}
+
+#elif CONFIG_VERTEX_INPUT_TYPE==13
+
+struct vertex_output_struct
+{
+	float4  homogeneous_position: SV_Position;
+	float3	position			: TEXCOORD0;
+	float2	tc					: TEXCOORD1;
+	float3	tbn_x				: TEXCOORD2;
+	float3	tbn_y				: TEXCOORD3;
+	float3	tbn_z				: TEXCOORD4;
+};
+
+material_parameters get_material_parameters(inout vertex_output_struct input)
+{
+	material_parameters 				parameters;
+	clear_material_parameters			(parameters);
+	parameters.world_position			= input.position;
+	parameters.world_view_position 		= float4(mul(m_V, float4( input.position, 1.f)), 1.0f);
+	parameters.tc 						= input.tc;
+	parameters.detail_tc 				= input.tc;
+	parameters.tangent_to_viewspace 	= float3x3( input.tbn_x, input.tbn_y, input.tbn_z);
+
+	return parameters;
+}
+
+#elif CONFIG_VERTEX_INPUT_TYPE==14
+
+struct vertex_output_struct
+{
+	float4  homogeneous_position: SV_Position;
+	float3	position			: TEXCOORD0;
+	float2	tc					: TEXCOORD1;
+};
+
+material_parameters get_material_parameters(inout vertex_output_struct input)
+{
+	material_parameters 				parameters;
+	clear_material_parameters			(parameters);
+	parameters.world_position			= input.position;
+	parameters.world_view_position 		= float4(mul(m_V, float4( input.position, 1.f)), 1.0f);
+	parameters.tc 						= input.tc;
+	parameters.detail_tc 				= input.tc;
+
+	return parameters;
+}
+
+#else // NULL_VERTEX_INPUT_TYPE
+
+struct vertex_output_struct
+{
+	float4  homogeneous_position: SV_Position;
+	float3	position			: TEXCOORD0;
+};
+
+material_parameters get_material_parameters(vertex_output_struct input)
+{
+	material_parameters parameters;
+	clear_material_parameters(parameters);
+	parameters.world_position			= input.position;
+	parameters.world_view_position 		= float4(mul(m_V, float4( input.position, 1.f)), 1.0f);
+	parameters.tc						= input.position.xz;
+
+	return parameters;
+}
+
+#endif
+
+uniform float4 volume_color;
+
+//uniform float3x4 m_V2W;
+
+float4 	main			(in vertex_output_struct input): SV_TARGET0
+{
+	material_parameters parameters = get_material_parameters(input);
+	fill_material_parameters(parameters);
+	
+	float4 out_color		= 0;
+	
+	float3 position			= parameters.world_view_position.xyz;
+	float3 normal 			= float3(0.0f, 0.0f, 1.0f);
+	
+	float3x3 tangent_trans	= mul(m_V2W, parameters.tangent_to_viewspace);
+	
+	float2 tc_proj			= input.homogeneous_position.xy / screen_res.xy;
+	
+	float3 view_direction 	= normalize( eye_position - mul(m_V2W, float4(position,1)) );
+	float3 view_direction_tangent_space	= normalize( mul(view_direction, tangent_trans) );
+	
+	float3 reflection   	= reflect(view_direction_tangent_space, normal);
+	reflection.z 			= pow((reflection.z + 8.0f) * 0.8f, 0.5f);
+	
+	float pixel_depth 		= position.z;
+	float depth_diff 		= saturate(0.75f * (gbuffer_read_frame_depth(tc_proj)-pixel_depth));
+	
+	float attenuation		= saturate(attenuation_scale * pow(pixel_depth,1.0f));
+	
+	const float2 spot_uv	= float2(reflection.x / reflection.z + 0.5, parameters.tc.y);
+	float cone				= t_spot_falloff.Sample(s_base, spot_uv).r;
+							// = saturate(10.0f*pow(((input.tc.y*1.0f) * (1-input.tc.y*1.0f)),1.3f));
+	
+	float alpha 			= saturate(attenuation * cone * depth_diff * volume_color.a * t_sphere_falloff.Sample(s_base, float2(reflection.x / reflection.z + 0.5, reflection.y / reflection.z + 0.5)).r);
+	
+	float2 moved_uv			= mode_direction_and_uv_tile.w * float2(2.0f, 1.0f) * (parameters.tc + mode_direction_and_uv_tile.xy * scene_time);
+
+	if (CONFIG_TTRANSPARENCY)
+		alpha 				*= t_transparency.Sample( s_linear, moved_uv ).a;
+	else
+		alpha				*= solid_transparency;
+
+	float3 dust_color		= (1.0f).xxx;
+
+	if (CONFIG_TDIFFUSE)
+		dust_color			= t_diffuse.Sample(s_base, moved_uv).rgb * 100.0f;
+
+	out_color.rgb			= dust_color + volume_color.rgb;
+	out_color.a				= alpha;
+	
+	return out_color;
+}

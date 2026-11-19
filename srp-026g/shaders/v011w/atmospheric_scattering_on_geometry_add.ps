@@ -1,0 +1,76 @@
+#include "common.h"
+#include "gbuffer.h"
+
+uniform float4x4	inverted_view_projection_matrix;
+uniform float4		to_sun_direction_parameter;
+uniform float4		inscatter_parameters;
+uniform float3		s_eye_ray_corner;
+
+#if TARGET_026G		// 0.26g binds the tables the other way round (t1 mie, t2 rayleigh)
+Texture2D			t_mie_scattering;
+Texture2D			t_rayleigh_scattering;
+#else
+Texture2D			t_rayleigh_scattering;
+Texture2D			t_mie_scattering;
+#endif
+
+struct v2p_scattering
+{
+	float4	hpos	: SV_POSITION;
+	float2	tc		: TEXCOORD0;
+};
+
+float4 main( v2p_scattering I ) : SV_TARGET
+{
+	float2	tc				= I.hpos.xy*screen_res.zw;
+
+	float4	eye_ray;
+	eye_ray.xy				= s_eye_ray_corner.xy*( 1 - tc*2);
+
+	float	depth			= gbuffer_read_frame_depth( tc);
+
+	eye_ray.xy				/= s_eye_ray_corner.z;
+	eye_ray.zw				= 1;
+
+	float4	position		= eye_ray;
+	position.xyz			= eye_ray.xyz*depth;
+
+	float	near_depth		= min( depth, inscatter_parameters.x);
+
+	float3	world_position	= mul( m_V2W, position);
+
+	float3	direction		= world_position - eye_position;
+	float	square			= dot( direction, direction);
+
+	direction				*= rsqrt( square);
+
+	float	cos_angle		= dot( direction, normalize( to_sun_direction_parameter.xyz));
+	float	elevation		= 0.5f - direction.y*0.5f;
+
+	float	denominator		= 1.5625f - cos_angle*1.5f;
+	float	common_term		= cos_angle*cos_angle + 1.0f;
+	float	phase_mie		= 0.21875f/( sqrt( denominator*denominator*denominator)*12.56f) + 0.0397885f;
+
+	float	view_distance	= sqrt( square);
+
+	float4	rayleigh		= t_rayleigh_scattering.SampleLevel( s_material1, float2( atan( min( view_distance, 350.0f)*0.002f), elevation), 0);
+	rayleigh.w				= 1.0f;
+
+	float	amount			= saturate( near_depth/inscatter_parameters.x);
+	float4	scattering		= amount*rayleigh;
+
+	float	phase			= ( common_term*0.05159683f + scattering.w*phase_mie)/( scattering.w + 1.0f);
+
+	float3	inscattered		= phase*scattering.xyz;
+	float3	ambient			= scattering.xyz*0.75f;
+
+	float3	rayleigh_term	= lerp( ambient, inscattered*3.0f, 1.0f - to_sun_direction_parameter.y);
+
+	float3	mie				= t_mie_scattering.SampleLevel( s_material1, float2( saturate( atan( view_distance*0.00001f)), elevation), 0).xyz;
+	float	mie_amount		= saturate( near_depth/( inscatter_parameters.x*0.5f));
+
+	// 0.11e (not 0.10b): the whole in-scatter fades in over the first quarter of the distance.
+	float	near_amount		= saturate( near_depth/( inscatter_parameters.x*0.25f));
+
+	return	float4( ( rayleigh_term + saturate( mie_amount*mie))*near_amount, 1.0f);
+}

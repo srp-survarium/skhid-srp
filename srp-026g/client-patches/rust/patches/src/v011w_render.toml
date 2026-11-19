@@ -1,0 +1,158 @@
+# Patch 162: the ported 0.11 weathers render their atmosphere the 0.11 way (README "The 0.11
+# weathers' fog", srp-026g/docs/notes/v011-weather.md). Only the decisions; the logic is
+# v011w_render.rs, the stage's side vostok/render_stage.rs.
+name = "v011w_render"
+patch = 162
+
+# The map: a project whose config root names its inscatter distance (after patch 130's).
+[[hook]]
+site = "project.insert"
+handler = "on_project_insert"
+order = 3
+[[hook]]
+site = "project.removed"
+handler = "on_project_removed"
+order = 3
+[[hook]]
+site = "project.destroy"
+handler = "on_project_destroy"
+order = 3
+
+# The geometry's fog: 0.11e's multiplicative pass in technique 5's place, its constant once its
+# program is bound, and the additive pass before the god rays.
+[[hook]]
+site = "atmosphere.geometry_fog"
+handler = "on_geometry_fog"
+[[hook]]
+site = "atmosphere.geometry_fog_applied"
+handler = "on_geometry_fog_applied"
+[[hook]]
+site = "atmosphere.god_rays"
+handler = "on_god_rays"
+order = 2
+
+# The scattering tables and the sky: effect_atmospheric_scattering's twins of techniques 0 and 1
+# (0.11e's pixel shaders), applied on the marked scene; the tables remade when the look changes.
+[[hook]]
+site = "scattering.compiled"
+handler = "on_scattering_compiled"
+[[hook]]
+site = "scattering.tables_pass"
+handler = "on_scattering_tables_pass"
+[[hook]]
+site = "scattering.sky_pass"
+handler = "on_scattering_sky_pass"
+[[hook]]
+site = "atmosphere.tables_due"
+handler = "on_tables_due"
+[[hook]]
+site = "atmosphere.tables_apply"
+handler = "on_tables_apply"
+[[hook]]
+site = "atmosphere.sky_apply"
+handler = "on_sky_apply"
+
+# The post: each effect_complex_post_process_blend compiles a twin of its one technique (1: 0.11e's
+# equations on 0.26g's inputs), applied on the marked scene with the weather's filmic curve.
+[[hook]]
+site = "post_blend_00.compiled"
+handler = "on_post_blend_00_compiled"
+[[hook]]
+site = "post_blend_10.compiled"
+handler = "on_post_blend_10_compiled"
+[[hook]]
+site = "post_blend_11.compiled"
+handler = "on_post_blend_11_compiled"
+[[hook]]
+site = "post_blend_00.pass"
+handler = "on_post_blend_00_pass"
+[[hook]]
+site = "post_blend_10.pass"
+handler = "on_post_blend_10_pass"
+[[hook]]
+site = "post_blend_11.pass"
+handler = "on_post_blend_11_pass"
+[[hook]]
+site = "postprocess.blend_apply"
+handler = "on_post_blend_apply"
+[[hook]]
+site = "postprocess.blend_constants"
+handler = "on_post_blend_constants"
+
+# The skylight (the shade's light): effect_skylight's twins of its two techniques (2, 3: 0.11e's
+# skylight.ps), render_skylight's technique 3 on the marked scene with 0.11e's eight constants.
+[[hook]]
+site = "skylight.compiled"
+handler = "on_skylight_compiled"
+[[hook]]
+site = "skylight.pass_0"
+handler = "on_skylight_pass_0"
+[[hook]]
+site = "skylight.pass_1"
+handler = "on_skylight_pass_1"
+[[hook]]
+site = "ambient.skylight_gate"
+handler = "on_skylight_gate"
+[[hook]]
+site = "ambient.skylight_apply"
+handler = "on_skylight_apply"
+[[hook]]
+site = "ambient.skylight_constants"
+handler = "on_skylight_constants"
+
+# The clouds: effect_atmosphere_clouds's four compiles make twins of their techniques 0 and 1 with 0.11e's
+# cloud programs (atmosphere_clouds_alpha_blend_v011w, atmosphere_clouds_modulate_v011w); on the marked scene
+# whose profile names the clouds the stage applies technique 3 or 4 and sets 0.11e's parameters 0 and 1.
+[[hook]]
+site = "clouds_00.compiled"
+handler = "on_clouds_00_compiled"
+[[hook]]
+site = "clouds_10.compiled"
+handler = "on_clouds_10_compiled"
+[[hook]]
+site = "clouds_01.compiled"
+handler = "on_clouds_01_compiled"
+[[hook]]
+site = "clouds_11.compiled"
+handler = "on_clouds_11_compiled"
+[[hook]]
+site = "clouds_00.pass_0"
+handler = "on_clouds_00_pass_0"
+[[hook]]
+site = "clouds_00.pass_1"
+handler = "on_clouds_00_pass_1"
+[[hook]]
+site = "clouds_10.pass_0"
+handler = "on_clouds_10_pass_0"
+[[hook]]
+site = "clouds_10.pass_1"
+handler = "on_clouds_10_pass_1"
+[[hook]]
+site = "clouds_01.pass_0"
+handler = "on_clouds_01_pass_0"
+[[hook]]
+site = "clouds_01.pass_1"
+handler = "on_clouds_01_pass_1"
+[[hook]]
+site = "clouds_11.pass_0"
+handler = "on_clouds_11_pass_0"
+[[hook]]
+site = "clouds_11.pass_1"
+handler = "on_clouds_11_pass_1"
+[[hook]]
+site = "atmosphere.clouds_apply"
+handler = "on_clouds_apply"
+[[hook]]
+site = "atmosphere.clouds_constants"
+handler = "on_clouds_constants"
+
+# The scattering tables' constant: 0.11e's four multipliers (0.26g sends the sun's intensity as the first).
+[[hook]]
+site = "atmosphere.tables_constants"
+handler = "on_tables_constants"
+
+# The cones under Vostok v0.11's lamps: a marked material's passes take 0.11e's cone program.
+[[hook]]
+site = "material.begin_pass"
+handler = "on_material_pass"
+order = 2

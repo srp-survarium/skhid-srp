@@ -1,0 +1,57 @@
+{
+  "build": "0.11e-884",
+  "sha256": "83d6cd0728e3ab71acfa8507b9458c23373ac25ebace9ca4bf1539e53f9f2396",
+  "preferred_image_base": "0x10000",
+  "file_size": 12374528,
+  "machine": "0x14c",
+  "sections": [
+    {
+      "name": ".text",
+      "rva": "0x1000",
+      "va": "0x11000",
+      "virtual_size": 8248507,
+      "raw_size": 8248832,
+      "raw_offset": 1024
+    },
+    {
+      "name": ".rdata",
+      "rva": "0x7df000",
+      "va": "0x7ef000",
+      "virtual_size": 1795795,
+      "raw_size": 1796096,
+      "raw_offset": 8249856
+    },
+    {
+      "name": ".data",
+      "rva": "0x996000",
+      "va": "0x9a6000",
+      "virtual_size": 136844384,
+      "raw_size": 972800,
+      "raw_offset": 10045952
+    },
+    {
+      "name": "STLPORT_",
+      "rva": "0x8c18000",
+      "va": "0x8c28000",
+      "virtual_size": 32,
+      "raw_size": 512,
+      "raw_offset": 11018752
+    },
+    {
+      "name": ".rsrc",
+      "rva": "0x8c19000",
+      "va": "0x8c29000",
+      "virtual_size": 562132,
+      "raw_size": 562176,
+      "raw_offset": 11019264
+    },
+    {
+      "name": ".reloc",
+      "rva": "0x8ca3000",
+      "va": "0x8cb3000",
+      "virtual_size": 793014,
+      "raw_size": 793088,
+      "raw_offset": 11581440
+    }
+  ]
+}

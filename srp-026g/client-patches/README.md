@@ -6261,3 +6261,68 @@ of them on the project sites the lamps share): `wet_surface.compiled`, `wet_surf
 with `check_rain_v021d_026g.py` (with the 0.21d exe, 0.21d's own drop parameters bit for bit) and the
 patch crate's tests. Not run in a game. It needs the content pack's files and keys in the same
 release.
+
+## The 0.11 weathers render their atmosphere the 0.11 way (patch 162, unreleased)
+
+The owner (2026-11-18): Vostok Radar Station v0.11's evening and rain rendered as 0.11e renders them,
+compared with 0.11e itself (`../docs/notes/v011-weather.md`): the geometry's fog, the scattering tables, the
+sky, the skylight and the post (`../docs/notes/client_patch.md` section 3.87). Everything keys on the project's
+profile, so
+another map's project takes a 0.11 weather by giving it one:
+
+- 0.11e fogs the geometry in two passes of `effect_atmospheric_scattering`: it multiplies the frame by
+  1 - min(depth, D) / D / 10 (blend ZERO, SRC_COLOR), then adds the light the air scatters toward the eye,
+  read from the Rayleigh and Mie tables (ONE, ONE); D is the weather's `atmosphere_inscatter_distance`.
+  0.26g still compiles both (techniques 3 and 4) but draws only technique 5, one pass of another equation.
+- On the scene of a project whose config root has the table `srp_renderer_v011w` (its profile: 0.11e's post
+  material values of the weather, `inscatter_distance` and the filmic curve's eight; edit list
+  `v011w-renderer-1.json`: Vostok's evening, 200 m, and rain, 300 m) the geometry stage draws 3 in
+  5's place and, at its god rays' entry, 4: the constants 0.11e sets for it (to_sun_direction_parameter as
+  minus the sun's direction with .w 1, inscatter_parameters, s_eye_ray_corner), target 37h
+  and fill_surfaces as stage_atmosphere::execute's own pass. Once a frame; the sky stage never.
+- 0.26g's program for technique 4 is another equation, so the content pack `v011e-radar-fog@3` gives its
+  file 0.11e's program, compiled from source for 0.26g's layout (`../shaders/v011w.sh`,
+  `scripts/v011-weather/make_fog_pack.py`).
+  Nothing else draws technique 4: no other map changes. The lobby's scene, unmarked projects and every
+  native map draw technique 5 as before.
+- The scattering tables (the 256x128 Rayleigh and Mie targets the sky and the fog read) and the sky are
+  another program each in 0.26g (half the tables' samples, another Rayleigh extinction and scale height;
+  another sky equation). effect_atmospheric_scattering compiles twins of its techniques 0 and 1 after its six
+  (6 and 7: the same passes with the pixel shaders `make_mie_rayleigh_texture_v011w` and `atmosphere_v011w`,
+  the pack's builds of 0.11e's sources), on every map, as patch 130's effects do; on the marked scene the sky
+  stage applies 6 for the tables and 7 for the sky, and gives the tables 0.11e's four scattering multipliers
+  (0.26g sends the sun's intensity in place of the first, rayleighSun: its Rayleigh table came out 0.42 of 0.11e's). The tables are made once and kept while nothing changes;
+  a frame whose look (0.11 or native) is not theirs remakes them.
+- The post: 0.26g's blend has another exposure clamp, an exponential tone curve, an sRGB-coded grading and
+  another vignette, and never sets the filmic constants it still registers. Each of its three blend effects
+  compiles a twin of its one technique (1: `complex_post_process_blend_v011w_026g`, 0.11e's equations on 0.26g's
+  inputs, from source); on the marked scene whose profile names the curve the post stage applies it and
+  sets filmic_tonemap_packed_parameters_0/1 from the profile, packed as 0.11e. No profile names it yet: on the
+  port's too-dark shade 0.11e's curve measures worse (`../docs/notes/v011-weather.md`). Its program is the
+  pack's under the family's plain key (`shaders/masks` lists no define of the new family).
+- The clouds: 0.26g draws them with its own program (fogged by its scattering tables). Each of its four cloud
+  effects compiles twins of its two cloud techniques with 0.11e's programs (`atmosphere_clouds_alpha_blend_v011w`,
+  `atmosphere_clouds_modulate_v011w`, from source, reading 0.26g's vertex shader's outputs); on a marked scene
+  whose profile names the clouds the stage applies them and sets 0.11e's sky_clouds_parameters0/1 (the linear
+  colour, the u tiling, the horizon fade's power and band).
+- The skylight: 0.26g never draws one (stage_ambient_lighting's gate +E4h is zeroed by its constructor and
+  never set). On a marked scene whose profile names the skylight the gate draws it, with 0.11e's program
+  (`skylight_v011w`, the twins of effect_skylight's two techniques, from source), 0.11e's eight
+  skylight_parameters (6 to the vertex shader too) and s_eye_ray_corner, and no depth-stencil bound, as 0.11e
+  draws it. As in 0.11e the environment probes then blend over it (alpha their attenuation): it lights what no
+  probe covers.
+
+**The patch** (the Rust patch `v011w_render`, `rust/patches/src/v011w_render.rs`, the stage's side in
+`vostok/render_stage.rs`, the twins' rounds in `vostok/effect_compile.rs`, shared with patch 130;
+forty-two lohooks): `atmosphere.geometry_fog` (technique 3 in 5's place), `atmosphere.geometry_fog_applied` (its
+constant, set once its program is bound), `atmosphere.god_rays` (the additive pass; after patch 130's),
+`scattering.compiled`, `scattering.tables_pass`, `scattering.sky_pass` (the twins), `atmosphere.tables_due`,
+`atmosphere.tables_apply`, `atmosphere.tables_constants`, `atmosphere.sky_apply` (the tables and the sky), `post_blend_00/10/11.compiled`
+and `.pass` (the post's twins), `postprocess.blend_apply`, `postprocess.blend_constants` (the post),
+`skylight.compiled`, `skylight.pass_0/1`, `ambient.skylight_gate`, `ambient.skylight_apply`,
+`ambient.skylight_constants` (the skylight), `clouds_<ab>.compiled`, `clouds_<ab>.pass_0/1` (ab 00, 10, 01, 11),
+`atmosphere.clouds_apply`, `atmosphere.clouds_constants` (the clouds), `material.begin_pass` (0.11e's lamp
+cones for a material with `srp_cone_v011w`: forward_volume_cone_base_v011w_<vertex input 1-6>; after patch 130's grass),
+`project.insert`, `project.removed`, `project.destroy` (the map).
+Nothing a match computes. Checked with `check_v011w_render_026g.py` (Unicorn, original and patched exe) and
+the patch crate's tests. Needs the pack and the edit list in the same release.

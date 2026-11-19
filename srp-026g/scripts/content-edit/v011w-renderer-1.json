@@ -1,0 +1,67 @@
+{
+ "_about": "The profile exe patch 162 (v011w_render) reads to draw a 0.11 weather the 0.11 way: srp_renderer_v011w at the root of each of its client projects, a table of 0.11e's post-process material values of that weather (material_instances/post_process/level_03_rain): atmosphere_inscatter_distance; the skylight: skylight_light = skylight_color^2.2 * skylight_multiplier ((0.8164278, 0.8966007, 1)^2.2 * 0.5, linear, as 0.11e's stage_ambient_lighting computes it), skylight_lower, _upper, _power, the six environment_skycolor_* faces, sun_tint = environment_suncolor * environment_sun_color (0 here); the clouds: clouds_color = sky_clouds_color^2.2 * sky_clouds_color_multiplier (2.0296^2.2 * 10, linear, as 0.11e's material_manager computes it), clouds_u_tile, clouds_fog_power and clouds_fog_up_limit (sky_clouds_u_tile, _fog_power, _fog_up_limit). On those scenes the patch draws 0.11e's fog, scattering tables, sky, skylight and clouds. The table may also name 0.11e's filmic curve (shoulder_strength, linear_strength, linear_angle, toe_strength, toe_numerator, toe_denominator, linear_white, dark_desaturation_limit: rain .01, 6.2, .3, 6.2, 2, .02, 8, 6) for 0.11e's post; these do not yet: the post twin draws without its frame (docs/notes/v011-weather.md). Vostok v0.11's evening keeps 0.26g's own atmosphere (the owner, 2026-11-19: its look before the fog work), so only the rain has the table. Another map takes a 0.11 weather by giving its projects such a table. No other project has the key.",
+ "add_value": [
+  {
+   "files": [
+    "projects/v011w_level_03_rain/rain_2/client_project",
+    "projects/v011w_level_03_rain/rain_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_renderer_v011w",
+   "value": {
+    "inscatter_distance": 300,
+    "skylight_light": [
+     0.320029,
+     0.393267,
+     0.5
+    ],
+    "skylight_lower": 0,
+    "skylight_upper": 5,
+    "skylight_power": 0.1,
+    "environment_skycolor_x": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_minus_x": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_z": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_minus_z": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_up": [
+     1,
+     1,
+     1
+    ],
+    "environment_skycolor_down": [
+     1,
+     1,
+     1
+    ],
+    "sun_tint": [
+     0,
+     0,
+     0
+    ],
+    "clouds_color": [
+     47.4551,
+     47.4551,
+     47.4551
+    ],
+    "clouds_u_tile": 1,
+    "clouds_fog_power": 2,
+    "clouds_fog_up_limit": 0.5
+   }
+  }
+ ]
+}

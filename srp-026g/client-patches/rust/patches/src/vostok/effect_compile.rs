@@ -24,6 +24,68 @@ pub struct CompilerId(NonZeroU32);
 
 impl CompilerId {}
 
+/// A compiler between an effect's end and its second end: compiling the
+/// twins `T` names (patches 130 and 162: an effect compiles its techniques
+/// again, with a name changed, after its own).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Round<T> {
+    compiler: CompilerId,
+    twins: T,
+}
+
+/// What a compile does at its end.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum End {
+    /// Compile the twins: back to the techniques' start.
+    Twins,
+    /// Return, the twins compiled.
+    Return,
+}
+
+/// Compiles at once: one per resource thread at most; past this many the
+/// game stops (a round lost would leave an effect without its twin).
+pub const ROUNDS: usize = 64;
+
+/// The compilers compiling twins.
+pub struct Rounds<T>([Option<Round<T>>; ROUNDS]);
+
+impl<T: Copy + Eq + core::fmt::Debug> Default for Rounds<T> {
+    fn default() -> Rounds<T> {
+        Rounds::new()
+    }
+}
+
+impl<T: Copy + Eq + core::fmt::Debug> Rounds<T> {
+    pub const fn new() -> Rounds<T> {
+        Rounds([None; ROUNDS])
+    }
+
+    fn find(&self, compiler: CompilerId) -> Option<(usize, Round<T>)> {
+        self.0.iter().enumerate().find_map(|(i, slot)| slot.filter(|round| round.compiler == compiler).map(|round| (i, round)))
+    }
+
+    /// The compile of `twins`'s effect by `compiler` is at its end.
+    pub fn end(&mut self, compiler: CompilerId, twins: T) -> End {
+        match self.find(compiler) {
+            None => {
+                let free = self.0.iter_mut().find(|slot| slot.is_none()).expect("fewer compiles at once than ROUNDS");
+                *free = Some(Round { compiler, twins });
+                End::Twins
+            }
+            Some((i, round)) => {
+                assert_eq!(round.twins, twins, "a compiler compiles one effect at a time");
+                self.0[i] = None;
+                End::Return
+            }
+        }
+    }
+
+    /// The twins `compiler` compiles now, if any.
+    pub fn twins(&self, compiler: CompilerId) -> Option<T> {
+        self.find(compiler).map(|(_, round)| round.twins)
+    }
+}
+
 /// The compile sites whose EBX is the compiler.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CompileSite {
@@ -37,11 +99,53 @@ pub enum CompileSite {
     RainDropTexture,
     /// `water.normal_texture`: the forward water's t_normal_map.
     WaterTexture,
+    /// `scattering.compiled`: effect_atmospheric_scattering::compile's epilogue.
+    ScatteringEnd,
+    /// `scattering.tables_pass`: its technique 0's begin_pass.
+    ScatteringTablesPass,
+    /// `scattering.sky_pass`: its technique 1's begin_pass.
+    ScatteringSkyPass,
+    /// `post_blend_<ab>.compiled`: effect_complex_post_process_blend<a,b>::compile's epilogue.
+    PostBlend00End,
+    PostBlend10End,
+    PostBlend11End,
+    /// `post_blend_<ab>.pass`: its one technique's begin_pass.
+    PostBlend00Pass,
+    PostBlend10Pass,
+    PostBlend11Pass,
+    /// `skylight.compiled`: effect_skylight::compile's epilogue.
+    SkylightEnd,
+    /// `skylight.pass_<n>`: its technique n's begin_pass.
+    SkylightPass0,
+    SkylightPass1,
+    /// `clouds_<ab>.compiled`: effect_atmosphere_clouds<a,b>::compile's ret.
+    CloudsEnd(CloudEffect),
+    /// `clouds_<ab>.pass_<n>`: its technique n's begin_pass.
+    CloudsPass(CloudEffect, CloudPass),
+}
+
+/// effect_atmosphere_clouds's four instances, `<a,b>`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloudEffect {
+    C00,
+    C10,
+    C01,
+    C11,
+}
+
+/// Its two cloud techniques (the third lights them).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloudPass {
+    /// Technique 0: alpha blended.
+    AlphaBlend,
+    /// Technique 1: modulating.
+    Modulate,
 }
 
 fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
-    // SAFETY: the context is the site's own; EBX is the compile's
-    // effect_compiler there (each compile loads it from its first argument,
+    // SAFETY: the context is the site's own; EBX (ESI in the post blends'
+    // compiles; at a cloud compile's ret its first argument, ESP+4) is the
+    // compile's effect_compiler there (each compile loads it from its first argument,
     // 0x1CE10A, 0x1D3B9A), alive while its compile runs.
     unsafe {
         match site {
@@ -50,6 +154,35 @@ fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
             CompileSite::RainEnd => raw::site::rain_compiled::compiler(ctx),
             CompileSite::RainDropTexture => raw::site::rain_drop_texture::compiler(ctx),
             CompileSite::WaterTexture => raw::site::water_normal_texture::compiler(ctx),
+            CompileSite::ScatteringEnd => raw::site::scattering_compiled::compiler(ctx),
+            CompileSite::ScatteringTablesPass => raw::site::scattering_tables_pass::compiler(ctx),
+            CompileSite::ScatteringSkyPass => raw::site::scattering_sky_pass::compiler(ctx),
+            CompileSite::PostBlend00End => raw::site::post_blend_00_compiled::compiler(ctx),
+            CompileSite::PostBlend10End => raw::site::post_blend_10_compiled::compiler(ctx),
+            CompileSite::PostBlend11End => raw::site::post_blend_11_compiled::compiler(ctx),
+            CompileSite::PostBlend00Pass => raw::site::post_blend_00_pass::compiler(ctx),
+            CompileSite::PostBlend10Pass => raw::site::post_blend_10_pass::compiler(ctx),
+            CompileSite::PostBlend11Pass => raw::site::post_blend_11_pass::compiler(ctx),
+            CompileSite::SkylightEnd => raw::site::skylight_compiled::compiler(ctx),
+            CompileSite::SkylightPass0 => raw::site::skylight_pass_0::compiler(ctx),
+            CompileSite::SkylightPass1 => raw::site::skylight_pass_1::compiler(ctx),
+            CompileSite::CloudsEnd(effect) => match effect {
+                CloudEffect::C00 => raw::site::clouds_00_compiled::frame(ctx),
+                CloudEffect::C10 => raw::site::clouds_10_compiled::frame(ctx),
+                CloudEffect::C01 => raw::site::clouds_01_compiled::frame(ctx),
+                CloudEffect::C11 => raw::site::clouds_11_compiled::frame(ctx),
+            }
+            .and_then(|frame| frame.compiler()),
+            CompileSite::CloudsPass(effect, pass) => match (effect, pass) {
+                (CloudEffect::C00, CloudPass::AlphaBlend) => raw::site::clouds_00_pass_0::compiler(ctx),
+                (CloudEffect::C00, CloudPass::Modulate) => raw::site::clouds_00_pass_1::compiler(ctx),
+                (CloudEffect::C10, CloudPass::AlphaBlend) => raw::site::clouds_10_pass_0::compiler(ctx),
+                (CloudEffect::C10, CloudPass::Modulate) => raw::site::clouds_10_pass_1::compiler(ctx),
+                (CloudEffect::C01, CloudPass::AlphaBlend) => raw::site::clouds_01_pass_0::compiler(ctx),
+                (CloudEffect::C01, CloudPass::Modulate) => raw::site::clouds_01_pass_1::compiler(ctx),
+                (CloudEffect::C11, CloudPass::AlphaBlend) => raw::site::clouds_11_pass_0::compiler(ctx),
+                (CloudEffect::C11, CloudPass::Modulate) => raw::site::clouds_11_pass_1::compiler(ctx),
+            },
         }
     }
     .expect("the compile's compiler")
@@ -85,13 +218,56 @@ pub fn enter_rain_technique(ctx: &mut Context<'_>) {
     ctx.set_reg(Reg::Esi, 0);
 }
 
-/// Makes `name` the pixel shader of the begin_pass at `wet_surface.begin_pass`
-/// (its pushed argument; the VS and the configuration stay).
-pub fn set_wet_surface_pixel_shader(ctx: &Context<'_>, name: &'static CStr) {
+/// The begin_pass sites a patch names its own pixel shader at: each is
+/// while the pass's arguments are pushed, ESP the PS name's slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PassSite {
+    /// `wet_surface.begin_pass`: effect_wet_surface's technique 0.
+    WetSurface,
+    /// `scattering.tables_pass`: effect_atmospheric_scattering's technique 0.
+    ScatteringTables,
+    /// `scattering.sky_pass`: its technique 1.
+    ScatteringSky,
+    /// `post_blend_<ab>.pass`: effect_complex_post_process_blend<a,b>'s technique.
+    PostBlend00,
+    PostBlend10,
+    PostBlend11,
+    /// `skylight.pass_<n>`: effect_skylight's technique n.
+    Skylight0,
+    Skylight1,
+    /// `clouds_<ab>.pass_<n>`: effect_atmosphere_clouds<a,b>'s technique n.
+    Clouds(CloudEffect, CloudPass),
+}
+
+/// Makes `name` the pixel shader of the begin_pass at `site` (its pushed
+/// argument; the VS and the configuration stay).
+pub fn set_pixel_shader(ctx: &Context<'_>, site: PassSite, name: &'static CStr) {
     // SAFETY: the site's ESP: the PS name begin_pass's caller pushed (its
     // third argument once the gs name and the compiler follow), which only
     // begin_pass reads.
-    unsafe { raw::site::wet_surface_begin_pass::frame(ctx).expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast()) }
+    unsafe {
+        let frame = match site {
+            PassSite::WetSurface => raw::site::wet_surface_begin_pass::frame(ctx),
+            PassSite::ScatteringTables => raw::site::scattering_tables_pass::frame(ctx),
+            PassSite::ScatteringSky => raw::site::scattering_sky_pass::frame(ctx),
+            PassSite::PostBlend00 => raw::site::post_blend_00_pass::frame(ctx),
+            PassSite::PostBlend10 => raw::site::post_blend_10_pass::frame(ctx),
+            PassSite::PostBlend11 => raw::site::post_blend_11_pass::frame(ctx),
+            PassSite::Skylight0 => raw::site::skylight_pass_0::frame(ctx),
+            PassSite::Skylight1 => raw::site::skylight_pass_1::frame(ctx),
+            PassSite::Clouds(effect, pass) => match (effect, pass) {
+                (CloudEffect::C00, CloudPass::AlphaBlend) => raw::site::clouds_00_pass_0::frame(ctx),
+                (CloudEffect::C00, CloudPass::Modulate) => raw::site::clouds_00_pass_1::frame(ctx),
+                (CloudEffect::C10, CloudPass::AlphaBlend) => raw::site::clouds_10_pass_0::frame(ctx),
+                (CloudEffect::C10, CloudPass::Modulate) => raw::site::clouds_10_pass_1::frame(ctx),
+                (CloudEffect::C01, CloudPass::AlphaBlend) => raw::site::clouds_01_pass_0::frame(ctx),
+                (CloudEffect::C01, CloudPass::Modulate) => raw::site::clouds_01_pass_1::frame(ctx),
+                (CloudEffect::C11, CloudPass::AlphaBlend) => raw::site::clouds_11_pass_0::frame(ctx),
+                (CloudEffect::C11, CloudPass::Modulate) => raw::site::clouds_11_pass_1::frame(ctx),
+            },
+        };
+        frame.expect("the site's ESP").set_pixel_shader(name.as_ptr().cast_mut().cast())
+    }
 }
 
 /// The set_texture blocks a patch binds its own texture at instead: each
@@ -141,6 +317,11 @@ impl VertexInput {
     pub fn parse(byte: u8) -> VertexInput {
         VertexInput(byte & 0x3F)
     }
+
+    /// The type's number (CONFIG_VERTEX_INPUT_TYPE).
+    pub fn number(self) -> u8 {
+        self.0
+    }
 }
 
 /// A material effect's pass at compile_begin's begin_pass
@@ -187,6 +368,21 @@ impl<'c> MaterialPass<'c> {
     pub fn set_vertex_shader(&mut self, name: &'static CStr) {
         // SAFETY: compile_begin's own argument slot (see `at`).
         unsafe { self.frame.set_vertex_shader(name.as_ptr().cast_mut().cast()) }
+    }
+
+    /// The PS family name the pass is about to begin with.
+    pub fn pixel_shader(&self) -> Option<&'c CStr> {
+        // SAFETY: the name compile_begin pushed for begin_pass, its second
+        // argument (a C string of the exe's, or one of ours).
+        unsafe { super::ui::c_string(self.frame.pixel_shader(), 128) }
+    }
+
+    /// Makes `name` the PS family of this pass (the pushed argument
+    /// begin_pass reads; compile_begin's own slot stays).
+    pub fn set_pixel_shader(&mut self, name: &'static CStr) {
+        // SAFETY: the pushed argument at the site's ESP (see `at`), read only
+        // by begin_pass.
+        unsafe { self.frame.set_pixel_shader(name.as_ptr().cast_mut().cast()) }
     }
 }
 

@@ -909,3 +909,21 @@ extern engine_global_unlock
 ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_set_texture
+; unsigned char engine_apply_effect_pass(struct res_effect *effect)
+; 0x3d7230 vostok::render::res_effect::apply_pass: effect EAX; pops 0; AL
+extern engine_apply_effect_pass
+; void engine_set_ps_constant(struct backend *backend, struct shader_constant_host *host, const float *data)
+; 0x132a90 vostok::render::backend::set_ps_constant: backend EDI, host EAX, data ESP+4; pops 4
+extern engine_set_ps_constant
+; void engine_set_vs_constant(struct backend *backend, struct shader_constant_host *host, const float *data)
+; 0x14ae40 vostok::render::backend::set_vs_constant: backend ESI, host ESP+4, data EAX; pops 4
+extern engine_set_vs_constant
+; void engine_render_target(struct renderer_context *context, unsigned int index, void **storage)
+; 0x11c1d0 vostok::render::renderer_context::get_rt: context ESP+4, index ECX, storage EAX; pops 4
+extern engine_render_target
+; void engine_fill_atmosphere(struct stage_atmosphere *stage, void *primary, void *secondary, unsigned int flag)
+; 0x1a3690 vostok::render::stage_atmosphere::fill_surfaces: stage ESP+4, primary ESP+8, secondary ESP+12, flag ESP+16; pops 16
+extern engine_fill_atmosphere
+; float *engine_sun_direction(struct environment_properties *environment, float *output)
+; 0x34e020 vostok::render::environment_sun_direction: environment EAX, output ESI; pops 0; EAX
+extern engine_sun_direction

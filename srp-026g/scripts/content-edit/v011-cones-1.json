@@ -1,0 +1,17 @@
+{
+ "_about": "The light cones under Vostok v0.11's lamps drawn as 0.11e draws them (exe patch 162, v011w_render): srp_cone_v011w in material/forward/effect of the two ported cone materials, the day's (ported/v011e, maps v011e_level_03) and the evening's and rain's (ported/v011w, pack v011e-radar-weather). A marked material's forward_volume_cone_base passes begin with 0.11e's program (pack v011e-radar-fog: alpha with its sphere falloff and distance fade, where 0.26g's program spreads a wide triangle), the material's opacity as 0.11e authors it (constant_transparency 1). Native materials have no key.",
+ "add_value": [
+  {
+   "files": [
+    "material_instances/ported/v011e/fx/cone_volume_material.material",
+    "material_instances/ported/v011w/fx/cone_volume_material.material"
+   ],
+   "table": "material/forward/effect",
+   "key": "srp_cone_v011w",
+   "value": {
+    "value": true,
+    "is_model_parameter": false
+   }
+  }
+ ]
+}

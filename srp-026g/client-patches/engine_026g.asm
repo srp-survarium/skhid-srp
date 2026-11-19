@@ -271,6 +271,12 @@ global engine_close_clipboard
 global engine_global_lock
 global engine_global_unlock
 global engine_set_texture
+global engine_apply_effect_pass
+global engine_set_ps_constant
+global engine_set_vs_constant
+global engine_render_target
+global engine_fill_atmosphere
+global engine_sun_direction
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -3187,6 +3193,107 @@ engine_text_edit_delete_selection:
     push edi
     mov esi, [esp + 20]   ; edit
     call 0x3486a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_apply_effect_pass:
+    ; 0x3d7230 vostok::render::res_effect::apply_pass: effect EAX; pops 0; AL
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; effect
+    call 0x3d7230
+    movzx eax, al
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_ps_constant:
+    ; 0x132a90 vostok::render::backend::set_ps_constant: backend EDI, host EAX, data ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 28]   ; data -> 4
+    mov edi, [esp + 24]   ; backend
+    mov eax, [esp + 28]   ; host
+    call 0x132a90
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_set_vs_constant:
+    ; 0x14ae40 vostok::render::backend::set_vs_constant: backend ESI, host ESP+4, data EAX; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; host -> 4
+    mov esi, [esp + 24]   ; backend
+    mov eax, [esp + 32]   ; data
+    call 0x14ae40
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_render_target:
+    ; 0x11c1d0 vostok::render::renderer_context::get_rt: context ESP+4, index ECX, storage EAX; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 20]   ; context -> 4
+    mov ecx, [esp + 28]   ; index
+    mov eax, [esp + 32]   ; storage
+    call 0x11c1d0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_fill_atmosphere:
+    ; 0x1a3690 vostok::render::stage_atmosphere::fill_surfaces: stage ESP+4, primary ESP+8, secondary ESP+12, flag ESP+16; pops 16
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 32]   ; flag -> 16
+    push dword [esp + 32]   ; secondary -> 12
+    push dword [esp + 32]   ; primary -> 8
+    push dword [esp + 32]   ; stage -> 4
+    call 0x1a3690
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_sun_direction:
+    ; 0x34e020 vostok::render::environment_sun_direction: environment EAX, output ESI; pops 0; EAX
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov eax, [esp + 20]   ; environment
+    mov esi, [esp + 24]   ; output
+    call 0x34e020
     pop edi
     pop esi
     pop ebx

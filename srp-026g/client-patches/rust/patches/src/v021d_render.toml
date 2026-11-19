@@ -51,6 +51,7 @@ handler = "on_drops_apply"
 [[hook]]
 site = "material.begin_pass"
 handler = "on_material_pass"
+order = 1
 [[hook]]
 site = "water.normal_texture"
 handler = "on_water_texture"
@@ -59,3 +60,4 @@ handler = "on_water_texture"
 [[hook]]
 site = "atmosphere.god_rays"
 handler = "on_god_rays"
+order = 1
