@@ -372,6 +372,8 @@ fn choke_query(cx: &Ctx, job: Option<&HeldLine>, choke: Vec3) -> SpotQuery {
         prefer_high: num("prefer_high"),
         up_m: num("up_m"),
         down_m: if job.is_some() && threat.job_spot_levels { crate::v026g::bots::threat::JOB_LEVELS_M } else { 0.0 },
+        // [fix-team D5 `threat.job_spot_column`] A job's pin spots on the ground round him, not only at his height.
+        column_m: if job.is_some() && threat.job_spot_column { crate::v026g::bots::threat::JOB_LEVELS_M } else { 0.0 },
         side: cx.bot.side,
         samples: num("samples") as usize,
         exposure: cx.tuning.cover.hold_exposure,

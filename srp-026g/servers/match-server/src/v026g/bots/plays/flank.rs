@@ -593,10 +593,13 @@ fn flank_query(cx: &Ctx, him: Vec3, centre: Vec3, job: Option<&crate::v026g::bot
     let (lo, hi) = (num("spot_min_m"), num("spot_max_m"));
     let threat = &cx.tuning.threat;
     let levels = if job.is_some() && threat.job_spot_levels { crate::v026g::bots::threat::JOB_LEVELS_M } else { 0.0 };
+    // [fix-team D5 `threat.job_spot_column`] A job's flank spots on the ground round him, not only at his height.
+    let column = if job.is_some() && threat.job_spot_column { crate::v026g::bots::threat::JOB_LEVELS_M } else { 0.0 };
     SpotQuery {
         sight_to: Some(him),
         up_m: levels,
         down_m: levels,
+        column_m: column,
         side: cx.bot.side,
         samples: num("samples") as usize / 2,
         ..SpotQuery::ring(centre, 0.0, (hi - lo) * 0.5 + 2.0)

@@ -199,6 +199,7 @@
     "spawn_exit_breach": false,
     "job_role_offer": false,
     "job_role_needs_spot": false,
+    "job_spot_column": false,
     "support": null,
     "support_attackers": null,
     "job_strongest_first": false,
