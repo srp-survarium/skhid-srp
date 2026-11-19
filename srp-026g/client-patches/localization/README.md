@@ -3,7 +3,7 @@
 All eleven native game dictionaries live here as UTF-8 TSVs: English, Ukrainian,
 Russian, German, Polish, Serbian Latin, Czech, Hungarian, Finnish, Belarusian
 (Cyrillic, standard orthography) and Croatian. Every file
-has the same 3,154 keys, sorted by full key name. These are the build sources,
+has the same 3,054 keys, sorted by full key name. These are the build sources,
 including unchanged weapon names and key labels; there are no separate keep lists
 or per-language dictionary patches. The engine's `original` dictionary is built
 from `russian.tsv`.

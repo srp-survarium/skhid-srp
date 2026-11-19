@@ -93,7 +93,7 @@ ITEMS = [
      'names': {'english': 'Flag of Kosovo', 'german': 'Flagge des Kosovo', 'original': 'Флаг Косово',
                'polish': 'Flaga Kosowa', 'russian': 'Флаг Косово', 'ukrainian': 'Прапор Косова'}},
     {'dict_id': 1895, 'rc': '5_43', 'kind': 'flag', 'icon': (3, 26), 'donor': '5_42',
-     'names': {'english': 'Coat of arms of Kosovo', 'german': 'Kosovarisches Wappen', 'original': 'Герб Косово',
+     'names': {'english': 'Coat of arms of Kosovo', 'german': 'Wappen des Kosovo', 'original': 'Герб Косово',
                'polish': 'Godło Kosowa', 'russian': 'Герб Косово', 'ukrainian': 'Герб Косова'}},
 ]
 # As 0.26g's and 0.69d's flags: premium, never dropped; content-edit/items.tsv prices them in silver

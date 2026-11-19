@@ -18,9 +18,12 @@ pack is `kosovo-decals@1` of `release/content.tsv`. srp needs no code change.
 - Names: the next free after 0.69d's (none in 0.26g, 0.69d or the released patches); ids the next
   free after 1893. Icons: [4, 42] beside 0.26g's 41 flags, [3, 26] after the badges (row 5, the
   coats of arms, is full).
-- Texts: English Flag of Kosovo / Coat of arms of Kosovo, German Flagge des Kosovo / Kosovarisches
-  Wappen, Russian (and `original`) Флаг Косово / Герб Косово, Polish Flaga Kosowa / Godło Kosowa,
-  Ukrainian Прапор Косова / Герб Косова.
+- Texts: English Flag of Kosovo / Coat of arms of Kosovo, German Flagge des Kosovo / Wappen des Kosovo,
+  Russian (and `original`) Флаг Косово / Герб Косово, Polish Flaga Kosowa / Godło Kosowa,
+  Ukrainian Прапор Косова / Герб Косова (the pack's six); in the 11 languages'
+  `client-patches/localization/*.tsv` also Belarusian Сцяг Косава / Герб Косава, Czech Vlajka Kosova /
+  Znak Kosova, Croatian and Serbian Zastava Kosova / Grb Kosova, Finnish Kosovon lippu / Kosovon
+  vaakuna, Hungarian Koszovó zászlaja / Koszovó címere.
 
 ## The source
 
