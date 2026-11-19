@@ -136,3 +136,4 @@ pub mod lobby_seeding;
 // patch 159: the console's output scrolls
 pub mod console_scroll;
 pub mod v021d_render;
+pub mod faces;

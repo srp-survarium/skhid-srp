@@ -3523,3 +3523,5 @@ va	status	ref_021d	name
 0x00132a90	inferred-medium		vostok::render::backend::set_ps_constant
 0x0014e800	inferred-medium		vostok::math::normalize_safe
 0x00133f50	inferred-medium		vostok::render::stage_rain::rain_rotation_basis
+0x00129bb0	inferred-medium		vostok::buffer_string::assign_config_text
+0x00204500	inferred-medium		survarium::profile_skin_visual_cook::model_folder

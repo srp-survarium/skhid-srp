@@ -1,0 +1,35 @@
+# Patch 123: every player drawn with srp's face of the account
+# (docs/notes/face-choice.md). Only the decisions: which sites, and the
+# handlers. The sites are sites_026g.tsv's; the logic is faces.rs. The
+# options reads are patches 154's, 65's, 86's, 83's, 88's and 142's too:
+# this patch's hooks run after theirs (order 5). The match scene's end is
+# patch 66's too (voice.toml, order 1).
+name = "faces"
+patch = 123
+
+[[hook]]
+site = "skin_cook.head"
+handler = "on_head"
+
+[[hook]]
+site = "lobby_client.own_account"
+handler = "on_own_account"
+
+[[hook]]
+site = "lobby_client.squad_member"
+handler = "on_squad_member"
+
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 5
+
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 5
+
+[[hook]]
+site = "game_world.deactivate"
+handler = "on_world_left"
+order = 2

@@ -80,13 +80,20 @@ marked [pick] is a worker's choice the owner may change.
 
 ## Client (exe patch)
 
-- The faces are known by the player's name (the profile's +8h): the lobby's (own `87`, squad
-  `88`) and the last match's or replay's options (`E4`, chunk 1). The lobby's are asked first.
-  A name not known: face 0.
+- A match's or a replay's players are drawn by its options (`E4`, chunk 1): a profile the cook is
+  given that is a place of the options shown has that place's face, whatever the lobby says of
+  its name. So every game draws a player alike, and a replay as it was recorded. The options'
+  faces are kept from their read until the match's scene is left (game_world::on_deactivate).
+- Any other profile is the lobby's (its own character, the squad's, a results screen's player),
+  drawn by the lobby's messages by the player's name (the profile's +8h): the account's own
+  (`87`), a squad member's (`88`; the eight told last). A name neither says: face 0.
 - The cook (`profile_skin_visual_cook::on_configs_loaded` 0x204560) makes the head's records in
-  Rust (the native block 0x205659..0x2056F0 replaced): `heads[face]`, its variant by the worn
-  helmet (tag 5) and mask (tag 6) records, its base model and part, and a record for each
-  additional model (tag 0); `_f<face>` is added to the skin's name for a face other than 0.
+  Rust (the native block 0x205659..0x2056F0 replaced, patch 123): `heads[face]`, its variant by
+  the worn helmet (tag 5) and mask (tag 6) records, its base model, part and material, and a
+  record for each additional model (tag 0, hidden in first person with the head); `f<face>_` is
+  added to the skin's name for a face other than 0.
+- A late joiner is face 0 to the players already in (its late-join options carry no srp block),
+  but to its squad. [open]
 - Without `heads` in the data the native head is made, as today.
 
 ## Lobby

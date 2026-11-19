@@ -655,6 +655,14 @@ Patches:
   of a material with srp_grass_v021d its 0.21 vertex shader family
   (0x1CD1B6), the forward water of one with srp_water_v021d 0.21's wave
   normals (0x1E603C). Nothing a match computes;
+- every player drawn with srp's face of the account (patch 123, faces;
+  docs/notes/client_patch.md section 3.87): the faces srp gives, the
+  account's and its squad's by name (0x87's and 0x88's byte), a match's or
+  replay's by place (the options' entry 5) until its scene is left
+  (0x1F9520); profile_skin_visual_cook's
+  head (0x205662) made from body_parts.heads[face], its mask or helmet
+  variant by the kit's models, its hair, `f<face>_` in the skin's name.
+  Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The

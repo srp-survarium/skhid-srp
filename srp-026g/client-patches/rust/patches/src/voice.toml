@@ -26,6 +26,7 @@ handler = "on_finish"
 [[hook]]
 site = "game_world.deactivate"
 handler = "on_deactivate"
+order = 1                           # before faces.toml's end of the match's faces
 
 [[hook]]
 site = "game_world.after_move"
