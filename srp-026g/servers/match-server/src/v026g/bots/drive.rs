@@ -3394,8 +3394,19 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     // where it came down off [`body::PLANNED_LANDING_M`] of the landing, and the guard braked the route's own drop: the route lost it
     // and planned again (7 of 20 drops given up, fix-builder's diagnostic match of 2026-11-19, level_02; on its edge strip a drop
     // 0.71 m across braked 30 ticks). Only on the route's line (within [`body::RECKONING_M`] of it).
-    let reach = me.velocity[0].hypot(me.velocity[1]) * kin::TICK_S * (tuning.kin.blend_ticks + bot.motor.feel.lip_guard_ticks + 2) as f32
-        + body::RECKONING_M;
+    // The reach is the stop forecast's own travel: it holds the keys `lip_guard_ticks`, lets go over the blend and plays 2 ticks more
+    // (`body::stays_up`), at the level 1.0 of `lip_guard_with`'s `Stop`, so never faster than the body moves now or the client's cap
+    // on those keys (`max_speed` 0x2DC010, `mapdata::controller::speed::cap`), and looks `RECKONING_M` further. A body at rest on the
+    // level_02 strip's bar 0.71 m before the match's own gap drop (11.20, 19.40, 37.72) has no speed yet, and its forecast walks
+    // over that lip: a reach of the speed now (0.30 m) braked it 4 ticks.
+    let gait = if kin::Kinematics::sprint_state(decision.keys) {
+        mapdata::controller::speed::Gait::Sprint
+    } else {
+        use mapdata::controller::speed::{Gait, Heading, Stance};
+        Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false }
+    };
+    let top = me.velocity[0].hypot(me.velocity[1]).max(mapdata::controller::speed::cap(gait, 1.0));
+    let reach = top * kin::TICK_S * (tuning.kin.blend_ticks + bot.motor.feel.lip_guard_ticks + 2) as f32 + body::RECKONING_M;
     let (planned, own_walk_off) = bot.route.as_mut().map_or_else(
         || (Vec::new(), false),
         |(route, _)| {
