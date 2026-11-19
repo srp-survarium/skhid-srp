@@ -600,6 +600,7 @@ mod tests {
     #[test]
     fn a_pushing_group_counts_the_guard_net_of_its_own() {
         let mut s = raid(2);
+        s.tuning.mods.push = Some(crate::v026g::bots::tuning::PushRule::default());
         s.time_left(100.0);
         for (p, x) in [(5, 66.0), (7, 70.0), (9, 68.0)] {
             s.enemy(p, 1, Vec3::new(x, 0.0, 36.0), Some(Source::Heard));
