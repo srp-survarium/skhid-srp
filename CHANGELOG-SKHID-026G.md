@@ -9,6 +9,18 @@ release that made it what it is now.
 
 ---
 
+## 19 Nov, 14:50 — TODO: the owner's words (update required)
+
+<!-- Revision 67 (026g-rev67), released 2026-11-19 14:50 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2178 Chemical Plant v0.21: day, rain and evening
+- TODO: #2213 London in rain and evening: maps 276-281 (pack london-weathers@3)
+- TODO: #2224 London's probes as 0.31a2: reflection-only windows, specular 1.2, box projection per probe, authored shapes
+- TODO: #2235 London's cupboards wood-brown, as in 0.31a2 (pack london-textures@1)
+- TODO: #2236 London drawn with its own build's tone curve (three-maps-021-lighting@9)
+- TODO: #2210 Relay: peers are identified by address and route
+- TODO: #2253 Content: Flag of Kosovo and Coat of arms of Kosovo decals
+
 ## 18 Nov, 19:54 — TODO: the owner's words (update required)
 
 <!-- Revision 66 (026g-rev66), released 2026-11-18 19:54 UTC. To be worded for players; what it shipped: -->
