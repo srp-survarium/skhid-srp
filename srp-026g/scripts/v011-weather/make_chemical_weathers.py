@@ -35,6 +35,12 @@ WEATHERS = {
 }
 # exe patch 162's key: the weather's inscatter distance in metres (v011w-renderer-1.json, Vostok's own)
 MARKER = {'evening': 200, 'rain': 300}
+# Where Chemical's layout asks for its own value. Vostok's evening sun stands at azimuth 253.25, set for
+# Vostok; Chemical Plant's own authored evening (0.21d's, pack maps-021d-chemical-weathers@1, evening_2)
+# puts it at 74.86, and the map's lit facades and its sun views face that way. The cloud texture turns
+# with the sun so that its painted glow stays on it (Vostok's -14.2 plus the same 178.39). Vostok's rain
+# sun (219.68) is within 3 degrees of Chemical's own (222.2): kept.
+SUN = {'evening': (74.86, -14.2 + (74.86 - 253.2528))}
 
 
 def entry_values(buf, entry):
@@ -116,6 +122,11 @@ def main():
             out = f'projects/{folder}/{weather}_{suffix}/client_project'
             src = bytearray((pack / 'files/projects' / f'{source}_{suffix}' / 'client_project').read_bytes())
             _, _, want = environment(src)
+            if weather in SUN:
+                azimuth, clouds = SUN[weather]
+                clouds = (clouds + 180) % 360 - 180
+                want['properties/sun_position_azimut'] = (ce.T_FLOAT, azimuth)
+                want['properties/sky_clouds_rotation'] = (ce.T_FLOAT, clouds)
             edits['copy'].append({'files': path, 'from': f'projects/v011e_level_04/{day}/',
                                   'to': f'projects/{folder}/{weather}_{suffix}/'})
             base = f'client_objects[{index}]/'

@@ -162,7 +162,7 @@
    "file": "projects/v011w_level_04_evn/evening_2/client_project",
    "path": "client_objects[98]/properties/sky_clouds_rotation",
    "from": 0.0,
-   "to": -14.199999809265137
+   "to": 167.4072
   },
   {
    "file": "projects/v011w_level_04_evn/evening_2/client_project",
@@ -192,7 +192,7 @@
    "file": "projects/v011w_level_04_evn/evening_2/client_project",
    "path": "client_objects[98]/properties/sun_position_azimut",
    "from": 243.82815551757812,
-   "to": 253.2528076171875
+   "to": 74.86
   },
   {
    "file": "projects/v011w_level_04_evn/evening_2/client_project",
@@ -500,7 +500,7 @@
    "file": "projects/v011w_level_04_evn/evening_4/client_project",
    "path": "client_objects[96]/properties/sky_clouds_rotation",
    "from": 0.0,
-   "to": -14.199999809265137
+   "to": 167.4072
   },
   {
    "file": "projects/v011w_level_04_evn/evening_4/client_project",
@@ -530,7 +530,7 @@
    "file": "projects/v011w_level_04_evn/evening_4/client_project",
    "path": "client_objects[96]/properties/sun_position_azimut",
    "from": 243.82815551757812,
-   "to": 253.2528076171875
+   "to": 74.86
   },
   {
    "file": "projects/v011w_level_04_evn/evening_4/client_project",
