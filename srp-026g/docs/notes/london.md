@@ -82,8 +82,10 @@ projects (rain and evening carry 0.31a2's 0.6 and 1.5 from pack london-weathers)
 `use_parallax_correction` (137 of London's 160 probes: every room probe and the ten window probes;
 not the 23 background-building and outdoor ones): the cubemap is read where the reflection ray leaves
 the probe's box, not along the ray from the probe's centre. Patch 14 dropped the field; 0.26g's box
-programs have every constant it needs and read along the ray. `london-probes@1` (resource-porter
-`probe_parallax`) gives the 16 box permutations, before their specular sample, a branch taken only on
+programs have every constant it needs and read along the ray. `london-probes@2` (resource-porter
+`probe_parallax`) gives the 8 smart box permutations, before their specular sample, a branch taken only on
 London's marked scenes (`mie_fog_base_height` 32909 day, 32929 evening, 32919 rain once rain carries it)
-that replaces the lookup direction with the box-projected one. On London it applies to all its box
-probes (no per-probe switch reaches the shader); other maps never take the branch.
+that replaces the lookup direction with the box-projected one. It reaches only the
+probes 0.31a2 projects: `london-probe-channel-1.json` gives those 137 probes smart attenuation, which no
+London probe has, and only the smart box programs carry the branch; on London's marked scenes they
+also draw the plain box falloff instead of the smart one. Other maps never take either branch.
