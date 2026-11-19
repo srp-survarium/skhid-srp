@@ -859,6 +859,9 @@ impl Aim {
 pub struct GridWay(u8);
 
 impl GridWay {
+    /// Every grid way, in `DIRS`'s order: for a caller outside the build (a motor's test) that needs a way of its own.
+    pub const ALL: [Self; 8] = [Self(0), Self(1), Self(2), Self(3), Self(4), Self(5), Self(6), Self(7)];
+
     /// The way `DIRS[d]`.
     pub(crate) fn of_dir(d: usize) -> Self {
         assert!(d < DIRS.len(), "a grid way: {d}");
@@ -2297,8 +2300,10 @@ mod tests {
     fn a_links_flown_way_is_its_press_line_and_reads_back() {
         assert_eq!(GridWay::from_nibble(0), Some(None));
         assert_eq!(GridWay::from_nibble(9), None);
+        assert_eq!(GridWay::ALL.len(), DIRS.len());
         for d in 0..DIRS.len() {
             let w = GridWay::of_dir(d);
+            assert_eq!(GridWay::ALL[d], w);
             assert_eq!(GridWay::from_nibble(GridWay::nibble(Some(w))), Some(Some(w)));
             let (x, z) = w.unit();
             let (di, dk) = DIRS[d];
