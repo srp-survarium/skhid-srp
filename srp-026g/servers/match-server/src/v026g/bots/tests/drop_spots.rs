@@ -48,7 +48,10 @@ const SPOTS: [Spot; 2] = [
         start_m: 3.0,
     },
     // The match's own link of the strip, exactly (a gap drop). No route planned from the strip's top 3-8 m off takes it (they take
-    // the strip's neighbouring walk-offs), and the plan from the link's take-off node does: its starts begin 0.5 m off.
+    // the strip's neighbouring walk-offs), and the plan from the link's take-off node does: its starts begin 0.5 m off. The exe makes
+    // it as the port walks it from the bar's top 0.7 m off (down the step to the take-off (11.20, 19.40, 37.72), turned to the landing
+    // (9.95, 16.20, 38.97) over the client's 6-tick blend, forward held through the fall): down 0.06 m from that landing
+    // (`bar_exact_exe_v1` on the game's objects, 2026-11-19).
     Spot {
         name: "level_02 edge strip, the match's link (11.20, 19.40, 37.97) -> (9.95, 16.18, 39.22)",
         project: "level_02/day_2",
