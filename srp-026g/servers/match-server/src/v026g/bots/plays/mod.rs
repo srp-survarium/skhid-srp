@@ -1205,8 +1205,15 @@ impl Ctx<'_> {
             return zero.map_or("zero score".to_string(), |(i, v, _)| format!("zero {i:?} ({v:.2})"));
         }
         if kind == PlayKind::Crossfire {
+            // [fix-team D4] What took the choke's point: a held spot's line no longer held (its shooter died, it was seen
+            // empty, it faded; a Breach's spot unheld), or a man's place forgotten and its `commit.crossfire_point_s` over.
             if self.point_of(target).is_none() {
-                return "crossfire: the choke has no point (track forgotten)".to_string();
+                return match target {
+                    TargetRef::ThreatSpot(_) => "crossfire: the held spot ended (its line is no longer held)",
+                    TargetRef::Place(_) => "crossfire: the man's place is forgotten (crossfire_point_s over)",
+                    _ => "crossfire: the choke has no point",
+                }
+                .to_string();
             }
             if self.view.team(self.me.team).all(|p| p.place == self.me.place) {
                 return "crossfire: no teammate alive".to_string();

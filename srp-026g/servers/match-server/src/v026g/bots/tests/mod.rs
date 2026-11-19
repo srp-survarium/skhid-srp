@@ -75,6 +75,7 @@ mod flight_look;
 mod grid_cache;
 mod grid_digests;
 mod hump_deck;
+mod job_spot_stages;
 #[cfg(feature = "jump-test")]
 mod jump_pool;
 mod kits;

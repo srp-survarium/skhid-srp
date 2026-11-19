@@ -527,6 +527,17 @@ fn region_walks_to(regions: &Regions, goal: u32) -> Vec<f32> {
 /// At most this many of the enemy's route points are cast to for one spot's exposure.
 const EXPOSURE_POINTS: usize = 160;
 
+/// [fix-team D5] One sample of a spot query, as [`Tactics::spots_samples`] judges it.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug)]
+pub struct SpotSample {
+    pub stage: &'static str,
+    /// The floor judged (a stage of a floor).
+    pub at: Option<Vec3>,
+    /// A probe with no floor at the anchor's height: the nearest floor's height over the anchor in the probe's column.
+    pub column: Option<f32>,
+}
+
 /// What a spot is for.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SpotQuery {
@@ -557,6 +568,11 @@ pub struct SpotQuery {
     /// Also look at the floors of the storeys under the ring's, down to this many metres under `around` (0: none).
     /// Only with a `sight_to`, as `up_m`.
     pub down_m: f32,
+    /// [fix-team D5] A probe with no floor at the anchor's height (the grid's `locate`: 1.5 m under to 2 m over it) takes
+    /// its column's floor nearest that height within this many metres over or under it (0: none). The ground round a held
+    /// spot is not at the camper's height: of a job flank's samples round 135 real held spots on Rudnya, 51.5 % had no
+    /// floor at it and every one of them a floor within 8 m in its column.
+    pub column_m: f32,
     /// The bot's map side: the other side's spawn area is out.
     pub side: Option<i32>,
     /// Candidates sampled before the rays.
@@ -579,6 +595,7 @@ impl SpotQuery {
             prefer_high: 0.0,
             up_m: 0.0,
             down_m: 0.0,
+            column_m: 0.0,
             side: None,
             samples: 48,
             exposure: None,
@@ -2609,8 +2626,23 @@ impl Tactics {
     /// it within 30 m (`floor_off_height`) or none at all (`no_floor`).
     #[cfg(test)]
     pub fn spots_why(&self, query: &SpotQuery, time: u32, rng: &mut Rng) -> &'static str {
+        super::threat::most_failed(&self.spots_stages(query, time, rng))
+    }
+
+    /// [`Self::spots_why`]'s stage of each sample (a probe with no floor: one; a probe with floors: one a floor), in
+    /// the query's order: the first test of [`Self::spots`] that left it out, `other_filter` for one that passed them all.
+    #[cfg(test)]
+    pub fn spots_stages(&self, query: &SpotQuery, time: u32, rng: &mut Rng) -> Vec<&'static str> {
+        self.spots_samples(query, time, rng).into_iter().map(|s| s.stage).collect()
+    }
+
+    /// [fix-team D5] [`Self::spots_stages`] with each sample's floor (a stage of a floor) or, for a probe with no floor at the
+    /// anchor's height, the height over the anchor of the nearest floor in the probe's column (1 m round it; none: no floor
+    /// there at any height).
+    #[cfg(test)]
+    pub fn spots_samples(&self, query: &SpotQuery, time: u32, rng: &mut Rng) -> Vec<SpotSample> {
         let grid = &self.world.grid;
-        let mut fails: Vec<&'static str> = Vec::new();
+        let mut fails: Vec<SpotSample> = Vec::new();
         let mut by_walk: Option<Arc<WalkUp>> = None;
         for _ in 0..query.samples {
             let angle = rng.range(0.0, std::f32::consts::TAU);
@@ -2624,14 +2656,21 @@ impl Tactics {
                 self.storeys_under(probe, query.down_m, &mut nodes);
             }
             if nodes.is_empty() {
+                nodes.extend(self.column_floor(probe, query.column_m));
+            }
+            if nodes.is_empty() {
                 let off = grid.locate(Vec3::new(probe.x, probe.y + 1.0, probe.z), 30.0).is_some();
-                fails.push(if off { "floor_off_height" } else { "no_floor" });
+                let column = grid
+                    .floors_in([probe.x - 1.0, probe.z - 1.0, probe.x + 1.0, probe.z + 1.0])
+                    .map(|n| grid.position(n).y - probe.y)
+                    .min_by(|a, b| a.abs().total_cmp(&b.abs()));
+                fails.push(SpotSample { stage: if off { "floor_off_height" } else { "no_floor" }, at: None, column });
                 continue;
             }
             for node in nodes {
                 let at = grid.position(node);
                 let d = at.distance_xz(query.around);
-                fails.push(if d < query.min_m || d > query.max_m {
+                let stage = if d < query.min_m || d > query.max_m {
                     "off_ring"
                 } else if !self.walkable(node) {
                     "not_walkable"
@@ -2639,7 +2678,7 @@ impl Tactics {
                     "not_allowed"
                 } else if at.y > query.around.y + STOREY_FROM_M
                     && !by_walk
-                        .get_or_insert_with(|| self.walk_up_set(query.around, query.max_m + WALK_UP_MARGIN_M))
+                        .get_or_insert_with(|| self.walk_up_set(self.walk_up_anchor(query), query.max_m + WALK_UP_MARGIN_M))
                         .contains(node)
                 {
                     "storey_no_walk"
@@ -2647,10 +2686,11 @@ impl Tactics {
                     "no_sight"
                 } else {
                     "other_filter"
-                });
+                };
+                fails.push(SpotSample { stage, at: Some(at), column: None });
             }
         }
-        super::threat::most_failed(&fails)
+        fails
     }
 
     /// The best spots for `query`, best first, at most `n`.
@@ -2678,6 +2718,9 @@ impl Tactics {
             }
             if query.down_m > 0.0 && query.sight_to.is_some() {
                 self.storeys_under(probe, query.down_m, &mut nodes);
+            }
+            if nodes.is_empty() {
+                nodes.extend(self.column_floor(probe, query.column_m));
             }
             for node in nodes {
                 let at = grid.position(node);
@@ -2724,7 +2767,7 @@ impl Tactics {
             // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
             if spot.at.y > query.around.y + STOREY_FROM_M
                 && !by_walk
-                    .get_or_insert_with(|| self.walk_up_set(query.around, query.max_m + WALK_UP_MARGIN_M))
+                    .get_or_insert_with(|| self.walk_up_set(self.walk_up_anchor(query), query.max_m + WALK_UP_MARGIN_M))
                     .contains(spot.node)
             {
                 continue;
@@ -2936,6 +2979,39 @@ impl Tactics {
     /// nearest of each [`STOREY_BAND_M`] band within [`STOREY_RADIUS_M`] of
     /// the probe, one that a walk gets to and no pocket holds. Read from the
     /// grid's floors of the cells (no ray).
+    /// [fix-team D5] Where a query's walk up to a storey over its anchor starts ([`Self::walk_up_set`]): the anchor, or with
+    /// `column_m` the floor of its column nearest it (a flank's centre at the camper's height can lie in the air, where the
+    /// walk search finds no start and refused every floor over it).
+    fn walk_up_anchor(&self, query: &SpotQuery) -> Vec3 {
+        match self.column_floor(query.around, query.column_m) {
+            Some(node) if self.world.grid.locate(Vec3::new(query.around.x, query.around.y, query.around.z), LOCATE_M).is_none() => {
+                self.world.grid.position(node)
+            }
+            _ => query.around,
+        }
+    }
+
+    /// [fix-team D5] The floor in the probe's column (within the grid's cell of it, 1 m) nearest the probe's height, at most
+    /// `within_m` over or under it; none with `within_m` 0.
+    fn column_floor(&self, probe: Vec3, within_m: f32) -> Option<NodeId> {
+        if within_m <= 0.0 {
+            return None;
+        }
+        let grid = &self.world.grid;
+        grid.floors_in([probe.x - 1.0, probe.z - 1.0, probe.x + 1.0, probe.z + 1.0])
+            .filter(|&n| {
+                let at = grid.position(n);
+                at.distance_xz(probe) <= 1.0 && (at.y - probe.y).abs() <= within_m
+            })
+            .min_by(|&a, &b| {
+                let key = |n: NodeId| {
+                    let at = grid.position(n);
+                    ((at.y - probe.y).abs(), at.distance_xz(probe))
+                };
+                key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal)
+            })
+    }
+
     fn storeys_over(&self, probe: Vec3, up_m: f32, nodes: &mut Vec<NodeId>) {
         self.storeys_in(probe, probe.y + 2.0, probe.y + up_m, nodes);
     }
