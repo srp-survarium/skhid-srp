@@ -985,8 +985,17 @@ fn enemies_weighed(cx: &Ctx, at: Vec3, own: bool) -> Weighed {
     let seen_now = |t: &crate::v026g::bots::know::Track| {
         t.source == crate::v026g::bots::know::Source::Seen && cx.now <= t.time + SEEN_NOW_MS
     };
+    // [weigh fresh spots] A spot weighs by its distance only while it tells where he is: no fairer sensing of him came since
+    // (anything but a cheat's, `Track::time` past the spot's), and it is younger than a sprint out of the take's reach
+    // (`exposed_m` at `Kinematics::sprint`, 25 m at 4.96 m/s: 5.0 s). Past either it weighs as the count. In the four local
+    // test matches of 2026-11-19, 593 of 3,453 battery refusals for "enemies by it" rested on men more than 25 m off by then.
+    let fresh_ms = (exposed_m / cx.tuning.kin.sprint.max(0.1) * 1000.0) as u32;
+    let tells = |t: &crate::v026g::bots::know::Track, time: u32| {
+        cx.now <= time.saturating_add(fresh_ms)
+            && !(t.time > time && !matches!(t.source, crate::v026g::bots::know::Source::Cheat(_)))
+    };
     cx.memory.tracks().iter().fold(Weighed { sum: 0.0, held: false }, |w, t| {
-        match t.own.filter(|&(_, time)| cx.spot_lives(t.who, time)) {
+        match t.own.filter(|&(_, time)| cx.spot_lives(t.who, time) && tells(t, time)) {
             Some(_) if own && !seen_now(t) => Weighed { sum: w.sum + count(t), ..w },
             Some((spot, _))
                 if !cx.reloading(t.who, reload_ms)
@@ -6552,6 +6561,22 @@ mod tests {
             Some(TakeThreat { who: 1, by: ThreatBy::Sight }),
             "the mate's line through the cloud"
         );
+    }
+
+    /// [weigh fresh spots] A man heard 2 m from a battery holds it while his spot is fresh; once the spot is older than a
+    /// sprint out of the take's reach (`exposed_m` / `Kinematics::sprint`, 5.0 s), it weighs as the count and holds nothing.
+    #[test]
+    fn a_stale_spot_by_a_battery_weighs_as_the_count() {
+        use crate::v026g::bots::know::Source;
+        let mut s = Scenario::field(Mode::Batteries);
+        s.tuning.take.known_threats = true;
+        s.battery(BatteryState::Free(TAKE_AT));
+        s.bot(0, 0, TAKE_AT + Vec3::new(0.0, 0.0, 20.0));
+        s.enemy(1, 1, TAKE_AT + Vec3::new(2.0, 0.0, 0.0), Some(Source::Heard));
+        let score = |s: &Scenario| battery_candidate(&s.cx(0), 0).map_or(0.0, |c| c.score.get());
+        assert_eq!(score(&s), 0.0, "fresh: held");
+        s.view.clock += 5_500;
+        assert!(score(&s) > 0.0, "older than a sprint out of 25 m: not held");
     }
 
     /// [take.known_threats] A battery's enemies weighed by distance: a man within `hold_near_m` of it holds it alone
