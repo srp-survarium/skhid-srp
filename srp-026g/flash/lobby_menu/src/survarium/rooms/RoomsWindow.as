@@ -834,7 +834,11 @@ package survarium.rooms
         {
             if (_steps.length > 0)
             {
+                // Each answer restarts the 6 s: a long chain (a create is up to
+                // 16 requests on the 500 ms lobby tick) is not given up midway.
                 _stepsAt = getTimer();
+                if (_busyAt != 0)
+                    _busyAt = _stepsAt;
                 ask(int(_steps.shift()), 1);
             }
         }
