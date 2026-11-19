@@ -109,7 +109,12 @@ marked [pick] is a worker's choice the owner may change.
   the worn helmet (tag 5) and mask (tag 6) records, its base model, part and material, and a
   record for each additional model (tag 0, hidden in first person with the head); `f<face>_` is
   added to the skin's name for a face other than 0.
-- Without `heads` in the data the native head is made, as today.
+- A worn helmet or mask is drawn from its config's `data_head_<face>` when the config has it (a
+  table; `faces-pack.md`: the item's `data` with the face's models), else from its `data`, as
+  0.69d0's `models.head_<n>` (0x204B36, where the cook has chosen the key it reads the item's
+  models from). The face is the head's: the same tables, a face the data does not list face 0,
+  which has no key of its own. `f<face>_` is in the skin's name then too, once.
+- Without `heads` in the data the native head is made, as today, and every item's `data`.
 
 ## Lobby
 

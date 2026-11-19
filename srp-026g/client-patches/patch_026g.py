@@ -661,8 +661,9 @@ Patches:
   replay's by place (the options' entry 5) until its scene is left
   (0x1F9520); profile_skin_visual_cook's
   head (0x205662) made from body_parts.heads[face], its mask or helmet
-  variant by the kit's models, its hair, `f<face>_` in the skin's name.
-  Nothing a match computes;
+  variant by the kit's models, its hair, `f<face>_` in the skin's name;
+  a worn helmet's or mask's entry its config's data_head_<face> when it
+  has one (0x204B36). Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The

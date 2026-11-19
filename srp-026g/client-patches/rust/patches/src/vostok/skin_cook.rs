@@ -5,7 +5,10 @@
 //! names the combined skin by the kit (the resources' cache key) and asks for
 //! it. At `skin_cook.head` (0x205662) the head is still to be made (no item's
 //! `remove_head_model` took record 0); its handler makes it and goes on at
-//! the join `made` (0x2056F0), the native head's end.
+//! the join `made` (0x2056F0), the native head's end. At
+//! `skin_cook.item_data` (0x204B36) a worn item's entry is still to be read
+//! from its config: its handler may choose another key than `data` for a
+//! helmet or a mask.
 //!
 //! The cook runs for the lobby's characters and a match's players alike, the
 //! profile its query's (a lobby profile or a match place: the player's name
@@ -14,7 +17,7 @@
 use core::ffi::CStr;
 
 use super::config::{ConfigError, ConfigTable, ConfigValue};
-use super::context::Context;
+use super::context::{Context, Reg};
 use super::hook::Thread;
 use super::ui::c_string;
 use super::world::read;
@@ -31,6 +34,26 @@ const PARTS: usize = 20;
 const HEAD: u32 = 0;
 const HELMET: u32 = 5;
 const MASK: u32 = 6;
+
+/// A worn item that covers the head, by its profile slot (the slot table's
+/// first column, 0xA79870): the items whose entry may be a face's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeadWear {
+    /// Profile slot 0.
+    Helmet,
+    /// Profile slot 1.
+    Mask,
+}
+
+impl HeadWear {
+    fn of_slot(slot: u32) -> Option<HeadWear> {
+        match slot {
+            0 => Some(HeadWear::Helmet),
+            1 => Some(HeadWear::Mask),
+            _ => None,
+        }
+    }
+}
 
 /// What the kit's models cover of the head, by its records.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -119,9 +142,7 @@ impl<'t> HeadCook<'t> {
     /// gameplay/bodyparts/default's `body_parts`, as the cook read it.
     pub fn body_parts(&self) -> Option<ConfigTable<'t>> {
         let _ = self.thread;
-        // SAFETY: the frame's copy of the node; its children are the config
-        // resource's, alive and immutable while the cook runs.
-        unsafe { ConfigValue::read(self.frame.body_parts()) }.ok()?.table().ok()
+        body_parts(self.frame)
     }
 
     fn count(&self) -> usize {
@@ -171,10 +192,96 @@ impl<'t> HeadCook<'t> {
     }
 
     /// `text` added to the skin's name (its cache key), as the slots' `0_`
-    /// (0x204A7A), when its room takes it all.
+    /// (0x204A7A), when its room takes it all; nothing when the name has it
+    /// (a worn item's entry for the face put it there).
     pub fn name_skin(&mut self, text: &[u8]) -> Result<(), NameFull> {
-        // SAFETY: the frame's name buffer, alive while the cook runs.
-        unsafe { append(self.frame.skin_name(), text) }
+        name_skin(self.frame, text)
+    }
+}
+
+/// A worn helmet or mask whose entry is to be read, at
+/// `skin_cook.item_data`: by default its config's `data`.
+pub struct ItemCook<'c, 'm> {
+    ctx: &'c mut Context<'m>,
+    frame: raw::SkinCookFrame,
+    profile: raw::PlayerProfile,
+    wear: HeadWear,
+    item: raw::EngineCfg,
+}
+
+impl<'c, 'm> ItemCook<'c, 'm> {
+    /// The cook at a helmet or a mask; none at another item.
+    pub fn at(ctx: &'c mut Context<'m>) -> Option<ItemCook<'c, 'm>> {
+        use raw::site::skin_cook_item_data as site;
+        // SAFETY: the context is this site's: on_configs_loaded's frame (by
+        // ESP and EBP) while it runs, its profile alive for it; the slot
+        // the loop's (0x204A60), the item's config held by the frame
+        // (0x204B02), its root the one the native reads next (0x204B3A).
+        let (frame, profile, slot, item) = unsafe {
+            let frame = site::frame(&*ctx)?;
+            (frame, site::args(&*ctx)?.profile()?, read(frame.slot()), frame.item()?.root()?)
+        };
+        let wear = HeadWear::of_slot(slot)?;
+        Some(ItemCook { ctx, frame, profile, wear, item })
+    }
+
+    pub fn wear(&self) -> HeadWear {
+        self.wear
+    }
+
+    pub fn thread(&self) -> &Thread {
+        self.ctx.thread()
+    }
+
+    /// Where the cook's profile is (as [`HeadCook::profile_address`]).
+    pub fn profile_address(&self) -> u32 {
+        self.profile.address()
+    }
+
+    /// The player's name, the profile's.
+    pub fn player_name(&self) -> Option<&CStr> {
+        // SAFETY: the query's profile, alive while the cook runs; its name a
+        // C string in its 64 bytes.
+        unsafe { c_string(self.profile.name(), NAME_LIMIT) }
+    }
+
+    /// gameplay/bodyparts/default's `body_parts`, as the cook read it.
+    pub fn body_parts(&self) -> Option<ConfigTable<'_>> {
+        body_parts(self.frame)
+    }
+
+    /// The item's config, its root table.
+    pub fn item(&self) -> Option<ConfigTable<'_>> {
+        // SAFETY: the item's config, held by the cook while it runs (its
+        // reference taken at 0x204B02); relocated and immutable.
+        unsafe { ConfigValue::read(self.item) }.ok()?.table().ok()
+    }
+
+    /// The item's entry read from `key` instead of `data` (EDI, the key
+    /// cfg_child is given at 0x204B40): the records' models, part, material,
+    /// `remove_head_model` and `additional_models` are that entry's; `face`
+    /// added to the skin's name, which the head's then does not repeat. The
+    /// key is a static's: the native reads it after the hook.
+    pub fn read_entry(self, key: &'static CStr, face: &[u8]) -> Result<(), NameFull> {
+        self.ctx.set_reg(Reg::Edi, key.as_ptr() as usize as u32);
+        name_skin(self.frame, face)
+    }
+}
+
+/// The frame's copy of gameplay/bodyparts/default's `body_parts` node.
+fn body_parts<'t>(frame: raw::SkinCookFrame) -> Option<ConfigTable<'t>> {
+    // SAFETY: the frame's copy of the node (0x2046E2..0x20472C, before the
+    // items); its children are the config resource's, alive and immutable
+    // while the cook runs.
+    unsafe { ConfigValue::read(frame.body_parts()) }.ok()?.table().ok()
+}
+
+/// `text` added once to the frame's skin name.
+fn name_skin(frame: raw::SkinCookFrame, text: &[u8]) -> Result<(), NameFull> {
+    // SAFETY: the frame's name buffer, alive while the cook runs.
+    unsafe {
+        let name = frame.skin_name();
+        if contains(name, text) { Ok(()) } else { append(name, text) }
     }
 }
 
@@ -194,6 +301,19 @@ unsafe fn assign(string: raw::BufferString, text: &[u8]) {
         *begin.add(len) = 0;
         string.set_end(begin.add(len));
     }
+}
+
+/// Whether `string`'s text has `text` in it.
+///
+/// # Safety
+/// `string` is a live buffer_string over its own room.
+unsafe fn contains(string: raw::BufferString, text: &[u8]) -> bool {
+    // SAFETY: the caller's: its text from its begin to its end.
+    let have = unsafe {
+        let (begin, end) = (string.begin(), string.end());
+        core::slice::from_raw_parts(begin, (end as usize).saturating_sub(begin as usize))
+    };
+    text.is_empty() || have.windows(text.len()).any(|window| window == text)
 }
 
 /// `text` at `string`'s end, its zero after, when the room takes it all.

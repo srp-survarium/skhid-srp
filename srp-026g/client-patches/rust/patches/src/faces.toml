@@ -38,3 +38,7 @@ order = 2
 site = "match_dispatch.message"
 handler = "on_match_message"
 order = 2                           # after patch 114's check (message_check.toml)
+
+[[hook]]
+site = "skin_cook.item_data"
+handler = "on_item_data"

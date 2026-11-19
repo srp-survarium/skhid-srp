@@ -23,7 +23,12 @@
 //!   models cover (a mask, else a helmet, else none), a missing variant the
 //!   face's `data`, a face the data does not list face 0; its additional
 //!   models (hair) records of the head too; the skin's name (the cache key)
-//!   gets `f<face>_` for a face but 0. Data without `heads`: the native head.
+//!   gets `f<face>_` for a face but 0. Data without `heads`: the native head;
+//! - a worn helmet's or mask's entry (`skin_cook.item_data`): the face's own,
+//!   `data_head_<face>`, when the item's config has it (0.69d0's
+//!   `models.head_<n>`), else its `data` as today; the face the head's (the
+//!   same tables, a face the data does not list face 0), and `f<face>_` in
+//!   the skin's name for it too.
 //!
 //! Nothing a match computes: the look only.
 
@@ -31,12 +36,12 @@
 
 use core::ffi::CStr;
 
-use crate::vostok::config::{ConfigEntries, ConfigTable};
+use crate::vostok::config::{ConfigEntries, ConfigTable, ConfigValue};
 use crate::vostok::lobby_menu::{OwnAccountRead, SquadMemberRead};
 use crate::vostok::match_message::Message;
 use crate::vostok::log::{self, Piece::*};
 use crate::vostok::parse::Reader;
-use crate::vostok::skin_cook::{Cover, HeadCook, Model};
+use crate::vostok::skin_cook::{Cover, HeadCook, ItemCook, Model};
 use crate::vostok::{
     Context, FacesOnHeadExit, FacesOnMatchMessageExit, Flow, Lock, NoExit, OptionsRead, PLACES, Places, Thread,
 };
@@ -49,6 +54,50 @@ const TAG_FACES: u8 = 5;
 const SQUAD: usize = 8;
 /// A name's bytes without its zero (the profile's 64).
 const NAME: usize = 63;
+/// `data_head_`, up to three digits, its zero.
+const ITEM_KEY: usize = 14;
+
+/// The key of each face's entry of a helmet or a mask, `data_head_<face>`,
+/// with its zero: a static, as the native reads it after the hook.
+static ITEM_KEY_BYTES: [[u8; ITEM_KEY]; 256] = item_key_bytes();
+static ITEM_KEYS: [&CStr; 256] = item_keys(&ITEM_KEY_BYTES);
+
+const fn item_key_bytes() -> [[u8; ITEM_KEY]; 256] {
+    const PREFIX: &[u8] = b"data_head_";
+    let mut keys = [[0; ITEM_KEY]; 256];
+    let mut n = 0;
+    while n < 256 {
+        let mut at = 0;
+        while at < PREFIX.len() {
+            keys[n][at] = PREFIX[at];
+            at += 1;
+        }
+        if n >= 100 {
+            keys[n][at] = b'0' + (n / 100) as u8;
+            at += 1;
+        }
+        if n >= 10 {
+            keys[n][at] = b'0' + (n / 10 % 10) as u8;
+            at += 1;
+        }
+        keys[n][at] = b'0' + (n % 10) as u8;
+        n += 1;
+    }
+    keys
+}
+
+const fn item_keys(bytes: &'static [[u8; ITEM_KEY]; 256]) -> [&'static CStr; 256] {
+    let mut keys = [c""; 256];
+    let mut n = 0;
+    while n < 256 {
+        keys[n] = match CStr::from_bytes_until_nul(&bytes[n]) {
+            Ok(key) => key,
+            Err(_) => panic!("a key without its zero"),
+        };
+        n += 1;
+    }
+    keys
+}
 
 /// A face: an index of the data's `heads`, as srp gives it. One the data
 /// does not list is drawn as [`Face::FIRST`].
@@ -65,6 +114,11 @@ impl Face {
 
     fn index(self) -> usize {
         usize::from(self.0)
+    }
+
+    /// Its entry's key in a helmet's or a mask's config: `data_head_<face>`.
+    fn item_key(self) -> &'static CStr {
+        ITEM_KEYS[self.index()]
     }
 
     /// What it adds to the skin's name: `f<face>_`, nothing for face 0 (so
@@ -341,25 +395,61 @@ fn variant(cover: Cover) -> &'static CStr {
     }
 }
 
-/// `heads[face]`'s model for `cover` (its `data` without the variant), when
-/// the entry has one.
-fn model_of<'c>(heads: &ConfigEntries<'c>, face: Face, cover: Cover) -> Option<ConfigTable<'c>> {
-    let head = heads.iter().nth(face.index())?.ok()?.table().ok()?;
-    let model = match head.get(variant(cover)).ok()? {
-        Some(model) => model,
-        None => head.get(c"data").ok()??,
-    };
-    model.table().ok()
+/// The data's faces, `body_parts.heads`; none in data without faces.
+fn heads_of<'c>(body_parts: &ConfigTable<'c>) -> Option<ConfigEntries<'c>> {
+    body_parts.get(c"heads").ok()??.entries().ok()
 }
 
-/// The face drawn and its model: `face`'s, else face 0's (a face the data
-/// does not list, or a broken entry).
-fn head_of<'c>(heads: &ConfigEntries<'c>, face: Face, cover: Cover) -> Option<(Face, ConfigTable<'c>, Model<'c>)> {
-    [face, Face::FIRST].into_iter().find_map(|face| {
-        let table = model_of(heads, face, cover)?;
+/// `heads[face]` when it lists the face: a table whose `data` is a model.
+fn listed<'c>(heads: &ConfigEntries<'c>, face: Face) -> Option<ConfigTable<'c>> {
+    let head = heads.iter().nth(face.index())?.ok()?.table().ok()?;
+    Model::of(&head.get(c"data").ok()??.table().ok()?).ok()?;
+    Some(head)
+}
+
+/// The face a cook draws, the head and the worn items alike, and its entry
+/// of `heads`: the profile's face when the data lists it, else face 0; none
+/// when the data does not list even face 0.
+fn drawn<'c>(heads: &ConfigEntries<'c>, thread: &Thread, profile: u32, name: Option<&CStr>) -> Option<(Face, ConfigTable<'c>)> {
+    let name = name.and_then(Name::of);
+    let face = KNOWN.with(thread, |known| known.face_of(profile, name.as_ref()));
+    [face, Face::FIRST].into_iter().find_map(|face| Some((face, listed(heads, face)?)))
+}
+
+/// A face's model under `cover`: its variant's when that is a model, else
+/// its `data`'s.
+fn model_of<'c>(head: &ConfigTable<'c>, cover: Cover) -> Option<(ConfigTable<'c>, Model<'c>)> {
+    let model = |key: &CStr| {
+        let table = head.get(key).ok()??.table().ok()?;
         let model = Model::of(&table).ok()?;
-        Some((face, table, model))
-    })
+        Some((table, model))
+    };
+    model(variant(cover)).or_else(|| model(c"data"))
+}
+
+/// profile_skin_visual_cook's worn helmet or mask, its entry's key chosen
+/// (0x204B36): the face's own entry, `data_head_<face>`, when the item's
+/// config has it as a table, else `data` as the native. The face is the
+/// head's ([`drawn`]); face 0 has no entry of its own.
+pub fn on_item_data(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(cook) = ItemCook::at(ctx) else { return Flow::Continue };
+    let face = {
+        let Some(body_parts) = cook.body_parts() else { return Flow::Continue };
+        let Some(heads) = heads_of(&body_parts) else { return Flow::Continue };
+        let Some((face, _)) = drawn(&heads, cook.thread(), cook.profile_address(), cook.player_name()) else {
+            return Flow::Continue;
+        };
+        face
+    };
+    let Some(suffix) = face.suffix() else { return Flow::Continue };
+    let key = face.item_key();
+    if !matches!(cook.item().map(|item| item.get(key)), Some(Ok(Some(ConfigValue::Table(_))))) {
+        return Flow::Continue;
+    }
+    if cook.read_entry(key, suffix.as_bytes()).is_err() {
+        log::line(&[Text("faces: the skin's name has no room for its face")]);
+    }
+    Flow::Continue
 }
 
 /// profile_skin_visual_cook's default head (0x205662): the face's.
@@ -367,11 +457,10 @@ pub fn on_head(ctx: &mut Context<'_>) -> Flow<FacesOnHeadExit> {
     let Some(mut cook) = HeadCook::at(ctx) else { return Flow::Continue };
     let Some(body_parts) = cook.body_parts() else { return Flow::Continue };
     // Data without faces: the native head, as today.
-    let Ok(Some(heads)) = body_parts.get(c"heads") else { return Flow::Continue };
-    let Ok(heads) = heads.entries() else { return Flow::Continue };
-    let name = cook.player_name().and_then(Name::of);
-    let face = KNOWN.with(ctx.thread(), |known| known.face_of(cook.profile_address(), name.as_ref()));
-    let Some((face, table, model)) = head_of(&heads, face, cook.cover()) else {
+    let Some(heads) = heads_of(&body_parts) else { return Flow::Continue };
+    let chosen = drawn(&heads, ctx.thread(), cook.profile_address(), cook.player_name());
+    let Some((face, (table, model))) = chosen.and_then(|(face, head)| Some((face, model_of(&head, cook.cover())?)))
+    else {
         log::line(&[Text("faces: body_parts.heads has no face 0 model; the native head drawn")]);
         return Flow::Continue;
     };
@@ -410,6 +499,14 @@ mod tests {
         assert_eq!(Face(3).suffix().unwrap().as_bytes(), b"f3_");
         assert_eq!(Face(10).suffix().unwrap().as_bytes(), b"f10_");
         assert_eq!(Face(255).suffix().unwrap().as_bytes(), b"f255_");
+    }
+
+    #[test]
+    fn a_face_has_its_items_key() {
+        assert_eq!(Face::FIRST.item_key(), c"data_head_0");
+        assert_eq!(Face(7).item_key(), c"data_head_7");
+        assert_eq!(Face(42).item_key(), c"data_head_42");
+        assert_eq!(Face(255).item_key(), c"data_head_255");
     }
 
     #[test]

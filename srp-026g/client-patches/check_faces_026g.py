@@ -47,7 +47,14 @@ head ends too). Checked:
   shorter, the span replayed); without a block, face 0 and the message as it
   was; bytes that are no block: logged, left for the late join's check; an
   item the dictionary does not have: the proposal left as it is, nothing
-  learnt.
+  learnt;
+- a worn item's entry (`skin_cook.item_data`, run to the copy of the entry
+  the records are read from, 0x204B89): data without `heads`, face 0 and an
+  item without the face's key byte for byte the original's `data`; a mask's
+  and a helmet's `data_head_<face>` for the account's face, `f<face>_` on
+  the skin's name, which the head's cook then does not repeat; a torso's
+  key left as it is; a face the data does not list is face 0's `data`, as
+  its head; a match's place by its options; a key that is no table: `data`.
 
 Not run: the match scene's end (`game_world.deactivate`, after patch 66's
 handler in its chain); the faces forgotten there are the crate's unit test.
@@ -70,6 +77,8 @@ REPLAY, REPLAY_END = 0x1F0971, 0x1F0976     # replay.options_read, span 5 (pop e
 WORLD_LEFT = 0x1F9520                       # game_world.deactivate
 DISPATCH, DISPATCH_END = 0x27A31F, 0x27A327 # match_dispatch.message, span 8 (patch 114's check first)
 ITEM_BY_ID = 0x1F0090                       # items_dictionary::item_by_id
+ITEM, ITEM_COPIED = 0x204B36, 0x204B89      # skin_cook.item_data, and past the entry's copy to [esp+20h]
+DATA_KEY = 0x9FD6C4                         # "data"
 THREAD_SLOT, QPC_SLOT, QPF_SLOT = 0x870118, 0x870158, 0x870150
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, CLOSE_SLOT = 0x870048, 0x870108, 0x870040
 HEAP, STUBS, STACK = 0x30000000, 0x31000000, 0x32000000
@@ -77,6 +86,7 @@ CONFIG, TEXTS = HEAP, HEAP + 0x40000
 COOK, PROFILE, CLIENT = HEAP + 0x80000, HEAP + 0xA0000, 0x33000000
 OPTIONS_OBJECT, MESSAGE = 0x34000000, HEAP + 0xB0000
 GAME, DICTIONARY, ITEMS = HEAP + 0xC0000, HEAP + 0xD0000, HEAP + 0xD1000
+HOLDER = HEAP + 0xE0000
 SP, BP = STACK + 0x8000, STACK + 0xC000
 RECORD, RECORDS, COUNT, TAG = 0xC0C, 0x234, 0xF324, 0xC08
 OWN_PROFILE, PLACE = 0x1E6344, 0x45FC
@@ -225,6 +235,32 @@ class Game:
                          self.text(self.read(record + 0x228)), self.read(record + TAG)))
         return made, self.text(self.read(SP + 0x348))
 
+    def item_data(self, body_parts, name, slot, item, skin="105_0_0_", place=None):
+        """on_configs_loaded at a worn item, its key `data` chosen: the frame's body_parts copy, skin name, item
+        config (its root `item`) and profile slot `slot`, the profile `name`'s (a lobby's, or with `place` that
+        place of the options). Run past the entry's copy; the copied entry's key (the node's name), its
+        type and count, the skin's name."""
+        profile = PROFILE if place is None else OPTIONS_OBJECT + place * PLACE
+        self.emu.mem_write(profile + 8, name.encode() + b"\0")
+        self.emu.mem_write(SP, bytes(0x500))
+        root = self.records(1)
+        self.emu.mem_write(root, self.node(item))
+        self.word(HOLDER + 0x108, root)
+        self.word(SP + 0x10, HOLDER)
+        self.word(SP + 0x60, slot)
+        self.emu.mem_write(SP + 0xA8, body_parts)
+        self.word(SP + 0x348, SP + 0x354)
+        self.emu.mem_write(SP + 0x354, skin.encode() + b"\0")
+        self.word(SP + 0x34C, SP + 0x354 + len(skin))
+        self.word(SP + 0x350, SP + 0x458)
+        self.word(BP + 0x10, profile)
+        regs = {r: 0x0A0A0A0A + i for i, r in enumerate(REGS)}
+        regs.update({UC_X86_REG_EBP: BP, UC_X86_REG_EDI: DATA_KEY})
+        self.go(ITEM, ITEM_COPIED, regs, SP)
+        entry = self.read(SP + 0x20, 24)
+        return (self.text(struct.unpack("<I", entry[8:12])[0]), struct.unpack("<HH", entry[20:24]),
+                self.text(self.read(SP + 0x348)))
+
     def own_account(self, name, srp):
         """0x87 read to its last field: the client's profile named `name`, srp's bytes after."""
         self.emu.mem_write(CLIENT + OWN_PROFILE + 8, name.encode() + b"\0")
@@ -322,8 +358,8 @@ def main():
         new = base.hook_bytes(linked.symbols[symbol], va, old, 0, opcode)
         check(opcode == 0xE9 and original[at:at + len(old)] == old and built[at:at + len(new)] == new,
               f"{va:#x}: {old.hex()} in the original, `jmp {symbol}` here")
-    check(sorted(h["site"] for h in ours) == sorted([HEAD, OWN, MEMBER, OPTIONS, REPLAY, WORLD_LEFT, DISPATCH]),
-          f"faces' seven hooks: its three sites, the two options reads, the match scene's end and the dispatch "
+    check(sorted(h["site"] for h in ours) == sorted([HEAD, ITEM, OWN, MEMBER, OPTIONS, REPLAY, WORLD_LEFT, DISPATCH]),
+          f"faces' eight hooks: its four sites, the two options reads, the match scene's end and the dispatch "
           f"({len(ours)})")
     dispatch = next(h for h in ours if h["site"] == DISPATCH)
     check([m["patch"] for m in dispatch.get("chain", [])] == ["message_check", "faces"],
@@ -448,6 +484,36 @@ def main():
           "an item the dictionary does not have: the proposal left as it is, nothing learnt")
     check(patched.item_by_id == 0, "the proposals' items looked up among the dictionary's entries, never by "
           "item_by_id (0x1F0090)")
+    patched.options(["you"], b"")
+
+    data = {"base_model": "models/mask", "part_name": "mask"}
+    mask = {"data": data, "data_head_2": {"base_model": "models/mask_f2", "part_name": "mask_f2"},
+            "data_head_1": {"base_model": "models/mask_f1", "part_name": "mask_f1"}, "data_head_9": data}
+    native = stock.item_data(plain(stock), "me", 1, mask)
+    check(native == ("data", (3, 2), "105_0_0_") and patched.item_data(plain(patched), "me", 1, mask) == native,
+          "data without heads: the item's data as the original's (its table of two)")
+    check(patched.item_data(faces(patched), "nobody", 1, mask) == native,
+          "face 0: the item's data as the original's, the skin's name as it was")
+    key, _, skin = patched.item_data(faces(patched), "me", 1, mask)
+    check(key == "data_head_2" and skin == "105_0_0_f2_",
+          "the account's face 2 in a mask with data_head_2: that entry, f2_ on the skin's name")
+    helmet = {"data": data, "data_head_2": {"base_model": "models/helmet_f2", "part_name": "helmet_f2"}}
+    check(patched.item_data(faces(patched), "me", 0, helmet)[0] == "data_head_2",
+          "a helmet with data_head_2: that entry")
+    check(patched.item_data(faces(patched), "me", 0, {"data": data}) == native,
+          "an item without the face's key: its data, the skin's name as it was")
+    check(patched.item_data(faces(patched), "me", 2, mask)[0] == "data",
+          "a torso: its key as the native chose it (here data), whatever keys it has")
+    check(patched.item_data(faces(patched), "me", 1, {"data": data, "data_head_2": "x"})[0] == "data",
+          "a data_head_2 that is no table: data")
+    made, skin = patched.cook(faces(patched), "me", [2, 6], skin="105_0_0_f2_207_")
+    check(made[0][:2] == ("head/face_2_mask", "face_2_mask") and skin == "105_0_0_f2_207_",
+          "the head after a mask's face entry: face 2's, the skin's name not named twice")
+    patched.options(["a", "b", "c"], b"SRPX\x05\x03\x00\x01\x09")
+    check(patched.item_data(faces(patched), "b", 1, mask, place=1)[0] == "data_head_1"
+          and patched.item_data(faces(patched), "c", 1, mask, place=2) == native,
+          "a match's place by its options: place 1 face 1's entry; face 9, not in the data: face 0's data, as its "
+          "head")
     patched.options(["you"], b"")
 
     if failed:

@@ -4686,6 +4686,45 @@ message_check_on_message_replay:
     db 0x89, 0x45, 0x0c, 0x05, 0x1d, 0xff, 0xff, 0xff
     jmp 0x27a327
 
+; 0x204b36 profile_skin_visual_cook::on_configs_loaded's worn item, its entry's key chosen (the join of 0x204B26/0x204B2F): EDI the key ("data" 0x9FD6C4, or the torso's and pants' data_<model_type>), the item's config at [esp+10h], its profile slot at [esp+60h]; mov esi,[esp+10h] / mov eax,[esi+108h], then cfg_child (0x204B40) of the root by EDI, the 24-byte node copied to [esp+20h], which the records' base_model, part_name, material, remove_head_model, model_type and additional_models are read from (0x2051C0..0x20561C) (patch 123: a helmet's or mask's data_head_<face>): lohook -> faces_on_item_data
+global faces_on_item_data
+extern hook_faces_on_item_data
+faces_on_item_data:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_item_data
+    mov edx, faces_on_item_data_replay
+    cmp eax, 0
+    je faces_on_item_data_go
+    mov edx, 0x204b40
+    cmp eax, 1
+    je faces_on_item_data_go
+    ud2
+faces_on_item_data_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_item_data_replay:
+    db 0x8b, 0x74, 0x24, 0x10, 0x8b, 0x86, 0x08, 0x01, 0x00, 0x00
+    jmp 0x204b40
+
 ; 0x2a6485 player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0: lohook -> footsteps_on_step_guard
 global footsteps_on_step_guard
 extern hook_footsteps_on_step_guard
