@@ -16,7 +16,7 @@
 use super::{DIRS, LIP_DROP_M, LinkKind, NONE, SEED_M, SPAWN_M, Triangle, Vec3, WalkGrid, Wide};
 use super::controlled::{STARTS, Stance, WalkStart, body_at, out_of_walls, parallel};
 use super::gap_flown::THIN_TOP_M;
-use super::gap::{GAP_PRESS_MAX_M, GAP_PRESS_MIN_M, GAP_PRESS_STEP_M, PressLead, RELEASE_AT_MAX_M, Share, Takeoff};
+use super::gap::{GAP_PRESS_MAX_M, GAP_PRESS_MIN_M, GAP_PRESS_STEP_M, GridWay, PressLead, RELEASE_AT_MAX_M, Share, Takeoff};
 use crate::controller::{jump, Collision};
 use crate::controller::tick::{Controller, CrouchInput, Settings, TickInput};
 
@@ -468,7 +468,9 @@ pub struct ReaimPairs {
     pub earlier_replaced: usize,
 }
 
-type Reaims = Vec<(u32, usize, u32, Option<(Takeoff, Share)>)>;
+/// (take-off, direction, new landing, the release's press and share, [retarget] the grid way the body was walked along when that
+/// is not the line to the new landing: None for a [`Verdict::Reaim`], walked at its landing).
+type Reaims = Vec<(u32, usize, u32, Option<(Takeoff, Share)>, Option<GridWay>)>;
 type Lips = Vec<(u32, u32)>;
 
 /// [A389] What [`WalkGrid::landing_drops`] did ([`super::BuildStats`]).
@@ -583,15 +585,24 @@ impl WalkGrid {
                     let (from, to) = (wide.off[i].from, wide.off[i].to);
                     if b == to || (b != from && !wide.out(from as usize).any(|x| x == b)) {
                         moved += usize::from(b != to);
+                        // [retarget] Released along the walk-off's own line: its way, kept where the landing moves.
+                        let way = wide.off[i].way.or_else(|| self.grid_way_of(from, to));
                         wide.off[i].to = b;
+                        wide.off[i].way = way;
                         wide.off[i].press = press;
                         wide.off[i].share = share;
                         released += 1;
                     }
                 }
                 Verdict::Reaim(b) | Verdict::Taught(b) => {
-                    let from = wide.off[i].from;
+                    let (from, to) = (wide.off[i].from, wide.off[i].to);
                     if b != from && !wide.out(from as usize).any(|x| x == b) {
+                        // [retarget] A re-aimed link was walked at its new landing (its own line); a taught one came down along
+                        // the walk-off's own line: its way.
+                        wide.off[i].way = match v {
+                            Verdict::Taught(_) => wide.off[i].way.or_else(|| self.grid_way_of(from, to)),
+                            _ => None,
+                        };
                         wide.off[i].to = b;
                         moved += 1;
                     }
@@ -648,11 +659,13 @@ impl WalkGrid {
                 Verdict::Keep => {}
                 Verdict::Released(b, press, share) => {
                     stats.released += 1;
-                    reaim.push((a, d, b, Some((press, share))));
+                    reaim.push((a, d, b, Some((press, share)), Some(GridWay::of_dir(d))));
                 }
                 Verdict::Reaim(b) | Verdict::Taught(b) => {
-                    stats.taught += usize::from(matches!(v, Verdict::Taught(_)));
-                    reaim.push((a, d, b, None));
+                    let taught = matches!(v, Verdict::Taught(_));
+                    stats.taught += usize::from(taught);
+                    // [retarget] A taught landing was come down to along the drop's own way, not on the line to it.
+                    reaim.push((a, d, b, None, taught.then(|| GridWay::of_dir(d))));
                     if lip {
                         lips.push((a, b));
                     }
@@ -867,18 +880,18 @@ impl WalkGrid {
         let mut added: Vec<OffLink> = Vec::new();
         let mut index: std::collections::HashMap<(u32, u32), usize> = std::collections::HashMap::new();
         let mut pairs = ReaimPairs::default();
-        for &(a, d, b, release) in reaim {
+        for &(a, d, b, release, way) in reaim {
             let old = wide.links[a as usize][d];
             if let Some((press, share)) = release {
                 wide.links[a as usize][d] = NONE;
-                let link = OffLink { from: a, to: b, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, way: None };
+                let link = OffLink { from: a, to: b, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, way };
                 if let Some(l) = wide.off.iter_mut().find(|l| l.from == a && l.to == b) {
                     // Of two releases the higher share, as within the pass; anything else takes the release's press.
                     if matches!(l.press, Takeoff::Release { .. }) && l.share.rank() >= share.rank() {
                         pairs.earlier_kept += 1;
                     } else {
                         pairs.earlier_replaced += 1;
-                        *l = OffLink { kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, way: None, ..*l };
+                        *l = OffLink { kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, way, ..*l };
                     }
                 } else if let Some(&i) = index.get(&(a, b)) {
                     pairs.merged += 1;
@@ -911,7 +924,7 @@ impl WalkGrid {
                 }
             } else if !wide.out(a as usize).any(|x| x == b) {
                 index.insert((a, b), added.len());
-                added.push(OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: Aim::STRAIGHT, way: None });
+                added.push(OffLink { from: a, to: b, kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, walk: None, aim: Aim::STRAIGHT, way });
             }
         }
         if !added.is_empty() {
@@ -965,7 +978,7 @@ mod tests {
             wide.off = (1..=3).map(later).collect();
             let ds: Vec<usize> = (0..8).filter(|&d| wide.links[a as usize][d] != NONE).take(2).collect();
             assert_eq!(ds.len(), 2);
-            let reaim: Reaims = vec![(a, ds[0], b, first), (a, ds[1], b, second)];
+            let reaim: Reaims = vec![(a, ds[0], b, first, None), (a, ds[1], b, second, None)];
             let (reaimed, pairs) = grid.reaim_drops(&mut wide, &reaim);
             assert_eq!((reaimed, pairs.merged, pairs.release_over_walk_off), (2, 1, usize::from(first.or(second).is_some())));
             let pair: Vec<_> = wide.off.iter().filter(|l| (l.from, l.to) == (a, b)).collect();
@@ -1001,7 +1014,7 @@ mod tests {
                 aim: super::super::gap::Aim::STRAIGHT,
                 way: None,
             }];
-            let (_, pairs) = grid.reaim_drops(&mut wide, &vec![(a, d, b, Some((released, Share::landed(new))))]);
+            let (_, pairs) = grid.reaim_drops(&mut wide, &vec![(a, d, b, Some((released, Share::landed(new))), None)]);
             assert_eq!((wide.off.len(), wide.off[0].share), (1, Share::landed(kept)));
             assert_eq!((pairs.earlier_kept, pairs.earlier_replaced), if there >= new { (1, 0) } else { (0, 1) });
         }
@@ -1010,9 +1023,12 @@ mod tests {
             let mut wide = grid.link(&vec![false; grid.len()]);
             let ds: Vec<usize> = (0..8).filter(|&d| wide.links[a as usize][d] != NONE).take(2).collect();
             let r = |n| Some((released, Share::landed(n)));
-            let (_, pairs) = grid.reaim_drops(&mut wide, &vec![(a, ds[0], b, r(first)), (a, ds[1], b, r(second))]);
+            // [retarget] Each release walked along its own drop's way: the link keeps the winner's.
+            let w = |i: usize| Some(GridWay::of_dir(ds[i]));
+            let (_, pairs) = grid.reaim_drops(&mut wide, &vec![(a, ds[0], b, r(first), w(0)), (a, ds[1], b, r(second), w(1))]);
             let pair: Vec<_> = wide.off.iter().filter(|l| (l.from, l.to) == (a, b)).collect();
             assert_eq!((pair.len(), pair[0].share, pairs.merged), (1, Share::landed(12), 1));
+            assert_eq!(pair[0].way, w(usize::from(second > first)));
         }
     }
 

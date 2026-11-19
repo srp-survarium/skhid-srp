@@ -956,6 +956,16 @@ pub(super) fn gap_cost(kind: LinkKind, length: f32, across: f32, descent: f32) -
 }
 
 impl WalkGrid {
+    /// [retarget] The grid way from floor `a` to floor `b`, when `b`'s cell lies on one of the 8 ways from `a`'s (a walk-off
+    /// link of the gap pass, walked along its way to its landing); None off every way, or in one cell.
+    pub(super) fn grid_way_of(&self, a: NodeId, b: NodeId) -> Option<GridWay> {
+        let (i, k) = self.cell_xz(self.cell_of[a as usize] as usize);
+        let (ti, tk) = self.cell_xz(self.cell_of[b as usize] as usize);
+        let (dx, dz) = (ti - i, tk - k);
+        let on_way = (dx, dz) != (0, 0) && (dx == 0 || dz == 0 || dx.abs() == dz.abs());
+        on_way.then(|| DIRS.iter().position(|&w| w == (dx.signum(), dz.signum())).map(GridWay::of_dir)).flatten()
+    }
+
     /// The cell holding the ground point (`x`, `z`), if in the grid.
     fn cell_at(&self, x: f32, z: f32) -> Option<usize> {
         let i = ((x - self.x0) / self.cell).floor() as i32;
@@ -2280,7 +2290,8 @@ mod tests {
     }
 
     /// [retarget] A link's flown grid way is its press line, not the line to its landing, and the grid's file reads it back;
-    /// with none the line is the one to the landing (every file before). A way on a walk-off is refused. Vector Laboratory
+    /// with none the line is the one to the landing (every file before). A drop's walk-off keeps its way too (a re-aimed drop
+    /// walked along its own way); a way on a link that is no off-mesh kind is refused. Vector Laboratory
     /// day_2's pit-ledge link 210855 (4.51, 17.00, 5.96) -> 211924 (3.76, 18.56, 6.21), flown west, 18.4 deg off that line.
     #[test]
     fn a_links_flown_way_is_its_press_line_and_reads_back() {
@@ -2321,7 +2332,9 @@ mod tests {
             assert_eq!(back[0].way, way);
             assert_eq!(back[0].press, slow);
         }
-        assert!(file(OffLink { press: Takeoff::WalkOff, share: Share::UNFLOWN, way: Some(west), ..line }, "walk-off").is_err());
+        let walk_off = OffLink { kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, way: Some(west), ..line };
+        assert_eq!(file(walk_off, "walk-off").expect("reads back")[0].way, Some(west));
+        assert!(file(OffLink { kind: LinkKind::Jump, ..line }, "jump").is_err());
     }
 
     fn quad(x0: f32, z0: f32, x1: f32, z1: f32, y: f32) -> [Triangle; 2] {

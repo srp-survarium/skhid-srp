@@ -3646,13 +3646,10 @@ impl WalkGrid {
                         // An unknown kind is caught by `check`.
                         let kind = LinkKind::from_u8(bytes[8] & 0x0F).unwrap_or(LinkKind::Walk);
                         let press = gap::Takeoff::from_centimetres(half(10));
-                        // [retarget] A grid way only on a flown press (a GapJump's or a GapDrop's, neither walked off nor
-                        // released); any other, or a nibble that is no way, is bad.
-                        let way = gap::GridWay::from_nibble(bytes[8] >> 4).filter(|way| {
-                            way.is_none()
-                                || (matches!(kind, LinkKind::GapJump | LinkKind::GapDrop)
-                                    && !matches!(press, gap::Takeoff::WalkOff | gap::Takeoff::Release { .. }))
-                        });
+                        // [retarget] A grid way only on a GapJump or a GapDrop (a jump's press, or a drop walked off or released
+                        // along its way); any other, or a nibble that is no way, is bad.
+                        let way = gap::GridWay::from_nibble(bytes[8] >> 4)
+                            .filter(|way| way.is_none() || matches!(kind, LinkKind::GapJump | LinkKind::GapDrop));
                         // [R83] An aim only on a jump's press (a rim jump's or a gap link's: a GapJump or a GapDrop pressed at a walk
                         // or a sprint); any other is bad.
                         let aim = gap::Aim::from_byte(bytes[9]).filter(|aim| {
