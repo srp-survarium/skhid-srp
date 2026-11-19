@@ -61,7 +61,6 @@ package survarium.rooms
             win._view = "create";
             win._code = RoomCode.NONE;
             look._scrollPx = 0;
-            _makePinText = "";
             if (win._poolTotal < 0)
                 win.ask(RoomsWire.POOL, RoomsWire.POOL_ASK_ROWS);
             start(win._form);
@@ -70,18 +69,20 @@ package survarium.rooms
 
         // The window's start: the settings of the player's last room made
         // by hand (`form`, RoomsWindow._form), or the defaults while the
-        // window has none: every mode, the pool without the experimental maps.
-        // Not the PIN.
+        // window has none: every mode, the pool without the experimental maps,
+        // no PIN. Its PIN pretyped (the owner's of 2026-11-19).
         private function start(form:Object):void
         {
             if (form == null)
             {
                 _modesOff = {};
+                _makePinText = "";
                 defaultPool();
                 return;
             }
             _off = copy(form.off);
             _modesOff = copy(form.modesOff);
+            _makePinText = form.pin;
         }
 
         private static function copy(set:Object):Object
@@ -95,9 +96,13 @@ package survarium.rooms
         // `S1;F` as the window keeps it (RoomsWindow._form), read against
         // the pool: the modes out, and a tile out unless an entry of it is
         // in (`bits`: entry `index` by bit `index % BITS_PER_CHUNK` of chunk
-        // `index / BITS_PER_CHUNK`).
+        // `index / BITS_PER_CHUNK`); its PIN, "" unless of 4 digits (a server
+        // of before sends none).
         internal function formOf(head:Array, bits:Array):Object
         {
+            var pin:String = head.length > 8 ? String(head[8]) : "";
+            if (!/^[0-9]{4}$/.test(pin))
+                pin = "";
             var modesOff:Object = {};
             if (head.length > 7 && head[7] != "")
             {
@@ -120,13 +125,13 @@ package survarium.rooms
                 if (on[key] != true)
                     off[key] = true;
             }
-            return {"modesOff": modesOff, "off": off};
+            return {"modesOff": modesOff, "off": off, "pin": pin};
         }
 
         // What the server keeps of the room being made (room_settings::
         // of_room), as `formOf` reads it back: a tile in when an entry of it
-        // is in the pool made, a mode in when an entry of it is.
-        private function kept():Object
+        // is in the pool made, a mode in when an entry of it is; its PIN.
+        private function kept(pin:String):Object
         {
             var tileIn:Object = {};
             var modeIn:Object = {};
@@ -150,7 +155,7 @@ package survarium.rooms
                 if (modeIn[String(e.mode)] != true)
                     modesOff[String(e.mode)] = true;
             }
-            return {"modesOff": modesOff, "off": off};
+            return {"modesOff": modesOff, "off": off, "pin": pin};
         }
 
         // RoomsWindow: a room new to us, ours, came while a create was on
@@ -590,7 +595,7 @@ package survarium.rooms
             }
             // The server keeps no settings of a room with bots (its pool is
             // the bots' maps only): the window's start stays as it was.
-            _making = _bots ? null : kept();
+            _making = _bots ? null : kept(typedPin);
             win._fastUntil = getTimer() + 5000;
             win.next();
         }

@@ -934,7 +934,7 @@ package survarium.rooms
             }
             else if (kind == "F")
             {
-                // `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>`,
+                // `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>;<pin>`,
                 // then `E;<chunk>;<bits>`: a pool entry's tile is in by its bit.
                 var bits:Array = [];
                 for (var fb:int = 1; fb < rows.length; fb++)

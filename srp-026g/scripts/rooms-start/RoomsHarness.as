@@ -1168,6 +1168,66 @@ package
             toggle.parent.dispatchEvent(new MouseEvent(MouseEvent.CLICK));
          createGreyed("create, bots off again", 0, "1 / 2");
          trace("ROOMS create with bots: toggle, unticked and greyed modes and maps");
+         checkPretypedPin();
+      }
+
+      // The last room's PIN pretyped (the owner's of 2026-11-19): the form's last field in the
+      // field, Create on; a press on the field puts the caret after its digits. A form without
+      // one (a server of before): the field empty.
+      private function checkPretypedPin() : void
+      {
+         tell(["S1;F;1;8;1;0;30;;0042", "E;0;3"]);
+         if(!pressButton("Back") || !pressButton("Private room"))
+            return;
+         var field:TextField = pinField();
+         if(field == null || field.text != "0042")
+            failures.push("create: PIN not pretyped (" + (field != null ? field.text : "no field") + ")");
+         createShows("create, PIN pretyped",true);
+         if(field != null)
+         {
+            field.setSelection(0,0);
+            field.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_DOWN));
+            field.dispatchEvent(new MouseEvent(MouseEvent.MOUSE_UP));
+            if(field.selectionBeginIndex != 4 || field.selectionEndIndex != 4)
+               failures.push("create: a press on the PIN puts the caret at " + field.selectionBeginIndex + ", not after its digits");
+         }
+         tell(["S1;F;1;8;1;0;30;", "E;0;3"]);
+         if(!pressButton("Back") || !pressButton("Private room"))
+            return;
+         field = pinField();
+         if(field == null || field.text != "")
+            failures.push("create: a form without a PIN typed " + (field != null ? field.text : "no field"));
+         createShows("create, no PIN kept",false);
+         trace("ROOMS create: last PIN pretyped, caret after it on a press, empty without one");
+      }
+
+      // Presses the window's button labelled `label`.
+      private function pressButton(label:String) : Boolean
+      {
+         var buttons:Array = [];
+         walk(win,[],[],0,0,buttons);
+         for each(var b:* in buttons)
+         {
+            if(b.label == label)
+            {
+               var ButtonEvent:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("scaleform.clik.events.ButtonEvent") as Class;
+               b.dispatchEvent(new ButtonEvent(ButtonEvent["CLICK"]));
+               return true;
+            }
+         }
+         failures.push("create: no " + label + " button");
+         return false;
+      }
+
+      // The create window's PIN field (its one input).
+      private function pinField() : TextField
+      {
+         var texts:Array = [];
+         walk(win,[],texts,0,0,[]);
+         for each(var t:Object in texts)
+            if(t.field.type == "input")
+               return t.field as TextField;
+         return null;
       }
 
       // The create window's text `text`, if it shows it.
