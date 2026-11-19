@@ -42,8 +42,8 @@ Each weather project is the shipped day with 0.31a2's own day-to-weather differe
 - fields skhid edited on the day (five probes' radius and side width) keep the edit;
 - the environment: the shipped day's settings plus native 0.26g `level_01` rain/evening's, each set
   from 0.31a2's first key frame, as patch 14 made the day's from native `level_01/day_2`'s names.
-- `mie_fog_base_height` is 0.31a2's (100 rain, 50 evening) plus 2^-10: London's tone-curve marker
-  (three-maps-021-lighting@9), which no authored height has; the fog it drives does not change.
+- evening's `mie_fog_base_height` is London's tone-curve marker 32929 (three-maps-021-lighting@9);
+  rain keeps 0.31a2's 100 and 0.26g's tone curve until 0.31a2's rain composition is fitted.
 
 The conversion rules are patch 14's own, read off the shipped day: `is_enabled` is a light's
 `enabled` and is dropped elsewhere, an ambient light's colour is packed ARGB (`round(c*255)`), a
