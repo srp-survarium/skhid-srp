@@ -128,6 +128,27 @@ pub struct PushRule {
     pub rest_s: f32,
     /// A carrier that lets go this near our container brought it home, metres.
     pub home_m: f32,
+    /// [fix-team push, second taker] One escort may take a second battery of the push's target ([`SecondTaker`]). Off: one
+    /// taker a push.
+    pub second: Option<SecondTaker>,
+}
+
+/// [fix-team push, second taker] When an escort of a committed push also takes a battery: the target holds another (their
+/// container two or more, or a second lying battery within 25 m of it) and the second carrier's chance of getting away
+/// (`push::Escape::chance`) is at least `escape_min` (the owner, 2026-11-19: the escape alone decides).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct SecondTaker {
+    /// The chance at least this: the escorts left at least two for each who can stop the carrier (2/3; 0.66 for the float's
+    /// rounding). Measured on the 51 carries of the owner's 3 matches of 2026-11-19: scored 0.66 or more, 26 of 36 came home;
+    /// under it, 5 of 15 (under 0.5, 1 of 8).
+    pub escape_min: f32,
+}
+
+impl Default for SecondTaker {
+    fn default() -> Self {
+        Self { escape_min: 0.66 }
+    }
 }
 
 impl Default for PushRule {
@@ -142,6 +163,7 @@ impl Default for PushRule {
             short_s: 8.0,
             rest_s: 15.0,
             home_m: 6.0,
+            second: Some(SecondTaker::default()),
         }
     }
 }
@@ -156,7 +178,8 @@ impl PushRule {
             && (1.0..=120.0).contains(&self.gather_s)
             && (1.0..=60.0).contains(&self.short_s)
             && (0.0..=120.0).contains(&self.rest_s)
-            && (1.0..=20.0).contains(&self.home_m);
+            && (1.0..=20.0).contains(&self.home_m)
+            && self.second.is_none_or(|s| (0.0..=1.0).contains(&s.escape_min));
         if !ok {
             return Err("mods.push".into());
         }
