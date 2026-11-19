@@ -2678,7 +2678,7 @@ impl Tactics {
                     "not_allowed"
                 } else if at.y > query.around.y + STOREY_FROM_M
                     && !by_walk
-                        .get_or_insert_with(|| self.walk_up_set(query.around, query.max_m + WALK_UP_MARGIN_M))
+                        .get_or_insert_with(|| self.walk_up_set(self.walk_up_anchor(query), query.max_m + WALK_UP_MARGIN_M))
                         .contains(node)
                 {
                     "storey_no_walk"
@@ -2767,7 +2767,7 @@ impl Tactics {
             // a ramp), not one only a jump chain does ([`Self::walk_up_from`]).
             if spot.at.y > query.around.y + STOREY_FROM_M
                 && !by_walk
-                    .get_or_insert_with(|| self.walk_up_set(query.around, query.max_m + WALK_UP_MARGIN_M))
+                    .get_or_insert_with(|| self.walk_up_set(self.walk_up_anchor(query), query.max_m + WALK_UP_MARGIN_M))
                     .contains(spot.node)
             {
                 continue;
@@ -2979,6 +2979,18 @@ impl Tactics {
     /// nearest of each [`STOREY_BAND_M`] band within [`STOREY_RADIUS_M`] of
     /// the probe, one that a walk gets to and no pocket holds. Read from the
     /// grid's floors of the cells (no ray).
+    /// [fix-team D5] Where a query's walk up to a storey over its anchor starts ([`Self::walk_up_set`]): the anchor, or with
+    /// `column_m` the floor of its column nearest it (a flank's centre at the camper's height can lie in the air, where the
+    /// walk search finds no start and refused every floor over it).
+    fn walk_up_anchor(&self, query: &SpotQuery) -> Vec3 {
+        match self.column_floor(query.around, query.column_m) {
+            Some(node) if self.world.grid.locate(Vec3::new(query.around.x, query.around.y, query.around.z), LOCATE_M).is_none() => {
+                self.world.grid.position(node)
+            }
+            _ => query.around,
+        }
+    }
+
     /// [fix-team D5] The floor in the probe's column (within the grid's cell of it, 1 m) nearest the probe's height, at most
     /// `within_m` over or under it; none with `within_m` 0.
     fn column_floor(&self, probe: Vec3, within_m: f32) -> Option<NodeId> {
