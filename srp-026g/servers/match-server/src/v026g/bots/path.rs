@@ -295,6 +295,42 @@ pub struct WalkOffRelease {
     pub landing: Vec3,
     pub let_go: LetGo,
     pub crouched: bool,
+    /// [retarget] The line it is walked and let go along ([`DropLine`]).
+    pub line: DropLine,
+}
+
+/// [retarget] The line a drop is walked off along, as the builder flew it: the line from the take-off to the landing, or the
+/// grid way it was walked along where the builder moved the link to the floor its walk or release rested on
+/// (`mapdata::grid::gap::OffLink::way`, #2229: Vector Laboratory day_2, 353 of 1,478 releases 1 deg or more off the line to
+/// the landing). A release's `at` ([`LetGo::At`]) is measured along it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DropLine {
+    /// From the take-off to the landing (a `Drop` link, a link no grid way flew, a file before #2229).
+    ToLanding,
+    /// The grid way it was walked along, flat and unit.
+    Flown([f32; 2]),
+}
+
+impl DropLine {
+    /// The line of an off-link drop from `take_off` to `landing`: its stored grid way, if any.
+    pub fn of_link(link: &mapdata::grid::gap::OffLink) -> Self {
+        link.way.map_or(Self::ToLanding, |way| {
+            let (x, z) = way.unit();
+            Self::Flown([x, z])
+        })
+    }
+
+    /// The line's way, flat and unit (the take-off to the landing for [`Self::ToLanding`]; None where they are one point across).
+    pub fn way(self, take_off: Vec3, landing: Vec3) -> Option<[f32; 2]> {
+        match self {
+            Self::Flown(way) => Some(way),
+            Self::ToLanding => {
+                let (dx, dz) = (landing.x - take_off.x, landing.z - take_off.z);
+                let len = dx.hypot(dz);
+                (len > 1e-3).then(|| [dx / len, dz / len])
+            }
+        }
+    }
 }
 
 /// [F2/F3] Where a drop's walk key goes, as the grid flew it.
@@ -1295,6 +1331,7 @@ fn pull_straight(
                     landing: grid.position(nodes[i]),
                     let_go: LetGo::Standing,
                     crouched: false,
+                    line: DropLine::ToLanding,
                 });
             } else if grid.body().walk_off_lips
                 && into[i] == LinkKind::GapDrop
@@ -1310,15 +1347,17 @@ fn pull_straight(
                     landing: grid.position(nodes[i]),
                     let_go: LetGo::Standing,
                     crouched: false,
+                    line: grid.off_link(nodes[i - 1], nodes[i]).map_or(DropLine::ToLanding, |l| DropLine::of_link(&l)),
                 });
             } else if into[i] == LinkKind::GapDrop
-                && let Some(mapdata::grid::gap::Takeoff::Release { at, crouched }) = grid.off_link(nodes[i - 1], nodes[i]).map(|l| l.press)
+                && let Some(link) = grid.off_link(nodes[i - 1], nodes[i])
+                && let mapdata::grid::gap::Takeoff::Release { at, crouched } = link.press
             {
                 // [A1b] A drop walked off at release: a planned drop the lip guard lets the body over, never sprinted into (the
                 // release is the walk's), and its release for the motor.
                 let (take_off, landing) = (grid.position(nodes[i - 1]), grid.position(nodes[i]));
                 sprint_drops.push((landing, false));
-                walk_offs.push(WalkOffRelease { take_off, landing, let_go: LetGo::At(at.metres()), crouched });
+                walk_offs.push(WalkOffRelease { take_off, landing, let_go: LetGo::At(at.metres()), crouched, line: DropLine::of_link(&link) });
             }
             leg(i - 1, i, &mut floors);
             continue;
@@ -2195,14 +2234,26 @@ impl Route {
 
     /// [A1b] The drop link walked off at release whose leg the body at `s` metres along the route is on (the leg into its
     /// landing), and how far the body's `feet` are along the link's own way past its take-off, m: measured from the link's
-    /// take-off towards its landing, not from the leg's start, which a pulled route may have merged into an earlier corner.
+    /// take-off along its line ([`DropLine`]: the grid way it was flown along, else towards its landing), not from the leg's
+    /// start, which a pulled route may have merged into an earlier corner.
     pub fn walk_off_at(&self, s: f32, feet: Vec3) -> Option<(WalkOffRelease, f32)> {
         let k = self.along.partition_point(|&a| a <= s).max(1);
         let landing = self.points.get(k)?.at;
         let release = *self.walk_offs.iter().find(|w| w.landing == landing)?;
-        let (dx, dz) = (release.landing.x - release.take_off.x, release.landing.z - release.take_off.z);
-        let len = dx.hypot(dz).max(1e-3);
-        Some((release, ((feet.x - release.take_off.x) * dx + (feet.z - release.take_off.z) * dz) / len))
+        let [wx, wz] = release.line.way(release.take_off, release.landing).unwrap_or([0.0, 0.0]);
+        Some((release, (feet.x - release.take_off.x) * wx + (feet.z - release.take_off.z) * wz))
+    }
+
+    /// [retarget] Where a body at `s` with its `feet` on the leg of a drop flown along a grid way ([`DropLine::Flown`]) steers,
+    /// `ahead` metres on: on that way from the take-off, `ahead` past the body's own point along it, at the take-off's height.
+    /// None off such a leg: the route's own points are the line (a drop flown towards its landing walks the route's leg).
+    pub fn flown_drop_target(&self, s: f32, feet: Vec3, ahead: f32) -> Option<Vec3> {
+        let (release, along) = self.walk_off_at(s, feet)?;
+        let DropLine::Flown([wx, wz]) = release.line else {
+            return None;
+        };
+        let t = along.max(0.0) + ahead;
+        Some(Vec3::new(release.take_off.x + wx * t, release.take_off.y, release.take_off.z + wz * t))
     }
 
     /// How far along the route the take-off of the first drop of a lip's height or more from `s` to `within` metres on is

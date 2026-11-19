@@ -15,6 +15,8 @@ use mapdata::grid::drop_check::{ARRIVE_FLAT_M, ARRIVE_HEIGHT_M, RELEASE_SETTLE_S
 use super::kin::TICK_S;
 use super::motor::Footing;
 use super::path::{LetGo, WalkOffRelease};
+#[cfg(test)]
+use super::path::DropLine;
 use crate::v026g::drive::key;
 
 /// The keys a let-go body holds none of.
@@ -207,7 +209,7 @@ mod tests {
     use super::*;
 
     fn link() -> WalkOffRelease {
-        WalkOffRelease { take_off: Vec3::new(0.0, 2.0, 0.0), landing: Vec3::new(0.5, 1.0, 0.0), let_go: LetGo::At(0.3), crouched: true }
+        WalkOffRelease { take_off: Vec3::new(0.0, 2.0, 0.0), landing: Vec3::new(0.5, 1.0, 0.0), let_go: LetGo::At(0.3), crouched: true, line: DropLine::ToLanding }
     }
 
     fn input(on_leg: Option<f32>, feet: Vec3, footing: Footing, speed: f32, clock: u32) -> Input {
@@ -249,7 +251,7 @@ mod tests {
     /// body stands 0.4 m or more under the take-off (half the drop is 0.5), and ends when it is still.
     #[test]
     fn a_walked_off_drop_lets_go_on_its_first_standing_step_below_the_take_off() {
-        let drop = WalkOffRelease { take_off: Vec3::new(0.0, 2.0, 0.0), landing: Vec3::new(1.0, 1.0, 0.0), let_go: LetGo::Standing, crouched: false };
+        let drop = WalkOffRelease { take_off: Vec3::new(0.0, 2.0, 0.0), landing: Vec3::new(1.0, 1.0, 0.0), let_go: LetGo::Standing, crouched: false, line: DropLine::ToLanding };
         let at = |feet: Vec3, footing: Footing, speed: f32, clock: u32| Input {
             on_leg: Some((drop, feet.x)),
             standing: footing == Footing::Ground,
