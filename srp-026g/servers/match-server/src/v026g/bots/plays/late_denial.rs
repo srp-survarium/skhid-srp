@@ -76,7 +76,7 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
         .into_iter()
         .collect();
     // [fix-team push `mods.push`] In a push the guard is counted net of the bot's group (`Ctx::push_net`).
-    given.extend(cx.push_net(theirs.at).map(|net| (Input::EnemiesNearTarget, net)));
+    given.extend(cx.push_net(TargetRef::Container(theirs.id), theirs.at).map(|net| (Input::EnemiesNearTarget, net)));
     out.extend(cx.candidate_given(
         PlayKind::LateDenial,
         TargetRef::Container(theirs.id),

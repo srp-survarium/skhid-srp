@@ -1076,6 +1076,16 @@ fn battery_candidate(cx: &Ctx, battery: usize) -> Option<Candidate> {
         }
         _ => Weighed { sum: counted, held: false },
     };
+    // [fix-team push `mods.push`] A push's members on this battery count its guard net of their own (`Ctx::push_mates`, P3:
+    // two men 10-17 m off weighed it out with the attackers by it counted for nothing): the count and the weighed sum less the
+    // members within `group_m`, never below 0; a man by it holds it no more against the group.
+    let (counted, near) = match cx.push_mates(target).filter(|&m| m > 0) {
+        Some(mates) => {
+            let m = mates as f32;
+            ((counted - m).max(0.0), Weighed { sum: (near.sum - m).max(0.0), held: false })
+        }
+        None => (counted, near),
+    };
     // A crossing's damage weighs against it (`Crossing::cost`): a dry
     // battery as good wins.
     let dry = cx
@@ -6561,6 +6571,31 @@ mod tests {
             Some(TakeThreat { who: 1, by: ThreatBy::Sight }),
             "the mate's line through the cloud"
         );
+    }
+
+    /// [fix-team push `mods.push`] Two men heard 12 m off a battery weigh it out of Collect; the taker of the team's push on it,
+    /// with two of its members by it, has it back (the guard net of its group); a bot not in the push does not.
+    #[test]
+    fn a_push_counts_a_batterys_guard_net_of_its_own() {
+        use crate::v026g::bots::know::Source;
+        use crate::v026g::bots::push::{Push, Target};
+        let mut s = Scenario::field(Mode::Batteries);
+        s.tuning.take.known_threats = true;
+        s.tuning.mods.push = Some(crate::v026g::bots::tuning::PushRule::default());
+        s.battery(BatteryState::Free(TAKE_AT));
+        s.bot(0, 0, TAKE_AT + Vec3::new(0.0, 0.0, 20.0));
+        s.enemy(1, 1, TAKE_AT + Vec3::new(12.0, 0.0, 0.0), Some(Source::Heard));
+        s.enemy(3, 1, TAKE_AT + Vec3::new(-12.0, 0.0, 0.0), Some(Source::Heard));
+        for (p, x) in [(2, -3.0), (4, 3.0)] {
+            s.bot(p, 0, TAKE_AT + Vec3::new(x, 0.0, 22.0));
+        }
+        let score = |s: &Scenario| battery_candidate(&s.cx(0), 0).map_or(0.0, |c| c.score.get());
+        assert_eq!(score(&s), 0.0, "no push: two men weigh it out");
+        let target = Target::Battery { index: 0, at: TAKE_AT };
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4], short_since: None };
+        assert!(score(&s) > 0.0, "the push's taker with two members by it: net of its own");
+        s.team.push = Push::Commit { target, taker: 2, escorts: vec![4], short_since: None };
+        assert_eq!(score(&s), 0.0, "a bot not in the push: the men weigh it out");
     }
 
     /// [weigh fresh spots] A man heard 2 m from a battery holds it while his spot is fresh; once the spot is older than a

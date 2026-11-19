@@ -1302,6 +1302,24 @@ impl Bots {
                     (super::push::Target::Container { id: c.id, at: c.at }, near)
                 })
                 .collect();
+            // [fix-team push (b)] The lying batteries as the team knows them (`Ctx::battery_lying`'s rule), each with its known
+            // defenders: a contested one may be the push's target.
+            let lying = |i: usize| -> Option<Vec3> {
+                if tuning.cheats.batteries {
+                    match view.batteries.get(i)? {
+                        super::view::BatteryState::Free(at) => Some(*at),
+                        _ => None,
+                    }
+                } else {
+                    self.teams[usize::from(team)].knowledge.battery(i).map(|known| known.at)
+                }
+            };
+            let mut targets = targets;
+            targets.extend((0..view.batteries.len()).filter_map(|i| {
+                let at = lying(i)?;
+                let near = enemies.iter().filter(|e| e.distance_xz(at) < plays::ENEMIES_NEAR_M).count();
+                Some((super::push::Target::Battery { index: i, at }, near))
+            }));
             let enemy_carrier = view.places.iter().any(|p| p.team != team && p.alive && p.carrying.is_some());
             let home = view.container_of(team).map(|c| c.at);
             let state = &mut self.teams[usize::from(team)];

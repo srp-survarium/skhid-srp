@@ -167,7 +167,7 @@ fn raid_candidate(cx: &Ctx, target: TargetRef, slot: u32) -> Option<Candidate> {
     let running = matches!(cx.bot.current, Some((PlayKind::Raid, t, _)) if t == target);
     // [fix-team push `mods.push`] In a push the guard is counted net of the bot's group (`Ctx::push_net`), for the score and the
     // running raid's `guarded` test alike.
-    let net = cx.point_of(target).and_then(|at| cx.push_net(at));
+    let net = cx.point_of(target).and_then(|at| cx.push_net(target, at));
     let committed = running
         && cx.point_of(target).is_some_and(|at| {
             let near = net.unwrap_or_else(|| cx.enemies_near(at, cx.num(PlayKind::Raid, "guard_m")) as f32);

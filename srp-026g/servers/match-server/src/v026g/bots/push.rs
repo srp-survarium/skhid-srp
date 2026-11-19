@@ -4,8 +4,8 @@
 //!
 //! - **When:** the team is `behind_by` points behind in a battery mode, no enemy carries one of ours (Intercept's, as today),
 //!   and it has a target and enough bots: at least `min_group`, or the defenders the team knows near the target.
-//! - **What:** the enemy's container (a Raid), the one with the fewest known defenders within 25 m. A contested lying
-//!   battery (a Collect) joins with the battery weighing's net count.
+//! - **What:** the enemy's container (a Raid) or a contested lying battery (a Collect: one with a defender known within 25 m),
+//!   the one with the fewest known defenders, then the nearest. A carried one is Intercept's, as today.
 //! - **Who:** one more bot than it needs, the nearest to the target, but one bot by our own container when the team has
 //!   four or more (one persistent defender; UT2003's squads, CTF Arena's template). The taker is the nearest with health over
 //!   `taker_health` and runs the take; the escorts follow it (CoverHuman aimed at the taker, UT's formation centre). A taker
@@ -31,12 +31,14 @@ use super::view::Place;
 pub enum Target {
     /// The enemy's container `id`, at `at`: a Raid.
     Container { id: u8, at: Vec3 },
+    /// Battery `index` lying at `at` as the team knows it, defended: a Collect.
+    Battery { index: usize, at: Vec3 },
 }
 
 impl Target {
     pub fn at(self) -> Vec3 {
         match self {
-            Target::Container { at, .. } => at,
+            Target::Container { at, .. } | Target::Battery { at, .. } => at,
         }
     }
 
@@ -44,7 +46,13 @@ impl Target {
     pub fn play(self) -> (PlayKind, TargetRef) {
         match self {
             Target::Container { id, .. } => (PlayKind::Raid, TargetRef::Container(id)),
+            Target::Battery { index, .. } => (PlayKind::Collect, TargetRef::Battery(index)),
         }
+    }
+
+    /// Whether `other` is the same container or battery (where the team knows a battery lies moves with what it sees).
+    pub fn same(self, other: Target) -> bool {
+        self.play().1 == other.play().1
     }
 }
 
@@ -78,7 +86,7 @@ impl Picture<'_> {
     }
 
     fn defenders(&self, target: Target) -> Option<usize> {
-        self.targets.iter().find(|(t, _)| *t == target).map(|&(_, n)| n)
+        self.targets.iter().find(|(t, _)| t.same(target)).map(|&(_, n)| n)
     }
 }
 
@@ -141,6 +149,7 @@ impl Event {
     pub fn line(&self, before: &Push, after: &Push, p: &Picture) -> String {
         let target = |t: Target| match t {
             Target::Container { id, .. } => format!("their container {id}"),
+            Target::Battery { index, .. } => format!("battery {index}"),
         };
         let net = |defenders: usize, group: usize| defenders.saturating_sub(group);
         match self {
@@ -284,10 +293,8 @@ fn group(target: Target, taker: Place, mut escorts: Vec<Place>, p: &Picture, rul
     if !p.behind {
         return Err(end(End::Level));
     }
-    if p.defenders(target).is_none() {
-        return Err(end(End::TargetGone));
-    }
     escorts.retain(|&e| p.bot(e).is_some());
+    // A member that carries took it (a battery taken lies no more: before the target's gone).
     let members = std::iter::once(taker).chain(escorts.iter().copied());
     if let Some(carrier) = members.filter_map(|m| p.bot(m)).find(|m| m.carrying).map(|m| m.place) {
         escorts.retain(|&e| e != carrier);
@@ -295,6 +302,9 @@ fn group(target: Target, taker: Place, mut escorts: Vec<Place>, p: &Picture, rul
             escorts.push(taker);
         }
         return Err((Push::Home { carrier, escorts }, Some(Event::Took { carrier })));
+    }
+    if p.defenders(target).is_none() {
+        return Err(end(End::TargetGone));
     }
     if p.bot(taker).is_some() {
         return Ok(Group { taker, escorts });
@@ -329,7 +339,9 @@ fn start(p: &Picture, rule: &PushRule) -> (Push, Option<Event>) {
         return (Push::Idle, None);
     }
     let centre = free.iter().fold(Vec3::new(0.0, 0.0, 0.0), |s, b| s + b.at) * (1.0 / free.len() as f32);
-    let Some(&(target, defenders)) = p.targets.iter().min_by(|a, b| {
+    // A lying battery nobody is known to defend is plain Collect's, not a push's.
+    let contested = |&&(t, defenders): &&(Target, usize)| !matches!(t, Target::Battery { .. }) || defenders > 0;
+    let Some(&(target, defenders)) = p.targets.iter().filter(contested).min_by(|a, b| {
         a.1.cmp(&b.1).then(a.0.at().distance_xz(centre).total_cmp(&b.0.at().distance_xz(centre)))
     }) else {
         return (Push::Idle, None);
@@ -436,6 +448,31 @@ mod tests {
         let (after, event) = push.clone().next(&p, &rule);
         let line = event.expect("ended").line(&push, &after, &p);
         assert_eq!(line, "push on their container 1 ended: NoTaker (group [5, 4, 3, 2], 0 alive, 2 defenders known, net 2)");
+    }
+
+    /// A contested lying battery with fewer defenders than their container is the target, its taker on Collect; a battery
+    /// nobody defends is not (plain Collect's). Once the taker carries it the push turns home, though it lies no more.
+    #[test]
+    fn a_push_takes_a_contested_battery_and_brings_it_home() {
+        let rule = PushRule::default();
+        let battery = Target::Battery { index: 3, at: Vec3::new(60.0, 0.0, 20.0) };
+        let free = Target::Battery { index: 4, at: Vec3::new(30.0, 0.0, 0.0) };
+        let bots = [bot(2, 40.0), bot(3, 50.0), bot(4, 55.0)];
+        let targets = [(THEIRS, 3), (battery, 1), (free, 0)];
+        let (push, _) = Push::Idle.next(&picture(0, &bots, &targets), &rule);
+        assert_eq!(push.target(), Some(battery), "{push:?}");
+        let Push::Gather { taker, .. } = push else { panic!("{push:?}") };
+        assert_eq!(push.role(taker).map(|r| matches!(r, Role::Taker(t) if t.play().0 == PlayKind::Collect)), Some(true));
+        // It is seen a metre off where it was thought: the same battery.
+        let moved = [(THEIRS, 3), (Target::Battery { index: 3, at: Vec3::new(61.0, 0.0, 20.0) }, 1)];
+        let (push, event) = push.next(&picture(1_000, &bots, &moved), &rule);
+        assert!(matches!(push, Push::Gather { .. } | Push::Commit { .. }), "{push:?} {event:?}");
+        // The taker picks it up: it lies no more, and the push turns home.
+        let mut carrying = bots;
+        carrying.iter_mut().find(|b| b.place == taker).expect("taker").carrying = true;
+        let (push, event) = push.next(&picture(2_000, &carrying, &[(THEIRS, 3)]), &rule);
+        assert_eq!(event, Some(Event::Took { carrier: taker }));
+        assert!(matches!(push, Push::Home { .. }), "{push:?}");
     }
 
     /// No push level on points, with an enemy carrying ours (Intercept's), or with too few bots.

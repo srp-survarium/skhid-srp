@@ -1105,11 +1105,19 @@ impl Ctx<'_> {
     /// [fix-team push `mods.push`] For a member of the team's push (`push::Push`, the commander's) on its target `at`, the known
     /// enemies within 25 m of it net of the push's live members within `group_m` of the bot, never below 0: the count its
     /// attack gates read. None for any other bot or target: the defenders alone, as before.
-    pub fn push_net(&self, at: Vec3) -> Option<f32> {
+    pub fn push_net(&self, target: TargetRef, at: Vec3) -> Option<f32> {
+        let mates = self.push_mates(target)?;
+        Some(self.enemies_near(at, ENEMIES_NEAR_M).saturating_sub(mates) as f32)
+    }
+
+    /// [fix-team push `mods.push`] For a member of the team's push on its target `target` (the container a Raid or a Late
+    /// Denial goes for, the battery a Collect takes), the push's live members within `group_m` of the bot; None for any
+    /// other bot or target.
+    pub fn push_mates(&self, target: TargetRef) -> Option<usize> {
         let rule = self.tuning.mods.push?;
         let push = &self.team.push;
         push.role(self.me.place)?;
-        push.target().filter(|t| t.at().distance_xz(at) < 1.0)?;
+        push.target().filter(|t| t.play().1 == target)?;
         let members = push.members();
         let mates = self
             .view
@@ -1118,7 +1126,7 @@ impl Ctx<'_> {
                 p.place != self.me.place && p.alive && members.contains(&p.place) && p.feet.distance_xz(self.me.feet) < rule.group_m
             })
             .count();
-        Some(self.enemies_near(at, ENEMIES_NEAR_M).saturating_sub(mates) as f32)
+        Some(mates)
     }
 
     /// Teammates (alive) within `m` of `at`, the bot itself not counted.
