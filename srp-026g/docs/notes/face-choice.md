@@ -114,6 +114,10 @@ marked [pick] is a worker's choice the owner may change.
   0.69d0's `models.head_<n>` (0x204B36, where the cook has chosen the key it reads the item's
   models from). The face is the head's: the same tables, a face the data does not list face 0,
   which has no key of its own. `f<face>_` is in the skin's name then too, once.
+- Everything the cook reads of an item is the chosen entry's, `remove_head_model` and
+  `additional_models` too: faces@4's per-face mask entries set `remove_head_model: true` and carry
+  the face's `head_s` as an additional model, so the head is the entry's own (seen in the game
+  with d75dc43a0).
 - Without `heads` in the data the native head is made, as today, and every item's `data`.
 
 ## Lobby
