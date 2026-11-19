@@ -118,6 +118,7 @@ fn flank_queries(t: &Tuning, him: Vec3, yaw: f32, side: Option<i32>) -> Vec<Spot
                 sight_to: Some(him),
                 up_m: levels,
                 down_m: levels,
+                column_m: if t.threat.job_spot_column { JOB_LEVELS_M } else { 0.0 },
                 side,
                 samples: num("samples") as usize / 2,
                 ..SpotQuery::ring(centre, 0.0, (hi - lo) * 0.5 + 2.0)
@@ -135,6 +136,7 @@ fn pin_query(t: &Tuning, him: Vec3, reach_m: f32, side: Option<i32>) -> SpotQuer
         prefer_high: num("prefer_high"),
         up_m: num("up_m"),
         down_m: if t.threat.job_spot_levels { JOB_LEVELS_M } else { 0.0 },
+        column_m: if t.threat.job_spot_column { JOB_LEVELS_M } else { 0.0 },
         side,
         samples: num("samples") as usize,
         exposure: t.cover.hold_exposure,
@@ -158,7 +160,11 @@ fn job_spot_stages() {
         let v = |i: usize| f[i].trim().parse::<f32>().unwrap();
         groups.entry((f[0].to_owned(), f[1].to_owned())).or_default().push((f[2].to_owned(), Vec3::new(v(3), v(4), v(5))));
     }
-    let t = Tuning::default();
+    let mut t = Tuning::default();
+    // `SRP_JOB_COLUMN=0`: the queries as before `threat.job_spot_column`.
+    if std::env::var("SRP_JOB_COLUMN").as_deref() == Ok("0") {
+        t.threat.job_spot_column = false;
+    }
     // `SRP_JOB_LEVELS=level_01,level_07/4`: only these (a level, or a level and its mode).
     let only: Option<Vec<String>> = std::env::var("SRP_JOB_LEVELS").ok().map(|v| v.split(',').map(str::to_owned).collect());
     let (mut flank_all, mut pin_all) = (Tally::default(), Tally::default());

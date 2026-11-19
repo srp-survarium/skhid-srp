@@ -568,6 +568,11 @@ pub struct SpotQuery {
     /// Also look at the floors of the storeys under the ring's, down to this many metres under `around` (0: none).
     /// Only with a `sight_to`, as `up_m`.
     pub down_m: f32,
+    /// [fix-team D5] A probe with no floor at the anchor's height (the grid's `locate`: 1.5 m under to 2 m over it) takes
+    /// its column's floor nearest that height within this many metres over or under it (0: none). The ground round a held
+    /// spot is not at the camper's height: of a job flank's samples round 135 real held spots on Rudnya, 51.5 % had no
+    /// floor at it and every one of them a floor within 8 m in its column.
+    pub column_m: f32,
     /// The bot's map side: the other side's spawn area is out.
     pub side: Option<i32>,
     /// Candidates sampled before the rays.
@@ -590,6 +595,7 @@ impl SpotQuery {
             prefer_high: 0.0,
             up_m: 0.0,
             down_m: 0.0,
+            column_m: 0.0,
             side: None,
             samples: 48,
             exposure: None,
@@ -2650,6 +2656,9 @@ impl Tactics {
                 self.storeys_under(probe, query.down_m, &mut nodes);
             }
             if nodes.is_empty() {
+                nodes.extend(self.column_floor(probe, query.column_m));
+            }
+            if nodes.is_empty() {
                 let off = grid.locate(Vec3::new(probe.x, probe.y + 1.0, probe.z), 30.0).is_some();
                 let column = grid
                     .floors_in([probe.x - 1.0, probe.z - 1.0, probe.x + 1.0, probe.z + 1.0])
@@ -2709,6 +2718,9 @@ impl Tactics {
             }
             if query.down_m > 0.0 && query.sight_to.is_some() {
                 self.storeys_under(probe, query.down_m, &mut nodes);
+            }
+            if nodes.is_empty() {
+                nodes.extend(self.column_floor(probe, query.column_m));
             }
             for node in nodes {
                 let at = grid.position(node);
@@ -2967,6 +2979,27 @@ impl Tactics {
     /// nearest of each [`STOREY_BAND_M`] band within [`STOREY_RADIUS_M`] of
     /// the probe, one that a walk gets to and no pocket holds. Read from the
     /// grid's floors of the cells (no ray).
+    /// [fix-team D5] The floor in the probe's column (within the grid's cell of it, 1 m) nearest the probe's height, at most
+    /// `within_m` over or under it; none with `within_m` 0.
+    fn column_floor(&self, probe: Vec3, within_m: f32) -> Option<NodeId> {
+        if within_m <= 0.0 {
+            return None;
+        }
+        let grid = &self.world.grid;
+        grid.floors_in([probe.x - 1.0, probe.z - 1.0, probe.x + 1.0, probe.z + 1.0])
+            .filter(|&n| {
+                let at = grid.position(n);
+                at.distance_xz(probe) <= 1.0 && (at.y - probe.y).abs() <= within_m
+            })
+            .min_by(|&a, &b| {
+                let key = |n: NodeId| {
+                    let at = grid.position(n);
+                    ((at.y - probe.y).abs(), at.distance_xz(probe))
+                };
+                key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal)
+            })
+    }
+
     fn storeys_over(&self, probe: Vec3, up_m: f32, nodes: &mut Vec<NodeId>) {
         self.storeys_in(probe, probe.y + 2.0, probe.y + up_m, nodes);
     }

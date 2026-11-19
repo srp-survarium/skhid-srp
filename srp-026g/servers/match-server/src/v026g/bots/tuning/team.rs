@@ -883,6 +883,13 @@ pub struct ThreatTuning {
     /// deaths in job Flank +19 and job Crossfire +17, holders down to another enemy +16 (to the shooter 29 vs 31), the
     /// Trades after them +32. A spot on another storey is a longer way across the map to it (LIKELY).
     pub job_spot_levels: bool,
+    /// [fix-team D5] A job's flank and pin spot queries take, for a probe with no floor at the held spot's height (the grid's
+    /// window: 1.5 m under to 2 m over it), the floor of the probe's column nearest that height within `JOB_LEVELS_M` (8 m)
+    /// (`SpotQuery::column_m`). Round 135 real held spots of the 16 own-play matches (Opus's D5 `none_sampled` lines), the
+    /// job flank query on Rudnya came back empty 57 times in 96, 51.5 % of its samples lost to that window, every one with a
+    /// floor within 8 m in its column (the probe `tests/job_spot_stages.rs`). Not `job_spot_levels` (every storey's floor
+    /// over and under, which lost its h2h): only the one nearest floor, as the ground lies. Off: the window alone.
+    pub job_spot_column: bool,
     /// PR C item 20: the gang-up cap on the plays aimed at one enemy (the commander's assignment). `None` (off): the
     /// plays are handed out as before. On by default.
     pub gang_up: Option<GangUp>,
@@ -1247,6 +1254,7 @@ impl Default for ThreatTuning {
             job_out_of_all_lines: false,
             job_line_by_id: true,
             job_spot_levels: false,
+            job_spot_column: true,
             gang_up: Some(GangUp::default()),
             pin_from_cover: None,
             answer_sniper: false,
