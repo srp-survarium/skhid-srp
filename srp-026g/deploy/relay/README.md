@@ -107,6 +107,15 @@ UDP replies go only to clients observed on that frontend within 120 seconds.
 To take it away: remove the name from `SRP_WEB_DOMAIN`, make `caddy26` anew,
 remove the A record.
 
+## What it carried
+
+On the relay, `journalctl -u skhid-relay -u skhid-relay-web`: a line per login
+connection at its end (client, seconds, bytes each way, how it ended), a line
+per client and UDP service (`lobby`, `match`, `voice`) when it has been idle
+120 s or the relay stops (seconds from its first datagram to its last, packets
+and bytes each way), and a line per `site` or updater `CONNECT` connection. On
+the origin the sign-in lines name the route: `from <client> via relay <public>`.
+
 ## Checks and rollback
 
 `tools/check regional-relay relay-packaging cargo:udp-transport

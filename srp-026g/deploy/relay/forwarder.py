@@ -123,13 +123,13 @@ class BackendUDP(asyncio.DatagramProtocol):
         logging.debug("backend UDP %s: %s", self.front.port, error)
 
 
-async def tunnel(reader, writer, remote, upstream):
+async def tunnel(reader, writer, remote, upstream, carried):
     """Copy both ways until the server's side ends or the tunnel is idle.
     Idle is the tunnel's, not one direction's: a download sends nothing the
-    other way for minutes."""
+    other way for minutes. `carried` counts the bytes of each way."""
     active = time.monotonic()
 
-    async def copy(source, target):
+    async def copy(source, target, way):
         nonlocal active
         while True:
             left = active + IDLE - time.monotonic()
@@ -142,6 +142,7 @@ async def tunnel(reader, writer, remote, upstream):
             if not data:
                 break
             active = time.monotonic()
+            carried[way] += len(data)
             target.write(data)
             await asyncio.wait_for(target.drain(), 10)
         if target.can_write_eof():
@@ -151,9 +152,19 @@ async def tunnel(reader, writer, remote, upstream):
     # more can be answered: the tunnel ends, and a silent client does not hold
     # its slot. An error in either half ends both.
     async with asyncio.TaskGroup() as group:
-        asking = group.create_task(copy(reader, upstream))
-        await copy(remote, writer)
+        asking = group.create_task(copy(reader, upstream, "up"))
+        await copy(remote, writer, "down")
         asking.cancel()
+
+
+def report(service, client, start, carried, end):
+    """One line per connection, once it is closed."""
+    while isinstance(end, ExceptionGroup):
+        end = end.exceptions[0]
+    if isinstance(end, BaseException):
+        end = f"{type(end).__name__}: {end}"
+    logging.info("%s %s:%d: %.1f s, up %d bytes, down %d bytes, %s", service, *client,
+                 time.monotonic() - start, carried["up"], carried["down"], end)
 
 
 class Slots:
@@ -177,8 +188,9 @@ class Slots:
 
 
 class Login:
-    def __init__(self, public, backend, port, limit=256):
+    def __init__(self, public, backend, port, limit=256, service="login"):
         self.public, self.backend, self.port = public, backend, port
+        self.service = service
         self.slots = Slots(limit)
         self.budget = Budget(rate=2, burst=10)
 
@@ -188,16 +200,18 @@ class Login:
             writer.close()
             return
         upstream = None
+        start, carried, end = time.monotonic(), {"up": 0, "down": 0}, "closed"
         try:
             remote, upstream = await asyncio.wait_for(
                 asyncio.open_connection(self.backend, self.port, family=socket.AF_INET), 10)
             upstream.write(header(client, self.public, self.port, 0x11))
             await upstream.drain()
 
-            await tunnel(reader, writer, remote, upstream)
+            await tunnel(reader, writer, remote, upstream, carried)
         except (OSError, TimeoutError, ExceptionGroup) as error:
-            logging.debug("login from %s failed: %s", client, error)
+            end = error
         finally:
+            report(self.service, client, start, carried, end)
             self.slots.free(client[0])
             writer.close()
             if upstream:
@@ -206,16 +220,21 @@ class Login:
 
 class HTTPS(Login):
     """CONNECT to one configured HTTPS origin, never an open proxy."""
+    def __init__(self, public, origin, port, limit=128):
+        super().__init__(public, origin, port, limit, "CONNECT")
+
     async def accept(self, reader, writer):
         client = writer.get_extra_info("peername")
         if not self.budget.take(client[0], time.monotonic()) or not self.slots.take(client[0]):
             writer.close()
             return
         upstream = None
+        start, carried, end = time.monotonic(), {"up": 0, "down": 0}, "closed"
         try:
             request = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 10)
             expected = f"CONNECT {self.backend}:443 HTTP/1.1".encode()
             if len(request) > 4096 or request.split(b"\r\n", 1)[0] != expected:
+                end = "refused: not the origin"
                 writer.write(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
                 await writer.drain()
                 return
@@ -223,10 +242,11 @@ class HTTPS(Login):
             writer.write(b"HTTP/1.1 200 Connection Established\r\n\r\n")
             await writer.drain()
 
-            await tunnel(reader, writer, remote, upstream)
+            await tunnel(reader, writer, remote, upstream, carried)
         except (OSError, TimeoutError, asyncio.IncompleteReadError, asyncio.LimitOverrunError, ExceptionGroup) as error:
-            logging.debug("HTTPS tunnel from %s failed: %s", client, error)
+            end = error
         finally:
+            report(self.service, client, start, carried, end)
             self.slots.free(client[0])
             writer.close()
             if upstream:
@@ -234,11 +254,11 @@ class HTTPS(Login):
 
 
 async def run_https(args):
-    proxy = HTTPS(args.public, args.https_origin, 443, limit=128)
+    proxy = HTTPS(args.public, args.https_origin, 443)
     server = await asyncio.start_server(proxy.accept, args.bind, 8080, family=socket.AF_INET, limit=4096)
     # The site under the relay's own name: its HTTPS port goes to the origin's
     # web server unopened, which is told the visitor's address as the login is.
-    site = Login(args.public, args.backend, args.site_port)
+    site = Login(args.public, args.backend, args.site_port, service="site")
     passed = await asyncio.start_server(site.accept, args.bind, args.site_port, family=socket.AF_INET)
     logging.info("HTTPS relay ready for %s:443, site on %s", args.https_origin, args.site_port)
     stopped = asyncio.Event()
@@ -254,7 +274,7 @@ async def run(args):
     transports = []
     login = Login(args.public, args.backend, args.login_port)
     server = await asyncio.start_server(login.accept, args.bind, args.login_port, family=socket.AF_INET)
-    https = HTTPS(args.public, args.https_origin, 443, limit=128)
+    https = HTTPS(args.public, args.https_origin, 443)
     proxy = await asyncio.start_server(https.accept, args.bind, 8080, family=socket.AF_INET, limit=4096)
     try:
         for port in (args.lobby_port, args.match_port, args.match_port + 1):

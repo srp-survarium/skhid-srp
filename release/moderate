@@ -332,13 +332,15 @@ def registrations(db, text):
     return events
 
 
+# The client's address, and the relay it came through if any.
+PEER = r"(?P<addr>\S+)(?: via relay \S+)?"
 JOIN_LINES = [
-    ("joined", None, re.compile(r"Sign-in: account=0x(?P<id>[0-9a-f]+)(?: from (?P<addr>\S+))? session=")),
-    ("refused", "banned account", re.compile(r"Sign-in of banned account (?P<name>.+) from (?P<addr>\S+) refused$")),
-    ("refused", "banned address", re.compile(r"Sign-in of (?P<name>.+) from banned address (?P<addr>\S+) \((?P<detail>[^)]*)\) refused$")),
-    ("refused", "sign-ups closed", re.compile(r"Sign-in of new user name (?P<name>.+) from (?P<addr>\S+): registration is closed$")),
-    ("refused", None, re.compile(r"Sign-in of (?P<name>.+) from (?P<addr>\S+) refused: (?P<detail>.+)$")),
-    ("flagged", "stale shell_32.dll in %TEMP%", re.compile(r"Cheat check: (?P<name>.+) from (?P<addr>\S+) has a stale")),
+    ("joined", None, re.compile(r"Sign-in: account=0x(?P<id>[0-9a-f]+)(?: from " + PEER + r")? session=")),
+    ("refused", "banned account", re.compile(r"Sign-in of banned account (?P<name>.+) from " + PEER + r" refused$")),
+    ("refused", "banned address", re.compile(r"Sign-in of (?P<name>.+) from banned address " + PEER + r" \((?P<detail>[^)]*)\) refused$")),
+    ("refused", "sign-ups closed", re.compile(r"Sign-in of new user name (?P<name>.+) from " + PEER + r": registration is closed$")),
+    ("refused", None, re.compile(r"Sign-in of (?P<name>.+) from " + PEER + r" refused: (?P<detail>.+)$")),
+    ("flagged", "stale shell_32.dll in %TEMP%", re.compile(r"Cheat check: (?P<name>.+) from " + PEER + r" has a stale")),
 ]
 
 

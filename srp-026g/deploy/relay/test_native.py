@@ -107,6 +107,26 @@ class NativeTests(unittest.TestCase):
             self.assertEqual(kind, 'tcp')
             self.assertEqual(header, f.header(address, '203.0.113.8', self.port, 0x11))
 
+    def test_each_login_and_flow_is_reported(self):
+        with socket.create_connection(('127.0.0.2', self.port), timeout=2) as client:
+            login = client.getsockname()
+            client.sendall(b'hello')
+            self.assertEqual(client.recv(5), b'HELLO')
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as client:
+            client.bind(('127.0.0.1', 0))
+            client.settimeout(2)
+            client.sendto(b'ping', ('127.0.0.2', self.port+2))
+            self.assertEqual(client.recv(8192), b'ping')
+            match = client.getsockname()
+        self.assertTrue(select.select([self.process.stderr], [], [], 2)[0])
+        self.assertRegex(self.process.stderr.readline().decode(),
+            rf'^login 127\.0\.0\.1:{login[1]}: \d+\.\d s, up 5 bytes, down 5 bytes, closed\n$')
+        self.process.terminate()
+        self.process.wait(timeout=5)
+        self.assertRegex(self.process.stderr.read().decode(),
+            rf'^match 127\.0\.0\.1:{match[1]} at stop: \d+\.\d s, '
+            r'up 1 packets 4 bytes, down 1 packets 4 bytes\n$')
+
     def test_all_udp_ports_multiple_clients_and_unobserved_destination(self):
         for port in range(self.port+1, self.port+4):
             for i in range(3):
