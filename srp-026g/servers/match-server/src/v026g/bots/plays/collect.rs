@@ -6565,7 +6565,7 @@ mod tests {
         );
     }
 
-    /// [fix-team push `mods.push`] Two men heard 12 m off a battery weigh it out of Collect; the taker of the team's push on it,
+    /// [fix-team push `mods.push`] Four men heard 12-13 m off a battery weigh it out of Collect; the taker of the team's push on it,
     /// with two of its members by it, has it back (the guard net of its group); a bot not in the push does not.
     #[test]
     fn a_push_counts_a_batterys_guard_net_of_its_own() {
@@ -6576,13 +6576,14 @@ mod tests {
         s.tuning.mods.push = Some(crate::v026g::bots::tuning::PushRule::default());
         s.battery(BatteryState::Free(TAKE_AT));
         s.bot(0, 0, TAKE_AT + Vec3::new(0.0, 0.0, 20.0));
-        s.enemy(1, 1, TAKE_AT + Vec3::new(12.0, 0.0, 0.0), Some(Source::Heard));
-        s.enemy(3, 1, TAKE_AT + Vec3::new(-12.0, 0.0, 0.0), Some(Source::Heard));
+        for (p, x, z) in [(1, 12.0, 0.0), (3, -12.0, 0.0), (5, 12.0, -6.0), (7, -12.0, -6.0)] {
+            s.enemy(p, 1, TAKE_AT + Vec3::new(x, 0.0, z), Some(Source::Heard));
+        }
         for (p, x) in [(2, -3.0), (4, 3.0)] {
             s.bot(p, 0, TAKE_AT + Vec3::new(x, 0.0, 22.0));
         }
         let score = |s: &Scenario| battery_candidate(&s.cx(0), 0).map_or(0.0, |c| c.score.get());
-        assert_eq!(score(&s), 0.0, "no push: two men weigh it out");
+        assert_eq!(score(&s), 0.0, "no push: four men weigh it out");
         let target = Target::Battery { index: 0, at: TAKE_AT };
         s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4], short_since: None };
         assert!(score(&s) > 0.0, "the push's taker with two members by it: net of its own");
