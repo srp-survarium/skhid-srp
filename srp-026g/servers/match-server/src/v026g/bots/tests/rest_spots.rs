@@ -5,7 +5,7 @@
 //! every start 3-8 m off whose planned route takes it must come down on its landing.
 //!
 //! ```text
-//! SRP_MAPDATA_DIR=<dir> [SRP_BENCH_GRID_CACHE=<dir>] cargo test -p match-server --release rest_spots -- --ignored --nocapture
+//! SRP_MAPDATA_DIR=<dir> SRP_GAME_DATA=<server-game-data.db> [SRP_BENCH_GRID_CACHE=<dir>] cargo test -p match-server --release rest_spots -- --ignored --nocapture
 //! ```
 
 use super::*;
@@ -109,7 +109,7 @@ fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: V
 #[test]
 #[ignore = "needs SRP_MAPDATA_DIR"]
 fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
-    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
