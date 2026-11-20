@@ -19,7 +19,10 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   "Older matches" (`before=`). A list of players or clans sorts by a click on a column's
   heading (the owner, 2026-11-20), largest first, and smallest first on a second click
   (`&order=asc`); the players' list has no Level.
-- A player's page says the account's id first in Overall (the owner, 2026-11-20).
+- A player's page says the account's id first in Overall (the owner, 2026-11-20), then its
+  earlier names (the owner, 2026-11-20: "we also need name history"): the last ten it left, the
+  last left first, each with its day on a hover; `?player=` finds a player by a name it left
+  while nobody has that name now.
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
   headshots as their share of the kills (HS %); no batteries or artefacts (a profile's own panel
   has them).
@@ -126,6 +129,11 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   weapons that were used.
 - `g26_player_weapons`: those rows of the counted public matches added up by player and weapon,
   with the matches that had a row of it; the longest kill is the longest of them.
+- `g26_account_names`: a name an account left and when (`until`), written by a trigger of
+  `g26_accounts` on every change of `name`, whoever made it (a rename in the lobby, an
+  administrator's). The names of before migration 22 are not known. The site says none that an
+  administrator took from the account (the audit trail's `nickname` rows): it was taken for a
+  reason.
 - Not kept, as survarium.pro had them: artefact kills (0.26g has none), clan rating (clans have
   none), skills.
 - What happened inside a match (kills in time order) and the game's own lists (Watch, Replays)
@@ -183,11 +191,14 @@ Common objects:
 
 ### `GET /api/history/player?name=<name>` or `?id=<id>`
 
-A player's card. `name` is the in-game name, exact (Latin letters in any case). `404` for an
+A player's card. `name` is the in-game name, exact (Latin letters in any case), or, with no
+player of that name now, one a player left (the last to leave it). `names`: the last ten names
+it left, the last left first, each with `until` (UTC seconds). `404` for an
 account without a public match, as for no account.
 
 ```json
 {"player":{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}},
+ "names":[{"name":"Baran","until":1795000000}],
  "level":34,"experience":1234567,"rating":1180,
  "totals":{"matches":120,"wins":64,"losses":52,"kills":900,"deaths":700,"assists":210,"score":30500,
            "headshots":180,"grenade_kills":12,"melee_kills":3,"batteries":40,"captures":5.5,

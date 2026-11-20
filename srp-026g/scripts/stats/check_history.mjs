@@ -269,7 +269,7 @@ try {
 
   // A player: nothing moves while it loads; 15 matches, then 8 older.
   await navigate('/stats?player=Sheep&lang=en', 'interactive');
-  assert.equal(await count('.stats-panels dd'), 26, 'the panels are drawn before their data');
+  assert.equal(await count('.stats-panels dd'), 27, 'the panels are drawn before their data');
   assert.equal(await count('.stats-favourites .stats-table tbody tr'), 10, 'five empty rows of each favourite');
   const loading = [await top(0), await listsTop()];
   await settled();
@@ -278,6 +278,10 @@ try {
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Clan').nextSibling.textContent"), '[SKH]');
   assert.equal(await count('.stats-paged .stats-table tbody tr'), 15);
   assert.equal(await panel('ID'), String(answered.player.player.id), 'the account\'s id');
+  const left = answered.player.names.map(former => former.name);
+  assert.deepEqual([...left].sort(), ['Baran', 'Yahnia'], 'the names it left (the preview leaves both in one second)');
+  assert.equal(await panel('Earlier names'), left.join(', '));
+  assert.ok((await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Earlier names').nextSibling.querySelector('span').title")).startsWith('until '));
   assert.equal(await panel('Artefacts'), String(answered.player.totals.artefacts), 'the artefacts taken');
   assert.equal(await panel('Hours played'), (answered.player.totals.played_s / 3600).toFixed(1));
   assert.equal(await panel('Accuracy'), aim(answered.player.totals), 'accuracy in whole percents');
@@ -415,6 +419,9 @@ try {
   await navigate('/stats?player=Nova&lang=en');
   assert.equal(await text('.stats-empty'), 'No player with public matches named “Nova”.');
   assert.equal(await count('.stats-panels'), 0);
+  // A name a player left finds it, while nobody has that name now.
+  await navigate('/stats?player=baran&lang=en');
+  assert.equal(await text('#stats-title'), 'Sheep');
   await navigate('/stats?player=Nobody&lang=en');
   assert.equal(await text('.stats-empty'), 'No player with public matches named “Nobody”.');
   assert.equal(await count('.stats-find'), 1, 'the search stays');

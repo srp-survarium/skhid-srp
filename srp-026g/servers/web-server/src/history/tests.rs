@@ -390,7 +390,7 @@ fn a_player_is_its_card_and_totals_of_public_matches() {
     let body = world.ok("/api/history/player?name=alice");
     assert_eq!(
         keys(&body),
-        ["experience", "level", "player", "rating", "totals"]
+        ["experience", "level", "names", "player", "rating", "totals"]
     );
     assert_eq!(body["player"]["id"], world.alice);
     assert_eq!(body["player"]["name"], "Alice");
@@ -949,7 +949,8 @@ fn an_unknown_endpoint_is_not_found_and_no_database_no_history() {
 /// writes them: one a free-for-all, one a draw, one too short to count;
 /// Yasen in the newest 15 only, with too few shots for the accuracy list
 /// and no weapons counted;
-/// Dub leaves every fifth; one weapon is gone from the game data.
+/// Dub leaves every fifth; one weapon is gone from the game data; Sheep was
+/// Baran, then Yahnia.
 pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
     const NAMES: [&str; 13] = [
         "Sheep", "Volk", "Kvitka", "Lys", "Bars", "Grim", "Sova", "Taras", "Zhuk", "Orel", "Dub",
@@ -957,6 +958,10 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
     ];
     const FIRST: u32 = 1042;
     let mut repository = SqliteGameRepository::open_in(dir).unwrap();
+    // Sheep had two names before.
+    for name in ["Baran", "Yahnia"] {
+        repository.save(FIRST, &Account::new(name)).unwrap();
+    }
     for (index, name) in (0u16..).zip(NAMES) {
         let mut account = Account::new(name);
         account.rating = 1180 - 20 * index;

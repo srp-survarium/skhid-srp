@@ -75,6 +75,8 @@ fn page_text(lang: Lang) -> Value {
         // A sign, no word.
         ("rank", "#".to_owned()),
         ("id", lang.t("ID")),
+        ("formerNames", lang.t("Earlier names")),
+        ("until", lang.t("until {}")),
         ("level", lang.t("Level")),
         ("experience", lang.t("Experience")),
         ("rating", lang.t("Rating")),
@@ -195,6 +197,8 @@ const BEST: usize = 20;
 /// How many weapons and armour pieces a player's favourites list when the
 /// request names no limit.
 const FAVOURITES: usize = 10;
+/// How many of the names a player left its card lists, the last left first.
+const FORMER_NAMES: usize = 10;
 /// What a leaders' list ranks a player's day by.
 type Leading = fn(&Totals) -> u64;
 /// The day's leaders' lists: each its name and what it ranks by, most first
@@ -575,8 +579,14 @@ fn answer(
                 PlayerKey::Name(name) => history.account_by_name(name)?.ok_or(Refusal::NotFound)?,
             };
             let card = history.player(account_id)?.ok_or(Refusal::NotFound)?;
+            let names: Vec<Value> = history
+                .former_names(account_id, FORMER_NAMES)?
+                .iter()
+                .map(|former| json!({ "name": former.name, "until": former.until }))
+                .collect();
             json!({
                 "player": named(&card.player),
+                "names": names,
                 "level": card.level,
                 "experience": card.experience,
                 "rating": card.rating,
