@@ -528,8 +528,10 @@ pub struct DropStats {
     pub walked_off_crouched: usize,
     pub jumped_down: usize,
     /// [D2] Of the Drop links, those a walk line came to rest from deeper than the harmless fall ([`super::Body::max_drop`]):
-    /// no re-aim there; the link went on to the other client ways down onto its own landing (or was cut).
+    /// no re-aim there; the link went on to the other client ways down onto its own landing (or was cut) …
     pub past_harmless_fall: usize,
+    /// … and of them, those no other client way took down either (cut: the build keeps one only as a floor's only way).
+    pub past_harmless_fall_cut: usize,
 }
 
 /// [feed 67] What [`super::Body::drop_lands`] does with one Drop link.
@@ -670,11 +672,11 @@ impl WalkGrid {
         world: &Collision,
         seeds: &[Vec3],
         spawns: &[Vec3],
-    ) -> (Cuts, Reaims, Lips, DropStats) {
+    ) -> (Cuts, Reaims, Lips, DropStats, Vec<(Vec3, Vec3)>) {
         let links = self.reached_drops(wide, seeds, spawns);
         let mut stats = DropStats { walked: links.len(), ..DropStats::default() };
         if links.is_empty() {
-            return (Vec::new(), Vec::new(), Vec::new(), stats);
+            return (Vec::new(), Vec::new(), Vec::new(), stats, Vec::new());
         }
         let s = self.body.controller().1;
         let start = self.body.walk_start();
@@ -694,7 +696,12 @@ impl WalkGrid {
         let mut cut = Vec::new();
         let mut reaim = Vec::new();
         let mut lips = Vec::new();
-        for (&(a, d, _, _), (v, lip, _, _)) in links.iter().zip(verdicts) {
+        // [D2] The take-offs a walk overshot past the harmless fall that no other client way took down (for the build's log).
+        let mut deep_cut = Vec::new();
+        for (&(a, d, from, to), (v, lip, _, deep)) in links.iter().zip(verdicts) {
+            if deep && v == Verdict::Cut {
+                deep_cut.push((from, to));
+            }
             match v {
                 Verdict::Keep if lip => lips.push((a, wide.links[a as usize][d])),
                 Verdict::Keep => {}
@@ -719,7 +726,8 @@ impl WalkGrid {
             }
         }
         stats.cut = cut.len();
-        (cut, reaim, lips, stats)
+        stats.past_harmless_fall_cut = deep_cut.len();
+        (cut, reaim, lips, stats, deep_cut)
     }
 
     /// [edge walk-offs] [`super::Body::edge_walk_offs`]: the walk-offs off the edges no Drop link leads off. A Drop joins a floor
