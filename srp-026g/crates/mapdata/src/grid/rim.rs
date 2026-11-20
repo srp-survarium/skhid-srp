@@ -285,11 +285,11 @@ pub(super) struct Made {
     pub(super) to: NodeId,
     pub(super) press: Takeoff,
     pub(super) share: Share,
-    pub(super) walk: Option<(PressLead, Share)>,
+    pub(super) walk: Option<(gap::WalkingPress, Share)>,
     /// [R83] Where its press is aimed ([`Aim::STRAIGHT`]: on the link's line).
     pub(super) aim: Aim,
     /// [S2] Whether a press a body with no sprint plays (a walking or a slow one, [`Kind::Walk`], [`Kind::Slow`]) lands on `to`
-    /// too, whatever press won: [`Self::walk`] carries a walking press only, so a slow one that lands shows here alone.
+    /// too, whatever press won. [slow walk press] [`Self::walk`] carries a slow one as well now.
     pub(super) walker_lands: bool,
 }
 
@@ -594,28 +594,22 @@ fn press_onto(
         }
         scored.push((l.kind, l.lead, bits.count_ones() as u8, bits));
     }
-    let best_of = |kind: Option<Kind>| {
-        let of: Vec<&(Kind, f32, u8, u16)> = scored.iter().filter(|s| kind.is_none_or(|k| s.0 == k)).collect();
-        let mid = |k: Kind| {
-            let ls: Vec<f32> = scored.iter().filter(|s| s.0 == k).map(|s| s.1).collect();
-            ls.iter().sum::<f32>() / ls.len().max(1) as f32
-        };
-        // [knife edge] The priced count first ([`gap::Mask::priced`]): a press with width across the way before a knife edge.
-        let priced = |bits: u16| gap::Mask::of_bits(bits).map_or(0, gap::Mask::priced);
-        of.into_iter().copied().max_by(|p, q| {
-            priced(p.3)
-                .cmp(&priced(q.3))
-                .then(p.2.cmp(&q.2))
-                .then(rank(q.0).cmp(&rank(p.0)))
-                .then((q.1 - mid(q.0)).abs().total_cmp(&(p.1 - mid(p.0)).abs()))
-        })
-    };
-    let (kind, lead, _, bits) = best_of(None).expect("a scored press");
-    // [S2] A sprint climb carries one too: a body with no sprint takes the link by it (S6's reach).
+    let (kind, lead, _, bits) = best_scored(&scored, |_| true).expect("a scored press");
+    // [S2] A sprint climb carries one too: a body with no sprint takes the link by it (S6's reach). [slow walk press] The best
+    // of the walking presses, the short jump at the walk cap or a slow one ([`gap::WalkingPress`]), by the same rule as the
+    // link's own press: where only a slow press lands (level_02 day_2 (19.70, 16.08, 64.47) and (17.95, 15.72, 92.22): a sprint
+    // link with none, refused whenever the client refused the sprint), a body refused the sprint plays it.
     let walk = matches!(kind, Kind::Sprint | Kind::SprintHeld | Kind::Climb)
-        .then(|| best_of(Some(Kind::Walk)))
+        .then(|| best_scored(&scored, |k| matches!(k, Kind::Walk | Kind::Slow(_))))
         .flatten()
-        .map(|(_, l, _, b)| (PressLead::from_metres(l), share_of(b)));
+        .map(|(k, l, _, b)| {
+            let lead = PressLead::from_metres(l);
+            let walk = match k {
+                Kind::Slow(steps) => gap::WalkingPress::Slow { lead, steps },
+                _ => gap::WalkingPress::Short(lead),
+            };
+            (walk, share_of(b))
+        });
     let press = match kind {
         Kind::Walk => Takeoff::Press(PressLead::from_metres(lead)),
         Kind::Sprint => Takeoff::Sprint(PressLead::from_metres(lead)),
@@ -625,6 +619,40 @@ fn press_onto(
     };
     let walker_lands = scored.iter().any(|s| matches!(s.0, Kind::Walk | Kind::Slow(_)));
     Made { to, press, share: share_of(bits), walk, aim: Aim::STRAIGHT, walker_lands }
+}
+
+/// [`press_onto`]'s choice among the presses `scored` (kind, lead, landing neighbours, their bits) whose kind passes `of`:
+/// the priced count first ([`gap::Mask::priced`], [knife edge]: a press with width across the way before a knife edge), then
+/// every landing neighbour, then [`rank`], then the lead nearest the middle of its kind's.
+///
+/// [loops] A standing press (`Slow(0)`) is chosen only where no moving press ([`moving`]) of those `of` passes lands with width
+/// across the way (the link's own press, and [slow walk press] a sprint link's walking press alike). A standing press needs the body brought to rest inside its window before the press, which the neighbourhood does not
+/// price: the client lets a body go on for a step and the stop blend after its keys are let go (0.61 m at the walk,
+/// `docs/notes/walk_blend.md`), so on a narrow top it slides off or out of the window, and at the final build's loop spots
+/// bodies waited at the press point and never pressed (`LOOPS.md` cause 1). Players climb these links on the move: 16 of 17
+/// live crossings with a press had move keys held through the press.
+fn best_scored(scored: &[(Kind, f32, u8, u16)], of: impl Fn(Kind) -> bool) -> Option<(Kind, f32, u8, u16)> {
+    let priced = |bits: u16| gap::Mask::of_bits(bits).map_or(0, gap::Mask::priced);
+    let wide = |bits: u16| gap::Mask::of_bits(bits).is_some_and(|m| m.count() > 0 && !m.knife_edge());
+    let moving_lands = scored.iter().any(|s| of(s.0) && moving(s.0) && wide(s.3));
+    let of: Vec<&(Kind, f32, u8, u16)> = scored.iter().filter(|s| of(s.0)).filter(|s| !(moving_lands && s.0 == Kind::Slow(0))).collect();
+    let mid = |k: Kind| {
+        let ls: Vec<f32> = scored.iter().filter(|s| s.0 == k).map(|s| s.1).collect();
+        ls.iter().sum::<f32>() / ls.len().max(1) as f32
+    };
+    of.into_iter().copied().max_by(|p, q| {
+        priced(p.3)
+            .cmp(&priced(q.3))
+            .then(p.2.cmp(&q.2))
+            .then(rank(q.0).cmp(&rank(p.0)))
+            .then((q.1 - mid(q.0)).abs().total_cmp(&(p.1 - mid(p.0)).abs()))
+    })
+}
+
+/// [loops] A press made on the move: the walk, or a slow press let go some steps before it ([`Kind::Slow`] over 0 steps: the
+/// body still walks at the press). Not a sprint jump or climb, which [`best_scored`] weighs as before.
+fn moving(kind: Kind) -> bool {
+    matches!(kind, Kind::Walk) || matches!(kind, Kind::Slow(steps) if steps > 0)
 }
 
 /// [F1b] The share of a neighbourhood's landing bits.
@@ -1182,6 +1210,40 @@ mod tests {
         assert_eq!(aimed_or_held(Some(aimed0), None), Some(aimed0));
         assert_eq!(aimed_or_held(None, Some(held(0))), Some(held(0)));
         assert_eq!(aimed_or_held(None, None), None);
+    }
+
+    /// [loops] A standing press is chosen only where no moving press lands with width across the way: a walk or a slow press
+    /// of steps over 0 that lands wide wins over a standing press however wider the standing press lands; a knife-edge moving
+    /// press does not; with no moving press the standing one is kept. Sprint jumps and climbs are weighed as before, and the
+    /// walk a sprint link carries is the best walk.
+    #[test]
+    fn a_moving_press_that_lands_wide_is_chosen_over_a_standing_press() {
+        let all = (1u16 << jump::NEIGHBOURS) - 1;
+        let lead_row = 0b1_1111; // the press and its four leads, no side or turn: a knife edge
+        let one_side = 0b10_0001; // the press and one side
+        let stand = (Kind::Slow(0), 0.2, all.count_ones() as u8, all);
+        let walk_wide = (Kind::Walk, 0.6, 2, one_side);
+        let walk_knife = (Kind::Walk, 0.6, 5, lead_row);
+        let slow2_wide = (Kind::Slow(2), 0.3, 2, one_side);
+        assert_eq!(best_scored(&[stand, walk_wide], |_| true), Some(walk_wide));
+        assert_eq!(best_scored(&[stand, slow2_wide], |_| true), Some(slow2_wide));
+        assert_eq!(best_scored(&[stand, walk_knife], |_| true), Some(stand));
+        assert_eq!(best_scored(&[stand], |_| true), Some(stand));
+        // Of two moving presses the wider, as before.
+        let walk_all = (Kind::Walk, 0.6, all.count_ones() as u8, all);
+        assert_eq!(best_scored(&[stand, slow2_wide, walk_all], |_| true), Some(walk_all));
+        // A sprint jump landing wider than the moving press still wins (its walk is the sprint link's own carry).
+        let sprint = (Kind::Sprint, 1.2, all.count_ones() as u8, all);
+        assert_eq!(best_scored(&[stand, walk_wide, sprint], |_| true), Some(sprint));
+        assert_eq!(best_scored(&[stand, walk_wide, sprint], |k| k == Kind::Walk), Some(walk_wide));
+        // [slow walk press] A sprint link's walking press, of the short and the slow jumps by the same rule: a slow press that
+        // lands wide over a standing one; with no moving press the standing one; none where no walking press lands.
+        let walking = |k: Kind| matches!(k, Kind::Walk | Kind::Slow(_));
+        assert_eq!(best_scored(&[stand, slow2_wide, sprint], walking), Some(slow2_wide));
+        assert_eq!(best_scored(&[stand, sprint], walking), Some(stand));
+        assert_eq!(best_scored(&[stand, walk_knife, sprint], walking), Some(stand));
+        assert_eq!(best_scored(&[sprint], walking), None);
+        assert!(moving(Kind::Walk) && moving(Kind::Slow(1)) && !moving(Kind::Slow(0)) && !moving(Kind::Sprint) && !moving(Kind::Climb));
     }
 
     /// [F1] A link's own landing top: its landing floor, and a floor of the same top within [`OWN_TOP_FLAT_M`] across and a step

@@ -870,6 +870,44 @@ impl Aim {
     }
 }
 
+/// [slow walk press] A sprint link's walking press ([`OffLink::walk`]): the short jump at the walk cap ([`Takeoff::Press`]) or
+/// the short jump pressed some steps into a walk-up, 0 a standing one ([`Takeoff::Slow`]). A press of any other kind is no
+/// walking press. In the file the walk field holds its [`Takeoff`] code (a short one's centimetres, as every file before).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum WalkingPress {
+    Short(PressLead),
+    Slow { lead: PressLead, steps: u8 },
+}
+
+impl WalkingPress {
+    /// The press it is.
+    pub fn takeoff(self) -> Takeoff {
+        match self {
+            Self::Short(lead) => Takeoff::Press(lead),
+            Self::Slow { lead, steps } => Takeoff::Slow { lead, steps },
+        }
+    }
+
+    /// The walking press a press is: None for any but the short and the slow jump.
+    pub fn of_takeoff(press: Takeoff) -> Option<Self> {
+        match press {
+            Takeoff::Press(lead) => Some(Self::Short(lead)),
+            Takeoff::Slow { lead, steps } => Some(Self::Slow { lead, steps }),
+            _ => None,
+        }
+    }
+
+    /// The walking press of a file's walk field (its [`Takeoff`] code), if it is a valid one ([`PressLead::is_valid`] for a
+    /// short press, [`Takeoff::is_valid`] for a slow one).
+    pub(super) fn of_code(cm: u16) -> Option<Self> {
+        let press = Takeoff::from_centimetres(cm);
+        Self::of_takeoff(press).filter(|w| match w {
+            Self::Short(lead) => lead.is_valid(),
+            Self::Slow { .. } => press.is_valid(),
+        })
+    }
+}
+
 /// [retarget] One of the grid's 8 ways (`DIRS`): the line a jump link's press was flown along. The rim and the gap passes fly
 /// every press along a grid way from the take-off and keep the link to the floor its flight rests on ([F1] the link's own
 /// top), which can lie off that way (Vector Laboratory day_2: 4,327 of 15,045 pressed links 1 deg or more off it, 1,938 of them
@@ -919,8 +957,9 @@ pub struct OffLink {
     /// [A385] How robust its press is ([`Share::UNFLOWN`] for a link no pass has scored).
     pub share: Share,
     /// [A385] A sprint link's best walking press onto the same floor and its share, for a body the client refuses the sprint
-    /// (A385-FORMAT §5); None for a walking link or where no walking press lands.
-    pub walk: Option<(PressLead, Share)>,
+    /// (A385-FORMAT §5); None for a walking link or where no walking press lands. [slow walk press] A slow press too
+    /// ([`WalkingPress::Slow`]): where only a slow or standing press lands, a body refused the sprint plays it.
+    pub walk: Option<(WalkingPress, Share)>,
     /// [R83] Where its press is aimed ([`Aim::STRAIGHT`] for every link but a rim jump made only off the line).
     pub aim: Aim,
     /// [retarget] The grid way its press was flown along ([`GridWay`]); None: along its own line, from the take-off to the
@@ -2359,6 +2398,19 @@ mod tests {
         let walk_off = OffLink { kind: LinkKind::GapDrop, press: Takeoff::WalkOff, share: Share::UNFLOWN, way: Some(west), ..line };
         assert_eq!(file(walk_off, "walk-off").expect("reads back")[0].way, Some(west));
         assert!(file(OffLink { kind: LinkKind::Jump, ..line }, "jump").is_err());
+        // [slow walk press] A sprint link's walking press reads back as it was: a short one (as every file before) and a slow
+        // or standing one; a code that is no walking press (a sprint's) is refused.
+        let sprint = Takeoff::Sprint(PressLead::from_metres(1.0));
+        for (walk, tag) in [
+            (WalkingPress::Short(PressLead::from_metres(0.8)), "walk-short"),
+            (WalkingPress::Slow { lead: PressLead::from_metres(0.4), steps: 0 }, "walk-stand"),
+            (WalkingPress::Slow { lead: PressLead::from_metres(0.1), steps: 1 }, "walk-slow"),
+        ] {
+            let back = file(OffLink { press: sprint, walk: Some((walk, Share::landed(8))), ..line }, tag).expect("reads back");
+            assert_eq!(back[0].walk, Some((walk, Share::landed(8))), "{tag}");
+        }
+        assert_eq!(WalkingPress::of_code(sprint.centimetres()), None);
+        assert_eq!(WalkingPress::of_code(PressLead::from_metres(0.8).centimetres()), Some(WalkingPress::Short(PressLead::from_metres(0.8))));
     }
 
     fn quad(x0: f32, z0: f32, x1: f32, z1: f32, y: f32) -> [Triangle; 2] {

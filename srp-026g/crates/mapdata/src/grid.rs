@@ -3419,7 +3419,7 @@ impl WalkGrid {
             digest.u32(l.kind as u32);
             digest.u32(u32::from(l.press.centimetres()));
             digest.u32(u32::from(l.share.byte()));
-            let (walk, walk_share) = l.walk.map_or((0, 0), |(p, s)| (p.centimetres(), s.byte()));
+            let (walk, walk_share) = l.walk.map_or((0, 0), |(p, s)| (p.takeoff().centimetres(), s.byte()));
             digest.u32(u32::from(walk));
             digest.u32(u32::from(walk_share));
             // [R83] An aimed press only: a grid with none digests as before.
@@ -3552,7 +3552,7 @@ impl WalkGrid {
                 bytes[10..12].copy_from_slice(&l.press.centimetres().to_le_bytes());
                 bytes[12] = l.share.byte();
                 if let Some((walk, share)) = l.walk {
-                    bytes[13..15].copy_from_slice(&walk.centimetres().to_le_bytes());
+                    bytes[13..15].copy_from_slice(&walk.takeoff().centimetres().to_le_bytes());
                     bytes[15] = share.byte();
                 }
                 bytes
@@ -3702,9 +3702,8 @@ impl WalkGrid {
                         let share = gap::Share::from_byte(bytes[12]);
                         let walk = match (half(13), gap::Share::from_byte(bytes[15])) {
                             (0, Some(_)) if bytes[15] == 0 => Some(None),
-                            (cm, Some(s)) if cm != 0 && gap::PressLead::from_centimetres(cm).is_valid() => {
-                                Some(Some((gap::PressLead::from_centimetres(cm), s)))
-                            }
+                            // [slow walk press] A short or a slow press's code (a file before holds a short one's centimetres).
+                            (cm, Some(s)) if cm != 0 => gap::WalkingPress::of_code(cm).map(|w| Some((w, s))),
                             _ => None,
                         };
                         let (from, to) = (word(0), word(4));
@@ -4990,12 +4989,12 @@ impl WalkGrid {
             let press = match self.off_link(from, to) {
                 None => None,
                 Some(l) => match (reach.sprint, l.press, l.walk) {
-                    (SprintReach::Cannot { .. }, gap::Takeoff::Climb, Some((lead, share))) if l.aim == Aim::STRAIGHT => {
-                        Some((gap::Takeoff::Press(lead), share))
+                    (SprintReach::Cannot { .. }, gap::Takeoff::Climb, Some((walk, share))) if l.aim == Aim::STRAIGHT => {
+                        Some((walk.takeoff(), share))
                     }
                     (SprintReach::Cannot { .. }, gap::Takeoff::Climb, _) => return f32::INFINITY,
-                    (SprintReach::Cannot { .. }, gap::Takeoff::Sprint(_) | gap::Takeoff::SprintHeld(_), Some((lead, share))) => {
-                        Some((gap::Takeoff::Press(lead), share))
+                    (SprintReach::Cannot { .. }, gap::Takeoff::Sprint(_) | gap::Takeoff::SprintHeld(_), Some((walk, share))) => {
+                        Some((walk.takeoff(), share))
                     }
                     (SprintReach::Cannot { .. }, gap::Takeoff::Sprint(_) | gap::Takeoff::SprintHeld(_), None) => return f32::INFINITY,
                     _ => Some((l.press, l.share)),
