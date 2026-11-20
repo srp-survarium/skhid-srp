@@ -157,8 +157,8 @@ fn the_pockets_hold_what_the_kits_level_lets_in() {
     .unwrap();
     assert_eq!(low.gear_level(), 1);
     assert_eq!(name(&low, 13), Some(("bandages", 1)));
-    // The fixed kits' pocket gear: three pockets of two, a medkit, the
-    // grenades and the radio.
+    // The fixed kits' pocket gear: three pockets of two, a medkit, a
+    // grenade (it takes two units) and the radio.
     let ak = dict("ak_74u");
     let kit = bot_kit_of(
         &[(3, dict("bm_back_1")), (4, dict("bm_legs_5"))],
@@ -169,7 +169,7 @@ fn the_pockets_hold_what_the_kits_level_lets_in() {
     .unwrap();
     assert_eq!(pockets(&kit), (3, 2));
     assert_eq!(name(&kit, 13), Some(("medkit", 2)));
-    assert_eq!(name(&kit, 14), Some(("rgd-5", 2)));
+    assert_eq!(name(&kit, 14), Some(("rgd-5", 1)));
     assert_eq!(name(&kit, 15), Some(("respawn_booster", 1)));
     assert_eq!(kit.slot(8).unwrap().count, 200);
 }

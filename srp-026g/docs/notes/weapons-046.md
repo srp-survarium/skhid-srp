@@ -67,8 +67,20 @@ balances "around the current balance".
   animates bones of another skeleton (a state's item clips and `preview_item` on the gun's, every
   other clip on the player's), and any resource key naming nothing.
 - **Sights by the model's own `aim` locator:** 0.46c2 has no `aim_offset`, and the template's
-  (the SVD's -0.11, the PKP's 0.12, the pistols' -0.1) put the SVU's sight 30 px and the Fort-401's
-  post 17 px low: the port leaves it out, as for 0.31a2.
+  (the SVD's -0.11, the PKP's 0.12, the pistols' -0.1) put the Fort-401's post 17 px low: the port
+  leaves it out, as for 0.31a2.
+- **The SVU's iron sights raised** (weapons-046@13, `scripts/weapons-046/raise_svu_sights.py`).
+  0.46c2's SVU always carried a PSO-1 (`attaches.default_scope`, free and default), and its mesh has
+  the iron sights folded flat: the rear diopter on the receiver, the front post on the muzzle brake.
+  Aimed without the scope, the eye (0.0935 m) looked over them, the post 37 px below the centre at
+  720 lines (leaving out the SVD's `aim_offset` had moved the eye along the barrel only). 0.69d0
+  ships the same sights as modules, `svu_a_{rear,front}_ironsight_{off,on}`: "off" is 0.46c2's
+  folded vertices exactly, at the locators `ironsight_rear_point` (0, 0.0601, 0.0504) and
+  `ironsight_front_point` (0, 0.0480, -0.4264); "on" is the same mesh turned a quarter about x round
+  that locator. The script turns @12's folded sights up the same way (positions and packed basis
+  words of the 393 and 551 vertices; the raised ones are 0.69d0's to 1e-7 m), grows the boxes over
+  them and puts the eye at 0.69d0's height for them, 0.0994 m: the post tip in the front hood,
+  inside the rear aperture, within a pixel of the centre. The lobby icon still shows them folded.
 - **Sounds carry their loudness preset.** A sound's `.raw_options` names an SPL preset
   (`sounds/spl/<preset>.spl`); 0.46c2's Beretta 93R and Glock 17 shutters name
   `main_3rd_view_suppressed`, which 0.26g had not, and the CZ 75's shot (the Colt's too) plays the

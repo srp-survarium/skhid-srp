@@ -17,13 +17,18 @@
 //!   walked by their row in the window (`ui.position[1]`), then id, counting
 //!   the points in the skills before. The walk stops at the first skill
 //!   whose `branch_points` is more than that count. The rows reached unlock
-//!   `floor(branch_points / 5) * 5` (at most 25), and a skill can take
-//!   points when its `branch_points` is no more than that. So a row needs
+//!   the last reached skill's `branch_points` (at most 25), and a skill can
+//!   take points when its `branch_points` is no more than that. The stock
+//!   window rounded that down to fives (`floor(branch_points / 5) * 5`), the
+//!   same for the stock tree's rows; our lobby source and srp take it whole,
+//!   so the medical tree's second row opens at 3 (medical-skills.md). So a row needs
 //!   its `branch_points` spent **in the rows above it** of the same branch,
 //!   not in the whole branch. PROVEN (UI); that the original server checked
 //!   the same is LIKELY.
 //! - Skills 206 and 210 have `branch_points` 50, past the 25 the walk
-//!   allows: they can never take a point. PROVEN (UI).
+//!   allows: they can never take a point. PROVEN (UI). The players' tree
+//!   no longer has them (content edit list `physical-skills-1.json`, as
+//!   0.46c2's tree); the tests' game data is the stock tree, which does.
 //! - `antiskills`: a skill with points locks the skills it names
 //!   (`handleAntiskills`): 111 against 113, 213 against 214. PROVEN (UI).
 //!
@@ -75,13 +80,26 @@ pub const MODIFIER_NAMES: [&str; MODIFIERS] = [
     "stamina_spending_speed_skill",
 ];
 
+/// The modifiers that open or close a kit's slots, by index
+/// ([`MODIFIER_NAMES`]; `loadouts::KitLayout`).
+pub mod slot_modifier {
+    pub const POCKET_SLOTS: usize = 15;
+    pub const AMMO_BAGS: usize = 16;
+    pub const POCKET_SLOT_SIZE: usize = 17;
+    pub const USE_TWO_DOUBLE_HANDED_WEAPONS: usize = 25;
+    /// `armored_trap`: the medical skills' ranks, packed as an exact
+    /// integer below 2^24 (`docs/notes/medical-skills.md`).
+    pub const MEDICAL_RANKS: usize = 43;
+    /// The bit of [`MEDICAL_RANKS`] that is Additional Medicine (322).
+    pub const ADDITIONAL_MEDICINE_BIT: u32 = 15;
+    pub const DISABLE_SECOND_WEAPON: usize = 64;
+}
+
 /// The suffix every modifier's key has in the configs.
 const SUFFIX: &str = "_modifier";
 
 /// The most `branch_points` the skills window's walk takes (`SKILL_LEVELS`).
 const MAX_BRANCH_POINTS: u32 = 25;
-/// `POINTS_PER_LEVEL`: the points a row of the window stands for.
-const POINTS_PER_ROW: u32 = 5;
 
 /// The index of a modifier by its config key (`aim_time_modifier`) or its
 /// bare name.
@@ -269,7 +287,7 @@ impl SkillsTree {
             .filter(|skill| skill.branch() == branch)
             .collect();
         walk.sort_by_key(|skill| (skill.row, skill.id));
-        let (mut before, mut rows) = (0, 0);
+        let (mut before, mut unlocked) = (0, 0);
         for skill in walk {
             if skill.branch_points > MAX_BRANCH_POINTS {
                 continue;
@@ -277,14 +295,14 @@ impl SkillsTree {
             if skill.branch_points > before {
                 break;
             }
-            rows = skill.branch_points / POINTS_PER_ROW;
+            unlocked = skill.branch_points;
             before += skills
                 .iter()
                 .filter(|&&(id, _)| id == skill.id)
                 .map(|&(_, points)| u32::from(points))
                 .sum::<u32>();
         }
-        rows.min(MAX_BRANCH_POINTS / POINTS_PER_ROW) * POINTS_PER_ROW
+        unlocked
     }
 
     /// Whether an account of `level` may have `skills` (`(skill id,
@@ -328,6 +346,50 @@ impl SkillsTree {
             }
         }
         Ok(())
+    }
+
+    /// A saved set of `skills` made valid again after the tree changed,
+    /// taking points back and never adding any (the points to spend are the
+    /// level minus the points held, so what is taken back is refunded):
+    /// - a skill keeps at most its levels;
+    /// - a skill the tree no longer has, in a branch it still has, goes;
+    /// - of two exclusive skills that both have points, the higher id stays
+    ///   (Supply Pocket 331 over Additional Medicine 322);
+    /// - then a skill whose row its branch no longer unlocks goes, until
+    ///   every row is reached (taking one back can lock rows below it).
+    ///
+    /// Skills of a branch the tree lacks, and a set spending more than the
+    /// level, are left as they are.
+    pub fn settle(&self, level: u8, skills: &[(u16, u8)]) -> Vec<(u16, u8)> {
+        let has_branch = |branch: u16| self.skills.iter().any(|skill| skill.branch() == branch);
+        let mut kept: Vec<(u16, u8)> = skills
+            .iter()
+            .filter_map(|&(id, points)| match self.skill(id) {
+                Some(skill) => Some((id, points.min(skill.levels_amount))),
+                None if has_branch(id / 100) => None,
+                None => Some((id, points)),
+            })
+            .collect();
+        let held = |set: &[(u16, u8)], id: u16| {
+            set.iter().any(|&(other, points)| other == id && points > 0)
+        };
+        let excluded: Vec<u16> = kept
+            .iter()
+            .filter(|&&(_, points)| points > 0)
+            .filter_map(|&(id, _)| {
+                let skill = self.skill(id)?;
+                skill
+                    .antiskills
+                    .iter()
+                    .any(|&other| other > id && held(&kept, other))
+                    .then_some(id)
+            })
+            .collect();
+        kept.retain(|(id, _)| !excluded.contains(id));
+        while let Err(SkillError::Locked { skill, .. }) = self.validate(level, &kept) {
+            kept.retain(|&(id, _)| id != skill);
+        }
+        kept
     }
 
     /// The modifiers `skills` (`(skill id, points)`) give: for each skill
@@ -479,6 +541,21 @@ mod tests {
         assert_eq!(two[index("disable_second_weapon")], 1.0);
         assert_eq!(two[index("pocket_slots")], 1.0);
         assert_eq!(modifier_mask(&two).count_ones(), 2);
+        for (name, at) in [
+            ("pocket_slots", slot_modifier::POCKET_SLOTS),
+            ("pocket_slot_size", slot_modifier::POCKET_SLOT_SIZE),
+            (
+                "use_two_double_handed_weapons",
+                slot_modifier::USE_TWO_DOUBLE_HANDED_WEAPONS,
+            ),
+            ("armored_trap", slot_modifier::MEDICAL_RANKS),
+            (
+                "disable_second_weapon",
+                slot_modifier::DISABLE_SECOND_WEAPON,
+            ),
+        ] {
+            assert_eq!(index(name), at);
+        }
         let boost = tree.modifiers(&[(205, 2)]);
         assert_eq!(boost[index("stamina_boost_time")], 200.0);
         assert_eq!(boost[index("stamina_boost_interval")], 0.0);
@@ -634,6 +711,53 @@ mod tests {
     }
 
     #[test]
+    fn the_players_tree_without_206_and_210_unlocks_as_the_stock_one() {
+        // physical-skills-1.json: 206 and 210 out, 202 to column 4 of its row.
+        let stock = SkillsTree::shared();
+        let mut players = stock.clone();
+        players
+            .skills
+            .retain(|skill| ![206, 210].contains(&skill.id));
+        let packrat = players.skills.iter_mut().find(|skill| skill.id == 202);
+        packrat.unwrap().column = 4;
+        let sets: [&[(u16, u8)]; 5] = [
+            &[],
+            &[(201, 5)],
+            &[(201, 3), (204, 2), (209, 5)],
+            &[(201, 5), (209, 4), (208, 5)],
+            &[
+                (201, 5),
+                (204, 5),
+                (203, 2),
+                (209, 5),
+                (202, 5),
+                (208, 5),
+                (211, 5),
+            ],
+        ];
+        for set in sets {
+            assert_eq!(
+                players.unlocked_branch_points(2, set),
+                stock.unlocked_branch_points(2, set),
+                "{set:?}"
+            );
+            assert_eq!(
+                players.validate(50, set),
+                stock.validate(50, set),
+                "{set:?}"
+            );
+        }
+        // A point in either was refused before and is now.
+        for id in [206, 210] {
+            assert!(stock.validate(99, &[(id, 1)]).is_err());
+            assert_eq!(
+                players.validate(99, &[(id, 1)]),
+                Err(SkillError::Unknown(id))
+            );
+        }
+    }
+
+    #[test]
     fn exclusive_skills_do_not_go_together() {
         let tree = SkillsTree::shared();
         let base = [(101, 5), (102, 5), (103, 3), (104, 2), (106, 5)];
@@ -651,5 +775,108 @@ mod tests {
             tree.validate(50, &body),
             Err(SkillError::Exclusive(213, 214))
         );
+    }
+
+    /// `(id, levels, branch_points, column, row, antiskills)`.
+    type Row = (u16, u8, u32, u8, u8, &'static [u16]);
+
+    /// The medical branch as the content builds it (medical-skills.md): rows
+    /// at 0/3/7/12/17, painkiller skills in column 1 and antitoxin skills in
+    /// column 4 of rows 2-4.
+    fn medical_tree() -> SkillsTree {
+        #[rustfmt::skip]
+        let rows: [Row; 14] = [
+            (342, 1, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]),
+            (301, 3, 3, 1, 2, &[]), (311, 4, 3, 2, 2, &[]), (312, 3, 3, 3, 2, &[]), (314, 3, 3, 4, 2, &[]),
+            (303, 2, 7, 1, 3, &[]), (321, 3, 7, 2, 3, &[]), (324, 3, 7, 4, 3, &[]),
+            (323, 4, 12, 1, 4, &[]), (332, 5, 12, 2, 4, &[]), (333, 3, 12, 4, 4, &[]),
+            (331, 1, 17, 2, 5, &[322]), (322, 1, 17, 3, 5, &[331]),
+        ];
+        let mut skills: Vec<Skill> = rows
+            .iter()
+            .map(
+                |&(id, levels_amount, branch_points, column, row, antiskills)| Skill {
+                    id,
+                    levels_amount,
+                    branch_points,
+                    antiskills: antiskills.to_vec(),
+                    column,
+                    row,
+                    levels: vec![Vec::new(); levels_amount.into()],
+                    unknown_modifiers: Vec::new(),
+                },
+            )
+            .collect();
+        skills.sort_by_key(|skill| skill.id);
+        SkillsTree { skills }
+    }
+
+    /// The tree of 2026-11-19: a build saved before keeps what the new rows
+    /// still reach. Take Cover (313), Metabolism's fifth rank and
+    /// Concentration's fourth come back, and so does Potent Painkiller (row 2
+    /// now) where row 1 no longer holds its 3 points, with what it opened.
+    #[test]
+    fn a_changed_tree_settles_saved_skills_by_refunding() {
+        let tree = medical_tree();
+        // The full build of before (31 points, Unflinching beside no Concentration).
+        #[rustfmt::skip]
+        let full = [
+            (301, 3), (302, 2), (303, 2), (311, 5), (312, 3), (313, 2), (321, 3), (323, 4),
+            (331, 1), (332, 5), (342, 1),
+        ];
+        let settled = tree.settle(100, &full);
+        #[rustfmt::skip]
+        let kept = [
+            (301, 3), (302, 2), (303, 2), (311, 4), (312, 3), (321, 3), (323, 4), (331, 1),
+            (332, 5), (342, 1),
+        ];
+        assert_eq!(settled, kept);
+        assert_eq!(tree.validate(100, &settled), Ok(()));
+        assert_eq!(tree.settle(100, &settled), settled);
+        // Concentration at its old fourth rank, beside Unflinching now.
+        let mut concentrating = kept.to_vec();
+        concentrating.push((333, 4));
+        let mut concentrating_now = kept.to_vec();
+        concentrating_now.push((333, 3));
+        assert_eq!(tree.settle(100, &concentrating), concentrating_now);
+        assert_eq!(tree.validate(100, &concentrating_now), Ok(()));
+        // Potent Painkiller with nothing else in row 1 is out of reach, and
+        // the row it opened goes with it; with row 1's three points it stays.
+        assert_eq!(tree.settle(100, &[(301, 3), (311, 5)]), Vec::<(u16, u8)>::new());
+        assert_eq!(
+            tree.settle(100, &[(301, 3), (302, 2), (342, 1), (311, 5)]),
+            [(301, 3), (302, 2), (342, 1), (311, 4)]
+        );
+        // Take Cover and Medic are gone, their points free again.
+        assert_eq!(
+            tree.settle(100, &[(342, 1), (302, 2), (313, 2), (341, 1)]),
+            [(342, 1), (302, 2)]
+        );
+        // A branch the tree does not have is not this tree's to change.
+        assert_eq!(
+            tree.settle(100, &[(101, 9), (302, 2)]),
+            [(101, 9), (302, 2)]
+        );
+    }
+
+    /// A row unlocks the branch points it asks, not rounded down to fives:
+    /// the medical tree's second row opens at 3, its third at 7.
+    #[test]
+    fn a_row_opens_at_its_own_branch_points() {
+        let tree = medical_tree();
+        assert_eq!(tree.unlocked_branch_points(3, &[(302, 2)]), 0);
+        // Brothers in Arms' point is a row-1 point: two more open row 2.
+        assert_eq!(tree.unlocked_branch_points(3, &[(342, 1), (302, 2)]), 3);
+        assert_eq!(tree.validate(100, &[(342, 1), (302, 2), (301, 1)]), Ok(()));
+        assert_eq!(
+            tree.validate(100, &[(302, 2), (301, 1)]),
+            Err(SkillError::Locked {
+                skill: 301,
+                needs: 3,
+                unlocked: 0
+            })
+        );
+        // Row 3 (seven) counts rows 1 and 2: 3 + 4.
+        assert_eq!(tree.unlocked_branch_points(3, &[(342, 1), (302, 2), (311, 4)]), 7);
     }
 }

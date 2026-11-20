@@ -23,3 +23,13 @@ The owner's rule (2026-10-29; the bonus cells of content-edit `armor.tsv`, once 
 - The exoskeleton suits come after it (docs/notes/exo-suits.md): the Duty suit gets the weight
   limit +5 kg and regeneration +15 %, the kinds' top rows.
 - Owned pieces get it at once (defaults come from the config).
+
+## Their order
+
+The card lists an item's built-in bonuses as its `default_modifications` has them, so every armour
+piece and booster keeps them in one order (2026-11-14, the owner: "it should be sorted everywhere
+properly", ammo bags on top): what it carries (ammo bags, item slots, pocket capacity, artefact
+container), then the body (weight limit, movement, energy costs, stamina and health regeneration),
+the gun (accuracy, aim, reload, recoil), the rest. It is the order of the bonus columns of
+`STATS['armor']` and `STATS['boosters']` in `content_edit.py`: the table edit sorts each item's list
+(kinds without a column after them, as they were) and `--check` reports a list out of it.

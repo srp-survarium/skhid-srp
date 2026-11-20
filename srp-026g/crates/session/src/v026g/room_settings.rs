@@ -2,8 +2,9 @@
 //! room it made by hand, kept with its account across restarts (the
 //! owner's of 2026-10-20: "when you set up your room with the specific
 //! levels, specific maps and game modes is for it to persist next time").
-//! The PIN is not kept: a private room's is typed each time. A room Play
-//! made is not one made by hand: it keeps nothing.
+//! Its PIN too, typed in the window's field (the owner's of 2026-11-19:
+//! "remember your last pin and have it pretyped"). A room Play made is not
+//! one made by hand: it keeps nothing.
 //!
 //! The window chooses its pool by tile (a map and a weather, every mode of
 //! it) and by mode; an entry of the pool is in when both are. What is kept
@@ -16,6 +17,7 @@
 //! ([`form`]).
 
 use survarium::v026g::lobby::rooms::{PoolEntry, RoomForm, rules};
+use survarium::v026g::maps::MapId;
 
 /// A map (`maps::MapMode::level`) and a weather: a tile of the window.
 pub type Tile = (u8, u8);
@@ -37,6 +39,8 @@ pub struct RoomSettings {
     pub tiles_on: Vec<Tile>,
     /// The modes it left out.
     pub modes_off: Vec<u8>,
+    /// Its PIN, 0 to `PIN_MAX`; none for a room without one.
+    pub pin: Option<u16>,
 }
 
 fn tile(entry: &PoolEntry) -> Tile {
@@ -67,8 +71,8 @@ fn modes(entries: &[PoolEntry]) -> Vec<u8> {
 }
 
 impl RoomSettings {
-    /// What a room made by hand is kept as: its settings and its pool
-    /// (`maps_dict` ids) as the pool offered now (`entries`) names them.
+    /// What a room made by hand is kept as: its settings, its PIN and its
+    /// pool (`maps_dict` ids) as the pool offered now (`entries`) names them.
     /// A tile is in when an entry of it is, a mode when an entry of it is:
     /// the same tiles and modes give the same pool back.
     pub fn of_room(
@@ -76,7 +80,8 @@ impl RoomSettings {
         min_side: u8,
         max_level: u8,
         wait: u8,
-        pool: &[u8],
+        pin: Option<u16>,
+        pool: &[MapId],
         entries: &[PoolEntry],
     ) -> Self {
         let chosen: Vec<&PoolEntry> = entries
@@ -105,6 +110,7 @@ impl RoomSettings {
             tiles_off,
             tiles_on,
             modes_off,
+            pin,
         }
     }
 }
@@ -129,6 +135,7 @@ pub fn defaults(entries: &[PoolEntry]) -> RoomForm {
             })
             .collect(),
         modes_off: Vec::new(),
+        pin: None,
     }
 }
 
@@ -175,6 +182,7 @@ pub fn form(saved: Option<&RoomSettings>, entries: &[PoolEntry], gear: u8) -> Ro
         wait: nearest_wait(saved.wait),
         tiles_on,
         modes_off,
+        pin: saved.pin,
     }
 }
 
@@ -198,15 +206,15 @@ fn nearest_wait(wait: u8) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use survarium::v026g::lobby::rooms::{ROOM_CREATE_BASE, RoomSpec, create_start};
 
-    fn entry(map_id: u8, level: u8, weather: u8, mode: u8, extra: bool) -> PoolEntry {
+    fn entry(map_id: u16, level: u8, weather: u8, mode: u8, extra: bool) -> PoolEntry {
         PoolEntry {
-            map_id,
+            map_id: MapId::new(map_id),
             level,
             weather,
             mode,
             extra,
+            bots: false,
         }
     }
 
@@ -223,12 +231,16 @@ mod tests {
     }
 
     /// The entries a form puts in: tile in, mode not out.
-    fn chosen(form: &RoomForm, entries: &[PoolEntry]) -> Vec<u8> {
+    fn ids(ids: &[u16]) -> Vec<MapId> {
+        ids.iter().copied().map(MapId::new).collect()
+    }
+
+    fn chosen(form: &RoomForm, entries: &[PoolEntry]) -> Vec<u16> {
         entries
             .iter()
             .zip(&form.tiles_on)
             .filter(|(entry, on)| **on && !form.modes_off.contains(&entry.mode))
-            .map(|(entry, _)| entry.map_id)
+            .map(|(entry, _)| entry.map_id.get())
             .collect()
     }
 
@@ -246,7 +258,7 @@ mod tests {
         assert!(form.modes_off.is_empty());
         assert!(chosen(&form, &entries).contains(&255));
         // Left out once, kept out: a room made without it gives that back.
-        let kept = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21], &entries);
+        let kept = RoomSettings::of_room(8, 1, 0, 30, None, &ids(&[10, 11, 12, 20, 21]), &entries);
         assert_eq!(
             kept.modes_off,
             vec![survarium::v026g::maps::GameMode::Blackout.lobby_number()]
@@ -255,7 +267,7 @@ mod tests {
         assert!(!chosen(&again, &entries).contains(&255));
         // Settings kept before Blackout was offered: it is in, as any mode
         // added later (no schema step needed).
-        let before = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21], &pool());
+        let before = RoomSettings::of_room(8, 1, 0, 30, None, &ids(&[10, 11, 12, 20, 21]), &pool());
         let now = super::form(Some(&before), &entries, 4);
         assert!(chosen(&now, &entries).contains(&255));
     }
@@ -274,6 +286,7 @@ mod tests {
                 wait: 30,
                 tiles_on: vec![true, true, true, true, true, false],
                 modes_off: Vec::new(),
+                pin: None,
             }
         );
     }
@@ -282,8 +295,9 @@ mod tests {
     fn a_room_comes_back_as_it_was_made() {
         let entries = pool();
         // School (2) left out, the experimental map put in, deathmatch (4)
-        // out: Rudnya by day and evening, the experimental map, in mode 2.
-        let kept = RoomSettings::of_room(9, 2, 6, 45, &[10, 12, 30], &entries);
+        // out: Rudnya by day and evening, the experimental map, in mode 2;
+        // its PIN 0042.
+        let kept = RoomSettings::of_room(9, 2, 6, 45, Some(42), &ids(&[10, 12, 30]), &entries);
         assert_eq!(kept.tiles_off, [(2, 1)]);
         assert_eq!(kept.tiles_on, [(9, 1)]);
         assert_eq!(kept.modes_off, [4]);
@@ -294,14 +308,16 @@ mod tests {
                 form.size,
                 form.min_side,
                 form.max_level,
-                form.wait
+                form.wait,
+                form.pin
             ),
-            (true, 9, 2, 6, 45)
+            (true, 9, 2, 6, 45, Some(42))
         );
         assert_eq!(form.tiles_on, [true, true, true, false, false, true]);
         assert_eq!(chosen(&form, &entries), [10, 12, 30]);
         // Every mode and the whole pool: nothing differs from the defaults.
-        let all = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 20, 21, 30], &entries);
+        let all =
+            RoomSettings::of_room(8, 1, 0, 30, None, &ids(&[10, 11, 12, 20, 21, 30]), &entries);
         assert_eq!(
             (all.tiles_off.len(), all.tiles_on.len(), all.modes_off.len()),
             (0, 1, 0)
@@ -310,6 +326,8 @@ mod tests {
             chosen(&form_of(&all, &entries), &entries),
             [10, 11, 12, 20, 21, 30]
         );
+        // A room without a PIN: the field starts empty.
+        assert_eq!(form_of(&all, &entries).pin, None);
     }
 
     fn form_of(kept: &RoomSettings, entries: &[PoolEntry]) -> RoomForm {
@@ -320,7 +338,7 @@ mod tests {
     fn a_map_no_longer_offered_is_dropped_and_a_new_one_starts_as_the_defaults() {
         let entries = pool();
         // School left out, the experimental map in.
-        let kept = RoomSettings::of_room(8, 1, 0, 30, &[10, 11, 12, 30], &entries);
+        let kept = RoomSettings::of_room(8, 1, 0, 30, None, &ids(&[10, 11, 12, 30]), &entries);
         // Later: the experimental map gone, Rudnya's evening gone; a new map
         // (3) and a new experimental one (10) offered.
         let later = vec![
@@ -336,7 +354,7 @@ mod tests {
         assert_eq!(chosen(&form, &later), [10, 11, 40]);
         // A mode no longer offered is dropped too.
         let only_deathmatch = vec![entry(11, 1, 1, 4, false), entry(21, 2, 1, 4, false)];
-        let no_tdm = RoomSettings::of_room(8, 1, 0, 30, &[10, 12, 20], &entries);
+        let no_tdm = RoomSettings::of_room(8, 1, 0, 30, None, &ids(&[10, 12, 20]), &entries);
         assert_eq!(no_tdm.modes_off, [4]);
         let left = vec![entry(10, 1, 1, 2, false), entry(20, 2, 1, 2, false)];
         assert_eq!(form_of(&no_tdm, &left).modes_off, Vec::<u8>::new());
@@ -358,6 +376,7 @@ mod tests {
             tiles_off: Vec::new(),
             tiles_on: Vec::new(),
             modes_off: Vec::new(),
+            pin: None,
         };
         let fitted = |settings: RoomSettings, gear| {
             let form = form(Some(&settings), &entries, gear);
@@ -379,7 +398,8 @@ mod tests {
     /// player's form is them), so nothing changes when the form is in. It
     /// asks for the form as the lobby comes up (`RoomsWindow`), not as the
     /// window opens (the owner's of 2026-10-25: no settings applied after
-    /// the window is drawn). Its one create code is the defaults' with a PIN.
+    /// the window is drawn). Its create is one request, which keeps the defaults (no settings of
+    /// its own in a private room's window).
     #[test]
     fn the_movie_opens_with_the_same_defaults_and_has_the_form_before() {
         let create =
@@ -395,26 +415,24 @@ mod tests {
             .split_once("return;")
             .expect("start: the defaults, then the copy");
         assert!(none.contains("if (form == null)"), "{start}");
-        for line in ["_modesOff = {};", "defaultPool();"] {
+        for line in ["_modesOff = {};", "_makePinText = \"\";", "defaultPool();"] {
             assert!(none.contains(line), "{line}: {start}");
         }
-        for line in ["_off = copy(form.off);", "_modesOff = copy(form.modesOff);"] {
+        for line in [
+            "_off = copy(form.off);",
+            "_modesOff = copy(form.modesOff);",
+            "_makePinText = form.pin;",
+        ] {
             assert!(copy.contains(line), "{line}: {start}");
         }
         // The window asks; New room never does.
         assert!(window.contains("ask(RoomsWire.SETTINGS, 1);"));
         assert!(!create.contains("RoomsWire.SETTINGS"));
-        let wire = include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsWire.as");
-        let d = rules().default;
-        let pin = RoomSpec {
-            size: d.size,
-            max_level: d.max_level,
-            wait: d.wait,
-            pin: true,
-            min_side: d.min_side,
-        };
-        let code = create_start(pin) - ROOM_CREATE_BASE;
-        assert!(wire.contains(&format!("const CREATE_PIN:int = {code};")), "{code}");
+        let on_create = function(create, "private function onCreate(");
+        assert!(
+            on_create.contains("RoomsWire.sendCreate(RoomsWire.createText(typedPin, _bots, picked));"),
+            "{on_create}"
+        );
     }
 
     /// The body of the ActionScript function whose declaration starts with

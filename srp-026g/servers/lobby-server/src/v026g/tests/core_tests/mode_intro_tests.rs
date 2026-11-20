@@ -1,9 +1,10 @@
 //! Real lobby requests: only the requesting account, three distinct matches, retries and reconnects.
 use super::*;
+use survarium::v026g::maps::MapId;
 use session::v026g::mode_intro::Mode;
 
 /// Rudnya's Blackout map (`blackout-mode-1.json`).
-fn blackout_map() -> u8 {
+fn blackout_map() -> MapId {
     maps::find(1, maps::weather::DAY, maps::GameMode::Blackout).unwrap().id
 }
 
@@ -49,7 +50,7 @@ fn mode_introduction_is_private_and_counts_distinct_matches() {
             .values_mut()
             .find(|running| running.ticket.match_id == id)
             .unwrap();
-        running.map = maps::MatchMap::of(61).unwrap();
+        running.map = survarium::v026g::twist::Played::plain(maps::MatchMap::of(MapId::new(61)).unwrap());
         assert!(ask_intro(&mut world, alice, "#mode-intro:blackout:abc").is_empty());
         world
             .core
@@ -57,7 +58,7 @@ fn mode_introduction_is_private_and_counts_distinct_matches() {
             .values_mut()
             .find(|running| running.ticket.match_id == id)
             .unwrap()
-            .map = maps::MatchMap::of(blackout_map()).unwrap();
+            .map = survarium::v026g::twist::Played::plain(maps::MatchMap::of(blackout_map()).unwrap());
         assert!(ask_intro(&mut world, alice, "#mode-intro:scarcity:abc").is_empty());
         assert!(ask_intro(&mut world, alice, "#mode-intro:blackout:bad-token").is_empty());
         assert!(ask_intro(&mut world, carol, "#mode-intro:blackout:abc").is_empty());

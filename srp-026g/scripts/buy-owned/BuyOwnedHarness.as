@@ -10,21 +10,19 @@ package
    import flash.system.LoaderContext;
 
    // Every way the lobby buys, with the lobby movie's own root (its try_buy_item, which they all
-   // reach: GangShop.buyFunction, MainScene.buyFunction), inventory list, item card and shop
-   // (docs/notes/items.md §6). An item owned already, not a stack, is asked about first (the box
-   // "apply", already_in_inventory), but for Buy from the right-click menu of an item the player
-   // owns; anything else opens the buy dialog ("ask") at once:
-   // - not asked: the right-click menu's Buy on an owned camouflage's row, on an owned scope's
-   //   row (the inventory tab lists the owned row in place of the shop's entry) and on the kit's
-   //   helmet;
-   // - asked: the item card's Buy on the owned scope (the list's double click too) and on the
-   //   shop's entry of the owned camouflage; the right-click menu's Buy on the shop tab's entry of
-   //   the owned scope;
-   // - (not here: the craft and attachment windows' menus' Buy, InventoryList.buyFromCraftMenu. It
-   //   makes the card's call with the item's own place, INVENTORY for an owned one, but with no
-   //   seller, so try_buy_item asks GangShop.getItemSeller, which reads ItemData.seller: Scaleform
-   //   gives undefined, Ruffle throws);
-   // - a shop helmet dropped on the kit's head slot, a helmet owned (ItemPaperDollSlot's call);
+   // reach: GangShop.buyFunction, MainScene.buyFunction), inventory list, item card, shop and craft
+   // window (docs/notes/items.md §6). Only a buy started in the shop asks first about an item owned
+   // already, not a stack (the box "apply", already_in_inventory); anything else opens the buy
+   // dialog ("ask") at once:
+   // - asked (the shop): the item card's Buy on the shop's entry of the owned camouflage; the
+   //   right-click menu's Buy on the shop tab's entry of the owned scope; a shop helmet dropped on
+   //   the kit's head slot, a helmet owned (ItemPaperDollSlot's call);
+   // - not asked (the player's own items): the right-click menu's Buy on an owned camouflage's row,
+   //   on an owned scope's row (the inventory tab lists the owned row in place of the shop's entry)
+   //   and on the kit's helmet; the item card's Buy on the owned scope (the list's double click
+   //   too);
+   // - not asked (the craft window, InventoryList.buyFromCraftMenu, as the attachment window's and
+   //   the list's menu while one is open): the Buy of its main slot's owned scope;
    // - the menu's Buy on a camouflage not owned, and on a bundle whose id is an owned item's.
    // The game's boxes call the exe as they are made (ExternalInterface, which Ruffle lacks), so the
    // box each Buy opens is told by a stand-in registered for its type (BoxSeen).
@@ -355,7 +353,7 @@ package
                      rightClick(ownedRow(OWNED_SCOPE));
                      chooseBuy();
                   });
-                  expect("the card's Buy, the owned scope","apply",function():void
+                  expect("the card's Buy, the owned scope","ask",function():void
                   {
                      cardBuy(ownedRow(OWNED_SCOPE).data);
                   });
@@ -366,7 +364,15 @@ package
                   expect("a shop helmet dropped on the head slot, a helmet owned","apply",function():void
                   {
                      var entry:* = shopEntry(HELMET);
-                     domain.getDefinition("MainScene").buyFunction(1,entry.itemId,HELMET,entry.descriptor,Slot("HEAD"),entry.count,entry.cost,entry.factionId);
+                     domain.getDefinition("MainScene").buyFunction(1,entry.itemId,HELMET,entry.descriptor,Slot("HEAD"),entry.count,entry.cost,domain.getDefinition("survarium.constants.BuyOrigin").SHOP,entry.factionId);
+                  });
+                  // the craft window's slot Buy (MessageCraftItem.onSlotClick shows this menu; the
+                  // window itself is not made: its sound calls the exe as it is made, which Ruffle
+                  // lacks. The list's menu while it is open makes the same call, buyFromCraftMenu)
+                  expect("the craft window's slot Buy, the owned scope","ask",function():void
+                  {
+                     inventory.showCraftSlotMenu(ownedRow(OWNED_SCOPE).data,null);
+                     chooseBuy();
                   });
                   // last: the kit's menu shows its item's group of the list
                   expect("the menu's Buy, the kit's helmet","ask",function():void

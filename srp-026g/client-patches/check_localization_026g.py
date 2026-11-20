@@ -89,9 +89,11 @@ def audit_content_sources(repo, keys):
             if line and not line.startswith('#')]
     edits = [(row[1], json.loads((repo / 'srp-026g/scripts/content-edit' / row[1]).read_text()))
              for row in rows if row[0] == 'edit' and row[2] == '-' and row[1].endswith('.json')]
+    # One catalog edit makes every dictionary; no edit list writes one (below), so its place in
+    # the list does not matter.
     compilers = [name for name, edit in edits if 'localization' in edit]
-    if len(compilers) != 1 or rows[-1][:3] != ['edit', compilers[0], '-']:
-        issues.append('content.tsv must end with exactly one localization catalog edit')
+    if len(compilers) != 1:
+        issues.append('content.tsv must have exactly one localization catalog edit')
 
     def references(value):
         if isinstance(value, str) and re.fullmatch(r'st_[A-Za-z0-9_]+', value):

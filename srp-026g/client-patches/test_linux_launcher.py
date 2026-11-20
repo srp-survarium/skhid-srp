@@ -20,6 +20,9 @@ STARTER = Path(__file__).resolve().parent / 'Skhid.sh'
 FIXTURE = b'MZ stand-in game executable'
 GECKO_MSI = b'Gecko installer fixture'
 GECKO_SHA = '26cecc47706b091908f7f814bddb074c61beb8063318e9efc5a7f789857793d6'
+VIEWER_EXE = b'PowerPoint Viewer fixture'
+VIEWER_SHA = 'c4e753548d3092ffd7dd3849105e0a26d9b5a1afe46e6e667fe7c6887893701f'
+CALIBRI_FACES = ('calibri', 'calibrib', 'calibrii', 'calibriz')
 
 
 class LauncherTests(unittest.TestCase):
@@ -35,13 +38,14 @@ class LauncherTests(unittest.TestCase):
         self.ntsync = self.root / 'ntsync'
         self.script.write_text(SCRIPT.read_text().replace('/sys/class/drm', str(self.drm))
             .replace('/dev/ntsync', str(self.ntsync))
-            .replace(GECKO_SHA, hashlib.sha256(GECKO_MSI).hexdigest()))
+            .replace(GECKO_SHA, hashlib.sha256(GECKO_MSI).hexdigest())
+            .replace(VIEWER_SHA, hashlib.sha256(VIEWER_EXE).hexdigest()))
         self.config = self.bin / 'wineprefix/drive_c/users' / pwd.getpwuid(os.getuid()).pw_name / 'Documents/Survarium/user.cfg'
         self.tools = self.root / 'tools'
         self.tools.mkdir()
         self.calls = self.root / 'calls.jsonl'
         # Only mocked dependencies plus explicitly allowed core tools in PATH.
-        for tool in ('bash', 'dirname', 'flock', 'timeout', 'rm', 'mkdir', 'touch', 'id', 'awk', 'grep', 'mktemp', 'sha256sum', 'ln'):
+        for tool in ('bash', 'dirname', 'flock', 'timeout', 'rm', 'mkdir', 'touch', 'id', 'awk', 'grep', 'mktemp', 'sha256sum', 'ln', 'cp', 'mv', 'tr'):
             (self.tools / tool).symlink_to(shutil.which(tool))
         stub = '#!' + sys.executable + '\n' + '''import json,os,pathlib,sys
 name=pathlib.Path(sys.argv[0]).name
@@ -54,7 +58,10 @@ def install_gecko():
 if name=='wine' and sys.argv[1]=='wineboot.exe':
  prefix.mkdir(parents=True,exist_ok=True)
 with open(os.environ['TEST_CALLS'],'a') as f:
- f.write(json.dumps(dict(name=name,args=sys.argv[1:],cwd=os.getcwd(),prefix=str(prefix),dll=os.environ.get('WINEDLLOVERRIDES'),arch=os.environ.get('WINEARCH'))) + '\\n')
+ f.write(json.dumps(dict(name=name,args=sys.argv[1:],cwd=os.getcwd(),prefix=str(prefix),dll=os.environ.get('WINEDLLOVERRIDES'),arch=os.environ.get('WINEARCH'),crash_dump=os.environ.get('SKHID_CRASH_DUMP'))) + '\\n')
+if name=='wine' and sys.argv[1]=='survarium_skhid.exe' and os.environ.get('TEST_CRASH'):
+ pathlib.Path('SRP-crash-test-0.dmp').write_bytes(b'MDMP')
+ pathlib.Path('SRP-crash-test-0.txt').write_text('Reporter:  local build, full-memory dumps')
 if os.environ.get('TEST_FAIL')==name+':'+sys.argv[1]:
  sys.exit(1)
 if name=='wine' and sys.argv[1]=='--version':
@@ -68,16 +75,30 @@ if name=='wineserver':
  mshtml=prefix/'drive_c/windows/syswow64/mshtml.dll'
  mshtml.parent.mkdir(parents=True,exist_ok=True)
  mshtml.write_bytes(b'MZ Wine Gecko '+os.environ.get('TEST_GECKO_VERSION','2.47.4').encode())
+ (prefix/'drive_c/windows/Fonts').mkdir(parents=True,exist_ok=True)
  if os.environ.get('TEST_GECKO_READY','1')=='1': install_gecko()
 elif name=='curl':
  output=pathlib.Path(sys.argv[sys.argv.index('--output')+1])
- output.write_bytes(b'corrupt' if os.environ.get('TEST_GECKO_CORRUPT') else b'Gecko installer fixture')
+ if any('PowerPointViewer' in argument for argument in sys.argv[1:]):
+  output.write_bytes(b'corrupt' if os.environ.get('TEST_VIEWER_CORRUPT') else b'PowerPoint Viewer fixture')
+ else:
+  output.write_bytes(b'corrupt' if os.environ.get('TEST_GECKO_CORRUPT') else b'Gecko installer fixture')
+elif name=='cabextract':
+ if os.environ.get('TEST_CALIBRI_FAIL')=='1':
+  sys.exit(1)
+ folder=pathlib.Path(sys.argv[sys.argv.index('-d')+1])
+ wanted=sys.argv[sys.argv.index('-F')+1]
+ if wanted=='ppviewer.cab':
+  (folder/wanted).write_bytes(b'cabinet fixture')
+ elif wanted=='CALIBRI*.TTF':
+  for face in ('CALIBRI','CALIBRIB','CALIBRII','CALIBRIZ'):
+   (folder/(face+'.TTF')).write_bytes(face.encode())
 elif name=='wine' and sys.argv[1]=='msiexec':
  if not os.environ.get('TEST_GECKO_INCOMPLETE'): install_gecko()
 elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
  sys.exit(1)
 '''
-        for name in ('wine', 'wineserver', 'winetricks', 'curl'):
+        for name in ('wine', 'wineserver', 'winetricks', 'curl', 'cabextract'):
             path = self.tools / name
             path.write_text(stub)
             path.chmod(0o755)
@@ -112,8 +133,14 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         return subprocess.run([str(self.tools / 'bash'), str(self.script), *arguments],
             cwd=self.root, env=self.env, text=True, capture_output=True)
 
-    def recorded_calls(self, compatibility=False):
+    @staticmethod
+    def installs_calibri(call):
+        return call['name'] == 'cabextract' or any('PowerPointViewer' in a or a.endswith('calibri.reg') for a in call['args'])
+
+    def recorded_calls(self, compatibility=False, calibri=False):
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
+        if not calibri:  # the font's own steps have their own tests below
+            calls = [c for c in calls if not self.installs_calibri(c)]
         # Existing tests assert setup/game behavior; compatibility cases below
         # explicitly inspect version queries and the mandatory 32-bit probe.
         if compatibility:
@@ -270,7 +297,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
                 args = [c['args'] for c in self.recorded_calls()]
                 self.assertEqual([a for a in args if a[0] == 'reg'], [expected] if expected else [])
                 if expected:
-                    self.assertLess(args.index(expected), args.index(['survarium_skhid.exe', '-mt_allocator=768', '-minimum_resources_memory_size=768']))
+                    self.assertLess(args.index(expected), args.index(['survarium_skhid.exe', '-minimum_resources_memory_size=768']))
 
     def test_launcher_mode_starts_the_skhid_launcher_in_the_same_wine(self):
         self.copy_exe()
@@ -443,10 +470,16 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         disabled.rename(tool)
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        tool.unlink()
+        tool.rename(disabled)
         result = self.run_script()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(sum(c['name'] == 'winetricks' for c in self.recorded_calls()), 1)
+        self.assertEqual([c['args'] for c in self.recorded_calls() if c['name'] == 'winetricks'],
+            [['-q', 'dxvk']])
+        # A prefix that has DXVK but lost Calibri gets it back without winetricks.
+        (self.bin / 'wineprefix/drive_c/windows/Fonts/calibri.ttf').unlink()
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((self.bin / 'wineprefix/drive_c/windows/Fonts/calibri.ttf').exists())
 
     def test_missing_exe(self):
         result = self.run_script()
@@ -460,7 +493,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe',
-            '-mt_allocator=768', '-minimum_resources_memory_size=768'])
+            '-minimum_resources_memory_size=768'])
         self.assertEqual(self.exe.read_bytes(), FIXTURE)
         self.assertFalse(self.exe.with_name(self.exe.name + '.before-memory-patch').exists())
 
@@ -482,7 +515,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertEqual([call['args'][:2] for call in calls[-2:]],
-                         [['updater_skhid.exe', 'ready'], ['survarium_skhid.exe', '-mt_allocator=768']])
+                         [['updater_skhid.exe', 'ready'], ['survarium_skhid.exe', '-minimum_resources_memory_size=768']])
 
     def test_generated_cert_only_launcher_passes_configured_server(self):
         self.copy_exe()
@@ -491,7 +524,7 @@ elif name=='winetricks' and os.environ.get('TEST_DXVK_FAIL')=='1':
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertEqual(calls[-1]['args'], ['survarium_skhid.exe',
-            '-mt_allocator=768', '-minimum_resources_memory_size=768', '-server=release.example:2234'])
+            '-minimum_resources_memory_size=768', '-server=release.example:2234'])
 
     def test_full_launcher_allows_an_explicit_server_override(self):
         self.copy_exe()
@@ -616,12 +649,13 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual(self.exe.stat().st_mtime_ns, stamp)
         self.assertFalse(list(self.bin.glob('*.before-memory-patch*')))
         calls = self.recorded_calls()
-        self.assertEqual([c['name'] for c in calls], ['wine', 'wineserver', 'winetricks', 'wine'])
+        self.assertEqual([c['name'] for c in calls],
+            ['wine', 'wineserver', 'winetricks', 'wine'])
         self.assertEqual(calls[2]['args'], ['-q', 'dxvk'])
         self.assertEqual(calls[3]['cwd'], str(self.bin))
         # No language set: none passed, the game keeps the one chosen in its Settings.
         self.assertEqual(calls[3]['args'], ['survarium_skhid.exe',
-            '-mt_allocator=768', '-minimum_resources_memory_size=768'])
+            '-minimum_resources_memory_size=768'])
         self.assertIn('qwave=', calls[3]['dll'])
         self.assertEqual(calls[3]['prefix'], str(self.bin / 'wineprefix'))
         result = self.run_script()
@@ -643,6 +677,63 @@ HDMI-1 connected 1366x768+0+0
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls[-2:]], ['winetricks', 'wine'])
+
+    GAME = ['survarium_skhid.exe', '-minimum_resources_memory_size=768']
+
+    def assert_calibri_warned_and_game_started(self, result):
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Calibri could not be installed', result.stderr)
+        self.assertIn('item levels', result.stderr)
+        self.assertIn('The next start tries again', result.stderr)
+        self.assertFalse((self.bin / 'wineprefix/drive_c/windows/Fonts/calibri.ttf').exists())
+        self.assertEqual(self.recorded_calls()[-1]['args'], self.GAME)
+
+    def assert_calibri_installed(self, result):
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn('Warning', result.stderr)
+        self.assertEqual(self.recorded_calls()[-1]['args'], self.GAME)
+        fonts = self.bin / 'wineprefix/drive_c/windows/Fonts'
+        self.assertEqual(sorted(p.name for p in fonts.iterdir()), [face + '.ttf' for face in CALIBRI_FACES])
+        self.assertFalse(list((self.bin / 'wineprefix/drive_c').glob('skhid-calibri.*')))
+
+    def test_calibri_is_installed_from_the_viewer_without_winetricks(self):
+        self.copy_exe()
+        self.assert_calibri_installed(self.run_script())
+        steps = [c for c in self.recorded_calls(calibri=True) if self.installs_calibri(c)]
+        self.assertEqual([c['name'] for c in steps], ['curl', 'cabextract', 'cabextract', 'wine'])
+        self.assertEqual(steps[3]['args'][:2], ['regedit', '/S'])
+        self.assertFalse(any('calibri' in c['args'] for c in self.recorded_calls() if c['name'] == 'winetricks'))
+
+    def test_calibri_failure_warns_launches_and_retries(self):
+        self.copy_exe()
+        self.env['TEST_CALIBRI_FAIL'] = '1'
+        self.assert_calibri_warned_and_game_started(self.run_script())
+        del self.env['TEST_CALIBRI_FAIL']
+        self.assert_calibri_installed(self.run_script())
+
+    def test_calibri_download_that_fails_its_checksum_is_not_used(self):
+        self.copy_exe()
+        self.env['TEST_VIEWER_CORRUPT'] = '1'
+        self.assert_calibri_warned_and_game_started(self.run_script())
+        self.assertFalse(any(c['name'] == 'cabextract' for c in self.recorded_calls(calibri=True)))
+        del self.env['TEST_VIEWER_CORRUPT']
+        self.assert_calibri_installed(self.run_script())
+
+    def test_a_tool_calibri_needs_missing_warns_launches_and_retries(self):
+        self.copy_exe()
+        for name in ('curl', 'sha256sum', 'cabextract'):
+            with self.subTest(tool=name):
+                tool = self.tools / name
+                disabled = self.root / (name + '.disabled')
+                tool.rename(disabled)
+                self.calls.unlink(missing_ok=True)
+                result = self.run_script()
+                tool_named = f'Install {name} first'
+                self.assertNotIn(tool_named, result.stderr)
+                self.assert_calibri_warned_and_game_started(result)
+                self.assertFalse(any(self.installs_calibri(c) for c in self.recorded_calls(calibri=True)))
+                disabled.rename(tool)
+        self.assert_calibri_installed(self.run_script())
 
     def test_wine_setup_failures_retry_before_launching(self):
         self.copy_exe()
@@ -676,6 +767,44 @@ HDMI-1 connected 1366x768+0+0
         calls = self.recorded_calls()
         self.assertEqual([c['name'] for c in calls],
             ['wine', 'wineserver', 'winetricks', 'wine', 'wine'])
+
+    def test_full_crash_dumps_reach_the_game_and_its_crash_files_are_listed(self):
+        self.copy_exe()
+        for tool in ('find', 'sort', 'date'):
+            (self.tools / tool).symlink_to(shutil.which(tool))
+        old = self.bin / 'SRP-crash-old-0.zip'
+        old.write_bytes(b'PK')
+        os.utime(old, (1, 1))
+        self.env.update(SKHID_CRASH_DUMP='full', TEST_CRASH='1', TEST_FAIL='wine:survarium_skhid.exe')
+        result = self.run_script()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Game exited with an error', result.stderr)
+        calls = self.recorded_calls()
+        game = [c for c in calls if c['args'][:1] == ['survarium_skhid.exe']]
+        self.assertEqual([c['crash_dump'] for c in game], ['full'])
+        # The script waits for every Wine process (the game the launcher
+        # started) before it lists the crash files.
+        self.assertEqual(calls[-1]['name'], 'wineserver')
+        self.assertEqual(calls[-1]['args'], ['-w'])
+        # Each named with what it is for: the .dmp kept, not posted.
+        self.assertIn(str(self.bin / 'SRP-crash-test-0.dmp') + '  (the whole memory: keep it, do not post it', result.stdout)
+        self.assertIn(str(self.bin / 'SRP-crash-test-0.txt') + '  (the crash report: send this to a new post in #bugreports)', result.stdout)
+        self.assertNotIn('SRP-crash-old-0', result.stdout)
+
+    def test_crash_dump_default_and_unknown_values(self):
+        self.copy_exe()
+        self.env['SKHID_CRASH_DUMP'] = ''
+        result = self.run_script()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual({c['crash_dump'] for c in self.recorded_calls()}, {None})
+        self.assertNotIn('Crash', result.stdout)
+        self.calls.unlink()
+        for value in ('Full', 'small', '1'):
+            self.env['SKHID_CRASH_DUMP'] = value
+            result = self.run_script()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('SKHID_CRASH_DUMP=' + value, result.stderr)
+            self.assertFalse(self.calls.exists())
 
     def test_concurrent_launcher_cannot_start_wine(self):
         self.copy_exe()

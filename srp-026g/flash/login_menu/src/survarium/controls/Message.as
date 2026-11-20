@@ -1,6 +1,7 @@
 package survarium.controls
 {
    import com.greensock.TweenLite;
+   import flash.display.InteractiveObject;
    import flash.display.Sprite;
    import flash.events.Event;
    import flash.geom.Rectangle;
@@ -35,6 +36,12 @@ package survarium.controls
       protected static var _scaleFactorInvalidated:Boolean = false;
       
       protected static var _scaleFactor:Number = 1;
+      
+      // What had the focus and the modal clip when the first message opened: closing the last one gives
+      // them back (the login form's field, so Enter signs in again).
+      protected static var _homeFocus:InteractiveObject = null;
+      
+      protected static var _homeModal:Sprite = null;
       
       public function Message()
       {
@@ -231,6 +238,11 @@ package survarium.controls
          {
             message.text = messageData;
          }
+         if(isAnyMessage() == -1)
+         {
+            _homeFocus = FocusManager.getFocus();
+            _homeModal = FocusManager.getModalClip();
+         }
          _instances[id] = message;
          if((_currentRenderer || _hideMessages) && force == false)
          {
@@ -299,8 +311,13 @@ package survarium.controls
                back = _backSprite;
                _stage.removeChild(_backSprite);
                _currentRenderer = null;
-               FocusManager.setFocus(_stage);
-               FocusManager.setModalClip(_stage);
+               FocusManager.setModalClip(_homeModal == null || _homeModal.stage ? _homeModal : _stage);
+               FocusManager.setFocus(_homeFocus && _homeFocus.stage ? _homeFocus : _stage);
+               if(nextId == -1)
+               {
+                  _homeFocus = null;
+                  _homeModal = null;
+               }
             }
             else
             {

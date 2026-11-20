@@ -461,11 +461,13 @@ fn the_lobby_shows_the_bonuses_of_the_data() {
             let [prop] = props[..] else {
                 panic!("{id}: one prop: {props:?}")
             };
+            // Its value the movie reads from modifications.tsv (`bonusValue`),
+            // as the content build writes the card line from it.
+            assert!(prop.str_at("prop_value").is_ok(), "{id}");
             format!(
-                "[{id},{},{},\"{}\"]",
+                "[{id},{},{}]",
                 ui.i32_at("icon").unwrap(),
-                prop.i32_at("prop_id").unwrap(),
-                prop.str_at("prop_value").unwrap()
+                prop.i32_at("prop_id").unwrap()
             )
         })
         .collect();

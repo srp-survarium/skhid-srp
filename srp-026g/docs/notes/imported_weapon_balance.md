@@ -15,6 +15,10 @@ assembled or revision reserved. A `next` simulation row invalidates older replay
   best-ammo curve matters. This is an explicit armour-specialist decision, not a claim
   that retail 0.69 used these penetration units. At 42 damage it needs two helmet hits
   with either SP-5 or SP-6; 44 damage would accidentally give SP-5 a one-shot helmet kill.
+  Retune (the owner, 2026-11-05: "a bit too strong", keep it high-pierce): damage 42 -> 34 and
+  top kick 1.2–1.5 -> 1.5–1.8. Against armour 80 the torso takes 4 hits at 10 m (was 3, 0.257 s)
+  and 9 at 50 m (was 7); against Zubr +8, 4 at 10 m, 6 at 30 m (was 5), 13 at 50 m (was 11), the
+  head 3 at 40 m (was 2). Its pierce stays.
 - L85A2: equipment **12 -> 10**, matchmaking level **12 -> 10**, damage stays 48,
   penetration stays 32; 725 rpm, 25/60 m falloff, much softer kick and sideways variation.
   It trades close-range damage output for control and reach. Price/faction are unchanged.
@@ -169,7 +173,7 @@ No single scalar here is a simulated hit rate. Binary value types are preserved.
 | Gun | Power | Up kick | Signed side kick | Side SD | Screen shake |
 |---|---:|---:|---:|---:|---:|
 | AK-12 | 0.5 | 1.5–1.5 | -0.40…0.40 | 0.163 | 0.8–1 |
-| Groza | 0.65 | 1.2–1.5 | -0.50…0.50 | 0.204 | 0.4–1 |
+| Groza | 0.65 | 1.5–1.8 | -0.50…0.50 | 0.204 | 0.4–1 |
 | SCAR-H | 0.7 | 1.7–2 | -0.60…0.60 | 0.245 | 0.5–1 |
 | VHS-2 | 0.55 | 1.3–1.6 | -0.30…0.30 | 0.122 | 0.3–1 |
 | Minimi | 0.8 | 1.7–2 | -0.40…0.40 | 0.163 | 0.5–1 |
@@ -282,7 +286,6 @@ Reproduce the detailed 440-row torso/head audit (ten distances for 22 weapons):
 ```sh
 node srp-026g/scripts/weapon-balance/audit.js > /tmp/weapon-balance.tsv
 node srp-026g/scripts/weapon-balance/audit.test.js
-python3 srp-026g/scripts/weapon-balance/check_content.py "$SKHID_PACKS_DIR"
 ```
 
 For before/after, extract `weapon-stats.tsv` and `ammo.tsv` from `009b2dabe`, then pass

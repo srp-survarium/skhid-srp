@@ -28,6 +28,8 @@
 // memcpy/memset are weak so the arena keeps one when a C patch (gcc emits
 // its own) is linked beside this crate (rust_patches.md, vostok::rt).
 #![cfg_attr(not(test), feature(linkage))]
+// `core::f32::math::sqrt` (sqrtss) for the texel factor patch 137 computes as the game does.
+#![feature(core_float_math)]
 
 #[cfg(test)]
 extern crate std;
@@ -42,6 +44,7 @@ pub mod ragdoll;
 pub mod blackout;
 mod artefact_carry;
 pub mod suicide_key;
+pub mod bake_async;
 
 pub mod text_input;
 
@@ -57,19 +60,79 @@ pub mod artefact_score;
 pub mod battery_progress;
 
 pub mod hud_options;
+// patch 147: every run's logs in files of their own
+pub mod run_logs;
 pub mod tab_cursor;
 pub mod scaleform_capture;
 pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;
 pub mod music;
+// patch 144: the Settings' Game slider
+pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
 pub mod footsteps;
+// patch 153: a step on a walker-only floor finds its ground
+pub mod step_ground;
 
 pub mod weapon_pickup;
 
 pub mod medical_skills;
+pub mod artefact_skills;
+pub mod artefact_keeper;
+
+pub mod hand_kill;
+pub mod trap_stock_hit;
+pub mod forest_glow;
 
 pub mod animation_id_log;
 pub mod input_check;
+pub mod subtick_hits;
+pub mod keyboard_layout;
+pub mod mouse_pitch;
+pub mod bake_cache;
+pub mod weapon_camo;
+pub mod key_remap;
+pub mod deserialize_guards;
+pub mod effect_presenters;
+pub mod particle_room;
+
+pub mod message_check;
+pub mod packet_recovery;
+pub mod module_report;
+pub mod executable_report;
+pub mod memory_report;
+pub mod memory_profile;
+pub mod hud_cursor;
+pub mod voice;
+pub mod ban_time;
+pub mod sign_in_cipher;
+pub mod controller_position;
+pub mod use_scan;
+pub mod unplayed_match;
+pub mod texture_streaming;
+pub mod animation_math;
+pub mod replay_keys;
+// patch 152: two keys save the game's picture as a PNG
+pub mod screenshot;
+pub mod map_id;
+pub mod replay_map;
+// patch 133: the console command `where`
+pub mod console_where;
+// patch 156: the console command `collision`
+pub mod collision_view;
+// patch 157: Ctrl+V pastes into the console's line
+pub mod console_paste;
+// patch 158: the first-person eye stays out of the level's surfaces
+pub mod head_clearance;
+
+pub mod replay_file;
+pub mod free_for_all;
+// patch 143: the battery carrier's hit
+pub mod battery_hit;
+// patch 150: the game shares by BitTorrent in the login screen and the lobby
+pub mod lobby_seeding;
+// patch 159: the console's output scrolls
+pub mod console_scroll;
+pub mod v021d_render;

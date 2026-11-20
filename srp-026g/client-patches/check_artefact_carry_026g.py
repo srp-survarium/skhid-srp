@@ -58,6 +58,12 @@ class Run(InventoryGame):
                                          (0x870108, 'b801000000 c21400'), (0x870040, 'b801000000 c20400'))):
             self.word(iat, stub + 0x10 * (n + 1))
             self.emu.mem_write(stub + 0x10 * (n + 1), bytes.fromhex(code))
+        # The crash breadcrumbs' clock (vostok/breadcrumbs.rs): QueryPerformanceCounter
+        # and -Frequency, each writing 1 to its out-pointer.
+        for n, iat in enumerate((0x870158, 0x870150)):
+            self.word(iat, stub + 0x60 + 0x20 * n)
+            self.emu.mem_write(stub + 0x60 + 0x20 * n,
+                               bytes.fromhex('8b442404 c70001000000 c7400400000000 b801000000 c20400'))
         self.emu.hook_add(UC_HOOK_CODE, self.stop_at)
         for at in (0x1F3DE0, 0x75E20, 0x21CD0, 0x21F40, 0x22280):
             self.emu.hook_add(UC_HOOK_CODE, self.fixture, begin=at, end=at)

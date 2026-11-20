@@ -31,8 +31,7 @@ patch 81 (`client-patches/rust/patches/src/lobby_scene.rs`), the lobby movie's w
   (`btnBackUp`, `btnBackHover`, `btnBackDown`, `btnBackDisabled`) stretched to the box, no tooltip
   and no data. Its label is the top menu's look (Calibri bold 16, 0x9BADC1, upper case), centred
   in the box by its measured size (the amount's own field embeds digits only: "badly written and
-  not centered"). The premium itself is as before (its state, the x2 mark, the offer after a
-  match: `StatusPanel.premiumDiscount`, the seconds the button kept); only its button is gone.
+  not centered"). Premium itself is gone since 2026-11-09 ([premium.md](premium.md)).
   The window's title and the button are `st_srp_lobby_title` ("Lobby"); the texts are
   dictionary keys (`client-patches/localization`), every language's.
 - **The pick is kept in user.cfg** as the console variable `srp_lobby` (`srp_lobby 3`), written by

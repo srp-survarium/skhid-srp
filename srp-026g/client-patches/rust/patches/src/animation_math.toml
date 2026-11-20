@@ -1,0 +1,53 @@
+# Patch 136: the animation's math without the x87's slow transcendental
+# instructions and without a division per knot, each giving what the game's
+# own code gives (animation_math.rs, animation_math_026g.asm). Only the
+# decisions: the sites and the handlers.
+name = "animation_math"
+patch = 136
+
+# quaternion::quaternion(float3 angles) 0xED2E0: sin and cos of each half
+# angle (mix_rotations and the mixer, for every bone of every animation)
+[[hook]]
+site = "quaternion.sin_x"
+handler = "on_sin_x"
+
+[[hook]]
+site = "quaternion.cos_x"
+handler = "on_cos_x"
+
+[[hook]]
+site = "quaternion.sin_y"
+handler = "on_sin_y"
+
+[[hook]]
+site = "quaternion.cos_y"
+handler = "on_cos_y"
+
+[[hook]]
+site = "quaternion.sin_z"
+handler = "on_sin_z"
+
+[[hook]]
+site = "quaternion.cos_z"
+handler = "on_cos_z"
+
+# quaternion::quaternion(axis, angle) 0x74290 and get_axis_and_angle 0x74300
+# (a weighted rotation of mix_rotations)
+[[hook]]
+site = "quaternion.axis_sin"
+handler = "on_axis_sin"
+
+[[hook]]
+site = "quaternion.axis_cos"
+handler = "on_axis_cos"
+
+[[hook]]
+site = "quaternion.angle_atan2"
+handler = "on_angle_atan2"
+
+# time_channel::domain 0x3B3340, whole
+[[hook]]
+site = "animation.domain"
+source = "animation_math_026g.asm"
+symbol = "animation_math_domain"
+limit = 128

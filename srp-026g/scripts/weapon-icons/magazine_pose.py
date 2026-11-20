@@ -1,8 +1,9 @@
 """Place the two modular magazines for the offline side-profile render.
 
-AKMSU's shipped bind bone is not its assembled idle position. PPSh's
-converted drum has a quarter-turn around that socket; undo it for the
-profile icon, including its cartridge surface and tangent frame.
+AKMSU's shipped bind bone is not its assembled idle position. The source
+pack's (weapons-069@11) PPSh drum has a quarter-turn around that socket;
+undo it for the profile icon, including its cartridge surface and tangent
+frame. weapons-069@15's model has the drum without it (README).
 """
 import struct
 import numpy as np

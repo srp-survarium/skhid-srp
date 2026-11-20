@@ -4,6 +4,7 @@ package survarium.chat
    import flash.events.KeyboardEvent;
    import flash.external.ExternalInterface;
    import flash.text.StyleSheet;
+   import flash.utils.Dictionary;
    import scaleform.clik.controls.TextInput;
    import scaleform.clik.core.UIComponent;
    import scaleform.clik.layout.LayoutData;
@@ -439,9 +440,52 @@ package survarium.chat
          return false;
       }
       
-      protected function linked(value:String, subName:String) : String
+      // The senders the chat's name links stand for: a link carries a number, never the
+      // name, so a name's characters cannot leave the attribute or come back changed.
+      // The game's escape and encodeURIComponent do not round-trip every name (escape
+      // keeps 16 bits of a character, 0x571700; encodeURIComponent writes U+0080..U+00FF as
+      // one %XX, 0x571996, the others as their UTF-8 bytes, 0x571934, which no decoding,
+      // 0x571A10, gives both back). The LINKED_NAMES senders who spoke last, each its number
+      // while kept (a tab keeps 180 lines); a link to one let go reads as no name, never
+      // another one.
+      private static const LINKED_NAMES:int = 2048;
+      private var _linkIds:Dictionary = new Dictionary();
+      private var _linkNames:Dictionary = new Dictionary();
+      // The kept numbers, the one whose sender spoke longest ago first.
+      private var _linkOrder:Array = [];
+      private var _nextLinkId:int = 0;
+
+      // A sender's name as the link "<name>: " ("event:<subName>:<its number>"), which
+      // LobbyChat.clickLinkHandler reads back with linkedName.
+      protected function linked(name:String, subName:String) : String
       {
-         return "<a href=\'event:" + subName + ":" + value + "\'>" + value + "</a>";
+         // Keyed "@<name>": a name such as "constructor" never finds what every object has.
+         var id:* = this._linkIds["@" + name];
+         if(id === undefined)
+         {
+            id = this._nextLinkId++;
+            this._linkIds["@" + name] = id;
+            this._linkNames[id] = name;
+            if(this._linkOrder.length >= LINKED_NAMES)
+            {
+               var gone:int = this._linkOrder.shift();
+               delete this._linkIds["@" + this._linkNames[gone]];
+               delete this._linkNames[gone];
+            }
+         }
+         else
+         {
+            this._linkOrder.splice(this._linkOrder.indexOf(id),1);
+         }
+         this._linkOrder.push(id);
+         return "<a href=\'event:" + subName + ":" + id + "\'>" + Util.escapeHtml(name) + ": </a>";
+      }
+
+      // The name a link's number stands for, null for one the chat has let go.
+      protected function linkedName(id:String) : String
+      {
+         var name:* = /^[0-9]+$/.test(id) ? this._linkNames[int(id)] : undefined;
+         return name === undefined ? null : String(name);
       }
       
       protected function clearTabs() : void
@@ -463,8 +507,7 @@ package survarium.chat
       
       protected function styledChar(value:String, style:String) : String
       {
-         value = value.split("<").join("&lt;");
-         return "<" + style + ">" + value + "</" + style + ">";
+         return "<" + style + ">" + Util.escapeHtml(value) + "</" + style + ">";
       }
       
       protected function styled(value:String, style:String) : String

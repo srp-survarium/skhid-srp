@@ -15,11 +15,78 @@ DATA_NAME=server-game-data.db
 # Where a checkout keeps its item tables (srp-item-tables).
 # shellcheck disable=SC2034 # used by the scripts that source this
 ITEM_TABLES_DIR=srp-026g/docs/data
+# The file in the folder of a quick build (build-content --quick), which
+# release.sh refuses a patch beside.
+# shellcheck disable=SC2034 # used by the scripts that source this
+QUICK_MARK=QUICK-BUILD
 # The stock 0.26g resources.db (build 2777).
 # shellcheck disable=SC2034 # used by the scripts that source this
 STOCK_DB_SHA256=c74078be702d17113b9ca23f59aa2b0087238481e7f01fb793620d51d875492c
 # The players' exe in the ZIP.
 ZIP_EXE=game/binaries/x86/survarium_skhid.exe
+# The release's Ed25519 key, which signs every revision's torrent
+# (release/make-signing-key, srp-026g/docs/notes/torrent-downloads.md): its
+# file beside release.env (private/release/, mode 600, never committed, never
+# printed), its public key committed as SIGNING_PUB (64 hex digits), which the
+# updater is built with. The test environment has its own pair
+# (torrent-signing-test.pem, release/signing-test.pub; make-signing-key
+# --test): its updater is built with that public key (SKHID_TEST_PUBLIC_KEY),
+# so a test torrent is never trusted by a player's updater.
+# signing_pub [live|test]: the committed public key's path in a checkout.
+signing_pub() {
+    case ${1:-live} in
+    live) printf '%s\n' release/signing.pub ;;
+    test) printf '%s\n' release/signing-test.pub ;;
+    *) die "signing_pub: $1" ;;
+    esac
+}
+# shellcheck disable=SC2034 # used by the scripts that source this
+SIGNING_PUB=release/signing.pub
+# signing_key [live|test]: the private key's file.
+signing_key() {
+    load_env
+    case ${1:-live} in
+    live) printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing.pem" ;;
+    test) printf '%s\n' "$(dirname "$RELEASE_ENV")/torrent-signing-test.pem" ;;
+    *) die "signing_key: $1" ;;
+    esac
+}
+# public_hex <openssl> <private key file>: its public key, 64 hex digits
+# (the DER of an Ed25519 public key ends with its 32 bytes, RFC 8410).
+public_hex() {
+    "$1" pkey -in "$2" -pubout -outform DER | tail -c 32 | od -An -v -tx1 | tr -d ' \n'
+}
+# The bootstrap (srp-026g/docs/notes/torrent-downloads.md, "Bootstrap"): the
+# list of its three files in the form of the offered-patch list (their URLs in
+# the order the script tries them after the peers), its torrent and the
+# script made of them, all three committed (release/build-bootstrap; more
+# URLs: release/add-mirror <name> <url>).
+BOOTSTRAP_LIST=release/bootstrap.tsv
+BOOTSTRAP_TORRENT=release/bootstrap.torrent
+BOOTSTRAP_SCRIPT=srp-026g/servers/web-server/bootstrap/Skhid-get.bat
+# shellcheck disable=SC2034 # used by the scripts that source this
+BOOTSTRAP_FILES=(game/binaries/x86/7zr.exe game/binaries/x86/skhid_torrent.dll game/binaries/x86/updater_skhid.exe)
+# The script again from the torrent and the list (and with <path> <source>
+# pairs, the torrent again from those files first).
+render_bootstrap() {
+    local files=()
+    while (($#)); do files+=(--file "$1" "$2"); shift 2; done
+    mkdir -p "$ROOT/${BOOTSTRAP_SCRIPT%/*}"
+    python -I "$ROOT/release/build_torrent.py" bootstrap --torrent "$ROOT/$BOOTSTRAP_TORRENT" "${files[@]}" \
+        --list "$ROOT/$BOOTSTRAP_LIST" --body "$ROOT/release/bootstrap.ps1" --out "$ROOT/$BOOTSTRAP_SCRIPT"
+}
+# The openssl program: this system's, or nixpkgs'.
+openssl_program() {
+    if command -v openssl; then return 0; fi
+    printf '%s/bin/openssl\n' "$(nix_build nixpkgs#openssl.bin openssl)"
+}
+# <installable> <name>: its store path, built with an out-link in the scripts'
+# cache, so that the garbage collector keeps it.
+nix_build() {
+    local link=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/gc-roots/$2
+    mkdir -p "${link%/*}"
+    nix build --out-link "$link" --print-out-paths "$1" | head -n 1
+}
 # The original game's archive (build 2777): its row of release/game.tsv
 # (GAME_ROW), offered at /game; client/updater/logic/src/game.rs pins it.
 GAME_NAME=survarium-026g.7z
@@ -157,11 +224,14 @@ URL_CACHE=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/patch-urls.checked
 # how it was checked (`downloaded`, `as checked before`, `by its first
 # bytes`).
 URL_PROBLEM='' CHECKED=''
-# The start of a patch and of a 7z archive, as od -tx1 writes it.
-PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c
+# The start of a patch and of a 7z archive, as od -tx1 writes it; URL_START:
+# another (a program's, MZ: the bootstrap's files).
+PATCH_START=6c6974746c652d656e6469616e SEVENZIP_START=377abcaf271c URL_START=''
+# shellcheck disable=SC2034 # used by the scripts that source this
+PROGRAM_START=4d5a
 # shellcheck disable=SC2034 # CHECKED: the callers read it
 check_patch_url() {
-    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=$PATCH_START
+    local url=$1 sha=$2 size=$3 dir=$4 full=${5:-} out head status type total got start=${URL_START:-$PATCH_START}
     out=$dir/url-check.$$ head=$dir/url-check.$$.head
     URL_PROBLEM='' CHECKED=''
     if [[ -n $GAME_ROW && $sha == "$(cut -d' ' -f2 <<<"$GAME_ROW")" ]]; then start=$SEVENZIP_START; fi
@@ -269,6 +339,49 @@ item_tables_bin() {
     printf '%s\n' "$ROOT/srp-026g/target/release/srp-item-tables"
 }
 
+# The world check (srp-world-check, the match server's own check of an
+# upload, run on recorded worlds): $SRP_WORLD_CHECK_BIN, else built here.
+world_check_bin() {
+    if [[ -n ${SRP_WORLD_CHECK_BIN:-} ]]; then
+        printf '%s\n' "$SRP_WORLD_CHECK_BIN"
+        return
+    fi
+    say "building srp-world-check (srp-026g, nix develop) ..." >&2
+    (cd "$ROOT" && nice -n 10 nix develop ./srp-026g -c bash -c \
+        'cd srp-026g && cargo build --quiet --release -p match-server --bin srp-world-check') >&2 ||
+        die "srp-world-check did not build"
+    printf '%s\n' "$ROOT/srp-026g/target/release/srp-world-check"
+}
+
+# The server's image (srp-026g/Dockerfile) built here from <src>, main's
+# srp-026g source, into <out>: a zstd docker-archive tagged $IMAGE, which
+# the host's `docker load` takes, so the live host (one core, the running
+# matches) compiles nothing. Rootless podman and skopeo from nixpkgs, at
+# nice 10; their settings (Docker Hub for the Dockerfile's short names, any
+# image accepted, as Docker does) in a folder of their own beside <out>,
+# none of this machine's. $SKHID_BUILD_IMAGE_BIN: run as <it> <src> <out>
+# instead.
+build_image() {
+    local src=$1 out=$2 conf status=0
+    if [[ -n ${SKHID_BUILD_IMAGE_BIN:-} ]]; then
+        "$SKHID_BUILD_IMAGE_BIN" "$src" "$out"
+        return
+    fi
+    conf=$(mktemp -d "${out%/*}/image.XXXXXX")
+    printf '{"default":[{"type":"insecureAcceptAnything"}]}\n' >"$conf/policy.json"
+    printf 'unqualified-search-registries = ["docker.io"]\n' >"$conf/registries.conf"
+    # shellcheck disable=SC2016
+    nice -n 10 nix shell nixpkgs#podman nixpkgs#skopeo nixpkgs#zstd -c bash -euo pipefail -c '
+        conf=$1 src=$2 out=$3 image=$4 name=localhost/srp-026g-release:${conf##*.}
+        export CONTAINERS_REGISTRIES_CONF=$conf/registries.conf
+        podman build --signature-policy "$conf/policy.json" -t "$name" "$src"
+        skopeo --policy "$conf/policy.json" copy -q "containers-storage:$name" "docker-archive:$conf/image.tar:$image"
+        podman rmi "$name" >/dev/null
+        zstd -T0 -q -f "$conf/image.tar" -o "$out"
+    ' _ "$conf" "$src" "$out" "$IMAGE" || status=$?
+    rm -rf "$conf"
+    return "$status"
+}
 
 # The building steps (build-patch, build-server-db, build-zip) run at nice
 # 10, with every child: the release PC goes on doing other things.
@@ -292,6 +405,28 @@ client_patches_python() {
     local src=$1
     shift
     (cd "$src/srp-026g/client-patches" && nix develop "$src/srp-026g" -c python3 "$@")
+}
+
+# The exe patches' self-test (srp-026g/client-patches/selftest_026g.py) of
+# the checkout <src> on the original exe <exe>, its output into <log>, its
+# builds into <scratch>: its Linux part (imagehlp's checksum and the
+# certificate's read, test_windows, are Windows' own), in that checkout's
+# dev shell with nixpkgs' Python unicorn, at nice 10: nothing of this
+# machine's PATH is needed but nix. Fails when a check fails. For
+# release/test.sh: $SKHID_SELFTEST_BIN <src> <exe> instead.
+run_selftest() {
+    local src=$1 exe=$2 log=$3 scratch=$4
+    if [[ -n ${SKHID_SELFTEST_BIN:-} ]]; then
+        "$SKHID_SELFTEST_BIN" "$src" "$exe" >"$log" 2>&1
+        return
+    fi
+    # shellcheck disable=SC2016 # the dev shell's bash expands them
+    (cd "$src/srp-026g/client-patches" && SRP_026G_SCRATCH=$scratch nice -n 10 nix develop "$src/srp-026g" -c bash -c '
+        py=$(python3 -c "import sys; print(f\"python{sys.version_info.major}.{sys.version_info.minor}\")")
+        unicorn=$(nix build --no-link --print-out-paths --inputs-from "$1" nixpkgs#python3Packages.unicorn | head -n 1)
+        PYTHONPATH=$unicorn/lib/$py/site-packages exec python3 -u -c \
+            "import selftest_026g as st; st.test_windows = lambda *a, **k: None; st.main()" "$2"' - "$src/srp-026g" "$exe") \
+        >"$log" 2>&1
 }
 
 # `<sha256> <name>` of every file entry of a ZIP, in name order. (Python's
@@ -530,7 +665,7 @@ list_game_json() {
 }
 
 # Every patch of LIST (read_patch_list first) in ~/.cache/skhid-release/patches/
-# ($XDG_CACHE_HOME), each checked by its size and sha256 there, else
+# ($XDG_CACHE_HOME), each checked by its size and sha256 there (cached_sha256), else
 # downloaded there from the patches server (200, the row's size and
 # sha256), never from a mirror's quota. Sets PATCH_CACHE to that folder.
 PATCH_CACHE=''
@@ -541,7 +676,7 @@ cache_patches() {
     while read -r name sha size urls; do
         [[ -n $name ]] || continue
         file=$PATCH_CACHE/$name
-        if [[ -f $file && $(size_of "$file") == "$size" && $(sha256_of "$file") == "$sha" ]]; then
+        if [[ -f $file && $(size_of "$file") == "$size" && $(cached_sha256 "$file") == "$sha" ]]; then
             say "$name: in the cache"
             continue
         fi
@@ -581,12 +716,13 @@ check_file_urls() {
     ((URLS_GOOD)) || { URL_PROBLEM="none of its URLs gives it (the last: $last)"; return 1; }
 }
 
-# The sha256 of the stock db $1, hashed once and then cached by its size,
-# time and path (~/.cache/skhid-release/stock-db.sha256).
-stock_sha256() {
+# The sha256 of a big file $1 (the stock db, a patch of the cache), hashed once
+# and then cached by its size, time (to the nanosecond), inode and path
+# (~/.cache/skhid-release/file-sha256s): a write to it is hashed anew.
+cached_sha256() {
     local cache key stock
-    cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/stock-db.sha256
-    key="$(stat -c '%s %Y' "$1") $(readlink -f "$1")"
+    cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/file-sha256s
+    key="$(stat -c '%s %.9Y %i' "$1") $(readlink -f "$1")"
     stock=$(grep -F -- "$key " "$cache" 2>/dev/null | tail -n 1 || true)
     stock=${stock##* }
     if [[ -z $stock ]]; then
@@ -727,7 +863,8 @@ lock_drop() {
 # Checks a release's two files here, before anything goes anywhere: the
 # ZIP's exe says patch revision <n>, the server data reads (srp-game-data
 # info), offers no patch above <n>, and offers patch_12 (the menus) from
-# revision 12 on. Sets ZIP_SHA ZIP_SIZE DATA_SHA, OFFERED (`patch_<n>
+# revision 12 on. Sets ZIP_SHA ZIP_SIZE DATA_SHA, EXE_SHA (the sha256 of
+# the ZIP's game exe, the file its players run), OFFERED (`patch_<n>
 # <sha256> <urls>` lines), OFFERED_GAME (the game's archive the data names,
 # as GAME_ROW is, or nothing), EXPECTED (/patches as JSON) and
 # EXPECTED_GAME (/game as JSON, or nothing). <scratch> is a folder for the
@@ -749,6 +886,7 @@ check_release_files() {
     fi
     # shellcheck disable=SC2034 # the callers use them
     ZIP_SHA=$(sha256_of "$zip") ZIP_SIZE=$(size_of "$zip") DATA_SHA=$(sha256_of "$data")
+    EXE_SHA=$(sha256_of "$scratch/exe")
     EXPECTED=$(patches_json "$OFFERED")
     EXPECTED_GAME=''
     if [[ -n $OFFERED_GAME ]]; then EXPECTED_GAME=$(GAME_ROW=$OFFERED_GAME list_game_json | jq -cS .); fi
@@ -808,10 +946,13 @@ served_patches() {
 #                    srp made at its start (srp-db.name names it)
 #   image.old image.new  the image ID that ran before the swap, and after
 #   min.old          SRP_MIN_PATCH_REVISION before (`none`: no line)
+#   released-exe.old the SRP_RELEASED_EXE_SHA256 line of .env before (empty:
+#                    no line)
 #   changed.txt      the server source files that changed, the ZIP's changed
 #                    entries (release.sh)
-#   src.tar src/ old-src.tgz  with server code: main's source (src/, where
-#                    the image is built), the tree's files before
+#   src.tar image.tar.zst old-src.tgz  with server code: main's source and
+#                    its image (built here, loaded on the host, then
+#                    removed), the tree's files before
 #   rollback.sh rollback.env  release/host-rollback.sh and what it puts back
 REL='' REL_DIR='' BEFORE_TAG='' STAGED=0
 release_folder() { # <revision> <stamp> [label]
@@ -845,7 +986,7 @@ stage_upload() {
 # log), state stopped.
 stage_abandon() {
     ((STAGED)) || return 0
-    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar bot-data bot-data.list bot-data.sh && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
+    if on_target "cd $REL_DIR && rm -rf $ZIP_NAME $DATA_NAME ./*.part src src.tar image.tar.zst bot-data bot-data.list bot-data.sh && echo stopped > state && rm -f ../download/.$ZIP_NAME.new ../download/.$DATA_NAME.new"; then
         say "staged files: removed ($TARGET_DIR/$REL stays, state stopped)"
     else
         say "staged files: NOT removed: $TARGET_DIR/$REL"
@@ -933,10 +1074,10 @@ current_min_revision() {
     if [[ -z $lines ]]; then say none; else say "${lines#*=}"; fi
 }
 
-# The command that sets SRP_MIN_PATCH_REVISION=<n> in .env: that line only
-# (added on a line of its own when missing); prints the line.
-min_revision_command() {
-    printf '%s' "cd $D && if grep -q '^SRP_MIN_PATCH_REVISION=' .env; then sed -i 's/^SRP_MIN_PATCH_REVISION=.*/SRP_MIN_PATCH_REVISION=$1/' .env; else { test -z \"\$(tail -c 1 .env)\" || echo; echo SRP_MIN_PATCH_REVISION=$1; } >> .env; fi && grep -E '^SRP_MIN_PATCH_REVISION=' .env"
+# The command that sets <NAME>=<value> in .env: that line only (added on a
+# line of its own when missing); prints the line.
+setting_command() {
+    printf '%s' "cd $D && if grep -q '^$1=' .env; then sed -i 's/^$1=.*/$1=$2/' .env; else { test -z \"\$(tail -c 1 .env)\" || echo; echo $1=$2; } >> .env; fi && grep -E '^$1=' .env"
 }
 
 # The restart: srp26 made anew on what is in place now (--force-recreate:
@@ -960,7 +1101,8 @@ restart_command() {
 #   swap_prepare <revision>  srp26 stopped; srp.db, the old files, the image
 #                            ID, the setting kept in the folder; the image
 #                            tagged; the rollback written
-#   swap_server <revision>   the server data, the ZIP and the setting (and
+#   swap_server <revision>   the server data, the ZIP and the settings
+#                            (the revision; the ZIP's exe, EXE_SHA) (and
 #                            source) in place while srp26 is stopped, srp26
 #                            made anew on them, checked: running, its game
 #                            data line, /patches, /api/client-files
@@ -976,6 +1118,8 @@ restart_command() {
 # rollback runs), finished.
 SWAP_STATE='' SWAP_SRC=0 SWAP_SRC_INPUTS='' SWAP_BEFORE_STOP=''
 OLD_MIN=none HAVE_ZIP=0 HAVE_DATA=0 OLD_PATCHES=''
+# Until check_release_files reads a ZIP (release.sh's dry run builds none).
+EXE_SHA='<the sha256 of the game exe in the ZIP>'
 RUN_CONTAINER='' RUN_IMAGE='' RUN_VOLUME='' RUN_VOLUME_DIR='' LATEST_IMAGE=''
 
 # The bots' data files (the switch ledger's F2, F3 and F7): private files the
@@ -1099,11 +1243,11 @@ stage_bot_data() {
 }
 
 # The command that keeps the old files in the folder: their sha256sum,
-# hard links (same file system as download/), the image ID, the setting (and
+# hard links (same file system as download/), the image ID, the settings (and
 # the source the release replaces).
 archive_command() {
     local c
-    c="cd $D && echo $(q "$RUN_IMAGE") > $REL/image.old && echo $OLD_MIN > $REL/min.old && : > $REL/old.sha"
+    c="cd $D && echo $(q "$RUN_IMAGE") > $REL/image.old && echo $OLD_MIN > $REL/min.old && { grep '^SRP_RELEASED_EXE_SHA256=' .env > $REL/released-exe.old || true; } && : > $REL/old.sha"
     ((HAVE_ZIP)) && c+=" && sha256sum download/$ZIP_NAME >> $REL/old.sha && ln download/$ZIP_NAME $REL/old-$ZIP_NAME"
     ((HAVE_DATA)) && c+=" && sha256sum download/$DATA_NAME >> $REL/old.sha && ln download/$DATA_NAME $REL/old-$DATA_NAME"
     if ((SWAP_SRC)); then
@@ -1116,6 +1260,7 @@ archive_command() {
 rollback_env() {
     printf '%s=%q\n' TARGET_DIR "$TARGET_DIR" COMPOSE "$TARGET_COMPOSE" IMAGE "$IMAGE" \
         OLD_IMAGE "$RUN_IMAGE" VOLUME_DIR "$RUN_VOLUME_DIR" BACKUP_BEFORE "$BACKUP_BEFORE" OLD_MIN "$OLD_MIN" NEW_MIN "$1" \
+        NEW_EXE_SHA "$EXE_SHA" \
         HAVE_ZIP "$HAVE_ZIP" HAVE_DATA "$HAVE_DATA" SRC "$SWAP_SRC" BOT_DATA "$BOT_DATA" ZIP_NAME "$ZIP_NAME" DATA_NAME "$DATA_NAME"
 }
 
@@ -1230,7 +1375,8 @@ show_srp_log() {
 
 # After a restart: the container up, its log's game data line of the new
 # server data, $TARGET_SITE/patches exactly EXPECTED (retried while srp
-# starts). Prints what failed and returns 1.
+# starts); and what its log says of the release's exe (EXE_SHA). Prints what
+# failed and returns 1.
 check_server() {
     local state line count patches='' status=000 _
     state=$(wait_container)
@@ -1239,7 +1385,9 @@ check_server() {
         return 1
     fi
     say "srp26: ${state#ok }"
-    line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix --tail=500 srp26 2>&1 | grep 'game data:' | tail -n 1" || true)
+    # The whole log of the container just made: a first start can log hundreds of
+    # lines after the game data line (rev54: the silver pay-back, a line an account).
+    line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix srp26 2>&1 | grep 'game data:' | tail -n 1" || true)
     count=$(grep -c . <<<"$OFFERED" || true)
     if [[ $line != *"; $count patch(es) offered at /patches"* ]]; then
         say "srp26's log has no game data line of the new server data ($count patch(es)): ${line:-none}"
@@ -1263,6 +1411,9 @@ check_server() {
         return 1
     fi
     say "/patches: $patches, as the server data says"
+    # Said only: an srp from before the setting says nothing of it.
+    line=$(on_target "cd $D && $TARGET_COMPOSE logs --no-log-prefix srp26 2>&1 | grep -F \"Executables: the release's own is sha256 $EXE_SHA\" | tail -n 1" || true)
+    say "log: ${line:-nothing of SRP_RELEASED_EXE_SHA256=$EXE_SHA (an srp from before it: the first games of this exe are asked for their file)}"
     if [[ -n ${EXPECTED_GAME:-} ]]; then
         status=$(HTTP_TIMEOUT=20 http_get "$TARGET_SITE/game" "$SWAP_WORK/game")
         patches=$(jq -cS . "$SWAP_WORK/game" 2>/dev/null || true)
@@ -1321,12 +1472,20 @@ swap_server() {
     SWAP_DONE+=("in place: download/$DATA_NAME")
     write_on live "$(put_command "$ZIP_NAME")"
     SWAP_DONE+=("in place: download/$ZIP_NAME")
-    write_on live "$(min_revision_command "$1")"
+    write_on live "$(setting_command SRP_MIN_PATCH_REVISION "$1")"
     SWAP_DONE+=("SRP_MIN_PATCH_REVISION=$1 in .env (was $OLD_MIN)")
+    # The exe this release ships: the match server reads it at its start and
+    # asks no game that reports it for its file (docs/notes/module-report.md).
+    write_on live "$(setting_command SRP_RELEASED_EXE_SHA256 "$EXE_SHA")"
+    SWAP_DONE+=("SRP_RELEASED_EXE_SHA256=$EXE_SHA in .env (the line before: $REL/released-exe.old)")
     if ((SWAP_SRC)); then
         write_on live "cd $D && tar -xf $REL/src.tar && rm -rf $REL/src"
         SWAP_DONE+=("main's source unpacked into $TARGET_DIR")
     fi
+    # From the restart on, srp may hand out the ZIP and its signed torrent, if
+    # only for a moment: this revision's number never names other files
+    # again, rolled back or not (release.sh's preflight reads this).
+    ((DRY_RUN)) || on_target "touch $REL_DIR/served" || die "$REL_DIR/served (the mark that this revision may go out) could not be written"
     write_on live "$(restart_command)"
     SWAP_DONE+=("srp26 made anew")
     write_on live "cd $D && id=\$($TARGET_COMPOSE ps -aq srp26 | head -n 1) && docker inspect -f '{{.Image}}' \"\$id\" > $REL/image.new"

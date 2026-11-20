@@ -1,6 +1,10 @@
 // Optional, bounded attachments. No game logging API or game heap is touched:
 // the faulting thread may hold their locks.
-use crate::{text::Wide, zip};
+use crate::{
+    run_name::{Kind, RunName, parse},
+    text::Wide,
+    zip,
+};
 use core::{
     fmt::{self, Write},
     ptr::null_mut,
@@ -16,17 +20,25 @@ use windows_sys::Win32::{
 };
 
 pub const COUNT: usize = 32;
-pub const MAX_MEMBERS: usize = COUNT + 3; // whole sources, dump, crash.txt, summary
+pub const MAX_MEMBERS: usize = COUNT + 5; // whole sources, patch log, dump, crash.txt, breadcrumbs, summary
+/// The crashed run's patch log can be long (8 MiB a part), so the ZIP takes
+/// its last [`PATCH_LOG_BYTES`].
+pub const PATCH_LOG_BYTES: u64 = 2 * 1024 * 1024;
 pub const PACKED_BYTES: u64 = 16 * 1024 * 1024; // log local headers + data + central records
 pub const INPUT_BYTES: u64 = 256 * 1024 * 1024; // source bytes read, including failed attempts
 const AGE: u64 = 48 * 60 * 60 * 10_000_000;
-pub const SCOPES: [&str; 5] = [
+pub const SCOPES: [&str; 6] = [
     "documents",
     "game-exe",
     "game-root",
     "install-root",
     "install-temp",
+    "game-logs",
 ];
+/// The scope of the exe's folder, `game\binaries\x86\`.
+const EXE_SCOPE: usize = 1;
+/// The scope of the run logs' folder, `game\logs\` (beside `game\torrent`).
+pub const LOGS_SCOPE: usize = 5;
 
 pub struct Manifest {
     pub buf: [u8; 32768],
@@ -50,11 +62,21 @@ impl Write for Manifest {
         Ok(())
     }
 }
+/// How much of a source the ZIP takes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Take {
+    Whole,
+    /// Its last bytes, from the first whole line in them.
+    Last(u64),
+}
 #[derive(Clone, Copy)]
 pub struct Candidate {
     pub name: [u16; 260],
     pub len: usize,
     pub scope: usize,
+    pub take: Take,
+    /// A run's log (its kind and stamp, parsed from the name).
+    run: Option<RunName>,
     modified: u64,
 }
 impl Candidate {
@@ -62,24 +84,111 @@ impl Candidate {
         name: [0; 260],
         len: 0,
         scope: 0,
+        take: Take::Whole,
+        run: None,
         modified: 0,
     };
-    // Never echo user-controlled filenames into attachments or the summary.
-    pub fn zip_name(&self, index: usize, buf: &mut [u8; zip::MAX_NAME]) -> usize {
-        let mut prefix = 0;
-        for part in [
-            b"logs/".as_slice(),
-            SCOPES[self.scope].as_bytes(),
-            b"/source-",
-        ] {
-            buf[prefix..prefix + part.len()].copy_from_slice(part);
-            prefix += part.len();
+    /// The crashed run's patch log of the exe's folder `exe` (`folders()[1]`,
+    /// or dump::folder's), its tail: the newest (last written)
+    /// `srp_patches.<stamp>[_<n>].log` in `game\logs` ([`game_logs`]); `len`
+    /// 0 when there is none.
+    pub unsafe fn patch_log(exe: &[u16]) -> Self {
+        let mut log = Self::EMPTY;
+        log.scope = LOGS_SCOPE;
+        log.take = Take::Last(PATCH_LOG_BYTES);
+        let logs = game_logs(exe);
+        let mut pattern = Wide::<1100>::new();
+        // Never a scan of the working folder: no game folder, no scan.
+        if logs.len != 0
+            && pattern.wide(&logs.buf[..logs.len]).is_ok()
+            && write!(pattern, "srp_patches.*.log").is_ok()
+        {
+            let mut data: WIN32_FIND_DATAW = core::mem::zeroed();
+            let find = FindFirstFileW(pattern.ptr(), &mut data);
+            if find != INVALID_HANDLE_VALUE {
+                loop {
+                    let n = data.cFileName.iter().position(|&c| c == 0).unwrap_or(0);
+                    let modified = ticks(data.ftLastWriteTime);
+                    let run = parse(&data.cFileName[..n]).filter(|run| run.kind == Kind::Patches);
+                    if run.is_some()
+                        && data.dwFileAttributes
+                            & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)
+                            == 0
+                        && (log.run.is_none() || modified >= log.modified)
+                    {
+                        log.name = data.cFileName;
+                        log.len = n;
+                        log.run = run;
+                        log.modified = modified;
+                    }
+                    if FindNextFileW(find, &mut data) == 0 {
+                        break;
+                    }
+                }
+                FindClose(find);
+            }
         }
-        buf[prefix] = b'0' + ((index + 1) / 10) as u8;
-        buf[prefix + 1] = b'0' + ((index + 1) % 10) as u8;
-        buf[prefix + 2..prefix + 6].copy_from_slice(b".txt");
-        prefix + 6
+        log
     }
+    /// The file name (no folder) as text, for a name of ours alone: the
+    /// patch log's, parsed (nothing when none was found: `len` 0).
+    pub fn patch_log_name(&self, out: &mut dyn Write) -> fmt::Result {
+        match self.run {
+            Some(run) => write!(out, "srp_patches.{}.log", run.stamp()),
+            None => Ok(()),
+        }
+    }
+    fn same_file(&self, scope: usize, name: &[u16]) -> bool {
+        self.len != 0
+            && self.scope == scope
+            && self.len == name.len()
+            && same_wide(&self.name[..self.len], name)
+    }
+    // Never echo user-controlled filenames into attachments or the summary:
+    // a run's log adds only its kind's fixed word and the parsed stamp.
+    pub fn zip_name(&self, index: usize, buf: &mut [u8; zip::MAX_NAME]) -> usize {
+        let mut name = Ascii { buf, len: 0 };
+        let _ = if let Take::Last(_) = self.take {
+            // Our own file's name, not one of the player's.
+            write!(name, "logs/{}/", SCOPES[self.scope])
+                .and_then(|()| self.patch_log_name(&mut name))
+        } else {
+            write!(name, "logs/{}/source-{:02}", SCOPES[self.scope], index + 1)
+                .and_then(|()| match self.run {
+                    Some(run) => write!(name, ".{}.{}", run.kind.word(), run.stamp()),
+                    None => Ok(()),
+                })
+                .and_then(|()| name.write_str(".txt"))
+        };
+        name.len
+    }
+}
+/// A ZIP member name being written: ASCII into the record's buffer.
+struct Ascii<'a> {
+    buf: &'a mut [u8; zip::MAX_NAME],
+    len: usize,
+}
+impl Write for Ascii<'_> {
+    fn write_str(&mut self, value: &str) -> fmt::Result {
+        let end = self.len + value.len();
+        if end > self.buf.len() {
+            return Err(fmt::Error);
+        }
+        self.buf[self.len..end].copy_from_slice(value.as_bytes());
+        self.len = end;
+        Ok(())
+    }
+}
+/// Two file names, as Windows compares them (ASCII case only).
+fn same_wide(a: &[u16], b: &[u16]) -> bool {
+    let lower = |c: u16| {
+        if (b'A' as u16..=b'Z' as u16).contains(&c) {
+            c + 32
+        } else {
+            c
+        }
+    };
+    a.len() == b.len() && a.iter().zip(b).all(|(&x, &y)| lower(x) == lower(y))
 }
 fn ticks(t: FILETIME) -> u64 {
     (t.dwHighDateTime as u64) << 32 | t.dwLowDateTime as u64
@@ -92,8 +201,14 @@ fn same(wide: &[u16], ascii: &[u8]) -> bool {
             .all(|(&w, &a)| w <= 127 && (w as u8).eq_ignore_ascii_case(&a))
 }
 // Game/launcher logs, game journals, DXVK's executable-prefixed render logs,
-// and the updater's explicit diagnostic log. No settings, captures or patch journals.
+// the updater's explicit diagnostic log, and every run's log (the game's,
+// the client patches' and the updater's `<kind>.<stamp>.log`, run_name.rs).
+// No settings, captures or patch journals.
 fn game_log(name: &[u16]) -> bool {
+    parse(name).is_some() || unnamed_log(name)
+}
+// The logs whose names hold no run (the game's before the runs were named).
+fn unnamed_log(name: &[u16]) -> bool {
     let extension = if name.len() >= 4 && same(&name[name.len() - 4..], b".log") {
         4
     } else if name.len() >= 8 && same(&name[name.len() - 8..], b".journal") {
@@ -110,8 +225,23 @@ fn game_log(name: &[u16]) -> bool {
                 .any(|n| same(stem, n)))
 }
 
-pub unsafe fn folders() -> [Wide<1024>; 5] {
-    let mut folders = [const { Wide::new() }; 5];
+/// `game\logs\` (the run logs, beside `game\torrent`) of the exe's folder
+/// `exe`, `...\game\binaries\x86\`; empty for any other folder.
+pub fn game_logs(exe: &[u16]) -> Wide<1024> {
+    let mut logs = Wide::new();
+    let n = exe.len();
+    // Only for the known installation layout, never from CWD.
+    if n >= 13
+        && same(&exe[n - 13..], b"binaries\\x86\\")
+        && (logs.wide(&exe[..n - 13]).is_err() || write!(logs, "logs\\").is_err())
+    {
+        logs.truncate(0);
+    }
+    logs
+}
+
+pub unsafe fn folders() -> [Wide<1024>; 6] {
+    let mut folders = [const { Wide::new() }; 6];
     let docs = &mut folders[0];
     if SHGetFolderPathW(
         null_mut(),
@@ -154,13 +284,15 @@ pub unsafe fn folders() -> [Wide<1024>; 5] {
             let _ = write!(install[1], "temp\\");
         }
     }
+    folders[LOGS_SCOPE] = game_logs(&folders[EXE_SCOPE].buf[..n]);
     folders
 }
 
 pub unsafe fn recent(
-    folders: &mut [Wide<1024>; 5],
+    folders: &mut [Wide<1024>; 6],
     deadline: u64,
     manifest: &mut Manifest,
+    patch_log: &Candidate,
 ) -> [Candidate; COUNT] {
     let mut selected = [Candidate::EMPTY; COUNT];
     let mut now = core::mem::zeroed();
@@ -200,7 +332,9 @@ pub unsafe fn recent(
         loop {
             let n = data.cFileName.iter().position(|&c| c == 0).unwrap_or(0);
             let modified = ticks(data.ftLastWriteTime);
-            if game_log(&data.cFileName[..n]) {
+            let name = &data.cFileName[..n];
+            // The crashed run's patch log is taken first, by itself.
+            if game_log(name) && !patch_log.same_file(scope, name) {
                 matched += 1;
                 if data.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)
                     != 0
@@ -221,6 +355,8 @@ pub unsafe fn recent(
                             name: data.cFileName,
                             len: n,
                             scope,
+                            take: Take::Whole,
+                            run: parse(name),
                             modified,
                         };
                     }

@@ -10,8 +10,6 @@ package survarium.interfaces
       
       function set updateFunction(value:Function) : void;
       
-      function set autoBuyCheckBox(value:Button) : void;
-      
       function set acceptButton(value:Button) : void;
       
       function set cancelButton(value:Button) : void;

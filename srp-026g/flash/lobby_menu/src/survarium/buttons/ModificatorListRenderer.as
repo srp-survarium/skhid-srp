@@ -6,8 +6,6 @@ package survarium.buttons
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import scaleform.clik.controls.ListItemRenderer;
-   import survarium.constants.Colors;
-   import survarium.constants.ModificationState;
    
    public class ModificatorListRenderer extends ListItemRenderer
    {
@@ -101,7 +99,6 @@ package survarium.buttons
       
       override protected function updateText() : void
       {
-         var tint:ColorTransform;
          super.updateText();
          if(_data)
          {
@@ -111,16 +108,7 @@ package survarium.buttons
             // The reroll window's bonuses show their range on hover: `name` is the tip's text
             // (ModificationRolls.withRange: the reroll window, the craft window's new bonus).
             _tooltipRenderer = _data.rollRange ? SrvProfileTipRendererStyled : null;
-            if(_data.state == ModificationState.DEFECT)
-            {
-               tint = new ColorTransform();
-               tint.color = Colors.RED_DIFF;
-               this.iconContainer.transform.colorTransform = tint;
-            }
-            else
-            {
-               this.iconContainer.transform.colorTransform = new ColorTransform();
-            }
+            this.iconContainer.transform.colorTransform = new ColorTransform();
          }
       }
    }

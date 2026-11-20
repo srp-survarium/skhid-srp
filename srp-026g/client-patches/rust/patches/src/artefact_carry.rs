@@ -10,6 +10,7 @@ use crate::vostok::carry_runtime::{self as native, ArtefactClass, ArtefactDraw, 
 use crate::vostok::inventory::ContainerSpace;
 use crate::vostok::draw::{self, DrawnBones};
 use crate::vostok::world::Player;
+use crate::vostok::breadcrumbs::{self, Reading};
 
 mod pose;
 
@@ -170,6 +171,10 @@ pub fn on_save(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 pub fn on_load(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let offset = native::load_offset(ctx);
+    if let (Some(player), Some(offset)) = (native::player(ctx, native::PlayerSite::Load), offset) {
+        breadcrumbs::reading(ctx.thread(), Reading::PlayerRead { place: player.place(), offset });
+    }
     let saved = native::read_snapshot(ctx).unwrap_or_default();
     if let Some(player) = native::player(ctx, native::PlayerSite::Load)
         && let Some(key) = player.carry_key() {
@@ -361,6 +366,8 @@ pub fn on_cull(ctx: &mut Context<'_>) -> Flow<NoExit> {
 fn artefact_draw(ctx: &Context<'_>, class: ArtefactClass) -> bool {
     let Some(draw) = ArtefactDraw::at(ctx, class) else { return false };
     if draw.ground(ctx) { return true; }
+    // Keep and Native alike leave an artefact we do not present to the native.
+    if !draw.ours() { return false; }
     let held = OWNERS.with(ctx.thread(), |owners| owners.0.iter().flatten().find_map(|owner| {
         let a = owner.attachment?;
         (a.item == draw.id() && owner.carry.artefact() == Some(a.token.artefact)).then_some(())

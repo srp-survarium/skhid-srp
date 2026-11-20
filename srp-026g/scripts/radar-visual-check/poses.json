@@ -1,0 +1,78 @@
+[
+  {
+    "name": "tires",
+    "position": [
+      19.269,
+      1.909,
+      9.411
+    ],
+    "forward": [
+      0.646,
+      -0.157,
+      0.747
+    ],
+    "fov": 65,
+    "aspect": 1.7777777777777777,
+    "near": 0.05,
+    "far": 500,
+    "buffers": false,
+    "settle_ms": 10000
+  },
+  {
+    "name": "wall-hole",
+    "position": [
+      22.325,
+      1.876,
+      6.191
+    ],
+    "forward": [
+      0.869,
+      -0.424,
+      -0.256
+    ],
+    "fov": 65,
+    "aspect": 1.7777777777777777,
+    "near": 0.05,
+    "far": 500,
+    "buffers": false,
+    "settle_ms": 10000
+  },
+  {
+    "name": "smooth-ground",
+    "position": [
+      -4.86,
+      1.615,
+      -85.694
+    ],
+    "forward": [
+      0.83,
+      0.05,
+      0.555
+    ],
+    "fov": 65,
+    "aspect": 1.7777777777777777,
+    "near": 0.05,
+    "far": 500,
+    "buffers": false,
+    "settle_ms": 10000
+  },
+  {
+    "name": "barrel-hole",
+    "position": [
+      35.732,
+      1.979,
+      -39.748
+    ],
+    "forward": [
+      0.765,
+      -0.374,
+      -0.525
+    ],
+    "fov": 65,
+    "aspect": 1.7777777777777777,
+    "near": 0.05,
+    "far": 500,
+    "buffers": false,
+    "settle_ms": 10000
+  }
+]

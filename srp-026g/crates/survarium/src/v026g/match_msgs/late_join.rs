@@ -10,7 +10,8 @@ const PREPARE_MAGIC: [u8; 4] = [0xff, b'L', b'J', 1];
 const PREPARED_MAGIC: [u8; 8] = [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0, 0];
 const PREPARE_HEADER: usize = 14;
 pub const PREPARED_SIZE: usize = 20;
-/// D8's debug byte is exactly 0x80 (normal) or 0x81 (debug) for dialect 1.
+/// D8's debug byte is 0x80/0x81 for dialect 1, or 0x82/0x83 with world
+/// load receipts. The low bit enables debug logging in either dialect.
 /// The stock writer sends 0 or 0xff: testing bit 7 alone is insufficient.
 /// Released snapshot-upload patches do not support this dialect.
 pub const CONNECT_CAPABILITY: u8 = 0x80;
@@ -28,7 +29,7 @@ pub fn spoken_by(revision: u8) -> bool {
 }
 
 pub fn has_connect_capability(debug: u8) -> bool {
-    matches!(debug, CONNECT_CAPABILITY | 0x81)
+    matches!(debug, CONNECT_CAPABILITY | 0x81 | 0x82 | 0x83)
 }
 
 /// Binds an acknowledgement to one match and one immutable profile proposal.

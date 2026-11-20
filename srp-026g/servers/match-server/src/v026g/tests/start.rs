@@ -407,6 +407,7 @@ fn a_place_taken_into_the_match_counts_as_one_that_may_come() {
         bench.match_id,
         4,
         Ok(Instant::now() + Duration::from_secs(600)),
+        bench.game().live_phase(),
     );
     bench
         .registry

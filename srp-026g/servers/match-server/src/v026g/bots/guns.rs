@@ -528,8 +528,9 @@ mod tests {
             let arms = Arms::of_role(role.name()).unwrap();
             assert_eq!(arms.primary.0.item, role.gear()[0].name);
             assert!(arms.pistol.is_none(), "the bots carry no weapon 2");
-            // The fixed kits' pockets: two medkits, two grenades.
-            assert_eq!((arms.medkits, arms.grenades), (2, 2), "{role}");
+            // The fixed kits' pockets: two medkits, one grenade (an RGD-5
+            // takes two units of a pocket of two).
+            assert_eq!((arms.medkits, arms.grenades), (2, 1), "{role}");
         }
         assert!(Arms::of_role("steady").is_none());
         assert_eq!(Arms::fallback().primary.0.item, "ak_74u");
@@ -576,7 +577,7 @@ mod tests {
         assert_eq!(arms.primary.0.item, "svd");
         assert_eq!(arms.primary.1, 3 * BotRole::Camper.rounds_a_slot());
         assert!(arms.primary.1 >= arms.primary.0.magazine);
-        assert_eq!((arms.medkits, arms.grenades), (2, 2));
+        assert_eq!((arms.medkits, arms.grenades), (2, 1));
         // Bare: one pocket of one unit, the medkit; no grenade.
         let bare = bot_kit_of(&[], dict("svd"), dict("ammo_7.62x54_7n1"), BotRole::Camper).unwrap();
         let arms = Arms::of_kit(&bare).unwrap();

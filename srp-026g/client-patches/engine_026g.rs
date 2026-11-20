@@ -11,6 +11,8 @@ use core::ffi::c_void;
 
 #[allow(dead_code)]
 unsafe extern "C" {
+    /// 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
+    pub fn engine_options_int(parent: *mut c_void, id: u32, receiver: *mut c_void, command: *const u8, values: *const *const u8, count: u32) -> *mut c_void;
     /// 0xf6b10 vostok::configs::binary_config_value::operator[]: table EAX, key EDI; pops 0; EAX
     pub fn engine_cfg_child(table: *const c_void, key: *const u8) -> *const c_void;
     /// 0xf6c00 vostok::configs::binary_config_value::value_exists: table EAX, key ESI; pops 0; AL
@@ -99,6 +101,8 @@ unsafe extern "C" {
     pub fn engine_match_options(client: *mut c_void) -> *mut c_void;
     /// virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX
     pub fn engine_active_player(client: *mut c_void, out: *mut *mut c_void, place: u32) -> *mut *mut c_void;
+    /// virtual survarium::bullet_manager_engine+0x24 (1 vtables of vtables.tsv: 0x1f7660): engine ECX, place ESP+4; pops 4; EAX
+    pub fn engine_bullet_player(engine: *mut c_void, place: u32) -> *mut c_void;
     /// 0x22490 vostok::render::scene_renderer::update_skeleton: scene_renderer EDI, instance ESP+4, bones ESP+8, second ESP+12, count ESP+16; pops 16
     pub fn engine_update_skeleton(scene_renderer: *mut c_void, instance: *mut c_void, bones: *const f32, second: *const f32, count: u32);
     /// 0x23dec0 survarium::base_game_scene::point_to_screen: game ESP+4, point ESP+8, out ESP+12; pops 12; AL
@@ -117,6 +121,10 @@ unsafe extern "C" {
     pub fn engine_effects_stop(effects: *mut c_void);
     /// 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
     pub fn engine_effect_play(player: *mut c_void, effect: *mut c_void, second: u32, third: u32, fourth: u32, listener: *mut c_void);
+    /// 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0
+    pub fn engine_set_effect_presenter(player: *mut c_void, holder: *mut c_void);
+    /// 0x2de560 survarium::game_effect_player::represent: player ESP+4; pops 4
+    pub fn engine_effect_player_represent(player: *mut c_void);
     /// virtual survarium::pure_game_effect_emitter+0x20 (9 vtables of vtables.tsv: 0x299d40, 0x299ff0, 0x29a220, 0x29a580, 0x2efeb0, 0x333010, 0x333220, 0x333360): emitter ECX, out ESP+4, first ESP+8, second ESP+12; pops 12; EAX
     pub fn engine_emitter_emit(emitter: *mut c_void, out: *mut c_void, first: f32, second: f32) -> *mut c_void;
     /// virtual survarium::pure_game_effect_emitter+0x1c (9 vtables of vtables.tsv: 0x1f65d0, 0x29a320, 0x2f0130, 0x2f08d0): emitter ECX, effect ESP+4; pops 4
@@ -203,6 +211,128 @@ unsafe extern "C" {
     pub fn engine_create_sound_voice(world: *mut c_void, scene: *mut c_void, propagator: *mut c_void, emitter: *const c_void) -> *mut c_void;
     /// virtual vostok::sound::sound_propagator_emitter+0x8 (1 vtables of vtables.tsv: 0x38990): emitter ECX; pops 0; EAX
     pub fn engine_sound_options(emitter: *const c_void) -> *const c_void;
+    /// 0x7ab70 vostok::network_core::mutable_buffer::reallocate: buffer ESI, capacity EDI; pops 0
+    pub fn engine_buffer_reallocate(buffer: *mut c_void, capacity: u32);
+    /// 0x1e8da0 survarium::delete_folder: path EAX; pops 0
+    pub fn engine_delete_folder(path: *const c_void);
+    /// 0x12de30 vostok::render::baked_texture_resource::baked_texture_resource: memory EAX; pops 0; EAX
+    pub fn engine_baked_texture_resource(memory: *mut c_void) -> *mut c_void;
+    /// 0xf0080 vostok::resources::query_result_for_cook::set_unmanaged_resource: query EDX, resource ESP+4, allocator ESP+8, size ESP+12; pops 12
+    pub fn engine_set_unmanaged_resource(query: *mut c_void, resource: *mut c_void, allocator: *mut c_void, size: u32);
+    /// 0x3bee00 vostok::render::resource_manager::release: texture EAX, manager ESP+4; pops 4
+    pub fn engine_resource_release(texture: *const c_void, manager: *mut c_void);
+    /// 0xe0210 vostok::render::render_model_instance::destroy: instance ECX, count EAX; pops 0
+    pub fn engine_release_model_instance(instance: *mut c_void, count: *mut u32);
+    /// 0x3d0f80 vostok::render::res_texture::map2D: texture ESI, pitch ESP+4, no_wait ESP+8; pops 8; EAX
+    pub fn engine_map2d(texture: *mut c_void, pitch: *mut u32, no_wait: u32) -> *mut c_void;
+    /// 0x3c0e00 vostok::render::resource_manager::copy2D: width EAX, height EDX, destination ESP+4, source ESP+8; pops 8
+    pub fn engine_copy2d(width: u32, height: u32, destination: *mut c_void, source: *mut c_void);
+    /// 0x3bea70 vostok::render::resource_manager::create_texture2d: width EAX, manager ESP+4, name ESP+8, height ESP+12, initial ESP+16, format ESP+20, usage ESP+24, mips ESP+28, bind ESP+32; pops 32; EAX
+    pub fn engine_create_texture2d(width: u32, manager: *mut c_void, name: *const u8, height: u32, initial: *const c_void, format: u32, usage: u32, mips: u32, bind: u32) -> *mut c_void;
+    /// 0x11f280 vostok::render::gpu_dxt_compressor::block_mip_count: blocks_wide EAX, blocks_high ECX; pops 0; EAX
+    pub fn engine_block_mip_count(blocks_wide: u32, blocks_high: u32) -> u32;
+    /// 0x11f2f0 vostok::render::gpu_dxt_compressor::data_size: levels ECX, width EDX, height ESP+4, format ESP+8; pops 0; EAX
+    pub fn engine_dxt_data_size(levels: u32, width: u32, height: u32, format: u32) -> u32;
+    /// 0x11f350 vostok::render::gpu_dxt_compressor::write_dds_header: output EAX, format ECX, width ESP+4, height ESP+8, linear_size ESP+12, normal ESP+16, levels ESP+20; pops 0
+    pub fn engine_write_dds_header(output: *mut u8, format: u32, width: u32, height: u32, linear_size: u32, normal: u32, levels: u32);
+    /// 0x11f8b0 vostok::render::gpu_dxt_compressor::make_mips: width ECX, height EDX, renderer ESP+4, levels ESP+8, count ESP+12; pops 12
+    pub fn engine_make_mips(width: u32, height: u32, renderer: *mut c_void, levels: *mut *mut c_void, count: u32);
+    /// 0x12ec40 vostok::render::camouflage_decal_texture_type_baker_cook::process_compression: extent EAX, cook ESP+4, query ESP+8, targets ESP+12, size ESP+16, surface ESP+20, parameters ESP+24, pair ESP+28, value ESP+32, kind ESP+36, draw_ms ESP+40; pops 40
+    pub fn engine_process_compression(extent: *const u32, cook: *mut c_void, query: *mut c_void, targets: *const c_void, size: u32, surface: *mut c_void, parameters: *const c_void, pair: *const c_void, value: u32, kind: u32, draw_ms: f32);
+    /// 0x1c6a0 vostok::memory::mt_allocate: size ESI, allocator ESP+4; pops 0; EAX
+    pub fn engine_mt_allocate(size: u32, allocator: *mut c_void) -> *mut u8;
+    /// COM ID3D11DeviceContext+0x3c (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12; pops 12
+    pub fn engine_context_unmap(context: *mut c_void, resource: *mut c_void, subresource: u32);
+    /// COM ID3D11DeviceContext+0x1bc (stdcall through the interface's vtable): context ESP+4; pops 4
+    pub fn engine_context_flush(context: *mut c_void);
+    /// COM IXAudio2Voice+0x30 (stdcall through the interface's vtable): voice ESP+4, volume ESP+8, operation_set ESP+12; pops 12; EAX
+    pub fn engine_voice_set_volume(voice: *mut c_void, volume: f32, operation_set: u32) -> u32;
+    /// 0x75b40 vostok::physics::closest_ray_result_callback::closest_ray_result_callback: callback EAX, from ESI, to EDX, group ESP+4, mask ESP+8, requester ESP+12; pops 12
+    pub fn engine_ray_callback(callback: *mut c_void, from: *const f32, to: *const f32, group: u32, mask: u32, requester: *mut c_void);
+    /// 0x75bd0 vostok::physics::closest_ray_result_callback::needsCollision: callback ECX, proxy ESP+4; pops 4; AL
+    pub fn engine_ray_needs_collision(callback: *mut c_void, proxy: *mut c_void) -> u8;
+    /// 0x11b740 vostok::render::backend::reset: backend EDI; pops 0
+    pub fn engine_backend_reset(backend: *mut c_void);
+    /// virtual survarium::match_client+0x18 (1 vtables of vtables.tsv: 0x279fe0): client ECX, id ESP+4; pops 4; EAX
+    pub fn engine_match_packet_begin(client: *mut c_void, id: u32) -> *mut c_void;
+    /// virtual survarium::match_client+0x1c (1 vtables of vtables.tsv: 0x27a2a0): client ECX, packet ESP+4; pops 4
+    pub fn engine_match_packet_send(client: *mut c_void, packet: *mut c_void);
+    /// 0x7ac10 vostok::network_core::buffer_writer::w: buffer_writer ESP+4, source_bytes ESP+8, byte_count EDI; pops 8
+    pub fn engine_append_packet_bytes(buffer_writer: *mut c_void, source_bytes: *const u8, byte_count: u32);
+    /// 0x23dc00 survarium::base_game_scene::show_movie: scene EAX, movie ESI; pops 0
+    pub fn engine_show_scene_movie(scene: *mut c_void, movie: *mut c_void);
+    /// 0x23dc70 survarium::base_game_scene::hide_movie: movie EAX, scene EDX; pops 0
+    pub fn engine_hide_scene_movie(movie: *mut c_void, scene: *mut c_void);
+    /// virtual vostok::physics::world+0x4c (1 vtables of vtables.tsv: 0x77560): world ECX, origin ESP+4, direction ESP+8, length ESP+12, hits ESP+16, group ESP+20, mask ESP+24; pops 24
+    pub fn engine_ray_query(world: *mut c_void, origin: *const f32, direction: *const f32, length: f32, hits: *mut c_void, group: u32, mask: u32);
+    /// virtual vostok::physics::base_physics_object+0x0 (5 vtables of vtables.tsv: 0x716c0, 0x7ab10, 0x356d50, 0x357a90): object ECX; pops 0; AX
+    pub fn engine_collision_group(object: *mut c_void) -> u16;
+    /// virtual vostok::collision::game_object+0x4 (12 vtables of vtables.tsv: 0x2f8bb0, 0x300040): object ECX; pops 0; EAX
+    pub fn engine_collision_geometry(object: *mut c_void) -> *mut c_void;
+    /// 0x2dc390 survarium::collision_geometry::query_objects_by_type<survarium::usable_object>: result ESI, geometry ESP+4, cast ESP+8, offset ESP+12; pops 12
+    pub fn engine_query_usables(result: *mut c_void, geometry: *mut c_void, cast: *const c_void, offset: u32);
+    /// virtual survarium::usable_object+0x30 (11 vtables of vtables.tsv: 0x2f8080, 0x300710, 0x305070, 0x31c6b0, 0x31cb10): usable ECX, user ESP+4; pops 4; AL
+    pub fn engine_can_use(usable: *mut c_void, user: *mut c_void) -> u8;
+    /// virtual survarium::usable_object+0x44 (12 vtables of vtables.tsv: 0x246ed0, 0x2f8440): usable ECX, matrix ESP+4; pops 4
+    pub fn engine_usable_transform(usable: *mut c_void, matrix: *mut f32);
+    /// 0x2015a0 survarium::game_options::finish_binding: options EDI; pops 0
+    pub fn engine_finish_key_binding(options: *mut c_void);
+    /// 0xec780 vostok::console_commands::cc_delegate::cc_delegate: object EDI, name EDX, delegate ESP+4, status ESP+8, kind ESP+12; pops 12
+    pub fn engine_cc_delegate(object: *mut c_void, name: *const u8, delegate: *const c_void, status: u32, kind: u32);
+    /// 0x111c90 vostok::logging::helper::helper: function EAX, context ECX, helper ESP+4, template_helper ESP+8, file ESP+12, line ESP+16, caller ESP+20, channel ESP+24, level ESP+28; pops 28; EAX
+    pub fn engine_log_helper(function: *const c_void, context: u32, helper: *mut c_void, template_helper: *const c_void, file: *const u8, line: u32, caller: *const u8, channel: *const u8, level: u32) -> *mut c_void;
+    /// 0x111d10 vostok::logging::helper::write: helper ESI, format ESP+4, arguments ESP+8; pops 8
+    pub fn engine_log_write(helper: *mut c_void, format: *const u8, arguments: *const c_void);
+    /// 0x1dcd0 vostok::console_commands::cc_u32::cc_u32: object EAX, name ESP+4, value ESP+8, minimum ESP+12, maximum ESP+16, saved ESP+20, kind ESP+24; pops 24
+    pub fn engine_cc_u32(object: *mut c_void, name: *const u8, value: *mut u32, minimum: u32, maximum: u32, saved: u32, kind: u32);
+    /// 0x3cd300 vostok::render::render_cc_u32::execute: object ECX, arguments ESP+4; pops 4
+    pub fn engine_render_u32_execute(object: *mut c_void, arguments: *const u8);
+    /// 0x2f4800 survarium::respawn_point_core::is_clear_for_team: point ESI, team ESP+4, players ESP+8; pops 8; AL
+    pub fn engine_respawn_point_clear(point: *const c_void, team: u32, players: *const c_void) -> u32;
+    /// 0x3174c0 vostok::buffer_vector<survarium::respawn_point_core *>::push_back: vector ESI, point ESP+4; pops 4
+    pub fn engine_respawn_points_push(vector: *mut c_void, point: *const *mut c_void);
+    /// 0x57d70 vostok::sound::sound_scene::calculate_3d_pan: scene ESP+4, table ESP+8, proxy ESP+12, position ESP+16, distance ESP+20, matrix ESP+24, coefficient ESP+28; pops 28
+    pub fn engine_sound_pan(scene: *mut c_void, table: *mut c_void, proxy: *mut c_void, position: *const f32, distance: f32, matrix: *mut f32, coefficient: *mut f32);
+    /// 0x57560 vostok::sound::sound_scene::get_listenet_position: scene EAX, out ESI; pops 0; EAX
+    pub fn engine_listener_position(scene: *mut c_void, out: *mut f32) -> *mut f32;
+    /// 0x338940 survarium::victory_item_core_take_state::victory_item_core_take_state: room ESI, battery ESP+4, clips ESP+8, time ESP+12; pops 12; EAX
+    pub fn engine_battery_take_state(room: *mut c_void, battery: *mut c_void, clips: *const c_void, time: f32) -> *mut c_void;
+    /// 0x338be0 survarium::victory_item_core_carry_state::victory_item_core_carry_state: battery EAX, room ESP+4, clips ESP+8; pops 8; EAX
+    pub fn engine_battery_carry_state(battery: *mut c_void, room: *mut c_void, clips: *const c_void) -> *mut c_void;
+    /// 0x322830 survarium::bullet_manager::emit_bullet: gun EDI, manager ESP+4, point ESP+8, velocity ESP+12, data ESP+16, time ESP+20, owner ESP+24, second ESP+28, unused ESP+32; pops 32; EAX
+    pub fn engine_emit_bullet(gun: *mut c_void, manager: *mut c_void, point: *const f32, velocity: *const f32, data: *const c_void, time: u32, owner: *mut c_void, second: *mut c_void, unused: u32) -> *mut c_void;
+    /// COM IDXGISwapChain+0x24 (stdcall through the interface's vtable): chain ESP+4, buffer ESP+8, iid ESP+12, surface ESP+16; pops 16; EAX
+    pub fn engine_swap_chain_get_buffer(chain: *mut c_void, buffer: u32, iid: *const c_void, surface: *mut *mut c_void) -> u32;
+    /// COM ID3D11Texture2D+0x28 (stdcall through the interface's vtable): texture ESP+4, desc ESP+8; pops 8
+    pub fn engine_texture2d_get_desc(texture: *mut c_void, desc: *mut c_void);
+    /// COM ID3D11DeviceChild+0xc (stdcall through the interface's vtable): child ESP+4, device ESP+8; pops 8
+    pub fn engine_device_child_get_device(child: *mut c_void, device: *mut *mut c_void);
+    /// COM ID3D11Device+0x14 (stdcall through the interface's vtable): device ESP+4, desc ESP+8, initial ESP+12, texture ESP+16; pops 16; EAX
+    pub fn engine_device_create_texture2d(device: *mut c_void, desc: *const c_void, initial: *const c_void, texture: *mut *mut c_void) -> u32;
+    /// COM ID3D11DeviceContext+0xbc (stdcall through the interface's vtable): context ESP+4, destination ESP+8, source ESP+12; pops 12
+    pub fn engine_context_copy_resource(context: *mut c_void, destination: *mut c_void, source: *mut c_void);
+    /// COM ID3D11DeviceContext+0x38 (stdcall through the interface's vtable): context ESP+4, resource ESP+8, subresource ESP+12, map_type ESP+16, flags ESP+20, mapped ESP+24; pops 24; EAX
+    pub fn engine_context_map(context: *mut c_void, resource: *mut c_void, subresource: u32, map_type: u32, flags: u32, mapped: *mut c_void) -> u32;
+    /// COM IUnknown+0x8 (stdcall through the interface's vtable): resource ESP+4; pops 4; EAX
+    pub fn engine_d3d_resource_release(resource: *mut c_void) -> u32;
+    /// COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
+    pub fn engine_d3d_device_release(device: *mut c_void) -> u32;
+    /// 0x248ad0 survarium::step_manager::on_step: manager ECX, position EAX, direction ESP+4, foot_material ESP+8, view ESP+12; pops 12
+    pub fn engine_on_step(manager: *mut c_void, position: *const f32, direction: *const f32, foot_material: u32, view: u32);
+    /// virtual survarium::game_world+0x34 (1 vtables of vtables.tsv: 0x1f63e0): world ECX; pops 0; EAX
+    pub fn engine_step_manager(world: *mut c_void) -> *mut c_void;
+    /// virtual vostok::physics::base_physics_object+0x10 (2 vtables of vtables.tsv: 0x3570a0): object ECX, triangle ESP+4, compound ESP+8; pops 8; AX
+    pub fn engine_triangle_material(object: *mut c_void, triangle: u32, compound: u32) -> u16;
+    /// 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL
+    pub fn engine_is_first_view(player: *mut c_void) -> u32;
+    /// 0x11cd10 vostok::render::system_renderer::draw_lines: vertex_end EAX, renderer ESP+4, vertex_begin ESP+8, index_begin ESP+12, index_end ESP+16, technique ESP+20; pops 20
+    pub fn engine_draw_lines(vertex_end: *const c_void, renderer: *mut c_void, vertex_begin: *const c_void, index_begin: *const u16, index_end: *const u16, technique: u32);
+    /// 0xa8660 btBvhTriangleMeshShape::processAllTriangles: shape ECX, callback ESP+4, aabb_min ESP+8, aabb_max ESP+12; pops 12
+    pub fn engine_process_all_triangles(shape: *mut c_void, callback: *mut c_void, aabb_min: *const f32, aabb_max: *const f32);
+    /// 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24
+    pub fn engine_draw_triangles(renderer: *mut c_void, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
+    /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
+    pub fn engine_text_edit_delete_selection(edit: *mut c_void);
 }
 
 #[allow(dead_code)]
@@ -215,6 +345,16 @@ unsafe extern "stdcall" {
     pub fn engine_process_sound_orders(world: *mut c_void);
     /// 0x5cb80 vostok::sound::new_sound_propagator::detach_voice: propagator ESP+4; pops 4; stdcall, called directly
     pub fn engine_detach_voice(propagator: *mut c_void);
+    /// 0xf0d00 vostok::resources::query_result_for_cook::finish_query_impl: query ESP+4, result ESP+8, assert_on_fail ESP+12, error ESP+16; pops 16; stdcall, called directly
+    pub fn engine_finish_query(query: *mut c_void, result: u32, assert_on_fail: u32, error: u32);
+    /// 0x11f590 vostok::render::gpu_dxt_compressor::compress_mip: renderer ESP+4, levels ESP+8, cursor ESP+12, wide ESP+16, high ESP+20, level ESP+24, format ESP+28, normal ESP+32; pops 32; stdcall, called directly
+    pub fn engine_compress_mip(renderer: *mut c_void, levels: *mut *mut c_void, cursor: *mut c_void, wide: u32, high: u32, level: u32, format: u32, normal: u32);
+    /// 0x2717e0 survarium::lobby_client::discard_playing_order: client ESP+4, left ESP+8; pops 8; stdcall, called directly
+    pub fn engine_discard_playing_order(client: *mut c_void, left: u32);
+    /// 0x38c970 vostok::ai::fsm::append_transition: source ESP+4, destination ESP+8, predicate ESP+12; pops 12; stdcall, called directly
+    pub fn engine_fsm_append_transition(source: *mut c_void, destination: *mut c_void, predicate: *const c_void);
+    /// 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
+    pub fn engine_set_texture(compiler: *mut c_void, slot: *const u8, texture: *const u8, option: u32, request: u32, lower: u32, lower_float: f32, flag: u32);
 }
 
 #[allow(dead_code)]
@@ -227,6 +367,28 @@ unsafe extern "cdecl" {
     pub fn engine_store_first_resource(result: *mut c_void, value: *mut c_void);
     /// 0x5a640 XAudio2Create: engine ESP+4, flags ESP+8; pops 0; EAX; cdecl, called directly
     pub fn engine_xaudio2_create(engine: *mut *mut c_void, flags: u32) -> u32;
+    /// 0x1c410 vostok::memory::mt_free: memory ESP+4; pops 0; cdecl, called directly
+    pub fn engine_mt_free_memory(memory: *mut u8);
+    /// 0x109f30 vostok::resources::allocate_save_descriptor: physical ESP+4, virtual_path ESP+8; pops 0; EAX; cdecl, called directly
+    pub fn engine_allocate_save_descriptor(physical: *const c_void, virtual_path: *const c_void) -> *mut c_void;
+    /// 0xa02d0 btCollisionWorld::rayTestSingle: from ESP+4, to ESP+8, object ESP+12, shape ESP+16, transform ESP+20, callback ESP+24; pops 0; cdecl, called directly
+    pub fn engine_ray_test_single(from: *mut c_void, to: *mut c_void, object: *mut c_void, shape: *mut c_void, transform: *mut c_void, callback: *mut c_void);
+    /// 0x38ff0 vostok::math::sin: angle ESP+4; pops 0; ST0; cdecl, called directly
+    pub fn engine_sin(angle: f32) -> f32;
+    /// 0x39000 vostok::math::cos: angle ESP+4; pops 0; ST0; cdecl, called directly
+    pub fn engine_cos(angle: f32) -> f32;
+    /// 0x79c40 vostok::math::atan2: y ESP+4, x ESP+8; pops 0; ST0; cdecl, called directly
+    pub fn engine_atan2(y: f32, x: f32) -> f32;
+    /// 0x44c630 BIO_read: bio ESP+4, room ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+    pub fn engine_bio_read(bio: *mut c_void, room: *mut u8, length: u32) -> u32;
+    /// 0x44c740 BIO_write: bio ESP+4, bytes ESP+8, length ESP+12; pops 0; EAX; cdecl, called directly
+    pub fn engine_bio_write(bio: *mut c_void, bytes: *const u8, length: u32) -> u32;
+    /// 0x44a270 ERR_put_error: library ESP+4, function ESP+8, reason ESP+12, file ESP+16, line ESP+20; pops 0; cdecl, called directly
+    pub fn engine_err_put_error(library: u32, function: u32, reason: u32, file: *const u8, line: u32);
+    /// 0x46b6e0 ssleay_rand_bytes: room ESP+4, length ESP+8; pops 0; EAX; cdecl, called directly
+    pub fn engine_rand_bytes(room: *mut u8, length: u32) -> u32;
+    /// 0x372420 survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition: buffer ESP+4; pops 0; AL; cdecl, called directly
+    pub fn engine_fsm_always(buffer: *const c_void) -> u8;
 }
 
 #[allow(dead_code)]
@@ -247,6 +409,14 @@ unsafe extern "thiscall" {
     pub fn engine_light_insert(light: *mut c_void);
     /// 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
     pub fn engine_light_remove(light: *mut c_void);
+    /// 0x290930 survarium::object_ambient_light::insert: light ECX; pops 0; thiscall, called directly
+    pub fn engine_ambient_light_insert(light: *mut c_void);
+    /// 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly
+    pub fn engine_ambient_light_remove(light: *mut c_void);
+    /// 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly
+    pub fn engine_particle_insert(particle: *mut c_void);
+    /// 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
+    pub fn engine_particle_remove(particle: *mut c_void);
     /// 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
     pub fn engine_play_voice(proxy: *mut c_void, mode: u32, producer: *const c_void, receiver: *const c_void);
     /// 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
@@ -269,6 +439,30 @@ unsafe extern "thiscall" {
     pub fn engine_di_queue_next_capture(queue: *mut c_void, notify: *mut c_void);
     /// 0x505cb0 Scaleform::RefCountImpl::Release: queue ECX; pops 0; thiscall, called directly
     pub fn engine_di_queue_release(queue: *mut c_void);
+    /// 0x12d1d0 vostok::render::camouflage_decal_texture_type_baker_cook::translate_query: cook ECX, query ESP+4; pops 4; thiscall, called directly
+    pub fn engine_translate_query(cook: *mut c_void, query: *mut c_void);
+    /// 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
+    pub fn engine_key_name(keyboard: *mut c_void, key: u32, name: *mut u8, size: u32) -> u8;
+    /// 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly
+    pub fn engine_key_text(keyboard: *mut c_void, key: u32, text: *mut u16) -> u8;
+    /// 0xeb5b0 vostok::memory::mt_allocator::call_free: allocator ECX, block ESP+4, function ESP+8, file ESP+12, line ESP+16; pops 16; thiscall, called directly
+    pub fn engine_mt_free(allocator: *mut c_void, block: *mut c_void, function: *const u8, file: *const u8, line: u32);
+    /// 0xec830 vostok::console_commands::cc_delegate::execute: command ECX, arguments ESP+4; pops 4; thiscall, called directly
+    pub fn engine_cc_delegate_execute(command: *mut c_void, arguments: *const u8);
+    /// 0x3447f0 survarium::victory_item_core_animation_end_aware_state::finalize: state ECX; pops 0; thiscall, called directly
+    pub fn engine_battery_state_finalize(state: *mut c_void);
+    /// 0x397c20 survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]: state ECX; pops 0; AL; thiscall, called directly
+    pub fn engine_take_deactivatable(state: *mut c_void) -> u8;
+    /// 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
+    pub fn engine_triangle_process(callback: *mut c_void, triangle: *const f32, part: u32, index: u32);
+    /// 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly
+    pub fn engine_scroll_view_set_follow(view: *mut c_void, follow: u32);
+    /// 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly
+    pub fn engine_scroll_set_position(source: *mut c_void, position: f32);
+    /// 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly
+    pub fn engine_text_edit_set_text(part: *mut c_void, text: *const u8);
+    /// 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly
+    pub fn engine_text_edit_set_caret(edit: *mut c_void, position: u32, select: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]
@@ -279,6 +473,20 @@ unsafe extern "C" {
     pub static engine_write_file: unsafe extern "stdcall" fn(*mut c_void, *const c_void, u32, *mut u32, *mut c_void) -> u32;
     /// the IAT slot 0x870040 (an import, stdcall): unsigned int engine_close_handle(void *handle)
     pub static engine_close_handle: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x87021c (an import, stdcall): unsigned int engine_delete_file_a(const char *name)
+    pub static engine_delete_file_a: unsafe extern "stdcall" fn(*const u8) -> u32;
+    /// the IAT slot 0x870174 (an import, stdcall): unsigned int engine_get_disk_free_space_ex_w(const void *folder, void *free_for_caller, void *total, void *free)
+    pub static engine_get_disk_free_space_ex_w: unsafe extern "stdcall" fn(*const c_void, *mut c_void, *mut c_void, *mut c_void) -> u32;
+    /// the IAT slot 0x870080 (an import, stdcall): void *engine_load_library_a(const char *name)
+    pub static engine_load_library_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x870084 (an import, stdcall): void *engine_get_proc_address(void *module, const char *name)
+    pub static engine_get_proc_address: unsafe extern "stdcall" fn(*mut c_void, *const u8) -> *mut c_void;
+    /// the IAT slot 0x870088 (an import, stdcall): unsigned int engine_free_library(void *module)
+    pub static engine_free_library: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x87014c (an import, stdcall): unsigned int engine_get_module_file_name_a(void *module, char *name, unsigned int size)
+    pub static engine_get_module_file_name_a: unsafe extern "stdcall" fn(*mut c_void, *mut u8, u32) -> u32;
+    /// the IAT slot 0xaefe7c (an import, stdcall): unsigned int engine_sh_get_folder_path_a(void *window, unsigned int folder, void *token, unsigned int flags, char *path)
+    pub static engine_sh_get_folder_path_a: unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void, u32, *mut u8) -> u32;
     /// the IAT slot 0x870158 (an import, stdcall): unsigned int engine_query_performance_counter(unsigned int *count)
     pub static engine_query_performance_counter: unsafe extern "stdcall" fn(*mut u32) -> u32;
     /// the IAT slot 0x870150 (an import, stdcall): unsigned int engine_query_performance_frequency(unsigned int *frequency)
@@ -291,6 +499,20 @@ unsafe extern "C" {
     pub static engine_read_file: unsafe extern "stdcall" fn(*mut c_void, *mut c_void, u32, *mut u32, *mut c_void) -> u32;
     /// the IAT slot 0x870164 (an import, stdcall): unsigned int engine_global_memory_status_ex(void *status)
     pub static engine_global_memory_status_ex: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0x870168 (an import, stdcall): unsigned int engine_virtual_query(const void *address, void *info, unsigned int size)
+    pub static engine_virtual_query: unsafe extern "stdcall" fn(*const c_void, *mut c_void, u32) -> u32;
+    /// the IAT slot 0x87015c (an import, stdcall): void *engine_virtual_alloc(void *address, unsigned int size, unsigned int type, unsigned int protect)
+    pub static engine_virtual_alloc: unsafe extern "stdcall" fn(*mut c_void, u32, u32, u32) -> *mut c_void;
+    /// the IAT slot 0x8701b4 (an import, stdcall): unsigned int engine_get_environment_variable_a(const char *name, char *buffer, unsigned int size)
+    pub static engine_get_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *mut u8, u32) -> u32;
+    /// the IAT slot 0x870200 (an import, stdcall): unsigned int engine_virtual_protect(void *address, unsigned int size, unsigned int protect, unsigned int *old)
+    pub static engine_virtual_protect: unsafe extern "stdcall" fn(*mut c_void, u32, u32, *mut u32) -> u32;
+    /// the IAT slot 0x870160 (an import, stdcall): unsigned int engine_virtual_free(void *address, unsigned int size, unsigned int type)
+    pub static engine_virtual_free: unsafe extern "stdcall" fn(*mut c_void, u32, u32) -> u32;
+    /// the IAT slot 0x870120 (an import, stdcall): unsigned int engine_switch_to_thread(void)
+    pub static engine_switch_to_thread: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x87011c (an import, stdcall): void engine_sleep(unsigned int milliseconds)
+    pub static engine_sleep: unsafe extern "stdcall" fn(u32);
     /// the IAT slot 0x8701b8 (an import, stdcall): unsigned int engine_get_current_process_id(void)
     pub static engine_get_current_process_id: unsafe extern "stdcall" fn() -> u32;
     /// the IAT slot 0x8700d0 (an import, stdcall): void engine_enter_critical_section(struct critical_section *section)
@@ -305,4 +527,46 @@ unsafe extern "C" {
     pub static engine_get_process_heap: unsafe extern "stdcall" fn() -> *mut c_void;
     /// the IAT slot 0x870054 (an import, stdcall): unsigned int engine_heap_free(void *heap, unsigned int flags, void *memory)
     pub static engine_heap_free: unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void) -> u32;
+    /// the IAT slot 0x870220 (an import, stdcall): unsigned int engine_create_directory_a(const char *name, void *security)
+    pub static engine_create_directory_a: unsafe extern "stdcall" fn(*const u8, *mut c_void) -> u32;
+    /// the IAT slot 0x870090 (an import, stdcall): unsigned int engine_get_tick_count(void)
+    pub static engine_get_tick_count: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870238 (an import, stdcall): void *engine_find_first_file_a(const char *pattern, void *data)
+    pub static engine_find_first_file_a: unsafe extern "stdcall" fn(*const u8, *mut c_void) -> *mut c_void;
+    /// the IAT slot 0x87023c (an import, stdcall): unsigned int engine_find_next_file_a(void *find, void *data)
+    pub static engine_find_next_file_a: unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> u32;
+    /// the IAT slot 0x870228 (an import, stdcall): unsigned int engine_find_close(void *find)
+    pub static engine_find_close: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0xaeff20 (an import, stdcall): unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
+    pub static engine_activate_keyboard_layout: unsafe extern "stdcall" fn(u32, u32) -> u32;
+    /// the IAT slot 0xaefe8c (an import, stdcall): unsigned int engine_get_window_long_a(void *window, unsigned int index)
+    pub static engine_get_window_long_a: unsafe extern "stdcall" fn(*mut c_void, u32) -> u32;
+    /// the IAT slot 0xaeff44 (an import, stdcall): unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)
+    pub static engine_set_window_long_a: unsafe extern "stdcall" fn(*mut c_void, u32, u32) -> u32;
+    /// the IAT slot 0x87003c (an import, stdcall): void *engine_get_module_handle_a(const char *name)
+    pub static engine_get_module_handle_a: unsafe extern "stdcall" fn(*const u8) -> *mut c_void;
+    /// the IAT slot 0x87029c (an import, stdcall): unsigned int engine_set_environment_variable_a(const char *name, const char *value)
+    pub static engine_set_environment_variable_a: unsafe extern "stdcall" fn(*const u8, *const u8) -> u32;
+    /// the IAT slot 0x870244 (an import, stdcall): void engine_get_system_time_as_file_time(unsigned int *file_time)
+    pub static engine_get_system_time_as_file_time: unsafe extern "stdcall" fn(*mut u32);
+    /// the IAT slot 0x870230 (an import, stdcall): unsigned int engine_file_time_to_local_file_time(const unsigned int *file_time, unsigned int *local)
+    pub static engine_file_time_to_local_file_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
+    /// the IAT slot 0x87022c (an import, stdcall): unsigned int engine_file_time_to_system_time(const unsigned int *file_time, unsigned int *system_time)
+    pub static engine_file_time_to_system_time: unsafe extern "stdcall" fn(*const u32, *mut u32) -> u32;
+    /// the IAT slot 0xaeff30 (an import, stdcall): unsigned int engine_message_box_a(void *window, const char *text, const char *title, unsigned int flags)
+    pub static engine_message_box_a: unsafe extern "stdcall" fn(*mut c_void, *const u8, *const u8, u32) -> u32;
+    /// the IAT slot 0x87020c (an import, stdcall): void engine_exit_process(unsigned int code)
+    pub static engine_exit_process: unsafe extern "stdcall" fn(u32);
+    /// the IAT slot 0x87005c (an import, stdcall): unsigned int engine_get_last_error(void)
+    pub static engine_get_last_error: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0xaefedc (an import, stdcall): unsigned int engine_open_clipboard(void *window)
+    pub static engine_open_clipboard: unsafe extern "stdcall" fn(*mut c_void) -> u32;
+    /// the IAT slot 0xaefed8 (an import, stdcall): void *engine_get_clipboard_data(unsigned int format)
+    pub static engine_get_clipboard_data: unsafe extern "stdcall" fn(u32) -> *mut c_void;
+    /// the IAT slot 0xaefed4 (an import, stdcall): unsigned int engine_close_clipboard(void)
+    pub static engine_close_clipboard: unsafe extern "stdcall" fn() -> u32;
+    /// the IAT slot 0x870078 (an import, stdcall): void *engine_global_lock(void *memory)
+    pub static engine_global_lock: unsafe extern "stdcall" fn(*mut c_void) -> *mut c_void;
+    /// the IAT slot 0x87007c (an import, stdcall): unsigned int engine_global_unlock(void *memory)
+    pub static engine_global_unlock: unsafe extern "stdcall" fn(*mut c_void) -> u32;
 }

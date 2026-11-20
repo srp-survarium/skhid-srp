@@ -401,7 +401,8 @@ batteries, batteries with chargers, Team Deathmatch and Research). Each of the s
 loses its core, artefact container, damage zone and the two collision geometries: 35 entries per
 project. The damage zones own their idle sound and particles. The decorative rock piles stay.
 The battery modes also lose the two old outdoor spawn-protection zones and their boxes; each
-spawn point keeps its own 6 seconds of invulnerability.
+spawn point keeps its original invulnerability: 6 seconds in batteries, batteries with chargers
+and Research, and 3 seconds in Team Deathmatch.
 
 The 20 spawn points come from the owner's map-editor placement. `set_entry` changes only their
 positions and rotations, retaining their names, order, teams and other properties. All four
@@ -432,6 +433,27 @@ same content by `release/build-site`.
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
 
+## rifle-scopes-1.json (2026-10-26)
+
+Made by `../rifle-scopes/make_pack.py` with the pack rifle-scopes (`fit.tsv` there); make it again,
+not this file.
+
+| change | why |
+|---|---|
+| 184 `items_compatibility` rows of `gameplay/db_static_dictionaries` (`compatibility_<scope><weapon>`), a weapon and a new scope it fits | the lobby movie's scope pairs (greys the scopes that do not fit, lists a scope's weapons); the server takes the pairs from the variants' `srp_scope_fit` (`../../docs/notes/weapon_scopes.md`, section 6) |
+| `data/fov_factor` 0.8 -> 0.5 in the Aimpoint CompM4's item and its 25 variants (its name with x2 is in `../../client-patches/localization/*.tsv`) | the owner (2026-10-26): the CompM4 at x2, as 0.46c2 and 0.69d0 have it (the coordinator's pick: the item itself, so its owners get x2) |
+
+## scope-fits-1.json (2026-11-01)
+
+Made by `../scope-fits/make_pack.py` with the pack scope-fits (`fit.tsv` there); make it again, not
+this file. It names the release-41 guns' configs, so it comes after the weapons-031, weapons-046 and
+weapons-069 packs.
+
+| change | why |
+|---|---|
+| `addons { mount: 1 }` in each release-41 gun that takes a scope and has no `addons` | a variant's type-3 modifier adds the scope only to a table with a child (`../../docs/notes/weapon_scopes.md`, section 2) |
+| an `items_compatibility` row for each gun and scope it fits (`compatibility_<scope><gun>`) | the lobby movie's scope pairs; the server takes the pairs from the variants' `srp_scope_fit` (section 7) |
+
 ## weapon-camo-031-1.json (2026-11-01)
 
 | change | why |
@@ -460,3 +482,44 @@ Applied to the live files of revision 46 (`--check`): 30 new files, the dictiona
 unexpected differences. No simulation change: the copies play the battery rules unchanged. A new
 battery map ported later gets its Blackout config by a row here (its copy, its `add_value` file
 and a dictionary entry), or none.
+
+## sight-alignment-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| The `aim` locator (`set_entry` of `locators` where `name` is `aim`: position and rotation) of `weapons/a9_91/a9_91_cobra_ekp_8`, the 9A-91's Cobra EKP-8 variant model: rotation (0.009, 0, -0.006) -> (-0.01476, 0, -0.00607), the turn its idle pose gives the gun; position 3.8 mm down and 0.5 mm aside, onto the dot's line | the dot showed 14.5 px above the screen's centre at 720 lines, where the bullets go (the owner's report). The fault is in retail 0.29a3's data, which base patch 19 shipped as it was: the eye kept the iron sights' turn where the idle pose turns the gun the other way. Checked in the game by the owner (2026-11-05): centred |
+
+Made by `../sight-alignment/align.py plan` and `export` (`../../docs/notes/sight-alignment.md`) on the
+players' files (the stock db and patches 12 to 47 of release/patches.tsv; revision 48 is live), then
+cut to this one entry. `content_edit.py --check` on them: 1 file edited, 0 unexpected differences.
+The other collimators the plan found off stay as they are, by the owner's choice (the note lists
+them). View only: no simulation change.
+
+## physical-skills-1.json (2026-11-06)
+
+| change | why |
+|---|---|
+| `gameplay/skills/skills_tree.options`: the entries of Sledgehammer (206, `meele_hit_ultimate_modifier`, 3 ranks) and Jump with a knife (210, `meele_hit_range_modifier`, 0 ranks) taken out (`remove_entry` by `id`); their localization strings stay | the owner (2026-11-06): both ask for `branch_points` 50, past the 25 the skills window unlocks, so nobody can learn them, and their two modifiers are not among the exe's 68. The original developers took them out by 0.46c2 (both in 0.31a2's tree, neither in 0.46c2's; 0.69 keeps only their strings) |
+| Packrat (202, `overweight_penalty`): `ui/position` [3, 3] -> [4, 3] (`set_entry` by `id`; the position is [column, row]) | with 206 ([4, 2]) and 210 ([4, 3]) gone, column 4 of the physical tree would be empty; Packrat takes Jump with a knife's place in its own row, its threshold (10), ranks and modifiers as before. Athlete (209) is unchanged |
+
+Applied to the live tree of patch 45 (`content_edit.py`): 1 file edited, `/skills_tree` 36 -> 34,
+`/skills_tree[14]/ui/position[0]` 3 -> 4 (202), 0 unexpected differences. No account can hold either skill
+(the server's `SkillsTree::validate` refused every point in them as `Locked`; now as `Unknown`), so
+none is repaired; the walk that unlocks a branch's rows skipped them, so no other skill's threshold
+moves. Presentation only: no simulation change.
+
+## pierce-line-1.json (2026-11-05)
+
+| change | why |
+|---|---|
+| `ui_properties` line 174 (`st_srp_inv_material_pierce`, "Pierces", made like the clip size line 16, not comparable) | the owner's: each weapon card says the hardest wall its bullet gets through and the damage it keeps there (`../../docs/notes/pierce_line.md`) |
+| a `props_list` line 174 on every round the item dictionary pairs with a weapon (`items_compatibility`): `<weapon dict_id>:<rank>:<key>:<percent> ...`, the tier (`st_srp_pierce_glass` .. `_stone`) and the damage kept for each of its weapons | computed, not written in the list (`add_entry`'s `pierce_line`, `content_edit.py` `pierce_lines`): bullet_pierce x k_arp above each tier material's `armor` in `game_materials/game.materials` (try_pierce 0x32D960 stops at P <= A), percent round(100 x k). The rank (0 the softest) orders the lobby's best round and its comparison |
+| no weapon config changed | several are within 3 entries (one line) of the 565 the client rebuilds an upgraded item in (`tables.rs` `MAX_CONFIG_ENTRIES`): with a line on every weapon the SV-98 had 566 and build-content stopped |
+
+The last edit row, so it reads the weapons (declared in `_inputs`), rounds and dictionary as every
+row above leaves them: a retune of `weapon-stats.tsv` or `ammo.tsv`, or a new gun or round, needs no
+change here. `release/build-content` (`pierce_check`) computes every line again from the final files
+and stops when one differs. On the players' files (the stock db and the patches of
+release/patches.tsv up to 49): 40 files edited (39 rounds), 0 unexpected differences; each weapon's
+best round: 82 Concrete, 11 Plywood, 7 Brick, 2 Stone (the VSSKs' VPS), 1 Tinplate. Presentation
+only: no simulation change.

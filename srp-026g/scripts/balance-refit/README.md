@@ -7,7 +7,7 @@ for), its "late join" lines, its per-minute lines (who was in it) and its
 names.
 
 ```
-# copy the day logs off the host (they are in the srp data volume, logs/srp-YYYY-MM-DD.log)
+# copy the logs off the host (the srp data volume's logs/: lobby.log*, srp.log*, and the day files srp-YYYY-MM-DD.log of before 2026-11-05)
 python scripts/balance-refit/refit.py LOGDIR --since 2026-10-13T21:31
 python scripts/balance-refit/refit.py LOGDIR --weights 10,1,2,4 --weights 8,1,2.5,4 --strict
 python scripts/balance-refit/refit.py LOGDIR --start-roster

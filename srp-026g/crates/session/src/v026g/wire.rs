@@ -4,7 +4,7 @@
 
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::lobby::{
-    self, AccountBody, ItemDescr, Kit, KitSlot, MINUTES_TO_MAINTENANCE, Modification,
+    self, AccountBody, ItemDescr, KIT_READY, Kit, KitSlot, MINUTES_TO_MAINTENANCE, Modification,
     NO_PROTECTION, OwnAccount, QuestRecord, ServerMessage, Upgrade, WireError, limits,
 };
 use survarium::v026g::modifications::Modifications;
@@ -14,29 +14,23 @@ use survarium::v026g::weapon_kit;
 
 use super::account::{Account, Item};
 use super::{items_rules, rules};
-use super::{premium, tutorial};
+use super::tutorial;
 
 /// The team byte of an account body in the lobby [as 0.21d sent it there:
 /// 0; a match's static info sets the real one].
 pub const LOBBY_TEAM: u8 = 0;
 
-/// An item as the wire describes it, by the clock.
-pub fn item_descr(item: &Item) -> ItemDescr {
-    item_descr_at(item, super::quests::now())
-}
 
-/// An item as the wire describes it at `now` (Unix seconds): its two
-/// timers are the seconds left. A modification or defect the client's
+/// An item as the wire describes it. A modification or defect the client's
 /// tables lack is left out: the client would read the row it did not find
 /// (`Account::repair` takes them off a loaded account; this is the last
 /// guard).
-pub fn item_descr_at(item: &Item, now: u64) -> ItemDescr {
+pub fn item_descr(item: &Item) -> ItemDescr {
     let table = Modifications::shared();
     ItemDescr {
         item_id: item.item_id,
         dict_id: item.dict_id,
         condition_or_stack: item.condition_or_stack,
-        repair_time: items_rules::seconds_left(item.repair_time, now),
         // no wait between rerolls (items_rules: Reroll)
         reroll_time: 0,
         modifications: item
@@ -81,11 +75,11 @@ pub fn upgrades_descr(item: &Item) -> Vec<Upgrade> {
 /// The account body: its kits and the table of the items they hold, each
 /// item once however many kits wear it. A slot whose item the inventory
 /// lacks is left out (the client would look it up and crash).
-pub fn account_body(account: &Account, now: u64) -> AccountBody {
+pub fn account_body(account: &Account) -> AccountBody {
     let modifiers = SkillsTree::shared().modifiers(&account.skills);
     let mut items: Vec<ItemDescr> = Vec::new();
     let mut kits = Vec::with_capacity(account.kits.len());
-    for (index, kit) in account.kits.iter().enumerate().take(limits::KITS) {
+    for kit in account.kits.iter().take(limits::KITS) {
         let mut slots = [None; limits::KIT_SLOTS];
         for (slot, held) in kit.slots.iter().enumerate() {
             let Some(held) = held else {
@@ -97,7 +91,7 @@ pub fn account_body(account: &Account, now: u64) -> AccountBody {
             let item_index = match items.iter().position(|item| item.item_id == owned.item_id) {
                 Some(position) => position,
                 None => {
-                    items.push(item_descr_at(owned, now));
+                    items.push(item_descr(owned));
                     items.len() - 1
                 }
             };
@@ -107,7 +101,7 @@ pub fn account_body(account: &Account, now: u64) -> AccountBody {
             });
         }
         kits.push(Kit {
-            state: account.kit_state(index, now),
+            state: KIT_READY,
             id: kit.id,
             name: kit.name.clone(),
             slots,
@@ -124,18 +118,9 @@ pub fn account_body(account: &Account, now: u64) -> AccountBody {
     }
 }
 
-/// `89`: everything the account owns, by the clock.
+/// `89`: everything the account owns.
 pub fn inventory(account: &Account) -> Result<ServerMessage, WireError> {
-    inventory_at(account, super::quests::now())
-}
-
-/// `89`: everything the account owns, at `now` (Unix seconds).
-pub fn inventory_at(account: &Account, now: u64) -> Result<ServerMessage, WireError> {
-    let items: Vec<ItemDescr> = account
-        .inventory
-        .iter()
-        .map(|item| item_descr_at(item, now))
-        .collect();
+    let items: Vec<ItemDescr> = account.inventory.iter().map(item_descr).collect();
     lobby::inventory(&items)
 }
 
@@ -150,10 +135,10 @@ pub fn inventory_with_spent(
 }
 
 /// `87`: the account. Send [`inventory`] before it.
-pub fn own_account(account: &Account, now: u64) -> Result<ServerMessage, WireError> {
+pub fn own_account(account: &Account) -> Result<ServerMessage, WireError> {
     let (level, start, next) = account.level_progress();
     lobby::own_account(&OwnAccount {
-        body: account_body(account, now),
+        body: account_body(account),
         revisions: account
             .kits
             .iter()
@@ -161,8 +146,6 @@ pub fn own_account(account: &Account, now: u64) -> Result<ServerMessage, WireErr
             .map(|kit| kit.revision)
             .collect(),
         active_kit: account.active().map_or(0, |kit| kit.id),
-        autobuy: account.autobuy,
-        auto_repair: account.extras.auto_repair,
         level,
         exp_total: account.exp_total.max(start),
         exp_level_start: start,
@@ -172,21 +155,21 @@ pub fn own_account(account: &Account, now: u64) -> Result<ServerMessage, WireErr
 
 /// `88`: the account as a squad mate sees it, with the revision of the kit
 /// it plays.
-pub fn squad_member_account(account: &Account, now: u64) -> Result<ServerMessage, WireError> {
+pub fn squad_member_account(account: &Account) -> Result<ServerMessage, WireError> {
     let revision = account.active().map_or(0, |kit| kit.revision);
-    lobby::squad_member_account(&account_body(account, now), revision)
+    lobby::squad_member_account(&account_body(account), revision)
 }
 
 /// `93`: the account's kits as a results screen's row shows them (the
 /// game's "Information about the player" window), from the account as it
 /// is now; `id` goes in the full result the client discards.
-pub fn player_gear(account: &Account, id: u32, now: u64) -> Result<ServerMessage, WireError> {
-    lobby::player_details(&lobby::FullResult::empty(id), &account_body(account, now))
+pub fn player_gear(account: &Account, id: u32) -> Result<ServerMessage, WireError> {
+    lobby::player_details(&lobby::FullResult::empty(id), &account_body(account))
 }
 
 /// `8B`.
 pub fn money(account: &Account) -> ServerMessage {
-    lobby::money(account.generic_money, account.premium_money)
+    lobby::money(account.generic_money)
 }
 
 /// `8C`.
@@ -231,9 +214,9 @@ pub fn quests(account: &Account, now: u64) -> ServerMessage {
     lobby::quests(&records)
 }
 
-/// `94`: the premium account, if it holds.
-pub fn services(account: &Account, now: u64) -> ServerMessage {
-    lobby::services(account.premium_hours(now))
+/// `94`: the account's services, none (there is no premium account).
+pub fn services() -> ServerMessage {
+    lobby::services()
 }
 
 /// `96`.
@@ -246,28 +229,23 @@ pub fn player_elo(account: &Account, place: u32) -> ServerMessage {
     lobby::player_elo(place, account.rating, account.rating_before)
 }
 
-/// `9B`: the chances and prices of an item's upgrade ("craft"), from the
-/// game's `craft.options`. The lobby's upgrade window shows them and works
-/// its price out from them (`MessageCraftItem.updateCraftChance`).
-/// [srp, the owner's rule of 2026-10-23] An upgrade never takes a
-/// modification away ([`items_rules::craft`]): every failure ("-1 mod.")
-/// chance is sent as 0.
+/// `9B`: the chances and prices of an item's upgrade ("craft"). The lobby's
+/// upgrade window works its price out from them (`MessageCraftItem`). An
+/// upgrade always succeeds, in silver ([`Craft::tables`]).
+///
+/// [`Craft::tables`]: survarium::v026g::modifications::Craft::tables
 pub fn craft_tables() -> ServerMessage {
-    let (mut chances, general, premium) = Modifications::shared().craft.tables();
-    // Each row: success and failure in silver, success and failure in gold.
-    for failure in chances.iter_mut().skip(1).step_by(2) {
-        *failure = 0.0;
-    }
+    let (chances, general, premium) = Modifications::shared().craft.tables();
     lobby::craft_tables(&chances, &general, &premium)
 }
 
 /// What the client must be sent after an action changed the account: it
 /// never asks for its inventory, account or money (`lobby_requests.md` §3).
 /// The inventory comes first: the account's items are looked up in it.
-pub fn after_change(account: &Account, now: u64) -> Result<Vec<ServerMessage>, WireError> {
+pub fn after_change(account: &Account) -> Result<Vec<ServerMessage>, WireError> {
     Ok(vec![
-        inventory_at(account, now)?,
-        own_account(account, now)?,
+        inventory(account)?,
+        own_account(account)?,
         money(account),
     ])
 }
@@ -320,8 +298,8 @@ pub fn sign_in_push(account: &Account, info: &SignInInfo) -> Result<Vec<ServerMe
         unlocked_factions(account),
         reputations(account)?,
         lobby::service_prices(&rules::service_prices()),
-        services(account, now),
-        // The shop's list and the premium items sold for gold.
+        services(),
+        // The shop's list and the premium items sold one by one.
         lobby::prices(shop_offers::price_list())?,
         // The reputations again. The movie's shop list is filled only when
         // a reputations push redraws it (`GangShop.draw`), not when the
@@ -331,14 +309,13 @@ pub fn sign_in_push(account: &Account, info: &SignInInfo) -> Result<Vec<ServerMe
         // before the `8A`: the "can buy" marks need the reputations.
         reputations(account)?,
     ];
-    let settings = premium::settings();
     if info.need_shop_items {
-        // Premium time and the bundles (`shop_offers`).
-        push.push(lobby::shop(&settings.shop_records())?);
+        // The bundles (`shop_offers`).
+        push.push(lobby::shop(&shop_offers::records())?);
     }
     push.extend([
-        inventory_at(account, now)?,
-        own_account(account, now)?,
+        inventory(account)?,
+        own_account(account)?,
         level_and_skills(account)?,
         quests(account, now),
         // The numbers of the clan rules (`clans::Config`).
@@ -367,7 +344,7 @@ mod tests {
     use survarium::v026g::loadouts::{Loadouts, POCKET_SLOTS};
     use survarium::v026g::lobby::client_model::{Client, Decoded, ModelError};
     use survarium::v026g::lobby::requests::{INVENTORY_SLOT, Relocation};
-    use survarium::v026g::lobby::{Delivery, FULL_CONDITION, KIT_READY, ServerId};
+    use survarium::v026g::lobby::{Delivery, FULL_CONDITION, ServerId};
     use survarium::v026g::prices;
 
     const NOW: u64 = 1_000;
@@ -414,7 +391,7 @@ mod tests {
             // Kit 2: empty.
             0,  2, 0, 0, 0,  0,  0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-            // Kit 3: empty, and usable without premium.
+            // Kit 3: empty, and usable.
             0,  3, 0, 0, 0,  0,  0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
         ];
@@ -425,17 +402,17 @@ mod tests {
         expected.extend_from_slice(&[
             1, 0, 0, 0,  1, 0, 0, 0,  1, 0, 0, 0,   // the kits' revisions
             1, 0, 0, 0,                             // the active kit
-            1,                                      // autobuy: on for a new account
+            1,                                      // autobuy: always on
             0,                                      // level
             0, 0, 0, 0,  0, 0, 0, 0,  0xF4, 0x01, 0, 0,
         ]);
-        assert_eq!(bytes(&own_account(&account, NOW).unwrap()), expected);
+        assert_eq!(bytes(&own_account(&account).unwrap()), expected);
         // The stock account has no money.
         assert_eq!(bytes(&money(&account)), [0x8B, 0, 0, 0, 0, 0, 0, 0, 0]);
-        // And with gold: the second u32.
+        // With silver: the first u32; the second, gold, is always 0.
         let mut rich = account.clone();
-        rich.premium_money = 1_000;
-        assert_eq!(bytes(&money(&rich)), [0x8B, 0, 0, 0, 0, 0xE8, 0x03, 0, 0]);
+        rich.generic_money = 1_000;
+        assert_eq!(bytes(&money(&rich)), [0x8B, 0xE8, 0x03, 0, 0, 0, 0, 0, 0]);
         assert_eq!(
             bytes(&level_and_skills(&account).unwrap()),
             [0x8C, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xF4, 0x01, 0, 0, 0]
@@ -451,7 +428,7 @@ mod tests {
             ]
         );
         assert_eq!(bytes(&quests(&account, NOW)), [0x92, 0, 0, 0, 0]);
-        assert_eq!(bytes(&services(&account, NOW)), [0x94, 0]);
+        assert_eq!(bytes(&services()), [0x94, 0]);
         assert_eq!(bytes(&unlocked_factions(&account)), [0x96, 0x0F]);
     }
 
@@ -469,19 +446,19 @@ mod tests {
         );
         // The craft tables, byte for byte: the twelve chances (for an
         // item with 0, 1 and 2 more modifications than its donor: success
-        // and failure in silver, then in gold; every failure 0, the owner's
-        // rule of 2026-10-23), the sixteen prices in silver and the sixteen
-        // in gold.
+        // and failure in silver, then in gold; always 100 % success in
+        // silver), the sixteen prices in silver (the game's gold prices)
+        // and the sixteen in gold (none).
         #[rustfmt::skip]
         let mut tables: Vec<u8> = vec![
             0x9B,
-            0, 0, 0x48, 0x42,  0, 0, 0, 0,  0, 0, 0xC8, 0x42,  0, 0, 0, 0,
-            0, 0, 0xC8, 0x41,  0, 0, 0, 0,  0, 0, 0x48, 0x42,  0, 0, 0, 0,
-            0, 0, 0x48, 0x41,  0, 0, 0, 0,  0, 0, 0xC8, 0x41,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
+            0, 0, 0xC8, 0x42,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,
         ];
         for price in [
-            400_u16, 400, 800, 1600, 2400, 3400, 4400, 5400, 6600, 8000, 10000, 12000, 14000,
-            16000, 18000, 20000, 2, 2, 4, 8, 12, 17, 22, 27, 33, 40, 50, 60, 70, 80, 90, 100,
+            200_u16, 200, 400, 800, 1200, 1700, 2200, 2700, 3300, 4000, 5000, 6000, 7000, 8000,
+            9000, 10000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ] {
             tables.extend(price.to_le_bytes());
         }
@@ -542,15 +519,11 @@ mod tests {
         let account = Account::new("Alice");
         let mut client = Client::signed_in();
         assert_eq!(
-            client.receive(&own_account(&account, NOW).unwrap()),
+            client.receive(&own_account(&account).unwrap()),
             Err(ModelError::NotInInventory(1))
         );
         let mut client = Client::signed_in();
-        assert!(
-            client
-                .receive_all(&after_change(&account, NOW).unwrap())
-                .is_ok()
-        );
+        assert!(client.receive_all(&after_change(&account).unwrap()).is_ok());
     }
 
     #[test]
@@ -558,7 +531,6 @@ mod tests {
         let dictionary = Dictionary::shared();
         let mut account = Account::new("Alice");
         account.generic_money = 500_000_000;
-        account.premium_until = NOW + 86_400;
         account.add_experience(50_000);
         for faction in 1..=4 {
             account.add_reputation(faction, 40_000);
@@ -586,7 +558,7 @@ mod tests {
         }
         assert!(account.inventory.len() > 100);
         client
-            .receive_all(&after_change(&account, NOW).unwrap())
+            .receive_all(&after_change(&account).unwrap())
             .unwrap();
         assert_eq!(client.inventory().len(), account.inventory.len());
 
@@ -619,7 +591,7 @@ mod tests {
             }
             rules::move_items(&mut account, kit, &moves, NOW).unwrap();
         }
-        let body = account_body(&account, NOW);
+        let body = account_body(&account);
         assert!(body.items.len() <= limits::ACCOUNT_ITEMS);
         // The three kits wear the same items, and a stack may fill several
         // slots: each item is listed once.
@@ -639,7 +611,7 @@ mod tests {
         }
         assert!(body.kits.iter().all(|kit| kit.state == KIT_READY));
         client
-            .receive_all(&after_change(&account, NOW).unwrap())
+            .receive_all(&after_change(&account).unwrap())
             .unwrap();
 
         // Skills, a quest faction and a sale.
@@ -651,12 +623,12 @@ mod tests {
         client
             .receive(&lobby::permitted_sold(sold.item_id, sold.amount))
             .unwrap();
-        let mut push = after_change(&account, NOW).unwrap();
+        let mut push = after_change(&account).unwrap();
         push.extend([
             level_and_skills(&account).unwrap(),
             reputations(&account).unwrap(),
             quests(&account, NOW),
-            squad_member_account(&account, NOW).unwrap(),
+            squad_member_account(&account).unwrap(),
         ]);
         let read = client.receive_all(&push).unwrap();
         // The kits carry the skills' modifiers.
@@ -675,21 +647,15 @@ mod tests {
 
     #[test]
     fn no_kit_is_marked_premium() {
-        let mut account = Account::new("Alice");
+        let account = Account::new("Alice");
         let states = |account: &Account| -> Vec<u8> {
-            account_body(account, NOW)
+            account_body(account)
                 .kits
                 .iter()
                 .map(|kit| kit.state)
                 .collect()
         };
         assert_eq!(states(&account), [KIT_READY, KIT_READY, KIT_READY]);
-        account.premium_until = NOW + 1;
-        assert_eq!(states(&account), [KIT_READY, KIT_READY, KIT_READY]);
-        assert_eq!(
-            bytes(&services(&account, NOW)),
-            [0x94, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]
-        );
     }
 
     #[test]
@@ -700,22 +666,18 @@ mod tests {
             item_id: 999,
             count: 1,
         });
-        let body = account_body(&account, NOW);
+        let body = account_body(&account);
         assert_eq!(body.kits[1].slots[7], None);
         assert_eq!(body.items.len(), 2);
         let mut client = Client::signed_in();
-        assert!(
-            client
-                .receive_all(&after_change(&account, NOW).unwrap())
-                .is_ok()
-        );
+        assert!(client.receive_all(&after_change(&account).unwrap()).is_ok());
     }
 
     #[test]
     fn the_test_loadouts_go_out_whole() {
         for loadout in Loadouts::shared().usable() {
             let account = Account::with_loadout("Bob", loadout);
-            let body = account_body(&account, NOW);
+            let body = account_body(&account);
             assert_eq!(body.items.len(), loadout.items.len());
             for item in &body.items {
                 let stack = Dictionary::shared().is_stack(item.dict_id);

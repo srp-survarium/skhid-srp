@@ -1373,7 +1373,7 @@ fn a_transport_with_a_log_writes_every_datagram() {
         std::thread::current().id()
     ));
     let log = PacketLog::new(&directory).unwrap();
-    let peer = "10.1.2.3:4567".parse().unwrap();
+    let peer = crate::relay::Peer::direct("10.1.2.3:4567".parse().unwrap());
     let file = log
         .connection(Table::Lobby, peer)
         .unwrap()

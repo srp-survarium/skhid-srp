@@ -3,6 +3,7 @@ package survarium.controls
    import flash.events.Event;
    import flash.events.KeyboardEvent;
    import flash.events.TextEvent;
+   import flash.text.TextFormat;
    import flash.external.ExternalInterface;
    import scaleform.clik.controls.TextInput;
    import flash.ui.Keyboard;
@@ -12,6 +13,12 @@ package survarium.controls
    {
       
       public static const RESET_TEXT:String = "resetText";
+      
+      // Shown after the empty box's hint (defaultText), dimmer: DEFAULT_MORE_DIM of its grey (the item
+      // search's examples, item-search.md). "" for none.
+      public var defaultTextMore:String = "";
+      
+      private static const DEFAULT_MORE_DIM:Number = 0.62;
       
       private var _last_input:int = 0;
       
@@ -59,15 +66,29 @@ package survarium.controls
                {
                   textField.displayAsPassword = false;
                }
-               textField.text = _defaultText;
+               textField.text = _defaultText + this.defaultTextMore;
                dispatchEvent(new Event(RESET_TEXT));
                _usingDefaultTextFormat = true;
                if(defaultTextFormat != null)
                {
                   textField.setTextFormat(defaultTextFormat);
+                  this.dimMore();
                }
             }
          }
+      }
+      
+      // the hint's second part, its grey DEFAULT_MORE_DIM as bright
+      private function dimMore() : void
+      {
+         if(this.defaultTextMore == "")
+         {
+            return;
+         }
+         var grey:uint = uint(defaultTextFormat.color);
+         var dim:TextFormat = new TextFormat();
+         dim.color = uint((grey >> 16 & 0xFF) * DEFAULT_MORE_DIM) << 16 | uint((grey >> 8 & 0xFF) * DEFAULT_MORE_DIM) << 8 | uint((grey & 0xFF) * DEFAULT_MORE_DIM);
+         textField.setTextFormat(dim,_defaultText.length,textField.length);
       }
       
       private function play_input_sound(event:Event) : void
