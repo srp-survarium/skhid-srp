@@ -1,0 +1,32 @@
+# Patch 134: shader constants cost the render thread less, the same bytes on
+# the GPU (constant_upload_026g.asm; README "Shader constants: a faster copy,
+# no upload of unchanged bytes"). Only the decisions: the sites and the code.
+name = "constant_upload"
+patch = 134
+
+# shader_constant_buffer::set_memory, the whole function: 16 bytes at a time
+[[hook]]
+site = "constant_buffer.set_memory"
+source = "constant_upload_026g.asm"
+symbol = "constant_upload_set_memory"
+limit = 192
+
+# its constructor: the shadow's block holds the upload's state and the copy
+[[hook]]
+site = "constant_buffer.alloc"
+source = "constant_upload_026g.asm"
+symbol = "constant_upload_alloc"
+limit = 24
+
+[[hook]]
+site = "constant_buffer.zero"
+source = "constant_upload_026g.asm"
+symbol = "constant_upload_zero"
+limit = 24
+
+# update: no Map when the bytes are the ones uploaded
+[[hook]]
+site = "constant_buffer.update"
+source = "constant_upload_026g.asm"
+symbol = "constant_upload_update"
+limit = 128

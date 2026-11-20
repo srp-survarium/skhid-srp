@@ -8,6 +8,7 @@ package survarium.controls
    import survarium.interfaces.IInventoryItemRenderer;
    import survarium.interfaces.ILocalPaperDoll;
    import survarium.interfaces.IPaperDoll;
+   import survarium.player.LocalPaperDoll;
    import survarium.player.LocalPlayerProfile;
    import survarium.constants.CosmeticSlot;
    import survarium.constants.ItemCategory;
@@ -36,7 +37,6 @@ package survarium.controls
          var localProfile:LocalPlayerProfile = _playerProfile;
          var slot:int = paperDoll.getSlot(item);
          var relocations:Array;
-         var relocate:Function;
          trace("DG::handleDropEvent",slot,_playerProfile);
          if(event.dragTarget is IInventoryItemRenderer)
          {
@@ -52,19 +52,21 @@ package survarium.controls
                   if(item.descriptor == ItemPlace.INVENTORY)
                   {
                      relocations = [Relocation.move(localProfile.profileId,item.itemId,item.dictId,ItemPlace.INVENTORY,slot,1)];
-                     relocate = localProfile._relocateFunction;
-                     trace("aaa",localProfile,localProfile._relocateFunction,relocate);
-                     relocate(relocations);
-                     trace("bbb");
+                     localProfile.relocate(relocations);
                   }
-                  else
-                  {
-                     MainScene.buyFunction(localProfile.profileId,item.itemId,item.dictId,ItemPlace.SHOP,slot,1,item.cost);
-                  }
+                  // A shop item is bought only by Buy, a double click, or a
+                  // drop on the slot it goes in (ItemPaperDollSlot), never
+                  // into a slot picked for it here.
                }
-               else
+            }
+            // a pocket item: into its own pocket, else the next free one, filled, as a double
+            // click (docs/notes/one-pocket-a-type.md); with no pocket free nothing is replaced
+            if(item.isStack && item.descriptor == ItemPlace.INVENTORY && paperDoll.hasAgreements(item.category) > 0 && (item.category == ItemCategory.MEDKITS || item.category == ItemCategory.BOOBY_TRAPS || item.category == ItemCategory.GRENADES))
+            {
+               slot = paperDoll.getSlot(item,true);
+               if(slot >= ProfileSlot.QUICK_1 && slot <= ProfileSlot.QUICK_6 && (paperDoll.pocketOf(item.dictId) == slot || !paperDoll.getSlotAt(slot).data))
                {
-                  return false;
+                  localProfile.relocate([Relocation.move(localProfile.profileId,item.itemId,item.dictId,ItemPlace.INVENTORY,slot,LocalPaperDoll.pocketUnits(item))]);
                }
             }
          }

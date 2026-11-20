@@ -1,5 +1,5 @@
 //! The admin's account moderation (`docs/notes/account-moderation.md`): an
-//! account's silver and gold changed, and its items taken away, from the
+//! account's silver changed, and its items taken away, from the
 //! admin page while srp runs. The rules of the change are here; the page
 //! (`web_server`) shows the plan, applies it when confirmed, and writes the
 //! account and an [`AdminAction`] ([`super::GameAccounts::write_admin`]).
@@ -22,8 +22,9 @@ pub const MAX_TAKEN_ITEMS: usize = 32;
 pub const MAX_REASON: usize = 200;
 
 /// One admin action, as the audit trail keeps it (`g26_admin_actions`) and
-/// the log writes it. The reason is the admin's only: no player is ever
-/// shown it.
+/// the log writes it. The reason is the admin's only (no player is ever
+/// shown it), but a chat mute's, which its player is told
+/// (`docs/notes/admin-chat-mute.md`).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AdminAction {
     /// Unix seconds.
@@ -33,7 +34,7 @@ pub struct AdminAction {
     pub account_id: u32,
     /// The account's character name then.
     pub account: String,
-    /// `money` or `items`.
+    /// `money`, `items` or `chat_mute`.
     pub kind: String,
     /// What was done, e.g. `silver -480000 (asked -500000)`.
     pub change: String,
@@ -61,28 +62,27 @@ fn moved(balance: u32, change: i64) -> u32 {
     u32::try_from(wanted.max(0)).unwrap_or(u32::MAX)
 }
 
-/// A change of silver (`generic_money`) and gold (`premium_money`) as it
-/// would be made now: each balance before and after. A take of more than
-/// the account has leaves 0: the plan says how much is really taken.
+/// A change of silver (`generic_money`, the one currency: gold is gone, the
+/// owner's of 2026-11-08) as it would be made now: the balance before and
+/// after. A take of more than the account has leaves 0: the plan says how
+/// much is really taken.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MoneyChange {
     pub account_id: u32,
     /// `(before, after)`.
     pub silver: (u32, u32),
-    pub gold: (u32, u32),
     /// What was asked, signed.
-    pub asked: (i64, i64),
+    pub asked: i64,
 }
 
 impl MoneyChange {
-    /// The change of `silver` and `gold` (signed) on `account` as it is.
-    pub fn plan(account_id: u32, account: &Account, silver: i64, gold: i64) -> Self {
-        let (silver_now, gold_now) = (account.generic_money, account.premium_money);
+    /// The change of `silver` (signed) on `account` as it is.
+    pub fn plan(account_id: u32, account: &Account, silver: i64) -> Self {
+        let now = account.generic_money;
         Self {
             account_id,
-            silver: (silver_now, moved(silver_now, silver)),
-            gold: (gold_now, moved(gold_now, gold)),
-            asked: (silver, gold),
+            silver: (now, moved(now, silver)),
+            asked: silver,
         }
     }
 
@@ -91,33 +91,28 @@ impl MoneyChange {
         i64::from(self.silver.1) - i64::from(self.silver.0)
     }
 
-    pub fn gold_change(&self) -> i64 {
-        i64::from(self.gold.1) - i64::from(self.gold.0)
-    }
-
     /// Whether it changes nothing (nothing asked, or a take from 0).
     pub fn is_nothing(&self) -> bool {
-        self.silver.0 == self.silver.1 && self.gold.0 == self.gold.1
+        self.silver.0 == self.silver.1
     }
 
     /// Whether the account is as the plan was made from.
     pub fn still_fits(&self, account: &Account) -> bool {
-        (account.generic_money, account.premium_money) == (self.silver.0, self.gold.0)
+        account.generic_money == self.silver.0
     }
 
     /// Apply it to the account it was planned on, under the same lock.
     pub fn apply(&self, account: &mut Account) {
         debug_assert!(self.still_fits(account));
         account.generic_money = self.silver.1;
-        account.premium_money = self.gold.1;
     }
 
     /// The account and the change, from the balances: equal for the same
     /// change of the same balances only.
     pub fn key(&self) -> String {
         format!(
-            "money:{}:{}>{}:{}>{}",
-            self.account_id, self.silver.0, self.silver.1, self.gold.0, self.gold.1
+            "money:{}:{}>{}",
+            self.account_id, self.silver.0, self.silver.1
         )
     }
 
@@ -136,14 +131,10 @@ impl MoneyChange {
             account_id: self.account_id,
             account: account.to_owned(),
             kind: "money".to_owned(),
-            change: format!(
-                "{}, {}",
-                line("silver", self.silver_change(), self.asked.0),
-                line("gold", self.gold_change(), self.asked.1)
-            ),
+            change: line("silver", self.silver_change(), self.asked),
             reason: reason.to_owned(),
-            before: format!("{} silver, {} gold", self.silver.0, self.gold.0),
-            after: format!("{} silver, {} gold", self.silver.1, self.gold.1),
+            before: format!("{} silver", self.silver.0),
+            after: format!("{} silver", self.silver.1),
         }
     }
 }
@@ -354,27 +345,25 @@ mod tests {
     fn money_is_never_taken_below_zero() {
         let mut account = Account::new("pain");
         account.generic_money = 300;
-        account.premium_money = 40;
-        let change = MoneyChange::plan(9, &account, -500, 10);
+        let change = MoneyChange::plan(9, &account, -500);
         assert_eq!(change.silver, (300, 0));
-        assert_eq!(change.gold, (40, 50));
-        assert_eq!((change.silver_change(), change.gold_change()), (-300, 10));
+        assert_eq!(change.silver_change(), -300);
         let action = change.action(1, "t", "pain", "farmed");
-        assert_eq!(action.change, "silver -300 (asked -500), gold +10");
-        assert_eq!(action.before, "300 silver, 40 gold");
-        assert_eq!(action.after, "0 silver, 50 gold");
+        assert_eq!(action.change, "silver -300 (asked -500)");
+        assert_eq!(action.before, "300 silver");
+        assert_eq!(action.after, "0 silver");
         let key = change.key();
         change.apply(&mut account);
-        assert_eq!((account.generic_money, account.premium_money), (0, 50));
+        assert_eq!(account.generic_money, 0);
         // The same request on the changed account is another plan.
-        let again = MoneyChange::plan(9, &account, -500, 10);
+        let again = MoneyChange::plan(9, &account, 10);
         assert_ne!(again.key(), key);
         assert!(!change.still_fits(&account));
         // Nothing left to take: nothing changes.
-        assert!(MoneyChange::plan(9, &account, -500, 0).is_nothing());
+        assert!(MoneyChange::plan(9, &account, -500).is_nothing());
         // And no balance passes the top.
         assert_eq!(
-            MoneyChange::plan(9, &account, i64::MAX, 0).silver.1,
+            MoneyChange::plan(9, &account, i64::MAX).silver.1,
             u32::MAX
         );
     }

@@ -8,6 +8,7 @@
 //! cargo run -p survarium --example batteries -- <players> <mode> <dumps or a folder of them> ...
 //! ```
 
+use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::snapshot::{self, Battery};
 
 /// The match time in a dump's name.
@@ -22,7 +23,11 @@ fn main() {
         .next()
         .and_then(|arg| arg.parse().ok())
         .expect("players");
-    let mode: u8 = args.next().and_then(|arg| arg.parse().ok()).expect("mode");
+    let mode = args
+        .next()
+        .and_then(|arg| arg.parse().ok())
+        .and_then(RuleMode::of_config)
+        .expect("mode: 2 to 5");
     // A folder stands for the dumps in it.
     let mut paths: Vec<(u32, String)> = args
         .flat_map(|path| match std::fs::read_dir(&path) {

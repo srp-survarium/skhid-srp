@@ -57,6 +57,7 @@ pub mod view;
 use std::sync::Arc;
 
 use mapdata::{NodeId, Vec3, World};
+use survarium::v026g::maps::RuleMode;
 use survarium::v026g::match_msgs::PlayerInput;
 
 use crate::v026g::drive::{half_value, key};
@@ -76,7 +77,9 @@ use tactics::Tactics;
 use team::{Asking, Assignment};
 use trace::Trace;
 use tuning::Tuning;
-use view::{BatteryState, Clock, MatchView, Place, PlaceView, Tracker, WorldFacts};
+use view::{
+    BatteryState, Clock, MatchView, Place, PlaceView, Side, Sides, Team, Tracker, WorldFacts,
+};
 
 /// From a bot's entry to its first move, ms.
 const START_AFTER_MS: u32 = 2_000;
@@ -136,7 +139,8 @@ pub struct Note {
     pub text: String,
 }
 
-/// A team's shared state: knowledge, modifiers, skill, the commander's
+/// A side's shared state (a team's; in a free-for-all each place's own, and
+/// nobody else's): knowledge, modifiers, skill, the commander's
 /// clock.
 struct TeamState {
     knowledge: TeamKnowledge,
@@ -150,10 +154,80 @@ struct TeamState {
     no_way_to: Vec<(Vec3, u32)>,
 }
 
+impl TeamState {
+    fn new(tuning: &Tuning) -> Self {
+        Self {
+            knowledge: TeamKnowledge::default(),
+            mods: Mods::default(),
+            skill: Skill::new(&tuning.skill),
+            cheats: CheatClock::default(),
+            signals: MatchSignals::default(),
+            next_commander: 0,
+            no_way_to: Vec::new(),
+        }
+    }
+}
+
+/// Every side's state, by side: a team mode's two teams', a free-for-all's
+/// one a place. Read by a [`Side`] alone, and every side of a match is one
+/// its [`Tracker`] gave ([`Tracker::side`], [`Tracker::push_place`]), so
+/// each has its state here.
+struct SideStates {
+    sides: Sides,
+    /// By [`Side::index`].
+    states: Vec<TeamState>,
+}
+
+impl SideStates {
+    /// The states of a match of `places` places.
+    fn new(sides: Sides, places: usize, tuning: &Tuning) -> Self {
+        Self {
+            sides,
+            states: sides
+                .all(places)
+                .iter()
+                .map(|_| TeamState::new(tuning))
+                .collect(),
+        }
+    }
+
+    /// A place was added to the match, on `side`: a free-for-all's is a
+    /// side more, with a state of its own; a team's has its team's.
+    fn joined(&mut self, side: Side, tuning: &Tuning) {
+        while self.states.len() <= side.index() {
+            self.states.push(TeamState::new(tuning));
+        }
+    }
+
+    /// Every side, in the order of the teams' numbers or the places.
+    fn sides(&self) -> Vec<Side> {
+        self.sides.all(self.states.len())
+    }
+
+    fn iter_mut(&mut self) -> impl Iterator<Item = &mut TeamState> {
+        self.states.iter_mut()
+    }
+}
+
+impl std::ops::Index<Side> for SideStates {
+    type Output = TeamState;
+
+    fn index(&self, side: Side) -> &TeamState {
+        &self.states[side.index()]
+    }
+}
+
+impl std::ops::IndexMut<Side> for SideStates {
+    fn index_mut(&mut self, side: Side) -> &mut TeamState {
+        &mut self.states[side.index()]
+    }
+}
+
 /// One bot.
 pub struct Bot {
     place: Place,
-    team: u8,
+    /// Its side: its team, or in a free-for-all its own.
+    team: Side,
     rng: Rng,
     encoder: Encoder,
     motor: Motor,
@@ -163,7 +237,9 @@ pub struct Bot {
     personality: usize,
     /// The skill it took at its last spawn.
     skill: f32,
-    /// Its map side (the spawns' team it first came out of).
+    /// Its map side (the spawns' team it first came out of). A
+    /// free-for-all's bot has none: it comes out anywhere on the map, and
+    /// neither base is its own or its enemies'.
     side: Option<i32>,
     running: Option<Running>,
     assignment: Option<Assignment>,
@@ -199,11 +275,12 @@ pub struct Bot {
     /// ([`Pending`]): the goal and the route, or none. Taken at its next
     /// tick, and used if it still heads there.
     found: Option<(Vec3, Option<Route>)>,
-    /// Its kits by index (the profile's: its role's, then its backup's,
-    /// `survarium::v026g::loadouts::bot_kits`) and the rounds of weapon 1
-    /// each has left: a place's ammo lasts the match, a spawn does not
-    /// refill it. Empty for a bot of no role.
-    kits: Vec<(&'static guns::Arms, u32)>,
+    /// Its kits by index (its profile's, [`Bots::wear`]: its role's, then
+    /// the backup's weapon, `session::v026g::bot_kits`; until then its
+    /// role's fixed kits) and the rounds of weapon 1 each has left: a
+    /// place's ammo lasts the match, a spawn does not refill it. Empty for
+    /// a bot of no role.
+    kits: Vec<(guns::Arms, u32)>,
     /// Plays that failed at once at a target, and until when they are not
     /// taken there again (`plays::SET_ASIDE_MS`).
     set_aside: Vec<(PlayKind, plays::TargetRef, u32)>,
@@ -217,7 +294,7 @@ pub struct Bot {
 }
 
 impl Bot {
-    fn new(match_id: u32, place: Place, team: u8, role: Option<&str>, tuning: &Tuning) -> Self {
+    fn new(match_id: u32, place: Place, team: Side, role: Option<&str>, tuning: &Tuning) -> Self {
         let mut rng = Rng::for_bot(match_id, place);
         let motor = Motor::new(tuning.feel.clone(), &mut rng);
         // The personality of its role (play 14: the lobby gave it that
@@ -238,7 +315,7 @@ impl Bot {
             });
         // What it carries: its role's gear, else its personality's name as
         // a role (the tests' bots), else the fallback.
-        let kits: Vec<(&'static guns::Arms, u32)> = role
+        let kits: Vec<(guns::Arms, u32)> = role
             .and_then(|role| {
                 let role = survarium::v026g::loadouts::BotRole::ALL
                     .into_iter()
@@ -248,7 +325,7 @@ impl Bot {
             .into_iter()
             .flatten()
             .filter_map(|role| guns::Arms::of_role(role.name()))
-            .map(|arms| (arms, arms.primary.1))
+            .map(|arms| (*arms, arms.primary.1))
             .collect();
         let arms = role.and_then(guns::Arms::of_role).or_else(|| {
             tuning
@@ -262,7 +339,7 @@ impl Bot {
             rng,
             encoder: Encoder::default(),
             motor,
-            reflex: Reflex::armed(arms),
+            reflex: Reflex::armed(arms.copied()),
             memory: Memory::default(),
             stuck: Stuck::default(),
             personality,
@@ -370,7 +447,10 @@ impl Bot {
         self.memory = Memory::default();
         self.skill = skill;
         self.medkits_used = 0;
-        if self.side.is_none() {
+        // A team's bot is of the base it first comes out of.
+        if self.side.is_none()
+            && let Side::Team(_) = self.team
+        {
             self.side = tactics.and_then(|tactics| tactics.side_at(feet));
         }
     }
@@ -454,19 +534,18 @@ fn near_any(spots: &[Vec3], point: Vec3) -> bool {
 /// A match's bots.
 pub struct Bots {
     level: u8,
-    /// The mode's id (2 batteries, 3 timed batteries, 4 TDM).
-    mode: u8,
+    mode: RuleMode,
     /// Whose the battery containers are, by id, as the server's game
     /// data has the map (`MapMode::container_teams`); without it, as the
     /// built map has them ([`Self::with_container_teams`]).
-    container_teams: Option<[u8; 2]>,
+    container_teams: Option<[Team; 2]>,
     /// The static info's seed (`registry::static_id`): every anomaly's
     /// random stream starts from it (`anomalies.rs`).
     static_seed: u32,
     pub tuning: Arc<Tuning>,
     tracker: Tracker,
     tactics: Option<Tactics>,
-    teams: [TeamState; 2],
+    teams: SideStates,
     bots: Vec<Option<Bot>>,
     trace: Trace,
     /// Every place's weapon 1 kind, where known (play 11).
@@ -488,12 +567,14 @@ pub struct Bots {
 }
 
 impl Bots {
-    /// `teams[place]`, `driven[place]` (a bot's place), `roles[place]` (a
-    /// bot's role by its gear); `mode` and `level` the map's.
+    /// `teams[place]` as the match gives them (a free-for-all's place is
+    /// its own side whatever its team: `view::Sides::side`),
+    /// `driven[place]` (a bot's place), `roles[place]` (a bot's role by
+    /// its gear); `mode` and `level` the map's.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         match_id: u32,
-        mode: u8,
+        mode: RuleMode,
         level: u8,
         teams: &[u8],
         driven: &[bool],
@@ -501,22 +582,15 @@ impl Bots {
         tuning: Arc<Tuning>,
         trace: Trace,
     ) -> Self {
-        let team_state = |tuning: &Tuning| TeamState {
-            knowledge: TeamKnowledge::default(),
-            mods: Mods::default(),
-            skill: Skill::new(&tuning.skill),
-            cheats: CheatClock::default(),
-            signals: MatchSignals::default(),
-            next_commander: 0,
-            no_way_to: Vec::new(),
-        };
+        let tracker = Tracker::new(mode, teams, driven, Vec::new());
         let bots = teams
             .iter()
             .zip(driven)
             .enumerate()
-            .map(|(place, (&team, &driven))| {
+            .map(|(place, (_, &driven))| {
                 let role = roles.get(place).copied().flatten();
-                driven.then(|| Bot::new(match_id, place, team, role, &tuning))
+                let team = tracker.side(place).filter(|_| driven)?;
+                Some(Bot::new(match_id, place, team, role, &tuning))
             })
             .collect();
         Self {
@@ -524,9 +598,9 @@ impl Bots {
             mode,
             container_teams: None,
             static_seed: crate::v026g::registry::static_id(match_id),
-            tracker: Tracker::new(mode, teams, driven, Vec::new()),
+            teams: SideStates::new(tracker.sides(), teams.len(), &tuning),
+            tracker,
             tactics: None,
-            teams: [team_state(&tuning), team_state(&tuning)],
             bots,
             trace,
             tuning,
@@ -547,7 +621,7 @@ impl Bots {
     /// server's game data has them (`MapMode::container_teams`): they win
     /// over the built map's, which may be of other data.
     pub fn with_container_teams(mut self, teams: Option<[u8; 2]>) -> Self {
-        self.container_teams = teams;
+        self.container_teams = teams.map(|teams| teams.map(Team::of));
         self
     }
 
@@ -561,6 +635,25 @@ impl Bots {
     /// Every place's weapon 1 kind (the matchup, play 11).
     pub fn set_weapons(&mut self, weapons: Vec<Option<reflex::WeaponKind>>) {
         self.weapons = weapons;
+    }
+
+    /// The bot at `place` wears the kits its profile has (each kit's weapon
+    /// 1 and rounds, `guns::Arms::of_kit`), in place of its role's fixed
+    /// ones: from its first life. Nothing for a place that is no bot, or
+    /// none of whose kits has a weapon the bots know.
+    pub fn wear(&mut self, place: usize, kits: Vec<guns::Arms>) {
+        let Some(Some(bot)) = self.bots.get_mut(place) else {
+            return;
+        };
+        if let Some(&arms) = kits.first() {
+            bot.reflex = Reflex::armed(Some(arms));
+            bot.kits = kits
+                .into_iter()
+                .map(|arms| (arms, arms.primary.1))
+                .collect();
+            bot.kit = 0;
+            bot.kit_chosen = 0;
+        }
     }
 
     /// A lying battery's position from a world, in the map's frame: its
@@ -619,13 +712,20 @@ impl Bots {
         let anomalies = anomalies::Anomalies::new(&tactics.world.map, self.static_seed);
         tactics.hazards.attach(anomalies);
         let teams = self.container_teams;
-        let mut containers: Vec<(u8, Vec3)> = Vec::new();
-        for container in &tactics.world.map.containers {
+        let mut containers: Vec<(Team, Vec3)> = Vec::new();
+        // The teams' containers: a free-for-all has no team, and none.
+        let of_teams = match self.tracker.sides() {
+            Sides::Teams => tactics.world.map.containers.as_slice(),
+            Sides::Solo => &[],
+        };
+        for container in of_teams {
             let id = container.id.max(0) as usize;
             if containers.len() <= id {
-                containers.resize(id + 1, (0, Vec3::ZERO));
+                containers.resize(id + 1, (Team::Zero, Vec3::ZERO));
             }
-            let team = teams.map_or(container.team.clamp(0, 1) as u8, |teams| teams[id.min(1)]);
+            let team = teams.map_or(Team::of(container.team.clamp(0, 1) as u8), |teams| {
+                teams[id.min(1)]
+            });
             containers[id] = (team, container.use_point());
         }
         self.tracker.set_containers(containers);
@@ -658,10 +758,13 @@ impl Bots {
         self.tactics.is_some()
     }
 
-    /// A place added to the match (a late joiner: never a bot).
+    /// A place added to the match (a late joiner: never a bot), whose team
+    /// the match gave as `team`: in a free-for-all one side more, every
+    /// bot's enemy as every other place is.
     pub fn push_place(&mut self, team: u8) {
         self.bots.push(None);
-        self.tracker.push_place(team);
+        let side = self.tracker.push_place(team);
+        self.teams.joined(side, &self.tuning);
     }
 
     pub fn is_bot(&self, place: Place) -> bool {
@@ -691,7 +794,7 @@ impl Bots {
             && let Some(bot) = slot.take()
         {
             self.trace.line(serde_json::json!({
-                "t": time, "bot": place, "team": bot.team, "left": true,
+                "t": time, "bot": place, "team": bot.team.index(), "left": true,
             }));
         }
         for bot in self.bots.iter_mut().flatten() {
@@ -700,16 +803,9 @@ impl Bots {
                 bot.partner = None;
             }
         }
-        for team in &mut self.teams {
+        for team in self.teams.iter_mut() {
             team.knowledge.forget(place);
         }
-    }
-
-    pub fn has_entered(&self, place: Place) -> bool {
-        self.bots
-            .get(place)
-            .and_then(Option::as_ref)
-            .is_some_and(|bot| bot.entered.is_some())
     }
 
     /// Whether a bot waits to see its body in a world (just entered, or
@@ -758,7 +854,7 @@ impl Bots {
         let Some(Some(bot)) = self.bots.get_mut(place) else {
             return notes;
         };
-        let team = usize::from(bot.team & 1);
+        let team = bot.team;
         if new_life && let Some(feet) = feet {
             bot.new_life(self.teams[team].skill.skill, self.tactics.as_ref(), feet);
             bot.note(
@@ -864,7 +960,7 @@ impl Bots {
             if a.deaths <= b.deaths {
                 continue;
             }
-            let team = usize::from(a.team & 1);
+            let team = a.team;
             // The kill feed's spot: where the body was last reckoned alive
             // (the world showing the death has it without feet, and was
             // fixed first: `before` has none). A body never placed gives
@@ -896,8 +992,10 @@ impl Bots {
             // An enemy known to carry a battery died: his team's HUD shows
             // where it fell, ours does not. The team looks where it last
             // sensed him itself (never the thief cheat's place).
-            if !self.tuning.cheats.batteries {
-                self.lost_carrier(a.place, 1 - team, (&before, &after), time, &mut notes);
+            if !self.tuning.cheats.batteries
+                && let Side::Team(team) = team
+            {
+                self.lost_carrier(a.place, team.other(), (&before, &after), time, &mut notes);
             }
             // Self-balancing counts duels between bots and humans.
             if a.bot && human_kills {
@@ -907,10 +1005,24 @@ impl Bots {
                 });
             }
             if !a.bot && bot_kills {
-                self.teams[1 - team].skill.duel(Duel {
-                    time,
-                    bot_won: true,
-                });
+                // Won by the bots against him: the other team's; in a
+                // free-for-all each bot whose kills this world added to.
+                let winners = match team {
+                    Side::Team(team) => vec![Side::Team(team.other())],
+                    Side::Solo(_) => after
+                        .places
+                        .iter()
+                        .zip(&before.places)
+                        .filter(|(now, then)| now.bot && now.kills > then.kills)
+                        .map(|(now, _)| now.team)
+                        .collect(),
+                };
+                for winner in winners {
+                    self.teams[winner].skill.duel(Duel {
+                        time,
+                        bot_won: true,
+                    });
+                }
             }
             for bot in self.bots.iter_mut().flatten() {
                 bot.memory.forget(a.place);
@@ -918,15 +1030,18 @@ impl Bots {
             // Nor do the team's callouts of him bring him back (match
             // 0x5402a730: 115 of 125 bot lines 1.5-5 s after a death still
             // knew the dead enemy, told).
-            for state in &mut self.teams {
+            for state in self.teams.iter_mut() {
                 state.knowledge.forget_callouts(a.place);
             }
         }
         // With the battery cheat off, what each team's HUD shows of the
         // batteries.
         if !self.tuning.cheats.batteries {
-            for team in 0..2u8 {
-                let knowledge = &mut self.teams[usize::from(team)].knowledge;
+            for side in self.teams.sides() {
+                let Side::Team(team) = side else {
+                    continue;
+                };
+                let knowledge = &mut self.teams[side].knowledge;
                 knowledge.hud_update(team, &before, &after, time);
                 knowledge.settle_looks(team, &after);
             }
@@ -936,8 +1051,8 @@ impl Bots {
             if let (BatteryState::Carried(thief), BatteryState::Home(id)) = (now, then)
                 && let Some(container) = after.containers.iter().find(|c| c.id == *id)
             {
-                let team = usize::from(container.team & 1);
-                self.teams[team].knowledge.thefts.push(Theft {
+                let team = container.team;
+                self.teams[Side::Team(team)].knowledge.thefts.push(Theft {
                     battery,
                     at: container.at,
                     time,
@@ -962,12 +1077,12 @@ impl Bots {
                     BatteryState::Carried(Some(thief))
                         if after.place(thief).is_some_and(|p| p.alive) =>
                     {
-                        let Some(thief_team) = after.place(thief).map(|p| usize::from(p.team & 1))
+                        let Some(Side::Team(thief_team)) = after.place(thief).map(|p| p.team)
                         else {
                             continue;
                         };
-                        let team = 1 - thief_team;
-                        let Some(theft) = self.teams[team]
+                        let team = thief_team.other();
+                        let Some(theft) = self.teams[Side::Team(team)]
                             .knowledge
                             .thefts
                             .iter()
@@ -991,7 +1106,7 @@ impl Bots {
                         let Some(container) = after.containers.iter().find(|c| c.id == id) else {
                             continue;
                         };
-                        let team = usize::from(container.team & 1);
+                        let team = container.team;
                         self.theft_drop(team, battery, container.at, time, None, time, &mut notes);
                     }
                     _ => {}
@@ -1012,12 +1127,12 @@ impl Bots {
     fn lost_carrier(
         &mut self,
         who: Place,
-        team: usize,
+        team: Team,
         (before, after): (&MatchView, &MatchView),
         time: u32,
         notes: &mut Vec<Note>,
     ) {
-        let knowledge = &self.teams[team].knowledge;
+        let knowledge = &self.teams[Side::Team(team)].knowledge;
         // His battery: carried by him, or (a world showed him dead first,
         // and the carrier went with it) one carried by nobody known that
         // he was known to carry, lying now or still carried.
@@ -1041,7 +1156,7 @@ impl Bots {
             .places
             .iter()
             .zip(&before.places)
-            .filter(|(a, b)| usize::from(a.team & 1) == team && a.kills > b.kills)
+            .filter(|(a, b)| a.team == team && a.kills > b.kills)
             .map(|(a, _)| a.place)
             .collect();
         let Some((killer, sensed, at)) = self.last_sensed(who, team, &killers) else {
@@ -1050,7 +1165,7 @@ impl Bots {
         if sensed + LOOK_SENSED_MS < time {
             return;
         }
-        self.teams[team].knowledge.add_look(LookSpot {
+        self.teams[Side::Team(team)].knowledge.add_look(LookSpot {
             battery,
             at,
             time,
@@ -1072,8 +1187,8 @@ impl Bots {
     /// of one of `killers` first, else the newest sight, hearing or
     /// callout of him (never the thief cheat's place). (Whether a killer's
     /// sight, when, where.)
-    fn last_sensed(&self, who: Place, team: usize, killers: &[Place]) -> Option<(bool, u32, Vec3)> {
-        let knowledge = &self.teams[team].knowledge;
+    fn last_sensed(&self, who: Place, team: Team, killers: &[Place]) -> Option<(bool, u32, Vec3)> {
+        let knowledge = &self.teams[Side::Team(team)].knowledge;
         // (the killer's sight, when, where)
         let mut best: Option<(bool, u32, Vec3)> = None;
         let mut take = |killer: bool, sensed: u32, at: Vec3| {
@@ -1081,12 +1196,7 @@ impl Bots {
                 best = Some((killer, sensed, at));
             }
         };
-        for bot in self
-            .bots
-            .iter()
-            .flatten()
-            .filter(|b| usize::from(b.team & 1) == team)
-        {
+        for bot in self.bots.iter().flatten().filter(|b| b.team == team) {
             if let Some(track) = bot.memory.tracks().iter().find(|t| t.who == who)
                 && let Some((at, sensed)) = track.own
             {
@@ -1114,7 +1224,7 @@ impl Bots {
     #[allow(clippy::too_many_arguments)]
     fn theft_drop(
         &mut self,
-        team: usize,
+        team: Team,
         battery: usize,
         container: Vec3,
         theft_time: u32,
@@ -1122,7 +1232,11 @@ impl Bots {
         time: u32,
         notes: &mut Vec<Note>,
     ) {
-        if self.teams[team].knowledge.battery(battery).is_some() {
+        if self.teams[Side::Team(team)]
+            .knowledge
+            .battery(battery)
+            .is_some()
+        {
             return;
         }
         let mut spots = Vec::new();
@@ -1146,7 +1260,7 @@ impl Bots {
         if spots.is_empty() {
             return;
         }
-        self.teams[team].knowledge.add_theft_looks(
+        self.teams[Side::Team(team)].knowledge.add_theft_looks(
             battery,
             &spots,
             time,
@@ -1184,8 +1298,8 @@ impl Bots {
             .tracker
             .view(&clock, &self.tuning.kin, world.as_deref());
         if self.tactics.is_some() && clock.playing {
-            for team in 0..2u8 {
-                if now >= self.teams[usize::from(team)].next_commander {
+            for team in self.teams.sides() {
+                if now >= self.teams[team].next_commander {
                     self.commander(team, &view, &mut notes);
                 }
             }
@@ -1280,18 +1394,21 @@ impl Bots {
         }
     }
 
-    /// A team's commander tick: signals, modifiers, skill, and a play for
-    /// each living bot.
-    fn commander(&mut self, team: u8, view: &MatchView, notes: &mut Vec<Note>) {
+    /// A side's commander tick (a team's; in a free-for-all each place's
+    /// own, over the one bot it may be): signals, modifiers, skill, and a
+    /// play for each living bot.
+    fn commander(&mut self, team: Side, view: &MatchView, notes: &mut Vec<Note>) {
         let Some(tactics) = self.tactics.as_ref() else {
             return;
         };
         let tuning = self.tuning.clone();
         let now = view.clock;
-        let state = &mut self.teams[usize::from(team)];
+        let state = &mut self.teams[team];
         state.next_commander = now + tuning.think.commander_ms;
         state.knowledge.forget_old(now);
-        state.knowledge.settle_looks(team, view);
+        if let Side::Team(team) = team {
+            state.knowledge.settle_looks(team, view);
+        }
         // What a bot of the team proved no way to lately, the whole team
         // leaves for longer, from the proof on.
         state.no_way_to.retain(|&(_, until)| now < until);
@@ -1308,7 +1425,9 @@ impl Bots {
         state.mods.update(&state.signals, &tuning.mods);
         // A team that can no longer respawn (Team Deathmatch, its tickets
         // out) plays it safe.
-        if !view.can_respawn[usize::from(team & 1)] {
+        if let Side::Team(team) = team
+            && !view.can_respawn(team)
+        {
             state.mods.aggression = state.mods.aggression.min(0.2);
         }
         if let Some((before, after, kd)) = state.skill.balance(now, &tuning.skill) {
@@ -1316,7 +1435,7 @@ impl Bots {
                 place: usize::MAX,
                 time: now,
                 text: format!(
-                    "team {team}'s skill {before:.2} -> {after:.2} (K/D against humans {kd:.2})"
+                    "{team}'s skill {before:.2} -> {after:.2} (K/D against humans {kd:.2})"
                 ),
             });
         }
@@ -1385,8 +1504,8 @@ impl Bots {
                 _ => None,
             })
             .collect();
-        self.teams[usize::from(team)].knowledge.searching = searching;
-        let state = &self.teams[usize::from(team)];
+        self.teams[team].knowledge.searching = searching;
+        let state = &self.teams[team];
         let mut asked: Vec<(Place, Vec<plays::Candidate>, Option<Assignment>)> = Vec::new();
         for bot in self
             .bots
@@ -1409,6 +1528,11 @@ impl Bots {
                     last_ran: &bot.last_ran,
                     partner: bot.partner,
                     paired: bot.paired,
+                    medkits: bot
+                        .reflex
+                        .arms()
+                        .unwrap_or_else(|| *guns::Arms::fallback())
+                        .medkits,
                     medkits_used: bot.medkits_used,
                     no_way_to: &no_way,
                     set_aside: &bot.set_aside,
@@ -1464,6 +1588,11 @@ impl Bots {
                     last_ran: &bot.last_ran,
                     partner: bot.partner,
                     paired: bot.paired,
+                    medkits: bot
+                        .reflex
+                        .arms()
+                        .unwrap_or_else(|| *guns::Arms::fallback())
+                        .medkits,
                     medkits_used: bot.medkits_used,
                     no_way_to: &no_way,
                     set_aside: &bot.set_aside,
@@ -1512,7 +1641,7 @@ impl Bots {
                     })
                     .collect();
                 self.trace.line(serde_json::json!({
-                    "t": now, "bot": place, "team": team,
+                    "t": now, "bot": place, "team": team.index(),
                     "pos": me.feet.to_array(), "health": me.health,
                     "takes": format!("{:?}", assignment.kind),
                     "reason": assignment.reason,
@@ -1554,7 +1683,7 @@ impl Bots {
         let Some(me) = view.place(bot.place).filter(|p| p.alive) else {
             return;
         };
-        let team = usize::from(bot.team & 1);
+        let team = bot.team;
         // Senses: sight (the order turns each think, so no enemy waits
         // long for a ray), hearing, the cheats, the team's callouts.
         let mut order: Vec<Place> = view.enemies_of(bot.team).map(|p| p.place).collect();
@@ -1684,6 +1813,11 @@ impl Bots {
                 last_ran: &bot.last_ran,
                 partner: bot.partner,
                 paired: bot.paired,
+                medkits: bot
+                    .reflex
+                    .arms()
+                    .unwrap_or_else(|| *guns::Arms::fallback())
+                    .medkits,
                 medkits_used: bot.medkits_used,
                 no_way_to: &bot.no_way_to,
                 set_aside: &bot.set_aside,

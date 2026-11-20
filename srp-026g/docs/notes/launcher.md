@@ -255,7 +255,7 @@ even byte count; forces a terminating NUL. `REG_EXPAND_SZ` is rejected.
 | 6 | `start_updater` 0x15997 | HKLM (0x159A4) | product key | `update server` | R | 260 | key: MessageBoxW "Can't open survarium registry key"; value: "Can't retrieve updater server string from survarium registry key"; both -> state 8 |
 | 7 | `restart_launcher` 0x162F4 | HKLM (0x16301) | product key | `launcher` | R | 260 | assertion "Can't restart launcher", `PostQuitMessage(7)` |
 | 8 | `get_game_launch_parameters` 0x17092 | HKLM (0x170AD) | product key | `file to execute`, `arguments`, `working folder` | R | 260 / rest of 0x8000 / 260 | any missing -> assertion "Can't get game launch parameters", `PostQuitMessage(8)` |
-| 9 | `settings::reload` 0x1D4C4 | **HKCU** (0x1D4E3) | product key | `port_number` (REG_SZ), `download_type` (REG_DWORD) | R | 6 / dword | defaults: torrent allowed, port "" |
+| 9 | `settings::reload` 0x1D4C4 | **HKCU** (0x1D4E3) | product key | `port_number` (REG_SZ), `download_type` (REG_DWORD) | R | 6 / dword | defaults: torrent allowed, port "" (the Skhid launcher replaces "Allow torrent" by user.cfg's at once: its patch 15) |
 | 10 | `settings::save` 0x1D71A | **HKCU** (0x1D72F), `RegCreateKeyExW`, KEY_SET_VALUE | product key | `download_type` (REG_DWORD 1 = torrent, 0 = direct), `port_number` (REG_SZ) | W | | silent |
 | 11 | `settings::reload_language` 0x1D852 | **HKCU** (0x1D871) | product key | `language` (REG_DWORD 0..4) | R | | see section 10 |
 | 12 | `settings::save_language` 0x1D8DA | **HKCU** (0x1D8E8), `RegCreateKeyExW`, KEY_SET_VALUE | product key | `language` | W | | silent |
@@ -311,6 +311,17 @@ Each site is `68 02 00 00 80` (`push 80000002h`); change the `02` to `01`. No re
 
 Leave 0x12D55 (CPU info) alone. After this patch the same HKCU key holds both the install values and
 the user settings (`language`, `port_number`, `download_type`), which does not conflict (different names).
+
+The HKCU product key exists only once something made it: the original launcher does at every start
+(`settings::reload_language`, 10.2); the Skhid launcher, whose language is in user.cfg (revision 39 on),
+does not. Each of the sites stops when its `RegOpenKeyExW` fails (0x159A4: "Can't open survarium
+registry key", state 8, no updater), even though the Skhid hook answers every value they read. That
+was revision 39's launcher, which used this HKCU patch. The Skhid launcher after it leaves these pushes
+alone and opens no key in the four functions: each jumps from its `call get_product_registry_path`
+(0x15223, 0x15997, 0x162F4, 0x1709F) to its first `get_string` (0x15252, 0x159D1, 0x1631D, 0x170CE),
+and over each `push handle / call RegCloseKey` (0x153FE, 0x1541E, 0x15A4D, 0x16338 with 0x163A7,
+0x17123, 0x1714F). The handle's local is never set: only its address goes to `get_string`, whose hook ignores it
+(`client-patches/launcher/README.md` patch 4, `check_registry_026g.py`).
 
 ---
 
@@ -820,6 +831,24 @@ by small dynamic initialisers as left + width, top + height.
 The button captions (strings 0xC2..0xC6) are painted into the button bitmaps by
 `draw_button_texts` 0x1B8B0, so they move/disappear with the button.
 
+`transparent_control` (PROVEN, 0x12548, `ret 20h`; edi = the control, esi = its rect; arguments:
+parent, visible, cursor, three bitmaps, callback, context): +4 HWND, +8 picture, +0Ch under the
+pointer, +10h pressed, +14h under the pointer (flag), +15h pressed (flag), +18h/+1Ch callback and
+context, +20h cursor, +24h opaque (BitBlt, else AlphaBlend). Its window procedure (0x126F4) calls the
+callback (cdecl, the context) at WM_LBUTTONDOWN; 0x125CE sets +8 (eax the control, ecx the bitmap)
+and invalidates it. It AlphaBlends its picture over what its window showed: the launcher's windows are
+WS_EX_COMPOSITED (0x2000000, 0x1A890), so Windows paints the parent under it first; Wine does not.
+
+The bottom panel (`image_window` at form+0x4DC, JPG 301 at form+0xEC) is a static control showing that
+bitmap. `launcher_form::set_status_texts` (0x1B48D) copies the bitmap anew from its resource
+(0x12BE0: AlphaBlend, eax the rect) and draws the status texts into it (0x137C3; Calibri bold 12 at
+0x482A8, in 200..678), then invalidates. The Skhid launcher's "Allow torrent" box is YouTube's control
+in the panel, and Twitter's lies over its text, opaque (`client-patches/launcher/README.md`, patch 15).
+
+A rect's width and height initialisers (`83 C0 imm8`) add at most 127; each rect's pair is its own
+function (0x3A710, 0x3A72B, 0x3A746, 0x3A761 for YouTube .. VK), called only from the CRT initialiser
+table (0x3B59C..0x3B5A8), and the rect's right and bottom are 0 in the file until it runs.
+
 ### 9.2 What the click handlers do (PROVEN)
 
 `open_url(url)` 0x1BB95: `wsprintfW(buf, L"cmd.exe /c start %s", url)` (format 0x3F564) and
@@ -924,6 +953,19 @@ If HKCU cannot be written the choice still applies for the running process but i
 has loaded or failed (`on_new_form_ready` 0x167BF) the new window is shown at the old position and the
 old form is destroyed. No process restart, no `-language=` re-launch. The updater is not informed.
 
+### 10.4 The drop-down (PROVEN, `language_menu::language_menu` 0x1942F)
+
+The button's click is `expand_button_click` 0x19A08 (cdecl, the menu): it toggles `set_state`
+0x1998D (+150h, open or not), which resizes the menu's window (+4) to +140h/+144h (closed) or
++148h/+14Ch (open) and shows or hides the rows (0x19945). The five rows are made in a loop at
+0x196EC..0x19837 (`cmp [ebp+0Ch],5`): row i's two image buttons at +0DCh/+0E0h + 0Ch*i, its
+window at +0E4h + 0Ch*i, its click context {menu, i} at +118h + 8*i, 12h pixels apart; its label
+`[i*8+48280h]`. The destructor walks the same five (0x19896). `language_selected` 0x19A20 takes
+that context: `settings::set_language` with the menu's settings (+154h), then closes it. The
+button's label is `[index*8+48280h]` (0x19663). The menu is a member of the form (+0B48h), so its
+row arrays cannot grow; the Skhid launcher opens a Windows menu from the click instead
+(`client-patches/launcher/README.md`, patch 14).
+
 ---
 
 ## 11. Settings window (gear)
@@ -932,7 +974,7 @@ old form is destroyed. No process restart, no `-language=` re-launch. The update
 
 | Offset | Field |
 |---|---|
-| +0x00 / +0x01 | allow torrent: current / last saved (default 1) |
+| +0x00 / +0x01 | allow torrent: current / last saved (default 1, set at 0x1D4CE; in the Skhid launcher user.cfg's `enable_torrent_seeding on`, set right after `settings::reload`, and its box on the main window: its patch 15) |
 | +0x02 / +0x0E | port text wchar[6]: current / last saved |
 | +0x1A | "port accepted" flag (1 at start; message 20 clears, message 21 sets) |
 | +0x1C | language |

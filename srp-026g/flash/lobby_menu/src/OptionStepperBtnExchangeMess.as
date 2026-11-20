@@ -1,8 +1,8 @@
 package
 {
-   import survarium.controls.NumericStepperExchange;
+   import survarium.controls.NumericStepperLabel;
    
-   public dynamic class OptionStepperBtnExchangeMess extends NumericStepperExchange
+   public dynamic class OptionStepperBtnExchangeMess extends NumericStepperLabel
    {
       
       public function OptionStepperBtnExchangeMess()

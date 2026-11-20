@@ -886,7 +886,7 @@ The match server does (wired): `Bots::tactics_ready` attaches
 `Bots::poll` advances it on the match clock, and each trusted world
 (`Game::observe` -> `observe_driven` -> `anomalies_from_world`) syncs it.
 
-Timed anomalies (exe patch 42, `dynamic_anomalies.md`) are not on `main`:
+Timed anomalies (exe patch 42) are not on `main`:
 taken out of revision 31 (the owner, 2026-10-23), their simulation with
 them (branch `feat/dynamic-anomalies`).
 `mapdata-dump --patch <resources.db.patch_n>` (repeatable, mount order)

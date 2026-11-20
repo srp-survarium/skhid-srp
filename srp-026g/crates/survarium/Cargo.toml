@@ -7,15 +7,32 @@ edition.workspace = true
 workspace = true
 
 [dependencies]
+# Client patch 78 ends each player's state with the carry's snapshot
+# (`v026g::match_msgs::motion`).
+artefact-carry = { path = "../artefact-carry" }
+# Client patch 85 starts each player's state with its pickup record
+# (`v026g::match_msgs::players::FIELDS_AT`).
+weapon-pickup = { path = "../weapon-pickup" }
+# A weapon's upgrades packed as the client reads them (`v026g::weapon_kit`;
+# the client's arena builds the same crate, patch 68).
+weapon-kit = { workspace = true }
 binary-config-parser = { workspace = true }
 # The game's localizations are UTF-8 read as Windows-1251 (`v026g::localization`).
 encoding_rs = { workspace = true }
 resources-db = { workspace = true }
+# The world objects of a map, in the shape the world check reads them
+# (`v026g::maps::world_objects`).
+srp-validate = { workspace = true }
 log = { workspace = true }
 lzma-rust2 = { workspace = true }
 # The lobby's results types are kept in srp's database as JSON
 # (`session::v026g::rewards`).
 serde = { workspace = true }
+# The content edit lists: Blackout's, laid over the test data's configs
+# (`v026g::game_data::test_archive`), and those the modification tests read.
+serde_json = { workspace = true }
+# The ED/EE mask and length, as the transport works them out (`v026g::match_msgs`).
+udp-transport = { workspace = true }
 
 
 [features]
@@ -23,7 +40,3 @@ serde = { workspace = true }
 # the crates that use this one.
 fixtures = []
 
-[dev-dependencies]
-# The content edit lists, read by the modification tests
-# (`v026g::modifications::tests`).
-serde_json = { workspace = true }

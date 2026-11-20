@@ -16,6 +16,13 @@ written once each (strings and vectors apart): byte for byte the layout of patch
 London projects and particles (test_bcw.py). The original game files are
 laid out otherwise (by their editor); written again they read the same.
 
+Later builds (0.46c2, 0.69d) pack a value into 16 bytes instead: `u64` with
+the data (inline scalar or byte offset) in bits 0..44, the type in 44..48 and
+the count in 48..64, then `u64` with the key's byte offset in bits 0..48 (a
+16-bit key hash above it). Integers are sign-extended into the 44 data bits.
+Its root is a table whose children start at byte 16, which no 24-byte config
+can have. `read` takes both layouts; `write` writes the 24-byte one, 0.26g's.
+
 Python view (load/dump): dict = named table (key order free, the writer
 sorts), list = indexed table, bool, int (i32), float (f32), str (cp1251),
 tuple of 2/3/4 floats = float2/3/4.
@@ -28,8 +35,45 @@ RECORD = struct.Struct("<QQIHH")
 BOOL, INT, FLOAT, NAMED, INDEXED, STRING = range(6)
 
 
+COMPACT_DATA = (1 << 44) - 1
+
+
+def is_compact(data):
+    """Whether a config uses the later builds' 16-byte value records."""
+    if len(data) < 16:
+        return False
+    head, = struct.unpack_from("<Q", data)
+    return head & COMPACT_DATA == 16 and (head >> 44) & 0xF in (NAMED, INDEXED)
+
+
+def read_compact(data):
+    """The tree of a config in 16-byte records, as nodes (see the module's text)."""
+    def name_at(at):
+        return bytes(data[at:data.index(b"\0", at)])
+
+    def value(at):
+        head, key = struct.unpack_from("<QQ", data, at)
+        payload, kind, count = head & COMPACT_DATA, (head >> 44) & 0xF, head >> 48
+        if kind in (BOOL, INT, FLOAT):
+            return (kind, payload & 0xFFFFFFFF, count)
+        if kind == STRING:
+            return (kind, bytes(data[payload:payload + count - 1]), count)
+        if kind in (6, 7, 8):
+            return (kind, bytes(data[payload:payload + 4 * (kind - 4)]), count)
+        if kind == NAMED:
+            children = [payload + 16 * i for i in range(count)]
+            return (kind, [(name_at(struct.unpack_from("<Q", data, child + 8)[0] & ((1 << 48) - 1)), value(child))
+                           for child in children], count)
+        if kind == INDEXED:
+            return (kind, [value(payload + 16 * i) for i in range(count)], count)
+        raise ValueError(f"value type {kind}")
+    return value(0)
+
+
 def read(data):
     """The tree of a binary config, as nodes."""
+    if is_compact(data):
+        return read_compact(data)
     def name_at(at):
         return bytes(data[at:data.index(b"\0", at)])
 

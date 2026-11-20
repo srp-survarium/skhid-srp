@@ -225,7 +225,7 @@ impl Server {
                 .or_else(|| account.game.profiles.first())?;
             // Its slots' pools from the stacks owned now.
             let profile = survarium::v021d::supplies::match_profile(&account.game, profile);
-            players.push((seat.team, seat.squad, account.name.clone(), profile));
+            players.push((seat.team, seat.squad, account.name().to_owned(), profile));
         }
         let roll = random();
         let options = MatchOptions::new(
