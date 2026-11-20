@@ -639,6 +639,12 @@ pub fn grid_key_with_links(
     if body.rim_jumps {
         digest.u32(RIM_JUMPS_ALGO);
         digest.f32(body.fastest_walk_cap);
+    } else if body.fastest_walk_cap != crate::controller::jump::WALK_CAP_MS {
+        // [incremental grids] The game data's fastest bot also flies the gap flights' and the Drop links' kits
+        // (`grid::gap_flown`, `grid::drop_check`): a body with another cap is another grid even without the rim jumps (the
+        // server's bodies carry the game data's cap only with them; a key of the constant cap is the one there was).
+        digest.u32(0x6176_0001);
+        digest.f32(body.fastest_walk_cap);
     }
     // And the gap links flown by the client's jump.
     if body.gap_flights {
