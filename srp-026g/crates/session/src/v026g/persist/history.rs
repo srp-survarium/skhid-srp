@@ -668,6 +668,16 @@ pub struct BestLine {
     pub line: PlayerLine,
 }
 
+/// Everything counted, added up: how many players have a counted match, how
+/// many counted matches there are, and the players' totals together (their
+/// `matches` are lines: a match once a player).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct AllTime {
+    pub players: u64,
+    pub matches: u64,
+    pub totals: Totals,
+}
+
 /// A registered clan with its totals.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClanLine {
@@ -1507,6 +1517,67 @@ impl MatchHistory {
         Ok(best)
     }
 
+    /// Each player's counted public matches that ended at `since` or later,
+    /// added up, of the players that `keep` keeps: the day's leaders are
+    /// read from it. As many rows as players of the period (a day's lines
+    /// are read: its matches by `g26_matches_by_end`, each one's players by
+    /// the primary key).
+    pub fn totals_since(
+        &self,
+        since: u64,
+        keep: &dyn Fn(u32) -> bool,
+    ) -> Result<Vec<(Named, Totals)>, PersistError> {
+        let connection = self.reader();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT {NAMED}, COUNT(*), SUM(p.outcome = 'won'), SUM(p.outcome = 'lost'),
+                 SUM(p.score), SUM(p.kills), SUM(p.deaths), SUM(p.assists), SUM(p.headshots),
+                 SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures),
+                 SUM(p.artefacts), SUM(p.shots), SUM(p.hits), SUM(p.played_ms)
+             FROM g26_matches m CROSS JOIN g26_match_players p ON p.match_id = m.id
+             JOIN g26_accounts a ON a.account_id = p.account_id
+             {CLAN_JOIN}
+             WHERE m.ended_at >= ?1 AND m.eligibility = 'counted'
+             GROUP BY a.account_id"
+        ))?;
+        let rows = statement.query_map([since.min(i64::MAX as u64) as i64], |row| {
+            Ok((named_at(row, 0)?, totals_at(row, 4)?))
+        })?;
+        let mut all = Vec::new();
+        for row in rows {
+            let (player, totals) = row?;
+            if keep(player.account_id) {
+                all.push((player, totals));
+            }
+        }
+        Ok(all)
+    }
+
+    /// Everything counted, added up ([`AllTime`]): one pass over the
+    /// players' totals and one over the matches.
+    pub fn all_time(&self) -> Result<AllTime, PersistError> {
+        let connection = self.reader();
+        let columns = TOTALS
+            .split(',')
+            .map(|column| format!("SUM({})", column.trim()))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let (players, totals) = connection.query_row(
+            &format!("SELECT COUNT(*), {columns} FROM g26_player_totals t WHERE t.matches > 0"),
+            [],
+            |row| Ok((u64_at(row, 0)?, totals_at(row, 1)?)),
+        )?;
+        let matches = connection.query_row(
+            "SELECT COUNT(*) FROM g26_matches WHERE eligibility = 'counted'",
+            [],
+            |row| u64_at(row, 0),
+        )?;
+        Ok(AllTime {
+            players,
+            matches,
+            totals,
+        })
+    }
+
     /// The top `limit` registered clans by `by`.
     pub fn clans(&self, by: TotalsKey, limit: usize) -> Result<Vec<ClanLine>, PersistError> {
         let connection = self.reader();
@@ -2218,6 +2289,45 @@ mod tests {
         assert_eq!(summary.info.winner, Winner::MostKills);
         assert_eq!(summary.info.mode, LobbyMode::Racket);
         assert_eq!(players[1].line.outcome, Outcome::Won);
+    }
+
+    #[test]
+    fn a_periods_totals_and_all_time_add_up_the_counted_matches() {
+        let dir = TempDir::new("periods");
+        let (mut repository, history) = repository(&dir);
+        for (kind, at) in [
+            (PUBLIC, 100),
+            (PUBLIC, 5_000),
+            (PUBLIC, 6_000),
+            // Neither counts: too short, and not public.
+            (MatchKind::Public(Eligibility::Short), 7_000),
+            (MatchKind::Private, 8_000),
+        ] {
+            repository.record_match(&record(kind, at)).unwrap();
+        }
+        let since = |from, keep: &dyn Fn(u32) -> bool| -> Vec<(String, u64, u64)> {
+            let mut rows: Vec<_> = history
+                .totals_since(from, keep)
+                .unwrap()
+                .into_iter()
+                .map(|(player, totals)| (player.name, totals.matches, totals.kills))
+                .collect();
+            rows.sort();
+            rows
+        };
+        assert_eq!(
+            since(5_000, &|_| true),
+            [("Alice".to_owned(), 2, 28), ("Bob".to_owned(), 2, 12)]
+        );
+        assert_eq!(since(5_000, &|id| id != 10), [("Bob".to_owned(), 2, 12)]);
+        assert!(since(9_000, &|_| true).is_empty());
+        let all = history.all_time().unwrap();
+        assert_eq!((all.players, all.matches), (2, 3));
+        assert_eq!(
+            (all.totals.matches, all.totals.kills, all.totals.deaths),
+            (6, 60, 60)
+        );
+        assert_eq!(all.totals.played_ms, 6 * 600_000);
     }
 
     #[test]

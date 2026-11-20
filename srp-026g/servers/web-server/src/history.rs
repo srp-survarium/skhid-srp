@@ -77,6 +77,19 @@ const BEST: usize = 20;
 /// How many weapons and armour pieces a player's favourites list when the
 /// request names no limit.
 const FAVOURITES: usize = 10;
+/// What a leaders' list ranks a player's day by.
+type Leading = fn(&Totals) -> u64;
+/// The day's leaders' lists: each its name and what it ranks by, most first
+/// (ties: the older account), of those above 0.
+const LEADERS: [(&str, Leading); 5] = [
+    ("kills", |totals| totals.kills),
+    ("assists", |totals| totals.counters.assists),
+    ("score", |totals| totals.score),
+    ("wins", |totals| totals.wins),
+    ("played_s", |totals| totals.played_ms / 1000),
+];
+/// How many players a leaders' list names.
+const LEADERS_EACH: usize = 5;
 const DAY: u64 = 86_400;
 const HOUR: u64 = 3_600;
 
@@ -135,6 +148,8 @@ enum Endpoint {
     Match(u64),
     Top { by: PlayerRanking, limit: usize },
     Best(Period),
+    Today,
+    AllTime,
     Clans { by: TotalsKey, limit: usize },
     Clan(ClanName),
 }
@@ -299,6 +314,8 @@ impl Endpoint {
                 Some("hour") => Period::Hour,
                 Some(_) => return Err(Refusal::BadRequest),
             }),
+            "today" => Self::Today,
+            "totals" => Self::AllTime,
             "clans" => Self::Clans {
                 by: match query.text("by") {
                     None => TotalsKey::Matches,
@@ -465,6 +482,39 @@ fn answer(
                 })
                 .collect();
             json!({ "period": period.name(), "rows": rows })
+        }
+        Endpoint::Today => {
+            let today = now - now % DAY;
+            let all = history.totals_since(today, &|account_id| !banned(account_id))?;
+            let mut leaders = serde_json::Map::new();
+            for (name, of) in LEADERS {
+                let mut ranked: Vec<&(Named, Totals)> =
+                    all.iter().filter(|(_, totals)| of(totals) > 0).collect();
+                ranked.sort_by_key(|(player, totals)| {
+                    (std::cmp::Reverse(of(totals)), player.account_id)
+                });
+                let rows: Vec<Value> = ranked
+                    .iter()
+                    .take(LEADERS_EACH)
+                    .map(|(player, totals)| json!({ "player": named(player), "value": of(totals) }))
+                    .collect();
+                leaders.insert(name.to_owned(), Value::Array(rows));
+            }
+            json!({ "since": today, "leaders": leaders })
+        }
+        Endpoint::AllTime => {
+            let all = history.all_time()?;
+            let counters = &all.totals.counters;
+            json!({
+                "players": all.players,
+                "matches": all.matches,
+                "kills": all.totals.kills,
+                "assists": counters.assists,
+                "shots": counters.shots,
+                "hits": counters.hits,
+                "accuracy": accuracy(counters.shots, counters.hits),
+                "played_s": all.totals.played_ms / 1000,
+            })
         }
         Endpoint::Clans { by, limit } => {
             let clans: Vec<Value> = history.clans(*by, *limit)?.iter().map(clan_line).collect();

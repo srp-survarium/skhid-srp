@@ -20,6 +20,7 @@
       overall: 'Overall', inMatches: 'In matches', last30: 'Last 30 days', ended: 'Ended', duration: 'Duration',
       map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
       win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', inTotals: 'In totals', yes: 'Yes', no: 'No', hours: 'Hours played',
+      today: 'Daily leaders', allTime: 'All time', shots: 'Shots fired',
       accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
       accuracyNote: '1000+ shots', averageNote: '20+ matches', headshotRate: 'HS %',
       noMatches: 'No public matches yet.', noPlayer: 'No player with public matches named “{}”.', noClan: 'No clan tagged [{}].',
@@ -37,6 +38,7 @@
       overall: 'Загалом', inMatches: 'У матчах', last30: 'Останні 30 днів', ended: 'Завершено', duration: 'Тривалість',
       map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
       win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', inTotals: 'У підсумках', yes: 'Так', no: 'Ні', hours: 'Годин у грі',
+      today: 'Лідери дня', allTime: 'За весь час', shots: 'Постріли',
       accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
       accuracyNote: '1000+ пострілів', averageNote: '20+ матчів', headshotRate: 'У голову %',
       noMatches: 'Публічних матчів ще немає.', noPlayer: 'Гравця з публічними матчами на ім’я «{}» немає.', noClan: 'Клану [{}] немає.',
@@ -374,6 +376,30 @@
     return form;
   }
 
+  // The landing's own (today, totals): the day's leaders, five short lists
+  // (the day is UTC's), and everything counted added up.
+  const LEADERS = [['kills', 'kills'], ['assists', 'assists'], ['score', 'score'], ['wins', 'wins'], ['played_s', 'hours']];
+  const LEADERS_EACH = 5;
+  function leaders(data) {
+    const value = (key, amount) => key === 'played_s' ? hours.format(amount / 3600) : n(amount);
+    return [el('h2', {className: 'stats-heading'}, TEXT.today),
+      el('div', {className: 'stats-leaders'}, LEADERS.map(([key, label]) => {
+        const rows = data && (data.leaders[key] || []).map((row, rank) => ({...row, rank}));
+        const box = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
+          [TEXT[label], row => value(key, row.value)]], rows, LEADERS_EACH, '', openPlayer);
+        if (rows) box.blank(LEADERS_EACH - rows.length);
+        return box;
+      }))];
+  }
+  function allTime(data) {
+    const v = key => data ? n(data[key]) : null;
+    const box = panels([TEXT.allTime, [[TEXT.players, v('players')], [TEXT.matches, v('matches')], [TEXT.kills, v('kills')],
+      [TEXT.assists, v('assists')], [TEXT.shots, v('shots')], [TEXT.accuracy, data ? aim(data) : null],
+      [TEXT.hours, data ? hours.format(data.played_s / 3600) : null]]]);
+    box.classList.add('stats-all');
+    return box;
+  }
+
   function boardsView() {
     heading(TEXT.stats, document.getElementById('stats-eyebrow').textContent, '');
     let board = BOARDS[asked('board')] ? asked('board') : 'players';
@@ -442,7 +468,10 @@
       button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; draw(); });
       tabs.append(button);
     }
-    root.replaceChildren(finder(), tabs, keys, body);
+    const today = el('div', {}, leaders(null)), all = el('div', {}, allTime(null));
+    root.replaceChildren(finder(), today, all, tabs, keys, body);
+    api('today', {}).then(data => today.replaceChildren(...leaders(data || {leaders: {}})), () => today.replaceChildren());
+    api('totals', {}).then(data => data ? all.replaceChildren(allTime(data)) : all.replaceChildren(), () => all.replaceChildren());
     draw();
   }
 
