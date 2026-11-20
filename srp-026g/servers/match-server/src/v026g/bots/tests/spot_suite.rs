@@ -29,7 +29,11 @@
 //!   A's side of the spot (nearer A than the goal) the planner has a route from, by any way (`via` any-way). The spot passes
 //!   when every start reaches the goal with 0 errors.
 //! - `spot_suite_run`: `SRP_SPOT_SUITE_STARTS=<starts tsv>`, `SRP_SPOT_SUITE_OUT=<results tsv>`, optional
-//!   `SRP_SPOT_SUITE_ONLY=S001,S017`, `SRP_SPOT_SUITE_THREADS=<n>` (default 2), `SRP_SPOT_SUITE_SECONDS` (default 60),
+//!   `SRP_SPOT_SUITE_ONLY=S001,S017` (or a file of one spot a line: the per-PR gate on a spot list; each start keeps the
+//!   seed it has in the full run, its row's place among its map's rows of the whole starts file, so a subset's rows are the
+//!   full run's rows of those spots), `SRP_SPOT_SUITE_THREADS=<n>` (default 2; each start runs on a thread of its own, so no
+//!   per-thread cache of the planner carries from one start to the next and the rows do not depend on the threads' timing),
+//!   `SRP_SPOT_SUITE_SECONDS` (default 60),
 //!   `SRP_SPOT_SUITE_NOTES=<notes tsv>` (default the results' path with `.notes.tsv` appended), `SRP_SPOT_SUITE_TRACE` (any
 //!   value: the per-tick trace below). One line a start: whether the bot reached G, passed P, and its ERRORS, read from its
 //!   own notes:
@@ -304,9 +308,14 @@ const ANY_WAY_FLOOR_M: f32 = 4.0;
 
 /// The spots of `SRP_SPOT_SUITE_ANY_WAY`: a file of one spot a line, or a comma list; none when unset.
 fn any_way_spots() -> Vec<String> {
-    let Ok(value) = std::env::var("SRP_SPOT_SUITE_ANY_WAY") else { return Vec::new() };
+    spot_list("SRP_SPOT_SUITE_ANY_WAY").unwrap_or_default()
+}
+
+/// The spots the environment variable `name` lists: a file of one spot a line (`#` a comment), or a comma list; none when unset.
+fn spot_list(name: &str) -> Option<Vec<String>> {
+    let value = std::env::var(name).ok().filter(|v| !v.trim().is_empty())?;
     let text = std::fs::read_to_string(&value).unwrap_or_else(|_| value.replace(',', "\n"));
-    text.lines().map(str::trim).filter(|s| !s.is_empty() && !s.starts_with('#')).map(str::to_owned).collect()
+    Some(text.lines().map(str::trim).filter(|s| !s.is_empty() && !s.starts_with('#')).map(str::to_owned).collect())
 }
 
 /// An any-way spot's goals and starts ([`Rule::AnyWay`]): the goal past P (the furthest 4-10 m of grid way on, then its fork,
@@ -1257,13 +1266,28 @@ fn spot_suite_run() {
         return;
     };
     setup();
-    let only: Option<Vec<String>> = std::env::var("SRP_SPOT_SUITE_ONLY").ok().map(|s| s.split(',').map(|x| x.trim().to_owned()).collect());
+    let only: Option<Vec<String>> = spot_list("SRP_SPOT_SUITE_ONLY");
     let threads: usize = std::env::var("SRP_SPOT_SUITE_THREADS").ok().and_then(|v| v.parse().ok()).unwrap_or(2).max(1);
     let limit_ms: u32 = std::env::var("SRP_SPOT_SUITE_SECONDS").ok().and_then(|v| v.parse::<u32>().ok()).unwrap_or(60) * 1000;
     let notes_path = std::env::var("SRP_SPOT_SUITE_NOTES").unwrap_or_else(|_| format!("{out_path}.notes.tsv"));
     let (_, rows) = tsv_rows(&starts);
-    let rows: Vec<_> = rows.into_iter().filter(|r| only.as_ref().is_none_or(|o| o.contains(&r["spot"]))).collect();
-    let mut projects: Vec<String> = rows.iter().map(|r| r["project"].clone()).collect();
+    // Each start's seed is its row's place among its map's rows of the WHOLE starts file, taken before `SRP_SPOT_SUITE_ONLY`
+    // keeps a subset: a subset run walks each of its starts exactly as the full run does (the per-PR gate on a spot list).
+    let mut seen: HashMap<String, u32> = HashMap::new();
+    let seeds: Vec<u32> = rows
+        .iter()
+        .map(|r| {
+            let n = seen.entry(r["project"].clone()).or_insert(0);
+            *n += 1;
+            *n - 1
+        })
+        .collect();
+    let rows: Vec<_> = rows
+        .into_iter()
+        .zip(seeds)
+        .filter(|(r, _)| only.as_ref().is_none_or(|o| o.contains(&r["spot"])))
+        .collect();
+    let mut projects: Vec<String> = rows.iter().map(|(r, _)| r["project"].clone()).collect();
     projects.sort();
     projects.dedup();
     let out = Mutex::new(std::fs::File::create(&out_path).unwrap_or_else(|e| panic!("{out_path}: {e}")));
@@ -1281,7 +1305,7 @@ fn spot_suite_run() {
         Mutex::new(file)
     });
     for project in projects {
-        let list: Vec<&HashMap<String, String>> = rows.iter().filter(|r| r["project"] == project).collect();
+        let list: Vec<(&HashMap<String, String>, u32)> = rows.iter().filter(|(r, _)| r["project"] == project).map(|(r, s)| (r, *s)).collect();
         let world = world_of(&project);
         let next = Mutex::new(0usize);
         let started = std::time::Instant::now();
@@ -1294,7 +1318,7 @@ fn spot_suite_run() {
                         *n += 1;
                         i
                     };
-                    let Some(row) = list.get(i) else { break };
+                    let Some(&(row, seed)) = list.get(i) else { break };
                     let head = format!("{}\t{}\t{}\t{}\t{}", row["spot"], row["project"], row["start"], row["via"], row["link_kind"]);
                     // A starts file before the `why` column (spot-starts-v1.tsv): none said.
                     let why = row.get("why").map_or("-", String::as_str);
@@ -1303,7 +1327,13 @@ fn spot_suite_run() {
                             let a = v3(row, "ax", "ay", "az").unwrap_or(p);
                             let leg = Leg { start: s, goal: g, a, p };
                             let mut trace = trace_out.as_ref().map(|_| TickTrace { head: format!("{}\t{}", row["spot"], row["start"]), rows: String::new() });
-                            let o = walk(&world, &project, &leg, limit_ms, i as u32, trace.as_mut());
+                            // Each start on a thread of its own: the planner keeps per-thread caches whose filling decides what a
+                            // poll's budget walks (mapdata's PULL_WALKS: a cached pull-walk answer is free, a new one spends
+                            // the poll's walk ticks), so on a shared worker a start's routes would depend on the starts that
+                            // ran there before it, and the run's rows on the workers' timing.
+                            let o = std::thread::scope(|own| {
+                                own.spawn(|| walk(&world, &project, &leg, limit_ms, seed, trace.as_mut())).join().expect("a start's walk")
+                            });
                             if let (Some(file), Some(trace)) = (trace_out.as_ref(), trace) {
                                 file.lock().unwrap().write_all(trace.rows.as_bytes()).unwrap();
                             }
