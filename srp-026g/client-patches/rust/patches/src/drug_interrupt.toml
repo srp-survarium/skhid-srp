@@ -1,4 +1,5 @@
-# Patch 84: a bullet that hits a player stops the healing drug he is using.
+# Patch 84: a bullet that hits a player stops the healing drug he is using
+# (a medkit, the bandages; not the painkiller, not the antitoxin).
 # The site (hit_impl once the hit took health) is sites_026g.tsv's; the logic
 # is drug_interrupt.rs.
 name = "drug_interrupt"
