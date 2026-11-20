@@ -177,3 +177,17 @@ one of them, at (-46.9, 17.94, 64.94), stands 0.98 m from `respawn_point(6)`, an
 map leaves without a zone.
 
 Not played in a game.
+
+## Name and build (the owner, 2026-11-20)
+
+"Our london maps should have 0.31 in the name" and "be sorted properly too". London's two name keys,
+`st_level_09_name` (loading screen, HUD, site) and `st_srp_map_london` (the rooms' tiles and list), are
+each language's word for London with " (v0.31)", as the other ports' names carry their build.
+
+The other ports' build is their project's prefix (`v021d_level_03`); London's projects keep the native
+name `level_09`. Its game mode configs carry it instead: `modes.tsv`'s `build` column writes
+`mode.srp_build` = `v031a` into the ten London configs, and Blackout's and Free for All's copies take it
+with them. The server (`survarium::v026g::maps::Build::of`) and the Maps tab
+(`scripts/released-game/game_maps.py`) read a config's `srp_build`, else the project's prefix, so the
+room list and the site order London between the 0.21 maps and 0.69. Until a release builds the content
+with it, London sorts with the 0.26 maps.

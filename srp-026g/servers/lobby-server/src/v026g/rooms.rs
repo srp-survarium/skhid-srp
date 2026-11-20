@@ -252,6 +252,19 @@ struct Ready {
     gear: u8,
 }
 
+/// The room list's entries ordered by their maps' builds (0.26, 0.11, 0.21,
+/// 0.31, 0.69, STALKER: the owner's of 2026-11-19 and, for London, of
+/// 2026-11-20), each map where its first entry came, its weathers in the
+/// list's order. Stable.
+pub(super) fn by_build(mut entries: Vec<(maps::Build, PoolEntry)>) -> Vec<PoolEntry> {
+    let levels: Vec<u8> = entries.iter().map(|(_, entry)| entry.level).collect();
+    entries.sort_by_key(|&(build, entry)| {
+        let map = levels.iter().position(|&level| level == entry.level);
+        (build, map, maps::weather::list_place(entry.weather))
+    });
+    entries.into_iter().map(|(_, entry)| entry).collect()
+}
+
 impl Core<'_> {
     /// The maps a pool may hold, in the order their bits name them and the
     /// create window lists them: the match pool (Blackout's maps too, mode
@@ -269,7 +282,7 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        let mut entries: Vec<(maps::Build, PoolEntry)> = pool
+        let entries: Vec<(maps::Build, PoolEntry)> = pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
@@ -283,19 +296,11 @@ impl Core<'_> {
                     extra,
                     bots: self.settings.pvb.bot_maps.contains(&id),
                 };
-                Some((map.build(), entry))
+                Some((map.build, entry))
             })
             .collect();
-        // Stable: by build (0.26, 0.11, 0.21, 0.69, STALKER), each map where
-        // its first id came, its weathers in the list's order.
-        let levels: Vec<u8> = entries.iter().map(|(_, entry)| entry.level).collect();
-        entries.sort_by_key(|&(build, entry)| {
-            let map = levels.iter().position(|&level| level == entry.level);
-            (build, map, maps::weather::list_place(entry.weather))
-        });
-        entries
+        by_build(entries)
             .into_iter()
-            .map(|(_, entry)| entry)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()

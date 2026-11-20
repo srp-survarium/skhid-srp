@@ -276,6 +276,8 @@ pub struct MapMode {
     pub weather: u8,
     /// `match_making_params.map_name`: the project under `projects/`.
     pub project: &'static str,
+    /// The build its scene comes from ([`Build::of`]).
+    pub build: Build,
     /// Whether the game data has that project's `client_project`.
     pub has_project: bool,
     /// `ui.loading_screen_id` and `ui.icon`.
@@ -344,30 +346,50 @@ impl MapMode {
     /// mp_bath, mp_military_1, mp_training_camp and mp_rembasa, the SoC Station and Depository),
     /// in every mode.
     pub fn is_stalker(&self) -> bool {
-        self.build() == Build::Stalker
-    }
-
-    /// The build its scene comes from, by its project's prefix.
-    pub fn build(&self) -> Build {
-        match self.project.split_once('_').map(|(prefix, _)| prefix) {
-            Some("v011e") => Build::V011,
-            Some("v021d") => Build::V021,
-            Some("v069d") => Build::V069,
-            Some("v010b") => Build::Stalker,
-            _ => Build::V026,
-        }
+        self.build == Build::Stalker
     }
 }
 
 /// The build a map's scene comes from, in the order lists show them (the owner,
-/// 2026-11-19: 0.26 maps, 0.11, 0.21, 0.69, the STALKER maps).
+/// 2026-11-19: 0.26 maps, 0.11, 0.21, 0.69, the STALKER maps; 2026-11-20: London's
+/// 0.31 after the 0.21 maps).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Build {
     V026,
     V011,
     V021,
+    V031,
     V069,
     Stalker,
+}
+
+impl Build {
+    /// The build a tag names: a ported project's prefix (`v021d_level_03`) or
+    /// a config's `srp_build`.
+    fn of_tag(tag: &str) -> Option<Self> {
+        match tag {
+            "v011e" => Some(Self::V011),
+            "v021d" => Some(Self::V021),
+            "v031a" => Some(Self::V031),
+            "v069d" => Some(Self::V069),
+            "v010b" => Some(Self::Stalker),
+            _ => None,
+        }
+    }
+
+    /// A config's build: its `mode.srp_build` (`modes.tsv`'s `build`, for a
+    /// port whose projects keep their native names: London's `level_09` is
+    /// 0.31a2's), else its project's prefix; a project with none is 0.26g's.
+    pub fn of(srp_build: Option<&str>, project: &str) -> Result<Self, ConfigError> {
+        match srp_build {
+            Some(tag) => Self::of_tag(tag)
+                .ok_or_else(|| ConfigError(format!("`srp_build` {tag} is none of srp's builds"))),
+            None => Ok(project
+                .split_once('_')
+                .and_then(|(prefix, _)| Self::of_tag(prefix))
+                .unwrap_or(Self::V026)),
+        }
+    }
 }
 
 /// A number of a game mode config; a missing one is 0.
@@ -759,6 +781,8 @@ impl MapMode {
                 container_teams: None,
                 world_objects: &NO_WORLD_OBJECTS,
             });
+        let project_name = text(making, "map_name")?;
+        let srp_build = Some(text(Some(mode), "srp_build")?).filter(|tag| !tag.is_empty());
         let row = Self {
             id,
             config: leak_str(cfg_mode_name),
@@ -766,7 +790,8 @@ impl MapMode {
             mode: game_mode,
             level: int(making, "map_id")?,
             weather: int(making, "map_weather_id")?,
-            project: text(making, "map_name")?,
+            project: project_name,
+            build: Build::of(srp_build, project_name)?,
             has_project: project.is_some(),
             loading_screen_id: int(ui, "loading_screen_id")?,
             icon: int(ui, "icon")?,
@@ -1182,6 +1207,38 @@ mod tests {
             (map.map_name_key, map.mode_name_key),
             ("st_level_01_name", "st_mode_02_name")
         );
+    }
+
+    /// A map's build is its data's: a ported project's prefix, or for London
+    /// (`level_09`, 0.31a2's) its configs' `srp_build` (`modes.tsv`); lists
+    /// show 0.21 maps, then London, then 0.69 (the owner, 2026-11-20).
+    #[test]
+    fn a_maps_build_is_its_prefix_or_its_srp_build() {
+        let added = |id, level, project: &'static str, srp_build| fixtures::AddedMap {
+            id: MapId::new(id),
+            config: leak_str(&format!("{}.options", project.replace('/', "_"))),
+            level,
+            project,
+            srp_build,
+            ..fixtures::AddedMap::level_12_tdm()
+        };
+        let build_of = |map: &fixtures::AddedMap| {
+            let table = fixtures::table_of(&fixtures::with_map(map)).unwrap();
+            table.iter().find(|row| row.id == map.id).unwrap().build
+        };
+        let v069 = added(200, 14, "v069d_level_01/day_4", None);
+        let london = added(201, 9, "level_09/day_4", Some("v031a"));
+        let v021 = added(202, 10, "v021d_level_03/day_4", None);
+        let mut builds = [&v069, &london, &v021].map(|map| (build_of(map), map.level));
+        builds.sort();
+        assert_eq!(
+            builds,
+            [(Build::V021, 10), (Build::V031, 9), (Build::V069, 14)]
+        );
+        assert_eq!(build_of(&added(203, 9, "level_09/day_4", None)), Build::V026);
+        assert!(all().iter().all(|map| map.build == Build::V026));
+        let unknown = added(204, 9, "level_09/day_4", Some("v031"));
+        assert!(fixtures::table_of(&fixtures::with_map(&unknown)).is_err());
     }
 
     #[test]

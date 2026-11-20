@@ -3088,3 +3088,33 @@ fn a_create_in_one_request_without_a_pin_or_malformed_is_refused() {
             .any(|decoded| matches!(decoded, Decoded::Friendship(FriendshipPush::Found { .. }))),
     );
 }
+
+/// The room list orders maps by build (the owner's of 2026-11-19), London,
+/// 0.31a2's, after the 0.21 maps and before 0.69 (2026-11-20), whatever
+/// order the pool has them in; a map's weathers stay day, evening, rain.
+#[test]
+fn the_room_list_puts_london_between_the_021_and_069_maps() {
+    use maps::{Build, weather};
+    let entry = |id, level, weather| survarium::v026g::lobby::rooms::PoolEntry {
+        map_id: MapId::new(id),
+        level,
+        weather,
+        mode: 2,
+        extra: false,
+        bots: false,
+    };
+    let pool = vec![
+        (Build::V069, entry(270, 14, weather::DAY)),
+        (Build::V031, entry(276, 9, weather::RAIN)),
+        (Build::V021, entry(166, 10, weather::DAY)),
+        (Build::V031, entry(181, 9, weather::DAY)),
+        (Build::V026, entry(61, 1, weather::DAY)),
+        (Build::V031, entry(279, 9, weather::EVENING)),
+        (Build::Stalker, entry(200, 15, weather::DAY)),
+    ];
+    let order: Vec<u16> = crate::v026g::rooms::by_build(pool)
+        .iter()
+        .map(|entry| entry.map_id.get())
+        .collect();
+    assert_eq!(order, [61, 166, 181, 279, 276, 270, 200]);
+}

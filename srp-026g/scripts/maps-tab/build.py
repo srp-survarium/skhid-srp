@@ -55,7 +55,7 @@ HERE = Path(__file__).resolve().parent
 SRP = HERE.parents[1]
 sys.path.insert(0, str(SRP / "scripts" / "released-game"))
 from released import LIST, die, extract, offered, revision as revision_of, write_built_from  # noqa: E402
-from game_maps import FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
+from game_maps import BUILDS, FREE_FOR_ALL, WANTED, hud_minimaps, load, playable  # noqa: E402
 sys.path.insert(0, str(SRP / "scripts" / "kill-feed-icons"))
 import make_battery_icon  # noqa: E402
 
@@ -278,7 +278,8 @@ def main():
         out.mkdir(parents=True, exist_ok=True)
         data_maps, missing = [], []
         used_artefacts = set()
-        for folder in sorted(maps, key=lambda f: (f.startswith("v"), f)):
+        # By build, as the room list (BUILDS), each build's maps by folder.
+        for folder in sorted(maps, key=lambda f: (BUILDS.index(maps[f]["build"]), f)):
             m = maps[folder]
             modes, project_name, artefacts = [], None, None
             for mode_id in sorted(m["modes"]):
