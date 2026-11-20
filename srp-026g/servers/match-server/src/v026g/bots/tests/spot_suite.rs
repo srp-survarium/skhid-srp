@@ -43,7 +43,8 @@
 //!
 //!   Every note of the bot goes to the notes TSV (`spot`, `start`, `ms`, `kind`: one of the above, `lip-other`, `jump-unread`
 //!   or `other` for a note that is no error; `at_spot`: 1 when the note's point (its own, else the body's feet) is within
-//!   2.5 m of A or P; `motor`: the route's leg and next link and what the motor was doing with its link, `Motor::bench_link_text`;
+//!   2.5 m of A or P; `motor`: the route's leg and next link (of the route seen at the poll before when the note's own decision dropped
+//!   it) and what the motor was doing with its link, `Motor::bench_link_text`;
 //!   `text`: the full note). The results count the errors at the spot and on the way (`errors_at_spot`, `errors_on_way`).
 //!
 //! A spot passes when every start reaches G with 0 errors. A SETUP error of the suite, not of the spot (`setup` 1, left out of
@@ -602,7 +603,7 @@ struct NoteRow {
 }
 
 /// The bot when a note came: its body's feet, the take-offs of the drop and jump links of its route's leg and the next
-/// ([`link_take_offs`]), and its leg's and motor's state ([`motor_text`]).
+/// ([`link_take_offs`]), and its leg's and motor's state ([`leg_text`], `Motor::bench_link_text`).
 struct At {
     feet: Vec3,
     take_offs: Vec<Vec3>,
@@ -813,36 +814,55 @@ fn link_take_offs(route: &Route) -> Vec<Vec3> {
         .collect()
 }
 
-/// The notes' `motor`: the leg the body is on, the route's next link and its take-off, and the motor's link state
-/// (`Motor::bench_link_text`).
-fn motor_text(bot: &Bot) -> String {
-    let leg = bot.route.as_ref().map_or("no route".to_owned(), |(route, _)| {
-        let points = route.points();
-        let drops = drops_ahead(route);
-        let k = route.segment() + 1;
-        if k >= points.len() {
-            return "leg end".to_owned();
-        }
-        let next = (k..points.len()).find(|&j| leg_kind(points, j, &drops).link()).map_or("none".to_owned(), |j| {
-            let t = points[j - 1].at;
-            format!("{} from ({:.1}, {:.1}, {:.1})", leg_kind(points, j, &drops).word(), t.x, t.y, t.z)
-        });
-        format!("leg {}, next link {next}", leg_kind(points, k, &drops).word())
+/// The notes' `motor` first part: the leg the body is on, and the route's next link and its take-off.
+fn leg_text(route: &Route) -> String {
+    let points = route.points();
+    let drops = drops_ahead(route);
+    let k = route.segment() + 1;
+    if k >= points.len() {
+        return "leg end".to_owned();
+    }
+    let next = (k..points.len()).find(|&j| leg_kind(points, j, &drops).link()).map_or("none".to_owned(), |j| {
+        let t = points[j - 1].at;
+        format!("{} from ({:.1}, {:.1}, {:.1})", leg_kind(points, j, &drops).word(), t.x, t.y, t.z)
     });
-    format!("{leg}; {}", bot.motor.bench_link_text())
+    format!("leg {}, next link {next}", leg_kind(points, k, &drops).word())
 }
 
-/// The bot and its body now, for a note ([`At`]).
-fn at_of(bots: &Bots, game: &Game) -> At {
-    let feet = game.bodies[0].feet;
-    match bots.bots[0].as_ref() {
-        Some(bot) => At {
-            feet,
-            take_offs: bot.route.as_ref().map_or_else(Vec::new, |(route, _)| link_take_offs(route)),
-            motor: motor_text(bot),
-        },
-        None => At { feet, take_offs: Vec::new(), motor: "no bot".to_owned() },
+/// The bot's route as last seen at a poll ([`RouteSeen::look`]): a note often comes out of the decision that dropped the
+/// route (a stuck back-off, a jump's watch ending), so the leg it was on is the one seen before.
+#[derive(Default)]
+enum RouteSeen {
+    /// No route seen yet.
+    #[default]
+    Never,
+    /// At the motor's tick `ms`: its leg text ([`leg_text`]) and its links' take-offs ([`link_take_offs`]).
+    At { ms: u32, leg: String, take_offs: Vec<Vec3> },
+}
+
+impl RouteSeen {
+    /// The bot's route after a poll at `ms`, when it has one.
+    fn look(&mut self, bot: &Bot, ms: u32) {
+        if let Some((route, _)) = bot.route.as_ref() {
+            *self = Self::At { ms, leg: leg_text(route), take_offs: link_take_offs(route) };
+        }
     }
+}
+
+/// The bot and its body now, for a note at `ms` ([`At`]): the leg of its route now, else of the route last seen (`seen`).
+fn at_of(bots: &Bots, game: &Game, seen: &RouteSeen, ms: u32) -> At {
+    let feet = game.bodies[0].feet;
+    let Some(bot) = bots.bots[0].as_ref() else {
+        return At { feet, take_offs: Vec::new(), motor: "no bot".to_owned() };
+    };
+    let (leg, take_offs) = match (bot.route.as_ref(), seen) {
+        (Some((route, _)), _) => (leg_text(route), link_take_offs(route)),
+        (None, RouteSeen::At { ms: at, leg, take_offs }) => {
+            (format!("no route now; {} ms before: {leg}", ms.saturating_sub(*at)), take_offs.clone())
+        }
+        (None, RouteSeen::Never) => ("no route".to_owned(), Vec::new()),
+    };
+    At { feet, take_offs, motor: format!("{leg}; {}", bot.motor.bench_link_text()) }
 }
 
 /// A note's text in one TSV cell.
@@ -1023,6 +1043,7 @@ fn walk(world: &Arc<World>, project: &str, leg: &Leg, limit_ms: u32, seed: u32, 
     let (mut clock, mut next_world) = (0u32, world_ms);
     let mut out = Outcome::default();
     let mut end_at = limit_ms;
+    let mut seen = RouteSeen::default();
     while clock < end_at {
         clock += 5;
         while game.tick + TICK_MS <= clock {
@@ -1037,7 +1058,7 @@ fn walk(world: &Arc<World>, project: &str, leg: &Leg, limit_ms: u32, seed: u32, 
             }
             if !body.alive && !out.died {
                 out.died = true;
-                let at = at_of(&bots, &game);
+                let at = at_of(&bots, &game, &seen, clock);
                 out.push(clock, NoteKind::Died, at.feet, leg, at.motor, "died".to_owned());
                 end_at = clock;
             }
@@ -1075,7 +1096,7 @@ fn walk(world: &Arc<World>, project: &str, leg: &Leg, limit_ms: u32, seed: u32, 
                 notes.extend(bots.facts(facts));
                 for note in notes {
                     if note.place == 0 {
-                        out.note(&note.text, clock, leg, at_of(&bots, &game));
+                        out.note(&note.text, clock, leg, at_of(&bots, &game, &seen, clock));
                     }
                 }
             }
@@ -1088,8 +1109,11 @@ fn walk(world: &Arc<World>, project: &str, leg: &Leg, limit_ms: u32, seed: u32, 
         });
         for note in notes {
             if note.place == 0 {
-                out.note(&note.text, clock, leg, at_of(&bots, &game));
+                out.note(&note.text, clock, leg, at_of(&bots, &game, &seen, clock));
             }
+        }
+        if let Some(bot) = bots.bots[0].as_ref() {
+            seen.look(bot, clock);
         }
         if out.resolved.is_none()
             && let Some(Some(crate::v026g::bots::plays::Go::To { at, .. })) = bots.bots[0].as_ref().map(|bot| bot.bench_go)
@@ -1107,7 +1131,7 @@ fn walk(world: &Arc<World>, project: &str, leg: &Leg, limit_ms: u32, seed: u32, 
     }
     out.end = game.bodies[0].feet;
     if out.reached_ms.is_none() && !out.died {
-        let at = at_of(&bots, &game);
+        let at = at_of(&bots, &game, &seen, clock);
         out.push(clock, NoteKind::Timeout, out.end, leg, at.motor, format!("not at the goal after {limit_ms} ms"));
     }
     out
