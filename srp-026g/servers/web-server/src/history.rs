@@ -17,6 +17,7 @@ use session::v026g::persist::history::{
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps;
 
+use crate::icons::{self, IconSet};
 use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, wiki};
 
 /// Where the API is.
@@ -696,15 +697,18 @@ fn winner(winner: Winner) -> Value {
     }
 }
 
-/// What a match was played on, in `lang`: the map's name and its key in the
-/// wiki's Maps page (its project's folder; both `null` for a map the game
-/// data no longer has), the mode's name as the rooms name it, and its
-/// rules' number (the Maps page's mode).
+/// What a match was played on, in `lang`: the map's name, its key in the
+/// wiki's Maps page (its project's folder) and its picture as the rooms draw
+/// it (all `null` for a map the game data no longer has; the picture also
+/// for one the lobby has none of), the mode's name as the rooms name it, and
+/// its rules' number (the Maps page's mode).
 fn played(info: &MatchInfo, lang: Lang) -> Value {
     let map = maps::map_mode(info.map_id);
     json!({
         "map": map.map(|map| launcher::map_name(lang, map)),
         "map_key": map.and_then(|map| map.project.split('/').next()),
+        "map_icon": map
+            .and_then(|map| icons::url(IconSet::Map, &format!("{}_{}", map.level, map.weather))),
         "mode": launcher::lobby_mode_name(lang, info.mode),
         "rules": info.mode.mode().rules().number(),
     })

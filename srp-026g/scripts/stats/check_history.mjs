@@ -157,6 +157,10 @@ try {
   const newest = answered.matches.matches[0].id;
   assert.equal(newest, 23);
   assert.equal(await text('.stats-board .stats-table tbody tr td:nth-child(2)'), String(newest), 'newest first');
+  // Each match with its map's picture, the rooms' own.
+  assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-board img.stats-map')].map(i => new URL(i.src).pathname + new URL(i.src).search))")),
+    answered.matches.matches.map(row => row.map_icon));
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-board img.stats-map')].every(i => i.complete ? i.naturalWidth === 128 : true)"), true);
   // A click anywhere on a match's row opens it.
   await evaluate("document.querySelector('.stats-board .stats-table tbody tr td:nth-child(4)').click()");
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -287,6 +291,7 @@ try {
   assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-team')].map(h => getComputedStyle(h).borderLeftColor))")),
     ['rgb(59, 130, 246)', 'rgb(229, 72, 77)']);
   const played = answered.match.match;
+  assert.equal(await evaluate("(i => new URL(i.src).pathname + new URL(i.src).search)(document.querySelector('.stats-panels img.stats-map-large'))"), played.map_icon, 'the match with its map\'s picture');
   assert.equal(await evaluate("(a => a.pathname + a.hash)([...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Map').nextSibling.querySelector('a'))"),
     `/wiki/maps#${played.map_key}/${played.rules}`);
   await navigate(`/wiki/maps?lang=en#${played.map_key}/${played.rules}`);
