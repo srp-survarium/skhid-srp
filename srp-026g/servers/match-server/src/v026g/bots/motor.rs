@@ -1056,6 +1056,9 @@ pub struct Motor {
     link_why: link_time::Why,
     /// The walk key set held ([`Motor::pick_keys`]).
     key_hold: Option<KeyHold>,
+    /// [spot suite] TEST ONLY: what held the route jump's press last, and the motor's tick ([`PressHeld`]).
+    #[cfg(test)]
+    bench_held: Option<(u32, PressHeld)>,
 }
 
 /// The walk key set held: its sector (45 degrees apart, 0 forward, positive
@@ -1110,6 +1113,49 @@ struct JumpTry {
 struct PressWait {
     since: u32,
     tries: u32,
+}
+
+/// [spot suite] TEST ONLY: what held a route jump's press at the last tick [`Motor::jump_key`] did not press (the first of its
+/// tests that refused, in its order), for the suite's notes ([`Motor::bench_link_text`]). Decides nothing.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum PressHeld {
+    /// The body cannot jump now ([`Pose::no_jump`]).
+    NoJump,
+    /// A route jump is carried through its clip ([`Motor::carrying`]).
+    Carrying,
+    /// The sprint lift: no press.
+    Lift,
+    /// Under the take-off out of reach of any jump: given up ([`Feel::press_in_reach`]).
+    GaveUpUnder,
+    /// A sprint gap link not at the client's sprint: no press (a back-off at its press point).
+    SprintGapNotSprinted,
+    /// A sprint approach still running up before the take-off.
+    SprintRunUp,
+    /// Not due: the first term of the press's test that was false.
+    NotDue(DueTerm),
+    /// Not pressed as the grid flew it ([`flown_press_off`]): a back-off.
+    FlownOff(FlownOff),
+    /// A sprint-band face short of the speed: backed off or held.
+    Band,
+    /// The landing out of reach of this press from where the feet are: the walk goes on.
+    OutOfReach,
+    /// [A347a] Later than its window's latest press: a back-off.
+    LatePress,
+    /// [A364 P6] A walk that would not carry the jump: a back-off.
+    WalkReach,
+}
+
+/// [spot suite] TEST ONLY: the term of [`Motor::jump_key`]'s due test that held the press ([`PressHeld::NotDue`]).
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DueTerm {
+    NotLined,
+    NotGoing,
+    NotWalking,
+    Facing,
+    NotNear,
+    Resting,
 }
 
 /// [A386] Where a slow press's walk-up is (A385-FORMAT §1 `Kind::Slow`: the body comes to rest at the run-up point, then walks
@@ -1665,6 +1711,8 @@ impl Motor {
             links: super::link_time::Watch::default(),
             link_why: link_time::Why::Unknown,
             key_hold: None,
+            #[cfg(test)]
+            bench_held: None,
         }
     }
 
@@ -1750,6 +1798,57 @@ impl Motor {
     #[cfg(test)]
     pub(crate) fn test_line_up(&mut self) {
         self.lining = Lining::Walk;
+    }
+
+    /// [spot suite] TEST ONLY: this tick's route jump went unpressed for `held` ([`Self::bench_link_text`]).
+    #[cfg(test)]
+    fn bench_hold(&mut self, held: PressHeld) {
+        self.bench_held = Some((self.clock, held));
+    }
+
+    /// [spot suite] TEST ONLY: what the motor is doing with its route's link now, as one short line for the suite's notes
+    /// (`tests/spot_suite.rs`): the line-up, the approach's state ([`link_time::Why`]), and the route jump being made with its
+    /// tries, its wait at the press point ([`PressWait`], seconds), its band, lift and walk-up states, and what held its press
+    /// last ([`PressHeld`], seconds ago). Decides nothing.
+    #[cfg(test)]
+    pub(crate) fn bench_link_text(&self) -> String {
+        let lining = match self.lining {
+            Lining::No => "none",
+            Lining::Walk => "walk",
+            Lining::Sprint => "sprint",
+        };
+        let mut text = format!("lining {lining}, approach {:?}", self.link_why);
+        if self.carrying {
+            text.push_str(", carrying");
+        }
+        let Some(jump) = self.jump_try else {
+            text.push_str(", no route jump");
+            return text;
+        };
+        let at = |v: Vec3| format!("({:.1}, {:.1}, {:.1})", v.x, v.y, v.z);
+        text.push_str(&format!(
+            ", jump {} to {} try {}{}",
+            at(jump.take_off),
+            at(jump.landing),
+            jump.tries,
+            if jump.back { " back" } else { "" }
+        ));
+        if let Some(wait) = jump.wait {
+            text.push_str(&format!(", press wait {:.1} s", self.since(wait.since)));
+        }
+        if jump.band != BandTry::Approaching {
+            text.push_str(&format!(", band {:?}", jump.band));
+        }
+        if jump.lift != LiftTry::Open {
+            text.push_str(&format!(", lift {:?}", jump.lift));
+        }
+        if jump.walk_up != WalkUp::ToRest {
+            text.push_str(&format!(", walk-up {:?}", jump.walk_up));
+        }
+        if let Some((tick, held)) = self.bench_held {
+            text.push_str(&format!(", held {held:?} {:.1} s ago", self.since(tick)));
+        }
+        text
     }
 
     /// Whether a sprint-labelled link of `rise` is in the sprint band: over the walk jump's top, or ([`Feel::band_from_grid`])
@@ -3138,10 +3237,14 @@ impl Motor {
             return 0;
         };
         if pose.no_jump || self.carrying {
+            #[cfg(test)]
+            self.bench_hold(if pose.no_jump { PressHeld::NoJump } else { PressHeld::Carrying });
             return 0;
         }
         // The sprint lift is no press: the sprint into the face carries the body up.
         if ahead.approach == Approach::Lift {
+            #[cfg(test)]
+            self.bench_hold(PressHeld::Lift);
             return 0;
         }
         // At the take-off's place (along the jump's way) under its floor, out of reach of any jump, and not in a jump:
@@ -3152,6 +3255,8 @@ impl Motor {
             jump.tries = JUMP_TRIES;
             self.keep_try(jump);
             low_presses::gave_up();
+            #[cfg(test)]
+            self.bench_hold(PressHeld::GaveUpUnder);
             return 0;
         }
         // A sprint jump is pressed at speed with sprint held (or, past its take-off, as it is: the try counts).
@@ -3188,6 +3293,8 @@ impl Motor {
                 self.links.backed_off();
                 sprint_gaps::backed_off();
             }
+            #[cfg(test)]
+            self.bench_hold(PressHeld::SprintGapNotSprinted);
             return 0;
         }
         if ahead.approach.sprints() && !sprinted && (ahead.before > 0.0 || band) {
@@ -3195,6 +3302,8 @@ impl Motor {
                 band_jumps::face_tick();
             }
             if !band || ahead.before > 0.0 {
+                #[cfg(test)]
+                self.bench_hold(PressHeld::SprintRunUp);
                 return 0;
             }
         }
@@ -3238,6 +3347,20 @@ impl Motor {
                 }
                 self.keep_try(jump);
             }
+            #[cfg(test)]
+            self.bench_hold(PressHeld::NotDue(if !ahead.lined {
+                DueTerm::NotLined
+            } else if !ahead.going {
+                DueTerm::NotGoing
+            } else if !self.walking {
+                DueTerm::NotWalking
+            } else if still > facing {
+                DueTerm::Facing
+            } else if !near {
+                DueTerm::NotNear
+            } else {
+                DueTerm::Resting
+            }));
             return 0;
         }
         // [A386] A gap or rim link is pressed only as the grid flew it ([`flown_press_off`]): else no press, a back-off for another
@@ -3248,6 +3371,8 @@ impl Motor {
             self.keep_try(jump);
             self.links.backed_off();
             flown_presses::off(off);
+            #[cfg(test)]
+            self.bench_hold(PressHeld::FlownOff(off));
             return 0;
         }
         if band && !sprinted {
@@ -3285,6 +3410,8 @@ impl Motor {
             self.links.backed_off();
             band_jumps::refused(block, self.sprinting, self.sprinting && pose.speed >= SPRINT_PRESS_SPEED_MS && !aligned);
             band_jumps::face(jump.take_off, ahead.rise, band_jumps::Event::Refused);
+            #[cfg(test)]
+            self.bench_hold(PressHeld::Band);
             return 0;
         }
         // The landing out of reach of the jump this press makes, from where the feet are: no press while the walk goes on
@@ -3292,6 +3419,8 @@ impl Motor {
         let reach = if sprinted && block.is_none() { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M };
         if ahead.out_of_reach(reach) {
             low_presses::held();
+            #[cfg(test)]
+            self.bench_hold(PressHeld::OutOfReach);
             return 0;
         }
         // [A347a] A walking jump up onto a short top pressed later than its window's latest press carries the body off the
@@ -3304,6 +3433,8 @@ impl Motor {
             self.keep_try(jump);
             self.links.backed_off();
             late_presses::backed_off();
+            #[cfg(test)]
+            self.bench_hold(PressHeld::LatePress);
             return 0;
         }
         // [A364 P6] A walking jump only with the walk that carries it to the landing ([`Feel::walk_jump_reach`]): the client's short
@@ -3326,6 +3457,8 @@ impl Motor {
                     self.keep_try(jump);
                     self.links.backed_off();
                     walk_reach::backed_off();
+                    #[cfg(test)]
+                    self.bench_hold(PressHeld::WalkReach);
                     return 0;
                 }
                 walk_reach::pressed_short();
@@ -3338,6 +3471,10 @@ impl Motor {
         jump.tries += 1;
         jump.pressed = Some(self.clock);
         jump.back = true;
+        #[cfg(test)]
+        {
+            self.bench_held = None;
+        }
         self.keep_try(jump);
         self.links.pressed(self.clock, pose.feet, pose.speed);
         // [owner-5] A sprint link pressed without sprint: the gate that held it, for the log (decides nothing).
