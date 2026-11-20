@@ -1505,6 +1505,28 @@ pub fn let_go_travel_m(speed: f32) -> f32 {
     speed * TICK_S + mapdata::controller::jump::blend_steps_m(speed, 5)
 }
 
+/// [map 91] The steps a slow press's rest is looked for at along the jump's line ([`rest_in_window`]), m: a fifth of the grid's
+/// cell.
+const REST_SEARCH_STEP_M: f32 = mapdata::CELL / 5.0;
+
+/// [map 91] The farthest a slow press's rest is looked for from its run-up point along the line ([`rest_in_window`]), m: the
+/// widest of the rest tests' windows ([`FlownWindow::LEAD_M`], [`LEDGE_STAND_LEAD_M`], [`AT_RUN_UP_M`]).
+const REST_SEARCH_M: f32 = max_abs([FlownWindow::LEAD_M, LEDGE_STAND_LEAD_M, AT_RUN_UP_M]);
+
+/// [map 91] Where a slow press rests when its run-up point (`at(run_up)`) has no line from the body: the point on the jump's line
+/// nearest it, [`REST_SEARCH_STEP_M`] apart up to [`REST_SEARCH_M`] either way and never past the take-off, that the rest test
+/// takes (`rest_near`) and the body walks to in a line (`clear`). The rest test decides, so a rest found is one the press is
+/// walked up from. None when the window has no such point.
+fn rest_in_window(run_up: f32, at: impl Fn(f32) -> Vec3, rest_near: &impl Fn(Vec3) -> bool, clear: &impl Fn(Vec3) -> bool) -> Option<Vec3> {
+    let steps = (REST_SEARCH_M / REST_SEARCH_STEP_M).round() as i32;
+    (1..=steps)
+        .flat_map(|k| [-k, k])
+        .map(|k| run_up + k as f32 * REST_SEARCH_STEP_M)
+        .filter(|&m| m >= 0.0)
+        .map(at)
+        .find(|&p| rest_near(p) && clear(p))
+}
+
 /// [F3] A window side narrower than this has no width (the neighbours are 0.1 m apart; the stored leads are centimetres), m.
 const LEAD_WIDTH_EPS_M: f32 = 0.005;
 
@@ -3062,6 +3084,15 @@ impl Motor {
             )
         } else if !under && clear(at(run_up)) {
             at(run_up)
+        } else if let Some(rest) = (!under && slow && jump.walk_up == WalkUp::ToRest)
+            .then(|| rest_in_window(run_up, &at, &rest_near_at, &clear))
+            .flatten()
+        {
+            // [map 91] A slow press's rest point the body has no line to (no floor there in the walk grid): the clear point
+            // nearest it that the rest test takes ([`rest_in_window`]). The route's way ends at the take-off, out of the
+            // window, and the rest was waited at forever: Mamayev Kurgan's rise (-22.60, 24.27, 57.88), its rest 0.4 m
+            // behind on no grid floor, a raised floor 0.2-0.3 m behind in the window.
+            rest
         } else {
             // The run-up not in a line yet (round a corner): the route, up
             // to the take-off.
@@ -6654,6 +6685,25 @@ mod tests {
         // No width later (the 0.1 m later neighbour does not land): today's 0.2 m that side, not a knife edge at the lead.
         let w = Some(window(0.6, 0.8));
         assert!(!lead_off(0.41, lead, w) && lead_off(0.39, lead, w) && !lead_off(0.79, lead, w));
+    }
+
+    /// [map 91] [`rest_in_window`]: a slow press's rest point with no line to it (Mamayev Kurgan's rise, the rest 0.4 m behind the
+    /// take-off on no grid floor, a raised floor 0.2-0.3 m behind) rests at the nearest clear point the rest test takes; none
+    /// when the window has none; never past the take-off.
+    #[test]
+    fn a_rest_with_no_line_is_the_nearest_clear_point_the_rest_test_takes() {
+        // The take-off at x 0, the way +x: a point m behind it is at x -m.
+        let at = |m: f32| Vec3::new(-m, 0.0, 0.0);
+        let flown_window = |p: Vec3| (p.x + 0.4).abs() <= FlownWindow::LEAD_M + 1e-4;
+        let floor_to_0_3 = |p: Vec3| -p.x <= 0.3 + 1e-4;
+        let rest = rest_in_window(0.4, at, &flown_window, &floor_to_0_3).expect("the raised floor is in the window");
+        assert!((rest.x + 0.3).abs() < 1e-4, "the clear point nearest the rest point: {rest:?}");
+        // No clear point in the window: none, not a rest the press is not walked up from.
+        assert_eq!(rest_in_window(0.4, at, &flown_window, &|p: Vec3| -p.x <= 0.15), None);
+        // A clear point the rest test does not take is not a rest.
+        assert_eq!(rest_in_window(0.4, at, &|p: Vec3| (p.x + 0.4).abs() <= 0.05, &floor_to_0_3), None);
+        // Never past the take-off.
+        assert_eq!(rest_in_window(0.1, at, &|_| true, &|p: Vec3| p.x > 0.0), None);
     }
 
     /// [A386] [`press_due`]: the key moves the body a step later (`StepInput::Previous`), so the press is the tick whose next
