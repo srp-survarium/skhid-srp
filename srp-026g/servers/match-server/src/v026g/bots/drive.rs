@@ -561,6 +561,44 @@ impl motor::PressFlyer for PressFlyer<'_> {
     }
 }
 
+/// [Go::To arrival] Whether a body still walks for a play's [`Go`], the one rule every reader of it in the drive asks. A goal
+/// is reached within its `within_m` across, and only on its floor: the floor a route to it is planned to
+/// ([`path::goal_floor`]) no more than [`motor::ARRIVE_BELOW_M`] over the feet, the motor's own end rule (`Motor::arrived`: an end
+/// up a ledge is jumped to). The flat test alone ended a walk 0.4-0.9 m across from a goal 1.03-1.08 m up a ledge: the body
+/// stood under it with no route asked, the grid's climbs up never tried (the level_04 ledge spots S182, S243, S249, S260, S262).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Arrival {
+    /// No goal ([`Go::Stay`]) or the goal reached.
+    Rests,
+    /// A goal beyond its reach across.
+    Walks(Vec3),
+    /// A goal within its reach across whose floor is up a ledge over the feet (by `rise`, m): walked to, as one beyond.
+    UpTo { at: Vec3, rise: f32 },
+}
+
+impl Arrival {
+    fn of(go: Go, feet: Vec3, grid: &mapdata::WalkGrid) -> Self {
+        let Go::To { at, within_m } = go else {
+            return Self::Rests;
+        };
+        if feet.distance_xz(at) > within_m {
+            return Self::Walks(at);
+        }
+        match path::goal_floor(grid, at).map(|node| grid.position(node).y - feet.y) {
+            Some(rise) if rise > motor::ARRIVE_BELOW_M => Self::UpTo { at, rise },
+            _ => Self::Rests,
+        }
+    }
+
+    /// The goal still walked to.
+    fn goal(self) -> Option<Vec3> {
+        match self {
+            Self::Rests => None,
+            Self::Walks(at) | Self::UpTo { at, .. } => Some(at),
+        }
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn drive_tick_inner(
     bot: &mut Bot,
@@ -702,17 +740,15 @@ fn drive_tick_inner(
     // A glance at a heard shot gives way to a play that uses something or
     // carries (`Override::glance`), and with `glance_run_yields` to one
     // that runs somewhere (a turned view slows the legs).
-    let running = tuning.aim.combat.glance_run_yields
-        && matches!(intent.pace, Pace::Run | Pace::Cruise | Pace::Arrive)
-        && matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
+    let walks = Arrival::of(intent.go, me.feet, &tactics.world.grid).goal().is_some();
+    let running = tuning.aim.combat.glance_run_yields && matches!(intent.pace, Pace::Run | Pace::Cruise | Pace::Arrive) && walks;
     let glance_yields =
         over.glance && (matches!(intent.look, Look::Use(_)) || me.carrying.is_some() || running);
     // [A227] The look along a hit marker's direction: taken with the legs going or standing, or given way.
     #[cfg(test)]
     if over.glance && bot.reflex.marker(time).is_some() {
         use super::reflex::hit_marks::{Mark, add};
-        let moving = matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
-        add(me.team, if glance_yields { Mark::LookYielded } else if moving { Mark::LookWalking } else { Mark::LookStanding });
+        add(me.team, if glance_yields { Mark::LookYielded } else if walks { Mark::LookWalking } else { Mark::LookStanding });
     }
     // A use within its reach (a take of a battery, a put-in, a steal): the
     // play's view wins over the reflex's aim, and the reflex neither takes
@@ -745,12 +781,11 @@ fn drive_tick_inner(
     // humans' length, then the course (`view_schedule.rs`); a threat (a target seen, its own shot, the aim key held) or a use
     // takes it at once, and a body not walking anywhere keeps any look.
     let look_urgent = using || over.fire || over.keys & key::AIM != 0 || bot.reflex.target().is_some() || matches!(intent.look, Look::Use(_));
-    let walking = matches!(intent.go, Go::To { at, within_m } if me.feet.distance_xz(at) > within_m);
     let before = bot.view;
     let ask = view_schedule::Ask {
         look: aim.is_some(),
         urgent: look_urgent || tuning.feel.view_rule == motor::ViewRule::Free,
-        walking,
+        walking: walks,
     };
     let (looked, take) = before.step(ask, time);
     bot.view = looked;
@@ -953,10 +988,7 @@ fn drive_tick_inner(
     {
         let resting = over.legs.is_none()
             && over.look_at.is_none()
-            && match intent.go {
-                Go::Stay => true,
-                Go::To { at, within_m } => me.feet.distance_xz(at) <= within_m,
-            };
+            && Arrival::of(intent.go, me.feet, &tactics.world.grid) == Arrival::Rests;
         if let Some(to) = bot.rest.tick(time, resting, me.speed(), me.feet, &tactics.world.grid, tuning.think.rest_off_lip)
             && reacts
         {
@@ -968,10 +1000,12 @@ fn drive_tick_inner(
     {
         bot.bench_go = Some(intent.go);
     }
-    let goal = match intent.go {
-        Go::To { at, within_m } if me.feet.distance_xz(at) > within_m => Some(at),
-        _ => None,
-    };
+    let arrival = Arrival::of(intent.go, me.feet, &tactics.world.grid);
+    if let Arrival::UpTo { at, rise } = arrival {
+        let line = super::nav_log::arrival_up_line(at, rise, me.feet);
+        bot.nav_log.push_once(super::nav_log::Kind::Arrival, super::nav_log::key(("arrival up", at.x.to_bits(), at.y.to_bits(), at.z.to_bits())), time, line);
+    }
+    let goal = arrival.goal();
     // [K1] In a held shooter's lane on its way somewhere, a bot that was to
     // walk runs: it crosses fast and keeps its task (the owner, 2026-10-26:
     // "bots should still continue accomplish their tasks"). Not in a fight
@@ -3820,6 +3854,34 @@ pub(super) fn no_way_line(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [Go::To arrival] A goal 1.03 m up a ledge, within its reach across, is still walked to from under it (as the level_04
+    /// ledge spots' were not); on its floor it is reached; beyond its reach across it is walked to. A point over the feet's own
+    /// floor (a use point a metre up) is reached from under it: its floor is the feet's.
+    #[test]
+    fn a_goal_up_a_ledge_within_its_reach_across_is_walked_to_from_under_it() {
+        // A floor at 0 and a ledge 1.03 m high from x 10 on.
+        use crate::v026g::bots::body::tests::{floor, wall_x};
+        let mut triangles: Vec<mapdata::Triangle> = floor(0.0, 0.0, 20.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 20.0, 10.0, 1.03));
+        triangles.extend(wall_x(10.0, 0.0, 10.0).map(|mut t| {
+            t.v.iter_mut().for_each(|v| v.y = v.y.min(1.03));
+            t
+        }));
+        let grid = mapdata::WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, mapdata::Body::default());
+        let goal = Vec3::new(10.4, 1.03, 5.0);
+        let go = Go::To { at: goal, within_m: 1.0 };
+        let under = Vec3::new(9.8, 0.0, 5.0);
+        let up = Arrival::of(go, under, &grid);
+        assert!(matches!(up, Arrival::UpTo { at, rise } if at == goal && (rise - 1.03).abs() < 0.05), "{up:?}");
+        assert_eq!(up.goal(), Some(goal));
+        assert_eq!(Arrival::of(go, Vec3::new(10.6, 1.03, 5.0), &grid), Arrival::Rests);
+        assert_eq!(Arrival::of(go, Vec3::new(5.0, 0.0, 5.0), &grid), Arrival::Walks(goal));
+        let use_point = Go::To { at: Vec3::new(5.4, 1.0, 5.0), within_m: 1.0 };
+        assert_eq!(Arrival::of(use_point, Vec3::new(5.0, 0.0, 5.0), &grid), Arrival::Rests);
+        assert_eq!(Arrival::of(Go::Stay, under, &grid), Arrival::Rests);
+        assert!(super::super::nav_log::arrival_up_line(goal, 1.03, under).starts_with("nav: goal up a ledge kept: goal "));
+    }
 
     /// [`Pace::Escape`]: the sights, crouch and side steps of the reflex's wish are let go by every reason, the trigger by a blast's only; a
     /// grenade key stays.
