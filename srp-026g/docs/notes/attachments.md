@@ -130,3 +130,156 @@ new field in the recoil snapshot), aimed movement speed, the reveal radius, pell
 0. this research; 1. the guns on 0.69d0's models with the two bodies; 2. the crate, the porter's
 `port-modules` and the client runtime; then three lanes: scopes and their migration, muzzle devices
 and effects, grips and carriers.
+
+## Stage 2, the core: the crate, the table, the client's runtime
+
+Built without a content build or a game: the shared crate with its tests, the table's format, and the
+client's writes for the primitives stage 0 proved. Not linked into the exe yet, not run in Unicorn or
+a game ("What is not done" below).
+
+### The crate `weapon-modules` (`srp-026g/crates/weapon-modules`)
+
+`no_std`, no allocation, no `unsafe`, no read that can panic; the same code for the porter, srp's
+servers and the game's arena.
+
+- `SlotId`: 0.69d0's 94 slot ids, a closed enum generated from its `game.options`
+  (`scripts/weapon-modules/slot_ids.py`). A slot's number is the table's byte: kept for ever, new ids
+  appended.
+- `Kind { Scope, Muzzle, Grip }`, `Role { Fitted(Kind), Carrier, Stock }`, `Point { Eye, FirePoint }`.
+- `Table::parse(bytes)` reads and checks everything once; `Gun`, `Module` and `Attach` are views that
+  check nothing again. A module's rules in one slot (`Attach`, 0.69d's `attach_params`): the slots it
+  adds, the points it moves, the slots it alters, the slots it closes, its shot effect; a grip has
+  sixteen hand locators.
+- `resolve(gun, Wanted { scope, muzzle, grip }) -> Result<Loadout, Refusal>`.
+  `Loadout::Whole` when nothing is fitted; else `Loadout::Bare`: the parts to draw on the bare body
+  with their shape and placement, the optic's frame, the eye, the fire point, the left hand, the shot
+  effect.
+- `Placement` is a locator record's content (an offset on a bone of the gun), so what `resolve` gives
+  is written into the game's records as it is. A part on a part composes statically:
+  child = locator x half turn x parent's offset, on the parent's bone (`Placement::child`, the one
+  place that says how a part's own locators stand on it).
+
+**The rules of `resolve`** (0.69d's, with the design's decisions):
+
+1. The gun's own parts stand in their slots. Each fitted module goes in the first slot it names that
+   the gun with its own parts has; else in the first it names that the gun has carriers for, which
+   come with it. Each kind is placed against the gun with nothing fitted: where a scope sits never
+   depends on the grip.
+2. A module or a carrier takes the place of the gun's own part in its slot (a device the brake's, a
+   tactical forend the forend's). Two kinds that need one carrier share it (P90: the ACM forend
+   brings both the grip's rail and a thread).
+3. A close removes the gun's own part in that slot and nothing else. PROVEN in 0.69d0's data for the
+   parts in scope: an optic closes every scope slot, its own and the one its rail is in, and still
+   stands on that rail; the parts its closes do remove are guns' own sights and scopes in another
+   scope slot (L85A2, SV-98). 0.69d's own code was not read.
+4. An altered slot's part shows its alternative shape, when it has one (a sight folds).
+5. The eye, the fire point and the shot effect are the last part's that sets them, a fitted module's
+   over a carrier's over the gun's own. The gun's own parts set them too (the HK416's rear sight is
+   its eye in 0.69d).
+6. Refusals: the gun takes no such module of that kind; it has none of the module's slots and no
+   carrier; the slot is another fitted module's or its carrier's (P90: a device of the barrel's own
+   thread with a grip, whose forend sits on that thread); the part it stood on was displaced.
+
+Seen in the data and not carried over: `slots_to_hide_while_aiming` is empty on every module;
+overrides of `charging_handle` (5 modules) and the second aim points (`aim_2`..`aim_5`) are out, as
+0.26g has one zoom and one eye a scope. A module whose rules differ on some gun (0.69d's
+`exceptions`: a premium's own brake model, the bracket's attach on the RPD and PKP) is a row of its
+own under the same dict id.
+
+**Tests** (`cargo test -p weapon-modules`, 17): the guns, modules, slots, rules and dict ids are
+0.69d0's own (rows of the design's fit table), the locators made up. A bare gun; the AK-74M's brake
+replaced by a DTK-3; a grip on the FN FNC through its bracket; a grip on the AK-74M through the
+tactical forend in the forend's place; an EOTech on the HK416 folding both sights and taking the eye
+from the rear sight; a rail optic bringing the dovetail rail and not moving when a grip brings a
+forend with a rail of its own; the Victory Day AK-74M taking the AK-74M's fits with its own brake's
+model; the P90's shared carrier and its refused pair; a choke, a grip as a scope and a gun's own
+brake refused. The eye against the engine's two formulas. The format: the checked-in table
+(`tests/sample-v1.srpm`) is what the cases encode to and parses; every prefix and every single
+changed byte of it is refused or parsed without a panic; nineteen broken rules each refused by name.
+
+### The table
+
+One file of game data, written by the porter (`weapon_modules::encode`, the crate's `encode`
+feature, which parses what it wrote) and read by the game and the servers (`Table::parse`). Its
+layout is `table.rs`'s header comment: `SRPM`, a version, fourteen sections of fixed-size records.
+A gun: its dict id, its model's bone count and aim bone, its slots (a bone and an offset each), its
+aimed idle pose for the bones they hang on, its own parts, its carriers (the slot they bring, each
+with the slot it goes in), its fits, and the gun whose fits it takes (a premium or camouflage item's
+base gun). A module: dict id, role, model, alternative and aimed model, its attaches, a grip's hand.
+
+Every locator of the table is written for one rule: a model drawn at a frame F has its locator L at
+half turn x L x F, the engine's own rule for a gun's locators (`calculate_locator`). The porter
+converts what its models hold to that rule and its renders check it against 0.69d (stage 0's open
+point on 0.69d's placement convention lands there, and in `Placement::child` alone).
+
+A weapon's config names what it is and has, four integers under `data`: `srp_gun` (the gun's dict
+id) and `srp_scope`, `srp_muzzle`, `srp_grip` (a fitted module's dict id; absent or 0 for none). The
+guns' rows and the fitted items' modifications that set them are content.
+
+### The client's runtime (patch 161, `rust/patches/src/attachments.rs`)
+
+Everything it changes is data the game fills once from the weapon's model and reads each frame; the
+patch writes it again after the game did. No per-frame hook.
+
+| Site | When | What is written |
+|---|---|---|
+| `attachments.ready` 0x24ACF0 | the weapon cook's callback, its entry | nothing: the config's four integers are read and kept for the next site |
+| `attachments.loaded` 0x24B0E1 | after `load_weapon` | the scope's record +744h (the optic's frame); the aim record +7A8h (the eye); the left hand's finger sets (idle and lobby); the weapon is remembered |
+| `attachments.hands` 0x244649 | `weapon::activate`, after `set_weapon_locators` | the left hand's records, idle and lobby, first and third view (0, 4, 3, 7 of +1A20h) |
+| `attachments.fingers_view` 0x298664 | the game's refill of the fingers at a change of view (the call wrapped) | the finger sets again |
+| `attachments.shells` 0x2443EE | the shell effect's read of the scope's frame | nothing: the effect gets the frame the scope had |
+| `attachments.release` 0x24B190 | the weapon is freed | the weapon is forgotten |
+
+- **0x24B0E1 has one owner.** The parked muzzle patch (90) used it; the new runtime takes it alone.
+  `load_weapon`'s own finger fill (0x243BB6) is inside it, so this site covers that fill too.
+- **Every weapon passes it.** PROVEN by a scan of every direct call of the image: `weapon::weapon`
+  0x243640 is called only by `weapon_cook::allocate_weapon` (0x24A7C1), that only by
+  `on_weapon_config_loaded` (0x24AC2B), `load_weapon` only at 0x24B0DC. srp's own copies (a pickup's
+  gun, the ragdoll's) are cooked through an inventory, which makes its weapon by the same cook
+  (`weapon_pickup.md`, "The instance"). LIKELY, not read: that the copy's item keeps its upgrades, so
+  its config names the same modules.
+- **Shells.** The shell effect plays at the scope's frame +660h. When the optic's frame and the
+  gun's own `scope_point` hang on one bone, the old frame is one fixed matrix times the new one
+  (half turn x old offset x inverse(new offset) x half turn), worked out once; the effect is handed
+  that. On different bones the shells go with the scope.
+- **The lobby.** A grip has one set of hand locators (idle). The lobby's clips ask for the lobby
+  set, which gets the same values.
+- **The eye is one switch**, `attachments::EYE`:
+  - `EyeAnchor::Optic` (set): the aim record is the optic's own eye on the optic's bone. The reticle
+    is at the screen's centre at every moment of every clip; what a clip does to that bone while
+    aiming, the shot's kick, is not seen.
+  - `EyeAnchor::GunIdle`: the record hangs on the bone of the gun's own `aim`, at the offset that
+    puts the optic's eye there in the gun's aimed idle pose (the table's pose). The optic is centred
+    while the gun is in that pose and a clip that moves the optic's bone against it shows, as over
+    iron sights. Both run against the engine's formulas in the crate's tests.
+  Which clips move the `offset` bone while aiming was not surveyed; the "scope shot animations from
+  0.45" work decides the value.
+- **The fingers are one switch**, `attachments::FINGER_JOINTS`. The game copies a finger's matrix
+  whole, and its translation is the joint's place in the hand's skeleton. `FingerJoints::Gun` (set)
+  keeps the translations the game made of the gun's own finger locators (0.26g's hand) and takes
+  each finger's turn from the grip; `FingerJoints::Grip` takes 0.69d's whole. 0.69d's finger
+  locators were not compared with 0.26g's hand; `Gun` cannot stretch a finger either way.
+
+### What is not done
+
+1. **The table's way into the game.** `vostok::attachments::install` has no caller, so the patch
+   changes nothing yet. Planned: one more request of the weapon cook's own query (patch 90's
+   request sites, which the parts' models need anyway), the table as raw data. The engine's raw data
+   class is 3 in the 0.10b source (`resources_classes.h`, where the game loads `startup.cfg` so); its
+   number in 0.26g was not read.
+2. **Drawing the parts** (P1, with the fire point P2a and the shapes P3): patch 90's request, scene
+   and release code for N parts. `Loadout::Bare::parts` is what it draws.
+3. **The arena's link.** `arena_026g.lock.json` is not written again (`python link_026g.py
+   --write`), so nothing that builds the exe passes on this branch yet.
+4. **Unicorn**, `check_attachments_026g.py`, to write with item 1 (a table has to be in the game's
+   memory for any case): the cook's callback from its entry over a made-up config, weapon and model
+   with the scope and aim records compared with `resolve`'s; `weapon::draw` to +660h and
+   `calculate_aim_alignment` on the written records, for the centred optic in both eye settings;
+   `weapon::activate` and `correct_fingers` at a change of view with the hand records and finger
+   sets compared; `play_weapon_shell_pfx` with the frame the effect gets; a weapon without `srp_gun`
+   and one whose fit is refused, byte for byte the original's; the release.
+5. **A written bone against the game's own model.** A placement's bone is below the table's bone
+   count for the gun; the game indexes its bones unchecked. The model's own count is to be read
+   where the records are written, and a table that names more refused.
+6. The six guns whose left hand does not rest on the idle locator need their clip event before a
+   grip moves the hand (stage 0).

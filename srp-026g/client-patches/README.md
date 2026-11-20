@@ -6262,3 +6262,16 @@ of them on the project sites the lamps share): `wet_surface.compiled`, `wet_surf
 with `check_rain_v021d_026g.py` (with the 0.21d exe, 0.21d's own drop parameters bit for bit) and the
 patch crate's tests. Not run in a game. It needs the content pack's files and keys in the same
 release.
+
+## A weapon's fitted modules: scope frame, eye, left hand, shells (patch 161, unreleased, not linked)
+
+The client's side of the attachment system (`../docs/notes/attachments.md`, "Stage 2"): a weapon
+config names its gun and what is fitted to it (`data/srp_gun`, `srp_scope`, `srp_muzzle`,
+`srp_grip`), the `weapon-modules` crate's `resolve` says where everything stands, and the patch
+writes the game's own records after the game filled them: the scope's and the eye's locator records
+after `load_weapon` (0x24B0E1), the left hand's records after `weapon::activate` filled them
+(0x244649), its finger sets there and at each change of view (0x298664); the shell effect keeps the
+frame the scope had (0x2443EE). `rust/patches/src/attachments.rs` over `vostok::attachments`. The
+modules table is not loaded by anything yet, so the patch changes nothing; the arena's lock is not
+written with it and no Unicorn check exists yet (the note lists what remains). Nothing a match
+computes changes.

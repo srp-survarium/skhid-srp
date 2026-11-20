@@ -1,0 +1,31 @@
+# Patch 161: a weapon's scope, eye, left hand and shells stand where its
+# fitted modules put them (docs/notes/attachments.md, "The client's
+# runtime"). Only the decisions: which sites, and the handlers. The sites
+# (VAs, kinds, spans, what their registers hold) are sites_026g.tsv's; the
+# logic is attachments.rs over the weapon-modules crate.
+name = "attachments"
+patch = 161
+
+[[hook]]
+site = "attachments.ready"
+handler = "on_ready"
+
+[[hook]]
+site = "attachments.loaded"
+handler = "on_loaded"
+
+[[hook]]
+site = "attachments.hands"
+handler = "on_hands"
+
+[[hook]]
+site = "attachments.fingers_view"
+handler = "on_fingers_view"
+
+[[hook]]
+site = "attachments.shells"
+handler = "on_shells"
+
+[[hook]]
+site = "attachments.release"
+handler = "on_release"

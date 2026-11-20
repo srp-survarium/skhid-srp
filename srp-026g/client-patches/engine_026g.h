@@ -43,6 +43,7 @@ struct drawable_image_context;
 struct effect_compiler;
 struct effect_presenter_holder;
 struct engine_cfg;
+struct fingers_corrector;
 struct fsm_predicate;
 struct game_allocator;
 struct game_effect;
@@ -380,7 +381,7 @@ void __attribute__((thiscall)) engine_collision_remove(struct static_collision *
 /* 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0 */
 void engine_effects_stop(struct game_effect_list *effects);
 
-/* 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
+/* 0x2de090 survarium::game_effect_player::add: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
 void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener);
 
 /* 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0 */
@@ -964,5 +965,8 @@ extern unsigned int (__attribute__((stdcall)) *const engine_global_unlock)(void 
 
 /* 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly */
 void __attribute__((stdcall)) engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag);
+
+/* 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly */
+void __attribute__((stdcall)) engine_fingers_set_weapon_model(struct fingers_corrector *corrector, unsigned int instance, unsigned int first_view);
 
 #endif
