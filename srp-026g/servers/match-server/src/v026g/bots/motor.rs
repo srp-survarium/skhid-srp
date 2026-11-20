@@ -1013,6 +1013,9 @@ pub struct Motor {
     cast_watch: Option<CastWatch>,
     /// [press forecast] What the last forecast press's watch makes of this tick ([`Self::cast_watch_tick`]).
     watch_now: WatchNow,
+    /// [press forecast] A world ended a press's hold showing the body up on the landing, here, for the driver
+    /// ([`Self::take_held_up`]).
+    held_up: Option<Vec3>,
     /// [press forecast] This tick's keys by the forecast press, if it decided them ([`Self::press_stops`]).
     cast_keys: Option<CastKeys>,
     /// The sway's phase and the time, seconds, for it.
@@ -2020,6 +2023,7 @@ impl Motor {
             cast_line: None,
             cast_watch: None,
             watch_now: WatchNow::Off,
+            held_up: None,
             cast_keys: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
@@ -4092,6 +4096,14 @@ impl Motor {
         self.cast_line.take()
     }
 
+    /// [press forecast] Where a world showed a held press's body up on its landing ([`WatchPhase::Held`]), once: the reckoning had it
+    /// down off the landing, so the route the walk followed on that reckoning is planned again from the body (`drive`), as after a
+    /// world `REPLAN_ERROR_M` off it (the suite's S204/2: up 0.7 m from the reckoned fall, the walk on to the link's landing point,
+    /// 0.3 m over the floor it lands on, held the forward key into the rim for 3.5 s).
+    pub fn take_held_up(&mut self) -> Option<Vec3> {
+        self.held_up.take()
+    }
+
     /// [press forecast] A forecast press followed to [`CAST_WATCH_S`] after it: its line, with whether the body is up and how far
     /// it is from the forecast's rest (the reckoned body, the world's fixes in it).
     fn cast_watch_tick<'f>(&mut self, pose: &Pose, flyer: Option<&mut (dyn PressFlyer + 'f)>) {
@@ -4133,10 +4145,18 @@ impl Motor {
         // The hold's part of the line: where the reckoning had the body down, how long it was held, and the world that ended it.
         let hold = match watch.phase {
             WatchPhase::Held { at, tick, feet } => {
+                let seen = pose.seen_at >= at;
                 if up {
                     press_casts::count(press_casts::Slot::HeldUp);
+                    if seen {
+                        self.held_up = Some(pose.feet);
+                    }
                 }
-                let world = if pose.seen_at >= at { format!("the world of {} ms", pose.seen_at) } else { String::from("no world came") };
+                let world = match (seen, up) {
+                    (true, _) => format!("the world of {} ms", pose.seen_at),
+                    (false, true) => String::from("up on the reckoning before a world came"),
+                    (false, false) => String::from("no world came"),
+                };
                 format!(
                     "; the reckoning had it down off the landing at ({:.2}, {:.2}, {:.2}) at {at} ms: held {:.2} s, {world}",
                     feet.x,
@@ -9384,6 +9404,8 @@ mod tests {
         assert!(!motor.press_hold());
         let line = motor.take_cast_line().unwrap_or_default();
         assert!(line.contains("landed up") && line.contains("held 1.50 s, the world of 5150 ms"), "{line}");
+        assert_eq!(motor.take_held_up(), Some(Vec3::new(3.2, -1.7, 0.0)), "the driver plans again from the body");
+        assert_eq!(motor.take_held_up(), None, "once");
     }
 
     /// [press forecast] A world at or after the reckoned landing that shows the body down too ends the hold: the walk goes on as
@@ -9402,6 +9424,7 @@ mod tests {
         assert!(motor.press_hold());
         after_press(&mut motor, &mut route, &mut stub, (1.0, -3.0, Footing::Ground), 5_200, 5_200);
         assert!(!motor.press_hold() && !motor.letting_go());
+        assert_eq!(motor.take_held_up(), None, "not up: the route goes on");
     }
 
     /// [press forecast] With the poll's forecast taken by another bot on every other poll, the flights come late: a candidate

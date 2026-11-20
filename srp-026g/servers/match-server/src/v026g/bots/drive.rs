@@ -2250,6 +2250,18 @@ fn drive_tick_inner(
                         );
                         path::no_route(bot.team, path::NoRoute::Ended);
                     }
+                    // [press forecast] A world ended a press's hold showing the body up on the landing where the reckoning had it
+                    // down (`Motor::take_held_up`): the route is planned again from the body, as for a world `REPLAN_ERROR_M` off.
+                    if let Some(up) = bot.motor.take_held_up()
+                        && walked == Walked::OnTheWay
+                    {
+                        bot.nav_log.push(
+                            super::nav_log::Kind::Press,
+                            time,
+                            format!("press forecast: a world showed the held body up on the landing at ({:.2}, {:.2}, {:.2}): plans again", up.x, up.y, up.z),
+                        );
+                        bot.end_route(RouteEnd::ReckoningError, time);
+                    }
                     decision
                 }
                 None => {
