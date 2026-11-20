@@ -809,6 +809,10 @@ pub struct PressMatch {
     pub learned: PressLearned,
 }
 
+/// [press forecast] The steps a flight that ended in the air is followed down by its controller at most ([`press_forecast`]): 1 s,
+/// a fall of 4.9 m from rest at the client's gravity (0.49 m/s a step).
+const PRESS_FALL_STEPS: u32 = 20;
+
 /// [press forecast] The steps of the client's flight a forecast plays at most: the sprint jump's landing step (n = 18,
 /// `SPRINT_LANDING_N`, `mapdata/controller/jump.rs`; the short jump's is 16) and the step it starts on.
 pub(crate) const PRESS_FLIGHT_STEPS: u32 = 19;
@@ -849,6 +853,37 @@ pub fn press_forecast(at: &Estimate, plan: &PressPlan, world: &PressWorld) -> Pr
     }
     if at.arc.is_some() {
         return PressOutcome::NotDown { at: at.feet };
+    }
+    // A flight that ended in the air (falling on): its controller falls on, no key, until it is on the ground, and the rest is
+    // played from there. The grid's floor under the feet is not the client's where its controller has no ground (the suite's
+    // S417: a gap's grid floor past its real edge, the exe fell 5.5 m; S109: a step's face, back to the start floor).
+    if let (Fall::Falling { .. }, Some(mut kept)) = (at.fall, at.kept) {
+        let start = kept.controller.feet();
+        let input = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: crouch_input(0, false), sprinting: false };
+        let mut down = false;
+        for _ in 0..PRESS_FALL_STEPS {
+            let started = std::time::Instant::now();
+            let notes = grid.kept_tick(&mut kept.controller, input);
+            kept_clock::add(kept_clock::Of::Press, started.elapsed().as_nanos() as u64);
+            let Some(notes) = notes else {
+                return PressOutcome::NoFlight;
+            };
+            if !notes.airborne {
+                down = true;
+                break;
+            }
+        }
+        let feet = at.feet + (kept.controller.feet() - start);
+        if !down {
+            return PressOutcome::NotDown { at: feet };
+        }
+        kept.feet = feet;
+        kept.airborne = false;
+        at.feet = feet;
+        at.node = grid.locate(feet, LOCATE_M).or(at.node);
+        at.fall = Fall::Ground;
+        at.velocity = [0.0, 0.0];
+        at.kept = Some(kept);
     }
     let stay = match plan.after {
         AfterLanding::Hold => 0,
@@ -2025,7 +2060,9 @@ fn advance(
                         at.feet = feet;
                         at.node = floor;
                         at.fall = Fall::Falling { speed: (-vertical).max(0.0) };
-                        at.kept = None;
+                        // [press forecast] The press forecast follows the controller down ([`press_forecast`]); the reckoning
+                        // falls by its own rule.
+                        at.kept = (role == Role::Press).then_some(after);
                     }
                 }
             }
