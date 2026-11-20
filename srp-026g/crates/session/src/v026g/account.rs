@@ -354,11 +354,10 @@ impl Account {
         }
     }
 
-    /// A new instance into the inventory; returns its id. A golden weapon
-    /// comes with its silver bonus as its own first modification, a premium
-    /// armour piece with its two premium bonuses
-    /// ([`golden::starting_modifications`]), whatever made it (the shop, a
-    /// bundle, the admin).
+    /// A new instance into the inventory; returns its id. A premium armour
+    /// piece comes with its two premium bonuses as its own first
+    /// modifications ([`golden::starting_modifications`]), whatever made it
+    /// (the shop, a bundle, the admin).
     pub fn add_item(&mut self, dict_id: u16, condition_or_stack: u32) -> u32 {
         let item_id = self.next_item_id;
         self.next_item_id += 1;

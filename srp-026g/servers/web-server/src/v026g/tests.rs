@@ -482,6 +482,12 @@ fn the_admin_gives_items_of_the_dictionary_only() {
     for (item, count, answer) in [
         (unknown.to_string(), "1", "No such item"),
         ("no_such_item".to_owned(), "1", "No such item"),
+        // A golden weapon is made no more (2026-11-14).
+        (
+            "sr3m_premium".to_owned(),
+            "1",
+            "no golden weapons any more: give sr3m",
+        ),
         (weapon.to_string(), "9", "count for this item is 1 to 8"),
         (weapon.to_string(), "0", "count for this item"),
         (

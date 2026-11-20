@@ -3,22 +3,11 @@ use binary_config_parser::tree::ConfigValue;
 use super::*;
 use crate::v026g::game_data;
 use crate::v026g::item_params::item_params;
+use crate::v026g::scopes::WEAPON_CATEGORIES;
 
 fn dict(name: &str) -> u16 {
     Dictionary::shared().item_named(name).unwrap().dict_id
 }
-
-/// The test data is 0.26g's: seven of the 22 golden weapons (the rest came
-/// with later patches) and the four premium armour pieces.
-const IN_THE_TEST_DATA: [&str; 7] = [
-    "kiparis_premium",
-    "uzi_premium",
-    "vityaz_premium",
-    "vss_premium",
-    "sr3m_premium",
-    "izh_27_lancaster_premium",
-    "ak_74n_premium",
-];
 
 /// The test data's premium armour: `(name, its plain piece's name, its
 /// bonuses)`, by dict id.
@@ -61,21 +50,12 @@ fn copies_of_the_table() -> Vec<(u16, u16, Vec<u32>)> {
         .collect()
 }
 
+/// The test data is 0.26g's: its copies are the four premium armour pieces
+/// (the rest came with later patches). The golden weapons are no copies
+/// (the owner, 2026-11-14): premium items of their own that nothing gives.
 #[test]
-fn the_golden_items_are_premium_copies_of_plain_items() {
+fn the_golden_items_are_the_premium_armour() {
     let dictionary = Dictionary::shared();
-    let golden: Vec<&str> = dictionary
-        .items
-        .iter()
-        .filter(|item| is_golden(item.dict_id))
-        .map(|item| item.name.as_str())
-        .collect();
-    let weapons: Vec<&str> = golden
-        .iter()
-        .copied()
-        .filter(|name| is_golden_weapon_name(name))
-        .collect();
-    assert_eq!(weapons, IN_THE_TEST_DATA);
     let armour: Vec<&str> = premium_armour().iter().map(|row| row.0).collect();
     assert_eq!(
         armour,
@@ -86,25 +66,25 @@ fn the_golden_items_are_premium_copies_of_plain_items() {
             "bm_legs_4_premium"
         ]
     );
-    assert_eq!(golden.len(), weapons.len() + armour.len());
-    for name in golden {
+    for name in armour {
         let item = dictionary.item_named(name).unwrap();
-        assert!(item.is_premium && is_golden_name(name), "{name}");
+        assert!(item.is_premium, "{name}");
+        assert!(!WEAPON_CATEGORIES.contains(&item.category), "{name}");
         let plain = dictionary.item_named(plain_name(name).unwrap()).unwrap();
-        assert!(!is_golden(plain.dict_id), "{name}");
+        assert!(!is_premium_armour(plain.dict_id), "{name}");
         assert_eq!(plain.category, item.category, "{name}");
-        assert_eq!(
-            is_golden_weapon(item.dict_id),
-            !is_premium_armour(item.dict_id),
-            "{name}"
-        );
     }
-    // Golden, but armour; premium, but no copy.
-    assert!(!is_golden_weapon(dict("bm_legs_4_premium")));
-    assert!(is_golden(dict("bm_legs_4_premium")));
-    assert!(!is_golden(dict("ak_74n")));
-    assert!(!is_golden(9999));
-    assert!(!is_golden_weapon(9999));
+    // No weapon is a copy, the old golden ones neither; premium, but no copy.
+    assert!(
+        dictionary
+            .items
+            .iter()
+            .filter(|item| WEAPON_CATEGORIES.contains(&item.category))
+            .all(|item| item.like.is_none() && item.start.is_empty())
+    );
+    assert!(!is_premium_armour(dict("sr3m_premium")));
+    assert!(!is_premium_armour(dict("ak_74n")));
+    assert!(!is_premium_armour(9999));
 }
 
 /// The premium armour is every armour piece with a base rarity in the
@@ -146,9 +126,11 @@ fn the_premium_armour_is_the_plain_piece_with_two_premium_bonuses() {
         assert_eq!(rarity(plain), 0, "{plain}");
         assert_eq!(bonuses[0], EXPERIENCE_BONUS, "{name}");
     }
-    // No other armour (nor any item but the golden weapons) has a base
-    // rarity in the stock data.
+    // No other armour has a base rarity in the stock data.
     for item in &dictionary.items {
+        if WEAPON_CATEGORIES.contains(&item.category) {
+            continue;
+        }
         let Ok(Some(config)) = game_data::config(data, &item.cfg_name) else {
             continue;
         };
@@ -158,16 +140,16 @@ fn the_premium_armour_is_the_plain_piece_with_two_premium_bonuses() {
             .and_then(ConfigValue::as_i32)
             .unwrap_or(0);
         assert!(
-            rarity == 0 || is_golden_name(&item.name),
+            rarity == 0 || is_premium_armour(item.dict_id),
             "{} has base rarity {rarity}",
             item.name
         );
     }
 }
 
-/// The lobby's lists (`ItemDictId`'s golden weapons and premium armour, the
-/// packs' `Equipment029` and `Equipment046`), for the gold background and
-/// name, the craft window's donors and the bonuses of a shop entry, are
+/// The lobby's lists (`ItemDictId`'s premium armour, the packs'
+/// `Equipment029` and `Equipment046`), for the gold background and name,
+/// the craft window's donors and the bonuses of a shop entry, are
 /// items.tsv's copies.
 #[test]
 fn the_lobby_knows_the_golden_items_of_the_table() {
@@ -193,9 +175,6 @@ fn the_lobby_knows_the_golden_items_of_the_table() {
     };
     let id = |row: &String| row.parse::<u16>().unwrap();
     let mut lobby: Vec<(u16, u16, Vec<u32>)> = Vec::new();
-    for (golden, plain) in rows("GOLDEN_WEAPONS").iter().zip(rows("GOLDEN_PLAIN")) {
-        lobby.push((id(golden), id(&plain), vec![SILVER_BONUS]));
-    }
     let plain = rows("PREMIUM_ARMOUR_PLAIN");
     for ((armour, plain), bonuses) in rows("PREMIUM_ARMOUR")
         .iter()
@@ -220,35 +199,25 @@ fn the_lobby_knows_the_golden_items_of_the_table() {
 }
 
 #[test]
-fn a_golden_item_takes_its_plain_item_as_its_donor() {
-    assert_eq!(
-        plain_name("izh_27_lancaster_premium"),
-        Some("izh_27_lancaster")
-    );
+fn a_premium_piece_takes_its_plain_piece_as_its_donor() {
     assert_eq!(plain_name("bm_legs_4_premium"), Some("bm_legs_4"));
     assert_eq!(plain_name("scav_torso_4_premium"), Some("scav_torso_4"));
-    assert_eq!(plain_name("ak_74n"), None);
+    assert_eq!(plain_name("ak_74n_premium"), None);
     assert_eq!(plain_name("bm_legs_4"), None);
-    let (golden, plain) = (dict("ak_74n_premium"), dict("ak_74n"));
-    assert_eq!(kin(golden), plain);
-    assert_eq!(kin(plain), plain);
-    assert_eq!(kin(dict("vss_premium")), dict("vss"));
     let (legs, plain_legs) = (dict("bm_legs_4_premium"), dict("bm_legs_4"));
     assert_eq!(kin(legs), plain_legs);
-    // Anything else is itself.
+    assert_eq!(kin(plain_legs), plain_legs);
+    // Anything else is itself, a weapon too.
     let other = dict("edge_legs_2");
     assert_eq!(kin(other), other);
+    assert_eq!(kin(dict("sr3m")), dict("sr3m"));
     assert_eq!(kin(9999), 9999);
 
-    // The donors: the same item; for a golden item its plain item too;
-    // never a golden item for a plain one, nor another item.
-    assert!(may_donate(plain, golden));
-    assert!(may_donate(golden, golden));
-    assert!(may_donate(plain, plain));
-    assert!(may_donate(golden, plain));
-    assert!(!may_donate(dict("vss"), golden));
-    assert!(!may_donate(dict("vss_premium"), golden));
-    assert!(!may_donate(dict("ak_74m"), plain));
+    // The donors: the same item; a premium piece and its plain piece, both
+    // ways; nothing else.
+    assert!(may_donate(dict("sr3m"), dict("sr3m")));
+    assert!(!may_donate(dict("sr3m_premium"), dict("sr3m")));
+    assert!(!may_donate(dict("ak_74m"), dict("ak_74n")));
     assert!(may_donate(plain_legs, legs));
     assert!(may_donate(legs, legs));
     assert!(may_donate(legs, plain_legs));
@@ -258,11 +227,9 @@ fn a_golden_item_takes_its_plain_item_as_its_donor() {
 }
 
 #[test]
-fn a_new_golden_item_starts_with_its_bonuses_of_its_own() {
-    assert_eq!(
-        starting_modifications(dict("ak_74n_premium")),
-        [(SILVER_BONUS, false)]
-    );
+fn a_new_premium_piece_starts_with_its_bonuses_of_its_own() {
+    // A weapon comes with none, an old golden one neither.
+    assert!(starting_modifications(dict("ak_74n_premium")).is_empty());
     assert!(starting_modifications(dict("ak_74n")).is_empty());
     assert_eq!(
         starting_modifications(dict("bm_legs_4_premium")),
@@ -299,13 +266,7 @@ fn the_dictionary_has_its_copies_and_each_start_is_known_modifications() {
 }
 
 #[test]
-fn srp_gives_a_golden_item_only_its_plain_defaults_and_no_base_rarity() {
-    for name in IN_THE_TEST_DATA {
-        let params = item_params(dict(name)).unwrap();
-        assert!(params.default_modifications.is_empty(), "{name}");
-        assert_eq!(params.base_rarity_level, 0, "{name}");
-    }
-    // The premium armour keeps its plain piece's default.
+fn srp_gives_a_premium_piece_only_its_plain_default_and_no_base_rarity() {
     for (name, plain, _) in premium_armour() {
         let params = item_params(dict(name)).unwrap();
         let plain = item_params(dict(plain)).unwrap();
@@ -318,7 +279,7 @@ fn srp_gives_a_golden_item_only_its_plain_defaults_and_no_base_rarity() {
     }
 }
 
-/// A golden item's config as its patch makes it: no default modification
+/// A premium piece's config as its patch makes it: no default modification
 /// but `keep`, base rarity 0.
 fn patched(config: &[u8], keep: &[i32]) -> Vec<u8> {
     let mut config = ConfigValue::parse(config).unwrap();
@@ -344,42 +305,18 @@ fn patched(config: &[u8], keep: &[i32]) -> Vec<u8> {
 }
 
 #[test]
-fn data_without_the_golden_patches_is_refused() {
+fn data_without_the_premium_armour_patch_is_refused() {
+    // The stock data: the four pieces refused, and nothing else (its
+    // golden weapons, stock, are ordinary items).
     let stock = game_data::shared();
     let error = check(stock).unwrap_err().to_string();
-    for name in IN_THE_TEST_DATA {
-        assert!(error.contains(&format!("{name} (")), "{error}");
-    }
     for (name, ..) in premium_armour() {
         assert!(error.contains(&format!("{name} (")), "{error}");
     }
-    assert!(error.contains("weapon-stats.tsv"), "{error}");
-    assert!(error.contains("armor.tsv"), "{error}");
-
+    assert!(error.contains(ARMOUR_PATCH), "{error}");
     let dictionary = Dictionary::shared();
+    assert_eq!(unpatched(stock, dictionary).unwrap().len(), 4);
     let config_of = |name: &str| dictionary.item_named(name).unwrap().cfg_name.clone();
-    let weapons: Vec<(String, Vec<u8>)> = IN_THE_TEST_DATA
-        .iter()
-        .map(|name| {
-            let path = config_of(name);
-            let bytes = patched(stock.file(&path).unwrap(), &[]);
-            (path, bytes)
-        })
-        .collect();
-    // The weapons patched, the armour not: the armour refused.
-    let data = stock.laid_over(
-        "the test data with the golden-weapons patch",
-        weapons.clone(),
-    );
-    let error = check(&data).unwrap_err().to_string();
-    assert!(!error.contains("weapon-stats.tsv"), "{error}");
-    assert!(error.contains("armor.tsv"), "{error}");
-    let found: Vec<&'static str> = unpatched(&data, dictionary)
-        .unwrap()
-        .into_iter()
-        .map(|(_, patch)| patch)
-        .collect();
-    assert_eq!(found, [ARMOUR_PATCH; 4]);
 
     // A premium piece that keeps one of its bonuses: refused.
     let (name, plain, &[_, reputation]) = premium_armour()[2] else {
@@ -391,35 +328,34 @@ fn data_without_the_golden_patches_is_refused() {
         stock.file(&path).unwrap(),
         &[plain_default, reputation as i32],
     );
-    let mut files = weapons.clone();
-    files.push((path, half));
-    let data = stock.laid_over("one bonus left", files);
+    let data = stock.laid_over("one bonus left", vec![(path, half)]);
     assert!(
         unpatched(&data, dictionary)
             .unwrap()
             .iter()
-            .any(|(item, _)| item.starts_with(&format!("{name} ("))),
+            .any(|item| item.starts_with(&format!("{name} ("))),
     );
 
     // Every one patched (the armour keeps its plain piece's default):
     // accepted.
-    let mut files = weapons;
+    let mut files = Vec::new();
     for (name, plain, _) in premium_armour() {
         let keep = item_params(dict(plain)).unwrap().default_modifications[0] as i32;
         let path = config_of(name);
         let bytes = patched(stock.file(&path).unwrap(), &[keep]);
         files.push((path, bytes));
     }
-    let data = stock.laid_over("the test data with the golden patches", files);
-    assert_eq!(unpatched(&data, dictionary).unwrap(), Vec::new());
+    let data = stock.laid_over("the test data with the premium-armour patch", files);
+    assert_eq!(unpatched(&data, dictionary).unwrap(), Vec::<String>::new());
     assert_eq!(check(&data), Ok(()));
 }
 
-/// The lobby shows a golden item not owned (the shop's, a bundle's) with
+/// The lobby shows a premium piece not owned (the shop's, a bundle's) with
 /// the bonuses srp gives it (`ItemFactory.startingModifiers`): its
 /// `BONUS_UI` rows are those modifications' `ui_desc`, as the exe gives the
 /// movie a modification (icon, one `{prop_id, prop_value}`), and hold every
-/// bonus srp gives.
+/// bonus srp gives, and the silver one (1230) a weapon that was golden may
+/// hold (`ModificationRolls.isPremium` shows it gold, the most there is).
 #[test]
 fn the_lobby_shows_the_bonuses_of_the_data() {
     let source = include_str!("../../../../../flash/lobby_menu/src/survarium/item/ItemFactory.as");
@@ -435,7 +371,6 @@ fn the_lobby_shows_the_bonuses_of_the_data() {
             row.trim().trim_end_matches(',').trim().to_owned()
         })
         .collect();
-    assert!(source.contains(&format!("const SILVER_BONUS:int = {SILVER_BONUS};")));
     let modifications = game_data::config(
         game_data::shared(),
         "gameplay/items/modifications/modifications.options",
@@ -446,6 +381,7 @@ fn the_lobby_shows_the_bonuses_of_the_data() {
     let mut given: Vec<u32> = copies_of_the_table()
         .into_iter()
         .flat_map(|(.., start)| start)
+        .chain([1230])
         .collect();
     given.sort();
     given.dedup();

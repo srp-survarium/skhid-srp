@@ -1062,13 +1062,13 @@ fn an_item_is_upgraded_with_a_donor() {
 
 /// The owner's rules of 2026-10-23 ("remove chance for bonus removal during
 /// combination") and 2026-11-08 ("make it 100% always"): whatever the item
-/// holds (one or two, reliability, a golden weapon's silver bonus, premium
-/// armour's bonuses) and the donor's difference, the donor and the price go,
+/// holds (one or two, reliability, an old golden weapon's silver bonus,
+/// premium armour's bonuses) and the donor's difference, the donor and the price go,
 /// exactly, and the item keeps every modification it had and gains one.
 #[test]
 fn an_upgrade_always_adds_a_modification_and_takes_none() {
     let table = Modifications::shared();
-    let (golden_rifle, premium_legs) = (dict("ak_74n_premium"), dict("bm_legs_4_premium"));
+    let premium_legs = dict("bm_legs_4_premium");
     // (item, its modifications, the donor's): the item's own ones are
     // given after its bonuses.
     let cases: [(u16, &[u32], &[u32]); 9] = [
@@ -1080,7 +1080,8 @@ fn an_upgrade_always_adds_a_modification_and_takes_none() {
         // Reliability, which no roll gives any more: kept as any other.
         (dict("ak_74m"), &[2093], &[]),
         (dict("ak_74m"), &[2093, 2000], &[]),
-        (golden_rifle, &[], &[]),
+        // An SR-3M that was golden (its silver bonus) and another.
+        (dict("sr3m"), &[1230], &[2034]),
         (premium_legs, &[], &[]),
     ];
     for (dict_id, own, donor_held) in cases {
@@ -1093,9 +1094,7 @@ fn an_upgrade_always_adds_a_modification_and_takes_none() {
                     .unwrap()
                     .modifications
                     .extend(own.iter().map(|&id| (id, false)));
-                let donor_dict = if dict_id == golden_rifle {
-                    dict("ak_74n")
-                } else if dict_id == premium_legs {
+                let donor_dict = if dict_id == premium_legs {
                     dict("bm_legs_4")
                 } else {
                     dict_id
@@ -1262,10 +1261,11 @@ fn drops_and_pay_follow_the_modifications() {
     // And the client takes all of it.
     client_of(&account);
 
-    // A kit with a golden rifle and premium trousers (their bonuses their
+    // A kit with a rifle that was golden (its silver bonus kept as a
+    // modification, 2026-11-14) and premium trousers (their bonuses their
     // own modifications, as new ones have them): 10 % silver, 5 %
     // experience and 5 % reputation with the Black Market.
-    let premium = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
+    let premium = give(&mut account, "ak_74n", &[1230]);
     let trousers = account.add_item(dict("bm_legs_4_premium"), FULL_CONDITION);
     let dictionary = Dictionary::shared();
     for item_id in [premium, trousers] {
@@ -1500,131 +1500,68 @@ fn a_loaded_item_is_made_safe() {
     assert!(account.item(vest).unwrap().upgrades.is_empty());
 }
 
-// ------------------------------------------------------- golden weapons
+// ------------------------------------------- weapons that were golden
 
-const SILVER: u32 = golden::SILVER_BONUS;
+/// A modification an old golden weapon may hold: 1230, `money_bonus` +0.1.
+const SILVER: u32 = 1230;
 
+/// The owner, 2026-11-14: the golden weapons "all should be normal
+/// weapons" and "follow standard rules". Two SR-3Ms that were golden (as a
+/// player held them: one with 2034, one with the silver bonus 1230), made the
+/// plain SR-3M, combine as two plain ones do, both ways; the silver bonus
+/// stays a modification like any, and pays.
 #[test]
-fn a_new_golden_weapon_has_the_silver_bonus_as_its_first_modification() {
-    let mut account = rich();
-    let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
-    let item = account.item(rifle).unwrap();
-    assert_eq!(item.modifications, [(SILVER, false)]);
-    // The lobby's rank 1 (no base rarity), so it can be upgraded.
-    assert_eq!(rank(item), 1);
-    assert_eq!(item_params(item.dict_id).unwrap().base_rarity_level, 0);
-    // The client takes it as it is.
-    let client = client_of(&account);
-    let shown = client
-        .inventory()
-        .iter()
-        .find(|item| item.item_id == rifle)
-        .unwrap();
-    let shown: Vec<(u32, bool)> = shown
-        .modifications
-        .iter()
-        .map(|m| (m.id, m.state))
-        .collect();
-    assert_eq!(shown, [(SILVER, false)]);
-    // A plain rifle has none.
-    let plain = account.add_item(dict("ak_74n"), FULL_CONDITION);
-    assert!(account.item(plain).unwrap().modifications.is_empty());
-    // Were one to drop, its rarity would count the silver bonus.
-    let mut rng = Rng::new(5);
-    let dropped = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
-    assert_eq!(roll_modifications(&mut account, dropped, 2, &mut rng), 2);
-    let held = own_modifications(account.item(dropped).unwrap());
-    assert_eq!((held.len(), held[0]), (2, SILVER));
-}
-
-#[test]
-fn a_golden_weapon_is_upgraded_like_its_plain_weapon() {
+fn two_sr3ms_that_were_golden_combine_as_two_plain_ones() {
     let table = Modifications::shared();
-    let (golden_rifle, plain_rifle) = (dict("ak_74n_premium"), dict("ak_74n"));
-    // The plain weapon's price: the same item level.
-    assert_eq!(item_level(golden_rifle), item_level(plain_rifle));
-    let price = table.craft.price(item_level(plain_rifle));
-    // The golden rifle (the silver bonus: rank 1) with a plain one as the
-    // donor (rank 0): always one more, the silver bonus kept.
-    for seed in 0..40 {
-        let mut account = rich();
-        let rifle = account.add_item(golden_rifle, FULL_CONDITION);
-        let donor = account.add_item(plain_rifle, FULL_CONDITION);
-        let mut client = client_of(&account);
-        let mut rng = Rng::new(seed * 7 + 1);
-        let crafted = craft(&mut account, rifle, donor, false, &mut rng).unwrap();
-        assert_eq!(account.generic_money, 1_000_000 - price);
-        assert!(account.item(donor).is_none());
-        // It stays the golden rifle.
-        let item = account.item(rifle).unwrap();
-        assert_eq!(item.dict_id, golden_rifle);
-        let held = own_modifications(item);
-        let Crafted::Added { modification, .. } = crafted else {
-            panic!("{crafted:?}");
-        };
-        assert_eq!(held, [SILVER, modification]);
-        assert!(table.fits(plain_rifle, &[], modification));
-        let message = lobby::permitted_crafted(rifle, crafted);
-        takes(&mut client, &message, &account);
+    let sr3m = dict("sr3m");
+    let price = table.craft.price(item_level(sr3m));
+    for (main, donor) in [(&[2034][..], &[SILVER][..]), (&[SILVER], &[2034])] {
+        for seed in 0..20 {
+            let mut account = rich();
+            let rifle = give(&mut account, "sr3m", main);
+            let other = give(&mut account, "sr3m", donor);
+            let mut client = client_of(&account);
+            let mut rng = Rng::new(seed * 5 + 2);
+            let crafted = craft(&mut account, rifle, other, false, &mut rng).unwrap();
+            let Crafted::Added { modification, .. } = crafted else {
+                panic!("{crafted:?}");
+            };
+            assert_eq!(account.generic_money, 1_000_000 - price);
+            assert!(account.item(other).is_none());
+            let item = account.item(rifle).unwrap();
+            assert_eq!(item.dict_id, sr3m);
+            assert_eq!(own_modifications(item), [main[0], modification]);
+            assert!(table.fits(sr3m, main, modification));
+            let money = table.bonuses(sr3m, &item.modifications).money;
+            assert_eq!(money > 0.0, main[0] == SILVER);
+            let message = lobby::permitted_crafted(rifle, crafted);
+            takes(&mut client, &message, &account);
+        }
     }
-
-    let mut rng = Rng::new(9);
+    // An old golden copy is no kin of its plain weapon (none is left: they
+    // were made the plain weapon).
+    let mut rng = Rng::new(3);
     let mut account = rich();
-    // A plain rifle takes a golden one as its donor too (the owner's rule of
-    // 2026-10-22): the golden one is used up, the rifle stays plain.
-    let plain = give(&mut account, "ak_74n", &[2000]);
-    let golden = account.add_item(golden_rifle, FULL_CONDITION);
-    assert!(craft(&mut account, plain, golden, false, &mut rng).is_ok());
-    assert!(account.item(golden).is_none());
-    assert_eq!(account.item(plain).unwrap().dict_id, dict("ak_74n"));
-    // Two golden rifles, as two plain ones.
-    let golden = account.add_item(golden_rifle, FULL_CONDITION);
-    let other = account.add_item(golden_rifle, FULL_CONDITION);
-    assert!(craft(&mut account, golden, other, false, &mut rng).is_ok());
-    // Another weapon's plain copy is not its kin.
-    let golden = account.add_item(golden_rifle, FULL_CONDITION);
-    let ak_74m = give(&mut account, "ak_74m", &[]);
+    let rifle = give(&mut account, "sr3m", &[2034]);
+    let old = give(&mut account, "sr3m_premium", &[SILVER]);
     assert_eq!(
-        craft(&mut account, golden, ak_74m, false, &mut rng),
+        craft(&mut account, rifle, old, false, &mut rng),
         Err("the donor is another item")
-    );
-    // The silver bonus counts as a modification: a donor with two is
-    // more, and two more make three, the most.
-    let better = give(&mut account, "ak_74n", &[2000, 2010]);
-    assert_eq!(
-        craft(&mut account, golden, better, false, &mut rng),
-        Err("the donor has more modifications")
-    );
-    let full = account.add_item(golden_rifle, FULL_CONDITION);
-    account
-        .item_mut(full)
-        .unwrap()
-        .modifications
-        .extend([(2000, false), (2010, false)]);
-    assert_eq!(
-        craft(&mut account, full, ak_74m, false, &mut rng),
-        Err("the donor is another item")
-    );
-    let donor = give(&mut account, "ak_74n", &[]);
-    assert_eq!(
-        craft(&mut account, full, donor, false, &mut rng),
-        Err("the most modifications already")
     );
 }
 
 #[test]
-fn the_silver_bonus_of_a_golden_weapon_rerolls_like_any_modification() {
+fn the_silver_bonus_rerolls_like_any_modification() {
     let table = Modifications::shared();
     let mut rng = Rng::new(11);
     let mut account = rich();
-    let rifle = account.add_item(dict("ak_74n_premium"), FULL_CONDITION);
-    // The plain weapon's prices.
+    let rifle = give(&mut account, "ak_74n", &[SILVER]);
     let level = item_level(dict("ak_74n"));
     let window = reroll_window(&account, rifle).unwrap();
     assert_eq!(window.cost, table.reroll.price(level));
     let mut client = client_of(&account);
     let rolled = reroll(&mut account, rifle, SILVER, &mut rng).unwrap();
-    // Three of the plain weapon's, none of them the silver bonus (it never
+    // Three of the weapon's, none of them the silver bonus (it never
     // rolls: drop weight 0).
     for choice in rolled.choices {
         assert_ne!(choice, SILVER);

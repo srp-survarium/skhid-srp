@@ -342,11 +342,10 @@ mod tests {
         assert_eq!(items.len(), 2);
         assert_eq!(account.inventory.len(), before + 2);
         let rifle = account.item(items[0].item_id).unwrap();
-        assert_eq!(rifle.dict_id, dict("ak_74n_premium"));
+        // The plain rifle, as any (the owner, 2026-11-14: no golden weapons).
+        assert_eq!(rifle.dict_id, dict("ak_74n"));
         assert_eq!(rifle.condition_or_stack, FULL_CONDITION);
-        // A golden weapon: its silver bonus is its own first modification
-        // (`golden::starting_modifications`).
-        assert_eq!(rifle.modifications, [(golden::SILVER_BONUS, false)]);
+        assert!(rifle.modifications.is_empty());
         let ammo = account.item(items[1].item_id).unwrap().clone();
         assert_eq!(
             (ammo.dict_id, ammo.condition_or_stack),

@@ -10,11 +10,13 @@
 //!   `shop_bundles_dict` by the record's u32 at +0x04; 0x2CAC10, PROVEN),
 //!   so nothing else can be offered there.
 //! - **What each bundle holds**: its description (`st_ak74n_bundle_descr`:
-//!   "Improved AK-74N, 2000 rounds of 5.45x39 7N6M ammo", and so on).
-//!   PROVEN for the names and counts; that an "improved" weapon is the
-//!   dictionary's `*_premium` copy and the starter bundles' jacket and
-//!   pants the `*_4_premium` ones is LIKELY (they are the only copies with
-//!   fixed modifications, and nothing else gives them out).
+//!   "AK-74N, 2000 rounds of 5.45x39 7N6M ammo", and so on).
+//!   PROVEN for the names and counts; that the starter bundles' jacket and
+//!   pants are the `*_4_premium` ones is LIKELY (the only copies with fixed
+//!   modifications, and nothing else gives them out). The weapon is the
+//!   plain weapon (the owner, 2026-11-14: the golden weapons "all should be
+//!   normal weapons", `docs/notes/golden_weapons.md`; the descriptions'
+//!   "improved" went with them).
 //!
 //! No price is in the client. Every price is silver [the owner,
 //! 2026-11-08: gold is gone]: what the sources of the time give in gold,
@@ -40,13 +42,13 @@
 //! and camouflages); the stock buy dialog paid gold for an item the
 //! dictionary calls premium (`MessageAsk`: `_money_type = isPremium`),
 //! srp's lobby movie pays silver for every item. PROVEN for the window.
-//! [choice] srp lists every premium item with a price that no bundle
-//! holds, at its `base_cost` (silver, `items.tsv`), under seller 0
-//! (sold to everyone): [`premium_price_list`]. The items of a bundle are
-//! sold by their bundle. The items no shop sells ([`prices::is_not_sold`]: the Russian and
-//! Belarusian flags and coats of arms, the flag of the USSR and the red
-//! star; the owner's choice of 2026-10-18)
-//! are sold neither way.
+//! [choice] srp lists every premium item with a price but the premium
+//! armour a bundle holds, at its `base_cost` (silver, `items.tsv`), under
+//! seller 0 (sold to everyone): [`premium_price_list`]. That armour is sold
+//! by its bundle; the AK-74N both ways. The items no shop sells
+//! ([`prices::is_not_sold`]: the Russian and Belarusian flags and coats of
+//! arms, the flag of the USSR and the red star; the owner's choice of
+//! 2026-10-18; the golden weapons, 2026-11-14) are sold neither way.
 
 use super::dictionary::Dictionary;
 use super::lobby::{ShopRecord, ShopRecordItem};
@@ -74,44 +76,44 @@ pub struct Bundle {
 
 /// The seven bundles of items (ids 8..=14), by id.
 pub const BUNDLES: [Bundle; 7] = [
-    // "Bandit" bundle: jacket, pants, an enhanced Uzi, 2000 rounds.
+    // "Bandit" bundle: jacket, pants, an Uzi, 2000 rounds.
     Bundle {
         bundle_id: 8,
         silver: 200_000,
         items: &[
             ("bm_torso_4_premium", 1),
             ("bm_legs_4_premium", 1),
-            ("uzi_premium", 1),
+            ("uzi", 1),
             ("ammo_9x19p_para", 2000),
         ],
     },
     Bundle {
         bundle_id: 9,
         silver: 150_000,
-        items: &[("ak_74n_premium", 1), ("ammo_5.45x39_7n6m", 2000)],
+        items: &[("ak_74n", 1), ("ammo_5.45x39_7n6m", 2000)],
     },
     // "1000 12x70 rounds, buckshot".
     Bundle {
         bundle_id: 10,
         silver: 30_000,
-        items: &[("izh_27_lancaster_premium", 1), ("ammo_12mm_buck", 1000)],
+        items: &[("izh_27_lancaster", 1), ("ammo_12mm_buck", 1000)],
     },
     Bundle {
         bundle_id: 11,
         silver: 500_000,
-        items: &[("sr3m_premium", 1), ("ammo_sp6", 2000)],
+        items: &[("sr3m", 1), ("ammo_sp6", 2000)],
     },
     Bundle {
         bundle_id: 12,
         silver: 70_000,
-        items: &[("vityaz_premium", 1), ("ammo_9x19p_para", 2000)],
+        items: &[("vityaz", 1), ("ammo_9x19p_para", 2000)],
     },
     Bundle {
         bundle_id: 13,
         silver: 500_000,
-        items: &[("vss_premium", 1), ("ammo_sp5", 1000)],
+        items: &[("vss", 1), ("ammo_sp5", 1000)],
     },
-    // "Survivor" bundle: jacket, pants, an improved Kiparis, 1000 rounds
+    // "Survivor" bundle: jacket, pants, a Kiparis, 1000 rounds
     // of 9x18 PM.
     Bundle {
         bundle_id: 14,
@@ -119,7 +121,7 @@ pub const BUNDLES: [Bundle; 7] = [
         items: &[
             ("scav_torso_4_premium", 1),
             ("scav_legs_4_premium", 1),
-            ("kiparis_premium", 1),
+            ("kiparis", 1),
             ("ammo_9x18_makarov", 1000),
         ],
     },
@@ -191,7 +193,7 @@ pub fn premium_price_list() -> &'static [PriceItem] {
             .iter()
             .filter(|item| item.is_premium && item.base_cost > 0)
             .filter(|item| !prices::is_not_sold(item))
-            .filter(|item| !bundled.contains(&item.dict_id))
+            .filter(|item| !(item.like.is_some() && bundled.contains(&item.dict_id)))
             .map(|item| PriceItem {
                 cost: item.base_cost,
                 dict_id: item.dict_id,
@@ -242,9 +244,11 @@ mod tests {
         assert_eq!(cost("rename_account_voucher"), None);
         assert_eq!(cost("premium_voucher_1d"), None);
         assert_eq!(cost("ak_74n"), Some(150_000));
-        // A bundle's items are the bundle's to sell; the shop's own items
-        // and money are not premium.
+        // A bundle's premium armour is the bundle's to sell, the AK-74N
+        // both ways; a golden weapon is sold no more (2026-11-14); the
+        // shop's own items and money are not premium.
         assert_eq!(cost("ak_74n_premium"), None);
+        assert_eq!(cost("sr3m_premium"), None);
         assert_eq!(cost("scav_torso_4_premium"), None);
         assert_eq!(cost("ammo_5.45x39_7n6m"), None);
         assert_eq!(cost("premium_money"), None);
@@ -268,10 +272,11 @@ mod tests {
         }));
     }
 
-    /// The decals no shop sells (2026-10-18, `prices::is_not_sold`) and the
-    /// three vouchers removed (2026-11-08): the premium list is every premium
-    /// item with a price that no bundle holds but those nine, and neither
-    /// list the lobby is sent has them.
+    /// The decals no shop sells (2026-10-18, `prices::is_not_sold`), the three
+    /// vouchers removed (2026-11-08) and the golden weapons (2026-11-14; seven
+    /// in the test data): the premium list is every premium item with a price
+    /// but a bundle's premium armour and those sixteen, and neither list the
+    /// lobby is sent has them.
     #[test]
     fn the_premium_list_leaves_out_what_is_not_sold() {
         let dictionary = Dictionary::shared();
@@ -281,7 +286,7 @@ mod tests {
             .filter(|item| item.is_premium && prices::is_not_sold(item))
             .map(|item| item.dict_id)
             .collect();
-        assert_eq!(excluded.len(), 9);
+        assert_eq!(excluded.len(), 9 + 7);
         for &dict_id in &excluded {
             assert_eq!(premium_price(dict_id), None);
             assert!(price_list().iter().all(|price| price.dict_id != dict_id));
@@ -295,8 +300,8 @@ mod tests {
             .items
             .iter()
             .filter(|item| item.is_premium && item.base_cost > 0)
+            .filter(|item| !(item.like.is_some() && bundled.contains(&item.dict_id)))
             .map(|item| item.dict_id)
-            .filter(|dict_id| !bundled.contains(dict_id))
             .collect();
         let listed: Vec<u16> = premium_price_list().iter().map(|p| p.dict_id).collect();
         assert_eq!(listed.len(), premium.len() - excluded.len());
@@ -427,7 +432,7 @@ mod tests {
                 .iter()
                 .map(|item| (item.dict_id, item.amount, item.kind))
                 .collect::<Vec<_>>(),
-            [(338, 1, 0), (7, 2000, 0)]
+            [(306, 1, 0), (7, 2000, 0)]
         );
     }
 }

@@ -19,6 +19,7 @@ use std::time::Duration;
 use session::LockExt;
 use session::v026g::GameAccounts;
 use session::v026g::account::{self, Account, MAX_LEVEL};
+use session::v026g::persist;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::lobby::FULL_CONDITION;
 
@@ -347,6 +348,19 @@ impl Web {
                 "Такого предмета немає в словнику 0.26g (вкажіть id або точну назву).",
             );
         };
+        // No golden weapon is made any more (2026-11-14): the plain one is.
+        if let Some(&(_, plain)) = persist::GOLDEN_WEAPONS
+            .iter()
+            .find(|&&(golden, _)| golden == item.dict_id)
+        {
+            let plain = dictionary
+                .item(plain)
+                .map_or("", |plain| plain.name.as_str());
+            return lang.tr(
+                &format!("There are no golden weapons any more: give {plain}."),
+                &format!("Золотої зброї більше немає: дайте {plain}."),
+            );
+        }
         let most = if item.is_stack {
             MAX_GIVEN_UNITS
         } else {

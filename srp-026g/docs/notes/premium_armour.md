@@ -1,7 +1,9 @@
 # Premium armour
 
-The owner's rule of 2026-10-22: give the premium armour the golden weapons' treatment
-([golden_weapons.md](golden_weapons.md)), so that the Modification (reroll) button works on it. Code:
+The owner's rule of 2026-10-22: give the premium armour the golden weapons' treatment of then (its
+bonuses its own modifications, upgradable as the plain piece), so that the Modification (reroll)
+button works on it. The golden weapons themselves are plain weapons since 2026-11-14
+([golden_weapons.md](golden_weapons.md)); the armour keeps this rule. Code:
 `survarium::v026g::golden`, `session::v026g::items_rules`, `Account::add_item` (owned pieces got
 their bonuses once in 2026-10); the data:
 `scripts/content-edit/armor.tsv` (rarity 0, no experience or reputation cell), `items.tsv` (`like`,
@@ -19,7 +21,7 @@ holds one, the Keeper of the Sun's too (`modifications.tsv`). The +5 % below is 
 - **Before:** three defaults each (the plain piece's one, then +5 % experience, then +5 %
   reputation with the faction) and base rarity 3: rank 3, no craft, and a default is never offered
   for a reroll.
-- **No one bonus matches the golden rule.** The golden weapons kept their one money bonus and lost
+- **No one bonus matches the golden rule.** The golden weapons then kept their one money bonus and lost
   combat bonuses; this armour has two pay bonuses (experience, reputation) and no combat one beyond
   its plain piece's. So **[srp's choice] all bonuses stay** and players lose nothing:
   - the two premium bonuses become modifications of the piece's own, its first two places (rank 2);
@@ -38,17 +40,17 @@ holds one, the Keeper of the Sun's too (`modifications.tsv`). The +5 % below is 
   Plain pieces (the donors): 351 `bm_torso_4`, 353 `bm_legs_4`, 325 `scav_torso_4`, 326
   `scav_legs_4`.
 - **The other choice** (the owner may switch to it): keep only +5 % experience (1240, the bonus all
-  four share, as the silver one all golden weapons share), the reputation bonus goes; rank 1, two
+  four share), the reputation bonus goes; rank 1, two
   craft places. It changes the patch (1250 / 1260 removed, not granted), the pieces' `start` in `items.tsv`
   and the lobby's `PREMIUM_ARMOUR_BONUSES`; the one-time grant would then give 1240 only.
 - **Upgradable as the plain piece:** same item level, so the same craft and reroll prices and
   chances; the premium bonuses reroll as any modification (a failed craft takes none, owner
   2026-10-23, `craft-menu.md`); gone, it does not come back (drop weight 0).
-- **Craft donors:** a premium piece and its plain piece are donors for each other, as a golden
-  weapon and its plain weapon (`golden::may_donate`, `ItemFactory.isCraftDonor`); the donor is used
-  up. Not another faction's piece.
-- **Gold background and gold name**, as the golden weapons (the lobby knows them by its list; the
-  descriptor's rarity is 0 now).
+- **Craft donors:** a premium piece and its plain piece are donors for each other
+  (`golden::may_donate`, `ItemFactory.isCraftDonor`); the donor is used up. Not another faction's
+  piece.
+- **Gold background and gold name** (the lobby knows them by its list; the descriptor's rarity is
+  0 now).
 - **Shop and bundles** show the two bonuses on a piece not owned (`ItemFactory.startingModifiers`;
   a test holds the icons and props to the data). Owned ones show the server's.
 - **Owned before:** at the first start of the srp with this rule each premium piece gets the bonuses
@@ -56,7 +58,7 @@ holds one, the Keeper of the Sun's too (`modifications.tsv`). The +5 % below is 
   `premium_armour_given`, written only after the changed accounts are; an account not written stops
   srp, and the next start gives them again to the pieces still without them). Each account changed is
   logged with its item ids; a piece with no place left keeps its own and is logged (none can have: the
-  lobby showed rank 3). Golden weapons are not touched (their grant has its own mark).
+  lobby showed rank 3).
 - **New ones** (bundles, the admin) come with them.
 - **Pay** is unchanged: `Modifications::bonuses` counts own modifications and defaults alike. Not a
   simulation change (no `simulation_changes.tsv` row): the bonuses only change what a match pays.
@@ -69,6 +71,5 @@ holds one, the Keeper of the Sun's too (`modifications.tsv`). The +5 % below is 
   Not tested in the game yet.
 - **Rollback: without `--keep-db`.** After the one-time grant the pieces hold the bonuses as their
   own; the rev 27 srp and data still have them as defaults too, so it would pay them twice (and a
-  piece bought meanwhile would never get them: the mark is set). The golden weapons' silver has the
-  same exposure.
-- **Tech debt:** the same special cases as the golden weapons' ([tech-debt.md](tech-debt.md)).
+  piece bought meanwhile would never get them: the mark is set).
+- **Tech debt:** the bonuses are granted modifications, not config defaults ([tech-debt.md](tech-debt.md)).

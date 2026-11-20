@@ -349,14 +349,10 @@ pub fn derive(data: &GameData, dictionary: &Dictionary) -> Result<Vec<ItemParams
         })?;
         let mut row = ItemParams::from_config(item.dict_id, &config)
             .map_err(|cause| GameDataError(format!("{path}: {}", cause.0)))?;
-        // The owner's rule (`super::golden`): a golden weapon has no
-        // default bonus and no base rarity, a premium armour piece only its
-        // plain piece's default and no base rarity, as their patched configs
-        // say (srp refuses other data at start, `golden::check`).
-        if super::golden::is_golden_weapon_name(&item.name) {
-            row.default_modifications = &[];
-            row.base_rarity_level = 0;
-        } else if let Some(bonuses) = super::golden::armour_bonuses(&item.name) {
+        // The owner's rule (`super::golden`): a premium armour piece has
+        // only its plain piece's default and no base rarity, as its patched
+        // config says (srp refuses other data at start, `golden::check`).
+        if let Some(bonuses) = super::golden::armour_bonuses(&item.name) {
             let plain: Vec<u32> = row
                 .default_modifications
                 .iter()
@@ -748,14 +744,15 @@ mod tests {
         // Money has five rarities, [`super::super::drops`].
         assert_eq!(item_params(214).unwrap().stack_rarity.len(), 5);
         assert_eq!(item_params(215).unwrap().stack_rarity[4], (50, 50));
-        // Armour comes with its modifications: 83 of 0.26g's, but for the
-        // seven golden weapons, whose go (`super::super::golden`).
+        // Armour comes with its modifications: 83 of 0.26g's (seven of them
+        // the stock golden weapons, which the live data's weapon-stats.tsv
+        // takes theirs from).
         assert_eq!(
             all()
                 .iter()
                 .filter(|params| !params.default_modifications.is_empty())
                 .count(),
-            83 - 7
+            83
         );
     }
 

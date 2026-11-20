@@ -14,6 +14,7 @@ use survarium::v026g::dictionary::{Dictionary, Item};
 use survarium::v026g::item_params::{self, ItemParams};
 use survarium::v026g::localization::{self, Language};
 use survarium::v026g::modifications::{Modification, Modifications};
+use survarium::v026g::prices;
 use survarium::v026g::ui_properties::{Change, UiProperties, UiProperty};
 
 use crate::icons::{self, IconSet};
@@ -170,13 +171,16 @@ struct Choice {
     params: &'static ItemParams,
 }
 
-/// Every item of a group, by group, level and dictionary order.
+/// Every item of a group a player can have, by group, level and dictionary
+/// order: not a premium item no shop sells (the golden weapons, gone since
+/// 2026-11-14).
 fn grouped() -> &'static [Choice] {
     static ITEMS: OnceLock<Vec<Choice>> = OnceLock::new();
     ITEMS.get_or_init(|| {
         let mut items: Vec<Choice> = Dictionary::shared()
             .items
             .iter()
+            .filter(|item| !(item.is_premium && prices::is_not_sold(item)))
             .filter_map(|item| {
                 Some(Choice {
                     group: Group::of(item.category)?,
