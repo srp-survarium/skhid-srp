@@ -1,8 +1,6 @@
 mod tcp_packet;
-mod udp_packet;
 
 pub use tcp_packet::TcpPacket;
-pub use udp_packet::UdpPacket;
 
 pub trait Packet {
     fn append_bytes(&mut self, data: impl AsRef<[u8]>);

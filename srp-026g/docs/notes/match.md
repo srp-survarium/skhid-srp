@@ -175,6 +175,7 @@ Same shape as 0.21d (match.md §2), with the new ids and the sync generation:
 ### 5.1 Relayed inputs (`change_input<client_update<player_input,…>>` 0x1FAB50, FUNCSIG 0x9FBAB0 family; 0.21d `change_input` 0x1CB12C)
 
 - `T ≤ last resync time` (`game_world_core`+0x18FD4, 0.21d C804): rejected, log "older than last resync" (0x9FB820). Same as 0.21d. PROVEN.
+- No check of the input itself (0.27d added one: a rotation half that is a NaN or an infinity, "input is invalid", validator 0x1EA990). Exe patch 99 refuses at the function's start, returning 6 as this refusal does, any rotation the match server refuses (client_patch.md §3.62).
 - **"too old" (`T + 500 ≤ now`) is no longer a rejection.** The 0.21d strings "REJECTED, reason: too old" / "too new" (0x819D90, 0x819DE0) have no 0.26g counterpart in `change_input`. Instead, when `T + horizon ≤ now` (horizon 0 if server, +0x18FB4 otherwise; now = +0x18FC4; 0x1FAD1E..0x1FAD47):
   - the input is **moved** to `ceil50(base) + (T mod 50)`, where `base = now + [+0x18FB8]*50`, lowered to `[+0x18FC8] + 50` when that is set and smaller (client only), and logged "input is moved %d.%03d => %d.%03d" (0x9FBA70);
   - unless the client runs with **`-reject_inputs`** ("reject players inputs if too old or too new", option 0xAA2290 / 0xA0F6B0; `game_world_core`+0x18FDE = option state != 1, 0x2D00EA..0x2D0120), then it is dropped with "input is SKIPPED ... -reject_inputs is set" (0x9FB9F8).
@@ -295,7 +296,7 @@ what the server sends, with the state and generation rules of §1.2 and
 
 **The initial world's time** is taken from the first upload (0.21d: 50 ms). GUESS that it is on the 50 ms grid; if not it is rounded up.
 
-**A world the reader cannot split** (`Sections::candidates` empty) is still used to start and resync clients, is saved (`SRP_SNAPSHOT_DIR`, kind `unreadable`) and gives no results: the reader has not seen a real 0.26g world.
+**A world no game could load** (its frame does not walk from the front to its end, a mask bit past the roster, a section or a player state over the game's buffer) goes to nobody since 2026-10-31 (world_frame_check.md); it is saved (`SRP_SNAPSHOT_DIR`, kind `unloadable`). Until then a world the reader could not split (`Sections::candidates` empty) was used to start and resync clients, saved as `unreadable`, and gave no results.
 
 ## 14. Which ticks a client hashes (added 2026-10-12)
 
@@ -361,7 +362,7 @@ Read from `discard_input<player_input>` 0x27D820 and `move_input<player_input>` 
 | batched relays | not worth it: §13 | PROVEN (table) |
 | score weights | none in the client or its data: static_info.md §8 | PROVEN negative |
 
-## 18. A sync's order, resync kinds, the restore limit (added 2026-10-12, after upstream_compare.md)
+## 18. A sync's order, resync kinds, the restore limit (added 2026-10-12)
 
 `game.rs`: `send_sync`, `finish_sync`, `relay_to_others`, `begin_timing`, `check_hashes`. The design is the 0.21d server's of the same day (`srp-021d/docs/notes/upstream_recovery.md`), checked against the 0.26g exe.
 
@@ -370,7 +371,7 @@ Read from `discard_input<player_input>` 0x27D820 and `move_input<player_input>` 
   - `change_input` (network path, 0x1FAB50) then refuses nothing: "older than last resync" compares with 0 (0x1FABBC); "too old, move it" compares `T + horizon` with +0x18FC4 = 50 (0x1FAD37..0x1FAD47); "too new, move it back" is skipped while the history is empty (`cmp [core+0x2FBC],0; jz` at 0x1FAFC0). PROVEN. The node goes into the player's list (0x1FB41B..).
   - The load (mode 1) does not touch the input lists (§17), sets world time and last resync to the snapshot's time (0x2D0FC5..0x2D0FD7), and nodes after it are played by the first move. PROVEN for the fields; the catch-up itself as 0.21d: LIKELY.
   - Not settled: what +0x18FC4 becomes if a **running** client's `move()` runs between the 0xE5 and the inputs (in 0.21d it stays 50: the same code deployed live there on 2026-10-12). The inputs are queued right behind the 0xE5, so they are read in the same network pass in the common case. LIKELY.
-- **A client's own inputs are never sent back to it** (they were, until this change). The duplicate test of `change_input` looks at the list of times that came from the network for that player (core+0xE3E4, 0x1FAB70..0x1FAB8E), where the local player's own inputs are not: an own input sent back is not a duplicate, and if it is older than the horizon by then, the client moves it to another tick and has it twice. Another server saw exactly that live as a lasting divergence (upstream_compare.md topic 7). PROVEN (code) + live (theirs). The client still has its own inputs after the load (the lists survive). Until 2026-10-14 the ones the others lacked it was told to drop; since then the others have them all (§30).
+- **A client's own inputs are never sent back to it** (they were, until this change). The duplicate test of `change_input` looks at the list of times that came from the network for that player (core+0xE3E4, 0x1FAB70..0x1FAB8E), where the local player's own inputs are not: an own input sent back is not a duplicate, and if it is older than the horizon by then, the client moves it to another tick and has it twice. Another server saw exactly that live as a lasting divergence. PROVEN (code) + live (theirs). The client still has its own inputs after the load (the lists survive). Until 2026-10-14 the ones the others lacked it was told to drop; since then the others have them all (§30).
 - **Replayed inputs are kept until acked** (`Transport::send_kept`): a relay's own 250 ms would lose them on a slow link, and a sync's inputs are not late however late they come.
 - **The clock after a restore** was the snapshot + 350 ms (`SYNC_LEAD_MS`) until 2026-10-14, as in 0.21d. Since then a client resynced while it plays is put at the match clock, past its newest own input (§30); `SYNC_LEAD_MS` is for a client that enters while others play, but for a player back in the match, which goes at the match clock too (since 2026-10-15, §30).
 - **The order of a resync** since 2026-10-14 (§30): 0xE5 until answered, then the replay of the others' inputs and the roster changes since the snapshot, and the world only once all of that is acked (and every relay sent since up to the world's time, or older than a round trip). A snapshot too old by then is not a reason for a new 0xE5: the generation and its replay are kept and a newer snapshot is waited for (§30, step 5).
@@ -471,12 +472,13 @@ Seen live three times on 2026-10-12 (0x5825bf7, 0x1f793b8, 0x5cc8cc52): every cl
 - **Not lost:** a match somebody plays, whatever the one who waits cannot get (the playing client has no upload, or its uploads are refused); a match nobody waits to get into.
 - **Starting the player alone from the last world kept is not done.** The clock would have to go back to that world's time (§1.3: ticks are one byte), and the world is the one just before every game stopped; when the cause is in the world (§23) the player meets it again.
 - **The end, for a game that never had a time.** PROVEN:
-  - 0xFD (`instant_disconnect(4)`, 0x3FDF0A) ends as `close_current_match(4)`, and the jump table at 0x27A958 has the function's return for 4: nothing is closed. (0: the world is ended; 1 and 5, "connection lost" and "expired … message": the lobby is told `31` and the world ended; 2, "by initiator": 0xE0 first; 3: the world ended and the results shown, 0x1F96F0 and 0x29AAF0.) The link is closed by the transport before that, so the game stays on the screen it had, with no match link.
+  - 0xFD (`instant_disconnect(4)`, 0x3FDF0A) ends as `close_current_match(4)`, and the jump table at 0x27A958 has the function's return for 4: nothing is closed. (0: the world is ended; 1 and 5, "connection lost" and "expired … message": the lobby is told `31` and the world ended; 2, "by initiator": 0xE0 first; 3: the world ended and the results shown, 0x1F96F0 and 0x29AAF0.) The link is closed by the transport before that, so the game stays on the screen it had, with no match link. (Since patch 119, README, the entry for 4 is reason 1's `31` and world end, 0x27A930.)
   - `pvp_match_core`'s init (0x2D57F0) clears the world core with `0x2D0550(0, 1)`: core time and world time 50 ms, last resync 0. So for a game that took no 0xE5 the tick byte 0 is 0 ms (`(1 + sdiff8(0, 1)) × 50`).
   - `leave_match` 0x2D18A0 first tests `time <= last resync` (0x2D18B9) and returns 6 ("older than last resync") with nothing done.
   - The 0xEA handler calls `close_current_match(3)` for the local index whatever `leave_match` returned (0x27C720..0x27C76F).
 - So the server sends such a game 0xEA with its own index and **tick 0** (`farewell_tick`), again while unacked, where it used to close the link.
 - Not seen with a real client: the results screen of a game whose world never ran.
+- **Correction (2026-11-07, read in the exe; client_patch.md section 3.72):** close_current_match first returns, for every reason, while the network client's +1F1C60h (the time rule's state kept for the camera) is 0 (0x27A7A4..0x27A7AA), and that is so until a game has played its first tick after its first world. So the farewell does not end such a game's world: its 0xEA handler tells the lobby `31 .. FF` itself (0x27C74E..0x27C75A), then `close_current_match(3)` returns at the guard. The game stays where it was, with its link closed later by the server. The same holds for 0xFD, FA and a timeout there. Patch 119 (README) makes 0xFD end the world of a game past the guard, as reason 1; patch 120 (README, client_patch.md section 3.74) ends a match never played: a loaded game's farewell gets the world's end and the results, a loading one's 0xEA is skipped (no core) and the later link close ends it once loaded.
 
 ## 25. A player who leaves by its own will gives its place up (added 2026-10-12)
 
@@ -578,7 +580,7 @@ The fault needs a battery of the enemy's that is out of its container when the g
 - In all four worlds of this match seven batteries have a finder (place 0 four times, place 1 three times) and neither place has an event 19; six of them lie free, never owned, with no distance carried and their two nearest positions still equal. The game that gave the first world had ended a battery match two minutes before in the same run (the log has no sign-in of it between the two); that the bytes are that match's is LIKELY (its worlds were not looked at).
 - What it costs (from the code, not seen in a world): event 19 ("found") is never counted for such a battery (0x334B14), and the first test of event 24 (0x334D0C: a fresh battery put in by its finder) fails for the player who did find it and holds for whoever sits at the old place. The quest type 6 `bring_x_items` counts event 24. It is no fault of step: every game has the same bytes.
 
-**What could be done. Nothing is decided and no patch is written.**
+**Update, 2026-11-03:** the pending fix implements saving the native taker through the existing battery-progress hooks; see [battery_taker.md](battery_taker.md) for the native regression, exact format and recent-match evidence. The alternatives below are the original October analysis.
 
 | | what | a game of revision 7 with one of the new revision | what it costs or changes |
 |---|---|---|---|
@@ -623,7 +625,7 @@ Not looked at: whether the two "not traced" event types 2 and 3 reach the event 
 
 **What the server does now** with a client resynced while it plays (`entering` false; a game's first world, a late join and a player back in go as before):
 1. *The decision* (`check_hashes` → `start_sync`): a snapshot at most 700 ms old (`RESYNC_FRESH_MS`) is used at once; else the client waits for one, and an upload is asked for at once (the wait until the clock is past its last relayed input is gone). While it waits it plays: its inputs are handled as any client's, answers included.
-2. *The first 0xE5* (`begin_timing`), of the next generation, again every 150 ms until answered. The client's resync runs from here until its world is acked (`Peer::resync_from`). Its clock (`sync_start`): never below the game's own clock as the 0xE5 arrives, nor below the newest of its own inputs seen, by 100 ms each (`RESYNC_CLOCK_MARGIN_MS`; inputs on their way are newer than the newest seen). The game's own clock: the clock a 0xE5 of the generation gave it and the time since, when no 0xE7 moved it since (exact; then without the margin). The game follows the last copy it received, which the server does not know, so the latest clock any copy gives counts, never the last copy sent (copies whose clocks disagree may arrive in any order; `given_clock`); else the match clock and half its round trip (at most 250 ms) less how far it is behind by the pings (`estimated_lag`; games run about their way ahead of the match clock). The larger of the two counts. So its inputs keep their ticks, and a time seen again is a copy. An answer to an own input sent before and not acked yet is held (step 6): it may now be refused. A fresh upload is asked for.
+2. *The first 0xE5* (`begin_timing`), of the next generation, again every 150 ms until answered. The client's resync runs from here until its world is acked (`Peer::resync_from`). Its clock (`sync_start`) stays ahead of its newest own input plus 100 ms (`RESYNC_CLOCK_MARGIN_MS`), its measured clock on arrival, and the upper bound of clocks already assigned by E5. That bound (`AssignedClock`) is recorded when queued and survives unanswered generations and reordered replies; a new E7 correction invalidates it. Only the first assignment gets an additional clock margin: adding it again to a retry's estimate advanced the clock another 100 ms every generation (see [resync_clock_margin.md](resync_clock_margin.md)). Queue time gives a conservative upper bound on the client's projected clock, not an exact delivery time. The measured clock remains the match clock plus half the round trip (at most 250 ms), less `estimated_lag`. Thus the retry preserves own-input timestamps without repeatedly advancing the clock. An answer to an own input sent before and not acked yet is held (step 6): it may now be refused. A fresh upload is asked for.
 3. *Answered* (0xDB; or after 5 unanswered 0xE5, as before): the replay (`send_replay`), the others' inputs after S (kept until acked) and the roster changes after S. Not with the first 0xE5: a relay that came before it, to a game that still has its history, would be moved by that game if older than its horizon.
 4. *Until the world (the gate, since 2026-10-15):* the others' new inputs after S go as they come (kept, packed as any relay, transport.md §11.1), roster changes too (kept until acked: a roster change to a resynced client is never lost, whatever `send_sync` does to `in_flight`). The world waits only for what it needs: every part of the replay, every roster change, and every relay for a tick up to the world's time not acked yet; never for a newer relay. The wait is capped: 1000 ms in all from the first look with a snapshot there (`RESYNC_GATE_MAX`), or until the snapshot would be too old to load in time (its age limit, step 5), whichever comes first; then the world goes without the rest, logged ("goes without N messages up to its time"). The gate is looked at every 15 ms at most (`RESYNC_GATE_EVERY`), not on every poll; each look drops the acked entries (an O(1) test each, transport.md §11.5); relays are tracked up to 256 (`SYNC_PENDING_RELAYS`). When the world goes, what it waited for and was not acked, for a tick up to S, is forgotten by the transport (it is in the world; a late copy would be moved by the game); what is past S stays kept until acked. A replay not acked 3 s after it went (`REPLAY_ACK_WAIT`) has the sync done again, three times a resync at most (`REPLAY_REDONE`) and eight generations a resync at most (`RESYNC_GENERATIONS_MAX`); past that the world goes at once. A new generation forgets the old one's unacked replay and roster copies: its own replay or world holds them. Why (review of f3c93e1): at 20 players a resynced game got about one kept relay per datagram, its acks name the newest 6 seqs, so some relay older than a round trip was always unacked, and the world of f3c93e1, which waited for those, almost never went. Tests: `tests/resync_gate.rs` (20 clients, inputs every 50 ms, the far one with 6-seq acks, 8 % loss, 100 and 300 ms round trips; a roster change lost with the redos used up; replay copies up to the world forgotten).
 5. *The world* (`send_sync`): 0xE5 once more and 0xE8, from the newest usable snapshot from S on that will be at most 1000 ms old when it reaches the game (`RESYNC_WORLD_MAX_AGE_MS` less half the round trip, `resync_world_max_age`; the 200 ms to `RESYNC_LOAD_BY_MS` are for its parts), and never less than 500 ms now (`RESYNC_WORLD_MIN_AGE_MS`: an asked-for snapshot is about that old when it is here; a line whose way leaves less gets the freshest there is, late by the rest, rather than none). The replay for S holds what a newer one needs, and the inputs before a newer one's time are the oldest in the game's rings, the first to go. With none such, **the generation and its acked replay are kept**: a newer snapshot is asked for at once, and the world goes when one comes. Until 2026-10-14 the client was sent back to wait and got a new 0xE5 and replay with the next snapshot: the world went two round trips after the snapshot asked for at the first 0xE5 came, which made it about 500 ms older, and above a round trip of about 250 ms it was always over 1000 ms old, so every pass began a new generation until `SNAPSHOT_GIVE_UP` (20 s), and then the slow-load redos followed. Now a wait asks again after 1 s (`RESYNC_WORLD_WAIT`), three times at most a resync (`RESYNC_WORLD_WAITS`), and then the newest snapshot there is goes (at most 5 s old), as after 20 s. The resync floor (moved relays, held answers) still holds for every snapshot taken. The bench, with a delay of 150 and 250 ms each way, does a resync in one generation (tests above). The world's parts go again every round trip + 50 ms, 120 ms at least (`Transport::send_every`, `RESYNC_WORLD_RESEND_MIN`), not 0xE8's 500 ms; the world still lives the table's 1.75 s. A first world (a game that waits for its first) keeps the table's pace and its 4 s (§27).
@@ -711,15 +713,16 @@ Mode 4. Found from the live logs and the saved worlds of 2026-10-14/15; tools: `
 
 ## 34. A room's match starts with the players who are in (added 2026-10-20)
 
-`game/start.rs`: `poll_start`, `StandIn`, `START_WAIT_MS`; `MatchSetup::room_minimum`, `MatchEnd::NotMade`. Tests: `tests/start.rs` (`the_live_room_5209_starts_with_the_two_players_who_stayed`, `a_place_whose_game_never_comes_stands_in_after_the_start_wait`, `a_room_match_its_minimum_cannot_play_is_called_off`, `a_room_match_everyone_left_before_its_countdown_is_called_off`, `a_match_of_no_room_waits_for_its_players_as_before`, `a_room_match_whose_games_all_lost_their_link_before_its_countdown_is_called_off`, `a_room_match_whose_games_all_went_while_loading_is_called_off`, `a_game_behind_the_stand_ins_entry_is_resynced_before_their_leave`, `a_place_that_stood_in_comes_as_a_new_player`, `a_player_whose_place_stands_in_comes_back_after_the_stand_in`, `a_place_taken_into_the_match_counts_as_one_that_may_come`); lobby `a_room_whose_match_is_called_off_votes_again_and_plays_with_who_is_there`, `a_room_makes_no_match_below_its_minimum`.
+`game/start.rs`: `poll_start`, `StandIn` (the start wait: `match_start_wait_ms` of `rooms.tsv`); `MatchSetup::room_minimum`, `MatchEnd::NotMade`. Tests: `tests/start.rs` (`the_live_room_5209_starts_with_the_two_players_who_stayed`, `a_place_whose_game_never_comes_stands_in_after_the_start_wait`, `a_room_match_its_minimum_cannot_play_is_called_off`, `a_room_match_everyone_left_before_its_countdown_is_called_off`, `a_match_of_no_room_waits_for_its_players_as_before`, `a_room_match_whose_games_all_lost_their_link_before_its_countdown_is_called_off`, `a_room_match_whose_games_all_went_while_loading_is_called_off`, `a_game_behind_the_stand_ins_entry_is_resynced_before_their_leave`, `a_place_that_stood_in_comes_as_a_new_player`, `a_player_whose_place_stands_in_comes_back_after_the_stand_in`, `a_place_taken_into_the_match_counts_as_one_that_may_come`); lobby `a_room_whose_match_is_called_off_votes_again_and_plays_with_who_is_there`, `a_room_makes_no_match_below_its_minimum`.
 
 - **Seen live** (room 5209, 8 v 8 from 1 v 1, match 0x498091e8, 2026-10-20): 5 places, so the clients wait for 4 (`floor(0.8 × N)`, §19, N fixed at the match's making). Two players left by their own word before the countdown; the other three came and went; the two who stayed sat in "Awaiting other players" (the clients' own limit is 5 minutes, `wait_time`), and the room's members could not get in. The owner: "threshold is 2 players though, not 4"; "just let people play, since rules are in rooms and they were explicitly 1vs1".
-- **The rule** (a room's match only; the room's minimum is `room_minimum`: 2, 4, 6):
+- **The rule** (a room's match only; the room's minimum is `room_minimum`: 2, 4, 6; 1 for a private room (a PIN), below):
   - **Starts with who is in** when the places that can still come cannot make the clients' number, or 30 s after the first entry with no countdown, as long as the room's minimum is in with a player on each side.
   - "Can still come": not given up (0xE0), and its game connected (loading counts), or not connected but the 30 s not over. A place taken into the match (a late joiner) can until its admission is in or failed. A game still loading when the match starts enters once loaded, as into any match; only places no game holds stand in.
   - **Called off** before its countdown when fewer than the room's minimum, or nobody of a side, are in or can still come (everyone left, by its own word or its link lost, or every game went while loading: `Game::called_off`, the same for a match no game reached): `MatchEnd::NotMade`, nothing counts (no results screen, pay, rating, quest, wear), and the room goes on as for a match that could not be made (its vote and wait again, whole).
   - A countdown that started runs on whoever leaves (the clients' rule never goes back to waiting, `logic_tick` 0x318100); after it nothing here applies.
   - Not a room's (clan matches, against bots): the clients' rule alone, as before.
+  - **A minimum of 1** (a private room, a PIN: its owner starts its match with whoever is in, the owner's of 2026-10-26: "in private lobbies it should be possible to start the game 1vs0"): no side needs a player. A match of one member is one place: the clients' number is `floor(0.8 × 1)` = 0, so its entry starts the countdown (no stand-in), and it plays 1 v 0. A larger match whose other side never comes, or gave up, starts with who is in as above (stand-ins), not called off; called off only with nobody at all. Neither the battery rule nor Team Deathmatch's ends a match for an empty side (TDM ends on a side with no tickets and nobody alive; an empty side keeps its `tickets_count`). A late joiner goes to the empty side (the side with fewer players). It pays nothing, as every match of a PIN room (`rooms.md`). Tests: `tests/start.rs` `a_room_match_of_one_player_plays_1_v_0`, `a_room_match_of_a_minimum_of_one_starts_with_a_side_empty`; `tests/late_join.rs` `a_1_v_0_room_match_takes_a_late_joiner_on_its_empty_side`. Not run in a game yet.
 - **How the clients are made to start** (no client change; PROVEN in the exe unless tagged):
   - The server enters as many places as are missing, places no game holds (given up first), all on one tick T that no other roster change shares (a later one goes after it: `after_stand_ins`). A game takes a tick's roster changes by place, each entry before its leave (`0x2D2180` → `0x2D1EF0` / `0x2D2040`); each entry is a logic tick of the time rule, so every game reaches the number on T and counts down from T, as the server's copy does.
   - The stand-ins leave again once every game simulating reported a tick at or past T (it played the entry). A game that has not 2 s after the entry (its world standing still) is resynced first, as one out of step, and gets the entry and the leave with its replay: no game is ever sent a leave it would drop, and none keeps a stand-in alone. Not sooner: `leave_match` 0x2D18A0 takes a leave only of a player in the entered mask of the newest played node at or before the leave's tick (0x2D1B4B..0x2D1B9D; that mask is written when the node is played, 0x2D1EF0), so a leave that comes before the game played the entry is dropped (`scripted.rs` `dropped_leaves`). Entry and leave on one tick are not possible for the same reason, and would not count two stand-ins at once (each place's entry and leave come together, 0x2D2180).
@@ -728,3 +731,103 @@ Mode 4. Found from the live logs and the saved worlds of 2026-10-14/15; tools: `
   - A game of a place that stands in, connecting meanwhile, waits for the stand-in's leave (`stands_in`), then enters after it, from a world after it: a lost player as one back in the match (`enter_early`), a place no player had as a new arrival. Never a second entry while the stand-in is in, nor taken out by its leave.
 - **A gap, not new:** any leave the server sends within its roster lead (300 ms) of that place's entry can come before a game played the entry and be dropped (a newcomer who leaves at once); the server does not hold those back yet.
 - **What a game does when a match is called off** (the same end as every match, §24): 0xEA of its own place → `close_current_match(3)`: the world ended, the lobby's victory screen opened (`show_match_statistic`; PROVEN 0x27A806..0x27A81A, 0x29AAF0). No 0x97 comes for it, so the screen shows its "receiving the statistics" spinner (`VictoryScreen.prepare`, no time-out in the movie) until the player closes it (×, Esc, a tab); a room's member has its room's window under it. LIKELY: not seen in a game. The quiet way (a 5 s silence ends the match link as `close_current_match(0)`, the world ended with no screen: jump table 0x27A958 entry 0 = 0x27A941) was not taken: the server would have to swallow the game's datagrams for as long as it loads, with no 0xFD, and that path is not exercised live.
+
+## 35. A resync whose game already agrees is skipped; the bloc of games that loaded a world (added 2026-11-05)
+
+Live, 2026-11-04 (rev48, the storm of resyncs every 4 to 8 s). PROVEN from the server's log and its
+saved worlds unless tagged.
+
+- **A game resynced while already back in step.** Match 0x60ebe205: player 9's world taken just
+  ahead of its resync (`ask_wrong_world`, kind `wrong`, tick 200700) is player 1's checked world of
+  that tick byte for byte (12835 bytes). The hash is the CRC of exactly those bytes
+  (MATCH-SYNC-026G.md "Uploads": the upload serializes the item as `hash()` 0x325150 does), so the
+  game agreed again at the moment of its resync; it was wrong at older ticks, judged
+  `hash_settle_ms` (2.5 s) late. The log shows many such short disagreements that heal on their own
+  ("disagreed from ... and agrees again; not resynced", dozens a minute in 0x60ebe205).
+- **The fix, as 0.69:** 0.69's `process_dynamic_match_info` (0x2001AF7B0, x64) ignores a resync
+  "hash on time %d matches". In 0.26g that cannot be done by the client: 0xE5 frees its whole
+  history before the 0xE8 comes (section 17) and carries no hash. So the server does it
+  (`Game::agrees_now`, `check_hashes`): before a resync it takes the game's newest report past its
+  disagreement whose tick more than half of the games in the simulation reported alike (no report
+  still to come can turn it); if the game's CRC is that one, no resync, and its older wrong reports
+  (`Peer::agreed_at`) count no more. Test
+  `a_game_back_in_step_before_its_disagreement_is_judged_is_not_resynced` (fails without it).
+  Never worse than the resync: the world it would have loaded is the one it has.
+- **What the skip does not fix: the games that loaded a world go wrong together.** In 0x60ebe205
+  the games that had started from a world form one side and the games that never did the other:
+  players 2, 3, 4, 6 resynced from 668350 and player 0 started from 665400 all report
+  `3b8b91a1` at 672050, the never-loaded 1, 7, 11, 12, 14 `b48489ad`; resynced again from 675400 /
+  684050, the same five, then 16 (started from 672050) and 8 (from 679400), go wrong together again
+  3 to 7 s after each load (681000, 680700, 685050, 690850, ...). Games that loaded different worlds
+  at different times agree with each other and not with the others: a state the world does not
+  carry, which a load sets alike in every game that loads, and which shows in the hashed state
+  seconds later. Not yet found (open): which field.
+  - Not a patch hook: `check_world_roundtrip_026g.py` over the 21 storm worlds
+    (`live/snap`, `worlds`, `w_anim/worlds2` of 0x5bfde2e7, 0x71a7a62a, 0x60ebe205) passes in all
+    three games (fresh A, fresh B, resync). The native codec is not run there.
+  - Where the worlds of one tick differ (0x71a7a62a): 271700 and 278000, player 10's position,
+    velocities and animation state; 278000, player 14's state has one 16-byte entry more in a list
+    of (u32 time, f32) pairs (times 275900, 276250; LIKELY a timed effect list), and the bullets and
+    statistics differ. These are worlds already apart, not the first tick of the split.
+  - The 16-byte entry (player 14, 278000; offsets from the state's start, A the majority's, B
+    the bloc's): at 470 A has `u32 276250, u8 0, u8 4` then four `{u32, f32}` (0x644 0.097,
+    0x67D 0.23, 0x684 0.23, 0x690 0.23), B `u8 5` and five (0x644 0.097, 0x67D 0.23, 0x681
+    0.097, 0x683 0.23, 0x68F 0.23); the same at 736 (B one more entry, `0x681`, 0.127), and so
+    the rest of B's state is 16 bytes later. This is inside the inventory (after the head and the
+    effects, before the recent hits: those, 4 x {time, 0.15} at the end, are equal). Not the
+    weapon's transition helpers (0x32FEE0: 4 f32 + u32) nor its dispersion (0x3312F0: two of them
+    and an f32). Not named.
+  - **Leading candidate (not proven): the kit players that are not current.** Each place has three
+    kit players; a world carries only the current one (and the profile with it). The others keep,
+    in each game, what that game's own past left: their last life's in a game that played it, the
+    constructor's in a game that loaded a world since (§3.20 in client_patch.md). A respawn into
+    another kit brings that player into the hashed world. Patch revision 10's `KIT_STATE_HOOK`
+    resets a weapon's fields at such a spawn, but its own list of what it does not reset is open:
+    a weapon's state machine (+468h), +3F8h, +320h, the object at +278h, the scope, artefacts,
+    medkits (`m_active`, `m_activity_time_ms`, ...), oxygen tanks. A split a few seconds after a
+    load (a death and its respawn are 8 s or less) and a bloc of loaded games fit it; one player
+    of the pair at a time (271700: only player 10) fits it.
+  - **The capture** (`Game::capture_split`, since 2026-11-05): at a game's first report against
+    more than half of the games, its world (kind `split`) and a majority game's (kind `checked`)
+    are asked for at once, aimed at one tick when both upload offsets are known; three splits a
+    match, 20 s apart, one a player. Comparing the two names the first field apart.
+  - **Local repro** (not run): the local server with `SRP_SNAPSHOT_DIR` set; 3 or more clients
+    in a battery match; each player picks a different kit at least once (so every place has a
+    non-current kit with a life behind it); then one client is resynced (no switch forces one: stall its game 2 s, or have it leave and
+    come back, a late join) and every player dies and respawns into another kit within 10 s. Expected if the
+    candidate holds: the loaded game reports against the others within a respawn of the load
+    ("splits from the majority" in the log), and the `split` world differs from the `checked` one
+    in the respawned player's block.
+- **The input history of 27 entries does not limit a rollback.** A rollback replays from a history
+  item: 11 items, 550 ms (MATCH-SYNC-026G.md "The model"). At one input a tick, 27 entries of a
+  player are 1.35 s. Only precise inputs (several a tick; 32 in 1.1 s seen, `INPUT_RING`) could put
+  27 entries inside 550 ms; the server already redoes a resync world past the ring. 0.46c2's 125
+  entries go with its longer history. So the ring is not what made the rollbacks of PR #1246 wrong.
+  LIKELY (from the counts; the ring's own eviction was not read).
+
+## 36. A refused world is never relayed; the games that wait for one get an end (added 2026-11-07)
+
+`game/refused_worlds.rs`: `UploadStanding`, `Refusers`, `Game::remove`, `Removal`,
+`no_world_for`, `check_initial_worlds`, `no_world_to_give`; `Game::possible_sources`,
+`Game::sources`. Tests: `tests/refused_worlds.rs`. The rules and the table of exits are in
+`packet-validation.md`, "A refused world is never relayed".
+
+- A world the server's check refuses goes to nobody; the next request goes to the game with the
+  fewest refused uploads. Nothing is decided by time: by the uploads judged and the games that
+  can still give a world.
+- A late joiner (or a resynced player, or one back in the match) whose every possible source
+  gave a refused world while it waited is removed (a joiner's admission fails first: the lobby
+  frees its seat). A match whose only initial worlds were refused is not made
+  (`MatchEnd::NotMade`) once no other human place can give one: refused too, given up, or not
+  there (or loaded with none) past `Timing::unstarted`; a loading game is waited for. A game
+  whose own refusals (another upload of its round passed, or its hash for the tick disagrees
+  with the majority) come three in a row is resynced from a world that passed, and removed after
+  three more. A world every game has (rev50 rec026g_20261106-211841_03439962: all 174 refusals
+  so) counts against nobody.
+- **Every removal** (these, the invalid inputs, the restore limit) is `Game::remove`: 0xFD and
+  the leave. Today 0xFD ends in `close_current_match(4)`, which closes nothing (§24): the game
+  stays on its screen with no link. The exe patch on `fix/kick-returns-to-lobby` makes reason 4
+  do what reason 1 does (the lobby told `31`, the world ended): a kicked game returns to the
+  lobby as from a lost connection. Not played.
+- While every game a joiner could take a world from had its last world refused, the match takes
+  no joiner (`Closed::NoWorld`, a room's `J;-1;8`), until an upload passes.

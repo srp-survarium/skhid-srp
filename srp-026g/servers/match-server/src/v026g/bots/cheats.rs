@@ -16,7 +16,7 @@ use mapdata::Vec3;
 use super::know::{CheatKind, Percept, Source};
 use super::rng::Rng;
 use super::tuning::CheatTuning;
-use super::view::{BatteryState, MatchView, Place};
+use super::view::{BatteryState, MatchView, Place, Side};
 
 /// When each cheat last spoke, per team.
 #[derive(Clone, Debug, Default)]
@@ -34,7 +34,7 @@ fn blur(at: Vec3, error: f32, rng: &mut Rng) -> Vec3 {
 /// The cheat percepts of `team` at `view.clock`. `quiet(place)`: whether
 /// the bot at `place` senses no enemy now (the radar speaks only then).
 pub fn cheat_percepts(
-    team: u8,
+    team: Side,
     view: &MatchView,
     tuning: &CheatTuning,
     clock: &mut CheatClock,
@@ -99,7 +99,7 @@ mod tests {
     fn the_thief_and_the_radar_speak_with_their_errors_and_never_as_sight() {
         let body = |place: Place, team: u8, feet: Vec3| PlaceView {
             place,
-            team,
+            team: Side::team(team),
             bot: place == 0,
             present: true,
             alive: true,
@@ -136,7 +136,7 @@ mod tests {
         let tuning = CheatTuning::default();
         let mut clock = CheatClock::default();
         let percepts = cheat_percepts(
-            0,
+            Side::team(0),
             &view,
             &tuning,
             &mut clock,
@@ -157,7 +157,7 @@ mod tests {
         // Not again before their periods; never for the thief's own team.
         assert!(
             cheat_percepts(
-                0,
+                Side::team(0),
                 &view,
                 &tuning,
                 &mut clock,
@@ -169,7 +169,7 @@ mod tests {
         );
         let mut other = CheatClock::default();
         let theirs = cheat_percepts(
-            1,
+            Side::team(1),
             &view,
             &tuning,
             &mut other,

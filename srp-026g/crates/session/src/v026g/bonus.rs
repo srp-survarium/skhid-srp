@@ -10,8 +10,11 @@
 //! (`LobbyMenu.show_daily_reward_window`). The status bar's indicator is
 //! the current day's progress, 0..=3.
 //!
-//! What gives the seventh day's reward is the game's `daily_bonus_drop`
-//! table (`survarium::v026g::drops`: it always gives 50 gold).
+//! **No seventh day's reward** (the owner, 2026-11-08: "I know there are also
+//! gold rewards after 7 consequtive days, I would just remove that part"):
+//! the game's `daily_bonus_drop` table only ever gave 50 gold, and gold is
+//! gone. The run of days and the doubled victories stay; `99` still carries
+//! the reward item the window reads, as none: silver, 0 of it ([`NO_REWARD`]).
 //!
 //! How the seven days run (PROVEN, the patch notes of 0.24a and 0.24c:
 //! "the reward for three wins in a series of seven days is not reset if
@@ -23,7 +26,7 @@
 //! - A day on which the three are not made, or on which the account does
 //!   not play, **does not reset the run**: the place is played for again
 //!   on the next day, from no victories.
-//! - The reward **comes with the third victory of the seventh place**.
+//! - The run is **complete with the third victory of the seventh place**.
 //!   The day after, a new run starts.
 //!
 //! The rest is srp's own [choice], kept simple:
@@ -33,8 +36,6 @@
 //!   of it off: no match is paid double, no run of days is kept, and the
 //!   client is sent nothing of it (with no `99` it shows no bonus, as for
 //!   an account before its first day).
-//! - The reward is rolled when a run starts (the window shows it from day
-//!   1).
 //! - A **victory** counts when the player's team won and the player stayed
 //!   to the end; the first three of a day pay the match's experience and
 //!   reputation once more ([`super::rewards`], the results screen's
@@ -44,22 +45,19 @@
 //! - The welcome window is opened by the server once a day, at the first
 //!   sign-in of the day.
 
-use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::drops::{self, Drops, Rng};
 use survarium::v026g::lobby::{self, ItemDescr, ServerMessage, WireError};
 
 use super::account::Account;
-use super::premium;
 
 /// The days of a run.
 pub const DAYS: u8 = 7;
 /// The victories of a day that are paid double.
 pub const WINS_A_DAY: u8 = 3;
-/// Silver and gold as dropped items.
+/// Silver as an item of the dictionary.
 pub(crate) const GENERIC_MONEY: u16 = 214;
-pub(crate) const PREMIUM_MONEY: u16 = 215;
-/// What the table gives, should a roll ever give nothing: its 50 gold.
-pub(crate) const FALLBACK: (u16, u32) = (PREMIUM_MONEY, 50);
+/// The reward `99` carries for the window, which reads one: none, silver
+/// and 0 of it (a dict id the dictionary lacks would crash the client).
+pub(crate) const NO_REWARD: (u16, u32) = (GENERIC_MONEY, 0);
 
 /// The operator's settings of the daily bonus.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -79,14 +77,8 @@ impl Settings {
 
     /// The settings from the environment `get` reads.
     pub fn read(get: impl Fn(&str) -> Option<String>) -> Self {
-        let enabled = !matches!(
-            get("SRP_DAILY_BONUS")
-                .unwrap_or_default()
-                .trim()
-                .to_ascii_lowercase()
-                .as_str(),
-            "off" | "0" | "no" | "false"
-        );
+        let enabled =
+            crate::switch_value("SRP_DAILY_BONUS", get("SRP_DAILY_BONUS").as_deref(), true);
         let reset_hour = match get("SRP_DAILY_BONUS_RESET_HOUR") {
             Some(value) => match value.trim().parse::<u8>() {
                 Ok(hour) if hour < 24 => hour,
@@ -123,16 +115,6 @@ pub fn day_of(now: u64) -> u64 {
     day_at(now, settings().reset_hour)
 }
 
-/// What the seventh day gave.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Given {
-    pub dict_id: u16,
-    pub count: u32,
-    /// The instance in the inventory; 0 for silver and gold, which go to
-    /// the balances.
-    pub item_id: u32,
-}
-
 /// What a visit did.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Visit {
@@ -140,32 +122,11 @@ pub struct Visit {
     pub new_day: bool,
 }
 
-/// What a victory did.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct Win {
-    /// It is one of the day's first three: the match pays its experience
-    /// and reputation once more.
-    pub doubled: bool,
-    /// The run's reward, given by this victory: the third of the seventh
-    /// day.
-    pub given: Option<Given>,
-}
-
-fn start_run(account: &mut Account, today: u64, rng: &mut Rng) {
-    let rolled = drops::roll(
-        &Drops::shared().daily_bonus,
-        Dictionary::shared(),
-        0,
-        0,
-        rng,
-    );
-    let (dict_id, count) = rolled.map_or(FALLBACK, |drop| (drop.dict_id, drop.count));
+fn start_run(account: &mut Account, today: u64) {
     let bonus = &mut account.extras.bonus;
     bonus.day = 1;
     bonus.last_day = today;
     bonus.wins = [0; 7];
-    bonus.reward_dict = dict_id;
-    bonus.reward_count = count;
     bonus.completed = false;
 }
 
@@ -173,19 +134,19 @@ fn start_run(account: &mut Account, today: u64, rng: &mut Rng) {
 /// new day the place whose three victories were made gives way to the
 /// next (after the seventh, to a new run); a place not made is played for
 /// again. Nothing with the bonus off.
-pub fn visit(account: &mut Account, now: u64, rng: &mut Rng) -> Visit {
-    visit_with(account, now, rng, settings())
+pub fn visit(account: &mut Account, now: u64) -> Visit {
+    visit_with(account, now, settings())
 }
 
 /// [`visit`] under `settings`.
-pub fn visit_with(account: &mut Account, now: u64, rng: &mut Rng, settings: &Settings) -> Visit {
+pub fn visit_with(account: &mut Account, now: u64, settings: &Settings) -> Visit {
     if !settings.enabled {
         return Visit::default();
     }
     let today = day_at(now, settings.reset_hour);
     let bonus = account.extras.bonus;
     if bonus.day == 0 {
-        start_run(account, today, rng);
+        start_run(account, today);
         return Visit { new_day: true };
     }
     if today <= bonus.last_day {
@@ -194,7 +155,7 @@ pub fn visit_with(account: &mut Account, now: u64, rng: &mut Rng, settings: &Set
     let place = usize::from(bonus.day.min(DAYS)) - 1;
     let made = bonus.wins[place] >= WINS_A_DAY;
     if bonus.day >= DAYS && (made || bonus.completed) {
-        start_run(account, today, rng);
+        start_run(account, today);
     } else {
         let bonus = &mut account.extras.bonus;
         if made {
@@ -207,56 +168,34 @@ pub fn visit_with(account: &mut Account, now: u64, rng: &mut Rng, settings: &Set
     Visit { new_day: true }
 }
 
-/// A victory: counts it for the day, and gives the run's reward when it
-/// is the third of the seventh day. Call [`visit`] first. Nothing with
-/// the bonus off.
-pub fn count_win(account: &mut Account) -> Win {
+/// A victory: counts it for the day, and completes the run when it is the
+/// third of the seventh day. Returns whether it is one of the day's first
+/// three, which pay the match's experience and reputation once more. Call
+/// [`visit`] first. Nothing with the bonus off.
+pub fn count_win(account: &mut Account) -> bool {
     count_win_with(account, settings())
 }
 
 /// [`count_win`] under `settings`.
-pub fn count_win_with(account: &mut Account, settings: &Settings) -> Win {
+pub fn count_win_with(account: &mut Account, settings: &Settings) -> bool {
     if !settings.enabled {
-        return Win::default();
+        return false;
     }
     let bonus = &mut account.extras.bonus;
     let Some(wins) = usize::from(bonus.day)
         .checked_sub(1)
         .and_then(|index| bonus.wins.get_mut(index))
     else {
-        return Win::default();
+        return false;
     };
     if *wins >= WINS_A_DAY {
-        return Win::default();
+        return false;
     }
     *wins += 1;
-    let mut given = None;
-    if *wins == WINS_A_DAY && bonus.day == DAYS && !bonus.completed {
+    if *wins == WINS_A_DAY && bonus.day == DAYS {
         bonus.completed = true;
-        let (dict_id, count) = (bonus.reward_dict, bonus.reward_count);
-        let item_id = match dict_id {
-            GENERIC_MONEY => {
-                account.generic_money = account.generic_money.saturating_add(count);
-                0
-            }
-            PREMIUM_MONEY => {
-                account.premium_money = account.premium_money.saturating_add(count);
-                0
-            }
-            _ => premium::grant(account, dict_id, count)
-                .first()
-                .map_or(0, |bought| bought.item_id),
-        };
-        given = Some(Given {
-            dict_id,
-            count,
-            item_id,
-        });
     }
-    Win {
-        doubled: true,
-        given,
-    }
+    true
 }
 
 /// The current day's progress, 0..=3.
@@ -282,7 +221,8 @@ pub fn window_shown(account: &mut Account, now: u64) {
 }
 
 /// `99` for the account: the days of its run with their progress, the
-/// reward and whether it was given; `show_window` opens the window. `None`
+/// reward (none, [`NO_REWARD`]) and whether the run is complete;
+/// `show_window` opens the window. `None`
 /// before the account's first [`visit`], and with the bonus off.
 pub fn message(account: &Account, show_window: bool) -> Option<Result<ServerMessage, WireError>> {
     message_with(account, show_window, settings())
@@ -299,7 +239,7 @@ pub fn message_with(
         return None;
     }
     let days = usize::from(bonus.day.min(DAYS));
-    let reward = ItemDescr::plain(0, bonus.reward_dict, bonus.reward_count);
+    let reward = ItemDescr::plain(0, NO_REWARD.0, NO_REWARD.1);
     Some(lobby::daily_bonus(
         &bonus.wins[..days],
         &reward,
@@ -317,25 +257,19 @@ mod tests {
     /// Noon of some day.
     const NOON: u64 = 20_000 * DAY + DAY / 2;
 
-    fn rng() -> Rng {
-        Rng::new(7)
-    }
-
     #[test]
     fn a_run_starts_with_the_first_visit() {
         let mut account = Account::new("Alice");
         assert_eq!(message(&account, true), None);
         assert!(!window_due(&account, NOON));
-        let visit = super::visit(&mut account, NOON, &mut rng());
+        let visit = super::visit(&mut account, NOON);
         assert_eq!(visit, Visit { new_day: true });
         let bonus = account.extras.bonus;
         assert_eq!((bonus.day, bonus.last_day), (1, 20_000));
-        // The table's reward: 50 gold.
-        assert_eq!((bonus.reward_dict, bonus.reward_count), (215, 50));
         assert!(!bonus.completed);
         // The same day again, later: nothing.
         assert_eq!(
-            super::visit(&mut account, NOON + 3600, &mut rng()),
+            super::visit(&mut account, NOON + 3600),
             Visit::default()
         );
         // The window is due once a day.
@@ -348,14 +282,15 @@ mod tests {
     #[test]
     fn the_message_is_the_clients_layout() {
         let mut account = Account::new("Alice");
-        super::visit(&mut account, NOON, &mut rng());
+        super::visit(&mut account, NOON);
         account.extras.bonus.wins[0] = 2;
         let message = message(&account, true).unwrap().unwrap();
-        // One day with progress 2; item id 0, a stack, dict 215, 50 of it,
-        // no modifications or upgrades; not given; open the window.
+        // One day with progress 2; item id 0, a stack, dict 214 (silver), 0
+        // of it: no reward; no modifications or upgrades; not complete; open
+        // the window.
         assert_eq!(
             message.body(),
-            [1, 2, 1, 0, 0, 0, 0, 215, 0, 50, 0, 0, 0, 0, 0, 0, 1]
+            [1, 2, 1, 0, 0, 0, 0, 214, 0, 0, 0, 0, 0, 0, 0, 0, 1]
         );
         assert_eq!(message.id_byte(), 0x99);
         let mut client = Client::signed_in();
@@ -369,56 +304,40 @@ mod tests {
             panic!("not the daily bonus");
         };
         assert_eq!(progress, [2]);
-        assert_eq!((reward.dict_id, reward.condition_or_stack), (215, 50));
+        assert_eq!((reward.dict_id, reward.condition_or_stack), (214, 0));
         assert!(!completed && show_window);
     }
 
-    /// Three victories on the day of `now`; what the third gave.
-    fn win_three(account: &mut Account, now: u64, rng: &mut Rng) -> Option<Given> {
-        super::visit(account, now, rng);
-        let plain = Win {
-            doubled: true,
-            given: None,
-        };
-        assert_eq!(count_win(account), plain);
-        assert_eq!(count_win(account), plain);
-        let third = count_win(account);
-        assert!(third.doubled);
-        third.given
+    /// Three victories on the day of `now`, each doubled.
+    fn win_three(account: &mut Account, now: u64) {
+        super::visit(account, now);
+        for _ in 0..3 {
+            assert!(count_win(account));
+        }
     }
 
     #[test]
-    fn the_seventh_day_made_gives_the_reward() {
+    fn the_seventh_day_made_completes_the_run_and_gives_nothing() {
         let mut account = Account::new("Alice");
-        let gold = account.premium_money;
-        let mut rng = rng();
+        let silver = account.generic_money;
+        let inventory = account.inventory.clone();
         for day in 0..6 {
-            assert_eq!(win_three(&mut account, NOON + day * DAY, &mut rng), None);
+            win_three(&mut account, NOON + day * DAY);
             assert_eq!(u64::from(account.extras.bonus.day), day + 1);
         }
-        assert_eq!(account.premium_money, gold);
-        // The seventh day: seen, two victories, nothing yet.
-        super::visit(&mut account, NOON + 6 * DAY, &mut rng);
+        // The seventh day: seen, two victories, not complete yet.
+        super::visit(&mut account, NOON + 6 * DAY);
         assert_eq!(account.extras.bonus.day, 7);
         count_win(&mut account);
         count_win(&mut account);
-        assert_eq!(account.premium_money, gold);
         assert!(!account.extras.bonus.completed);
-        // The third gives it.
-        assert_eq!(
-            count_win(&mut account),
-            Win {
-                doubled: true,
-                given: Some(Given {
-                    dict_id: 215,
-                    count: 50,
-                    item_id: 0
-                })
-            }
-        );
-        assert_eq!(account.premium_money, gold + 50);
+        // The third completes it, and gives nothing (no gold reward, the
+        // owner's of 2026-11-08).
+        assert!(count_win(&mut account));
         assert!(account.extras.bonus.completed);
-        // Seven days on the wire, the reward given.
+        assert_eq!(account.generic_money, silver);
+        assert_eq!(account.inventory, inventory);
+        // Seven days on the wire, complete.
         let message = message(&account, false).unwrap().unwrap();
         assert_eq!(message.body()[..8], [7, 3, 3, 3, 3, 3, 3, 3]);
         let mut client = Client::signed_in();
@@ -430,52 +349,50 @@ mod tests {
                 ..
             }
         ));
-        // Once: a fourth victory of the day is a plain one.
-        assert_eq!(count_win(&mut account), Win::default());
-        assert_eq!(account.premium_money, gold + 50);
+        // A fourth victory of the day is a plain one.
+        assert!(!count_win(&mut account));
         // The day after starts a new run.
-        super::visit(&mut account, NOON + 7 * DAY, &mut rng);
+        super::visit(&mut account, NOON + 7 * DAY);
         assert_eq!(account.extras.bonus.day, 1);
         assert_eq!(account.extras.bonus.wins, [0; 7]);
         assert!(!account.extras.bonus.completed);
-        assert_eq!(account.premium_money, gold + 50);
     }
 
     #[test]
     fn a_day_missed_or_not_made_does_not_reset_the_run() {
         let mut account = Account::new("Alice");
-        let mut rng = rng();
         // Two days made.
-        win_three(&mut account, NOON, &mut rng);
-        win_three(&mut account, NOON + DAY, &mut rng);
+        win_three(&mut account, NOON);
+        win_three(&mut account, NOON + DAY);
         // The third: seen, one victory only. The day does not count.
-        super::visit(&mut account, NOON + 2 * DAY, &mut rng);
+        super::visit(&mut account, NOON + 2 * DAY);
         assert_eq!(account.extras.bonus.day, 3);
         count_win(&mut account);
         assert_eq!(account.extras.bonus.wins, [3, 3, 1, 0, 0, 0, 0]);
         // Three days away, then back: the third place again, from none.
         assert_eq!(
-            super::visit(&mut account, NOON + 6 * DAY, &mut rng),
+            super::visit(&mut account, NOON + 6 * DAY),
             Visit { new_day: true }
         );
         assert_eq!(account.extras.bonus.day, 3);
         assert_eq!(account.extras.bonus.wins, [3, 3, 0, 0, 0, 0, 0]);
         assert_eq!(progress(&account), 0);
         // A day only seen changes nothing either.
-        super::visit(&mut account, NOON + 7 * DAY, &mut rng);
+        super::visit(&mut account, NOON + 7 * DAY);
         assert_eq!(account.extras.bonus.day, 3);
-        // Five more days made, whenever: the reward on the seventh.
+        // Five more days made, whenever: complete on the seventh.
         let mut at = NOON + 9 * DAY;
         for place in 3..=6 {
-            assert_eq!(win_three(&mut account, at, &mut rng), None, "{place}");
+            win_three(&mut account, at);
+            assert_eq!(account.extras.bonus.day, place);
             at += 2 * DAY;
         }
         assert_eq!(account.extras.bonus.day, 6);
-        let given = win_three(&mut account, at, &mut rng);
+        win_three(&mut account, at);
         assert_eq!(account.extras.bonus.day, 7);
-        assert_eq!(given.map(|given| given.count), Some(50));
+        assert!(account.extras.bonus.completed);
         // A clock that went back changes nothing.
-        assert_eq!(super::visit(&mut account, NOON, &mut rng), Visit::default());
+        assert_eq!(super::visit(&mut account, NOON), Visit::default());
     }
 
     #[test]
@@ -523,37 +440,33 @@ mod tests {
             enabled: false,
             reset_hour: 0,
         };
-        let mut rng = rng();
         // A new account: no run starts, no victory counts, no message.
         let mut account = Account::new("Alice");
         let before = account.clone();
         assert_eq!(
-            visit_with(&mut account, NOON, &mut rng, &off),
+            visit_with(&mut account, NOON, &off),
             Visit::default()
         );
-        assert_eq!(count_win_with(&mut account, &off), Win::default());
+        assert!(!count_win_with(&mut account, &off));
         assert_eq!(account, before);
         assert_eq!(message_with(&account, true, &off), None);
         // An account in a run of before, two victories into its seventh
         // day: it stays as it is, gets nothing and is sent nothing.
-        super::visit(&mut account, NOON, &mut rng);
+        super::visit(&mut account, NOON);
         account.extras.bonus.day = 7;
         account.extras.bonus.wins = [3, 3, 3, 3, 3, 3, 2];
         let before = account.clone();
         assert_eq!(
-            visit_with(&mut account, NOON + DAY, &mut rng, &off),
+            visit_with(&mut account, NOON + DAY, &off),
             Visit::default()
         );
-        assert_eq!(count_win_with(&mut account, &off), Win::default());
+        assert!(!count_win_with(&mut account, &off));
         assert_eq!(account, before);
         assert_eq!(message_with(&account, false, &off), None);
         // Turned on again, the run goes on.
         assert!(message_with(&account, false, &Settings::DEFAULT).is_some());
-        assert!(
-            count_win_with(&mut account, &Settings::DEFAULT)
-                .given
-                .is_some()
-        );
+        assert!(count_win_with(&mut account, &Settings::DEFAULT));
+        assert!(account.extras.bonus.completed);
     }
 
     #[test]
@@ -570,49 +483,47 @@ mod tests {
             enabled: true,
             reset_hour: 5,
         };
-        let mut rng = rng();
         let mut account = Account::new("Alice");
         // 23:00: three victories make the day.
         let evening = 20_000 * DAY + 23 * 3600;
-        visit_with(&mut account, evening, &mut rng, &at_five);
+        visit_with(&mut account, evening, &at_five);
         for _ in 0..3 {
-            assert!(count_win_with(&mut account, &at_five).doubled);
+            assert!(count_win_with(&mut account, &at_five));
         }
         // 04:00 of the next date is the same bonus day: no new one, and a
         // victory is a plain one.
         let night = evening + 5 * 3600;
         assert_eq!(
-            visit_with(&mut account, night, &mut rng, &at_five),
+            visit_with(&mut account, night, &at_five),
             Visit::default()
         );
-        assert!(!count_win_with(&mut account, &at_five).doubled);
+        assert!(!count_win_with(&mut account, &at_five));
         assert_eq!(account.extras.bonus.day, 1);
         // 05:00: the second day.
         assert_eq!(
-            visit_with(&mut account, night + 3600, &mut rng, &at_five),
+            visit_with(&mut account, night + 3600, &at_five),
             Visit { new_day: true }
         );
         assert_eq!(account.extras.bonus.day, 2);
-        assert!(count_win_with(&mut account, &at_five).doubled);
+        assert!(count_win_with(&mut account, &at_five));
     }
 
     #[test]
     fn a_run_of_the_old_rule_goes_on() {
-        // Day 7 reached by being seen, its reward given, no victory made:
+        // Day 7 reached by being seen, complete, no victory made:
         // the next day starts a new run.
         let mut account = Account::new("Alice");
-        let mut rng = rng();
-        super::visit(&mut account, NOON, &mut rng);
+        super::visit(&mut account, NOON);
         account.extras.bonus.day = 7;
         account.extras.bonus.completed = true;
         account.extras.bonus.wins = [1, 0, 3, 0, 0, 0, 0];
-        super::visit(&mut account, NOON + DAY, &mut rng);
+        super::visit(&mut account, NOON + DAY);
         assert_eq!(account.extras.bonus.day, 1);
         assert!(!account.extras.bonus.completed);
         // Day 4 reached so: it is played for from there.
         account.extras.bonus.day = 4;
         account.extras.bonus.wins = [1, 0, 3, 2, 0, 0, 0];
-        super::visit(&mut account, NOON + 2 * DAY, &mut rng);
+        super::visit(&mut account, NOON + 2 * DAY);
         assert_eq!(account.extras.bonus.day, 4);
         assert_eq!(account.extras.bonus.wins, [1, 0, 3, 0, 0, 0, 0]);
     }
@@ -621,19 +532,18 @@ mod tests {
     fn the_first_three_victories_of_a_day_count() {
         let mut account = Account::new("Alice");
         // Before any visit there is no day to count in.
-        assert_eq!(count_win(&mut account), Win::default());
-        let mut rng = rng();
-        super::visit(&mut account, NOON, &mut rng);
+        assert!(!count_win(&mut account));
+        super::visit(&mut account, NOON);
         assert_eq!(progress(&account), 0);
-        assert!(count_win(&mut account).doubled);
-        assert!(count_win(&mut account).doubled);
-        assert!(count_win(&mut account).doubled);
-        assert!(!count_win(&mut account).doubled);
+        assert!(count_win(&mut account));
+        assert!(count_win(&mut account));
+        assert!(count_win(&mut account));
+        assert!(!count_win(&mut account));
         assert_eq!(progress(&account), 3);
         // The next day counts anew, and the day before keeps its three.
-        super::visit(&mut account, NOON + DAY, &mut rng);
+        super::visit(&mut account, NOON + DAY);
         assert_eq!(progress(&account), 0);
-        assert!(count_win(&mut account).doubled);
+        assert!(count_win(&mut account));
         assert_eq!(account.extras.bonus.wins[..2], [3, 1]);
     }
 }

@@ -1,0 +1,12 @@
+# Patch 99: a world takes no player input whose rotation no client makes (a
+# NaN, an infinity, 1024 radians or more), as 0.27d's change_input refuses
+# one ("input is invalid"). Only the decisions: which site, and the handler.
+# The site is sites_026g.tsv's; the logic is input_check.rs and
+# vostok/input.rs.
+name = "input_check"
+patch = 99
+
+# change_input<player_input>'s start: every input a world takes.
+[[hook]]
+site = "change_input.player"
+handler = "on_change_input"

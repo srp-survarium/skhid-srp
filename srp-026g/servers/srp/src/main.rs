@@ -90,6 +90,7 @@ fn main() {
             std::process::exit(1);
         }
     };
+    store.restore_026g_names(&accounts);
     accounts.spawn_saver();
     let on_exit = (store.clone(), accounts.clone());
     let stop = ctrlc::set_handler(move || {
@@ -97,6 +98,7 @@ fn main() {
         on_exit.0.flush();
         on_exit.1.flush();
         log::info!("srp: stopped");
+        log::logger().flush();
         std::process::exit(0);
     });
     if let Err(error) = stop {
@@ -110,7 +112,8 @@ fn main() {
         Err(error) => {
             log::error!(
                 "srp: cannot start the 0.26g servers: {error} (is another srp running, or a \
-                 port of SRP_LOGIN_PORT / SRP_LOBBY_PORT / SRP_MATCH_PORT taken?)"
+                 port of SRP_LOGIN_PORT / SRP_LOBBY_PORT / SRP_MATCH_PORT or the voice port, the \
+                 match port + 1, taken?)"
             );
             std::process::exit(1);
         }

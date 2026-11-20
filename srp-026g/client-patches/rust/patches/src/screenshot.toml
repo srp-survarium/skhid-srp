@@ -1,0 +1,24 @@
+# Patch 152: two keys save the game's picture as a PNG
+# (docs/notes/screenshots.md). The sites are sites_026g.tsv's; the logic is
+# screenshot.rs, the back buffer's read vostok/back_buffer.rs.
+name = "screenshot"
+patch = 152
+
+# every poll of the keyboard, after patch 110 moved its keys (order 1): the
+# two keys' presses
+[[hook]]
+site = "keyboard.events"
+handler = "on_keys"
+order = 2
+
+# the frame's draw with the scene on the back buffer, before the interface
+[[hook]]
+site = "render.flash_ui"
+handler = "on_interface"
+
+# each Present, after patches 83's and 125's (orders 1 and 2): the frame as
+# the screen shows it
+[[hook]]
+site = "render_output.present"
+handler = "on_present"
+order = 3

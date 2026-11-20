@@ -16,10 +16,9 @@ package survarium.messages
    import survarium.buttons.CheckBoxValue;
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
+   import survarium.controls.SilverPrice;
    import survarium.data.LocalizationData;
-   import survarium.constants.MoneyType;
    import survarium.constants.UiSound;
-   import survarium.constants.VoucherType;
    
    public class MessageEnterName extends MessageBase
    {
@@ -35,6 +34,9 @@ package survarium.messages
       public var radioButtonPremium:CheckBoxValue;
       
       public var radioButtonVouchers:CheckBoxValue;
+
+      // The price, centred, in place of the two pay choices (SilverPrice).
+      private var _price:SilverPrice;
       
       public var textFieldLabel:TextField;
       
@@ -141,45 +143,25 @@ package survarium.messages
          this.nickName.text = this._nickname;
          lastNickName = this._nickname;
          this.warning.visible = false;
-         this.radioButtonPremium.money_type = MoneyType.PREMIUM;
-         this.radioButtonVouchers.money_type = CheckBoxValue.RENAME_VOUCHER_ICON;
-         this.radioButtonPremium.value = _data.premiumCost;
-         this.radioButtonVouchers.value = _data.vouchersCost;
-         this.radioButtonVouchers.selected = _data.selectVoucher;
-         this.radioButtonPremium.selected = !this.radioButtonVouchers.selected;
+         // Paid in silver, its price centred where the two choices were: the game has no gold and no
+         // rename voucher (the owner, 2026-11-08: "for renames remove rename ticket too", "it should
+         // just be the price in the middle in silver").
+         this.radioButtonVouchers.visible = false;
+         this._price = new SilverPrice(this.radioButtonPremium,this.background.x + this.background.width / 2);
+         this._price.cost = _data.cost;
+         // No second pay row (the voucher's) under it: the buttons and the window close up.
+         this._price.fitWindow(this.background,[this.btnAccept,this.btnCancel]);
          this.btnAccept.enabled = false;
          this.timer.addEventListener(TimerEvent.TIMER,this.requestNameValidation);
          this.timerRequest.addEventListener(TimerEvent.TIMER,this.handleRequestFailed);
-         this.radioButtonPremium.addEventListener(ButtonEvent.CLICK,this.handlePayTypeSelection);
-         this.radioButtonVouchers.addEventListener(ButtonEvent.CLICK,this.handlePayTypeSelection);
          this.progressIndicator.gotoAndStop(1);
          this.progressIndicator.visible = false;
          this.timer.delay = _data.changeNameDelay;
          this.timerRequest.delay = _data.changeNameFailedDelay;
-         this.radioButtonPremium.toggle = false;
-         this.radioButtonVouchers.toggle = false;
          if(stage)
          {
             stage.focus = this.nickName;
             this.nickName.setSelection(0,this.nickName.text.length);
-         }
-      }
-      
-      private function handlePayTypeSelection(e:ButtonEvent) : void
-      {
-         if(e.target == this.radioButtonPremium)
-         {
-            this.radioButtonPremium.selected = true;
-            this.radioButtonVouchers.selected = false;
-         }
-         else
-         {
-            this.radioButtonVouchers.selected = true;
-            this.radioButtonPremium.selected = false;
-         }
-         if(this._validNickname)
-         {
-            this.btnAccept.enabled = this.checkLocalNicknameValidation();
          }
       }
       
@@ -224,8 +206,7 @@ package survarium.messages
       
       protected function checkLocalNicknameValidation() : Boolean
       {
-         trace("_data.vouchersCost",_data.vouchersCost,PlayerInfo.getVoucherCount(VoucherType.RENAME),this.radioButtonPremium.selected,_data.voucherId);
-         return this.lastNickName.length >= this.MIN_CHARS && this.lastNickName.length <= this.MAX_CHARS && (this.radioButtonPremium.selected ? _data.premiumCost <= PlayerInfo.premiumMoney : _data.vouchersCost <= PlayerInfo.getVoucherCount(VoucherType.RENAME));
+         return this.lastNickName.length >= this.MIN_CHARS && this.lastNickName.length <= this.MAX_CHARS && _data.cost <= PlayerInfo.genericMoney;
       }
       
       public function handleNicknameValidation(result:Boolean, nickname:String, message:String = null) : void
@@ -267,7 +248,8 @@ package survarium.messages
             return;
          }
          Message.onClick(_id,"yes",_data);
-         ExternalInterface.call("change_player_nickname",this.nickName.text,uint(this.radioButtonPremium.selected ? 0 : _data.voucherId));
+         // No voucher: the second value, a voucher's item id, is 0 (paid in silver).
+         ExternalInterface.call("change_player_nickname",this.nickName.text,uint(0));
          this.timerRequest.stop();
          this.timer.stop();
       }

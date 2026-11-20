@@ -30,35 +30,35 @@ const ENGLISH: Notice = Notice {
     title: "Survarium cannot save its files",
     before_folder: "Windows is blocking the game from saving files to this folder:\r\n",
     before_exe: "\r\n\r\nYou can still play, but your settings (graphics, sound, controls) will not be kept for next time.\r\n\r\nTo fix it:\r\n1. Open the Start menu, type \"Ransomware protection\" and open it.\r\n2. Click \"Allow an app through Controlled folder access\", then \"Add an allowed app\", and choose:\r\n",
-    after_exe: "\r\n3. Start the game again.\r\n\r\nIf this does not help, ask us in Discord: discord.gg/Pxa4prXfwu",
+    after_exe: "\r\n3. Start the game again.\r\n\r\nIf this does not help, ask us in Discord: discord.gg/QUmJg3gBhg",
     error: "Windows error",
 };
 const RUSSIAN: Notice = Notice {
     title: "Survarium не может сохранять свои файлы",
     before_folder: "Windows не даёт игре сохранять файлы в эту папку:\r\n",
     before_exe: "\r\n\r\nИграть можно, но настройки (графика, звук, управление) не сохранятся до следующего запуска.\r\n\r\nКак исправить:\r\n1. Откройте меню «Пуск», введите «Защита от программ-шантажистов» и откройте этот раздел.\r\n2. Нажмите «Разрешить работу приложения через контролируемый доступ к папкам», затем «Добавление разрешенного приложения» и выберите:\r\n",
-    after_exe: "\r\n3. Запустите игру снова.\r\n\r\nЕсли это не помогло, напишите нам в Discord: discord.gg/Pxa4prXfwu",
+    after_exe: "\r\n3. Запустите игру снова.\r\n\r\nЕсли это не помогло, напишите нам в Discord: discord.gg/QUmJg3gBhg",
     error: "Ошибка Windows",
 };
 const UKRAINIAN: Notice = Notice {
     title: "Survarium не може зберігати свої файли",
     before_folder: "Windows не дає грі зберігати файли в цю папку:\r\n",
     before_exe: "\r\n\r\nГрати можна, але налаштування (графіка, звук, керування) не збережуться до наступного запуску.\r\n\r\nЯк виправити:\r\n1. Відкрийте меню «Пуск», введіть «Захист від зловмисних програм з вимогою викупу» і відкрийте цей розділ.\r\n2. Натисніть «Дозволити програмі доступ через контрольований доступ до папок», потім «Додати дозволену програму» і виберіть:\r\n",
-    after_exe: "\r\n3. Запустіть гру знову.\r\n\r\nЯкщо це не допомогло, напишіть нам у Discord: discord.gg/Pxa4prXfwu",
+    after_exe: "\r\n3. Запустіть гру знову.\r\n\r\nЯкщо це не допомогло, напишіть нам у Discord: discord.gg/QUmJg3gBhg",
     error: "Помилка Windows",
 };
 const GERMAN: Notice = Notice {
     title: "Survarium kann seine Dateien nicht speichern",
     before_folder: "Windows verhindert, dass das Spiel Dateien in diesem Ordner speichert:\r\n",
     before_exe: "\r\n\r\nDu kannst trotzdem spielen, aber deine Einstellungen (Grafik, Sound, Steuerung) bleiben nicht bis zum nächsten Start erhalten.\r\n\r\nSo behebst du es:\r\n1. Öffne das Startmenü, gib „Ransomware-Schutz“ ein und öffne ihn.\r\n2. Klicke auf „App durch überwachten Ordnerzugriff zulassen“, dann auf „Zulässige App hinzufügen“ und wähle:\r\n",
-    after_exe: "\r\n3. Starte das Spiel erneut.\r\n\r\nWenn das nicht hilft, frag uns auf Discord: discord.gg/Pxa4prXfwu",
+    after_exe: "\r\n3. Starte das Spiel erneut.\r\n\r\nWenn das nicht hilft, frag uns auf Discord: discord.gg/QUmJg3gBhg",
     error: "Windows-Fehler",
 };
 const POLISH: Notice = Notice {
     title: "Survarium nie może zapisać swoich plików",
     before_folder: "System Windows blokuje grze zapisywanie plików w tym folderze:\r\n",
     before_exe: "\r\n\r\nMożesz grać, ale ustawienia (grafika, dźwięk, sterowanie) nie zostaną zachowane do następnego uruchomienia.\r\n\r\nJak to naprawić:\r\n1. Otwórz menu Start, wpisz „Ochrona przed oprogramowaniem wymuszającym okup” i otwórz ją.\r\n2. Kliknij „Zezwalaj aplikacji na dostęp przez funkcję Kontrolowany dostęp do folderu”, potem „Dodaj dozwoloną aplikację” i wybierz:\r\n",
-    after_exe: "\r\n3. Uruchom grę ponownie.\r\n\r\nJeśli to nie pomoże, napisz do nas na Discordzie: discord.gg/Pxa4prXfwu",
+    after_exe: "\r\n3. Uruchom grę ponownie.\r\n\r\nJeśli to nie pomoże, napisz do nas na Discordzie: discord.gg/QUmJg3gBhg",
     error: "Błąd systemu Windows",
 };
 
@@ -169,7 +169,7 @@ mod tests {
             assert!(text.after_exe.starts_with("\r\n3. "), "{language:?}");
             assert!(text.before_exe.contains("\r\n1. ") && text.before_exe.contains("\r\n2. "));
             assert!(
-                text.after_exe.ends_with("discord.gg/Pxa4prXfwu"),
+                text.after_exe.ends_with("discord.gg/QUmJg3gBhg"),
                 "{language:?}"
             );
             // It fits the buffer of notice.rs with two long paths.

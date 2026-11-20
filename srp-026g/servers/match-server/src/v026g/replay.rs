@@ -9,8 +9,9 @@
 //! it writes, in `SRP_REPLAY_DIR`:
 //!
 //! - `<id:08x>.sur`: [`sur_convert::convert_file`] of the recording with the
-//!   mode's `.options` file from `SRP_GAME_MODES_DIR` (the file the map's
-//!   `maps_dict` row names; game data, kept out of the repository);
+//!   mode's `.options` file of the server's game data (the file the map's
+//!   `maps_dict` row names, [`sur_convert::config`]: the one the map was
+//!   played with, so every map and mode srp plays has it);
 //! - `<id:08x>.json`, the sidecar ([`Sidecar`]): the size and SHA-256 of
 //!   the `.sur`, each place's patch revision (the recording's `revision`
 //!   notes, from 2026-10-15), every place's account (the header and the
@@ -25,8 +26,8 @@
 //! when asked for.
 //!
 //! What can be checked before the recording is unpacked whole is checked
-//! first (its size, its header's map and so the mode's file), and a failure
-//! is tried again only when its cause can change (`replays::Failure`).
+//! first (its size, its header's map), and a failure is tried again only
+//! when its cause can change (`replays::Failure`).
 //!
 //! What a `.sur` holds is what every player of the match was sent in it
 //! (`sur_convert`'s chunks: the 0xE4 options of the largest roster, the
@@ -52,11 +53,9 @@ use session::v026g::replays::{self, Failure, ReplaySettings, Replays, Sidecar, f
 use super::record::{self, NOTE};
 use super::sur_convert::{self, Settings};
 
-/// A mode's `.options` file is a few KB; anything this large is not one.
-const MAX_CONFIG_BYTES: u64 = 1 << 20;
 const PART: &str = ".part";
 
-/// `SRP_REPLAY_DIR`, `SRP_GAME_MODES_DIR`, `SRP_REPLAY_MAX_RECORDING_MB`,
+/// `SRP_REPLAY_DIR`, `SRP_REPLAY_MAX_RECORDING_MB`,
 /// `SRP_REPLAY_MAX_MB` with `SRP_RECORD_DIR` and `SRP_RECORD_MIN_PLAYERS`:
 /// the replays of the srp process (off, and said in the log, when a setting
 /// is missing or the replay folder overlaps the recordings').
@@ -70,11 +69,11 @@ pub fn replays_of(settings: Option<ReplaySettings>) -> Replays {
     let min_players = record::RecordSettings::from_env().map_or(6, |record| record.min_players);
     if let Some(settings) = &settings {
         log::info!(
-            "Replays: made in {} from the recordings of {}, with the modes of {}; recordings \
-             over {} MB are not converted; replays over {} MB together go, the oldest first",
+            "Replays: made in {} from the recordings of {}, with the modes of the game data; \
+             recordings over {} MB are not converted; replays over {} MB together go, the \
+             oldest first",
             settings.replay_dir.display(),
             settings.record_dir.display(),
-            settings.modes_dir.display(),
             settings.max_recording_bytes >> 20,
             settings.max_replay_bytes >> 20
         );
@@ -139,7 +138,6 @@ pub fn start(replays: Arc<Replays>) -> Option<io::Result<JoinHandle<()>>> {
                             "Replays: match {match_id:#x} not converted: {} ({})",
                             error.why,
                             match error.failure {
-                                Failure::ModeFile => "tried again in 10 minutes",
                                 Failure::Disk => "tried again later",
                                 Failure::Lasting => "not tried again until a restart",
                             }
@@ -189,13 +187,6 @@ impl MakeError {
         }
     }
 
-    fn mode_file(why: impl Into<String>) -> Self {
-        Self {
-            why: why.into(),
-            failure: Failure::ModeFile,
-        }
-    }
-
     fn disk(why: impl Into<String>) -> Self {
         Self {
             why: why.into(),
@@ -215,8 +206,8 @@ impl MakeError {
 
 /// The recording of `match_id` made into its replay and sidecar. Before
 /// the recording is unpacked whole: its size against
-/// `SRP_REPLAY_MAX_RECORDING_MB`, and the mode's file its header's map
-/// names (the header is in the first block).
+/// `SRP_REPLAY_MAX_RECORDING_MB`, and the map its header names (the header
+/// is in the first block). The mode's config is the game data's own.
 pub fn make(settings: &ReplaySettings, match_id: u32) -> Result<Sidecar, MakeError> {
     let recording =
         recording(settings, match_id).ok_or_else(|| MakeError::lasting("no kept recording"))?;
@@ -231,26 +222,18 @@ pub fn make(settings: &ReplaySettings, match_id: u32) -> Result<Sidecar, MakeErr
         .ok_or_else(|| MakeError::lasting("the recording has no header"))?;
     let name = sur_convert::config_name(std::slice::from_ref(&header))
         .ok_or_else(|| MakeError::lasting("the recording names no known map"))?;
-    // A `maps_dict` name of the game's own table; never a path.
-    if name.contains(['/', '\\']) || name.starts_with('.') {
-        return Err(MakeError::lasting(format!(
-            "the map's config is named `{name}`"
-        )));
-    }
-    let config_path = settings.modes_dir.join(&name);
-    let config_size = fs::metadata(&config_path)
-        .map_err(|error| MakeError::mode_file(format!("the mode's config {name}: {error}")))?
-        .len();
-    if config_size > MAX_CONFIG_BYTES {
-        return Err(MakeError::mode_file(format!(
-            "the mode's config {name} has {config_size} bytes"
-        )));
-    }
-    let config =
-        fs::read(&config_path).map_err(|error| MakeError::mode_file(format!("{name}: {error}")))?;
+    let config = sur_convert::config(&name)
+        .ok_or_else(|| MakeError::lasting(format!("the game data has no mode config {name}")))?;
     let notes = record::read_notes(&recording).map_err(MakeError::read)?;
-    let (file, _) = sur_convert::convert_file(&recording, &notes, &config, Settings::default())
+    let (file, report) = sur_convert::convert_file(&recording, &notes, config, Settings::default())
         .map_err(|error| MakeError::lasting(error.to_string()))?;
+    if let Some((time, why)) = report.refusals.first() {
+        log::warn!(
+            "Replays: match {match_id:#x}: {} uploaded worlds of its recording are no key \
+             frames, the world check refused the first at {time} ms: {why}",
+            report.worlds_untaken
+        );
+    }
     let (account_ids, revisions) = places(&notes);
     let sidecar = Sidecar {
         match_id,

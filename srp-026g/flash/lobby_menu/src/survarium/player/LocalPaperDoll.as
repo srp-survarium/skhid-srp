@@ -1,6 +1,8 @@
 package survarium.player
 {
    import flash.display.DisplayObject;
+   import flash.display.Sprite;
+   import flash.geom.Rectangle;
    import flash.events.Event;
    import flash.events.MouseEvent;
    import scaleform.clik.constants.InvalidationType;
@@ -13,6 +15,7 @@ package survarium.player
    import survarium.upgrade.UpgradeWindow;
    import survarium.constants.Events;
    import survarium.data.ItemData;
+   import survarium.data.LocalizationData;
    import survarium.interfaces.IAmmoControll;
    import survarium.interfaces.IInventoryItemFactory;
    import survarium.interfaces.ILocalPaperDoll;
@@ -103,17 +106,14 @@ package survarium.player
          return false;
       }
       
-      // An item type goes into one pocket of a kit (docs/notes/one-pocket-a-type.md): the units of
-      // `item` a pocket holding `held` takes when one more is put in. The pocket's own type: one more,
-      // within the pocket's size (one of an item that fills a whole pocket); another: one.
-      public static function pocketUnits(held:ItemData, item:ItemData) : int
+      // A pocket is filled when an item is put in (docs/notes/one-pocket-a-type.md, "A full pocket
+      // stays full"): the units of the inventory's `item` a pocket takes, all it holds of the item
+      // (one of an item that fills a whole pocket), at most the units owned. Never more than owned:
+      // the server buys what a move asks for beyond the stack.
+      public static function pocketUnits(item:ItemData) : int
       {
-         if(!held || held.dictId != item.dictId)
-         {
-            return 1;
-         }
-         var size:int = item.quickSlotItemSize == QuickSlotSize.WHOLE ? 1 : PlayerInfo.pocketSize;
-         return int(Math.max(1,Math.min(held.value + 1,size)));
+         var size:int = PlayerInfo.pocketUnits(item.category,item.quickSlotItemSize);
+         return int(Math.max(1,Math.min(item.value,size)));
       }
       
       // The pocket holding an item of `dictId`, or -1.
@@ -234,6 +234,7 @@ package survarium.player
          var slot:IPaperDollSlot;
          var fits:Boolean;
          var j:int;
+         var taken:int = -1;
          while(i < _slots.length)
          {
             category = item.category;
@@ -273,25 +274,29 @@ package survarium.player
                      j++;
                   }
                }
+               // a free slot the item may go to before one it would replace (a weapon into
+               // the free second weapon slot, the first one kept)
                slot = _slots[i];
                if(slot && slot.highlighted)
                {
-                  return i;
+                  if(!slot.data)
+                  {
+                     return i;
+                  }
+                  if(taken == -1)
+                  {
+                     taken = i;
+                  }
                }
             }
             i++;
          }
-         return -1;
+         return taken;
       }
       
       override public function toString() : String
       {
          return "[LocalPaperDoll " + name + "]";
-      }
-      
-      public function setFillArray(items:Array) : void
-      {
-         this._ammoControl.fillItems(items);
       }
       
       public function setSlotsRestrictions(restrictions:Array) : void
@@ -490,15 +495,20 @@ package survarium.player
          var i:int = 1;
          var item:ItemData;
          var inventoryItem:ItemData;
-         var count:Number;
          while(i < 7)
          {
             if(_slots[i + 12].data)
             {
                item = _slots[i + 12].data;
+               // The units owned, from the inventory's stack. Where the inventory has no such
+               // item at this moment (its list is being filled again), the count stays: a
+               // pocket's stack is owned as long as the pocket names it, and a count of 0 showed
+               // the pocket as holding more than is owned (the owner's "Storage: -3").
                inventoryItem = this._inventory.getInventoryItem(item.itemId);
-               count = inventoryItem ? inventoryItem.value : 0;
-               item.count = count;
+               if(inventoryItem)
+               {
+                  item.count = inventoryItem.value;
+               }
                _slots[i + 12].invalidateData();
             }
             i++;
@@ -621,6 +631,7 @@ package survarium.player
                slot = getChildByName("slotWpn2") as IPaperDollSlot;
                trace("pd_secondaryEnabled",this._secondaryEnabled,slot);
                slot.enabled = this._secondaryEnabled && (slot.data && slot.data.enabled || !slot.data);
+               this.showWeaponLock(slot as DisplayObject,!this._secondaryEnabled);
                check_slot(getChildByName("slotWpn1"),getChildByName("slotWpn2"));
                i = AmmoView.SLOTS_PER_WEAPON;
                while(i < this._ammo_indexes.length)
@@ -636,6 +647,94 @@ package survarium.player
          }
       }
       
+      // A second weapon slot a skill closes (Deep Pockets, Supply Pocket) shows the skills'
+      // lock in its middle: the lock of a skill another excludes, without the
+      // circle around it (the symbol's first child).
+      private var _weaponLock:Sprite = null;
+
+      private var _weaponLockMark:DisplayObject = null;
+
+      // The lock's tip, over the slot: the skill that closes it. Deep Pockets' name is the stock
+      // st_convert_weapon_slot_to_pocket_name, which the lobby is not handed (only its own table's
+      // keys and every st_srp_ one): st_srp_deep_pockets_name is its copy.
+      private var _weaponLockTip:Sprite = null;
+
+      private var _weaponLockTipArea:ReasonsTip = null;
+
+      private function onWeaponLockPress(event:MouseEvent) : void
+      {
+         this._weaponLockTip.mouseEnabled = this._weaponLockTip.mouseChildren = false;
+      }
+
+      private function onWeaponLockRelease(event:MouseEvent) : void
+      {
+         this._weaponLockTip.mouseEnabled = this._weaponLockTip.mouseChildren = true;
+      }
+
+      private function showWeaponLock(slot:DisplayObject, locked:Boolean) : void
+      {
+         var bounds:Rectangle;
+         var own:Rectangle;
+         var mark:DisplayObject;
+         if(locked && this._weaponLock == null)
+         {
+            _weaponLock = new SkillLockSpriteRed();
+            if(this._weaponLock.numChildren == 2)
+            {
+               this._weaponLock.getChildAt(0).visible = false;
+               mark = this._weaponLock.getChildAt(1);
+            }
+            else
+            {
+               mark = this._weaponLock;
+            }
+            _weaponLockMark = mark;
+            _weaponLockTip = new Sprite();
+            _weaponLockTipArea = new ReasonsTip();
+            this._weaponLockTipArea.focusable = false;
+            this._weaponLockTip.addChild(this._weaponLockTipArea);
+            // The tip's area is over the slot and is no drag slot: while a button is down it
+            // takes no mouse, so a drag released there still lands on the slot under it (which
+            // refuses it), not on nothing (which sends the item to the inventory). Back after
+            // the drag manager has read where the drag ended (its listener is of priority 0).
+            if(stage != null)
+            {
+               stage.addEventListener(MouseEvent.MOUSE_DOWN,this.onWeaponLockPress,true,0,true);
+               stage.addEventListener(MouseEvent.MOUSE_UP,this.onWeaponLockRelease,false,-1,true);
+            }
+            this._weaponLock.mouseEnabled = false;
+            this._weaponLock.mouseChildren = false;
+         }
+         if(this._weaponLock == null)
+         {
+            return;
+         }
+         if(!locked)
+         {
+            if(this._weaponLock.parent == this)
+            {
+               removeChild(this._weaponLock);
+               removeChild(this._weaponLockTip);
+            }
+            return;
+         }
+         bounds = slot.getBounds(this);
+         this._weaponLockTip.x = bounds.x;
+         this._weaponLockTip.y = bounds.y;
+         this._weaponLockTipArea.graphics.clear();
+         this._weaponLockTipArea.graphics.beginFill(0,0.01);
+         this._weaponLockTipArea.graphics.drawRect(0,0,bounds.width,bounds.height);
+         this._weaponLockTipArea.graphics.endFill();
+         addChild(this._weaponLockTip);
+         this._weaponLockTipArea.validateNow();
+         this._weaponLockTipArea.tooltipRendererName = "SrvProfileTipRendererStyled";
+         this._weaponLockTipArea.tipData = {"name":LocalizationData.format("st_srp_weapon_slot_closed",LocalizationData.getName(PlayerInfo.supplyPocket ? "st_srp_medical_331_name" : "st_srp_deep_pockets_name"))};
+         addChild(this._weaponLock);
+         own = this._weaponLockMark.getBounds(this._weaponLock);
+         this._weaponLock.x = bounds.x + (bounds.width - own.width) / 2 - own.x;
+         this._weaponLock.y = bounds.y + (bounds.height - own.height) / 2 - own.y;
+      }
+
       protected function onMouseItemClick(event:MouseEventEx) : void
       {
          var slot:IPaperDollSlot = event.currentTarget as IPaperDollSlot;

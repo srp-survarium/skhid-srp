@@ -14,7 +14,9 @@ The game's own launcher (`survarium_launcher.exe`), patched so that it
   server's page offers, the launcher and the updater themselves included,
   and the game's content patches (`resources.db.patch_<n>`) the server
   lists, and enables PLAY only for a game the server lets in;
-- starts the game in the language chosen in its menu.
+- starts the game; its language is one setting, the `localization` line of
+  the game's user.cfg, which this menu (every language of the game) and the
+  game's Settings both write (patch 14).
 
 The original launcher is not in this repository. The tools below work on
 your own copy, and the patched exe is made from it.
@@ -32,6 +34,7 @@ your own copy, and the patched exe is made from it.
 | `patch_launcher_026g.py` | Builds the patched launcher from the original. Python 3, nothing else |
 | `launcher_values_026g.asm`, `.bin` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembling the source again gives the same bytes |
 | `launcher_pages.py` | The ten small pages the launcher shows from its own folder while the server's page loads and when it cannot be loaded |
+| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15) |
 | `selftest_launcher_026g.py` | Builds it in memory and checks it: every changed byte is one named below, the PE is well formed, the hook and its way back, the addresses, the relocations, no old address left, the `.asm` gives the `.bin` |
 | `../make_client_026g.py` | Puts all of it into the players' ZIP (the default; `--no-launcher` leaves it out) |
 | `../../../client/updater/` | The updater: Rust source, its tests |
@@ -42,7 +45,14 @@ your own copy, and the patched exe is made from it.
 ```
 python patch_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe <out>/launcher_skhid.exe [--site=https://skhid.link]
 python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe --nasm=<nasm>
+python check_language_026g.py <game>/binaries/x86/survarium_launcher.exe   # the language code, under Unicorn
+python check_registry_026g.py <game>/binaries/x86/survarium_launcher.exe   # no registry call where the key was read, under Unicorn
+python check_torrent_box_026g.py <game>/binaries/x86/survarium_launcher.exe # the "Allow torrent" box (patch 15), under Unicorn
 ```
+
+After a change of the game's languages (`../localization_026g.py --write`
+writes `launcher_languages_026g.inc`), assemble the .bin again:
+`nasm -f bin -DCAVE=0x49A000 launcher_values_026g.asm -o launcher_values_026g.bin`.
 
 Normally `make_client_026g.py` does it, with the updater and the pages:
 
@@ -92,24 +102,34 @@ installs whenever the ZIP's checksum changes.
    "Server maintenance..." and PLAY is off. Is it back, or does it offer a
    new ZIP, the window closes and opens again by itself and updates. So
    PLAY never starts a game the server would refuse as outdated.
-6. PLAY (or Enter) starts `survarium_skhid.exe -localization=<language>
-   -mt_allocator=768 -minimum_resources_memory_size=768` from
-   `game\binaries\x86`, and the launcher closes.
-7. The language menu (EN, RU, UA, DE, PL) changes the launcher's texts and
-   the page at once, is remembered, and is the language the game starts in.
+6. PLAY (or Enter) starts `survarium_skhid.exe
+   -minimum_resources_memory_size=768` from `game\binaries\x86`, and the
+   launcher closes. Since game patch 79 (`../../docs/notes/language-option.md`)
+   it passes no `-localization=`: the game's language is the one chosen in
+   its Settings (user.cfg).
+7. The language button (EN, UA, RU, DE, PL, SR, CS, HU, FI, BE) opens a
+   menu of every language of the game, each by its own name, the current
+   one checked. A pick is the game's language: it is written to the game's
+   user.cfg at once, as the game's Settings write it, and the launcher's
+   texts and page change with it (English for a language the launcher has
+   none in: SR, CS, HU, FI, BE). At its start the launcher shows user.cfg's
+   language, else the one the game will start in (patch 14).
 
 "Watch replay" in the lobby's History (game patch revision 14) does not go
 through the launcher: the game starts `updater_skhid.exe replay ...`, which
 fetches the replay and starts a second `survarium_skhid.exe` with PLAY's
-arguments, the language the launcher keeps, and `-match_replay=<file>`
+arguments and `-match_replay=<file>` (the game's own language)
 (`../../../client/updater/README.md`, "Watch replay").
 
 Gone from the window: the four social buttons, CREATE ACCOUNT (an account is
 made by the first sign-in), SHOP (silver and gold are exchanged in the
 lobby's exchange window since game update 11, and items bought in the
-lobby's shop), and the settings gear (its two options, "Allow torrent" and
-the torrent port, are of the old updater). PROJECT WEBSITE, in SHOP's old
-place at the right, opens `<site>/?lang=<code>` in the player's browser.
+lobby's shop). PROJECT WEBSITE, in SHOP's old place at the right, opens
+`<site>/?lang=<code>` in the player's browser. The settings gear (its
+"Allow torrent" and port) is gone too: "Allow torrent" is a box at the left
+of the bottom panel, where the social buttons were, kept in user.cfg as the
+language is (patch 15); the port is the updater's own
+(`../../docs/notes/torrent-downloads.md`).
 
 The launchers built before SHOP went open `<site>/exchange?lang=<code>`
 with it. That address stays: a short page there says, in the launcher's
@@ -146,7 +166,7 @@ The reference is the game's `game/launcher/index-en.html` and
 
 Skhid's rankings, counts, maintenance, and legal text replace the old news.
 A Discord link at the right of the legal caption opens the project's existing
-invite (`https://discord.gg/Pxa4prXfwu`, also used by BugTrap) in the player's
+invite (`https://discord.gg/QUmJg3gBhg`, also used by BugTrap) in the player's
 browser. It is available on the online, loading, and offline pages. The link
 markup is shared in `launcher-skin/discord-link.html`; no Discord content is
 loaded into the launcher.
@@ -378,13 +398,13 @@ for steps 8 to 10 and ends with its exit code. It does not watch.
 
 ## When something goes wrong
 
-Every failure is said in words, in a box titled "Skhid updater", and written
-to `game\binaries\x86\updater_skhid.log`. Nothing is half installed: the
+Every failure is said in words, in a box titled "Skhid", and written
+to the run's `game\logs\updater_skhid.<date>.log`. Nothing is half installed: the
 ZIP's files go in all or none, and a patch file is a checked file or none.
 
 | What happened | What the player gets |
 |---|---|
-| The server cannot be reached (no internet, server down, a provider that blocks it, a firewall), three tries | The updater's own box, in the launcher's language, with Retry and Cancel: what failed ("Couldn't find skhid.link." for a name not found, "skhid.link refused the connection.", "skhid.link didn't answer.", "The connection to skhid.link was cut off."), why it may have (a provider that blocks it, common in Russia, or a firewall) and what to do (`Skhid-network-setup.cmd`; in Russia a VPN with the three programs in its split tunnelling, `VPN.txt`) ([updater README](../../../client/updater/README.md#a-server-not-reached)). Retry runs the update again; Cancel: PLAY if the original game is present, the installed Skhid files are whole (or were never installed by this updater) and the last patch step ended with every patch in place, else status "Error" and PLAY stays off |
+| The server cannot be reached (no internet, server down, a provider that blocks it, a firewall), three tries | The updater's own box, in the launcher's language, with Retry and Cancel: "Blocked on this network: skhid.link did not answer (timed out)" when Windows' own test site answers (what to do: a VPN with the three programs in its split tunnelling, or none, `VPN.txt`), else "No connection: skhid.link did not answer (timed out)" (`Skhid-network-setup.cmd`); "name not found", "connection refused", "connection cut off" for the other ways ([updater README](../../../client/updater/README.md#the-players-boxes)). The same boxes, and "Download failed: <file>, damaged at every address" (`Skhid.bat` again), when every address of a patch or of the game's archive failed. Retry runs the update again; Cancel: PLAY if the original game is present, the installed Skhid files are whole (or were never installed by this updater) and the last patch step ended with every patch in place, else status "Error" and PLAY stays off |
 | The original game is missing and Drive returns an error, a sign-in page, a redirect or bytes that do not match the pinned SHA-256 | Installation stops, PLAY stays off, and no files from that download are extracted or run. Retry or configure another mirror; verification cannot be skipped |
 | ...and a file the updater installed is missing or damaged | The same box; the log says "x86/survarium_skhid.exe is missing or damaged and cannot be repaired now: <reason>"; status "Error", PLAY stays off |
 | The answer is not the server's (a Wi-Fi sign-in page, a proxy) | "The answer from <host> is not the update server's ..." |
@@ -393,9 +413,10 @@ ZIP's files go in all or none, and a patch file is a checked file or none.
 | The download breaks off, or its checksum is wrong | Tried again, four times; then "The files downloaded from <host> are damaged (the checksum is wrong). Nothing was installed." |
 | The ZIP is not usable (not a ZIP, a bad name, a damaged entry) | "The downloaded archive cannot be used (<why>). Nothing was installed. Tell the server's operator." |
 | Not enough disk space | "Not enough free disk space for the update in <folder>: N MB needed, M MB free." |
+| Less than 5 GB free on the Documents drive (at every start, before PLAY) | Status "Error", PLAY stays off, a box in the game's language: "The game requires at least 5 GB of free disk space on drive C: to run smoothly. PLAY stays off until then." Retry asks again |
 | The game folder cannot be written (Program Files, read-only) | "Cannot write <file>: Access is denied (error 5). Move the game out of Program Files or start the launcher as administrator; an antivirus can block it too." |
 | A file is held by another program (the game is running) | "Cannot replace <file>: ... (error 32). Nothing was changed. Another program holds the file: close the game and try again." |
-| Windows Security blocks a Skhid program file (error 225 or 226 at its read, write or rename), or a program holds it from every reader (a start script or text file is left alone) | Status "Error", PLAY stays off, nothing downloaded; the updater's own box, in the launcher's language, with Retry and Cancel: "Windows Security blocked survarium_skhid.exe: a false positive.", the two steps (Protection history > Allow on device; `game\binaries\x86` as an exclusion, or the game folder for a patch file), "Then try again." (or "... is in use by another program. Close the game, then try again."). Retry runs the update again ([updater README](../../../client/updater/README.md#a-file-that-cannot-be-read)) |
+| Windows Security blocks a Skhid program file (error 225 or 226 at its read, write or rename), or a program holds it from every reader (a start script or text file is left alone) | Status "Error", PLAY stays off, nothing downloaded; the updater's own box, in the launcher's language, with Retry and Cancel: "Game files removed by antivirus: survarium_skhid.exe", then `Skhid-defender-setup.cmd` to run (with another antivirus, `game\binaries\x86` as an exclusion, or the game folder for a patch file), and the log's path (or "... is in use by another program. Close the game, then try again."). A file gone or denied right after the updater wrote it is the same box; a program file gone at the start is put back, then the same box with OK. Retry runs the update again ([updater README](../../../client/updater/README.md#a-file-that-cannot-be-read)) |
 | A Skhid file cannot be read for another reason (access denied) | Repaired: the ZIP downloaded and installed again; when that fails too, the install's error naming the file, PLAY off. Never "up to date" |
 | The server lets in a newer game than its ZIP (a release half put in place) | "The server lets in game revision n and up; this game is revision r, and the update to it is not offered yet (the server is being updated). Click OK: the launcher keeps looking and starts anew with the update. PLAY stays off until this is done."; the window starts anew by itself once the server offers the new ZIP (after OK: a launcher with a box open cannot close, and a second one is never started beside it) |
 | A patch cannot be had or put in place (the list cannot be fetched or read, every address of a patch fails, a wrong checksum, the game is running, an antivirus holds the file, the disk is full) | Status "Error", PLAY stays off, a box that says which and what to do, ending "PLAY stays off until this is done." The next start tries again (the cases: [updater README](../../../client/updater/README.md#patches)) |
@@ -453,9 +474,14 @@ found: `../../docs/notes/launcher.md`.
 ### 4. The installer's registry values are not needed
 
 - **Where:** `registry_key::get_string` 0x14027 starts with a jump into the
-  new section (`55 8B EC 51 8D 04 36` → `E9 <rel32> 90 90`); four
-  `push HKEY_LOCAL_MACHINE` become `push HKEY_CURRENT_USER` (0x15231,
-  0x159A4, 0x16301, 0x170AD: `68 02 00 00 80` → `68 01 00 00 80`).
+  new section (`55 8B EC 51 8D 04 36` → `E9 <rel32> 90 90`). The four
+  functions that read the installer's key open none: each jumps from the
+  call that gives the key's path straight to its first read (0x15223,
+  0x15997, 0x162F4, 0x1709F: `E8 <rel32>` → `EB <rel8> 90 90 90`), past
+  `RegOpenKeyExW` and its failure branch, and each `RegCloseKey` is jumped
+  over with the push of its handle (0x153FE, 0x1541E, 0x15A4D, 0x17123,
+  0x1714F: `FF 75 xx` → `EB 07 90`; 0x16338, the two of
+  `restart_launcher`: `test al,al / jne 0x163AD / jmp 0x16345`).
 - **Why:** the launcher read five strings that only the game's installer
   wrote, from `HKLM\Software\Vostok Games\Survarium`: what PLAY starts
   (`file to execute`, `arguments`, `working folder`), where the updater asks
@@ -467,13 +493,18 @@ found: `../../docs/notes/launcher.md`.
   | `file to execute` | `<the launcher's folder>\survarium_skhid.exe` |
   | `working folder` | `<the launcher's folder>` |
   | `launcher` | the launcher's own path |
-  | `arguments` | `-mt_allocator=768 -minimum_resources_memory_size=768` |
+  | `arguments` | `-minimum_resources_memory_size=768` |
   | `update server` | the site's host (the new updater does not use it) |
 
-  Every other name goes on to the registry as before. The key the four
-  sites open is now the user's own, which the launcher makes itself for its
-  language setting, so it is always there; a key an old installation left
-  in HKLM is never read for these.
+  Every other name goes on to the registry as before; these four functions
+  read none, so they touch no key at all. Revision 39 still opened one (its
+  patch 4 made the four opens `HKCU\Software\Vostok Games\Survarium`,
+  which launchers before it made for their language): since 39 the language
+  is in user.cfg, nothing makes the key, and a player who never ran an older
+  launcher got "Can't open survarium registry key" from `start_updater`, no
+  updater and no PLAY. `check_registry_026g.py` runs the four under Unicorn
+  with no key, the key in HKCU and the key in HKLM, sees no registry call,
+  and sees revision 39's box.
 - **The new code:** `launcher_values_026g.asm`, in a new section `.skhid`
   after `.reloc` (VA 0x49A000). It finds where it was loaded and adds that
   to the two image addresses it uses, so it also works if the launcher is
@@ -513,13 +544,15 @@ found: `../../docs/notes/launcher.md`.
 
 ### 8. The buttons that are gone
 
-- **Where:** the click handlers of SHOP, CREATE ACCOUNT, YouTube, Facebook,
-  Twitter and VK return at once (first byte → `C3` at 0x1BBEF, 0x1BC45,
-  0x1BD03, 0x1BD16, 0x1BD29, 0x1BD3C); their rectangles, and the settings
-  gear's, get a left edge of 30000 (0x45844, 0x45854, 0x458A4, 0x458B4,
-  0x458C4, 0x458D4, 0x45814), which is outside the window; PROJECT WEBSITE
-  moves from 478 to 750, SHOP's place (0x45864). Their addresses are
-  emptied.
+- **Where:** the click handlers of SHOP, CREATE ACCOUNT, Facebook and VK
+  return at once (first byte → `C3` at 0x1BBEF, 0x1BC45, 0x1BD16, 0x1BD3C;
+  YouTube's control is the "Allow torrent" box and Twitter's lies over its
+  text since patch 15); their rectangles get a left edge of 30000 (0x45844,
+  0x45854, 0x458B4, 0x458D4), which is outside the window, and so does the
+  settings gear's (0x45814: its one setting that applies, "Allow torrent",
+  is on the main window, patch 15; its port is the updater's); PROJECT
+  WEBSITE moves from 478 to 750, SHOP's place (0x45864). Their addresses
+  are emptied.
 - **Why SHOP:** it opened the site's silver and gold exchange, which is in
   the lobby now (`../README.md`, "Lobby exchange"). Until 2026-10-16 it
   stayed, at `<site>/exchange?lang=`, and PROJECT WEBSITE stood beside it
@@ -562,7 +595,7 @@ found: `../../docs/notes/launcher.md`.
 - The Authenticode signature is taken off: it cannot be right for a changed
   file, and the launcher never reads it (unlike the game exe). The `.skhid`
   section takes its place at the end of the file, the section table gets a
-  sixth entry, `SizeOfImage` grows by a page and the PE checksum is
+  sixth entry, `SizeOfImage` grows by its pages (two at most) and the PE checksum is
   recomputed.
 
 ### 13. Install-status transition crash
@@ -593,6 +626,145 @@ path. Resource strings come from the original executable. The test stubs
 resource loading and the single `%s` label formatter; it does not run the
 launcher UI or perform an update. `selftest_launcher_026g.py` also checks
 the assembly, patch boundaries, PE layout, checksum and relocations.
+
+### 14. The language is the game's
+
+The owner (2026-10-29), after a player's report (the launcher in Russian,
+the game in Polish, his Windows' language): the launcher's language choice
+is the game's, in one place, user.cfg, and the launcher offers every
+language the game has. `docs/notes/language-option.md` has the rule.
+
+- **One list.** `launcher_languages_026g.inc` is generated by
+  `localization_026g.py --write` from its `LANGUAGES` (the game's own list:
+  resource name, own name, Windows locale rule, two-letter code), as
+  the game's table is; `check_localization_026g.py` fails when it is stale.
+  Exact Croatian LANGIDs take precedence over the Serbian primary-id fallback,
+  as in the game. The launcher's own string tables and pages stay its five (`LAUNCHER_UI`
+  there): another language shows them in English.
+- **The store.** `settings.language` is the index in that list. The start
+  (`settings::reload_language` 0x1D852) reads the `localization` line of
+  `<Documents>\survarium\user.cfg` (SHGetFolderPathW(CSIDL_PERSONAL), the
+  game's folder, client_patch.md; UTF-16 paths and the W file functions, so a
+  Documents folder outside the ANSI code page works); without a registered one, the
+  Windows user locale's language (patch 79's rule), else English; it writes
+  nothing. `settings::save_language` (0x1D8DA) writes that line: replaced
+  where it is, added at the end when missing, the file (and its folder) made
+  when missing; written to `user.cfg.new`, then renamed over (MoveFileExW), so
+  the game never finds it half written. A user.cfg it cannot read whole
+  (64 KiB or more, or locked) is left alone.
+- **The menu.** The button's click (`language_menu::expand_button_click`
+  0x19A08), which opened the five-row drop-down, opens a Windows menu
+  (CreatePopupMenu, TrackPopupMenu, by GetProcAddress) under the button;
+  a pick goes on as a drop-down row did (`language_selected` 0x19A20: saved,
+  the window made again in that language). The five drop-down rows are
+  still made, never shown.
+- **Every place that read the index by five.** The button's label
+  (0x19663, the table 0x48280), the launcher's LANGID (0x150B3, 0x3E098) and
+  `get_language_code` (0x1A84B: the page's `?lang=` and `index-<code>.html`)
+  call or jump to the new code by `language_entries` (`LANGUAGE_HOOKS` in
+  `patch_launcher_026g.py`); their three relocations are disabled. PLAY's
+  `-localization=` word (0x1718D) is computed but unused (patch 10).
+- **The updater** writes its boxes in the same language: user.cfg's line
+  (`client/updater`, `replay::language_of_user_cfg`); it reads no registry
+  value any more.
+- Checked: `check_language_026g.py ORIGINAL_survarium_launcher.exe` runs the
+  new code in the patched launcher under Unicorn at two image bases, with
+  Windows' functions stubbed and user.cfg in memory: the start (the line,
+  the locale, English; nothing written), the save (replaced, added, made,
+  through a new file; a file it cannot read whole left alone), the menu
+  (every language by its own name, the current one checked, the pick handed
+  on), and every language's label, LANGID and page; each with a Documents
+  folder of ASCII and one of Cyrillic and Chinese. Not yet run in a real
+  launcher window.
+
+### 15. "Allow torrent" on the main window, kept in user.cfg
+
+The owner (2026-11-15): BitTorrent is off by default; a player turns it on
+with an "Allow torrent" box right on the launcher's main screen ("no need
+for settings"), and it stays as they left it, kept as the language is.
+
+- **What it looks like:** the settings window's own box and text, at the
+  left of the bottom panel where the social buttons were: the box (PNG 347
+  unticked, 345 under the pointer, 346 pressed, 344 ticked, 20 by 20) at 28,
+  32 of the panel, in line with the page's left column and centred on the
+  status line and PLAY; "Allow torrent" (string 0xD3, the launcher's
+  language) 25 pixels right of it and 1 below its top, Calibri bold 18,
+  white, as the settings window has it beside its box (0x1C38E, 0x3A96C).
+  The widest text, Russian, ends at x 186, before the status line (x 200).
+  Previews: `private/renders/launcher-allow-torrent/` (not in git).
+- **Where:** YouTube's control (form+0x648) is the box: its three pictures
+  (0x1AAFC, 0x1AB0F, 0x1AB22) and Facebook's first (0x1AB35, the ticked
+  one; Facebook stays out of sight) are loaded from the settings window's
+  PNGs, its rectangle (0x458A4) moves to 28, 32 and its size initialisers
+  (0x3A715, 0x3A722) say 20. Twitter's control (form+0x698) makes the text
+  clickable: its rectangle (0x458C4) is 53, 32 to 187, 52, the text in every
+  language (Russian, the widest, is 134 pixels; its initialiser 0x3A746,
+  which could add at most 127, returns at once and right and bottom are
+  static), with the hand cursor as the box's; its click (0x1BD29) jumps to
+  YouTube's. Five sites call or jump to new code (`TORRENT_HOOKS`, entries
+  after the language's):
+  - 0x1AD78, the bottom panel's `image_window` (`panel_made`): the text is
+    painted into the panel's picture (form+0xEC, JPG 301) as the status
+    texts are, and the box's four pictures are made opaque over the
+    panel's picture where the box is (`bake_box`: a transparent control is
+    drawn over what its window last showed; only Windows composes the
+    launcher's windows, WS_EX_COMPOSITED, so under Wine an unticked box
+    kept the check of a ticked one); Twitter's three pictures become the
+    panel's picture where the text is, text included (`bake_label`);
+  - 0x1AEA3, Twitter's `transparent_control` (`label_made`): made as
+    before, then opaque (+24h: BitBlt, not AlphaBlend), so it shows exactly
+    the panel's pixels and no visible change (text drawn by GDI may leave
+    their alpha 0);
+  - 0x1AE1F, YouTube's `transparent_control` (`box_made`): ticked
+    (settings+0), its picture and the one under the pointer are the ticked
+    one;
+  - 0x1B4D9, `set_status_texts`' copy of the panel's picture from its
+    resource (`panel_restored`): the copy, then the text again (each status
+    change copies the picture anew);
+  - 0x1BD03, YouTube's click (`torrent_click`): user.cfg's line written
+    at once with the other value; only once it is written, settings+0 and
+    +1 toggled, the callback settings::save fires for a changed box
+    (`function0` at settings+0x28: 1A to the updater while the pipe is
+    connected, 0x172FA), the pictures as
+    `settings_window::show_torrent_checkbox` (0x1CE0E) shows them. A click
+    on the text comes here the same way.
+- **The store:** user.cfg (`<Documents>\survarium\user.cfg`, patch 14),
+  the game's own saved command `enable_torrent_seeding on` / `off` (exe
+  0x1EE580; the game keeps it when it rewrites the file), written as the
+  language is (one `save_setting` for both: the line replaced or added,
+  through `user.cfg.new` renamed over). The start (`reload_torrent`, from
+  `settings::reload_language` right after `settings::reload` at 0x14200):
+  ticked for `on`; no line, another value or no user.cfg: off. The
+  registry's `download_type` is neither read nor written any more
+  (settings::reload still reads it; its result is replaced at once).
+- **The one-time reset:** the original game saved its default,
+  `enable_torrent_seeding on`, in every player's user.cfg. Before the line
+  is read, a Windows user without `launcher_skhid.torrent_reset` beside
+  user.cfg gets that empty file made, then the line written `off`; from then
+  on the line is the player's alone. A user.cfg that cannot be written
+  takes the file away again (the next start tries again), and without the
+  file the box is off, whatever the line. The updater takes the line
+  only with that file there (`client/updater`, `win::launcher_torrent_allowed`).
+- **Why it is the one place:** every reader takes `settings+0`:
+  `start_updater`'s 4th argument (0x1580B: `torrent` or `direct`) and
+  `send_switch_download_type_message` (1A, 0x17367).
+- Checked: `check_torrent_box_026g.py` runs the five sites, the start
+  (0x141D9..0x1420C: settings::reload, then reload_language) and the
+  box's and the text's window procedure under Unicorn at two bases: the
+  start reads the line whatever `download_type` says; the text and the
+  opaque pictures; the box ticked or not; the text's control at its rect in
+  the panel, painting the panel's crop with BitBlt; five clicks, on the box
+  and on the text, each writing the line (others kept), firing the callback
+  once, no registry call, and a fresh start reading the box as it was left;
+  a click (box or text) whose line cannot be written changing nothing (box,
+  callback, file); the reset (`on` becomes `off` once, the file made; a
+  locked user.cfg makes no file; a tick after it stays across restarts).
+  `check_language_026g.py` still passes (the shared user.cfg code). Run in
+  the real launcher under Wine (headless, with a stand-in updater on its
+  pipe, 2026-11-15): the box drawn in all five languages, clicks writing
+  the line and sending `1A 00` / `1A 01`, a restart ticked, the legacy `on`
+  reset once with the file made. The clickable text is not yet run in a
+  real launcher. Not yet run on Windows.
 
 ## The pipe, in short
 
@@ -693,9 +865,10 @@ installation and service.
   server has no answer with words of its own. The launcher keeps PLAY from
   starting such a game; a game started otherwise gets that line.
 - One launcher at a time (its mutex), as before.
-- The language is the one value still kept in the registry
-  (`HKCU\Software\Vostok Games\Survarium`, `language`), by the launcher's
-  own code.
+- The launcher keeps no language of its own: its registry value
+  (`HKCU\Software\Vostok Games\Survarium`, `language`) is no longer read or
+  written; the game's user.cfg holds it (patch 14). Its own texts and page
+  are in five languages (English for the other five).
 - `play_skhid.bat` starts the game without the server: it runs
   `updater_skhid.exe ready`, which checks the patches against the last
   list, and looks for no update.

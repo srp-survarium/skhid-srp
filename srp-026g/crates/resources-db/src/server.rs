@@ -8,8 +8,9 @@
 //! lowest first. It takes the files the server reads ([`is_read`]): every
 //! file under `gameplay/`, the game's texts in the languages of srp's web
 //! page ([`LOCALIZATIONS`]), and each project's `client_project` cut to its
-//! `server_objects` ([`server_objects_of`]): srp reads a map's respawn
-//! points and battery containers there, and the rest of a project, its
+//! `server_objects` and the objects a world saves ([`objects_of`]): srp
+//! reads a map's respawn points and battery containers there, and checks a
+//! world's game objects against the others; the rest of a project, its
 //! world (0.6 to 1.2 MB each, 60 MB for 0.26g's 73), is the client's. Each
 //! file is read from the archive whose file is seen, and checked against
 //! that archive's table: its size, and the table's CRC-32 of its bytes
@@ -20,7 +21,10 @@
 //! sha256 and the URLs the players download it from, in the order they try
 //! them: the patches server, and mirrors). The server tells the players'
 //! updater which patches to fetch from it ([`Provenance::offered`]): it can
-//! only offer the patches it runs on. The same inputs give the same bytes.
+//! only offer the patches it runs on. It may name the game's archive too
+//! ([`GameArchive`]): not made of, and not read, but pinned with the
+//! release, which the server offers at `GET /game`. The same inputs give the
+//! same bytes.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
@@ -35,11 +39,45 @@ use crate::{Archive, Error, crc32};
 /// The files of `gameplay/` are read whole.
 pub const GAMEPLAY: &str = "gameplay/";
 /// A project is there when `projects/<project>/client_project` is; the
-/// data keeps its `server_objects` ([`server_objects_of`]).
+/// data keeps its `server_objects` and its world's objects ([`objects_of`]).
 pub const PROJECTS: &str = "projects/";
 pub const PROJECT_MARKER: &str = "/client_project";
 /// The table of a project the data keeps.
 pub const SERVER_OBJECTS: &str = "server_objects";
+/// The list of a project's client objects, of which the data keeps those a
+/// world saves ([`WORLD_OBJECTS`]).
+pub const CLIENT_OBJECTS: &str = "client_objects";
+/// The `game_object_type`s of the client objects a world saves in its game
+/// objects (`simple_game_project::insert` 0x285750; effect zones save
+/// nothing): srp reads a world's game objects with them.
+pub const WORLD_OBJECTS: [&str; 3] = ["damage_zone", "resupply_zone", "generic_anomaly_core"];
+/// The other `game_object_type`s of the players' projects (stock 0.26g and
+/// every live patch, 116 projects, 2026-11-07): these save nothing in a
+/// world's game objects. Every upload of 118 live recordings of rev 50 (over
+/// 50,000 worlds of 40 maps, every type here but `lpv_occluder` and `track`
+/// on them) reads exactly with [`WORLD_OBJECTS`] alone; `track` is the lobby
+/// scene's camera, `lpv_occluder` lighting (LIKELY, by its name). A type of
+/// neither list stops the data ([`objects_of`]): whether the game saves it
+/// is not known, and if it does, srp would refuse every world of the map.
+pub const UNSAVED_OBJECTS: [&str; 17] = [
+    "ambient_light",
+    "artefact_container",
+    "collision_geometry",
+    "decal",
+    "effect_zone",
+    "environment",
+    "environment_probe",
+    "light",
+    "lpv_occluder",
+    "object_sound",
+    "particle",
+    "skeleton_visual",
+    "track",
+    "vegetation",
+    "victory_items_spawn_box",
+    "volume_fog",
+    "wire_set",
+];
 /// The game's texts in the languages of srp's web page (its names of the
 /// maps and modes), read whole.
 pub const LOCALIZATIONS: [&str; 2] = [
@@ -48,10 +86,11 @@ pub const LOCALIZATIONS: [&str; 2] = [
 ];
 /// What the data was made of ([`Provenance`]).
 pub const PROVENANCE: &str = "srp/provenance";
-/// The first line of [`PROVENANCE`]. Data 3 keeps each project's
-/// `server_objects` and the [`LOCALIZATIONS`]; data 2 had the projects
-/// empty, and is refused by name.
-pub const FORMAT: &str = "skhid server game data 3";
+/// The first line of [`PROVENANCE`]. Data 4 keeps each project's
+/// `server_objects` and its [`WORLD_OBJECTS`], and the [`LOCALIZATIONS`];
+/// data 3 had the server objects alone, data 2 the projects empty: both are
+/// refused by name.
+pub const FORMAT: &str = "skhid server game data 4";
 
 /// The game's archive, in its game folder.
 pub const RESOURCES_DB: &str = "resources.db";
@@ -69,20 +108,47 @@ pub fn is_read(path: &str) -> bool {
 
 /// The `client_project` `bytes`, a binary config, cut to its
 /// `server_objects` as they are (its respawn points, battery containers,
-/// spawners and stations): a config of that one table, or of none for a
-/// project without it (`lobby_scene/day`). A project that is not a config
-/// is refused: the game could not load it either.
-pub fn server_objects_of(bytes: &[u8]) -> Result<Vec<u8>, String> {
+/// spawners and stations) and its `client_objects` of the
+/// [`WORLD_OBJECTS`] types, each as it is, in their order: a config of those
+/// two tables, or of what the project has of them (`lobby_scene/day` has
+/// neither). A project that is not a config is refused: the game could not
+/// load it either.
+pub fn objects_of(bytes: &[u8]) -> Result<Vec<u8>, String> {
     use binary_config_parser::tree::ConfigValue;
     let project = ConfigValue::parse(bytes).map_err(|cause| cause.to_string())?;
     if !matches!(project, ConfigValue::Named(_)) {
         return Err("not a binary config of named values".into());
     }
+    let objects = project.get(CLIENT_OBJECTS).map(ConfigValue::children).unwrap_or_default();
+    for object in &objects {
+        match object.get("game_object_type").and_then(ConfigValue::as_str) {
+            Some(kind) if WORLD_OBJECTS.contains(&kind) || UNSAVED_OBJECTS.contains(&kind) => {}
+            kind => {
+                return Err(format!(
+                    "a client object of type {kind:?}, which srp does not know: whether a world \
+                     saves it in its game objects is not known (resources_db::server::\
+                     WORLD_OBJECTS, UNSAVED_OBJECTS)"
+                ));
+            }
+        }
+    }
+    let saved = |object: &&ConfigValue| {
+        object
+            .get("game_object_type")
+            .and_then(ConfigValue::as_str)
+            .is_some_and(|kind| WORLD_OBJECTS.contains(&kind))
+    };
     let kept = project
         .entries()
         .iter()
-        .filter(|(name, _)| name == SERVER_OBJECTS)
-        .cloned()
+        .filter_map(|(name, value)| match name.as_str() {
+            SERVER_OBJECTS => Some((name.clone(), value.clone())),
+            CLIENT_OBJECTS => Some((
+                name.clone(),
+                ConfigValue::Indexed(value.children().into_iter().filter(saved).cloned().collect()),
+            )),
+            _ => None,
+        })
         .collect();
     ConfigValue::Named(kept)
         .to_bytes()
@@ -273,6 +339,66 @@ impl Input {
     }
 }
 
+/// The game's archive, from which the players' updater installs the
+/// original game (`client/updater/README.md`, "Mirrors"): its file name,
+/// size and sha256, pinned with the release (`release/game.tsv`), and the
+/// URLs it is downloaded from, in their order. The data is not made of it:
+/// it is named so that the server offers it (`GET /game`) as it offers the
+/// patches.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GameArchive {
+    pub input: Input,
+    /// 1 to [`MAX_URLS`], each one the updater takes ([`check_urls`]).
+    pub urls: Vec<String>,
+}
+
+impl GameArchive {
+    /// A row of the release's list as one argument: `<name> <sha256>
+    /// <size> <url> [<url>...]`, one space apart. The name is of letters,
+    /// digits, `.`, `_` and `-`, and not one the game mounts.
+    pub fn parse_row(row: &str) -> Result<Self, String> {
+        let words: Vec<&str> = row.split(' ').collect();
+        let [name, sha256, size, urls @ ..] = &words[..] else {
+            return Err(format!("{row:?} is not <name> <sha256> <size> <url>..."));
+        };
+        let urls: Vec<String> = urls.iter().map(|url| (*url).to_owned()).collect();
+        let archive = Self::of(name, size, sha256, urls)?;
+        Ok(archive)
+    }
+
+    fn of(name: &str, size: &str, sha256: &str, urls: Vec<String>) -> Result<Self, String> {
+        if name.is_empty()
+            || name == RESOURCES_DB
+            || name.starts_with(PATCH_PREFIX)
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        {
+            return Err(format!(
+                "{name:?}: the game's archive is named of letters, digits, . _ -, and not as an \
+                 archive the game mounts"
+            ));
+        }
+        let size = size_of(size)
+            .filter(|&size| size > 0)
+            .ok_or_else(|| format!("{name}: {size:?} is not a size"))?;
+        if !is_sha256(sha256) {
+            return Err(format!(
+                "{name}: {sha256:?} is not a sha256 (64 lowercase hex)"
+            ));
+        }
+        check_urls(&urls).map_err(|why| format!("{name}: {why}"))?;
+        Ok(Self {
+            input: Input {
+                name: name.to_owned(),
+                size,
+                sha256: sha256.to_owned(),
+            },
+            urls,
+        })
+    }
+}
+
 /// A patch the data was made of.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Patch {
@@ -292,25 +418,29 @@ impl Patch {
 }
 
 /// What server game data was made of: `resources.db`, and the patches over
-/// it in the game's order (ascending n).
+/// it in the game's order (ascending n); and the game's archive the release
+/// pins, when it names one.
 ///
-/// As text ([`PROVENANCE`]), the [`FORMAT`] line, a line for `resources.db`
-/// and a line for each patch, fields by one space, the patch's URLs last
-/// (a URL has no space):
+/// As text ([`PROVENANCE`]), the [`FORMAT`] line, a line for `resources.db`,
+/// one for the game's archive when there is one, and a line for each patch,
+/// fields by one space, the URLs last (a URL has no space):
 ///
 /// ```text
 /// skhid server game data 3
 /// db resources.db 6285533906 <sha256>
+/// game survarium-026g.7z 2906544103 <sha256> http://203.0.113.5/survarium-026g.7z https://mirror.example/g
 /// patch resources.db.patch_14 43691157 <sha256> http://203.0.113.5/resources.db.patch_14
 /// patch resources.db.patch_15 1048576 <sha256> http://203.0.113.5/resources.db.patch_15 https://mirror.example/p15
 /// ```
 ///
 /// A patch of one URL is written as before mirrors were (the data of a
 /// patch with one URL is the same bytes); an srp before them refuses a
-/// line of more (loudly: "a wrong line").
+/// line of more (loudly: "a wrong line"), as an srp before the game's line
+/// refuses that line.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Provenance {
     pub db: Input,
+    pub game: Option<GameArchive>,
     pub patches: Vec<Patch>,
 }
 
@@ -332,6 +462,16 @@ impl Provenance {
     pub fn text(&self) -> String {
         let db = &self.db;
         let mut text = format!("{FORMAT}\ndb {} {} {}\n", db.name, db.size, db.sha256);
+        if let Some(game) = &self.game {
+            let input = &game.input;
+            text.push_str(&format!(
+                "game {} {} {} {}\n",
+                input.name,
+                input.size,
+                input.sha256,
+                game.urls.join(" ")
+            ));
+        }
         for patch in &self.patches {
             let input = &patch.input;
             text.push_str(&format!(
@@ -349,8 +489,9 @@ impl Provenance {
         let mut lines = text.lines();
         if lines.next() != Some(FORMAT) {
             return Err(content(format!(
-                "{PROVENANCE} does not start {FORMAT:?}: data of another srp-game-data (data 2 kept \
-                 the projects empty: build it again with this srp's srp-game-data)"
+                "{PROVENANCE} does not start {FORMAT:?}: data of another srp-game-data (data 3 kept \
+                 no world objects, data 2 the projects empty: build it again with this srp's \
+                 srp-game-data)"
             )));
         }
         let wrong = |line: &str| content(format!("{PROVENANCE}: a wrong line: {line:?}"));
@@ -367,6 +508,22 @@ impl Provenance {
             _ => None,
         }
         .ok_or_else(|| wrong(line))?;
+        let mut lines = lines.peekable();
+        let game = match lines
+            .peek()
+            .copied()
+            .map(|line| line.split(' ').collect::<Vec<_>>())
+        {
+            Some(words) if words.first() == Some(&"game") => {
+                let line = lines.next().unwrap_or_default();
+                let [_, name, size, sha256, ref urls @ ..] = words[..] else {
+                    return Err(wrong(line));
+                };
+                let urls = urls.iter().map(|url| (*url).to_owned()).collect();
+                Some(GameArchive::of(name, size, sha256, urls).map_err(|_| wrong(line))?)
+            }
+            _ => None,
+        };
         let mut patches: Vec<Patch> = Vec::new();
         for line in lines {
             let patch = match line.split(' ').collect::<Vec<_>>()[..] {
@@ -387,7 +544,7 @@ impl Provenance {
             .ok_or_else(|| wrong(line))?;
             patches.push(patch);
         }
-        Ok(Self { db, patches })
+        Ok(Self { db, game, patches })
     }
 
     /// What the server offers the players' updater: each patch, in the
@@ -465,15 +622,25 @@ fn in_order(patches: &[PatchFile]) -> Result<Vec<(u32, &PatchFile)>, Error> {
     Ok(numbered)
 }
 
-/// What the data of `db` and `patches` says it was made of: the patches in
-/// the game's order. Each file is read through once, to hash it.
-pub fn provenance_of(db: &Path, patches: &[PatchFile]) -> Result<Provenance, Error> {
-    provenance_in_order(db, &in_order(patches)?)
+/// What the data of `db` and `patches` (and the game's archive `game`) says
+/// it was made of: the patches in the game's order. Each file is read
+/// through once, to hash it.
+pub fn provenance_of(
+    db: &Path,
+    patches: &[PatchFile],
+    game: Option<&GameArchive>,
+) -> Result<Provenance, Error> {
+    provenance_in_order(db, &in_order(patches)?, game)
 }
 
-fn provenance_in_order(db: &Path, patches: &[(u32, &PatchFile)]) -> Result<Provenance, Error> {
+fn provenance_in_order(
+    db: &Path,
+    patches: &[(u32, &PatchFile)],
+    game: Option<&GameArchive>,
+) -> Result<Provenance, Error> {
     Ok(Provenance {
         db: Input::of(db)?,
+        game: game.cloned(),
         patches: patches
             .iter()
             .map(|&(number, patch)| {
@@ -488,11 +655,12 @@ fn provenance_in_order(db: &Path, patches: &[(u32, &PatchFile)]) -> Result<Prove
 }
 
 /// The server's game data of `db` with `patches` over it in the game's
-/// order ([`provenance_of`]). Only the archives' tables and the server's
-/// files are read from them, and each file once more to hash it.
-pub fn build(db: &Path, patches: &[PatchFile]) -> Result<Built, Error> {
+/// order ([`provenance_of`]), naming the game's archive `game` when given.
+/// Only the archives' tables and the server's files are read from them, and
+/// each file once more to hash it.
+pub fn build(db: &Path, patches: &[PatchFile], game: Option<&GameArchive>) -> Result<Built, Error> {
     let patches = in_order(patches)?;
-    let provenance = provenance_in_order(db, &patches)?;
+    let provenance = provenance_in_order(db, &patches, game)?;
     let paths: Vec<&Path> = std::iter::once(db)
         .chain(patches.iter().map(|(_, patch)| patch.path.as_path()))
         .collect();
@@ -539,7 +707,7 @@ pub fn build(db: &Path, patches: &[PatchFile]) -> Result<Built, Error> {
             )));
         }
         let kept = if path.starts_with(PROJECTS) {
-            server_objects_of(&bytes)
+            objects_of(&bytes)
                 .map_err(|why| content(format!("{}: {path}: {why}", names[index])))?
         } else {
             bytes

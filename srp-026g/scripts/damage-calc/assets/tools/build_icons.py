@@ -39,6 +39,8 @@ def group_of(folder, name):
         if name.startswith('ammo_'):
             return 'ammo', 'consumables'
         return 'grenade', 'consumables'
+    if folder == 'medicines':  # drugs made whole from one table (docs/notes/medicines.md)
+        return 'drug', 'consumables'
     if folder in ('artefacts', 'drugs', 'boosters', 'devices'):
         return folder.rstrip('s'), 'consumables'
     if folder == 'money':  # money/gold use the voucher atlas (Category.GOLD)

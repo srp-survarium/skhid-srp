@@ -37,7 +37,19 @@ package survarium.data
          _nullLocals[value] = true;
          return "#" + value;
       }
-      
+
+      // A text with its values: %1$s is the first, %2$s the second, ...
+      // (srp's own texts, st_srp_*: client-patches/localization/README.md).
+      public static function format(value:String, ... values) : String
+      {
+         var text:String = getName(value);
+         for(var i:int = 0; i < values.length; i++)
+         {
+            text = text.split("%" + (i + 1) + "$s").join(String(values[i]));
+         }
+         return text;
+      }
+
       public static function logNullLocals() : void
       {
          var str:String = "";

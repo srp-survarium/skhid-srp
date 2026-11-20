@@ -1,0 +1,19 @@
+# The live guns' iron sights under an optic (the rifle scopes' variants, and scope fits' on these guns;
+# make_pack.py, sights.py; docs/notes/weapon_scopes.md, section 7), done as 0.69d0 does them: an optic sets
+# a sight module's slot to param 1, its model_param1 (a folded sight, or another module); a sight of the
+# gun's own mesh stays. The last column, what a variant's weapon model does (make_pack.py):
+#   keep                                        it stays (0.69d0's stays)
+#   refold <surface> <up> <folded> <theirs>     0.69d0's up module (<theirs>: its surface), found in <surface>
+#                                               by its positions (the port mapped its texture anew), folded
+#                                               as 0.69d0's folded one, piece by piece
+#   swap <surface> <up> <other>                 the up module found so and taken out; the optic's own model
+#                                               carries <other> where it was (0.69d0's model_param1)
+# (and scope fits' fold, turn, cut, lower: its sights.tsv)
+# gun	sight	our model	0.69d0 under an optic	under an optic
+m4a1	front sight	part of m4a1_s: 0.69d0's m4a1_front_ironsight, every triangle (376) at its place, our texture mapping	m4a1_front_ironsight: model_param1 gasblocks/m4a1_gasblock, a plain gas block	swap m4a1_s ironsights/m4a1_front_ironsight gasblocks/m4a1_gasblock
+vepr	rear leaf (vepr_ironsight)	parts of secondary002sg1 and secondary002sg: 0.69d0's vepr_ironsight_on (vepr_main_s, vepr_sec_s), our texture mapping	vepr_ironsight: model_param1 vepr_ironsight_off, folded	refold secondary002sg1 ironsights/vepr_ironsight_on ironsights/vepr_ironsight_off vepr_main_s
+vepr	rear leaf (vepr_ironsight)	(its other surface)	(as above)	refold secondary002sg ironsights/vepr_ironsight_on ironsights/vepr_ironsight_off vepr_sec_s
+vepr_premium	rear leaf (vepr_ironsight)	as the Vepr's (its camo model)	as the Vepr's	refold secondary002sg1 ironsights/vepr_ironsight_on ironsights/vepr_ironsight_off vepr_main_s
+vepr_premium	rear leaf (vepr_ironsight)	(its other surface)	(as above)	refold secondary002sg ironsights/vepr_ironsight_on ironsights/vepr_ironsight_off vepr_sec_s
+ump45	front sight hood	part of ump_45_mat_s	its own mesh: stays	keep
+rpd	front sight	part of rpd_s	its own mesh: stays	keep

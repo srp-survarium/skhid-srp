@@ -7,7 +7,7 @@ use survarium::v026g::match_msgs::{players, snapshot};
 
 fn main() {
     let dir = std::env::args().nth(1).expect("directory");
-    let map_id: u8 = std::env::args().nth(2).expect("map id").parse().unwrap();
+    let map_id: survarium::v026g::maps::MapId = std::env::args().nth(2).expect("map id").parse().unwrap();
     let map = maps::map_mode(map_id).expect("map");
     // Optional: each roster place's team as digits, to test the elimination
     // check (a team with no tickets, no respawn flag, nobody queued and
@@ -38,7 +38,7 @@ fn main() {
         };
         let body = std::fs::read(format!("{dir}/{name}")).unwrap();
         let read = (1..=20).find_map(|players| {
-            let decoded = snapshot::decode(time, &body, players, map.mode, 0)?;
+            let decoded = snapshot::decode(time, &body, players, map.mode.rules(), 0)?;
             let tdm = decoded.rules.as_ref()?.tdm?;
             Some((players, decoded, tdm))
         });

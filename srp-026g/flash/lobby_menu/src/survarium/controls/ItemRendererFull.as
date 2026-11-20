@@ -1,13 +1,10 @@
 package survarium.controls
 {
    import flash.display.MovieClip;
-   import flash.geom.ColorTransform;
    import flash.text.TextField;
-   import survarium.Util;
    import survarium.constants.Colors;
    import survarium.item.ItemFactory;
    import survarium.data.ItemData;
-   import survarium.constants.ItemCondition;
    import survarium.constants.ItemRank;
    import survarium.constants.RendererState;
    
@@ -75,7 +72,9 @@ package survarium.controls
          var item:ItemData = _data as ItemData;
          var nameColor:uint;
          super.updateData();
-         this.damageIndicator.visible = !item.isStack && item.value < ItemCondition.FULL;
+         // No damage bar or broken icon: items never wear (no repair, the owner 2026-11-08).
+         this.damageIndicator.visible = false;
+         this.brokenIcon.visible = false;
          if(this.bundleBackground)
          {
             this.bundleBackground.visible = item.fromBundle;
@@ -124,17 +123,9 @@ package survarium.controls
             this.sellerIcon.addChild(item.sellerIcon);
          }
          this.textLevel.x = this.sellerIcon.numChildren ? 24 : this.sellerIcon.x;
-         this.brokenIcon.visible = item.broken;
          this.paintedIcon.visible = item.upgrades && item.upgrades.length > 0;
          // The info field is the count's font and size (CalibriBold 14), as the inventory's.
          this.updateLoadoutBadge(item.itemId,this.showLoadouts && !item.isStack,this.textFieldInfo,this.textFieldInfo);
-         this.damageIndicator.track.scaleX = _data.value / ItemCondition.FULL;
-         var condition:int = _data.value / ItemCondition.FULL * 510;
-         var trackColor:uint = Util.getColor(Math.min(510 - condition,255),Math.min(condition,255),0);
-         var colorTransform:ColorTransform = new ColorTransform();
-         colorTransform.color = trackColor;
-         this.damageIndicator.track.transform.colorTransform = colorTransform;
-         this.damageIndicator.track.alpha = 0.4;
       }
    }
 }
