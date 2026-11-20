@@ -165,7 +165,9 @@ pub fn on_request_batch(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 pub fn on_scene_lists_destroyed(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(streaming) = Streaming::at_destroyed(ctx) {
-        streaming.give_back();
+        if streaming.give_back() == Place::Ours {
+            log::line(&[Text("texture_lists: a scene's rooms are given back")]);
+        }
         HIGHS.with(ctx.thread(), |(_, high)| *high = High::None);
     }
     Flow::Continue

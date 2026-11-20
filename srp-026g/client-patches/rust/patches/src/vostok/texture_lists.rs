@@ -305,13 +305,16 @@ impl Streaming {
     }
 
     /// The rooms of ours back, at the scene's destructor (each list empty).
-    pub fn give_back(&self) {
+    /// Where they were.
+    pub fn give_back(&self) -> Place {
+        let place = self.streamable.fill().place;
         // SAFETY: the destructor emptied the lists and nothing of the scene
         // reads them after (the site's).
         unsafe {
             self.streamable.give_back(OWN_STREAMABLE);
             self.candidates.give_back(OWN_CANDIDATES);
         }
+        place
     }
 }
 
