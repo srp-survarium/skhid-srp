@@ -2715,3 +2715,5 @@ va	name	source	ret_cleanup	result
 0x001ae500	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>	manual	0	
 0x001ae5f0	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>	manual	0	
 0x001bd6a0	vostok::render::stage::is_enabled	manual	0	AL: the stage's enabled byte +0Ch (1 from every stage constructor, e.g. 0x1AE2C8)
+0x001fb6c0	survarium::game_world::process_kill_cross_events	manual	8	
+0x00233770	survarium::game_world_ui::on_kill_cross_event	manual	8	
