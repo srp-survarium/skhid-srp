@@ -90,6 +90,7 @@ mod no_way;
 mod opening;
 mod pace_gate;
 mod pocket_runs;
+mod press_forecast_cost;
 mod press_reach;
 pub(crate) mod real_maps;
 mod reference_replay;

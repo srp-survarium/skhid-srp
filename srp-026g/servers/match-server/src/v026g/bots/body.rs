@@ -489,12 +489,32 @@ pub enum Fall {
 /// [A318] `fall_params.gravity`, m/s^2 (PROVEN, `docs/notes/fall_damage.md`; `step_down` 0x7E1B0's g).
 const GRAVITY: f32 = 9.8;
 
-/// Who plays the body on: the reckoning ([`BodyTrack`]) or the lip guard's stop forecast ([`stays_up`]), which keeps the floor
-/// below at once ([`DropFall::Snap`]) whatever the reckoning does.
+/// Who plays the body on: the reckoning ([`BodyTrack`]), the lip guard's stop forecast ([`stays_up`]), which keeps the floor
+/// below at once ([`DropFall::Snap`]) whatever the reckoning does, or [press forecast] the press forecast ([`press_forecast`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Role {
     Reckoning,
     Forecast,
+    /// [press forecast] The reckoning's own steps (its kept controller on the ground, the client's flight for a forward press, the
+    /// client's fall), on its own clock ([`kept_clock::Of::Press`]) and with none of the reckoning's counters: what the body does
+    /// with these keys is what the reckoning will say it did.
+    Press,
+}
+
+impl Role {
+    /// [press forecast] Whether it steps the body as the reckoning does ([`Self::Press`] too).
+    fn steps_as_reckoning(self) -> bool {
+        matches!(self, Self::Reckoning | Self::Press)
+    }
+
+    /// Its kept controller's clock ([`kept_clock`]).
+    fn clock(self) -> kept_clock::Of {
+        match self {
+            Self::Reckoning => kept_clock::Of::Reckoning,
+            Self::Forecast => kept_clock::Of::Forecast,
+            Self::Press => kept_clock::Of::Press,
+        }
+    }
 }
 
 impl Estimate {
@@ -648,6 +668,114 @@ pub fn stop_path(at: &Estimate, keys: u32, turn: f32, stop: &Stop) -> Vec<Vec3> 
     path
 }
 
+/// [press forecast] What the press forecast plays the body over: its movement model, its speed level and the grid (its client walker
+/// gives the kept controller and the client's flight).
+#[derive(Clone, Copy)]
+pub struct PressWorld<'a> {
+    pub kin: &'a Kinematics,
+    pub level: f32,
+    pub grid: &'a WalkGrid,
+}
+
+/// [press forecast] What the keys do after a forecast flight's landing step ([`press_forecast`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AfterLanding {
+    /// Let go: the landing is held (the motor's `Ahead::let_go`).
+    Hold,
+    /// The walk keys stay held: the route walks on along the top.
+    WalkOn,
+}
+
+/// [press forecast] A press to forecast from a body: the walk keys `walk` held on the ground (constant, no turn) for `press_in`
+/// ticks, then held with the jump key on the next; forward through the flight (the bots' air key, `jump::Keys::BOT`); after the
+/// landing step [`AfterLanding`]. The link from `take_off` to `landing` says where "up" is (`motor::is_up`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PressPlan {
+    pub walk: u32,
+    pub press_in: u32,
+    pub take_off: Vec3,
+    pub landing: Vec3,
+    pub after: AfterLanding,
+}
+
+/// [press forecast] What a forecast press does ([`press_forecast`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PressOutcome {
+    /// Up on the link's landing (`motor::is_up`), on the ground on every stay step: where it rests.
+    Lands { rest: Vec3 },
+    /// Down on the ground, not up, short of the landing along the link.
+    Short { rest: Vec3 },
+    /// Down on the ground, not up, at or past the landing along the link.
+    Over { rest: Vec3 },
+    /// Still in the jump, or falling, at the forecast's end.
+    NotDown { at: Vec3 },
+    /// The press starts no flight of the client's (a side or back key, a crouched capsule, a body in the air, no client walker,
+    /// the clip's jump configured): no forecast.
+    NoFlight,
+}
+
+/// [press forecast] The steps of the client's flight a forecast plays at most: the sprint jump's landing step (n = 18,
+/// `SPRINT_LANDING_N`, `mapdata/controller/jump.rs`; the short jump's is 16) and the step it starts on.
+const PRESS_FLIGHT_STEPS: u32 = 19;
+
+/// [press forecast] The body `at` playing `keys` (constant, no turn) for `ticks` ticks, by the reckoning's own steps ([`Role::Press`]):
+/// each tick's state, `at` first. The ground chain a press's candidates are flown from.
+pub fn press_chain(at: &Estimate, keys: u32, ticks: u32, world: &PressWorld) -> Vec<Estimate> {
+    let PressWorld { kin, level, grid } = *world;
+    let mut out = Vec::with_capacity(ticks as usize + 1);
+    let mut at = *at;
+    out.push(at);
+    for _ in 0..ticks {
+        at = advance(at, Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false }, kin, level, Some(grid), None, Role::Press, false);
+        out.push(at);
+    }
+    out
+}
+
+/// [press forecast] What the press `plan` does from the body `at`, played by the reckoning's own steps ([`Role::Press`]): the
+/// ground chain to the press ([`press_chain`]), the press tick's ground step (the client's one-input lag), the client's own flight
+/// to its landing step, then [`mapdata::controller::jump::STAY_STEPS`] steps on the ground (the builder's "lands and stays",
+/// `landing_and_rest`). At most `press_in` + 1 + [`PRESS_FLIGHT_STEPS`] + 7 controller steps. The jump gate (stamina, legs, a hit's
+/// hold) is the caller's: the forecast presses as if it were open.
+pub fn press_forecast(at: &Estimate, plan: &PressPlan, world: &PressWorld) -> PressOutcome {
+    let PressWorld { kin, level, grid } = *world;
+    let walk = plan.walk & !key::JUMP;
+    let mut at = *press_chain(at, walk, plan.press_in, world).last().expect("the chain holds its start");
+    let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
+    at = advance(at, tick(&at, walk | key::JUMP), kin, level, Some(grid), None, Role::Press, false);
+    if !matches!(at.arc, Some(Jump::Flown(_))) {
+        return PressOutcome::NoFlight;
+    }
+    let air = walk & key::FORWARD;
+    let mut steps = 0;
+    while at.arc.is_some() && steps < PRESS_FLIGHT_STEPS {
+        at = advance(at, tick(&at, air), kin, level, Some(grid), None, Role::Press, false);
+        steps += 1;
+    }
+    if at.arc.is_some() {
+        return PressOutcome::NotDown { at: at.feet };
+    }
+    let stay = match plan.after {
+        AfterLanding::Hold => 0,
+        AfterLanding::WalkOn => walk,
+    };
+    let mut grounded = true;
+    for _ in 0..mapdata::controller::jump::STAY_STEPS {
+        at = advance(at, tick(&at, stay), kin, level, Some(grid), None, Role::Press, false);
+        grounded &= at.fall == Fall::Ground && at.arc.is_none();
+    }
+    if at.fall != Fall::Ground || at.arc.is_some() {
+        return PressOutcome::NotDown { at: at.feet };
+    }
+    let rest = at.feet;
+    if grounded && super::motor::is_up(rest, plan.take_off, plan.landing) {
+        return PressOutcome::Lands { rest };
+    }
+    let (dx, dz) = (plan.landing.x - plan.take_off.x, plan.landing.z - plan.take_off.z);
+    let along = |p: Vec3| (p.x - plan.take_off.x) * dx + (p.z - plan.take_off.z) * dz;
+    if along(rest) < along(plan.landing) { PressOutcome::Short { rest } } else { PressOutcome::Over { rest } }
+}
+
 /// A decided tick: the keys held, the turn made to the base pitch, and the
 /// kick after it.
 #[derive(Clone, Copy, Debug)]
@@ -727,11 +855,13 @@ pub struct FlownJump {
     /// the controller's own feet, kept across the flight).
     body: KeptBody,
     shift: Vec3,
+    /// Whose flight: its steps' clock ([`kept_clock`]); the reckoning's alone count in [`flown_jumps`].
+    clock: kept_clock::Of,
 }
 
 /// [A388 step 3] A step of a [`FlownJump`].
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum FlownStep {
+pub(crate) enum FlownStep {
     /// In the air (or before the take-off, on the ground) at these feet.
     Air(Vec3),
     /// The landing step: its feet, whether it is on the ground, the controller after it and its vertical speed (m/s, up).
@@ -743,10 +873,13 @@ impl FlownJump {
     /// level `level`: the client's kind (a sprint jump with forward and sprint held, none of back, fire, crouch or aim, and the
     /// last move at the walk cap or more; else the short jump at that move's speed). None for a press with a side or back key (the
     /// clip's: the flyer has the forward clips only) and without the grid's walker.
-    fn pressed(grid: &WalkGrid, kept: Option<KeptBody>, feet: Vec3, keys: u32, moved: f32, level: f32) -> Option<Self> {
+    pub(crate) fn pressed(grid: &WalkGrid, kept: Option<KeptBody>, feet: Vec3, keys: u32, moved: f32, level: f32, clock: kept_clock::Of) -> Option<Self> {
         use mapdata::controller::jump::{Flight, Flying, Leg, Press, SPRINT_FIRST_AIR_FRAMES, WALK_CAP_MS as CAP};
+        let counted = clock == kept_clock::Of::Reckoning;
         if super::jump_arc::Direction::of(keys) != super::jump_arc::Direction::Forward {
-            flown_jumps::count(flown_jumps::Kind::NotForward);
+            if counted {
+                flown_jumps::count(flown_jumps::Kind::NotForward);
+            }
             return None;
         }
         let body = match kept {
@@ -762,15 +895,17 @@ impl FlownJump {
         } else {
             Press::Walk { speed: moved }
         };
-        flown_jumps::count(if sprint { flown_jumps::Kind::Sprint } else { flown_jumps::Kind::Short });
-        Some(Self { flying: Flying::new(press, Flight { cap, dy: 0.0 }), body, shift: feet - body.controller.feet() })
+        if counted {
+            flown_jumps::count(if sprint { flown_jumps::Kind::Sprint } else { flown_jumps::Kind::Short });
+        }
+        Some(Self { flying: Flying::new(press, Flight { cap, dy: 0.0 }), body, shift: feet - body.controller.feet(), clock })
     }
 
     /// The next step on `grid`: the walk in the heading `yaw` (the step's: after the input before its own, rig rule 7), the air
     /// control from the step's own input, its keys `air_keys` in its heading `air_yaw` (one input later than the walk's: rig rule 7,
     /// 1,392 of 1,392 air steps; the exe review of #1938). The controller turns both by the walk's heading, so the air control is
     /// handed over already turned into it. None without the grid's walker.
-    fn step(&mut self, grid: &WalkGrid, yaw: f32, air_keys: u32, air_yaw: f32) -> Option<FlownStep> {
+    pub(crate) fn step(&mut self, grid: &WalkGrid, yaw: f32, air_keys: u32, air_yaw: f32) -> Option<FlownStep> {
         let started = std::time::Instant::now();
         let [fx, fz] = super::kin::forward(yaw);
         let sign = |plus, minus| i8::from(air_keys & plus != 0) - i8::from(air_keys & minus != 0);
@@ -780,7 +915,7 @@ impl FlownJump {
         let (sin, cos) = super::kin::wrap(air_yaw - yaw).sin_cos();
         let air = (a * cos + r * sin, r * cos - a * sin);
         let step = grid.kept_fly_step(&mut self.body.controller, &mut self.flying, (fx, fz), air)?;
-        kept_clock::add(kept_clock::Of::Reckoning, started.elapsed().as_nanos() as u64);
+        kept_clock::add(self.clock, started.elapsed().as_nanos() as u64);
         let feet = step.feet + self.shift;
         if !self.flying.landed() {
             return Some(FlownStep::Air(feet));
@@ -1731,7 +1866,7 @@ fn advance(
     event: bool,
 ) -> Estimate {
     let steps = (tick.time.saturating_sub(at.time) / TICK_MS).max(1);
-    let falls = role == Role::Reckoning && kin.drop_fall != DropFall::Snap;
+    let falls = role.steps_as_reckoning() && kin.drop_fall != DropFall::Snap;
     at.grid_extra = GridExtra::default();
     // [A364] The body's last horizontal move, the client's player+334h: what a jump pressed now reads for its kind and its carry.
     let started = at.feet;
@@ -1741,7 +1876,7 @@ fn advance(
         let (step_keys, step_yaw) = if step == 1 { at.step_by(kin) } else { (at.keys, at.yaw) };
         // [F42] Both legs broken: the move keys move the body in the crouch run state only ([`Creep`]).
         let creep = if step == 1 && kin.step_input == StepInput::Previous { at.step_creep } else { at.creep };
-        if tick.legs_broken {
+        if tick.legs_broken && role != Role::Press {
             creep_steps::step(creep);
         }
         let target = if tick.legs_broken { creep.target(kin.target_local(step_keys, level)) } else { kin.target_local(step_keys, level) };
@@ -1756,6 +1891,10 @@ fn advance(
         // [A388 step 3] The client's own flight: its next step's feet; at its landing step the controller it left is the body's kept
         // one, on the ground or falling on from there (`fall_step`, the client's fall).
         if let (Some(Jump::Flown(mut flown)), Some(grid), Some(node)) = (at.arc, grid, at.node) {
+            // [press forecast] A flight the press forecast steps is on its clock, whoever pressed it.
+            if role == Role::Press {
+                flown.clock = kept_clock::Of::Press;
+            }
             let Some(out) = flown.step(grid, step_yaw, at.keys, at.yaw) else {
                 // No walker any more (no grid change does that within a match): the jump is over where it is.
                 at.arc = None;
@@ -1772,13 +1911,20 @@ fn advance(
                     at.arc = None;
                     at.kept = Some(after);
                     let under = grid.locate(feet, LOCATE_M).or(Some(node));
+                    // The press forecast's flights are not the reckoning's count (a stop forecast stepping a flight it was handed
+                    // counts as before).
+                    let counted = role != Role::Press;
                     if landed {
-                        flown_jumps::count(flown_jumps::Kind::Landed);
+                        if counted {
+                            flown_jumps::count(flown_jumps::Kind::Landed);
+                        }
                         at.feet = feet;
                         at.node = under;
                         at.fall = Fall::Ground;
                     } else {
-                        flown_jumps::count(flown_jumps::Kind::Falling);
+                        if counted {
+                            flown_jumps::count(flown_jumps::Kind::Falling);
+                        }
                         // Falling on: onto the floor under the feet open above them, from where the flight left it.
                         let floor = under_edge(grid, feet, feet.y, feet.y).or(under);
                         at.feet = feet;
@@ -1849,7 +1995,7 @@ fn advance(
                 // [A388 step 2] The kept controller's step left the ground ([`KeptStep::airborne`]).
                 let mut airborne = false;
                 let client = match (kin.client_step, role, in_air, at.fall) {
-                    (ClientStep::Client, Role::Reckoning, false, Fall::Ground) if rises || blocked => {
+                    (ClientStep::Client, Role::Reckoning | Role::Press, false, Fall::Ground) if rises || blocked => {
                         let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
                         grid.client_step(at.feet, by).filter(|_| by.x.hypot(by.z) > 1e-4).map(|(from, end)| {
                             Vec3::new(at.feet.x + end.x - from.x, at.feet.y, at.feet.z + end.z - from.z)
@@ -1857,12 +2003,12 @@ fn advance(
                     }
                     // [A364 P9] Every ground step by the body's kept controller. [A388 step 2b] The lip guard's stop forecast's too
                     // ([`ForecastStep::Kept`]): its body is the reckoning's, so it leaves an edge where the reckoned body does.
-                    (ClientStep::Kept, Role::Reckoning | Role::Forecast, false, Fall::Ground)
-                        if role == Role::Reckoning || kin.forecast_step == ForecastStep::Kept =>
+                    // [press forecast] The press forecast's too, whatever the stop forecast's switch ([`Role::Press`]).
+                    (ClientStep::Kept, Role::Reckoning | Role::Forecast | Role::Press, false, Fall::Ground)
+                        if role.steps_as_reckoning() || kin.forecast_step == ForecastStep::Kept =>
                     {
                         let by = Vec3::new(to.x - at.feet.x, 0.0, to.z - at.feet.z);
-                        let clock = if role == Role::Reckoning { kept_clock::Of::Reckoning } else { kept_clock::Of::Forecast };
-                        kept_step(grid, &mut at.kept, at.feet, by, crouch_input(step_keys, tick.legs_broken), Kinematics::sprint_state(at.keys), clock).map(|step| {
+                        kept_step(grid, &mut at.kept, at.feet, by, crouch_input(step_keys, tick.legs_broken), Kinematics::sprint_state(at.keys), role.clock()).map(|step| {
                             airborne = step.airborne;
                             step.to
                         })
@@ -1877,7 +2023,7 @@ fn advance(
                             client_steps::hard();
                         }
                     }
-                    if client.is_some() {
+                    if client.is_some() && role != Role::Press {
                         client_steps::count();
                     }
                 }
@@ -1940,7 +2086,7 @@ fn advance(
                 // walker triangles) still has ground within a step under its feet, is no fall: the grid has no floor in that cell
                 // (eroded by a beam or a rail over it) and the next one down is under the ground (School's sealed void 6 m below,
                 // `nav-builder-20261112/A366-root-cause.md`). The body stays on the walker's ground with its last floor.
-                if role == Role::Reckoning
+                if role.steps_as_reckoning()
                     && !in_air
                     && !left
                     && matches!(at.fall, Fall::Ground)
@@ -1948,7 +2094,9 @@ fn advance(
                     && let Some(ground) = grid.walker_ground_below(to, top + WALKER_GROUND_OVER_M, WALKER_GROUND_OVER_M + grid.body().step)
                 {
                     #[cfg(test)]
-                    walker_holds::held();
+                    if role == Role::Reckoning {
+                        walker_holds::held();
+                    }
                     // Where the walk asked to go, on the ground (the grid's slide put it on the lower floor's cell).
                     feet = Vec3::new(to.x, ground, to.z);
                     node = at.node.unwrap_or(node);
@@ -1986,8 +2134,8 @@ fn advance(
             // [A388 step 3] A forward press of the reckoning is flown by the client's own jump ([`JumpFlight::Controller`]); a side
             // or back one, the stop forecasts' and a grid with no walker keep the clip.
             let flown = match (kin.jump_flight, role, grid) {
-                (JumpFlight::Controller, Role::Reckoning, Some(grid)) => {
-                    FlownJump::pressed(grid, at.kept, at.feet, tick.keys, moved[0].hypot(moved[1]), level)
+                (JumpFlight::Controller, Role::Reckoning | Role::Press, Some(grid)) => {
+                    FlownJump::pressed(grid, at.kept, at.feet, tick.keys, moved[0].hypot(moved[1]), level, role.clock())
                 }
                 _ => None,
             };
@@ -2204,13 +2352,15 @@ pub(crate) mod kept_clock {
         Reckoning,
         /// [A388 step 2b] The lip guard's stop forecast's (`stays_up`, [`super::ForecastStep::Kept`]).
         Forecast,
+        /// [press forecast] The press forecast's (`press_forecast`): its ground chain and its flights.
+        Press,
         /// The bench's stand-in body's.
         #[cfg(test)]
         StandIn,
     }
 
-    static STEPS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
-    static NS: [AtomicU64; 3] = [const { AtomicU64::new(0) }; 3];
+    static STEPS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+    static NS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
 
     pub(crate) fn add(of: Of, ns: u64) {
         STEPS[of as usize].fetch_add(1, Relaxed);
@@ -3471,6 +3621,138 @@ pub(super) mod tests {
         assert!(at.kept.is_some(), "the controller kept on the floor");
         let side = press(key::FORWARD | key::RIGHT);
         assert!(matches!(side.estimate().unwrap().arc, Some(Jump::Clip(_))), "a side press keeps the clip");
+    }
+
+    /// [press forecast] A wall across x (a vertical quad from z0 to z1, y0 up to y1): the pit's sides the capsule meets.
+    fn pit_wall(x: f32, z0: f32, z1: f32, y0: f32, y1: f32) -> [Triangle; 2] {
+        let walker = WalkerBehaviour::BySlope;
+        let (a, b, c, d) = (Vec3::new(x, y0, z0), Vec3::new(x, y0, z1), Vec3::new(x, y1, z1), Vec3::new(x, y1, z0));
+        [Triangle { v: [a, b, c], walker }, Triangle { v: [a, c, d], walker }]
+    }
+
+    /// [press forecast] A gap with the client's walker: the floor at y 0 to x 10, a pit 1 m deep from 10 to 11.2 with its two
+    /// walls, the far floor at y 0 again from 11.2 on (z 0..10); a body walked +x from x 6 for 0.4 s with forward held (at the cap
+    /// from its 6th step), as the reckoning has it; the press's link across the pit.
+    fn press_gap() -> (WalkGrid, Kinematics, Estimate) {
+        let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
+        triangles.extend(floor(10.0, 0.0, 11.2, 10.0, -1.0));
+        triangles.extend(floor(11.2, 0.0, 20.0, 10.0, 0.0));
+        triangles.extend(pit_wall(10.0, 0.0, 10.0, -1.0, 0.0));
+        triangles.extend(pit_wall(11.2, 0.0, 10.0, -1.0, 0.0));
+        let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
+        let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
+        assert_eq!((kin.jump_flight, kin.client_step), (JumpFlight::Controller, ClientStep::Kept), "the defaults");
+        let yaw = -std::f32::consts::FRAC_PI_2;
+        let mut track = BodyTrack::default();
+        track.fixed(fix(0, Vec3::new(6.0, 0.0, 5.0), yaw), &kin, Some(&grid));
+        for time in (50..=400).step_by(50) {
+            track.decided(time, key::FORWARD, (0.0, 0.0), 0.0, &kin, Some(&grid));
+        }
+        (grid, kin, *track.estimate().unwrap())
+    }
+
+    fn gap_plan(walk: u32, press_in: u32) -> PressPlan {
+        PressPlan { walk, press_in, take_off: Vec3::new(9.9, 0.0, 5.0), landing: Vec3::new(11.7, 0.0, 5.0), after: AfterLanding::Hold }
+    }
+
+    /// Where a forecast ends: the rest, or the feet still in the air; none with no flight.
+    fn end_of(outcome: PressOutcome) -> Option<Vec3> {
+        match outcome {
+            PressOutcome::Lands { rest } | PressOutcome::Short { rest } | PressOutcome::Over { rest } => Some(rest),
+            PressOutcome::NotDown { at } => Some(at),
+            PressOutcome::NoFlight => None,
+        }
+    }
+
+    /// [press forecast] [`press_forecast`] plays the reckoning's own steps ([`Role::Press`]): for every press of the gap (0-19
+    /// ground ticks of forward before it), where it ends is, to the bit, where the reckoning ([`Role::Reckoning`]) puts the body
+    /// playing the same ticks (the ground ticks, the press, forward through the flight, the stay steps with the keys let go). Its
+    /// steps are on its own clock ([`kept_clock::Of::Press`]).
+    #[test]
+    fn a_press_forecast_is_the_reckonings_own_steps() {
+        let (grid, kin, at) = press_gap();
+        let world = PressWorld { kin: &kin, level: 1.0, grid: &grid };
+        let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
+        let step = |at: Estimate, keys: u32| advance(at, tick(&at, keys), &kin, 1.0, Some(&grid), None, Role::Reckoning, false);
+        for press_in in 0..20 {
+            let outcome = press_forecast(&at, &gap_plan(key::FORWARD, press_in), &world);
+            let end = end_of(outcome).unwrap_or_else(|| panic!("press {press_in}: no flight"));
+            let mut r = at;
+            for _ in 0..press_in {
+                r = step(r, key::FORWARD);
+            }
+            r = step(r, key::FORWARD | key::JUMP);
+            assert!(matches!(r.arc, Some(Jump::Flown(_))), "press {press_in}: the reckoning flies it: {r:?}");
+            let mut n = 0;
+            while r.arc.is_some() && n < PRESS_FLIGHT_STEPS {
+                r = step(r, key::FORWARD);
+                n += 1;
+            }
+            if r.arc.is_none() {
+                for _ in 0..mapdata::controller::jump::STAY_STEPS {
+                    r = step(r, 0);
+                }
+            }
+            assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
+        }
+        let (steps, _) = kept_clock::take(kept_clock::Of::Press);
+        assert!(steps > 0, "on the press clock");
+    }
+
+    /// [press forecast] On the gap, from the walking body: some press lands on the far floor and stays (`motor::is_up`), and every
+    /// press called a landing rests on the far floor; every press that ends in the pit or on the near floor is neither a landing
+    /// nor `Over`. A press with a side key starts no flight of the client's.
+    #[test]
+    fn a_press_forecast_tells_a_landing_press_from_a_short_one() {
+        let (grid, kin, at) = press_gap();
+        let world = PressWorld { kin: &kin, level: 1.0, grid: &grid };
+        let outcomes: Vec<PressOutcome> = (0..20).map(|k| press_forecast(&at, &gap_plan(key::FORWARD, k), &world)).collect();
+        let lands: Vec<usize> = (0..outcomes.len()).filter(|&k| matches!(outcomes[k], PressOutcome::Lands { .. })).collect();
+        assert!(!lands.is_empty(), "from {:?}: {outcomes:?}", at.feet);
+        for (k, outcome) in outcomes.iter().enumerate() {
+            let end = end_of(*outcome).unwrap_or_else(|| panic!("press {k}: no flight"));
+            // On the far floor: at its height, past where the near floor's rim holds the capsule (its edge at x 10, the capsule's
+            // radius under 0.4 m); a capsule may stand on the far rim with its centre short of x 11.2.
+            let on_far_floor = end.x > 10.5 && end.y.abs() < 0.05;
+            // A landing is on the far floor; a press that ends in the pit or on the near floor is never one. One far past the
+            // landing is `Over` (the motor's `is_up` keeps to `UP_NEAR_M` of it).
+            if matches!(outcome, PressOutcome::Lands { .. }) {
+                assert!(on_far_floor, "press {k}: {outcome:?}");
+            }
+            if !on_far_floor {
+                assert!(!matches!(outcome, PressOutcome::Lands { .. } | PressOutcome::Over { .. }), "press {k}: {outcome:?}");
+            }
+        }
+        assert_eq!(press_forecast(&at, &gap_plan(key::FORWARD | key::RIGHT, 0), &world), PressOutcome::NoFlight, "a side key");
+    }
+
+    /// [press forecast] The cost of a forecast on the gap: 20 presses (0-19 ground ticks before the press), 50 times, twice; the
+    /// clock is around the loop alone. Prints ms a forecast and the press clock's ns a controller step.
+    #[test]
+    #[ignore = "a measurement"]
+    fn press_forecast_cost() {
+        let (grid, kin, at) = press_gap();
+        let world = PressWorld { kin: &kin, level: 1.0, grid: &grid };
+        let _ = kept_clock::take(kept_clock::Of::Press);
+        for round in 0..2 {
+            let started = std::time::Instant::now();
+            let mut forecasts = 0u32;
+            for _ in 0..50 {
+                for k in 0..20 {
+                    std::hint::black_box(press_forecast(&at, &gap_plan(key::FORWARD, k), &world));
+                    forecasts += 1;
+                }
+            }
+            let ns = started.elapsed().as_nanos() as f64;
+            let (steps, step_ns) = kept_clock::take(kept_clock::Of::Press);
+            eprintln!(
+                "PRESS COST round {round}: {forecasts} forecasts, {:.3} ms a forecast (the loop), {} controller steps, {:.1} a forecast, {} ns a step (the press clock)",
+                ns / 1e6 / f64::from(forecasts),
+                steps,
+                steps as f64 / f64::from(forecasts),
+                step_ns.checked_div(steps).unwrap_or(0)
+            );
+        }
     }
 
     /// [A318] The jump arc and drop_fall's fall do not overlap (fx-zones' review): a world 820 ms into a sprint jump (past the old

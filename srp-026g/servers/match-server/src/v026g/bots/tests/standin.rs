@@ -1309,6 +1309,15 @@ impl Game {
                         carry: [0.0; 2],
                         arc: client_clip(keys, body.step_m / TICK_S, may_sprint),
                         speed: body.step_m / TICK_S,
+                        flown: super::standin_jump::controller_flight(
+                            &self.world.grid,
+                            body.kept,
+                            body.feet,
+                            keys,
+                            body.step_m / TICK_S,
+                            if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level,
+                            may_sprint,
+                        ),
                     });
                 }
             }
@@ -1337,6 +1346,19 @@ impl Game {
                 arc: client_clip(keys, speed, may_sprint),
                 // [A364] The press tick's last move (player +0x334): the short jump's carry.
                 speed,
+                // [stand-in jump] The client's own flight from where the press tick's walk left the body (the reckoning's press, after
+                // that tick's step): its kept controller, the press's keys, and the last move that walk made (player +0x334 when the
+                // jump starts: `body.step_m` is the press tick's step here, where `speed` is the step before it; the reckoning's
+                // `FlownJump::pressed` reads the press tick's step too).
+                flown: super::standin_jump::controller_flight(
+                    &self.world.grid,
+                    body.kept,
+                    body.feet,
+                    keys,
+                    body.step_m / TICK_S,
+                    if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level,
+                    may_sprint,
+                ),
             });
         }
         // A death, a ticket, the battery dropped, and the respawn of the mode: as the game's, no one's kill.
@@ -1520,7 +1542,7 @@ impl Game {
                         ticks: &mut self.climbs.prewalk_ticks,
                         held: &mut self.climbs.prewalk_held,
                     });
-                    if let Some(landing) = fly(grid, walls, wall, body, place, tick) {
+                    if let Some(landing) = fly(grid, walls, wall, body, place, tick, moving_yaw) {
                         if let Some((from, base)) = took_off {
                             // The rise is from the floor the body left (the walk before the jump is the walk's), not from the press.
                             let from = Vec3::new(from.x, base.unwrap_or(from.y), from.z);
@@ -1661,6 +1683,7 @@ impl Game {
                             carry,
                             arc: None,
                             speed: 0.0,
+                            flown: None,
                         });
                         body.feet = Vec3::new(target.x, body.feet.y, target.z);
                         if let Some(stood) = standing.get_mut(place) {
