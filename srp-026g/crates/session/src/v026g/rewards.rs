@@ -1837,15 +1837,25 @@ impl<'a> Shared<'a> {
         if players.is_empty() {
             return None;
         }
-        // The place in its team by score; a tie goes to the roster's order.
+        // The place in its team by score, or among everyone of a
+        // free-for-all by kills, then score; a tie goes to the roster's
+        // order.
+        let free_for_all = matches!(self.winners, Winners::MostKills(_));
+        let rank = |line: &history::PlayerLine| {
+            if free_for_all {
+                (line.kills, line.score)
+            } else {
+                (line.score, 0)
+            }
+        };
         let places: Vec<u8> = players
             .iter()
             .enumerate()
             .map(|(index, me)| {
                 let ahead = players.iter().enumerate().filter(|&(other, them)| {
-                    them.line.team == me.line.team
-                        && (them.line.score > me.line.score
-                            || (them.line.score == me.line.score && other < index))
+                    (free_for_all || them.line.team == me.line.team)
+                        && (rank(&them.line) > rank(&me.line)
+                            || (rank(&them.line) == rank(&me.line) && other < index))
                 });
                 u8::try_from(ahead.count() + 1).unwrap_or(u8::MAX)
             })

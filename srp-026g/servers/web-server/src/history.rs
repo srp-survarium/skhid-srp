@@ -596,8 +596,9 @@ fn winner(winner: Winner) -> Value {
         Winner::FirstTeam => json!(0),
         Winner::SecondTeam => json!(1),
         Winner::Draw => json!("draw"),
-        // A free-for-all has no winning team: its lines' outcomes say who won.
-        Winner::Unknown | Winner::MostKills => Value::Null,
+        // No winning team: its lines' outcomes say who won.
+        Winner::MostKills => json!("free_for_all"),
+        Winner::Unknown => Value::Null,
     }
 }
 
@@ -665,4 +666,4 @@ fn clan_line(clan: &ClanLine) -> Value {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

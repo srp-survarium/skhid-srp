@@ -38,7 +38,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   served; only counted ones go into totals, favourites, days, top lists and best scores. A player
   whose public matches all did not count is still named, with totals of zeros.
 - `g26_match_players`: one row a player who was in the match (finished or left): team, place in
-  its team by score (from 1), its roster place (`seat`), rating after the match, clan at the time,
+  its team by score (from 1; of a free-for-all, where each is its own team, among everyone by
+  kills), its roster place (`seat`), rating after the match, clan at the time,
   score, kills, deaths, the counters below, and what the match was for it (`outcome`).
 - A line's `outcome` is said once, when the match is settled (`rewards`), as its rating took it:
   `won` for one who stayed to the end on the winning team (in a free-for-all: with the most
@@ -102,9 +103,9 @@ Common objects:
   three decimals. `matches` - `wins` - `losses` were draws or had no known winner.
 - A match: `{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
   "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
-  "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, or `null` when not known and for
-  every free-for-all (its lines' `outcome` says who won). `map` and `mode` are `null` for a map
-  the game data no longer has.
+  "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, `"free_for_all"` (no team wins one:
+  its lines' `outcome` says who did) or `null` when not known. `map` and `mode` are `null` for a
+  map the game data no longer has.
 - A player's line of a match: `"team":0,"place":1,"outcome":"won","left":false,"rating":1180,
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
   "melee_kills":0,"batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,

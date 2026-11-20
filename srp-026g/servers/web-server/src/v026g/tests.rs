@@ -1181,6 +1181,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/maps",
         "/wiki/skills",
         "/wiki/quests",
+        "/wiki/stats",
     ] {
         for lang in [Lang::En, Lang::Uk] {
             let mut request = get(path);
@@ -1208,6 +1209,7 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/maps",
         "/wiki/skills",
         "/wiki/quests",
+        "/wiki/stats",
     ] {
         assert!(
             index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
@@ -1268,7 +1270,8 @@ fn the_calculators_and_the_maps_old_addresses_lead_into_the_wiki() {
 }
 
 /// A standalone local review of the real HTTP routes, with in-memory test
-/// accounts. Does not start or connect to login, lobby or match servers.
+/// accounts and a made-up match history (`history::tests::preview`). Does
+/// not start or connect to login, lobby or match servers.
 #[test]
 #[ignore = "local browser preview; serves until stopped"]
 fn serve_wiki_preview() {
@@ -1277,7 +1280,9 @@ fn serve_wiki_preview() {
     if std::env::var_os("SRP_GAME_DATA").is_some() {
         survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads as srp's game data");
     }
-    let world = world();
+    let dir = std::env::temp_dir().join(format!("srp-wiki-preview-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let world = world_with(crate::history::tests::preview(&dir, crate::unix_now()));
     let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
     eprintln!("Wiki preview: http://127.0.0.1:24583/wiki");
     for stream in listener.incoming() {

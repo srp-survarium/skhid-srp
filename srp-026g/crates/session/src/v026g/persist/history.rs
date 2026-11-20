@@ -59,7 +59,8 @@ pub(super) const MIGRATION: &str = "
         -- The registered clan it was of then, if any.
         clan_id       INTEGER,
         team          INTEGER NOT NULL,
-        -- In its team by score, from 1.
+        -- In its team by score, from 1; of a free-for-all among everyone,
+        -- by kills.
         place         INTEGER NOT NULL,
         -- Its place in the match's roster.
         seat          INTEGER NOT NULL,
@@ -479,7 +480,8 @@ pub struct ItemTotals {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerLine {
     pub team: u8,
-    /// In its team by score, from 1.
+    /// In its team by score, from 1; of a free-for-all among everyone, by
+    /// kills.
     pub place: u8,
     /// Its place in the match's roster.
     pub seat: u8,
@@ -1383,7 +1385,8 @@ impl MatchHistory {
         Ok(rows)
     }
 
-    /// A public match and its players, by team, then place.
+    /// A public match and its players, by team, then place (a
+    /// free-for-all's: each its own team, by roster place).
     pub fn game_match(
         &self,
         id: u64,

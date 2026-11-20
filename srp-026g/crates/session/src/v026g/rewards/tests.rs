@@ -4214,6 +4214,9 @@ fn a_free_for_alls_history_keeps_its_winners_by_kills() {
         .unwrap();
     let record = &history_of(&results)[0];
     assert_eq!(record.info.winner, history::Winner::MostKills);
+    // Each its own side: placed among everyone, by kills (a tie: the roster's order).
+    let places: Vec<u8> = record.players.iter().map(|player| player.line.place).collect();
+    assert_eq!(places, [3, 1, 4, 2]);
     for (line, paid) in record.players.iter().zip(&report.players) {
         assert_eq!(line.account_id, paid.account_id);
         let outcome = if paid.reward.won {
