@@ -9,8 +9,14 @@
 //!   more: they cost 110h bytes each, the textures behind them are loaded
 //!   whatever the list holds.
 //! - A scene's streamable textures, 2048, with the async worker's
-//!   candidates (one for each, 2048) and the requests (1024): push_back
-//!   0x155F60 asserts (the int3 0x155FC2) a few minutes into such a match.
+//!   candidates (one for each, 2048): push_back 0x155F60 asserts (the int3
+//!   0x155FC2) a few minutes into such a match. The requests (1024, one
+//!   for each candidate whose mips change, asked in one batch) keep their
+//!   room, and a batch keeps to it: process_streaming makes room on the
+//!   main thread's stack (1 MiB) for every candidate of a batch at once,
+//!   14Ch each, before it asks the requests; past 1024 the game asserts
+//!   there, past about 2500 the stack would overflow. The rest are asked
+//!   in the next batch (the async worker makes the candidates again).
 //! - A texture pool's textures, 1024: the texture storage keeps its
 //!   textures in pools by size and format, one slot for each texture alive
 //!   at that size, and makes one more when none is free; past 1024 push_back
@@ -19,7 +25,7 @@
 //!   their smallest streamed mips.
 //!
 //! When a push finds a list full in its owner's room, its entries move to
-//! a room of ours twice the size (a scene's three lists together), from the
+//! a room of ours twice the size (a scene's two lists together), from the
 //! process heap: nothing of it is taken before. A scene's rooms go back in
 //! its destructor; a pool's live as long as its storage (the game). Past
 //! our room the game's assert stays, as when the heap gives none (one line
@@ -28,14 +34,15 @@
 #![forbid(unsafe_code)]
 
 use crate::vostok::log::{self, Piece::{Dec, Text}};
-use crate::vostok::texture_lists::{Fill, Names, NotMoved, Place, PoolSlots, Streaming, StreamingRooms, OWN_NAMES,
-                                   OWN_POOL_SLOTS, OWN_REQUESTED, OWN_STREAMABLE};
+use crate::vostok::log::Limited;
+use crate::vostok::texture_lists::{Batch, Fill, Names, NotMoved, Place, PoolSlots, Streaming, OWN_NAMES, OWN_POOL_SLOTS,
+                                   OWN_STREAMABLE};
 use crate::vostok::{Context, Flow, Lock, NoExit};
 
 /// Our rooms: twice the game's.
 const NAMES: u32 = 2 * OWN_NAMES;
 const POOL_SLOTS: u32 = 2 * OWN_POOL_SLOTS;
-const ROOMS: StreamingRooms = StreamingRooms { streamable: 2 * OWN_STREAMABLE, requested: 2 * OWN_REQUESTED };
+const STREAMABLE: u32 = 2 * OWN_STREAMABLE;
 
 /// The first high logged, and every this many entries over the last one.
 const FIRST: u32 = 1024;
@@ -113,10 +120,9 @@ pub fn on_streaming_push(ctx: &mut Context<'_>) -> Flow<NoExit> {
                 log::line(&[Text("texture_lists: a scene streams "), Dec(held), Text(" textures")]);
             }
         }
-        Push::Move => match streaming.move_to_rooms(ROOMS) {
+        Push::Move => match streaming.move_to_rooms(STREAMABLE) {
             Ok(()) => log::line(&[Text("texture_lists: a scene's streamable textures, full at "), Dec(fill.held),
-                                  Text(", moved to a room of "), Dec(ROOMS.streamable), Text(" (requests "),
-                                  Dec(ROOMS.requested), Text(")")]),
+                                  Text(", moved to a room of "), Dec(STREAMABLE)]),
             Err(NotMoved::NoMemory) => log::line(&[Text("texture_lists: a scene's streamable textures are full at "),
                                                    Dec(fill.held), Text(" and the heap gave no room")]),
         },
@@ -138,6 +144,21 @@ pub fn on_pool_slot_push(ctx: &mut Context<'_>) -> Flow<NoExit> {
         },
         Push::Full => log::line(&[Text("texture_lists: the texture pool "), Text(slots.name()), Text(" is full at "),
                                   Dec(fill.held)]),
+    }
+    Flow::Continue
+}
+
+/// The batches cut to the requests' room, at most a line a second.
+static CUT: Limited = Limited::new("cut");
+
+/// A batch of more candidates than the requests hold asks the first ones.
+pub fn on_request_batch(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let Some(batch) = Batch::at(ctx) else { return Flow::Continue };
+    let (candidates, room) = batch.sizes();
+    if candidates > room {
+        batch.keep_first(room);
+        CUT.line(ctx.thread(), &[Text("texture_lists: "), Dec(candidates), Text(" textures change their mips, "),
+                                 Dec(room), Text(" asked now, the rest next")]);
     }
     Flow::Continue
 }

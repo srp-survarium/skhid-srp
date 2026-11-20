@@ -15,19 +15,22 @@ sites:
   three pointers into its own entry there) and pushes the new one; a name
   already held is found in the room; with 4096 in the room the build
   reaches the assert too;
-- a scene's streamable textures (+126158h, 2048 of 148h), with the
-  candidates (+98054Ch, 2048 of 64h) and the requests (+1CA164h, 1024 of
-  118h): gather_streamable_textures from its site 0x155205 to after its
-  push_back (0x15521C). Full, the original reaches the assert's branch
-  0x155F6E; the build moves the three lists into rooms of 4096, 4096 and
-  2048 (each entry as it was, the names' pointers into their entries) and
-  pushes; with 4096 the build reaches the assert;
+- a scene's streamable textures (+126158h, 2048 of 148h) with the
+  candidates (+98054Ch, 2048 of 64h): gather_streamable_textures from its
+  site 0x155205 to after its push_back (0x15521C). Full, the original
+  reaches the assert's branch 0x155F6E; the build moves both into rooms of
+  4096 (each entry as it was, the names' pointers into their entries) and
+  pushes, the requests (+1CA164h, 1024 of 118h) as they were; with 4096 the
+  build reaches the assert;
+- process_streaming's batch from its site 0x15440A (ESI the candidates whose
+  mips change, EDI the scene): 1024 or fewer go on in both; 3000 go on in
+  the original, the build keeps the first 1024 (the requests' room);
 - a texture pool's textures (+64h, 1024 slots of 1Ch): add_texture from
   its site 0x3D319D to after its push_back (0x3D31A9). Full, the original
   reaches the assert's branch 0x3D35B9; the build moves the slots into a
   heap room of 2048 (each as it was) and pushes; with 2048 it reaches the
   assert;
-- the scene's destructor from its site 0x14FDE6: the build gives the three
+- the scene's destructor from its site 0x14FDE6: the build gives the two
   rooms back to the heap and the lists are their inline rooms again; a
   scene without rooms frees nothing.
 
@@ -51,6 +54,7 @@ GATHER_PUSH, GATHER_PUSHED = 0x155205, 0x15521C
 STREAMING_FULL = 0x155F6E              # push_back 0x155F60's branch to the assert
 DESTROYED, DESTROYED_NEXT = 0x14FDE6, 0x14FDEC
 POOL_PUSH, POOL_PUSHED = 0x3D319D, 0x3D31A9
+BATCH, BATCH_NEXT = 0x15440A, 0x15440F
 POOL_FULL = 0x3D35B9                   # push_back 0x3D35B0's branch to the assert
 SLOTS, SLOT, OWN_SLOTS = 0x64, 0x1C, 1024
 SCENE_SIZE = 0x9B76A8
@@ -61,7 +65,8 @@ LISTS = {                              # offset in the scene: (entry, the game's
     "candidates": (0x98054C, 0x64, 2048, False),
 }
 MARK = {"streamable": 0x140, "requested": 0x114, "candidates": 0x60}   # a dword each entry's copy keeps
-OURS = {"streamable": 4096, "requested": 2048, "candidates": 4096}
+OURS = {"streamable": 4096, "requested": 1024, "candidates": 4096}
+MOVED = ("streamable", "candidates")
 CREATE_FILE, WRITE_FILE, CLOSE_HANDLE, TICK_COUNT = 0x870048, 0x870108, 0x870040, 0x870090
 PROCESS_ID, THREAD_ID = 0x8701B8, 0x870118
 HEAP_ALLOC, PROCESS_HEAP, HEAP_FREE = 0x87004C, 0x870050, 0x870054
@@ -85,7 +90,7 @@ class Game:
         for n, slot in enumerate(self.slots):
             self.word(slot, STUBS + 0x10 * n)
             emu.hook_add(UC_HOOK_CODE, self.kernel32, begin=STUBS + 0x10 * n, end=STUBS + 0x10 * n)
-        for at in (STOP, NAMES_FULL, GATHER_PUSHED, STREAMING_FULL, DESTROYED_NEXT, POOL_PUSHED, POOL_FULL):
+        for at in (STOP, NAMES_FULL, GATHER_PUSHED, STREAMING_FULL, DESTROYED_NEXT, POOL_PUSHED, POOL_FULL, BATCH_NEXT):
             emu.hook_add(UC_HOOK_CODE, self.on_stop, begin=at, end=at)
         self.next, self.heap, self.ticks, self.allocations, self.freed, self.lines = MEMORY, HEAP, 0, [], [], []
 
@@ -357,7 +362,7 @@ def check(stock_data, built_data):
             gather_push(game, align)
             expect(game.stopped == GATHER_PUSHED and game.fault is None and entries(game, "streamable")[-1] == (b"pushed", 0xFEED)
                    and not game.allocations, f"a push with room goes in, nothing allocated ({game.stopped and hex(game.stopped)}, {game.fault}, {game.allocations}, {entries(game, 'streamable')[-1:]})")
-        # Full: the original asserts; the build moves the three lists and pushes.
+        # Full: the original asserts; the build moves the two lists and pushes.
         fresh(stock)
         scene_with(stock, 2048)
         gather_push(stock, align)
@@ -370,17 +375,21 @@ def check(stock_data, built_data):
         for name, (at, size, room, _) in LISTS.items():
             begin, end, capacity = ours.list(SCENE + at)
             pushed = [(b"pushed", 0xFEED)] if name == "streamable" else []
-            expect(HEAP <= begin and capacity == begin + OURS[name] * size and (begin, OURS[name] * size) in ours.allocations
-                   and entries(ours, name) == before[name] + pushed,
-                   f"the build's {name} are in a heap room of {OURS[name]}, as they were")
-        expect(len(ours.allocations) == 3, "three rooms")
+            if name in MOVED:
+                expect(HEAP <= begin and capacity == begin + OURS[name] * size
+                       and (begin, OURS[name] * size) in ours.allocations and entries(ours, name) == before[name] + pushed,
+                       f"the build's {name} are in a heap room of {OURS[name]}, as they were")
+            else:
+                expect(begin == SCENE + at + 0xC and capacity == begin + room * size and entries(ours, name) == before[name],
+                       f"the build's {name} keep their own room")
+        expect(len(ours.allocations) == 2, "two rooms")
         rooms = sorted(begin for begin, _ in ours.allocations)
         # Our room full: the assert.
         at, size, _, _ = LISTS["streamable"]
         begin = ours.read(SCENE + at)
         ours.word(SCENE + at + 4, begin + OURS["streamable"] * size)
         gather_push(ours, align)
-        expect(ours.stopped == STREAMING_FULL and len(ours.allocations) == 3,
+        expect(ours.stopped == STREAMING_FULL and len(ours.allocations) == 2,
                "with 4096 in its room the build reaches the assert")
         # The destructor, the lists emptied: the rooms back, the lists inline.
         for name, (at, size, _, _) in LISTS.items():
@@ -389,11 +398,25 @@ def check(stock_data, built_data):
         expect(ours.stopped == DESTROYED_NEXT and sorted(ours.freed) == rooms
                and all(ours.list(SCENE + at) == (SCENE + at + 0xC, SCENE + at + 0xC, SCENE + at + 0xC + room * size)
                        for at, size, room, _ in LISTS.values()),
-               f"the destructor gives the three rooms back, the lists inline again ({ours.freed})")
+               f"the destructor gives the two rooms back, the lists inline again ({ours.freed})")
         fresh(ours)
         scene_with(ours, 10)
         ours.run(DESTROYED, STACK + 0x8000 - align - 0x100, ebp=SCENE)
         expect(ours.stopped == DESTROYED_NEXT and not ours.freed, "a scene without rooms frees nothing")
+
+        # process_streaming's batch: the build keeps it to the requests' room.
+        at, size, _, _ = LISTS["candidates"]
+        for held, kept in ((1024, 1024), (100, 100), (3000, 1024)):
+            for name, game in (("stock", stock), ("ours", ours)):
+                fresh(game)
+                scene_with(game, 0)
+                room = game.block(held * size)
+                game.set_list(SCENE + at, room, held, held, size)
+                game.run(BATCH, STACK + 0x8000 - align - 0x100, esi=SCENE + at, edi=SCENE, ebp=0xEB9)
+                begin, end, _ = game.list(SCENE + at)
+                want = held if name == "stock" else kept
+                expect(game.stopped == BATCH_NEXT and game.fault is None and end == begin + want * size,
+                       f"{name}: a batch of {held} goes on with {want} ({(end - begin) // size})")
     print(f"{checks} texture-list cases passed (the original asserts at 2049 names, 2049 streamable textures and "
           f"1025 slots of a pool; the build moves them into rooms twice the size when full and asserts past those)")
 

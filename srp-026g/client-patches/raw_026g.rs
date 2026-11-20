@@ -32754,4 +32754,28 @@ pub mod site {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(TexturePool)
         }
     }
+
+    /// texture_lists.request_batch (0x15440a): process_streaming 0x154020 once it has kept the candidates whose mips change (remove_if 0x156320, erase 0x1562A0) and before it counts them (mov ecx,[esi+4] / sub ecx,[esi]): it asks one request a candidate (push_back 0x1560A0 at 0x15457F into the requests, empty here: 0x1540E3) after making room on its stack for all of them (0x154441..0x15445D, 144h a candidate, and 8 more at 0x1547C5); ESI the scene's candidates, EDI the scene
+    pub mod texture_lists_request_batch {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::fixed_vector (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn candidates(machine: &impl Machine) -> Option<FixedVector> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(FixedVector)
+        }
+
+        /// EDI: a vostok::render::scene (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn scene(machine: &impl Machine) -> Option<Scene> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Scene)
+        }
+    }
 }

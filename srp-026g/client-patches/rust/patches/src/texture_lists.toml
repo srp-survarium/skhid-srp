@@ -18,3 +18,7 @@ handler = "on_scene_lists_destroyed"
 [[hook]]
 site = "texture_lists.pool_slot_push"
 handler = "on_pool_slot_push"
+
+[[hook]]
+site = "texture_lists.request_batch"
+handler = "on_request_batch"

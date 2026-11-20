@@ -5540,6 +5540,21 @@ pub extern "C" fn hook_texture_lists_on_pool_slot_push(frame: &mut Frame) -> u32
     }
 }
 
+// ---- texture_lists (patch 163) ----
+
+/// The entry `texture_lists_on_request_batch` (0x15440a, process_streaming 0x154020 once it has kept the candidates whose mips change (remove_if 0x156320, erase 0x1562A0) and before it counts them (mov ecx,[esi+4] / sub ecx,[esi]): it asks one request a candidate (push_back 0x1560A0 at 0x15457F into the requests, empty here: 0x1540E3) after making room on its stack for all of them (0x154441..0x15445D, 144h a candidate, and 8 more at 0x1547C5); ESI the scene's candidates, EDI the scene) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_lists_on_request_batch(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_lists_on_request_batch` calls this, from the game's jump at 0x15440a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_lists::on_request_batch(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- texture_streaming (patch 137) ----
 
 /// The named exits of texture_streaming::on_update (the order the shim's Flow code

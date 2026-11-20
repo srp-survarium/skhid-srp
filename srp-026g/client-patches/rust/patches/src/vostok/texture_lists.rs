@@ -12,17 +12,21 @@
 //!   textures its effects asked for while each is registered.
 //! - A scene's streamable textures (+126158h, 2048), with what streaming
 //!   keeps one an entry of: the async worker's candidates (+98054Ch,
-//!   2048, one for each streamable texture) and the requests
-//!   (+1CA164h, 1024, one for each candidate that changes its mips).
+//!   2048, one for each streamable texture). The requests (+1CA164h,
+//!   1024, one for each candidate that changes its mips) keep their room:
+//!   process_streaming makes room on the stack for all those candidates
+//!   at once (14Ch each, on the main thread's 1 MiB), so a batch keeps to
+//!   the requests' room and the rest wait for the next.
 //! - A texture pool's textures (+64h, 1024): the texture storage's pools
 //!   by size and format, a slot each for a texture alive at that size.
 //!
-//! All of them are the render thread's: the names' push (from
+//! All of them are the main thread's, which renders (the crashes' thread:
+//! its stack the exe's 1 MiB): the names' push (from
 //! effect_cook::on_binary_shaders) and erase (resource_manager::release),
-//! gather_streamable_textures and process_streaming run on it; the scene's
-//! async worker reads the streamable textures and writes the candidates,
-//! and gather waits for it (0x1551E4) before the push the move is made at.
-//! A pool's push is add_texture's, on the render thread too.
+//! a pool's add_texture, gather_streamable_textures and process_streaming
+//! run on it; the scene's async worker reads the streamable textures and
+//! writes the candidates, and gather and process_streaming wait for it
+//! (0x1551E4, 0x15405B) before the sites.
 //! A room is the process heap's; the scene's are given back in the scene's
 //! destructor, the manager's lives as long as the game, a pool's as long
 //! as its texture storage (the game's: its destructor, at the game's end,
@@ -199,7 +203,7 @@ impl Names {
     /// Into a room of `entries` of ours.
     pub fn move_to_room(&self, entries: u32) -> Result<(), NotMoved> {
         let room = Room::allocate(entries, NAME).ok_or(NotMoved::NoMemory)?;
-        // SAFETY: the render thread's list, at a push (no entry's address
+        // SAFETY: the main thread's list, at a push (no entry's address
         // kept: the predicate's find has returned); the room is larger.
         unsafe { self.0.move_to(&room) };
         Ok(())
@@ -236,7 +240,7 @@ impl PoolSlots {
     /// Into a room of `entries` of ours.
     pub fn move_to_room(&self, entries: u32) -> Result<(), NotMoved> {
         let room = Room::allocate(entries, SLOT).ok_or(NotMoved::NoMemory)?;
-        // SAFETY: the render thread's pool, at add_texture's push: get and
+        // SAFETY: the main thread's pool, at add_texture's push: get and
         // try_release find a slot by walking the list, nothing keeps one's
         // address past its call; the room is larger.
         unsafe { self.list.move_to(&room) };
@@ -247,15 +251,7 @@ impl PoolSlots {
 /// A scene's streaming lists.
 pub struct Streaming {
     streamable: List,
-    requested: List,
     candidates: List,
-}
-
-/// A scene's streaming lists' rooms, in entries.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct StreamingRooms {
-    pub streamable: u32,
-    pub requested: u32,
 }
 
 impl Streaming {
@@ -264,7 +260,6 @@ impl Streaming {
         unsafe {
             Streaming {
                 streamable: List { vector: scene.streaming_textures(), shape: STREAMABLE },
-                requested: List { vector: scene.requested_textures(), shape: REQUESTED },
                 candidates: List { vector: scene.potential_requests(), shape: CANDIDATE },
             }
         }
@@ -286,40 +281,80 @@ impl Streaming {
         self.streamable.fill()
     }
 
-    /// The three lists into rooms of ours: `rooms.streamable` streamable
-    /// textures and as many candidates, `rooms.requested` requests. All or
-    /// none.
-    pub fn move_to_rooms(&self, rooms: StreamingRooms) -> Result<(), NotMoved> {
-        let rooms = (Room::allocate(rooms.streamable, STREAMABLE), Room::allocate(rooms.streamable, CANDIDATE),
-                     Room::allocate(rooms.requested, REQUESTED));
-        let (streamable, candidates, requested) = match rooms {
-            (Some(s), Some(c), Some(r)) => (s, c, r),
-            (s, c, r) => {
-                // the ones the heap gave, back
-                [s, c, r].into_iter().flatten().for_each(Room::free);
+    /// The streamable textures and the candidates (one each) into rooms of
+    /// `entries` of ours, both or neither.
+    pub fn move_to_rooms(&self, entries: u32) -> Result<(), NotMoved> {
+        let rooms = (Room::allocate(entries, STREAMABLE), Room::allocate(entries, CANDIDATE));
+        let (streamable, candidates) = match rooms {
+            (Some(s), Some(c)) => (s, c),
+            (s, c) => {
+                // the one the heap gave, back
+                [s, c].into_iter().flatten().for_each(Room::free);
                 return Err(NotMoved::NoMemory);
             }
         };
-        // SAFETY: the render thread's lists at gather's push, the async
+        // SAFETY: the main thread's lists at gather's push, the async
         // worker done: the game keeps indices into the streamable textures
         // (the candidates' first word), never an entry's address; each
         // room is larger than its list's.
         unsafe {
             self.streamable.move_to(&streamable);
             self.candidates.move_to(&candidates);
-            self.requested.move_to(&requested);
         }
         Ok(())
     }
 
     /// The rooms of ours back, at the scene's destructor (each list empty).
     pub fn give_back(&self) {
-        // SAFETY: the destructor emptied the three lists and nothing of the
-        // scene reads them after (the site's).
+        // SAFETY: the destructor emptied the lists and nothing of the scene
+        // reads them after (the site's).
         unsafe {
             self.streamable.give_back(OWN_STREAMABLE);
             self.candidates.give_back(OWN_CANDIDATES);
-            self.requested.give_back(OWN_REQUESTED);
+        }
+    }
+}
+
+/// process_streaming's candidates whose mips change, at
+/// `texture_lists.request_batch`: it asks a request for each into the
+/// requests (empty there), after making room on the main thread's stack
+/// for all of them (14Ch a candidate).
+pub struct Batch {
+    candidates: List,
+    requests: List,
+}
+
+impl Batch {
+    pub fn at(ctx: &Context<'_>) -> Option<Batch> {
+        // SAFETY: at the site ESI is the scene's candidates (lea esi,[edi+98054Ch]
+        // at 0x1543E7) and EDI the scene (mov edi,[ebp+8] at 0x1543D0).
+        let (candidates, scene) = unsafe {
+            (raw::site::texture_lists_request_batch::candidates(ctx)?, raw::site::texture_lists_request_batch::scene(ctx)?)
+        };
+        // SAFETY: the scene is alive; its requests are inside it.
+        let requests = unsafe { scene.requested_textures() };
+        Some(Batch { candidates: List { vector: candidates, shape: CANDIDATE }, requests: List { vector: requests, shape: REQUESTED } })
+    }
+
+    /// The candidates, and the requests' room (they are empty here).
+    pub fn sizes(&self) -> (u32, u32) {
+        (self.candidates.fill().held, self.requests.fill().room)
+    }
+
+    /// The first `kept` candidates only: the rest change their mips in a
+    /// later batch (the async worker makes the candidates again each time).
+    pub fn keep_first(&self, kept: u32) {
+        let fill = self.candidates.fill();
+        if kept >= fill.held {
+            return;
+        }
+        // SAFETY: the main thread's list, process_streaming's own: the
+        // async worker that writes it is done (0x15405B waited for it), and
+        // it reads the list's end after the site; the candidates are plain
+        // values, nothing to release.
+        unsafe {
+            let begin = self.candidates.vector.begin();
+            self.candidates.vector.set_end(begin.add(kept as usize * self.candidates.shape.size));
         }
     }
 }

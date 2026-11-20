@@ -9523,6 +9523,45 @@ texture_lists_on_pool_slot_push_replay:
     db 0x83, 0xc6, 0x64, 0x8d, 0x7c, 0x24, 0x18
     jmp 0x3d31a4
 
+; 0x15440a process_streaming 0x154020 once it has kept the candidates whose mips change (remove_if 0x156320, erase 0x1562A0) and before it counts them (mov ecx,[esi+4] / sub ecx,[esi]): it asks one request a candidate (push_back 0x1560A0 at 0x15457F into the requests, empty here: 0x1540E3) after making room on its stack for all of them (0x154441..0x15445D, 144h a candidate, and 8 more at 0x1547C5); ESI the scene's candidates, EDI the scene: lohook -> texture_lists_on_request_batch
+global texture_lists_on_request_batch
+extern hook_texture_lists_on_request_batch
+texture_lists_on_request_batch:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_lists_on_request_batch
+    mov edx, texture_lists_on_request_batch_replay
+    cmp eax, 0
+    je texture_lists_on_request_batch_go
+    mov edx, 0x15440f
+    cmp eax, 1
+    je texture_lists_on_request_batch_go
+    ud2
+texture_lists_on_request_batch_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_lists_on_request_batch_replay:
+    db 0x8b, 0x4e, 0x04, 0x2b, 0x0e
+    jmp 0x15440f
+
 ; 0x155980 scene::update_streaming_data's start (sub esp,18h / push ebx / mov ebx,[eax+12615Ch]), every frame from process_streaming (0x1540DE) while the scene has streamable textures: EAX the scene; returned is its `ret` (0x1559FE): lohook -> texture_streaming_on_update
 global texture_streaming_on_update
 extern hook_texture_streaming_on_update
