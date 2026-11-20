@@ -37,10 +37,13 @@ use weapon_modules::{Bare, EyeAnchor, FingerJoints, Gun, Hand, Loadout, Placemen
 use crate::vostok::attachments::{self, Cook, FingerCorrector, HandSet, Leaving, Named, Records};
 use crate::vostok::{Context, Flow, NoExit, OrigFingersSetWeaponModel, Thread};
 
-/// What the eye is fixed to while aiming through an optic: the optic (its
-/// reticle centred at every moment; the shot's kick of the optic's bone not
-/// seen while aiming), or the gun's aimed idle pose (the kick seen).
-pub const EYE: EyeAnchor = EyeAnchor::Optic;
+/// What the eye is fixed to while aiming through an optic: the gun's aimed
+/// idle pose, so the reticle is centred at rest and the shot's kick of the
+/// optic's bone is seen (the owner's ask behind patch 165). The optic's own
+/// anchor never shows it. Under patch 165 both give one eye
+/// (weapon-modules' test of the two beside its rule; attachments.md, "The
+/// two switches").
+pub const EYE: EyeAnchor = EyeAnchor::GunIdle;
 
 /// Whose finger joints the left hand keeps on a grip: the gun's own (the
 /// 0.26g hand's, the grip turning each finger), or the grip's whole (0.69d's

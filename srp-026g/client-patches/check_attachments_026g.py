@@ -599,7 +599,7 @@ def main():
         held = all(run.u32(holder + 0xD0) == 2 for holder, _ in parts)
         records = {at: run.read_record(weapon + at) for at in (BARREL, SCOPE, AIM)}
         want = {BARREL: case.get("fire", GAME_RECORDS[0]), SCOPE: case.get("optic", GAME_RECORDS[1]),
-                AIM: case["eye"].get("optic", GAME_RECORDS[2])}
+                AIM: case["eye"].get("gun_idle", GAME_RECORDS[2])}
         placed = all(records[at][0] == want[at][0] and close(records[at][1], want[at][1]) for at in want)
         sets = [run.floats(weapon + FINGER_SETS + 0x3C0 * n, 240) for n in range(4)]
         own = [v for m in own_fingers() for v in m]

@@ -477,6 +477,63 @@ fn the_eye_is_fixed_to_the_optic_or_to_the_guns_idle_pose() {
     });
 }
 
+/// Patch 165's rule for the aimed view (`docs/notes/aim-pose.md`): on an
+/// aimed frame at rest the aim record leaves its bone for the gun's model at
+/// that pose (the record's offset times the bone, on no bone), and the
+/// game's alignment reads that from then on. The optic before such an eye
+/// (`calculate_locator` takes no bone's matrix for a record on none).
+fn optic_before_the_posed_eye(frame: &Placement, eye: &Placement, rest: &impl Fn(BoneIndex) -> Affine, bones: &impl Fn(BoneIndex) -> Affine) -> Affine {
+    let world = Affine::translation(10.0, 1.5, -4.0);
+    let aim_offset = Affine::translation(0.0, 0.0, 0.05);
+    let posed = eye.offset.then(&rest(eye.bone));
+    let frame = locator_frame(&Affine::IDENTITY, frame, &bones(frame.bone), &world);
+    let eye = aim_offset.then(&Affine::HALF_TURN).then(&posed).then(&world);
+    frame.then(&eye.inverse().unwrap())
+}
+
+/// The two anchors beside patch 165, on a gun whose own `aim` is on the
+/// root (every stock gun) and on one whose `aim` is on the bone the fire
+/// clip kicks (the ten ported guns the patch was made for):
+///
+/// - alone, the optic's anchor never shows the kick; the idle pose's shows
+///   it where the gun's own `aim` is on a still bone, and not on the ten;
+/// - under the patch both anchors give one eye: centred at rest, the whole
+///   kick shown, on every gun. So the kick is seen with either setting once
+///   the patch is in, and without it only with the idle pose's.
+#[test]
+fn the_idle_pose_anchor_shows_the_kick_and_agrees_with_patch_165() {
+    let kick = Affine::translation(0.0, 0.01, -0.03);
+    let moved = |a: &Affine, b: &Affine| (a.t[1] - b.t[1]).abs() > 0.005 || (a.t[2] - b.t[2]).abs() > 0.005;
+    for aim_bone in [0, OFFSET_BONE] {
+        let mut source = source();
+        source.guns[0].aim_bone = aim_bone;
+        let bytes = encode(&source).unwrap();
+        let table = Table::parse(&bytes).unwrap();
+        with(&table, AK_74M, Wanted { scope: dict(EOTECH), ..Wanted::default() }, |bare| {
+            let (frame, eye) = (bare.optic.unwrap().frame, bare.eye.unwrap());
+            let (rest, kicked) = (bones(&Affine::IDENTITY, &Affine::IDENTITY), bones(&Affine::IDENTITY, &kick));
+            let (on_optic, on_idle) = (eye.placed(EyeAnchor::Optic), eye.placed(EyeAnchor::GunIdle));
+            let centred = optic_before_the_eye(&frame, &on_optic, &rest);
+            // alone
+            assert!(near(&centred, &optic_before_the_eye(&frame, &on_optic, &kicked)));
+            assert!(near(&centred, &optic_before_the_eye(&frame, &on_idle, &rest)));
+            let alone = optic_before_the_eye(&frame, &on_idle, &kicked);
+            assert_eq!(moved(&alone, &centred), aim_bone != OFFSET_BONE);
+            // under patch 165
+            for anchor in [&on_optic, &on_idle] {
+                assert!(near(&centred, &optic_before_the_posed_eye(&frame, anchor, &rest, &rest)));
+                let shown = optic_before_the_posed_eye(&frame, anchor, &rest, &kicked);
+                assert!(moved(&shown, &centred));
+                assert!(near(&shown, &optic_before_the_posed_eye(&frame, &on_optic, &rest, &kicked)));
+            }
+            // and what it shows is what the idle pose's anchor shows alone on a gun aimed from the root
+            if aim_bone != OFFSET_BONE {
+                assert!(near(&alone, &optic_before_the_posed_eye(&frame, &on_optic, &rest, &kicked)));
+            }
+        });
+    }
+}
+
 #[test]
 fn the_fingers_are_each_joint_in_its_parents_frame() {
     let bytes = encode(&source()).unwrap();
