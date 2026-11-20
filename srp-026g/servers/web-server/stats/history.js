@@ -351,6 +351,10 @@
     return cell;
   }
 
+  // The two teams' points, each in its team's colour.
+  const sidePoints = m => [el('span', {className: 'stats-side stats-team0'}, n(m.team_points[0])), ' : ',
+    el('span', {className: 'stats-side stats-team1'}, n(m.team_points[1]))];
+
   async function matchView(id) {
     heading(`${TEXT.match} ${id}`, TEXT.match, `${TEXT.match} ${id}`);
     const columns = [[TEXT.place, row => n(row.place)], [TEXT.player, playerKit, 'l', '', twoLines],
@@ -364,7 +368,7 @@
       const free = m && m.winner === 'free_for_all';
       const winner = !m ? null : m.winner === 'draw' ? TEXT.draw
         : free ? data.players.filter(row => row.outcome === 'won').map(row => row.player.name).join(', ') || '—'
-        : m.winner === null ? '—' : `${TEXT.team} ${m.winner + 1} ${TEXT.won}`;
+        : m.winner === null ? '—' : el('span', {className: `stats-side stats-team${m.winner}`}, `${TEXT.team} ${m.winner + 1} ${TEXT.won}`);
       const teams = free
         ? [[el('h2', {className: 'stats-heading'}, TEXT.players), table(columns, [...data.players].sort((a, b) => a.place - b.place), 0, '', openPlayer)]]
         : [0, 1].map(team => {
@@ -375,7 +379,7 @@
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
         [TEXT.map, el('span', {className: 'stats-map-cell'}, m ? mapLink(m) : BLANK, mapPicture(m))],
         [TEXT.mode, m ? name(m.mode) : null]]],
-      [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : m.team_points.map(n).join(' : ')) : null],
+      [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : sidePoints(m)) : null],
         [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null],
         // Always there, so that nothing moves when the answer comes; a match without one has none.
         [TEXT.replay, m ? (data.replay ? replayCell(m.id) : '—') : null]]]), ...teams.flat()];

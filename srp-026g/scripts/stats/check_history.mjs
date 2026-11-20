@@ -290,6 +290,8 @@ try {
   // The teams in the Maps page's colours; the map leads to it there, in the match's mode.
   assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-team')].map(h => getComputedStyle(h).borderLeftColor))")),
     ['rgb(59, 130, 246)', 'rgb(229, 72, 77)']);
+  assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-panels .stats-side')].map(s => getComputedStyle(s).color))")),
+    [answered.match.match.winner === 0 ? 'rgb(59, 130, 246)' : 'rgb(229, 72, 77)', 'rgb(59, 130, 246)', 'rgb(229, 72, 77)'], 'the winner and the points in the teams\' colours');
   const played = answered.match.match;
   assert.equal(await evaluate("(i => new URL(i.src).pathname + new URL(i.src).search)(document.querySelector('.stats-panels img.stats-map'))"), played.map_icon, 'the match with its map\'s picture');
   assert.equal(await evaluate("(a => a.pathname + a.hash)([...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Map').nextSibling.querySelector('a'))"),
