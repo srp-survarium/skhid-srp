@@ -335,6 +335,10 @@ pub(crate) struct Body {
     pub(crate) feet: Vec3,
     pub(crate) node: Option<NodeId>,
     pub(crate) yaw: f32,
+    /// [spot suite trace] The walk the client makes of this tick's keys (the blended local velocity at its step cap, turned by
+    /// the moving yaw), m over the tick, map frame (x, z), and the client's sprint state: what the game's own controller gets
+    /// as its walk, wherever the lattice then puts the feet. Read by the suite's trace only.
+    pub(crate) client_walk: ([f32; 2], bool),
     /// The eye and the direction of the use ray this tick ([`Game::use_ray`]), kept at the tick's start; none before
     /// the first tick.
     pub(crate) use_ray: Option<(Vec3, Vec3)>,
@@ -918,6 +922,7 @@ impl Game {
             feet: Vec3::ZERO,
             node: None,
             yaw: 0.0,
+            client_walk: ([0.0, 0.0], false),
             use_ray: None,
             pitch: 0.0,
             scale: pitch_scale(),
@@ -1476,6 +1481,7 @@ impl Game {
                 local
             };
             let v = to_world(local, moving_yaw);
+            body.client_walk = ([v[0] * TICK_S, v[1] * TICK_S], sprint_state);
             let to = Vec3::new(
                 body.feet.x + v[0] * TICK_S,
                 body.feet.y,
