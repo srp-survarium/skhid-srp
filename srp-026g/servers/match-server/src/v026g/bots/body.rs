@@ -3705,7 +3705,9 @@ pub(super) mod tests {
         assert!(!lands.is_empty(), "from {:?}: {outcomes:?}", at.feet);
         for (k, outcome) in outcomes.iter().enumerate() {
             let end = end_of(*outcome).unwrap_or_else(|| panic!("press {k}: no flight"));
-            let on_far_floor = end.x > 11.2 + 0.1 && end.y.abs() < 0.05;
+            // On the far floor: at its height, past where the near floor's rim holds the capsule (its edge at x 10, the capsule's
+            // radius under 0.4 m); a capsule may stand on the far rim with its centre short of x 11.2.
+            let on_far_floor = end.x > 10.5 && end.y.abs() < 0.05;
             assert_eq!(matches!(outcome, PressOutcome::Lands { .. }), on_far_floor, "press {k}: {outcome:?}");
         }
         assert_eq!(press_forecast(&at, &gap_plan(key::FORWARD | key::RIGHT, 0), &world), PressOutcome::NoFlight, "a side key");
