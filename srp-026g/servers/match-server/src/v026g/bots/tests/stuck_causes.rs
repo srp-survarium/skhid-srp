@@ -142,7 +142,7 @@ fn humans_of(project: &str) -> Vec<[f32; 3]> {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_STUCK_NOTES"]
 fn stuck_causes() {
-    let (Some(maps), Ok(notes)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var("SRP_STUCK_NOTES")) else {
+    let (Some(maps), Ok(notes)) = (super::real_maps::dir(), std::env::var("SRP_STUCK_NOTES")) else {
         eprintln!("skipping: SRP_MAPDATA_DIR or SRP_STUCK_NOTES is not set");
         return;
     };
@@ -257,7 +257,7 @@ fn stuck_causes() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_PROJECTS"]
 fn grid_floor_clearance() {
-    let (Some(maps), Ok(projects)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var("SRP_PROJECTS")) else {
+    let (Some(maps), Ok(projects)) = (super::real_maps::dir(), std::env::var("SRP_PROJECTS")) else {
         eprintln!("skipping: SRP_MAPDATA_DIR or SRP_PROJECTS is not set");
         return;
     };
@@ -298,7 +298,7 @@ fn grid_floor_clearance() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_SPOTS"]
 fn capsule_spot_report() {
-    let (Some(dir), Ok(spots)) = (std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from), std::env::var("SRP_SPOTS")) else {
+    let (Some(dir), Ok(spots)) = (super::real_maps::dir(), std::env::var("SRP_SPOTS")) else {
         eprintln!("skipping: SRP_MAPDATA_DIR or SRP_SPOTS is not set");
         return;
     };

@@ -26,8 +26,14 @@ pub(super) const STRAFE_CLEAR_M: f32 = 1.5;
 
 /// [S6] What the body takes of the grid's links: a carrier's body, which the client gives no sprint (A331), takes a sprint
 /// link only by its walking press and no jump link above its standing jump (`motor.carrier_jump_m`).
+///
+/// [refusal reach] So does a body while a sprint link's refusal lasts ([A386] `Stuck::refused_jump`, `ShutKind::Refused`):
+/// the client gives it no sprint now, so the route planned again from the refused take-off keeps off every link that needs
+/// one, not the refused landing alone. School's up gap (19.70, 16.08, 64.47): with the sprint reach the plan went on to the
+/// plain 1.25 m jump 2 m aside, which needs the sprint as well, and the body stood at it 6-8 s before it walked round.
 fn body_reach(bot: &Bot, me: &PlaceView, time: u32) -> mapdata::Reach {
-    let sprint = if me.carrying.is_some() {
+    let refused = bot.stuck.shut_landings(time).any(|shut| shut.kind == super::stuck::ShutKind::Refused);
+    let sprint = if me.carrying.is_some() || refused {
         mapdata::SprintReach::Cannot { max_rise: bot.motor.feel.carrier_jump_m.map(f32::from) }
     } else {
         mapdata::SprintReach::Can
@@ -2958,6 +2964,23 @@ pub(crate) mod riser_window {
 
 /// The route's drops this far on (m along it) are the guard's planned falls.
 const PLANNED_DROP_M: f32 = 6.0;
+
+/// [drop give-ups] The ticks the lip guard left a body to its route's own walk-off at release (`guard_keys`).
+pub mod walk_off_guards {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static LEFT: AtomicU64 = AtomicU64::new(0);
+
+    pub fn left() {
+        LEFT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The ticks left so far.
+    #[cfg(test)]
+    pub fn count() -> u64 {
+        LEFT.load(Ordering::Relaxed)
+    }
+}
 /// The guard also looks this far on along the velocity (s) for a lip's floor.
 const LIP_LOOK_S: f32 = 0.4;
 /// A tick that changed the keys adds this to the [`LipWatch`] score, and one that did not takes 1 off.
@@ -3365,10 +3388,52 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         return;
     }
     let truth = bot.motor.feel.drop_truth;
-    let planned = bot.route.as_mut().map_or_else(Vec::new, |(route, _)| {
-        let (walked, _) = route.progress(me.feet);
-        route.drop_landings(walked, PLANNED_DROP_M, truth)
-    });
+    // [drop give-ups] The route's own drop, from the stop forecast's reach before its take-off to its landing: the body goes over
+    // this lip by the drop's own script (walked on along its line, let go: the walk the builder proved lands on the drop's landing,
+    // `drop_check` / `drop_lands`), which the forecast of a stop does not play. The stop's fall at the lip was judged unplanned
+    // where it came down off [`body::PLANNED_LANDING_M`] of the landing, and the guard braked the route's own drop: the route lost it
+    // and planned again (7 of 20 drops given up, fix-builder's diagnostic match of 2026-11-19, level_02; on its edge strip a drop
+    // 0.71 m across braked 30 ticks). Only on the route's line (within [`body::RECKONING_M`] of it).
+    // The reach is the stop forecast's own travel: it holds the keys `lip_guard_ticks`, lets go over the blend and plays 2 ticks more
+    // (`body::stays_up`), at the level 1.0 of `lip_guard_with`'s `Stop`, so never faster than the body moves now or the client's cap
+    // on those keys (`max_speed` 0x2DC010, `mapdata::controller::speed::cap`), and looks `RECKONING_M` further. A body at rest on the
+    // level_02 strip's bar 0.71 m before the match's own gap drop (11.20, 19.40, 37.72) has no speed yet, and its forecast walks
+    // over that lip: a reach of the speed now (0.30 m) braked it 4 ticks.
+    let gait = if kin::Kinematics::sprint_state(decision.keys) {
+        mapdata::controller::speed::Gait::Sprint
+    } else {
+        use mapdata::controller::speed::{Gait, Heading, Stance};
+        Gait::Move { stance: Stance::Stand, heading: Heading::Forward, aiming: false }
+    };
+    let top = me.velocity[0].hypot(me.velocity[1]).max(mapdata::controller::speed::cap(gait, 1.0));
+    let reach = top * kin::TICK_S * (tuning.kin.blend_ticks + bot.motor.feel.lip_guard_ticks + 2) as f32 + body::RECKONING_M;
+    // And only the route's way there: the guard's own stop forecast of these keys (`lip_guard_with`'s main body) stays on the route's
+    // line ([`body::RECKONING_M`]) until it is down a lip's height. Keys that carry the body off the line first (a side step toward a
+    // side rim, a swerve) are not the drop's walk, and the guard judges them as any other.
+    let kept = bot.reckoned_kept;
+    let hold = bot.motor.feel.lip_guard_ticks;
+    let (planned, own_walk_off) = bot.route.as_mut().map_or_else(
+        || (Vec::new(), false),
+        |(route, _)| {
+            let (walked, off) = route.progress(me.feet);
+            let planned = route.drop_landings(walked, PLANNED_DROP_M, truth);
+            let own = off <= body::RECKONING_M && route.walk_off_within(walked, reach) && {
+                let grid = &tactics.world.grid;
+                let at = body::Estimate { kept, ..body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
+                let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid, planned: &planned, hold };
+                route.walk_off_path_on_line(walked, reach, &body::stop_path(&at, decision.keys, decision.turn.0, &stop), body::RECKONING_M)
+            };
+            (planned, own)
+        },
+    );
+    if own_walk_off {
+        walk_off_guards::left();
+        #[cfg(test)]
+        {
+            bot.bench_guard = 5;
+        }
+        return;
+    }
     let full = bot.motor.feel.lip_guard_full;
     let guard = if matches!(bot.lip_watch, LipWatch::Off(until) if time < until) {
         LipGuard::Clear

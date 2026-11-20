@@ -29,6 +29,12 @@ impl Bots {
         {
             return;
         }
+        // TEST ONLY: the spot suite's bot walks to its pinned goal at a run, no play, no fire (`tests/spot_suite.rs`).
+        #[cfg(test)]
+        if let Some(goal) = bot.bench_pin {
+            bot.intent = Intent::to(goal, Pace::Run).hold_fire();
+            return;
+        }
         if !schedule(bot, &tuning, now) {
             return;
         }

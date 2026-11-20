@@ -278,7 +278,7 @@ pub(crate) fn dry_run(map_dir: &std::path::Path, level: u8, per_team: usize, tri
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_DRY_TRIES"]
 fn jump_pool_dry_run() {
-    let (Some(dir), Some(tries)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var_os("SRP_DRY_TRIES")) else {
+    let (Some(dir), Some(tries)) = (super::real_maps::dir(), std::env::var_os("SRP_DRY_TRIES")) else {
         eprintln!("skipping: SRP_MAPDATA_DIR and SRP_DRY_TRIES are not set");
         return;
     };
@@ -289,7 +289,7 @@ fn jump_pool_dry_run() {
         let _ = std::fs::remove_file(out.join(format!("jump-test-dry-{name}.jsonl")));
     }
     let report = dry_run(
-        &PathBuf::from(dir),
+        &dir,
         get("SRP_DRY_LEVEL", 4) as u8,
         get("SRP_DRY_PER_TEAM", 6) as usize,
         &PathBuf::from(tries),
