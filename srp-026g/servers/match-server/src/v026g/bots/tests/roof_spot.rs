@@ -18,6 +18,8 @@ use crate::v026g::bots::view::Clock;
 const PROJECT: &str = "level_02/day_2";
 /// The crouched walk the client does not walk: its foot and its top.
 const RISER: (Vec3, Vec3) = (Vec3::new(36.70, 21.48, 113.97), Vec3::new(36.45, 21.76, 113.97));
+/// The beam's top the players' way west goes over (the press onto it, or the riser up it where the grid names one).
+const BEAM: Vec3 = Vec3::new(36.45, 22.45, 112.97);
 /// The west roof's floor the bots' drop leaves from (its Drop to (35.45, 17.02, 114.22)).
 const WEST: Vec3 = Vec3::new(35.95, 21.76, 113.72);
 /// The starts on the east roof: the match's given-up leg's start (`DIAG drop given up`, take-off (37.13, 21.23, 112.92)), and
@@ -129,7 +131,8 @@ fn a_bot_on_schools_east_roof_goes_west_over_the_beam_not_under_it() {
         eprintln!("ROOFSPOT {i} route {:.1} m: {:?}", route.length(), pts.iter().map(|p| (p.at, p.jump.is_some())).collect::<Vec<_>>());
         let under = pts.windows(2).any(|w| w[0].at.distance_xz(RISER.0) < 0.1 && w[1].at.distance_xz(RISER.1) < 0.1);
         assert!(!under, "{i}: the route walks under the beam");
-        assert!(pts.iter().any(|p| p.jump.is_some()), "{i}: the route presses (onto the beam)");
+        // Up onto the beam by a gap press or a riser (a Walk link the risers' table presses up): either way over its top.
+        assert!(pts.iter().any(|p| p.at.distance_xz(BEAM) < 0.3 && (p.at.y - BEAM.y).abs() < 0.1), "{i}: the route goes over the beam's top");
         let allowed_ms = (route.length() / mapdata::grid::controlled::WALK_MPS + MARGIN_S) * 1000.0;
         let (there, lowest, presses, nearest) = run(&world, grid.position(from), grid.position(west), allowed_ms as u32 + 20_000);
         eprintln!("ROOFSPOT {i} there {there:?} ms, lowest {lowest:.2}, presses {presses}, nearest the riser's top {nearest:.2} m, allowed {allowed_ms:.0} ms");
