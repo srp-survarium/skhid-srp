@@ -19,8 +19,8 @@ use crate::v026g::bots::view::Clock;
 
 /// A spot: its project, a take-off and landing of it (map frame), and its name in the report. The exe makes the walk the port plays
 /// here (over the bar onto the strip, turned at the take-off (11.20, 19.40, 38.47) to its landing (10.70, 16.36, 37.97), forward
-/// held through the fall, as the bots' walk-off holds it): down 0.09 m from that landing (`strip_turn_exe_v1` on the game's
-/// objects, 2026-11-19: the port's own feet steps, then the client's 6-tick blend); a walk-off the exe does not make (the roof at (36.49, 21.76, 113.97): a walk is
+/// held through the fall, as the bots' walk-off holds it): down 0.11 m from that landing (`strip_turn_exe_v3` on the game's
+/// objects, rig_real_v3, 2026-11-20: the port's own feet steps, then the client's 6-tick blend); a walk-off the exe does not make (the roof at (36.49, 21.76, 113.97): a walk is
 /// held on its top) is a link fault, not this test's. A route's drop is the spot's when it
 /// leaves within `take_off_m` of the take-off for a floor within `landing_m` of the landing.
 struct Spot {
@@ -51,7 +51,7 @@ const SPOTS: [Spot; 2] = [
     // the strip's neighbouring walk-offs), and the plan from the link's take-off node does: its starts begin 0.5 m off. The exe makes
     // it as the port walks it from the bar's top 0.7 m off (down the step to the take-off (11.20, 19.40, 37.72), turned to the landing
     // (9.95, 16.20, 38.97) over the client's 6-tick blend, forward held through the fall): down 0.06 m from that landing
-    // (`bar_exact_exe_v1` on the game's objects, 2026-11-19).
+    // (`bar_exact_exe_v3` on the game's objects, rig_real_v3, 2026-11-20).
     Spot {
         name: "level_02 edge strip, the match's link (11.20, 19.40, 37.97) -> (9.95, 16.18, 39.22)",
         project: "level_02/day_2",
