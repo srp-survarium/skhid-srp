@@ -8,7 +8,7 @@ USAGE (this script never touches the source exe):
     python patch_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe <out>/launcher_skhid.exe
         [--site=https://skhid.link]     the server's web page (HTTPS)
         [--game-exe=survarium_skhid.exe] what PLAY starts, beside the launcher
-        [--arguments="-mt_allocator=768 -minimum_resources_memory_size=768"]
+        [--arguments="-minimum_resources_memory_size=768"]
         [--bin=<file>]                  another launcher_values_026g.bin
     python patch_launcher_026g.py <survarium_launcher.exe> --check [...]
         every check and patch in memory, nothing written
@@ -46,16 +46,18 @@ UPDATER_NAME = "updater_skhid.exe"
 PAGES_DIR = "launcher_skhid"
 DEFAULT_SITE = "https://skhid.link"
 DEFAULT_GAME_EXE = "survarium_skhid.exe"
-DEFAULT_ARGUMENTS = "-mt_allocator=768 -minimum_resources_memory_size=768"
+DEFAULT_ARGUMENTS = "-minimum_resources_memory_size=768"
 
 # The new section, right after .reloc (the original image ends there).
 SECTION_NAME = b".skhid\0\0"
 SECTION_RVA = 0x48A000
 SECTION_VA = IMAGE_BASE + SECTION_RVA           # 0x49A000, the CAVE of the .bin
 SECTION_CHARACTERISTICS = 0x60000020            # code, execute, read (as .text)
+SECTION_PAGES = 2                               # its pages at most (the code and the site's addresses)
 
-# launcher_values_026g.bin: the code, then three zero-filled ASCII slots.
-BIN_SIZE = 603
+# launcher_values_026g.bin: the code, three zero-filled ASCII slots, then the
+# entries (ENTRIES_AT on), the language code with the generated language
+# table and the box's code (patch 15).
 SLOTS = {"exe_name": (304, 32), "arguments": (336, 160), "server": (496, 64)}
 INSTALL_STATUS_AT = 560
 INSTALL_STATUS = 0x16D06
@@ -74,6 +76,39 @@ ENTER_KEY = (0x14EF0, bytes.fromhex("817de413010000"))
 ENTER_KEY_AT = 224                              # its offset in the .bin
 ENTER_KEY_BACK = 0x14EF7
 ENTER_KEY_DONE = 0x14F26
+
+# The language is the game's own `localization` line of user.cfg, every
+# language of the game in the launcher's menu (launcher_values_026g.asm,
+# "The language"). Each site becomes a call or a jump to its entry of
+# `language_entries`, 8 bytes each from ENTRIES_AT, in this order;
+# the relocations of the replaced instructions are disabled.
+# (VA, original bytes, "call" or "jmp", what)
+ENTRIES_AT = 0x260
+LANGUAGE_HOOKS = [
+    (0x19663, "8b04c580820400", "call", "language_menu: the button's label of every language"),
+    (0x150B3, "0fb7344598e00300", "call", "on_language_changed: the LANGID of every language"),
+    (0x1A84B, "a19c810400", "jmp", "get_language_code: a page's code for every language"),
+    (0x1D852, "558bec5151", "jmp", "settings::reload_language: from user.cfg"),
+    (0x1D8DA, "558bec56e8", "jmp", "settings::save_language: to user.cfg"),
+    (0x19A08, "568b742408", "jmp", "language_menu: the button opens a menu of every language"),
+]
+LANGUAGE_RELOCATIONS = [0x19666, 0x150B7, 0x1A84C]
+
+# 15. "Allow torrent" is a box on the main window, in the bottom panel left
+# of the status line: YouTube's control (gone since 8) with the settings
+# window's pictures and text (launcher_values_026g.asm, "Allow torrent"),
+# kept in user.cfg as the language is (`enable_torrent_seeding on`/`off`,
+# read with it at the start: settings::reload_language's hook above). Their
+# entries follow the language's, in this order; no relocation is under any
+# of them.
+TORRENT_HOOKS = [
+    (0x1AD78, "e8c373ffff", "call", "launcher_form: the bottom panel's picture gets the box's text"),
+    (0x1AE1F, "e82477ffff", "call", "launcher_form: YouTube's control is the box, ticked as settings+0 says"),
+    (0x1B4D9, "e80277ffff", "call", "set_status_texts: the panel's picture made anew, then the box's text"),
+    (0x1BD03, "837c240400", "jmp", "YouTube's click is the box's: Allow torrent toggled, saved, told"),
+    (0x1AEA3, "e8a076ffff", "call", "launcher_form: Twitter's control, over the box's text, is opaque"),
+]
+ENTRY_HOOKS = LANGUAGE_HOOKS + TORRENT_HOOKS
 
 # (VA, original bytes, new bytes, what): code and read-only data, in place.
 PATCHES = [
@@ -97,22 +132,45 @@ PATCHES = [
     # service would start the old updater as SYSTEM).
     (0x15521, "7420", "eb20",
      "run_survarium_executable_as_administrator: je (no service asked) becomes jmp"),
-    # 4. The installer's values are looked for in the user's own key, which
-    # the launcher makes itself for its language setting, not in the
-    # machine's, which only an installer could write. (The values themselves
-    # come from the new code: patch 5.)
-    (0x15231, "6802000080", "6801000080", "get_local_version: HKLM becomes HKCU"),
-    (0x159A4, "6802000080", "6801000080", "start_updater, update server: HKLM becomes HKCU"),
-    (0x16301, "6802000080", "6801000080", "restart_launcher: HKLM becomes HKCU"),
-    (0x170AD, "6802000080", "6801000080", "get_game_launch_parameters: HKLM becomes HKCU"),
+    # 4. The installer's values come from the new code (patch 5), which
+    # never looks at the key they are read through, and every name these
+    # four functions read is one it answers: they open no key. Each jumps
+    # from where it built the key's path straight to its first read, past
+    # RegOpenKeyExW and its failure branch, and each RegCloseKey is jumped
+    # over with the push of its handle. (A key that must open was the bug of
+    # revision 39: nothing makes HKCU's product key once the language is in
+    # user.cfg, and start_updater said "Can't open survarium registry key".)
+    (0x15223, "e858eeffff", "eb2d909090", "get_local_version: jmp 0x15252, its read, past the open"),
+    (0x153FE, "ff75ec", "eb0790", "get_local_version, no version: jmp 0x15407, past RegCloseKey"),
+    (0x1541E, "ff75ec", "eb0790", "get_local_version, a version: jmp 0x15427, past RegCloseKey"),
+    (0x15997, "e8e4e6ffff", "eb38909090", "start_updater: jmp 0x159D1, its read of update server"),
+    (0x15A4D, "ff7508", "eb0790", "start_updater, its end: jmp 0x15A56, past RegCloseKey"),
+    (0x162F4, "e887ddffff", "eb27909090", "restart_launcher: jmp 0x1631D, its read of launcher"),
+    (0x16338, "ff75f884c07568", "84c07571eb0790",
+     "restart_launcher: test al / jne 0x163AD / jmp 0x16345, past both RegCloseKey"),
+    (0x1709F, "e8dccfffff", "eb2d909090", "get_game_launch_parameters: jmp 0x170CE, its reads"),
+    (0x17123, "ff75fc", "eb0790", "get_game_launch_parameters, failed: jmp 0x1712C, past RegCloseKey"),
+    (0x1714F, "ff75fc", "eb0790", "get_game_launch_parameters, done: jmp 0x17158, past RegCloseKey"),
     # 6. Buttons that led to the game's old sites, and SHOP, whose exchange
     # is in the lobby now: they do nothing (and are moved out of sight below).
     (0x1BBEF, "55", "c3", "SHOP click: ret"),
     (0x1BC45, "55", "c3", "CREATE ACCOUNT click: ret"),
-    (0x1BD03, "83", "c3", "YouTube click: ret"),
     (0x1BD16, "83", "c3", "Facebook click: ret"),
-    (0x1BD29, "83", "c3", "Twitter click: ret"),
+    (0x1BD29, "837c", "ebd8", "Twitter click (the box's text, 15): jmp 0x1BD03, the box's"),
     (0x1BD3C, "83", "c3", "VK click: ret"),
+    # 15. The box is YouTube's control: the settings window's pictures of
+    # its box in the place of YouTube's (unticked, under the pointer,
+    # pressed) and of Facebook's first (ticked), and its 20 by 20 pixels.
+    (0x1AAFC, "6848010000", "685b010000", "launcher_form: YouTube's picture is PNG 347, the box unticked"),
+    (0x1AB0F, "6849010000", "6859010000", "launcher_form: YouTube's under the pointer is PNG 345"),
+    (0x1AB22, "684a010000", "685a010000", "launcher_form: YouTube's pressed is PNG 346"),
+    (0x1AB35, "684b010000", "6858010000", "launcher_form: Facebook's first picture is PNG 344, the box ticked"),
+    (0x3A715, "83c01b", "83c014", "YouTube's rect: add eax,20 (the box's width)"),
+    (0x3A722, "83c01b", "83c014", "YouTube's rect: add eax,20 (the box's height)"),
+    # Twitter's control lies over the box's text, its rect all static (the
+    # widest text, Russian, is 134 pixels; its initializer adds at most 127).
+    (0x3A746, "a1", "c3", "Twitter's rect: its initializer returns at once"),
+    (0x458CC, "0000000000000000", "bb00000034000000", "Twitter's rect: right 187, bottom 52"),
 ]
 
 # start_updater, when no version could be read (the game exe PLAY starts is
@@ -135,6 +193,12 @@ STRINGS = [
     (0x3EA90, "Can't run survarium_updater from service nor directly",
      f"Cannot start {UPDATER_NAME}. Copy the files again.",
      "the message when the updater cannot be started"),
+    # The game keeps its language in user.cfg (Settings, exe patch 79): PLAY
+    # passes none, so the choice made there holds; the game falls back to
+    # this menu's language until one is made. swprintf ignores the language
+    # word it is still given.
+    (0x3F1C0, "\"%s\" -localization=%s ", "\"%s\" ",
+     "get_game_launch_parameters: PLAY's command line without -localization"),
 ]
 
 # The title of the box that shows an updater's error text (ASCII).
@@ -168,19 +232,22 @@ URLS = [
     (0x1BCBA, 0x3F630, "http://survarium.com/", "/?lang=", "PROJECT WEBSITE"),
 ]
 
-# (rect VA, original left, original top, new left, what): where a button is
-# on its panel. 30000 is far outside the panel: the button is never drawn
-# and never under the mouse.
+# (rect VA, original left, original top, new left, new top, what): where a
+# button is on its panel. 30000 is far outside the panel: the button is
+# never drawn and never under the mouse.
 GONE = 30000
 RECTS = [
-    (0x45814, 819, 12, GONE, "settings (torrent, port): nothing of it applies"),
-    (0x45844, 750, 47, GONE, "SHOP: silver and gold are exchanged in the lobby"),
-    (0x45854, 614, 47, GONE, "CREATE ACCOUNT: an account is made by the first sign-in"),
-    (0x45864, 478, 47, 750, "PROJECT WEBSITE: moved to SHOP's place, at the right"),
-    (0x458A4, 32, 28, GONE, "YouTube"),
-    (0x458B4, 68, 28, GONE, "Facebook"),
-    (0x458C4, 104, 28, GONE, "Twitter"),
-    (0x458D4, 140, 28, GONE, "VK"),
+    (0x45814, 819, 12, GONE, 12, "settings (the gear): its Allow torrent is on the main window (15)"),
+    (0x45844, 750, 47, GONE, 47, "SHOP: silver and gold are exchanged in the lobby"),
+    (0x45854, 614, 47, GONE, 47, "CREATE ACCOUNT: an account is made by the first sign-in"),
+    (0x45864, 478, 47, 750, 47, "PROJECT WEBSITE: moved to SHOP's place, at the right"),
+    # The bottom panel's left part, where the social buttons were: the box
+    # in line with the page's left column, centred on the status line and
+    # PLAY; its text (25 pixels right) ends before the status line (x 200).
+    (0x458A4, 32, 28, 28, 32, "YouTube's: the Allow torrent box (15)"),
+    (0x458B4, 68, 28, GONE, 28, "Facebook"),
+    (0x458C4, 104, 28, 53, 32, "Twitter's: over the Allow torrent text, clickable (15)"),
+    (0x458D4, 140, 28, GONE, 28, "VK"),
 ]
 
 
@@ -286,8 +353,8 @@ def add_section(data, content):
     # The certificate table is the only thing after the last section.
     if security_offset != raw or security_offset + security_size != len(data) or raw % headers.file_alignment:
         sys.exit("unexpected layout after the last section")
-    if len(content) > headers.section_alignment:
-        sys.exit(f"the new section is {len(content)} bytes; one page fits")
+    if len(content) > SECTION_PAGES * headers.section_alignment:
+        sys.exit(f"the new section is {len(content)} bytes; {SECTION_PAGES} pages fit")
     raw_size = align(len(content), headers.file_alignment)
     out = bytearray(data[:raw]) + content + b"\0" * (raw_size - len(content))
     out[slot:slot + 40] = SECTION_NAME + struct.pack(
@@ -340,13 +407,31 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
         at = image.expect(va, utf16(old) + b"\0\0", "the address of a removed button")
         image.data[at:at + len(utf16(old))] = b"\0" * len(utf16(old))
 
-    for va, left, top, new_left, what in RECTS:
-        image.patch(va, struct.pack("<ii", left, top), struct.pack("<i", new_left), what)
+    for va, left, top, new_left, new_top, what in RECTS:
+        image.patch(va, struct.pack("<ii", left, top), struct.pack("<ii", new_left, new_top), what)
+
+    # The language's sites, and the box's, call or jump to their entries.
+    if len(code) < ENTRIES_AT + 8 * len(ENTRY_HOOKS):
+        sys.exit(f"launcher_values_026g.bin is {len(code)} bytes: no entries")
+    for va, expected, _, what in TORRENT_HOOKS:
+        if any(va <= at + 3 and at < va + len(bytes.fromhex(expected)) for at in relocations):
+            sys.exit(f"{va:#x} ({what}): a relocation overlaps the hook")
+    for number, (va, expected, kind, what) in enumerate(ENTRY_HOOKS):
+        entry = ENTRIES_AT + 8 * number
+        if code[entry] != 0xE9:
+            sys.exit(f"launcher_values_026g.bin: entry {number} at {entry:#x} is not a jump")
+        expected = bytes.fromhex(expected)
+        opcode = b"\xE8" if kind == "call" else b"\xE9"
+        new = opcode + struct.pack("<i", SECTION_VA + entry - va - 5) + b"\x90" * (len(expected) - 5)
+        image.patch(va, expected, new, what)
+    disabled = P.neutralize_relocs(image.data, [(va, va + len(bytes.fromhex(expected)))
+                                                for va, expected, _, _ in LANGUAGE_HOOKS])
+    if sorted(disabled) != sorted(LANGUAGE_RELOCATIONS):
+        sys.exit(f"language sites: relocations {[hex(at) for at in disabled]}, "
+                 f"not {[hex(at) for at in LANGUAGE_RELOCATIONS]}")
 
     # The new section: the code with its three slots filled, then the
     # addresses the launcher opens.
-    if len(code) != BIN_SIZE:
-        sys.exit(f"launcher_values_026g.bin is {len(code)} bytes, not {BIN_SIZE}")
     section = bytearray(code)
     host = re.fullmatch("https?://([^/]+).*", site).group(1)
     for name, text in (("exe_name", game_exe), ("arguments", arguments), ("server", host)):
@@ -397,6 +482,8 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
     return data, (f"runs in place, no hardware warnings, no service, {len(PATCHES)} code sites, "
                   f"the installer's values from {len(code)} bytes of new code in .skhid at {SECTION_VA:#x}, "
                   f"site {site}, PLAY (or Enter) starts {game_exe} {arguments}, updater {UPDATER_NAME}, "
+                  f"the language in user.cfg ({len(LANGUAGE_HOOKS)} sites), "
+                  f"Allow torrent on the main window ({len(TORRENT_HOOKS)} sites), "
                   f"local pages in {PAGES_DIR}, {sum(1 for r in RECTS if r[3] == GONE)} buttons removed, "
                   "signature removed")
 

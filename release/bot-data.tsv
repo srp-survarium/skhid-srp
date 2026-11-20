@@ -1,0 +1,37 @@
+# The bots' data files a release puts in the data volume of the server (lib.sh,
+# "The bots' data files"; release/bot-data): what was benched, by its sha256.
+# The files are private and stay out of git; $SKHID_BOT_DATA (release.env) is a
+# folder laid out as the volume, and the release stops when a file is missing
+# or another. Tabs between the columns; `#` starts a comment:
+#   <path under the volume's data folder>  <sha256>  <size>  [<name in $SKHID_BOT_DATA>]
+# The fourth column is only for a benched file that is called otherwise there.
+#
+# The maps the lobby offers (lobby-server v026g/pvb.rs MAPS: the day map of
+# all 8 levels in batteries (mode 2) and in team deathmatch (mode 4), the
+# files the benches read), the routes table every bench read (routes-3d.json,
+# the 3D table: play 17, Cut, Crossfire, the K1 spots; on main srp reads a
+# routes table only when SRP_BOT_ROUTES names it (driven.rs): it has no default
+# file and takes format 1 only, routes-3d.json is format 2, so the file is put
+# in the volume now and read once the bots' tiers branch lands (its default file
+# <MAPDATA>/bot-routes.json, formats 1 and 2); the 16 .mapdata files take effect
+# at once), and later the foliage (#544: mapdata/bot-foliage.json). Add a file with
+# `release/bot-data add <folder> <path>[=<name>]`, change one with --replace,
+# and commit the list with the change that was benched.
+mapdata/level_01_day_2.mapdata	1d7e4ef837f2eab231f34b911bd2b6d0d4b7131eac32876b2409836242ac4e17	9998467
+mapdata/level_01_day_4.mapdata	4501e7aa33e00e0facf061b2d1efa6c845b62a99e76b05a0a9472bad65fb0b42	9491255
+mapdata/level_02_day_2.mapdata	e0962cc8fde55d3b18875989d01336f10b6c3074c8d0ebe1dbda09b3af19d1f4	9844862
+mapdata/level_02_day_4.mapdata	4be59707ee4e1abc051ea7ba8f02f52d52d6e3a51d6bea3224f8d68331197d81	9381435
+mapdata/level_03_day_2.mapdata	abbb210e9f987205d2606b11d667ec145b5c28b342c514c51af5254b0c6ac192	9556651
+mapdata/level_03_day_4.mapdata	2dd7447d98dbae5a44bed7ba29bd6371436818ee818e1077841fd98cee3c2495	9431147
+mapdata/level_04_day_2.mapdata	6cd8740aeed7e9a7e9f1ad92e71a250e4d68b4b33572a76f7ef7033e006b49db	15347303
+mapdata/level_04_day_4.mapdata	7391f8e5a7a9a8ab4d14f52cd2bf78f52fed979d1fce4c41c79818d5d00c5fae	14913264
+mapdata/level_05_day_2.mapdata	039786acbd4a8b156f8d152961753e77975914df2c155ac2dac6a09ce7b40a69	10288428
+mapdata/level_05_day_4.mapdata	f5c8fd56eec361982d0a299d16b7ab7e299b7779fd442e304862432b2d3bff1a	10172183
+mapdata/level_06_day_2.mapdata	822ab4d5d482dfc17f9b150f4225ab1f1a32867f106a9557d4a0d2d9c1e7fab5	16338578
+mapdata/level_06_day_4.mapdata	c3d6b9472c7a486460289d0ff61f77e91b7c68bc16c5900b197d4da0de7b0570	15942815
+mapdata/level_07_day_2.mapdata	01a4af38cb0a9f45d7569606b0ab926921b806d9bed2c54950f4d40d436df1b2	12783799
+mapdata/level_07_day_4.mapdata	a75d27d80b62e8cade333162fe3b5b10f2ef0ef101993286934cea712c5ab456	12413378
+mapdata/level_08_day_2.mapdata	57d801b1533dbe289ca241fa7f766f5b5efc67939101687e07039ea82e14000d	7457853
+mapdata/level_08_day_4.mapdata	c41ed35332a17c28750de5d3196f1047c2d5be7bc75c8b31db6ebc040bd340f1	7140326
+mapdata/bot-routes.json	38b9d2e70225623187360762aae7f09521aba54013168b57093f73a622ed9b6d	127967	bot-routes/routes-3d.json
+mapdata/bot-foliage.json	ea9845f5bf312b0a384e321e4c0b7c935eb6afcfd263b18bca1696085faba49c	825160

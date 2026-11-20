@@ -45,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::set_logger(&Logger).map_err(|e| e.to_string())?;
     log::set_max_level(log::LevelFilter::Debug);
     let port: u16 = std::env::args().nth(1).unwrap_or("2249".into()).parse()?;
-    let map_id: u8 = std::env::args().nth(2).unwrap_or("61".into()).parse()?;
+    let map_id: survarium::v026g::maps::MapId = std::env::args().nth(2).unwrap_or("61".into()).parse()?;
     let newcomer_loadout = match std::env::args().nth(3) {
         Some(index) if index != "starter" => loadouts::Loadouts::shared()
             .usable()
@@ -60,7 +60,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let socket = UdpSocket::bind(("127.0.0.1", port))?;
     let registry = Arc::new(MatchRegistry::new("127.0.0.1", port));
     let ticket = registry.create_growing(MatchSetup {
-        map_id,
+        played: survarium::v026g::twist::Played::plain(
+            survarium::v026g::maps::MatchMap::of(map_id).expect("a playable map"),
+        ),
         match_level: 3,
         players: (0..initial)
             .map(|place| player(place, loadouts::starter()))

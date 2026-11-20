@@ -64,7 +64,7 @@
 | 14 | resend timing | `uniform[a−b, a+b]` | **fixed** `Y` ms; and a **lifetime** `X` after which the sender drops the message | **changed** (PROVEN) | Per-id `(lifetime, resend)` (§4). |
 | 15 | unacked limit | 4096 (`max_unacknowledged_packets_count`) | **256** default (same option; hint "32 - 1024") | **changed** (PROVEN) | — (it limits the client, not the server). |
 | 16 | client send window | stops after ~32K unacked datagrams | **stops when its next seq is ≥128 ahead of the newest acked** | **changed** (PROVEN) | Ack every client datagram, keep it well under 128. |
-| 17 | joining (C→S) | on by default (`disable_joining_net_packets`) | **off by default**; on only with `-join_net_messages` | **changed** (LIKELY) — **wrong: another server saw real clients join by default** (a message bundled with 0xDA; upstream_compare.md topic 1, live) | Parse multi datagrams from the client; since 2026-10-12 the parser also takes a snapshot chunk (0xE0 with a payload) inside one, by the chunk's own length. |
+| 17 | joining (C→S) | on by default (`disable_joining_net_packets`) | **off by default**; on only with `-join_net_messages` | **changed** (LIKELY) — **wrong: another server saw real clients join by default** (a message bundled with 0xDA, live) | Parse multi datagrams from the client; since 2026-10-12 the parser also takes a snapshot chunk (0xE0 with a payload) inside one, by the chunk's own length. |
 | 18 | max datagram / receive buffer | 0x1FC = 508 | 0x1FC = 508 (incl. tail ack bytes) | unchanged (PROVEN) | `MAX_DATAGRAM` stays. |
 | 19 | max messages per datagram | unbounded | 252 (`fixed_vector<message_data,252>`, overflow = fatal assert) | **new** (PROVEN) | Cap at 252. |
 | 20 | timeout | 5000 ms (120000 under a debugger) | match: same values; **lobby: 5000 ms always** | unchanged (PROVEN, §6) | — |
@@ -668,7 +668,7 @@ A client that leaves in words (`FA`) ends its session at once, as before. 30 s s
 1. **Packet pool size.** The pool uses 0x2C0-byte packets (0x279C40: `count = bytes / 704`). The byte size passed at 0x279229 was not resolved. The 0.21d 4096-packet limit was not re-checked.
 2. ~~Part data size for parts ≥ 1.~~ Settled 2026-10-12: 501 − n_tail (§5).
 3. **The `qos` option reader polarity** at 0x27A095. Irrelevant on the wire.
-4. **`join_net_messages` default.** "Off" rests on reading `0x145C0` state 1 as "key absent"; live evidence from another server says clients do join (upstream_compare.md), so that reading is wrong. The server parses multi datagrams, a joined snapshot chunk too. Tail ack bytes: the reader 0x3FA157..0x3FA1C3 has no limit but the datagram's length; `ack::decode` takes up to 18 (2026-10-12), `encode` still sends at most 17.
+4. **`join_net_messages` default.** "Off" rests on reading `0x145C0` state 1 as "key absent"; live evidence from another server says clients do join, so that reading is wrong. The server parses multi datagrams, a joined snapshot chunk too. Tail ack bytes: the reader 0x3FA157..0x3FA1C3 has no limit but the datagram's length; `ack::decode` takes up to 18 (2026-10-12), `encode` still sends at most 17.
 5. **0x188 tracker** (corrupted-seq set). It does not appear to feed the header; not checked further.
 6. **Client flush cadence in a match.** Not re-traced; 0.21d was ~100–200 ms.
 7. **What D8's flag byte (0x1F1D32C) is.** Taken to be `g_debug_hash_mismatches` by analogy with 0.21d.

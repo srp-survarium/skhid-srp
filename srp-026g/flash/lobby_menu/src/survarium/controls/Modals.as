@@ -28,9 +28,11 @@ package survarium.controls
 
       // Enters (again: to the top of its layer). `close` is what Esc does: what the modal's own
       // close (or Cancel) does, or nothing for one that keeps Esc out a while (a reroll being
-      // paid). `shown`, true while it is up.
+      // paid). `shown`, true while it is up. A window opening closes the transient ones
+      // (History, a dropdown's list: Transient).
       public static function open(owner:Object, layer:int, close:Function, shown:Function) : void
       {
+         Transient.closeAll();
          leave(owner);
          var at:int = _stack.length;
          while(at > 0 && _stack[at - 1].layer > layer)

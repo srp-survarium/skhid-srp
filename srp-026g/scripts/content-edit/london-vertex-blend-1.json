@@ -1,0 +1,11 @@
+{
+ "_about": "London rain's sand over stones blended as 0.31a2 authors it (the owner, 2026-11-19, rain_4: 'rough edge of stone'). terrain_tile_aref/sand_base_alpha_vc, one of London's own materials (patch 14, from an earlier build of the map), has vertex_blend_technique 1 where 0.31a2 has 2: the stones under the sand showed through with a hard edge; with 2 the sand covers them as in 0.31a2. Fourteen more of London's own materials blend differently from 0.31a2 too, but 0.26g's client stops loading the map (it waits forever after 'create replay network client') when their techniques change, so they stay as patch 14 has them (docs/notes/london.md).",
+ "set": [
+  {
+   "file": "material_instances/terrain_tile_aref/sand_base_alpha_vc.material",
+   "path": "material/g_stage/effect/vertex_blend_technique/value",
+   "from": 1,
+   "to": 2
+  }
+ ]
+}

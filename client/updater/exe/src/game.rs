@@ -1,17 +1,28 @@
 //! First installation of the original game, before applying the Skhid ZIP.
+//!
+//! Its archive's addresses are the server's (`GET /game`: the release's,
+//! then the mirrors srp is given), or, when the server cannot be reached or
+//! offers none, the ones built into this updater at release time. They are
+//! tried in their order (`client/updater/README.md`, "Mirrors"): any
+//! failure moves on to the next, which goes on from the bytes already on
+//! disk; the pinned size and SHA-256 decide.
 use crate::{
     Session,
     http::{self, HttpError},
     install::Layout,
     log::log,
-    win,
+    text, torrent, win,
 };
 use alloc::{format, string::String, vec::Vec};
 use updater_logic::{
+    download,
     game::{self, Pin},
+    patches::{self as list, Address, Download},
     pipe::{ToLauncher, state, step},
-    url,
+    problem::{Fault, Miss},
+    url::Url,
 };
+use windows_sys::Win32::Foundation::ERROR_INVALID_HANDLE;
 
 pub fn present(layout: &Layout) -> bool {
     ["resources.db", "binaries\\x86\\survarium.exe"]
@@ -54,10 +65,23 @@ pub fn sweep(layout: &Layout) {
     if present(layout) && win::exists(&archive) && win::delete(&archive).is_ok() {
         log!("removed the left-over game download: {archive}");
     }
+    if present(layout) {
+        remove_parts(layout);
+    }
     let output = output_path(layout);
     if win::exists(&output) {
         log!("what the extractor printed in an attempt that was cut short:");
         log_output(&output);
+    }
+}
+
+/// The game files' torrent parts ([`PART`]).
+fn remove_parts(layout: &Layout) {
+    for (name, _) in game::FILES {
+        let part = format!("{}{PART}", place(layout, name));
+        if win::exists(&part) && win::delete(&part).is_ok() {
+            log!("removed the left-over torrent download: {part}");
+        }
     }
 }
 
@@ -66,9 +90,14 @@ fn output_path(layout: &Layout) -> String {
     format!("{}\\updater_skhid.7zr.txt", layout.exe_dir)
 }
 
-/// The extractor prints some twenty lines for the five files; the end of
-/// more than this is kept, where the errors are.
-const OUTPUT_LIMIT: usize = 16 * 1024;
+/// The extractor prints some twenty lines for the five files and its
+/// progress, a few hundred bytes a percent; the end of more than this is
+/// kept, where the errors are.
+const OUTPUT_LIMIT: usize = 64 * 1024;
+
+/// Enough of the end of what the extractor printed to hold its last
+/// progress (`game::extracted_percent`).
+const PROGRESS_LIMIT: usize = 1024;
 
 /// Copies what the extractor printed into the log, line by line, and removes
 /// its file. Without this the log has the extractor's exit number only, and
@@ -77,7 +106,7 @@ fn log_output(path: &str) {
     match win::read_tail(path, OUTPUT_LIMIT) {
         Ok(bytes) => {
             let text = String::from_utf8_lossy(&bytes);
-            for line in text.lines().map(str::trim).filter(|line| !line.is_empty()) {
+            for line in game::output_lines(&text) {
                 log!("7zr: {line}");
             }
         }
@@ -103,15 +132,57 @@ fn io_error(action: &str, code: win::Code) -> Option<String> {
     Some(format!("Cannot {action}: {}.", win::error_text(code)))
 }
 
-/// A mirror override supplies only a URL, never a hash or a way to skip it.
-fn address(layout: &Layout, name: &str, default: &str) -> Result<String, Option<String>> {
-    let path = format!("{}\\{name}", layout.exe_dir);
-    match win::read_file(&path, 4096) {
-        Ok(bytes) => String::from_utf8(bytes)
-            .map(|s| s.trim().into())
-            .map_err(|_| Some(format!("{name} must contain a UTF-8 HTTPS download URL."))),
-        Err(code) if win::is_missing(code) => Ok(default.into()),
-        Err(code) => Err(io_error(&format!("read {name}"), code)),
+/// What the log calls the archive's download (`download::line`), as
+/// Skhid-without-updater.bat does.
+const LABEL: &str = "skhid-game";
+/// What a failed write of the download is, to tell it from the network's.
+const WRITE_STEP: &str = "write the download";
+
+/// The archive's addresses built into this updater at release time
+/// (`SKHID_BUILTIN_GAME`, the `/game` of the release's list, which
+/// `release/build-zip` passes to the build): those of the pinned archive.
+fn built_in() -> Option<Download> {
+    option_env!("SKHID_BUILTIN_GAME")
+        .and_then(|text| list::parse_game(text.as_bytes()).ok())
+        .filter(|offered| game::ARCHIVE.matches(offered.size, offered.sha256))
+}
+
+/// Where the archive is, in the order its addresses are tried: the
+/// server's `GET /game` when it offers the pinned archive (a server that
+/// answers always wins), else the addresses built in.
+fn addresses(session: &mut Session, server: Option<&Url>) -> Result<Vec<Address>, Option<String>> {
+    let mut why = String::from("the update server cannot be reached.");
+    if let Some(server) = server {
+        why = match http::get(server, "/game", 64 * 1024, &mut |_, _| session.pump()) {
+            Ok(body) => match list::parse_game(&body) {
+                Ok(offered) if game::ARCHIVE.matches(offered.size, offered.sha256) => {
+                    log!(
+                        "game: {} offers {} address(es) of the archive",
+                        server.host,
+                        offered.addresses.len()
+                    );
+                    return Ok(offered.addresses);
+                }
+                Ok(_) => format!(
+                    "{} offers another archive than the one this updater installs.",
+                    server.host
+                ),
+                Err(error) => format!("{}'s /game cannot be used ({error:?}).", server.host),
+            },
+            Err(HttpError::Stopped) => return Err(None),
+            Err(error) => text::http(server, "/game", &error),
+        };
+        log!("game: {why}");
+    }
+    match built_in() {
+        Some(offered) => {
+            log!(
+                "game: the {} address(es) built into this updater are used",
+                offered.addresses.len()
+            );
+            Ok(offered.addresses)
+        }
+        None => Err(Some(text::game_no_address(&why))),
     }
 }
 
@@ -141,41 +212,171 @@ fn check(
 
 /// Returns a read lock only after hashing the bytes actually on disk. The lock
 /// stays alive until the extractor exits, preventing replacement after checking.
+///
+/// The addresses are tried in their order, each once a run; any failure
+/// moves on to the next, which goes on from the bytes on disk (they are
+/// the same file at every address). A download left by a run that stopped
+/// is gone on from the same way. One line of the log a try and a failure.
 fn fetch(
     session: &mut Session,
-    address: &str,
+    addresses: &[Address],
     path: &str,
     pin: Pin,
 ) -> Result<win::LockedFile, Option<String>> {
-    let url = url::download(address)
-        .ok_or_else(|| Some("The game download URL is invalid. Use a direct HTTPS URL.".into()))?;
     if let Some(file) = check(path, pin, session)? {
         log!("reusing verified download: {path}");
         return Ok(file);
     }
-    let result = (|| {
+    let count = addresses.len();
+    let mut failed: Vec<(String, String)> = Vec::new();
+    let mut misses: Vec<Miss> = Vec::new();
+    for (at, address) in addresses.iter().enumerate() {
+        if !session.pump() {
+            return Err(None);
+        }
+        let host = address.url.host.as_str();
+        // A whole file that is here failed its check: it is no part.
+        let mut have = win::file_size(path).unwrap_or(0);
+        if have >= pin.size {
+            let _ = win::delete(path);
+            have = 0;
+        }
+        log!(
+            "{}",
+            download::line(
+                LABEL,
+                "try",
+                host,
+                &format!(
+                    "address {} of {count}, {}, from byte {have}",
+                    at + 1,
+                    address.text
+                )
+            )
+        );
         session.begin_progress();
         session.state(state::DOWNLOADING);
-        let output = win::DownloadFile::create(path)
-            .map_err(|code| io_error("save the game download", code))?;
-        http::get_stream(&url, "", pin.size,
-            &mut |chunk| output.write(chunk).map_err(|code| HttpError::Network("write download", code)),
-            &mut |done, _| session.progress(done, pin.size),
-        ).map_err(|error| match error {
-            HttpError::Stopped => None,
-            _ => Some(format!("The game download failed. {} No downloaded game file was installed. Retry or use another direct HTTPS mirror.", crate::text::http(&url, "", &error))),
-        })?;
-        output
-            .flush()
-            .map_err(|code| io_error("flush the download to disk", code))?;
-        drop(output);
-        check(path, pin, session)?.ok_or_else(|| Some(format!(
-            "Download rejected: size or SHA-256 mismatch. Expected {} bytes and SHA-256 {}. Nothing from this download was extracted or run.", pin.size, pin.sha256)))
-    })();
-    if result.is_err() {
+        // Too slow is a failure only while another address remains.
+        let slow = if at + 1 < count {
+            http::Slow::Leave
+        } else {
+            http::Slow::Wait
+        };
+        let (result, received) = get(session, address, path, have, pin, slow)?;
+        let (why, miss) = match result {
+            Ok(()) => match win::file_size(path).unwrap_or(0) {
+                size if size != pin.size => (
+                    format!("cut short at byte {size} of {}", pin.size),
+                    Miss::Answered(Fault::CutShort),
+                ),
+                _ => match check(path, pin, session)? {
+                    Some(file) => {
+                        log!(
+                            "{}",
+                            download::line(
+                                LABEL,
+                                "ok",
+                                host,
+                                &format!("{} bytes, SHA-256 verified", pin.size)
+                            )
+                        );
+                        return Ok(file);
+                    }
+                    None => {
+                        let _ = win::delete(path);
+                        (
+                            format!("wrong SHA-256 (not {})", pin.sha256),
+                            Miss::Answered(Fault::Damaged),
+                        )
+                    }
+                },
+            },
+            Err(error) => (text::reason(&error), error.miss()),
+        };
+        log!(
+            "{}",
+            download::line(
+                LABEL,
+                "failed",
+                host,
+                &format!("{why} ({received} bytes received)")
+            )
+        );
+        failed.push((host.into(), why));
+        misses.push(miss);
+    }
+    // Bytes got stay for the next start; no byte, no file.
+    if win::file_size(path).is_ok_and(|size| size == 0) {
         let _ = win::delete(path);
     }
-    result
+    session.failed(game::ARCHIVE_NAME, &misses);
+    Err(Some(text::game_download_failed(&download::failures(
+        &failed,
+    ))))
+}
+
+/// One try of one address: its bytes into `path` from byte `from` on, or
+/// from 0 when it gives the whole file again. What it answered and the
+/// bytes received of it; `Err` for a failure here (the disk), not of the
+/// address, and when told to stop (the bytes stay for the next run).
+fn get(
+    session: &mut Session,
+    address: &Address,
+    path: &str,
+    from: u64,
+    pin: Pin,
+    slow: http::Slow,
+) -> Result<(Result<(), HttpError>, u64), Option<String>> {
+    let opened = if from == 0 {
+        win::File::create(path)
+    } else {
+        win::File::exclusive(path).and_then(|file| file.seek(from).map(|()| file))
+    };
+    // `None` only between the old file closed and the new one made.
+    let mut file = Some(opened.map_err(|code| io_error("save the game download", code))?);
+    let mut written = from;
+    let mut received = 0_u64;
+    let result = http::get_file(
+        &address.url,
+        from,
+        pin.size,
+        slow,
+        &mut |to| log!("{LABEL}: {} redirects to {to}", address.text),
+        &mut |at, chunk| {
+            if at != written {
+                // A 200 to a request from a byte on: the whole file again
+                // (the old one closed first: it is open to this alone).
+                file = None;
+                file = Some(
+                    win::File::create(path).map_err(|code| HttpError::Network(WRITE_STEP, code))?,
+                );
+                written = at;
+            }
+            let Some(out) = &file else {
+                return Err(HttpError::Network(WRITE_STEP, ERROR_INVALID_HANDLE));
+            };
+            out.write(chunk)
+                .map_err(|code| HttpError::Network(WRITE_STEP, code))?;
+            written += chunk.len() as u64;
+            received += chunk.len() as u64;
+            Ok(())
+        },
+        &mut |done, _| session.progress(done, pin.size),
+    );
+    let flushed = file.as_ref().map_or(Ok(()), win::File::flush);
+    drop(file);
+    match result {
+        Err(HttpError::Stopped) => return Err(None),
+        Err(HttpError::Network(WRITE_STEP, code)) => {
+            return Err(io_error("save the game download", code));
+        }
+        _ => {}
+    }
+    flushed.map_err(|code| io_error("flush the download to disk", code))?;
+    if let Err(HttpError::Html(_, read)) = result {
+        received = read;
+    }
+    Ok((result, received))
 }
 
 fn extracted(stage: &str, name: &str) -> String {
@@ -201,11 +402,101 @@ fn clean_stage(stage: &str) {
     win::remove_dir(stage);
 }
 
+/// Beside a game file fetched by torrent. Kept when HTTPS takes over, so the
+/// next start resumes from its checked pieces.
+const PART: &str = ".skhid-torrent";
+
+fn place(layout: &Layout, name: &str) -> String {
+    format!("{}\\{}", layout.game_dir, name.replace('/', "\\"))
+}
+
+/// The missing original files the torrent has as build 2777 has them (its
+/// `bugtrap.dll` and certificate are Skhid's, from the overlay), each
+/// checked by its pin before it is put in place. `Ok(None)`: HTTPS instead.
+fn by_torrent(session: &mut Session, layout: &Layout) -> Result<Option<bool>, Option<String>> {
+    let Some(offered) = torrent::offered(session, layout) else {
+        return Ok(None);
+    };
+    let wanted: Vec<(&str, Pin, usize)> = game::FILES
+        .iter()
+        .filter(|(name, _)| !win::exists(&place(layout, name)))
+        .filter_map(|&(name, pin)| {
+            let index = torrent::file_index(&offered.torrent, &format!("game/{name}"))?;
+            (offered.torrent.files[index].size == pin.size).then_some((name, pin, index))
+        })
+        .collect();
+    if wanted.is_empty() {
+        return Ok(None);
+    }
+    // What the parts of an earlier start hold is on the disk already.
+    let needed = wanted
+        .iter()
+        .map(|(name, pin, _)| {
+            let part = win::file_size(&format!("{}{PART}", place(layout, name))).unwrap_or(0);
+            pin.size.saturating_sub(part)
+        })
+        .sum::<u64>()
+        + (256 << 20);
+    if win::free_space(&layout.game_dir).is_none_or(|free| free < needed) {
+        log!("game: by torrent: {needed} bytes of free space needed: HTTPS");
+        return Ok(None);
+    }
+    let mut files = Vec::new();
+    for (name, _, index) in &wanted {
+        let part = format!("{}{PART}", place(layout, name));
+        win::create_folders(win::split_path(&part).0)
+            .map_err(|code| io_error("create the game's folders", code))?;
+        files.push((*index, part));
+    }
+    log!("game: {} original file(s) by torrent", wanted.len());
+    match torrent::fetch(session, &offered, &files) {
+        torrent::Fetched::Done => {}
+        torrent::Fetched::Stopped => return Err(None),
+        torrent::Fetched::Not(why) => {
+            log!("game: by torrent: {why}: HTTPS");
+            return Ok(None);
+        }
+    }
+    for ((name, pin, _), (_, part)) in wanted.iter().zip(&files) {
+        if check(part, *pin, session)?.is_none() {
+            log!("game: by torrent: {name} is not build 2777's (its pin): HTTPS");
+            let _ = win::delete(part);
+            return Ok(None);
+        }
+    }
+    let mut added: Vec<String> = Vec::new();
+    for ((name, _, _), (_, part)) in wanted.iter().zip(&files) {
+        let target = place(layout, name);
+        if let Err(code) = win::rename(part, &target, false) {
+            for path in added.iter().rev() {
+                let _ = win::delete(path);
+            }
+            return Err(io_error("install the original game files", code));
+        }
+        added.push(target);
+    }
+    log!("installed original game by torrent: {} files added", added.len());
+    Ok(Some(present(layout)).filter(|&present| present))
+}
+
 /// Installs only missing original files. Every extraction and check finishes
 /// before promotion; failed promotions undo only files added by this attempt.
-pub fn ensure(session: &mut Session, layout: &Layout) -> Result<bool, Option<String>> {
+///
+/// `server`: the update server, when it answered this run (HTTPS, as with
+/// torrent off); else the torrent first, then the archive's addresses built
+/// into this updater.
+pub fn ensure(
+    session: &mut Session,
+    layout: &Layout,
+    server: Option<&Url>,
+) -> Result<bool, Option<String>> {
     if present(layout) {
         return Ok(false);
+    }
+    if server.is_none()
+        && let Some(added) = by_torrent(session, layout)?
+    {
+        return Ok(added);
     }
     log!("original game files missing; downloading the pinned 0.26g archive");
     // The extractor first: without it 2.9 GB would be downloaded for nothing.
@@ -226,18 +517,25 @@ pub fn ensure(session: &mut Session, layout: &Layout) -> Result<bool, Option<Str
     // again. This works on a 32-bit updater too: file sizes and progress are
     // u64 throughout.
     let downloaded = win::file_size(&archive_path).is_ok_and(|size| size == game::ARCHIVE.size);
-    let needed = if downloaded { 0 } else { game::ARCHIVE.size }
-        + game::FILES.iter().map(|(_, size)| size).sum::<u64>()
-        + (256 << 20);
-    let free = win::free_space(&layout.game_dir)
-        .ok_or_else(|| Some("Cannot check free disk space for the game installation.".into()))?;
+    let unpacked = game::FILES.iter().map(|(_, pin)| pin.size).sum::<u64>();
+    let needed = if downloaded { 0 } else { game::ARCHIVE.size } + unpacked + (256 << 20);
+    let free_space = || {
+        win::free_space(&layout.game_dir)
+            .ok_or_else(|| Some(String::from("Cannot check free disk space for the game installation.")))
+    };
+    let mut free = free_space()?;
+    if free < needed {
+        // Kept torrent parts give way to the archive.
+        remove_parts(layout);
+        free = free_space()?;
+    }
     if free < needed {
         return Err(Some(format!(
             "The game installation needs {needed} bytes of free space; this disk has {free}."
         )));
     }
-    let game_url = address(layout, "updater_skhid.game-url", game::GAME_URL)?;
-    let archive = fetch(session, &game_url, &archive_path, game::ARCHIVE)?;
+    let addresses = addresses(session, server)?;
+    let archive = fetch(session, &addresses, &archive_path, game::ARCHIVE)?;
     let stage = win::staging_dir(&layout.game_dir)
         .map_err(|code| io_error("create an extraction folder", code))?;
     let result = (|| {
@@ -246,21 +544,31 @@ pub fn ensure(session: &mut Session, layout: &Layout) -> Result<bool, Option<Str
             step: step::EXTRACT,
             text: "Survarium 0.26g",
         });
-        // -sccUTF-8: what it prints is UTF-8, so a folder name in any
-        // alphabet reads right in the log.
+        // -bsp1: its progress goes to the output, read meanwhile for the
+        // launcher's bar. -sccUTF-8: what it prints is UTF-8, so a folder
+        // name in any alphabet reads right in the log.
         let mut command = format!(
-            "\"{extractor_path}\" x \"{archive_path}\" -o\"{stage}\" -y -bd -bb0 -sccUTF-8"
+            "\"{extractor_path}\" x \"{archive_path}\" -o\"{stage}\" -y -bsp1 -bb0 -sccUTF-8"
         );
         for (name, _) in game::FILES {
             command.push_str(&format!(" \"Survarium/game/{name}\""));
         }
         let output_path = output_path(layout);
+        session.begin_progress();
         let code = win::run_wait(
             &extractor_path,
             &command,
             &layout.game_dir,
             &output_path,
-            &mut || session.pump(),
+            &mut || {
+                if let Some(percent) = win::read_tail(&output_path, PROGRESS_LIMIT)
+                    .ok()
+                    .and_then(|tail| game::extracted_percent(&tail))
+                {
+                    let _ = session.progress(unpacked * u64::from(percent) / 100, unpacked);
+                }
+                session.pump()
+            },
         );
         log_output(&output_path);
         let code = code.map_err(|code| io_error("extract the original game", code))?;
@@ -268,11 +576,11 @@ pub fn ensure(session: &mut Session, layout: &Layout) -> Result<bool, Option<Str
         if code != 0 {
             return Err(Some(format!(
                 "The game extractor failed (exit {code}). Nothing was installed. What it \
-                 printed is in updater_skhid.log beside the updater."
+                 printed is in game\\logs\\updater_skhid.<date>.log."
             )));
         }
         for (name, expected) in game::FILES {
-            if win::file_size(&extracted(&stage, name)).ok() != Some(*expected) {
+            if win::file_size(&extracted(&stage, name)).ok() != Some(expected.size) {
                 return Err(Some(format!(
                     "The extracted game file {name} is missing or has the wrong size. Nothing was installed."
                 )));
@@ -324,10 +632,12 @@ pub fn ensure(session: &mut Session, layout: &Layout) -> Result<bool, Option<Str
     drop(extractor);
     drop(archive);
     // Retain the verified download on extraction failure for a retry; it is
-    // always rehashed next time. Successful installs need no archive cache.
+    // always rehashed next time. (A download that failed stays too: the
+    // next try goes on from its bytes.) Successful installs need no archive cache.
     // The extractor is a file of the Skhid archive and stays.
     if result.is_ok() {
         let _ = win::delete(&archive_path);
+        remove_parts(layout);
     }
     result
 }

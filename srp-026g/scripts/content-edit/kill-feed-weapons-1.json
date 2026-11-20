@@ -1,0 +1,26 @@
+{
+ "_about": "The kill feed shows the ported weapons' own icons (docs/notes/kill-feed-icons.md, \"The ported weapons' icons\"). A weapon's kill feed icon is its config's ui_desc/combat_log_icon, frame (icon + 1) of the hud's weapon icon clip. The weapons of base patch 19 came with their builds' icons (53 to 68, past 0.26g's 53 frames) swapped for stand-ins of stock weapons (the AK-74M's 31 for six rifles and two shotguns, the UMP45's 47 for the P90 and the KRISS, ...); the hud movie now has icons 53 to 68 (CombatLogWeapon53..68, 0.28d0's frames and 0.31a2's log icons), so each takes the icon its build gives it again (0.27d0 to 0.31a2 alike). The M4A1's is 21, the M4 icon 0.26g's clip already has. The premium copies of stock weapons keep their plain weapon's icon, as in those builds.",
+ "set": [
+  {"file": "gameplay/items/weapons/wpn_saiga_12.options", "path": "ui_desc/combat_log_icon", "from": 31, "to": 53},
+  {"file": "gameplay/items/weapons/wpn_saiga_12_premium.options", "path": "ui_desc/combat_log_icon", "from": 31, "to": 53},
+  {"file": "gameplay/items/weapons/wpn_soc_vepr.options", "path": "ui_desc/combat_log_icon", "from": 29, "to": 54},
+  {"file": "gameplay/items/weapons/wpn_pkp_pecheneg.options", "path": "ui_desc/combat_log_icon", "from": 38, "to": 55},
+  {"file": "gameplay/items/weapons/wpn_vepr_12.options", "path": "ui_desc/combat_log_icon", "from": 31, "to": 56},
+  {"file": "gameplay/items/weapons/wpn_vepr_12_premium.options", "path": "ui_desc/combat_log_icon", "from": 31, "to": 56},
+  {"file": "gameplay/items/weapons/wpn_aek_919k.options", "path": "ui_desc/combat_log_icon", "from": 3, "to": 57},
+  {"file": "gameplay/items/weapons/wpn_kedr.options", "path": "ui_desc/combat_log_icon", "from": 22, "to": 58},
+  {"file": "gameplay/items/weapons/wpn_neostead.options", "path": "ui_desc/combat_log_icon", "from": 12, "to": 59},
+  {"file": "gameplay/items/weapons/wpn_neostead_2.options", "path": "ui_desc/combat_log_icon", "from": 12, "to": 59},
+  {"file": "gameplay/items/weapons/wpn_fn_fnc.options", "path": "ui_desc/combat_log_icon", "from": 31, "to": 60},
+  {"file": "gameplay/items/weapons/wpn_mp7.options", "path": "ui_desc/combat_log_icon", "from": 1, "to": 61},
+  {"file": "gameplay/items/weapons/wpn_mp7_silencer.options", "path": "ui_desc/combat_log_icon", "from": 1, "to": 62},
+  {"file": "gameplay/items/weapons/wpn_mp7_silencer_special.options", "path": "ui_desc/combat_log_icon", "from": 1, "to": 62},
+  {"file": "gameplay/items/weapons/wpn_hk416.options", "path": "ui_desc/combat_log_icon", "from": 31, "to": 63},
+  {"file": "gameplay/items/weapons/wpn_fn_p90.options", "path": "ui_desc/combat_log_icon", "from": 47, "to": 64},
+  {"file": "gameplay/items/weapons/wpn_kriss_vector.options", "path": "ui_desc/combat_log_icon", "from": 47, "to": 65},
+  {"file": "gameplay/items/weapons/wpn_msbs_carbine.options", "path": "ui_desc/combat_log_icon", "from": 31, "to": 66},
+  {"file": "gameplay/items/weapons/wpn_valmet.options", "path": "ui_desc/combat_log_icon", "from": 31, "to": 67},
+  {"file": "gameplay/items/weapons/wpn_vz58.options", "path": "ui_desc/combat_log_icon", "from": 29, "to": 68},
+  {"file": "gameplay/items/weapons/wpn_m4a1.options", "path": "ui_desc/combat_log_icon", "from": 31, "to": 21}
+ ]
+}

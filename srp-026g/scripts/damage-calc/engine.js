@@ -22,7 +22,8 @@ function speedAt(v0, drag, r) {
 
 // What leaves the barrel and what is left of it `distance` metres out.
 // `w` holds the weapon's effective numbers (after its bonuses), `a` the ammo.
-function bulletAt(w, a, distance) {
+// `wall`: the armour of a wall just in front of the target, or null.
+function bulletAt(w, a, distance, wall = null) {
   const W = w.bullet_damage, Q = w.bullet_pierce, m = w.min_damage_amount;
   const Dmax = W * a.k_damage;
   const Dmin = W * m * a.k_min_damage_amount * a.k_damage;
@@ -36,10 +37,22 @@ function bulletAt(w, a, distance) {
   const vFull = speedAt(v0, drag, r0), vLow = speedAt(v0, drag, r1);
   const v = speedAt(v0, drag, distance);
   const u = vFull === vLow ? (distance <= r0 ? 1 : 0) : clamp((v - vLow) / (vFull - vLow), 0, 1);
+  let D = Dmin + (Dmax - Dmin) * u, P = Pmin + (Pmax - Pmin) * u;
+  // A wall (try_pierce 0x32D960): k = 1 − (1 − t)², t = clamp((P − A) / A, 0, 1),
+  // 1 when A = 0; k = 0 stops the bullet. Damage, penetration and speed × k;
+  // at the target the slower bullet falls off again, never back up
+  // (update_bullet_position 0x32EE90: D, P = min(D, P; their value at its speed)).
+  let through = null;
+  if (wall != null) {
+    const t = wall > 0 ? clamp((P - wall) / wall, 0, 1) : 1;
+    const k = 1 - (1 - t) ** 2, vk = k * v;
+    const uk = vFull === vLow ? (k < 1 ? 0 : u) : clamp((vk - vLow) / (vFull - vLow), 0, 1);
+    through = { A: wall, k, v: vk, u: uk, D, P };
+    D = k > 0 ? Math.min(k * D, Dmin + (Dmax - Dmin) * uk) : 0;
+    P = k > 0 ? Math.min(k * P, Pmin + (Pmax - Pmin) * uk) : 0;
+  }
   return {
-    Dmax, Dmin, Pmax, Pmin, r0, r1, reach, v0, v, u,
-    D: Dmin + (Dmax - Dmin) * u,
-    P: Pmin + (Pmax - Pmin) * u,
+    Dmax, Dmin, Pmax, Pmin, r0, r1, reach, v0, v, u, D, P, wall: through,
     pellets: Math.max(1, Math.round(a.buck_shot || 1)),
     maxDistance: a.distance || Infinity,
   };

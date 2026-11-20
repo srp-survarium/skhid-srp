@@ -1,0 +1,14 @@
+# What every Rust crate of the arena `.srpx` needs and the game does not
+# give it: the memory functions LLVM calls, the panic handler, the C
+# compiler's float-to-unsigned conversion. Built by link_026g.py as an rlib
+# of the crate that names it by path; not a member of the workspace.
+[package]
+name = "arena_rt"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[workspace]

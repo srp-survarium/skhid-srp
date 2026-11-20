@@ -1,0 +1,85 @@
+donor_id	name	template_id	faction	level	armour	isolation	drop_weight	price	plain_id	icon_row	icon_col	weight	default_modifications	peer_id	role
+742	Warrior jacket	141	4	9	60	20	70	47500		1	12	8	1030	141	Warrior
+743	Warrior pants	142	4	9	60	20	70	23750		2	12	2	1050	142	Warrior
+744	Warrior helmet	114	4	9	35	20	70	26250		3	12	1.5		114	Warrior
+745	Animal skin vest	31	4	1	10	15	150	1900		4	12	3	1030	31	Animal skin
+746	Animal skin pants	45	4	1	10	15	150	950		5	12	1.1		45	Animal skin
+747	Mocassins	37	4	1	10	15	150	480		6	12	0.9		37	Animal skin
+748	Hunter's jacket	325	4	3	30	20	130	9450		7	12	5	1050	351	Hunter
+749	Hunter's pants	326	4	3	30	20	130	4730		8	12	1.5	1160	353	Hunter
+750	Private jacket	29	3	1	15	5	150	2100		9	12	3.5	1050	29	Private
+751	Private pants	28	3	1	10	5	150	1050		10	12	1.2	1050	28	Private
+752	Private boots	24	3	1	15	0	150	530		11	12	1		24	Private
+753	Paratrooper backpack	355	3	6	0	0	100	15400		12	12	2.5	1030	355	Paratrooper
+754	Paratrooper bulletproof vest	58	3	6	55	10	100	23100		13	12	7	1050	58	Paratrooper
+755	Paratrooper pants	59	3	6	55	10	100	11550		14	12	1.7	1050	59	Paratrooper
+822	"Bulletproof vest ""Viper"""	58	2	8	65	10	80	34650		15	12	8	1050	132	Viper
+823	Watchman jacket	111	2	9	60	30	70	52500		16	12	7.5	1170	141	Watchman
+824	Saboteur jacket	328	1	5	45	20	110	16150		17	12	5.5	1030	328	Saboteur
+825	"Pants ""Viper"""	59	2	8	65	10	80	17320		18	12	2.2	1030	130	Viper
+826	Watchman pants	112	2	9	60	30	70	26250		19	12	2	1030	142	Watchman
+827	Saboteur pants	329	1	5	45	20	110	8080		20	12	1.5	1170	329	Saboteur
+828	"Helmet ""Viper"""	114	2	8	35	10	80	17320		21	12	1.5		129	Viper
+829	Saboteur gloves	327	1	5	45	20	110	4040		22	12	0.3	1141	327	Saboteur
+830	Watchman gloves	61	2	9	60	30	70	13130		1	13	0.5	1151	61	Watchman
+831	"Boots ""Viper"""	62	2	8	65	10	80	8670		2	13	1.2	1111	128	Viper
+832	Watchman backpack	355	2	9	0	0	70	35000		3	13	4	1030,1170	355	Watchman
+882	"Bulletproof vest ""Omicron"""	137	2	12	70	60	40	73500		4	13	11.5	1030,1170	208	Omicron
+883	"Pants ""Omicron"""	136	2	12	70	60	40	36750		5	13	2.5	1040	210	Omicron
+884	"Boots ""Omicron"""	134	2	12	70	60	40	18380		6	13	1.6	1162	211	Omicron
+885	Life support system M-1	355	2	12	0	0	40	49000		7	13	5	1091,1102	311	Omicron
+886	"Gloves ""Omicron"""	138	2	12	70	60	40	18380		8	13	0.5	1131	212	Omicron
+887	"Helmet ""Omicron"""	135	2	12	40	60	40	36750		9	13	1.8		209	Omicron
+888	"Mask ""Omicron"""	139	2	12	35	60	40	18380		10	13	0.8		139	Omicron
+889	Pathfinder bulletproof vest	111	1	9	65	20	70	52500		11	13	9	1050	111	Pathfinder
+890	Pathfinder pants	112	1	9	65	20	70	26250		12	13	2	1030	112	Pathfinder
+891	Pathfinder helmet	114	1	9	35	15	70	26250		13	13	1		114	Pathfinder
+892	Scavenger hood	330	1	3	10	40	130	5900		14	13	0.3		27	Scavenger hood
+893	Field radio	355	1	9	0	0	70	35000		15	13	4	1221	355	Pathfinder
+894	Pathfinder gloves	61	1	9	65	20	70	13130		16	13	0.3	1081	61	Pathfinder
+905	Guerrilla jacket	328	1	5	45	20	0	1000	824	17	13			824	Premium
+906	Guerrilla pants	329	1	5	45	20	0	750	827	18	13			827	Premium
+907	"""Marodeur MKII"" jacket"	347	2	4	40	30	0	900	347	19	13			347	Premium
+908	"""Marodeur MKII"" pants"	349	2	4	40	30	0	680	349	20	13			349	Premium
+909	"Bulletproof vest ""Omicron MKII"""	137	2	12	70	60	0	1700	882	21	13			882	Premium
+910	"Pants ""Omicron MKII"""	136	2	12	70	60	0	1280	883	22	13			883	Premium
+911	Guards bulletproof vest	58	3	6	55	10	0	1100	754	1	14			754	Premium
+912	Guards pants	59	3	6	55	10	0	820	755	2	14			755	Premium
+913	"""Sokol-M"" bulletproof vest"	132	3	8	60	45	0	1300	132	3	14			132	Premium
+914	"""Sokol-M"" pants"	130	3	8	50	40	0	980	130	4	14			130	Premium
+915	"""Molot UM-2A"" Vest"	208	3	12	75	20	0	1700	208	5	14			208	Premium
+916	"""Molot UM-2A"" pants"	210	3	12	75	20	0	1280	210	6	14			210	Premium
+917	Follower jacket	83	4	6	50	20	0	1100	83	7	14			83	Premium
+918	Follower pants	84	4	6	50	20	0	820	84	8	14			84	Premium
+919	"""Leshy"" vest"	203	4	12	65	25	0	1700	203	9	14			203	Premium
+920	"""Leshy"" pants"	204	4	12	65	25	0	1280	204	10	14			204	Premium
+921	"Jacket ""Berserker"""	141	4	9	60	20	0	1400	742	11	14			742	Premium
+922	"Pants ""Berserker"""	142	4	9	60	20	0	1050	743	12	14			743	Premium
+927	Combat Bulletproof Vest	208	1	12	70	20	40	73500		13	14	12.5	1030,1050	208	Combat
+928	Veteran Bulletproof Vest	208	1	12	75	20	0	1700	927	14	14			927	Premium
+929	Firefighter Bulletproof Vest	137	1	14	70	70	20	94500		15	14	12	1030,1170	137	Firefighter
+930	Big backpack	115	1	12	0	0	40	42970		16	14	6	1030,1171	115	Combat
+931	Double cylinder	9	1	14	0	0	20	47250		17	14	9		133	Firefighter
+932	Combat boots	211	1	12	75	10	40	18380		18	14	2.2	1101	211	Combat
+933	Firefighter boots	134	1	14	70	70	20	23630		19	14	2.8	1161	134	Firefighter
+934	Combat gloves	212	1	12	75	20	40	18380		20	14	0.6	1141	212	Combat
+935	Firefighter gloves	138	1	14	70	70	20	23630		21	14	0.7	1132	138	Firefighter
+936	Combat helmet	209	1	12	50	25	40	54250		22	14	3		209	Combat
+937	Metal helmet	135	1	14	35	70	20	47250		1	15	2		135	Firefighter
+938	Combat pants	210	1	12	75	20	40	36750		2	15	3	1030	210	Combat
+939	Veteran pants	210	1	12	75	20	0	1280	938	3	15			938	Premium
+940	Firefighter pants	136	1	14	70	70	20	47250		4	15	3.5	1170,1050	136	Firefighter
+941	"Gas mask ""Barrier"""	139	1	14	30	70	20	23630		5	15	0.8		139	Firefighter
+942	Mercenary jacket	196	2	14	70	20	20	85500		6	15	8	1050,1112	196	Mercenary
+943	Mercenary pants	197	2	14	70	20	20	42750		7	15	2	1030,1112	197	Mercenary
+944	Antiradar Veil	199	2	14	0	0	20	42750		8	15	4	1030,1220	199	Mercenary
+945	Mercenary boots	198	2	14	70	20	20	21380		9	15	1.5	1112	198	Mercenary
+946	Mercenary gloves	201	2	14	70	20	20	21380		10	15	0.5	1073	201	Mercenary
+947	Mercenary helmet	202	2	14	45	20	20	42750		11	15	1.7		202	Mercenary
+953	Nomad Boots	198	1	15	80	30	10	23760		12	15	1.5	1114	319	Nomad
+954	Nomad Gloves	201	1	15	80	30	10	23760		13	15	0.5	1084	320	Nomad
+955	Nomad Pants	197	1	15	80	30	10	47500		14	15	2.8	1050,1114	318	Nomad
+956	Nomad Vest	196	1	15	80	30	10	95000		15	15	10	1030,1092	316	Nomad
+957	Nomad Helmet	202	1	15	60	30	10	47500		16	15	2.5		317	Nomad
+977	Keeper Of The Sun Vest	196	4	14	70	25	0	1900	196	17	15			196	Premium
+978	Keeper Of The Sun Pants	197	4	14	70	30	0	1420	197	18	15			197	Premium

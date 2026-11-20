@@ -1,0 +1,12 @@
+{
+  "_about": "The painkiller's pain protection covers the trap too (the owner, 2026-11-06: two traps kill unless a painkiller is active). Its damage_protection had one record, pain x 0.9 for ranged hits; the trap's two foot hits are slash (the only slash in the game data), so it took none. A second record, pain x 0.9 for slash: medkit::reduce_damage (patch 94's medical.protect) matches a record by hit type and pool, and Potent Painkiller's -0.01 a rank applies to every pain record. A trap (0.55 a foot, 0.5 of a foot's slash to pain) is 0.55 pain: two are 1.1, dead; with the painkiller 0.99 (0.957 at Potent Painkiller 3).",
+  "append_entry": [
+    {
+      "file": "gameplay/items/drugs/painkiller.options",
+      "list": "data/damage_protection",
+      "expected_count": 1,
+      "unique_key": "hit_type",
+      "value": {"body_part": "pain", "hit_coeff": 0.9, "threshold": 0, "hit_type": "slash"}
+    }
+  ]
+}

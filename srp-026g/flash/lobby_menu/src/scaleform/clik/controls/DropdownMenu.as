@@ -3,18 +3,15 @@ package scaleform.clik.controls
    import flash.display.DisplayObject;
    import flash.display.MovieClip;
    import flash.events.Event;
-   import flash.events.MouseEvent;
    import flash.utils.getDefinitionByName;
-   import scaleform.clik.constants.InputValue;
    import scaleform.clik.constants.InvalidationType;
-   import scaleform.clik.constants.NavigationCode;
    import scaleform.clik.data.DataProvider;
    import scaleform.clik.events.InputEvent;
    import scaleform.clik.events.ListEvent;
    import scaleform.clik.interfaces.IDataProvider;
    import scaleform.clik.managers.PopUpManager;
-   import scaleform.clik.ui.InputDetails;
    import scaleform.clik.utils.Padding;
+   import survarium.controls.Transient;
    
    [Event(name="change",type="flash.events.Event")]
    public class DropdownMenu extends Button
@@ -264,18 +261,27 @@ package scaleform.clik.controls
          return item.toString();
       }
       
+      // The open list is a transient window (survarium.controls.Transient): a press outside it,
+      // Esc, another transient or a window opening closes it.
       public function open() : void
       {
          selected = true;
-         stage.addEventListener(MouseEvent.MOUSE_DOWN,this.handleStageClick,false,0,true);
          this.showDropdown();
+         if(this._dropdownRef)
+         {
+            Transient.open(this._dropdownRef,this,this.close);
+         }
       }
       
       public function close() : void
       {
+         var list:DisplayObject = this._dropdownRef as DisplayObject;
          selected = false;
-         stage.removeEventListener(MouseEvent.MOUSE_DOWN,this.handleStageClick,false);
          this.hideDropdown();
+         if(list)
+         {
+            Transient.closed(list);
+         }
       }
       
       public function invalidateSelectedIndex() : void
@@ -299,22 +305,6 @@ package scaleform.clik.controls
             }
          }
          super.handleInput(event);
-         var details:InputDetails = event.details;
-         var keyPress:Boolean = details.value == InputValue.KEY_DOWN;
-         switch(details.navEquivalent)
-         {
-            case NavigationCode.ESCAPE:
-               if(this.selected)
-               {
-                  if(keyPress)
-                  {
-                     this.close();
-                  }
-                  event.handled = true;
-               }
-            default:
-               break;
-         }
       }
       
       override public function toString() : String
@@ -368,19 +358,6 @@ package scaleform.clik.controls
       protected function updateLabel(item:Object) : void
       {
          _label = this.itemToLabel(item);
-      }
-      
-      protected function handleStageClick(event:MouseEvent) : void
-      {
-         if(this.contains(event.target as DisplayObject))
-         {
-            return;
-         }
-         if(this._dropdownRef.contains(event.target as DisplayObject))
-         {
-            return;
-         }
-         this.close();
       }
       
       protected function showDropdown() : void

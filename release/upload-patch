@@ -38,6 +38,8 @@ name=${file##*/}
 number=$(patch_number "$name") ||
     die "$name: the name must be resources.db.patch_<n>, n from 1 to 255 without a leading zero"
 [[ -f $file ]] || die "$file: no such file"
+[[ ! -e $(dirname -- "$file")/$QUICK_MARK ]] ||
+    die "$file is a quick build (release/build-content without --full: $QUICK_MARK beside it), for local tests: build it again with release/build-content $number --full"
 [[ $(head -c 13 "$file") == little-endian ]] || die "$file: not an archive of the game (no \"little-endian\" header)"
 need_cmds ssh curl sha256sum
 load_env

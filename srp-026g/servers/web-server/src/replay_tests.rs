@@ -59,13 +59,11 @@ fn planted(name: &str) -> Planted {
     let settings = ReplaySettings {
         replay_dir: root.join("replays"),
         record_dir: root.join("recordings"),
-        modes_dir: root.join("modes"),
         max_recording_bytes: 1 << 20,
         max_replay_bytes: 1 << 20,
     }
     .checked()
     .unwrap();
-    std::fs::create_dir_all(&settings.modes_dir).unwrap();
     let replays = Arc::new(Replays::new(Some(settings.clone()), 6));
     std::fs::write(replays.sur_path(MATCH).unwrap(), REPLAY).unwrap();
     let sidecar = Sidecar {
@@ -86,7 +84,6 @@ fn planted(name: &str) -> Planted {
     );
     secret(settings.replay_dir.join("srp.db"));
     secret(settings.replay_dir.join("00000002.json"));
-    secret(settings.modes_dir.join("level_01_day_2.options"));
     secret(root.join(".env"));
     secret(root.join("srp.db"));
     Planted { root, replays }
@@ -110,9 +107,10 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
             accounts: Arc::new(GameAccounts::new()),
             lobby: Arc::new(Quiet),
             matches: Arc::new(Quiet),
-            patches: Vec::new(),
+            downloads: Arc::new(crate::Downloads::new(Vec::new(), None, None)),
             min_patch_revision: 0,
             replays,
+            results: Arc::new(session::v026g::rewards::Results::new()),
         }),
     }
 }

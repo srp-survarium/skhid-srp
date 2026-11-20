@@ -9,7 +9,7 @@ build of patch_026g.py (patch revision 11) must equal the original with its
 65-degree constant replaced so that z times it is
 65 z + (uro_fov - 65) * max(0, (z - 0.25) / 0.75) degrees, for several
 viewports: uro_fov unaimed, the original's own view through a 4x scope
-(z = 0.25) whatever the setting. Also checks the option name, the uro_fov
+(z = 0.25) whatever the setting. Also checks the option name (the original's), the uro_fov
 lower bound and the relocations.
 """
 import math
@@ -108,15 +108,16 @@ def main():
         for a, b in zip(projection(default, zoom, 1920.0, 1080.0), projection(untouched, zoom, 1920.0, 1080.0)):
             assert abs(a - b) <= 2e-6 * max(1.0, abs(b)), (zoom, a, b)
 
-    name = struct.unpack("<I", base.FOV_OPTION_NAME[2][1:])[0]
-    assert bytes(default.mem_read(name, 8)) == b"uro_fov\0"
-    assert bytes(default.mem_read(base.FOV_OPTION_NAME[0], 5)) == base.FOV_OPTION_NAME[2]
+    # option 7 keeps the original's dead "fov" (the Gameplay slider, patch 83, sets uro_fov)
+    assert bytes(default.mem_read(0xA281D0, 8)) == b"uro_fov\0"
+    option_name = (0x262930, b"\xb8" + struct.pack("<I", 0xA0659C))
+    assert bytes(default.mem_read(option_name[0], 5)) == bytes(stock.mem_read(option_name[0], 5)) == option_name[1]
     least = struct.unpack("<I", base.FOV_MINIMUM[1][7:11])[0]
     assert bytes(default.mem_read(base.FOV_MINIMUM[0] + 2, 8)) == struct.pack("<If", least, base.FOV_MIN)
     # The option's name keeps its relocation, the least's is disabled; the
     # projection's original body, never reached, keeps the constant's.
     before, after = relocations(original), relocations(patched)
-    option = base.FOV_OPTION_NAME[0] + 1
+    option = option_name[0] + 1
     assert before.get(option) == after.get(option) == 3
     assert before.get(base.FOV_MINIMUM_RELOC) == 3 and after.get(base.FOV_MINIMUM_RELOC) == 0
     assert before.get(CONSTANT_RELOC) == after.get(CONSTANT_RELOC) == 3

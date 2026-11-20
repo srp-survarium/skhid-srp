@@ -1,0 +1,99 @@
+name = "artefact_skills"
+patch = 109
+
+# Resistance: isolation against the anomalous hit types (artefact-skills.md).
+[[hook]]
+site = "artefact.isolation"
+handler = "on_isolation"
+
+# Onyx II: no fall damage while one of the player's Onyx is active.
+[[hook]]
+site = "artefact.landing"
+handler = "on_landing"
+
+# Larkspur II: a Larkspur's activation restores all energy (after Medic's share).
+[[hook]]
+site = "medical.artefact"
+handler = "on_larkspur"
+order = 2
+
+# Spring II: patch 54's passive link (0x311AD0) asks the reload nodes' values.
+[[hook]]
+site = "artefact.spring_reload"
+handler = "on_spring_reload"
+
+# Resonance and Cascade (one aura, read where each effect is used; nothing kept): the shared
+# Springs' nodes at the two modifier getters, the shared Onyx before a part's protectors, the
+# shared Lifebones at a part's regeneration tick (before patch 94's booster). The getters run at
+# every modifier read of every player: their entries call the handler for a Spring list only
+# (`only`), any other index costs a compare.
+[[hook]]
+site = "artefact.shared_modifier"
+handler = "on_shared_modifier"
+only = { index = "SPRING_LISTS" }
+
+[[hook]]
+site = "artefact.shared_modifiers"
+handler = "on_shared_modifiers"
+only = { index = "SPRING_LISTS" }
+
+[[hook]]
+site = "artefact.shared_protection"
+handler = "on_shared_protection"
+
+# Cascade's actives (the owner, 2026-11-11: "they should get full effect"): the teammates an
+# activation reached (Medic's path, patch 94's medical.artefact) keep the copy's active to its end,
+# wherever they go. Those places are saved with each active copy (4 bytes after its cooldown, state
+# 4 only), at patch 78's sites in artefact_base's codec (its dropped copy's bytes, state 6).
+[[hook]]
+site = "carry.ground_save"
+handler = "on_save"
+order = 2
+
+[[hook]]
+site = "carry.ground_load"
+handler = "on_load"
+order = 2
+
+[[hook]]
+site = "medical.regenerate"
+handler = "on_shared_regeneration"
+order = 1
+
+# At most 4 copies of a kind count for a player, own copies included (the owner, 2026-11-07): its
+# own copies past 4 give no passive where the game applies it: a Spring's passive nodes in the two
+# getters' list sums, an Onyx's protect, a Lifebone's regeneration modifier; and no active: patch
+# 54's press fires none of them (they stay ready).
+[[hook]]
+site = "artefact.fire"
+handler = "on_fire"
+
+[[hook]]
+site = "artefact.own_modifier"
+handler = "on_own_modifier"
+only = { index = "SPRING_LISTS" }
+
+[[hook]]
+site = "artefact.own_modifiers"
+handler = "on_own_modifiers"
+
+[[hook]]
+site = "artefact.own_onyx"
+handler = "on_own_onyx"
+
+[[hook]]
+site = "artefact.own_lifebone"
+handler = "on_own_lifebone"
+
+# The shared Springs' movement: a recipient's animations selected again when it changes (each
+# player's tick before tick_animations; after the battery carrier's).
+[[hook]]
+site = "battery.carrier_tick"
+handler = "on_movement_tick"
+order = 2
+
+# A world loaded: the shared movement history forgotten (its ticks are not the loaded world's).
+[[hook]]
+site = "world_load.loaded"
+handler = "on_world_loaded"
+order = 2

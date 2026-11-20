@@ -46,11 +46,20 @@ package survarium.rooms
         // The game's bold Calibri (the font of these lists) has U+2026.
         public static const DOTS:String = "…";
         // The render a level is drawn with: the v0.21 ports with the map they
-        // are an older look of, the v0.11 ones with their one loading image.
-        private static const RENDER_LEVEL:Object = {"10": 3, "11": 6};
-        private static const RENDER_ONE:Object = {"12": "Level_v011e", "13": "Level_v011e"};
+        // are an older look of, the v0.11 and v0.69 ones with their one loading image.
+        private static const RENDER_LEVEL:Object = {"10": 3, "11": 6, "25": 2, "26": 5, "29": 1, "31": 4};
+        private static const RENDER_ONE:Object = {"12": "Level_v011e_chemical", "13": "Level_v011e", "14": "Level_v069d_rudnya", "15": "Level_cs_mp_bath", "16": "Level_cs_mp_military_1", "17": "Level_cs_training_camp", "18": "Level_cs_mp_rembasa", "19": "Level_soc_ug_station", "20": "Level_soc_ug_depository", "23": "Level_cs_mp_firestation"};
         private static const RENDER:Object = {"1": "day", "2": "rain", "3": "evn", "4": "night", "5": "prerain"};
         private static var _renders:Object = {};
+        // A vote card's mode tag: the protective devices blue, team
+        // deathmatch red, Research green, Blackout white, free for all amber.
+        private static const MODE_COLOUR:Object = {"4": 0xB23A2A, "5": 0x6E9A3C, "6": 0xE8EEF2, "8": 0xD08A2E, "9": 0xC94FD6, "10": 0xB07A3C, "11": 0xB07A3C};
+
+        public static function modeColour(mode:int):uint
+        {
+            var colour:* = MODE_COLOUR[String(mode)];
+            return colour != null ? uint(colour) : 0x5A8FB5;
+        }
 
         // A game's button in a colour: its art tinted, its label left white
         // (the owner's of 2026-10-20: the whole button tinted, its label too,
@@ -114,7 +123,7 @@ package survarium.rooms
             _bold = bold;
         }
 
-        internal function text(box:Sprite, value:String, x:Number, y:Number, w:Number, size:Number,
+        public function text(box:Sprite, value:String, x:Number, y:Number, w:Number, size:Number,
             color:uint, align:String = "left"):TextField
         {
             var tf:TextField = new TextField();
@@ -379,15 +388,43 @@ package survarium.rooms
             tf.mouseEnabled = true;
             tf.tabEnabled = true;
             tf.addEventListener(MouseEvent.MOUSE_DOWN, onPress, false, 0, true);
+            tf.addEventListener(MouseEvent.MOUSE_UP, onRelease, false, 0, true);
             route(tf, function(control:DisplayObject, e:MouseEvent):void
             {
-                FocusManager.setFocus(control as TextField);
+                focusAtEnd(control as TextField);
             });
             return tf;
         }
 
+        // Focus with the caret after the digits (the owner's of 2026-11-19:
+        // a click put it at the start). The click may place it after this
+        // runs: again on release and on the next frame.
+        private function focusAtEnd(tf:TextField):void
+        {
+            FocusManager.setFocus(tf);
+            caretToEnd(tf);
+            tf.addEventListener(Event.ENTER_FRAME, onCaretFrame, false, 0, true);
+        }
+
+        private function onRelease(e:MouseEvent):void
+        {
+            caretToEnd(e.currentTarget as TextField);
+        }
+
+        private function onCaretFrame(e:Event):void
+        {
+            var tf:TextField = e.currentTarget as TextField;
+            tf.removeEventListener(Event.ENTER_FRAME, onCaretFrame);
+            caretToEnd(tf);
+        }
+
+        private static function caretToEnd(tf:TextField):void
+        {
+            tf.setSelection(tf.text.length, tf.text.length);
+        }
+
         // A control and what a press on it does, (control, event).
-        internal function route(control:DisplayObject, press:Function):void
+        public function route(control:DisplayObject, press:Function):void
         {
             _routes.push({"control": control, "press": press});
         }
@@ -409,7 +446,7 @@ package survarium.rooms
         // A press in the content: to the last control routed under it, unless
         // Scaleform gave it to that control (or to something inside it)
         // itself, which then has it (no double press).
-        internal function onContentDown(e:MouseEvent):void
+        public function onContentDown(e:MouseEvent):void
         {
             // Only the left button presses (a right-click on a member is its
             // equipment, `onContentClick`).
@@ -433,7 +470,7 @@ package survarium.rooms
 
         private function onPress(e:MouseEvent):void
         {
-            FocusManager.setFocus(e.currentTarget as TextField);
+            focusAtEnd(e.currentTarget as TextField);
         }
 
         internal function line(box:Sprite, x:Number, y:Number, w:Number):void
@@ -474,24 +511,32 @@ package survarium.rooms
             var small:BitmapData = _renders[key] as BitmapData;
             if (small == null)
             {
-                small = new BitmapData(w, h, false, 0x05080B);
                 try
                 {
                     var cls:Class = renderClass(level, weather);
-                    var big:BitmapData = new cls() as BitmapData;
-                    var scale:Number = Math.max(w / big.width, h / big.height);
-                    var m:Matrix = new Matrix();
-                    m.scale(scale, scale);
-                    m.translate((w - big.width * scale) / 2, (h - big.height * scale) / 2);
-                    small.draw(big, m, null, null, null, true);
-                    big.dispose();
+                    small = cover(new cls() as BitmapData, w, h);
                 }
                 catch (e:Error)
                 {
+                    small = new BitmapData(w, h, false, 0x05080B);
                 }
                 _renders[key] = small;
             }
             return new Bitmap(small);
+        }
+
+        // A picture scaled to cover w x h, centred, the rest cut (a vote
+        // card's map, a lobby window's card); `big` is disposed.
+        public static function cover(big:BitmapData, w:int, h:int):BitmapData
+        {
+            var small:BitmapData = new BitmapData(w, h, false, 0x05080B);
+            var scale:Number = Math.max(w / big.width, h / big.height);
+            var m:Matrix = new Matrix();
+            m.scale(scale, scale);
+            m.translate((w - big.width * scale) / 2, (h - big.height * scale) / 2);
+            small.draw(big, m, null, null, null, true);
+            big.dispose();
+            return small;
         }
 
         // The library bitmap of a level in a weather; its day one when that
@@ -552,8 +597,57 @@ package survarium.rooms
             return m.away ? 0x5E6E7A : m.fit != 0 ? RED : m.me ? 0xFFFFFF : (m.inMatch ? GOLD : LIGHT);
         }
 
+        // A squad's mark (the owner's of 2026-10-31: squads seen in the room,
+        // with the match's own squad icon): the pairs both in a room numbered
+        // 1, 2, ... in its list, each shown as the match's Tab list shows a
+        // squad: its squad_icon's frame of that number (a letter in a ring:
+        // A, B, G, D, E; the hud has five, a sixth pair is A again), tinted
+        // as the hud tints it, our own squad green (0xB3EA97), another tan
+        // (0x9D7E57; the hud's enemy red has no room side to go by).
+        internal static const SQUAD_ICON_W:int = 16;
+        internal static const OUR_SQUAD:uint = 0xB3EA97;
+        internal static const OTHER_SQUAD:uint = 0x9D7E57;
+        private static const SQUAD_ICONS:Array = [SquadIcon1, SquadIcon2, SquadIcon3, SquadIcon4, SquadIcon5];
+
+        // The state's `S;<marks>` row onto its members: a character each, in
+        // base 36 (0 none).
+        internal static function markSquads(members:Array, marks:String):void
+        {
+            for (var i:int = 0; i < members.length; i++)
+                members[i].squad = i < marks.length ? int(parseInt(marks.charAt(i), 36)) : 0;
+        }
+
+        // The squad mark of our own squad in a list of members (0: none).
+        internal static function ourSquad(members:Array):int
+        {
+            for (var i:int = 0; i < members.length; i++)
+                if (members[i].me)
+                    return int(members[i].squad);
+            return 0;
+        }
+
+        // The squad icon of mark `squad` right after `name` (its text as
+        // drawn), in `box`, `h` high. The name's field leaves SQUAD_ICON_W + 8
+        // for it, so nothing else moves.
+        internal function squadIcon(box:Sprite, name:TextField, squad:int, ours:Boolean, h:Number):void
+        {
+            if (squad <= 0)
+                return;
+            var kind:Class = SQUAD_ICONS[(squad - 1) % SQUAD_ICONS.length] as Class;
+            var icon:Bitmap = new Bitmap(new kind() as BitmapData, "auto", true);
+            var side:Number = Math.min(SQUAD_ICON_W, h);
+            icon.width = side;
+            icon.height = side;
+            icon.x = int(name.x + Math.min(name.textWidth + 4, name.width) + 4);
+            icon.y = int(name.y + (name.height - side) / 2);
+            var tint:ColorTransform = new ColorTransform();
+            tint.color = ours ? OUR_SQUAD : OTHER_SQUAD;
+            icon.transform.colorTransform = tint;
+            box.addChild(icon);
+        }
+
         // The click the game's buttons make (ButtonClick: sound_play 0).
-        internal static function clickSound():void
+        public static function clickSound():void
         {
             gameSound(UiSound.CLICK);
         }

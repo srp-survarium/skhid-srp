@@ -1,0 +1,3818 @@
+{
+  "_about": "A step in water wades (the owner, 2026-11-16, of Rudnya's pond: \"I want them there\"): each project that draws water gets models/srp/water/<level> of pack water-steps@1 (its drawn water, game material deep_water) as a collision object at the origin, cgroup and cmask 1000h: patch 153's water look alone meets it (docs/notes/footsteps.md, \"Wading\"). After Free for All's copies (ffa-projects-1.json): their projects are edited as they are. expected_files: a project the entry cannot be placed in stops the build. Made by scripts/water-steps/make_pack.py --edits.",
+  "add_entry": [
+    {
+      "files": "projects/level_01/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/day_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/day_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/evening_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/evening_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/evening_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/evening_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/evening_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/rain_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/rain_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/rain_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/rain_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_01/rain_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/01/terrain.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/day_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/day_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/evening_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/evening_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/evening_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/evening_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/evening_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/rain_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/rain_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/item/quest/quest_stellage/stellage/stelage_l_01.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/rain_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/rain_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_03/rain_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/generic/tower/streetlight_military_br.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/day_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/day_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/evening_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/evening_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/evening_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/evening_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/evening_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/rain_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/rain_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/rain_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/rain_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_04/rain_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/04/moss.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/day_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/day_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/evening_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/evening_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/evening_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/evening_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/evening_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/rain_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/rain_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/rain_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/rain_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_05/rain_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/05/center_part_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_05.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/day_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/day_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/evening_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/evening_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/evening_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/evening_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/evening_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/rain_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/rain_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/rain_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/rain_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_06/rain_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/vehicle/military/t80ud_destroyed.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/day_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/day_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/evening_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/evening_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/evening_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/evening_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/evening_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/rain_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/rain_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/rain_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/rain_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_07/rain_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "like": {
+        "lib_name": "resources/models/editor/building_cube.model/collision#[3.99][2.32][0.06]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_07.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/day_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/day_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/evening_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/evening_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/evening_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/evening_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/evening_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/prerain_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/prerain_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/prerain_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/prerain_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/level_08/prerain_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/level/08/bridge/bridge_center_old_mid.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/level_08.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v011e_level_03/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/generic/cistern/pipes_cistern.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/generic/cistern/pipes_cistern.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v011e_level_03/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/generic/cistern/pipes_cistern.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/generic/cistern/pipes_cistern.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v011e_level_03/day_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/generic/cistern/pipes_cistern.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/generic/cistern/pipes_cistern.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v011e_level_03/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/generic/cistern/pipes_cistern.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/generic/cistern/pipes_cistern.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v011e_level_04/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v011e_level_04/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v011e_level_04/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v021d_level_03/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v021d/level/03/flora/pra_sml_01.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v021d/level/03/flora/pra_sml_01.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v021d_level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v021d_level_03/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v021d/level/03/flora/pra_sml_01.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v021d/level/03/flora/pra_sml_01.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v021d_level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v021d_level_03/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v021d/level/03/flora/pra_sml_01.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v021d/level/03/flora/pra_sml_01.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v021d_level_03.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v021d_level_06/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v021d/generic/tent/tent_1.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v021d/generic/tent/tent_1.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v021d_level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v021d_level_06/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v021d/generic/tent/tent_1.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v021d/generic/tent/tent_1.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v021d_level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v021d_level_06/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v021d/generic/tent/tent_1.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v021d/generic/tent/tent_1.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v021d_level_06.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v069d_level_01/day_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/v069d_rudnya/level/01/terrain/terrain_bg_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/v069d_rudnya/level/01/terrain/terrain_bg_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v069d_level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v069d_level_01/day_3/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/v069d_rudnya/level/01/terrain/terrain_bg_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/v069d_rudnya/level/01/terrain/terrain_bg_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v069d_level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v069d_level_01/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/v069d_rudnya/level/01/terrain/terrain_bg_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/v069d_rudnya/level/01/terrain/terrain_bg_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v069d_level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v069d_level_01/day_5/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/v069d_rudnya/level/01/terrain/terrain_bg_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/v069d_rudnya/level/01/terrain/terrain_bg_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v069d_level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v069d_level_01/day_8/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/v069d_rudnya/level/01/terrain/terrain_bg_03.model/collision"
+      },
+      "like": {
+        "lib_name": "resources/models/v069d_rudnya/level/01/terrain/terrain_bg_03.model/collision"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v069d_level_01.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    }
+  ]
+}
