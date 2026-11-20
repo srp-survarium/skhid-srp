@@ -2943,6 +2943,21 @@ impl WalkGrid {
             *a = new_id[*a as usize];
             *s = new_id[*s as usize];
         }
+        // [give-back ids] The per-link tables the passes before made name the kept floors by their old ids, as the links do:
+        // each pair to the new ids, as [`Self::compact`] does (a kept floor's new id keeps the old order, so each table's order
+        // stays). Before, they kept the old ids, so past the first given-back floor each named another link or none: on School's
+        // final grid 109 of the 114 risers (each made rising `walked_step` or more) were level links and none of the 19 marked
+        // walks rose.
+        let pair = |(a, b): (u32, u32)| (new_id[a as usize], new_id[b as usize]);
+        for p in wide.marked.iter_mut().chain(wide.crouch.iter_mut()).chain(wide.held.iter_mut()).chain(wide.lips.iter_mut()) {
+            *p = pair(*p);
+        }
+        for (a, b, _) in &mut wide.riser {
+            (*a, *b) = pair((*a, *b));
+        }
+        for (a, b, _) in &mut wide.drop_speed {
+            (*a, *b) = pair((*a, *b));
+        }
         self.cell_of = cell_of;
         self.height = height;
         self.ceiling = ceiling;
