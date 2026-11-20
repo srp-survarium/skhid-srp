@@ -45,6 +45,7 @@ given), LIKELY or GUESS.
 | [match.md](match.md) | Match protocol: lockstep, handshake, message ids, snapshot and hash, time sync, input rules |
 | [world_frame_check.md](world_frame_check.md) | A world no game could load (its frame against the game's fixed buffers): refused by the match server and by the game itself (exe patch 87), one shared crate (`world-frame`) |
 | [transport.md](transport.md) | The UDP transport that matches **and now the lobby** use: header, acks, per-id lengths, multipart |
+| [netcode_069.md](netcode_069.md) | Retail 0.69d0's netcode against 0.26g: still lockstep with rollback, per-tick client and server updates, input confirmations, clock steering, ping inputs and lag-compensated hits; hit markers predicted, kills shown once sealed; what to port (sealed kill crosses first) |
 | [static_info.md](static_info.md) | Match start (0xE4): match options, profiles with kits, byte layout |
 | [kd-balance.md](kd-balance.md) | The sides of a match by K/D at the match's equipment level (the owner, 2026-11-01): squads 1.3 times, a small noise, late joiners, what a match counts |
 | [matchmaking.md](matchmaking.md) | The player's level as the client computes it, the search screen, srp's queue rules (sides of 8, level range, match level, least-played map) |
@@ -55,6 +56,7 @@ given), LIKELY or GUESS.
 | [module-report.md](module-report.md) | Module reports (exe patch 125): what each game tells the match server of what is loaded into it and drawn over it (modules, code that is no module, DLLs loaded since the process's first instruction, other programs' always-on-top windows over the game), the rules (log only, folders without user names), `release/moderate modules` |
 | [rust_patches.md](rust_patches.md) | Writing an exe patch in Rust: the workspace, the hook ABI, the engine bindings, typed game memory, panics and the log, testing, the equivalence gate a port must pass, the size budget |
 | [replay_sur.md](replay_sur.md) | The client's own replay file (`.sur`, `-match_replay`): its layout, and `srp-recording-to-sur`, which makes one from a match recording |
+| [netcode_port_069.md](netcode_port_069.md) | Porting 0.69's netcode to 0.26g and srp in Rust: the eight pieces, what each needs and gives, the phased plan; the tick length (every 50 ms site, the measured cost of 20 ms, options); lag compensation in 0.26g's Bullet world |
 | [replay_watch.md](replay_watch.md) | "Watch replay" from the lobby's History, the server side: conversion at match end, the lobby's `R1` answers and `9E` link, the download tokens, `/replays/<token>`, what is and is not reachable over HTTP |
 | [password-reset.md](password-reset.md) | The admin's password reset while srp runs: the page's Password tab (confirm step), a script's one POST and its answers, the curl from the jump host, the owner's rule (2026-10-18) |
 | [account-moderation.md](account-moderation.md) | The admin's Money and Take items tabs (the owner, 2026-10-20): the account's live silver, gold and items changed while srp runs, preview and confirm, never below 0, kits kept valid, the audit trail `g26_admin_actions` |
