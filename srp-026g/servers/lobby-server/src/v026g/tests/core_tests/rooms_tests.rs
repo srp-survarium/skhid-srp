@@ -2952,6 +2952,30 @@ fn a_strong_late_joiner_goes_to_the_side_with_fewer_strong_players() {
     assert_eq!(late_teams(&mut world, ticket, id, &[frank]), [0]);
 }
 
+/// One who leaves its room's match by the menu is out of the room even when
+/// that leaving ends the match before the lobby's next tick (the owner's of
+/// 2026-11-19: "sometimes they still exist, sometimes they don't"): the
+/// match's end no longer drops the leave unread.
+#[test]
+fn a_leave_that_ends_the_match_still_takes_the_member_out_of_the_room() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(&mut world, alice, spec(6), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(alice)).expect("a match");
+    assert!(sent_to_match(&world.take(bob)).is_some());
+    let alice_account = world.ids[alice].0;
+    assert!(world.store.matchmaking().leave_match(alice_account).is_some());
+    // The match ends at once, before any tick reads the leave.
+    world.end_match(ticket, 0);
+    world.settle();
+    assert_eq!(world.core.rooms.key_of(alice_account), None);
+    let room = world.core.rooms.get(key).expect("Bob keeps the room");
+    assert_eq!(room.members, [world.ids[bob].0]);
+}
+
 /// The answers to a create in one request (`4E 06`, the movie's `find_players`, its text a
 /// `RoomCreate`): the rows of each `91`; anything else the game took fails.
 fn create_in_one(world: &mut World, index: usize, text: &str) -> Vec<Vec<String>> {
