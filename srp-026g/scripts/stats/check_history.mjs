@@ -296,6 +296,7 @@ try {
   assert.equal(await evaluate("(i => new URL(i.src).pathname + new URL(i.src).search)(document.querySelector('.stats-panels img.stats-map'))"), played.map_icon, 'the match with its map\'s picture');
   assert.equal(await evaluate("(a => a.pathname + a.hash)([...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Map').nextSibling.querySelector('a'))"),
     `/wiki/maps#${played.map_key}/${played.rules}`);
+  assert.equal(await evaluate("(a => a.pathname + a.hash)(document.querySelector('.stats-panels a.stats-map-link'))"), `/wiki/maps#${played.map_key}/${played.rules}`, 'the picture leads there too');
   await navigate(`/wiki/maps?lang=en#${played.map_key}/${played.rules}`);
   assert.equal(await evaluate("document.querySelector('#maps [aria-pressed=true], .chip[aria-pressed=true]') !== null"), true, 'the Maps page opens');
   await navigate(`/stats?match=${newest}&lang=en`);
