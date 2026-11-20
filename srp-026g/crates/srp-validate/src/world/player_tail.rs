@@ -467,10 +467,20 @@ pub enum BatteryAnimation {
     ThirdPerson,
 }
 
+/// A kind of battery strike (exe patch 143, docs/notes/battery-hit.md), in
+/// the order a carrier's strikes take them: after the shove the ram again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BatteryStrike {
+    Ram,
+    Shove,
+}
+
 /// A battery's state machine's state (`victory_item_core`'s three:
-/// `victory_item_core_take_state`, `_carry_state`, `_drop_state`; an id
-/// past them crashes the reader), with its base state's fields and, for
-/// take and drop, the animation it waits for
+/// `victory_item_core_take_state`, `_carry_state`, `_drop_state`, then the
+/// five exe patch 143's cook callback appends: the ram's swing and
+/// recovery, then the shove's carry, swing and recovery; an id past them
+/// crashes the reader), with its base state's fields and, for
+/// all but a carry, the animation it waits for
 /// (`victory_item_core_animation_end_aware_state` 0x344870).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BatteryState {
@@ -478,10 +488,25 @@ pub enum BatteryState {
         motion: BatteryMotion,
         animation: Option<BatteryAnimation>,
     },
+    /// A carry: the game's own (index 1), from which the melee key starts
+    /// the ram, or patch 143's before the shove (5), a carry state as it.
     Carry {
         motion: BatteryMotion,
+        next: BatteryStrike,
     },
     Drop {
+        motion: BatteryMotion,
+        animation: Option<BatteryAnimation>,
+    },
+    /// A strike's swing (patch 143): a take state's layout, index 3 or 6.
+    Swing {
+        strike: BatteryStrike,
+        motion: BatteryMotion,
+        animation: Option<BatteryAnimation>,
+    },
+    /// A swing's recovery (patch 143): a take state's layout, index 4 or 7.
+    Recover {
+        strike: BatteryStrike,
         motion: BatteryMotion,
         animation: Option<BatteryAnimation>,
     },
@@ -491,8 +516,10 @@ impl BatteryState {
     pub fn motion(&self) -> BatteryMotion {
         match *self {
             BatteryState::Take { motion, .. }
-            | BatteryState::Carry { motion }
-            | BatteryState::Drop { motion, .. } => motion,
+            | BatteryState::Carry { motion, .. }
+            | BatteryState::Drop { motion, .. }
+            | BatteryState::Swing { motion, .. }
+            | BatteryState::Recover { motion, .. } => motion,
         }
     }
 }
@@ -637,18 +664,45 @@ impl CarriedBattery {
             index if index < BATTERY_CONTAINERS => Some(index),
             _ => return Err((at, Reason::TailBattery { at })),
         };
-        let state = match state_id(reader, 3)? {
+        // The machine's list (patch 143, vostok/battery.rs): take, carry,
+        // put; the ram's swing and recovery; the shove's carry, swing and
+        // recovery.
+        let carry = |reader: &mut Reader, next| -> Result<BatteryState, Fault> {
+            Ok(BatteryState::Carry {
+                motion: BatteryMotion::read(reader)?,
+                next,
+            })
+        };
+        let swing = |reader: &mut Reader, strike| -> Result<BatteryState, Fault> {
+            Ok(BatteryState::Swing {
+                strike,
+                motion: BatteryMotion::read(reader)?,
+                animation: BatteryMotion::animation(reader)?,
+            })
+        };
+        let recover = |reader: &mut Reader, strike| -> Result<BatteryState, Fault> {
+            Ok(BatteryState::Recover {
+                strike,
+                motion: BatteryMotion::read(reader)?,
+                animation: BatteryMotion::animation(reader)?,
+            })
+        };
+        let state = match state_id(reader, 8)? {
             0 => BatteryState::Take {
                 motion: BatteryMotion::read(reader)?,
                 animation: BatteryMotion::animation(reader)?,
             },
-            1 => BatteryState::Carry {
-                motion: BatteryMotion::read(reader)?,
-            },
-            _ => BatteryState::Drop {
+            1 => carry(reader, BatteryStrike::Ram)?,
+            2 => BatteryState::Drop {
                 motion: BatteryMotion::read(reader)?,
                 animation: BatteryMotion::animation(reader)?,
             },
+            3 => swing(reader, BatteryStrike::Ram)?,
+            4 => recover(reader, BatteryStrike::Ram)?,
+            5 => carry(reader, BatteryStrike::Shove)?,
+            6 => swing(reader, BatteryStrike::Shove)?,
+            // 7: state_id refuses an index past the eight
+            _ => recover(reader, BatteryStrike::Shove)?,
         };
         Ok(Self {
             at: record_at,
@@ -1243,6 +1297,7 @@ mod tests {
             game_mode: crate::mode::BATTERIES,
             batteries: 0,
             respawn_points: None,
+            team_2_points: None,
             profiles,
             artefacts: Some(ARTEFACTS),
             objects: None,
@@ -1368,8 +1423,9 @@ mod tests {
     #[test]
     fn a_carried_battery_reads_its_state_and_the_header_goes_on() {
         // Place 0 carries battery 3: its mask, its user (place 0), no
-        // container, its state machine in carry (157 bytes), its portable
-        // object (selector state 1: nothing), then A and the slot bytes.
+        // container, its state machine in a carry (157 bytes; any other
+        // state a byte more), its portable object (selector state 1:
+        // nothing), then A and the slot bytes.
         let battery = |user: u8, container: u8, state: u8| {
             let mut state_bytes = valid_state();
             let tail = state_bytes.split_off(CARRIED_AT);
@@ -1377,7 +1433,7 @@ mod tests {
             state_bytes.extend(1u32.to_le_bytes());
             state_bytes.extend([user, container, state, 0x00]);
             state_bytes.extend([0; 152]);
-            if state != 1 {
+            if ![1, 5].contains(&state) {
                 state_bytes.push(0);
             }
             state_bytes.extend([0; 4]);
@@ -1405,7 +1461,39 @@ mod tests {
             }
         ));
         let reason = |state: &[u8]| with_profile(state).expect_err("refused").reason;
-        // Another user, a container past the two, a state past the three.
+        // The strikes (patch 143): each one's carry (a carry's layout), swing
+        // and recovery (a take's), by the machine's index.
+        let read = |index: u8| {
+            let state = battery(0, 0xFF, index);
+            let read = PlayerState::read(&state, 1, None).unwrap();
+            read.inventory().carried().unwrap().state()
+        };
+        for (strike, carry, swing, recover) in [
+            (BatteryStrike::Ram, 1, 3, 4),
+            (BatteryStrike::Shove, 5, 6, 7),
+        ] {
+            assert!(
+                matches!(read(carry), BatteryState::Carry { next, .. } if next == strike),
+                "{strike:?}"
+            );
+            assert!(
+                matches!(
+                    read(swing),
+                    BatteryState::Swing { strike: read, animation: Some(BatteryAnimation::FirstPerson), .. }
+                        if read == strike
+                ),
+                "{strike:?}"
+            );
+            assert!(
+                matches!(
+                    read(recover),
+                    BatteryState::Recover { strike: read, animation: Some(BatteryAnimation::FirstPerson), .. }
+                        if read == strike
+                ),
+                "{strike:?}"
+            );
+        }
+        // Another user, a container past the two, a state past the eight.
         assert!(matches!(
             reason(&battery(1, 0xFF, 1)),
             Reason::TailBattery { .. }
@@ -1415,8 +1503,8 @@ mod tests {
             Reason::TailBattery { .. }
         ));
         assert!(matches!(
-            reason(&battery(0, 0xFF, 3)),
-            Reason::TailGunState { state: 3, .. }
+            reason(&battery(0, 0xFF, 8)),
+            Reason::TailGunState { state: 8, .. }
         ));
     }
 

@@ -317,7 +317,7 @@ impl Restore<'_> {
                 }
                 Err(message) => {
                     let _ = win::delete(&part);
-                    if self.session.stopped {
+                    if self.session.stopped() {
                         self.stopped = true;
                         return None;
                     }
@@ -557,7 +557,7 @@ pub fn run(session: &mut Session, layout: &Layout, server: Option<&Url>) -> Outc
     step.save();
     if step.record.is_empty() {
         let _ = win::delete(&beside(RECORD_FILE));
-    } else if !step.stopped && !step.session.stopped {
+    } else if !step.stopped && !step.session.stopped() {
         log!(
             "resources: {} region(s) not restored yet ({}): next time",
             step.record.len(),
@@ -569,7 +569,7 @@ pub fn run(session: &mut Session, layout: &Layout, server: Option<&Url>) -> Outc
         );
     }
     step.sweep();
-    if step.stopped || step.session.stopped {
+    if step.stopped || step.session.stopped() {
         log!("resources: stopped; the rest next time");
         return Outcome::Stopped;
     }

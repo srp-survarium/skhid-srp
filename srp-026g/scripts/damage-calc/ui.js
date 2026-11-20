@@ -744,7 +744,7 @@ function fillHealPick() {
     });
     items.append(el("span", { class: "lbl", text: nm(b) }), RULES.hinted(t, RULES.card(nm(b), b.card || [])));
   }
-  const panel = el("div", { class: "gamemods" });
+  const panel = el("div", { class: "gamemods rows" });
   if (rec.gear) {
     pick.gear = pick.gear || {};
     const src = DATA.mod_icons && DATA.mod_icons[rec.gear.icon], name = (LANG === "uk" && rec.gear.label_uk) || rec.gear.label;

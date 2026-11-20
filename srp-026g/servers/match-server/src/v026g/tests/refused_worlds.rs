@@ -41,7 +41,7 @@ fn load(bench: &mut Bench, place: usize) {
 }
 
 /// A stock game (no uploads: never a source) of a growing match.
-fn stock(place: usize, players: usize, map_id: u8) -> Client {
+fn stock(place: usize, players: usize, map_id: survarium::v026g::maps::MapId) -> Client {
     let mut client = Client::new(session_of(place), false, players, map_id);
     client.model.growing_roster = true;
     client.sim.snapshot_players = 20;

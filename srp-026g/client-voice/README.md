@@ -6,20 +6,25 @@ preprocessor, as 0.69), per-speaker jitter buffers, mutes and the retail radio e
 the options' microphone test (`src/mic_test.rs`: 10 s recorded through a transmission's path
 and played back, in a match or with none; `docs/notes/voice-chat.md`, "Microphone test"), and the
 options' Microphone list (`src/microphone.rs`: WinMM's capture devices by their endpoint IDs, named
-whole through MMDevice; "Microphone" in the same note). A plain
-voice's gains in the two ears are the game's: patch 66 asks its sound engine for each speaker's
-and tells them (`sv_hear`); the DLL only mixes by them.
+whole through MMDevice; "Microphone" in the same note). An utterance is on one of two channels,
+by the push-to-talk key held (`sv_ptt`; "Two keys" in the same note): the nearby voice or the
+radio. The nearby voice's gains in the two ears are the game's: patch 66 asks its sound engine for
+each speaker's and tells them, with whether the speaker's radio is heard (`sv_hear`); the DLL
+only plays each utterance by its channel. Every speaker is brought to one loudness
+(`receiver::Leveller`), and the mix is held under full scale by a limiter that
+turns it down (`receiver::Master`), and a frame that did not come is played from the next
+frame's copy of it (Opus' in-band FEC; "Steadier sound" in the same note).
 The arena patch loads its optional interface from `crates/voice-abi`; missing or
 incompatible DLLs leave voice disabled.
 
-Build the 32-bit Windows 7 DLL with the same pinned Rust compiler and static
+Build the 32-bit Windows DLL with the same pinned Rust compiler and static
 Microsoft C runtime as BugTrap:
 
 ```sh
 nix develop ./srp-026g -c bash srp-026g/client-voice/build.sh
 ```
 
-The result is `srp-026g/target-voice/i686-win7-windows-msvc/release/skhid_voice.dll`.
+The result is `srp-026g/target-voice/i686-pc-windows-msvc/release/skhid_voice.dll`.
 The build checks its exports against the shared ABI and refuses non-system DLL
 imports. Opus and speexdsp are static; their COFF archives and GCC integer/stack
 helpers are prepared by the pinned Nix `voice-opus` package. No GNU runtime DLL is required.

@@ -153,6 +153,10 @@ const MIGRATIONS: &[&str] = &[
     "",
     // 15: player reports and compliments.
     comments::MIGRATION,
+    // 16: the shop's "Hide owned" box (`extras`).
+    extras::SHOP_OWNED_MIGRATION,
+    // 17: the PIN of an account's last room made by hand (`room_settings`).
+    room_settings::PIN_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.
@@ -1192,6 +1196,7 @@ mod tests {
             tiles_off: vec![(2, 1), (4, 3)],
             tiles_on: vec![(10, 1)],
             modes_off: vec![4],
+            pin: Some(7),
         });
         account
     }

@@ -1704,8 +1704,9 @@ def test_match_keys(original, image, before):
 
 
 def test_voice(original, image, before):
-    """Check 66: voice chat (patch 66: voice.toml's eleven lohooks; its key the
-    game's ptt, a key or a mouse button, the action table the game's), the movies' side."""
+    """Check 66: voice chat (patch 66: voice.toml's eleven lohooks; its two keys, a key or
+    a mouse button each: the game's ptt and the action entry VOICE_ACTION, whose Controls
+    row is test_hide_ui's), the movies' side."""
     print("voice chat (patch 66)")
     stock = Image(original)
     rows = lambda source, va, size: [text for _, _, text in ndisasm(source.read(va, size), va)]
@@ -1725,6 +1726,16 @@ def test_voice(original, image, before):
     check(cstr(ptt[0]) == b"ptt" and ptt[1:4] == (0x47, 8, 0) and cstr(ptt[4]) == b"kP"
           and image.read(0xA74F8C, 20) == stock.read(0xA74F8C, 20),
           "the action table's entry 0xA74F8C is the game's ptt (47h, kind 8, kP), unchanged in the build")
+    entry = struct.unpack("<5I", stock.read(P.VOICE_ACTION, 20))
+    check(stock.read(P.VOICE_ACTION, 20) == P.VOICE_ACTION_OLD == before.read(P.VOICE_ACTION, 20)
+          and cstr(entry[0]) == b"serialize_player_state" and entry[1:4] == (0x37, 5, 0) and cstr(entry[4]) == b"kO"
+          and [struct.unpack("<5I", stock.read(0xA74AF0 + 20 * i, 20))[1] for i in range(60)].count(0x37) == 1,
+          "0xA74E10 is the action table's one entry of 37h: serialize_player_state, kinds 5, kO (a debug "
+          "action: no console command of that name)")
+    name = P.arena().symbols["ptt_nearby_action"]
+    check(struct.unpack("<5I", image.read(P.VOICE_ACTION, 20)) == (name, 0x37, 8, 0, entry[4])
+          and image.read(name, 11) == b"ptt_nearby\0",
+          "in the build it is ptt_nearby (the arena's name), kind 8, its default key O kept")
     linked = P.arena()
     block = linked.blocks["patches.code"]
     declarations = {h["entry"]: h for h in P.hooks_026g.hooks(exe=P.hooks_026g.original_reader(original))
@@ -1749,17 +1760,20 @@ def test_voice(original, image, before):
     mic_test = here("flash", "main_menu", "src", "SrpMicTest.as")
     check("public function srp_mic_test(text:String)" in here("flash", "main_menu", "src", "MainMenu.as")
           and 'public static const NAME:String = "srp_mic_test";' in mic_test and "SrpExe.call(NAME, null);" in mic_test
-          and 'SrpExe.call(NAME, Math.round(volume.selectedIndex) + " " + Math.round(sensitivity.selectedIndex));' in mic_test
+          and 'SrpExe.call(NAME, String(Math.round(volume.selectedIndex)));' in mic_test
           and 'private static const STOP:String = "stop";' in mic_test and "SrpExe.call(NAME, STOP);" in mic_test,
           "the main menu has root.srp_mic_test; the sound tab's Test microphone button asks srp_mic_test, sends a "
-          "press with the two voice sliders' steps and says stop as the Settings window closes")
+          "press with the voice chat volume slider's steps and says stop as the Settings window closes")
     microphone = here("flash", "main_menu", "src", "SrpMicrophone.as")
     check("public function srp_microphone(... values)" in here("flash", "main_menu", "src", "MainMenu.as")
           and 'public static const NAME:String = "srp_microphone";' in microphone and "SrpExe.call(NAME, null);" in microphone
-          and "SrpExe.call(NAME, saved);" in microphone,
-          "the main menu has root.srp_microphone; the sound tab's Microphone list asks srp_microphone and sends "
-          "Apply's pick by its id")
-    check("public function srp_voice_talking(... names)" in hud
+          and "SrpExe.call(NAME, saved);" in microphone
+          and 'private static const USE:String = "srp_microphone_use";' in microphone
+          and "SrpExe.call(USE, pending ? ids[menu.selectedIndex] : null);" in microphone
+          and "SrpExe.call(USE, null);" in microphone,
+          "the main menu has root.srp_microphone; the sound tab's Microphone list asks srp_microphone, sends "
+          "Apply's pick by its id, a pick at once by srp_microphone_use and the saved one again at its revert")
+    check("public function srp_voice_talking(... speakers)" in hud
           and "public function srp_voice_menu(place:uint, offered:uint, muted:uint)" in hud
           and "public function srp_voice_mute(place:uint, done:uint)" in hud
           and 'this.call("srp_voice_menu",String(row.id));' in menu
@@ -1768,10 +1782,13 @@ def test_voice(original, image, before):
           in here("flash", "main_menu", "src", "survarium", "menu", "Settings.as")
           and "this._hide_spam.enabled = true;" in timeline and "this._use_mik.enabled = true;" in timeline
           and "this._sound_сhat.slider.enabled = false;" not in timeline
-          and "this._mic_sens.slider.enabled = false;" not in timeline,
+          and ('var sensitivity:DisplayObject = this.settings_content["_mic_sens"] as DisplayObject;\n'
+               '         if(sensitivity)\n         {\n            sensitivity.visible = false;\n         }')
+          in here("flash", "main_menu", "src", "survarium", "menu", "Settings.as"),
           "the hud has root.srp_voice_talking and the Tab menu's root.srp_voice_menu and "
           "root.srp_voice_mute, its row menu asks srp_voice_menu and sends srp_voice_mute; the options enable "
-          "Disable voice chat (_hide_spam), Use microphone, the voice volume and the microphone's sensitivity")
+          "Disable voice chat (_hide_spam), Use microphone and the voice volume, and hide the microphone's "
+          "sensitivity")
 
 def test_hide_ui(original, image, before):
     """Check 62: the key that hides the interface (patch 62,
@@ -1819,7 +1836,8 @@ def test_hide_ui(original, image, before):
           == [key.encode() + b"\0" for _, key in P.CONTROLS_ADDED],
           f"`controls` ({controls:#x}, hide_ui.data) is the game's 40 rows (push-to-talk's in the game group, "
           "its key settable), each pointing into itself, a 41st: "
-          "19h, st_hide_interface_action, and a 42nd: 23h, st_hold_artifact_action, group 2, type 1")
+          "19h, st_hide_interface_action, a 42nd: 23h, st_hold_artifact_action, and a 43rd: 37h, "
+          "st_ptt_nearby_action, group 2, type 1")
     check("\nedit\tlocalization-1.json\t-\t" in open(os.path.join(HERE, "..", "..", "release", "content.tsv"),
                                                        encoding="utf-8").read(),
           "release/content.tsv makes the label (localization-1.json)")

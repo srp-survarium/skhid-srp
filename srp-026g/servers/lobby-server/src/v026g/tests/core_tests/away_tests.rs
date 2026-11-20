@@ -31,7 +31,7 @@ impl World {
     fn connect_again(&mut self, index: usize, port: u16) {
         let session_id = self.ids[index].1;
         self.clients[index] = (
-            format!("127.0.0.1:{port}").parse().unwrap(),
+            udp_transport::relay::Peer::direct(format!("127.0.0.1:{port}").parse().unwrap()),
             TestClient::new(),
         );
         self.client(index).sign_in(session_id, false);
@@ -225,7 +225,7 @@ fn a_client_away_through_its_match_comes_back_to_the_lobby_after_it() {
     world.silent_for(alice, Duration::from_secs(121));
     // Carol's game is gone for good.
     let gone = world.clients[carol].0;
-    world.clients[carol].0 = "127.0.0.1:1".parse().unwrap();
+    world.clients[carol].0 = udp_transport::relay::Peer::direct("127.0.0.1:1".parse().unwrap());
     world.advance(Duration::from_secs(121));
     assert!(world.core.player(gone).is_none());
     assert_eq!(world.core.away.len(), 2);

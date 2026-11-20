@@ -484,6 +484,51 @@ fn squad_and_quest_actions() {
     assert_eq!(read("4B 02"), M::SkipTutorial);
 }
 
+/// The results' menu sends a clan member's name as its row shows it,
+/// `[TAG] name`: add to friends, ignore, a report or praise all name the
+/// player, not the shown form.
+#[test]
+fn a_target_shown_with_its_clan_tag_is_the_player() {
+    assert_eq!(
+        read("4D 00000000 '[ARTS] Strelok_NK' 00 00"),
+        M::Important {
+            target_name: "Strelok_NK".into(),
+            kind: 0,
+            text: String::new(),
+            extra: None
+        }
+    );
+    assert_eq!(
+        read("4E 04 '[A B] Troll'"),
+        M::Friendship(FriendshipAction::IgnoreByName {
+            name: "Troll".into()
+        })
+    );
+    assert_eq!(
+        read("49 05 '[ARTS] Bob' 02 02"),
+        M::CommentAboutUser {
+            nickname: "Bob".into(),
+            comment: PlayerComment::GoodPlayer
+        }
+    );
+    assert_eq!(
+        read("4C 00000000 '[ARTS] Bob' 04 'psst'"),
+        M::ChatText {
+            channel_id: 0,
+            receiver: "Bob".into(),
+            channel: 4,
+            body: "psst".into()
+        }
+    );
+    // A name with brackets but no tag before a blank is the name.
+    assert_eq!(
+        read("4E 04 '[Bob]'"),
+        M::Friendship(FriendshipAction::IgnoreByName {
+            name: "[Bob]".into()
+        })
+    );
+}
+
 #[test]
 fn chat_messages() {
     // `u32 channel id, string receiver, u8 channel, string body`.
@@ -557,6 +602,18 @@ fn chat_messages() {
         read("4E 06 'Bo'"),
         M::Friendship(F::FindPlayers { name: "Bo".into() })
     );
+    // A search whose text is a room create is that create (`rooms::RoomCreate`), a bad one
+    // refused, never a search.
+    use crate::v026g::lobby::rooms::{BadCreate, PoolPick, PrivateKind, RoomCreate};
+    assert_eq!(
+        read("4E 06 'S1C;P0042;5'"),
+        M::RoomCreate(Ok(RoomCreate {
+            pin: 42,
+            kind: PrivateKind::Players,
+            pool: PoolPick::default().with(0).with(2),
+        }))
+    );
+    assert_eq!(read("4E 06 'S1C;P42;5'"), M::RoomCreate(Err(BadCreate)));
     // 10 x u32 by channel number, then the language.
     assert_eq!(
         read(

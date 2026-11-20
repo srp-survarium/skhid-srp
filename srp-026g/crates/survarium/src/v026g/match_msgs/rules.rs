@@ -319,7 +319,7 @@ mod tests {
 
     fn params(roster: u8) -> TimelimitParams {
         // Map 61: level_01 day, mode 2.
-        TimelimitParams::of(maps::map_mode(61).unwrap(), roster)
+        TimelimitParams::of(maps::map_mode(maps::MapId::new(61)).unwrap(), roster)
     }
 
     #[test]

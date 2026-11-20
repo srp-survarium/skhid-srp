@@ -4,19 +4,20 @@
 //! the room's size, 20 at the most); a private room's owner starts one alone.
 
 use std::collections::HashSet;
+use survarium::v026g::maps::MapId;
 
 use super::*;
 use crate::v026g::MatchSetup;
 
 /// The free-for-alls of the test data.
-fn free_for_alls() -> Vec<u8> {
+fn free_for_alls() -> Vec<MapId> {
     maps::playable_in(maps::GameMode::FreeForAll)
         .map(|map| map.id)
         .collect()
 }
 
 /// A lobby whose match pool is `pool`.
-fn world_of(pool: Vec<u8>) -> World {
+fn world_of(pool: Vec<MapId>) -> World {
     let mut settings = Settings::local("127.0.0.1:0");
     settings.maps = pool;
     World::with_settings(settings)
@@ -56,7 +57,7 @@ fn accounts(world: &World, members: &[usize]) -> HashSet<u32> {
 #[test]
 fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() {
     let free_for_all = free_for_alls()[0];
-    let mut world = world_of(vec![61, 117, free_for_all]);
+    let mut world = world_of(vec![MapId::new(61), MapId::new(117), free_for_all]);
     let alice = world.connect("Alice");
     let bob = world.connect("Bob");
     let carol = world.connect("Carol");
@@ -69,7 +70,7 @@ fn a_room_whose_vote_wins_a_free_for_all_card_plays_it_with_each_ready_member() 
     let voting = state(&mut world, alice);
     assert_eq!(header(&voting)[PHASE], "3", "the vote");
     let offered = cards(&voting);
-    assert!(offered[..2].contains(&61) && offered[..2].contains(&117), "{offered:?}");
+    assert!(offered[..2].contains(&MapId::new(61)) && offered[..2].contains(&MapId::new(117)), "{offered:?}");
     assert_eq!(offered[2..], [free_for_all], "{offered:?}");
     for index in [alice, bob, carol] {
         rows(&mut world, index, ROOM_VOTE_BASE + 2, 1);

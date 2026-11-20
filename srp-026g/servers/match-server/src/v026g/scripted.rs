@@ -43,7 +43,7 @@ pub const INITIAL_MS: u32 = 50;
 pub struct Sim {
     pub players: usize,
     pub snapshot_players: usize,
-    pub map_id: u8,
+    pub map_id: maps::MapId,
     /// The timelimit rule as the last snapshot gave it, or as the match
     /// was made ready.
     base: TimelimitRule,
@@ -99,7 +99,7 @@ pub struct Sim {
 }
 
 impl Sim {
-    pub fn new(players: usize, map_id: u8) -> Self {
+    pub fn new(players: usize, map_id: maps::MapId) -> Self {
         let map = maps::map_mode(map_id).expect("a map of the tests");
         let mut base = TimelimitRule::new(TimelimitParams::of(map, players as u8));
         base.on_match_ready(INITIAL_MS);
@@ -307,8 +307,9 @@ impl Sim {
             }
         });
         // A free-for-all (mode 8) has no rule of its own: none of `gather`,
-        // `tdm` and `research` is written, and the kd stats (`kills_from`)
-        // follow the respawn rule.
+        // `tdm` and `research` is written; exe patch 142's spawn history
+        // (nobody spawned) follows the respawn rule, then the kd stats
+        // (`kills_from`).
         let rules = Rules {
             timelimit: Timelimit {
                 start: rule.start,
@@ -328,6 +329,8 @@ impl Sim {
             gather,
             tdm,
             research,
+            free_for_all: (self.game_mode() == RuleMode::FreeForAll)
+                .then_some(srp_validate::world::SpawnHistory::EMPTY),
             kills_deaths,
             team_respawn: self
                 .team_respawn_from
@@ -638,7 +641,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(session: u32, patched: bool, players: usize, map_id: u8) -> Self {
+    pub fn new(session: u32, patched: bool, players: usize, map_id: maps::MapId) -> Self {
         Self {
             session,
             model: ClientModel::new(patched),
@@ -716,7 +719,7 @@ impl Client {
         client
     }
 
-    pub fn growing(session: u32, players: usize, map_id: u8) -> Self {
+    pub fn growing(session: u32, players: usize, map_id: maps::MapId) -> Self {
         let mut client = Self::new(session, true, players, map_id);
         client.model.growing_roster = true;
         client.sim.snapshot_players = 20;

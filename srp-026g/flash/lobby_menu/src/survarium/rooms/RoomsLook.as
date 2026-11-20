@@ -47,13 +47,13 @@ package survarium.rooms
         public static const DOTS:String = "…";
         // The render a level is drawn with: the v0.21 ports with the map they
         // are an older look of, the v0.11 and v0.69 ones with their one loading image.
-        private static const RENDER_LEVEL:Object = {"10": 3, "11": 6};
-        private static const RENDER_ONE:Object = {"12": "Level_v011e", "13": "Level_v011e", "14": "Level_v069d_rudnya", "15": "Level_cs_mp_bath", "16": "Level_cs_mp_military_1", "17": "Level_cs_training_camp", "18": "Level_cs_mp_rembasa", "19": "Level_soc_ug_station", "20": "Level_soc_ug_depository"};
+        private static const RENDER_LEVEL:Object = {"10": 3, "11": 6, "25": 2, "26": 5, "29": 1, "31": 4};
+        private static const RENDER_ONE:Object = {"12": "Level_v011e_chemical", "13": "Level_v011e", "14": "Level_v069d_rudnya", "15": "Level_cs_mp_bath", "16": "Level_cs_mp_military_1", "17": "Level_cs_training_camp", "18": "Level_cs_mp_rembasa", "19": "Level_soc_ug_station", "20": "Level_soc_ug_depository", "23": "Level_cs_mp_firestation"};
         private static const RENDER:Object = {"1": "day", "2": "rain", "3": "evn", "4": "night", "5": "prerain"};
         private static var _renders:Object = {};
         // A vote card's mode tag: the protective devices blue, team
         // deathmatch red, Research green, Blackout white, free for all amber.
-        private static const MODE_COLOUR:Object = {"4": 0xB23A2A, "5": 0x6E9A3C, "6": 0xE8EEF2, "8": 0xD08A2E, "9": 0xC94FD6, "10": 0xB07A3C};
+        private static const MODE_COLOUR:Object = {"4": 0xB23A2A, "5": 0x6E9A3C, "6": 0xE8EEF2, "8": 0xD08A2E, "9": 0xC94FD6, "10": 0xB07A3C, "11": 0xB07A3C};
 
         public static function modeColour(mode:int):uint
         {
@@ -388,11 +388,39 @@ package survarium.rooms
             tf.mouseEnabled = true;
             tf.tabEnabled = true;
             tf.addEventListener(MouseEvent.MOUSE_DOWN, onPress, false, 0, true);
+            tf.addEventListener(MouseEvent.MOUSE_UP, onRelease, false, 0, true);
             route(tf, function(control:DisplayObject, e:MouseEvent):void
             {
-                FocusManager.setFocus(control as TextField);
+                focusAtEnd(control as TextField);
             });
             return tf;
+        }
+
+        // Focus with the caret after the digits (the owner's of 2026-11-19:
+        // a click put it at the start). The click may place it after this
+        // runs: again on release and on the next frame.
+        private function focusAtEnd(tf:TextField):void
+        {
+            FocusManager.setFocus(tf);
+            caretToEnd(tf);
+            tf.addEventListener(Event.ENTER_FRAME, onCaretFrame, false, 0, true);
+        }
+
+        private function onRelease(e:MouseEvent):void
+        {
+            caretToEnd(e.currentTarget as TextField);
+        }
+
+        private function onCaretFrame(e:Event):void
+        {
+            var tf:TextField = e.currentTarget as TextField;
+            tf.removeEventListener(Event.ENTER_FRAME, onCaretFrame);
+            caretToEnd(tf);
+        }
+
+        private static function caretToEnd(tf:TextField):void
+        {
+            tf.setSelection(tf.text.length, tf.text.length);
         }
 
         // A control and what a press on it does, (control, event).
@@ -442,7 +470,7 @@ package survarium.rooms
 
         private function onPress(e:MouseEvent):void
         {
-            FocusManager.setFocus(e.currentTarget as TextField);
+            focusAtEnd(e.currentTarget as TextField);
         }
 
         internal function line(box:Sprite, x:Number, y:Number, w:Number):void

@@ -639,6 +639,140 @@ impl FreeRecord {
     }
 }
 
+/// What the list holds: its records, the records it has room for, and the
+/// bytes of its records' files.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Held {
+    pub records: u32,
+    pub room: u32,
+    pub bytes: u32,
+}
+
+/// A record's bytes.
+pub const RECORD_BYTES: usize = raw::BakedTextureData::SIZE;
+
+impl List {
+    /// The list's first record and how many it holds; none for a list
+    /// with no begin or an end before it.
+    fn records() -> Option<(raw::BakedTextureData, usize)> {
+        let baker = raw::image::baker();
+        // SAFETY: the baker static's list.
+        let (begin, end) = unsafe { (baker.list_begin()?, baker.list_end()?) };
+        Some((begin, (end.address().checked_sub(begin.address())? as usize) / RECORD_BYTES))
+    }
+
+    /// What the list holds; none for a list with no begin.
+    pub fn held() -> Option<Held> {
+        let (begin, records) = List::records()?;
+        let baker = raw::image::baker();
+        // SAFETY: the baker static's list.
+        let (capacity, bytes) = unsafe { (baker.list_capacity()?, read(baker.list_bytes())) };
+        let room = (capacity.address().checked_sub(begin.address())? as usize) / RECORD_BYTES;
+        Some(Held { records: records as u32, room: room as u32, bytes })
+    }
+
+    /// The list's records moved into `room` (zeroed bytes of ours, kept for
+    /// good), which has room for more records than the list holds: each
+    /// copied in its order, its path's pointers into its new self, then the
+    /// list's begin, end and capacity set. The game's own storage is 1024
+    /// records inside the baker, and its push_back writes past a full list
+    /// (0x132640: an assertion, then the write); the game reads the list
+    /// through its begin, end and capacity alone (its storage's address is
+    /// in its constructor 0x12CCE0 and nowhere else). The storage before is
+    /// left as it is (the baker's own, or pages kept for good): a record the
+    /// game was given before stays readable. Whether it moved.
+    pub fn move_to(room: &'static mut [u8]) -> bool {
+        let (baker, count) = (raw::image::baker(), room.len() / RECORD_BYTES);
+        let Some((old, records)) = List::records() else { return false };
+        if !room.as_ptr().cast::<raw::BakedTextureDataStorage>().is_aligned() || count <= records {
+            return false;
+        }
+        // SAFETY: `count` records' bytes of ours alone, aligned, for good,
+        // more than the list's records; each record of begin..end read and
+        // copied into its own room; then the baker static's list.
+        unsafe {
+            let rooms = core::slice::from_raw_parts_mut(room.as_mut_ptr().cast::<raw::BakedTextureDataStorage>(), count);
+            let Some(first) = raw::BakedTextureDataStorage::first(rooms) else { return false };
+            for index in 0..records {
+                copy_record(old.at(index), first.at(index));
+            }
+            baker.set_list_begin(Some(first));
+            baker.set_list_end(Some(first.at(records)));
+            baker.set_list_capacity(Some(first.at(count)));
+        }
+        true
+    }
+
+    /// The record of the least age with no load of it under way (the one
+    /// remove_unwanted_files lets go first); none when every record is
+    /// loading, or the list is empty.
+    pub fn oldest() -> Option<Record> {
+        let (begin, records) = List::records()?;
+        // SAFETY: each record of begin..end.
+        (0..records)
+            .map(|index| unsafe { begin.at(index) })
+            .filter(|&record| unsafe { read(record.loading()) } == 0)
+            .min_by_key(|&record| unsafe { read(record.age()) })
+            .map(Record)
+    }
+}
+
+/// A record in the list.
+pub struct Record(raw::BakedTextureData);
+
+impl Record {
+    /// Its path (user_data/streamed_textures/<name>.dds); none without a
+    /// NUL in its text.
+    pub fn path(&self) -> Option<&[u8]> {
+        // SAFETY: the record's text, its own 104h bytes, while it is in the
+        // list (the borrow is this Record's; remove takes it).
+        unsafe { c_string(self.0.text(), RECORD_TEXT).map(|text| text.to_bytes()) }
+    }
+
+    /// The record out of the list: the list's last record takes its place
+    /// (the game's look-up walks the list by path, and its own trim sorts
+    /// it: no order is kept), the list's end one record back, its bytes
+    /// less this record's. Its file's bytes.
+    pub fn remove(self) -> u32 {
+        let (record, baker) = (self.0, raw::image::baker());
+        let Some((begin, records)) = List::records().filter(|&(_, records)| records > 0) else { return 0 };
+        // SAFETY: the record and the last one, both in begin..end (the
+        // list has records, and a Record is one of them); then the list's
+        // fields.
+        unsafe {
+            let (bytes, last) = (read(record.file_bytes()), begin.at(records - 1));
+            if last != record {
+                copy_record(last, record);
+            }
+            baker.set_list_end(Some(last));
+            baker.list_bytes().write_volatile(read(baker.list_bytes()).wrapping_sub(bytes));
+            bytes
+        }
+    }
+}
+
+/// `to` made a copy of the record `from`: its text, its path's pointers
+/// into `to`'s own text (the same length, at most its room less the NUL),
+/// the '/', CRC, size, age and loading mark.
+///
+/// # Safety
+/// Both are whole records, `from` read and `to` written, not the same.
+unsafe fn copy_record(from: raw::BakedTextureData, to: raw::BakedTextureData) {
+    // SAFETY: the caller's: two records' bytes.
+    unsafe {
+        let (text, length) = (to.text(), (from.path_end() as usize).wrapping_sub(from.text() as usize));
+        core::ptr::copy_nonoverlapping(from.text().cast_const(), text, RECORD_TEXT);
+        to.set_path_begin(text);
+        to.set_path_end(text.wrapping_add(length.min(RECORD_TEXT - 1)));
+        to.set_path_capacity(text.wrapping_add(RECORD_TEXT));
+        to.separator().write_volatile(read(from.separator()));
+        to.crc().write_volatile(read(from.crc()));
+        to.file_bytes().write_volatile(read(from.file_bytes()));
+        to.age().write_volatile(read(from.age()));
+        to.loading().write_volatile(read(from.loading()));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Asker, BakeLayer};

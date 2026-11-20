@@ -105,6 +105,26 @@ class MapEditorEdits(unittest.TestCase):
             ce.set_vector(data, 'bounding_box/max', [2, 1, 1], [0, 0, 0])
         self.assertEqual(data, before)
 
+    def test_set_vector_preserves_native_float2_and_float4(self):
+        for original, target in [((1.0, 2.0), [3.0, 4.0]),
+                                 ((0.25, 0.25, 0.25, 1.0), [1.0, 1.0, 1.0, 1.0])]:
+            with self.subTest(dimensions=len(original)):
+                data = config({'vector': original, 'neighbor': 'unchanged'})
+                before_type = ce.rec(data, ce.find(data, 'vector'))[3]
+                ce.set_vector(data, 'vector', list(original), target)
+                at, _, _, kind, _ = ce.rec(data, ce.find(data, 'vector'))
+                self.assertEqual(kind, before_type)
+                self.assertEqual(struct.unpack_from('<%df' % len(target), data, at), tuple(target))
+                self.assertEqual(value(data, 'neighbor'), 'unchanged')
+                before = bytes(data)
+                with self.assertRaises(ValueError):
+                    ce.set_vector(data, 'vector', list(original), target)
+                self.assertEqual(data, before)
+                for frm, to in [(target[:-1], target), (target, target[:-1])]:
+                    with self.assertRaises(TypeError):
+                        ce.set_vector(data, 'vector', frm, to)
+                    self.assertEqual(data, before)
+
     def test_nested_copy_does_not_change_the_model(self):
         data = fixture()
         ce.add_entry(data, 'objects', {'full_name': 'first'}, {'full_name': 'first'},
@@ -236,6 +256,24 @@ class MapEditorEdits(unittest.TestCase):
                              {'', '/data', '/data/k_arp', '/parameters', '/parameters/weight', '/parameters/item_level'})
             self.assertEqual(value(data, 'parameters/item_level'), 4)
             self.assertNotEqual(run(['parameters/buckshot'], 'out2').returncode, 0)
+
+    def test_cli_replaces_a_key_removed_and_added_again(self):
+        # A table a pack carried from another file (the lamps' srp_lamps), made anew.
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / 'live').mkdir()
+            (root / 'live/p').write_bytes(bytes(config({'t': {'a': 1, 'b': 2.0}, 'keep': 3})))
+            (root / 'edits.json').write_text(json.dumps({
+                'remove_key': [{'files': 'p', 'keys': ['t']}],
+                'add_value': [{'files': ['p'], 'table': '', 'key': 't', 'value': {'a': 5, 'c': 'x'}}]}))
+            result = subprocess.run([sys.executable, str(Path(ce.__file__).resolve()),
+                                     str(root / 'edits.json'), str(root / 'live'), str(root / 'out')],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn('0 unexpected differences', result.stdout)
+            data = bytearray((root / 'out/p').read_bytes())
+            self.assertEqual((value(data, 't/a'), value(data, 'keep')), (5, 3))
+            self.assertEqual({q for q, _, _ in ce.walk(data)}, {'', '/t', '/t/a', '/t/c', '/keep'})
 
     def test_cli_promotes_rolled_defaults_of_equipment_only(self):
         """Built-in bonuses of a kind that rolls are raised to its second-strongest row, on equipment
@@ -466,6 +504,21 @@ def row_of(text, name):
 
 def cells_of(damage, rpm=600, k_damage=2):
     return {'damage': damage, 'rpm': str(rpm), 'weight': '3', 'melee': str(k_damage)}
+
+
+class CollisionMesh(unittest.TestCase):
+    def test_remove_faces_drops_the_triangle_and_its_face_entry(self):
+        chunk = lambda kind, body: struct.pack('<II', kind, len(body)) + body
+        points = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
+        vertices = chunk(0x19, b''.join(struct.pack('<3f', *p) for p in points))
+        indices = chunk(0x1a, struct.pack('<6I', 0, 1, 2, 0, 2, 3))
+        names = struct.pack('<H', 2) + b'a\0b\0'
+        face_data = chunk(0x1b, names) + chunk(0x1c, struct.pack('<2H', 0, 1))
+        new_indices, new_faces = ce.remove_faces(vertices, indices, face_data, [[(0, 0, 0), (0, 1, 0), (0, 0, 1)]])
+        self.assertEqual(new_indices, chunk(0x1a, struct.pack('<3I', 0, 1, 2)))
+        self.assertEqual(new_faces, chunk(0x1b, names) + chunk(0x1c, struct.pack('<H', 0)))
+        with self.assertRaises(ValueError):
+            ce.remove_faces(vertices, indices, face_data, [[(0, 0, 0), (0, 1, 0), (0, 0, 2)]])
 
 
 class WeaponTable(unittest.TestCase):
@@ -751,7 +804,8 @@ class OtherTables(unittest.TestCase):
         columns, rows = read_table(category, 'armor\tarmor\tback\tarms\tano\tmovement\texperience\tregen\n'
                                              'torso/t\t0.55\t0.4\t0.3\t0.25\t1113\t\t1094\n')
         written, _, gone = ce.stats_write(category, columns, rows, files, 't')
-        self.assertEqual(ce.items_of(torso, 'default_modifications'), [1030, 1113, 1094])
+        # in the columns' order; 1030 (pockets) has no column here, so it goes after them
+        self.assertEqual(ce.items_of(torso, 'default_modifications'), [1113, 1094, 1030])
         self.assertEqual(gone, {'a/torso/t.options': {'/default_modifications'}})
         self.assertEqual((value(torso, 'hit_params/front/hit_types/slash/armor'), value(torso, 'hit_params/back/hit_types/ranged/armor')),
                          (value(torso, 'hit_params/front/hit_types/ranged/armor'), value(torso, 'hit_params/back/hit_types/slash/armor')))
@@ -760,6 +814,21 @@ class OtherTables(unittest.TestCase):
                           'experience': '', 'regen': '1094'})
         self.assertEqual(ce.armour_card(torso)[6], '55')
 
+
+    def test_an_armour_rows_built_ins_are_kept_in_the_columns_order(self):
+        """The card lists them as the config does: ammo bags first, as every piece has them."""
+        category = ce.STATS['armor']
+        columns = {c: k for c, k in category['columns'].items() if c in ('pockets', 'ammo_bags', 'movement', 'weight')}
+        category = dict(category, columns=columns, configs='a/(*/*).options')
+        files = {'a/torso/t.options': config({'parameters': {'weight': 3.0},
+                                               'default_modifications': [1113, 1030, 1220, 1051]})}
+        columns, rows = read_table(category, 'armor\tweight\tpockets\tammo_bags\tmovement\n'
+                                             'torso/t\t3\t1030\t1051\t1113\n')
+        targets = ce.stats_targets(category, files)
+        self.assertEqual(len(ce.stats_problems(category, columns, rows, targets, files, 't')), 1)
+        written, _, _ = ce.stats_write(category, columns, rows, files, 't')
+        self.assertEqual(ce.items_of(files['a/torso/t.options'], 'default_modifications'), [1051, 1030, 1113, 1220])
+        self.assertEqual(ce.stats_problems(category, columns, rows, targets, files, 't'), [])
 
     def test_an_add_bonus_column_makes_the_built_in_list_a_config_lacks(self):
         category = {'configs': 'a/*.options', 'match': set(), 'add': {'aim', 'reload'},

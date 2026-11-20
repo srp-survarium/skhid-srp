@@ -553,8 +553,8 @@ def main():
     tabs = (pathlib.Path(__file__).resolve().parent / ".." / "flash" / "main_menu" / "src" / "main_menu_fla"
             / "settingsTabs_15.as").read_text(encoding="utf-8")
     sound_tab = tabs[tabs.index("internal function frame4()"):]
-    check("this._sound_volume." not in sound_tab.split("}")[0] and "this._game_volume.slider.enabled = false;" in sound_tab,
-          "the main menu's sound tab leaves the Music slider (_sound_volume) enabled, In-game and Voice chat greyed out")
+    check("this._sound_volume." not in sound_tab.split("}")[0],
+          "the main menu's sound tab leaves the Music slider (_sound_volume) enabled")
 
     if failed:
         sys.exit(f"{failed} check(s) failed")

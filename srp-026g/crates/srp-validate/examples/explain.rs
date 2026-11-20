@@ -69,6 +69,7 @@ fn main() {
                         game_mode,
                         batteries: statistics.victory_items.len(),
                         respawn_points: rules.respawn.as_ref().map(|r| r.points.len()),
+                        team_2_points: None,
                         profiles: None,
                         artefacts: None,
                         objects: None,

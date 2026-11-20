@@ -17,7 +17,7 @@ fn free_for_all() -> &'static maps::MapMode {
     maps::find(1, maps::weather::DAY, GameMode::FreeForAll).expect("level_01's free-for-all")
 }
 
-fn map_id() -> u8 {
+fn map_id() -> MapId {
     free_for_all().id
 }
 
@@ -31,7 +31,7 @@ fn srp_entry() -> Vec<u8> {
 
 /// The lobby's seating of a match: its places on two sides, places 0 and 2
 /// a squad, the places of `driven` the server's own bots.
-fn seated(players: usize, map_id: u8, driven: &[usize]) -> MatchSetup {
+fn seated(players: usize, map_id: MapId, driven: &[usize]) -> MatchSetup {
     let mut made = setup(players, map_id);
     for place in [0, 2] {
         made.players[place].profile.squad = 1;
@@ -405,7 +405,7 @@ fn the_first_terminal_world_owns_the_result_during_the_closing_delay() {
 /// as the lobby gave them.
 #[test]
 fn a_racket_match_arms_every_profile_it_gives_late_joiners_too() {
-    use survarium::v026g::twist::{Played, Twist};
+    use survarium::v026g::twist::{Armed, Played, Twist};
     let gun = |name: &str| {
         Dictionary::shared()
             .item_named(name)
@@ -429,7 +429,8 @@ fn a_racket_match_arms_every_profile_it_gives_late_joiners_too() {
         *player = sniper(player.clone());
     }
     let map = maps::MatchMap::of(map_id()).unwrap();
-    made.played = Played::twisted(map, Twist::Racket).expect("a free-for-all's");
+    let racket = Armed::Racket(survarium::v026g::racket::Gun::Ak12);
+    made.played = Played::twisted(map, racket).expect("a free-for-all's");
     let racket = registry.create_growing(made).unwrap().match_id;
     assert_eq!(registry.formed(racket).unwrap().played.twist(), Some(Twist::Racket));
     assert_eq!(guns(&registry, racket), [gun("ak_12"); 2]);
@@ -451,15 +452,17 @@ fn a_racket_match_arms_every_profile_it_gives_late_joiners_too() {
     assert_eq!(guns(&registry, plain), [gun("svd"); 2]);
 }
 
-/// A Cowboy free-for-all (`docs/notes/ffa-cowboy.md`) gives every place's
-/// kits the Colt Python alone, in the first slot.
+/// A Cowboy free-for-all of the Colt alone (`docs/notes/ffa-cowboy.md`)
+/// gives every place's kits the Colt Python alone, in the first slot.
 #[test]
 fn a_cowboy_match_gives_everyone_a_colt_python() {
-    use survarium::v026g::twist::{Played, Twist};
+    use survarium::v026g::cowboy::Variation;
+    use survarium::v026g::twist::{Armed, Played};
     let registry = MatchRegistry::new("127.0.0.1", 1238);
     let mut made = setup(3, map_id());
     let map = maps::MatchMap::of(map_id()).unwrap();
-    made.played = Played::twisted(map, Twist::Cowboy).expect("a free-for-all's");
+    made.played =
+        Played::twisted(map, Armed::Cowboy(Variation::Colt)).expect("a free-for-all's");
     let id = registry.create(made).unwrap().match_id;
     let formed = registry.formed(id).unwrap();
     let python = Dictionary::shared().item_named("magnum").unwrap().dict_id;
