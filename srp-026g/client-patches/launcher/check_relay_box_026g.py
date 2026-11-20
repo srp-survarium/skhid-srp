@@ -74,7 +74,7 @@ ROWS = {'en': ('Auto: only when blocked', 'On: always through the relay', 'Off: 
         'pl': ('Auto: tylko przy blokadzie', 'Wł.: zawsze przez relay', 'Wył.: nigdy')}
 # The game's languages (launcher_languages_026g.inc order) -> the row's.
 BY_INDEX = {0: 'en', 1: 'uk', 2: 'ru', 3: 'de', 4: 'pl', 5: 'en', 6: 'en'}
-NOW_EN = ['auto, checking...', 'auto: direct.', 'auto: through the relay.',
+NOW_EN = ['auto, checking...', 'auto: direct.', 'auto: through the relay (higher ping): direct did not answer.',
           'auto: the server does not answer.', 'on: through the relay.', 'off: direct.']
 RESTART = {'en': 'The server is restarting. Next try in {} s.',
            'ru': 'Сервер перезапускается. Повтор через {} с.',
@@ -83,7 +83,7 @@ RESTART = {'en': 'The server is restarting. Next try in {} s.',
            'pl': 'Serwer uruchamia się ponownie. Kolejna próba za {} s.'}
 TIP_EN = ('The relay is a second server that forwards your game when your provider blocks ours.\r\n'
           'Auto: through the relay only when the direct way is blocked.\r\n'
-          'On: always through the relay (a bit more ping).\r\nOff: never.\r\nClick the gear to choose.\r\n\r\nNow: ')
+          'On: always through the relay (higher ping).\r\nOff: never.\r\nClick the gear to choose.\r\n\r\nNow: ')
 
 NEW = {'ShowWindow': 2, 'GetParent': 1, 'SendMessageW': 4, 'CreateWindowExW': 12, 'DestroyWindow': 1,
        'LoadLibraryW': 1, 'InitCommonControlsEx': 1}

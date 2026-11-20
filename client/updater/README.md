@@ -271,8 +271,9 @@ launcher crashed at PLAY a minute later.
 In a download with a relay (`updater_skhid.relay`), the player's route is
 one of three (`logic/src/route.rs`, `exe/src/route.rs`, the one owner):
 
-- **Automatic**: PLAY probes the server's own login and lobby/match ports
-  and starts the game there when they answer, else through the relay; the
+- **Automatic**: PLAY checks the server's own login and lobby/match ports
+  and starts the game there when they answer, and through the relay only
+  when the direct route fails its check ("The check" below); the
   updater's HTTPS asks the site directly, then through the relay's CONNECT
   service (the way that answered last first).
 - **Relay**: PLAY starts the game through the relay, unprobed; HTTPS goes
@@ -304,6 +305,46 @@ saves the choice, says the new view and runs the update again by it. One
 function, `route::Shown::on`, takes what the row shows and what happened (a
 pick, a probe's end, a block found) to what it shows next, the choice to
 save and whether to probe.
+
+**The check** (`logic/src/route.rs` `Check`, the one rule; the probes in
+`route/src/lib.rs`). Through the relay the game's ping is higher (about 60 ms
+measured on 2026-11-20), and the route holds for the whole game, so the
+relay is taken only when the direct route really fails. A round is the three
+probes together (login TCP, lobby UDP, match UDP; 1.5 s at most, a UDP probe
+sent again every 0.4 s); the direct route's next round starts no sooner than
+1.5 s after the one before, so its rounds are spread over the seconds.
+
+- Any round whose three probes all answer: direct, at once (the usual case:
+  one round, as long as the answers take).
+- Nothing of the direct route answers: 3 rounds (4.5 s), then the relay.
+- A probe of it answered in a round where another was lost (the login TCP,
+  say, and a UDP probe not): packets lost on the way, or a block of a part,
+  and more rounds tell which: 5 rounds (7.5 s), then the relay. A block
+  that passes TCP and drops UDP still ends at the relay.
+- The last game played direct: one more round (4, or 6).
+- The relay has one round: it answers whole, or neither route does.
+
+At most 6 rounds of the direct route and the relay's one: 10.5 s. The
+server's name is asked of DNS once for a check: a slow answer is waited for
+by the next round, not asked anew.
+
+The route PLAY starts a game by after a check is kept beside the choice, in
+`<Documents>\survarium\launcher_skhid.route_played` (one word: `direct` or
+`relay`; written when it changes; not written for the relay chosen, which
+is not checked). It is the next check's evidence (the one more round after
+`direct`), never a shortcut past it.
+
+The log has every check, of PLAY and of the launcher's row (`route:`), with
+each round and each probe that failed:
+
+```
+play: route check (last game direct): direct in 1 round: (1) answered -> Direct(203.0.113.5:8010)
+play: route check (last game direct): direct in 4 rounds: (1) login TCP TimedOut, lobby UDP TimedOut, match UDP TimedOut; (2) ...; (4) ...; relay: answered -> Relay(203.0.113.8:8010)
+play: route check (last game none): direct in 2 rounds: (1) login TCP ok, lobby UDP TimedOut, match UDP ok; (2) answered -> Direct(203.0.113.5:8010)
+```
+
+A box that waits for a server that restarts asks one round every few
+seconds; the check runs when it goes on.
 
 A request through the relay is one of a WinHTTP session opened with the
 relay's CONNECT service as its proxy (`WINHTTP_ACCESS_TYPE_NAMED_PROXY`),

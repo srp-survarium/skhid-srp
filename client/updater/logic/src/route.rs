@@ -4,9 +4,51 @@
 //! the three) shows it and changes it, the updater keeps it (`<Documents>\survarium\launcher_skhid.route`, beside user.cfg:
 //! the Windows user's, as the language) and PLAY and the updater's HTTPS
 //! follow it.
+//!
+//! PLAY's check of the routes ([`Check`]) takes the relay only when the
+//! direct route really fails: several rounds of its probes over a few
+//! seconds, more once a part of it has answered (loss, not a block), one more
+//! when the last game played direct ([`PLAYED_FILE`]).
+
+use crate::diagnosis::Via;
 
 /// Beside user.cfg: the player's [`Choice`], one word.
 pub const CHOICE_FILE: &str = "launcher_skhid.route";
+
+/// Beside [`CHOICE_FILE`]: the route PLAY last started a game by after its
+/// check ([`played`]), one word. Evidence for the next check, never a
+/// shortcut past it.
+pub const PLAYED_FILE: &str = "launcher_skhid.route_played";
+
+/// Rounds of the direct route's probes that a check runs while nothing of
+/// it answers.
+pub const SILENT_ROUNDS: u8 = 3;
+/// More rounds once a probe of the direct route has answered (the login
+/// TCP, say, while a UDP probe was lost): packets are lost on the way, or a
+/// part is blocked, and only more rounds tell which.
+pub const HEARD_ROUNDS: u8 = 2;
+/// One more round when the last game played direct.
+pub const PLAYED_ROUNDS: u8 = 1;
+
+fn first_word(text: &[u8]) -> Option<&[u8]> {
+    text.split(|&byte| byte <= b' ').find(|word| !word.is_empty())
+}
+
+/// [`PLAYED_FILE`]'s text: its first word.
+pub fn played(text: &[u8]) -> Option<Via> {
+    match first_word(text)? {
+        b"direct" => Some(Via::Direct),
+        b"relay" => Some(Via::Relay),
+        _ => None,
+    }
+}
+
+pub fn played_word(via: Via) -> &'static str {
+    match via {
+        Via::Direct => "direct",
+        Via::Relay => "relay",
+    }
+}
 
 /// Windows' GeoID of Russia (`GetUserGeoID(GEOCLASS_NATION)`), where
 /// providers block the server: its players start in [`Choice::Automatic`].
@@ -15,8 +57,8 @@ pub const RUSSIA: i32 = 203;
 /// How PLAY and the updater reach the server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Choice {
-    /// Directly when the server answers so, else through the relay: probed
-    /// before every game.
+    /// Directly when the server answers so, else through the relay: checked
+    /// before every game ([`Check`]).
     Automatic,
     /// Through the relay always, unprobed.
     Relay,
@@ -37,7 +79,7 @@ impl Choice {
 
     /// [`CHOICE_FILE`]'s text: its first word.
     pub fn parse(text: &[u8]) -> Option<Self> {
-        match text.split(|&byte| byte <= b' ').find(|word| !word.is_empty())? {
+        match first_word(text)? {
             b"automatic" => Some(Self::Automatic),
             b"relay" => Some(Self::Relay),
             b"direct" => Some(Self::Direct),
@@ -65,12 +107,87 @@ impl Choice {
     }
 }
 
-/// What the probe found (`relay_client::Selection`).
+/// What the check found (`relay_client::Selection`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Probed {
     Direct,
     Relay,
     Neither,
+}
+
+/// What one round of a route's three probes (login TCP, lobby UDP, match
+/// UDP, together) found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Round {
+    /// All three answered.
+    Answered,
+    /// Some answered and some did not.
+    Partly,
+    /// None answered (or the server's name was not found).
+    Silent,
+}
+
+/// What the direct route's rounds have found while none answered whole.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Heard {
+    /// No probe of any round answered.
+    Nothing,
+    /// A probe answered in a round where another was lost.
+    Part,
+}
+
+/// The check of the routes as it goes: the direct route's rounds, then the
+/// relay's one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Check {
+    /// `rounds` of the direct route have run, none answered whole. `last`:
+    /// the route the last game played by.
+    Direct { rounds: u8, heard: Heard, last: Option<Via> },
+    /// The direct route failed its rounds.
+    Relay,
+}
+
+/// What a round leads to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Next {
+    /// Another round, of [`Check::via`]'s route.
+    Probe(Check),
+    Found(Probed),
+}
+
+impl Check {
+    pub fn start(last: Option<Via>) -> Self {
+        Self::Direct { rounds: 0, heard: Heard::Nothing, last }
+    }
+
+    /// The route whose round is to run.
+    pub fn via(self) -> Via {
+        match self {
+            Self::Direct { .. } => Via::Direct,
+            Self::Relay => Via::Relay,
+        }
+    }
+
+    /// The one transition. Any round of the direct route that answers
+    /// whole is direct, at once. While none does, its rounds go on:
+    /// [`SILENT_ROUNDS`], [`HEARD_ROUNDS`] more once a part of it has
+    /// answered, [`PLAYED_ROUNDS`] more when the last game played direct.
+    /// Then the relay's one round decides.
+    pub fn on(self, round: Round) -> Next {
+        match (self, round) {
+            (Self::Direct { .. }, Round::Answered) => Next::Found(Probed::Direct),
+            (Self::Direct { rounds, heard, last }, round) => {
+                let rounds = rounds + 1;
+                let heard = if round == Round::Partly { Heard::Part } else { heard };
+                let given = SILENT_ROUNDS
+                    + if heard == Heard::Part { HEARD_ROUNDS } else { 0 }
+                    + if last == Some(Via::Direct) { PLAYED_ROUNDS } else { 0 };
+                Next::Probe(if rounds < given { Self::Direct { rounds, heard, last } } else { Self::Relay })
+            }
+            (Self::Relay, Round::Answered) => Next::Found(Probed::Relay),
+            (Self::Relay, Round::Partly | Round::Silent) => Next::Found(Probed::Neither),
+        }
+    }
 }
 
 /// What the launcher's row shows: the choice and, in [`Choice::Automatic`],
@@ -186,6 +303,101 @@ mod tests {
         }
         for bad in ["", "\r\n", "Relay", "relays", "auto"] {
             assert_eq!(Choice::parse(bad.as_bytes()), None, "{bad}");
+        }
+    }
+
+    /// The check's end for `rounds` (the last repeated for as long as it
+    /// asks), and the rounds of the direct route and of the relay it ran.
+    fn check(last: Option<Via>, rounds: &[Round]) -> (Probed, usize, usize) {
+        let mut check = Check::start(last);
+        let (mut direct, mut relay) = (0, 0);
+        let mut rounds = rounds.iter().copied().chain(core::iter::repeat(*rounds.last().unwrap()));
+        loop {
+            match check.via() {
+                Via::Direct => direct += 1,
+                Via::Relay => relay += 1,
+            }
+            match check.on(rounds.next().unwrap()) {
+                Next::Probe(next) => check = next,
+                Next::Found(probed) => return (probed, direct, relay),
+            }
+        }
+    }
+
+    #[test]
+    fn direct_that_answers_is_direct_at_once_and_the_relay_is_not_asked() {
+        use Round::*;
+        for last in [None, Some(Via::Direct), Some(Via::Relay)] {
+            assert_eq!(check(last, &[Answered]), (Probed::Direct, 1, 0));
+            // One lost UDP probe, or one silent round, then an answer.
+            assert_eq!(check(last, &[Partly, Answered]), (Probed::Direct, 2, 0));
+            assert_eq!(check(last, &[Silent, Answered]), (Probed::Direct, 2, 0));
+            // In the last round given.
+            assert_eq!(check(last, &[Silent, Silent, Answered]), (Probed::Direct, 3, 0));
+            assert_eq!(check(last, &[Partly, Partly, Partly, Partly, Answered]), (Probed::Direct, 5, 0));
+        }
+    }
+
+    #[test]
+    fn the_relay_only_after_the_direct_rounds_and_only_when_it_answers() {
+        use Round::*;
+        // Nothing answers directly: three rounds, then the relay's one.
+        assert_eq!(check(None, &[Silent, Silent, Silent, Answered]), (Probed::Relay, 3, 1));
+        assert_eq!(check(Some(Via::Relay), &[Silent, Silent, Silent, Answered]), (Probed::Relay, 3, 1));
+        // The login TCP answers and UDP never does (a block of UDP alone):
+        // the relay still, after two rounds more.
+        assert_eq!(check(None, &[Partly, Partly, Partly, Partly, Partly, Answered]), (Probed::Relay, 5, 1));
+        // A part heard in the third round gives the two more as well.
+        assert_eq!(check(None, &[Silent, Silent, Partly, Silent, Silent, Answered]), (Probed::Relay, 5, 1));
+        // Nothing and no relay: neither, the relay asked once, whole or not at all.
+        assert_eq!(check(None, &[Silent]), (Probed::Neither, 3, 1));
+        assert_eq!(check(None, &[Partly]), (Probed::Neither, 5, 1));
+    }
+
+    #[test]
+    fn a_game_played_direct_gives_the_direct_route_one_more_round() {
+        use Round::*;
+        let direct = Some(Via::Direct);
+        assert_eq!(check(direct, &[Silent, Silent, Silent, Answered]), (Probed::Direct, 4, 0));
+        assert_eq!(check(direct, &[Silent, Silent, Silent, Silent, Answered]), (Probed::Relay, 4, 1));
+        assert_eq!(check(direct, &[Partly, Partly, Partly, Partly, Partly, Answered]), (Probed::Direct, 6, 0));
+        assert_eq!(check(direct, &[Partly, Partly, Partly, Partly, Partly, Partly, Answered]), (Probed::Relay, 6, 1));
+        // Not after one that played through the relay, nor before any.
+        for last in [None, Some(Via::Relay)] {
+            assert_eq!(check(last, &[Silent, Silent, Silent, Answered]), (Probed::Relay, 3, 1));
+        }
+    }
+
+    #[test]
+    fn a_check_is_bounded_whatever_the_rounds_find() {
+        // Every run of rounds: six of the direct route at most, one of the relay.
+        const MOST: u8 = SILENT_ROUNDS + HEARD_ROUNDS + PLAYED_ROUNDS;
+        let all = [Round::Answered, Round::Partly, Round::Silent];
+        for last in [None, Some(Via::Direct), Some(Via::Relay)] {
+            let mut open = alloc::vec![Check::start(last)];
+            for _ in 0..=MOST {
+                open = open
+                    .iter()
+                    .flat_map(|check| all.map(|round| check.on(round)))
+                    .filter_map(|step| match step {
+                        Next::Probe(next) => Some(next),
+                        Next::Found(_) => None,
+                    })
+                    .collect();
+                open.dedup();
+            }
+            assert_eq!(open, [], "{last:?}");
+        }
+    }
+
+    #[test]
+    fn the_played_route_is_one_word() {
+        for via in [Via::Direct, Via::Relay] {
+            assert_eq!(played(played_word(via).as_bytes()), Some(via));
+            assert_eq!(played(alloc::format!("{}\r\n", played_word(via)).as_bytes()), Some(via));
+        }
+        for bad in ["", "\r\n", "Direct", "automatic", "relays"] {
+            assert_eq!(played(bad.as_bytes()), None, "{bad}");
         }
     }
 
