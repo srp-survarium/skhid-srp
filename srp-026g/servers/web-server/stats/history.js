@@ -8,51 +8,11 @@
   const root = document.getElementById('stats');
   if (!root) return;
   // The page's language: its links' and the names the API gives (the game's eleven). The page's
-  // own words (TEXT) are written in two: Ukrainian for Ukrainian, English for every other.
+  // own words (TEXT, by name) are the server's, in that language where the site has them, else in
+  // English: `written` is the one they are in, for the numbers and dates beside them.
   const lang = document.documentElement.lang || 'en';
-  const written = lang === 'uk' ? 'uk' : 'en';
-  const TEXT = {
-    en: {
-      stats: 'Stats', player: 'Player', clan: 'Clan', match: 'Match', matches: 'Matches', find: 'Find',
-      playerName: 'Player name', clanTag: 'Clan tag', matchNumber: 'Match number',
-      players: 'Players', clans: 'Clans', best: 'Best matches', latest: 'Latest matches',
-      hour: 'Hour', day: 'Day', rank: '#', level: 'Level', experience: 'Experience', rating: 'Rating',
-      wins: 'Wins', losses: 'Losses', winRate: 'Win rate', kills: 'Kills', deaths: 'Deaths', kd: 'K/D',
-      assists: 'Assists', score: 'Score', scoreAvg: 'Avg score', headshots: 'Headshots', grenadeKills: 'Grenade kills',
-      meleeKills: 'Melee kills', batteries: 'Batteries', captures: 'Captures', artefacts: 'Artefacts', members: 'Members', commander: 'Commander',
-      overall: 'Overall', inMatches: 'In matches', last30: 'Last 30 days', ended: 'Ended', duration: 'Duration',
-      map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
-      win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', hours: 'Hours played',
-      replay: 'Replay', replayPreparing: 'Preparing…', replayFile: 'Download',
-      replayNo: {incompatible: 'Recorded by an older game version', busy: 'Busy, try again in a minute', other: 'No replay'},
-      today: 'Daily leaders', allTime: 'All time', shots: 'Shots fired',
-      accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
-      accuracyNote: '1000+ shots', averageNote: '20+ matches', headshotRate: 'HS %',
-      noMatches: 'No public matches yet.', noPlayer: 'No player with public matches named “{}”.', noClan: 'No clan tagged [{}].',
-      noMatch: 'No public match {}.', noHistory: 'This server keeps no match history.',
-      failed: 'Could not load the stats. Reload the page.', nobody: 'Nobody yet.',
-    },
-    uk: {
-      stats: 'Статистика', player: 'Гравець', clan: 'Клан', match: 'Матч', matches: 'Матчі', find: 'Знайти',
-      playerName: 'Ім’я гравця', clanTag: 'Тег клану', matchNumber: 'Номер матчу',
-      players: 'Гравці', clans: 'Клани', best: 'Найкращі матчі', latest: 'Останні матчі',
-      hour: 'Година', day: 'День', rank: '#', level: 'Рівень', experience: 'Досвід', rating: 'Рейтинг',
-      wins: 'Перемоги', losses: 'Поразки', winRate: 'Частка перемог', kills: 'Вбивства', deaths: 'Смерті', kd: 'В/С',
-      assists: 'Допомоги', score: 'Очки', scoreAvg: 'Сер. очки', headshots: 'У голову', grenadeKills: 'Гранатами',
-      meleeKills: 'Врукопаш', batteries: 'Батареї', captures: 'Захоплення', artefacts: 'Артефакти', members: 'Учасники', commander: 'Командир',
-      overall: 'Загалом', inMatches: 'У матчах', last30: 'Останні 30 днів', ended: 'Завершено', duration: 'Тривалість',
-      map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
-      win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', hours: 'Годин у грі',
-      replay: 'Повтор', replayPreparing: 'Готуємо…', replayFile: 'Завантажити',
-      replayNo: {incompatible: 'Записано старішою версією гри', busy: 'Зайнято, спробуйте за хвилину', other: 'Повтору немає'},
-      today: 'Лідери дня', allTime: 'За весь час', shots: 'Постріли',
-      accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
-      accuracyNote: '1000+ пострілів', averageNote: '20+ матчів', headshotRate: 'У голову %',
-      noMatches: 'Публічних матчів ще немає.', noPlayer: 'Гравця з публічними матчами на ім’я «{}» немає.', noClan: 'Клану [{}] немає.',
-      noMatch: 'Публічного матчу {} немає.', noHistory: 'Цей сервер не зберігає історію матчів.',
-      failed: 'Не вдалося завантажити статистику. Оновіть сторінку.', nobody: 'Поки нікого.',
-    },
-  }[written];
+  const written = root.dataset.locale || 'en';
+  const TEXT = JSON.parse(document.getElementById('stats-text').textContent);
   const PAGE = 15, TOP = 50;
   // An empty cell's text, so it has a line's height.
   const BLANK = '\u00a0';
