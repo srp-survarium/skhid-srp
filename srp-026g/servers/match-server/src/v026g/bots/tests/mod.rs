@@ -95,6 +95,7 @@ mod press_reach;
 pub(crate) mod real_maps;
 mod reference_replay;
 mod refused_sprint;
+mod rest_spots;
 mod settings;
 mod sight;
 mod soak;
