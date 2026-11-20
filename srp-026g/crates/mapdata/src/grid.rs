@@ -411,6 +411,17 @@ pub struct Body {
     /// height), farther than any jump of the game (A364's traces: 20 of 20 jumps end at their twelfth air step). A build input:
     /// in the key when set.
     pub jump_air_steps: bool,
+    /// [edge walk-offs] With [`Self::drop_check`] and [`Self::drop_lands`]: whether a floor gets walk-off links off its edges
+    /// where no Drop link leads ([`WalkGrid::edge_walk_offs`]). A Drop joins a floor only to the floor of the NEXT cell, and the
+    /// walk-offs are made only by re-aiming Drops ([`WalkGrid::reaim_drops`]), so an edge whose next cell holds no floor at the
+    /// lower level (a face steeper than the client stands on, ground the erosion or the floor rules left without a floor, a wall's
+    /// eroded foot) had no way down, though the client's body walks off it and lands (routes' list 1: 216 of the 240 human
+    /// lines the port walks and the grid detours; the exe lands as the port, rig_real_v3). Each way of the 8 with no link, whose
+    /// cells on hold no floor within a step of the take-off before a lower floor within [`Self::max_drop`], is walked off by the
+    /// client's body as a Drop link is ([`WalkGrid::drop_verdict`]); where it comes to rest on a floor within the harmless fall
+    /// the floor gets that off-mesh [`LinkKind::GapDrop`] with the key script that took it down. A build input: in the key when
+    /// set.
+    pub edge_walk_offs: bool,
 }
 
 /// How the floors a body's radius from walls are taken away.
@@ -505,6 +516,7 @@ impl Body {
             fall_stops_on_solids: false,
             walk_every_link: false,
             jump_air_steps: false,
+            edge_walk_offs: false,
         }
     }
 }
@@ -623,6 +635,7 @@ impl Default for Body {
             fall_stops_on_solids: false,
             walk_every_link: false,
             jump_air_steps: false,
+            edge_walk_offs: false,
         }
     }
 }
@@ -1610,6 +1623,8 @@ pub struct BuildStats {
     pub drops_unfollowed_kept: usize,
     /// The Drop links re-aimed at the floor the client's body lands on ([`Body::drop_lands`]).
     pub drops_reaimed: usize,
+    /// [edge walk-offs] The walk-offs off edges no Drop link leads off ([`Body::edge_walk_offs`]).
+    pub edge_walk_offs: drop_check::EdgeWalkOffs,
     /// Of them, those onto a (take-off, landing) pair already re-aimed in the pass, folded into its one link, and which was kept.
     pub drops_reaim_pairs: drop_check::ReaimPairs,
     /// [A389] The Drop links walked by the client's body ([`Body::drop_lands`]), re-aimed by a way down other than the walk at
@@ -1998,6 +2013,9 @@ impl WalkGrid {
                 walked.releases_held_thin += held;
                 stats.drops_walked = walked;
                 (stats.drops_reaimed, stats.drops_reaim_pairs) = grid.reaim_drops(&mut wide, &reaim);
+                if body.edge_walk_offs {
+                    stats.edge_walk_offs = grid.edge_walk_offs(&mut wide, world, seeds, spawns);
+                }
                 wide.lips = lips;
                 cut
             } else {

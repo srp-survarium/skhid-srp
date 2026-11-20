@@ -473,6 +473,22 @@ pub struct ReaimPairs {
 type Reaims = Vec<(u32, usize, u32, Option<(Takeoff, Share)>, Option<GridWay>)>;
 type Lips = Vec<(u32, u32)>;
 
+/// [edge walk-offs] What [`WalkGrid::edge_walk_offs`] did ([`super::BuildStats`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct EdgeWalkOffs {
+    /// The (take-off, way) pairs with no link whose cells on hold a lower floor within the harmless fall before any floor within a
+    /// step of the take-off: walked off by the client's body.
+    pub walked: usize,
+    /// The links added: walked off standing with the forward key held (`Takeoff::WalkOff`), and with another key script (a
+    /// release, the crouched walk-off, a jump off the edge).
+    pub walk_offs: usize,
+    pub pressed: usize,
+    /// Walked off and resting on no floor of the grid lower than the take-off within the harmless fall: no link.
+    pub none: usize,
+    /// Onto a landing the take-off links to already, or one more way onto a landing another way of the take-off made: one link.
+    pub folded: usize,
+}
+
 /// [A389] What [`WalkGrid::landing_drops`] did ([`super::BuildStats`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DropStats {
@@ -686,6 +702,117 @@ impl WalkGrid {
         }
         stats.cut = cut.len();
         (cut, reaim, lips, stats)
+    }
+
+    /// [edge walk-offs] [`super::Body::edge_walk_offs`]: the walk-offs off the edges no Drop link leads off. A Drop joins a floor
+    /// only to the floor of the next cell (and only those are walked and re-aimed, [`Self::landing_drops`]), so where the next
+    /// cell holds no floor at the lower level (a face steeper than the client stands on, ground left without a floor, a wall's
+    /// eroded foot) the edge had no way down at all.
+    ///
+    /// Out of each floor a body gets to (the seeds and spawns, as the Drops'), along each of the 8 ways with no link: the cells on,
+    /// as far as a body walked off at the walk is carried over the harmless fall ([`WALK_MPS`] x sqrt(2 x `max_drop` / g), the
+    /// client's gravity, and a cell), until one holds a floor within a step of the take-off (the level goes on: no edge that way)
+    /// or a floor lower than a step and within the harmless fall (`max_drop`): the highest such is the landing aimed at. Each is
+    /// walked off as a Drop link to it is ([`Self::drop_verdict`]: the client's body on the three [`STARTS`] lines, judged where
+    /// its flight rests, then the walk at its own landing, the release, the crouched walk-off, the jumps off the edge), and a
+    /// landing on a floor lower than a step and within the harmless fall gets an off-mesh [`LinkKind::GapDrop`] with the key
+    /// script that made it ([`Takeoff::WalkOff`] for the walk, held). None where the take-off links to that landing already;
+    /// two ways onto one landing make one link, a pressed one over the walk-off (its landing is flown with its neighbours, the
+    /// walk-off's is not) and of two pressed the higher share, as [`Self::reaim_drops`] folds them.
+    pub(super) fn edge_walk_offs(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3]) -> EdgeWalkOffs {
+        use super::gap::{Aim, OffLink};
+        let reached = self.reached_floors(wide, seeds, spawns);
+        let (step, deepest) = (self.body.step, self.body.max_drop);
+        let gravity = Controller::standing_at(Vec3::ZERO).gravity;
+        let reach = WALK_MPS * (2.0 * deepest / gravity).sqrt() + self.cell;
+        let mut todo: Vec<(u32, usize, u32)> = Vec::new();
+        for a in (0..self.height.len()).filter(|&a| reached[a]) {
+            let h = self.height[a];
+            let (i, k) = self.cell_xz(self.cell_of[a] as usize);
+            for (d, &(di, dk)) in DIRS.iter().enumerate() {
+                if wide.links[a][d] != NONE {
+                    continue;
+                }
+                let stride = self.cell * ((di * di + dk * dk) as f32).sqrt();
+                let mut n = 1;
+                let landing = loop {
+                    if n as f32 * stride > reach {
+                        break None;
+                    }
+                    let Some(c) = self.cell_index(i + di * n, k + dk * n) else { break None };
+                    let floors = self.start[c]..self.start[c + 1];
+                    if floors.clone().any(|f| (h - step..=h + step).contains(&self.height[f as usize])) {
+                        break None;
+                    }
+                    let lower = floors
+                        .filter(|&f| (h - deepest..h - step).contains(&self.height[f as usize]))
+                        .max_by(|&x, &y| self.height[x as usize].total_cmp(&self.height[y as usize]));
+                    if lower.is_some() {
+                        break lower;
+                    }
+                    n += 1;
+                };
+                if let Some(b) = landing
+                    && !wide.out(a).any(|x| x == b)
+                {
+                    todo.push((a as u32, d, b));
+                }
+            }
+        }
+        let mut stats = EdgeWalkOffs { walked: todo.len(), ..EdgeWalkOffs::default() };
+        if todo.is_empty() {
+            return stats;
+        }
+        let s = self.body.controller().1;
+        let start = self.body.walk_start();
+        let verdicts = parallel(&todo, |&(a, _, b)| self.drop_verdict(world, &s, start, a, self.position(a), b).0);
+        let pressed = |p: Takeoff| p != Takeoff::WalkOff;
+        let mut added: Vec<OffLink> = Vec::new();
+        let mut index: std::collections::HashMap<(u32, u32), usize> = std::collections::HashMap::new();
+        for (&(a, d, b), v) in todo.iter().zip(verdicts) {
+            // As the re-aims ([`Self::landing_drops`]): a walk steered at its landing is along its own line; a landing come down
+            // to along the way walked, or a press, is along the way.
+            let (to, press, share, way) = match v {
+                Verdict::Keep => (b, Takeoff::WalkOff, Share::UNFLOWN, None),
+                Verdict::Reaim(g) => (g, Takeoff::WalkOff, Share::UNFLOWN, None),
+                Verdict::Taught(g) => (g, Takeoff::WalkOff, Share::UNFLOWN, Some(GridWay::of_dir(d))),
+                Verdict::Pressed(g, press, share) => (g, press, share, Some(GridWay::of_dir(d))),
+                Verdict::Cut => {
+                    stats.none += 1;
+                    continue;
+                }
+            };
+            let fall = self.height[a as usize] - self.height[to as usize];
+            if to == a || fall < step || fall > deepest {
+                stats.none += 1;
+                continue;
+            }
+            if wide.out(a as usize).any(|x| x == to) {
+                stats.folded += 1;
+                continue;
+            }
+            let link = OffLink { from: a, to, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, way };
+            match index.get(&(a, to)) {
+                Some(&i) => {
+                    stats.folded += 1;
+                    let kept = added[i];
+                    if pressed(press) && (!pressed(kept.press) || share.rank() > kept.share.rank()) {
+                        added[i] = link;
+                    }
+                }
+                None => {
+                    index.insert((a, to), added.len());
+                    added.push(link);
+                }
+            }
+        }
+        stats.walk_offs = added.iter().filter(|l| !pressed(l.press)).count();
+        stats.pressed = added.len() - stats.walk_offs;
+        if !added.is_empty() {
+            wide.off.extend(added);
+            wide.off.sort_by_key(|l| (l.from, l.to));
+        }
+        stats
     }
 
     /// [A377] Whether a Drop link's take-off at `from` is a lip by where the client's body stops, its landing `to` being under

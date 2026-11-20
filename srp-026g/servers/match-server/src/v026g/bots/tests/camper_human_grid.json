@@ -40,6 +40,7 @@
   "fall_stops_on_solids": true,
   "walk_every_link": true,
   "jump_air_steps": true,
+  "edge_walk_offs": true,
   "wall_clear_pull": false,
   "pull_walk": false,
   "walker_shapes": false
