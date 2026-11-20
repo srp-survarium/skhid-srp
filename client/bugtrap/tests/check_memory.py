@@ -11,7 +11,8 @@ for, and the ranges its memory callback gives. With Wine's own dbghelp: the
 dump itself. Wine's MiniDumpWriteDump ignores DataSegs,
 IndirectlyReferencedMemory and memory callbacks, so there a player's dump
 holds neither probe object; Windows' writes both.
-  A player's dump: DataSegs | IndirectlyReferencedMemory, a callback range
+  A player's dump: DataSegs | IndirectlyReferencedMemory | FullMemoryInfo |
+  ThreadInfo, a callback range
   [ESI - 256, ESI + 2048) around the object behind ESI, zipped; no
   unreferenced heap memory.
   A full-memory dump: FullMemory | FullMemoryInfo | HandleData | ThreadInfo
@@ -26,7 +27,7 @@ import sys
 import tempfile
 import zipfile
 
-PLAYER = 0x1 | 0x40
+PLAYER = 0x1 | 0x40 | 0x800 | 0x1000
 FULL = 0x2 | 0x800 | 0x4 | 0x1000 | 0x20
 
 
