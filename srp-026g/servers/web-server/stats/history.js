@@ -20,6 +20,8 @@
       overall: 'Overall', inMatches: 'In matches', last30: 'Last 30 days', ended: 'Ended', duration: 'Duration',
       map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
       win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', hours: 'Hours played',
+      replay: 'Replay', replayAsk: 'Get the replay', replayPreparing: 'Preparing…', replayFile: 'Download',
+      replayNo: {incompatible: 'Recorded by an older game version', busy: 'Busy, try again in a minute', other: 'No replay'},
       today: 'Daily leaders', allTime: 'All time', shots: 'Shots fired',
       accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
       accuracyNote: '1000+ shots', averageNote: '20+ matches', headshotRate: 'HS %',
@@ -38,6 +40,8 @@
       overall: 'Загалом', inMatches: 'У матчах', last30: 'Останні 30 днів', ended: 'Завершено', duration: 'Тривалість',
       map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
       win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', hours: 'Годин у грі',
+      replay: 'Повтор', replayAsk: 'Отримати повтор', replayPreparing: 'Готуємо…', replayFile: 'Завантажити',
+      replayNo: {incompatible: 'Записано старішою версією гри', busy: 'Зайнято, спробуйте за хвилину', other: 'Повтору немає'},
       today: 'Лідери дня', allTime: 'За весь час', shots: 'Постріли',
       accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
       accuracyNote: '1000+ пострілів', averageNote: '20+ матчів', headshotRate: 'У голову %',
@@ -317,6 +321,38 @@
       paged(columns, before => api('player/matches', {id: card.player.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
   }
 
+  // A match's replay (replay): asked for with its button, asked again every
+  // two seconds while it is being made, then its file to download (the
+  // game's updater opens it). The button stays out of a match without one.
+  const megabytes = new Intl.NumberFormat(lang, {maximumFractionDigits: 1});
+  function replayCell(id) {
+    const cell = el('span', {className: 'stats-replay'});
+    const button = el('button', {type: 'button', className: 'quiet'}, TEXT.replayAsk);
+    const say = text => cell.replaceChildren(text);
+    button.addEventListener('click', async () => {
+      // 90 asks: three minutes, as long as the game itself waits.
+      for (let asks = 0; asks < 90; asks++) {
+        let answer;
+        try {
+          answer = await api('replay', {id});
+        } catch (error) {
+          return say(TEXT.replayNo.busy);
+        }
+        if (!answer) return say(TEXT.replayNo.other);
+        if (answer.status === 'ready') {
+          return cell.replaceChildren(el('a', {href: answer.url, download: ''},
+            `${TEXT.replayFile} · ${megabytes.format(answer.size / 1048576)} MB`));
+        }
+        if (answer.status !== 'preparing') return say(TEXT.replayNo[answer.status] || TEXT.replayNo.other);
+        say(answer.place > 1 ? `${TEXT.replayPreparing} (${n(answer.place)})` : TEXT.replayPreparing);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      say(TEXT.replayNo.busy);
+    });
+    cell.append(button);
+    return cell;
+  }
+
   async function matchView(id) {
     heading(`${TEXT.match} ${id}`, TEXT.match, `${TEXT.match} ${id}`);
     const columns = [[TEXT.place, row => n(row.place)], [TEXT.player, playerKit, 'l', '', twoLines],
@@ -342,7 +378,8 @@
         [TEXT.map, el('span', {className: 'stats-map-cell'}, mapPicture(m, true), m ? mapLink(m) : BLANK)],
         [TEXT.mode, m ? name(m.mode) : null]]],
       [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : m.team_points.map(n).join(' : ')) : null],
-        [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null]]]), ...teams.flat()];
+        [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null],
+        ...(data && data.replay ? [[TEXT.replay, replayCell(m.id)]] : [])]]), ...teams.flat()];
     };
     root.replaceChildren(...view(null));
     const data = /^\d+$/.test(id) ? await api('match', {id}) : null;

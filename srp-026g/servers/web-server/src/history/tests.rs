@@ -12,7 +12,7 @@ use session::v026g::persist::history::{
     Counters, Eligibility, GearSlot, KitItem, MatchInfo, MatchKind, MatchRecord, PlayerLine,
     Outcome, PlayerRecord, Presence, Winner,
 };
-use session::v026g::replays::ReplayId;
+use session::v026g::replays::{ReplayId, Replays};
 use session::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
 use session::{Ban, SessionStore};
 use survarium::v026g::maps::{GameMode, MapId};
@@ -573,7 +573,7 @@ fn matches_are_listed_and_shown_public_only() {
     assert_eq!(clan["next"], 5);
 
     let shown = world.ok("/api/history/match?id=5");
-    assert_eq!(keys(&shown), ["match", "players"]);
+    assert_eq!(keys(&shown), ["match", "players", "replay"]);
     assert_eq!(keys(&shown["match"]), SUMMARY);
     let players = shown["players"].as_array().unwrap();
     assert_eq!(players.len(), 2);
@@ -1044,6 +1044,70 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
     GameAccounts::with_repository(Box::new(repository)).unwrap()
 }
 
+/// The preview's replays: under `dir`, the newest match's made (a file of a
+/// few bytes, no game's), the one before it a kept recording nobody
+/// converts (asked for, it stays `preparing`), the others none.
+pub(crate) fn preview_replays(dir: &std::path::Path) -> Replays {
+    use session::v026g::replays::{ReplaySettings, Sidecar, oldest_replayable_here};
+    let settings = ReplaySettings {
+        record_dir: dir.join("recordings"),
+        replay_dir: dir.join("replays"),
+        max_recording_bytes: 1 << 20,
+        max_replay_bytes: 1 << 20,
+    };
+    std::fs::create_dir_all(&settings.record_dir).unwrap();
+    std::fs::create_dir_all(&settings.replay_dir).unwrap();
+    let replays = Replays::new(Some(settings), 6);
+    let (made, kept) = (0x5E1A_0000 + 22, 0x5E1A_0000 + 21);
+    let bytes = b"a made-up replay of the preview";
+    std::fs::write(replays.sur_path(made).unwrap(), bytes).unwrap();
+    let sidecar = Sidecar {
+        match_id: made,
+        size: bytes.len() as u64,
+        sha256: "0".repeat(64),
+        revisions: vec![Some(oldest_replayable_here(0))],
+        account_ids: Vec::new(),
+        made_at: 0,
+    };
+    std::fs::write(replays.json_path(made).unwrap(), sidecar.to_json()).unwrap();
+    let recording = replays.settings().unwrap().record_dir.join(format!("rec026g_20261120-120000_{kept:08x}.srprec"));
+    std::fs::write(recording, b"x").unwrap();
+    replays.recording_kept(kept);
+    replays
+}
+
+/// A match says whether it has a replay to ask for; the ask gives the
+/// site's token of a made one, queues a kept recording, and knows no other.
+#[test]
+fn a_matchs_replay_is_asked_for_by_anyone() {
+    let dir = std::env::temp_dir().join(format!("srp-web-history-replay-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let accounts = preview(&dir, NOW);
+    let replays = preview_replays(&dir);
+    let ask = |target: &str, replays: Option<&Replays>| {
+        let (path, query) = target.split_once('?').unwrap();
+        let endpoint = Endpoint::parse(path, query).unwrap();
+        answer(&endpoint, accounts.history().unwrap(), replays, &|_| false, Lang::En, NOW)
+    };
+    let ok = |target: &str| ask(target, Some(&replays)).unwrap();
+    assert_eq!(ok("/api/history/match?id=23")["replay"], true);
+    assert_eq!(ok("/api/history/match?id=22")["replay"], true);
+    assert_eq!(ok("/api/history/match?id=21")["replay"], false);
+    let ready = ok("/api/history/replay?id=23");
+    assert_eq!(keys(&ready), ["sha256", "size", "status", "url"]);
+    assert_eq!(ready["status"], "ready");
+    let url = ready["url"].as_str().unwrap();
+    assert!(url.starts_with("/replays/") && url.len() == "/replays/".len() + 32);
+    assert_eq!(ok("/api/history/replay?id=23")["url"], url, "the site's one token of the match");
+    assert_eq!(ok("/api/history/replay?id=22"), json!({ "status": "preparing", "place": 1 }));
+    assert_eq!(ok("/api/history/replay?id=21"), json!({ "status": "gone" }));
+    assert!(matches!(ask("/api/history/replay?id=99", Some(&replays)), Err(Refusal::NotFound)));
+    // A server without replays: none offered, and the ask says so.
+    assert_eq!(ask("/api/history/match?id=23", None).unwrap()["replay"], false);
+    assert_eq!(ask("/api/history/replay?id=23", None).unwrap(), json!({ "status": "off" }));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 /// The preview's history is one the API serves whole.
 #[test]
 fn the_previews_history_is_served() {
@@ -1058,7 +1122,7 @@ fn the_previews_history_is_served() {
     let ask = |target: &str| {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         let endpoint = Endpoint::parse(path, query).unwrap();
-        answer(&endpoint, history, &|_| false, Lang::En, NOW).unwrap()
+        answer(&endpoint, history, None, &|_| false, Lang::En, NOW).unwrap()
     };
     assert_eq!(ask("/api/history/top")["players"].as_array().unwrap().len(), 12);
     assert_eq!(ask("/api/history/matches?limit=50")["matches"].as_array().unwrap().len(), 23);
@@ -1107,7 +1171,7 @@ fn a_match_has_its_maps_picture_as_the_rooms_draw_it() {
     let _ = std::fs::remove_dir_all(&dir);
     let accounts = preview(&dir, NOW);
     let endpoint = Endpoint::parse("/api/history/matches", "limit=50").unwrap();
-    let answer = answer(&endpoint, accounts.history().unwrap(), &|_| false, Lang::En, NOW).unwrap();
+    let answer = answer(&endpoint, accounts.history().unwrap(), None, &|_| false, Lang::En, NOW).unwrap();
     for played in answer["matches"].as_array().unwrap() {
         assert!(played["map_icon"].as_str().unwrap().starts_with("/wiki/icons/maps/"));
     }

@@ -102,6 +102,7 @@ fn web(replays: Option<Arc<Replays>>) -> Web {
         resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(HashMap::new()),
+        replay_asks: Mutex::new(HashMap::new()),
         plans: Default::default(),
         game: Some(Game {
             accounts: Arc::new(GameAccounts::new()),

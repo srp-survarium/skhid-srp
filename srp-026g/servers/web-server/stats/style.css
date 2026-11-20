@@ -51,3 +51,5 @@
 .stats-map-large { width:128px; height:72px }
 .stats-panels .stats-map-cell { justify-content:flex-end }
 .stats-panels dl>div:has(.stats-map-large) { align-items:center }
+/* A match's replay: its button, then what came of the ask. */
+.stats-replay button { margin:0; padding:4px 12px }

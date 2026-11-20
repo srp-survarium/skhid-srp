@@ -297,6 +297,20 @@ try {
   await navigate(`/wiki/maps?lang=en#${played.map_key}/${played.rules}`);
   assert.equal(await evaluate("document.querySelector('#maps [aria-pressed=true], .chip[aria-pressed=true]') !== null"), true, 'the Maps page opens');
   await navigate(`/stats?match=${newest}&lang=en`);
+  // The newest match has a replay: asked for, its file is offered. The one before it stays being made.
+  assert.equal(answered.match.replay, true);
+  await evaluate("document.querySelector('.stats-replay button').click()");
+  await new Promise(resolve => setTimeout(resolve, 800));
+  await settled();
+  assert.equal(answered.replay.status, 'ready');
+  assert.equal(await evaluate("document.querySelector('.stats-replay a').pathname"), answered.replay.url);
+  assert.match(await text('.stats-replay a'), /^Download · [\d.]+ MB$/);
+  await navigate(`/stats?match=${newest - 1}&lang=en`);
+  await evaluate("document.querySelector('.stats-replay button').click()");
+  await new Promise(resolve => setTimeout(resolve, 800));
+  assert.equal(await text('.stats-replay'), 'Preparing…');
+  await navigate(`/stats?match=${newest - 2}&lang=en`);
+  assert.equal(await count('.stats-replay'), 0, 'no button for a match without a recording');
   await navigate('/stats?match=99&lang=en');
   assert.equal(await text('.stats-empty'), 'No public match 99.');
   // A free-for-all: one list by place, its winners named.
