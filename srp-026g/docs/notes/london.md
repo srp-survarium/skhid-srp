@@ -42,6 +42,22 @@ shipped as a cream image while 0.31a2's is wood-brown: London's cupboards with t
 set (`office_cupboard_high[1]` and the like, used by no other project) were white. Pack
 `london-textures@1` gives them 0.31a2's file.
 
+## Vertex blending (`london-vertex-blend-1.json`)
+
+Patch 14 shipped London's own materials from an earlier build of the map, and in 15 of them the
+vertex blending differs from 0.31a2 (the technique, the tiled blend mask and its scale, rotation and
+falloff, or which layers blend). On rain's sand over stones (`terrain_tile_aref/sand_base_alpha_vc`,
+technique 1 for 0.31a2's 2) the stones showed through with a hard edge (the owner, 2026-11-19:
+"rough edge of stone"); the list gives it 0.31a2's technique, and the sand covers them as there.
+
+The other 14 stay as patch 14 has them. Changing their techniques to 0.31a2's (0->1 on
+`floor_02_trash_vc`, `gari_vc`, `metal_gari_vc`, `stucco_bl_crack_vc`, `stucco_dirt_vc`; 0->2 on
+`l9_anom_tile_top_vc`; 1->2 on `carpeting_alpha_vc`; 1->0 on `pol`) stops 0.26g's client loading the
+map: it waits forever after "create replay network client" (headless, 2026-11-19, in each half of
+a bisection; the same build with only the sand material loads). Their mask and layer values alone
+load, but do nothing without the technique. Drawing them as 0.31a2 needs the shader programs those
+techniques select.
+
 Source and checks: `scripts/content-edit/london-1.json` and its README section. The server data,
 bots' generated map files and website maps must be built from the same released content.
 

@@ -260,4 +260,5 @@ edit	v021d-renderer-2.json	-	Chemical Plant v0.21's keys for exe patch 130, as v
 edit	london-environment-1.json	-	London day: its probes' reflection strength as 0.31a2 authors it (environment_probes_specular_intensity_multiplier 1.2), the setting patch 14 left out
 edit	london-vines-1.json	-	London evening's six vine bush models take 0.31a2's second material set (dried leaves): 0.26g's models lacked it and drew grey
 edit	london-probe-channel-1.json	-	London: smart_attenuation on the 137 probes 0.31a2 box-projects (use_parallax_correction), the per-probe switch of pack london-probes@2; every London project
+edit	london-vertex-blend-1.json	-	London rain's sand over stones blends as 0.31a2 authors it (sand_base_alpha_vc vertex_blend_technique 2; patch 14 had 1, the stones showed with a hard edge)
 edit	london-probe-shapes-1.json	-	London: seven environment probes' boxes, places, radii and side widths as 0.31a2 authors them in each project (Skhid's London came from an earlier build); the radii set the order overlapping probes draw in
