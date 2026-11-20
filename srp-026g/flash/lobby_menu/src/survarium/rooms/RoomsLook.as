@@ -388,11 +388,39 @@ package survarium.rooms
             tf.mouseEnabled = true;
             tf.tabEnabled = true;
             tf.addEventListener(MouseEvent.MOUSE_DOWN, onPress, false, 0, true);
+            tf.addEventListener(MouseEvent.MOUSE_UP, onRelease, false, 0, true);
             route(tf, function(control:DisplayObject, e:MouseEvent):void
             {
-                FocusManager.setFocus(control as TextField);
+                focusAtEnd(control as TextField);
             });
             return tf;
+        }
+
+        // Focus with the caret after the digits (the owner's of 2026-11-19:
+        // a click put it at the start). The click may place it after this
+        // runs: again on release and on the next frame.
+        private function focusAtEnd(tf:TextField):void
+        {
+            FocusManager.setFocus(tf);
+            caretToEnd(tf);
+            tf.addEventListener(Event.ENTER_FRAME, onCaretFrame, false, 0, true);
+        }
+
+        private function onRelease(e:MouseEvent):void
+        {
+            caretToEnd(e.currentTarget as TextField);
+        }
+
+        private function onCaretFrame(e:Event):void
+        {
+            var tf:TextField = e.currentTarget as TextField;
+            tf.removeEventListener(Event.ENTER_FRAME, onCaretFrame);
+            caretToEnd(tf);
+        }
+
+        private static function caretToEnd(tf:TextField):void
+        {
+            tf.setSelection(tf.text.length, tf.text.length);
         }
 
         // A control and what a press on it does, (control, event).
@@ -442,7 +470,7 @@ package survarium.rooms
 
         private function onPress(e:MouseEvent):void
         {
-            FocusManager.setFocus(e.currentTarget as TextField);
+            focusAtEnd(e.currentTarget as TextField);
         }
 
         internal function line(box:Sprite, x:Number, y:Number, w:Number):void
