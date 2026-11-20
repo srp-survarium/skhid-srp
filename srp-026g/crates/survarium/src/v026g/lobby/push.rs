@@ -5,7 +5,7 @@
 use std::num::NonZeroU16;
 
 use super::super::dictionary::{Dictionary, MapId};
-use super::super::faces::Face;
+use super::super::faces::{Face, Faces};
 use super::super::lzma2;
 use super::super::modifications::Modifications;
 use super::super::prices::PriceItem;
@@ -288,9 +288,12 @@ pub struct OwnAccount {
     pub exp_total: u32,
     pub exp_level_start: u32,
     pub exp_next_level: u32,
-    /// srp's byte after the rest: the account's face, which the exe
+    /// srp's first byte after the rest: the account's face, which the exe
     /// draws the lobby's character by (`face-choice.md`).
     pub face: Face,
+    /// srp's second byte: how many faces the game data lists, which the
+    /// exe gives the lobby movie with the face (its Face button).
+    pub faces: Faces,
 }
 
 /// `80`: the lobby has signed the client in (`lobby.md` §2.1). The client
@@ -455,7 +458,8 @@ pub fn own_account(account: &OwnAccount) -> Result<ServerMessage, WireError> {
         .u32(account.exp_total)
         .u32(account.exp_level_start)
         .u32(account.exp_next_level)
-        .u8(account.face.index());
+        .u8(account.face.index())
+        .u8(account.faces.count());
     Ok(writer.done(ServerId::Account))
 }
 

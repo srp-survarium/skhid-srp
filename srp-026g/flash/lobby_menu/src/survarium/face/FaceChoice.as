@@ -2,21 +2,18 @@ package survarium.face
 {
    import flash.events.Event;
    import flash.events.EventDispatcher;
-   import flash.events.TimerEvent;
    import flash.external.ExternalInterface;
-   import flash.utils.Timer;
-   import flash.utils.getTimer;
 
    // The account's face (face-choice.md) as srp says it and as the player picks it: the one owner
    // of that state, which the Face button and the faces' window show (Event.CHANGE at each change).
    //
-   // srp's wire (face-choice.md, Wire): the ranking request at FACES_FIRST (the state) and
-   // FACE_CHOOSE + face (a choice), each answered by one row at FACES_FIRST,
-   // `F1;<done>;<face>;<count>` (done: 0 the state, 1 chosen, 2 refused; face the account's, from
-   // 0; count the faces). A pick is shown at once; one choice is asked at a time and the last pick
-   // wins: the answer to one sends the next when the player went on meanwhile. The lobby's
-   // character shows the face when srp's account (87) comes (the exe), so the movie draws nothing
-   // of the face itself.
+   // srp says it two ways. The exe (patch 123) gives the account's face and the faces' count from
+   // srp's account (0x87, root.srp_faces), which comes at the sign-in and again at each change of
+   // the account (a choice too). A choice is srp's wire (face-choice.md, Wire): the ranking request at FACE_CHOOSE +
+   // face, answered by one row at FACES_FIRST, `F1;<done>;<face>;<count>` (done 1 chosen, 2
+   // refused). A pick is shown at once; one choice is asked at a time and the last pick wins: the
+   // answer to one sends the next when the player went on meanwhile. The lobby's character shows
+   // the face when srp's account comes (the exe), so the movie draws nothing of the face itself.
    public class FaceChoice extends EventDispatcher
    {
 
@@ -31,19 +28,12 @@ package survarium.face
       // FACE_CHOOSE + face, inside the range.
       private static const FACES_MAX:int = FACES_LAST - FACE_CHOOSE + 1;
 
-      // What a row's header says was done.
+      // What srp's word says was done: only the state (the account), a choice made, refused.
+      private static const STATED:int = 0;
+
       private static const CHOSEN:int = 1;
 
       private static const REFUSED:int = 2;
-
-      // A choice unanswered this long (ms) is taken as lost: the face srp
-      // last said is shown, and the state asked.
-      private static const ANSWER_MS:int = 5000;
-
-      // The state asked every RETRY_MS until it comes: the asks sent while
-      // the movie loads, before the game takes them, are lost (as the
-      // presets', LocalPlayerProfile).
-      private static const RETRY_MS:int = 2000;
 
       // The faces of the game data (0: srp said nothing yet), the account's
       // face as srp last said it, and the face shown (the player's last pick
@@ -54,24 +44,15 @@ package survarium.face
 
       private var _shown:int = 0;
 
-      // The face of the choice asked and not answered (-1: none), and when.
+      // The face of the choice asked and not answered (-1: none).
       private var _asked:int = -1;
-
-      private var _askedAt:int = 0;
-
-      private var _retry:Timer;
 
       public function FaceChoice()
       {
          super();
-         this._retry = new Timer(RETRY_MS,0);
-         this._retry.addEventListener(TimerEvent.TIMER,this.onRetry);
-         this._retry.start();
-         this.send(FACES_FIRST);
       }
 
-      // The lobby's one: made by the first who asks (the player panel's Face button, made with the
-      // lobby), which asks srp the state.
+      // The lobby's one: made by the first who needs it (the exe's word, the Face button).
       public static function shared() : FaceChoice
       {
          if(_shared == null)
@@ -79,6 +60,12 @@ package survarium.face
             _shared = new FaceChoice();
          }
          return _shared;
+      }
+
+      // LobbyMenu.srp_faces: srp's account, as the exe read it.
+      public static function told(face:uint, count:uint) : void
+      {
+         shared().said(STATED,face,count);
       }
 
       // PlayerRanking.fillPlayers: rows of the faces' range are an answer
@@ -96,16 +83,6 @@ package survarium.face
          }
          shared().answer(String(rows[0].nickname));
          return true;
-      }
-
-      // RoomsWindow.playEnabled (by LocalPlayerProfile.lobbyLive): the game
-      // takes asks now; the state asked if it has not come.
-      public static function lobbyLive() : void
-      {
-         if(shared()._count == 0)
-         {
-            shared().send(FACES_FIRST);
-         }
       }
 
       // The faces of the game data: 0 until srp says, 1 when there is nothing to choose.
@@ -132,7 +109,7 @@ package survarium.face
          this.askNext();
       }
 
-      // `F1;<done>;<face>;<count>`: srp's word on the account's face.
+      // `F1;<done>;<face>;<count>`: srp's answer to a choice.
       private function answer(row:String) : void
       {
          var head:Array = row.split(";");
@@ -140,9 +117,12 @@ package survarium.face
          {
             return;
          }
-         var done:int = int(head[1]);
-         var face:int = int(head[2]);
-         var count:int = int(head[3]);
+         this.said(int(head[1]),int(head[2]),int(head[3]));
+      }
+
+      // srp's word on the account's face: what was done, the face, the faces' count.
+      private function said(done:int, face:int, count:int) : void
+      {
          if(count < 1 || face < 0 || face >= count)
          {
             return;
@@ -172,30 +152,9 @@ package survarium.face
             return;
          }
          this._asked = this._shown;
-         this._askedAt = getTimer();
-         this.send(FACE_CHOOSE + this._shown);
-      }
-
-      private function onRetry(e:TimerEvent) : void
-      {
-         if(this._count == 0)
-         {
-            this.send(FACES_FIRST);
-         }
-         else if(this._asked >= 0 && getTimer() - this._askedAt > ANSWER_MS)
-         {
-            this._asked = -1;
-            this._shown = this._face;
-            this.changed();
-            this.send(FACES_FIRST);
-         }
-      }
-
-      private function send(start:int) : void
-      {
          try
          {
-            ExternalInterface.call("request_players_range",start,1);
+            ExternalInterface.call("request_players_range",FACE_CHOOSE + this._shown,1);
          }
          catch(e:Error)
          {

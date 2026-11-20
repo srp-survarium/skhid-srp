@@ -195,6 +195,7 @@ Gone from the 0.21d profile body: team, the is_local bool, the new-player-protec
 | u32 | exp_level_start | lc+0x1EA970 |
 | u32 | exp_next_level | lc+0x1EA96C |
 | u8 | **srp:** the account's face (`face-choice.md`; the faces exe patch reads it, the stock reader stops before it) | |
+| u8 | **srp:** how many faces the game data lists (`body_parts.heads`, 1 without; the faces exe patch gives it and the face to the lobby movie, `root.srp_faces`) | |
 
 Then 0x270320 re-copies **every account item from the inventory vector by item_id** (std::find 0x277AA0). A miss yields a NULL source that 0x270390 dereferences → **crash. Every item in the 0x87 item table must already be in the inventory (0x89): send 0x89 before 0x87.** (PROVEN 0x270340..0x2703F1.) Then the active profile index (lc+0x1EA976) becomes the profile whose id equals the active id (0x274B4E). UI: `setup_player_profiles` 0x221E80 (`name`, `level` = equipment level computed by 0x2F79A0, `state`, `hint_text`) and 0x222330 (`select_player_profile`, `fill_player_profile_items{itemId, slotId, condition_or_stack}`, ammo bags, quick slot size, `update_profile_slots_count`, `set_quest_reward_multiplier`). If lc+0x1EAAA8 (in a squad) is set, the squad UI 0x2277C0 refreshes too.
 

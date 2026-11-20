@@ -22,6 +22,7 @@ use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
 use super::hook::Thread;
+use super::parse::Reader;
 use super::ui::movie_of;
 use crate::raw;
 
@@ -481,10 +482,25 @@ impl<'t> OwnAccountRead<'t> {
         unsafe { super::ui::c_string(self.client.own_profile().name(), PROFILE_NAME_LIMIT) }
     }
 
-    /// srp's byte after the account (its face), when the message has it.
-    pub fn srp_byte(&self) -> Option<u8> {
-        // SAFETY: the live reader.
-        unsafe { super::options::unread(self.reader) }.u8()
+    /// srp's bytes after the account (its face, the faces' count), as far
+    /// as the message has them.
+    pub fn srp_bytes(&self) -> Reader<'t> {
+        // SAFETY: the live reader, its message alive while the handler runs.
+        unsafe { super::options::unread(self.reader) }
+    }
+
+    /// Gives the lobby movie the account's face and the faces' count
+    /// (`root.srp_faces`): the Face button and the faces' window. The
+    /// lobby menu is the one the dispatch gives the account to next
+    /// (on_client_status_received 0x21D720 fills its movie), so its movie
+    /// is there now.
+    pub fn tell_lobby(&self, face: u8, count: u8) {
+        // SAFETY: the lobby client of the handler; its game and the game's
+        // lobby menu live as long as the game, on its thread.
+        let movie = unsafe { self.client.game().and_then(|game| game.lobby_menu()).and_then(|menu| lobby_movie(menu)) };
+        if let Some(movie) = movie {
+            movie.invoke_uints(c"root.srp_faces", &[u32::from(face), u32::from(count)]);
+        }
     }
 }
 

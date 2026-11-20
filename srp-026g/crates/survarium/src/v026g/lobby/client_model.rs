@@ -433,6 +433,17 @@ impl<'a> Reader<'a> {
             .face(u32::from(index))
             .ok_or_else(|| self.bad("a face the game data does not list"))
     }
+
+    /// srp's count of the faces after the face: the game data's.
+    fn faces(&mut self) -> Result<Faces, ModelError> {
+        let count = self.u8()?;
+        let faces = Faces::shared();
+        if count == faces.count() {
+            Ok(faces)
+        } else {
+            Err(self.bad("a count of faces that is not the game data's"))
+        }
+    }
 }
 
 /// The model of one client's lobby side.
@@ -1537,6 +1548,7 @@ impl Client {
                     exp_level_start: r.u32()?,
                     exp_next_level: r.u32()?,
                     face: r.face()?,
+                    faces: r.faces()?,
                 };
                 // 0x270320: every item is copied from the inventory by id;
                 // a miss is a NULL source.

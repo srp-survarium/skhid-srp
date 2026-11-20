@@ -104,6 +104,7 @@ package
    import survarium.controls.PlayerRanking;
    import survarium.lobbypick.LobbyWindow;
    import survarium.rooms.CardWindow;
+   import survarium.face.FaceChoice;
    import survarium.face.FaceWindow;
    import survarium.controls.QuestWindow;
    import survarium.controls.SrvContextMenu;
@@ -4777,9 +4778,21 @@ package
          this.chat.under(this.inventory_list);
       }
 
-      // The face button (StatusPanel.FACE_WINDOW): the faces' window opened, or closed again.
+      // The account's face and the faces' count, from srp's account (0x87) as the exe read it (patch
+      // 123): at the sign-in, and again at each change of the account (a choice too).
+      public function srp_faces(face:uint, count:uint) : void
+      {
+         FaceChoice.told(face,count);
+      }
+
+      // The face button (StatusPanel.FACE_WINDOW): the faces' window opened, or closed again; nothing
+      // before srp's account says how many faces there are.
       private function onFaceWindow(e:Event) : void
       {
+         if(FaceChoice.shared().count <= 1)
+         {
+            return;
+         }
          if(this._faceWindow == null)
          {
             this._faceWindow = new FaceWindow();

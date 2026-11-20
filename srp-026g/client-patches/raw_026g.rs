@@ -1305,6 +1305,24 @@ impl Game {
     pub unsafe fn map_name(self) -> BufferString {
         BufferString(unsafe { self.0.byte_add(0x55e0) })
     }
+
+    /// +0x5390 (ptr<survarium::lobby_menu>): the lobby menu (the 0x87 dispatch 0x274B8C: on_client_status_received 0x21D720 on it; switch_to_level_loading 0x27BE95)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn lobby_menu(self) -> Option<LobbyMenu> {
+        unsafe { self.0.byte_add(0x5390).cast::<Option<LobbyMenu>>().read_volatile() }
+    }
+
+    /// +0x5390 (ptr<survarium::lobby_menu>): the lobby menu (the 0x87 dispatch 0x274B8C: on_client_status_received 0x21D720 on it; switch_to_level_loading 0x27BE95)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_lobby_menu(self, value: Option<LobbyMenu>) {
+        unsafe { self.0.byte_add(0x5390).cast::<Option<LobbyMenu>>().write_volatile(value) }
+    }
 }
 
 /// A survarium::network_client (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -9295,6 +9313,24 @@ impl LobbyClient {
     #[inline(always)]
     pub unsafe fn own_profile(self) -> PlayerProfile {
         PlayerProfile(unsafe { self.0.byte_add(0x1e6344) })
+    }
+
+    /// +0x1e56c0 (ptr<survarium::game>): the game (the 0x87 dispatch 0x274B85: [lc+1E56C0h]+5390h is the lobby menu on_client_status_received 0x21D720 is called on; the 0x88 handler 0x274C01)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game(self) -> Option<Game> {
+        unsafe { self.0.byte_add(0x1e56c0).cast::<Option<Game>>().read_volatile() }
+    }
+
+    /// +0x1e56c0 (ptr<survarium::game>): the game (the 0x87 dispatch 0x274B85: [lc+1E56C0h]+5390h is the lobby menu on_client_status_received 0x21D720 is called on; the 0x88 handler 0x274C01)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game(self, value: Option<Game>) {
+        unsafe { self.0.byte_add(0x1e56c0).cast::<Option<Game>>().write_volatile(value) }
     }
 }
 

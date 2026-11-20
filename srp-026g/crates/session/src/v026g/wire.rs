@@ -151,6 +151,7 @@ pub fn own_account(account: &Account) -> Result<ServerMessage, WireError> {
         exp_level_start: start,
         exp_next_level: next,
         face: account.face,
+        faces: survarium::v026g::faces::Faces::shared(),
     })
 }
 

@@ -304,12 +304,18 @@ fn told(name: Option<&CStr>, byte: Option<u8>, what: &str) -> Option<(Name, Face
     Some((Name::of(name?)?, Face::of_byte(byte?)))
 }
 
-/// process_own_account after its last field (0x27030B).
+/// process_own_account after its last field (0x27030B): the account's face
+/// kept, and given to the lobby movie with the faces' count (its Face button
+/// is there from the lobby's first frame).
 pub fn on_own_account(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(read) = OwnAccountRead::at(ctx)
-        && let Some(own) = told(read.name(), read.srp_byte(), "an account (0x87)")
-    {
+    let Some(read) = OwnAccountRead::at(ctx) else { return Flow::Continue };
+    let mut srp = read.srp_bytes();
+    let (face, count) = (srp.u8(), srp.u8());
+    if let Some(own) = told(read.name(), face, "an account (0x87)") {
         KNOWN.with(ctx.thread(), |known| known.own = Some(own));
+    }
+    if let (Some(face), Some(count)) = (face, count) {
+        read.tell_lobby(face, count);
     }
     Flow::Continue
 }

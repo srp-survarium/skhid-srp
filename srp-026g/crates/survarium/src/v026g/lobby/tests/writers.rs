@@ -311,6 +311,7 @@ fn the_own_account() {
         exp_level_start: 500,
         exp_next_level: 1500,
         face: crate::v026g::faces::Faces::of_count(5).unwrap().face(3).unwrap(),
+        faces: crate::v026g::faces::Faces::of_count(5).unwrap(),
     };
     let expected = format!(
         "87 {SAMPLE_BODY}
@@ -319,7 +320,7 @@ fn the_own_account() {
          01                          autobuy: always on
          03                          level
          E8030000 F4010000 DC050000  experience: total, level start, next level
-         03                          srp: the face"
+         03 05                       srp: the face, the faces' count"
     );
     assert_bytes(&own_account(&account).unwrap(), &expected);
 }
@@ -345,13 +346,14 @@ fn an_account_with_no_kit_modifiers_has_an_empty_mask() {
         exp_level_start: 0,
         exp_next_level: 100,
         face: crate::v026g::faces::Face::DEFAULT,
+        faces: crate::v026g::faces::Faces::shared(),
     };
     assert_bytes(
         &own_account(&account).unwrap(),
         "87 01 'Bob' 'SRP' 03000000 01 00
          02 05000000 'Sniper' 00000000
          0000000000000000 0000000000000000
-         01000000 05000000 01 00 00000000 00000000 64000000 00",
+         01000000 05000000 01 00 00000000 00000000 64000000 00 03",
     );
 }
 
@@ -450,6 +452,7 @@ fn the_account_bodys_limits() {
         exp_level_start: 0,
         exp_next_level: 1,
         face: crate::v026g::faces::Face::DEFAULT,
+        faces: crate::v026g::faces::Faces::shared(),
     };
     assert!(own_account(&account).is_err());
 }
@@ -1579,6 +1582,7 @@ fn the_account_says_autobuy_is_on() {
         exp_level_start: 0,
         exp_next_level: 500,
         face: crate::v026g::faces::Face::DEFAULT,
+        faces: crate::v026g::faces::Faces::shared(),
     };
     let message = own_account(&account).unwrap();
     let body = message.body();

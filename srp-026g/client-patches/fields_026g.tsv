@@ -1467,3 +1467,5 @@ vostok::render::skeleton_combined_part	material	0x228	obj<vostok::buffer_string>
 vostok::render::skeleton_combined_part	tag	0xC08	u32	what the part is: 0 the head (0x2056E6), 1 + the slot table's index (0xA79870: gloves, torso, boots, pants, helmet, mask, back) for an item's model and its additional models (0x204A44, 0x205540); player::set_head_visibility 0x1F37A0 hides 0, 5, 6, 7 in first person
 survarium::items_dictionary	entry_count	0x134	u32	the entries' count (item_by_id 0x1F00AB: the search's end is entries + count x 3A0h; late_join_validate_026g.c's item() bounds its search by it)
 survarium::item_entry	size	0x3A0	size	an entry of the items dictionary (item_by_id 0x1F00B1: imul eax,eax,3A0h)
+survarium::lobby_client	game	0x1E56C0	ptr<survarium::game>	the game (the 0x87 dispatch 0x274B85: [lc+1E56C0h]+5390h is the lobby menu on_client_status_received 0x21D720 is called on; the 0x88 handler 0x274C01)
+survarium::game	lobby_menu	0x5390	ptr<survarium::lobby_menu>	the lobby menu (the 0x87 dispatch 0x274B8C: on_client_status_received 0x21D720 on it; switch_to_level_loading 0x27BE95)
