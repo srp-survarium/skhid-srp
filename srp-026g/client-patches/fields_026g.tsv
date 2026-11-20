@@ -1495,3 +1495,11 @@ survarium::weapon	left_fingers	0x20F0	obj<vostok::animation::finger_set>	fingers
 vostok::animation::finger_set	matrices	0x0	f32	fifteen row-vector 4x4: thumb 1..3, index, middle, ring, pinky, each finger locator's offset times the inverse of its parent locator's (parents 0xA6FC08); tick 0x390900 copies them whole into the user's finger bones
 vostok::animation::finger_set	size	0x3C0	size	a set's stride (set_weapon_model 0x390620)
 vostok::animation::fingers_corrector	weapon	-0x20F0	obj<survarium::weapon>	the weapon the corrector is in: weapon_cook::allocate_weapon builds the object in place at weapon+1820h (0x24A7DF), the corrector at its +8D0h (correct_fingers 0x29863F); only a weapon's object has one (vtable 0xA04C34)
+vostok::resources::pinned_resource	resource	0x0	ptr<vostok::resources::managed_resource>	a pinned_ptr_const<u8> (0x3DD990 fills it, 0x3C1020 lets it go): the managed resource it holds a reference of
+vostok::resources::pinned_resource	bytes	0x4	ptr<u8>	the resource's bytes, its node [resource+0D4h] + 34h: they stay where they are while the node's pin count (+2Ch) is not 0 (0x3DDA1E..0x3DDA30)
+vostok::resources::pinned_resource	count	0x8	u32	their count, [resource+5Ch] (0x3DDA4B)
+vostok::resources::pinned_resource	size	0xC	size	the three words
+vostok::resources::managed_resource	references	0xDC	u32	its reference count (lock xadd at 0x1EA2BC, 0x3DD9C3; the pointer's release 0x11450)
+vostok::resources::loaded_resource	managed	0x0	ptr<vostok::resources::managed_resource>	a result's managed resource, what a raw data request (class 3) gives: game::on_configs_loaded takes startup.cfg's and user.cfg's so (queries_result +128h, +408h: 0x1EA296, 0x1EA2D4); 0 for a request that failed
+survarium::dictionary_query_frame	requests	0x3C	obj<survarium::resource_request>	items_dictionary_cook::translate_query's five requests by ESP at 0x2C8963 (the address its lea eax,[esp+3Ch] takes for query_resources): five binary configs, class 1Fh
+survarium::dictionary_configs_frame	results	0x4	ptr<vostok::resources::queries_result>	items_dictionary_cook::on_configs_loaded 0x2C8AA0's argument at its entry (by ESP): the queries_result of translate_query's query

@@ -276,6 +276,8 @@ global engine_global_lock
 global engine_global_unlock
 global engine_set_texture
 global engine_fingers_set_weapon_model
+global engine_pin_resource
+global engine_unpin_resource
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -3197,6 +3199,37 @@ engine_text_edit_delete_selection:
     push edi
     mov esi, [esp + 20]   ; edit
     call 0x3486a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_pin_resource:
+    ; 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; resource -> 4
+    mov eax, [esp + 24]   ; pinned
+    call 0x3dd990
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_unpin_resource:
+    ; 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; pinned
+    call 0x3c1020
     pop edi
     pop esi
     pop ebx

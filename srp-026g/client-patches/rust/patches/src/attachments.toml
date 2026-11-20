@@ -7,6 +7,14 @@ name = "attachments"
 patch = 161
 
 [[hook]]
+site = "attachments.dictionary_requests"
+handler = "on_dictionary_requests"
+
+[[hook]]
+site = "attachments.dictionary_configs"
+handler = "on_dictionary_configs"
+
+[[hook]]
 site = "attachments.ready"
 handler = "on_ready"
 

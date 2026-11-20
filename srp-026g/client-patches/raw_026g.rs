@@ -339,6 +339,10 @@ unsafe extern "C" {
     pub fn engine_draw_triangles(renderer: Option<SystemRenderer>, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
     /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
     pub fn engine_text_edit_delete_selection(edit: Option<UiTextEdit>);
+    /// 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4
+    pub fn engine_pin_resource(pinned: Option<PinnedResource>, resource: Option<ManagedResource>);
+    /// 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0
+    pub fn engine_unpin_resource(pinned: Option<PinnedResource>);
 }
 
 #[allow(dead_code)]
@@ -15284,6 +15288,15 @@ impl ManagedResource {
     pub unsafe fn set_name_entry(self, value: Option<NameRegistryEntry>) {
         unsafe { self.0.byte_add(0xb0).cast::<Option<NameRegistryEntry>>().write_volatile(value) }
     }
+
+    /// +0xdc (u32): its reference count (lock xadd at 0x1EA2BC, 0x3DD9C3; the pointer's release 0x11450)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xdc).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A vostok::resources::name_registry_entry (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -26404,6 +26417,24 @@ impl LoadedResource {
         unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
     }
 
+    /// +0x0 (ptr<vostok::resources::managed_resource>): a result's managed resource, what a raw data request (class 3) gives: game::on_configs_loaded takes startup.cfg's and user.cfg's so (queries_result +128h, +408h: 0x1EA296, 0x1EA2D4); 0 for a request that failed
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn managed(self) -> Option<ManagedResource> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedResource>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::resources::managed_resource>): a result's managed resource, what a raw data request (class 3) gives: game::on_configs_loaded takes startup.cfg's and user.cfg's so (queries_result +128h, +408h: 0x1EA296, 0x1EA2D4); 0 for a request that failed
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_managed(self, value: Option<ManagedResource>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedResource>>().write_volatile(value) }
+    }
+
     /// 0x2e0 bytes: a result's bytes
     pub const SIZE: usize = 0x2e0;
 
@@ -28041,6 +28072,166 @@ impl FingersCorrector {
     #[inline(always)]
     pub unsafe fn weapon(self) -> Weapon {
         Weapon(unsafe { self.0.byte_sub(0x20f0) })
+    }
+}
+
+/// A vostok::resources::pinned_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PinnedResource(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PinnedResource {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::resources::managed_resource>): a pinned_ptr_const<u8> (0x3DD990 fills it, 0x3C1020 lets it go): the managed resource it holds a reference of
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resource(self) -> Option<ManagedResource> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedResource>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::resources::managed_resource>): a pinned_ptr_const<u8> (0x3DD990 fills it, 0x3C1020 lets it go): the managed resource it holds a reference of
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_resource(self, value: Option<ManagedResource>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedResource>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<u8>): the resource's bytes, its node [resource+0D4h] + 34h: they stay where they are while the node's pin count (+2Ch) is not 0 (0x3DDA1E..0x3DDA30)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bytes(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<u8>): the resource's bytes, its node [resource+0D4h] + 34h: they stay where they are while the node's pin count (+2Ch) is not 0 (0x3DDA1E..0x3DDA30)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_bytes(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x8 (u32): their count, [resource+5Ch] (0x3DDA4B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// 0xc bytes: the three words
+    pub const SIZE: usize = 0xc;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::resources::pinned_resources (0xc bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct PinnedResourceStorage([u8; 0xc]);
+
+#[allow(dead_code)]
+impl PinnedResourceStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xc])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> PinnedResource {
+        PinnedResource(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<PinnedResource> {
+        (!rooms.is_empty()).then(|| PinnedResource(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::dictionary_query_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DictionaryQueryFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DictionaryQueryFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x3c (obj<survarium::resource_request>): items_dictionary_cook::translate_query's five requests by ESP at 0x2C8963 (the address its lea eax,[esp+3Ch] takes for query_resources): five binary configs, class 1Fh
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn requests(self) -> ResourceRequest {
+        ResourceRequest(unsafe { self.0.byte_add(0x3c) })
+    }
+}
+
+/// A survarium::dictionary_configs_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DictionaryConfigsFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DictionaryConfigsFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::resources::queries_result>): items_dictionary_cook::on_configs_loaded 0x2C8AA0's argument at its entry (by ESP): the queries_result of translate_query's query
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn results(self) -> Option<QueriesResult> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<QueriesResult>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::resources::queries_result>): items_dictionary_cook::on_configs_loaded 0x2C8AA0's argument at its entry (by ESP): the queries_result of translate_query's query
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_results(self, value: Option<QueriesResult>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<QueriesResult>>().write_volatile(value) }
     }
 }
 
@@ -34006,6 +34197,36 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponDeleteFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(WeaponDeleteFrame)
+        }
+    }
+
+    /// attachments.dictionary_requests (0x2c8963): items_dictionary_cook::translate_query (0x2C88D0) before its query_resources (0x2C896C), the other arguments pushed: mov ecx,5 (the requests' count) / lea eax,[esp+3Ch] (the requests); query_resources copies the requests before it returns
+    pub mod attachments_dictionary_requests {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::dictionary_query_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<DictionaryQueryFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(DictionaryQueryFrame)
+        }
+    }
+
+    /// attachments.dictionary_configs (0x2c8aa0): items_dictionary_cook::on_configs_loaded's entry (push ebp / mov ebp,esp / sub esp,0E8h): [esp+4] the queries_result of translate_query's query; the dictionary is made of its first five results after this (0x2C8AF5..), each read by its place
+    pub mod attachments_dictionary_configs {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::dictionary_configs_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<DictionaryConfigsFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(DictionaryConfigsFrame)
         }
     }
 }

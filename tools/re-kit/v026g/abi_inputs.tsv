@@ -6550,3 +6550,10 @@ va	name	location	role	basis
 0x00332440	survarium::ammo_data::load	entry ESP+4	+40h buck_dispersion (float, 0x3325D3), +44h buck_shot (a byte: the pellets of a shot, 0x3325BD); a weapon's melee/data has 1 and 0	observed
 0x002e23a0	survarium::weapon_core::instant_fire	EBX at 0x2E245C	the weapon: one get_dispersed_bullet_direction for the shot, then a bullet per pellet ([+538h]+2ACh of them, 0x2E2467), each through get_dispersed_buckshot_direction 0x2E2120 and times muzzle_speed ([+538h]+2A4h)	observed
 0x002d9b90	survarium::base_player::hit_impl	ESI and EDI at 0x2D9D78	the bullet (ESI: +40h its ammo data, +54h must be 0.0, 0x2D9C84) and the hit_info (EDI: +40h the shooter, whose vtable +4Ch gives the weapon): stopping_power (weapon +524h) x k_power (ammo data +0Ch) queued at player+2E8h (0x2DC0F0), then stamina_damage (weapon +528h) x k_stamina_damage (+10h)	observed
+0x003dd990	vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]	EAX	the pinned pointer to fill (0Ch bytes)	observed
+0x003dd990	vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]	entry ESP+4	a managed_resource_ptr by value: the managed resource, one reference of it (+0DCh) the callee gives back (0x3DD9CC)	observed
+0x003c1020	vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]	ECX	the pinned pointer	observed
+0x002c88d0	survarium::items_dictionary_cook::translate_query	ECX	the cook (its allocator at +20h, the query's)	observed
+0x002c88d0	survarium::items_dictionary_cook::translate_query	entry ESP+4	the parent query	observed
+0x002c8aa0	survarium::items_dictionary_cook::on_configs_loaded	ECX	the cook	observed
+0x002c8aa0	survarium::items_dictionary_cook::on_configs_loaded	entry ESP+4	the queries_result of translate_query's query	observed

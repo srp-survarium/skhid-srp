@@ -3609,3 +3609,7 @@ va	status	ref_021d	name
 0x00298630	inferred-high		survarium::portable_interactive_object_with_finger_correction::correct_fingers [descriptive]
 0x00298680	inferred-high		survarium::portable_interactive_object_with_finger_correction::release_left_hand [descriptive]
 0x002fc020	inferred-high		survarium::weapon_user_animations_selector::set_sprint_jump_callbacks [descriptive]
+0x003dd990	inferred-high		vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]
+0x003dd9e0	inferred-high		vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const body [descriptive]
+0x003c1020	inferred-high		vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]
+0x00011450	inferred-high		vostok::resources::managed_resource_ptr::~managed_resource_ptr [descriptive]

@@ -1702,6 +1702,84 @@ packet_recovery_on_loaded_replay:
     db 0x8b, 0x47, 0x04, 0x85, 0xc0
     jmp 0x27c11b
 
+; 0x2c8963 items_dictionary_cook::translate_query (0x2C88D0) before its query_resources (0x2C896C), the other arguments pushed: mov ecx,5 (the requests' count) / lea eax,[esp+3Ch] (the requests); query_resources copies the requests before it returns: lohook -> attachments_on_dictionary_requests
+global attachments_on_dictionary_requests
+extern hook_attachments_on_dictionary_requests
+attachments_on_dictionary_requests:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_dictionary_requests
+    mov edx, attachments_on_dictionary_requests_replay
+    cmp eax, 0
+    je attachments_on_dictionary_requests_go
+    mov edx, 0x2c896c
+    cmp eax, 1
+    je attachments_on_dictionary_requests_go
+    ud2
+attachments_on_dictionary_requests_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_dictionary_requests_replay:
+    db 0xb9, 0x05, 0x00, 0x00, 0x00, 0x8d, 0x44, 0x24, 0x3c
+    jmp 0x2c896c
+
+; 0x2c8aa0 items_dictionary_cook::on_configs_loaded's entry (push ebp / mov ebp,esp / sub esp,0E8h): [esp+4] the queries_result of translate_query's query; the dictionary is made of its first five results after this (0x2C8AF5..), each read by its place: lohook -> attachments_on_dictionary_configs
+global attachments_on_dictionary_configs
+extern hook_attachments_on_dictionary_configs
+attachments_on_dictionary_configs:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_dictionary_configs
+    mov edx, attachments_on_dictionary_configs_replay
+    cmp eax, 0
+    je attachments_on_dictionary_configs_go
+    mov edx, 0x2c8aa9
+    cmp eax, 1
+    je attachments_on_dictionary_configs_go
+    ud2
+attachments_on_dictionary_configs_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_dictionary_configs_replay:
+    db 0x55, 0x8b, 0xec, 0x81, 0xec, 0xe8, 0x00, 0x00, 0x00
+    jmp 0x2c8aa9
+
 ; 0x24acf0 weapon_cook::on_weapon_subresources_ready's entry (sub esp,24h / push ebx / push ebp): [esp+8] the weapon config's resource, [esp+0Ch] the weapon weapon_cook made, as the cook's functor binds them (0x24AC39..); by load_weapon both slots are the shots' loop's temporaries (0x24B063, 0x24AFA4, 0x24B044): lohook -> attachments_on_ready
 global attachments_on_ready
 extern hook_attachments_on_ready
