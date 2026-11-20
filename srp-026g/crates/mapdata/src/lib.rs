@@ -41,6 +41,17 @@ pub mod bullet;
 mod config;
 pub mod controller;
 pub mod digest;
+/// [incremental grids] The source digests of this build (`build.rs`, `mapdata-srchash`): [`source::SRC_GRID`] names a built grid's
+/// source, [`source::SRC_SIGHT`] a sight tree's, [`source::SRC_ALL`] the crate's. Taken from the tokens the builds reach, at
+/// compile time: a comment, a doc or a test edit changes none, and a binary names its files by the source it was built from.
+pub mod source {
+    include!(concat!(env!("OUT_DIR"), "/source_digests.rs"));
+
+    /// A digest's 16-digit name (its high half), for a file name.
+    pub fn short(digest: u128) -> String {
+        format!("{:016x}", (digest >> 64) as u64)
+    }
+}
 pub mod format;
 pub mod grid;
 pub mod library;
@@ -331,8 +342,9 @@ pub const CLIENT_BODY_ALGO: u32 = 1;
 /// millimetre, the split axis kept in a branch (the tree of 1 was median splits and tight boxes). 3: the tree keeps
 /// each triangle's bullet armor ([`FaceArmor`]), in the key and in the file.
 pub const SIGHT_ALGO: u32 = 3;
-/// [`World::map_grid_key`]'s own part (the spawns, and the map file when the rim jumps fly on the game's shapes).
-pub const MAP_GRID_KEY_ALGO: u32 = 1;
+/// [`World::map_grid_key`]'s own part (the spawns, and the map file when the rim jumps fly on the game's shapes). 2: and
+/// [incremental grids] the grid builder's source ([`source::SRC_GRID`]): a stored grid of another builder is never read.
+pub const MAP_GRID_KEY_ALGO: u32 = 2;
 /// [L36] The game's shapes' sweeps keep, at an equal fraction inside one mesh, the later triangle of the mesh tree's order
 /// (`controller::Contact::replaces`): in [`MapData::map_grid_key`] for every body whose passes take the shapes
 /// ([`MapData::takes_shapes`]). A value of its own. 0002: and between a compound's children the first its child tree offers
@@ -464,6 +476,8 @@ impl World {
         let mut digest = digest::Digest::new();
         digest.u64(grid_key_with_links(walker, map.play_area(AREA_MARGIN), cell, body, &map.grid_seeds(), links));
         digest.u32(MAP_GRID_KEY_ALGO);
+        digest.u64((source::SRC_GRID >> 64) as u64);
+        digest.u64(source::SRC_GRID as u64);
         digest.len(map.spawns.len());
         for spawn in &map.spawns {
             for v in [spawn.position.x, spawn.position.y, spawn.position.z] {

@@ -10,11 +10,10 @@
 //!   and, when the grid body flies the rim jumps (`Body::rim_jumps`), the map file's digest: the jumps fly on the game's shapes
 //!   (`Collision::build_exe`: the map's objects, placements and library meshes), which the walker triangles do not hold;
 //! - the sight tree: the server's own key (`mapdata::sight_key`: the bullet triangles and their armor);
-//! - both: the grid builder's code, as [`source_fingerprint`] (its file names carry it, so the files of another builder are never
-//!   read): every file of the `mapdata` crate, which holds the grid's and the tree's builds and everything they call (`survarium`,
-//!   `resources-db` and `binary-config-parser` are called only while the map file is read, whose output the keys hold, and by
-//!   `Armor::crossed_by`, a query), the workspace's `Cargo.toml` (the profiles) and `Cargo.lock` (the dependencies' versions), and
-//!   `flake.nix` with `flake.lock` (the toolchain).
+//! - each: its builder's source, baked into the binary at compile time (its file names carry it, so the files of another builder
+//!   are never read): [incremental grids] `mapdata::source::SRC_GRID` for a grid, `SRC_SIGHT` for a sight tree, the digests of
+//!   the tokens each build and its file reach (`mapdata-srchash`: no comments, docs, tests or `src/bin`; the lock's entries of
+//!   the dependencies, the profiles, the toolchain). A comment edit renames no file, and a grid pass's edit no sight tree.
 //!
 //! The tables `mapdata::GridExtras` adds are not cached: they are made from the read grid as the server's map store makes them
 //! (`bots::maps`), by the one `GridExtras::apply`. A file is written to a name of its own and renamed in, so a reader never sees
@@ -33,8 +32,6 @@ use super::settings::bench_settings;
 /// The cache of this run (`SRP_BENCH_GRID_CACHE`), or none.
 struct Cache {
     dir: PathBuf,
-    /// [`source_fingerprint`] of the source this test binary was built from.
-    source: u64,
 }
 
 fn cache() -> Option<&'static Cache> {
@@ -42,13 +39,14 @@ fn cache() -> Option<&'static Cache> {
     CACHE
         .get_or_init(|| {
             let dir = PathBuf::from(bench_settings().var_os("SRP_BENCH_GRID_CACHE").filter(|d| !d.is_empty())?);
-            let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-            let source = source_fingerprint(&root).unwrap_or_else(|why| {
-                panic!("SRP_BENCH_GRID_CACHE: the grid builder's source at {} is not readable ({why}): no key for its files", root.display())
-            });
             make_shared_dir(&dir).unwrap_or_else(|why| panic!("SRP_BENCH_GRID_CACHE={}: {why}", dir.display()));
-            eprintln!("  grid cache: {} (builder source {source:016x})", dir.display());
-            Some(Cache { dir, source })
+            eprintln!(
+                "  grid cache: {} (grid source {}, sight source {})",
+                dir.display(),
+                mapdata::source::short(mapdata::source::SRC_GRID),
+                mapdata::source::short(mapdata::source::SRC_SIGHT)
+            );
+            Some(Cache { dir })
         })
         .as_ref()
 }
@@ -66,36 +64,6 @@ fn make_shared_dir(dir: &Path) -> std::io::Result<()> {
         std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o1777))?;
     }
     Ok(())
-}
-
-/// The digest of the grid builder's source under the workspace `root` (see the module's documentation): each file's path from
-/// `root` and its bytes, in the order of the paths.
-fn source_fingerprint(root: &Path) -> std::io::Result<u64> {
-    let mut files = vec![
-        PathBuf::from("Cargo.toml"),
-        PathBuf::from("Cargo.lock"),
-        PathBuf::from("flake.nix"),
-        PathBuf::from("flake.lock"),
-    ];
-    let mut dirs = vec![PathBuf::from("crates/mapdata")];
-    while let Some(dir) = dirs.pop() {
-        for entry in std::fs::read_dir(root.join(&dir))? {
-            let entry = entry?;
-            let path = dir.join(entry.file_name());
-            if entry.file_type()?.is_dir() {
-                dirs.push(path);
-            } else {
-                files.push(path);
-            }
-        }
-    }
-    files.sort();
-    let mut digest = Digest::new();
-    for file in &files {
-        digest.bytes(file.to_string_lossy().replace('\\', "/").as_bytes());
-        digest.bytes(&std::fs::read(root.join(file))?);
-    }
-    Ok(digest.finish())
 }
 
 /// How a part of the world came.
@@ -141,7 +109,7 @@ pub(super) fn world(
         digest.finish()
     };
     let (grid, grid_made) = cache.read_or_build(
-        format!("bench-grid-{:016x}-{grid_key:016x}.bin", cache.source),
+        format!("bench-grid-{}-{grid_key:016x}.bin", mapdata::source::short(mapdata::source::SRC_GRID)),
         |path| WalkGrid::read(path, grid_key, body),
         || {
             let (grid, stats) = World::map_grid_with_stats(&map, &walker, cell, body, links);
@@ -167,7 +135,7 @@ pub(super) fn world(
     let bullet = map.bullet_mesh();
     let sight_key = bullet.key();
     let (sight, sight_made) = cache.read_or_build(
-        format!("bench-sight-{:016x}-{sight_key:016x}.bin", cache.source),
+        format!("bench-sight-{}-{sight_key:016x}.bin", mapdata::source::short(mapdata::source::SRC_SIGHT)),
         |path| RayTree::read(path, sight_key),
         || bullet.build_tree(),
         |sight, path| sight.write(path, sight_key),
