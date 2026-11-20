@@ -192,5 +192,7 @@ as the core writes every ported gun's.
 ## Not in this pack
 
 - Scope fit variants (`fitn_*`): no scope takes these guns yet.
-- The weapon kit's records (#893, not merged). The camouflage masks paint each texture's large
-  parts (weapon_camo.py's suggestion, no premium to read them from), not yet picked by the owner.
+- The weapon kit's records (#893, not merged). The camouflage masks are `weapon_camo.py`'s rule
+  for every gun since weapons-069-camo@4 (weapon-camo.md; before, each texture's large parts). The
+  bake takes a weapon's first 8 surfaces (patch 44, #973 open for 16): three of the AKMSU's 11 stay
+  plain whatever their masks say.

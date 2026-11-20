@@ -1,5 +1,5 @@
-# The parts of weapons-046 textures that are painted, by a UV point on each (../weapon-camo/weapon_camo.py):
-# a texture with no points stays plain (its mask paints nothing). The others are suggested (their large parts).
+# The hand picks of weapons-046 textures, by a UV point on each part (../weapon-camo/weapon_camo.py):
+# `+u,v` painted, `-u,v` bare, over its rule; a texture with no points stays plain (its mask paints nothing).
 weapons/assault/enfield_l85a2/enfield_l85a2_muzzle_brake	
 weapons/assault/enfield_l85a2/enfield_l85a2_ironsight	
 weapons/lmg/fort_401/fort_401_ironsight	
@@ -11,3 +11,5 @@ weapons/ammo/para_9x19/para_9x19
 weapons/pistols/colt_m1911/colt_m1911_barrel	
 weapons/pistols/colt_m1911/colt_m1911_ironsight	
 weapons/ammo/acp_45/acp_45	
+# The SVU-A's muzzle device (on the handguard's texture; wider than a slim tube) and its two end caps: bare.
+weapons/sniper/svu_a/svu_a_handguard	-0.4299,0.1897 -0.9431,0.8757 -0.4851,0.5232
