@@ -1385,6 +1385,9 @@ impl Core<'_> {
         let Some(running) = self.matches.remove(&match_id) else {
             return;
         };
+        // Its leaves first: `end_match` drops the ones no tick has read yet,
+        // and a leave that ended the match would put its member back.
+        self.room_left_matches();
         self.store.matchmaking().end_match(match_id);
         // A room's match: its players are back in the room.
         if made {
