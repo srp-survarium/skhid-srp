@@ -285,11 +285,11 @@ pub(super) struct Made {
     pub(super) to: NodeId,
     pub(super) press: Takeoff,
     pub(super) share: Share,
-    pub(super) walk: Option<(PressLead, Share)>,
+    pub(super) walk: Option<(gap::WalkingPress, Share)>,
     /// [R83] Where its press is aimed ([`Aim::STRAIGHT`]: on the link's line).
     pub(super) aim: Aim,
     /// [S2] Whether a press a body with no sprint plays (a walking or a slow one, [`Kind::Walk`], [`Kind::Slow`]) lands on `to`
-    /// too, whatever press won: [`Self::walk`] carries a walking press only, so a slow one that lands shows here alone.
+    /// too, whatever press won. [slow walk press] [`Self::walk`] carries a slow one as well now.
     pub(super) walker_lands: bool,
 }
 
@@ -594,13 +594,22 @@ fn press_onto(
         }
         scored.push((l.kind, l.lead, bits.count_ones() as u8, bits));
     }
-    let best_of = |kind: Option<Kind>| best_scored(&scored, kind);
-    let (kind, lead, _, bits) = best_of(None).expect("a scored press");
-    // [S2] A sprint climb carries one too: a body with no sprint takes the link by it (S6's reach).
+    let (kind, lead, _, bits) = best_scored(&scored, |_| true).expect("a scored press");
+    // [S2] A sprint climb carries one too: a body with no sprint takes the link by it (S6's reach). [slow walk press] The best
+    // of the walking presses, the short jump at the walk cap or a slow one ([`gap::WalkingPress`]), by the same rule as the
+    // link's own press: where only a slow press lands (level_02 day_2 (19.70, 16.08, 64.47) and (17.95, 15.72, 92.22): a sprint
+    // link with none, refused whenever the client refused the sprint), a body refused the sprint plays it.
     let walk = matches!(kind, Kind::Sprint | Kind::SprintHeld | Kind::Climb)
-        .then(|| best_of(Some(Kind::Walk)))
+        .then(|| best_scored(&scored, |k| matches!(k, Kind::Walk | Kind::Slow(_))))
         .flatten()
-        .map(|(_, l, _, b)| (PressLead::from_metres(l), share_of(b)));
+        .map(|(k, l, _, b)| {
+            let lead = PressLead::from_metres(l);
+            let walk = match k {
+                Kind::Slow(steps) => gap::WalkingPress::Slow { lead, steps },
+                _ => gap::WalkingPress::Short(lead),
+            };
+            (walk, share_of(b))
+        });
     let press = match kind {
         Kind::Walk => Takeoff::Press(PressLead::from_metres(lead)),
         Kind::Sprint => Takeoff::Sprint(PressLead::from_metres(lead)),
@@ -612,25 +621,21 @@ fn press_onto(
     Made { to, press, share: share_of(bits), walk, aim: Aim::STRAIGHT, walker_lands }
 }
 
-/// [`press_onto`]'s choice among the presses `scored` (kind, lead, landing neighbours, their bits), of `kind` only where given:
+/// [`press_onto`]'s choice among the presses `scored` (kind, lead, landing neighbours, their bits) whose kind passes `of`:
 /// the priced count first ([`gap::Mask::priced`], [knife edge]: a press with width across the way before a knife edge), then
 /// every landing neighbour, then [`rank`], then the lead nearest the middle of its kind's.
 ///
-/// [loops] Of all kinds, a standing press (`Slow(0)`) is chosen only where no moving press ([`moving`]) lands with width across
-/// the way. A standing press needs the body brought to rest inside its window before the press, which the neighbourhood does not
+/// [loops] A standing press (`Slow(0)`) is chosen only where no moving press ([`moving`]) of those `of` passes lands with width
+/// across the way (the link's own press, and [slow walk press] a sprint link's walking press alike). A standing press needs the body brought to rest inside its window before the press, which the neighbourhood does not
 /// price: the client lets a body go on for a step and the stop blend after its keys are let go (0.61 m at the walk,
 /// `docs/notes/walk_blend.md`), so on a narrow top it slides off or out of the window, and at the final build's loop spots
 /// bodies waited at the press point and never pressed (`LOOPS.md` cause 1). Players climb these links on the move: 16 of 17
 /// live crossings with a press had move keys held through the press.
-fn best_scored(scored: &[(Kind, f32, u8, u16)], kind: Option<Kind>) -> Option<(Kind, f32, u8, u16)> {
+fn best_scored(scored: &[(Kind, f32, u8, u16)], of: impl Fn(Kind) -> bool) -> Option<(Kind, f32, u8, u16)> {
     let priced = |bits: u16| gap::Mask::of_bits(bits).map_or(0, gap::Mask::priced);
     let wide = |bits: u16| gap::Mask::of_bits(bits).is_some_and(|m| m.count() > 0 && !m.knife_edge());
-    let moving_lands = scored.iter().any(|s| moving(s.0) && wide(s.3));
-    let of: Vec<&(Kind, f32, u8, u16)> = scored
-        .iter()
-        .filter(|s| kind.is_none_or(|k| s.0 == k))
-        .filter(|s| kind.is_some() || !(moving_lands && s.0 == Kind::Slow(0)))
-        .collect();
+    let moving_lands = scored.iter().any(|s| of(s.0) && moving(s.0) && wide(s.3));
+    let of: Vec<&(Kind, f32, u8, u16)> = scored.iter().filter(|s| of(s.0)).filter(|s| !(moving_lands && s.0 == Kind::Slow(0))).collect();
     let mid = |k: Kind| {
         let ls: Vec<f32> = scored.iter().filter(|s| s.0 == k).map(|s| s.1).collect();
         ls.iter().sum::<f32>() / ls.len().max(1) as f32
@@ -1101,6 +1106,36 @@ mod tests {
         assert_eq!(grid.rim_unmade().len(), rim.tried);
     }
 
+    /// [walk-face chain] Vector Laboratory day_2 (8.01, 11.59, -17.04): a box top 1 m up beside a 10 m pillar, all `walk`, the
+    /// pillar's side vertical and in the same cells as the box top's edge. With `walk_face_stands` a body on the box top in those
+    /// cells is not named on the pillar's top (the pillar's side is no way up: `WALK_FACE_CLIMB_NORMAL_Y`); climbing `walk`
+    /// pieces chained up to a top still name a body down them (A389), `walk_chain_low`.
+    #[test]
+    fn a_box_top_beside_a_pillar_is_not_named_on_the_pillars_top() {
+        let walk = WalkerBehaviour::Walk;
+        let t = |v: [Vec3; 3]| Triangle { v, walker: walk };
+        let rect = |x0: f32, x1: f32, y: f32| [t([Vec3::new(x0, y, 0.0), Vec3::new(x0, y, 10.0), Vec3::new(x1, y, 10.0)]), t([Vec3::new(x0, y, 0.0), Vec3::new(x1, y, 10.0), Vec3::new(x1, y, 0.0)])];
+        let mut tris = Vec::new();
+        tris.extend(rect(0.0, 10.0, 0.0));
+        tris.extend(rect(3.0, 5.2, 1.0));
+        // The pillar: its side at x 5.1 from 0 to 10 m, its top from x 5.1.
+        tris.push(t([Vec3::new(5.1, 0.0, 0.0), Vec3::new(5.1, 0.0, 10.0), Vec3::new(5.1, 10.0, 10.0)]));
+        tris.push(t([Vec3::new(5.1, 0.0, 0.0), Vec3::new(5.1, 10.0, 10.0), Vec3::new(5.1, 10.0, 0.0)]));
+        tris.extend(rect(5.1, 7.0, 10.0));
+        let body = Body { walk_face_stands: true, ..Body::default() };
+        let grid = WalkGrid::build(&tris, [0.0, 0.0, 10.0, 10.0], 0.25, body);
+        for x in [5.05f32, 5.15] {
+            let named = grid.floor_under(Vec3::new(x, 1.0, 5.0)).map(|f| grid.height[f as usize]);
+            assert!(named.is_none_or(|h| (h - 1.0).abs() < 0.2), "a body on the box top at x {x}: named on {named:?}");
+        }
+        assert_eq!(grid.floor_under(Vec3::new(6.0, 10.0, 5.0)).map(|f| grid.height[f as usize]), Some(10.0), "the pillar's top");
+        // The chain itself: pieces (low, high) of a merged span under its top.
+        assert_eq!(super::super::walk_chain_low(10.0, &mut [(1.0, 1.0), (10.0, 10.0)]), 10.0, "a box top under the pillar's top: not chained");
+        assert_eq!(super::super::walk_chain_low(1.0, &mut [(0.0, 0.6), (0.55, 1.0)]), 0.0, "a climbing face up to the top: chained down");
+        assert_eq!(super::super::walk_chain_low(3.0, &mut [(0.0, 0.5), (1.0, 3.0)]), 1.0, "a piece under a gap: not chained");
+        assert_eq!(super::super::walk_chain_low(3.0, &mut [(0.0, 0.5)]), f32::INFINITY, "no climbing piece at the top: no naming down");
+    }
+
     /// [row 5] The 1.30 m block's top reaches out 0.5 m over the ground as a lip (as the Vector Laboratory pit's rim over its
     /// ledge): the ground under the lip is a floor only a crouched body fits. Rim links made from it are moved to the standing
     /// floor behind on their line and flown again from there; none pressed from a crouch-only floor is left but those counted
@@ -1190,17 +1225,24 @@ mod tests {
         let walk_wide = (Kind::Walk, 0.6, 2, one_side);
         let walk_knife = (Kind::Walk, 0.6, 5, lead_row);
         let slow2_wide = (Kind::Slow(2), 0.3, 2, one_side);
-        assert_eq!(best_scored(&[stand, walk_wide], None), Some(walk_wide));
-        assert_eq!(best_scored(&[stand, slow2_wide], None), Some(slow2_wide));
-        assert_eq!(best_scored(&[stand, walk_knife], None), Some(stand));
-        assert_eq!(best_scored(&[stand], None), Some(stand));
+        assert_eq!(best_scored(&[stand, walk_wide], |_| true), Some(walk_wide));
+        assert_eq!(best_scored(&[stand, slow2_wide], |_| true), Some(slow2_wide));
+        assert_eq!(best_scored(&[stand, walk_knife], |_| true), Some(stand));
+        assert_eq!(best_scored(&[stand], |_| true), Some(stand));
         // Of two moving presses the wider, as before.
         let walk_all = (Kind::Walk, 0.6, all.count_ones() as u8, all);
-        assert_eq!(best_scored(&[stand, slow2_wide, walk_all], None), Some(walk_all));
+        assert_eq!(best_scored(&[stand, slow2_wide, walk_all], |_| true), Some(walk_all));
         // A sprint jump landing wider than the moving press still wins (its walk is the sprint link's own carry).
         let sprint = (Kind::Sprint, 1.2, all.count_ones() as u8, all);
-        assert_eq!(best_scored(&[stand, walk_wide, sprint], None), Some(sprint));
-        assert_eq!(best_scored(&[stand, walk_wide, sprint], Some(Kind::Walk)), Some(walk_wide));
+        assert_eq!(best_scored(&[stand, walk_wide, sprint], |_| true), Some(sprint));
+        assert_eq!(best_scored(&[stand, walk_wide, sprint], |k| k == Kind::Walk), Some(walk_wide));
+        // [slow walk press] A sprint link's walking press, of the short and the slow jumps by the same rule: a slow press that
+        // lands wide over a standing one; with no moving press the standing one; none where no walking press lands.
+        let walking = |k: Kind| matches!(k, Kind::Walk | Kind::Slow(_));
+        assert_eq!(best_scored(&[stand, slow2_wide, sprint], walking), Some(slow2_wide));
+        assert_eq!(best_scored(&[stand, sprint], walking), Some(stand));
+        assert_eq!(best_scored(&[stand, walk_knife, sprint], walking), Some(stand));
+        assert_eq!(best_scored(&[sprint], walking), None);
         assert!(moving(Kind::Walk) && moving(Kind::Slow(1)) && !moving(Kind::Slow(0)) && !moving(Kind::Sprint) && !moving(Kind::Climb));
     }
 

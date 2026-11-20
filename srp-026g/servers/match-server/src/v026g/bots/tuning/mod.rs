@@ -207,6 +207,7 @@ pub use team::RefuseFights;
 pub use team::RoamAvoid;
 pub use team::SEARCH_FLOORS_PER_POLL;
 pub use team::SearchQueue;
+pub use team::SecondTaker;
 pub use team::SniperMemory;
 pub use team::StaminaRates;
 pub use team::TeamPlanRule;

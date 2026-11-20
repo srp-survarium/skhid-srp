@@ -140,7 +140,9 @@ pub fn candidates(cx: &Ctx, out: &mut Vec<Candidate>) {
     // regroup's call: the second slot too, a mate for the stop.
     let call = cx.tuning.mods.raid_regroup.is_some_and(|r| r.call)
         && cx.sig.score_gap <= -cx.tuning.mods.behind_open.map_or(1.0, |open| open.by);
-    if (call || cx.sig.behind_late() >= cx.num(PlayKind::Raid, "pair_behind")) && theirs.batteries >= 2 {
+    // [fix-team push, second taker] The push's two takers on their container: one a slot.
+    let push_pair = cx.push_takers(target) >= 2;
+    if (call || push_pair || cx.sig.behind_late() >= cx.num(PlayKind::Raid, "pair_behind")) && theirs.batteries >= 2 {
         out.extend(raid_candidate(cx, target, 0x100 | u32::from(theirs.id)));
     }
 }
@@ -612,14 +614,31 @@ mod tests {
         }
         let raid_offered = |s: &Scenario| raids(s).iter().any(|c| c.kind == PlayKind::Raid);
         assert!(!raid_offered(&s), "no push: the guard of 3 scores it 0");
-        let target = Target::Container { id: 1, at: Vec3::new(68.0, 0.0, 30.0) };
-        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4, 6], short_since: None };
+        let target = Target::Container { id: 1, at: Vec3::new(68.0, 0.0, 30.0), batteries: 1 };
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4, 6], short_since: None, second: None };
         assert!(raid_offered(&s), "a push of 4: the net guard is 0");
-        s.team.push = Push::Commit { target, taker: 0, escorts: vec![], short_since: None };
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![], short_since: None, second: None };
         assert!(!raid_offered(&s), "its mates not in the push: the defenders alone");
-        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4, 6], short_since: None };
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4, 6], short_since: None, second: None };
         s.tuning.mods.push = None;
         assert!(!raid_offered(&s), "off: the defenders alone");
+    }
+
+    /// [fix-team push, second taker] The push's taker on their container, holding three, with a second taker on it: both raid
+    /// slots are offered (one each); with no second taker, one.
+    #[test]
+    fn a_push_with_a_second_taker_offers_the_second_raid_slot() {
+        use crate::v026g::bots::push::{Push, Second, Target};
+        let mut s = raid(2);
+        s.tuning.mods.push = Some(crate::v026g::bots::tuning::PushRule::default());
+        s.time_left(400.0).points(0, 1);
+        s.bot(2, 0, Vec3::new(42.0, 0.0, 30.0));
+        let slots = |s: &Scenario| raids(s).iter().filter(|c| c.kind == PlayKind::Raid).count();
+        let target = Target::Container { id: 1, at: Vec3::new(68.0, 0.0, 30.0), batteries: 3 };
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![], short_since: None, second: None };
+        assert_eq!(slots(&s), 1);
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![], short_since: None, second: Some(Second { place: 2, target }) };
+        assert_eq!(slots(&s), 2);
     }
 
     fn raids(s: &Scenario) -> Vec<Candidate> {

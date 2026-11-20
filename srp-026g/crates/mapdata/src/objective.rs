@@ -417,12 +417,12 @@ fn take_stands(grid: &WalkGrid, sight: &RayTree, inputs: &ContractInputs, at: Ve
 /// none.
 fn played(l: &OffLink, reach: Reach) -> Option<(Takeoff, Share, Aim)> {
     match (reach.sprint, l.press, l.walk) {
-        (SprintReach::Cannot { .. }, Takeoff::Climb, Some((lead, share))) if l.aim == Aim::STRAIGHT => {
-            Some((Takeoff::Press(lead), share, l.aim))
+        (SprintReach::Cannot { .. }, Takeoff::Climb, Some((walk, share))) if l.aim == Aim::STRAIGHT => {
+            Some((walk.takeoff(), share, l.aim))
         }
         (SprintReach::Cannot { .. }, Takeoff::Climb, _) => None,
         (SprintReach::Cannot { .. }, Takeoff::Sprint(_) | Takeoff::SprintHeld(_), walk) => {
-            walk.map(|(lead, share)| (Takeoff::Press(lead), share, l.aim))
+            walk.map(|(walk, share)| (walk.takeoff(), share, l.aim))
         }
         _ => Some((l.press, l.share, l.aim)),
     }

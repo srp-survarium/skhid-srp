@@ -96,7 +96,7 @@ fn school_walk(world: &Arc<World>, delay: u32, unclear_aim: bool, until: u32) ->
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn school_walk_with_late_inputs() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };

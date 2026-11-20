@@ -4612,7 +4612,7 @@ mod tests {
     #[test]
     #[ignore = "needs the private map files"]
     fn collects_filter_agrees_with_the_search_on_the_real_maps() {
-        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let dir = crate::v026g::bots::tests::real_maps::dir().expect("set SRP_MAPDATA_DIR");
         let mut wrong = Vec::new();
         let mut pairs = 0;
         for level in 1..=8u8 {
@@ -4677,7 +4677,7 @@ mod tests {
     #[test]
     #[ignore = "needs the private map files"]
     fn zone_crossings_on_the_real_maps() {
-        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let dir = crate::v026g::bots::tests::real_maps::dir().expect("set SRP_MAPDATA_DIR");
         let (mut zoned, mut found, mut fit) = (0, 0, 0);
         for level in 1..=8u8 {
             for mode in [2u8, 3] {
@@ -4732,7 +4732,7 @@ mod tests {
     #[test]
     #[ignore = "needs the private map files"]
     fn dry_way_spawners_on_the_real_maps() {
-        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let dir = crate::v026g::bots::tests::real_maps::dir().expect("set SRP_MAPDATA_DIR");
         let (mut shut, mut routed, mut borne, mut cheap_found, mut cheap_borne) = (0, 0, 0, 0, 0);
         for level in 1..=8u8 {
             for mode in [2u8, 3] {
@@ -4899,7 +4899,7 @@ mod tests {
     #[test]
     #[ignore = "needs the private map files"]
     fn zone_survey_on_the_real_maps() {
-        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let dir = crate::v026g::bots::tests::real_maps::dir().expect("set SRP_MAPDATA_DIR");
         let tuning = match std::env::var_os("ZONES_TUNING") {
             Some(path) => crate::v026g::bots::tuning::Tuning::load(std::path::Path::new(&path)).unwrap(),
             None => crate::v026g::bots::tuning::Tuning::default(),
@@ -4962,7 +4962,7 @@ mod tests {
     #[test]
     #[ignore = "needs the private map files"]
     fn vector_laboratory_band_batteries_are_reached_without_a_crossing() {
-        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let dir = crate::v026g::bots::tests::real_maps::dir().expect("set SRP_MAPDATA_DIR");
         let mut defaults = crate::v026g::bots::tuning::Tuning::default();
         defaults.hazard.capsule_goals = true;
         let map = mapdata::MapData::read(&std::path::Path::new(&dir).join("level_07_day_2.mapdata")).unwrap();
@@ -5025,7 +5025,7 @@ mod tests {
     #[test]
     #[ignore = "needs the private map files"]
     fn spawner_26_walk_in_on_the_real_map() {
-        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let dir = crate::v026g::bots::tests::real_maps::dir().expect("set SRP_MAPDATA_DIR");
         let defaults = crate::v026g::bots::tuning::Tuning::default();
         let map = mapdata::MapData::read(&std::path::Path::new(&dir).join("level_07_day_2.mapdata")).unwrap();
         let world = std::sync::Arc::new(mapdata::World::build_with_links(
@@ -5113,7 +5113,7 @@ mod tests {
     #[test]
     #[ignore = "needs the private map files"]
     fn pocket_stands_on_the_real_maps() {
-        let dir = std::env::var_os("SRP_MAPDATA_DIR").expect("set SRP_MAPDATA_DIR");
+        let dir = crate::v026g::bots::tests::real_maps::dir().expect("set SRP_MAPDATA_DIR");
         for level in 1..=8u8 {
             for mode in [2u8, 3] {
                 let path =
@@ -6585,9 +6585,9 @@ mod tests {
         let score = |s: &Scenario| battery_candidate(&s.cx(0), 0).map_or(0.0, |c| c.score.get());
         assert_eq!(score(&s), 0.0, "no push: four men weigh it out");
         let target = Target::Battery { index: 0, at: TAKE_AT };
-        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4], short_since: None };
+        s.team.push = Push::Commit { target, taker: 0, escorts: vec![2, 4], short_since: None, second: None };
         assert!(score(&s) > 0.0, "the push's taker with two members by it: net of its own");
-        s.team.push = Push::Commit { target, taker: 2, escorts: vec![4], short_since: None };
+        s.team.push = Push::Commit { target, taker: 2, escorts: vec![4], short_since: None, second: None };
         assert_eq!(score(&s), 0.0, "a bot not in the push: the men weigh it out");
     }
 
