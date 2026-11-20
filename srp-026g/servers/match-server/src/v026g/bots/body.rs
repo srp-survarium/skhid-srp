@@ -1891,6 +1891,10 @@ fn advance(
         // [A388 step 3] The client's own flight: its next step's feet; at its landing step the controller it left is the body's kept
         // one, on the ground or falling on from there (`fall_step`, the client's fall).
         if let (Some(Jump::Flown(mut flown)), Some(grid), Some(node)) = (at.arc, grid, at.node) {
+            // [press forecast] A flight the press forecast steps is on its clock, whoever pressed it.
+            if role == Role::Press {
+                flown.clock = kept_clock::Of::Press;
+            }
             let Some(out) = flown.step(grid, step_yaw, at.keys, at.yaw) else {
                 // No walker any more (no grid change does that within a match): the jump is over where it is.
                 at.arc = None;
