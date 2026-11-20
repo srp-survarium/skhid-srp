@@ -307,18 +307,20 @@ kept of the ask: the page asks again every two seconds while the answer is `prep
 - An address may ask 40 times a minute; past that, `429 {"error":"too many"}`.
 - `404` for an unknown or non-public match.
 
-### `GET /api/history/top?by=<key>&order=<desc|asc>&limit=<n>`
+### `GET /api/history/top?by=<key>&order=<desc|asc>&after=<n>&limit=<n>`
 
 The top players by their totals. `by`: `rating`, `matches`, `wins`, `win_rate`, `kills`, `kd`,
 `score_avg`, `headshot_rate`, `accuracy` (default `rating`); `order`: `desc` (the largest first,
-the default) or `asc`, here and in `clans`; `limit` 1..50 (default 50). The
+the default) or `asc`, here and in `clans`; `limit` 1..50 (default 50); `after`: how many
+players of the list come before the page (0..10000, default 0), and `more` says whether one
+follows it (the page's "More players", the owner, 2026-11-20). The
 ratios `score_avg`, `win_rate`, `kd` and `headshot_rate` list only the players
 with at least 5 counted matches (`SCORE_AVG_MIN_MATCHES`; the owner, 2026-11-20: it was 20). Players with
 a counted public match only. `accuracy` lists only the players with at least 1000 shots in their counted public
 matches (`ACCURACY_MIN_SHOTS`; a few lucky shots do not top it), best first; ties by account.
 
 ```json
-{"by":"kills","order":"desc",
+{"by":"kills","order":"desc","after":0,"more":false,
  "players":[{"player":{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}},"level":34,
              "rating":1180,"totals":{"matches":120,"wins":64,"losses":52,"kills":900,"deaths":700,
              "assists":210,"score":30500,"headshots":180,"grenade_kills":12,"melee_kills":3,

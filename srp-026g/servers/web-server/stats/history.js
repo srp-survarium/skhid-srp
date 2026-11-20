@@ -587,9 +587,9 @@
       const sorted = board === 'best' ? '' : key;
       const sort = board === 'best' ? null : {up, ask: value => { up = value === key && !up; key = value; draw(); }};
       body.replaceChildren(table(ranked(columns), null, Math.min(size, body.rows || size), sorted, null, sort));
-      let rows;
+      let rows, data;
       try {
-        const data = await api(path, params);
+        data = await api(path, params);
         rows = data ? list(data) : [];
       } catch (error) {
         if (drawing === shown) body.replaceChildren(notice(String(error)));
@@ -601,6 +601,26 @@
       // An empty list that sorts keeps its headings: the way to another.
       const drawn = table(ranked(columns), rows, 0, sorted, {players: openPlayer, clans: row => ({clan: row.tag}), best: row => ({match: row.match})}[board], sort);
       body.replaceChildren(...(rows.length ? [drawn] : sort ? [drawn, notice(TEXT.nobody)] : [notice(TEXT.nobody)]));
+      // The players go on past their first page: the next one under the
+      // list, in the same order, while one follows.
+      if (board !== 'players' || !data || !data.more) return;
+      const more = el('button', {type: 'button', className: 'quiet'}, TEXT.morePlayers);
+      more.addEventListener('click', async () => {
+        more.disabled = true;
+        let next;
+        try {
+          next = await api(path, {...params, after: rows.length});
+        } catch (error) {
+          return more.replaceWith(notice(String(error)));
+        }
+        if (drawing !== shown) return;
+        const added = next ? next.players : [];
+        added.forEach((row, i) => { row.rank = rows.length + i; });
+        rows.push(...added);
+        drawn.add(added);
+        if (next && next.more) more.disabled = false; else more.remove();
+      });
+      body.append(more);
     }
     for (const value of Object.keys(BOARDS)) {
       const button = el('button', {type: 'button'}, TEXT[value]);

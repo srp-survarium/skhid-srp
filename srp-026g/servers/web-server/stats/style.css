@@ -24,7 +24,7 @@
 .stats-table .stats-open { cursor:pointer }
 .stats-table a { text-decoration:none }
 .stats-table a:hover { text-decoration:underline }
-.stats-paged button { margin-top:12px }
+.stats-paged button,.stats-board>button { margin-top:12px }
 .stats-empty { margin:20px 0 0; padding:18px; border:1px solid var(--rule); background:var(--panel); color:var(--ink-2) }
 .stats-note { margin:-4px 0 10px; color:var(--ink-3); font-size:.8rem }
 .slot-filter .stats-note { align-self:center; margin:0 0 0 4px }

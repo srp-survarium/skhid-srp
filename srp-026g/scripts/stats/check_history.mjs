@@ -16,12 +16,17 @@ await fs.mkdir(output, {recursive: true});
 const asked = [];
 // The last answer of each endpoint, by its path under /api/history/.
 const answered = {};
+// When set, the top list's pages are cut to this many: the preview's twelve
+// players then have more than one.
+let pageOf = 0;
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, base);
   if (url.pathname.startsWith('/api/history/')) {
     asked.push(url.pathname + url.search);
     const path = url.pathname.slice('/api/history/'.length);
-    const upstream = await fetch(preview + request.url);
+    const asking = new URL(preview + request.url);
+    if (pageOf && path === 'top') asking.searchParams.set('limit', pageOf);
+    const upstream = await fetch(asking);
     const [status, body] = [upstream.status, await upstream.json()];
     answered[path] = body;
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -157,6 +162,27 @@ try {
   assert.ok(!answered.top.players.some(row => row.player.name === 'Yasen'), 'under 1000 shots: not listed');
   assert.deepEqual(await cells('.stats-board .stats-table tbody td.sorted'), answered.top.players.map(row => aim(row.totals)));
   assert.equal(await fits(), true, 'the board fits the width');
+  // The players go on past a page: here pages of five, the twelve in three.
+  pageOf = 5;
+  await navigate('/stats?by=kills');
+  const kills = () => evaluate("[...document.querySelectorAll('.stats-board .stats-table tbody tr')].map(r => Number(r.children[6].textContent.replace(/\\D/g, '')))");
+  assert.equal(await count('.stats-board .stats-table tbody tr'), 5);
+  assert.equal(await text('.stats-board > button'), 'More players');
+  await evaluate("document.querySelector('.stats-board > button').click()");
+  await settled();
+  assert.equal(answered.top.after, 5);
+  assert.deepEqual(await cells('.stats-board .stats-table tbody td:first-child'), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+  assert.ok((await kills()).every((v, i, a) => !i || a[i - 1] >= v), 'the order goes on');
+  await screenshot('boards-players-more');
+  await evaluate("document.querySelector('.stats-board > button').click()");
+  await settled();
+  assert.equal(answered.top.after, 10);
+  assert.equal(await count('.stats-board .stats-table tbody tr'), 12);
+  assert.ok((await kills()).every((v, i, a) => !i || a[i - 1] >= v));
+  assert.equal(await count('.stats-board > button'), 0, 'nothing follows the last page');
+  pageOf = 0;
+  await navigate('/stats');
+  assert.equal(await count('.stats-board > button'), 0, 'twelve players: one page');
   // Over the boards: the day's leaders, five lists of five, and everything added up.
   assert.equal(await count('.stats-leaders .stats-table'), 5);
   assert.equal(await count('.stats-leaders .stats-table tbody tr'), 25, 'five rows each, empty ones too');

@@ -112,6 +112,7 @@ fn page_text(lang: Lang) -> Value {
         ("left", lang.t("Left")),
         ("won", lang.t("won")),
         ("older", lang.t("Older matches")),
+        ("morePlayers", lang.t("More players")),
         ("hours", lang.t("Hours played")),
         ("replay", lang.t("Replay")),
         ("replayPreparing", lang.t("Preparing…")),
@@ -273,6 +274,7 @@ enum Endpoint {
     Top {
         by: PlayerRanking,
         order: Order,
+        after: usize,
         limit: usize,
     },
     Best(Period),
@@ -498,6 +500,11 @@ impl Endpoint {
                     }
                 },
                 order: query.order()?,
+                after: match query.number::<usize>("after")? {
+                    None => 0,
+                    Some(after) if after <= MatchHistory::MAX_AFTER => after,
+                    Some(_) => return Err(Refusal::BadRequest),
+                },
                 limit: query.limit(MatchHistory::MAX_ROWS)?,
             },
             "best" => Self::Best(match query.text("period") {
@@ -687,9 +694,15 @@ fn answer(
             }
             value
         }
-        Endpoint::Top { by, order, limit } => {
-            let players: Vec<Value> = history
-                .top(*by, *order, *limit, &|account_id| !banned(account_id))?
+        Endpoint::Top {
+            by,
+            order,
+            after,
+            limit,
+        } => {
+            let page = history.top(*by, *order, *after, *limit, &|account_id| !banned(account_id))?;
+            let players: Vec<Value> = page
+                .players
                 .iter()
                 .map(|top| {
                     json!({
@@ -700,7 +713,13 @@ fn answer(
                     })
                 })
                 .collect();
-            json!({ "by": ranking_name(*by), "order": order_name(*order), "players": players })
+            json!({
+                "by": ranking_name(*by),
+                "order": order_name(*order),
+                "after": after,
+                "more": page.more,
+                "players": players,
+            })
         }
         Endpoint::Best(period) => {
             let rows: Vec<Value> = history

@@ -858,6 +858,14 @@ pub struct TopPlayer {
     pub totals: Totals,
 }
 
+/// A page of the players' top list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TopPage {
+    pub players: Vec<TopPlayer>,
+    /// Whether the list goes on after them.
+    pub more: bool,
+}
+
 /// One line of the best single-match scores.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BestLine {
@@ -1472,6 +1480,8 @@ pub struct MatchHistory {
 impl MatchHistory {
     /// The most rows a list gives.
     pub const MAX_ROWS: usize = 50;
+    /// The most players a page of the top list may come after.
+    pub const MAX_AFTER: usize = 10_000;
     /// The most rows a list that a `keep` filters (`top`, `best`) reads to
     /// find its [`Self::MAX_ROWS`]: the ones `keep` leaves out (the banned,
     /// which the accounts' store knows) are read past.
@@ -1757,26 +1767,37 @@ impl MatchHistory {
         Ok(Some((summary, rows.collect::<Result<_, _>>()?)))
     }
 
-    /// The first `limit` players by `by` in `order`, of those with a counted public
-    /// match and that `keep` keeps (it is asked of each in order until enough,
-    /// of the first [`MatchHistory::MAX_READ`]).
+    /// The `limit` players after the first `after` (at most
+    /// [`MatchHistory::MAX_AFTER`]) by `by` in `order`, of those with a
+    /// counted public match and that `keep` keeps (it is asked of each in
+    /// order until enough, of [`MatchHistory::MAX_READ`] past `after`), and
+    /// whether one more follows.
     pub fn top(
         &self,
         by: PlayerRanking,
         order: Order,
+        after: usize,
         limit: usize,
         keep: &dyn Fn(u32) -> bool,
-    ) -> Result<Vec<TopPlayer>, PersistError> {
+    ) -> Result<TopPage, PersistError> {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(&top_query(by, order))?;
-        let mut rows = statement.query([MatchHistory::MAX_READ as i64])?;
+        let after = after.min(MatchHistory::MAX_AFTER);
+        let mut rows = statement.query([(after + MatchHistory::MAX_READ) as i64])?;
+        let (limit, mut passed, mut more) = (bounded(limit) as usize, 0, false);
         let mut top = Vec::new();
-        while top.len() < bounded(limit) as usize
-            && let Some(row) = rows.next()?
-        {
+        while let Some(row) = rows.next()? {
             let player = named_at(row, 0)?;
             if !keep(player.account_id) {
                 continue;
+            }
+            if passed < after {
+                passed += 1;
+                continue;
+            }
+            if top.len() == limit {
+                more = true;
+                break;
             }
             top.push(TopPlayer {
                 player,
@@ -1785,7 +1806,7 @@ impl MatchHistory {
                 totals: totals_at(row, 6)?,
             });
         }
-        Ok(top)
+        Ok(TopPage { players: top, more })
     }
 
     /// The best `limit` single-match scores of counted public matches that
@@ -2498,14 +2519,14 @@ mod tests {
         let everything = |_| true;
         assert!(
             history
-                .top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 10, &everything)
-                .unwrap()
+                .top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 0, 10, &everything)
+                .unwrap().players
                 .is_empty()
         );
         assert!(
             history
-                .top(PlayerRanking::Rating, Order::Descending, 10, &everything)
-                .unwrap()
+                .top(PlayerRanking::Rating, Order::Descending, 0, 10, &everything)
+                .unwrap().players
                 .is_empty()
         );
         assert!(history.best(0, 10, &everything).unwrap().is_empty());
@@ -2604,9 +2625,19 @@ mod tests {
             top.into_iter().map(|top| top.player.name).collect()
         };
         let by_score = PlayerRanking::Totals(TotalsKey::Kills);
-        let top = |limit| names(history.top(by_score, Order::Descending, limit, &keep).unwrap());
+        let top = |limit| names(history.top(by_score, Order::Descending, 0, limit, &keep).unwrap().players);
         assert_eq!(top(10), ["Alice", "Bob"]);
         assert_eq!(top(1), ["Alice"]);
+        // A page says whether the list goes on; the next one starts after it.
+        let page = |after| {
+            let page = history
+                .top(by_score, Order::Descending, after, 1, &keep)
+                .unwrap();
+            (names(page.players), page.more)
+        };
+        assert_eq!(page(0), (vec!["Alice".to_owned()], true));
+        assert_eq!(page(1), (vec!["Bob".to_owned()], false));
+        assert_eq!(page(2), (Vec::new(), false));
         let best: Vec<String> = history
             .best(0, 10, &keep)
             .unwrap()
@@ -2616,7 +2647,7 @@ mod tests {
         assert_eq!(best, ["Alice", "Bob"]);
         // Unfiltered, the banned fill the list.
         assert_eq!(
-            history.top(by_score, Order::Descending, 100, &|_| true).unwrap().len(),
+            history.top(by_score, Order::Descending, 0, 100, &|_| true).unwrap().players.len(),
             MatchHistory::MAX_ROWS
         );
     }
@@ -2638,8 +2669,8 @@ mod tests {
         }
         let top = |history: &MatchHistory| -> Vec<String> {
             history
-                .top(PlayerRanking::Accuracy, Order::Descending, 10, &|_| true)
-                .unwrap()
+                .top(PlayerRanking::Accuracy, Order::Descending, 0, 10, &|_| true)
+                .unwrap().players
                 .into_iter()
                 .map(|top| top.player.name)
                 .collect()
@@ -2648,8 +2679,8 @@ mod tests {
         repository.record_match(&played).unwrap();
         repository.record_match(&played).unwrap();
         assert_eq!(top(&history), ["Alice", "Bob"]);
-        let accurate = history.top(PlayerRanking::Accuracy, Order::Descending, 1, &|id| id != 10)
-            .unwrap();
+        let accurate = history.top(PlayerRanking::Accuracy, Order::Descending, 0, 1, &|id| id != 10)
+            .unwrap().players;
         assert_eq!(accurate[0].player.name, "Bob");
         assert_eq!(accurate[0].totals.matches, 10, "a match is kept once");
     }
@@ -2866,21 +2897,21 @@ mod tests {
         let dir = TempDir::new("top");
         let (mut repository, history) = repository(&dir);
         repository.record_match(&record(PUBLIC, 100)).unwrap();
-        let by_kills = history.top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 10, &|_| true)
-            .unwrap();
+        let by_kills = history.top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 0, 10, &|_| true)
+            .unwrap().players;
         let names: Vec<&str> = by_kills
             .iter()
             .map(|top| top.player.name.as_str())
             .collect();
         assert_eq!(names, ["Alice", "Bob"]);
-        let by_rating = history.top(PlayerRanking::Rating, Order::Descending, 10, &|id| id != 10)
-            .unwrap();
+        let by_rating = history.top(PlayerRanking::Rating, Order::Descending, 0, 10, &|id| id != 10)
+            .unwrap().players;
         assert_eq!(by_rating.len(), 1);
         assert_eq!(by_rating[0].player.name, "Bob");
         assert_eq!(
             history
-                .top(PlayerRanking::Rating, Order::Descending, 1, &|_| true)
-                .unwrap()
+                .top(PlayerRanking::Rating, Order::Descending, 0, 1, &|_| true)
+                .unwrap().players
                 .len(),
             1
         );
@@ -3247,8 +3278,8 @@ mod tests {
         let (mut repository, history) = repository(&dir);
         let top = |history: &MatchHistory| -> Vec<String> {
             history
-                .top(PlayerRanking::ScoreAvg, Order::Descending, 10, &|_| true)
-                .unwrap()
+                .top(PlayerRanking::ScoreAvg, Order::Descending, 0, 10, &|_| true)
+                .unwrap().players
                 .into_iter()
                 .map(|top| top.player.name)
                 .collect()
@@ -3265,12 +3296,12 @@ mod tests {
             PlayerRanking::Kd,
             PlayerRanking::HeadshotRate,
         ] {
-            let listed = history.top(by, Order::Descending, 10, &|_| true).unwrap();
+            let listed = history.top(by, Order::Descending, 0, 10, &|_| true).unwrap().players;
             assert_eq!(listed.len(), 2, "{by:?}");
             let names = |listed: &[TopPlayer]| -> Vec<String> {
                 listed.iter().map(|top| top.player.name.clone()).collect()
             };
-            let mut turned = history.top(by, Order::Ascending, 10, &|_| true).unwrap();
+            let mut turned = history.top(by, Order::Ascending, 0, 10, &|_| true).unwrap().players;
             turned.reverse();
             assert_eq!(names(&turned), names(&listed), "{by:?} from the other end");
             let of = |totals: &Totals| match by {
