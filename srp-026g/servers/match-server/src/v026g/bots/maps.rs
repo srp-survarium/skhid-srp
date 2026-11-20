@@ -1585,7 +1585,7 @@ mod tests {
     #[test]
     #[ignore = "real maps; minutes a map"]
     fn bench_worlds_are_the_stores_on_real_maps() {
-        let dir = PathBuf::from(std::env::var("SRP_MAPDATA_DIR").expect("SRP_MAPDATA_DIR"));
+        let dir = crate::v026g::bots::tests::real_maps::dir().expect("SRP_MAPDATA_DIR");
         let projects = std::env::var("SRP_A346_PROJECTS").expect("SRP_A346_PROJECTS");
         let tuning: crate::v026g::bots::tuning::Tuning =
             serde_json::from_str(&std::env::var("SRP_BENCH_TUNING").unwrap_or_else(|_| "{}".into())).expect("SRP_BENCH_TUNING");
@@ -1804,7 +1804,7 @@ mod tests {
 
     /// The directory of real maps, if the environment names one.
     fn real_dir() -> Option<PathBuf> {
-        let dir = std::env::var_os("SRP_MAPDATA_DIR").map(PathBuf::from);
+        let dir = crate::v026g::bots::tests::real_maps::dir();
         if dir.is_none() {
             eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         }

@@ -1582,7 +1582,7 @@ pub(super) mod tests {
         use survarium::v026g::match_msgs::snapshot::Sections;
 
         let (Some(maps), Some(worlds)) = (
-            std::env::var_os("SRP_MAPDATA_DIR").map(PathBuf::from),
+            crate::v026g::bots::tests::real_maps::dir(),
             std::env::var_os("SRP_WORLDS_DIR").map(PathBuf::from),
         ) else {
             eprintln!("skipping: SRP_MAPDATA_DIR or SRP_WORLDS_DIR is not set");

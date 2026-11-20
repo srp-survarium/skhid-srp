@@ -12,7 +12,7 @@ use crate::v026g::bots::tactics::Tactics;
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn chemical_plant_neck_stage_by_stage() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
@@ -90,7 +90,7 @@ fn chemical_plant_neck_stage_by_stage() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn vostok_carriers_stage_by_stage() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
@@ -142,7 +142,7 @@ fn vostok_carriers_stage_by_stage() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn vostok_exits_by_stage() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
@@ -255,11 +255,11 @@ fn vostok_exits_by_stage() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_VERTICAL_TSV"]
 fn vostok_human_shortcuts() {
-    let (Some(dir), Some(tsv)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var_os("SRP_VERTICAL_TSV")) else {
+    let (Some(dir), Some(tsv)) = (super::real_maps::dir(), std::env::var_os("SRP_VERTICAL_TSV")) else {
         eprintln!("skipping: SRP_MAPDATA_DIR or SRP_VERTICAL_TSV is not set");
         return;
     };
-    let map = mapdata::MapData::read(&std::path::PathBuf::from(dir).join(mapdata::format::file_name("level_03/day_2"))).unwrap();
+    let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name("level_03/day_2"))).unwrap();
     let links = Tuning::default().off_mesh_links();
     let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
     let grid = &world.grid;
@@ -306,12 +306,12 @@ fn vostok_human_shortcuts() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_MOVES_TSV"]
 fn vostok_pocket_exits() {
-    let (Some(dir), Some(tsv)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var_os("SRP_MOVES_TSV")) else {
+    let (Some(dir), Some(tsv)) = (super::real_maps::dir(), std::env::var_os("SRP_MOVES_TSV")) else {
         eprintln!("skipping: SRP_MAPDATA_DIR or SRP_MOVES_TSV is not set");
         return;
     };
     let at_ms: u32 = std::env::var("SRP_AT_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
-    let map = mapdata::MapData::read(&std::path::PathBuf::from(dir).join(mapdata::format::file_name("level_03/day_2"))).unwrap();
+    let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name("level_03/day_2"))).unwrap();
     let links = Tuning::default().off_mesh_links();
     let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
     let grid = &world.grid;
@@ -386,11 +386,11 @@ fn vostok_pocket_exits() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_MOVES_TSV"]
 fn vostok_gate_crossings() {
-    let (Some(dir), Some(tsv)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var_os("SRP_MOVES_TSV")) else {
+    let (Some(dir), Some(tsv)) = (super::real_maps::dir(), std::env::var_os("SRP_MOVES_TSV")) else {
         eprintln!("skipping: SRP_MAPDATA_DIR or SRP_MOVES_TSV is not set");
         return;
     };
-    let map = mapdata::MapData::read(&std::path::PathBuf::from(dir).join(mapdata::format::file_name("level_03/day_2"))).unwrap();
+    let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name("level_03/day_2"))).unwrap();
     let links = Tuning::default().off_mesh_links();
     let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
     let grid = &world.grid;
@@ -455,11 +455,11 @@ fn vostok_gate_crossings() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_POINTS_TSV"]
 fn vostok_band_points() {
-    let (Some(dir), Some(tsv)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var_os("SRP_POINTS_TSV")) else {
+    let (Some(dir), Some(tsv)) = (super::real_maps::dir(), std::env::var_os("SRP_POINTS_TSV")) else {
         eprintln!("skipping: SRP_MAPDATA_DIR or SRP_POINTS_TSV is not set");
         return;
     };
-    let map = mapdata::MapData::read(&std::path::PathBuf::from(dir).join(mapdata::format::file_name("level_03/day_2"))).unwrap();
+    let map = mapdata::MapData::read(&dir.join(mapdata::format::file_name("level_03/day_2"))).unwrap();
     let links = Tuning::default().off_mesh_links();
     let world = Arc::new(World::build_with_links(map, mapdata::CELL, mapdata::Body::default(), links));
     let grid = &world.grid;
@@ -494,7 +494,7 @@ fn vostok_band_points() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn vostok_pocket_seam() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
@@ -554,7 +554,7 @@ fn vostok_pocket_seam() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn vostok_seam_triangles() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
@@ -583,7 +583,7 @@ fn vostok_seam_triangles() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn vostok_antenna_damage() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };

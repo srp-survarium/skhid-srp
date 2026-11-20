@@ -34,7 +34,7 @@ struct Counts {
 #[test]
 #[ignore]
 fn a_trap_let_go_by_the_plane_rule_lies_nowhere_this_often() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
@@ -131,7 +131,7 @@ fn a_trap_let_go_by_the_plane_rule_lies_nowhere_this_often() {
 #[test]
 #[ignore]
 fn the_level_07_trap_presses_meet_the_bullet_mesh_above_the_walk_floor() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };

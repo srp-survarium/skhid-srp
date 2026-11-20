@@ -271,7 +271,7 @@ mod tests {
         use crate::v026g::bots::body::{slide_capped, slide_supported};
         use crate::v026g::bots::tests::bench_tuning;
         use mapdata::World;
-        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        let Some(dir) = crate::v026g::bots::tests::real_maps::dir() else {
             eprintln!("skipping: SRP_MAPDATA_DIR is not set");
             return;
         };

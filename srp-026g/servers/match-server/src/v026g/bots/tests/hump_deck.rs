@@ -11,7 +11,7 @@ use crate::v026g::bots::path::{self, RouteHeight};
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn deck_clear() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };

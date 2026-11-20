@@ -131,7 +131,7 @@ fn way(grid: &WalkGrid, a: Vec3, b: Vec3, limit: f32) -> Option<f32> {
 
 #[test]
 fn the_nav_spots_are_walked_by_the_client_and_held_by_the_grid_as_their_rows_say() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };

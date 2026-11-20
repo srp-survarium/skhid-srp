@@ -656,7 +656,7 @@ fn the_side_step_keeps_out_of_a_pit_it_cannot_jump_out_of() {
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn pocket_sweep() {
-    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
