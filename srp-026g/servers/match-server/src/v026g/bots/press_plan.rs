@@ -192,6 +192,12 @@ impl Plan {
         format!("t{}-{} {marks}", self.first, self.first + self.outcomes.len() as u32 - 1)
     }
 
+    /// Whether every candidate of a walk-in's coarse pass (every second tick from the first) was flown: its "no run" is then the
+    /// link's, not a plan made too late.
+    pub(super) fn coarse_in_time(&self) -> bool {
+        self.outcomes.iter().step_by(2).all(Option::is_some)
+    }
+
     /// The flights recorded.
     pub(super) fn flown(&self) -> u32 {
         self.outcomes.iter().filter(|v| v.is_some()).count() as u32

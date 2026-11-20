@@ -1296,6 +1296,8 @@ struct CastLink {
     cap: f32,
     /// On the line's band ([`LINED_SIDE_M`]) and not under the take-off's floor.
     on_line: bool,
+    /// How far the feet are off the press's line to either side, m.
+    side: f32,
     /// The feet within [`FLOWN_RUN_UP_HEIGHT_M`] of the take-off's height.
     level: bool,
     /// The last press still in the air ([`CARRY_S`]).
@@ -1338,6 +1340,10 @@ const ZONE_NEAR_SLACK_M: f32 = 0.2;
 const CAST_RUN_UP_M: f32 = 0.65;
 /// [press forecast] Facing the line's way within this, rad, the body locks and turns no more (the plan's chain has no turn).
 const LOCK_YAW_RAD: f32 = 0.01;
+/// [press forecast] Within this of the press's line to either side, m, the body locks; farther off it the walk steers onto it.
+const LOCK_SIDE_M: f32 = 0.03;
+/// [press forecast] The walk onto the press's line aims this far ahead along it, m (a 0.2 m offset closes in about 0.3 s at the cap).
+const LINE_CONVERGE_M: f32 = 1.0;
 /// [press forecast] The most ticks a moving plan's chain plays.
 const CHAIN_TICKS_MAX: u32 = 24;
 /// [press forecast] A plan not pressed this long after the body first reached the lock spends the try, s (design §3.4 step 5).
@@ -2485,7 +2491,9 @@ impl Motor {
         // [press forecast] Turning to the line's way, then held: a locked plan's chain has no turn.
         let heading = match jump.and_then(|jump| jump.cast.map(|cast| (cast, jump.way))) {
             Some((CastKeys::Walk | CastKeys::Press | CastKeys::Hold, _)) => pose.yaw,
-            Some((CastKeys::Line | CastKeys::Stand, way)) => yaw_of(way),
+            // On the line (within [`LOCK_SIDE_M`]) the view turns to its way for the lock; off it the walk steers onto it (the aim).
+            Some((CastKeys::Line, way)) if jump.is_some_and(|jump| jump.side <= LOCK_SIDE_M) => yaw_of(way),
+            Some((CastKeys::Stand, way)) => yaw_of(way),
             _ => heading,
         };
         let turn = self.turn_toward(pose, heading, 0.0);
@@ -3515,6 +3523,7 @@ impl Motor {
                     lock_from,
                     cap,
                     on_line,
+                    side,
                     level: (take_off.y - feet.y).abs() <= FLOWN_RUN_UP_HEIGHT_M,
                     in_the_air,
                     may_press: !pose.no_jump && !self.carrying && jump.pressed.is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S)),
@@ -3547,6 +3556,12 @@ impl Motor {
             // [press forecast] Locked: along the way from where the feet are (the plan's chain runs parallel to the line).
             let past = 3.0f32.max(take_off.distance_xz(landing) + 1.0);
             Vec3::new(feet.x + way[0] * past, landing.y, feet.z + way[1] * past)
+        } else if lined && cast == Some(CastKeys::Line) {
+            // [press forecast] Onto the press's line (the side window's middle) before the lock: a point on it [`LINE_CONVERGE_M`]
+            // ahead of the feet's own place along it. Map 91: bodies locked at their side came to rest 0.12-0.21 m to the left,
+            // where the exe's presses come down short (#2277) and the forecast said so; no press was found from those rests.
+            let m = along + LINE_CONVERGE_M;
+            Vec3::new(line_from.x + way[0] * m, landing.y, line_from.z + way[1] * m)
         } else if lined {
             // Along the jump's way, past the landing (a gap link's lands
             // up to 2 m on).
@@ -3755,7 +3770,7 @@ impl Motor {
                     (CastState::Approach, CastKeys::Line)
                 }
             }
-            CastState::Approach if wrap(yaw_of(link.way) - pose.yaw).abs() > LOCK_YAW_RAD => {
+            CastState::Approach if link.side > LOCK_SIDE_M || wrap(yaw_of(link.way) - pose.yaw).abs() > LOCK_YAW_RAD => {
                 if bail { (CastState::Stopping, CastKeys::Stand) } else { (CastState::Approach, CastKeys::Line) }
             }
             CastState::Approach => match flyer.chain(body, key::FORWARD, link.chain_ticks(before)) {
@@ -3889,7 +3904,7 @@ impl Motor {
             Choice::Pending => (CastState::Planned(plan), CastKeys::Walk),
             Choice::NoLanding { flown, unflown, longest } => {
                 press_casts::count(press_casts::Slot::NoLanding);
-                if !rest && unflown == 0 {
+                if !rest && plan.coarse_in_time() {
                     press_casts::count(press_casts::Slot::LearnedNoRun);
                     flyer.learn(link.take_off, link.landing, link.cap, &mut |learned| learned.walk_in = WalkIn::NoRun);
                 }

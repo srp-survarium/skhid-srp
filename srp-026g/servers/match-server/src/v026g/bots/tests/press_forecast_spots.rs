@@ -47,7 +47,8 @@ fn press_forecast_crossings_on_map_91() {
     let (mut pressed, mut landed, mut not_forecast) = (0, 0, Vec::new());
     let (mut all_ms, mut all_steps, mut crossings) = (0.0f64, 0u64, 0u32);
     let (mut all_flights, mut all_chains, mut all_ns) = (0u64, 0u64, 0u64);
-    let (mut clean, mut retry): (Vec<(u64, u64, f64)>, Vec<(u64, u64, f64)>) = (Vec::new(), Vec::new());
+    // (steps, flights, ms) of each crossing, clean and with retries.
+    let (mut clean, mut retry) = (Vec::<(u64, u64, f64)>::new(), Vec::<(u64, u64, f64)>::new());
     let n_starts = starts.len();
     for start in starts {
         let c = cross(&world, start, a, b, goal, 40_000, tuning.clone());
