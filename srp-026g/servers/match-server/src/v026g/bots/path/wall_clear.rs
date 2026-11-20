@@ -53,9 +53,26 @@ pub mod counts {
         AddedMm,
         /// The time the pass took, in microseconds.
         Micros,
+        /// [fix-lip] The records of the routes it changed, carried into the new route: walk-offs, risers, crouched climbs.
+        WalkOffs,
+        Risers,
+        CrouchClimbs,
     }
-    pub const NAMES: [&str; 9] = ["routes", "corners_low", "corners_moved", "corners_kept", "legs_dipping", "legs_corner", "legs_kept", "added_mm", "micros"];
-    static COUNTS: [AtomicU64; 9] = [const { AtomicU64::new(0) }; 9];
+    pub const NAMES: [&str; 12] = [
+        "routes",
+        "corners_low",
+        "corners_moved",
+        "corners_kept",
+        "legs_dipping",
+        "legs_corner",
+        "legs_kept",
+        "added_mm",
+        "micros",
+        "walk_offs",
+        "risers",
+        "crouch_climbs",
+    ];
+    static COUNTS: [AtomicU64; 12] = [const { AtomicU64::new(0) }; 12];
 
     pub fn add(count: Count, n: u64) {
         COUNTS[count as usize].fetch_add(n, Ordering::Relaxed);
@@ -111,6 +128,9 @@ impl Route {
             || self.ledge_tops.iter().any(|(p, _)| *p == at)
             || self.ledge_leads.iter().any(|(p, ..)| *p == at)
             || self.sprint_drops.iter().any(|(p, _)| *p == at)
+            || self.walk_offs.iter().any(|w| w.take_off == at || w.landing == at)
+            || self.risers.iter().any(|r| r.take_off == at || r.top == at)
+            || self.crouch_climbs.iter().any(|&(take_off, top)| take_off == at || top == at)
     }
 
     /// Whether the leg into point `k` is a plain walk (no jump, no low floor, no drop).
@@ -246,16 +266,46 @@ impl Route {
         }
         add(Count::AddedMm, ((total - self.along[n - 1]).max(0.0) * 1000.0) as u64);
         let floors = self.rescaled_floors(&new_at);
-        let Self { sprint_drops, ledge_leads, ledge_tops, gates, planned, below_walk_m, past_drop, .. } = self;
-        let mut route = Self::with_floors(with_corners, floors);
-        route.sprint_drops = sprint_drops;
-        route.ledge_leads = ledge_leads;
-        route.ledge_tops = ledge_tops;
-        route.gates = gates;
-        route.planned = planned;
-        route.below_walk_m = below_walk_m;
-        route.past_drop = past_drop;
-        route
+        // [fix-lip] Every record of the route comes through, by name (no `..`: a new field of `Route` does not compile here until it
+        // is carried). The walk-offs, the risers and the crouched climbs were dropped before: the lip guard then took the route's own
+        // drops for unplanned falls (#2273's `walk_off_within` found none), the motor had no let-go for them (`walk_off_at`) and no
+        // riser gait (`Route::riser_ahead`). Their points stay where they are ([`Self::keyed`]).
+        let Self {
+            points: _,
+            along: _,
+            floors: _,
+            segment: _,
+            below_walk_m,
+            past_drop,
+            sprint_drops,
+            ledge_leads,
+            ledge_tops,
+            gates,
+            risers,
+            crouch_climbs,
+            planned,
+            walk_offs,
+        } = self;
+        add(Count::WalkOffs, walk_offs.len() as u64);
+        add(Count::Risers, risers.len() as u64);
+        add(Count::CrouchClimbs, crouch_climbs.len() as u64);
+        let Self { points, along, floors, segment, .. } = Self::with_floors(with_corners, floors);
+        Self {
+            points,
+            along,
+            floors,
+            segment,
+            below_walk_m,
+            past_drop,
+            sprint_drops,
+            ledge_leads,
+            ledge_tops,
+            gates,
+            risers,
+            crouch_climbs,
+            planned,
+            walk_offs,
+        }
     }
 }
 
@@ -370,6 +420,33 @@ mod tests {
         assert_ne!(route.clone().wall_cleared(&grid).points()[1].at, low.at, "moves as a plain corner");
         let gated = route.with_gate(low.at);
         assert_eq!(gated.wall_cleared(&grid).points()[1].at, low.at);
+    }
+
+    /// [fix-lip] A route's walk-offs, risers and crouched climbs come through the pass, and their points stay where they are: the lip
+    /// guard reads the walk-offs to leave the route's own drop (`Route::walk_off_within`), the motor to let go (`Route::walk_off_at`)
+    /// and to sprint or jump up a riser (`Route::riser_ahead`).
+    #[test]
+    fn the_walk_offs_and_risers_stay() {
+        let mut tris = floor();
+        tris.extend(block(5.0, 0.0, 5.5, 10.0));
+        let grid = grid_of(&tris);
+        let take_off = waypoint(&grid, 4.625, 5.125);
+        let route = Route::new(vec![waypoint(&grid, 1.125, 2.125), take_off, waypoint(&grid, 1.125, 8.125)]);
+        assert_ne!(route.clone().wall_cleared(&grid).points()[1].at, take_off.at, "moves as a plain corner");
+        let mut dropping = route;
+        let landing = dropping.points()[2].at;
+        dropping.walk_offs = vec![WalkOffRelease { take_off: take_off.at, landing, let_go: LetGo::Standing, crouched: false, line: DropLine::ToLanding }];
+        let cleared = dropping.clone().wall_cleared(&grid);
+        assert_eq!(cleared.walk_offs, dropping.walk_offs);
+        assert_eq!(cleared.points()[1].at, take_off.at);
+        // A riser's and a crouched climb's points too.
+        let mut rising = Route::new(vec![waypoint(&grid, 1.125, 2.125), take_off, waypoint(&grid, 1.125, 8.125)]);
+        rising.risers = vec![RiserUp { top: landing, take_off: take_off.at, press: RiserPress::Unflown }];
+        rising.crouch_climbs = vec![(take_off.at, landing)];
+        let cleared = rising.clone().wall_cleared(&grid);
+        assert_eq!(cleared.risers, rising.risers);
+        assert_eq!(cleared.crouch_climbs, rising.crouch_climbs);
+        assert_eq!(cleared.points()[1].at, take_off.at);
     }
 
     /// The run-up into a jump stays as planned: the corner before the take-off is not moved and the leg into the take-off

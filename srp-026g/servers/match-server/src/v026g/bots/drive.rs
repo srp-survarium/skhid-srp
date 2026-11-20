@@ -3554,20 +3554,43 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     // side rim, a swerve) are not the drop's walk, and the guard judges them as any other.
     let kept = bot.reckoned_kept;
     let hold = bot.motor.feel.lip_guard_ticks;
-    let (planned, own_walk_off) = bot.route.as_mut().map_or_else(
-        || (Vec::new(), false),
+    let (planned, own_drop) = bot.route.as_mut().map_or_else(
+        || (Vec::new(), OwnDrop::NoRoute),
         |(route, _)| {
             let (walked, off) = route.progress(me.feet);
             let planned = route.drop_landings(walked, PLANNED_DROP_M, truth);
-            let own = off <= body::RECKONING_M && route.walk_off_within(walked, reach) && {
-                let grid = &tactics.world.grid;
+            // [fix-lip] A body already over the edge of the route's own walk-off (its take-off behind, within reach, and no ground of the
+            // client's walker within a step under the feet: the walk-off came, `body::kept_off_ground`'s test) is down the drop: a brake
+            // there is the air control against it. Its line is the drop's, kept within twice the reckoning's error (the body drifts off
+            // the line in its first air steps: 0.31 m and 0.41 m in the suite's S101 and S306).
+            let grid = &tactics.world.grid;
+            let over_own_edge = || {
+                route.walk_off_behind(walked, reach)
+                    && grid.has_client_walker()
+                    && grid.walker_ground_below(me.feet, me.feet.y + 0.1, 0.1 + grid.body().step).is_none()
+            };
+            let line_m = if off > body::RECKONING_M && off <= 2.0 * body::RECKONING_M && over_own_edge() {
+                2.0 * body::RECKONING_M
+            } else {
+                body::RECKONING_M
+            };
+            let own = if off > line_m {
+                OwnDrop::OffLine(off)
+            } else if !route.walk_off_within(walked, reach) {
+                OwnDrop::NotInReach(reach)
+            } else {
                 let at = body::Estimate { kept, ..body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
                 let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid, planned: &planned, hold };
-                route.walk_off_path_on_line(walked, reach, &body::stop_path(&at, decision.keys, decision.turn.0, &stop), body::RECKONING_M)
+                if route.walk_off_path_on_line(walked, reach, &body::stop_path(&at, decision.keys, decision.turn.0, &stop), line_m) {
+                    OwnDrop::Own
+                } else {
+                    OwnDrop::ForecastOffLine
+                }
             };
             (planned, own)
         },
     );
+    let own_walk_off = own_drop == OwnDrop::Own;
     if own_walk_off {
         take_off_note(bot, me, tactics, tuning, decision, time, "left", "the route's own walk-off", None);
         walk_off_guards::left();
@@ -3670,24 +3693,56 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     }
     if let LipGuard::Swapped(to) | LipGuard::Braked(to) = guard {
         let verdict = if matches!(guard, LipGuard::Braked(_)) { "braked" } else { "swapped" };
-        take_off_note(bot, me, tactics, tuning, decision, time, verdict, "the stop forecast falls", Some(to));
+        let rule = format!("the stop forecast falls; the route's own drop: {}", own_drop.word());
+        take_off_note(bot, me, tactics, tuning, decision, time, verdict, &rule, Some(to));
         decision.keys = to;
     }
 }
 
+/// [fix-lip] Why the guard did or did not leave the body to the route's own walk-off (#2273's three tests, in their order), for the
+/// take-off note.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum OwnDrop {
+    NoRoute,
+    /// The feet this far (m) off the route's line, more than [`body::RECKONING_M`].
+    OffLine(f32),
+    /// No walk-off of the route within the stop forecast's reach (m) nor on the body's leg.
+    NotInReach(f32),
+    /// The stop forecast of the tick's keys leaves the route's line before it is a lip's height down.
+    ForecastOffLine,
+    /// Left to the drop.
+    Own,
+}
+
+impl OwnDrop {
+    fn word(self) -> String {
+        match self {
+            Self::NoRoute => "no route".to_owned(),
+            Self::OffLine(m) => format!("off its line {m:.2} m"),
+            Self::NotInReach(m) => format!("none within {m:.2} m"),
+            Self::ForecastOffLine => "the forecast leaves its line".to_owned(),
+            Self::Own => "yes".to_owned(),
+        }
+    }
+}
+
 /// [fix-lip] The guard's word near a take-off of the route's own jump or drop links ([`take_off_near`]), for the log
-/// ([`super::nav_log::take_off_line`], [`super::nav_log::Kind::TakeOff`]): `verdict` and `rule`, and the stop forecast of the tick's keys
+/// ([`super::nav_log::take_off_line`]; [`super::nav_log::Kind::TakeOff`] for a brake or a swap, [`super::nav_log::Kind::TakeOffLeft`]
+/// for an exemption): `verdict` and `rule`, and the stop forecast of the tick's keys
 /// (made only when the line is due: at most one a bot per [`super::nav_log::EVERY_MS`], [`super::nav_log::MAX_PER_KIND`] a match;
 /// played with no planned landing, so it shows where the keys would take the body). `to`: the keys the guard put instead.
 /// Decision-neutral.
 #[allow(clippy::too_many_arguments)]
 fn take_off_note(bot: &mut Bot, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, decision: &Decision, time: u32, verdict: &str, rule: &str, to: Option<u32>) {
     use super::nav_log::Kind;
-    let Some((link, take_off)) = bot.route.as_ref().and_then(|(route, _)| take_off_near(route, me.feet)) else {
+    let Some((link, take_off, records)) =
+        bot.route.as_ref().and_then(|(route, _)| take_off_near(route, me.feet).map(|(link, take_off)| (link, take_off, route.record_counts())))
+    else {
         return;
     };
-    if !bot.nav_log.due(Kind::TakeOff, time) {
-        bot.nav_log.push(Kind::TakeOff, time, String::new());
+    let kind = if to.is_some() { Kind::TakeOff } else { Kind::TakeOffLeft };
+    if !bot.nav_log.due(kind, time) {
+        bot.nav_log.push(kind, time, String::new());
         return;
     }
     let grid = &tactics.world.grid;
@@ -3695,8 +3750,8 @@ fn take_off_note(bot: &mut Bot, me: &PlaceView, tactics: &Tactics, tuning: &Tuni
     let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid, planned: &[], hold: bot.motor.feel.lip_guard_ticks };
     let end = body::stop_path(&at, decision.keys, decision.turn.0, &stop).last().copied();
     let air = bot.footing == motor::Footing::Air;
-    let line = super::nav_log::take_off_line(verdict, rule, me.feet, link, take_off, end, bot.motor.carrying, air, decision.keys, to.unwrap_or(decision.keys));
-    bot.nav_log.push(Kind::TakeOff, time, line);
+    let line = super::nav_log::take_off_line(verdict, rule, me.feet, link, take_off, end, bot.motor.carrying, air, decision.keys, to.unwrap_or(decision.keys), records);
+    bot.nav_log.push(kind, time, line);
 }
 
 /// A walk's keys with the side step `strafe` woven in: a walk straight to
