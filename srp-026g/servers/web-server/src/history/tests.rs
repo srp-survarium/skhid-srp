@@ -16,6 +16,7 @@ use session::v026g::replays::ReplayId;
 use session::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
 use session::{Ban, SessionStore};
 use survarium::v026g::maps::{GameMode, MapId};
+use survarium::v026g::twist::LobbyMode;
 
 use super::*;
 use crate::{LiveMatch, LobbyLink, MatchCounter};
@@ -128,7 +129,7 @@ fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
             ended_at,
             duration_ms: 844_500,
             map_id: MapId::new(3),
-            game_mode: GameMode::Batteries,
+            mode: LobbyMode::Plain(GameMode::Batteries),
             match_level: 12,
             winner: Winner::FirstTeam,
             team_points: [5, 3],
@@ -596,7 +597,11 @@ fn the_top_lists_leave_out_the_banned() {
     assert_eq!(keys(&players[0]), ["level", "player", "rating", "totals"]);
     assert_eq!(players[0]["player"]["name"], "Alice");
     assert_eq!(world.ok("/api/history/top")["by"], "rating");
-    assert_eq!(world.ok("/api/history/top?by=artefacts")["by"], "artefacts");
+    // Too few matches yet for the average score's list.
+    let by_average = world.ok("/api/history/top?by=score_avg");
+    assert_eq!(by_average["by"], "score_avg");
+    assert!(by_average["players"].as_array().unwrap().is_empty());
+    assert_eq!(world.get("/api/history/top?by=artefacts").0, "400 Bad Request");
     let accurate = world.ok("/api/history/top?by=accuracy");
     assert_eq!(accurate["by"], "accuracy");
     let players = accurate["players"].as_array().unwrap();
@@ -666,7 +671,7 @@ fn the_best_scores_leave_out_the_banned() {
 fn clans_have_totals_and_members() {
     let world = world("clans");
     let list = world.ok("/api/history/clans");
-    assert_eq!(list["by"], "score");
+    assert_eq!(list["by"], "matches");
     let clans = list["clans"].as_array().unwrap();
     assert_eq!(clans.len(), 1);
     assert_eq!(
@@ -834,6 +839,12 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
         } else {
             GameMode::Batteries
         };
+        // The free-for-all was a Racket.
+        let called = if free_for_all {
+            LobbyMode::Racket
+        } else {
+            LobbyMode::Plain(mode)
+        };
         let mut players: Vec<PlayerRecord> = (0..12u32)
             .filter(|&k| k != 11 || i >= 8)
             .map(|k| {
@@ -972,7 +983,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
                 ended_at,
                 duration_ms: 600_000 + random(600) as u32 * 1_000,
                 map_id: map_of(mode, i as usize),
-                game_mode: mode,
+                mode: called,
                 match_level: 12,
                 winner,
                 team_points: match winner {

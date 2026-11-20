@@ -10,11 +10,12 @@
 use serde_json::{Value, json};
 use session::SessionStore;
 use session::v026g::persist::history::{
-    ClanKey, ClanLine, Counters, Gear, ItemTotals, KitCounts, KitLine, MatchHistory, MatchSummary,
+    ClanKey, ClanLine, Counters, Gear, ItemTotals, KitCounts, KitLine, MatchHistory, MatchInfo,
+    MatchSummary,
     Named, Outcome, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey, Winner,
 };
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::maps::{self, MapId};
+use survarium::v026g::maps;
 
 use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, wiki};
 
@@ -227,10 +228,6 @@ fn totals_key(text: &str) -> Option<TotalsKey> {
         "matches" => TotalsKey::Matches,
         "wins" => TotalsKey::Wins,
         "kills" => TotalsKey::Kills,
-        "score" => TotalsKey::Score,
-        "headshots" => TotalsKey::Headshots,
-        "batteries" => TotalsKey::Batteries,
-        "artefacts" => TotalsKey::Artefacts,
         _ => return None,
     })
 }
@@ -240,10 +237,6 @@ fn totals_key_name(key: TotalsKey) -> &'static str {
         TotalsKey::Matches => "matches",
         TotalsKey::Wins => "wins",
         TotalsKey::Kills => "kills",
-        TotalsKey::Score => "score",
-        TotalsKey::Headshots => "headshots",
-        TotalsKey::Batteries => "batteries",
-        TotalsKey::Artefacts => "artefacts",
     }
 }
 
@@ -252,6 +245,7 @@ fn ranking_name(by: PlayerRanking) -> &'static str {
         PlayerRanking::Rating => "rating",
         PlayerRanking::Totals(key) => totals_key_name(key),
         PlayerRanking::Accuracy => "accuracy",
+        PlayerRanking::ScoreAvg => "score_avg",
     }
 }
 
@@ -293,6 +287,7 @@ impl Endpoint {
                 by: match query.text("by") {
                     None | Some("rating") => PlayerRanking::Rating,
                     Some("accuracy") => PlayerRanking::Accuracy,
+                    Some("score_avg") => PlayerRanking::ScoreAvg,
                     Some(text) => {
                         PlayerRanking::Totals(totals_key(text).ok_or(Refusal::BadRequest)?)
                     }
@@ -306,7 +301,7 @@ impl Endpoint {
             }),
             "clans" => Self::Clans {
                 by: match query.text("by") {
-                    None => TotalsKey::Score,
+                    None => TotalsKey::Matches,
                     Some(text) => totals_key(text).ok_or(Refusal::BadRequest)?,
                 },
                 limit: query.limit(MatchHistory::MAX_ROWS)?,
@@ -456,7 +451,7 @@ fn answer(
                 })?
                 .iter()
                 .map(|best| {
-                    let (map, mode) = names(best.summary.info.map_id, lang);
+                    let (map, mode) = names(&best.summary.info, lang);
                     json!({
                         "player": named(&best.player),
                         "match": best.summary.id,
@@ -649,21 +644,18 @@ fn winner(winner: Winner) -> Value {
     }
 }
 
-/// The map's and the mode's names in `lang`, from the game data; `null`
-/// for a map it no longer has.
-fn names(map_id: MapId, lang: Lang) -> (Option<String>, Option<String>) {
-    match maps::map_mode(map_id) {
-        Some(map) => (
-            Some(launcher::map_name(lang, map)),
-            Some(launcher::mode_name(lang, map)),
-        ),
-        None => (None, None),
-    }
+/// The map's name in `lang`, from the game data (`None` for a map it no
+/// longer has), and the mode's as the rooms name it.
+fn names(info: &MatchInfo, lang: Lang) -> (Option<String>, String) {
+    (
+        maps::map_mode(info.map_id).map(|map| launcher::map_name(lang, map)),
+        launcher::lobby_mode_name(lang, info.mode),
+    )
 }
 
 fn match_summary(summary: &MatchSummary, lang: Lang) -> Value {
     let info = &summary.info;
-    let (map, mode) = names(info.map_id, lang);
+    let (map, mode) = names(info, lang);
     json!({
         "id": summary.id,
         "replay_id": summary.replay_id.as_str(),

@@ -14,9 +14,12 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   leaderboards (`?board=players|clans|best|latest&by=<key>`). Each view is drawn once empty in
   its final shape, then with its data, so nothing moves while it loads; match lists grow by
   "Older matches" (`before=`).
+- The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
+  headshots as their share of the kills (HS %); no batteries or artefacts (a profile's own panel
+  has them).
 - A match line shows the weapons of the kits it used (each kit in full, with the kit's own kills
-  and accuracy, on hover). A free-for-all is one list by place. A click anywhere on a match's
-  row opens the match.
+  and accuracy, on hover). A free-for-all is one list by place. A click anywhere on a row
+  opens what the row is of: the match, the player or the clan.
 - `scripts/stats/check_history.mjs` exercises it in an isolated Firefox over the site's own
   endpoints: the preview (`cargo test -p web-server serve_wiki_preview -- --ignored --nocapture`,
   port 24583) keeps a made-up history (`history::tests::preview`); the script serves it again on
@@ -45,7 +48,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   is kept beside it, it is random and repeats across restarts), its `replay_id` (that id with the
   UTC second the match was made, `rec026g_20261014-023456_000000ab`: its recording's file stem
   whether it was recorded or not, so a match stays told apart across restarts), when it ended
-  (Unix seconds), how long it lasted, map, mode, match level, the kind (`public`, `private`,
+  (Unix seconds), how long it lasted, map, mode (as the lobby calls it, `LobbyMode`: a
+  free-for-all's twist, Racket or a Saloon, is one of its own), match level, the kind (`public`, `private`,
   `vs_bots`), the winner (`team0`, `team1`, `draw`, `unknown`, or `most_kills` for a free-for-all,
   which no team wins) and the two teams' points.
 - A public match's eligibility, set when it is written (`history::Eligibility`): `counted`, or why
@@ -125,8 +129,8 @@ Common objects:
 - A match: `{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
   "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
   "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, `"free_for_all"` (no team wins one:
-  its lines' `outcome` says who did) or `null` when not known. `map` and `mode` are `null` for a
-  map the game data no longer has.
+  its lines' `outcome` says who did) or `null` when not known. `map` is `null` for a map the
+  game data no longer has; `mode` is the text the rooms name the mode by ("FFA: Racket").
 - A player's line of a match: `"team":0,"place":1,"outcome":"won","left":false,"rating":1180,
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
   "melee_kills":0,"batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,
@@ -228,8 +232,9 @@ A public match and every player's line with its kits, by team, then place.
 
 ### `GET /api/history/top?by=<key>&limit=<n>`
 
-The top players by their totals. `by`: `rating`, `matches`, `wins`, `kills`, `score`, `headshots`,
-`batteries`, `artefacts`, `accuracy` (default `rating`); `limit` 1..50 (default 50). Players with
+The top players by their totals. `by`: `rating`, `matches`, `wins`, `kills`, `score_avg`,
+`accuracy` (default `rating`); `limit` 1..50 (default 50). `score_avg` lists only the players
+with at least 20 counted matches (`SCORE_AVG_MIN_MATCHES`). Players with
 a counted public match only. `accuracy` lists only the players with at least 1000 shots in their counted public
 matches (`ACCURACY_MIN_SHOTS`; a few lucky shots do not top it), best first; ties by account.
 
@@ -255,11 +260,11 @@ accounts left out.
 
 ### `GET /api/history/clans?by=<key>&limit=<n>`
 
-Registered clans by their totals. `by`: `matches`, `wins`, `kills`, `score`, `headshots`,
-`batteries`, `artefacts` (default `score`); `limit` 1..50 (default 50).
+Registered clans by their totals. `by`: `matches`, `wins`, `kills` (default `matches`); `limit`
+1..50 (default 50).
 
 ```json
-{"by":"score",
+{"by":"matches",
  "clans":[{"id":7,"name":"Skhid","tag":"SKH","level":5,"members":18,
            "totals":{"matches":400,"wins":230,"losses":150,"kills":3100,"deaths":2500,"assists":700,
            "score":98000,"headshots":610,"grenade_kills":40,"melee_kills":9,"batteries":150,

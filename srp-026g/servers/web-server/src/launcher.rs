@@ -33,6 +33,7 @@ use session::SessionStore;
 use session::v026g::Board;
 use survarium::v026g::localization::{self, Language};
 use survarium::v026g::maps;
+use survarium::v026g::twist::LobbyMode;
 
 use crate::{
     CONNECT, ContentType, Game, Lang, LiveMatch, LivePhase, Response, available_download, escape,
@@ -436,6 +437,18 @@ pub(crate) fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
         None => lang.tr(
             &format!("mode {}", map.mode.lobby_number()),
             &format!("режим {}", map.mode.lobby_number()),
+        ),
+    }
+}
+
+/// A mode as the lobby calls it, a free-for-all's twist too: the text the
+/// rooms name it by ([`LobbyMode::name_key`]). Without one, its number.
+pub(crate) fn lobby_mode_name(lang: Lang, mode: LobbyMode) -> String {
+    match localization::text(game_language(lang), mode.name_key()) {
+        Some(name) => name.to_owned(),
+        None => lang.tr(
+            &format!("mode {}", mode.number()),
+            &format!("режим {}", mode.number()),
         ),
     }
 }

@@ -3891,7 +3891,7 @@ fn a_settled_match_is_kept_for_the_history_without_its_bots() {
             ended_at: NOW,
             duration_ms: 700_000,
             map_id: survarium::v026g::maps::MapId::new(1),
-            game_mode: GameMode::Batteries,
+            mode: LobbyMode::Plain(GameMode::Batteries),
             match_level: 0,
             winner: history::Winner::FirstTeam,
             team_points: [3, 1],

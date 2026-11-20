@@ -156,6 +156,7 @@ use survarium::v026g::maps::{GameMode, RuleMode};
 use survarium::v026g::match_msgs::snapshot::{EVENTS, HUNDREDTHS, KITS, PlayerStatistics, event};
 use survarium::v026g::match_msgs::static_info::{self, SCORE_WEIGHTS};
 use survarium::v026g::quests::MatchStats as QuestStats;
+use survarium::v026g::twist::LobbyMode;
 
 use super::account::Account;
 use super::level_stats::KillsDeaths;
@@ -1883,7 +1884,7 @@ impl<'a> Shared<'a> {
                 ended_at: self.terms.now,
                 duration_ms: result.duration_ms,
                 map_id: result.map_id,
-                game_mode: result.mode,
+                mode: LobbyMode::of(result.mode, result.twist),
                 match_level: result.match_level,
                 winner: match self.winners {
                     Winners::Team(team) => history::Winner::of(team, DRAW),

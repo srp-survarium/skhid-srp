@@ -110,12 +110,18 @@ try {
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-table tbody tr')].map(r => Number(r.children[7].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'sorted by kills');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('by')"), 'kills');
   assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('by=kills'), 'the language link keeps the board');
-  await evaluate("[...document.querySelectorAll('.stats-keys button')].find(b => b.textContent === 'Artefacts').click()");
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-keys button')].map(b => b.textContent).join()"), 'Rating,Matches,Wins,Kills,Avg score,Accuracy');
+  const board = await columns();
+  assert.ok(board.includes('HS %') && board.includes('Avg score'));
+  assert.ok(!['Score', 'Headshots', 'Batteries', 'Artefacts'].some(label => board.includes(label)), board.join());
+  assert.equal(await count('.stats-keys .stats-note'), 0, 'a note only for a list that leaves players out');
+  await evaluate("[...document.querySelectorAll('.stats-keys button')].find(b => b.textContent === 'Avg score').click()");
   await settled();
-  assert.equal(answered.top.by, 'artefacts');
-  assert.equal(await text('.stats-table thead th.sorted'), 'Artefacts');
-  assert.equal(await evaluate("[...document.querySelectorAll('.stats-table tbody tr')].map(r => Number(r.children[13].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'sorted by artefacts');
-  assert.equal(await count('.stats-keys .stats-note'), 0, 'the shots line is for accuracy only');
+  assert.equal(answered.top.by, 'score_avg');
+  assert.equal(await text('.stats-keys .stats-note'), '20+ matches');
+  assert.equal(await count('.stats-table tbody tr'), answered.top.players.length);
+  assert.ok(answered.top.players.length > 0 && !answered.top.players.some(row => row.player.name === 'Yasen'), 'under 20 matches: not listed');
+  assert.deepEqual(await cells('.stats-table tbody td.sorted'), answered.top.players.map(row => String(row.totals.score_avg)));
   await evaluate("[...document.querySelectorAll('.stats-keys button')].find(b => b.textContent === 'Accuracy').click()");
   await settled();
   assert.equal(answered.top.by, 'accuracy');
@@ -154,6 +160,23 @@ try {
   assert.equal(await count('.stats-table tbody tr'), 23);
   assert.equal(await evaluate("document.querySelector('.stats-paged button').hidden"), true, 'no older page');
 
+  // A click anywhere on a player's row opens the player, on a clan's the clan.
+  await navigate('/stats');
+  await evaluate("document.querySelector('.stats-table tbody tr td:nth-child(5)').click()");
+  await new Promise(resolve => setTimeout(resolve, 500));
+  await settled();
+  assert.equal(await evaluate('location.search'), '?player=Sheep&lang=en');
+  await navigate('/stats?board=clans&lang=en');
+  await evaluate("document.querySelector('.stats-table tbody tr td:nth-child(5)').click()");
+  await new Promise(resolve => setTimeout(resolve, 500));
+  await settled();
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('clan')"), answered.clans.clans[0].tag);
+  await navigate(`/stats?match=${newest}&lang=en`);
+  await evaluate("document.querySelector('.stats-table tbody tr td:nth-child(5)').click()");
+  await new Promise(resolve => setTimeout(resolve, 500));
+  await settled();
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('player')"), answered.match.players[0].player.name);
+
   // The search goes to a player with only what is filled in.
   await navigate('/stats');
   await evaluate("document.querySelector('.stats-find [name=player]').value = ' sheep ';document.querySelector('.stats-find button').click()");
@@ -174,7 +197,7 @@ try {
   assert.equal(await panel('Artefacts'), String(answered.player.totals.artefacts), 'the artefacts taken');
   assert.equal(await panel('Hours played'), (answered.player.totals.played_s / 3600).toFixed(1));
   assert.equal(await panel('Accuracy'), aim(answered.player.totals), 'accuracy in whole percents');
-  assert.ok((await columns()).includes('Artefacts'), 'a match line has its artefacts');
+  assert.ok((await columns()).includes('HS %') && !(await columns()).includes('Artefacts'), 'a match line has its headshot rate');
   assert.ok((await columns()).includes('Accuracy') && (await columns()).includes('Weapons'), 'and its accuracy and weapons');
   const lines = answered['player/matches'].matches;
   assert.deepEqual(await cells('.stats-paged .stats-kit'), lines.map(weapons), 'the used kits\' weapons');
@@ -234,7 +257,7 @@ try {
   assert.equal(await count('.stats-table'), 2);
   assert.equal(await count('.stats-table tbody tr'), 12);
   assert.match(await text('.stats-heading'), /^Team 1 · \d/);
-  assert.ok((await columns()).includes('Artefacts'));
+  assert.ok((await columns()).includes('HS %'));
   assert.ok((await columns()).includes('Accuracy'));
   assert.deepEqual(await cells('.stats-kit.stats-under'), answered.match.players.map(weapons), 'weapons under each name');
   assert.deepEqual(await cells('.stats-table tbody td:nth-child(8)'), answered.match.players.map(row => aim(row)));
@@ -264,7 +287,7 @@ try {
   assert.match(await text('.stats-table tbody tr td'), /Sheep · Commander/);
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Members').nextSibling.textContent"), String(answered.clan.clan.members));
   assert.equal(await panel('Artefacts'), String(answered.clan.totals.artefacts));
-  assert.ok((await columns()).includes('Artefacts'), 'the members have theirs');
+  assert.ok((await columns()).includes('HS %'), 'the members have theirs');
   await screenshot('clan');
   // RAD's commander has no public match: the clan counts him, lists only who played.
   await navigate('/stats?clan=RAD&lang=en');

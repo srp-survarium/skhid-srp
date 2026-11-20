@@ -11,7 +11,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, TryLockError};
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension, Row, Transaction, params};
-use survarium::v026g::maps::{GameMode, MapId};
+use survarium::v026g::maps::MapId;
+use survarium::v026g::twist::LobbyMode;
 
 use crate::LockExt;
 use crate::persist::PersistError;
@@ -35,7 +36,8 @@ pub(super) const MIGRATION: &str = "
         duration_ms   INTEGER NOT NULL,
         -- maps_dict's id.
         map_id        INTEGER NOT NULL,
-        -- Its lobby number (`GameMode::lobby_number`): 6 is Blackout.
+        -- Its lobby number (`LobbyMode::number`): a mode's, or a
+        -- free-for-all's twist's.
         game_mode     INTEGER NOT NULL,
         match_level   INTEGER NOT NULL,
         kind          TEXT NOT NULL CHECK (kind IN ('public', 'private', 'vs_bots')),
@@ -113,10 +115,10 @@ pub(super) const MIGRATION: &str = "
     CREATE INDEX g26_player_totals_matches ON g26_player_totals (matches);
     CREATE INDEX g26_player_totals_wins ON g26_player_totals (wins);
     CREATE INDEX g26_player_totals_kills ON g26_player_totals (kills);
-    CREATE INDEX g26_player_totals_score ON g26_player_totals (score);
-    CREATE INDEX g26_player_totals_headshots ON g26_player_totals (headshots);
-    CREATE INDEX g26_player_totals_batteries ON g26_player_totals (batteries);
-    CREATE INDEX g26_player_totals_artefacts ON g26_player_totals (artefacts);
+    -- The average score top list: the players with at least 20 matches
+    -- (`SCORE_AVG_MIN_MATCHES`, the same number).
+    CREATE INDEX g26_player_totals_score_avg ON g26_player_totals (CAST(score AS REAL) / matches)
+        WHERE matches >= 20;
     -- The accuracy top list: the players with at least 1000 shots
     -- (`ACCURACY_MIN_SHOTS`, the same number).
     CREATE INDEX g26_player_totals_accuracy ON g26_player_totals (CAST(hits AS REAL) / shots)
@@ -400,6 +402,10 @@ pub struct Counters {
 /// that a handful of lucky ones does not top it (`g26_player_totals_accuracy`
 /// is the same number).
 pub const ACCURACY_MIN_SHOTS: u64 = 1000;
+/// The fewest counted matches a player's totals need for the average score
+/// top list, so that one good match does not top it
+/// (`g26_player_totals_score_avg` is the same number).
+pub const SCORE_AVG_MIN_MATCHES: u64 = 20;
 
 /// What a kit's counters say of one match, or of the matches added up.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -519,7 +525,8 @@ pub struct MatchInfo {
     pub ended_at: u64,
     pub duration_ms: u32,
     pub map_id: MapId,
-    pub game_mode: GameMode,
+    /// The mode as the lobby calls it: a free-for-all's twist is one.
+    pub mode: LobbyMode,
     pub match_level: u16,
     pub winner: Winner,
     pub team_points: [u16; 2],
@@ -556,10 +563,6 @@ pub enum TotalsKey {
     Matches,
     Wins,
     Kills,
-    Score,
-    Headshots,
-    Batteries,
-    Artefacts,
 }
 
 impl TotalsKey {
@@ -569,10 +572,6 @@ impl TotalsKey {
             Self::Matches => "matches",
             Self::Wins => "wins",
             Self::Kills => "kills",
-            Self::Score => "score",
-            Self::Headshots => "headshots",
-            Self::Batteries => "batteries",
-            Self::Artefacts => "artefacts",
         }
     }
 }
@@ -585,6 +584,8 @@ pub enum PlayerRanking {
     Totals(TotalsKey),
     /// Hits by shots, of the players with [`ACCURACY_MIN_SHOTS`] or more.
     Accuracy,
+    /// Score a match, of the players with [`SCORE_AVG_MIN_MATCHES`] or more.
+    ScoreAvg,
 }
 
 /// A registered clan, as a player's tag links it.
@@ -736,7 +737,7 @@ pub(super) fn record(
             info.ended_at.min(i64::MAX as u64) as i64,
             info.duration_ms,
             info.map_id.get(),
-            info.game_mode.lobby_number(),
+            info.mode.number(),
             info.match_level,
             record.kind.as_str(),
             record.kind.eligibility().map(Eligibility::as_str),
@@ -1109,7 +1110,7 @@ fn summary_at(row: &Row, at: usize) -> rusqlite::Result<MatchSummary> {
             ended_at: u64_at(row, at + 1)?,
             duration_ms: row.get(at + 2)?,
             map_id: MapId::new(row.get(at + 3)?),
-            game_mode: GameMode::of_lobby_number(mode)
+            mode: LobbyMode::of_number(mode)
                 .ok_or_else(|| bad("game mode", &mode.to_string()))?,
             match_level: row.get(at + 5)?,
             winner: Winner::parse(&winner).ok_or_else(|| bad("winner", &winner))?,
@@ -1594,8 +1595,9 @@ fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
     })
 }
 
-/// [`MatchHistory::top`]'s query by `by`. Accuracy reads the partial index
-/// `g26_player_totals_accuracy`: its expression and its bound are the
+/// [`MatchHistory::top`]'s query by `by`. Accuracy and the average score
+/// read their partial indexes (`g26_player_totals_accuracy`,
+/// `g26_player_totals_score_avg`): the expressions and the bounds are the
 /// migration's, word for word.
 fn top_query(by: PlayerRanking) -> String {
     let (filter, order) = match by {
@@ -1610,6 +1612,10 @@ fn top_query(by: PlayerRanking) -> String {
         PlayerRanking::Accuracy => (
             format!("WHERE t.shots >= {ACCURACY_MIN_SHOTS}"),
             "CAST(t.hits AS REAL) / t.shots DESC, t.account_id".to_owned(),
+        ),
+        PlayerRanking::ScoreAvg => (
+            format!("WHERE t.matches >= {SCORE_AVG_MIN_MATCHES}"),
+            "CAST(t.score AS REAL) / t.matches DESC, t.account_id".to_owned(),
         ),
     };
     format!(
@@ -1652,6 +1658,7 @@ mod tests {
     use crate::persist::DB_FILE;
     use crate::v026g::account::Account;
     use crate::v026g::clans::{Clan, Member};
+    use survarium::v026g::maps::GameMode;
 
     struct TempDir(std::path::PathBuf);
 
@@ -1751,7 +1758,7 @@ mod tests {
                 ended_at,
                 duration_ms: 845_000,
                 map_id: MapId::new(3),
-                game_mode: GameMode::Batteries,
+                mode: LobbyMode::Plain(GameMode::Batteries),
                 match_level: 12,
                 winner: Winner::FirstTeam,
                 team_points: [5, 3],
@@ -1902,7 +1909,7 @@ mod tests {
         );
         assert!(history.best(0, 10, &everything).unwrap().is_empty());
         assert!(history.player_days(10, 0).unwrap().is_empty());
-        assert!(history.clans(TotalsKey::Score, 10).unwrap().is_empty());
+        assert!(history.clans(TotalsKey::Matches, 10).unwrap().is_empty());
         assert_eq!(history.favourites(10, 10).unwrap(), Favourites::default());
         // The next one counts.
         repository.record_match(&record(PUBLIC, 200)).unwrap();
@@ -1994,7 +2001,7 @@ mod tests {
         let names = |top: Vec<TopPlayer>| -> Vec<String> {
             top.into_iter().map(|top| top.player.name).collect()
         };
-        let by_score = PlayerRanking::Totals(TotalsKey::Score);
+        let by_score = PlayerRanking::Totals(TotalsKey::Kills);
         let top = |limit| names(history.top(by_score, limit, &keep).unwrap());
         assert_eq!(top(10), ["Alice", "Bob"]);
         assert_eq!(top(1), ["Alice"]);
@@ -2193,7 +2200,8 @@ mod tests {
         repository.record_match(&draw).unwrap();
         // A free-for-all: Bob had the most kills.
         let mut ffa = record(PUBLIC, 300);
-        ffa.info.game_mode = GameMode::FreeForAll;
+        // A twist of it, kept as the lobby calls it.
+        ffa.info.mode = LobbyMode::Racket;
         ffa.info.winner = Winner::MostKills;
         ffa.players[0].line.outcome = Outcome::Lost;
         ffa.players[1].line.outcome = Outcome::Won;
@@ -2208,6 +2216,7 @@ mod tests {
         assert_eq!((day.matches, day.wins, day.losses), (3, 0, 2));
         let (summary, players) = history.game_match(3).unwrap().unwrap();
         assert_eq!(summary.info.winner, Winner::MostKills);
+        assert_eq!(summary.info.mode, LobbyMode::Racket);
         assert_eq!(players[1].line.outcome, Outcome::Won);
     }
 
@@ -2252,7 +2261,7 @@ mod tests {
         repository
             .record_match(&record(MatchKind::Private, 200))
             .unwrap();
-        let clans = history.clans(TotalsKey::Score, 10).unwrap();
+        let clans = history.clans(TotalsKey::Matches, 10).unwrap();
         assert_eq!(clans.len(), 1);
         assert_eq!(
             (clans[0].tag.as_str(), clans[0].level, clans[0].members),
@@ -2575,15 +2584,37 @@ mod tests {
     }
 
     #[test]
-    fn the_accuracy_list_reads_its_partial_index() {
+    fn the_accuracy_and_average_score_lists_read_their_partial_indexes() {
         let dir = TempDir::new("accuracy-plan");
         let (_repository, _history) = repository(&dir);
-        let plan = plan_of(&dir, &top_query(PlayerRanking::Accuracy), [10]);
-        assert!(
-            plan.contains("SCAN t USING INDEX g26_player_totals_accuracy"),
-            "{plan}"
-        );
-        // Only the ties are sorted further, by account.
-        assert!(!plan.contains("USE TEMP B-TREE FOR ORDER BY"), "{plan}");
+        for (by, index) in [
+            (PlayerRanking::Accuracy, "g26_player_totals_accuracy"),
+            (PlayerRanking::ScoreAvg, "g26_player_totals_score_avg"),
+        ] {
+            let plan = plan_of(&dir, &top_query(by), [10]);
+            assert!(plan.contains(&format!("SCAN t USING INDEX {index}")), "{plan}");
+            // Only the ties are sorted further, by account.
+            assert!(!plan.contains("USE TEMP B-TREE FOR ORDER BY"), "{plan}");
+        }
+    }
+
+    #[test]
+    fn the_average_score_list_needs_its_matches() {
+        let dir = TempDir::new("score-avg");
+        let (mut repository, history) = repository(&dir);
+        let top = |history: &MatchHistory| -> Vec<String> {
+            history
+                .top(PlayerRanking::ScoreAvg, 10, &|_| true)
+                .unwrap()
+                .into_iter()
+                .map(|top| top.player.name)
+                .collect()
+        };
+        for at in 1..SCORE_AVG_MIN_MATCHES {
+            repository.record_match(&record(PUBLIC, at * 100)).unwrap();
+        }
+        assert!(top(&history).is_empty(), "one match short");
+        repository.record_match(&record(PUBLIC, 9_000)).unwrap();
+        assert_eq!(top(&history), ["Alice", "Bob"]);
     }
 }

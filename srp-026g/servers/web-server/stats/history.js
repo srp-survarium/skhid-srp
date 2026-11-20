@@ -21,7 +21,7 @@
       map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
       win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', inTotals: 'In totals', yes: 'Yes', no: 'No', hours: 'Hours played',
       accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
-      accuracyNote: '1000+ shots',
+      accuracyNote: '1000+ shots', averageNote: '20+ matches', headshotRate: 'HS %',
       noMatches: 'No public matches yet.', noPlayer: 'No player with public matches named “{}”.', noClan: 'No clan tagged [{}].',
       noMatch: 'No public match {}.', noHistory: 'This server keeps no match history.',
       failed: 'Could not load the stats. Reload the page.', nobody: 'Nobody yet.',
@@ -38,7 +38,7 @@
       map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
       win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', inTotals: 'У підсумках', yes: 'Так', no: 'Ні', hours: 'Годин у грі',
       accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
-      accuracyNote: '1000+ пострілів',
+      accuracyNote: '1000+ пострілів', averageNote: '20+ матчів', headshotRate: 'У голову %',
       noMatches: 'Публічних матчів ще немає.', noPlayer: 'Гравця з публічними матчами на ім’я «{}» немає.', noClan: 'Клану [{}] немає.',
       noMatch: 'Публічного матчу {} немає.', noHistory: 'Цей сервер не зберігає історію матчів.',
       failed: 'Не вдалося завантажити статистику. Оновіть сторінку.', nobody: 'Поки нікого.',
@@ -48,13 +48,15 @@
   // An empty cell's text, so it has a line's height.
   const BLANK = '\u00a0';
   const BOARDS = {
-    players: ['rating', 'matches', 'wins', 'kills', 'score', 'headshots', 'batteries', 'artefacts', 'accuracy'],
-    clans: ['score', 'matches', 'wins', 'kills', 'headshots', 'batteries', 'artefacts'],
+    players: ['rating', 'matches', 'wins', 'kills', 'score_avg', 'accuracy'],
+    clans: ['matches', 'wins', 'kills'],
     best: ['day', 'hour'],
     latest: [],
   };
-  const KEY_TEXT = {rating: 'rating', matches: 'matches', wins: 'wins', kills: 'kills', score: 'score',
-    headshots: 'headshots', batteries: 'batteries', artefacts: 'artefacts', accuracy: 'accuracy', day: 'day', hour: 'hour'};
+  const KEY_TEXT = {rating: 'rating', matches: 'matches', wins: 'wins', kills: 'kills', score_avg: 'scoreAvg',
+    accuracy: 'accuracy', day: 'day', hour: 'hour'};
+  // What a list by a key leaves out, said beside the keys.
+  const KEY_NOTE = {accuracy: 'accuracyNote', score_avg: 'averageNote'};
   const numbers = new Intl.NumberFormat(lang, {maximumFractionDigits: 2});
   const pair = new Intl.NumberFormat(lang, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const percent = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 1});
@@ -81,6 +83,8 @@
   const rate = value => value === null || value === undefined ? '—' : percent.format(value);
   // Hits by shots of totals, a match line or a kit; none without a shot.
   const aim = counts => counts.shots ? whole.format(counts.accuracy) : '—';
+  // How many of its kills were headshots; none without a kill.
+  const headshotRate = counts => counts.kills ? whole.format(counts.headshots / counts.kills) : '—';
   // A map's, a mode's or an item's name: null for one the game data no longer has.
   const name = value => value ?? '—';
   const when = seconds => dates.format(new Date(seconds * 1000));
@@ -229,8 +233,9 @@
       el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons), list(TEXT.armour, data && data.armour))];
   }
   const matchLink = row => link({match: row.id}, `${row.id}`);
-  // Where a click on a match's row goes.
+  // Where a click on a match's row goes, and on a player's.
   const openMatch = row => ({match: row.id});
+  const openPlayer = row => ({player: row.player.name});
   // The two teams' points; a free-for-all has none.
   const points = row => row.winner === 'free_for_all' ? '—' : row.team_points.map(n).join(' : ');
   // Two lines a match: the time under the day, the mode under the map.
@@ -253,7 +258,7 @@
     const v = key => totals ? n(totals[key]) : null;
     return [[TEXT.kills, v('kills')], [TEXT.deaths, v('deaths')], [TEXT.kd, totals ? kd(totals.kd) : null],
       [TEXT.accuracy, totals ? aim(totals) : null], [TEXT.assists, v('assists')],
-      [TEXT.headshots, v('headshots')], [TEXT.grenadeKills, v('grenade_kills')], [TEXT.meleeKills, v('melee_kills')],
+      [TEXT.headshotRate, totals ? headshotRate(totals) : null], [TEXT.grenadeKills, v('grenade_kills')], [TEXT.meleeKills, v('melee_kills')],
       [TEXT.batteries, v('batteries')], [TEXT.captures, v('captures')], [TEXT.artefacts, v('artefacts')]];
   }
   function record(totals) {
@@ -274,9 +279,8 @@
       [TEXT.last30, days ? lastDays(days) : blank([TEXT.matches, TEXT.winRate, TEXT.kd, TEXT.scoreAvg])]);
     const columns = [...MATCH_COLUMNS, [TEXT.weapons, row => kitWeapons(row), 'l kits'], [TEXT.result, result, 'l'], [TEXT.place, row => n(row.place)],
       [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
-      [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)], [TEXT.headshots, row => n(row.headshots)],
-      [TEXT.batteries, row => n(row.batteries)], [TEXT.captures, row => n(row.captures)], [TEXT.artefacts, row => n(row.artefacts)],
-      [TEXT.rating, row => n(row.rating)]];
+      [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)], [TEXT.headshotRate, headshotRate],
+      [TEXT.captures, row => n(row.captures)], [TEXT.rating, row => n(row.rating)]];
     root.replaceChildren(head(null, null), ...favourites(null), el('h2', {className: 'stats-heading'}, TEXT.matches), table(columns, null));
     // A player without a public match is not found, as an unknown name.
     const card = await api('player', {name});
@@ -294,9 +298,8 @@
     const columns = [[TEXT.place, row => n(row.place)], [TEXT.player, playerKit, 'l', '', twoLines],
       [TEXT.level, row => n(row.level)], [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)],
       [TEXT.deaths, row => n(row.deaths)], [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)],
-      [TEXT.headshots, row => n(row.headshots)], [TEXT.grenadeKills, row => n(row.grenade_kills)],
-      [TEXT.meleeKills, row => n(row.melee_kills)], [TEXT.batteries, row => n(row.batteries)],
-      [TEXT.captures, row => n(row.captures)], [TEXT.artefacts, row => n(row.artefacts)], [TEXT.rating, row => n(row.rating)]];
+      [TEXT.headshotRate, headshotRate], [TEXT.grenadeKills, row => n(row.grenade_kills)],
+      [TEXT.meleeKills, row => n(row.melee_kills)], [TEXT.captures, row => n(row.captures)], [TEXT.rating, row => n(row.rating)]];
     const view = data => {
       const m = data && data.match;
       // A free-for-all: everyone its own side, one list by place.
@@ -305,11 +308,11 @@
         : free ? data.players.filter(row => row.outcome === 'won').map(row => row.player.name).join(', ') || '—'
         : m.winner === null ? '—' : `${TEXT.team} ${m.winner + 1} ${TEXT.won}`;
       const teams = free
-        ? [[el('h2', {className: 'stats-heading'}, TEXT.players), table(columns, [...data.players].sort((a, b) => a.place - b.place), 0)]]
+        ? [[el('h2', {className: 'stats-heading'}, TEXT.players), table(columns, [...data.players].sort((a, b) => a.place - b.place), 0, '', openPlayer)]]
         : [0, 1].map(team => {
           const rows = data ? data.players.filter(row => row.team === team) : null;
           const title = `${TEXT.team} ${team + 1}${m ? ` · ${n(m.team_points[team])}` : ''}${m && m.winner === team ? ` · ${TEXT.win}` : ''}`;
-          return [el('h2', {className: 'stats-heading'}, title), table(columns, rows, 6)];
+          return [el('h2', {className: 'stats-heading'}, title), table(columns, rows, 6, '', openPlayer)];
         });
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
         [TEXT.map, m ? name(m.map) : null], [TEXT.mode, m ? name(m.mode) : null]]],
@@ -329,8 +332,7 @@
       [TEXT.level, row => n(row.level)], [TEXT.rating, row => n(row.rating)], [TEXT.matches, row => n(row.totals.matches)],
       [TEXT.winRate, row => row.totals.matches ? rate(row.totals.win_rate) : '—'], [TEXT.kd, row => kd(row.totals.kd)],
       [TEXT.scoreAvg, row => row.totals.matches ? n(row.totals.score_avg) : '—'], [TEXT.kills, row => n(row.totals.kills)],
-      [TEXT.headshots, row => n(row.totals.headshots)], [TEXT.batteries, row => n(row.totals.batteries)],
-      [TEXT.artefacts, row => n(row.totals.artefacts)]];
+      [TEXT.headshotRate, row => headshotRate(row.totals)]];
     const matchColumns = [...MATCH_COLUMNS, [TEXT.points, points], [TEXT.players, row => n(row.players)]];
     const head = data => panels(
       [TEXT.clan, [[TEXT.level, data ? n(data.clan.level) : null], [TEXT.members, data ? n(data.clan.members) : null],
@@ -341,7 +343,7 @@
     const data = await api('clan', {tag});
     if (!data) return root.replaceChildren(notice(say(TEXT.noClan, tag)), finder());
     heading(`[${data.clan.tag}] ${data.clan.name}`, TEXT.clan, TEXT.clan);
-    root.replaceChildren(head(data), el('h2', {className: 'stats-heading'}, TEXT.members), table(memberColumns, data.members),
+    root.replaceChildren(head(data), el('h2', {className: 'stats-heading'}, TEXT.members), table(memberColumns, data.members, 0, '', openPlayer),
       el('h2', {className: 'stats-heading'}, TEXT.matches),
       paged(matchColumns, before => api('matches', {clan: data.clan.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
   }
@@ -372,18 +374,14 @@
       [TEXT.level, row => n(row.level)], [TEXT.rating, row => n(row.rating), '', 'rating'],
       [TEXT.matches, row => n(row.totals.matches), '', 'matches'], [TEXT.wins, row => n(row.totals.wins), '', 'wins'],
       [TEXT.winRate, row => rate(row.totals.win_rate)], [TEXT.kills, row => n(row.totals.kills), '', 'kills'],
-      [TEXT.kd, row => kd(row.totals.kd)], [TEXT.score, row => n(row.totals.score), '', 'score'],
-      [TEXT.scoreAvg, row => n(row.totals.score_avg)], [TEXT.headshots, row => n(row.totals.headshots), '', 'headshots'],
-      [TEXT.batteries, row => n(row.totals.batteries), '', 'batteries'],
-      [TEXT.artefacts, row => n(row.totals.artefacts), '', 'artefacts'], [TEXT.accuracy, row => aim(row.totals), '', 'accuracy']];
+      [TEXT.kd, row => kd(row.totals.kd)], [TEXT.scoreAvg, row => n(row.totals.score_avg), '', 'score_avg'],
+      [TEXT.headshotRate, row => headshotRate(row.totals)], [TEXT.accuracy, row => aim(row.totals), '', 'accuracy']];
     const clanColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.clan, row => link({clan: row.tag}, `[${row.tag}] ${row.name}`), 'l'],
       [TEXT.level, row => n(row.level)], [TEXT.members, row => n(row.members)],
       [TEXT.matches, row => n(row.totals.matches), '', 'matches'], [TEXT.wins, row => n(row.totals.wins), '', 'wins'],
       [TEXT.winRate, row => rate(row.totals.win_rate)], [TEXT.kills, row => n(row.totals.kills), '', 'kills'],
-      [TEXT.kd, row => kd(row.totals.kd)], [TEXT.score, row => n(row.totals.score), '', 'score'],
-      [TEXT.scoreAvg, row => n(row.totals.score_avg)], [TEXT.headshots, row => n(row.totals.headshots), '', 'headshots'],
-      [TEXT.batteries, row => n(row.totals.batteries), '', 'batteries'],
-      [TEXT.artefacts, row => n(row.totals.artefacts), '', 'artefacts']];
+      [TEXT.kd, row => kd(row.totals.kd)], [TEXT.scoreAvg, row => n(row.totals.score_avg)],
+      [TEXT.headshotRate, row => headshotRate(row.totals)]];
     const bestColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
       [TEXT.score, row => n(row.score), 'sorted'], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.match, row => link({match: row.match}, `${row.match}`)], [TEXT.ended, row => when(row.ended_at), 'l'],
@@ -400,7 +398,7 @@
         button.setAttribute('aria-pressed', String(value === key));
         button.addEventListener('click', () => { key = value; draw(); });
         return button;
-      }), ...(key === 'accuracy' ? [el('small', {className: 'stats-note'}, TEXT.accuracyNote)] : []));
+      }), ...(KEY_NOTE[key] ? [el('small', {className: 'stats-note'}, TEXT[KEY_NOTE[key]])] : []));
       const url = new URL(location.href);
       url.searchParams.set('board', board);
       if (key) url.searchParams.set('by', key); else url.searchParams.delete('by');
@@ -425,7 +423,7 @@
       if (drawing !== shown) return;
       rows.forEach((row, i) => { row.rank = i; });
       body.rows = rows.length || 1;
-      body.replaceChildren(rows.length ? table(ranked(columns), rows, 0, sorted, board === 'best' ? row => ({match: row.match}) : null) : notice(TEXT.nobody));
+      body.replaceChildren(rows.length ? table(ranked(columns), rows, 0, sorted, {players: openPlayer, clans: row => ({clan: row.tag}), best: row => ({match: row.match})}[board]) : notice(TEXT.nobody));
     }
     for (const value of Object.keys(BOARDS)) {
       const button = el('button', {type: 'button'}, TEXT[value]);
