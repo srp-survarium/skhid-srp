@@ -27,8 +27,9 @@ const WEST: Vec3 = Vec3::new(35.95, 21.76, 113.72);
 const STARTS: [Vec3; 3] = [Vec3::new(37.13, 21.23, 112.92), Vec3::new(36.95, 21.61, 113.97), Vec3::new(37.20, 21.58, 113.72)];
 /// The time over the route's walk the bot may take (its turns, the press and its run-up), s.
 const MARGIN_S: f32 = 10.0;
-/// How near the goal across, and in height, the feet count as there, m.
-const THERE_M: (f32, f32) = (1.2, 0.3);
+/// How near the goal across, and in height, the feet count as there, m (within half a body width more than the arrival: a start
+/// across the beam from the goal is 1.03 m off it, and must cross).
+const THERE_M: (f32, f32) = (0.6, 0.3);
 /// Under this height the body is off the roof (the roof's floors are 21.2-22.9 m; the ground beside 20.6 m and lower).
 const OFF_ROOF_Y: f32 = 21.0;
 
