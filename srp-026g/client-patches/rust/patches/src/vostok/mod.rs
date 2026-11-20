@@ -163,6 +163,7 @@ pub mod drug;
 mod artefact;
 pub use artefact::{ArtefactPickup, Slots};
 pub mod statistics;
+pub mod weapon_stats;
 pub use statistics::{Band, Batteries, Battery, BatteryCarry, Cell, Delivery, Held, Life, Progress, Saving, ScoreEvent, Team, BATTERIES};
 
 pub mod medical;

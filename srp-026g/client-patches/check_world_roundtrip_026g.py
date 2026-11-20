@@ -132,6 +132,11 @@ OWN_CHECKS = {
     (0x2F5AF4, 6): "shared_statistics::serialize: twenty records (its second loop)",
     (0x2F5BE6, 6): "shared_statistics::deserialize: twenty records, as its serialize",
     (0x2F5C03, 6): "shared_statistics::deserialize: twenty records (its second loop)",
+    (0x2F5BD0, 5): "weapon_stats.save: patch 165's per-weapon counts after the statistics' tail (the recorded "
+                   "match's worlds have none, and a game that loaded such a world writes none); "
+                   "check_weapon_stats_026g.py (the game's own serialize and deserialize: a load gives the table "
+                   "back, the next world is the one loaded; a world without it is written back without it)",
+    (0x2F5C83, 7): "weapon_stats.load: as weapon_stats.save",
     (0x313735, 6): "carry.ground_save: a dropped artefact's 20 bytes in the objects section (no decoder locates "
                    "them); check_artefact_carry_026g.py (state 6's 20 bytes saved, then loaded); and patch 109's "
                    "4 bytes of an active one (state 4), the places Cascade's activation reached; "

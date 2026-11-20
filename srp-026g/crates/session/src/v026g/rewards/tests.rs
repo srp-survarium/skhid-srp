@@ -61,6 +61,7 @@ fn player(place: u8, team: u8, name: &str, statistics: PlayerStatistics) -> Play
         statistics: Some(statistics),
         pay_statistics: None,
         supplies: None,
+        weapons: Vec::new(),
     }
 }
 

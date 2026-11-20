@@ -5406,6 +5406,10 @@ impl Game {
                     longest_killstreak: self.best_streaks[index],
                     kit_changes: self.kit_changes[index],
                     supplies: state.and_then(|state| state.supplies.get(index).cloned().flatten()),
+                    weapons: statistics
+                        .and_then(|statistics| statistics.weapons.as_ref()?.get(index))
+                        .cloned()
+                        .unwrap_or_default(),
                 }
             })
             .collect();

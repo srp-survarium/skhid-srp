@@ -11468,6 +11468,279 @@ weapon_pickup_on_load_record_replay:
     db 0x8b, 0xb7, 0x80, 0x00, 0x00, 0x00
     jmp 0x321ca6
 
+; 0x26da00 base_game_statistics_handler::on_player_killed's start (push esi / mov esi,ecx / mov eax,[esi+3238h]; vtable 0xA0755C slot +0, called only by generate_killed_event 0x2DA46C): ECX the handler, the site's ESP its 17 arguments, before shared_statistics::on_player_killed 0x2F4EB0 counts the kill: lohook -> weapon_stats_on_killed
+global weapon_stats_on_killed
+extern hook_weapon_stats_on_killed
+weapon_stats_on_killed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_killed
+    mov edx, weapon_stats_on_killed_replay
+    cmp eax, 0
+    je weapon_stats_on_killed_go
+    mov edx, 0x26da09
+    cmp eax, 1
+    je weapon_stats_on_killed_go
+    ud2
+weapon_stats_on_killed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_killed_replay:
+    db 0x56, 0x8b, 0xf1, 0x8b, 0x86, 0x38, 0x32, 0x00, 0x00
+    jmp 0x26da09
+
+; 0x2da10c generate_hit_event 0x2D9F40 after the damage record's add (0x2DA10A), before the handler's on_player_damaged (slot +4, the only call, 0x2DA164; mov ecx,[esi+120h]): ESI the victim, EDI the attacker's player or 0, EBP the bullet or 0, EBX the victim's place, the site's ESP the frame; every path of the function comes here (0x2DA043, 0x2DA0C4, 0x2DA0ED): lohook -> weapon_stats_on_hit
+global weapon_stats_on_hit
+extern hook_weapon_stats_on_hit
+weapon_stats_on_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_hit
+    mov edx, weapon_stats_on_hit_replay
+    cmp eax, 0
+    je weapon_stats_on_hit_go
+    mov edx, 0x2da112
+    cmp eax, 1
+    je weapon_stats_on_hit_go
+    ud2
+weapon_stats_on_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_hit_replay:
+    db 0x8b, 0x8e, 0x20, 0x01, 0x00, 0x00
+    jmp 0x2da112
+
+; 0x2d7843 base_player::on_fire 0x2D7800 after its fire listeners, before the handler's on_player_weapon_firing (slot +8, the only call, 0x2D78A5; mov ecx,[esi+10h] / mov ebx,[ecx+18FA8h]): ESI the player + 110h, the site's ESP+14h the bullets fired: lohook -> weapon_stats_on_fired
+global weapon_stats_on_fired
+extern hook_weapon_stats_on_fired
+weapon_stats_on_fired:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_fired
+    mov edx, weapon_stats_on_fired_replay
+    cmp eax, 0
+    je weapon_stats_on_fired_go
+    mov edx, 0x2d784c
+    cmp eax, 1
+    je weapon_stats_on_fired_go
+    ud2
+weapon_stats_on_fired_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_fired_replay:
+    db 0x8b, 0x4e, 0x10, 0x8b, 0x99, 0xa8, 0x8f, 0x01, 0x00
+    jmp 0x2d784c
+
+; 0x2f5bd0 shared_statistics::serialize 0x2F5AC0 after its tail's last write (m_active_in_match_players_mask, 0x2F5BCB), at its epilogue (pop edi / pop ebx / mov esp,ebp / pop ebp): ESI the statistics, EDI the writer: lohook -> weapon_stats_on_save
+global weapon_stats_on_save
+extern hook_weapon_stats_on_save
+weapon_stats_on_save:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_save
+    mov edx, weapon_stats_on_save_replay
+    cmp eax, 0
+    je weapon_stats_on_save_go
+    mov edx, 0x2f5bd5
+    cmp eax, 1
+    je weapon_stats_on_save_go
+    ud2
+weapon_stats_on_save_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_save_replay:
+    db 0x5f, 0x5b, 0x8b, 0xe5, 0x5d
+    jmp 0x2f5bd5
+
+; 0x2f5c83 shared_statistics::deserialize 0x2F5BE0 with its tail read, the reader's cursor past it (pop edi / mov [esi+31C4h],ecx; ECX the mask read): ESI the statistics, EDI the reader, whose bytes are the world's statistics section alone (world apply 0x2D2AEE..0x2D2B09): lohook -> weapon_stats_on_load
+global weapon_stats_on_load
+extern hook_weapon_stats_on_load
+weapon_stats_on_load:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_load
+    mov edx, weapon_stats_on_load_replay
+    cmp eax, 0
+    je weapon_stats_on_load_go
+    mov edx, 0x2f5c8a
+    cmp eax, 1
+    je weapon_stats_on_load_go
+    ud2
+weapon_stats_on_load_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_load_replay:
+    db 0x5f, 0x89, 0x8e, 0xc4, 0x31, 0x00, 0x00
+    jmp 0x2f5c8a
+
+; 0x2f4c31 the shared statistics' reset between matches (0x2F4C20, called by the handler's clear 0x26D880 alone), which zeroes every place's events (0x2F4C7E..0x2F4CD6): mov [edi+31C0h],ebx; EDI the statistics: lohook -> weapon_stats_on_reset
+global weapon_stats_on_reset
+extern hook_weapon_stats_on_reset
+weapon_stats_on_reset:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_reset
+    mov edx, weapon_stats_on_reset_replay
+    cmp eax, 0
+    je weapon_stats_on_reset_go
+    mov edx, 0x2f4c37
+    cmp eax, 1
+    je weapon_stats_on_reset_go
+    ud2
+weapon_stats_on_reset_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_reset_replay:
+    db 0x89, 0x9f, 0xc0, 0x31, 0x00, 0x00
+    jmp 0x2f4c37
+
+; 0x2f4bc1 the shared statistics' constructor (0x2F4B40, called by the handler's 0x26D75B alone) with its 20 records made, their events 0: mov [edi+31C0h],ebx; EDI the statistics: lohook -> weapon_stats_on_made
+global weapon_stats_on_made
+extern hook_weapon_stats_on_made
+weapon_stats_on_made:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_weapon_stats_on_made
+    mov edx, weapon_stats_on_made_replay
+    cmp eax, 0
+    je weapon_stats_on_made_go
+    mov edx, 0x2f4bc7
+    cmp eax, 1
+    je weapon_stats_on_made_go
+    ud2
+weapon_stats_on_made_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+weapon_stats_on_made_replay:
+    db 0x89, 0x9f, 0xc0, 0x31, 0x00, 0x00
+    jmp 0x2f4bc7
+
 ; 0x27c0d0 process_dynamic_match_info before it loads an unpacked world (mov [ebp-14h],esi / mov [ebp-10h],esi / mov [ebp-0Ch],edx, then the load call 0x2D0B70 at 0x27C0D9): EDI the network client, the world (its time, then the body) the mutable buffer at [ebp-24h], the packet read to its end already (0x27C0B7); refused is the handler's epilogue (lea esp,[ebp-30h]): lohook -> world_check_on_unpacked
 global world_check_on_unpacked
 extern hook_world_check_on_unpacked
