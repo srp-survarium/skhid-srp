@@ -1208,6 +1208,13 @@ mod tests {
             .filter(|&(a, b, _)| on.walk_marked(a, b))
             .collect::<Vec<_>>();
         assert!(!marked.is_empty() && marked.iter().all(|&(_, _, kind)| kind == LinkKind::Walk));
+        // [marked walk] Each is priced as a link no press makes: its length and the tries that fail, each the link again.
+        for &(a, b, kind) in &marked {
+            let length = (on.position(b) - on.position(a)).length();
+            let tries = Share::landed(0).failed_tries();
+            assert!(on.link_cost(a, b, kind) >= length * (1.0 + tries) - 1e-3, "{} for {length} m", on.link_cost(a, b, kind));
+            assert!(on.link_cost(a, b, kind) <= length * (1.0 + tries) + LinkKind::Walk.penalty() + FALL_EDGE_PENALTY.max(LIP_PENALTY) + 1e-3);
+        }
     }
 
     /// [row 6] The walks are checked on the build's shapes where it has them, not on the walker triangles: a 0.5 m step the

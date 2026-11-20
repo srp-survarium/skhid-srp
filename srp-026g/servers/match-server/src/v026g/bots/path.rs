@@ -1182,7 +1182,48 @@ pub mod past_drop {
 
 /// A grid path pulled straight: only the real corners left (module
 /// documentation).
+/// [marked walk] The routes found that take a marked walk ([`WalkGrid::walk_marked`], priced as a link no press makes, so taken
+/// only where no other way goes), for the server's log ([`take_marked_walk_routes`]).
+static MARKED_WALK_ROUTES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// [marked walk] The routes that took a marked walk since the last call, the count set back to 0.
+pub fn take_marked_walk_routes() -> u64 {
+    MARKED_WALK_ROUTES.swap(0, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// [marked walk] Counts (and logs at debug) a route found that takes a marked walk: a link the client's walk tick does not
+/// walk, which the search took because no other way goes.
+fn note_marked_walks(grid: &WalkGrid, path: &mapdata::Path) {
+    if grid.walk_marked_count() == 0 {
+        return;
+    }
+    let mut taken = path
+        .nodes
+        .windows(2)
+        .zip(path.kinds.iter().skip(1))
+        .filter(|&(w, &kind)| kind == LinkKind::Walk && grid.walk_marked(w[0], w[1]))
+        .map(|(w, _)| (w[0], w[1]))
+        .peekable();
+    if let Some(&(a, b)) = taken.peek() {
+        MARKED_WALK_ROUTES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if log::log_enabled!(log::Level::Debug) {
+            let (p, q) = (grid.position(a), grid.position(b));
+            log::debug!(
+                "bots: a route takes {} marked walk(s), the first ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2}): no other way goes",
+                taken.count(),
+                p.x,
+                p.y,
+                p.z,
+                q.x,
+                q.y,
+                q.z
+            );
+        }
+    }
+}
+
 fn pull(grid: &WalkGrid, path: mapdata::Path, allowed: impl Fn(NodeId) -> bool) -> Route {
+    note_marked_walks(grid, &path);
     #[cfg(test)]
     let (started, floors) = (std::time::Instant::now(), path.nodes.len() as u64);
     #[cfg(test)]

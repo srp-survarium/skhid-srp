@@ -1567,6 +1567,15 @@ struct Adjacency {
     from: Vec<u32>,
 }
 
+/// [marked walk] How many times [`WalkGrid::link_cost_reaching`] priced a marked walk ([`WalkGrid::walk_marked`]) up past its
+/// own price (the route searches' and the objective fields' alike), for the server's log.
+static MARKED_WALK_PRICED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// [marked walk] The marked walks priced up since the last call ([`MARKED_WALK_PRICED`]), the count set back to 0.
+pub fn take_marked_walk_priced() -> u64 {
+    MARKED_WALK_PRICED.swap(0, std::sync::atomic::Ordering::Relaxed)
+}
+
 /// [give-back ids] One table of link pairs a pass before the wall give-back made, for the build's log: its entries, how many
 /// the give-back moved to new ids, and how many name no link of the grid after it (the final grid drops those: a link cut after
 /// its table entry was made, or a stale id, as the give-back left before it remapped them).
@@ -5079,7 +5088,20 @@ impl WalkGrid {
             (LinkKind::Walk, Some(r)) => r.share().failed_tries() * ((q - p).length() + r.run_up_m()),
             _ => 0.0,
         };
-        (q - p).length() + kind.penalty() + lip + fall + descent + sprint + riser
+        // [marked walk] A Walk link the client's tick does not walk, kept only as a floor's only walking way in or back
+        // ([`Self::walk_marked`], [2c]), is priced as a link no press makes ([`gap::Share::failed_tries`] of none landing: each
+        // try the link again), so a route takes it only where no way the body makes goes. School day_2's roof: the crouched
+        // walk (36.70, 21.48, 113.97) -> (36.45, 21.76, 113.97) fails on all three lines (the exe's crouched body stalls at
+        // 36.68), and the way round is the standing press onto the beam (36.45, 22.45, 112.97) and the walk down, as players go.
+        let marked = if kind == LinkKind::Walk && self.walk_marked(from, to) {
+            gap::Share::landed(0).failed_tries() * (q - p).length()
+        } else {
+            0.0
+        };
+        if marked > riser {
+            MARKED_WALK_PRICED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        (q - p).length() + kind.penalty() + lip + fall + descent + sprint + riser.max(marked)
     }
 
     /// [A389] How far a body's feet at height `y` are from standing on floor `f` while the grid is built: 0 from its `walk` faces'
