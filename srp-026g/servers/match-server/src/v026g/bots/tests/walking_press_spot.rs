@@ -8,7 +8,7 @@
 //! from the start walks round and never plays this press. On the stand-in over the real mapdata, the client's own steps.
 //!
 //! ```text
-//! SRP_MAPDATA_DIR=<dir> [SRP_BENCH_GRID_CACHE=<dir>] cargo test -p match-server --release walking_press_spot -- --ignored --nocapture
+//! SRP_MAPDATA_DIR=<dir> SRP_GAME_DATA=<server-game-data.db> [SRP_BENCH_GRID_CACHE=<dir>] cargo test -p match-server --release walking_press_spot -- --ignored --nocapture
 //! ```
 
 use super::*;
@@ -46,6 +46,17 @@ struct Run {
     arrived: Option<u32>,
     /// Ticks the bot sent the sprint key while hit.
     sprint_keys_hit: u32,
+}
+
+/// The server's game data, loaded once from `SRP_GAME_DATA` (required: the grid body's fastest walk cap comes from the bots'
+/// kits in it, so a grid built without it is not the server's).
+fn game_data() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        assert!(bench_settings().var_os("SRP_GAME_DATA").is_some_and(|p| !p.is_empty()), "set SRP_GAME_DATA to the server's file");
+        let data = survarium::v026g::game_data::init().unwrap_or_else(|cause| panic!("SRP_GAME_DATA: {cause}"));
+        eprintln!("game data: {}", data.origin);
+    });
 }
 
 /// A bot sent from `start` to `goal`, hit every tick once within [`HIT_M`] of `take_off`.
@@ -128,6 +139,7 @@ fn a_bot_refused_the_sprint_at_schools_gap_takes_it_by_its_slow_walking_press() 
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
+    game_data();
     let t = Tuning::default();
     let bytes = std::fs::read(dir.join(mapdata::format::file_name(PROJECT))).unwrap();
     let map_file = {
