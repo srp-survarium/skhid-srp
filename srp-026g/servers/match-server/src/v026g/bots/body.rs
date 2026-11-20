@@ -3617,13 +3617,22 @@ pub(super) mod tests {
         assert!(matches!(side.estimate().unwrap().arc, Some(Jump::Clip(_))), "a side press keeps the clip");
     }
 
-    /// [press forecast] A gap with the client's walker: the floor at y 0 to x 10, a pit at y -3 from 10 to 11.2, the far floor at
-    /// y -0.5 from 11.2 on (z 0..10); a body walked +x from x 6 for 0.4 s with forward held (at the cap from its 6th step), as the
-    /// reckoning has it; the press's link across the pit.
+    /// [press forecast] A wall across x (a vertical quad from z0 to z1, y0 up to y1): the pit's sides the capsule meets.
+    fn wall_x(x: f32, z0: f32, z1: f32, y0: f32, y1: f32) -> [Triangle; 2] {
+        let walker = WalkerBehaviour::BySlope;
+        let (a, b, c, d) = (Vec3::new(x, y0, z0), Vec3::new(x, y0, z1), Vec3::new(x, y1, z1), Vec3::new(x, y1, z0));
+        [Triangle { v: [a, b, c], walker }, Triangle { v: [a, c, d], walker }]
+    }
+
+    /// [press forecast] A gap with the client's walker: the floor at y 0 to x 10, a pit 1 m deep from 10 to 11.2 with its two
+    /// walls, the far floor at y 0 again from 11.2 on (z 0..10); a body walked +x from x 6 for 0.4 s with forward held (at the cap
+    /// from its 6th step), as the reckoning has it; the press's link across the pit.
     fn press_gap() -> (WalkGrid, Kinematics, Estimate) {
         let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
-        triangles.extend(floor(10.0, 0.0, 11.2, 10.0, -3.0));
-        triangles.extend(floor(11.2, 0.0, 20.0, 10.0, -0.5));
+        triangles.extend(floor(10.0, 0.0, 11.2, 10.0, -1.0));
+        triangles.extend(floor(11.2, 0.0, 20.0, 10.0, 0.0));
+        triangles.extend(wall_x(10.0, 0.0, 10.0, -1.0, 0.0));
+        triangles.extend(wall_x(11.2, 0.0, 10.0, -1.0, 0.0));
         let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
         let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
         assert_eq!((kin.jump_flight, kin.client_step), (JumpFlight::Controller, ClientStep::Kept), "the defaults");
@@ -3637,61 +3646,67 @@ pub(super) mod tests {
     }
 
     fn gap_plan(walk: u32, press_in: u32) -> PressPlan {
-        PressPlan { walk, press_in, take_off: Vec3::new(9.9, 0.0, 5.0), landing: Vec3::new(11.7, -0.5, 5.0), after: AfterLanding::Hold }
+        PressPlan { walk, press_in, take_off: Vec3::new(9.9, 0.0, 5.0), landing: Vec3::new(11.7, 0.0, 5.0), after: AfterLanding::Hold }
     }
 
-    fn rest_of(outcome: PressOutcome) -> Option<Vec3> {
+    /// Where a forecast ends: the rest, or the feet still in the air; none with no flight.
+    fn end_of(outcome: PressOutcome) -> Option<Vec3> {
         match outcome {
             PressOutcome::Lands { rest } | PressOutcome::Short { rest } | PressOutcome::Over { rest } => Some(rest),
-            PressOutcome::NotDown { .. } | PressOutcome::NoFlight => None,
+            PressOutcome::NotDown { at } => Some(at),
+            PressOutcome::NoFlight => None,
         }
     }
 
-    /// [press forecast] [`press_forecast`] plays the reckoning's own steps ([`Role::Press`]): its outcome's rest is, to the bit, where
-    /// the reckoning ([`Role::Reckoning`]) puts the body playing the same ticks (4 ground ticks of forward, the press, forward through
-    /// the flight, the stay steps with the keys let go). Its steps are on its own clock ([`kept_clock::Of::Press`]).
+    /// [press forecast] [`press_forecast`] plays the reckoning's own steps ([`Role::Press`]): for every press of the gap (0-19
+    /// ground ticks of forward before it), where it ends is, to the bit, where the reckoning ([`Role::Reckoning`]) puts the body
+    /// playing the same ticks (the ground ticks, the press, forward through the flight, the stay steps with the keys let go). Its
+    /// steps are on its own clock ([`kept_clock::Of::Press`]).
     #[test]
     fn a_press_forecast_is_the_reckonings_own_steps() {
         let (grid, kin, at) = press_gap();
         let world = PressWorld { kin: &kin, level: 1.0, grid: &grid };
-        let plan = gap_plan(key::FORWARD, 4);
-        let outcome = press_forecast(&at, &plan, &world);
-        let rest = rest_of(outcome).unwrap_or_else(|| panic!("down: {outcome:?}"));
         let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
         let step = |at: Estimate, keys: u32| advance(at, tick(&at, keys), &kin, 1.0, Some(&grid), None, Role::Reckoning, false);
-        let mut r = at;
-        for _ in 0..4 {
-            r = step(r, key::FORWARD);
+        for press_in in 0..20 {
+            let outcome = press_forecast(&at, &gap_plan(key::FORWARD, press_in), &world);
+            let end = end_of(outcome).unwrap_or_else(|| panic!("press {press_in}: no flight"));
+            let mut r = at;
+            for _ in 0..press_in {
+                r = step(r, key::FORWARD);
+            }
+            r = step(r, key::FORWARD | key::JUMP);
+            assert!(matches!(r.arc, Some(Jump::Flown(_))), "press {press_in}: the reckoning flies it: {r:?}");
+            let mut n = 0;
+            while r.arc.is_some() && n < PRESS_FLIGHT_STEPS {
+                r = step(r, key::FORWARD);
+                n += 1;
+            }
+            if r.arc.is_none() {
+                for _ in 0..mapdata::controller::jump::STAY_STEPS {
+                    r = step(r, 0);
+                }
+            }
+            assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
         }
-        r = step(r, key::FORWARD | key::JUMP);
-        assert!(matches!(r.arc, Some(Jump::Flown(_))), "the reckoning flies it: {r:?}");
-        let mut n = 0;
-        while r.arc.is_some() && n < PRESS_FLIGHT_STEPS {
-            r = step(r, key::FORWARD);
-            n += 1;
-        }
-        for _ in 0..mapdata::controller::jump::STAY_STEPS {
-            r = step(r, 0);
-        }
-        assert_eq!(rest, r.feet, "the forecast's rest is the reckoning's");
         let (steps, _) = kept_clock::take(kept_clock::Of::Press);
         assert!(steps > 0, "on the press clock");
     }
 
-    /// [press forecast] On the gap, from the walking body: the first press (at once, 2-3 m before the edge) comes down short of the
-    /// far floor; some press lands on it and stays (`motor::is_up`), and every press called a landing rests on the far floor. A
+    /// [press forecast] On the gap, from the walking body: some press lands on the far floor and stays (`motor::is_up`), and every
+    /// press called a landing rests on the far floor; every press that ends in the pit or short of it is not called a landing. A
     /// press with a side key starts no flight of the client's.
     #[test]
     fn a_press_forecast_tells_a_landing_press_from_a_short_one() {
         let (grid, kin, at) = press_gap();
         let world = PressWorld { kin: &kin, level: 1.0, grid: &grid };
         let outcomes: Vec<PressOutcome> = (0..20).map(|k| press_forecast(&at, &gap_plan(key::FORWARD, k), &world)).collect();
-        assert!(matches!(outcomes[0], PressOutcome::Short { .. }), "the first press: {:?} (from {:?})", outcomes[0], at.feet);
         let lands: Vec<usize> = (0..outcomes.len()).filter(|&k| matches!(outcomes[k], PressOutcome::Lands { .. })).collect();
-        assert!(!lands.is_empty(), "{outcomes:?}");
-        for &k in &lands {
-            let rest = rest_of(outcomes[k]).unwrap();
-            assert!(rest.x > 11.2 && (rest.y + 0.5).abs() < 0.05, "press {k} lands on the far floor: {rest:?}");
+        assert!(!lands.is_empty(), "from {:?}: {outcomes:?}", at.feet);
+        for (k, outcome) in outcomes.iter().enumerate() {
+            let end = end_of(*outcome).unwrap_or_else(|| panic!("press {k}: no flight"));
+            let on_far_floor = end.x > 11.2 + 0.1 && end.y.abs() < 0.05;
+            assert_eq!(matches!(outcome, PressOutcome::Lands { .. }), on_far_floor, "press {k}: {outcome:?}");
         }
         assert_eq!(press_forecast(&at, &gap_plan(key::FORWARD | key::RIGHT, 0), &world), PressOutcome::NoFlight, "a side key");
     }
