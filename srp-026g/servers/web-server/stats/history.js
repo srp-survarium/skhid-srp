@@ -248,9 +248,13 @@
     : name(row.map);
   // A map's picture as the rooms draw it, beside its name and mode; an
   // empty frame of its size while loading, and for a map without one.
-  const mapPicture = row => row && row.map_icon
-    ? el('img', {className: 'stats-map', src: row.map_icon, alt: '', width: 64, height: 36, loading: 'lazy'})
-    : el('span', {className: 'stats-map'});
+  // `large`: at the picture's own size, on the match's page.
+  const mapPicture = (row, large = false) => {
+    const className = `stats-map${large ? ' stats-map-large' : ''}`;
+    return row && row.map_icon
+      ? el('img', {className, src: row.map_icon, alt: '', width: large ? 128 : 64, height: large ? 72 : 36, loading: 'lazy'})
+      : el('span', {className});
+  };
   const mapCell = row => el('span', {className: 'stats-map-cell'}, mapPicture(row),
     el('span', {}, row ? [mapLink(row), el('small', {className: 'stats-under'}, name(row.mode))] : twoLines()));
   // Where a click on a match's row goes, and on a player's.
@@ -335,7 +339,8 @@
           return [el('h2', {className: `stats-heading stats-team stats-team${team}`}, title), table(columns, rows, 6, '', openPlayer)];
         });
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
-        [TEXT.map, m ? mapLink(m) : null], [TEXT.mode, m ? name(m.mode) : null]]],
+        [TEXT.map, el('span', {className: 'stats-map-cell'}, mapPicture(m, true), m ? mapLink(m) : BLANK)],
+        [TEXT.mode, m ? name(m.mode) : null]]],
       [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : m.team_points.map(n).join(' : ')) : null],
         [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null],
         [TEXT.inTotals, m ? (m.eligibility === 'counted' ? TEXT.yes : TEXT.no) : null]]]), ...teams.flat()];
