@@ -129,11 +129,26 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     `<rig>/../report-<name>/index.html`, worst first, with black / dark /
     hole / cast / gap flags on an 8 x 6 tile grid. `sweep.py compare --build <name>` redoes
     the report from the shots taken.
-  - **0.69d reference shots are taken once and kept.** Each lands in
-    `ref-sweep/ref-<project>/` and is filed in `sweep-ref/<project>/<pose key>.png` as it
-    is shot; a later run only shoots poses it has no shot for. Only the port is re-shot
-    each iteration: `--fresh` drops the port's shots alone. Never delete or re-take the
-    reference shots.
+  - **A donor map is shot once** (owner, 2026-11-16), whatever the build (0.11, 0.21d,
+    0.31a2, 0.46c2, 0.69d): its reference shots are kept for good and every later sweep,
+    by any worker, reuses them. Only the port is re-shot each iteration.
+    - One shared store on the root disk:
+      `~/Projects/survarium/donor-refs/<build>/<project>/<pose key>.png`, plus the pose
+      file they were shot from. A rig reads it before it starts the donor and shoots only
+      poses with no shot there; it never keeps a private copy.
+    - A pose is the same pose when its position, direction and field of view are; keep
+      a map's pose keys stable across builds of the port, so the store keeps matching.
+    - `--fresh` drops the port's shots alone. Never delete or re-take reference shots;
+      a wrong one is replaced only on the owner's word.
+    - The port goes pose by pose (owner, 2026-11-17: "just get a single shot, compare it,
+      fix, iterate until that single shot is done, then go to the next one"). Keep one port
+      session running (`ref026.py start`) and for each pose in turn: shoot it, compare it
+      with its reference, and when it is flagged, fix the cause, rebuild, restart the
+      session if the fix needs it, and shoot that pose again until it is clean. Only then
+      the next pose. No batch re-runs; a pose already clean is not shot again unless a
+      later fix can change it.
+    - Rudnya's 0.69d shots (`ref-sweep/ref-<project>/`, `sweep-ref/<project>/`) predate
+      the store and stay where they are.
   - **Rudnya's reference is closed** (owner, 2026-10-31): 0.69d never starts again for
     it. The check is `<rig>/../poses-kept.json`, 112 poses: the 47 of
     `poses-rudnya.json` (`shots/`), the 37 fix poses (`shots-fixes/`), the 24 battery-mode
@@ -145,12 +160,36 @@ resource-porter `ports/survarium-069d-rudnya-to-026g.json`. The longer notes:
     miss is checked from the port alone.
   - Fix what it flags at its cause, rebuild, rerun, until nothing serious is flagged.
 
+## Local recordings
+
+Every port capture match must record worlds into the main checkout's
+`private/world-corpus/local/<map-config>/`: set `SRP_RECORD_DIR` to that folder
+and `SRP_RECORD_MIN_PLAYERS=1` on the server process, not only in the shell that
+starts the rig. Confirm a recording was written. After the local match, run
+`tools/check world-check` with the candidate's composed game data and the whole
+corpus; record any historical refusals separately from the new map's worlds.
+A screenshot sweep without a recording does not satisfy the map's world check.
+
 ## The machine
 
-- No capture while the owner's game runs: wait for
-  `! pgrep -f '[s]urvarium_skhid.*\.exe'` (the bracket keeps the loop from matching
-  itself; a plain `pgrep -f survarium_skhid` never ends). The rig waits by itself and stops
-  a session the moment the owner starts a game; after such a stop it starts again only
+- Unless the owner explicitly allows captures alongside their game, wait until `~/.cache/skhid-owner-game.sh`
+  prints nothing. It matches a game exe's argv[0] only. Never match whole command lines
+  (`pgrep -f '...survarium_skhid.*\.exe'`): other sweeps' `flock` and `--exe` arguments
+  and local srp servers match too, and the queue waits forever (2026-11-16: a sweep held
+  the GPU lock six hours on its own and its neighbours' command lines).
+- Up to three captures at once on the machine (owner, 2026-11-17: "we have enough GPU for
+  both at the same time"): every capture session runs under `~/.cache/skhid-gpu-slot.sh`,
+  which holds one of three slot locks while at least 2.5 GB of VRAM is free.
+- Captures are silent (owner, 2026-11-17): start each capture client with
+  `. ~/.cache/skhid-capture-env.sh` (Wine without its audio drivers);
+  the final client environment must retain disabled Wine audio drivers and
+  `ALSOFT_DRIVERS=null` and the capture-only `ALSA_CONFIG_PATH` null-device config
+  (Wine can still open ALSA directly despite the driver/OpenAL settings). Set capture
+  game volumes to zero too. Do not overwrite these settings
+  in the launcher. Verify the running capture has no audible PipeWire stream; ALSA
+  nodes can keep the process id on their `client.id` object, not on the node itself.
+  `~/.cache/skhid-mute-captures.sh` also mutes any capture stream it finds. By default the rig waits by itself and stops
+  a session the moment the owner starts a game; an explicit owner allowance for concurrent captures overrides that guard; after such a stop it starts again only
   after 10 minutes with no game ("waiting for 10 quiet minutes": test games come in
   bursts, and each one killed a session that takes minutes to load). When the coordinator says no captures,
   start none at all.
