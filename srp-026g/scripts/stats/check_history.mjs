@@ -238,6 +238,9 @@ try {
   assert.equal(await text('.stats-heading'), 'Favourite equipment');
   assert.deepEqual(await cells('.stats-favourites .table-scroll:first-child thead th'), ['Weapon', 'Matches'], 'no kills of an item');
   assert.equal(await count('.stats-favourites .stats-table tbody tr'), 10);
+  assert.equal(await count('.stats-favourites tbody .stats-item'), 10, 'an icon or its empty frame a row');
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-favourites img.stats-item')].every(i => i.complete && i.naturalWidth > 0)"), true, 'the icons load');
+  assert.equal(await evaluate("new Set([...document.querySelectorAll('.stats-favourites tbody tr')].map(r => r.offsetHeight)).size"), 1, 'empty rows as tall as full ones');
   assert.deepEqual(await cells('.stats-favourites .table-scroll:first-child tbody td.l'),
     [...favourite.weapons.map(item => item.name ?? '—'), ...Array(5 - favourite.weapons.length).fill('\u00a0')]);
   assert.deepEqual(await cells('.stats-favourites .table-scroll:last-child tbody td:nth-child(2)'),

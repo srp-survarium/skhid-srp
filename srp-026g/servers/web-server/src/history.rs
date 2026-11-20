@@ -686,6 +686,7 @@ fn item_ref(dict_id: u16, lang: Lang) -> Value {
         "id": dict_id,
         "key": item.map(|item| item.name.as_str()),
         "name": item.map(|_| modifiers::item_name(lang, dict_id)),
+        "icon": item.and_then(|item| icons::url(IconSet::Item, &item.name)),
     })
 }
 

@@ -53,6 +53,8 @@
 .stats-all .stats-table td { font-size:1rem; padding:10px 6px }
 /* A match's map: the rooms' picture of it beside its name and mode. */
 .stats-map-cell { display:flex; align-items:center; gap:10px }
+.stats-item-cell { display:flex; align-items:center; gap:10px }
+.stats-item { flex:none; display:block; width:54px; height:26px; object-fit:contain }
 .stats-map { flex:none; display:block; width:64px; height:36px; background:var(--rule); object-fit:cover }
 .stats-panels .stats-map-cell { justify-content:flex-end }
 .stats-panels dl>div:has(.stats-map) { align-items:center }

@@ -239,12 +239,19 @@
   // A player's most used weapons and armour (player/equipment), FAVOURITES
   // rows each, empty ones too, so its height is the same loading or not.
   const FAVOURITES = 5;
+  // An item's icon as the lobby draws it, beside its name (a link with
+  // `href`); an empty frame of its size while loading, in an empty row,
+  // and for an item without one.
+  const itemCell = (item, href) => el('span', {className: 'stats-item-cell'},
+    item && item.icon ? el('img', {className: 'stats-item', src: item.icon, alt: '', width: 54, height: 26, loading: 'lazy'})
+      : el('span', {className: 'stats-item'}),
+    item ? (href ? el('a', {href}, name(item.name)) : name(item.name)) : BLANK);
   function favourites(data) {
     // An item's place in the wiki: a weapon's card, an armour piece's; none
     // for one the game data no longer has.
     const wiki = (page, anchor) => item => item.key ? `/wiki/${page}?${new URLSearchParams({lang})}#${anchor}${item.key}` : null;
     const list = (label, items, where) => {
-      const box = table([[label, item => where(item) ? el('a', {href: where(item)}, name(item.name)) : name(item.name), 'l'],
+      const box = table([[label, item => itemCell(item, where(item)), 'l', '', () => itemCell(null)],
         [TEXT.matches, item => n(item.matches)]], items, FAVOURITES, '', where);
       if (items) box.blank(FAVOURITES - items.length);
       return box;

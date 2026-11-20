@@ -152,10 +152,12 @@ Common objects:
   the kit's, not a weapon's; `weapons` and `armour` are by slot, `id` the items_dict id, `name`
   the game data's in `lang` (`null` for an item it no longer has). A match with no trusted
   snapshot has its kit with counters 0.
-- An item of `player/equipment`: `{"id":155,"key":"ak_74m","name":"AK-74M","matches":40}`: the
+- An item of `player/equipment`: `{"id":155,"key":"ak_74m","name":"AK-74M","icon":"/wiki/icons/items/ak_74m.webp?v=…","matches":40}`: the
   counted public matches in which a kit the player used held it. `key` is its items_dict name
   (`null`, as `name`, for an item the game data no longer has): the page links a favourite to its
   card in the wiki by it (`/wiki/weapons#wpn_<key>`, `/wiki/equipment#<key>`).
+  `icon` is the address of its lobby icon (`null` without one), in every item of the API; the
+  page draws it left of a favourite's name.
 
 ### `GET /api/history/player?name=<name>` or `?id=<id>`
 
