@@ -35,7 +35,7 @@ release that made it what it is now.
 - TODO: #2168 Chemical Plant v0.11: a picture of its own
 - TODO: #2170 The five 0.21 maps in day, rain and evening, drawn the 0.21 way
 - TODO: #2171 Patch 158: the eye's ray goes through leaves
-- TODO: #2169 Relay: the site under the relay's own name (by.skhid.link)
+- TODO: #2169 Relay: the site under the relay's own name (playskhid.link)
 - TODO: #1543 Patch 122: room for 32 particle effects in each presenter, no entry past a full list (crash at 0x2ACC7F)
 - TODO: #2172 Patch 158, reviewed: the leaves' ray keeps its own filter; a surface under a leaf is met
 - TODO: #2174 simulation_changes.tsv: one next row for the two pending changes
