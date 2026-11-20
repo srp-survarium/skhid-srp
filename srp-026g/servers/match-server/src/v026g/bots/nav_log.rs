@@ -381,10 +381,13 @@ pub enum Kind {
     /// [press forecast] A route jump's try under the press forecast: its press (followed to its rest) or the try spent, with every
     /// plan's verdicts (`motor.rs` `Motor::take_cast_line`). Not capped: one line a try, and a link has three.
     Press,
+    /// [Go::To arrival] A goal within its reach across kept because its floor is up a ledge over the feet (`drive.rs`
+    /// `Arrival`, [`arrival_up_line`]): one line a goal.
+    Arrival,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 17;
+const KINDS: usize = 18;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -457,6 +460,11 @@ impl NavLog {
 pub fn role_line(role: &str, target: impl std::fmt::Debug, play: impl std::fmt::Debug, outcome: &str, score: Option<f32>) -> String {
     let score = score.map_or(String::new(), |s| format!(", score {s:.2}"));
     format!("{PREFIX}job role {role} on {target:?} ({play:?}): {outcome}{score}")
+}
+
+/// [Go::To arrival] A goal kept up a ledge: `nav: goal up a ledge kept: goal (..), its floor R m over the feet (..), D m across`.
+pub fn arrival_up_line(goal: Vec3, rise: f32, feet: Vec3) -> String {
+    format!("{PREFIX}goal up a ledge kept: goal {}, its floor {rise:.2} m over the feet {}, {:.2} m across", at(goal), at(feet), goal.distance_xz(feet))
 }
 
 /// [S7] A crouched climb: `nav: crouch climb up|not up: from (..) to (..), rise R m, crouched at its foot T ms before, feet (..)`:
