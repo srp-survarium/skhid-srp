@@ -112,7 +112,7 @@ try {
   assert.equal(await text('.stats-board .stats-table thead th.sorted'), 'Kills');
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-board .stats-table tbody tr')].map(r => Number(r.children[6].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'sorted by kills');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('by')"), 'kills');
-  assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('by=kills'), 'the language link keeps the board');
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=uk]').href")).includes('by=kills'), 'the language link keeps the board');
   // A second click on the sorted heading: the fewest first; a third, back.
   await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Kills').click()");
   await settled();
@@ -300,7 +300,7 @@ try {
   await settled();
   assert.equal(await text('.stats-tabs button[aria-pressed=true]'), 'Weapons');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('tab')"), 'weapons');
-  assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('tab=weapons'), 'the language link keeps the list');
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=uk]').href")).includes('tab=weapons'), 'the language link keeps the list');
   assert.equal(await count('.stats-paged'), 0, 'the matches gone');
   const guns = answered['player/weapons'].weapons;
   assert.ok(guns.length >= 2 && guns.every((gun, i) => !i || guns[i - 1].kills >= gun.kills), 'most kills first');
@@ -338,7 +338,7 @@ try {
     assert.ok(values.length === guns.length && values.every((v, i) => !i || values[i - 1] >= v - 0.06), `${by}: ${values.join()}`);
     assert.deepEqual(await cells('.stats-weapons tbody td.l'), sorted.weapons.map(gun => gun.name ?? '—'));
   }
-  assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('by=kills'), 'the language link keeps the order');
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=uk]').href")).includes('by=kills'), 'the language link keeps the order');
   // A second click on the sorted heading: the fewest first; a third, back.
   await evaluate("[...document.querySelectorAll('.stats-weapons thead th button')].find(b => b.textContent === 'Kills').click()");
   await settled();
@@ -354,7 +354,7 @@ try {
   await evaluate("[...document.querySelectorAll('.stats-tabs button')].find(b => b.textContent === 'Matches').click()");
   await settled();
   assert.equal(await evaluate('location.search'), '?player=Sheep&lang=en', 'the matches: neither the list nor its order in the address');
-  assert.ok(!(await evaluate("document.querySelector('a.lang').href")).includes('tab='), 'nor in the language link');
+  assert.ok(!(await evaluate("document.querySelector('.lang a[hreflang=uk]').href")).includes('tab='), 'nor in the language link');
   // The address opens the list; five empty rows while it loads.
   await navigate('/stats?player=Sheep&tab=weapons&lang=en', 'interactive');
   assert.equal(await count('.stats-weapons tbody tr'), 5);
@@ -460,6 +460,20 @@ try {
     assert.equal(await fits(), true, `${path} fits the width in Ukrainian`);
   }
 
+  // Another of the game's languages: the game's names in it, the page's own words in English; the
+  // header names it and offers the ten others, each keeping what is shown.
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  await navigate('/stats?board=latest&lang=ru');
+  assert.equal(await evaluate('document.documentElement.lang'), 'ru');
+  assert.equal(await text('.lang summary'), 'Русский');
+  assert.equal(await count('.lang a'), 10);
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=pl]').href")).includes('board=latest'));
+  assert.equal(await text('.stats-heading'), 'Daily leaders');
+  assert.ok(asked.some(path => path.startsWith('/api/history/matches') && path.includes('lang=ru')), 'the names are asked for in it');
+  assert.equal(await evaluate("document.querySelector('.stats-board .stats-map-cell a:not(.stats-map-link)').textContent"), answered.matches.matches[0].map);
+  await evaluate("document.querySelector('.lang summary').click()");
+  await screenshot('language-picker');
+
   // Ukrainian, and a phone's width.
   await send('browsingContext.setViewport', {context, viewport: {width: 390, height: 844}, devicePixelRatio: 1});
   await navigate('/stats?player=Sheep&lang=uk');
@@ -469,7 +483,7 @@ try {
   assert.notEqual(await panel('Артефакти'), null);
   assert.equal(await panel('Точність'), aim(answered.player.totals, 'uk'));
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.stats-favourites')).gridTemplateColumns.split(' ').length"), 1, 'the favourites stacked');
-  assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('player=Sheep'));
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=en]').href")).includes('player=Sheep'));
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile page fits');
   await navigate('/stats?player=Sheep&tab=weapons&lang=uk');
   assert.deepEqual(await cells('.stats-weapons thead th'),

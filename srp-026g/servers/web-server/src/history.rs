@@ -22,7 +22,7 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps;
 
 use crate::icons::{self, IconSet};
-use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, wiki};
+use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, wiki, words};
 
 /// Where the API is.
 pub(crate) const PREFIX: &str = "/api/history/";
@@ -52,6 +52,108 @@ fn script_url() -> &'static str {
     })
 }
 
+/// The page's own words in `lang`, by the names its script knows them by
+/// (`TEXT` there): the script has no text of its own.
+fn page_text(lang: Lang) -> Value {
+    // A list, not one `json!`: that many fields are past the macro's depth.
+    let words = [
+        ("stats", lang.t("Stats")),
+        ("player", lang.t("Player")),
+        ("clan", lang.t("Clan")),
+        ("match", lang.t("Match")),
+        ("matches", lang.tc("stats", "Matches")),
+        ("find", lang.t("Find")),
+        ("playerName", lang.t("Player name")),
+        ("clanTag", lang.t("Clan tag")),
+        ("matchNumber", lang.t("Match number")),
+        ("players", lang.t("Players")),
+        ("clans", lang.t("Clans")),
+        ("best", lang.t("Best matches")),
+        ("latest", lang.t("Latest matches")),
+        ("hour", lang.t("Hour")),
+        ("day", lang.t("Day")),
+        // A sign, no word.
+        ("rank", "#".to_owned()),
+        ("level", lang.t("Level")),
+        ("experience", lang.t("Experience")),
+        ("rating", lang.t("Rating")),
+        ("wins", lang.t("Wins")),
+        ("losses", lang.t("Losses")),
+        ("winRate", lang.t("Win rate")),
+        ("kills", lang.t("Kills")),
+        ("deaths", lang.t("Deaths")),
+        ("kd", lang.t("K/D")),
+        ("assists", lang.t("Assists")),
+        ("score", lang.tc("stats", "Score")),
+        ("scoreAvg", lang.t("Avg score")),
+        ("headshots", lang.t("Headshots")),
+        ("grenadeKills", lang.t("Grenade kills")),
+        ("meleeKills", lang.t("Melee kills")),
+        ("batteries", lang.t("Batteries")),
+        ("captures", lang.t("Captures")),
+        ("artefacts", lang.t("Artefacts")),
+        ("members", lang.t("Members")),
+        ("commander", lang.t("Commander")),
+        ("overall", lang.t("Overall")),
+        ("inMatches", lang.t("In matches")),
+        ("last30", lang.t("Last 30 days")),
+        ("ended", lang.t("Ended")),
+        ("duration", lang.t("Duration")),
+        ("map", lang.t("Map")),
+        ("mode", lang.t("Mode")),
+        ("result", lang.t("Result")),
+        ("place", lang.t("Place")),
+        ("team", lang.t("Team")),
+        ("points", lang.t("Points")),
+        ("win", lang.t("Win")),
+        ("loss", lang.t("Loss")),
+        ("draw", lang.t("Draw")),
+        ("left", lang.t("Left")),
+        ("won", lang.t("won")),
+        ("older", lang.t("Older matches")),
+        ("hours", lang.t("Hours played")),
+        ("replay", lang.t("Replay")),
+        ("replayPreparing", lang.t("Preparing…")),
+        ("replayFile", lang.t("Download")),
+        ("today", lang.t("Daily leaders")),
+        ("allTime", lang.t("All time")),
+        ("shots", lang.t("Shots fired")),
+        ("accuracy", lang.t("Accuracy")),
+        ("weapons", lang.t("Weapons")),
+        ("weapon", lang.t("Weapon")),
+        ("armour", lang.t("Armour")),
+        ("kit", lang.t("Kit")),
+        ("favourites", lang.t("Favourite equipment")),
+        ("accuracyNote", lang.t("1000+ shots")),
+        ("averageNote", lang.t("20+ matches")),
+        ("headshotRate", lang.t("HS %")),
+        ("avgDistance", lang.t("Avg distance")),
+        ("wallKills", lang.t("Through walls")),
+        ("ricochetKills", lang.t("Ricochets")),
+        ("noWeapons", lang.t("No weapons counted yet.")),
+        ("noMatches", lang.t("No public matches yet.")),
+        ("noPlayer", lang.t("No player with public matches named “{}”.")),
+        ("noClan", lang.t("No clan tagged [{}].")),
+        ("noMatch", lang.t("No public match {}.")),
+        ("noHistory", lang.t("This server keeps no match history.")),
+        ("failed", lang.t("Could not load the stats. Reload the page.")),
+        ("nobody", lang.t("Nobody yet.")),
+    ];
+    let mut text: serde_json::Map<String, Value> = words
+        .into_iter()
+        .map(|(name, word)| (name.to_owned(), Value::String(word)))
+        .collect();
+    text.insert(
+        "replayNo".to_owned(),
+        json!({
+            "incompatible": lang.t("Recorded by an older game version"),
+            "busy": lang.t("Busy, try again in a minute"),
+            "other": lang.t("No replay"),
+        }),
+    );
+    Value::Object(text)
+}
+
 pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
     (path == SCRIPT_PATH).then_some(("text/javascript; charset=utf-8", SCRIPT))
 }
@@ -60,20 +162,25 @@ pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
 /// as the address says: a player (`?player=<name>`), a match
 /// (`?match=<number>`), a clan (`?clan=<tag>`), else the leaderboards.
 pub(crate) fn page(lang: Lang, header: &str) -> Response {
-    let stats = lang.tr("Stats", "Статистика");
+    let stats = lang.t("Stats");
     let body = format!(
         "<style>{STYLE}</style>\
          <p class=breadcrumb><a href=\"{PATH}?lang={code}\">{stats}</a><span id=stats-crumb></span></p>\
          <div class=wiki-heading><div><p class=eyebrow id=stats-eyebrow>{eyebrow}</p>\
          <h1 id=stats-title>{stats}</h1></div></div>\
-         <div id=stats><noscript><p class=wiki-intro>{noscript}</p></noscript></div>\
+         <div id=stats data-locale={locale}><noscript><p class=wiki-intro>{noscript}</p></noscript></div>\
+         <script type=application/json id=stats-text>{text}</script>\
          <script src=\"{}\"></script>",
         script_url(),
+        // The words' language, for the numbers and dates beside them.
+        locale = if words::has(lang) { lang.code() } else { "en" },
+        // Data, not markup: no `<` of a text ends the element.
+        text = page_text(lang).to_string().replace('<', "\\u003c"),
         code = lang.code(),
-        eyebrow = lang.tr("Public matches", "Публічні матчі"),
-        noscript = lang.tr("The stats need JavaScript.", "Статистиці потрібен JavaScript."),
+        eyebrow = lang.t("Public matches"),
+        noscript = lang.t("The stats need JavaScript."),
     );
-    wiki::framed(lang, &stats, &lang.tr("Skhid", "Схід"), header, &body)
+    wiki::framed(lang, &stats, &lang.t("Skhid"), header, &body)
 }
 
 /// A page's length when the request names none.

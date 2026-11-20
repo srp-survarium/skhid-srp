@@ -3393,7 +3393,9 @@ For a ranged hit, each of the victim's 23 slots ([player+10Ch]+10Ch) holding
 a drug (vtable 0xA1C79C, the game's medkit class, whatever folder its options
 file is in) in use (+2B0h, set
 from the press through the use time and the active time) whose
-data/influences count (+288h) is not 0 gets `medkit::set_active(0, drug,
+data/influences count (+288h) is not 0, the antitoxin apart (of its records,
++280h, those with an amount above 0 name `infection` alone: left in use, the
+owner, 2026-11-20), gets `medkit::set_active(0, drug,
 [hit+3Ch])` (0x33D390: AL, then medkit and time on the stack, `ret 8`; the
 library's `engine_medkit_set_active`). That is the game's own end of a drug
 (medkit::tick 0x33D7C1 for a dead holder, 0x33DA3C when the activity is
@@ -3406,7 +3408,7 @@ no tick heals again; and unlinks its damage protectors (+294h, count +298h).
 +2A8h and +2ACh stay as they were; nothing reads them while +2B0h is 0
 (action 0x33D700 sets them again; patch 77 reads the flag first). The unit
 was taken at the press (0x33D765). The painkiller (no influences, only a
-ranged pain protection) is left running.
+ranged pain protection) is left running, and so is the antitoxin.
 
 Simulation: hit_impl runs in every game for every hit, and the drug's state
 is the game's own (serialized: `m_active`, `m_activity_time_ms`, `m_delay_ms`,

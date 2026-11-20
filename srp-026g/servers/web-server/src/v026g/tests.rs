@@ -1040,7 +1040,7 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     assert!(page.body.contains("<nav><a href=\"/?lang=en\">Home</a>"));
     assert!(
         page.body
-            .contains("<a class=lang href=\"?lang=uk\">Українська</a>")
+            .contains("<a href=\"?lang=uk\" lang=uk hreflang=uk>Українська</a>")
     );
     assert!(!page.body.contains("{{LANG}}") && !page.body.contains("<!--SITE-HEADER-->"));
     // Nothing inline runs and nothing is fetched from elsewhere.
@@ -1235,7 +1235,13 @@ fn the_stats_page_is_a_tab_of_its_own() {
         assert!(page.body.contains(&format!("<html lang=\"{code}\">")));
         assert!(page.body.contains(&format!("href=\"/stats?lang={code}\" aria-current=page")));
         assert!(!page.body.contains(&format!("href=\"/wiki?lang={code}\" aria-current=page")));
-        assert!(page.body.contains("<div id=stats>"));
+        assert!(page.body.contains("<div id=stats data-locale="));
+        // Its words are the server's, in the page's language, handed to the script as data.
+        let text = page.body.split_once("<script type=application/json id=stats-text>").unwrap().1;
+        let text = text.split_once("</script>").unwrap().0;
+        assert!(!text.contains('<'));
+        let leaders = if lang == Lang::Uk { "\"today\":\"Лідери дня\"" } else { "\"today\":\"Daily leaders\"" };
+        assert!(text.contains(leaders), "{text}");
         let script = page.body.split_once("<script src=\"").unwrap().1;
         let script = script.split_once("?v=").unwrap().0;
         assert!(crate::history::file(script).is_some_and(|(_, bytes)| !bytes.is_empty()));
