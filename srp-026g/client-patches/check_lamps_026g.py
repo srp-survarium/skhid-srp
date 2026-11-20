@@ -27,6 +27,8 @@ spec.loader.exec_module(c)
 HEAP, STACK, RET = 0x40000000, 0x408ff000, 0x40900000
 PROJECT, CONFIG, SCENE, GAME, RENDERER = (HEAP + i * 0x1000 for i in range(5))
 VISUALS, OBJECTS, LIGHTS, MODELS = HEAP + 0x300000, HEAP + 0x400000, HEAP + 0x410000, HEAP + 0x500000
+# object_ambient_light objects (their table 0xA0AC4C), after the lights in the project's vector.
+AMBIENTS, LIGHT_VTABLE, AMBIENT_VTABLE = HEAP + 0x440000, 0xa0adec, 0xa0ac4c
 MANAGER, BULLET, RESULT, WRITER, READER, BUFFER = (HEAP + i * 0x10000 for i in range(5, 11))
 # The project config, relocated: Vector's, with its 99 fixtures, is 72 KB.
 CFG, CFG_SIZE = HEAP + 0x600000, 0x100000
@@ -58,6 +60,8 @@ def config_tree():
                            glass_from_x=x - .0625, glass_from_y=0.0, glass_from_z=0.0,
                            glass_to_x=x + .0625, glass_to_y=0.0, glass_to_z=0.0,
                            visuals=views, lights={'light': dict(x=x, y=0.0, z=0.0)})
+        if i == 1:   # an alarm lamp's glow; the other row has no table
+            rows[str(i)]['ambient_lights'] = {'glow': dict(x=x, y=0.5, z=0.0)}
     return {'srp_lamps': {'version': 3, 'break_material': 29, 'effect_material': 7, 'lamps': rows}}
 
 
@@ -94,6 +98,8 @@ class Game:
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x21f40, end=0x21f40)
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x24750, end=0x24750)
         u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x24890, end=0x24890)
+        u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x23a70, end=0x23a70)
+        u.hook_add(UC_HOOK_CODE, self.endpoint, begin=0x23b90, end=0x23b90)
         u.hook_add(UC_HOOK_CODE, self.write, begin=0x1f48a0, end=0x1f48a0)
         u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3223e0, end=0x3223e0)
         u.hook_add(UC_HOOK_CODE, self.effect, begin=0x3222f0, end=0x3222f0)
@@ -105,15 +111,11 @@ class Game:
         self.w(SCENE + 0x9c, GAME); self.w(GAME + 0x5360, RENDERER)
         self.w(RENDERER + 0x200064, HEAP + 0x300000)
         self.w(PROJECT + 0x1e8, VISUALS); self.w(PROJECT + 0x1ec, 5)
-        self.w(PROJECT + 0x184, OBJECTS); self.w(PROJECT + 0x188, OBJECTS + 8)
+        self.w(PROJECT + 0x184, OBJECTS)
         for i in range(5):
             self.w(VISUALS + i * 0x48, 0xa029b4)
             self.w(VISUALS + i * 0x48 + 0x44, MODELS + i * 0x200)
-        for i in range(2):
-            light = LIGHTS + i * 0x300
-            self.w(OBJECTS + i * 4, light); self.w(light, 0xa0adec)
-            self.w(light + 0x108, SCENE); self.w(light + 0x250, 100 + i)
-            self.f(light + 0x140, (float(i * 3), 0., 0.))
+        self.objects([(float(i * 3), 0., 0.) for i in range(2)], [(3., .5, 0.)])
         u.mem_write(CFG, bytes(relocated_config(config_tree())))
         self.w(MANAGER + 0x98, PHYSICS); self.w(BULLET + 0x44, MANAGER)
         self.w(MANAGER + 0x90, RENDERER); self.w(MANAGER + 0x94, MATERIALS)
@@ -156,15 +158,28 @@ class Game:
             self.w(VISUALS + i * 0x48 + 0x44, 0)
         for i in indices:
             self.w(VISUALS + i * 0x48 + 0x44, MODELS + i * 0x200)
-        lights = [light for row in rows for light in row['lights'].values()]
-        self.w(PROJECT + 0x188, OBJECTS + len(lights) * 4)
+        lights, ambients = ([tuple(light[k] for k in 'xyz') for row in rows for light in row.get(table, {}).values()]
+                            for table in ('lights', 'ambient_lights'))
+        self.objects(lights, ambients)
+        return {('model', v['index']) for row in rows for v in row['visuals'].values() if v['state'] == 0} | {
+            ('light', i) for i in range(len(lights))} | {('ambient', i) for i in range(len(ambients))}
+
+    def objects(self, lights, ambients):
+        """The project's object vector: its lights (render id 100 + i, +250h), then its ambient lights
+        (200 + i, +154h; the identity transform at +110h, white, intensity 1, radius 2)."""
+        assert len(lights) * 0x300 <= AMBIENTS - LIGHTS
+        self.w(PROJECT + 0x188, OBJECTS + (len(lights) + len(ambients)) * 4)
         for i, position in enumerate(lights):
             light = LIGHTS + i * 0x300
-            self.w(OBJECTS + i * 4, light); self.w(light, 0xa0adec)
+            self.w(OBJECTS + i * 4, light); self.w(light, LIGHT_VTABLE)
             self.w(light + 0x108, SCENE); self.w(light + 0x250, 100 + i)
-            self.f(light + 0x140, tuple(position[k] for k in ('x', 'y', 'z')))
-        return {('model', v['index']) for row in rows for v in row['visuals'].values() if v['state'] == 0} | {
-            ('light', i) for i in range(len(lights))}
+            self.f(light + 0x140, position)
+        for i, position in enumerate(ambients):
+            ambient = AMBIENTS + i * 0x300
+            self.w(OBJECTS + (len(lights) + i) * 4, ambient); self.w(ambient, AMBIENT_VTABLE)
+            self.w(ambient + 0x108, SCENE); self.w(ambient + 0x154, 200 + i)
+            self.f(ambient + 0x110, (1., 0., 0., 0., 0., 1., 0., 0., 0., 0., 1., 0.) + tuple(position) + (1.,))
+            self.w(ambient + 0x150, 0xffffffff); self.f(ambient + 0x158, (1., 2.))
 
     def w(self, at, value):
         self.u.mem_write(at, struct.pack('<I', value))
@@ -185,9 +200,12 @@ class Game:
         if va in (0x21cd0, 0x21f40):
             key = ('model', (u.reg_read(UC_X86_REG_EAX) - MODELS - 0x108) // 0x200)
             add, cleanup = va == 0x21cd0, 16 if va == 0x21cd0 else 8
-        else:
+        elif va in (0x24750, 0x24890):
             key = ('light', self.r(esp + 12) - 100)
             add, cleanup = va == 0x24750, 16 if va == 0x24750 else 12
+        else:   # scene_renderer::update_ambient_light (scene, id, properties; EDI) and remove_ambient_light
+            add, cleanup = va == 0x23a70, 12
+            key = ('ambient', self.r(esp + (8 if add else 12)) - 200)
         assert (key not in self.active) if add else (key in self.active), (va, key, self.active)
         (self.active.add if add else self.active.remove)(key)
         self.events.append((add, key)); self.finish(cleanup)
@@ -348,9 +366,10 @@ def main():
         args.save_built.write_bytes(built)
     g = Game(built)
     g.insert()
-    intact = {('model', i) for i in (0, 2, 4)} | {('light', 0), ('light', 1)}
+    intact = {('model', i) for i in (0, 2, 4)} | {('light', 0), ('light', 1), ('ambient', 0)}
     assert g.active == intact
-    print('ok: visual insert through project loop; light insert through project loop')
+    print('ok: visual insert through project loop; light insert through project loop; '
+          'ambient light insert through project loop')
     # Exercise both displaced branches; the fallthrough must still execute
     # its native fld, and neither path may disturb the frame's registers.
     for flag_byte, flags, stop in ((0, 0x46, 0x1f7c6c), (1, 2, 0x1f7c4a)):
@@ -426,12 +445,13 @@ def main():
         late.present(); assert late.active == broken
     print('ok: truncated, unknown and mismatched histories rejected before lamp state changes')
     g.shoot(length=5.); g.present(); assert g.active == {('model', 1), ('model', 3)}
-    print('ok: late join/replay snapshot; two lamps on one unobstructed segment')
+    print('ok: late join/replay snapshot; two lamps on one unobstructed segment, the second with its ambient glow')
     print('ok: no glass decal on a broken fixture, after rollback, resimulation or a late join')
     g.remove(); assert not g.active
     assert all(g.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
-    assert all(g.r(LIGHTS + i * 0x300) == 0xa0adec for i in range(2))
-    print('ok: visual remove through project loop; light remove through project loop; original vtables restored')
+    assert all(g.r(LIGHTS + i * 0x300) == LIGHT_VTABLE for i in range(2)) and g.r(AMBIENTS) == AMBIENT_VTABLE
+    print('ok: visual remove through project loop; light remove through project loop; '
+          'ambient light remove through project loop; original vtables restored')
     g.insert(); assert g.active == intact and g.save() == fresh
     # Destruction without remove still drops exactly the inserted objects
     # before the native destructor starts releasing members.
@@ -458,6 +478,9 @@ def main():
     light = next(iter(list(missing_light['srp_lamps']['lamps'].values())[-1]['lights'].values()))
     light['x'] = 999.0
     cases.append((missing_light, False))
+    missing_ambient = config_tree()
+    next(iter(list(missing_ambient['srp_lamps']['lamps'].values())[-1]['ambient_lights'].values()))['y'] = 999.0
+    cases.append((missing_ambient, False))
     invalid_bounds = config_tree()
     last = list(invalid_bounds['srp_lamps']['lamps'].values())[-1]
     last['max_x'] = last['min_x']
@@ -465,7 +488,7 @@ def main():
     no_glass = config_tree()
     del list(no_glass['srp_lamps']['lamps'].values())[-1]['glass_to_z']
     cases.append((no_glass, True))
-    unbound = {('model', i) for i in range(5)} | {('light', 0), ('light', 1)}
+    unbound = {('model', i) for i in range(5)} | {('light', 0), ('light', 1), ('ambient', 0)}
     for tree, aborts in cases:
         refused = Game(built)
         refused.u.mem_write(CFG, bytes(relocated_config(tree)))
@@ -484,11 +507,12 @@ def main():
             refused.remove()
         assert not refused.active
         assert all(refused.r(VISUALS + i * 0x48) == 0xa029b4 for i in range(5))
-        assert all(refused.r(LIGHTS + i * 0x300) == 0xa0adec for i in range(2))
+        assert all(refused.r(LIGHTS + i * 0x300) == LIGHT_VTABLE for i in range(2))
+        assert refused.r(AMBIENTS) == AMBIENT_VTABLE
         refused.u.mem_write(CFG, bytes(relocated_config(config_tree())))
         refused.insert(); assert refused.active == intact
         refused.remove(); assert not refused.active
-    print('ok: duplicate visuals and missing lights leave the map without lamps, late malformed bounds refuse; '
+    print('ok: duplicate visuals and missing lights or ambient lights leave the map without lamps, late malformed bounds refuse; '
           'nothing bound either way, retry has no leaked owner')
     # A native scenery project without metadata does not require lamp-only
     # physics/scene inputs, and must not disturb another bound project.

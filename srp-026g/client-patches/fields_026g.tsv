@@ -187,16 +187,22 @@ survarium::project_object_slot	object	0x0	ptr<survarium::project_object>	object 
 survarium::project_object_slot	size	4	size	project vector stores pointers
 survarium::project_object	vtable	0x0	u32	native interface identity before binding
 survarium::project_object	light	0x0	obj<survarium::object_light>	only when the native vtable identifies object_light
+survarium::project_object	ambient_light	0x0	obj<survarium::object_ambient_light>	only when the native vtable identifies object_ambient_light
 survarium::render_visual	vtable	0x0	u32	render visual insertion/removal interface
 survarium::render_visual	size	0x48	size	render visual stride in insert_static 0x285540
 survarium::object_light	vtable	0x0	u32	light object interface
 survarium::object_light	position	0x140	f32	translation float3, object_light::load 0x291720
+survarium::object_ambient_light	vtable	0x0	u32	ambient light object interface
+survarium::object_ambient_light	position	0x140	f32	translation float3, the last row of the transform (+110h) object_ambient_light::insert 0x290930 copies
 survarium::render_visual_methods	rtti	-4	u32	native complete object locator
 survarium::render_visual_methods	size	8	size	two native virtual methods: insert and remove
 survarium::object_light_methods	rtti	-4	u32	native complete object locator
 survarium::object_light_methods	size	40	size	ten methods, insert/remove at indices 8 and 9
+survarium::object_ambient_light_methods	rtti	-4	u32	native complete object locator
+survarium::object_ambient_light_methods	size	40	size	ten methods, insert/remove at indices 8 and 9
 survarium::image	visual_methods	0xA029B4	obj<survarium::render_visual_methods>	render_visual native vtable including RTTI at -4
 survarium::image	light_methods	0xA0ADEC	obj<survarium::object_light_methods>	object_light native vtable including RTTI at -4
+survarium::image	ambient_light_methods	0xA0AC4C	obj<survarium::object_ambient_light_methods>	object_ambient_light native vtable including RTTI at -4
 survarium::project_insert_frame	physics	4	ptr<vostok::physics::bullet_physics_world>	insert entry ESP+4: the physics world, not scene camera director
 survarium::history_save_frame	writer	8	ptr<vostok::buffer_writer>	serialize epilogue EBP+8: writer argument
 survarium::bullet_manager	physics	0x98	ptr<vostok::physics::bullet_physics_world>	physics world used for ray tests and lamp history

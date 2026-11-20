@@ -33,10 +33,12 @@ impl<T> NativeVtable<T> {
 pub struct MethodTables {
     visual: NativeVtable<raw::RenderVisualMethods>,
     light: NativeVtable<raw::ObjectLightMethods>,
+    ambient_light: NativeVtable<raw::ObjectAmbientLightMethods>,
 }
 impl MethodTables {
-    pub fn new(visual: NativeVtable<raw::RenderVisualMethods>, light: NativeVtable<raw::ObjectLightMethods>) -> Self {
-        Self { visual, light }
+    pub fn new(visual: NativeVtable<raw::RenderVisualMethods>, light: NativeVtable<raw::ObjectLightMethods>,
+               ambient_light: NativeVtable<raw::ObjectAmbientLightMethods>) -> Self {
+        Self { visual, light, ambient_light }
     }
 }
 
@@ -56,6 +58,7 @@ macro_rules! native_view {
 }
 native_view!(RenderVisual);
 native_view!(ObjectLight);
+native_view!(ObjectAmbientLight);
 native_view!(GameScene);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,7 +101,7 @@ impl ProjectId {
 #[derive(Debug, PartialEq, Eq)]
 pub enum BindingError {
     MissingProject, MissingScene, MissingPhysics, InvalidObjects, InvalidVisual,
-    UnknownVisualType, UnknownLight, AmbiguousLight, DuplicateObject, Capacity,
+    UnknownVisualType, UnknownLight, AmbiguousLight, UnknownAmbientLight, AmbiguousAmbientLight, DuplicateObject, Capacity,
     OtherProjectActive, Config(ConfigError),
 }
 impl From<ConfigError> for BindingError {
@@ -163,7 +166,7 @@ impl<'t> ProjectView<'t> {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum NativeObject { Visual(raw::RenderVisual), Light(raw::ObjectLight) }
+enum NativeObject { Visual(raw::RenderVisual), Light(raw::ObjectLight), AmbientLight(raw::ObjectAmbientLight) }
 
 struct Binding<K> { object: NativeObject, key: K, membership: Membership }
 
@@ -195,24 +198,39 @@ impl<'t, D, K> ProjectPlan<'t, D, K> {
         };
         self.add(NativeObject::Visual(visual), key)
     }
-    pub fn light_at(&mut self, position: WorldPoint, key: K) -> Result<(), BindingError> {
-        // SAFETY: native project vector and light objects live for this
-        // insertion. Only an object with the light vtable is read as a light.
-        let light = unsafe {
-            let first = self.project.native.objects().ok_or(BindingError::UnknownLight)?;
+    /// The project's one object at `position` among those `kind` reads as a
+    /// T with its position; `none` or `several` when it is not one.
+    fn object_at<T>(&self, position: WorldPoint, kind: impl Fn(raw::ProjectObject) -> Option<(T, [f32; 3])>,
+                    none: BindingError, several: BindingError) -> Result<T, BindingError> {
+        let mut found = None;
+        // SAFETY: the native project vector and its objects live for this insertion.
+        unsafe {
+            let Some(first) = self.project.native.objects() else { return Err(none) };
             let end = self.project.native.objects_end().ok_or(BindingError::InvalidObjects)?;
             let count = end.index_from(first).ok_or(BindingError::InvalidObjects)?;
-            let mut found = None;
             for i in 0..count {
                 let object = first.at(i).object().ok_or(BindingError::InvalidObjects)?;
-                if object.vtable().read() != raw::image::light_methods().address() { continue; }
-                let light = object.light();
-                let xyz = super::world::floats(light.position());
-                if xyz == position.coordinates() && found.replace(light).is_some() { return Err(BindingError::AmbiguousLight); }
+                let Some((native, xyz)) = kind(object) else { continue };
+                if xyz == position.coordinates() && found.replace(native).is_some() { return Err(several); }
             }
-            found.ok_or(BindingError::UnknownLight)?
-        };
+        }
+        found.ok_or(none)
+    }
+    pub fn light_at(&mut self, position: WorldPoint, key: K) -> Result<(), BindingError> {
+        // SAFETY: only an object with the light vtable is read as a light.
+        let light = self.object_at(position, |object| unsafe {
+            if object.vtable().read() != raw::image::light_methods().address() { return None; }
+            Some((object.light(), super::world::floats(object.light().position())))
+        }, BindingError::UnknownLight, BindingError::AmbiguousLight)?;
         self.add(NativeObject::Light(light), key)
+    }
+    pub fn ambient_light_at(&mut self, position: WorldPoint, key: K) -> Result<(), BindingError> {
+        // SAFETY: only an object with the ambient light vtable is read as one.
+        let light = self.object_at(position, |object| unsafe {
+            if object.vtable().read() != raw::image::ambient_light_methods().address() { return None; }
+            Some((object.ambient_light(), super::world::floats(object.ambient_light().position())))
+        }, BindingError::UnknownAmbientLight, BindingError::AmbiguousAmbientLight)?;
+        self.add(NativeObject::AmbientLight(light), key)
     }
     pub fn data_mut(&mut self) -> &mut D { &mut self.data }
 }
@@ -271,6 +289,8 @@ impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
                 (NativeObject::Visual(visual), RendererAction::Remove) => raw::engine_visual_remove(Some(visual), Some(self.scene)),
                 (NativeObject::Light(light), RendererAction::Add) => raw::engine_light_insert(Some(light)),
                 (NativeObject::Light(light), RendererAction::Remove) => raw::engine_light_remove(Some(light)),
+                (NativeObject::AmbientLight(light), RendererAction::Add) => raw::engine_ambient_light_insert(Some(light)),
+                (NativeObject::AmbientLight(light), RendererAction::Remove) => raw::engine_ambient_light_remove(Some(light)),
                 (_, RendererAction::Keep) => {},
             }
         }
@@ -289,6 +309,7 @@ impl<D: Presentation<K>, K: Copy> BoundProject<D, K> {
                 match self.bindings.get(i).expect("owned binding").object {
                     NativeObject::Visual(v) => v.vtable().write(raw::image::visual_methods().address()),
                     NativeObject::Light(l) => l.vtable().write(raw::image::light_methods().address()),
+                    NativeObject::AmbientLight(l) => l.vtable().write(raw::image::ambient_light_methods().address()),
                 }
             }
         }
@@ -313,6 +334,7 @@ impl<D: Presentation<K>, K: Copy> Registration<D, K> {
                         match binding.object {
                             NativeObject::Visual(v) => v.vtable().write(plan.methods.visual.address.get()),
                             NativeObject::Light(l) => l.vtable().write(plan.methods.light.address.get()),
+                            NativeObject::AmbientLight(l) => l.vtable().write(plan.methods.ambient_light.address.get()),
                         }
                     }
                 }
@@ -381,6 +403,14 @@ impl<D: Presentation<K>, K: Copy> ProjectRegistry<D, K> {
         self.state.with(light.thread, |s| {
             let Registration::Bound(bound) = s else { panic!("registered light without an owner") };
             bound.callback(NativeObject::Light(light.native), event);
+        });
+    }
+    pub fn ambient_light_insert(&self, light: &ObjectAmbientLight<'_>) { self.ambient_light(light, PresentationEvent::Insert); }
+    pub fn ambient_light_remove(&self, light: &ObjectAmbientLight<'_>) { self.ambient_light(light, |_| PresentationEvent::Remove); }
+    fn ambient_light(&self, light: &ObjectAmbientLight<'_>, event: impl FnOnce(Visibility) -> PresentationEvent) {
+        self.state.with(light.thread, |s| {
+            let Registration::Bound(bound) = s else { panic!("registered ambient light without an owner") };
+            bound.callback(NativeObject::AmbientLight(light.native), event);
         });
     }
 }

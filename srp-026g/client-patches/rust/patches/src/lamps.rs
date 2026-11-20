@@ -97,6 +97,8 @@ impl MetadataError {
             Self::Binding(BindingError::UnknownVisualType) => Some("a visual index naming another kind of visual"),
             Self::Binding(BindingError::UnknownLight) => Some("a light position no light of the map has"),
             Self::Binding(BindingError::AmbiguousLight) => Some("a light position two lights of the map have"),
+            Self::Binding(BindingError::UnknownAmbientLight) => Some("an ambient light position no ambient light of the map has"),
+            Self::Binding(BindingError::AmbiguousAmbientLight) => Some("an ambient light position two ambient lights of the map have"),
             Self::Binding(BindingError::DuplicateObject) => Some("one object bound twice"),
             _ => None,
         }
@@ -127,7 +129,8 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
     let effect = MaterialId::parse(spec.required(c"effect_material")?.integer()?).ok_or(MetadataError::Material)?;
     let rows = spec.required(c"lamps")?.entries()?;
     let count = LampCount::parse(rows.len() as u32).ok_or(MetadataError::Count)?;
-    let methods = MethodTables::new(vostok::lamps_visual_vtable_handle(), vostok::lamps_light_vtable_handle());
+    let methods = MethodTables::new(vostok::lamps_visual_vtable_handle(), vostok::lamps_light_vtable_handle(),
+                                    vostok::lamps_ambient_light_vtable_handle());
     let mut plan = project.plan((), methods)?;
     let mut fixtures = BoundedVec::new();
     for (i, row) in rows.iter().enumerate() {
@@ -147,6 +150,14 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
         for light in row.required(c"lights")?.entries()?.iter() {
             let position = position(&light?.table()?, [c"x", c"y", c"z"])?;
             plan.light_at(position, Binding { lamp, visible_when: Condition::Intact })?;
+        }
+        // A glow that is an ambient light (an alarm lamp's): few fixtures
+        // have one, the others' rows have no table.
+        if let Some(lights) = row.get(c"ambient_lights")? {
+            for light in lights.entries()?.iter() {
+                let position = position(&light?.table()?, [c"x", c"y", c"z"])?;
+                plan.ambient_light_at(position, Binding { lamp, visible_when: Condition::Intact })?;
+            }
         }
     }
     Ok(Some(plan.with_data(Lamps { fixtures, state: Snapshot::intact(count), material, effect })))
@@ -237,3 +248,9 @@ pub fn on_visual_remove(_: &vostok::OrigVisualRemove, visual: &mut vostok::Rende
 }
 pub fn on_light_insert(_: &vostok::OrigLightInsert, light: &mut vostok::ObjectLight<'_>) { PROJECT.light_insert(light); }
 pub fn on_light_remove(_: &vostok::OrigLightRemove, light: &mut vostok::ObjectLight<'_>) { PROJECT.light_remove(light); }
+pub fn on_ambient_light_insert(_: &vostok::OrigAmbientLightInsert, light: &mut vostok::ObjectAmbientLight<'_>) {
+    PROJECT.ambient_light_insert(light);
+}
+pub fn on_ambient_light_remove(_: &vostok::OrigAmbientLightRemove, light: &mut vostok::ObjectAmbientLight<'_>) {
+    PROJECT.ambient_light_remove(light);
+}

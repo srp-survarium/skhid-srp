@@ -1,5 +1,5 @@
 {
-  "_about": "Breakable lamps: one bullet breaks the fixture, removes its linked lights and cones, and displays the broken model. Source authored by scripts/breakable-lamps/make_edits.py from manifest-base projects and Research. Explicit indices refer to the final render_visuals after these additions. Bulb bounds use stock geometry and placed rotation/scale. Legacy cones start at the emitter: their full-opacity material exposes offsets hidden by the 0.26 material. Stock and v0.21 placements stay unchanged.",
+  "_about": "Breakable lamps: one bullet breaks the fixture, removes its linked lights and cones (a lit alarm lamp's red ambient glow too), and displays the broken model. Source authored by scripts/breakable-lamps/make_edits.py from manifest-base projects and Research. Explicit indices refer to the final render_visuals after these additions. Bulb bounds use stock geometry and placed rotation/scale. Legacy cones start at the emitter: their full-opacity material exposes offsets hidden by the 0.26 material. Stock and v0.21 placements stay unchanged.",
   "set_entry": [
     {
       "file": "projects/v011e_level_03/day_2/client_project",
@@ -135176,7 +135176,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -135251,7 +135259,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -135426,7 +135448,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -135476,7 +135506,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -135525,7 +135563,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -135764,7 +135810,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -135839,7 +135893,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -136014,7 +136082,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -136064,7 +136140,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -136113,7 +136197,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -136416,7 +136508,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -136491,7 +136591,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -136666,7 +136780,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -136716,7 +136838,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -136765,7 +136895,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -137004,7 +137142,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -137079,7 +137225,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -137254,7 +137414,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -137304,7 +137472,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -137353,7 +137529,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -137592,7 +137776,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -137667,7 +137859,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -137842,7 +138048,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -137892,7 +138106,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -137941,7 +138163,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -138180,7 +138410,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -138255,7 +138493,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -138430,7 +138682,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -138480,7 +138740,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -138529,7 +138797,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -138832,7 +139108,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -138907,7 +139191,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -139082,7 +139380,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -139132,7 +139438,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -139181,7 +139495,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -139420,7 +139742,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -139495,7 +139825,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -139670,7 +140014,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -139720,7 +140072,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -139769,7 +140129,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -140008,7 +140376,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -140083,7 +140459,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -140258,7 +140648,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -140308,7 +140706,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -140357,7 +140763,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -140596,7 +141010,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -140671,7 +141093,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -140846,7 +141282,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -140896,7 +141340,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -140945,7 +141397,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -141248,7 +141708,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -141323,7 +141791,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -141498,7 +141980,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -141548,7 +142038,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -141597,7 +142095,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -141836,7 +142342,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 22.631999969482422,
+                "y": 7.73199987411499,
+                "z": 30.954999923706055,
+                "name": "enviroment/new_light/ambient_light(80)"
+              }
+            }
           },
           "lamp006": {
             "min_x": 25.91740656478126,
@@ -141911,7 +142425,21 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 9.6899995803833,
+                "y": 3.8340001106262207,
+                "z": 38.56100082397461,
+                "name": "enviroment/new_light/ambient_light(90)"
+              },
+              "light1": {
+                "x": 9.428000450134277,
+                "y": 4.209000110626221,
+                "z": 38.00400161743164,
+                "name": "enviroment/new_light/ambient_light(1)"
+              }
+            }
           },
           "lamp009": {
             "min_x": 21.85220701470468,
@@ -142086,7 +142614,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": -0.0430000014603138,
+                "y": 4.558000087738037,
+                "z": 48.22600173950195,
+                "name": "enviroment/new_light/ambient_light(85)"
+              }
+            }
           },
           "lamp016": {
             "min_x": 17.876308778713142,
@@ -142136,7 +142672,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 26.29800033569336,
+                "y": 4.578000068664551,
+                "z": 49.62099838256836,
+                "name": "enviroment/new_light/ambient_light(84)"
+              }
+            }
           },
           "lamp018": {
             "min_x": 20.572617383510302,
@@ -142185,7 +142729,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 19.44099998474121,
+                "y": 4.353000164031982,
+                "z": 42.88999938964844,
+                "name": "enviroment/new_light/ambient_light(100)"
+              }
+            }
           },
           "lamp019": {
             "min_x": 21.83720762505624,
@@ -144302,7 +144854,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -146959,7 +147519,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -149616,7 +150184,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -152273,7 +152849,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -154930,7 +155514,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -157587,7 +158179,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -160244,7 +160844,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -162901,7 +163509,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -165558,7 +166174,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -168215,7 +168839,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -170872,7 +171504,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
@@ -173529,7 +174169,15 @@
                 "state": 1
               }
             },
-            "lights": {}
+            "lights": {},
+            "ambient_lights": {
+              "light0": {
+                "x": 10.91100025177002,
+                "y": 14.843000411987305,
+                "z": -6.414000034332275,
+                "name": "environment_and_lights/ambient_light/ambient_light(65)"
+              }
+            }
           },
           "lamp047": {
             "min_x": -70.63099670410156,
