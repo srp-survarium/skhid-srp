@@ -32,13 +32,23 @@ struct Crossing {
     rest_ms: u32,
     /// The feet at the first press.
     pressed_at: Option<Vec3>,
-    /// Every press: the feet, the body's speed over the stand-in's last step (a game tick), m/s, and the motor's route jump it
-    /// pressed, its take-off and landing (`Motor::route_press`; None: another jump, the stuck watch's, an escape's).
-    presses_at: Vec<(Vec3, f32, Option<(Vec3, Vec3)>)>,
+    /// Every press.
+    presses_at: Vec<Press>,
     /// The bot's notes (ms, text), printed with `SRP_REST_TRAIL=1`.
     notes: Vec<(u32, String)>,
     /// The feet at every press, and every 500 ms (`SRP_REST_TRAIL=1` prints them).
     trail: Vec<(u32, Vec3, bool)>,
+}
+
+/// A press of the jump key on the way.
+#[derive(Debug)]
+struct Press {
+    feet: Vec3,
+    /// The body's speed over the stand-in's last step (a game tick), m/s.
+    speed: f32,
+    /// The motor's route jump it pressed, its take-off and landing (`Motor::route_press`; None: another jump, the stuck watch's,
+    /// an escape's).
+    link: Option<(Vec3, Vec3)>,
 }
 
 /// A bot on the stand-in walks to `goal` from `start` for at most `until` ms (as `drop_spots`' walk).
@@ -91,7 +101,7 @@ fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: V
                 out.pressed_at.get_or_insert(game.bodies[0].feet);
                 let feet = game.bodies[0].feet;
                 let motor = bots.bots[0].as_ref().and_then(|bot| bot.motor.route_press()).map(|press| (press.take_off, press.landing));
-                out.presses_at.push((feet, feet.distance_xz(step_before) / (TICK_MS as f32 / 1000.0), motor));
+                out.presses_at.push(Press { feet, speed: feet.distance_xz(step_before) / (TICK_MS as f32 / 1000.0), link: motor });
                 out.trail.push((clock, game.bodies[0].feet, true));
             }
             let r = made.input.rotation;
@@ -224,7 +234,7 @@ fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
         }
         landed += usize::from(c.landed.is_some());
         let mut at_link = false;
-        for &(p, speed, link) in &c.presses_at {
+        for &Press { feet: p, speed, link } in &c.presses_at {
             // The motor's press of this link (its take-off and landing within 0.3 m of the link's).
             let motor = link.is_some_and(|(from, to)| (from - a).length() <= 0.3 && (to - b).length() <= 0.3);
             let (dx, dz) = (a.x - p.x, a.z - p.z);
