@@ -112,6 +112,10 @@ engine_visual_insert	0x285fa0	ECX:visual ESP+4:scene	void engine_visual_insert(s
 engine_visual_remove	0x285fe0	ECX:visual ESP+4:scene	void engine_visual_remove(struct render_visual *visual, struct game_scene *scene)	thiscall	visual: RenderVisual, scene: GameScene ->
 engine_light_insert	0x291790	ECX:light	void engine_light_insert(struct object_light *light)	thiscall	light: ObjectLight ->
 engine_light_remove	0x2917d0	ECX:light	void engine_light_remove(struct object_light *light)	thiscall	light: ObjectLight ->
+engine_ambient_light_insert	0x290930	ECX:light	void engine_ambient_light_insert(struct object_ambient_light *light)	thiscall	light: ObjectAmbientLight ->
+engine_ambient_light_remove	0x290ae0	ECX:light	void engine_ambient_light_remove(struct object_ambient_light *light)	thiscall	light: ObjectAmbientLight ->
+engine_particle_insert	0x292cc0	ECX:particle	void engine_particle_insert(struct object_particle_visual *particle)	thiscall	particle: ObjectParticleVisual ->
+engine_particle_remove	0x292dc0	ECX:particle	void engine_particle_remove(struct object_particle_visual *particle)	thiscall	particle: ObjectParticleVisual ->
 engine_inventory_remove	0x2fc680	ESI:inventory EAX:slot	void engine_inventory_remove(struct inventory *inventory, unsigned int slot)	thunk
 engine_inventory_take_artefact	0x2fc850	EAX:inventory ESP+4:incoming	void engine_inventory_take_artefact(struct inventory *inventory, struct artefact *const *incoming)	thunk
 engine_quick_inventory_slot	0x2fe7f0	ESP+4:inventory ESP+8:ordinal	unsigned int engine_quick_inventory_slot(struct inventory *inventory, unsigned int ordinal)	thunk

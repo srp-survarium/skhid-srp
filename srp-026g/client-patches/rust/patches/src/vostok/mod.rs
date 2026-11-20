@@ -115,7 +115,7 @@ mod generated {
     #[allow(unused_imports)]
     use crate::raw;
     #[allow(unused_imports)]
-    use super::{RenderVisual, ObjectLight, GameScene};
+    use super::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, GameScene};
     #[allow(unused_imports)]
     use super::resources::{QueryResults, QueryTag};
     #[allow(unused_imports)]
@@ -156,7 +156,7 @@ pub mod geometry;
 pub mod presentation;
 
 pub mod project;
-pub use project::{RenderVisual, ObjectLight, GameScene};
+pub use project::{RenderVisual, ObjectLight, ObjectAmbientLight, ObjectParticleVisual, GameScene};
 
 pub mod history;
 pub mod drug;

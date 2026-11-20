@@ -3991,6 +3991,134 @@ pub unsafe extern "C" fn hook_lamps_on_light_remove(a0: Option<raw::ObjectLight>
 
 // ---- lamps (patch 81) ----
 
+/// engine_ambient_light_insert (0x290930), as the vtable hook at 0xa0ac6c wraps it.
+pub struct OrigAmbientLightInsert;
+
+impl OrigAmbientLightInsert {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, light: &mut ObjectAmbientLight) {
+        // SAFETY: engine_ambient_light_insert at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_ambient_light_insert(Some(light.raw())) }
+    }
+}
+
+/// The entry `lamps_on_ambient_light_insert` (0xa0ac6c, object_ambient_light insert slot 8) calls this with
+/// engine_ambient_light_insert's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_ambient_light_insert`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_ambient_light_insert(a0: Option<raw::ObjectAmbientLight>) -> u32 {
+    // SAFETY: only the entry `lamps_on_ambient_light_insert` calls this, from the game's call at
+    // 0xa0ac6c, on the game's thread; a0.. are engine_ambient_light_insert's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut light) = (unsafe { ObjectAmbientLight::from_raw(&thread, a0) }) else {
+        // a null ObjectAmbientLight never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_ambient_light_insert(a0) }; 0 };
+    };
+    let orig = OrigAmbientLightInsert;
+    { crate::lamps::on_ambient_light_insert(&orig, &mut light); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
+/// engine_ambient_light_remove (0x290ae0), as the vtable hook at 0xa0ac70 wraps it.
+pub struct OrigAmbientLightRemove;
+
+impl OrigAmbientLightRemove {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, light: &mut ObjectAmbientLight) {
+        // SAFETY: engine_ambient_light_remove at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_ambient_light_remove(Some(light.raw())) }
+    }
+}
+
+/// The entry `lamps_on_ambient_light_remove` (0xa0ac70, object_ambient_light remove slot 9) calls this with
+/// engine_ambient_light_remove's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_ambient_light_remove`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_ambient_light_remove(a0: Option<raw::ObjectAmbientLight>) -> u32 {
+    // SAFETY: only the entry `lamps_on_ambient_light_remove` calls this, from the game's call at
+    // 0xa0ac70, on the game's thread; a0.. are engine_ambient_light_remove's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut light) = (unsafe { ObjectAmbientLight::from_raw(&thread, a0) }) else {
+        // a null ObjectAmbientLight never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_ambient_light_remove(a0) }; 0 };
+    };
+    let orig = OrigAmbientLightRemove;
+    { crate::lamps::on_ambient_light_remove(&orig, &mut light); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
+/// engine_particle_insert (0x292cc0), as the vtable hook at 0xa0afcc wraps it.
+pub struct OrigParticleInsert;
+
+impl OrigParticleInsert {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, particle: &mut ObjectParticleVisual) {
+        // SAFETY: engine_particle_insert at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_particle_insert(Some(particle.raw())) }
+    }
+}
+
+/// The entry `lamps_on_particle_insert` (0xa0afcc, object_particle_visual insert slot 8) calls this with
+/// engine_particle_insert's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_particle_insert`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_particle_insert(a0: Option<raw::ObjectParticleVisual>) -> u32 {
+    // SAFETY: only the entry `lamps_on_particle_insert` calls this, from the game's call at
+    // 0xa0afcc, on the game's thread; a0.. are engine_particle_insert's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut particle) = (unsafe { ObjectParticleVisual::from_raw(&thread, a0) }) else {
+        // a null ObjectParticleVisual never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_particle_insert(a0) }; 0 };
+    };
+    let orig = OrigParticleInsert;
+    { crate::lamps::on_particle_insert(&orig, &mut particle); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
+/// engine_particle_remove (0x292dc0), as the vtable hook at 0xa0afd0 wraps it.
+pub struct OrigParticleRemove;
+
+impl OrigParticleRemove {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, particle: &mut ObjectParticleVisual) {
+        // SAFETY: engine_particle_remove at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_particle_remove(Some(particle.raw())) }
+    }
+}
+
+/// The entry `lamps_on_particle_remove` (0xa0afd0, object_particle_visual remove slot 9) calls this with
+/// engine_particle_remove's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_particle_remove`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_particle_remove(a0: Option<raw::ObjectParticleVisual>) -> u32 {
+    // SAFETY: only the entry `lamps_on_particle_remove` calls this, from the game's call at
+    // 0xa0afd0, on the game's thread; a0.. are engine_particle_remove's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut particle) = (unsafe { ObjectParticleVisual::from_raw(&thread, a0) }) else {
+        // a null ObjectParticleVisual never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_particle_remove(a0) }; 0 };
+    };
+    let orig = OrigParticleRemove;
+    { crate::lamps::on_particle_remove(&orig, &mut particle); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
 /// The named exits of lamps::on_decal_enter (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]
@@ -6854,4 +6982,16 @@ unsafe extern "C" { static lamps_light_vtable: [u32; 11]; }
 pub fn lamps_light_vtable_handle() -> super::project::NativeVtable<raw::ObjectLightMethods> {
     // SAFETY: the generated immutable table lives for the executable's lifetime.
     unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_light_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static lamps_ambient_light_vtable: [u32; 11]; }
+pub fn lamps_ambient_light_vtable_handle() -> super::project::NativeVtable<raw::ObjectAmbientLightMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_ambient_light_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static lamps_particle_vtable: [u32; 11]; }
+pub fn lamps_particle_vtable_handle() -> super::project::NativeVtable<raw::ObjectParticleVisualMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_particle_vtable).cast::<u32>().add(1) as usize as u32) }
 }

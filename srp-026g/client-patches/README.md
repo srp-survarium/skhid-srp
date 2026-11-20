@@ -4108,7 +4108,7 @@ executes the original and redirected callbacks for every game language.
 ## Breakable lamps (patch 81)
 
 Shooting a configured lamp replaces its model, removes linked lights and
-cones, and queues glass shards and sound once. State survives rollback,
+cones (a lit alarm lamp's red ambient light and a kerosene lamp's flame too), and queues glass shards and sound once. State survives rollback,
 late joins and replay snapshots; a new match restores the lamps. The content
 covers 92 variants, including the v0.11/v0.21 imports. Legacy Vostok cones
 are bound to their fixtures and aligned to their emitters.
