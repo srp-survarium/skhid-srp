@@ -768,36 +768,25 @@ pub(crate) fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (V
 /// ```
 pub(crate) fn real_bot_cost() {
     use std::time::Instant;
-    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
     // The game data the run is on. `SRP_GAME_DATA` is the server's own file,
     // read as srp reads it (`game_data::init`, with every table check), before
-    // any table is used: a file that fails refuses the run, and the bench never
-    // falls back to the built-in archive without saying so. The built-in
-    // archive is the stock game with test patches 14-16, not the live game's
-    // items, weapons and modes (`resources/game-026g/README.md`).
-    let live_data = match bench_settings().var_os("SRP_GAME_DATA") {
-        Some(path) if !path.is_empty() => {
-            let data = survarium::v026g::game_data::init().unwrap_or_else(|cause| {
-                panic!("SRP_GAME_DATA {path:?}: {cause}: the bench does not run on other data")
-            });
-            eprintln!(
-                "game data: {} ({} files; made of {})",
-                data.origin,
-                data.len(),
-                data.made_of()
-            );
-            true
-        }
-        _ => {
-            eprintln!(
-                "game data: THE BUILT-IN TEST ARCHIVE, not the live game's (the stock 0.26g with test \
-                 patches 14-16); set SRP_GAME_DATA to the server's file. Respawn times stay the stand-in's constants."
-            );
-            false
-        }
+    // any table is used: unset, or a file that fails, refuses the run
+    // (`real_maps::game_data`). The built-in archive is the stock game with
+    // test patches 14-16, not the live game's items, weapons and modes
+    // (`resources/game-026g/README.md`), and builds other grids.
+    let live_data = {
+        let data = super::real_maps::game_data();
+        eprintln!(
+            "game data: {} ({} files; made of {})",
+            data.origin,
+            data.len(),
+            data.made_of()
+        );
+        true
     };
     super::standin::start_bench_run();
     if let Some(refusal) = one_sided_refusal(bench_settings()) {
@@ -2718,6 +2707,8 @@ pub(crate) fn real_bot_cost() {
             eprintln!("burst rays so far: held ticks view ray {}, aim ray {}", held[0], held[1]);
             // [loops] Waits at a route jump's press point that spent a try.
             eprintln!("press waits so far: tries spent {}", crate::v026g::bots::motor::press_waits::count());
+            // [drop give-ups] Ticks the lip guard left to the route's own walk-off.
+            eprintln!("walk-off guard so far: ticks left to the route's walk-off {}", crate::v026g::bots::drive::walk_off_guards::count());
             // [A416] The view schedule.
             let view = crate::v026g::bots::view_schedule::counts::counts();
             eprintln!("view schedule so far: glances begun {}, cut at their most {}, look ticks held on the course {}", view[0], view[1], view[2]);

@@ -1,7 +1,6 @@
 //! [bench speed] The digests of every map's grid as the server builds it: the proof that a change to the grid's build (a faster
 //! schedule, a shortcut) gives bit-identical grids, run on the code before and after it.
 
-use std::path::PathBuf;
 use std::time::Instant;
 
 use mapdata::{MapData, WalkGrid};
@@ -14,7 +13,7 @@ use crate::v026g::bots::tuning::Tuning;
 #[test]
 #[ignore = "real maps; minutes a map"]
 fn map_grid_digests() {
-    let dir = PathBuf::from(std::env::var("SRP_MAPDATA_DIR").expect("SRP_MAPDATA_DIR"));
+    let dir = super::real_maps::dir().expect("SRP_MAPDATA_DIR");
     let projects: Vec<String> = match std::env::var("SRP_GRID_PROJECTS") {
         Ok(list) => list
             .split(',')

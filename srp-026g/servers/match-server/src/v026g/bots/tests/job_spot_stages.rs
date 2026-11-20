@@ -147,11 +147,10 @@ fn pin_query(t: &Tuning, him: Vec3, reach_m: f32, side: Option<i32>) -> SpotQuer
 #[test]
 #[ignore = "a probe; needs SRP_MAPDATA_DIR and SRP_JOB_CENTRES"]
 fn job_spot_stages() {
-    let (Some(dir), Some(file)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var_os("SRP_JOB_CENTRES")) else {
+    let (Some(dir), Some(file)) = (super::real_maps::dir(), std::env::var_os("SRP_JOB_CENTRES")) else {
         eprintln!("skipping: SRP_MAPDATA_DIR and SRP_JOB_CENTRES are needed");
         return;
     };
-    let dir = std::path::PathBuf::from(dir);
     let text = std::fs::read_to_string(file).unwrap();
     // (mode, level) -> (role, centre)
     let mut groups: BTreeMap<(String, String), Vec<(String, Vec3)>> = BTreeMap::new();

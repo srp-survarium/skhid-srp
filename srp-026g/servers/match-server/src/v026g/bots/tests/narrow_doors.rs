@@ -65,7 +65,7 @@ fn joined(grid: &WalkGrid, a: Vec3, b: Vec3) -> bool {
 
 #[test]
 fn narrow_doors_open_the_doorways_the_client_walks_through() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
