@@ -861,7 +861,7 @@ pub struct FlownJump {
 
 /// [A388 step 3] A step of a [`FlownJump`].
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum FlownStep {
+pub(crate) enum FlownStep {
     /// In the air (or before the take-off, on the ground) at these feet.
     Air(Vec3),
     /// The landing step: its feet, whether it is on the ground, the controller after it and its vertical speed (m/s, up).
@@ -873,7 +873,7 @@ impl FlownJump {
     /// level `level`: the client's kind (a sprint jump with forward and sprint held, none of back, fire, crouch or aim, and the
     /// last move at the walk cap or more; else the short jump at that move's speed). None for a press with a side or back key (the
     /// clip's: the flyer has the forward clips only) and without the grid's walker.
-    fn pressed(grid: &WalkGrid, kept: Option<KeptBody>, feet: Vec3, keys: u32, moved: f32, level: f32, clock: kept_clock::Of) -> Option<Self> {
+    pub(crate) fn pressed(grid: &WalkGrid, kept: Option<KeptBody>, feet: Vec3, keys: u32, moved: f32, level: f32, clock: kept_clock::Of) -> Option<Self> {
         use mapdata::controller::jump::{Flight, Flying, Leg, Press, SPRINT_FIRST_AIR_FRAMES, WALK_CAP_MS as CAP};
         let counted = clock == kept_clock::Of::Reckoning;
         if super::jump_arc::Direction::of(keys) != super::jump_arc::Direction::Forward {
@@ -905,7 +905,7 @@ impl FlownJump {
     /// control from the step's own input, its keys `air_keys` in its heading `air_yaw` (one input later than the walk's: rig rule 7,
     /// 1,392 of 1,392 air steps; the exe review of #1938). The controller turns both by the walk's heading, so the air control is
     /// handed over already turned into it. None without the grid's walker.
-    fn step(&mut self, grid: &WalkGrid, yaw: f32, air_keys: u32, air_yaw: f32) -> Option<FlownStep> {
+    pub(crate) fn step(&mut self, grid: &WalkGrid, yaw: f32, air_keys: u32, air_yaw: f32) -> Option<FlownStep> {
         let started = std::time::Instant::now();
         let [fx, fz] = super::kin::forward(yaw);
         let sign = |plus, minus| i8::from(air_keys & plus != 0) - i8::from(air_keys & minus != 0);
