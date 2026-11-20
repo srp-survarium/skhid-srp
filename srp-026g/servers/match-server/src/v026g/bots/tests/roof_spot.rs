@@ -6,7 +6,7 @@
 //! first the start of the match's given-up leg).
 //!
 //! ```text
-//! SRP_MAPDATA_DIR=<dir> [SRP_BENCH_GRID_CACHE=<dir>] cargo test -p match-server --release roof_spot -- --ignored --nocapture
+//! SRP_MAPDATA_DIR=<dir> SRP_GAME_DATA=<server-game-data.db> [SRP_BENCH_GRID_CACHE=<dir>] cargo test -p match-server --release roof_spot -- --ignored --nocapture
 //! ```
 
 use super::*;
@@ -27,6 +27,17 @@ const STARTS: [Vec3; 3] = [Vec3::new(37.13, 21.23, 112.92), Vec3::new(36.95, 21.
 const MARGIN_S: f32 = 10.0;
 /// How near the goal across, and in height, the feet count as there, m.
 const THERE_M: (f32, f32) = (1.2, 0.3);
+/// The server's game data, loaded once from `SRP_GAME_DATA` (required: the grid body's fastest walk cap comes from the bots'
+/// kits in it, so a grid built without it is not the server's).
+fn game_data() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        assert!(bench_settings().var_os("SRP_GAME_DATA").is_some_and(|p| !p.is_empty()), "set SRP_GAME_DATA to the server's file");
+        let data = survarium::v026g::game_data::init().unwrap_or_else(|cause| panic!("SRP_GAME_DATA: {cause}"));
+        eprintln!("game data: {}", data.origin);
+    });
+}
+
 /// Under this height the body is off the roof (the roof's floors are 21.2-22.9 m; the ground beside 20.6 m and lower).
 const OFF_ROOF_Y: f32 = 21.0;
 
@@ -99,6 +110,7 @@ fn a_bot_on_schools_east_roof_goes_west_over_the_beam_not_under_it() {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
+    game_data();
     let t = Tuning::default();
     let bytes = std::fs::read(dir.join(mapdata::format::file_name(PROJECT))).unwrap();
     let map_file = {
