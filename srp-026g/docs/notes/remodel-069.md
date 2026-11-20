@@ -1,74 +1,74 @@
-# Every live gun on 0.69d0's model (pack remodel-069)
+# Every gun on 0.69d0's model, in two bodies (pack weapon-modules)
 
 The owner, 2026-11-07: "let's start with all 0.69 guns and let's properly port them. We will need this
-any way for other attachments later on." Every live gun item whose gun 0.69d0 has (96 of them; all but
-the event MP7 and the six of pack weapons-069, which are 0.69d0's already) is drawn with 0.69d0's own
-model of it. The item keeps everything else: its stats, states, clips, sounds and icons.
+any way for other attachments later on." Every live gun item whose gun 0.69d0 has (102 of them; all but
+the event MP7) is drawn with 0.69d0's own model of it. The item keeps everything else: its stats,
+states, clips, sounds and icons. Since 2026-11-20 this is the foundation of the weapon attachments
+(`attachments.md`): each gun has two bodies, and 0.69d0's modules go on them by the modules table.
+Built 2026-11-20 (pack weapon-modules@1); not played.
 
 ## How
 
 - `scripts/remodel-069/sidecar.py` writes the list from 0.69d0's `gameplay/game.options` and the
-  players' files: `remodel-069d.json` (resource-porter's remodel sidecar) and `items.tsv` (each live
-  item, its config and model, its 0.69d0 item and its remodel). A live item takes the 0.69d0 item of
-  its name: 0.69d0 has the premium items too, so a premium takes 0.69d0's premium model (the AKMN
-  Premium's `akmn_camo`).
-- `scripts/remodel-069/make_pack.sh` builds the pack with resource-porter's `remodel-weapons-069d`
-  (`docs/weapons-069d-026.md` there): each gun's 0.69d0 model at `weapons/remodel_069/<item>/<item>`,
-  its structural modules baked (receiver parts, stocks, grips, magazines, iron sights, handguards), on
-  the live gun's rig (its skeleton, bind pose and hand points: the live clips play on it; a bone named
-  otherwise is mapped, the VSS's spare magazine; a bone only 0.69d0 has rides on the body).
-- `content-edit/remodel-069-1.json` sets each config's `object/model` to its remodel.
+  players' files: `remodel-069d.json` (resource-porter's sidecar) and `items.tsv` (each live item, its
+  config and model, its 0.69d0 item and its remodel). A live item takes the 0.69d0 item of its name:
+  0.69d0 has the premium items too. The six guns of pack weapons-069, 0.69d0's models already, are
+  remodelled all the same, for their bare bodies.
+- `scripts/weapon-modules/make_pack.sh` builds the pack with resource-porter's `port-modules` (its
+  `docs/modules-069d-026.md`): the bodies at `weapons/remodel_069/<item>/<item>` (whole) and
+  `<item>_bare`, the modules at `weapons/modules_069/...`, the table at `gameplay/weapon_modules.srpm`.
+- `scripts/weapon-modules/edits.py` writes the edit lists: `remodel-069-1.json` (each config's
+  `object/model` is its whole body) and `weapon-modules-1.json` (`data/srp_gun`, its record of the table).
+- `scripts/weapon-modules/ids.tsv` (ids.py, append-only): the dict id of every module a player fits.
+- `scripts/weapon-modules/review.py` makes the review pages of a build (`private/renders/attachments`).
 
 ## Rules
 
-- The gun's own default muzzle device (or bipod) is baked, as a surface of its own named after its
-  module (`<module>_<surface>`): the gun looks as it does today, and a later attachment leaves that
-  surface out by name. Default optics and every extra 0.69d0's premium items bundle (optics, lasers,
-  other brakes) are not baked: the scopes and the kit attach them.
-- 0.26g's contract locators (`aim`, `scope_point`, `barrel_point`, `handguard_point`, the hands) are
-  the live model's: every scope item and variant, the muzzle flash and the kit's devices sit where they
-  sit today, the aim with its config's `aim_offset` too (0.69d0's aim is the eye for 0.69d0's pose and
-  has no `aim_offset`). Every 0.69d0 slot locator is in the model beside them: its rails, muzzle and
-  grip points at 0.69d0's names, for the attachments made later.
-- Most of 0.69d0's guns lie on the live model's mesh to the millimetre (`remodel-069/fit.py`); six it
-  placed otherwise on the same rig are shifted onto it (sidecar.py's `OFFSET`: the MP-153 2.2 cm
-  higher, the Benelli M4, SPAS-12, TOZ-34, 9A-91 and Uzi), so the live hands, sights and points fit.
-  The Uzi's 0.69d0 rear sight stands taller than ours: its aim is on 0.69d0's own sight line
-  (`AIM_069`). The iron sights were compared in aim renders, live and remodel, for all 96.
-- Under an optic a gun is drawn as 0.69d0 draws it under one (0.69d0's `_scope` and `_collimator`
-  modules all do the same): each sight in a slot they swap at its `model_param1`, folded (the M4A1's
-  front sight becomes its gas block, the Vepr's leaf lies down), and no module in a slot they take (the
-  M4A1's, L85A2's and Fort-401's rear sights make way). A gun that carries an optic by default (its
-  config's rifle scope: the HK416, MSBS, Kriss Vector, P90 and the sniper rifles) is so itself
-  (`optic`); a gun with sights that change has a second model so, `<item>_optic` (`optic_model_path`:
-  the M4A1, L85A2, Fort-401, SCAR-H, SVU-A, Vepr, Vepr Premium and VHS-2), which its scope variants draw.
+- **Two bodies.** `whole`: the gun with every own part it shows, its default muzzle device, bipod or
+  foregrip too; drawn when nothing is fitted. `bare`: the same without the own parts a fit can displace
+  (0.69d0's own rules decide which: a fit or its carrier goes in the part's slot, closes it or folds
+  it); the same skeleton, bind pose and locators. 95 own parts of the 102 guns are such.
+- **On the live rig**: the live model's skeleton, bind pose and hand points, so the live clips play. A
+  bone named otherwise is mapped (the VSS's spare magazine); a bone only 0.69d0 has rides on the body.
+- **0.26g's contract locators** (`aim`, `scope_point`, `barrel_point`, `handguard_point`, the hands) are
+  the live model's in both bodies: the sights, the flash and a default optic are where they are today.
+  Every 0.69d0 slot locator is in the model beside them.
+- **The shift is measured.** 0.69d0 placed most guns on their rig as 0.26g did and a few otherwise. The
+  build lays each remodel on its live mesh by a trimmed nearest-point fit and applies the shift when it
+  is 1 mm or more; nothing is typed. Measured 2026-11-20 (mm; the median gap before and after):
+  9A-91 (8.8, -20.7, -0.4; 11.0 to 1.9), Benelli M4 (0, -24.3, -21.3; 17.5 to 0.1), MP-153 (0, -22.2,
+  -1.2; 15.2 to 0.1), SPAS-12 (0, -20.3, -4.4; 15.0 to 8.4: another shape), TOZ-34 (0, -2.1, -0.8; 2.3
+  to 0.1), Uzi and its two premiums (0, -17.6, -18.4; 11.3 to 4.1: its sights). Every other gun: none.
+- **A bone the live rig binds otherwise** than 0.69d0: its locators take 0.69d0's place with the shift,
+  as the mesh around them, unless the gun's own parts on that bone lie closer on the live mesh at the
+  live bind frame (the AK family's magazine bone, bound 15 cm from the well in 0.69d0; the L85A2's).
+- **Under a default optic** (the live config's rifle scope: the HK416, MSBS, Kriss Vector, P90, the
+  sniper rifles) the whole body has its sights folded and no part in a slot an optic takes, as 0.69d0
+  draws a gun under one; the game draws that optic itself. The second `_optic` bodies and the scope
+  variants' copies of 2026-11-07 are gone: a fitted scope is the table's.
+- **A suppressor the live gun has built in** is the gun's own part when 0.69d0's linked suppressor lies
+  on the live mesh (median gap 1.5 mm or less): the VSK-94 and its premium. Never an item.
+- The Uzi's 0.69d0 rear sight stands taller than ours: its aim is on 0.69d0's own sight line
+  (`AIM_069`, still a typed set in sidecar.py).
 - A 0.69d0 material or texture at a path the players have with other bytes gets a `_069` name; the same
-  bytes (an earlier port's: the AKMSU's magazine) are not shipped again.
-- 0.69d0's models as they are (`donor-models-are-reference`): where 0.69d0's default gun differs from
-  ours, ours changes. Seen in the renders: the 9A-91 without its suppressor (0.69d0's has none by
-  default), the SR-3M without its vertical foregrip and with 0.69d0's magazine, the SOC Vepr's dark
-  stock, the premiums' 0.69d0 camouflages.
+  bytes (an earlier port's) are not shipped again.
 
-- Camouflage: pack remodel-069-camo, an `_aoac` mask for each of the remodels' diffuse textures but
-  those an earlier port has masked (203; `remodel-069/camo.tsv`, `../weapons-069/camo_rows.py` from the bundle): 0.69d0's guns have no
-  premium twin to compare, so every large part is painted (as most of our premiums were repainted as a
-  whole); `parts.tsv` leaves the cartridges and the MP7's glowing sight dots plain.
+## What changes to the eye
 
-- Scope variants: a live variant that sets its weapon's model to a copy of the gun's (its eye on the
-  optic) draws a copy of the remodel instead, with the locators the copy set otherwise (100 copies,
-  pack remodel-069-variants, `remodel-069/variants.py`, `variants.tsv`; edit list
-  `remodel-069-variants-1.json`). One for a gun and its premium draws the first gun's remodel on both,
-  as it draws the first gun's copy today. A variant that keeps its gun's model draws the remodel, or
-  the folded one where the gun has it (a modifier added). The variants of the M4A1 and Vepr were
-  compared in aim renders: the dots and reticles sit where they do today, and no sight stands in the
-  optic.
+`private/renders/attachments/look.html` shows every gun as it is today beside its remodel, the most
+changed first, with what each has that the other lacks. 0.69d0's models as they are
+(`donor-models-are-reference`): where 0.69d0's default gun differs from ours, ours changes. Seen:
+the 9A-91 without its suppressor (0.69d0's has none by default, and its VSK-94 suppressor is not the
+live one's shape); the SR-3M without its vertical foregrip (now a grip a player fits) and with 0.69d0's
+magazine; the SPAS-12 and the Uzi in another shape; the AK-74M's bakelite pistol grip; the SOC Vepr's
+dark stock; the premiums in 0.69d0's camouflages.
 
 ## Not yet
 
-- A scope variant's optic still sits where it does today, on the live optic's own mount, not on a
-  0.69d0 mount and rail.
-- The packs of the unmerged scope PRs (rifle-scopes, scope-fits) are made on the live models: once
-  they are in, their variants are made again on the remodels.
-- The kit's muzzle devices (`weapon-attachments-1`) sit at the live `barrel_point`, as today; leaving
-  the baked default device out under a kit device (its surface is named for that) is not done.
-- The pack is 1.4 GB (0.69d0's textures, 2048 pixels for most guns).
+- Camouflage masks (`_aoac`) of the remodels' textures: `remodel-069/camo.tsv` and `parts.tsv` are those
+  of 2026-11-07 (96 guns) and no mask pack is built for this pack. To make again by the rule of
+  `fix/weapon-camo-coverage` once it is merged (`references.py --write`, `--v069`). Parts drawn
+  separately stay plain under a camouflage (the owner's decision for now).
+- Device items, their texts, icons, prices and shot effects; the scope items' models on the new origin.
+- `release/build-content` was not run with the pack and its edit lists.
+- 1.7 GB.
