@@ -164,6 +164,8 @@ const MIGRATIONS: &[&str] = &[
     history::MIGRATION,
     // 19: the face an account chose (`faces`).
     faces::MIGRATION,
+    // 20: what a player did with each weapon (`history`).
+    history::WEAPONS_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.

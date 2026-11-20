@@ -1,7 +1,8 @@
 // The stats page (servers/web-server/src/history.rs): public matches from the
 // match history's JSON (/api/history/..., docs/notes/match_history.md), asked
-// for as the page is viewed. The address says what it shows: ?player=<name>,
-// ?match=<number>, ?clan=<tag>, else the leaderboards (?board=, ?by=).
+// for as the page is viewed. The address says what it shows: ?player=<name>
+// (its matches, or with ?tab=weapons its weapons), ?match=<number>,
+// ?clan=<tag>, else the leaderboards (?board=, ?by=).
 // Each view is drawn once empty, in its final shape, then with its data, so
 // nothing moves while it loads; long lists grow by "Older matches".
 (() => {
@@ -31,6 +32,7 @@
   const hours = new Intl.NumberFormat(written, {minimumFractionDigits: 1, maximumFractionDigits: 1});
   // Accuracy in whole percents: shots count pellets and kits, not aimed bullets.
   const whole = new Intl.NumberFormat(written, {style: 'percent', maximumFractionDigits: 0});
+  const metres = new Intl.NumberFormat(written, {style: 'unit', unit: 'meter', maximumFractionDigits: 0});
   const dates = new Intl.DateTimeFormat(written, {dateStyle: 'medium', timeStyle: 'short'});
   const day = new Intl.DateTimeFormat(written, {dateStyle: 'medium'});
   const dayThisYear = new Intl.DateTimeFormat(written, {month: 'short', day: 'numeric'});
@@ -205,6 +207,10 @@
   // A player's most used weapons and armour (player/equipment), FAVOURITES
   // rows each, empty ones too, so its height is the same loading or not.
   const FAVOURITES = 5;
+  // An item's place in the wiki: a weapon's card, an armour piece's; none
+  // for one the game data no longer has.
+  const wiki = (page, anchor) => item => item.key ? `/wiki/${page}?${new URLSearchParams({lang})}#${anchor}${item.key}` : null;
+  const wikiWeapon = wiki('weapons', 'wpn_');
   // An item's icon as the lobby draws it, beside its name (a link with
   // `href`); an empty frame of its size while loading, in an empty row,
   // and for an item without one.
@@ -213,9 +219,6 @@
       : el('span', {className: 'stats-item'}),
     item ? (href ? el('a', {href}, name(item.name)) : name(item.name)) : BLANK);
   function favourites(data) {
-    // An item's place in the wiki: a weapon's card, an armour piece's; none
-    // for one the game data no longer has.
-    const wiki = (page, anchor) => item => item.key ? `/wiki/${page}?${new URLSearchParams({lang})}#${anchor}${item.key}` : null;
     const list = (label, items, where) => {
       const box = table([[label, item => itemCell(item, where(item)), 'l', '', () => itemCell(null)],
         [TEXT.matches, item => n(item.matches)]], items, FAVOURITES, '', where);
@@ -223,7 +226,46 @@
       return box;
     };
     return [el('h2', {className: 'stats-heading'}, TEXT.favourites),
-      el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons, wiki('weapons', 'wpn_')), list(TEXT.armour, data && data.armour, wiki('equipment', '')))];
+      el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons, wikiWeapon), list(TEXT.armour, data && data.armour, wiki('equipment', '')))];
+  }
+  // A player's weapons (player/weapons): what its games counted of each in
+  // its counted matches, sorted by the column whose heading was clicked
+  // (`?by=`; most kills first at first); K/D by the deaths with it in the
+  // hands. WEAPONS empty rows while loading, and without an `id` yet; a
+  // list sorted anew stays until the new one is here.
+  const WEAPONS = 5;
+  const WEAPON_KEYS = ['kills', 'kd', 'headshot_rate', 'accuracy', 'kill_distance', 'wall_kills', 'ricochet_kills', 'held'];
+  function weaponList(id) {
+    const columns = [[TEXT.weapon, item => itemCell(item, wikiWeapon(item)), 'l', '', () => itemCell(null)],
+      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd), '', 'kd'], [TEXT.headshotRate, headshotRate, '', 'headshot_rate'],
+      [TEXT.accuracy, aim, '', 'accuracy'],
+      [TEXT.avgDistance, item => item.kill_distance_m === null ? '—' : metres.format(item.kill_distance_m), '', 'kill_distance'],
+      [TEXT.wallKills, item => n(item.wall_kills), '', 'wall_kills'], [TEXT.ricochetKills, item => n(item.ricochet_kills), '', 'ricochet_kills'],
+      [TEXT.hours, item => hours.format(item.held_s / 3600), '', 'held']];
+    let by = WEAPON_KEYS.includes(asked('by')) ? asked('by') : WEAPON_KEYS[0], up = asked('order') === 'asc', asking = 0;
+    const box = el('div', {className: 'stats-weapons'});
+    // A second click on the sorted heading: the smallest first, and back.
+    const sort = () => ({up, ask: key => {
+      up = key === by && !up;
+      by = key;
+      const url = new URL(location.href);
+      url.searchParams.set('by', by);
+      if (up) url.searchParams.set('order', 'asc'); else url.searchParams.delete('order');
+      history.replaceState(null, '', url);
+      keepLanguage();
+      load();
+    }});
+    function load() {
+      const mine = ++asking;
+      if (!box.firstChild || id === null) box.replaceChildren(table(columns, null, WEAPONS, by, null, sort()));
+      if (id !== null) api('player/weapons', {id, by, limit: TOP, ...(up ? {order: 'asc'} : {})}).then(data => {
+        if (mine !== asking) return;
+        const rows = data ? data.weapons : [];
+        box.replaceChildren(rows.length ? table(columns, rows, 0, by, wikiWeapon, sort()) : notice(TEXT.noWeapons));
+      }, error => { if (mine === asking) box.replaceChildren(notice(String(error))); });
+    }
+    load();
+    return box;
   }
   const matchLink = row => link({match: row.id}, `${row.id}`);
   // A map's name, leading to it in the wiki's Maps page in the match's mode;
@@ -288,16 +330,38 @@
       [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)], [TEXT.headshotRate, headshotRate],
       [TEXT.rating, row => n(row.rating)]];
-    root.replaceChildren(head(null, null), ...favourites(null), el('h2', {className: 'stats-heading'}, TEXT.matches), table(columns, null));
+    // Its matches or its weapons, as ?tab= says; empty until the player's
+    // id is known.
+    let tab = asked('tab') === 'weapons' ? 'weapons' : 'matches', id = null;
+    const tabs = el('div', {className: 'slot-filter stats-tabs', role: 'group'});
+    const body = el('div');
+    function show() {
+      for (const button of tabs.children) button.setAttribute('aria-pressed', String(button.dataset.tab === tab));
+      const url = new URL(location.href);
+      if (tab === 'weapons') url.searchParams.set('tab', tab);
+      else for (const gone of ['tab', 'by', 'order']) url.searchParams.delete(gone);
+      history.replaceState(null, '', url);
+      keepLanguage();
+      body.replaceChildren(tab === 'weapons' ? weaponList(id) : id === null ? table(columns, null)
+        : paged(columns, before => api('player/matches', {id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
+    }
+    for (const [value, label] of [['matches', TEXT.matches], ['weapons', TEXT.weapons]]) {
+      const button = el('button', {type: 'button'}, label);
+      button.dataset.tab = value;
+      button.addEventListener('click', () => { tab = value; show(); });
+      tabs.append(button);
+    }
+    root.replaceChildren(head(null, null), ...favourites(null), tabs, body);
+    show();
     // A player without a public match is not found, as an unknown name.
     const card = await api('player', {name});
     if (!card) return root.replaceChildren(notice(say(TEXT.noPlayer, name)), finder());
     heading(card.player.name, TEXT.player, TEXT.player);
     const [days, equipment] = await Promise.all([api('player/days', {id: card.player.id, days: 30}).catch(() => null),
       api('player/equipment', {id: card.player.id, limit: FAVOURITES}).catch(() => null)]);
-    root.replaceChildren(head(card, days ? days.days : []), ...favourites(equipment || {weapons: [], armour: []}),
-      el('h2', {className: 'stats-heading'}, TEXT.matches),
-      paged(columns, before => api('player/matches', {id: card.player.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
+    id = card.player.id;
+    root.replaceChildren(head(card, days ? days.days : []), ...favourites(equipment || {weapons: [], armour: []}), tabs, body);
+    show();
   }
 
   // A match's replay (replay): one Download. Pressed, the replay is asked
@@ -524,8 +588,8 @@
   // Each of the header's languages keeps what is shown.
   function keepLanguage() {
     for (const language of document.querySelectorAll('.lang a')) {
-      const other = new URL(language.href);
-      for (const [name, value] of new URLSearchParams(location.search)) if (name !== 'lang') other.searchParams.set(name, value);
+      const other = new URL(location.href);
+      other.searchParams.set('lang', new URL(language.href).searchParams.get('lang'));
       language.href = other;
     }
   }
