@@ -26,8 +26,14 @@ pub(super) const STRAFE_CLEAR_M: f32 = 1.5;
 
 /// [S6] What the body takes of the grid's links: a carrier's body, which the client gives no sprint (A331), takes a sprint
 /// link only by its walking press and no jump link above its standing jump (`motor.carrier_jump_m`).
+///
+/// [refusal reach] So does a body while a sprint link's refusal lasts ([A386] `Stuck::refused_jump`, `ShutKind::Refused`):
+/// the client gives it no sprint now, so the route planned again from the refused take-off keeps off every link that needs
+/// one, not the refused landing alone. School's up gap (19.70, 16.08, 64.47): with the sprint reach the plan went on to the
+/// plain 1.25 m jump 2 m aside, which needs the sprint as well, and the body stood at it 6-8 s before it walked round.
 fn body_reach(bot: &Bot, me: &PlaceView, time: u32) -> mapdata::Reach {
-    let sprint = if me.carrying.is_some() {
+    let refused = bot.stuck.shut_landings(time).any(|shut| shut.kind == super::stuck::ShutKind::Refused);
+    let sprint = if me.carrying.is_some() || refused {
         mapdata::SprintReach::Cannot { max_rise: bot.motor.feel.carrier_jump_m.map(f32::from) }
     } else {
         mapdata::SprintReach::Can
