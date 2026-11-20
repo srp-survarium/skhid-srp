@@ -134,6 +134,7 @@ mod trap_release;
 mod traps;
 mod unclear_aim;
 pub(crate) mod upper;
+mod walk_face_spots;
 mod walkway;
 mod weapon_class;
 mod weapon_data;
