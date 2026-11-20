@@ -1305,7 +1305,8 @@ pub(crate) fn honest_jump_in(
     for k in 1..=80 {
         let (mut ticks, mut held) = (0, 0);
         let wall = wall.map(|sections| JumpWall { sections, hold: true, ticks: &mut ticks, held: &mut held });
-        let landing = fly(grid, walls, wall, &mut body, 0, start + k * TICK_MS, body.yaw);
+        let heading = body.yaw;
+        let landing = fly(grid, walls, wall, &mut body, 0, start + k * TICK_MS, heading);
         top = top.max(body.feet.y - base);
         if let Some(landing) = landing {
             assert_eq!(landing.to, body.feet);
@@ -1618,7 +1619,8 @@ fn a_walk_off_falls_on_at_its_walk_speed() {
             speed: 0.0,
             flown: None,
         });
-        (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS, body.yaw)).map(|landing| landing.to)
+        let heading = body.yaw;
+        (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS, heading)).map(|landing| landing.to)
     };
     let carried = fall([-3.5, 0.0]).expect("it comes down");
     assert!((carried.y - 0.9).abs() < 0.05 && carried.x < 8.6, "kept its walk: on the walkway: {carried:?}");
