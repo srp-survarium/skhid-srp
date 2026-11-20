@@ -87,6 +87,14 @@ found every London day file unchanged against the manifest, so it is the manifes
 Six new maps raise the pinned `maps_dict` counts of five edit lists by six; a PR adding maps after
 this one renumbers again.
 
+Material sets the weathers use. 0.31a2's evening places six vine bushes (`flora/vine/bush_*`) with
+their second material set (visual name `[1]`, dried leaves). 0.26g ships those models without that
+set, so they drew with no material, as plain grey sheets (the owner, 2026-11-19; the log says
+"Incompatible model settings ... material not found"). Of every set London's projects use, only
+these were missing: `london-vines-1.json` gives the six models 0.31a2's `material_settings_1`, and its
+material `flora/vine_leaves_v2_desiccated` as 0.26g's `flora/vine_leaves_v2` with 0.31a2's diffuse
+`flora/vine_leaves_v2_new`, the texture pack `london-vines@1` adds. Their first set is unchanged.
+
 ## The probes (pack london-probes)
 
 London has ten box probes `environment_and_lights/probes/reflection_window(…)` along its window
