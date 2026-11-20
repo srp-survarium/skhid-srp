@@ -78,6 +78,7 @@ struct lobby_client;
 struct lobby_menu;
 struct log_function;
 struct log_helper;
+struct managed_resource;
 struct match_options;
 struct match_options_holder;
 struct match_packet;
@@ -95,6 +96,7 @@ struct object_light;
 struct object_particle_visual;
 struct panning_lut;
 struct particle_slot;
+struct pinned_resource;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
@@ -968,5 +970,11 @@ void __attribute__((stdcall)) engine_set_texture(struct effect_compiler *compile
 
 /* 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly */
 void __attribute__((stdcall)) engine_fingers_set_weapon_model(struct fingers_corrector *corrector, unsigned int instance, unsigned int first_view);
+
+/* 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4 */
+void engine_pin_resource(struct pinned_resource *pinned, struct managed_resource *resource);
+
+/* 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0 */
+void engine_unpin_resource(struct pinned_resource *pinned);
 
 #endif

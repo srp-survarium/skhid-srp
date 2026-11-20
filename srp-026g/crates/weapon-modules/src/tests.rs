@@ -188,6 +188,7 @@ fn gun(dict: u16, slots: &[(SlotId, u8)]) -> GunSource {
         dict,
         bones: 4,
         aim_bone: 0,
+        bare: std::format!("weapons/gun_{dict}/bare"),
         slots: slots.iter().map(|(slot, n)| (*slot, OFFSET_BONE, locator(*n))).collect(),
         pose: pose(),
         ..GunSource::default()
@@ -520,7 +521,7 @@ fn the_slot_ids_are_their_numbers() {
 }
 
 fn sample() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v1.srpm")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v2.srpm")
 }
 
 /// The format, pinned: the checked-in table is what these cases encode to,
@@ -533,7 +534,7 @@ fn the_checked_in_table_is_the_format() {
         std::fs::write(sample(), &bytes).unwrap();
     }
     let kept = std::fs::read(sample()).unwrap();
-    assert!(kept == bytes, "tests/sample-v1.srpm is not what the cases encode to");
+    assert!(kept == bytes, "tests/sample-v2.srpm is not what the cases encode to");
     let table = Table::parse(&kept).unwrap();
     let ak = table.gun(DictId::new(AK_74M).unwrap()).unwrap();
     assert_eq!((ak.bones(), ak.aim_bone(), ak.slots().count(), ak.stock().count(), ak.fits().count()), (4, BoneIndex(0), 3, 2, 4));
@@ -566,8 +567,8 @@ fn no_bytes_panic_the_parse() {
         }
     }
     let mut other = bytes.clone();
-    other[4] = 2;
-    assert_eq!(Table::parse(&other).err(), Some(Malformed::Version(2)));
+    other[4] = 3;
+    assert_eq!(Table::parse(&other).err(), Some(Malformed::Version(3)));
     assert_eq!(Table::parse(b"SRPX").err(), Some(Malformed::Magic));
 }
 

@@ -929,3 +929,9 @@ extern engine_set_texture
 ; 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_fingers_set_weapon_model
+; void engine_pin_resource(struct pinned_resource *pinned, struct managed_resource *resource)
+; 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4
+extern engine_pin_resource
+; void engine_unpin_resource(struct pinned_resource *pinned)
+; 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0
+extern engine_unpin_resource

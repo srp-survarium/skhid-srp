@@ -5,6 +5,9 @@
 //! it as data it fills once from the weapon's model, and here that data is
 //! written again after the game filled it:
 //!
+//! - `on_dictionary_requests`, `on_dictionary_configs` (the items
+//!   dictionary cook's query and its callback): the modules table is asked
+//!   for with the dictionary's configs and kept, before any weapon is made;
 //! - `on_ready`, `on_loaded` (the cook's callback, its entry and after
 //!   load_weapon): the scope's frame and the eye, two locator records, and
 //!   the left hand's fingers; the weapon is remembered;
@@ -62,6 +65,19 @@ fn fingers(weapon: &mut Records<'_>, hand: &Hand) {
         let own = weapon.left_fingers(set);
         weapon.set_left_fingers(set, &hand.fingers(FINGER_JOINTS, &own));
     }
+}
+
+/// items_dictionary_cook::translate_query before its query (0x2C8963).
+pub fn on_dictionary_requests(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if attachments::ask(ctx) { Flow::Skip } else { Flow::Continue }
+}
+
+/// items_dictionary_cook::on_configs_loaded's entry (0x2C8AA0).
+pub fn on_dictionary_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Err(why) = attachments::arrived(ctx) {
+        attachments::refused(why);
+    }
+    Flow::Continue
 }
 
 /// on_weapon_subresources_ready's entry (0x24ACF0).

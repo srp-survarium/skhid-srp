@@ -18,20 +18,37 @@
 //! ([`FITTED`]) until the weapon goes (`attachments.release`): the hand and
 //! finger sites come back long after the cook.
 //!
-//! The modules table ([`modules`]) is game data. Nothing loads it yet
-//! ([`install`] has no caller): until then every weapon stays as the game
-//! made it.
+//! The modules table ([`modules`]) is game data, one file of raw bytes
+//! ([`TABLE`]). It comes with the items dictionary's own configs: the
+//! dictionary cook's query asks for it as a sixth request ([`ask`],
+//! `attachments.dictionary_requests`) and its callback takes it before the
+//! dictionary is made ([`arrived`], `attachments.dictionary_configs`). A
+//! weapon's config is named by a dictionary entry, so the table is here
+//! before any weapon is cooked. Without the file (or with one that does not
+//! parse: a line says why) every weapon stays as the game made it.
 
 use core::ffi::CStr;
+use core::sync::atomic::{AtomicU32, Ordering};
 
 use weapon_modules::{Affine, BoneIndex, DictId, FINGERS, Malformed, Placement, Table, Wanted};
 
 use super::config::{ConfigTable, ConfigValue};
 use super::context::{Context, Reg};
+use super::gun_cook::allocator;
 use super::hook::Handle;
+use super::log::{Piece, line};
 use super::world::{floats, read, write_floats};
 use super::{Lock, Thread};
 use crate::raw;
+
+/// The modules table's file in the game data.
+pub const TABLE: &CStr = c"resources/gameplay/weapon_modules.srpm";
+/// resources::raw_data_class: a file's bytes as they are (the game's own
+/// startup.cfg, game::query_base_resources 0x1EC182).
+const RAW_DATA: u32 = 3;
+/// The dictionary cook's own requests (translate_query 0x2C8963).
+const DICTIONARY_CONFIGS: usize = 5;
+const LABEL: &CStr = c"srp weapon modules";
 
 /// The weapons with something fitted at once: the lobby's few, a match's
 /// players' and the pickups' copies.
@@ -80,13 +97,119 @@ pub fn modules(thread: &Thread) -> Option<Table<'static>> {
     MODULES.with(thread, |table| *table)
 }
 
-/// Takes `bytes` for the modules table. They are the game data's file,
-/// kept for the game's life by whoever loaded it.
-#[allow(dead_code)] // the loader's (the cook's request of the table) is not written yet
-pub(in crate::vostok) fn install(thread: &Thread, bytes: &'static [u8]) -> Result<(), Malformed> {
-    let table = Table::parse(bytes)?;
-    MODULES.with(thread, |kept| *kept = Some(table));
+/// The dictionary cook's requests and the table's after them: what
+/// query_resources is handed at `attachments.dictionary_requests` (it copies
+/// them before it returns).
+static REQUESTS: Lock<[raw::ResourceRequestStorage; DICTIONARY_CONFIGS + 1]> =
+    Lock::new([const { raw::ResourceRequestStorage::zeroed() }; DICTIONARY_CONFIGS + 1]);
+
+/// `attachments.dictionary_requests`: the dictionary cook's query asks for
+/// its five configs and the modules table (EAX the requests, ECX their
+/// count, which the site's own two instructions are skipped for). False
+/// when nothing was changed.
+pub fn ask(ctx: &mut Context<'_>) -> bool {
+    // SAFETY: translate_query's five requests by the site's ESP, filled
+    // before it (0x2C88E0..0x2C8942). REQUESTS is read by query_resources
+    // after the lock is let go: every call writes the same twelve words (the
+    // image's five paths and ours), so a second cook's call changes nothing
+    // under the first's query.
+    let at = unsafe {
+        let Some(frame) = raw::site::attachments_dictionary_requests::frame(ctx) else { return false };
+        let own = frame.requests();
+        REQUESTS.with(ctx.thread(), |requests| {
+            for (index, room) in requests.iter_mut().enumerate().take(DICTIONARY_CONFIGS) {
+                let (from, to) = (own.at(index), room.handle());
+                to.set_path(from.path());
+                *to.class() = read(from.class());
+            }
+            let table = requests[DICTIONARY_CONFIGS].handle();
+            table.set_path(TABLE.as_ptr().cast_mut().cast());
+            *table.class() = RAW_DATA;
+            requests[0].handle().address()
+        })
+    };
+    ctx.set_reg(Reg::Eax, at);
+    ctx.set_reg(Reg::Ecx, DICTIONARY_CONFIGS as u32 + 1);
+    true
+}
+
+/// Why the game has no modules table.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoTable {
+    /// The query was not the one [`ask`] changed.
+    NotAsked,
+    /// The game data has no such file.
+    NoFile,
+    Empty,
+    OutOfMemory,
+    Malformed(Malformed),
+}
+
+/// `attachments.dictionary_configs`: the table's bytes, the sixth result of
+/// the dictionary cook's query, copied into memory of the game's allocator
+/// that is never freed, parsed and kept. The first table stays: a dictionary
+/// made again finds the same file.
+pub fn arrived(ctx: &Context<'_>) -> Result<(), NoTable> {
+    if modules(ctx.thread()).is_some() {
+        return Ok(());
+    }
+    // SAFETY: on_configs_loaded's entry: [esp+4] its queries_result, alive
+    // for the callback, with as many results as the query had requests; a
+    // raw data result is a managed resource or 0. The resource is pinned
+    // while its bytes are copied (the game's own way to read one,
+    // 0x1EC3D0): the pinned pointer takes one reference, taken here first,
+    // and gives it back.
+    let bytes: &'static [u8] = unsafe {
+        let results = raw::site::attachments_dictionary_configs::frame(ctx).and_then(|frame| frame.results());
+        let Some(results) = results.filter(|results| read(results.count()) as usize == DICTIONARY_CONFIGS + 1) else {
+            return Err(NoTable::NotAsked);
+        };
+        let Some(resource) = results.loaded().at(DICTIONARY_CONFIGS).managed() else { return Err(NoTable::NoFile) };
+        AtomicU32::from_ptr(resource.references()).fetch_add(1, Ordering::AcqRel);
+        let mut pinned = raw::PinnedResourceStorage::zeroed();
+        let pinned = pinned.handle();
+        raw::engine_pin_resource(Some(pinned), Some(resource));
+        let (from, count) = (pinned.bytes(), read(pinned.count()) as usize);
+        let copy = match (from.is_null() || count == 0, allocator()) {
+            (true, _) => Err(NoTable::Empty),
+            (false, None) => Err(NoTable::OutOfMemory),
+            (false, Some(allocator)) => {
+                let room = raw::engine_malloc(allocator, count as u32, LABEL.as_ptr().cast()).cast::<u8>();
+                if room.is_null() {
+                    Err(NoTable::OutOfMemory)
+                } else {
+                    core::ptr::copy_nonoverlapping(from.cast_const(), room, count);
+                    Ok(core::slice::from_raw_parts(room.cast_const(), count))
+                }
+            }
+        };
+        raw::engine_unpin_resource(Some(pinned));
+        copy?
+    };
+    let table = Table::parse(bytes).map_err(NoTable::Malformed)?;
+    MODULES.with(ctx.thread(), |kept| *kept = Some(table));
+    line(&[Piece::Text("attachments: the modules table, bytes "), Piece::Dec(bytes.len() as u32)]);
     Ok(())
+}
+
+/// A line for a table the game data has and the game cannot use.
+pub fn refused(why: NoTable) {
+    let text = match why {
+        // a game without the content: nothing to say
+        NoTable::NotAsked | NoTable::NoFile => return,
+        NoTable::Empty => "attachments: the modules table is empty",
+        NoTable::OutOfMemory => "attachments: no memory for the modules table",
+        NoTable::Malformed(Malformed::Magic) => "attachments: the modules table is not one",
+        NoTable::Malformed(Malformed::Version(_)) => "attachments: the modules table is of another version",
+        NoTable::Malformed(Malformed::Size) => "attachments: the modules table's sections do not fill it",
+        NoTable::Malformed(Malformed::Gun { gun, .. }) => {
+            return line(&[Piece::Text("attachments: the modules table's gun refused, record "), Piece::Dec(u32::from(gun))]);
+        }
+        NoTable::Malformed(Malformed::Module { module, .. }) => {
+            return line(&[Piece::Text("attachments: the modules table's module refused, record "), Piece::Dec(u32::from(module))]);
+        }
+    };
+    line(&[Piece::Text(text)]);
 }
 
 pub fn remember(thread: &Thread, weapon: WeaponId, kept: Kept) {

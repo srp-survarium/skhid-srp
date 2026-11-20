@@ -1039,6 +1039,36 @@ pub extern "C" fn hook_executable_report_on_loaded(frame: &mut Frame) -> u32 {
 
 // ---- attachments (patch 161) ----
 
+/// The entry `attachments_on_dictionary_requests` (0x2c8963, items_dictionary_cook::translate_query (0x2C88D0) before its query_resources (0x2C896C), the other arguments pushed: mov ecx,5 (the requests' count) / lea eax,[esp+3Ch] (the requests); query_resources copies the requests before it returns) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_dictionary_requests(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_dictionary_requests` calls this, from the game's jump at 0x2c8963,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_dictionary_requests(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
+/// The entry `attachments_on_dictionary_configs` (0x2c8aa0, items_dictionary_cook::on_configs_loaded's entry (push ebp / mov ebp,esp / sub esp,0E8h): [esp+4] the queries_result of translate_query's query; the dictionary is made of its first five results after this (0x2C8AF5..), each read by its place) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_dictionary_configs(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_dictionary_configs` calls this, from the game's jump at 0x2c8aa0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_dictionary_configs(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
 /// The entry `attachments_on_ready` (0x24acf0, weapon_cook::on_weapon_subresources_ready's entry (sub esp,24h / push ebx / push ebp): [esp+8] the weapon config's resource, [esp+0Ch] the weapon weapon_cook made, as the cook's functor binds them (0x24AC39..); by load_weapon both slots are the shots' loop's temporaries (0x24B063, 0x24AFA4, 0x24B044)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_attachments_on_ready(frame: &mut Frame) -> u32 {

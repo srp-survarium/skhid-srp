@@ -194,7 +194,7 @@ from the rear sight; a rail optic bringing the dovetail rail and not moving when
 forend with a rail of its own; the Victory Day AK-74M taking the AK-74M's fits with its own brake's
 model; the P90's shared carrier and its refused pair; a choke, a grip as a scope and a gun's own
 brake refused. The eye against the engine's two formulas. The format: the checked-in table
-(`tests/sample-v1.srpm`) is what the cases encode to and parses; every prefix and every single
+(`tests/sample-v2.srpm`) is what the cases encode to and parses; every prefix and every single
 changed byte of it is refused or parsed without a panic; nineteen broken rules each refused by name.
 
 ### The table
@@ -204,8 +204,16 @@ feature, which parses what it wrote) and read by the game and the servers (`Tabl
 layout is `table.rs`'s header comment: `SRPM`, a version, fourteen sections of fixed-size records.
 A gun: its dict id, its model's bone count and aim bone, its slots (a bone and an offset each), its
 aimed idle pose for the bones they hang on, its own parts, its carriers (the slot they bring, each
-with the slot it goes in), its fits, and the gun whose fits it takes (a premium or camouflage item's
-base gun). A module: dict id, role, model, alternative and aimed model, its attaches, a grip's hand.
+with the slot it goes in), its fits, the gun whose fits it takes (a premium or camouflage item's
+base gun), and its bare body's model. A module: dict id, role, model, alternative and aimed model,
+its attaches, a grip's hand.
+
+The format's versions (a table of another version is refused whole):
+
+| Version | Change |
+|---|---|
+| 1 | the first layout (`feat/attachments-core`); never built into a pack |
+| 2 | a gun record ends with a text, its bare body's model (34 bytes, was 28) |
 
 Every locator of the table is written for one rule: a model drawn at a frame F has its locator L at
 half turn x L x F, the engine's own rule for a gun's locators (`calculate_locator`). The porter
@@ -216,6 +224,40 @@ A weapon's config names what it is and has, four integers under `data`: `srp_gun
 id) and `srp_scope`, `srp_muzzle`, `srp_grip` (a fitted module's dict id; absent or 0 for none). The
 guns' rows and the fitted items' modifications that set them are content.
 
+### What the core needs of the content
+
+The content side (the porter's `port-modules` and the remodel, sub-branch `feat/attachments-content`)
+and the client's runtime meet in these, and nowhere else:
+
+1. **The table** at `resources/gameplay/weapon_modules.srpm` in the pack (a file of the game data
+   as it is, asked for as raw data) and in the server game data: `weapon_modules::encode`'s bytes,
+   version 2.
+2. **A gun record for every weapon item** that takes anything, premium and camouflage items too
+   (their own record, `fits-of` their base gun). `bones` is the bone count of the item's model.
+3. **Two bodies a gun.** The weapon config's `object/model` stays the whole body. The table's
+   `bare` text is the bare body's path in the same form (a skeleton model's request path, what
+   `object/model` holds). The bare body has the whole body's skeleton, bone for bone, and its
+   locators (`barrel_point`, `scope_point`, `aim`, the hand and finger locators): the game reads
+   them from whichever body it draws.
+4. **A part's model** (`Module::model`, its alternative shape) is a static model's request path
+   (what a scope item's `idle_model` holds), its origin the frame of the slot it goes in. A scope's
+   idle and aimed models stay in its item's config (`rifle_scope`), one pair an optic, with the same
+   origin; the native scope object draws them.
+5. **Four integers under `data` of the weapon's config** as the weapon cook sees it (after the
+   item's modifications): `srp_gun` on every gun of the table, and `srp_scope`, `srp_muzzle`,
+   `srp_grip` set by the fitted item's modification to its dict id. `addons/rifle_scope_dict_id`
+   stays what names the scope item to the game.
+6. **The shot effect** is content: a device's modification sets `particles/shoot`. The client does
+   not read the table's effect.
+7. **First, one gun**: a table and a quick pack with the AK-74M alone (its bare body, its own
+   brake, forend and sights as parts, one brake, one flash hider, one grip with its tactical
+   forend, one scope with its rail), to run the core in a game before the rest is built.
+
+What the client does with them: `resolve` at the weapon cook (once for the requests, once after the
+model is loaded); the bare body asked for in place of `object/model`; each part's model asked for
+in the cook's own query and drawn at its placement; the barrel, scope and aim records and the left
+hand written.
+
 ### The client's runtime (patch 161, `rust/patches/src/attachments.rs`)
 
 Everything it changes is data the game fills once from the weapon's model and reads each frame; the
@@ -223,6 +265,8 @@ patch writes it again after the game did. No per-frame hook.
 
 | Site | When | What is written |
 |---|---|---|
+| `attachments.dictionary_requests` 0x2C8963 | the items dictionary cook's query of its five configs | the query asks for a sixth resource, the modules table |
+| `attachments.dictionary_configs` 0x2C8AA0 | that query's callback, its entry | the table's bytes copied, parsed and kept |
 | `attachments.ready` 0x24ACF0 | the weapon cook's callback, its entry | nothing: the config's four integers are read and kept for the next site |
 | `attachments.loaded` 0x24B0E1 | after `load_weapon` | the scope's record +744h (the optic's frame); the aim record +7A8h (the eye); the left hand's finger sets (idle and lobby); the weapon is remembered |
 | `attachments.hands` 0x244649 | `weapon::activate`, after `set_weapon_locators` | the left hand's records, idle and lobby, first and third view (0, 4, 3, 7 of +1A20h) |
@@ -230,6 +274,23 @@ patch writes it again after the game did. No per-frame hook.
 | `attachments.shells` 0x2443EE | the shell effect's read of the scope's frame | nothing: the effect gets the frame the scope had |
 | `attachments.release` 0x24B190 | the weapon is freed | the weapon is forgotten |
 
+- **The table's way in.** One file of the game data, `resources/gameplay/weapon_modules.srpm`, asked
+  for as raw data (class 3: PROVEN, the game's own `startup.cfg` at `game::query_base_resources`
+  0x1EC182 and the collision cook's three files at 0x828FB). It rides the items dictionary cook's
+  query (`translate_query` 0x2C88D0: five binary configs, one `query_resources`): the query is
+  handed six requests, and its callback `on_configs_loaded` 0x2C8AA0, which reads its five results by
+  their place and never their count (PROVEN, 0x2C8AF5..0x2C8BEC), finds the table as the sixth. Its
+  bytes are read as the game reads a raw file (a pinned pointer, 0x3DD990 / 0x3C1020), copied into
+  memory of the game's allocator that is never freed, and parsed once.
+  - Why not the weapon cook's own query, as first planned: the parts' models are requests of that
+    same query, and which models a weapon needs is what `resolve` says from the table. The first
+    weapon cooked would have had no table to ask them by.
+  - Order: a weapon's config is named by an entry of the dictionary (the inventory cook looks each
+    record's dict id up in it, 0x2F18E0; the lobby's preview takes the entry's config), so the
+    dictionary's callback has run before any weapon cook. LIKELY until a game's log shows it.
+  - A game data without the file, or with one that does not parse (a line in the log says which
+    record), has no table: every weapon stays as the game made it, and the dictionary is made as
+    ever.
 - **0x24B0E1 has one owner.** The parked muzzle patch (90) used it; the new runtime takes it alone.
   `load_weapon`'s own finger fill (0x243BB6) is inside it, so this site covers that fill too.
 - **Every weapon passes it.** PROVEN by a scan of every direct call of the image: `weapon::weapon`
@@ -262,11 +323,7 @@ patch writes it again after the game did. No per-frame hook.
 
 ### What is not done
 
-1. **The table's way into the game.** `vostok::attachments::install` has no caller, so the patch
-   changes nothing yet. Planned: one more request of the weapon cook's own query (patch 90's
-   request sites, which the parts' models need anyway), the table as raw data. The engine's raw data
-   class is 3 in the 0.10b source (`resources_classes.h`, where the game loads `startup.cfg` so); its
-   number in 0.26g was not read.
+1. **The table's way into the game** is written, not linked or run: "The table's way in" below.
 2. **Drawing the parts** (P1, with the fire point P2a and the shapes P3): patch 90's request, scene
    and release code for N parts. `Loadout::Bare::parts` is what it draws.
 3. **The arena's link.** `arena_026g.lock.json` is not written again (`python link_026g.py
@@ -283,3 +340,46 @@ patch writes it again after the game did. No per-frame hook.
    where the records are written, and a table that names more refused.
 6. The six guns whose left hand does not rest on the idle locator need their clip event before a
    grip moves the hand (stage 0).
+
+## The three lanes (briefs, kept current)
+
+They start when the core and the content run on one gun (the AK-74M: a brake, a flash hider, a grip
+on a swapped forend, a scope; both views and the lobby), each a sub-branch of `feat/attachments`.
+For all three: the porter converts every locator to the table's rule (`Placement::child`, the one
+place to change if 0.69d's placement differs); no value is typed per gun; a left-out row has a
+reason the build checks again.
+
+**Scopes and their migration**
+
+- Optic rows with one eye per attach; a piggyback attach (the Docter on the Elcan) is dropped with
+  its reason.
+- The rail carriers per gun.
+- A gun whose default scope or sight stands in a scope slot (SV-98, L85A2) has it as a stock part
+  an optic displaces or closes: decide how today's built-in scopes map onto that.
+- The legacy pairs (pairs we released that 0.69d does not have) are per-gun module rows under the
+  scope's dict id.
+- `parameters/aim_offset` stays the eye-relief knob.
+- Servers: `resolve` in place of the `srp_scope_fit` pairs; an account's load rewrites a variant
+  dict id to the scope's own.
+- `attachments::EYE` with #2294 (patch 165): see "The two switches".
+- Centring checked with the camera oracle on the written records.
+
+**Muzzle devices and effects**
+
+- A row is one thread slot, a fire point and an effect.
+- Carriers: the P90's ACM forend, the Neostead's and the Glock's barrels.
+- Refused by rule: a device of the P90's own thread with a grip (the grip's forend takes that
+  thread). The lobby says so.
+- The effects re-encoded with 0.46c2's materials (`widen_config` of PR #420).
+- The stats: one `next` row in `simulation_changes.tsv`.
+
+**Grips and carriers**
+
+- 13 tactical forends, 3 brackets, 1 clamp.
+- The hand locators in the table's rule, checked against 0.69d's renders.
+- 0.69d's finger joints against 0.26g's hand, to settle `attachments::FINGER_JOINTS`.
+- The idle-target clip event for the UMP45.
+- Whether the lobby's poses use a grip's idle set (they do now).
+- The twelve guns with `double_handed` 0 release the hand in sprint and jump: unchanged.
+- A clamp on a suppressor only where the suppressor is the gun's stock part and adds the clamp's
+  slot.

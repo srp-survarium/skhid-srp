@@ -21,6 +21,8 @@ pub struct GunSource {
     pub aim_bone: u16,
     /// The gun whose fits it takes (a premium item's base gun); None: its own.
     pub fits_of: Option<usize>,
+    /// Its bare body's model.
+    pub bare: String,
     /// Its slots: the slot, its locator's bone and offset.
     pub slots: Vec<(SlotId, u16, Affine)>,
     /// Its aimed idle pose: a bone and its matrix in the model's space, for
@@ -142,6 +144,7 @@ pub fn encode(source: &Source) -> Result<Vec<u8>, EncodeError> {
         span(&mut s.guns, &s.stock, STOCK, gun.stock.len())?;
         span(&mut s.guns, &s.carriers, CARRIER, gun.carriers.len())?;
         span(&mut s.guns, &s.fits, FIT, gun.fits.len())?;
+        text(&mut s.guns, &mut s.strings, Some(&gun.bare))?;
         for (slot, bone, offset) in &gun.slots {
             s.gun_slots.push(slot.byte());
             s.gun_slots.extend(bone.to_le_bytes());
