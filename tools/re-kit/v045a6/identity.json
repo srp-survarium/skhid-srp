@@ -1,0 +1,15 @@
+{
+  "target": {
+    "build": "v0.45a6 build 3976 internal id 1806",
+    "file": "survarium.exe from installer.sup, x86 BCJ filter undone",
+    "file_size": 14220376,
+    "machine": "i386",
+    "preferred_image_base": "0x00010000",
+    "sha256": "d4b96461b6c60bcd18ba0b69033fe45851b9cc00676cec832ad40bb7cbe8ff25",
+    "sections": [
+      { "name": ".text", "raw_offset": 1024, "raw_size": 9711616, "va": "0x00011000" },
+      { "name": ".rdata", "raw_offset": 9712640, "raw_size": 2227712, "va": "0x00954000" },
+      { "name": ".data", "raw_offset": 11940352, "raw_size": 723968, "va": "0x00b74000" }
+    ]
+  }
+}

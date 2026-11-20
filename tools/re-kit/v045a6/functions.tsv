@@ -1,0 +1,34 @@
+va	status	name	evidence
+0x006e4d30	inferred-high	survarium::weapon::apply_aim_alignment [descriptive]	vtable 0xB11C74 slot +78h; Weapon bone := inverse(0x6E5260) x Item, exact at p=1, 0x507170 below; called at 0x758609
+0x006e5260	inferred-high	survarium::weapon::calculate_aim_alignment	rotY(pi) x [+4C80h] x aim locator[+4B90h] x cached [+50E4h], inverted (0x5058E0), times the Item bone; only caller 0x6E4E43
+0x006e4ef0	inferred-high	survarium::weapon::cache_aim_bone_matrix [descriptive]	slot +7Ch; plays the given clip at time 0 on a stack mixer and stores the aim locator's bone matrix at +50E4h (identity for bone FFFFh); called at 0x74FFAD
+0x007585f0	inferred-high	survarium::portable_interactive_object::process_hands_ik	calls item vtable +78h, then 0x8013F0 on this+A0h; reached from 0x7589F3 under ik_on_hands
+0x008013f0	inferred-medium	vostok::animation::hand_to_weapon_ik_solver::process	called by 0x7585F0 with this+A0h
+0x00507170	inferred-medium	vostok::math::interpolate (float4x4) [descriptive]	blends the Weapon bone by aim progress at 0x6E4EA5
+0x006e2d00	inferred-high	survarium::weapon::load_aim_locators [descriptive]	one per aim_zoom_factor value, names 'aim' / 'aim_%d', into weapon+4D88h + i*64h
+0x0075fab0	inferred-medium	survarium::weapon::resolve_attach_locator [descriptive]	copies a 64h locator, composes parents' matrices, inherits the parent's bone when FFFFh (0x75FE64)
+0x006e2e40	inferred-high	survarium::weapon::calculate_locator	static rotY(pi), FFFFh bone test at +60h, as 0.26g 0x243BC0
+0x006e4cb0	inferred-high	survarium::weapon::tick	sets/clears scope view +5F7Dh at progress vs attach+280h change_scope_factor
+0x006e6b00	inferred-high	survarium::weapon::is_part_hidden_while_aiming [descriptive]	searches the list +4E8Ch..+4E90h for the part
+0x006e6b40	inferred-high	survarium::weapon::update_base_model_in_scene [descriptive]	scope view, first person and listed: remove_model 0x8AAF10; else add_model 0x8AACE0
+0x006e6c00	inferred-high	survarium::weapon::update_gloves_visibility [descriptive]	attach+284h hide_gloves_while_aiming: set_model_visible 0x8AEA20 (1,2) / (1,3) on [user+15510h]
+0x006f0380	inferred-high	survarium::rifle_scope_attach::update_models [descriptive]	vtable 0xB12050 via 0x6EA900; swaps idle (+238h) and aimed (+23Ch) by scope view; removes both if listed
+0x006f02e0	inferred-medium	survarium::rifle_scope_attach::remove_models [descriptive]	removes idle and aimed models from the scene
+0x0065f830	inferred-medium	survarium::rifle_scope_attach_cook::create [descriptive]	reads hide_gloves_while_aiming (+284h) and change_scope_factor (+280h); object 288h, vtable 0xB12050
+0x0064d200	inferred-medium	survarium::weapon_cook::load_hide_while_aiming [descriptive]	reads upgrade_possibilities.hide_while_aiming into weapon+4E8Ch for the scope at +5F50h
+0x0074fb90	inferred-medium	survarium::weapon_cook::on_states_loaded [descriptive]	callback pushed at 0x74FA0B; calls state vtable +34h then weapon vtable +7Ch
+0x00751780	inferred-medium	survarium::weapon_core_idle_state::weapon_core_idle_state	base ctor 0x792540 with id 3 (as 0.26g 0x30D400); vtable 0xB1A5F4; siblings 0x7542D0, 0x755360
+0x00751770	inferred-medium	survarium::weapon_core_idle_state::item_animation [descriptive]	vtable +34h: lea eax,[ecx+228h]
+0x007a69b0	inferred-high	survarium::weapon_recoil_parameters::load	same keys as 0.26g plus recoil_time (+34h, else 60/rpm), first_shoot_recoil_multiplier (+38h), min/max_shots_to_change_direction (+3Ch/+3Dh)
+0x007a6cb0	inferred-medium	survarium::weapon_recoil_calculator::weapon_recoil_calculator	m_recoil +10h, speed +1Ch, PID +28h; built at weapon_core +5F8h (recoil) and +674h (aim_recoil)
+0x007a6dc0	inferred-medium	survarium::weapon_recoil_calculator::tick	called at 0x75D92B on the current calculator [core+6F0h] with now and dt
+0x007a7560	inferred-medium	survarium::weapon_recoil_calculator::reset	called on the calculator being left at 0x75D8E7 and 0x75D911
+0x0075d850	inferred-medium	survarium::weapon_core::tick_recoil [descriptive]	selects the aim calculator when |p-1| < 1e-5, copies state across, ticks it
+0x0075dea0	inferred-high	survarium::weapon_core::look_pitch	clamp([user+7CCh] + m_recoil.y of [core+6F0h]); same body as 0.26g 0x2E0F60
+0x0075df00	inferred-high	survarium::weapon_core::apply_look_pitch	same body as 0.26g 0x2E0FB0
+0x00761250	inferred-high	survarium::weapon_core::computed_backward_recoil_time	0.5 - clamp(m_recoil.x/2 + breath [+3E4h] when aiming), times length
+0x007613f0	inferred-high	survarium::weapon_core::computed_vertical_recoil_time	returns m_recoil.z ([calc+18h])
+0x008aea20	inferred-medium	vostok::render::scene_renderer::set_model_visible	(model, 1, 2/3) from 0x6E6C00
+0x008aace0	inferred-medium	vostok::render::scene_renderer::add_model	from 0x6E6BF2
+0x008aaf10	inferred-medium	vostok::render::scene_renderer::remove_model	from 0x6E6BAF, 0x6F031B
+0x00668100	inferred-medium	survarium::player::is_first_view	tested before every aimed-view hide (0x6E6B58, 0x6E6C27, 0x6F03B7)

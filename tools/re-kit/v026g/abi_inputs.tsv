@@ -6475,3 +6475,12 @@ va	name	location	role	basis
 0x002e5040	survarium::damage_model::tick	stack+4	the damage model ([player+2E0h], from base_player::tick 0x2DAAF3 while [player+33Ch] is set); every pool of its list at +110h, the "pain" pool included, goes to body_part::regenerate 0x32A4B0	observed
 0x002e5040	survarium::damage_model::tick	stack+8	elapsed ms, passed on as 0x32A4B0 stack+4	observed
 0x002e5040	survarium::damage_model::tick	ESI	now ms, passed on as 0x32A4B0 stack+8 and stored at +328h	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	EAX	the weapon	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	ECX	the item's bones' matrices (model space, 40h each; the locator's bone index picks one)	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	ESI	out matrix	observed
+0x00244d40	survarium::weapon::calculate_aim_alignment	entry ESP+4	the user's Item bone's matrix (the camera)	observed
+0x002959d0	survarium::portable_interactive_object::process_hands_ik	ECX	the held item's controller (+1F8h its user, +200h the hand IK solver)	observed
+0x002959d0	survarium::portable_interactive_object::process_hands_ik	entry ESP+4	passed on to the IK solver (update_bones_matrices gives [user+324h])	observed
+0x002959d0	survarium::portable_interactive_object::process_hands_ik	entry ESP+8	the user's bones' matrices (Weapon and Item among them)	observed
+0x002959d0	survarium::portable_interactive_object::process_hands_ik	entry ESP+0xC	the item's bones' matrices	observed
+0x002959d0	survarium::portable_interactive_object::process_hands_ik	entry ESP+0x10	pointer to the user's skeleton pointer (bone names)	observed

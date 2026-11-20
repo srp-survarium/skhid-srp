@@ -1,0 +1,11 @@
+# Patch 165: the aimed view is aligned to the gun's idle pose, as 0.45a6's
+# (aim_pose.rs; docs/notes/aim-pose.md). Only the decisions: the site and
+# the handler.
+name = "aim_pose"
+patch = 165
+
+# process_hands_ik before its calculate_aim_alignment: the weapon in its
+# frame, ECX the gun's bones
+[[hook]]
+site = "hands_ik.aim_alignment"
+handler = "on_aim_alignment"

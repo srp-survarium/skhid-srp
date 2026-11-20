@@ -126,6 +126,8 @@ pub mod collision_view;
 pub mod console_paste;
 // patch 158: the first-person eye stays out of the level's surfaces
 pub mod head_clearance;
+// patch 165: the aimed view is aligned to the gun's idle pose
+pub mod aim_pose;
 
 pub mod replay_file;
 pub mod free_for_all;
