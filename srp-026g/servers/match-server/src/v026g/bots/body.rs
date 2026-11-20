@@ -3694,8 +3694,8 @@ pub(super) mod tests {
     }
 
     /// [press forecast] On the gap, from the walking body: some press lands on the far floor and stays (`motor::is_up`), and every
-    /// press called a landing rests on the far floor; every press that ends in the pit or short of it is not called a landing. A
-    /// press with a side key starts no flight of the client's.
+    /// press called a landing rests on the far floor; every press that ends in the pit or on the near floor is neither a landing
+    /// nor `Over`. A press with a side key starts no flight of the client's.
     #[test]
     fn a_press_forecast_tells_a_landing_press_from_a_short_one() {
         let (grid, kin, at) = press_gap();
@@ -3708,7 +3708,14 @@ pub(super) mod tests {
             // On the far floor: at its height, past where the near floor's rim holds the capsule (its edge at x 10, the capsule's
             // radius under 0.4 m); a capsule may stand on the far rim with its centre short of x 11.2.
             let on_far_floor = end.x > 10.5 && end.y.abs() < 0.05;
-            assert_eq!(matches!(outcome, PressOutcome::Lands { .. }), on_far_floor, "press {k}: {outcome:?}");
+            // A landing is on the far floor; a press that ends in the pit or on the near floor is never one. One far past the
+            // landing is `Over` (the motor's `is_up` keeps to `UP_NEAR_M` of it).
+            if matches!(outcome, PressOutcome::Lands { .. }) {
+                assert!(on_far_floor, "press {k}: {outcome:?}");
+            }
+            if !on_far_floor {
+                assert!(!matches!(outcome, PressOutcome::Lands { .. } | PressOutcome::Over { .. }), "press {k}: {outcome:?}");
+            }
         }
         assert_eq!(press_forecast(&at, &gap_plan(key::FORWARD | key::RIGHT, 0), &world), PressOutcome::NoFlight, "a side key");
     }
