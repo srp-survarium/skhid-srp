@@ -1225,6 +1225,59 @@ enum CastState {
     Stopping,
     /// At rest: its steps flown ([`Ask::Rest`]), no key meanwhile.
     Asking(Plan),
+    /// [S108] At "rest" on a floor the client's walker slides the body along with no key and no speed (the level_05 gap at
+    /// (11.6, 7.2, 29.9): 0.0037 m a step, the exe's own tick on the game's objects as the stand-in): the body never holds still
+    /// for the ask's flights, so it is asked from the end of a hold of no key, chained ([`Creep`]).
+    Creeping(Creep),
+}
+
+/// [press forecast, S108] The ask of a rest that creeps: the hold chained, then the walk-up from its end asked while the body
+/// holds along it, and the walk-up started on the hold's last tick, where the plan's chain starts.
+#[derive(Clone, Debug)]
+enum Creep {
+    /// The hold to chain (the next forecast the poll gives).
+    Seen,
+    /// The hold chained; the walk-up from its end to chain.
+    Held(Hold),
+    /// The walk-up from the hold's end asked: its steps flown while the body holds.
+    Asking(Hold, Plan),
+}
+
+/// [press forecast, S108] A hold of no key chained from the motor's tick `lock`: the body tick by tick ([`PressFlyer::chain`]).
+#[derive(Clone, Debug)]
+struct Hold {
+    lock: u32,
+    path: Vec<Estimate>,
+}
+
+impl Hold {
+    /// Whether the body as reckoned on the motor's tick `now` is where the hold has it ([`same_body`]); none past its end.
+    fn follows(&self, body: &Estimate, now: u32) -> bool {
+        now.checked_sub(self.lock).and_then(|k| self.path.get(k as usize)).is_some_and(|expected| same_body(body, expected))
+    }
+
+    /// The motor's tick of the hold's last body: the walk-up's tick 0.
+    fn end_tick(&self) -> u32 {
+        self.lock + self.path.len() as u32 - 1
+    }
+
+    fn end(&self) -> &Estimate {
+        self.path.last().expect("a chain has its first body")
+    }
+}
+
+/// [press forecast, S108] The ticks a creeping rest's hold lasts: one forecast for the walk-up's chain and one for each of its
+/// steps ([`super::press_plan::REST_STEPS_MAX`] + 1, flown in order), with as many ticks again for polls whose forecast another
+/// bot takes: 14 ticks, 0.7 s, within the try's [`PLAN_DEADLINE_S`].
+const CREEP_HOLD_TICKS: u32 = 2 * (super::press_plan::REST_STEPS_MAX + 2);
+
+/// [press forecast, S108] Whether the body left `expected` (the ask's first body) by creeping: no key held, no speed and the same
+/// yaw on both, on the ground; only the feet moved.
+fn creeps(now: &Estimate, expected: &Estimate) -> bool {
+    let still = |body: &Estimate| {
+        body.velocity[0].hypot(body.velocity[1]) <= super::press_plan::SAME_VELOCITY_MS && body.keys == 0 && body.arc.is_none()
+    };
+    still(now) && still(expected) && wrap(now.yaw - expected.yaw).abs() <= super::press_plan::SAME_YAW_RAD
 }
 
 /// [press forecast] The forecast press of one link: its try, since when the body is at it, its state, and the rests asked.
@@ -3902,6 +3955,17 @@ impl Motor {
                     None => (CastState::Stopping, CastKeys::Stand),
                 },
             },
+            CastState::Asking(plan) if !same_body(body, plan.at(0)) && creeps(body, plan.at(0)) => {
+                press_casts::count(press_casts::Slot::Creeps);
+                cast.note(&format!(
+                    "rest creeps off ({:.2}, {:.2}) by {:.3} m with no key: asked from the end of a hold",
+                    plan.at(0).feet.x,
+                    plan.at(0).feet.z,
+                    body.feet.distance_xz(plan.at(0).feet)
+                ));
+                (CastState::Creeping(Creep::Seen), CastKeys::Hold)
+            }
+            CastState::Creeping(creep) => self.cast_creep(cast, jump, link, body, creep, flyer, bail),
             CastState::Asking(mut plan) => {
                 if !same_body(body, plan.at(0)) {
                     press_casts::count(press_casts::Slot::Moved);
@@ -3931,6 +3995,78 @@ impl Motor {
         };
         cast.state = state;
         keys
+    }
+
+    /// [press forecast, S108] A creeping rest's tick ([`Creep`]): the hold chained, the walk-up from its end chained and flown while
+    /// the body holds along it, and pressed from the hold's end; a body off the hold (a world's fix, a push) is asked again.
+    #[allow(clippy::too_many_arguments)]
+    fn cast_creep(
+        &mut self,
+        cast: &mut PressCast,
+        jump: &mut JumpTry,
+        link: &CastLink,
+        body: &Estimate,
+        creep: Creep,
+        flyer: &mut dyn PressFlyer,
+        bail: bool,
+    ) -> (CastState, CastKeys) {
+        let held = |state: Creep| (CastState::Creeping(state), CastKeys::Hold);
+        match creep {
+            Creep::Seen => match flyer.chain(body, 0, CREEP_HOLD_TICKS) {
+                None => held(Creep::Seen),
+                Some(path) => held(Creep::Held(Hold { lock: self.clock, path: press_casts::chained_with(path) })),
+            },
+            Creep::Held(hold) | Creep::Asking(hold, _) if !hold.follows(body, self.clock) => {
+                press_casts::count(press_casts::Slot::Moved);
+                cast.note("creeping rest off its hold: asked again");
+                held(Creep::Seen)
+            }
+            Creep::Held(hold) => match flyer.chain(hold.end(), key::FORWARD, super::press_plan::REST_STEPS_MAX) {
+                None => held(Creep::Held(hold)),
+                Some(chain) => match Plan::new(hold.end_tick(), Ask::Rest, press_casts::chained_with(chain), |p| link.before(p)) {
+                    Some(plan) => {
+                        press_casts::count(press_casts::Slot::RestAsk);
+                        held(Creep::Asking(hold, plan))
+                    }
+                    None => (CastState::Stopping, CastKeys::Stand),
+                },
+            },
+            Creep::Asking(hold, mut plan) => {
+                self.cast_fly(&mut plan, link, flyer);
+                let end = *hold.end();
+                let rest = |plan: &Plan| {
+                    format!(
+                        "rest at the hold's end ({:.2}, {:.2}, {:.2}), {:.2} m out: steps {}",
+                        end.feet.x,
+                        end.feet.y,
+                        end.feet.z,
+                        link.before(end.feet),
+                        plan.text()
+                    )
+                };
+                match plan.decide(self.clock) {
+                    Choice::Press { .. } if self.clock == hold.end_tick() => {
+                        cast.note(&rest(&plan));
+                        plan.start(self.clock);
+                        self.cast_planned(cast, link, body, plan, flyer, bail)
+                    }
+                    Choice::Press { .. } | Choice::Pending if self.clock < hold.end_tick() => held(Creep::Asking(hold, plan)),
+                    Choice::Press { .. } | Choice::Pending => {
+                        cast.note(&format!("creeping rest: the ask not flown by the hold's end ({}): asked again", plan.text()));
+                        held(Creep::Seen)
+                    }
+                    Choice::NoLanding { flown, longest, .. } => {
+                        if (1..MIN_RUN).contains(&longest) {
+                            press_casts::count(press_casts::Slot::Narrow);
+                        }
+                        cast.note(&rest(&plan));
+                        cast.rests.push(end.feet);
+                        self.cast_spend(cast, jump, link, body, CastWhy::NoPressFromRest { flown, longest });
+                        (CastState::Approach, CastKeys::Approach)
+                    }
+                }
+            }
+        }
     }
 
     /// [press forecast] A live plan's tick: the body where its chain put it, the next flight flown, and the press rule's word.
@@ -5561,9 +5697,11 @@ pub mod press_casts {
         Held,
         /// … and a world then showed it up on the landing.
         HeldUp,
+        /// [S108] A rest that crept off its ask with no key: asked from the end of a hold ([`super::Creep`]).
+        Creeps,
     }
 
-    pub const SLOTS: [Slot; 20] = [
+    pub const SLOTS: [Slot; 21] = [
         Slot::Planned,
         Slot::NoZone,
         Slot::Flights,
@@ -5584,9 +5722,10 @@ pub mod press_casts {
         Slot::LearnedSkip,
         Slot::Held,
         Slot::HeldUp,
+        Slot::Creeps,
     ];
 
-    static COUNTS: [AtomicU64; 20] = [const { AtomicU64::new(0) }; 20];
+    static COUNTS: [AtomicU64; 21] = [const { AtomicU64::new(0) }; 21];
 
     /// Since the last match end ([`take_match`]): the chains and the flights.
     static MATCH: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
@@ -9241,6 +9380,8 @@ mod tests {
         chains: u32,
         flights: u32,
         learned: super::super::body::PressLearned,
+        /// [S108] How far the body slides along x a step at rest with no key (a floor the client's walker creeps it down).
+        creep: f32,
     }
 
     fn stub_step(at: &Estimate, keys: u32, turn: f32) -> Estimate {
@@ -9265,7 +9406,16 @@ mod tests {
             let yaw = yaw_of([1.0, 0.0]);
             let [fx, fz] = super::super::kin::forward(yaw);
             let body = Estimate { velocity: [fx * speed, fz * speed], keys: if speed > 0.0 { key::FORWARD } else { 0 }, ..Estimate::at_rest(Vec3::new(x, 0.0, 0.0), yaw) };
-            Self { body, lands, free: true, busy: |_| false, poll: 0, chains: 0, flights: 0, learned: Default::default() }
+            Self { body, lands, free: true, busy: |_| false, poll: 0, chains: 0, flights: 0, learned: Default::default(), creep: 0.0 }
+        }
+
+        /// [`stub_step`] and the creep of a body at rest with no key.
+        fn step(&self, at: &Estimate, keys: u32, turn: f32) -> Estimate {
+            let mut next = stub_step(at, keys, turn);
+            if keys & key::FORWARD == 0 && next.velocity == [0.0, 0.0] {
+                next.feet.x += self.creep;
+            }
+            next
         }
 
         fn take(&mut self) -> bool {
@@ -9289,7 +9439,7 @@ mod tests {
             self.chains += 1;
             let mut out = vec![*from];
             for _ in 0..ticks {
-                let next = stub_step(out.last().unwrap(), keys, 0.0);
+                let next = self.step(out.last().unwrap(), keys, 0.0);
                 out.push(next);
             }
             Some(out)
@@ -9350,7 +9500,7 @@ mod tests {
             if decision.keys & key::JUMP != 0 {
                 return (Some((b.feet, speed)), ends);
             }
-            stub.body = stub_step(&stub.body, decision.keys & key::FORWARD, decision.turn.0);
+            stub.body = stub.step(&stub.body, decision.keys & key::FORWARD, decision.turn.0);
         }
         (None, ends)
     }
@@ -9456,6 +9606,30 @@ mod tests {
         assert!((speed - 3.5 / 6.0).abs() < 1e-3 && (-2.0..=-0.4).contains(&feet.x), "pressed at {feet:?} {speed}");
         let line = motor.cast_watch.as_ref().map(|watch| watch.text.clone()).unwrap_or_default();
         assert!(line.contains("press forecast: try 1 pressed from rest at plan tick 1") && line.contains("walk-in: no run of 3 landing ticks"), "{line}");
+    }
+
+    /// [press forecast, S108] The same rest on a floor that creeps the body 0.0037 m a step with no key (the client's walker on the
+    /// level_05 gap, the exe and the stand-in alike): the rest ask's body moves off every tick, so the rest is asked from the end
+    /// of a hold of no key, chained, and pressed from there; the press is the forecast's, from that very body.
+    #[test]
+    fn a_creeping_rest_is_asked_from_the_end_of_its_hold() {
+        let slow = |at: &Estimate| at.velocity[0].hypot(at.velocity[1]) < 1.2 && (-2.0..=-0.4).contains(&at.feet.x);
+        let run = |creep: f32| {
+            let mut motor = cast_motor(true);
+            let mut route = cast_route();
+            let mut stub = Stub::new(-4.4, 3.5, slow);
+            stub.creep = creep;
+            let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 80, None);
+            let line = motor.cast_watch.as_ref().map(|watch| watch.text.clone()).unwrap_or_default();
+            (pressed, ends, line)
+        };
+        let (still, _, line) = run(0.0);
+        assert!(still.is_some() && !line.contains("creeps"), "{line}");
+        let (pressed, ends, line) = run(-0.0037);
+        let (feet, speed) = pressed.unwrap_or_else(|| panic!("no press: {ends:?}"));
+        assert!((speed - 3.5 / 6.0).abs() < 1e-3 && (-2.0..=-0.4).contains(&feet.x), "pressed at {feet:?} {speed}");
+        assert!(line.contains("pressed from rest at plan tick 1") && line.contains("with no key: asked from the end of a hold"), "{line}");
+        assert!(line.contains("rest at the hold's end"), "{line}");
     }
 
     /// [press forecast] A walk-in that found no run (every candidate flown) is learned for the match: the next bot at the link (a
