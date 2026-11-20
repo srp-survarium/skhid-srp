@@ -298,6 +298,16 @@ language_entries:                       ; patch_launcher_026g.py: 8 bytes each, 
         align   8, db 0xCC
         jmp     near label_made
         align   8, db 0xCC
+                                        ; then RELAY_HOOKS ("Use relay", patch 16)
+        jmp     near relay_made
+        align   8, db 0xCC
+        jmp     near relay_click
+        align   8, db 0xCC
+        jmp     near restart_text
+        align   8, db 0xCC
+                                        ; and the dispatch table's entry of message 0A
+        jmp     near route_message
+        align   8, db 0xCC
 
 ; eax = index -> eax = its label (UTF-16). Called in place of
 ; `mov eax, [eax*8+48280h]`; every other register kept.
@@ -1145,7 +1155,25 @@ paint_label:
         push    eax
         call    DRAW_TEXT
         add     esp, 32
-        push    dword [esp + LABEL_FONT]
+        call    relay_text              ; and the relay box's (patch 16), while it is shown
+        test    eax, eax
+        jz      .font
+        mov     ecx, [ebx + RELAY_RECT + 4]
+        add     ecx, TEXT_DOWN
+        push    ecx                     ; top
+        push    0                       ; right margin
+        mov     ecx, [ebx + RELAY_RECT]
+        add     ecx, TEXT_RIGHT
+        push    ecx                     ; left
+        push    0
+        push    WHITE
+        lea     ecx, [esp + 20 + LABEL_FONT]
+        push    ecx
+        push    dword [esi + FORM_PANEL_PICTURE]
+        push    eax
+        call    DRAW_TEXT
+        add     esp, 32
+.font:  push    dword [esp + LABEL_FONT]
         call    [ebx + IAT_DeleteObject]
         add     esp, LABEL_LOCALS
         popad
@@ -1154,31 +1182,53 @@ paint_label:
 ; eax = the form: each of the box's four pictures replaced by itself over
 ; the panel's picture where the box is (BOX_RECT): opaque, of the box's
 ; size. The PNG's bitmap is deleted; the form deletes the new one as it did
-; the PNG's (0x1B328). Every register kept.
+; the PNG's (0x1B328). Every register kept. `bake_relay_box`: the same for
+; the relay box (patch 16).
 BAKE_RECT               equ 0           ; locals: 0, 0, the box's width, height
 BAKE_POINT              equ 16          ; 0, 0
-BAKE_LOCALS             equ 24
+BAKE_AT                 equ 24          ; the box's rect in the panel
+BAKE_LOCALS             equ 28
 
 bake_box:
         pushad
         mov     esi, eax                ; the form
         DELTA
+        lea     ecx, [ebx + BOX_RECT]
+        lea     edx, [ebx + box_pictures]
+        call    bake_pictures
+        popad
+        ret
+
+bake_relay_box:
+        pushad
+        mov     esi, eax                ; the form
+        DELTA
+        lea     ecx, [ebx + RELAY_RECT]
+        lea     edx, [ebx + relay_pictures]
+        call    bake_pictures
+        popad
+        ret
+
+; esi = the form, ebx = DELTA, ecx = the box's rect, edx = its four
+; pictures' places in the form.
+bake_pictures:
         sub     esp, BAKE_LOCALS
+        mov     [esp + BAKE_AT], ecx
         xor     eax, eax
         mov     [esp + BAKE_RECT], eax
         mov     [esp + BAKE_RECT + 4], eax
         mov     [esp + BAKE_POINT], eax
         mov     [esp + BAKE_POINT + 4], eax
-        mov     eax, [ebx + BOX_RECT + 8]
-        sub     eax, [ebx + BOX_RECT]
+        mov     eax, [ecx + 8]
+        sub     eax, [ecx]
         mov     [esp + BAKE_RECT + 8], eax
-        mov     eax, [ebx + BOX_RECT + 12]
-        sub     eax, [ebx + BOX_RECT + 4]
+        mov     eax, [ecx + 12]
+        sub     eax, [ecx + 4]
         mov     [esp + BAKE_RECT + 12], eax
-        lea     edi, [ebx + box_pictures]
+        mov     edi, edx
         mov     ebp, 4
 .each:  push    dword [esi + FORM_PANEL_PICTURE]
-        lea     eax, [ebx + BOX_RECT]
+        mov     eax, [esp + 4 + BAKE_AT]
         call    CROP_PICTURE            ; the panel where the box is
         add     esp, 4
         test    eax, eax
@@ -1202,10 +1252,10 @@ bake_box:
         dec     ebp
         jnz     .each
         add     esp, BAKE_LOCALS
-        popad
         ret
 
 box_pictures:   dd FORM_UNTICKED, FORM_UNTICKED_HOVER, FORM_PRESSED, FORM_TICKED
+relay_pictures: dd FORM_RELAY_UNTICKED, FORM_RELAY_HOVER, FORM_RELAY_PRESSED, FORM_RELAY_TICKED
 
 ; eax = the form, its text painted: each of Twitter's three pictures replaced
 ; by the panel's picture where the text is (LABEL_RECT), the PNG's deleted.
@@ -1239,6 +1289,7 @@ panel_made:
         call    paint_label
         call    bake_box
         call    bake_label
+        call    bake_relay_box
         jmp     IMAGE_WINDOW
 
 ; In place of transparent_control::transparent_control for YouTube's
@@ -1312,11 +1363,470 @@ torrent_click:
         pop     ebx
         ret
 
+; ---------------------------------------------------------------------------
+; "Use relay" (patch 16; README.md there has the sites): VK's control, out of
+; sight since patch 8, is a second box under "Allow torrent", with the same
+; pictures (VK's three, Facebook's second for ticked) and a text painted into
+; the panel as that box's is. The updater owns the route
+; (client/updater, updater_logic::route): its message 0A says what the box
+; shows (RELAY_VIEW: 1 Automatic probing, 2 Automatic direct, 3 Automatic
+; relay, 4 Automatic neither, 5 Relay, 6 Direct), and a click on the box sends
+; it 22, which it answers with the next 0A. Until the first 0A (an updater
+; without a relay, or an older one) the box stays hidden. Ticked for the
+; relay (3, 5); "(auto)" after its text in Automatic (1..4). A tooltip
+; (comctl32's) says what the relay is, the three choices and the box's now.
+;
+; Its state is in .data past the launcher's last variable (its VirtualSize
+; made 0x6810 by patch_launcher_026g.py; the page was there, zero, unused):
+; the launcher (for the pipe), the view, the tooltip and the box it is for.
+
+RELAY_STATE             equ 0x4A800
+RELAY_LAUNCHER          equ RELAY_STATE         ; the launcher, from 0A
+RELAY_VIEW              equ RELAY_STATE + 4     ; byte: 0 hidden, 1..6
+RELAY_TIP               equ RELAY_STATE + 8     ; the tooltip's window
+RELAY_TIP_TOOL          equ RELAY_STATE + 12    ; the box's window it is for
+RELAY_RECT              equ 0x458D4     ; the box's place in the panel (VK's rect)
+FORM_RELAY_BOX          equ 0x6C0       ; VK's control
+FORM_RELAY_UNTICKED     equ 0x1AC       ; VK's pictures: first, second, third
+FORM_RELAY_HOVER        equ 0x1B8
+FORM_RELAY_PRESSED      equ 0x1C4
+FORM_RELAY_TICKED       equ 0x170       ; Facebook's second
+REFRESH_STATUS          equ 0x16811     ; launcher::refresh_status, esi = the launcher
+MESSAGE_DONE            equ 0x16093     ; on_updater_message's end
+SEND_SIMPLE             equ 0x1749F     ; send_simple_message(launcher, id): al = sent; ret 8
+PIPE_STATE              equ 0x2B70      ; launcher: 3 while the updater is connected
+ROUTE_CLICKED           equ 0x22
+VIEWS                   equ 6
+RELAY_LANGUAGES         equ 5
+SW_HIDE                 equ 0
+SW_SHOWNA               equ 8
+TTM_SETDELAYTIME        equ 0x403
+TTM_SETMAXTIPWIDTH      equ 0x418
+TTM_ADDTOOLW            equ 0x432
+TTM_UPDATETIPTEXTW      equ 0x439
+TTDT_AUTOPOP            equ 2
+TIP_INFO                equ 0           ; relay_tip's locals: TOOLINFOW (its first 44 bytes)
+TIP_SEND                equ 44          ; SendMessageW
+TIP_TEXT                equ 48
+TIP_CHARS               equ 640
+TIP_LOCALS              equ TIP_TEXT + 2*TIP_CHARS
+
+; on_updater_message's jump for message 0A (the dispatch table's entry):
+; ebx = the launcher, the message after its id at [esp+18h]. Every register
+; as it was; on to the handlers' common end.
+route_message:
+        pushad
+        mov     esi, ebx                ; the launcher
+        mov     eax, [esp + 32 + 0x18]
+        movzx   edi, byte [eax]         ; the view
+        DELTA
+        lea     eax, [edi - 1]
+        cmp     eax, VIEWS
+        jae     .out                    ; 1..6 only
+        mov     [ebx + RELAY_LAUNCHER], esi
+        mov     eax, edi
+        mov     [ebx + RELAY_VIEW], al
+        mov     eax, [esi + LAUNCHER_FORM]
+        test    eax, eax
+        jz      .out
+        call    relay_apply
+        call    REFRESH_STATUS          ; the panel's picture anew, the box's text with it
+.out:   popad
+        jmp     MESSAGE_DONE
+
+; In place of transparent_control::transparent_control for VK's control, the
+; box (0x1AEE5): made with its eight arguments, then shown as the view says
+; (a window made again, in another language, keeps it).
+relay_made:
+%rep 8
+        push    dword [esp + 32]
+%endrep
+        call    TRANSPARENT_CONTROL
+        push    eax
+        mov     eax, ebx                ; the form
+        call    relay_apply
+        pop     eax
+        ret     32
+
+; The box's click (cdecl, the form): VK's click handler (0x1BD3C) jumps here.
+; 22 to the updater, which answers with the next view.
+relay_click:
+        push    ebx
+        DELTA
+        mov     eax, [ebx + RELAY_LAUNCHER]
+        test    eax, eax
+        jz      .done
+        cmp     byte [ebx + RELAY_VIEW], 0
+        je      .done
+        cmp     dword [eax + PIPE_STATE], 3
+        jne     .done
+        push    ROUTE_CLICKED
+        push    eax
+        call    SEND_SIMPLE
+.done:  pop     ebx
+        ret
+
+; In place of load_string's call for the status line of the launcher's
+; states 6 and 7 (refresh_status 0x1687C; cdecl: the id, the buffer, its
+; size, 128 characters; esi = the launcher). "Server maintenance..."
+; (MAINTENANCE_TEXT) while the updater counts the seconds to its next try
+; (its message 13h, the launcher's RETRY_SECONDS; 0: it counts none): the
+; server restarts, said with the count in the box's language. Any other
+; text is load_string's own.
+MAINTENANCE_TEXT        equ 0xB2
+RETRY_SECONDS           equ 0x2BA0      ; launcher: message 13h's byte
+
+restart_text:
+        cmp     dword [esp + 4], MAINTENANCE_TEXT
+        jne     near LOAD_STRING
+        cmp     byte [esi + RETRY_SECONDS], 0
+        je      near LOAD_STRING
+        push    ebx
+        push    edi
+        push    ebp
+        DELTA
+        call    relay_language
+        mov     ebp, eax
+        mov     ecx, [esp + 12 + 8]     ; the buffer
+        mov     edx, [ebx + restart_before + ebp*4]
+        add     edx, ebx
+        call    append
+        movzx   eax, byte [esi + RETRY_SECONDS]
+        mov     edi, 10
+        push    0                       ; under the digits
+.split: xor     edx, edx
+        div     edi
+        add     edx, '0'
+        push    edx
+        test    eax, eax
+        jnz     .split
+.digit: pop     eax
+        test    eax, eax
+        jz      .after
+        mov     [ecx], ax
+        add     ecx, 2
+        jmp     .digit
+.after: mov     edx, [ebx + restart_after + ebp*4]
+        add     edx, ebx
+        call    append
+        mov     eax, 1
+        pop     ebp
+        pop     edi
+        pop     ebx
+        ret
+
+; ebx = DELTA -> eax = the relay box's language: 0 English, 1 Russian, 2
+; Ukrainian, 3 German, 4 Polish (the launcher's texts' LANGID; English for
+; any other). ecx, edx changed.
+relay_language:
+        mov     eax, [ebx + LANGUAGE_GLOBAL]
+        cmp     eax, LANGUAGE_COUNT
+        jb      .known
+        xor     eax, eax
+.known: movzx   eax, word [ebx + language_ui + eax*2]
+        xor     edx, edx
+.each:  inc     edx
+        cmp     edx, RELAY_LANGUAGES
+        jae     .english
+        cmp     ax, [ebx + relay_langids + edx*2]
+        jne     .each
+        mov     eax, edx
+        ret
+.english:
+        xor     eax, eax
+        ret
+
+; ebx = DELTA -> eax = the box's text (UTF-16), or 0 while it is hidden.
+; ecx, edx changed.
+relay_text:
+        movzx   ecx, byte [ebx + RELAY_VIEW]
+        xor     eax, eax
+        test    ecx, ecx
+        jz      .done
+        push    ecx
+        call    relay_language
+        pop     ecx
+        shl     eax, 1
+        cmp     ecx, 4
+        ja      .chosen
+        inc     eax                     ; Automatic: "(auto)"
+.chosen:
+        mov     eax, [ebx + relay_labels + eax*4]
+        add     eax, ebx
+.done:  ret
+
+; edx = a function of user32 (its name, ASCII) -> eax = it, or 0. ebx =
+; DELTA; ecx, edx changed.
+user32_proc:
+        push    esi
+        push    edi
+        lea     esi, [ebx + user32_name]
+        mov     edi, edx
+        call    procedure
+        pop     edi
+        pop     esi
+        ret
+
+; eax = the form: the box as RELAY_VIEW says: hidden while 0; else ticked
+; for the relay (its picture and the one under the pointer), its tooltip,
+; shown. Every register kept.
+relay_apply:
+        pushad
+        mov     esi, eax                ; the form
+        DELTA
+        lea     edi, [esi + FORM_RELAY_BOX]
+        movzx   eax, byte [ebx + RELAY_VIEW]
+        mov     ebp, SW_HIDE
+        test    eax, eax
+        jz      .show
+        mov     ecx, [esi + FORM_RELAY_UNTICKED]
+        mov     edx, [esi + FORM_RELAY_HOVER]
+        cmp     eax, 3                  ; Automatic, through the relay
+        je      .ticked
+        cmp     eax, 5                  ; the relay, chosen
+        jne     .picture
+.ticked:
+        mov     ecx, [esi + FORM_RELAY_TICKED]
+        mov     edx, ecx
+.picture:
+        mov     [edi + CONTROL_HOVER], edx
+        mov     eax, edi
+        call    SET_PICTURE
+        call    relay_tip
+        mov     ebp, SW_SHOWNA
+.show:  lea     edx, [ebx + show_name]
+        call    user32_proc
+        test    eax, eax
+        jz      .done
+        push    ebp
+        push    dword [edi + 4]         ; the box's window
+        call    eax                     ; ShowWindow
+.done:  popad
+        ret
+
+; edi = the box (shown), ebx = DELTA: its tooltip, made once for its window
+; (and the one of a box made before it destroyed), its text what the relay
+; is and what the box is now. eax, ecx, edx, esi, ebp changed.
+relay_tip:
+        sub     esp, TIP_LOCALS
+        lea     edx, [ebx + send_name]
+        call    user32_proc
+        test    eax, eax
+        jz      .out
+        mov     [esp + TIP_SEND], eax
+        ; The text: what the relay is, then what the box is now.
+        call    relay_language
+        mov     esi, eax
+        lea     ecx, [esp + TIP_TEXT]
+        mov     edx, [ebx + relay_tips + esi*4]
+        add     edx, ebx
+        call    append
+        movzx   eax, byte [ebx + RELAY_VIEW]
+        dec     eax
+        imul    esi, esi, VIEWS
+        add     esi, eax
+        mov     edx, [ebx + relay_now + esi*4]
+        add     edx, ebx
+        call    append
+        ; TOOLINFOW: the box's window is the tool, its parent the window.
+        lea     edx, [ebx + parent_name]
+        call    user32_proc
+        test    eax, eax
+        jz      .out
+        push    dword [edi + 4]
+        call    eax                     ; GetParent
+        mov     [esp + TIP_INFO + 8], eax
+        mov     dword [esp + TIP_INFO], 44              ; cbSize (TTTOOLINFOW_V2_SIZE)
+        mov     dword [esp + TIP_INFO + 4], 0x11        ; TTF_IDISHWND | TTF_SUBCLASS
+        mov     eax, [edi + 4]
+        mov     [esp + TIP_INFO + 12], eax              ; uId
+        xor     eax, eax
+        mov     [esp + TIP_INFO + 16], eax              ; rect
+        mov     [esp + TIP_INFO + 20], eax
+        mov     [esp + TIP_INFO + 24], eax
+        mov     [esp + TIP_INFO + 28], eax
+        mov     [esp + TIP_INFO + 32], eax              ; hinst
+        mov     [esp + TIP_INFO + 40], eax              ; lParam
+        lea     eax, [esp + TIP_TEXT]
+        mov     [esp + TIP_INFO + 36], eax              ; lpszText
+        mov     eax, [edi + 4]
+        cmp     eax, [ebx + RELAY_TIP_TOOL]
+        jne     .make
+        cmp     dword [ebx + RELAY_TIP], 0
+        je      .make
+        lea     eax, [esp + TIP_INFO]
+        push    eax
+        push    0
+        push    TTM_UPDATETIPTEXTW
+        push    dword [ebx + RELAY_TIP]
+        call    [esp + 16 + TIP_SEND]
+        jmp     .out
+.make:  mov     eax, [ebx + RELAY_TIP]  ; an earlier box's (the window made again)
+        test    eax, eax
+        jz      .new
+        lea     edx, [ebx + destroy_window_name]
+        call    user32_proc
+        test    eax, eax
+        jz      .new
+        push    dword [ebx + RELAY_TIP]
+        call    eax                     ; DestroyWindow
+.new:   xor     eax, eax
+        mov     [ebx + RELAY_TIP], eax
+        mov     [ebx + RELAY_TIP_TOOL], eax
+        call    common_controls
+        test    eax, eax
+        jz      .out
+        lea     edx, [ebx + create_window_name]
+        call    user32_proc
+        test    eax, eax
+        jz      .out
+        push    0                       ; lpParam
+        push    0                       ; hInstance
+        push    0                       ; hMenu
+        push    dword [esp + 12 + TIP_INFO + 8]         ; the box's parent
+        push    0x80000000              ; CW_USEDEFAULT: height, width, y, x
+        push    0x80000000
+        push    0x80000000
+        push    0x80000000
+        push    0x80000003              ; WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP
+        push    0
+        lea     ecx, [ebx + tooltips_class]
+        push    ecx
+        push    8                       ; WS_EX_TOPMOST
+        call    eax                     ; CreateWindowExW
+        test    eax, eax
+        jz      .out
+        mov     [ebx + RELAY_TIP], eax
+        mov     ecx, [edi + 4]
+        mov     [ebx + RELAY_TIP_TOOL], ecx
+        push    360
+        push    0
+        push    TTM_SETMAXTIPWIDTH
+        push    eax
+        call    [esp + 16 + TIP_SEND]
+        push    30000                   ; shown 30 s
+        push    TTDT_AUTOPOP
+        push    TTM_SETDELAYTIME
+        push    dword [ebx + RELAY_TIP]
+        call    [esp + 16 + TIP_SEND]
+        lea     eax, [esp + TIP_INFO]
+        push    eax
+        push    0
+        push    TTM_ADDTOOLW
+        push    dword [ebx + RELAY_TIP]
+        call    [esp + 16 + TIP_SEND]
+.out:   add     esp, TIP_LOCALS
+        ret
+
+; ebx = DELTA -> eax = 1 once comctl32 is loaded and its tooltip class
+; registered (InitCommonControlsEx, ICC_BAR_CLASSES), else 0. ecx, edx, esi
+; changed; edi kept.
+common_controls:
+        push    edi
+        lea     esi, [ebx + kernel32_name]
+        lea     edi, [ebx + load_library_name]
+        call    procedure
+        test    eax, eax
+        jz      .no
+        lea     ecx, [ebx + comctl32_wide]
+        push    ecx
+        call    eax                     ; LoadLibraryW
+        test    eax, eax
+        jz      .no
+        lea     esi, [ebx + comctl32_name]
+        lea     edi, [ebx + init_controls_name]
+        call    procedure
+        test    eax, eax
+        jz      .no
+        push    4                       ; dwICC: ICC_BAR_CLASSES
+        push    8                       ; dwSize
+        push    esp
+        call    eax                     ; InitCommonControlsEx
+        add     esp, 8
+        mov     eax, 1
+        jmp     .out
+.no:    xor     eax, eax
+.out:   pop     edi
+        ret
+
+relay_langids:  dw 0x0409, 0x0419, 0x0422, 0x0407, 0x0415
+
+; The texts, every language of the launcher's own (English for the others).
+; Short: the box's in the panel left of the status line (x 200), the
+; widest ("Через релей (авто)") about 130 pixels from x 53.
+        align   4, db 0
+relay_labels:   dd label_en, label_en_auto, label_ru, label_ru_auto, label_ru, label_ru_auto
+                dd label_de, label_de_auto, label_pl, label_pl_auto
+relay_tips:     dd tip_en, tip_ru, tip_uk, tip_de, tip_pl
+restart_before: dd restart_en, restart_ru, restart_uk, restart_de, restart_pl
+restart_after:  dd seconds_en, seconds_ru, seconds_ru, seconds_en, seconds_en
+relay_now:      dd now_en_1, now_en_2, now_en_3, now_en_4, now_en_5, now_en_6
+                dd now_ru_1, now_ru_2, now_ru_3, now_ru_4, now_ru_5, now_ru_6
+                dd now_uk_1, now_uk_2, now_uk_3, now_uk_4, now_uk_5, now_uk_6
+                dd now_de_1, now_de_2, now_de_3, now_de_4, now_de_5, now_de_6
+                dd now_pl_1, now_pl_2, now_pl_3, now_pl_4, now_pl_5, now_pl_6
+
+label_en:       dw __utf16__('Use relay'), 0
+label_en_auto:  dw __utf16__('Use relay (auto)'), 0
+label_ru:       dw __utf16__('Через релей'), 0
+label_ru_auto:  dw __utf16__('Через релей (авто)'), 0
+label_de:       dw __utf16__('Über Relay'), 0
+label_de_auto:  dw __utf16__('Über Relay (auto)'), 0
+label_pl:       dw __utf16__('Przez relay'), 0
+label_pl_auto:  dw __utf16__('Przez relay (auto)'), 0
+
+restart_en:     dw __utf16__('The server is restarting. Next try in '), 0
+restart_ru:     dw __utf16__('Сервер перезапускается. Повтор через '), 0
+restart_uk:     dw __utf16__('Сервер перезапускається. Повтор через '), 0
+restart_de:     dw __utf16__('Der Server startet neu. Nächster Versuch in '), 0
+restart_pl:     dw __utf16__('Serwer uruchamia się ponownie. Kolejna próba za '), 0
+seconds_en:     dw __utf16__(' s.'), 0
+seconds_ru:     dw __utf16__(' с.'), 0
+
+tip_en: dw __utf16__(`The relay is a second server that forwards your game when your provider blocks ours.\r\nAutomatic: direct first, the relay if needed.\r\nRelay: always through the relay (a bit more ping).\r\nDirect: never the relay.\r\nClick to change.\r\n\r\nNow: `), 0
+tip_ru: dw __utf16__(`Релей — второй сервер: он передаёт вашу игру, когда провайдер блокирует наш.\r\nАвто: сначала напрямую, при необходимости через релей.\r\nРелей: всегда через релей (пинг чуть выше).\r\nНапрямую: никогда через релей.\r\nНажмите, чтобы сменить.\r\n\r\nСейчас: `), 0
+tip_uk: dw __utf16__(`Релей — другий сервер: він передає вашу гру, коли провайдер блокує наш.\r\nАвто: спершу напряму, за потреби через релей.\r\nРелей: завжди через релей (пінг трохи вищий).\r\nНапряму: ніколи через релей.\r\nНатисніть, щоб змінити.\r\n\r\nЗараз: `), 0
+tip_de: dw __utf16__(`Das Relay ist ein zweiter Server, der dein Spiel weiterleitet, wenn dein Anbieter unseren sperrt.\r\nAuto: zuerst direkt, bei Bedarf über das Relay.\r\nRelay: immer über das Relay (etwas mehr Ping).\r\nDirekt: nie über das Relay.\r\nKlicken zum Ändern.\r\n\r\nJetzt: `), 0
+tip_pl: dw __utf16__(`Relay to drugi serwer, który przekazuje twoją grę, gdy dostawca blokuje nasz.\r\nAuto: najpierw bezpośrednio, w razie potrzeby przez relay.\r\nRelay: zawsze przez relay (nieco wyższy ping).\r\nBezpośrednio: nigdy przez relay.\r\nKliknij, aby zmienić.\r\n\r\nTeraz: `), 0
+
+now_en_1:       dw __utf16__('Automatic, checking...'), 0
+now_en_2:       dw __utf16__('Automatic: direct.'), 0
+now_en_3:       dw __utf16__('Automatic: through the relay.'), 0
+now_en_4:       dw __utf16__('Automatic: the server does not answer.'), 0
+now_en_5:       dw __utf16__('Relay.'), 0
+now_en_6:       dw __utf16__('Direct.'), 0
+now_ru_1:       dw __utf16__('авто, проверка...'), 0
+now_ru_2:       dw __utf16__('авто: напрямую.'), 0
+now_ru_3:       dw __utf16__('авто: через релей.'), 0
+now_ru_4:       dw __utf16__('авто: сервер не отвечает.'), 0
+now_ru_5:       dw __utf16__('через релей.'), 0
+now_ru_6:       dw __utf16__('напрямую.'), 0
+now_uk_1:       dw __utf16__('авто, перевірка...'), 0
+now_uk_2:       dw __utf16__('авто: напряму.'), 0
+now_uk_3:       dw __utf16__('авто: через релей.'), 0
+now_uk_4:       dw __utf16__('авто: сервер не відповідає.'), 0
+now_uk_5:       dw __utf16__('через релей.'), 0
+now_uk_6:       dw __utf16__('напряму.'), 0
+now_de_1:       dw __utf16__('Auto, prüfe...'), 0
+now_de_2:       dw __utf16__('Auto: direkt.'), 0
+now_de_3:       dw __utf16__('Auto: über das Relay.'), 0
+now_de_4:       dw __utf16__('Auto: der Server antwortet nicht.'), 0
+now_de_5:       dw __utf16__('über das Relay.'), 0
+now_de_6:       dw __utf16__('direkt.'), 0
+now_pl_1:       dw __utf16__('auto, sprawdzam...'), 0
+now_pl_2:       dw __utf16__('auto: bezpośrednio.'), 0
+now_pl_3:       dw __utf16__('auto: przez relay.'), 0
+now_pl_4:       dw __utf16__('auto: serwer nie odpowiada.'), 0
+now_pl_5:       dw __utf16__('przez relay.'), 0
+now_pl_6:       dw __utf16__('bezpośrednio.'), 0
+
 setting_key:    db 12, 'localization'
 torrent_key:    db 22, 'enable_torrent_seeding'
 on_text:        db 'on', 0
 off_text:       db 'off', 0
         align   2, db 0
+comctl32_wide:  dw __utf16__('comctl32.dll'), 0
+tooltips_class: dw __utf16__('tooltips_class32'), 0
 reset_name:     dw __utf16__('launcher_skhid.torrent_reset'), 0
 folder_name:    dw __utf16__('\survarium'), 0
 file_name:      dw __utf16__('\user.cfg'), 0
@@ -1333,6 +1843,14 @@ create_name:    db 'CreatePopupMenu', 0
 append_name:    db 'AppendMenuW', 0
 track_name:     db 'TrackPopupMenu', 0
 destroy_name:   db 'DestroyMenu', 0
+show_name:      db 'ShowWindow', 0
+parent_name:    db 'GetParent', 0
+send_name:      db 'SendMessageW', 0
+create_window_name: db 'CreateWindowExW', 0
+destroy_window_name: db 'DestroyWindow', 0
+load_library_name: db 'LoadLibraryW', 0
+comctl32_name:  db 'comctl32.dll', 0
+init_controls_name: db 'InitCommonControlsEx', 0
 
         align   2, db 0
 %include "launcher_languages_026g.inc"

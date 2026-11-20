@@ -158,14 +158,14 @@ pub fn repairing(name: &str) -> String {
 }
 
 /// After the first sentence of a server that could not be reached
-/// (`updater_logic::network`): the short form of the box's advice
-/// (`updater_logic::problem`), for the launcher's line and the log.
-const BLOCKED: &str = "A firewall or this network may block it: see Skhid-network-setup.cmd and VPN.txt.";
+/// (`updater_logic::network`), for the launcher's line and the log: the box
+/// (`updater_logic::problem`, `updater_logic::diagnosis`) tells which.
+const UNREACHED: &str = "It may be restarting or offline, or a firewall or this network may block it.";
 
 pub fn http(server: &Url, path: &str, error: &HttpError) -> String {
     let host = &server.host;
     if let Miss::Unreached(failure) = error.miss() {
-        return format!("{} {BLOCKED}", network::english(failure, host));
+        return format!("{} {UNREACHED}", network::english(failure, host));
     }
     match error {
         HttpError::Network(step, code) => match error.miss() {

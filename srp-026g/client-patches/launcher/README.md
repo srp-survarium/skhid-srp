@@ -34,7 +34,7 @@ your own copy, and the patched exe is made from it.
 | `patch_launcher_026g.py` | Builds the patched launcher from the original. Python 3, nothing else |
 | `launcher_values_026g.asm`, `.bin` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembling the source again gives the same bytes |
 | `launcher_pages.py` | The ten small pages the launcher shows from its own folder while the server's page loads and when it cannot be loaded |
-| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15) |
+| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15), the "Use relay" box (16) |
 | `selftest_launcher_026g.py` | Builds it in memory and checks it: every changed byte is one named below, the PE is well formed, the hook and its way back, the addresses, the relocations, no old address left, the `.asm` gives the `.bin` |
 | `../make_client_026g.py` | Puts all of it into the players' ZIP (the default; `--no-launcher` leaves it out) |
 | `../../../client/updater/` | The updater: Rust source, its tests |
@@ -48,6 +48,7 @@ python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe --na
 python check_language_026g.py <game>/binaries/x86/survarium_launcher.exe   # the language code, under Unicorn
 python check_registry_026g.py <game>/binaries/x86/survarium_launcher.exe   # no registry call where the key was read, under Unicorn
 python check_torrent_box_026g.py <game>/binaries/x86/survarium_launcher.exe # the "Allow torrent" box (patch 15), under Unicorn
+python check_relay_box_026g.py <game>/binaries/x86/survarium_launcher.exe   # the "Use relay" box (patch 16), under Unicorn
 ```
 
 After a change of the game's languages (`../localization_026g.py --write`
@@ -129,7 +130,8 @@ lobby's shop). PROJECT WEBSITE, in SHOP's old place at the right, opens
 "Allow torrent" and port) is gone too: "Allow torrent" is a box at the left
 of the bottom panel, where the social buttons were, kept in user.cfg as the
 language is (patch 15); the port is the updater's own
-(`../../docs/notes/torrent-downloads.md`).
+(`../../docs/notes/torrent-downloads.md`). Under it, in a download with a
+relay, "Use relay" (patch 16).
 
 The launchers built before SHOP went open `<site>/exchange?lang=<code>`
 with it. That address stays: a short page there says, in the launcher's
@@ -686,8 +688,9 @@ for settings"), and it stays as they left it, kept as the language is.
 - **What it looks like:** the settings window's own box and text, at the
   left of the bottom panel where the social buttons were: the box (PNG 347
   unticked, 345 under the pointer, 346 pressed, 344 ticked, 20 by 20) at 28,
-  32 of the panel, in line with the page's left column and centred on the
-  status line and PLAY; "Allow torrent" (string 0xD3, the launcher's
+  20 of the panel (32 before patch 16 put the relay box under it), in line
+  with the page's left column, the two boxes centred on the status line and
+  PLAY; "Allow torrent" (string 0xD3, the launcher's
   language) 25 pixels right of it and 1 below its top, Calibri bold 18,
   white, as the settings window has it beside its box (0x1C38E, 0x3A96C).
   The widest text, Russian, ends at x 186, before the status line (x 200).
@@ -695,9 +698,9 @@ for settings"), and it stays as they left it, kept as the language is.
 - **Where:** YouTube's control (form+0x648) is the box: its three pictures
   (0x1AAFC, 0x1AB0F, 0x1AB22) and Facebook's first (0x1AB35, the ticked
   one; Facebook stays out of sight) are loaded from the settings window's
-  PNGs, its rectangle (0x458A4) moves to 28, 32 and its size initialisers
+  PNGs, its rectangle (0x458A4) moves to 28, 20 and its size initialisers
   (0x3A715, 0x3A722) say 20. Twitter's control (form+0x698) makes the text
-  clickable: its rectangle (0x458C4) is 53, 32 to 187, 52, the text in every
+  clickable: its rectangle (0x458C4) is 53, 20 to 187, 40, the text in every
   language (Russian, the widest, is 134 pixels; its initialiser 0x3A746,
   which could add at most 127, returns at once and right and bottom are
   static), with the hand cursor as the box's; its click (0x1BD29) jumps to
@@ -766,6 +769,76 @@ for settings"), and it stays as they left it, kept as the language is.
   reset once with the file made. The clickable text is not yet run in a
   real launcher. Not yet run on Windows.
 
+### 16. "Use relay" under "Allow torrent"
+
+The owner (2026-11-20): a "Use relay" box, which the updater ticks itself
+when its probe picks the relay, so that players see their route; a player
+picks Automatic, the relay or direct, and the choice stays. The route is the
+updater's (`client/updater`, `updater_logic::route`, its README's "The
+route"): it keeps the choice, probes, and says what the box shows; the box
+only shows it and passes clicks on.
+
+- **What it looks like:** the "Allow torrent" box's pictures and font, 26
+  pixels under it: the box at 28, 46 of the panel, its text at 53, 47.
+  Ticked when the route is the relay. The text is "Use relay", with
+  " (auto)" in Automatic, in the launcher's five languages ("Через релей",
+  "Über Relay", "Przez relay"; Russian with "(авто)", the widest, about 130
+  pixels, ends before the status line at x 200). Hidden until the updater
+  says what it shows: without `updater_skhid.relay`, or with an older
+  updater, there is no box. A tooltip (comctl32's, 30 s) says in a few lines
+  what the relay is, the three choices, and what the box is now (in
+  Automatic, the route the probe picked, or that it is checking).
+- **The views** (message `0A <view>` of the updater, its one byte
+  `updater_logic::route::Shown::byte`): 1 Automatic, probing; 2 Automatic,
+  direct; 3 Automatic, the relay; 4 Automatic, neither answered; 5 the relay
+  (chosen); 6 direct (chosen). Ticked for 3 and 5, "(auto)" for 1..4. The
+  original launcher's dispatch ignored 0A..0D (their table entries are the
+  handlers' end, 0x16093): 0A's (0x160C2, a relocated dword) is now
+  `route_message`; any other byte is ignored, and an older launcher ignores
+  the message altogether.
+- **A click** sends `22` (`send_simple_message` 0x1749F, while the pipe is
+  connected); the updater moves the choice on (Automatic, the relay, direct,
+  Automatic), saves it, runs its update again by the new route and answers
+  with the new view. The launcher keeps nothing but the last view. The
+  updater also moves it by itself, to Automatic, when it finds the direct
+  route blocked while the relay answers, and says so in its box.
+- **A server that restarts** (the owner, the same day: "The server is
+  restarting", retried every few seconds with a count the player sees):
+  the updater says "Server maintenance..." (its state 16h: PLAY off) and
+  then, each second, message `13 <seconds>` to its next try, which the
+  original launcher keeps (launcher+0x2BA0) and paints the status line anew
+  for, showing nothing of it (its only reader is the text of updater state
+  23, which this updater never says). The status line's `load_string` call
+  for the launcher's states 6 and 7 (0x1687C) is `restart_text`: asked for
+  "Server maintenance..." (string 0xB2) while that byte is not 0, it gives
+  "The server is restarting. Next try in 5 s." with the byte, in the box's
+  five languages; `13 00` (the server answers, or the wait ends) and every
+  other string are `load_string`'s own. PLAY comes on with the updater's
+  "latest" as ever.
+- **Where:** VK's control (form+0x6C0) is the box: its three pictures
+  (0x1ABA7, 0x1ABBA, 0x1ABCD) and Facebook's second (0x1AB48, ticked) are
+  the settings window's PNGs, as the torrent box's, made opaque over the
+  panel where the box is (`bake_relay_box`); its rectangle (0x458D4) is 28,
+  46, its size initialisers (0x3A766, 0x3A773) say 20. Its making (0x1AEE5,
+  `relay_made`) shows or hides it as the last view says, so a window made
+  again in another language keeps it; its click (0x1BD3C, `relay_click`).
+  The text is painted with the torrent box's (`paint_label`); a new view
+  calls `refresh_status` (0x16811), which paints the panel anew.
+- **Its state:** the launcher (for the pipe), the view, the tooltip and the
+  box's window it is for: 16 bytes at 0x4A800, in `.data` past its last
+  variable; `.data`'s VirtualSize grows from 0x67FC to 0x6810, inside the
+  page the loader maps already. The new code is 3 pages now (its texts).
+- Checked: `check_relay_box_026g.py` runs message 0A from the dispatch to
+  the handlers' end (every view, and 0, 7, 255 ignored; the registers and
+  the stack as they were), the box's making (hidden, or as a view said), the
+  tooltip (made once, its text updated in place, made again for a new box),
+  the panel's text in every language, and the click (22 only while
+  connected and shown), and the status line (the count in each language,
+  1 to 255 seconds; no count and state 6's text passed on to
+  `load_string`), under Unicorn at two bases.
+  `check_torrent_box_026g.py` and `check_language_026g.py` still pass. Not
+  yet run in a real launcher window.
+
 ## The pipe, in short
 
 The launcher makes `\\.\pipe\vostok_updater_pipe-Survarium`, then starts the
@@ -785,8 +858,11 @@ and that many bytes, the first being its type.
 | `02 01` | "Error" |
 | `05 <text>` | a message box with the text (at most 255 ASCII characters) |
 | `02 0F` and the pipe closed | the launcher closes |
+| `0A <view>` | the "Use relay" box (patch 16): hidden until then |
+| `13 <seconds>` | after `02 16`: "The server is restarting. Next try in <seconds> s." (patch 16); `13 00`: "Server maintenance..." again |
 
-The launcher says `1B` (stop) when its window is closed. The updater stays
+The launcher says `1B` (stop) when its window is closed, `22` when the
+"Use relay" box is clicked. The updater stays
 connected after `02 0E` until then (a closed pipe would turn the line into
 "Error"), asking the server every 10 s; to have the launcher start anew it
 says `02 0F` and closes the pipe, then starts `launcher_skhid.exe`. Types 0, 24 and above 25 would crash the launcher (its table has no
