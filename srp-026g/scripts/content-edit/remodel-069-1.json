@@ -1,5 +1,5 @@
 {
- "_about": "Every live gun on 0.69d0's model (pack remodel-069, docs/notes/remodel-069.md): each weapon config's object/model set to its remodel, weapons/remodel_069/<0.69d0 item>/<0.69d0 item> (remodel-069/items.tsv; made by remodel-069/sidecar.py). The configs keep everything else: their stats, states, clips and sounds.",
+ "_about": "Every live gun on 0.69d0's model (pack weapon-modules, docs/notes/remodel-069.md): each weapon config's object/model set to its remodel's whole body, weapons/remodel_069/<0.69d0 item>/<0.69d0 item> (remodel-069/items.tsv; made by weapon-modules/edits.py). The configs keep everything else.",
  "replace_string": [
   {
    "files": "gameplay/items/weapons/wpn_a9_91.options",
@@ -15,6 +15,16 @@
    "files": "gameplay/items/weapons/wpn_aek_919k.options",
    "from": "weapons/aek_919k/aek_919k",
    "to": "weapons/remodel_069/aek_919k/aek_919k"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_ak_12.options",
+   "from": "weapons/ak_12/ak_12",
+   "to": "weapons/remodel_069/ak_12/ak_12"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_ak_12_premium.options",
+   "from": "weapons/ak_12_camo/ak_12_camo",
+   "to": "weapons/remodel_069/ak_12_premium/ak_12_premium"
   },
   {
    "files": "gameplay/items/weapons/wpn_ak_74m.options",
@@ -37,14 +47,9 @@
    "to": "weapons/remodel_069/ak_74u/ak_74u"
   },
   {
-   "files": "gameplay/items/weapons/wpn_ak_12.options",
-   "from": "weapons/ak_12/ak_12",
-   "to": "weapons/remodel_069/ak_12/ak_12"
-  },
-  {
-   "files": "gameplay/items/weapons/wpn_ak_12_premium.options",
-   "from": "weapons/ak_12_camo/ak_12_camo",
-   "to": "weapons/remodel_069/ak_12_premium/ak_12_premium"
+   "files": "gameplay/items/weapons/wpn_ak_74u_premium.options",
+   "from": "weapons/aks74u_camo/ak74u_camo",
+   "to": "weapons/remodel_069/ak_74u_premium/ak_74u_premium"
   },
   {
    "files": "gameplay/items/weapons/wpn_akmn.options",
@@ -62,9 +67,9 @@
    "to": "weapons/remodel_069/akmn_premium_2/akmn_premium_2"
   },
   {
-   "files": "gameplay/items/weapons/wpn_ak_74u_premium.options",
-   "from": "weapons/aks74u_camo/ak74u_camo",
-   "to": "weapons/remodel_069/ak_74u_premium/ak_74u_premium"
+   "files": "gameplay/items/weapons/wpn_akmsu.options",
+   "from": "weapons/assault/akmsu/akmsu",
+   "to": "weapons/remodel_069/akmsu/akmsu"
   },
   {
    "files": "gameplay/items/weapons/wpn_aps.options",
@@ -77,14 +82,29 @@
    "to": "weapons/remodel_069/ash_12/ash_12"
   },
   {
-   "files": "gameplay/items/weapons/wpn_l85a2.options",
-   "from": "weapons/assault/enfield_l85a2/enfield_l85a2",
-   "to": "weapons/remodel_069/l85a2/l85a2"
-  },
-  {
    "files": "gameplay/items/weapons/wpn_benelli_m4.options",
    "from": "weapons/benelli_m4/benelli_m4",
    "to": "weapons/remodel_069/benelli_m4/benelli_m4"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_beretta93r.options",
+   "from": "weapons/pistols/beretta_93r",
+   "to": "weapons/remodel_069/beretta93r/beretta93r"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_colt_m1911.options",
+   "from": "weapons/pistols/colt_m1911/colt_m1911",
+   "to": "weapons/remodel_069/colt_m1911/colt_m1911"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_cz_75.options",
+   "from": "weapons/pistols/cz_75b",
+   "to": "weapons/remodel_069/cz_75/cz_75"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_famas.options",
+   "from": "weapons/assault/famas/famas",
+   "to": "weapons/remodel_069/famas/famas"
   },
   {
    "files": "gameplay/items/weapons/wpn_fn_fnc.options",
@@ -107,19 +127,24 @@
    "to": "weapons/remodel_069/fort_17/fort_17"
   },
   {
+   "files": "gameplay/items/weapons/wpn_fort_401.options",
+   "from": "weapons/lmg/fort_401/fort_401",
+   "to": "weapons/remodel_069/fort_401/fort_401"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_g3sg1.options",
+   "from": "weapons/dmr/g3a3/g3a3",
+   "to": "weapons/remodel_069/g3a3/g3a3"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_glock_17.options",
+   "from": "weapons/pistols/glock_17/glock_17",
+   "to": "weapons/remodel_069/glock_17/glock_17"
+  },
+  {
    "files": "gameplay/items/weapons/wpn_hk416.options",
    "from": "weapons/hk416_a5/hk416_a5",
    "to": "weapons/remodel_069/hk416/hk416"
-  },
-  {
-   "files": "gameplay/items/weapons/wpn_mp7.options",
-   "from": "weapons/hk_mp7/hk_mp7",
-   "to": "weapons/remodel_069/mp7/mp7"
-  },
-  {
-   "files": "gameplay/items/weapons/wpn_mp7_silencer.options",
-   "from": "weapons/hk_mp7/hk_mp7_silencer",
-   "to": "weapons/remodel_069/mp7_silencer/mp7_silencer"
   },
   {
    "files": "gameplay/items/weapons/wpn_izh_27_lancaster.options",
@@ -137,6 +162,16 @@
    "to": "weapons/remodel_069/izh_27_lancaster_premium_2/izh_27_lancaster_premium_2"
   },
   {
+   "files": "gameplay/items/weapons/wpn_jackhammer.options",
+   "from": "weapons/shotguns/jackhammer/jackhammer",
+   "to": "weapons/remodel_069/jackhammer/jackhammer"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_kedr.options",
+   "from": "weapons/pp9_klin/pp9_klin",
+   "to": "weapons/remodel_069/kedr/kedr"
+  },
+  {
    "files": "gameplay/items/weapons/wpn_kiparis.options",
    "from": "weapons/kiparis",
    "to": "weapons/remodel_069/kiparis/kiparis"
@@ -152,9 +187,14 @@
    "to": "weapons/remodel_069/kriss_vector/kriss_vector"
   },
   {
-   "files": "gameplay/items/weapons/wpn_fort_401.options",
-   "from": "weapons/lmg/fort_401/fort_401",
-   "to": "weapons/remodel_069/fort_401/fort_401"
+   "files": "gameplay/items/weapons/wpn_ks_23m.options",
+   "from": "weapons/shotguns/ks_23/ks_23",
+   "to": "weapons/remodel_069/ks_23/ks_23"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_l85a2.options",
+   "from": "weapons/assault/enfield_l85a2/enfield_l85a2",
+   "to": "weapons/remodel_069/l85a2/l85a2"
   },
   {
    "files": "gameplay/items/weapons/wpn_m4a1.options",
@@ -167,9 +207,34 @@
    "to": "weapons/remodel_069/magnum/magnum"
   },
   {
+   "files": "gameplay/items/weapons/wpn_mauser_m712.options",
+   "from": "weapons/pistols/mauser_m712/mauser",
+   "to": "weapons/remodel_069/mauser/mauser"
+  },
+  {
    "files": "gameplay/items/weapons/wpn_mosin_nagant.options",
    "from": "weapons/mosin_nagant/mosin_nagant",
    "to": "weapons/remodel_069/mosin_nagant/mosin_nagant"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_mp443.options",
+   "from": "weapons/pistols/mp_443",
+   "to": "weapons/remodel_069/mp443/mp443"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_mp5a1.options",
+   "from": "weapons/smg/mp5a1/mp5a1",
+   "to": "weapons/remodel_069/mp5a1/mp5a1"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_mp7.options",
+   "from": "weapons/hk_mp7/hk_mp7",
+   "to": "weapons/remodel_069/mp7/mp7"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_mp7_silencer.options",
+   "from": "weapons/hk_mp7/hk_mp7_silencer",
+   "to": "weapons/remodel_069/mp7_silencer/mp7_silencer"
   },
   {
    "files": "gameplay/items/weapons/wpn_mp_153.options",
@@ -182,44 +247,19 @@
    "to": "weapons/remodel_069/msbs_carbine/msbs_carbine"
   },
   {
-   "files": "gameplay/items/weapons/wpn_neostead_2.options",
-   "from": "weapons/neostead/neostead",
-   "to": "weapons/remodel_069/neostead_2/neostead_2"
-  },
-  {
    "files": "gameplay/items/weapons/wpn_neostead.options",
    "from": "weapons/neostead_camo/neostead_camo",
    "to": "weapons/remodel_069/neostead/neostead"
   },
   {
+   "files": "gameplay/items/weapons/wpn_neostead_2.options",
+   "from": "weapons/neostead/neostead",
+   "to": "weapons/remodel_069/neostead_2/neostead_2"
+  },
+  {
    "files": "gameplay/items/weapons/wpn_ots14.options",
    "from": "weapons/ots14/ots14",
    "to": "weapons/remodel_069/ots14/ots14"
-  },
-  {
-   "files": "gameplay/items/weapons/wpn_beretta93r.options",
-   "from": "weapons/pistols/beretta_93r",
-   "to": "weapons/remodel_069/beretta93r/beretta93r"
-  },
-  {
-   "files": "gameplay/items/weapons/wpn_colt_m1911.options",
-   "from": "weapons/pistols/colt_m1911/colt_m1911",
-   "to": "weapons/remodel_069/colt_m1911/colt_m1911"
-  },
-  {
-   "files": "gameplay/items/weapons/wpn_cz_75.options",
-   "from": "weapons/pistols/cz_75b",
-   "to": "weapons/remodel_069/cz_75/cz_75"
-  },
-  {
-   "files": "gameplay/items/weapons/wpn_glock_17.options",
-   "from": "weapons/pistols/glock_17/glock_17",
-   "to": "weapons/remodel_069/glock_17/glock_17"
-  },
-  {
-   "files": "gameplay/items/weapons/wpn_mp443.options",
-   "from": "weapons/pistols/mp_443",
-   "to": "weapons/remodel_069/mp443/mp443"
   },
   {
    "files": "gameplay/items/weapons/wpn_pkp_pecheneg.options",
@@ -237,14 +277,14 @@
    "to": "weapons/remodel_069/pp2000/pp2000"
   },
   {
-   "files": "gameplay/items/weapons/wpn_kedr.options",
-   "from": "weapons/pp9_klin/pp9_klin",
-   "to": "weapons/remodel_069/kedr/kedr"
-  },
-  {
    "files": "gameplay/items/weapons/wpn_ppsh.options",
    "from": "weapons/ppsh/ppsh",
    "to": "weapons/remodel_069/ppsh/ppsh"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_ppsh_drum.options",
+   "from": "weapons/smg/ppsh/ppsh",
+   "to": "weapons/remodel_069/ppsh_drum/ppsh_drum"
   },
   {
    "files": "gameplay/items/weapons/wpn_rem_700.options",
@@ -287,11 +327,6 @@
    "to": "weapons/remodel_069/scar_h/scar_h"
   },
   {
-   "files": "gameplay/items/weapons/wpn_jackhammer.options",
-   "from": "weapons/shotguns/jackhammer/jackhammer",
-   "to": "weapons/remodel_069/jackhammer/jackhammer"
-  },
-  {
    "files": "gameplay/items/weapons/wpn_sks.options",
    "from": "weapons/sks",
    "to": "weapons/remodel_069/sks/sks"
@@ -305,16 +340,6 @@
    "files": "gameplay/items/weapons/wpn_sks_premium_2.options",
    "from": "weapons/sks_camo/sks_camo_st",
    "to": "weapons/remodel_069/sks_premium_2/sks_premium_2"
-  },
-  {
-   "files": "gameplay/items/weapons/wpn_mp5a1.options",
-   "from": "weapons/smg/mp5a1/mp5a1",
-   "to": "weapons/remodel_069/mp5a1/mp5a1"
-  },
-  {
-   "files": "gameplay/items/weapons/wpn_svu_a.options",
-   "from": "weapons/sniper/svu_a/svu_a",
-   "to": "weapons/remodel_069/svu_a/svu_a"
   },
   {
    "files": "gameplay/items/weapons/wpn_soc_vepr.options",
@@ -357,14 +382,19 @@
    "to": "weapons/remodel_069/svd/svd"
   },
   {
-   "files": "gameplay/items/weapons/wpn_toz_34.options",
-   "from": "weapons/toz34/toz_34",
-   "to": "weapons/remodel_069/toz_34/toz_34"
+   "files": "gameplay/items/weapons/wpn_svu_a.options",
+   "from": "weapons/sniper/svu_a/svu_a",
+   "to": "weapons/remodel_069/svu_a/svu_a"
   },
   {
    "files": "gameplay/items/weapons/wpn_toz_122.options",
    "from": "weapons/toz_122",
    "to": "weapons/remodel_069/toz_122/toz_122"
+  },
+  {
+   "files": "gameplay/items/weapons/wpn_toz_34.options",
+   "from": "weapons/toz34/toz_34",
+   "to": "weapons/remodel_069/toz_34/toz_34"
   },
   {
    "files": "gameplay/items/weapons/wpn_toz_66.options",
