@@ -247,14 +247,16 @@
   const matchLink = row => link({match: row.id}, `${row.id}`);
   // A map's name, leading to it in the wiki's Maps page in the match's mode;
   // plain for a map the game data no longer has.
-  const mapLink = row => row.map_key
-    ? el('a', {href: `/wiki/maps?${new URLSearchParams({lang})}#${row.map_key}/${row.rules}`}, row.map)
-    : name(row.map);
+  const mapAddress = row => `/wiki/maps?${new URLSearchParams({lang})}#${row.map_key}/${row.rules}`;
+  const mapLink = row => row.map_key ? el('a', {href: mapAddress(row)}, row.map) : name(row.map);
   // A map's picture as the rooms draw it, beside its name and mode; an
   // empty frame of its size while loading, and for a map without one.
-  const mapPicture = row => row && row.map_icon
-    ? el('img', {className: 'stats-map', src: row.map_icon, alt: '', width: 64, height: 36, loading: 'lazy'})
-    : el('span', {className: 'stats-map'});
+  // The picture leads where the name does.
+  const mapPicture = row => {
+    if (!row || !row.map_icon) return el('span', {className: 'stats-map'});
+    const picture = el('img', {className: 'stats-map', src: row.map_icon, alt: '', width: 64, height: 36, loading: 'lazy'});
+    return row.map_key ? el('a', {className: 'stats-map-link', href: mapAddress(row), ariaLabel: row.map, tabIndex: -1}, picture) : picture;
+  };
   const mapCell = row => el('span', {className: 'stats-map-cell'}, mapPicture(row),
     el('span', {}, row ? [mapLink(row), el('small', {className: 'stats-under'}, name(row.mode))] : twoLines()));
   // Where a click on a match's row goes, and on a player's.
