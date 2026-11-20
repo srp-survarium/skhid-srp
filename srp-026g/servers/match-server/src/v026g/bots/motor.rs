@@ -42,7 +42,7 @@ use mapdata::grid::{SPRINT_JUMP_LOW_M, STANDING_JUMP_M};
 use super::body::{Estimate, PressOutcome};
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
-use super::press_plan::{Ask, Choice, Margin, Plan, same_body};
+use super::press_plan::{Ask, Choice, MIN_RUN, Plan, same_body};
 use super::link_time;
 use super::path::{AfterLanding, DropTruth, GapPress, Leap, PressAim, Route, RouteHeight, SprintPress, WalkPress};
 use super::rng::Rng;
@@ -1169,14 +1169,15 @@ enum CastKeys {
 /// [press forecast] Why a forecast press did not press ([`Motor::cast_tick`]), for the nav line and the counts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CastWhy {
-    /// No candidate tick of the moving pass lands: `flown` flights, `unflown` candidates passed unflown.
-    NoTickLands { flown: u32, unflown: u32 },
+    /// No run of [`MIN_RUN`] landing ticks in the moving pass: `flown` flights, `unflown` candidates passed unflown, `longest` the
+    /// longest run of landing ticks.
+    NoTickLands { flown: u32, unflown: u32, longest: u32 },
     /// At the bail-out point with flights still to fly.
     NotFlownInTime,
     /// The body was not where the plan's chain put it (a world's fix, a push, a hit, another module's keys).
     Moved,
-    /// No step from this rest lands with a landing neighbour: `flown` flights.
-    NoPressFromRest { flown: u32 },
+    /// No run of [`MIN_RUN`] landing steps from this rest: `flown` flights, `longest` the longest run.
+    NoPressFromRest { flown: u32, longest: u32 },
     /// At rest where the rest was asked already.
     RestAgain,
     /// No press [`PLAN_DEADLINE_S`] after the body first reached the lock.
@@ -1187,10 +1188,12 @@ impl CastWhy {
     /// For the nav line.
     fn text(self) -> String {
         match self {
-            CastWhy::NoTickLands { flown, unflown } => format!("no tick lands ({flown} flown, {unflown} not flown in time)"),
+            CastWhy::NoTickLands { flown, unflown, longest } => {
+                format!("no run of {MIN_RUN} landing ticks (longest {longest}; {flown} flown, {unflown} not flown in time)")
+            }
             CastWhy::NotFlownInTime => "not flown in time".to_owned(),
             CastWhy::Moved => "body moved (fix / push)".to_owned(),
-            CastWhy::NoPressFromRest { flown } => format!("no press from rest ({flown} flown)"),
+            CastWhy::NoPressFromRest { flown, longest } => format!("no press from rest (longest run {longest}; {flown} flown)"),
             CastWhy::RestAgain => "at a rest asked before".to_owned(),
             CastWhy::Deadline => format!("no press {PLAN_DEADLINE_S} s after the lock"),
         }
@@ -3776,10 +3779,13 @@ impl Motor {
                             plan.start(self.clock);
                             self.cast_planned(cast, link, body, plan, flyer, bail)
                         }
-                        Choice::NoLanding { flown, .. } => {
+                        Choice::NoLanding { flown, longest, .. } => {
+                            if (1..MIN_RUN).contains(&longest) {
+                                press_casts::count(press_casts::Slot::Narrow);
+                            }
                             cast.note(&format!("rest at ({:.2}, {:.2}, {:.2}), {:.2} m out: steps {}", body.feet.x, body.feet.y, body.feet.z, before, plan.text()));
                             cast.rests.push(body.feet);
-                            self.cast_spend(cast, jump, link, body, CastWhy::NoPressFromRest { flown });
+                            self.cast_spend(cast, jump, link, body, CastWhy::NoPressFromRest { flown, longest });
                             (CastState::Approach, CastKeys::Approach)
                         }
                     }
@@ -3808,26 +3814,21 @@ impl Motor {
         self.cast_fly(&mut plan, link, flyer);
         let tick = self.clock.wrapping_sub(plan.lock());
         match plan.decide(self.clock) {
-            Choice::Press { j, margin } if j == tick => {
+            Choice::Press { j, run } if j == tick => {
                 if !link.may_press {
                     return (CastState::Stopping, CastKeys::Stand);
                 }
                 press_casts::count(press_casts::Slot::Pressed);
-                if matches!(margin, Margin::Narrow { .. }) {
-                    press_casts::count(press_casts::Slot::Narrow);
-                }
                 let forecast = match plan.outcome(j) {
                     Some(PressOutcome::Lands { rest }) => Some(rest),
                     _ => None,
                 };
                 let notes = std::mem::take(&mut cast.notes);
                 let text = format!(
-                    "{}press forecast: try {} pressed{} at plan tick {j} (a run of {}{}, {} flown, {}) from ({:.2}, {:.2}, {:.2}) at {:.2} m/s, {:.2} m before the take-off{}{notes}; take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2})",
+                    "{}press forecast: try {} pressed{} at plan tick {j} (a run of {run}, {} flown, {}) from ({:.2}, {:.2}, {:.2}) at {:.2} m/s, {:.2} m before the take-off{}{notes}; take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2})",
                     super::nav_log::PREFIX,
                     cast.tries + 1,
                     if rest { " from rest" } else { "" },
-                    margin.run(),
-                    if matches!(margin, Margin::Narrow { .. }) { ", narrow" } else { "" },
                     plan.flown(),
                     plan.text(),
                     body.feet.x,
@@ -3856,10 +3857,13 @@ impl Motor {
                 (CastState::Stopping, CastKeys::Stand)
             }
             Choice::Pending => (CastState::Planned(plan), CastKeys::Walk),
-            Choice::NoLanding { flown, unflown } => {
+            Choice::NoLanding { flown, unflown, longest } => {
                 press_casts::count(press_casts::Slot::NoLanding);
-                cast.note(&format!("walk-in: no tick lands {}", plan.text()));
-                cast.why = Some(CastWhy::NoTickLands { flown, unflown });
+                if (1..MIN_RUN).contains(&longest) {
+                    press_casts::count(press_casts::Slot::Narrow);
+                }
+                cast.note(&format!("walk-in: no run of {MIN_RUN} landing ticks (longest {longest}) {}", plan.text()));
+                cast.why = Some(CastWhy::NoTickLands { flown, unflown, longest });
                 (CastState::Stopping, CastKeys::Stand)
             }
         }
@@ -5287,7 +5291,7 @@ pub mod press_casts {
         Flights,
         /// A press on the plan's tick.
         Pressed,
-        /// … of a run of one or two landing ticks.
+        /// A pass (walk-in or rest) whose longest run of landing ticks was one or two: no press ([`super::super::press_plan::MIN_RUN`]).
         Narrow,
         /// A moving pass with no landing tick.
         NoLanding,
@@ -9127,13 +9131,13 @@ mod tests {
     fn a_forecast_with_no_landing_tick_stops_and_presses_from_its_rest() {
         let mut motor = cast_motor(true);
         let mut route = cast_route();
-        let slow = |at: &Estimate| at.velocity[0].hypot(at.velocity[1]) < 0.6 && (-2.0..=-0.4).contains(&at.feet.x);
+        let slow = |at: &Estimate| at.velocity[0].hypot(at.velocity[1]) < 1.2 && (-2.0..=-0.4).contains(&at.feet.x);
         let mut stub = Stub::new(-4.4, 3.5, slow);
         let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 80, None);
         let (feet, speed) = pressed.unwrap_or_else(|| panic!("no press: {ends:?}"));
-        assert!(speed < 1e-3 && (-2.0..=-0.4).contains(&feet.x), "pressed at {feet:?} {speed}");
+        assert!((speed - 3.5 / 6.0).abs() < 1e-3 && (-2.0..=-0.4).contains(&feet.x), "pressed at {feet:?} {speed}");
         let line = motor.cast_watch.as_ref().map(|watch| watch.text.clone()).unwrap_or_default();
-        assert!(line.contains("press forecast: try 1 pressed from rest at plan tick 0") && line.contains("walk-in: no tick lands"), "{line}");
+        assert!(line.contains("press forecast: try 1 pressed from rest at plan tick 1") && line.contains("walk-in: no run of 3 landing ticks"), "{line}");
     }
 
     /// [press forecast] No press from anywhere lands: each try is spent (backed off to the run-up, walked in again) and after

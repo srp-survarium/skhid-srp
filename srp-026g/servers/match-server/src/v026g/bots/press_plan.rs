@@ -47,33 +47,22 @@ pub(super) enum Ask {
 /// (`jump::Kind::Slow(k)`, k up to 5, `mapdata/controller/jump.rs` `run_up_slow`).
 pub(super) const REST_STEPS_MAX: u32 = 5;
 
-/// [press forecast] How a chosen tick's neighbours stand ([`Choice::Press`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Margin {
-    /// In a run of `run` landing ticks, three or more: the ticks before and after it land too (a press one input early or late).
-    Run { run: u32 },
-    /// In a run of one or two landing ticks, pressed only because no longer run is there (counted, logged).
-    Narrow { run: u32 },
-}
-
-impl Margin {
-    /// The run's length.
-    pub(super) fn run(self) -> u32 {
-        match self {
-            Margin::Run { run } | Margin::Narrow { run } => run,
-        }
-    }
-}
+/// [press forecast] The fewest landing ticks (or steps from rest) in a row a press is chosen from: the pressed one and one either
+/// side (a press one input early or late lands too, design §2.5 rule 2). A run of one or two is a knife edge: the reckoning's error
+/// (0.3 m at its 90th percentile, `body::RECKONING_M`) tips it, and the old stand-in's suite showed it (13 of 18 falls after a
+/// forecast press were rest presses on a run of two). No press from it: the try fails fast.
+pub(super) const MIN_RUN: u32 = 3;
 
 /// [press forecast] What a plan says on a tick ([`Plan::decide`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Choice {
     /// Flights to fly yet before the press tick is known.
     Pending,
-    /// Press on the plan's tick `j`.
-    Press { j: u32, margin: Margin },
-    /// No candidate tick from now on lands: `flown` flights flew, `unflown` candidates passed before they were flown.
-    NoLanding { flown: u32, unflown: u32 },
+    /// Press on the plan's tick `j`, in a run of `run` landing ticks ([`MIN_RUN`] or more).
+    Press { j: u32, run: u32 },
+    /// No run of [`MIN_RUN`] landing ticks from now on: `flown` flights flew, `unflown` candidates passed before they were flown,
+    /// and the longest run of landing ticks was `longest`.
+    NoLanding { flown: u32, unflown: u32, longest: u32 },
 }
 
 /// [press forecast] A plan: the chain from the lock, its candidates and their flights.
@@ -220,14 +209,14 @@ impl Plan {
         };
         let lands = |j: u32| self.verdict(j) == Some(Verdict::Lands);
         let last = self.first + self.outcomes.len() as u32 - 1;
-        // Decided before every flight is flown, to fly fewer: from rest, the first step that lands with the next landing too (the
-        // steps are flown in order, so no earlier step qualifies); walking in, the first run of three or more landing ticks whose
-        // ends are known (a miss or the zone's end on each side), pressed at its middle.
+        // Decided before every flight is flown, to fly fewer: from rest, the first step with the steps either side landing (the
+        // steps are flown in order, so no earlier step qualifies); walking in, the first run of [`MIN_RUN`] or more landing ticks
+        // whose ends are known (a miss or the zone's end on each side), pressed at its middle.
         match self.ask {
             Ask::Rest => {
-                if let Some(j) = (self.first..last).find(|&j| lands(j) && lands(j + 1)) {
-                    let run = (j..=last).take_while(|&k| lands(k)).count() as u32;
-                    return Choice::Press { j, margin: if run >= 3 { Margin::Run { run } } else { Margin::Narrow { run } } };
+                if let Some(j) = (self.first + 1..last).find(|&j| lands(j - 1) && lands(j) && lands(j + 1)) {
+                    let run = (j - 1..=last).take_while(|&k| lands(k)).count() as u32;
+                    return Choice::Press { j, run };
                 }
             }
             Ask::Moving { .. } => {
@@ -245,8 +234,8 @@ impl Plan {
                     let len = j - start;
                     let bounded = (start == self.first || known_end(start.checked_sub(1))) && known_end(Some(j));
                     let middle = start + (len - 1) / 2;
-                    if len >= 3 && bounded && middle >= from {
-                        return Choice::Press { j: middle, margin: Margin::Run { run: len } };
+                    if len >= MIN_RUN && bounded && middle >= from {
+                        return Choice::Press { j: middle, run: len };
                     }
                 }
             }
@@ -254,39 +243,35 @@ impl Plan {
         if self.next_flight(now).is_some() {
             return Choice::Pending;
         }
-        let chosen = match self.ask {
-            Ask::Rest => (self.first..=last).filter(|&j| j >= from).find(|&j| {
-                lands(j) && (j.checked_sub(1).is_some_and(lands) || lands(j + 1))
-            }).map(|j| {
-                let run = (j..=last).take_while(|&k| lands(k)).count() as u32 + (self.first..j).rev().take_while(|&k| lands(k)).count() as u32;
-                (j, run)
-            }),
-            Ask::Moving { .. } => {
-                // The runs of landing ticks, (start, length); a run's press is its middle tick (the earlier of two).
-                let mut runs: Vec<(u32, u32)> = Vec::new();
-                for j in self.first..=last {
-                    if lands(j) {
-                        match runs.last_mut() {
-                            Some((start, len)) if *start + *len == j => *len += 1,
-                            _ => runs.push((j, 1)),
-                        }
-                    }
+        // The runs of landing ticks, (start, length).
+        let mut runs: Vec<(u32, u32)> = Vec::new();
+        for j in self.first..=last {
+            if lands(j) {
+                match runs.last_mut() {
+                    Some((start, len)) if *start + *len == j => *len += 1,
+                    _ => runs.push((j, 1)),
                 }
-                runs.iter()
-                    .map(|&(start, len)| (start + (len - 1) / 2, len))
-                    .filter(|&(middle, _)| middle >= from)
-                    .fold(None, |best: Option<(u32, u32)>, (middle, len)| match best {
-                        Some((_, best_len)) if best_len >= len => best,
-                        _ => Some((middle, len)),
-                    })
             }
+        }
+        let longest = runs.iter().map(|&(_, len)| len).max().unwrap_or(0);
+        // Every flight flown: from rest the first run of [`MIN_RUN`] (pressed one step into it, its first step's neighbours both
+        // landing); walking in the longest, at its middle (the earlier of two), not past.
+        let chosen = match self.ask {
+            Ask::Rest => runs.iter().find(|&&(_, len)| len >= MIN_RUN).map(|&(start, len)| (start + 1, len)),
+            Ask::Moving { .. } => runs
+                .iter()
+                .map(|&(start, len)| (start + (len - 1) / 2, len))
+                .filter(|&(middle, len)| len >= MIN_RUN && middle >= from)
+                .fold(None, |best: Option<(u32, u32)>, (middle, len)| match best {
+                    Some((_, best_len)) if best_len >= len => best,
+                    _ => Some((middle, len)),
+                }),
         };
         match chosen {
-            Some((j, run)) if run >= 3 => Choice::Press { j, margin: Margin::Run { run } },
-            Some((j, run)) => Choice::Press { j, margin: Margin::Narrow { run } },
+            Some((j, run)) => Choice::Press { j, run },
             None => {
                 let flown = self.flown();
-                Choice::NoLanding { flown, unflown: self.outcomes.len() as u32 - flown }
+                Choice::NoLanding { flown, unflown: self.outcomes.len() as u32 - flown, longest }
             }
         }
     }
@@ -374,19 +359,19 @@ mod tests {
         let plan = Plan::new(100, Ask::Moving { zone: ZONE }, chain(20), before).unwrap();
         // Ticks 10-14 land (a run of 5), 16 alone.
         let (choice, flown) = run(plan, |j| (10..=14).contains(&j) || j == 16);
-        assert_eq!(choice, Choice::Press { j: 12, margin: Margin::Run { run: 5 } });
+        assert_eq!(choice, Choice::Press { j: 12, run: 5 });
         assert!(flown <= 9, "{flown}");
     }
 
-    /// [press forecast] A run of two (map 91's forecast from a walk-in: ticks 6 and 7) is pressed only with no longer run, as
-    /// a narrow one, on its earlier tick; a run of three wins over it.
+    /// [press forecast] A run of two (map 91's forecast from a walk-in: ticks 6 and 7) is no press ([`MIN_RUN`]); a run of three
+    /// is pressed at its middle.
     #[test]
     fn a_narrow_run_is_pressed_only_with_no_longer_one() {
         let plan = Plan::new(100, Ask::Moving { zone: ZONE }, chain(20), before).unwrap();
         let (choice, _) = run(plan.clone(), |j| j == 10 || j == 11);
-        assert_eq!(choice, Choice::Press { j: 10, margin: Margin::Narrow { run: 2 } });
+        assert_eq!(choice, Choice::NoLanding { flown: 7, unflown: 2, longest: 2 }, "a run of two is no press");
         let (choice, _) = run(plan, |j| j == 9 || j == 10 || (13..=15).contains(&j));
-        assert_eq!(choice, Choice::Press { j: 14, margin: Margin::Run { run: 3 } });
+        assert_eq!(choice, Choice::Press { j: 14, run: 3 });
     }
 
     /// [press forecast] No candidate lands: no press, with the flights counted.
@@ -394,7 +379,7 @@ mod tests {
     fn a_plan_with_no_landing_tick_says_so() {
         let plan = Plan::new(100, Ask::Moving { zone: ZONE }, chain(20), before).unwrap();
         let (choice, flown) = run(plan, |_| false);
-        assert_eq!(choice, Choice::NoLanding { flown: 5, unflown: 4 });
+        assert_eq!(choice, Choice::NoLanding { flown: 5, unflown: 4, longest: 0 });
         assert_eq!(flown, 5, "every second of 9 candidates");
     }
 
@@ -412,7 +397,7 @@ mod tests {
             match plan.decide(now) {
                 Choice::Pending => {}
                 choice => {
-                    assert_eq!(choice, Choice::NoLanding { flown: 3, unflown: 6 }, "at {now}");
+                    assert_eq!(choice, Choice::NoLanding { flown: 3, unflown: 6, longest: 1 }, "at {now}");
                     return;
                 }
             }
@@ -420,17 +405,20 @@ mod tests {
         panic!("never decided");
     }
 
-    /// [press forecast] From rest: the steps 0-5 in order; the first that lands with the next landing too is pressed (decided
-    /// then), one that lands alone is not.
+    /// [press forecast] From rest: the steps 0-5 in order; the first with the steps either side landing is pressed (decided at the
+    /// third landing step in a row); a run of two or one is no press.
     #[test]
     fn a_rest_plan_presses_the_first_landing_step_with_a_landing_neighbour() {
         let plan = Plan::new(100, Ask::Rest, vec![body(9.5); 7], before).unwrap();
         assert_eq!(plan.candidates(), (0, 6));
         let (choice, flown) = run(plan.clone(), |j| j == 1 || j == 3 || j == 4);
-        assert_eq!(choice, Choice::Press { j: 3, margin: Margin::Narrow { run: 2 } });
-        assert_eq!(flown, 5, "decided at the second landing step in a row: step 5 is not flown");
+        assert_eq!(choice, Choice::NoLanding { flown: 6, unflown: 0, longest: 2 }, "no run of three: no press");
+        assert_eq!(flown, 6);
+        let (choice, flown) = run(plan.clone(), |j| (1..=3).contains(&j));
+        assert_eq!(choice, Choice::Press { j: 2, run: 3 });
+        assert_eq!(flown, 4, "decided at the third landing step in a row: steps 4-5 are not flown");
         let (choice, _) = run(plan, |j| j == 2);
-        assert_eq!(choice, Choice::NoLanding { flown: 6, unflown: 0 });
+        assert_eq!(choice, Choice::NoLanding { flown: 6, unflown: 0, longest: 1 });
     }
 
     /// [press forecast] Rule 5: the body where the chain put it, to the millimetre, with the same keys; anything else is not.
