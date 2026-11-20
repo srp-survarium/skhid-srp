@@ -430,10 +430,25 @@ try {
   assert.equal(await count('.stats-table'), 2);
   assert.equal(await count('.stats-table tbody tr'), 12);
   assert.match(await text('.stats-heading'), /^Team 1 · \d/);
-  assert.ok((await columns()).includes('HS %'));
-  assert.ok((await columns()).includes('Accuracy'));
+  const matchColumns = await columns();
+  assert.ok(matchColumns.includes('HS %'));
+  assert.ok(matchColumns.includes('Accuracy'));
   assert.deepEqual(await cells('.stats-kit.stats-under'), answered.match.players.map(weapons), 'weapons under each name');
-  assert.deepEqual(await cells('.stats-table tbody td:nth-child(8)'), answered.match.players.map(row => aim(row)));
+  assert.deepEqual(await cells('.stats-table tbody td:nth-child(7)'), answered.match.players.map(row => aim(row)));
+  assert.ok(!['Level', 'Captures'].some(label => matchColumns.includes(label)), matchColumns.join());
+  // A team sorts by a click on a heading, alone: the most kills first, then the fewest; the other team stays by place.
+  const team = nth => evaluate(`JSON.stringify([...document.querySelectorAll('.stats-table')[${nth}].querySelectorAll('tbody tr')].map(r => [1, 4].map(i => Number(r.children[i - 1].textContent))))`).then(JSON.parse);
+  assert.deepEqual((await team(0)).map(([place]) => place), [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(await cells('.stats-table thead th.sorted'), ['Place', 'Place']);
+  const byKills = "[...document.querySelectorAll('.stats-table')[0].querySelectorAll('thead th button')].find(b => b.textContent === 'Kills').click()";
+  await evaluate(byKills);
+  assert.ok((await team(0)).every(([, kills], i, rows) => !i || rows[i - 1][1] >= kills), 'the most kills first');
+  assert.deepEqual(await cells('.stats-table thead th.sorted'), ['Kills', 'Place']);
+  assert.deepEqual((await team(1)).map(([place]) => place), [1, 2, 3, 4, 5, 6], 'the other team as it was');
+  await evaluate(byKills);
+  assert.ok((await team(0)).every(([, kills], i, rows) => !i || rows[i - 1][1] <= kills), 'then the fewest');
+  assert.equal(await count('.stats-table tbody tr'), 12);
+  await navigate(`/stats?match=${newest}&lang=en`);
   assert.equal(await fits(), true, 'the teams fit the width');
   await screenshot('match');
   // The teams in the Maps page's colours; the map leads to it there, in the match's mode.

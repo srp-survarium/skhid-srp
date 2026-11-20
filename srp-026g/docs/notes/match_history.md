@@ -20,6 +20,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   heading (the owner, 2026-11-20), largest first, and smallest first on a second click
   (`&order=asc`); the players' list has no Level.
 - A player's page says the account's id first in Overall (the owner, 2026-11-20).
+- A match's teams (a free-for-all's one list) come by place and sort in the page by a click on
+  a heading, each team alone; they have no Level and no Captures (the owner, 2026-11-20).
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
   headshots as their share of the kills (HS %); no batteries or artefacts (a profile's own panel
   has them).
