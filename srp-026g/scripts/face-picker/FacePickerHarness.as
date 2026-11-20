@@ -8,28 +8,21 @@ package {
  import flash.utils.*;
  // The player panel's Face button and the faces' window (docs/notes/face-choice.md), made by the lobby
  // movie's own panel (top_fla.topPanelLeftContainer_56) and its own window class (survarium.face.FaceWindow),
- // fed srp's answers as PlayerRanking.fillPlayers gives them. Traces FACE lines, `FACE shot <name>` when a
- // capture is due, and `FACE RESULT pass|fail: ...`. An atlas.png beside it is the equipment atlas the
- // portraits come from (the faces pack's); without one a stand-in is drawn.
+ // told srp's account as the exe tells it (LobbyMenu.srp_faces: FaceChoice.told) and fed srp's answers as
+ // PlayerRanking.fillPlayers gives them. Traces FACE lines, `FACE shot <name>` when a capture is due, and
+ // `FACE RESULT pass|fail: ...`.
  public class FacePickerHarness extends Sprite {
   private static const W:int=1640, H:int=540, CARD_W:int=140, CARD_H:int=180;
   private var loader:Loader=new Loader();
   private var domain:ApplicationDomain;
-  private var Choice:Object, Loc:Object, Modals:Object, Window:Class, LobbyWindow:Class, Panel:Class, Icons:Class;
+  private var Choice:Object, Loc:Object, Modals:Object, Window:Class, LobbyWindow:Class, Panel:Class;
   private var panel:Object, button:Object, choice:Object, window:Object;
   private var host:Sprite=new Sprite();
-  private var atlas:BitmapData;
   private var step:int=0, wait:int=0;
   public function FacePickerHarness() {
    stage.align=StageAlign.TOP_LEFT;stage.scaleMode=StageScaleMode.NO_SCALE;
    graphics.beginFill(0x1B201E);graphics.drawRect(0,0,W,H);graphics.endFill();
    addChild(host);
-   var png:Loader=new Loader();
-   png.contentLoaderInfo.addEventListener(Event.COMPLETE,function(e:Event):void{atlas=Bitmap(png.content).bitmapData;trace("FACE atlas: atlas.png "+atlas.width+" x "+atlas.height);load();});
-   png.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR,function(e:Event):void{load();});
-   png.load(new URLRequest("atlas.png"));
-  }
-  private function load():void {
    loader.contentLoaderInfo.addEventListener(Event.INIT,loaded);
    loader.uncaughtErrorEvents.addEventListener(UncaughtErrorEvent.UNCAUGHT_ERROR,function(e:UncaughtErrorEvent):void{e.preventDefault();});
    loader.load(new URLRequest("lobby_menu.swf"),new LoaderContext(false,new ApplicationDomain()));
@@ -47,8 +40,10 @@ package {
   // Framed gold: the card's left edge, half way down, is the gold.
   private function gold(face:int):Boolean {var b:BitmapData=new BitmapData(CARD_W,CARD_H,true,0);b.draw(card(face));var c:uint=b.getPixel(0,CARD_H/2);b.dispose();return (c>>16)>0xC0 && (c&0xFF)<0x80;}
   private function golds():Array {var g:Array=[];for(var i:int=0;i<window.count;i++)if(gold(i))g.push(i);return g;}
-  private function picture(face:int):DisplayObjectContainer {return card(face).getChildAt(0) as DisplayObjectContainer;}
-  private function numbered(face:int):Boolean {var f:TextField=picture(face).getChildAt(0) as TextField;return f!=null && f.text==String(face+1);}
+  private function picture(face:int):DisplayObject {return card(face).getChildAt(0);}
+  private function numbered(face:int):Boolean {var p:DisplayObjectContainer=picture(face) as DisplayObjectContainer;var f:TextField=p?p.getChildAt(p.numChildren-1) as TextField:null;return f!=null && f.text==String(face+1);}
+  // A card's picture: its own pixels (w x h), drawn at the card's size, smoothed.
+  private function sharp(shown:DisplayObject,w:int,h:int,cardW:int,cardH:int):Boolean {var b:Bitmap=shown as Bitmap;return b!=null && b.bitmapData.width==w && b.bitmapData.height==h && Math.abs(b.width-cardW)<0.01 && Math.abs(b.height-cardH)<0.01 && b.smoothing;}
   private function label(face:int):TextField {var c:DisplayObjectContainer=card(face);return c.getChildAt(c.numChildren-1) as TextField;}
   private function loaded(e:Event):void {
    try {
@@ -59,7 +54,6 @@ package {
     Modals=domain.getDefinition("survarium.controls.Modals");
     Window=domain.getDefinition("survarium.face.FaceWindow") as Class;
     LobbyWindow=domain.getDefinition("survarium.lobbypick.LobbyWindow") as Class;
-    Icons=domain.getDefinition("survarium.data.IconContainer") as Class;
     Panel=domain.getDefinition("top_fla.topPanelLeftContainer_56") as Class;
     require(!domain.hasDefinition("survarium.face.FaceChooser"),"the drop-down chooser is gone");
     panel=new Panel();panel.x=10;panel.y=10;
@@ -80,11 +74,12 @@ package {
       require(button.boxWidth==lobby.boxWidth && button.boxHeight==lobby.boxHeight && button.y==lobby.y,"as big as the lobby button, on its row");
       require(Math.abs(lobby.x-(button.x+button.boxWidth)-8)<0.01,"8 px left of the lobby button: "+button.x+" "+lobby.x);
       require(button.shown==lobby.shown,"the same back piece as the lobby button: "+button.shown);
-      require(!button.visible,"hidden until srp says");
+      require(button.visible,"shown before srp's account says, as the lobby button");
       require(!Choice.take([{place:2090000000,nickname:"F1;0;1;3"}]),"rows of another range pass by");
-      require(answer("F2;0;0;3") && !button.visible,"another version of the row is taken and read as nothing");
-      require(answer("F1;0;0;1") && !button.visible,"one face: hidden");
-      require(answer("F1;0;2;11") && button.visible,"eleven faces: shown");
+      require(answer("F2;0;0;3") && choice.count==0,"another version of the row is taken and read as nothing");
+      Choice.told(3,3);require(choice.count==0,"a face past the count is no word");
+      Choice.told(0,1);require(!button.visible,"one face: hidden");
+      Choice.told(2,11);require(button.visible,"eleven faces: shown");
       expect(2,"srp's face");
       // Every language's word, upper case, inside the button and centred, as the lobby button's.
       for each(var lang:String in HarnessText.LANGUAGES) {
@@ -109,7 +104,8 @@ package {
       trace("FACE shot button");wait=120;break;
      case 1:
       // The window, as the lobby window: in the middle, a modal; the faces in rows of six and
-      // five (the second centred), srp's face gold, the number without an atlas cell.
+      // five (the second centred), srp's face gold; the movie's portraits (SrpFace0..9) at their own
+      // pixels, twice the card's (a 4K screen draws the card so big), the number without one.
       window=new Window();
       var Cards:Class=domain.getDefinition("survarium.rooms.CardWindow") as Class;
       require(window is Cards && new LobbyWindow() is Cards,"the lobby window's kind (CardWindow)");
@@ -123,7 +119,10 @@ package {
       require(card(5).y==card(0).y && card(6).y>card(0).y,"six a row");
       require(Math.abs((card(6).x-card(0).x)-(CARD_W+14)/2)<=1,"the shorter row centred: "+card(0).x+" "+card(6).x);
       require(golds().join()=="2","srp's face framed gold: "+golds());
-      require(numbered(4),"no atlas cell: the face's number");
+      for(i=0;i<10;i++) require(sharp(picture(i),CARD_W*2,CARD_H*2,CARD_W,CARD_H),"face "+i+": its portrait, 280 x 360 drawn at the card's size");
+      require(numbered(10),"no portrait: the face's number");
+      var lp:DisplayObject=DisplayObjectContainer(new LobbyWindow().getChildByName("0")).getChildAt(0);
+      require(sharp(lp,560,380,280,190),"the lobby window's pictures too: 560 x 380 drawn at the card's size");
       require(label(4).text=="Face 5","the band's name: "+label(4).text);
       trace("FACE shot window");wait=120;break;
      case 2:
@@ -151,33 +150,12 @@ package {
       require(!window.isOpen && !other.isOpen && !Modals.any(),"none open after a match's load");
       window.toggle(host);require(window.isOpen,"and opened again after");window.toggle(host);
       // Fewer faces: the cards made again; one face: closed.
-      open();answer("F1;0;0;4");require(card(3)!=null && card(4)==null && window.count==4,"four cards");
+      open();Choice.told(0,4);require(card(3)!=null && card(4)==null && window.count==4,"four cards");
       require(golds().join()=="0","srp's face framed");
       answer("F1;0;9;4");expect(0,"a face past the count is no answer");
-      answer("F1;0;0;1");require(!button.visible && !window.isOpen,"one face: the button hidden, the window closed");
-      // The faces pack's portraits: the equipment atlas's cells of column 16 (atlas.png, or a
-      // stand-in here: 16 columns of 8 rows, a head drawn in each cell of the last); faces past
-      // its rows keep their number.
-      var rows:int=8;
-      if(atlas==null) {
-       atlas=new BitmapData(171*16,91*rows,true,0);
-       var head:Shape=new Shape();
-       for(var r:int=0;r<rows;r++) {
-        var g:Graphics=head.graphics;
-        var cx:Number=171*15+85, cy:Number=91*r+41;
-        g.beginFill(0x6A5446+r*0x090807);g.drawEllipse(cx-22,cy-30,44,58);g.endFill();
-        g.beginFill(0x2A2420);g.drawEllipse(cx-23,cy-33,46,26);g.endFill();
-        g.beginFill(0x3A4248);g.drawRect(cx-30,cy+28,60,13);g.endFill();
-       }
-       atlas.draw(head);
-      } else rows=int(atlas.height/91);
-      new Icons("equipment",171,83,atlas,true,0,0,8,false);
-      answer("F1;0;6;11");
+      Choice.told(0,1);require(!button.visible && !window.isOpen,"one face: the button hidden, the window closed");
+      Choice.told(6,11);
       window=new Window();open();
-      require(!numbered(0) && !numbered(Math.min(rows,11)-1),"faces 0 and "+(Math.min(rows,11)-1)+": their atlas cells");
-      if(rows<11) require(numbered(rows),"face "+rows+": past the atlas's rows, its number");
-      var pic:Bitmap=picture(0).getChildAt(0) as Bitmap;
-      require(pic!=null && pic.width==CARD_W && pic.height==CARD_H,"the portrait the card's size");
       require(golds().join()=="6","srp's face framed");
       trace("FACE shot icons");wait=120;break;
      case 3:

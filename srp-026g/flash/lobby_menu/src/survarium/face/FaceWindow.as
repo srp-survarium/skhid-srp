@@ -1,6 +1,5 @@
 package survarium.face
 {
-   import flash.display.Bitmap;
    import flash.display.BitmapData;
    import flash.display.DisplayObject;
    import flash.display.GradientType;
@@ -10,7 +9,7 @@ package survarium.face
    import flash.text.TextField;
    import flash.text.TextFieldAutoSize;
    import flash.text.TextFormat;
-   import survarium.data.IconContainer;
+   import flash.utils.getDefinitionByName;
    import survarium.data.LocalizationData;
    import survarium.rooms.CardWindow;
    import survarium.rooms.RoomsLook;
@@ -21,24 +20,16 @@ package survarium.face
    // card chooses that face at once (FaceChoice.pick) and closes the window, which shows the lobby's
    // character, wearing it when srp's account comes (the exe).
    //
-   // A face's portrait is the lobby's equipment atlas cell the faces pack draws for it (its
-   // heads[i].icon, faces-pack.md: row i + 1 of ICON_COLUMN), its middle across the card; an atlas
-   // without that cell shows the face's number instead.
+   // A face's portrait is its picture of the movie (bitmaps/SrpFace<face>.jpg: a crop of a game
+   // capture at twice the card's size, as the lobby window's), over the whole card; a face without
+   // one shows its number instead.
    public class FaceWindow extends CardWindow
    {
 
-      // The atlas's column of the faces (resource-porter's faces_026::ICON_COLUMN), from 1.
-      public static const ICON_COLUMN:int = 16;
+      // The class of face i's picture: PICTURE + i.
+      private static const PICTURE:String = "SrpFace";
 
-      // An equipment cell (171 x 83): the head is its middle HEAD_W px, which spans the card.
-      private static const ICON_W:int = 171;
-
-      private static const HEAD_W:int = 80;
-
-      // The cell drawn this far up: the chin clear of the band, a crest still whole.
-      private static const PORTRAIT_UP:int = 4;
-
-      // A portrait card, the cell 1.75 times: the head over the band, the neck under it.
+      // A portrait card: the head over the band, the shoulders under it.
       public static const CARD_W:int = 140;
 
       public static const CARD_H:int = 180;
@@ -111,28 +102,23 @@ package survarium.face
          }
       }
 
-      // The face's portrait on a dark backdrop; its number without an atlas cell.
+      // The face's portrait; its number on a dark backdrop without one.
       private function picture(face:int, font:TextFormat) : DisplayObject
       {
+         try
+         {
+            var cls:Class = getDefinitionByName(PICTURE + face) as Class;
+            return RoomsLook.card(new cls() as BitmapData,CARD_W,CARD_H);
+         }
+         catch(e:Error)
+         {
+         }
          var card:Sprite = new Sprite();
          var m:Matrix = new Matrix();
          m.createGradientBox(CARD_W,CARD_H,Math.PI / 2);
          card.graphics.beginGradientFill(GradientType.LINEAR,[0x2C353C,0x0B0F12],[1,1],[0,255],m);
          card.graphics.drawRect(0,0,CARD_W,CARD_H);
          card.graphics.endFill();
-         var icons:IconContainer = IconContainer.getInstance("equipment");
-         if(icons != null && icons.columns >= ICON_COLUMN && face < icons.rows)
-         {
-            var cell:BitmapData = icons.iconData((ICON_COLUMN - 1) * icons.rows + face);
-            var scale:Number = CARD_W / HEAD_W;
-            var at:Matrix = new Matrix();
-            at.scale(scale,scale);
-            at.translate(Math.round((CARD_W - ICON_W * scale) / 2),-PORTRAIT_UP);
-            var portrait:BitmapData = new BitmapData(CARD_W,CARD_H,true,0);
-            portrait.draw(cell,at,null,null,null,true);
-            card.addChild(new Bitmap(portrait));
-            return card;
-         }
          var number:TextField = new TextField();
          number.defaultTextFormat = new TextFormat(font.font,NUMBER_SIZE,RoomsLook.GREY,font.bold);
          number.embedFonts = true;

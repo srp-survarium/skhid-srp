@@ -72,14 +72,16 @@ marked [pick] is a worker's choice the owner may change.
 ## Wire
 
 - Lobby request (the movie's): `3B 00 <start> <count>`, as the presets (`lobby.md` §2.16.4):
-  - `2 097 000 000`: the state;
+  - `2 097 000 000`: the state (the movie no longer asks it: it has the state from `87`);
   - `2 097 000 010 + face`: choose that face (0..89);
   - each is answered with one `91` at `2 097 000 000`, its row `F1;<done>;<face>;<count>`
     (`done` 0 the state, 1 chosen, 2 refused; `face` the account's; `count` the faces of the
     game data).
   - A choice is answered with the account (`87`, every kit's revision bumped, so the lobby
     redraws its character) before the `91`.
-- `87` (own account): one srp byte after `exp_next_level`, the account's face.
+- `87` (own account): two srp bytes after `exp_next_level`: the account's face, then how many
+  faces the game data lists. The exe gives both to the lobby movie (`root.srp_faces`) when the
+  account comes, at the sign-in and after each change of the account.
 - `88` (a squad member's account): one srp byte after its revision, the member's face.
 - `E4` (the match's options): srp's block entry tag 5, one byte a place (the roster's length),
   each place's face. Sent only when a place's face is not 0; no entry: every face 0, so older
@@ -139,17 +141,26 @@ marked [pick] is a worker's choice the owner may change.
   framed gold. A press on a card chooses that face at once and closes the window, as a lobby's
   pick does, which shows the lobby's character. [pick] (`survarium/face/FaceButton`,
   `FaceWindow`, `FaceChoice`.)
-- A card's portrait is the face's `heads[i].icon`: the cell `[i + 1, 16]` of the lobby's
-  equipment atlas, which the faces pack draws (the movie does not read the game data, so column
-  16 is `FaceWindow.ICON_COLUMN`, as `faces_026::ICON_COLUMN`), its middle 80 px across the card
-  on a dark backdrop. An atlas without that cell: the face's number.
-- Hidden until srp answers, and when the data has one face.
+- A card's portrait is the movie's picture of the face, `bitmaps/SrpFace<i>.jpg` (class
+  `SrpFace<i>`), as the lobby window's cards are the movie's pictures of the lobbies: the lobby's
+  own character with that face in the Basement, bare (`scavenger_torso_1`), a three-quarter view
+  (the camera 20 degrees to his left, level, 2 m, 17.7 degrees of view), a crop of a 2560x1440
+  game capture (`private/local-clients-faces-capture`, 2.7 capture pixels a picture pixel) at
+  twice the card's size, 280x360: a 3840x2160 screen draws the card at that size. It is shown at
+  its own pixels, scaled to the card and smoothed (`RoomsLook.card`; the lobby window's pictures
+  too), never copied to a card-sized bitmap first. A face without a picture: its number. The
+  owner, 2026-11-20, on faces@5's atlas cells scaled up three times: "face preprenders are low
+  quality"; "the size is fine, the fact that it is low quality isn't".
+- Shown from the lobby's first frame, with LOBBY: the lobby movie is shown a moment (0.7 s in
+  the 2560x1440 capture, during its fade-in) before srp's account comes; its click does nothing
+  until then. Hidden when the account says the data has one face (data without the faces pack).
 - A pick shows at once. One choice is asked at a time, and the last pick wins: when an answer
   comes and the player went on meanwhile, the next is asked. A refusal brings srp's face back.
-  No answer in 5 s: srp's face, and the state asked again.
+  Nothing is asked on a timer: the state comes with the account, and an ask is sent only from
+  the window, which opens only after the account came.
 - The preview is the lobby's own character: the exe redraws it when srp's `87` comes. The
   camera stays as it is. [pick]
-- Checked in Ruffle: `scripts/face-picker/check.sh <lobby_menu.swf> [work dir] [atlas.png]`.
+- Checked in Ruffle: `scripts/face-picker/check.sh <lobby_menu.swf> [work dir]`.
 
 ## Release
 

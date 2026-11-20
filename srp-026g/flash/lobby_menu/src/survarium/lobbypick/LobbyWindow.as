@@ -1,6 +1,5 @@
 package survarium.lobbypick
 {
-   import flash.display.Bitmap;
    import flash.display.BitmapData;
    import flash.external.ExternalInterface;
    import flash.utils.getDefinitionByName;
@@ -40,7 +39,7 @@ package survarium.lobbypick
          for each(var picture:String in PICTURES)
          {
             var cls:Class = getDefinitionByName(picture) as Class;
-            pictures.push(new Bitmap(RoomsLook.cover(new cls() as BitmapData,CARD_W,CARD_H)));
+            pictures.push(RoomsLook.card(new cls() as BitmapData,CARD_W,CARD_H));
          }
          build(pictures,2);
          LocalizationData.addCallback(this.labels,"st_srp_lobby_title");
