@@ -829,13 +829,17 @@ moon textures were not read.
 
 Copies the normal target (t 10 -> 11 `normal_copy`, 0x178AA5) then binds the three G-buffer
 targets normal (10), albedo (13), surface_parameters (15) (0x178AEF..0x178B34) and draws each
-decal box (`decal_instance::draw` 0x14DEB0) with `decal_default_material_effect` (0x1E3070,
+decal box, lowest `draw_priority` first (`std::sort` 0x179650 on the decal's +0x6C; 0.31a2 sorts the same, 0x78D8A9), (`decal_instance::draw` 0x14DEB0) with `decal_default_material_effect` (0x1E3070,
 shader `decal_base`, depth test LESS_EQUAL no write, stencil test against the geometry bits,
 0x1E3288..0x1E3394). So decals modify the G-buffer before any lighting; they are lit like the
 surface. PROVEN. Blend: `deferred_decal.ps` writes the albedo with the decal alpha in o1.w and
 zeros elsewhere (e.g. 00adf4b1...d29172), consistent with per-target SRC_ALPHA blending from the
 material `blend_mode` (`effect_material_base::compile_begin` 0x1CD0B0): LIKELY, the per-target
 blend values were not read.
+
+0.31a2's stage (0x78AE40, vtable slot 1) does the same: the copy (0x78AF2E), the three targets, the
+same per-decal effect choice from the instance's +0x4C/+0x50/+0x54. Target ids are the same in both
+builds (`rt_index_to_name`: 0.26g table 0x16272C, 0.31a2 0x771ED4).
 
 ### 9.2 Other passes, one line each
 
@@ -855,6 +859,64 @@ blend values were not read.
   constant; lerp. PROVEN (shader tail).
 - Foreground (slot 22): first-person models via `stage_forward::execute_foreground` and
   `stage_lights::execute_foreground` (vtable slot +8). LIKELY.
+
+### 9.3 One-layer transparency (OLTA, `use_olta`)
+
+A G-buffer material with `use_olta` is see-through by a one-bit stipple, resolved later. Read for
+the 0.21d and 0.11e Radar ports' glass bricks (`ported/v0xxx/tiled/window/glass_tile`,
+2026-11-09).
+
+**Write** (`gbuffer_pass.ps` with `CONFIG_USE_OLTA`, 354 of the 5918 blobs, all checked): with
+a = `t_transparency.a`, a pixel with 0.025 < a < 0.975 is discarded on even rows
+(`(uint)SV_Position.y & 1 == 0`), and albedo.a (rt 13) = a. Every other `gbuffer_pass` blob and
+every `terrain_gbuffer_pass` blob writes albedo.a = 1; `gbuffer_nomaterial_pass` writes 0.5.
+PROVEN (bytecode). So the even rows show what is behind the first OLTA surface, and every OLTA
+surface behind it is gone there too: one layer only.
+
+**Resolve** (slot 19, `stage_apply_distortion::execute` 0x1AE3B0): when both effects exist
+(`is_effects_ready` 0x1AE390), opt+11Ch is set (1 by `set_default_values` 0x3CD5BF, no console
+command) and the stage is enabled (`stage::is_enabled` 0x1BD6A0, +0Ch, 1 from the constructor
+0x1AE2C8), `effect_olta` (stage +14h, one technique: `olta_blend`, `t_frame_color` = generic0,
+`t_diffuse` = albedo, 0x1D4210) draws generic0 into generic1, then `effect_apply_distortion`'s
+technique 1 (stage +10h) draws generic1 back into generic0. 0.21d's stage is the same
+(0x12393D); 0.10b resolved in the post-process instead, from its own R8 target cleared to 1 each
+frame. PROVEN (code). The captured frame (section 11) has the pass. OBSERVED.
+
+`olta_blend.ps` is keyed by `GLOBAL_SHADING_QUALITY` alone (`shaders/masks`) and the db has only
+`_0` and `_3`; the options' macro writer turns every value but 0 into 3 (0x3CD3B7..0x3CD3F9), so
+`r_shading_quality` 1..3 give `_3`. PROVEN. With n = albedo.a one row down, c = albedo.a here:
+
+```
+_0 (0.21d's only program):  n < 1: here*(1-n) + below*n     else c < 1: here*c + below*(1-c)
+_3:                          n < 1: blur(below)*(1-n) + below*n
+                             else c < 1: here*c + blur(here)*(1-c)
+     blur(t) = mean of 9 taps at x-1..x+1, rows t-3, t-1, t+1 (the rows of the other layer)
+```
+
+So `_3` gives the two rows of a pair the same value: the glass and what is behind it both at half
+the vertical resolution, in two-row steps fixed to the screen. PROVEN (bytecode). In the owner's
+screenshot of the 0.21d Radar's glass (2026-11-09 15:21, 2560x1440) the glass has that structure
+(mean |v(y) - v(y+1)| 2.47 inside a pair against 6.44 across pairs, the wall beside it 3.6/3.5):
+the resolve runs there. OBSERVED.
+
+**The carrier is not reset.** `stage_gbuffer::execute` binds normal, albedo and surface parameters
+(0x177C4E) and clears none of them; after the resolve the post-process uses albedo as scratch
+(TAA: `CopyResource(albedo, present)` 0x1B2EAE; the aberration/sharpen pass drawn into albedo
+0x1B3476, then copied to present), and the aberration, sharpen and TAA programs write alpha 0.
+So where no G-buffer geometry was drawn (the sky), the resolve finds albedo.a from the previous
+frame's post-process, 0 with those passes, and takes the "n < 1" branch: the sky gets the 9-tap
+blur, the row above the sky too, and an OLTA row with sky below it shows only itself. PROVEN
+(code and bytecode); which post-process branch a frame takes depends on the options and the
+scene; not seen in a game.
+
+**Live OLTA materials** (stock db and the live patches, 2026-11-09): `tiled/window/` glass,
+glass_det_test, glass_tile, window, window_tiles, windows_broken, windows_factory;
+`props/light/` lamp_lights_glass, lamp_lights_glass_light, light_emitters_glass;
+`props/chemicalflaskcentre/` capsuleglass, flaskglass; `props/plantflask/plantflaskglass`;
+`level/lobby/glass`; `vehicle/vaz_2109_alpha`; `editor/victory_item_spawner`;
+`test/taras_fx/fly1`; patch 14 `level/level_09/church_glass`, `gherkin_ts`,
+`vehicle/military/ocelot/ocelot_glass`; patch 20 `ported/v021d/` glass, glass_tile, window,
+`props/light/lamp_lights_glass_light`; patch 22 `ported/v011e/` glass, glass_tile.
 
 ## 10. Post-process (`stage_postprocess::execute` 0x1B2270)
 

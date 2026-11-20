@@ -4211,6 +4211,134 @@ pub unsafe extern "C" fn hook_lamps_on_light_remove(a0: Option<raw::ObjectLight>
 
 // ---- lamps (patch 81) ----
 
+/// engine_ambient_light_insert (0x290930), as the vtable hook at 0xa0ac6c wraps it.
+pub struct OrigAmbientLightInsert;
+
+impl OrigAmbientLightInsert {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, light: &mut ObjectAmbientLight) {
+        // SAFETY: engine_ambient_light_insert at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_ambient_light_insert(Some(light.raw())) }
+    }
+}
+
+/// The entry `lamps_on_ambient_light_insert` (0xa0ac6c, object_ambient_light insert slot 8) calls this with
+/// engine_ambient_light_insert's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_ambient_light_insert`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_ambient_light_insert(a0: Option<raw::ObjectAmbientLight>) -> u32 {
+    // SAFETY: only the entry `lamps_on_ambient_light_insert` calls this, from the game's call at
+    // 0xa0ac6c, on the game's thread; a0.. are engine_ambient_light_insert's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut light) = (unsafe { ObjectAmbientLight::from_raw(&thread, a0) }) else {
+        // a null ObjectAmbientLight never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_ambient_light_insert(a0) }; 0 };
+    };
+    let orig = OrigAmbientLightInsert;
+    { crate::lamps::on_ambient_light_insert(&orig, &mut light); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
+/// engine_ambient_light_remove (0x290ae0), as the vtable hook at 0xa0ac70 wraps it.
+pub struct OrigAmbientLightRemove;
+
+impl OrigAmbientLightRemove {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, light: &mut ObjectAmbientLight) {
+        // SAFETY: engine_ambient_light_remove at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_ambient_light_remove(Some(light.raw())) }
+    }
+}
+
+/// The entry `lamps_on_ambient_light_remove` (0xa0ac70, object_ambient_light remove slot 9) calls this with
+/// engine_ambient_light_remove's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_ambient_light_remove`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_ambient_light_remove(a0: Option<raw::ObjectAmbientLight>) -> u32 {
+    // SAFETY: only the entry `lamps_on_ambient_light_remove` calls this, from the game's call at
+    // 0xa0ac70, on the game's thread; a0.. are engine_ambient_light_remove's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut light) = (unsafe { ObjectAmbientLight::from_raw(&thread, a0) }) else {
+        // a null ObjectAmbientLight never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_ambient_light_remove(a0) }; 0 };
+    };
+    let orig = OrigAmbientLightRemove;
+    { crate::lamps::on_ambient_light_remove(&orig, &mut light); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
+/// engine_particle_insert (0x292cc0), as the vtable hook at 0xa0afcc wraps it.
+pub struct OrigParticleInsert;
+
+impl OrigParticleInsert {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, particle: &mut ObjectParticleVisual) {
+        // SAFETY: engine_particle_insert at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_particle_insert(Some(particle.raw())) }
+    }
+}
+
+/// The entry `lamps_on_particle_insert` (0xa0afcc, object_particle_visual insert slot 8) calls this with
+/// engine_particle_insert's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_particle_insert`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_particle_insert(a0: Option<raw::ObjectParticleVisual>) -> u32 {
+    // SAFETY: only the entry `lamps_on_particle_insert` calls this, from the game's call at
+    // 0xa0afcc, on the game's thread; a0.. are engine_particle_insert's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut particle) = (unsafe { ObjectParticleVisual::from_raw(&thread, a0) }) else {
+        // a null ObjectParticleVisual never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_particle_insert(a0) }; 0 };
+    };
+    let orig = OrigParticleInsert;
+    { crate::lamps::on_particle_insert(&orig, &mut particle); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
+/// engine_particle_remove (0x292dc0), as the vtable hook at 0xa0afd0 wraps it.
+pub struct OrigParticleRemove;
+
+impl OrigParticleRemove {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, particle: &mut ObjectParticleVisual) {
+        // SAFETY: engine_particle_remove at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_particle_remove(Some(particle.raw())) }
+    }
+}
+
+/// The entry `lamps_on_particle_remove` (0xa0afd0, object_particle_visual remove slot 9) calls this with
+/// engine_particle_remove's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_particle_remove`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_particle_remove(a0: Option<raw::ObjectParticleVisual>) -> u32 {
+    // SAFETY: only the entry `lamps_on_particle_remove` calls this, from the game's call at
+    // 0xa0afd0, on the game's thread; a0.. are engine_particle_remove's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut particle) = (unsafe { ObjectParticleVisual::from_raw(&thread, a0) }) else {
+        // a null ObjectParticleVisual never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_particle_remove(a0) }; 0 };
+    };
+    let orig = OrigParticleRemove;
+    { crate::lamps::on_particle_remove(&orig, &mut particle); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
 /// The named exits of lamps::on_decal_enter (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]
@@ -4696,13 +4824,103 @@ pub extern "C" fn hook_medical_skills_on_stopping(frame: &mut Frame) -> u32 {
 
 // ---- medical_skills (patch 94) ----
 
-/// The entry `medical_skills_on_sway` (0x31d727, breath_vibration_calculator::tick after apply_modifier of breath_vibration (61) at 0x31D722, before it stores the result (mov eax,[ebp+0Ch] / fild dword [ebp+0Ch], then movss [esp+10h],xmm0 at 0x31D72D): XMM0 the dispersion that drives the aimed weapon's sway, B x max(0, 1 + S61); EDI the calculator (weapon+288h), EBP the tick's frame) calls this with the saved machine.
+/// The entry `medical_skills_on_reload` (0x30e25f, weapon_core_reload_state::get_weapon_lexeme after apply_modifier of reload_speed (13) at 0x30E25A (push 1 / push -1 / push 1, then movss [esp+20h],xmm0 at 0x30E26A): XMM0 the hands clip's speed, +138h x max(0, 1 + S13); EDI the state, [[EDI+120h]+8] the player whose kit it read) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_sway(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_sway` calls this, from the game's jump at 0x31d727,
+pub extern "C" fn hook_medical_skills_on_reload(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_reload` calls this, from the game's jump at 0x30e25f,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_sway(&mut ctx) {
+    match crate::medical_skills::on_reload(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_reload_double` (0x30f622, double_barreled_weapon_core_reload_state::get_weapon_lexeme (0x30F5A0) after apply_modifier of reload_speed (13) at 0x30F61D (mov edx,[esp+14h] / push 1, then movss [esp+20h],xmm0): XMM0 the clip's speed, +138h x max(0, 1 + S13); EDI the state) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_reload_double(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_reload_double` calls this, from the game's jump at 0x30f622,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_reload_double(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_reload_pistol` (0x30ff0c, pistol_weapon_core_reload_state::get_weapon_lexeme (0x30FE90, state 314) after apply_modifier of reload_speed (13) at 0x30FF07 (push 1 / push -1 / push 1, then movss [esp+20h],xmm0): XMM0 the clip's speed, +138h x max(0, 1 + S13); EDI the state) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_reload_pistol(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_reload_pistol` calls this, from the game's jump at 0x30ff0c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_reload_pistol(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_reload_shotgun` (0x3110da, the shotgun reload substate's get_weapon_lexeme (0x311070) after apply_modifier of reload_speed (13) at 0x3110D5 (mov ecx,[edi+154h], then movss [esp+20h],xmm0 at 0x3110F0): XMM0 the clip's speed, +14Ch x max(0, 1 + S13); EDI the state) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_reload_shotgun(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_reload_shotgun` calls this, from the game's jump at 0x3110da,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_reload_shotgun(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_aim_start` (0x2e1b9f, weapon_core::instant_aim_start after apply_modifier of aim_time (49) at 0x2E1B9A (movss xmm2,[edi+604h], then XMM0 stored at +608h, 0x2E1BD2): XMM0 the sight's raising time, +5F8h x max(0, 1 + S49); EDI the weapon, [EDI+8] the player whose kit it read) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_aim_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_aim_start` calls this, from the game's jump at 0x2e1b9f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_aim_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_aim_end` (0x2e1c40, weapon_core::instant_aim_end after apply_modifier of aim_time (49) at 0x2E1C3B (movss xmm2,[edi+604h], then XMM0 stored at +608h, 0x2E1C6E): XMM0 the sight's lowering time, +5F8h x max(0, 1 + S49); EDI the weapon) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_aim_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_aim_end` calls this, from the game's jump at 0x2e1c40,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_aim_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_drug_begin` (0x33d872, medkit::tick on the first tick of the active time (remaining == the whole active time, 0x33D860), after remove_affects (0x33D86D), before the drug_activity link (movzx edx,byte [ebp+115h]): EDI the drug, EBP its holder) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_drug_begin(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_drug_begin` calls this, from the game's jump at 0x33d872,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_drug_begin(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -6896,4 +7114,16 @@ unsafe extern "C" { static lamps_light_vtable: [u32; 11]; }
 pub fn lamps_light_vtable_handle() -> super::project::NativeVtable<raw::ObjectLightMethods> {
     // SAFETY: the generated immutable table lives for the executable's lifetime.
     unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_light_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static lamps_ambient_light_vtable: [u32; 11]; }
+pub fn lamps_ambient_light_vtable_handle() -> super::project::NativeVtable<raw::ObjectAmbientLightMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_ambient_light_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static lamps_particle_vtable: [u32; 11]; }
+pub fn lamps_particle_vtable_handle() -> super::project::NativeVtable<raw::ObjectParticleVisualMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_particle_vtable).cast::<u32>().add(1) as usize as u32) }
 }

@@ -707,6 +707,7 @@ st_character_decals_4_72_name	Angola zászlaja
 st_character_decals_4_73_name	Nigéria zászlaja
 st_character_decals_4_74_name	Dél-Afrika zászlaja
 st_character_decals_4_75_name	Wales zászlaja
+st_character_decals_4_76_name	Koszovó zászlaja
 st_character_decals_4_7_name	Litvánia zászlaja
 st_character_decals_4_8_name	Észtország zászlaja
 st_character_decals_4_9_name	Moldova zászlaja
@@ -746,6 +747,7 @@ st_character_decals_5_3_name	Ukrajna címere
 st_character_decals_5_40_name	Írország címere
 st_character_decals_5_41_name	Horvátország címere
 st_character_decals_5_42_name	Bosznia-Hercegovina címere
+st_character_decals_5_43_name	Koszovó címere
 st_character_decals_5_4_name	Fehéroroszország címere
 st_character_decals_5_5_name	Kazahsztán címere
 st_character_decals_5_6_name	Lettország címere
@@ -1428,6 +1430,7 @@ st_level_14_name	Rudnya (v0.69)
 st_level_25_name	Iskola (v0.21)
 st_level_26_name	Tarakanovi erőd (v0.21)
 st_level_29_name	Rudnya (v0.21)
+st_level_31_name	Vegyi üzem (v0.21)
 st_lifebone_activation_hint	Szarkaláb aktiválva! Minden súlyos seb begyógyult! Életerő helyreállítva!
 st_lifebone_pickup_hint	Szarkaláb artefaktum. Gyorsítja az életerő regenerálódását. 
 st_lightning_quality_option	Megvilágítás minősége
@@ -2607,6 +2610,7 @@ st_srp_login_ban_ends	Lejár: %1$s (%2$s múlva).
 st_srp_login_ban_forever	A tiltás végleges.
 st_srp_map_chemical_plant	Vegyi üzem
 st_srp_map_chemical_plant_v011	Vegyi üzem (v0.11)
+st_srp_map_chemical_plant_v021	Vegyi üzem (v0.21)
 st_srp_map_cologne	Köln
 st_srp_map_cs_mp_atp	Vehicle Station
 st_srp_map_cs_mp_bath	Experimental Pool
@@ -2667,24 +2671,29 @@ st_srp_medical_312_description	Az elsősegélycsomagok és kötszerek által vis
 st_srp_medical_312_name	Egészségügyi képzés
 st_srp_medical_313_description	Az elsősegélycsomagok és kötszerek által visszaállított életerő bónusza guggolás közben:
 st_srp_medical_313_name	Fedezékbe
+st_srp_medical_314_description	Antitoxin hatása alatt a célzási idő csökkenése:
+st_srp_medical_314_name	Éles szem
 st_srp_medical_321_description	Mozgási sebesség bónusza 30 alatti életerőnél:
 st_srp_medical_321_name	Adrenalin
 st_srp_medical_322_description	Minden gyógyszert tartalmazó zsebben eggyel több tárgy fér el.
 st_srp_medical_322_name	Több gyógyszer
 st_srp_medical_323_description	Fájdalomcsillapító hatása alatt az ellenséges találatok megállítóerejének csökkenése:
 st_srp_medical_323_name	Rendíthetetlen
+st_srp_medical_324_description	Amikor az antitoxin hatni kezd, visszanyert állóképesség:
+st_srp_medical_324_name	Második szél
 st_srp_medical_331_description	A másodlagos fegyver helyét egy további felszerelészsebre cseréli.
 st_srp_medical_331_name	Felszerelészseb
 st_srp_medical_332_description	A karok és lábak maximális életerejének bónusza:
 st_srp_medical_332_name	Erős csontok
-st_srp_medical_333_description	Fájdalomcsillapító hatása alatt az irányzék kilengésének csökkenése:
+st_srp_medical_333_description	Antitoxin hatása alatt az újratöltési sebesség bónusza:
 st_srp_medical_333_name	Összpontosítás
 st_srp_medical_342_description	A szövetségesektől kapott sebzés csökkenése:
 st_srp_medical_342_name	Fegyvertársak
 st_srp_medical_seconds	 mp
+st_srp_medicine_aim_time	Célzási idő
 st_srp_medicine_crouched_healing	Gyógyulás guggolva
 st_srp_medicine_hit_slow	Lassítás golyóktól
-st_srp_medicine_sight_sway	Irányzék kilengése
+st_srp_medicine_reload_speed	Újratöltési sebesség
 st_srp_medicine_sprint_stamina	Sprint állóképesség
 st_srp_melee_knockback	Tusütés lökőereje
 st_srp_mic_test	Mikrofon tesztelése

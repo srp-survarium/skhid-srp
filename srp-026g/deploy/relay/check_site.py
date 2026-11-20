@@ -40,20 +40,22 @@ def caddy_command(caddyfile, page):
 
 
 async def page(reader, writer):
-    """Answers with the address srp would take: the last X-Forwarded-For entry."""
+    """Answers with the address srp would take: the last X-Forwarded-For entry.
+    Only a request for the path alone is answered, as srp reads it."""
     head = (await reader.readuntil(b"\r\n\r\n")).decode()
     seen = re.search(r"(?im)^x-forwarded-for:.*?([^,\s]+)\s*$", head)
     body = seen.group(1).encode() if seen else b"none"
-    writer.write(b"HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Length: %d\r\n\r\n%s" % (len(body), body))
+    status = b"200 OK" if head.startswith("GET / HTTP/1.1\r\n") else b"400 Bad Request"
+    writer.write(b"HTTP/1.1 %s\r\nConnection: close\r\nContent-Length: %d\r\n\r\n%s" % (status, len(body), body))
     await writer.drain()
     writer.close()
 
 
-async def visit(port, source, to="127.0.0.1", first=b""):
+async def visit(port, source, to="127.0.0.1", first=b"", target=b"/"):
     """The address the page saw, or None where the visitor got no page."""
     try:
         reader, writer = await open_connection(to, port, local_addr=(source, 0))
-        writer.write(first + b"GET / HTTP/1.1\r\nHost: site\r\nConnection: close\r\n\r\n")
+        writer.write(first + b"GET %s HTTP/1.1\r\nHost: site\r\nConnection: close\r\n\r\n" % target)
         await writer.drain()
         answer = await asyncio.wait_for(reader.read(-1), 10)
         writer.close()
@@ -109,6 +111,15 @@ class SiteTests(unittest.IsolatedAsyncioTestCase):
         finally:
             relay.close()
             await relay.wait_closed()
+
+    async def test_a_request_with_the_whole_address_is_the_page_too(self):
+        # Wine's WinHTTP asks a site behind a proxy (the relay's CONNECT
+        # service, the updater's way through it) with the whole address in
+        # the request line, inside the tunnel too. Caddy takes it and asks
+        # srp for the path alone.
+        await self.caddy("")
+        whole = b"http://site:%d/" % self.port
+        self.assertEqual(await visit(self.port, "127.0.0.1", target=whole), "127.0.0.1")
 
     async def test_without_relays_no_header_is_read(self):
         await self.caddy("")

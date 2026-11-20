@@ -607,59 +607,62 @@ package {
    require(medicineLines(cards[0],d).join()==released.painkiller,"Unflinching 5 refused");
    profile.setKitModifiers(kitFloats({43:3,45:74}));d=medicine("painkiller");shows(d,other);
    require(medicineLines(cards[0],d,2).join()==kept(expect("painkiller",painkiller.painkiller.split(",")),medicineLines(cards[0],d,2)),"full combo ranks valid: "+medicineLines(cards[0],d,2).join());
-   // Concentration's three bits at 7: rank 5 of 4 is refused, and so is Concentration beside
-   // Unflinching (they exclude each other); its full set (2 + 8 + 4 x 128 = 522) is valid.
-   for each(var refused:int in [5<<7,(1<<4)|(1<<7),(4<<4)|(4<<7)]) {
+   // Concentration's three bits at 7: rank 4 of 3 is refused (no longer beside Unflinching
+   // alone); every combo skill at its most (2 + 8 + 4 x 16 + 3 x 128 + 3 x 1024 + 3 x 4096) is valid.
+   const FULL:int=2+8+(4<<4)+(3<<7)+(3<<10)+(3<<12);
+   for each(var refused:int in [4<<7,(4<<4)|(4<<7)]) {
     profile.setKitModifiers(kitFloats({43:3,45:refused}));d=medicine("painkiller");shows(d,other);
     require(medicineLines(cards[0],d).join()==released.painkiller,"combo "+refused+" refused");
    }
-   profile.setKitModifiers(kitFloats({43:3,45:522}));d=medicine("painkiller");shows(d,other);
-   require(medicineLines(cards[0],d,2).join()==kept(expect("painkiller",painkiller.painkiller.split(",")),medicineLines(cards[0],d,2)),"Concentration set valid: "+medicineLines(cards[0],d,2).join());
-   // The skills that act while a painkiller is active or as a medicine heals (float 45: Numb Legs,
-   // Take Cover, Unflinching, Concentration): lines below the card's own, in % of the game's own,
-   // each as medical_skills.rs applies it; none without a rank, none once Alt is let go.
+   profile.setKitModifiers(kitFloats({43:3,45:FULL}));d=medicine("painkiller");shows(d,other);
+   require(medicineLines(cards[0],d,2).join()==kept(expect("painkiller",painkiller.painkiller.split(",")),medicineLines(cards[0],d,2)),"full set valid: "+medicineLines(cards[0],d,2).join());
+   // The skills that act while a painkiller or an antitoxin is active or as a medicine heals
+   // (float 45: Numb Legs, Take Cover, Unflinching, Concentration, Sharp Eye; Second Wind has no
+   // line): lines below the card's own, in % of the game's own, each as medical_skills.rs applies
+   // it; none without a rank, none once Alt is let go.
    var E:Object=HarnessText.DATA.english;
-   var sprint:String=E.st_srp_medicine_sprint_stamina,slow:String=E.st_srp_medicine_hit_slow,sway:String=E.st_srp_medicine_sight_sway;
+   var sprint:String=E.st_srp_medicine_sprint_stamina,slow:String=E.st_srp_medicine_hit_slow;
+   var reload:String=E.st_srp_medicine_reload_speed,aim:String=E.st_srp_medicine_aim_time;
    var crouched:String=E.st_srp_medicine_crouched_healing;
-   // [float 45, the painkiller's lines, every other medicine's (each heals)].
+   // [float 45, the painkiller's lines, the antitoxin's, every other medicine's (each heals)].
    var combos:Array=[
-    [0,[],[]],
-    [1,[sprint+"=100 -> 80%"],[]],[2,[sprint+"=100 -> 60%"],[]],
-    [1<<2,[],[crouched+"=100 -> 110%"]],[2<<2,[],[crouched+"=100 -> 120%"]],
-    [1<<4,[slow+"=100 -> 90%"],[]],[3<<4,[slow+"=100 -> 70%"],[]],[4<<4,[slow+"=100 -> 60%"],[]],
-    [1<<7,[sway+"=100 -> 95%"],[]],[4<<7,[sway+"=100 -> 80%"],[]],
-    [74,[sprint+"=100 -> 60%",slow+"=100 -> 60%"],[crouched+"=100 -> 120%"]],
-    [522,[sprint+"=100 -> 60%",sway+"=100 -> 80%"],[crouched+"=100 -> 120%"]]
+    [0,[],[],[]],
+    [1,[sprint+"=100 -> 80%"],[],[]],[2,[sprint+"=100 -> 60%"],[],[]],
+    [1<<2,[],[crouched+"=100 -> 110%"],[crouched+"=100 -> 110%"]],[2<<2,[],[crouched+"=100 -> 120%"],[crouched+"=100 -> 120%"]],
+    [1<<4,[slow+"=100 -> 90%"],[],[]],[3<<4,[slow+"=100 -> 70%"],[],[]],[4<<4,[slow+"=100 -> 60%"],[],[]],
+    [1<<7,[],[reload+"=100 -> 110%"],[]],[3<<7,[],[reload+"=100 -> 120%"],[]],
+    [3<<10,[],[],[]],
+    [1<<12,[],[aim+"=100 -> 95%"],[]],[3<<12,[],[aim+"=100 -> 85%"],[]],
+    [FULL,[sprint+"=100 -> 60%",slow+"=100 -> 60%"],[reload+"=100 -> 120%",aim+"=100 -> 85%",crouched+"=100 -> 120%"],[crouched+"=100 -> 120%"]]
    ];
    for each(var combo:Array in combos){
     profile.setKitModifiers(kitFloats({43:3|2<<3,45:combo[0]}));
     for each(name in names){
      d=medicine(name);Scene.isAlt=true;shows(d,other);
-     var skills:Array=name=="painkiller"?combo[1]:combo[2];
+     var skills:Array=name=="painkiller"?combo[1]:name=="antitoxin"?combo[2]:combo[3];
      var own:Array=medicineLines(cards[0],d,skills.length),wanted:String=own.concat(skills).join();
      require(cardLines(cards[0]).join()==wanted,"combo "+combo[0]+" "+name+": "+cardLines(cards[0]).join()+" (want "+wanted+")");
      Scene.isAlt=false;shows(d,other);
      require(cardLines(cards[0]).join()==released[name],"released with combo "+combo[0]+": "+name+" "+cardLines(cards[0]).join());
     }
    }
-   // Refused ranks (Unflinching beside Concentration) add no line, as in a match.
-   profile.setKitModifiers(kitFloats({45:(4<<4)|(4<<7)}));d=medicine("painkiller");Scene.isAlt=true;shows(d,other);
-   require(cardLines(cards[0]).join()==released.painkiller,"refused combo: no skill line");
-   // Better is green: less stamina, slow and sway, more healing.
-   profile.setKitModifiers(kitFloats({45:522}));shows(d,other);
-   for each(var label:String in [sprint,sway])require(changeColours(nativeField(cards[0],label)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),label+" is green");
-   profile.setKitModifiers(kitFloats({45:74}));shows(d,other);
-   require(changeColours(nativeField(cards[0],slow)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),slow+" is green");
+   // Refused ranks (Concentration 4 of 3) add no line, as in a match.
+   profile.setKitModifiers(kitFloats({45:(4<<4)|(4<<7)}));d=medicine("antitoxin");Scene.isAlt=true;shows(d,other);
+   require(cardLines(cards[0]).join()==released.antitoxin,"refused combo: no skill line");
+   // Better is green: less stamina, slow and aim time, faster reloads, more healing.
+   profile.setKitModifiers(kitFloats({45:FULL}));d=medicine("painkiller");shows(d,other);
+   for each(var label:String in [sprint,slow])require(changeColours(nativeField(cards[0],label)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),label+" is green");
+   d=medicine("antitoxin");shows(d,other);
+   for each(label in [reload,aim])require(changeColours(nativeField(cards[0],label)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),label+" is green");
    d=medicine("bandages");shows(d,other);
    require(changeColours(nativeField(cards[0],crouched)).join()==[NEUTRAL,NEUTRAL,GREEN].join(),crouched+" is green");
    // Every language's line fits beside its value.
    var misses:Array=[];
    for each(var language:String in HarnessText.LANGUAGES){
     Loc.setData(texts(language));
-    for each(var floats:int in [74,522]){
-     profile.setKitModifiers(kitFloats({45:floats}));
-     shows(medicine("painkiller"),medicine("bandages"));misses=misses.concat(barOverflows(cards[0],language),barOverflows(cards[1],language));
-    }
+    profile.setKitModifiers(kitFloats({45:FULL}));
+    shows(medicine("painkiller"),medicine("bandages"));misses=misses.concat(barOverflows(cards[0],language),barOverflows(cards[1],language));
+    shows(medicine("antitoxin"),medicine("bandages"));misses=misses.concat(barOverflows(cards[0],language));
    }
    Loc.setData(texts("english"));
    for each(var miss:String in misses)trace("DETAILS OVERFLOW "+miss);

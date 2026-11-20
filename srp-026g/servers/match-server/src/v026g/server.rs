@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::io;
-use std::net::{SocketAddr, UdpSocket};
+use std::net::UdpSocket;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use session::SessionStore;
 use session::v026g::replays::Replays;
 use survarium::v026g::match_msgs::{ClientMessage, id, parse_client};
+use udp_transport::relay::Peer;
 use udp_transport::{Config, Event, PacketLog, Table, Transport};
 
 use super::Settings;
@@ -101,7 +102,7 @@ pub fn run(
         settings.pack.as_millis()
     );
     serve(
-        &socket,
+        listen(&socket, udp_transport::relay::Relays::from_env()?)?,
         config.match_server.port,
         registry,
         store,
@@ -122,17 +123,21 @@ pub fn run_on(
     results: impl ResultsSink + 'static,
     stop: &AtomicBool,
 ) -> io::Result<()> {
-    run_on_with_replays(socket, registry, store, results, stop, None)
+    let relays = udp_transport::relay::Relays::from_env()?;
+    run_on_with_replays(socket, registry, store, results, relays, stop, None)
 }
 
 /// [`run_on`] whose recordings' writer tells `replays` of every file it
 /// keeps, drops or deletes (`SRP_REPLAY_DIR`, `super::replay`): srp's, one
-/// for the process, which its lobby and web page share.
+/// for the process, which its lobby and web page share. `relays`: the
+/// relays whose tunnel addresses may say a datagram's own address
+/// (`SRP_RELAYS`, parsed once by the caller).
 pub fn run_on_with_replays(
     socket: &UdpSocket,
     registry: Arc<MatchRegistry>,
     store: Arc<SessionStore>,
     results: impl ResultsSink + 'static,
+    relays: udp_transport::relay::Relays,
     stop: &AtomicBool,
     replays: Option<Arc<Replays>>,
 ) -> io::Result<()> {
@@ -152,7 +157,7 @@ pub fn run_on_with_replays(
     );
     let port = registry.port();
     serve(
-        socket,
+        listen(socket, relays)?,
         port,
         registry,
         store,
@@ -162,10 +167,21 @@ pub fn run_on_with_replays(
     )
 }
 
-/// The loop of [`run`] on a socket already bound, until `stop` is set.
-/// `port` is the one the clients are told (0xE3).
-pub(crate) fn serve(
+/// `socket` as [`serve`] reads it: by peer, `relays`' tunnel addresses
+/// saying their datagrams' own addresses, and a receive that returns in
+/// time for the loop's timers.
+pub(crate) fn listen(
     socket: &UdpSocket,
+    relays: udp_transport::relay::Relays,
+) -> io::Result<udp_transport::relay::Datagrams<'_>> {
+    socket.set_read_timeout(Some(RECEIVE_WAIT))?;
+    udp_transport::relay::Datagrams::new(socket, relays)
+}
+
+/// The loop of [`run`] on a socket already bound ([`listen`]), until `stop`
+/// is set. `port` is the one the clients are told (0xE3).
+pub(crate) fn serve(
+    mut socket: udp_transport::relay::Datagrams<'_>,
     port: u16,
     registry: Arc<MatchRegistry>,
     store: Arc<SessionStore>,
@@ -173,16 +189,12 @@ pub(crate) fn serve(
     settings: Settings,
     stop: &AtomicBool,
 ) -> io::Result<()> {
-    socket.set_read_timeout(Some(RECEIVE_WAIT))?;
     let mut server = Server::new(port, registry, store, results, settings, Instant::now());
     server.packet_log = PacketLog::from_env();
-    let mut socket = udp_transport::relay::Datagrams::new(
-        socket, udp_transport::relay::Relays::from_env()?,
-    )?;
     let mut buffer = [0; RECEIVE_BUFFER];
     while !stop.load(Ordering::Relaxed) {
         match socket.recv_from(&mut buffer) {
-            Ok((len, peer)) => server.receive(peer.address, &buffer[..len], Instant::now()),
+            Ok((len, peer)) => server.receive(peer, &buffer[..len], Instant::now()),
             Err(error)
                 if matches!(
                     error.kind(),
@@ -212,14 +224,14 @@ pub(crate) struct Server {
     recorder: Option<Recorder>,
     pub(crate) games: HashMap<u32, Game>,
     /// Clients not yet placed: their 0xD8 hasn't come.
-    pending: HashMap<SocketAddr, Transport>,
+    pending: HashMap<Peer, Transport>,
     /// Each placed client's match and roster place.
-    routes: HashMap<SocketAddr, (u32, usize)>,
+    routes: HashMap<Peer, (u32, usize)>,
     /// Addresses already logged as sending without being placed.
-    strays_logged: HashSet<SocketAddr>,
+    strays_logged: HashSet<Peer>,
     /// The addresses that send without being placed or connecting, while
     /// each has a transport in `pending`.
-    stray_datagrams: HashMap<SocketAddr, Stray>,
+    stray_datagrams: HashMap<Peer, Stray>,
     next_housekeeping: Instant,
     next_live: Instant,
     /// For tests: the patch revision of a session the store does not hold.
@@ -277,7 +289,7 @@ impl Server {
         }
     }
 
-    pub fn receive(&mut self, addr: SocketAddr, datagram: &[u8], now: Instant) {
+    pub fn receive(&mut self, addr: Peer, datagram: &[u8], now: Instant) {
         if let Some(&(match_id, index)) = self.routes.get(&addr) {
             // A game that left its place and was given a new one (it left
             // by its own word and came again, the owner's of 2026-10-19)
@@ -361,7 +373,7 @@ impl Server {
     /// If the same host is placed under another port, its client's port
     /// changed after the first datagram (a NAT), and nothing it sends gets
     /// through.
-    fn log_stray(&mut self, addr: SocketAddr, len: usize) {
+    fn log_stray(&mut self, addr: Peer, len: usize) {
         let placed = self.routes.keys().find(|other| other.ip() == addr.ip());
         let Some(placed) = placed.copied() else {
             return;
@@ -378,7 +390,7 @@ impl Server {
     }
 
     /// A client's 0xD8: put it in its place in its match.
-    fn connect(&mut self, addr: SocketAddr, session_id: u32, debug: u8, now: Instant) {
+    fn connect(&mut self, addr: Peer, session_id: u32, debug: u8, now: Instant) {
         let Some(mut transport) = self.pending.remove(&addr) else {
             return;
         };
@@ -435,8 +447,9 @@ impl Server {
         game.attach(index, addr, session_id, revision, transport, now);
         if matches!(debug, 0x82 | 0x83) { game.enable_world_receipts(index); }
         self.routes.insert(addr, (seat.match_id, index));
-        // The voice relay takes the place's talk from this IP only.
-        self.registry.set_connection(seat, addr.ip());
+        // The voice relay takes the place's talk only from this IP's
+        // network and by this route.
+        self.registry.set_connection(seat, addr);
         self.store.seen_in_match(session_id);
     }
 
@@ -452,7 +465,7 @@ impl Server {
         self.store.client_revision(session_id).unwrap_or(0)
     }
 
-    pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+    pub fn poll(&mut self, now: Instant) -> Vec<(Peer, Vec<u8>)> {
         let mut datagrams = Vec::new();
         let mut results = Vec::new();
         let tell_live = now >= self.next_live;
@@ -545,6 +558,7 @@ impl Server {
                 log::info!("Match {match_id:#x}: no client came; given up");
                 self.results.match_ended(MatchResult {
                     match_id,
+                    replay_id: formed.replay_id.clone(),
                     map_id: formed.played.map().id,
                     mode: formed.played.mode(),
                     twist: formed.played.armed(),

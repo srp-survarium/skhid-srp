@@ -119,7 +119,7 @@ unsafe extern "C" {
     pub fn engine_project_insert(project: *mut c_void);
     /// 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0
     pub fn engine_effects_stop(effects: *mut c_void);
-    /// 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
+    /// 0x2de090 survarium::game_effect_player::add: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
     pub fn engine_effect_play(player: *mut c_void, effect: *mut c_void, second: u32, third: u32, fourth: u32, listener: *mut c_void);
     /// 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0
     pub fn engine_set_effect_presenter(player: *mut c_void, holder: *mut c_void);
@@ -409,6 +409,14 @@ unsafe extern "thiscall" {
     pub fn engine_light_insert(light: *mut c_void);
     /// 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
     pub fn engine_light_remove(light: *mut c_void);
+    /// 0x290930 survarium::object_ambient_light::insert: light ECX; pops 0; thiscall, called directly
+    pub fn engine_ambient_light_insert(light: *mut c_void);
+    /// 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly
+    pub fn engine_ambient_light_remove(light: *mut c_void);
+    /// 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly
+    pub fn engine_particle_insert(particle: *mut c_void);
+    /// 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
+    pub fn engine_particle_remove(particle: *mut c_void);
     /// 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
     pub fn engine_play_voice(proxy: *mut c_void, mode: u32, producer: *const c_void, receiver: *const c_void);
     /// 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly

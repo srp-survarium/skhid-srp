@@ -602,6 +602,18 @@ fn chat_messages() {
         read("4E 06 'Bo'"),
         M::Friendship(F::FindPlayers { name: "Bo".into() })
     );
+    // A search whose text is a room create is that create (`rooms::RoomCreate`), a bad one
+    // refused, never a search.
+    use crate::v026g::lobby::rooms::{BadCreate, PoolPick, PrivateKind, RoomCreate};
+    assert_eq!(
+        read("4E 06 'S1C;P0042;5'"),
+        M::RoomCreate(Ok(RoomCreate {
+            pin: 42,
+            kind: PrivateKind::Players,
+            pool: PoolPick::default().with(0).with(2),
+        }))
+    );
+    assert_eq!(read("4E 06 'S1C;P42;5'"), M::RoomCreate(Err(BadCreate)));
     // 10 x u32 by channel number, then the language.
     assert_eq!(
         read(

@@ -707,6 +707,7 @@ st_character_decals_4_72_name	Zastava Angole
 st_character_decals_4_73_name	Zastava Nigerije
 st_character_decals_4_74_name	Zastava Južnoafričke Republike
 st_character_decals_4_75_name	Zastava Walesa
+st_character_decals_4_76_name	Zastava Kosova
 st_character_decals_4_7_name	Zastava Litve
 st_character_decals_4_8_name	Zastava Estonije
 st_character_decals_4_9_name	Zastava Moldavije
@@ -746,6 +747,7 @@ st_character_decals_5_3_name	Grb Ukrajine
 st_character_decals_5_40_name	Grb Irske
 st_character_decals_5_41_name	Grb Hrvatske
 st_character_decals_5_42_name	Grb Bosne i Hercegovine
+st_character_decals_5_43_name	Grb Kosova
 st_character_decals_5_4_name	Grb Bjelorusije
 st_character_decals_5_5_name	Grb Kazahstana
 st_character_decals_5_6_name	Grb Litve
@@ -1428,6 +1430,7 @@ st_level_14_name	Rudnja (v0.69)
 st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovska utvrda (v0.21)
 st_level_29_name	Rudnja (v0.21)
+st_level_31_name	Kemijska tvornica (v0.21)
 st_lifebone_activation_hint	Kokotić je aktiviran! Sve su kritične rane izliječene! Zdravlje je obnovljeno!
 st_lifebone_pickup_hint	Artefakt Kokotić. Povećava obnovu zdravlja. 
 st_lightning_quality_option	Kvaliteta osvjetljenja
@@ -2607,6 +2610,7 @@ st_srp_login_ban_ends	Završava %1$s (za %2$s).
 st_srp_login_ban_forever	Zabrana je trajna.
 st_srp_map_chemical_plant	Kemijska tvornica
 st_srp_map_chemical_plant_v011	Kemijska tvornica (v0.11)
+st_srp_map_chemical_plant_v021	Kemijska tvornica (v0.21)
 st_srp_map_cologne	Köln
 st_srp_map_cs_mp_atp	Vozni park
 st_srp_map_cs_mp_bath	Pokusni bazen
@@ -2667,24 +2671,29 @@ st_srp_medical_312_description	Bonus zdravlju obnovljenom prvom pomoći i zavoji
 st_srp_medical_312_name	Medicinska obuka
 st_srp_medical_313_description	Bonus zdravlju obnovljenom prvom pomoći i zavojima u čučnju:
 st_srp_medical_313_name	U zaklon
+st_srp_medical_314_description	Dok antitoksin djeluje, smanjenje vremena ciljanja:
+st_srp_medical_314_name	Oštro oko
 st_srp_medical_321_description	Bonus brzini kretanja dok je zdravlje ispod 30:
 st_srp_medical_321_name	Adrenalin
 st_srp_medical_322_description	Svaki džep s lijekovima prima jedan dodatni predmet.
 st_srp_medical_322_name	Dodatni lijekovi
 st_srp_medical_323_description	Dok analgetik djeluje, smanjenje zaustavne moći neprijateljskih pogodaka:
 st_srp_medical_323_name	Nepokolebljiv
+st_srp_medical_324_description	Kad antitoksin počne djelovati, vraćena izdržljivost:
+st_srp_medical_324_name	Drugi dah
 st_srp_medical_331_description	Zamjenjuje mjesto za sporedno oružje dodatnim džepom za zalihe.
 st_srp_medical_331_name	Džep za zalihe
 st_srp_medical_332_description	Bonus najvećem zdravlju ruku i nogu:
 st_srp_medical_332_name	Čvrste kosti
-st_srp_medical_333_description	Dok analgetik djeluje, smanjenje njihanja ciljnika:
+st_srp_medical_333_description	Dok antitoksin djeluje, bonus brzini punjenja:
 st_srp_medical_333_name	Koncentracija
 st_srp_medical_342_description	Smanjenje štete primljene od saveznika:
 st_srp_medical_342_name	Braća po oružju
 st_srp_medical_seconds	 s
+st_srp_medicine_aim_time	Vrijeme ciljanja
 st_srp_medicine_crouched_healing	Liječenje u čučnju
 st_srp_medicine_hit_slow	Usporavanje metcima
-st_srp_medicine_sight_sway	Njihanje ciljnika
+st_srp_medicine_reload_speed	Brzina punjenja
 st_srp_medicine_sprint_stamina	Izdržljivost pri sprintu
 st_srp_melee_knockback	Odbacivanje u bliskoj borbi
 st_srp_mic_test	Testiraj mikrofon

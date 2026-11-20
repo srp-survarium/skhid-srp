@@ -1220,8 +1220,8 @@ fn an_older_game_plays_in_no_room() {
     assert!(world.host.made.locked().is_empty());
 }
 
-/// The create window's answer: its header's fields and the `maps_dict` ids
-/// it puts in (tile in, mode not out).
+/// The create window's answer: its header's fields (but the modes out),
+/// its PIN last, and the `maps_dict` ids it puts in (tile in, mode not out).
 fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<MapId>) {
     let rows = rows(world, index, ROOM_FORM, 1);
     let header = header(&rows);
@@ -1235,7 +1235,9 @@ fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<MapId>) {
         let fields: Vec<&str> = row.split(';').collect();
         assert_eq!(fields[..2], ["E", &chunk.to_string()]);
         let bits: u32 = fields[2].parse().unwrap();
-        tiles_on.extend((0..survarium::v026g::lobby::rooms::BITS_PER_CHUNK).map(|b| bits & 1 << b != 0));
+        tiles_on.extend(
+            (0..survarium::v026g::lobby::rooms::BITS_PER_CHUNK).map(|b| bits & 1 << b != 0),
+        );
     }
     let chosen = world
         .core
@@ -1245,13 +1247,16 @@ fn form(world: &mut World, index: usize) -> (Vec<String>, Vec<MapId>) {
         .filter(|(entry, on)| *on && !modes_off.contains(&entry.mode))
         .map(|(entry, _)| entry.map_id)
         .collect();
-    (header[2..7].to_vec(), chosen)
+    let mut fields = header[2..7].to_vec();
+    fields.push(header[8].clone());
+    (fields, chosen)
 }
 
 /// A room made by hand is its maker's next create window (the owner's of
 /// 2026-10-20): its team size, players to start, max level, wait and pool,
-/// not its PIN; a max level under the maker's equipment now is raised to
-/// it. With none made, the defaults; a room Play made keeps nothing.
+/// and its PIN pretyped (2026-11-19); a max level under the maker's
+/// equipment now is raised to it. With none made, the defaults (no PIN); a
+/// room Play made keeps nothing.
 #[test]
 fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     let mut world = World::new();
@@ -1264,7 +1269,7 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
         .collect();
     assert!(entries.len() >= 3, "{entries:?}");
     let defaults = (
-        ["0", "8", "1", "0", "30"].map(str::to_owned).to_vec(),
+        ["0", "8", "1", "0", "30", ""].map(str::to_owned).to_vec(),
         regular.clone(),
     );
     assert_eq!(form(&mut world, alice), defaults);
@@ -1275,7 +1280,7 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     assert!(world.account(alice).room_settings.is_none());
 
     // By hand: the first and third entries, 9 v 9 from 2 v 2, max level 3,
-    // a wait of 45 s, a PIN.
+    // a wait of 45 s, PIN 0042.
     rows(&mut world, alice, bits_start(0, 0b101), 1);
     create(
         &mut world,
@@ -1287,10 +1292,10 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
             wait: 45,
             pin: false,
         },
-        Some(1234),
+        Some(42),
     );
     let (fields, chosen) = form(&mut world, alice);
-    assert_eq!(fields, ["1", "9", "2", "3", "45"]);
+    assert_eq!(fields, ["1", "9", "2", "3", "45", "0042"]);
     // The pool as made: the window's tiles and modes give it back (an entry
     // of the same map, weather and mode would come with it).
     let made: Vec<MapId> = world
@@ -1305,16 +1310,28 @@ fn a_room_made_by_hand_starts_its_makers_next_create_window() {
     assert!(world.account(alice).room_settings.is_some());
     // Equipment over the max level now: the window offers its level.
     with_gear(&mut world, alice, 5);
-    assert_eq!(form(&mut world, alice).0, ["1", "9", "2", "5", "45"]);
+    assert_eq!(
+        form(&mut world, alice).0,
+        ["1", "9", "2", "5", "45", "0042"]
+    );
     // Lowered again (the movie asks anew when the gear changes): the max
     // level made.
     with_gear(&mut world, alice, 2);
-    assert_eq!(form(&mut world, alice).0, ["1", "9", "2", "3", "45"]);
+    assert_eq!(
+        form(&mut world, alice).0,
+        ["1", "9", "2", "3", "45", "0042"]
+    );
     // Play's room after it keeps what the hand made.
     rows(&mut world, alice, ROOM_LEAVE, 1);
     world.ask(alice, request::play(1));
     world.advance(Duration::from_millis(100));
     assert_eq!(form(&mut world, alice).1, made);
+    // Settings kept without a PIN (before it was kept): the field empty,
+    // the rest as kept.
+    world.change(alice, |account| {
+        account.room_settings.as_mut().unwrap().pin = None
+    });
+    assert_eq!(form(&mut world, alice).0, ["1", "9", "2", "3", "45", ""]);
 }
 
 /// The movie asks for its create window's start once, as its lobby comes
@@ -1329,7 +1346,7 @@ fn the_create_window_start_is_there_from_the_sign_in() {
     // The lobby's first asks, before anything is opened: a new player's is
     // the defaults.
     let (fields, _) = form(&mut world, alice);
-    assert_eq!(fields, ["0", "8", "1", "0", "30"]);
+    assert_eq!(fields, ["0", "8", "1", "0", "30", ""]);
 
     // A room made by hand: what the movie keeps for its next window (the
     // same game asking again gets the same).
@@ -1343,7 +1360,9 @@ fn the_create_window_start_is_there_from_the_sign_in() {
     };
     let key = create(&mut world, alice, made_spec, Some(1234));
     let made = (
-        ["1", "7", "3", "0", "60"].map(str::to_owned).to_vec(),
+        ["1", "7", "3", "0", "60", "1234"]
+            .map(str::to_owned)
+            .to_vec(),
         world.core.rooms.get(key).unwrap().pool.clone(),
     );
     assert_eq!(form(&mut world, alice), made);
@@ -2931,4 +2950,141 @@ fn a_strong_late_joiner_goes_to_the_side_with_fewer_strong_players() {
     rows(&mut world, frank, ROOM_JOIN_BASE + key, 1);
     world.take(frank);
     assert_eq!(late_teams(&mut world, ticket, id, &[frank]), [0]);
+}
+
+/// One who leaves its room's match by the menu is out of the room even when
+/// that leaving ends the match before the lobby's next tick (the owner's of
+/// 2026-11-19: "sometimes they still exist, sometimes they don't"): the
+/// match's end no longer drops the leave unread.
+#[test]
+fn a_leave_that_ends_the_match_still_takes_the_member_out_of_the_room() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let bob = world.connect("Bob");
+    let key = create(&mut world, alice, spec(6), None);
+    rows(&mut world, bob, ROOM_JOIN_BASE + key, 1);
+    world.advance(VOTE_AND_WAIT);
+    let (ticket, _) = sent_to_match(&world.take(alice)).expect("a match");
+    assert!(sent_to_match(&world.take(bob)).is_some());
+    let alice_account = world.ids[alice].0;
+    assert!(world.store.matchmaking().leave_match(alice_account).is_some());
+    // The match ends at once, before any tick reads the leave.
+    world.end_match(ticket, 0);
+    world.settle();
+    assert_eq!(world.core.rooms.key_of(alice_account), None);
+    let room = world.core.rooms.get(key).expect("Bob keeps the room");
+    assert_eq!(room.members, [world.ids[bob].0]);
+}
+
+/// The answers to a create in one request (`4E 06`, the movie's `find_players`, its text a
+/// `RoomCreate`): the rows of each `91`; anything else the game took fails.
+fn create_in_one(world: &mut World, index: usize, text: &str) -> Vec<Vec<String>> {
+    world.settle();
+    world.take(index);
+    world.ask(index, request::find_players(text));
+    world
+        .take(index)
+        .into_iter()
+        .map(|decoded| match decoded {
+            Decoded::EloList(rows) => rows.into_iter().map(|row| row.0).collect(),
+            other => panic!("not a room's answer: {other:?}"),
+        })
+        .collect()
+}
+
+/// The owner's of 2026-11-20 ("something which should be a single very fast request"): a
+/// private room made by one request carrying its PIN and pool, answered at once with the room;
+/// exactly the entries chosen are its pool, whatever was sent before; its PIN keeps the door and
+/// is its maker's next window's. No search list goes back, and no PIN or bits request is needed.
+#[test]
+fn a_private_room_is_made_by_one_request_with_its_pin_and_pool() {
+    use survarium::v026g::lobby::rooms::{PoolPick, PrivateKind, RoomCreate};
+
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let entries = world.core.room_entries();
+    assert!(entries.len() > 20, "{}", entries.len());
+    // A chain's bits sent before (an older movie's) are not this create's pool.
+    rows(&mut world, alice, bits_start(0, 0b1), 1);
+    let picked = [1, 2, entries.len() - 1];
+    let create = RoomCreate {
+        pin: 42,
+        kind: PrivateKind::Players,
+        pool: picked.iter().fold(PoolPick::default(), |pool, &index| pool.with(index)),
+    };
+    let answers = create_in_one(&mut world, alice, &create.text());
+    let [state] = &answers[..] else {
+        panic!("not one answer: {answers:?}");
+    };
+    assert_eq!(header(state)[1], "R", "{state:?}");
+    let key: u32 = header(state)[KEY].parse().unwrap();
+    let room = world.core.rooms.get(key).unwrap();
+    assert_eq!(room.pool, picked.map(|index| entries[index].map_id));
+    assert_eq!(
+        room.spec.door,
+        session::v026g::rooms::Door::Pin {
+            pin: 42,
+            bots: false
+        }
+    );
+    assert_eq!(form(&mut world, alice).0[5], "0042");
+    // Its PIN opens it, another does not.
+    let bob = world.connect("Bob");
+    rows(&mut world, bob, ROOM_PIN_BASE + 43, 1);
+    assert_eq!(
+        rows(&mut world, bob, ROOM_JOIN_BASE + key, 1),
+        ["S1;N;3;0;0"]
+    );
+    rows(&mut world, bob, ROOM_PIN_BASE + 42, 1);
+    assert_eq!(header(&rows(&mut world, bob, ROOM_JOIN_BASE + key, 1))[1], "R");
+
+    // With bots: only the maps its bots play of those chosen.
+    let bot_maps: Vec<MapId> = entries
+        .iter()
+        .filter(|entry| entry.mode == 2 && !entry.extra)
+        .map(|entry| entry.map_id)
+        .collect();
+    world.core.settings.pvb.enabled = true;
+    world.core.settings.pvb.bot_maps = bot_maps.clone();
+    let carol = world.connect("Carol");
+    let pool = (0..entries.len()).fold(PoolPick::default(), PoolPick::with);
+    let with_bots = RoomCreate {
+        pin: 7,
+        kind: PrivateKind::WithBots,
+        pool,
+    };
+    let answers = create_in_one(&mut world, carol, &with_bots.text());
+    let key: u32 = header(&answers[0])[KEY].parse().unwrap();
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(room.with_bots());
+    assert_eq!(room.pool, bot_maps);
+}
+
+/// A create in one request without a PIN, or not well formed, is refused with the state (code 8)
+/// and changes nothing: no room made, the asker's room kept; it is never a search.
+#[test]
+fn a_create_in_one_request_without_a_pin_or_malformed_is_refused() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    for text in ["S1C;P;6", "S1C;-;6", "S1C;P1234;", "S1C;P1234;xyz", "S1C;Q1234;6"] {
+        assert_eq!(create_in_one(&mut world, alice, text), [["S1;N;8;0;0"]], "{text}");
+    }
+    assert_eq!(world.core.rooms.len(), 0);
+    // In a room, a bad one leaves it there.
+    let key = create(&mut world, alice, spec(8), Some(1));
+    let answers = create_in_one(&mut world, alice, "S1C;P0001;");
+    assert_eq!(header(&answers[0])[1], "R", "{answers:?}");
+    assert_eq!(header(&answers[0])[KEY], key.to_string());
+    assert_eq!(header(&answers[0])[CODE], "8");
+    assert_eq!(world.core.rooms.len(), 1);
+    // A search is still a search.
+    world.settle();
+    world.take(alice);
+    world.ask(alice, request::find_players("Ali"));
+    assert!(
+        world
+            .take(alice)
+            .iter()
+            .any(|decoded| matches!(decoded, Decoded::Friendship(FriendshipPush::Found { .. }))),
+    );
 }

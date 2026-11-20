@@ -371,6 +371,7 @@ va	name	source	ret_cleanup	result
 0x00126750	vostok::render::skeleton_model_instance_cook::on_render_model_loaded	manual	8	
 0x00126af0	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready	manual	4	
 0x00127700	boost::function_invoker<bind(void(*)(A*,B*),a,b)>::invoke	manual	0	
+0x0012a820	vostok::render::grass_cook::on_layers_loaded	manual	20	none. Runs on the resource thread that finishes the layers' queries (an engine thread: 2 MiB stack since patch 128, 2040 KiB of it usable under Wine). Its stack grows with the grass: alloca(16 x the instances of all layers) at 0x12AC7E, the instances being the sum of each layer's chunk 0x58 bytes / 12 (0x12ABB2; 0.21d the same, shl 4 at 0xE0834), and three alloca(4 x the models) (0x12A848, 0x12A9C0, 0x12AC99); grass_world is then built from it (0x15F800). Experimental Pool's 125,844 instances touch 1972 KiB of its thread's stack (Wine, 2026-11-15); about 130,000 overflow 2 MiB: STACK_OVERFLOW in _chkstk 0x429F47, return address 0x12AC83 (Dark Valley 142,346, Fire Station 147,551)
 0x0012e510	vostok::render::camouflage_decal_texture_type_baker_cook::on_textures_loaded	manual	24	
 0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	manual	40	
 0x00131590	vostok::render::camouflage_decal_texture_type_baker_cook::render_bake	manual	24	
@@ -1212,8 +1213,8 @@ va	name	source	ret_cleanup	result
 0x002e17d0	survarium::weapon_core::load_magazine	manual	0	
 0x002e18e0	survarium::weapon_core::unload_ammo	manual	0	
 0x002e1a00	survarium::weapon_core::reload_one_round	manual	0	
-0x002e1b50		auto	0	
-0x002e1bf0		auto	0	
+0x002e1b50	survarium::weapon_core::instant_aim_start	manual	0	none: the sight's raising time +608h = +5F8h aim_time through 0x2D5AE0 index 49 (0x2E1B9A, k 1) unless +604h is already at its end
+0x002e1bf0	survarium::weapon_core::instant_aim_end	manual	0	none: the sight's lowering time +608h = +5F8h aim_time through 0x2D5AE0 index 49 (0x2E1C3B, k 1) unless +604h is already at its end
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	manual	12	D = get_static_dispersion + (state +404h + shot +418h) x k, k = 0 when the aim interpolator's value (weapon +5FCh) is exactly 1, else 1; tilt = 0.5 x D x modf(N(0, 0.5)) degrees about an axis turned by a uniform [0, 2 pi) angle (+5C0h/+5C4h, generator +5BCh, seed 1) about the transform's forward; the direction at [stack+8]
 0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	manual	8	
 0x002e23a0	survarium::weapon_core::instant_fire	manual	8	
@@ -2209,6 +2210,10 @@ va	name	source	ret_cleanup	result
 0x002de350	survarium::game_effect_player::remove	manual	0	void; the node playing the effect (walked from +2Ch, each +4Ch the next) set to state 2 (+44h), its stop sent (0x2DE3A0), the list swept (0x2DE750); damage_zone_core 0x31A255 stops its inside effect so
 0x00285fa0	survarium::render_visual::insert	manual	4	none
 0x00285fe0	survarium::render_visual::remove	manual	4	none
+0x00290930	survarium::object_ambient_light::insert	manual	0	none
+0x00290ae0	survarium::object_ambient_light::remove	manual	0	none
+0x00292cc0	survarium::object_particle_visual::insert	manual	0	none
+0x00292dc0	survarium::object_particle_visual::remove	manual	0	none
 0x00291720	survarium::object_light::load	manual	12	none
 0x00291790	survarium::object_light::insert	manual	0	none
 0x002917d0	survarium::object_light::remove	manual	0	none
@@ -2707,3 +2712,34 @@ va	name	source	ret_cleanup	result
 0x003d40d0	vostok::render::hw_buffer_pool::hw_buffer_pool [descriptive]	manual	12	EAX: the receiver (EDI)
 0x003d3c70	vostok::render::hw_buffer_pool_chunk::hw_buffer_pool_chunk [descriptive]	manual	4	EAX: the receiver (ESI)
 0x003d43a0	vostok::render::hw_buffer_pool::used_memory [descriptive]	manual	0	EAX: the bytes of every chunk's taken ranges (last - first + 1 each; untyped_buffer's "No enough memory" line prints it as the first figure)
+0x0030f5a0	survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme	manual	12	EAX: the lexeme out-param (stack+4); the clip speed it hands 0x31EBD0 is +138h through 0x2D5AE0 index 13 (0x30F61D), as weapon_core_reload_state's
+0x00311070	survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme	manual	12	EAX: the lexeme out-param (stack+4); the clip speed it hands on is +14Ch through 0x2D5AE0 index 13 (0x3110D5)
+0x0028bee0	survarium::lobby_menu::find_players	manual	4	AL: 1 (callback handled); the text of 3 bytes or more goes to 0x26B660 as it is (no cut, no check of its bytes), a shorter one nowhere
+0x0026b660	survarium::messaging_client::find_players	manual	8	none: writes 4E 06 {u8 strlen & FFh, the bytes} on the lobby link (0x37A0E0 begin, 0x379640 queue: it leaves on the link's next 500 ms tick); nothing unless the link is connected (state 0 or 4)
+0x003cfaf0	vostok::render::res_render_output::fullscreen_output	manual	0	EAX the IDXGIOutput that SetFullscreenState gets (show 0x3CF62B, apply_fullscreen_state 0x3CFDF6, goto_fullscreen 0x3CFE5F): the render device's outputs (+184h..+188h of [0x2260478]) at r_monitor_index (render options +D0h); 0 when windowed (+EDh) or the index is past the list
+0x000dde70	vostok::command_line::key::is_set	manual	0	EAX: 1 when the key is on the command line (state +224h is not 1 after the lazy parse 0xDF020)
+0x001ae390	vostok::render::stage_apply_distortion::is_effects_ready	manual	0	EAX: 1 when both effects (+10h apply_distortion, +14h olta) exist
+0x001ae500	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>	manual	0	
+0x001ae5f0	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>	manual	0	
+0x001bd6a0	vostok::render::stage::is_enabled	manual	0	AL: the stage's enabled byte +0Ch (1 from every stage constructor, e.g. 0x1AE2C8)
+0x001fb6c0	survarium::game_world::process_kill_cross_events	manual	8	
+0x00233770	survarium::game_world_ui::on_kill_cross_event	manual	8	
+0x001fdcc0	survarium::game_world_core::fixed_time_before	manual	0	EAX: largest grid time below the input (origin if input <= origin)
+0x001fdcf0	survarium::game_world_core::fixed_time_at_or_after	manual	0	EAX: smallest grid time >= input (origin+50 if input <= origin)
+0x002d1ce0	survarium::game_world_core::tick_game_effect_player	manual	12
+0x002d1d00	survarium::game_world_core::tick_physics_world	manual	12
+0x003185f0	survarium::serialize_local_fixed_time	manual	0
+0x00318620	survarium::serialize_local_time	manual	0
+0x00318690	survarium::deserialize_local_time	manual	0	EAX: time in ms
+0x0023c050	survarium::game_world_ui::set_player_icon_position	manual	4	
+0x002dda80	survarium::game_effect_player::resolve_link	manual	8	
+0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	manual	4	
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	manual	8	
+0x002ac310	survarium::particle_game_effect_presenter::update_effect	manual	8	
+0x002ac360	survarium::particle_game_effect_presenter::clear	manual	0	
+0x002ac870	survarium::particle_game_effect_presenter::deserialize	manual	12	
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	manual	32	EAX: ESI
+0x002ae1e0	survarium::particle_game_effect::particle_game_effect	manual	28	EAX: ESI
+0x002ee650	survarium::artefact_core_cook::on_config_loaded	manual	4	
+0x002ee7c0	survarium::artefact_core_cook::on_effect_loaded	manual	16	
+0x002e5040	survarium::damage_model::tick	manual	8	

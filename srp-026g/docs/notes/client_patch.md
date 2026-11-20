@@ -4005,7 +4005,7 @@ grass hooks ran the stock comparisons.
 squared distance of `patch+4084h` to the camera, nearer first. The comparator exists out of line,
 `0x1603B0` (ECX left, EAX right, EDI the camera; AL), called by the median of three (0x161840) and
 by `__linear_insert` (0x161E50) at 0x161E66, its test against the first element; and inlined in the
-partition (0x1618D0), the heap (0x161CF0, 0x162220), the guarded insertion (0x161D40) and the
+partition (0x1618D0), the partial sort (0x161CF0, its loop at 0x161D40) and the heap (0x162220, push_heap 0x162410), and the
 unguarded walk (0x162060). Every inlined copy, and 0x1603B0's right side, sum `dz2 + dy2 + dx2`;
 0x1603B0's left side summed `dz2 + dx2 + dy2`. Float adds do not associate: for two patches one ulp
 apart the test said "not below the first" and the walk then found the value below it, moved the
@@ -4036,10 +4036,10 @@ hook folds intensity into RGB and sets outgoing intensity to 1, selecting
 the native multiplicative pass. It never mutates the authored object.
 
 The guard requires the object's actual scene to be its game's embedded
-world, then recognizes `v021d_level_0{1,2,3,5,6}/day_{2,4,8}`,
-`v021d_level_0{1,2,3,5,6}/rain_{2,4}` and
-`v021d_level_0{1,2,3,5,6}/evening_{2,4}`: 35 exact aliases of fifteen
-map/weather profiles. No object names, positions or room measurements are consulted.
+world, then recognizes `v021d_level_0{1..6}/day_{2,4,8}`,
+`v021d_level_0{1..6}/rain_{2,4}` and
+`v021d_level_0{1..6}/evening_{2,4}`: 42 exact aliases of eighteen
+map/weather profiles (level 4, Chemical Plant, since `chemical-v021.md`). No object names, positions or room measurements are consulted.
 The stub preserves flags, general registers and FPU/SSE state, replays
 `mov al,[ebx+16Dh]`, and resumes at 0x290A45. The arena linker owns its
 placement; existing arena blocks keep their addresses.

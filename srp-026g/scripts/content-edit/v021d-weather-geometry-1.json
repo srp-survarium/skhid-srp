@@ -1,5 +1,5 @@
 {
-  "_about": "Author original weather geometry deltas over corrected day-derived projects.\n\nSchool rain's two extra hanging lamps are converted by the same breakable-lamp\nrule as day fixtures. Fort rain/evening omit three original day barrel groups.\nOnly those donor differences change; existing lamp indices follow removals.\nInput: pinned original donor projects, the porter's source import bundle, and\nthe weather content pack. Output is an edit list, never a binary patch.",
+  "_about": "Author original weather geometry deltas over corrected day-derived projects.\n\nSchool rain's and Chemical Plant rain's two extra hanging lamps are converted by\nthe same breakable-lamp rule as day fixtures. Fort rain/evening omit three\noriginal day barrel groups.\nOnly those donor differences change; existing lamp indices follow removals.\nInput: pinned original donor projects, the porter's source import bundle, and\nthe weather content packs. Output is an edit list, never a binary patch.",
   "set": [],
   "append_entry": [
     {
@@ -633,6 +633,638 @@
           1.0
         ]
       }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "render_visuals",
+      "expected_count": 540,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          6.0320000648498535,
+          40.81999969482422
+        ],
+        "lib_name": "ported/v021d/props/light/cone_light_volume",
+        "visual_name": "ported/v021d/props/light/cone_light_volume",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "render_visuals",
+      "expected_count": 541,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          6.343999862670898,
+          40.81999969482422
+        ],
+        "lib_name": "ported/v021d/props/light/green_lamp_with_wire_not_lamp",
+        "visual_name": "ported/v021d/props/light/green_lamp_with_wire_not_lamp",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "render_visuals",
+      "expected_count": 542,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          5.866000175476074,
+          40.81999969482422
+        ],
+        "lib_name": "ported/v021d/props/light/lamp_on",
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "render_visuals",
+      "expected_count": 543,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          5.866000175476074,
+          40.81999969482422
+        ],
+        "lib_name": "props/light/srp_lamp_broken",
+        "visual_name": "props/light/srp_lamp_broken",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "render_visuals",
+      "expected_count": 544,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.320000171661377,
+          57.54399871826172
+        ],
+        "lib_name": "ported/v021d/props/light/cone_light_volume",
+        "visual_name": "ported/v021d/props/light/cone_light_volume",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "render_visuals",
+      "expected_count": 545,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.631999969482422,
+          57.54399871826172
+        ],
+        "lib_name": "ported/v021d/props/light/green_lamp_with_wire_not_lamp",
+        "visual_name": "ported/v021d/props/light/green_lamp_with_wire_not_lamp",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "render_visuals",
+      "expected_count": 546,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.1539998054504395,
+          57.54399871826172
+        ],
+        "lib_name": "ported/v021d/props/light/lamp_on",
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "render_visuals",
+      "expected_count": 547,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.1539998054504395,
+          57.54399871826172
+        ],
+        "lib_name": "props/light/srp_lamp_broken",
+        "visual_name": "props/light/srp_lamp_broken",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "collision_objects",
+      "expected_count": 742,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          6.343999862670898,
+          40.81999969482422
+        ],
+        "cmask": 20,
+        "lib_name": "resources/models/ported/v021d/props/light/green_lamp_with_wire_not_lamp.model/collision",
+        "cgroup": 10,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "collision_objects",
+      "expected_count": 743,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          5.866000175476074,
+          40.81999969482422
+        ],
+        "cmask": 20,
+        "lib_name": "resources/models/ported/v021d/props/light/lamp_on.model/collision",
+        "cgroup": 10,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "collision_objects",
+      "expected_count": 744,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.631999969482422,
+          57.54399871826172
+        ],
+        "cmask": 20,
+        "lib_name": "resources/models/ported/v021d/props/light/green_lamp_with_wire_not_lamp.model/collision",
+        "cgroup": 10,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_2/client_project",
+      "list": "collision_objects",
+      "expected_count": 745,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.1539998054504395,
+          57.54399871826172
+        ],
+        "cmask": 20,
+        "lib_name": "resources/models/ported/v021d/props/light/lamp_on.model/collision",
+        "cgroup": 10,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "render_visuals",
+      "expected_count": 538,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          6.0320000648498535,
+          40.81999969482422
+        ],
+        "lib_name": "ported/v021d/props/light/cone_light_volume",
+        "visual_name": "ported/v021d/props/light/cone_light_volume",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "render_visuals",
+      "expected_count": 539,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          6.343999862670898,
+          40.81999969482422
+        ],
+        "lib_name": "ported/v021d/props/light/green_lamp_with_wire_not_lamp",
+        "visual_name": "ported/v021d/props/light/green_lamp_with_wire_not_lamp",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "render_visuals",
+      "expected_count": 540,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          5.866000175476074,
+          40.81999969482422
+        ],
+        "lib_name": "ported/v021d/props/light/lamp_on",
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "render_visuals",
+      "expected_count": 541,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          5.866000175476074,
+          40.81999969482422
+        ],
+        "lib_name": "props/light/srp_lamp_broken",
+        "visual_name": "props/light/srp_lamp_broken",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "render_visuals",
+      "expected_count": 542,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.320000171661377,
+          57.54399871826172
+        ],
+        "lib_name": "ported/v021d/props/light/cone_light_volume",
+        "visual_name": "ported/v021d/props/light/cone_light_volume",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "render_visuals",
+      "expected_count": 543,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.631999969482422,
+          57.54399871826172
+        ],
+        "lib_name": "ported/v021d/props/light/green_lamp_with_wire_not_lamp",
+        "visual_name": "ported/v021d/props/light/green_lamp_with_wire_not_lamp",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "render_visuals",
+      "expected_count": 544,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.1539998054504395,
+          57.54399871826172
+        ],
+        "lib_name": "ported/v021d/props/light/lamp_on",
+        "visual_name": "ported/v021d/props/light/lamp_on",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "render_visuals",
+      "expected_count": 545,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.1539998054504395,
+          57.54399871826172
+        ],
+        "lib_name": "props/light/srp_lamp_broken",
+        "visual_name": "props/light/srp_lamp_broken",
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "collision_objects",
+      "expected_count": 738,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          6.343999862670898,
+          40.81999969482422
+        ],
+        "cmask": 20,
+        "lib_name": "resources/models/ported/v021d/props/light/green_lamp_with_wire_not_lamp.model/collision",
+        "cgroup": 10,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "collision_objects",
+      "expected_count": 739,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          -31.548999786376953,
+          5.866000175476074,
+          40.81999969482422
+        ],
+        "cmask": 20,
+        "lib_name": "resources/models/ported/v021d/props/light/lamp_on.model/collision",
+        "cgroup": 10,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "collision_objects",
+      "expected_count": 740,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.631999969482422,
+          57.54399871826172
+        ],
+        "cmask": 20,
+        "lib_name": "resources/models/ported/v021d/props/light/green_lamp_with_wire_not_lamp.model/collision",
+        "cgroup": 10,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_04/rain_4/client_project",
+      "list": "collision_objects",
+      "expected_count": 741,
+      "unique_key": null,
+      "vectors": true,
+      "value": {
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "position": [
+          70.76100158691406,
+          7.1539998054504395,
+          57.54399871826172
+        ],
+        "cmask": 20,
+        "lib_name": "resources/models/ported/v021d/props/light/lamp_on.model/collision",
+        "cgroup": 10,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
     }
   ],
   "add_value": [
@@ -804,6 +1436,178 @@
             "y": 19.099000930786133,
             "z": 157.02099609375,
             "name": "environment_and_lights/night_lights/spot_light(1)"
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_04/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "lamp019",
+      "value": {
+        "min_x": -31.604999788105488,
+        "min_y": 5.657000169157982,
+        "min_z": 40.763999693095684,
+        "max_x": -31.49299978464842,
+        "max_y": 5.866000175476074,
+        "max_z": 40.874999694526196,
+        "glass_from_x": -31.548999786376953,
+        "glass_from_y": 5.657000169157982,
+        "glass_from_z": 40.81949969381094,
+        "glass_to_x": -31.548999786376953,
+        "glass_to_y": 5.866000175476074,
+        "glass_to_z": 40.81949969381094,
+        "visuals": {
+          "intact0": {
+            "index": 542,
+            "state": 0
+          },
+          "broken0": {
+            "index": 543,
+            "state": 1
+          },
+          "cone0": {
+            "index": 540,
+            "state": 0
+          }
+        },
+        "lights": {
+          "light0": {
+            "x": -31.54800033569336,
+            "y": 5.605999946594238,
+            "z": 40.819000244140625,
+            "name": "environment_and_lights/light/spot_light(8)"
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_04/rain_2/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "lamp020",
+      "value": {
+        "min_x": 70.70500158518553,
+        "min_y": 6.944999799132347,
+        "min_z": 57.487998716533184,
+        "max_x": 70.8170015886426,
+        "max_y": 7.1539998054504395,
+        "max_z": 57.598998717963696,
+        "glass_from_x": 70.76100158691406,
+        "glass_from_y": 6.944999799132347,
+        "glass_from_z": 57.54349871724844,
+        "glass_to_x": 70.76100158691406,
+        "glass_to_y": 7.1539998054504395,
+        "glass_to_z": 57.54349871724844,
+        "visuals": {
+          "intact0": {
+            "index": 546,
+            "state": 0
+          },
+          "broken0": {
+            "index": 547,
+            "state": 1
+          },
+          "cone0": {
+            "index": 544,
+            "state": 0
+          }
+        },
+        "lights": {
+          "light0": {
+            "x": 70.74600219726562,
+            "y": 6.900000095367432,
+            "z": 57.555999755859375,
+            "name": "environment_and_lights/light/spot_light(7)"
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_04/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "lamp019",
+      "value": {
+        "min_x": -31.604999788105488,
+        "min_y": 5.657000169157982,
+        "min_z": 40.763999693095684,
+        "max_x": -31.49299978464842,
+        "max_y": 5.866000175476074,
+        "max_z": 40.874999694526196,
+        "glass_from_x": -31.548999786376953,
+        "glass_from_y": 5.657000169157982,
+        "glass_from_z": 40.81949969381094,
+        "glass_to_x": -31.548999786376953,
+        "glass_to_y": 5.866000175476074,
+        "glass_to_z": 40.81949969381094,
+        "visuals": {
+          "intact0": {
+            "index": 540,
+            "state": 0
+          },
+          "broken0": {
+            "index": 541,
+            "state": 1
+          },
+          "cone0": {
+            "index": 538,
+            "state": 0
+          }
+        },
+        "lights": {
+          "light0": {
+            "x": -31.54800033569336,
+            "y": 5.605999946594238,
+            "z": 40.819000244140625,
+            "name": "environment_and_lights/light/spot_light(8)"
+          }
+        }
+      }
+    },
+    {
+      "files": [
+        "projects/v021d_level_04/rain_4/client_project"
+      ],
+      "table": "srp_lamps/lamps",
+      "key": "lamp020",
+      "value": {
+        "min_x": 70.70500158518553,
+        "min_y": 6.944999799132347,
+        "min_z": 57.487998716533184,
+        "max_x": 70.8170015886426,
+        "max_y": 7.1539998054504395,
+        "max_z": 57.598998717963696,
+        "glass_from_x": 70.76100158691406,
+        "glass_from_y": 6.944999799132347,
+        "glass_from_z": 57.54349871724844,
+        "glass_to_x": 70.76100158691406,
+        "glass_to_y": 7.1539998054504395,
+        "glass_to_z": 57.54349871724844,
+        "visuals": {
+          "intact0": {
+            "index": 544,
+            "state": 0
+          },
+          "broken0": {
+            "index": 545,
+            "state": 1
+          },
+          "cone0": {
+            "index": 542,
+            "state": 0
+          }
+        },
+        "lights": {
+          "light0": {
+            "x": 70.74600219726562,
+            "y": 6.900000095367432,
+            "z": 57.555999755859375,
+            "name": "environment_and_lights/light/spot_light(7)"
           }
         }
       }

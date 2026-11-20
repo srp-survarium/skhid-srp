@@ -1,0 +1,485 @@
+{
+  "_about": "Vector Laboratory's room probe indoor(9) reaches its room's east wall (the owner, 2026-11-15: screenshot 20-22-55, a bright band on the wall once the room's lamp was shot out). The stock box ended at x -16.4, 1 m short of the wall at -15.4, and in the gap only the bright outdoor probe lit the wall, the pillar and the passage mouth; the lamp's own light hid it. Its east face moves to -13.89 (its west face stays), over the wall and the two passages, in all 15 projects (docs/notes/map-probes.md).",
+  "set_entry": [
+    {
+      "file": "projects/level_07/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/day_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/day_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/day_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/evening_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/evening_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/evening_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/evening_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/evening_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/rain_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/rain_3/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/rain_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/rain_5/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    },
+    {
+      "file": "projects/level_07/rain_8/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "environment_and_lights/probes/indoor(9)",
+        "game_object_type": "environment_probe"
+      },
+      "from": {
+        "position": [
+          -23.997,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          7.596,
+          2.438,
+          13.109
+        ]
+      },
+      "to": {
+        "position": [
+          -22.743,
+          18.403,
+          -1.693
+        ],
+        "scale": [
+          8.85,
+          2.438,
+          13.109
+        ]
+      }
+    }
+  ]
+}

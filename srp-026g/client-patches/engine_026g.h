@@ -89,7 +89,9 @@ struct messaging_client;
 struct movie_slot;
 struct network_client;
 struct new_sound_propagator;
+struct object_ambient_light;
 struct object_light;
+struct object_particle_visual;
 struct panning_lut;
 struct particle_slot;
 struct player;
@@ -378,7 +380,7 @@ void __attribute__((thiscall)) engine_collision_remove(struct static_collision *
 /* 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0 */
 void engine_effects_stop(struct game_effect_list *effects);
 
-/* 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
+/* 0x2de090 survarium::game_effect_player::add: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
 void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener);
 
 /* 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0 */
@@ -407,6 +409,18 @@ void __attribute__((thiscall)) engine_light_insert(struct object_light *light);
 
 /* 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly */
 void __attribute__((thiscall)) engine_light_remove(struct object_light *light);
+
+/* 0x290930 survarium::object_ambient_light::insert: light ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_ambient_light_insert(struct object_ambient_light *light);
+
+/* 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_ambient_light_remove(struct object_ambient_light *light);
+
+/* 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_particle_insert(struct object_particle_visual *particle);
+
+/* 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly */
+void __attribute__((thiscall)) engine_particle_remove(struct object_particle_visual *particle);
 
 /* 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0 */
 void engine_inventory_remove(struct inventory *inventory, unsigned int slot);

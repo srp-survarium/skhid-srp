@@ -10,7 +10,7 @@
 //! steps. Lists keep their order in a `seq` column, as 0.21d's do.
 
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -28,6 +28,7 @@ mod clans;
 mod comments;
 mod drop_cards;
 mod extras;
+pub mod history;
 mod items;
 mod level_stats;
 mod map_plays;
@@ -157,7 +158,11 @@ const MIGRATIONS: &[&str] = &[
     comments::MIGRATION,
     // 16: the shop's "Hide owned" box (`extras`).
     extras::SHOP_OWNED_MIGRATION,
-    // 17: the face an account chose (`faces`).
+    // 17: the PIN of an account's last room made by hand (`room_settings`).
+    room_settings::PIN_MIGRATION,
+    // 18: the match history and its totals (`history`).
+    history::MIGRATION,
+    // 19: the face an account chose (`faces`).
     faces::MIGRATION,
 ];
 
@@ -250,6 +255,16 @@ pub trait GameRepository: Send {
         _limit: usize,
     ) -> Result<Vec<AdminAction>, PersistError> {
         Ok(Vec::new())
+    }
+    /// Keeps a finished match in the history ([`history`]). (A repository
+    /// that keeps no history: nothing.)
+    fn record_match(&mut self, _record: &history::MatchRecord) -> Result<(), PersistError> {
+        Ok(())
+    }
+    /// A reader of the history for the site, on connections of its own.
+    /// (A repository that keeps no history: `None`.)
+    fn history(&self) -> Result<Option<history::MatchHistory>, PersistError> {
+        Ok(None)
     }
 }
 
@@ -448,7 +463,7 @@ impl GameRepository for MemoryGameRepository {
 /// 0.26g accounts in srp's SQLite file.
 pub struct SqliteGameRepository {
     connection: Connection,
-    path: String,
+    path: PathBuf,
 }
 
 impl SqliteGameRepository {
@@ -459,7 +474,7 @@ impl SqliteGameRepository {
         migrate(&connection)?;
         Ok(Self {
             connection,
-            path: path.display().to_string(),
+            path: path.to_owned(),
         })
     }
 
@@ -924,7 +939,7 @@ impl GameRepository for SqliteGameRepository {
     }
 
     fn describe(&self) -> String {
-        self.path.clone()
+        self.path.display().to_string()
     }
 
     fn load_clans(&mut self) -> Result<Vec<Clan>, PersistError> {
@@ -974,6 +989,14 @@ impl GameRepository for SqliteGameRepository {
         limit: usize,
     ) -> Result<Vec<AdminAction>, PersistError> {
         admin_actions::load(&self.connection, account_id, limit)
+    }
+
+    fn record_match(&mut self, record: &history::MatchRecord) -> Result<(), PersistError> {
+        history::record(&mut self.connection, record)
+    }
+
+    fn history(&self) -> Result<Option<history::MatchHistory>, PersistError> {
+        history::MatchHistory::open(&self.path).map(Some)
     }
 }
 
@@ -1201,6 +1224,7 @@ mod tests {
             tiles_off: vec![(2, 1), (4, 3)],
             tiles_on: vec![(10, 1)],
             modes_off: vec![4],
+            pin: Some(7),
         });
         account
     }

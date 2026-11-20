@@ -64,7 +64,7 @@
 //!   in the 0x88** (0x222FE0, 0x227C59): so a mate is sent as one kit, the
 //!   one it plays, under an id of its own.
 
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 use std::time::{Duration, Instant};
 
 use session::v026g::{Account, quests, wire};
@@ -376,7 +376,7 @@ impl Core<'_> {
         let squad = self.store.squads().of(who.account_id);
         let clan_mates = self.clan_chat_members(who.account_id, channel);
         let side = in_match.and_then(|id| self.side_played(id, session_id));
-        let recipients: Vec<(SocketAddr, u32)> = self
+        let recipients: Vec<(Peer, u32)> = self
             .players()
             .into_iter()
             .filter_map(|addr| {
@@ -810,7 +810,7 @@ impl Core<'_> {
 
     /// `A3 09` when a friend's status changed: exactly the friends the
     /// client holds, or it drops the message.
-    pub(super) fn friend_statuses(&mut self, addr: SocketAddr) {
+    pub(super) fn friend_statuses(&mut self, addr: Peer) {
         let Some(player) = self.player(addr) else {
             return;
         };

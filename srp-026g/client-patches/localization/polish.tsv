@@ -707,6 +707,7 @@ st_character_decals_4_72_name	Flaga Angoli
 st_character_decals_4_73_name	Flaga Nigerii
 st_character_decals_4_74_name	Flaga Południowej Afryki
 st_character_decals_4_75_name	Flaga Walii
+st_character_decals_4_76_name	Flaga Kosowa
 st_character_decals_4_7_name	Flaga Litwy
 st_character_decals_4_8_name	Flaga Estonii
 st_character_decals_4_9_name	Flaga Mołdawii
@@ -746,6 +747,7 @@ st_character_decals_5_3_name	Godło Ukrainy
 st_character_decals_5_40_name	Godło Irlandii
 st_character_decals_5_41_name	Godło Chorwacji
 st_character_decals_5_42_name	Godło Bośni i Hercegowiny
+st_character_decals_5_43_name	Godło Kosowa
 st_character_decals_5_4_name	Godło Białorusi
 st_character_decals_5_5_name	Godło Kazachstanu
 st_character_decals_5_6_name	Herb Łotwy
@@ -1428,6 +1430,7 @@ st_level_14_name	Rudnia (v0.69)
 st_level_25_name	Szkoła (v0.21)
 st_level_26_name	Fort Tarakanów (v0.21)
 st_level_29_name	Rudnia (v0.21)
+st_level_31_name	Zakłady chemiczne (v0.21)
 st_lifebone_activation_hint	Żywokost aktywowany! Wszystkie rany krytyczne zostały wyleczone! Zdrowie przywrócone!
 st_lifebone_pickup_hint	Artefakt Żywokost. Przyspiesza regenerację zdrowia.
 st_lightning_quality_option	Jakość oświetlenia
@@ -2607,6 +2610,7 @@ st_srp_login_ban_ends	Kończy się o %1$s (za %2$s).
 st_srp_login_ban_forever	Ban jest stały.
 st_srp_map_chemical_plant	Zakłady chemiczne
 st_srp_map_chemical_plant_v011	Zakłady chemiczne (v0.11)
+st_srp_map_chemical_plant_v021	Zakłady chemiczne (v0.21)
 st_srp_map_cologne	Most w Kolonii
 st_srp_map_cs_mp_atp	Dworzec autobusowy
 st_srp_map_cs_mp_bath	Basen
@@ -2667,24 +2671,29 @@ st_srp_medical_312_description	Premia do zdrowia przywracanego przez apteczki i 
 st_srp_medical_312_name	Szkolenie medyczne
 st_srp_medical_313_description	Premia do zdrowia przywracanego przez apteczki i bandaże podczas kucania:
 st_srp_medical_313_name	Kryj się
+st_srp_medical_314_description	Gdy działa antytoksyna, skrócenie czasu celowania:
+st_srp_medical_314_name	Bystre oko
 st_srp_medical_321_description	Premia do prędkości ruchu przy zdrowiu poniżej 30:
 st_srp_medical_321_name	Adrenalina
 st_srp_medical_322_description	Każda kieszeń z lekarstwami mieści jeden dodatkowy przedmiot.
 st_srp_medical_322_name	Dodatkowe lekarstwa
 st_srp_medical_323_description	Gdy działa środek przeciwbólowy, zmniejszenie siły hamującej wrogich trafień:
 st_srp_medical_323_name	Niewzruszony
+st_srp_medical_324_description	Gdy antytoksyna zaczyna działać, przywrócona energia:
+st_srp_medical_324_name	Drugi oddech
 st_srp_medical_331_description	Zastępuje miejsce na broń dodatkową dodatkową kieszenią na zapasy.
 st_srp_medical_331_name	Kieszeń na zapasy
 st_srp_medical_332_description	Premia do maksymalnego zdrowia rąk i nóg:
 st_srp_medical_332_name	Mocne kości
-st_srp_medical_333_description	Gdy działa środek przeciwbólowy, zmniejszenie kołysania celownika:
+st_srp_medical_333_description	Gdy działa antytoksyna, premia do szybkości przeładowania:
 st_srp_medical_333_name	Koncentracja
 st_srp_medical_342_description	Zmniejszenie obrażeń otrzymywanych od sojuszników:
 st_srp_medical_342_name	Braterstwo broni
 st_srp_medical_seconds	 s
+st_srp_medicine_aim_time	Czas celowania
 st_srp_medicine_crouched_healing	Leczenie w kucki
 st_srp_medicine_hit_slow	Spowolnienie od kul
-st_srp_medicine_sight_sway	Kołysanie celownika
+st_srp_medicine_reload_speed	Przeładowanie
 st_srp_medicine_sprint_stamina	Energia na sprint
 st_srp_melee_knockback	Siła ciosu kolbą
 st_srp_mic_test	Testuj mikrofon
