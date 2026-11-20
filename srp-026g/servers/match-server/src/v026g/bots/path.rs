@@ -2236,32 +2236,43 @@ impl Route {
     }
 
     /// [drop give-ups] Whether a drop the route walks off at release ([`Self::walk_off_at`]'s links: its Drop links and its walked-off
-    /// gap drops) has its take-off from `s` to `within` metres on, or is the leg the body at `s` is on (its take-off behind `s`, its
-    /// landing ahead).
+    /// gap drops) has its take-off within `within` metres of `s` (on, or [fix-lip] behind: [`Self::walk_off_near`]), or is the leg the
+    /// body at `s` is on.
     pub fn walk_off_within(&self, s: f32, within: f32) -> bool {
-        let first = self.along.partition_point(|&a| a <= s).max(1);
-        (first..self.points.len())
-            .take_while(|&k| self.along[k - 1] <= s + within)
-            .any(|k| self.walk_offs.iter().any(|w| w.landing == self.points[k].at))
+        self.walk_off_near(s, within).is_some()
+    }
+
+    /// [fix-lip] Whether the route's walk-off near `s` ([`Self::walk_off_near`]) has its take-off behind `s`: the body is past it.
+    pub fn walk_off_behind(&self, s: f32, within: f32) -> bool {
+        self.walk_off_near(s, within).is_some_and(|k| self.along[k - 1] <= s)
+    }
+
+    /// [drop give-ups, fix-lip] The waypoint of the route's walk-off ([`Self::walk_off_at`]'s links) whose take-off is within `within`
+    /// of `s` along the route, ahead or behind, or whose leg `s` is on: the first such. Behind too: a body just over the edge of its own
+    /// drop is measured past the drop's leg as soon as its flat place passes the landing's (a landing under the take-off), and the
+    /// drop it is in is still the route's.
+    fn walk_off_near(&self, s: f32, within: f32) -> Option<usize> {
+        (1..self.points.len())
+            .filter(|&k| self.along[k - 1] <= s + within && (self.along[k - 1] >= s - within || s <= self.along[k]))
+            .find(|&k| self.walk_offs.iter().any(|w| w.landing == self.points[k].at))
     }
 
     /// [drop give-ups] Whether the stop forecast `path` (the feet tick by tick from the body at `s`, `body::stop_path`) goes the route's
-    /// way to one of its walk-offs within `within` on ([`Self::walk_off_within`]): every point of it still up (under a lip's height
+    /// way to one of its walk-offs within `within` ([`Self::walk_off_within`]): every point of it still up (under a lip's height
     /// below its first, as `body::stays_up` counts a fall) lies within `line_m` (flat) of the route's line from `s` through that drop's
-    /// leg. A forecast that leaves the line before it falls (keys toward a side rim) is not the route's drop.
+    /// leg (or from the drop's leg through `s`'s, for a body past its take-off). A forecast that leaves the line before it falls (keys toward a side rim) is not the route's drop.
     pub fn walk_off_path_on_line(&self, s: f32, within: f32, path: &[Vec3], line_m: f32) -> bool {
         let Some(top) = path.first().map(|p| p.y) else {
             return false;
         };
         let first = self.along.partition_point(|&a| a <= s).max(1);
-        let Some(landing) = (first..self.points.len())
-            .take_while(|&k| self.along[k - 1] <= s + within)
-            .find(|&k| self.walk_offs.iter().any(|w| w.landing == self.points[k].at))
-        else {
+        let Some(landing) = self.walk_off_near(s, within) else {
             return false;
         };
+        // The legs from the body's to the drop's, whichever comes first (a body just past the take-off is on a leg after it).
+        let (from, to) = ((first - 1).min(landing - 1), landing.max(first).min(self.points.len() - 1));
         let near_line = |p: Vec3| {
-            (first - 1..landing).any(|k| {
+            (from..to).any(|k| {
                 let (a, b) = (self.points[k].at, self.points[k + 1].at);
                 let (dx, dz) = (b.x - a.x, b.z - a.z);
                 let length2 = dx * dx + dz * dz;
@@ -2353,6 +2364,11 @@ impl Route {
             .take_while(|&k| self.along[k - 1] <= s + within)
             .find(|&k| self.drop_into(k, truth).is_some())
             .map(|k| self.along[k - 1])
+    }
+
+    /// [fix-lip] How many walk-offs ([`Self::walk_off_at`]) and risers ([`Self::riser_ahead`]) the route carries, for the log.
+    pub fn record_counts(&self) -> (usize, usize) {
+        (self.walk_offs.len(), self.risers.len())
     }
 
     /// This route as one the planner made, with no drop recorded (the tests').
@@ -2714,6 +2730,11 @@ mod tests {
         let mut plain = route.clone();
         plain.walk_offs.clear();
         assert!(!plain.walk_off_within(5.0, 1.0));
+        // [fix-lip] Past the landing's flat place with the take-off within reach behind (a body just over the edge, measured on the
+        // next leg): still the route's drop; not with the take-off out of reach behind.
+        assert!(route.walk_off_within(6.9, 2.0));
+        assert!(!route.walk_off_within(7.5, 2.0));
+        assert!(route.walk_off_behind(6.9, 2.0) && route.walk_off_behind(5.5, 1.0) && !route.walk_off_behind(4.5, 1.0));
     }
 
     /// [drop give-ups] A stop forecast is the route's walk-off only while it keeps to the route's line until it is down: walked on

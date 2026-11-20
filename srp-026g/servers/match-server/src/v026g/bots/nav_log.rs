@@ -282,19 +282,34 @@ pub fn guard_line(verdict: &str, feet: Vec3, keys: u32, to: Option<u32>, speed: 
 }
 
 /// [fix-lip] The lip guard's word near a take-off: `nav: lip guard near a take-off: <verdict> (<rule>) at (..), <link> take-off (..)
-/// D m across, stop (..) | no stop forecast, carried yes|no, air yes|no, keys K to K2`. `stop`: where the guard's stop forecast of the
-/// tick's keys left the feet (none when the rule left the keys before any forecast).
+/// D m across, stop (..) | no stop forecast, carried yes|no, air yes|no, keys K to K2, route walk-offs W risers R`. `stop`: where the
+/// guard's stop forecast of the tick's keys left the feet (none when the rule left the keys before any forecast); `records`: the
+/// route's walk-offs and risers (`Route::record_counts`).
 #[allow(clippy::too_many_arguments)]
-pub fn take_off_line(verdict: &str, rule: &str, feet: Vec3, link: &str, take_off: Vec3, stop: Option<Vec3>, carried: bool, air: bool, keys: u32, to: u32) -> String {
+pub fn take_off_line(
+    verdict: &str,
+    rule: &str,
+    feet: Vec3,
+    link: &str,
+    take_off: Vec3,
+    stop: Option<Vec3>,
+    carried: bool,
+    air: bool,
+    keys: u32,
+    to: u32,
+    records: (usize, usize),
+) -> String {
     let yes = |b: bool| if b { "yes" } else { "no" };
     let stop = stop.map_or("no stop forecast".to_string(), |p| format!("stop {}", at(p)));
     format!(
-        "{PREFIX}lip guard near a take-off: {verdict} ({rule}) at {}, {link} take-off {} {:.2} m across, {stop}, carried {}, air {}, keys {keys:#x} to {to:#x}",
+        "{PREFIX}lip guard near a take-off: {verdict} ({rule}) at {}, {link} take-off {} {:.2} m across, {stop}, carried {}, air {}, keys {keys:#x} to {to:#x}, route walk-offs {} risers {}",
         at(feet),
         at(take_off),
         take_off.distance_xz(feet),
         yes(carried),
-        yes(air)
+        yes(air),
+        records.0,
+        records.1
     )
 }
 
@@ -375,8 +390,8 @@ pub enum Kind {
     WalkOff,
     /// [take.known_threats] A take within reach waiting for a man known by its battery (`plays/collect.rs` `take`).
     Take,
-    /// [fix-lip] The lip guard's word near a take-off of the route's own jump or drop links: braked, swapped or left to the link,
-    /// and why (`drive.rs` `guard_keys`, [`take_off_line`]).
+    /// [fix-lip] The lip guard's word near a take-off of the route's own jump or drop links: braked or swapped, and why (`drive.rs`
+    /// `guard_keys`, [`take_off_line`]).
     TakeOff,
     /// [press forecast] A route jump's try under the press forecast: its press (followed to its rest) or the try spent, with every
     /// plan's verdicts (`motor.rs` `Motor::take_cast_line`). Not capped: one line a try, and a link has three.
@@ -384,10 +399,13 @@ pub enum Kind {
     /// [Go::To arrival] A goal within its reach across kept because its floor is up a ledge over the feet (`drive.rs`
     /// `Arrival`, [`arrival_up_line`]): one line a goal.
     Arrival,
+    /// [fix-lip] The same near a take-off, where the guard left the keys to the link (a carried jump, a line-up, the route's own
+    /// walk-off ...): a kind of its own, so the many exemption lines never hold back a brake's.
+    TakeOffLeft,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 18;
+const KINDS: usize = 19;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -437,6 +455,9 @@ impl NavLog {
     /// [fix-lip] Whether a line of `kind` at `time` would be written now ([`Self::push`]'s limits): a line costly to make is made only
     /// then; one not due is still counted held by [`Self::push`] (its text unused).
     pub fn due(&self, kind: Kind, time: u32) -> bool {
+        if kind == Kind::Press {
+            return true;
+        }
         let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift);
         !(capped && self.written[kind as usize] >= MAX_PER_KIND) && !matches!(self.last[kind as usize], Some((at, _)) if time < at + EVERY_MS)
     }
