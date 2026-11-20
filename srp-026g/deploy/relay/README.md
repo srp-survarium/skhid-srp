@@ -38,7 +38,7 @@ retain their existing mirror behavior. This is not a general HTTP proxy and does
 not change browser or system proxy settings. A new player needs the release
 containing this updater/configuration before automatic fallback is available.
 
-Browsers get the site under a name of the relay's own (`by.skhid.link`): the
+Browsers get the site under a name of the relay's own (`playskhid.link`): the
 same web service passes its port 443 through the tunnel to the origin's Caddy,
 unopened. The certificate and its key stay on the origin, and the relay sees
 no page and no password. Caddy takes the visitor's address from the PROXY
@@ -91,7 +91,9 @@ UDP replies go only to clients observed on that frontend within 120 seconds.
 
 ## The site under the relay's name
 
-1. Point the name's A record (`by.skhid.link`) at the relay.
+1. Point the name's A record (`playskhid.link`, the owner's own domain; `www` too if it is to
+   answer) at the relay, in place of the registrar's parking records. The game's relay address
+   stays an IPv4 address (`--relay`): the name is the site's only.
 2. On both hosts run `bash setup.sh configure ...` again with the same
    arguments: it reloads the tunnel's firewall with port 443 (the tunnel stays
    up), and on the relay installs this forwarder and its service. Nothing else
@@ -106,7 +108,7 @@ UDP replies go only to clients observed on that frontend within 120 seconds.
    it (it makes only `srp26` anew). The name's certificate comes by TLS-ALPN
    through the relay, so steps 1 and 2 come first. Caddy reads `SRP_RELAYS`
    only when it is made: make it anew whenever that setting changes.
-4. Check `https://by.skhid.link/api/stats`, then that the page sees the
+4. Check `https://playskhid.link/api/stats`, then that the page sees the
    visitor and not the relay: the admin page must answer the jump host under
    this name too. If it does not, Caddy sees another source than the relay's
    tunnel address (Docker's published port keeps it) and ignores the header.
