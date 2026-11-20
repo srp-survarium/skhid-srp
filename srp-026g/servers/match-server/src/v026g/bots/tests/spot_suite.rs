@@ -1412,6 +1412,9 @@ fn spot_suite_run() {
         });
         eprintln!("{project}: {} starts in {:.0} s", list.len(), started.elapsed().as_secs_f32());
     }
+    // [stand-in jump] How the stand-in flew the run's jumps (`standin_jump::controller_jumps`).
+    let [flown, clip, landed, fell] = super::standin_jump::controller_jumps::counts();
+    eprintln!("stand-in jumps: {flown} flown by the client's flight ({landed} landed, {fell} fell on), {clip} on the clip (side or back presses)");
 }
 
 /// [standin-fidelity] A drop the bot pressed (a route jump down from A) whose body came down 3.4 m off the landing is tagged; one
