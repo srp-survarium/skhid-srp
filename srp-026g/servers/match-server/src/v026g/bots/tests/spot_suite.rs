@@ -124,19 +124,15 @@ fn rule_mode(project: &str) -> (u8, survarium::v026g::maps::RuleMode) {
 fn setup() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
-        if bench_settings().var_os("SRP_GAME_DATA").is_some_and(|p| !p.is_empty()) {
-            let data = survarium::v026g::game_data::init().unwrap_or_else(|cause| panic!("SRP_GAME_DATA: {cause}"));
-            eprintln!("game data: {}", data.origin);
-        } else {
-            eprintln!("game data: THE BUILT-IN TEST ARCHIVE (set SRP_GAME_DATA to the server's file)");
-        }
+        let data = super::real_maps::game_data();
+        eprintln!("game data: {}", data.origin);
         super::standin::start_bench_run();
     });
 }
 
 /// The map's world as the bench builds it (from the shared grid cache when `SRP_BENCH_GRID_CACHE` is set).
 fn world_of(project: &str) -> Arc<World> {
-    let dir = std::path::PathBuf::from(bench_settings().var_os("SRP_MAPDATA_DIR").expect("SRP_MAPDATA_DIR"));
+    let dir = super::real_maps::dir().expect("SRP_MAPDATA_DIR");
     let file = dir.join(mapdata::format::file_name(project));
     let bytes = std::fs::read(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
     let map_file = {

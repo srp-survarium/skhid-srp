@@ -91,6 +91,7 @@ mod opening;
 mod pace_gate;
 mod pocket_runs;
 mod press_reach;
+pub(crate) mod real_maps;
 mod reference_replay;
 mod refused_sprint;
 mod settings;

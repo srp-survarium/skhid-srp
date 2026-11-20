@@ -15,7 +15,7 @@ use crate::v026g::bots::kin::Kinematics;
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn blind_walk_after_a_mid_air_world() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };

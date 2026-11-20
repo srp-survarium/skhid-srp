@@ -70,7 +70,7 @@ pub(crate) const SETTINGS: &[Setting] = &[
     s("SRP_BOT_FLANK_ROUTES", "unset: the mapdata folder's bot-flank-routes.json, else none", "[A320] the flank-route table round the known camp spots (`camp_flank.rs`; `off`: none)"),
     s("SRP_BOT_FOLIAGE", "unset: bot-foliage.json of the mapdata folder, if any", "the bushes a sight line crosses (JSON, scripts/foliage-volumes); empty or `off`: none"),
     s("SRP_BOT_GRASS", "unset: bot-grass.json of the mapdata folder, if any", "the grass a sight line crosses (JSON, scripts/foliage-volumes --grass); empty or `off`: none"),
-    s("SRP_GAME_DATA", "unset: the built-in test archive, said in a loud line", "the server's game data (`server-game-data.db`) the run is on, read and checked as srp reads it (`game_data::init`); a file that fails refuses the run"),
+    s("SRP_GAME_DATA", "unset: the run is refused (`real_maps::game_data`; the built-in test archive builds other grids)","the server's game data (`server-game-data.db`) the run is on, read and checked as srp reads it (`game_data::init`); a file that fails refuses the run"),
     s("SRP_BENCH_MAPS", "6/2, 1/4, 3/3 (level/mode)", "the maps: `level/mode,...`"),
     s("SRP_BENCH_SIDES", "4,8,10", "the sizes, bots a side: `n,...`"),
     s("SRP_BENCH_SECONDS", "240", "the length of a match, s"),

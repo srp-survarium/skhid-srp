@@ -1595,7 +1595,7 @@ mod tests {
     #[test]
     #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
     fn hurt_floors_against_marked_floors_on_the_real_maps() {
-        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        let Some(dir) = crate::v026g::bots::tests::real_maps::dir() else {
             eprintln!("skipping: SRP_MAPDATA_DIR is not set");
             return;
         };
@@ -1644,7 +1644,7 @@ mod tests {
     #[test]
     #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
     fn rim_floors_of_the_zone_over_vector_laboratorys_lower_ring() {
-        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        let Some(dir) = crate::v026g::bots::tests::real_maps::dir() else {
             eprintln!("skipping: SRP_MAPDATA_DIR is not set");
             return;
         };
@@ -1686,7 +1686,7 @@ mod tests {
     #[test]
     #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
     fn real_hazards() {
-        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        let Some(dir) = crate::v026g::bots::tests::real_maps::dir() else {
             eprintln!("skipping: SRP_MAPDATA_DIR is not set");
             return;
         };

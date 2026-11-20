@@ -9,8 +9,6 @@
 
 use mapdata::{grid::LinkKind, Vec3};
 
-use super::bench_settings;
-
 /// The motor's press reach for a body standing still (`motor::PRESS_M`).
 const PRESS_M: f32 = 0.15;
 /// The walk toward the take-off starts this far back along the jump's way, m.
@@ -21,7 +19,7 @@ const TICK_MOVE_M: f32 = 3.5 * 0.05;
 #[test]
 #[ignore = "a lab; needs SRP_MAPDATA_DIR"]
 fn press_reach() {
-    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };

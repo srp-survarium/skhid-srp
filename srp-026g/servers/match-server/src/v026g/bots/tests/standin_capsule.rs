@@ -468,7 +468,7 @@ mod tests {
     #[test]
     #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_HUMAN_DIR"]
     fn live_wall_clearance() {
-        let (Some(maps), Some(humans)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var_os("SRP_HUMAN_DIR")) else {
+        let (Some(maps), Some(humans)) = (crate::v026g::bots::tests::real_maps::dir(), std::env::var_os("SRP_HUMAN_DIR")) else {
             eprintln!("skipping: SRP_MAPDATA_DIR or SRP_HUMAN_DIR is not set");
             return;
         };
