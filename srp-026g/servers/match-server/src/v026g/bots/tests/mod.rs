@@ -66,6 +66,7 @@ mod camper;
 mod door_walk;
 mod drift_replay;
 mod driving;
+mod drop_spots;
 mod eye;
 mod false_walls;
 mod fights;
