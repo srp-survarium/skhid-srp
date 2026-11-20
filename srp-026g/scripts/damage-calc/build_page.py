@@ -81,6 +81,12 @@ data["hud_doll"] = {
     "zones": {"front": zones(os.path.join(assets, "doll", "doll_front.svg")),
               "back": zones(os.path.join(assets, "doll", "doll_back.svg"))},
 }
+# The skills' icons, as the lobby's skill renderer draws them: the
+# skills page's own (srp-026g/scripts/skills-tab/build.py, run first).
+skill_icons = os.path.join(here, "..", "..", "servers", "web-server", "skills", "icons")
+data["skill_icons"] = {str(s["id"]): uri(os.path.join(skill_icons, f"{s['id']}.webp"), "image/webp")
+                       for s in (data.get("skills") or {}).values()
+                       if os.path.isfile(os.path.join(skill_icons, f"{s['id']}.webp"))}
 data["mod_icons"] = {name.removeprefix("mod_icon_").removesuffix(".png"): uri(os.path.join(assets, "mod_icons", name), "image/png")
                      for name in os.listdir(os.path.join(assets, "mod_icons"))}
 # Top-down maps: the scale and heights go in the page, the images ship beside
@@ -119,14 +125,14 @@ if site:
     faces = "\n".join(f'@font-face {{ font-family: "{family}"; font-weight: {weight}; font-style: {style}; '
                        f'font-display: swap; src: url("/damage/fonts/{file}.woff2?v={version(fonts[file])}") format("woff2"); }}'
                        for family, weight, style, file in FONTS)
-    # The Maps tab's build (srp-026g/scripts/maps-tab, run first): every
-    # map's name from the game's modes and its HUD minimap, in its order.
+    # The Maps tab's build (srp-026g/scripts/maps-tab, run first): its maps
+    # (a render of a map no longer played is left out), each one's name from
+    # the game's modes and its HUD minimap, in its order.
     tab = os.path.join(out_path, "..", "maps", "maps.js")
     if os.path.isfile(tab):
         with open(tab, encoding="utf-8") as f:
             tab_maps = json.loads(re.search(r"const MAPS = (.*);\n", f.read()).group(1))["maps"]
-        order = [t["key"] for t in tab_maps if t["key"] in data["maps"]]
-        data["maps"] = {key: data["maps"][key] for key in order + [k for k in data["maps"] if k not in order]}
+        data["maps"] = {t["key"]: data["maps"][t["key"]] for t in tab_maps if t["key"] in data["maps"]}
         for t in tab_maps:
             if t["key"] in data["maps"]:
                 data["maps"][t["key"]].update(name=t["name"]["en"], name_uk=t["name"]["uk"], minimap=t["minimap"])
@@ -142,10 +148,10 @@ if site:
     markup = rest.split('<script id="calc-data"')[0]
     script = ('"use strict";\n// Built by srp-026g/scripts/damage-calc/build_page.py --site; do not edit.\n'
               f"const DATA = {json.dumps(data, ensure_ascii=False, separators=(',', ':'))};\n"
-              f'{engine}\n{read("rules.js")}\n{read("ui.js")}')
+              f'{engine}\n{read("hud.js")}\n{read("rules.js")}\n{read("ui.js")}')
     page = ('<!doctype html>\n<html lang="{{LANG}}">\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
-            f"{title}\n<style>\n{style.replace('/*__FONT__*/', faces)}</style>\n<!--SITE-HEADER-->\n"
+            f"{title}\n<style>\n{style.replace('/*__FONT__*/', faces).replace('/*__HUD__*/', read('hud.css'))}</style>\n<!--SITE-HEADER-->\n"
             f'{markup.strip()}\n<script src="/damage/calc.js?v={version(script.encode())}"></script>\n')
     for sub_dir in ("fonts", "maps"):
         os.makedirs(os.path.join(out_path, sub_dir), exist_ok=True)
@@ -166,8 +172,9 @@ font = uri(os.path.join(assets, "fonts", "carlito-bold.woff2"), "font/woff2")
 page = (read("template.html")
         .replace("/*__FONT__*/", f'@font-face {{ font-family: "Carlito"; font-weight: 700; src: url("{font}") format("woff2"); }}')
         .replace("/*__DATA__*/", payload)
+        .replace("/*__HUD__*/", read("hud.css"))
         .replace("/*__ENGINE__*/", engine)
-        .replace("/*__RULES__*/", read("rules.js"))
+        .replace("/*__RULES__*/", read("hud.js") + "\n" + read("rules.js"))
         .replace("/*__UI__*/", read("ui.js")))
 with open(out_path, "w", encoding="utf-8") as f:
     f.write(page)

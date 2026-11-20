@@ -118,7 +118,7 @@ Types (lobby_menu 0x226020, PROVEN unless marked):
 | 1 | quest | text `#+q` (new) / `#!q` (failed) / `#q!` (completed); queries 0x3E / 0x40, 0x39, 0x3E / 0x3C via 0x26FE20 (other agent); auto-accept |
 | 2 | squad invite | `st_add_to_squad_request`; waits |
 | 3 | squad invite accepted | no UI; auto-accept, then `4A 02 <sender_name>` |
-| 4 | reputation level unlocked | text `#ru…`; queries 0x40, 0x39 (0x2265F6, 0x226606; **corrected 2026-10-12**: the exe has no writer for 0x3A, `coverage.md` §1.2); auto-accept |
+| 4 | reputation level unlocked | text `#ru…`; queries 0x40, 0x39 (0x2265F6, 0x226606; **corrected 2026-10-12**: the exe has no writer for 0x3A); auto-accept |
 | 5 | drop arrived | log only; auto-accept |
 | 6 | item repaired | text `#ir[<item id>]` (PROVEN: the bracket parser 0x227120; the item's `repair_time` is set to 0, 0x22693A); inventory refresh (0x288520). Not auto-answered (GUESS: stays pending; server should not expect `50`) |
 | 7 | **clan invite** NEW | `st_add_to_clan_request` + `%s "%s"` (LIKELY text = clan name); waits |
@@ -178,6 +178,7 @@ Sent at sign-in (0x26FBE2, right after 0x80 is read and before the client's `32`
 | n × | member (0x50): `u32 account_id` (+0), `u32 profile_id` (+4), `u32 profile_revision` (+8), `string name` (+0x10, buf 64 → ≤ 63), `bool online` (+0xC), `bool ready` (+0xD) | |
 | bool | i_am_commander | +0x1EAAAC |
 | u32 | revision | +0x1EAAA0 (log `squad info arrived rev. %d`) |
+| u8, u8 | srp's: the receiver's lobby pick, its commander's (0 none) | srp's own, after the squad, and after the id alone for none (`A1 00000000 <own> 00`): the stock reader stops before them; exe patch 81 reads them (`lobby-scenes.md`, `lobby.md` 2.16.5) |
 
 Then `lobby_menu::fill_squad_info(squad, i_am_commander)` 0x2277C0 (PROVEN):
 - `root.show_squad`, `root.remove_squad_player` 0..2, `root.set_squad_commander_mode(n == 0 ? true : i_am_commander)`, then per member `root.set_squad_player(index, …, name, ready)`.
@@ -200,6 +201,8 @@ PROVEN, in this order (each failure logs a `PlayBtn disabled reason is: …` lin
 
 So a server that marks the commander ready when the commander presses Play locks the soldiers' Play (they cannot cancel/ready once the squad is queued), and a commander can only press Play once every soldier is ready.
 
+With rooms (since 2026-10-31, `squads.md`) srp's 0.26g lobby sends the commander ready always, so its Play is on and its soldier's is off all the time (only the commander acts for the squad, the owner's of 2026-10-31); the soldier ready while its commander's actions take it along (`rooms::squad_ready`). Before, nothing set ready, and a commander's Play stayed off (0 ≥ 1 fails).
+
 ### 2.3 Squad actions (client → server) — were 0x2A 01..04, now 0x4A
 
 PROVEN (senders 0x274580..0x2746D0; all require order/match id lobby_client+0x1E57A8 == -1, as in 0.21d):
@@ -214,6 +217,78 @@ PROVEN (senders 0x274580..0x2746D0; all require order/match id lobby_client+0x1E
 Invite flow is the 0.21d one on new ids: `invite_to_squad` → `4D` type 2 text `invite` → server relays `A4` type 2 → target accepts → target's client sends `4D` type 3 `membership accepted` to the inviter and `50 id 00` → server relays `A4` type 3 to the inviter → inviter's client auto-answers `50 id 00` and sends `4A 02 <name>` → server pushes new 0xA1 to every member.
 
 No operation_permitted (0x83) case exists for op 0x4A (byte table 0x2751FC handles only 0x30/0x46/0x47/0x49/0x4B), so the server answers squad actions only with 0xA1.
+
+Squad name resolution must select a unique connected player, ignoring ASCII case,
+for both `4D` types 2/3 and `4A 02`. Display names are not unique in existing
+accounts: the 2026-11-12 report had offline account 777 and connected account 778
+both named `Mamoru`; player 760 (`dizkodancerskeleton`) was friends with 778.
+The global account search selected 777 before checking whether it was connected.
+At 14:12:54 UTC the live log recorded both "squad message 3 not sent: Mamoru is
+not in the lobby" and acceptance of Mamoru's invite; reverse invites failed the
+same lookup. An offline namesake must not hide the connected player. If multiple
+connected players match, refuse the ambiguous request rather than pick an account
+by its id. Adding a member still requires that account's accepted invite.
+
+The underlying namespace is owned by `SessionStore` (`crates/session/src/identity.rs`).
+Registration checks the display name **after** splitting an email login and
+cutting it to the wire's 63-byte limit. A new account did not choose that name,
+so a taken one is not a refusal (the owner, 2026-11-12; until then it was the
+invalid-user-name response, which the game shows as a wrong password, and about
+1 % of sign-ups could never register): the account is made with `<name>_<id>`,
+schema 8's replacement below, from the same function
+(`nickname_key::replacement`), and the player renames it later. `adam@yahoo.com`
+signing up as account 1650 while an `Adam` exists is `adam_1650`. The name is
+picked and the account made under the login lock, the one every rename holds,
+so it is free when it is taken; the registrant is never signed into the name
+owner's account. Only the name a new account shows is checked: its login is
+what the player typed, and may read like another account's name. Sign-up still
+refuses an empty or over-long user name and one with control characters.
+Paid renames parse a `Nickname` and recheck availability under the same
+lock as registration before charging. Account IDs, logins and passwords do not
+change. Availability uses Unicode lowercase followed by the explicit Cyrillic/
+Latin pairs in `scripts/nickname-lookalikes.tsv`: for example Cyrillic `о` and
+Latin `o` share a key. The same table is used by Rust and SQLite's
+`skhid_nickname` collation. Display names retain their original spelling.
+There is no edit-distance, digit/letter or punctuation matching. A conflicting
+rename, paid or the admin's, returns an error; a refused rename is not charged.
+
+The live audit under these rules found 23 collision groups, including account
+649 (`sovspiranha`) and 741 (`sоvspiranha`, Cyrillic `о`), and 576 (`TECTEP`)
+and 594 (`ТЕСТЕР`). Schema 8's rule (below) keeps 649 and 576.
+
+Persistence schema 8 adds `accounts_unique_nickname`. A saver takes a coherent
+namespace snapshot and writes the dirty accounts in one transaction, allowing
+two accounts to exchange names through intermediate renames between saves.
+Failure rolls back the whole batch and retries it. Duplicate names at load are
+also refused, including with a non-SQLite repository. The shared account name is
+authoritative; startup restores the 0.26g display-name copies from it before the
+lobby starts, recovering a crash between the two savers' passes.
+
+Schema 8 repairs existing duplicates and lookalikes itself, in the step's
+transaction and before the index is made (`rename_shared_nicknames`,
+`crates/session/src/persist/sqlite.rs`): of the accounts whose names share a
+key the one that plays keeps its name, that is the one with the most 0.26g
+experience (`g26_accounts.exp_total`; 0 for an account without a row there,
+or in a file without that table), the lowest account id among equals. Each
+other becomes `<name>_<id>`, cut to the wire limit, with a counter after it
+while that is another account's nickname or login. The reason for the rule is
+the owner's 2026-11-12 choice that 778, the account in use, keeps `Mamoru`
+and 777 becomes `Mamoru_777`: the step makes it. The new name is written to `accounts.name`,
+`accounts.game_name` and the 0.26g copy `g26_accounts.name`; ids, logins,
+passwords and everything an account owns are not touched. Each rename is one
+warning in srp's log (account id, old name, new name). No release, test
+environment or older local database needs a step by hand, and srp's copy of
+srp.db from the start of that run (`backups/`) holds the names as they were.
+
+Every connection to srp.db is opened by `persist::connect`, which registers
+the `skhid_nickname` collation: without it SQLite refuses a write to
+`accounts` and a `VACUUM` of the file (the 0.26g tables' connection lacked it,
+and a new database could not start).
+
+Validation: session identity races and persistence round trips (a database
+with shared names through schema 8; a new database through srp's start), lobby
+squad and paid-rename tests. These are automated checks; they do not
+constitute an in-game test or a live deployment.
 
 ### 2.4 How a squad mate's 0x88 is filed (added 2026-10-12) — PROVEN
 
@@ -520,8 +595,7 @@ So: on the general, match and team channels a stock client lets through at most 
 | `4D` type 0 | already a friend, already asked, or the player ignores the sender | nothing | no text for any of them |
 | `4D` type 2 (squad invite) | the name is no account, or the player is not in the lobby | `84 49 00 st_player_not_found` | |
 | `4D` type 2 | the player ignores the sender | nothing | |
-| `4D` type 2 | squads are off (`SRP_SQUADS=off`) | `84 49 00 <SRP_SQUADS_OFF_TEXT>`, by default the sentence "Squads are switched off on this server." | the game has no text for it (9.2); a text that is no key is shown as it is (`lobby_requests.md` §4.2). The invite's button is the client's and stays. Not yet seen in a real game |
-| `4A 02` | squads are off | the squad as it is (`A1`: none), no text | the invite was already refused; this is a client that adds a player all the same |
+| `4D` type 2 | the sender's squad has two (`squads.md`) | nothing: not passed on | no text (9.2); the movie offers no invite then |
 | `4D` type 3 (the client's own "membership accepted") | can not be passed on | nothing | not the player's act |
 | `4E 04` (ignore by a typed name) | the name is no account | `A3 08` (the list as it is), then `84 49 00 st_player_not_found` | |
 | `4A 01..04` | refused (not the commander, squad full, not invited, in no squad) | the squad as it is (`A1`), no text | `84 4A` is dropped by the client and the game has no text (9.2) |

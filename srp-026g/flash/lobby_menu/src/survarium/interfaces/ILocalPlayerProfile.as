@@ -1,5 +1,6 @@
 package survarium.interfaces
 {
+   import survarium.player.WeightEffects;
    import scaleform.clik.events.DragEvent;
    
    public interface ILocalPlayerProfile extends IPlayerProfile
@@ -8,6 +9,9 @@ package survarium.interfaces
       function set _relocateFunction(value:Function) : void;
       
       function get _relocateFunction() : Function;
+
+      // Asks the game for `moves` (each made by Relocation.move).
+      function relocate(moves:Array) : void;
       
       function get paperDoll() : ILocalPaperDoll;
       
@@ -15,7 +19,7 @@ package survarium.interfaces
       
       function allowSecondaryTwoHandedWeapon(value:Boolean) : void;
       
-      function updateWeight(current:Number, maximum:Number) : void;
+      function updateWeight(current:Number, maximum:Number, effects:WeightEffects = null) : void;
       
       function registerRelocateFunction(callback:Function) : void;
       

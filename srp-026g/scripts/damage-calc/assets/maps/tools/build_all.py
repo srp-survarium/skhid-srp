@@ -38,11 +38,35 @@ NATIVE = {
 # frame; the renders use the same frames (no native play-area outline: the
 # native bitmaps show the 0.26g layout, not 0.21d's).
 PACK = Path('/mnt/hdd/Projects/release-20/packs/maps-021d-7/files')
+PACK_RUDNYA = Path('/home/sheep/Projects/survarium/work-rudnya-v021/probe-modes-build/maps-021d-rudnya-4/files')
+PACK_SCHOOL_FORT = Path('/home/sheep/Projects/survarium/v021d-rig-data/school-fort-work/probe-modes-build/maps-021d-school-fort-4/files')
+PACK_CHEMICAL = Path('/home/sheep/Projects/survarium/skhid-srp/private/content-packs/maps-021d-chemical-1/files')
 PORTED = {
     'v021d_level_03': dict(size=100, posX=14, posY=-42.196, bitmap=None, name='Vostok Radar Station (v0.21)',
                            name_key='st_level_10_name', project_name='level_03', map_ids={166: 2, 152: 4}),
     'v021d_level_06': dict(size=100, posX=30, posY=109, bitmap=None, name='Mamayev Kurgan (v0.21)',
                            name_key='st_level_11_name', project_name='level_06', map_ids={175: 2, 153: 4}),
+    # Rudnya (pack maps-021d-rudnya@4): project_name level_01, so the HUD draws native Rudnya's minimap in
+    # its frame; the layout is the same (the importer's layout offset is 0). Its shared ported/v021d files
+    # are supplied by patch 20 and maps-021d-school-fort@4; render from the composed content patch.
+    'v021d_level_01': dict(size=130, posX=12.558, posY=-25.774, bitmap=None, name='Rudnya (v0.21)',
+                           name_key='st_level_29_name', project_name='level_01', map_ids={260: 2, 261: 4},
+                           pack=PACK_RUDNYA, pack_name='maps-021d-rudnya@4'),
+    # School and Tarakanovsky Fort (pack maps-021d-school-fort@4): project_name level_02 / level_05, so the
+    # HUD draws native School's and the Fort's minimaps in their frames; the layouts are the same (the
+    # importer's layout offset is 0; the Fort's 0.26 bitmap under its frame shows the same world as
+    # 0.21d's under 0.21d's, posX -10). Their shared ported/v021d files are patch 20's.
+    'v021d_level_02': dict(size=110, posX=21.079, posY=105.098, bitmap=None, name='School (v0.21)',
+                           name_key='st_level_25_name', project_name='level_02', map_ids={174: 2, 176: 4},
+                           pack=PACK_SCHOOL_FORT, pack_name='maps-021d-school-fort@4'),
+    'v021d_level_05': dict(size=90, posX=-1.096, posY=-14.211, bitmap=None, name='Tarakanovsky Fort (v0.21)',
+                           name_key='st_level_26_name', project_name='level_05', map_ids={177: 2, 178: 4},
+                           pack=PACK_SCHOOL_FORT, pack_name='maps-021d-school-fort@4'),
+    # Chemical Plant (pack maps-021d-chemical@1): project_name level_04, so the HUD draws native Chemical
+    # Plant's minimap in its frame (the project's levelmap_min/max are that frame: centre 15, 43, half 115).
+    'v021d_level_04': dict(size=115, posX=15, posY=43, bitmap=None, name='Chemical Plant (v0.21)',
+                           name_key='st_level_31_name', project_name='level_04', map_ids={266: 2, 267: 4},
+                           pack=PACK_CHEMICAL, pack_name='maps-021d-chemical@1'),
 }
 
 
@@ -50,7 +74,8 @@ PORTED = {
 # patch-22 hud.swf (Minimap _minimapProps / _levels by project_name): London
 # (patch 14) and the 0.11e ports (patch 22, modes 2 and 4 only). Their inputs
 # are extracted with extract_level.py --patch, their raw client_projects (as
-# the game overlays them) put in WORK_DIR/db like the stock ones.
+# the game overlays them) put in WORK_DIR/db like the stock ones. `project`:
+# the project the render is of, where the map has no day_2.
 PATCHED = {
     'level_09': dict(size=140, posX=0, posY=-5, bitmap='971_Map_09_Map_09.png', area='alpha:0.4', name='London', origin='London, patch 14',
                      name_key='st_level_09_name', modes=(2, 3, 4), map_ids={181: 2, 182: 3, 183: 4}),
@@ -60,12 +85,39 @@ PATCHED = {
     'v011e_level_04': dict(size=140, posX=23.302, posY=43.049, bitmap='984_minimap_zv11e.png', area='line', origin='0.11e port, patch 22',
                            name='Chemical Plant (v0.11)', name_key='st_level_12_name', modes=(2, 4),
                            map_ids={206: 2, 207: 4}),
+    # 0.69d's Rudnya (pack rudnya-069d, patch 40): project_name level_01, so the HUD
+    # draws native Rudnya's minimap in its frame; the layout is the same.
+    'v069d_level_01': dict(size=130, posX=12.558, posY=-25.774, bitmap='967_minimap_rudnya_minimap_rudnya.png',
+                           origin='0.69d port, pack rudnya-069d@3 (patch 40)', name='Rudnya (v0.69)',
+                           name_key='st_level_14_name', project_name='level_01', modes=(2, 3, 4),
+                           map_ids={216: 2, 217: 3, 204: 4}),
+    # The STALKER ports played in Free for All (pack stalker-maps@6, patch 57; docs/notes/stalker-ffa.md):
+    # their own minimaps and frames in hud.swf, by project_name. Rendered from Free for All's own
+    # project (day_8), the one played.
+    'v010b_cs_mp_bath': dict(size=73.143, posX=-7.02, posY=15.03, bitmap='1030_minimap_cs_mp_bath.png',
+                             origin='Clear Sky port, pack stalker-maps@6 (patch 57)', name='Experimental Pool',
+                             name_key='st_cs_mp_bath_name', project_name='cs_mp_bath', project='day_8', modes=(8,),
+                             map_ids={42: 8}),
+    'v010b_cs_mp_military_1': dict(size=141.527, posX=-5.845, posY=12.13, bitmap='1031_minimap_cs_mp_military_1.png',
+                                   origin='Clear Sky port, pack stalker-maps@6 (patch 57)', name='Military Warehouses',
+                                   name_key='st_cs_mp_military_1_name', project_name='cs_mp_military_1', project='day_8',
+                                   modes=(8,), map_ids={43: 8}),
+    'v010b_cs_training_camp': dict(size=79.709, posX=18.685, posY=6.53, bitmap='1033_minimap_cs_training_camp.png',
+                                   origin='Clear Sky port, pack stalker-maps@6 (patch 57)', name='Training Camp',
+                                   name_key='st_cs_training_camp_name', project_name='cs_training_camp', project='day_8',
+                                   modes=(8,), map_ids={44: 8}),
+    # Fire Station of pack stalker-maps-2 (Free for All only; docs/notes/stalker-maps.md). Its bitmap
+    # is named as FFDec exports the hud.swf that has it (the classes after it took new ids).
+    'v010b_cs_mp_firestation': dict(size=73.143, posX=-8.48, posY=14.84, bitmap='1033_minimap_cs_mp_firestation.png',
+                      origin='Clear Sky port, pack stalker-maps-2@2', name='Fire Station',
+                      name_key='st_cs_mp_firestation_name', project_name='cs_mp_firestation', project='day_8', modes=(8,),
+                      map_ids={39: 8}),
 }
 
 
 def project_files(work, key):
     if key in PORTED:
-        return [PACK / 'projects' / key / f'day_{n}' / 'client_project' for n in (2, 4)]
+        return [PORTED[key].get('pack', PACK) / 'projects' / key / f'day_{n}' / 'client_project' for n in (2, 4)]
     modes = PATCHED[key]['modes'] if key in PATCHED else (2, 3, 4)
     return [work / 'db' / f'projects__{key}__day_{n}__client_project' for n in modes]
 

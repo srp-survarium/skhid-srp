@@ -1,0 +1,17 @@
+# Patch 93: the render thread's walk of a DrawableImageContext's command
+# queues at each capture never reaches a queue the main thread is destroying
+# (the rev-40 crash at a match's end). Only the decisions: which sites, and
+# the handlers. The sites are sites_026g.tsv's; the logic is
+# scaleform_capture.rs and vostok/drawable_image.rs.
+name = "scaleform_capture"
+patch = 93
+
+# OnNextCapture's walk of its queues, after its own ExecuteNextCapture.
+[[hook]]
+site = "scaleform.di_next_capture"
+handler = "on_next_capture"
+
+# A queue's destructor: out of its context's list before anything else.
+[[hook]]
+site = "scaleform.di_queue_destroy"
+handler = "on_queue_destroy"

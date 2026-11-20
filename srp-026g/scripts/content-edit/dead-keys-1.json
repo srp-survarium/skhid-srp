@@ -1,0 +1,33 @@
+{
+ "_about": "Dead duplicate keys out (the owner, 2026-11-02: every stat is a table, game changes 1 and 2). Neither the exe nor srp reads them: no string of the exe names them, or its one loader reads the key from another table (dispersion/ or data/), so every value the game reads stays. The dead armour/back/duty_exo_026 (no dictionary row) follows the armour rule: brain and face 0.72 -> 0.87, its armor.",
+ "remove_key": [
+  {"files": "gameplay/items/weapons/wpn_*.options", "keys": ["parameters/base_dispersion"]},
+  {"files": "gameplay/items/weapons/ammo/*.options",
+   "keys": ["parameters/damage", "parameters/arp", "parameters/k_max_damage_distance", "parameters/buckshot"]},
+  {"files": "gameplay/items/weapons/rgd-5.options",
+   "keys": ["parameters/splash_max_damage", "parameters/splash_min_damage", "parameters/splash_pierce",
+            "parameters/splash_radius", "parameters/stopping_power", "parameters/stamina_damage"]},
+  {"files": "gameplay/items/weapons/smoke_grenade.options",
+   "keys": ["parameters/splash_max_damage", "parameters/splash_min_damage", "parameters/splash_pierce",
+            "parameters/splash_radius", "parameters/stopping_power", "parameters/stamina_damage"]},
+  {"files": "gameplay/items/devices/blackmarket_trap.options", "keys": ["parameters/trap_damage", "parameters/trap_pierce"]},
+  {"files": "gameplay/items/drugs/*.options",
+   "keys": ["parameters/activity_time_sec", "parameters/activation_time", "parameters/heal_amount",
+            "parameters/heal_amount_pain", "parameters/heal_amount_infection", "parameters/damage_protection_pain",
+            "parameters/damage_protection_infection"]},
+  {"files": "gameplay/items/medicines/*.options",
+   "keys": ["parameters/activity_time_sec", "parameters/activation_time", "parameters/heal_amount",
+            "parameters/heal_amount_pain", "parameters/damage_protection_pain"]},
+  {"files": "gameplay/items/armour/back/*.options", "keys": ["parameters/oxygen_amount"]},
+  {"files": "gameplay/items/armour/*/*.options",
+   "keys": ["parameters/armor", "parameters/ano_armor", "parameters/arms_armor", "parameters/back_armor"]}
+ ],
+ "set": [
+  {"file": "gameplay/items/armour/back/duty_exo_026.options", "path": "hit_params/brain/hit_types/ranged/armor", "from": 0.72, "to": 0.87},
+  {"file": "gameplay/items/armour/back/duty_exo_026.options", "path": "hit_params/brain/hit_types/slash/armor", "from": 0.72, "to": 0.87},
+  {"file": "gameplay/items/armour/back/duty_exo_026.options", "path": "hit_params/brain/hit_types/explosive/armor", "from": 0.72, "to": 0.87},
+  {"file": "gameplay/items/armour/back/duty_exo_026.options", "path": "hit_params/face/hit_types/ranged/armor", "from": 0.72, "to": 0.87},
+  {"file": "gameplay/items/armour/back/duty_exo_026.options", "path": "hit_params/face/hit_types/slash/armor", "from": 0.72, "to": 0.87},
+  {"file": "gameplay/items/armour/back/duty_exo_026.options", "path": "hit_params/face/hit_types/explosive/armor", "from": 0.72, "to": 0.87}
+ ]
+}

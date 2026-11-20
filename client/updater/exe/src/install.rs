@@ -33,6 +33,10 @@ pub struct Layout {
     pub exe_dir: String,
     /// The game folder, two above: the archive's `game/`.
     pub game_dir: String,
+    /// `...\game\torrent`: the torrents and their state.
+    pub torrent_dir: String,
+    /// `...\game\logs`: the run logs (`updater_logic::run_log::FOLDER`).
+    pub logs_dir: String,
     /// The archive's top folder: the one that holds the game folder when
     /// that is named `game` (as it is unpacked), else the game folder itself.
     pub top_dir: String,
@@ -70,6 +74,8 @@ impl Layout {
         };
         Some(Self {
             exe_dir: exe_dir.into(),
+            torrent_dir: format!("{game_dir}\\torrent"),
+            logs_dir: format!("{game_dir}\\{}", updater_logic::run_log::FOLDER),
             game_dir: game_dir.into(),
             top_dir: top_dir.into(),
             exe_name: exe_name.into(),
@@ -107,6 +113,10 @@ pub enum InstallError {
     Write { path: String, code: Code },
     /// A new file read back with other bytes than were written.
     ReadBack { path: String },
+    /// A new file was gone, or denied to this program, when read back just
+    /// after it was written: an antivirus took it
+    /// (`updater_logic::file_error::Stop::after_write`).
+    Removed { path: String, code: Code },
     /// A file could not be moved out of its place, or the new one into it.
     Replace { path: String, code: Code },
     /// The player closed the launcher.
@@ -114,10 +124,12 @@ pub enum InstallError {
 }
 
 impl InstallError {
-    /// The file Windows Security did not let be written or replaced, and
-    /// the code (`updater_logic::file_error`, `Stop::Virus`).
+    /// The file Windows Security, or another antivirus, did not let be
+    /// written or replaced, and the code (`updater_logic::file_error`,
+    /// `Stop::Virus`).
     pub fn virus(&self) -> Option<(&str, Code)> {
         match self {
+            Self::Removed { path, code } => Some((path, *code)),
             Self::Folder { path, code }
             | Self::Write { path, code }
             | Self::Replace { path, code }
@@ -142,6 +154,8 @@ pub struct Outcome {
 
 /// The file names (in the archive) of the launcher this updater belongs to.
 pub const LAUNCHER_NAME: &str = "launcher_skhid.exe";
+/// The archive's folder of the programs (this one, the launcher, the game).
+const PROGRAM_FOLDER: &str = "game/binaries/x86";
 
 struct Change {
     name: String,
@@ -263,6 +277,12 @@ pub fn install(
                 Ok(_) => Err(InstallError::ReadBack {
                     path: change.place.clone(),
                 }),
+                Err(code) if Stop::after_write(code) == Some(Stop::Virus) => {
+                    Err(InstallError::Removed {
+                        path: change.place.clone(),
+                        code,
+                    })
+                }
                 Err(code) => Err(InstallError::Write {
                     path: change.place.clone(),
                     code,
@@ -285,10 +305,13 @@ pub fn install(
     }
 
     // 3. The places change: the running programs last, this one last of all,
-    // so that a failure before them leaves them untouched.
+    // so that a failure before them leaves them untouched. A copy elsewhere
+    // (the bootstrap's kept updater) is no running program.
     let rank = |name: &str| {
-        let file_name = name.rsplit('/').next().unwrap_or(name);
-        if file_name.eq_ignore_ascii_case(&layout.exe_name) {
+        let (folder, file_name) = name.rsplit_once('/').unwrap_or(("", name));
+        if !folder.eq_ignore_ascii_case(PROGRAM_FOLDER) {
+            0
+        } else if file_name.eq_ignore_ascii_case(&layout.exe_name) {
             2
         } else if file_name.eq_ignore_ascii_case(LAUNCHER_NAME) {
             1

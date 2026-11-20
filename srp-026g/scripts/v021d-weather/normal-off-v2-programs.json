@@ -1,0 +1,2610 @@
+[
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____0_____0__1_0100____00000____000__________0__",
+    "original_sha256": "f9c80328403e9bcefa1b995baec931c2c643b0e310026e0dfdcbb4aeda7ead43",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____0_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "ebaa991ff5c88be63fcd50d966d0af1be053c81d561135bb22df2eed0924d2a3",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____0_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____0_____0__1_0100____00000____002__________0__",
+    "original_sha256": "f9c80328403e9bcefa1b995baec931c2c643b0e310026e0dfdcbb4aeda7ead43",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____0_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "ebaa991ff5c88be63fcd50d966d0af1be053c81d561135bb22df2eed0924d2a3",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____0_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____0_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____10_____0__1_0100____00000____000__________0__",
+    "original_sha256": "6478e56ca3be386b8db3eecff6015528e3575d511b060a28d9dd04bae08c6a7f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____10_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "35ad9e4fdbf806e93070021ac0652e7254faf65e4f492cd28c05682d7c461e4b",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____10_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____10_____0__1_0100____00000____002__________0__",
+    "original_sha256": "6478e56ca3be386b8db3eecff6015528e3575d511b060a28d9dd04bae08c6a7f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____10_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "35ad9e4fdbf806e93070021ac0652e7254faf65e4f492cd28c05682d7c461e4b",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____10_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____10_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____12_____0__1_0100____00000____000__________0__",
+    "original_sha256": "92dcb97f524c90b58f0bcc87b927e8f11500117d4896b57fcb075c477b6618b8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____12_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "ab0174e4b904f0878322fbf9df103741ed6fe63c62528bf53326e1a1b7d81b48",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____12_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____12_____0__1_0100____00000____002__________0__",
+    "original_sha256": "92dcb97f524c90b58f0bcc87b927e8f11500117d4896b57fcb075c477b6618b8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____12_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "ab0174e4b904f0878322fbf9df103741ed6fe63c62528bf53326e1a1b7d81b48",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____12_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____12_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____13_____0__1_0100____00000____000__________0__",
+    "original_sha256": "0b01899f6edbb56cdb86a637e8c27a9762b19104e150ee36e1bad423fe874c67",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____13_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "0ee70ac020bbb25f567a9bbcd4503cb462d6e1ff10bab4cd527b064dda79fb43",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____13_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____13_____0__1_0100____00000____002__________0__",
+    "original_sha256": "0b01899f6edbb56cdb86a637e8c27a9762b19104e150ee36e1bad423fe874c67",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____13_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "0ee70ac020bbb25f567a9bbcd4503cb462d6e1ff10bab4cd527b064dda79fb43",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____13_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____13_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____14_____0__1_0100____00000____000__________0__",
+    "original_sha256": "a9212234da3bd40735d2a81cab4b79a1f368c8281d2f5e3189aaf3214861e28e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____14_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "5d2428c6b5c5d7ee53e23068733f24f33b7a30afa3fd8d82a9bda86e26d64695",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____14_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____14_____0__1_0100____00000____002__________0__",
+    "original_sha256": "a9212234da3bd40735d2a81cab4b79a1f368c8281d2f5e3189aaf3214861e28e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____14_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "5d2428c6b5c5d7ee53e23068733f24f33b7a30afa3fd8d82a9bda86e26d64695",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____14_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____14_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____1_____0__1_0100____00000____000__________0__",
+    "original_sha256": "4869b87ca140eeeaeb7713f7b4123347b2198a6a9c2a345a97812f26873674e8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____1_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "1d5d5865088a106043c8a5a725f3e6b53c0642db7a16a1bc80b390d30de4d4d6",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____1_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____1_____0__1_0100____00000____002__________0__",
+    "original_sha256": "4869b87ca140eeeaeb7713f7b4123347b2198a6a9c2a345a97812f26873674e8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____1_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "1d5d5865088a106043c8a5a725f3e6b53c0642db7a16a1bc80b390d30de4d4d6",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____1_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____1_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____2_____0__1_0100____00000____000__________0__",
+    "original_sha256": "e10df548669636b88eb841e62c681574d90ff3b5d71bfbd4ba23f0077d2b6bef",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____2_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "a490b750cbd07aa03f95ec0e08938d931eb2bf75031d3661aa38c57db35b886f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____2_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000000__00____2_____0__1_0100____00000____002__________0__",
+    "original_sha256": "e10df548669636b88eb841e62c681574d90ff3b5d71bfbd4ba23f0077d2b6bef",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____2_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "a490b750cbd07aa03f95ec0e08938d931eb2bf75031d3661aa38c57db35b886f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____2_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00000_00____2_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____0_____0__1_0100____00000____000__________0__",
+    "original_sha256": "1ca7cd12ca5f2adf21bddbb8735d24f83a84c4a6339784bb8e2b7a767180183f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____0_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "b0ae1a06c3efea443e4c3c20582c3c98a7beadd43e174b82197284bd8e4f7557",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____0_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____0_____0__1_0100____00000____002__________0__",
+    "original_sha256": "1ca7cd12ca5f2adf21bddbb8735d24f83a84c4a6339784bb8e2b7a767180183f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____0_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "47c406b52c3de263797a412251a5d75b08ac6abe7ef4b4bb048e8eae5e184e1a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____0_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____0_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____0_____0__1_0100____11000____000__________0__",
+    "original_sha256": "1ca7cd12ca5f2adf21bddbb8735d24f83a84c4a6339784bb8e2b7a767180183f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____0_____0__1_01110____11000____000__________0__",
+    "native_reference_sha256": "b0ae1a06c3efea443e4c3c20582c3c98a7beadd43e174b82197284bd8e4f7557",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____0_____0__1_01000____11000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____0_____0__1_01010____11000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____10_____0__1_0100____00000____000__________0__",
+    "original_sha256": "c5b16aac284639a781f8ddb5b3f105336e31717b74790bf186ea9db7d8686ace",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____10_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "e1e46c2587095aefbbefc1ecabf4a4833bd8f447381d72a058bc014631b40661",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____10_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____10_____0__1_0100____00000____002__________0__",
+    "original_sha256": "c5b16aac284639a781f8ddb5b3f105336e31717b74790bf186ea9db7d8686ace",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____10_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "ec0c71dda46a4a26a93e6160fce2da685be6c3d1dcdfc780bdd631a41dff32c6",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____10_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____10_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____10_____0__1_0100____11000____000__________0__",
+    "original_sha256": "c5b16aac284639a781f8ddb5b3f105336e31717b74790bf186ea9db7d8686ace",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____10_____0__1_01110____11000____000__________0__",
+    "native_reference_sha256": "e1e46c2587095aefbbefc1ecabf4a4833bd8f447381d72a058bc014631b40661",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____10_____0__1_01000____11000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____10_____0__1_01010____11000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____12_____0__1_0100____00000____000__________0__",
+    "original_sha256": "94b08caac6bfa3460fad2613aa5a6713ebfc94fd88882f1c2378e44dea0546f3",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____12_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "8a1293d748500f1bc2e755501772ba09e4d987dc4c34f3cdfc1f2560c5ebbaae",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____12_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____12_____0__1_0100____00000____002__________0__",
+    "original_sha256": "94b08caac6bfa3460fad2613aa5a6713ebfc94fd88882f1c2378e44dea0546f3",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____12_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "b3b926a4508d2e026b7f6b26bd5d58b741d7da47bef70dcc1f0bb8e291e7a8e8",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____12_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____12_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____12_____0__1_0100____11000____000__________0__",
+    "original_sha256": "94b08caac6bfa3460fad2613aa5a6713ebfc94fd88882f1c2378e44dea0546f3",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____12_____0__1_01110____11000____000__________0__",
+    "native_reference_sha256": "8a1293d748500f1bc2e755501772ba09e4d987dc4c34f3cdfc1f2560c5ebbaae",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____12_____0__1_01000____11000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____12_____0__1_01010____11000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____13_____0__1_0100____00000____000__________0__",
+    "original_sha256": "0d3b774d5411678367100288b4727579c6beb45d77220029a8e02cbae0775eae",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____13_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "702f9ac71b76db8a78f45ec7d225b7c26c728bfd52bd59e74222ff90fbf2f067",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____13_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____13_____0__1_0100____00000____002__________0__",
+    "original_sha256": "0d3b774d5411678367100288b4727579c6beb45d77220029a8e02cbae0775eae",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____13_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "8d0592d8b1a2fe5acb8a4720d6705a68adf44f19dd7a5127a21f2560f37f0a94",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____13_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____13_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____13_____0__1_0100____11000____000__________0__",
+    "original_sha256": "0d3b774d5411678367100288b4727579c6beb45d77220029a8e02cbae0775eae",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____13_____0__1_01110____11000____000__________0__",
+    "native_reference_sha256": "702f9ac71b76db8a78f45ec7d225b7c26c728bfd52bd59e74222ff90fbf2f067",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____13_____0__1_01000____11000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____13_____0__1_01010____11000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____14_____0__1_0100____00000____000__________0__",
+    "original_sha256": "14db61a71eaf9474595e8ef9f0b9dfe71f51b4a53d78d27782e98e01ac5c143c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____14_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "a820b3decaa3f1cbc9d8322ccbf78ed97f870b6d388cdffcd70a4c4d85503361",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____14_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____14_____0__1_0100____00000____002__________0__",
+    "original_sha256": "14db61a71eaf9474595e8ef9f0b9dfe71f51b4a53d78d27782e98e01ac5c143c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____14_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "f17ce70e34a07df5443baa1c0b2fdf03c462fc9043cae645282a0725e34a4c80",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____14_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____14_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____14_____0__1_0100____11000____000__________0__",
+    "original_sha256": "14db61a71eaf9474595e8ef9f0b9dfe71f51b4a53d78d27782e98e01ac5c143c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____14_____0__1_01110____11000____000__________0__",
+    "native_reference_sha256": "a820b3decaa3f1cbc9d8322ccbf78ed97f870b6d388cdffcd70a4c4d85503361",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____14_____0__1_01000____11000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____14_____0__1_01010____11000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____1_____0__1_0100____00000____000__________0__",
+    "original_sha256": "6b6b8f77ae269ed6d809fdc76a9737400d7c1ad29fca2ab65cf1675160f05826",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____1_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "28f4d6270c702d533e9181044ff35aaa141dae95021fc0969aa4044b8649b6f7",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____1_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____1_____0__1_0100____00000____002__________0__",
+    "original_sha256": "6b6b8f77ae269ed6d809fdc76a9737400d7c1ad29fca2ab65cf1675160f05826",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____1_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "ef153426b174755d6b9691d6d7825a335dd51b3cb2c13265169da7aaabafdf87",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____1_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____1_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____2_____0__1_0100____00000____000__________0__",
+    "original_sha256": "109272025835888d92e14008471d5359eebfb2f40784fea03f87663a864e6c88",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____2_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "16949153beeb0ff88495190999dfe074f7273bfe57a15ab84e3286beb4acb05b",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____2_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000001__00____2_____0__1_0100____00000____002__________0__",
+    "original_sha256": "109272025835888d92e14008471d5359eebfb2f40784fea03f87663a864e6c88",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____2_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "472943f665984f1cd792c5c4f6958161ba00923a41fd7c1b6df855fee6bf8a9f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____2_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00001_00____2_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000011__00____0_____0__1_0100____00000____000__________0__",
+    "original_sha256": "3edb0293465a860e6143e8d0d177d9eeb33f786ce883000181a18f1f37a8166c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____0_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "02f80ca70161a446589634f27cf466d9c25cd868bd19364804b650679770cf73",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____0_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000011__00____10_____0__1_0100____00000____000__________0__",
+    "original_sha256": "a85962182cdb9ccf901fe43af4fde3631acc6d44db44ac3a6497fe15cecee194",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____10_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "299ac065e042ed86de4d92b2c4e76af1961e1c47195c9a8f213141525c0adab0",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____10_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000011__00____12_____0__1_0100____00000____000__________0__",
+    "original_sha256": "e4504aeae3888dcc71ffc1d81559c264aa94267dfccc43b69080925689339df9",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____12_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "b8ec1d9b74d1b651604b448b5f033863e165f93175736f371026e3b33b3a49d1",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____12_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000011__00____13_____0__1_0100____00000____000__________0__",
+    "original_sha256": "fcc4bd590815b0e31506761f85b69a24b9fa741e244b76b5f2f423dc58b3ebd5",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____13_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "dc53decda3277a0ee1739f12db26e142652886b3d9e0b67360fd214f61424e1d",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____13_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000011__00____14_____0__1_0100____00000____000__________0__",
+    "original_sha256": "8440e0212c5431d843ea4351429fb5fde35e31c2acde53361a4de1c68229af44",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____14_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "feab2517a3afcb587ee3c52e0755f26d8b0b5735d57c5c42fe9ebd15e19bd27b",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____14_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000011__00____1_____0__1_0100____00000____000__________0__",
+    "original_sha256": "54c58ff4b5a28b13bf44b998c5c9e45a4297f889eb1159b3059ae6bfacd32f1e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____1_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "2b60231a8b5cdb1995439bdef92c0cb56ba8a784eebf701b113b36e144492f64",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____1_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000000011__00____2_____0__1_0100____00000____000__________0__",
+    "original_sha256": "83a5ab86efcf1831bc945ad18f9feca0f09c24a1fa13dde6b02ed2d1ca800dd4",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____2_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "c3f45c4606531ce579e8ac165ca73f9951e72898e740525554b7d11eca86fb1f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1000_00011_00____2_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____0_____0__0_0100____00000____000__________0__",
+    "original_sha256": "55a2b52c01ff940cdfe19e2d3956437311abc376bacf15d3f33dbe4fee002689",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "8c9cb3dc510ee0d8d5ec838afea9d63a9995956160cd167f2713fd66ae871cb3",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____0_____0__0_0100____00000____002__________0__",
+    "original_sha256": "55a2b52c01ff940cdfe19e2d3956437311abc376bacf15d3f33dbe4fee002689",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "b7782f14c39eb2e0911e4becd600ee1dc16860b5bc72a5eafa24f6898b905226",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____0_____0__2_1100____00000____000__________0__",
+    "original_sha256": "55a2b52c01ff940cdfe19e2d3956437311abc376bacf15d3f33dbe4fee002689",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "8c9cb3dc510ee0d8d5ec838afea9d63a9995956160cd167f2713fd66ae871cb3",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____0_____0__2_1100____00000____002__________0__",
+    "original_sha256": "55a2b52c01ff940cdfe19e2d3956437311abc376bacf15d3f33dbe4fee002689",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "b7782f14c39eb2e0911e4becd600ee1dc16860b5bc72a5eafa24f6898b905226",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____0_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____10_____0__0_0100____00000____000__________0__",
+    "original_sha256": "b3fbbe7974863739d767fa09e42c16c3f27ddfbd1208adc3f9c7a1270d28ed4e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "4f228e9eb7af838daeb36a3d846a59b61bb94a2fd68dffbf8ce57fda5046f7f0",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____10_____0__0_0100____00000____002__________0__",
+    "original_sha256": "b3fbbe7974863739d767fa09e42c16c3f27ddfbd1208adc3f9c7a1270d28ed4e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "435615f15886a665d0f09ad058d6ce277108a8770b166e4906e6525ae04a9368",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____10_____0__2_1100____00000____000__________0__",
+    "original_sha256": "b3fbbe7974863739d767fa09e42c16c3f27ddfbd1208adc3f9c7a1270d28ed4e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "4f228e9eb7af838daeb36a3d846a59b61bb94a2fd68dffbf8ce57fda5046f7f0",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____10_____0__2_1100____00000____002__________0__",
+    "original_sha256": "b3fbbe7974863739d767fa09e42c16c3f27ddfbd1208adc3f9c7a1270d28ed4e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "435615f15886a665d0f09ad058d6ce277108a8770b166e4906e6525ae04a9368",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____10_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____12_____0__0_0100____00000____000__________0__",
+    "original_sha256": "683b9bf84a29827f4e26ada04581c7121ff3eb13c8dddeea4d07b79d9216d6c0",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "4e04f3f1b4bc7575e14173025e9d84803f9cf1efa2612a0eaf5737e61841b4c7",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____12_____0__0_0100____00000____002__________0__",
+    "original_sha256": "683b9bf84a29827f4e26ada04581c7121ff3eb13c8dddeea4d07b79d9216d6c0",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "bfb9dff6651714fac3c73a0ef506c7b0a2f14959eafc999c9b442a2a2942a0bd",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____12_____0__2_1100____00000____000__________0__",
+    "original_sha256": "683b9bf84a29827f4e26ada04581c7121ff3eb13c8dddeea4d07b79d9216d6c0",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "4e04f3f1b4bc7575e14173025e9d84803f9cf1efa2612a0eaf5737e61841b4c7",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____12_____0__2_1100____00000____002__________0__",
+    "original_sha256": "683b9bf84a29827f4e26ada04581c7121ff3eb13c8dddeea4d07b79d9216d6c0",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "bfb9dff6651714fac3c73a0ef506c7b0a2f14959eafc999c9b442a2a2942a0bd",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____12_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____13_____0__0_0100____00000____000__________0__",
+    "original_sha256": "8b2c8b6a560bfa09a790910b88d12a8d5b0db22de366b807258e37d63557479c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "b6e1c69bed0ebfdc0ad06172a7d6989b70c1f7f355c6a8b99ce22db7f1a1202a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____13_____0__0_0100____00000____002__________0__",
+    "original_sha256": "8b2c8b6a560bfa09a790910b88d12a8d5b0db22de366b807258e37d63557479c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "1f0f0c05bcaa712278361f36205822256613f21cb9ec5c4cdd313a4c9fdf16a0",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____13_____0__2_1100____00000____000__________0__",
+    "original_sha256": "8b2c8b6a560bfa09a790910b88d12a8d5b0db22de366b807258e37d63557479c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "b6e1c69bed0ebfdc0ad06172a7d6989b70c1f7f355c6a8b99ce22db7f1a1202a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____13_____0__2_1100____00000____002__________0__",
+    "original_sha256": "8b2c8b6a560bfa09a790910b88d12a8d5b0db22de366b807258e37d63557479c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "1f0f0c05bcaa712278361f36205822256613f21cb9ec5c4cdd313a4c9fdf16a0",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____13_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____14_____0__0_0100____00000____000__________0__",
+    "original_sha256": "90e1a30d67dcbdf8fa9f31af2437d203c8784734c4d8fb35210a38782215b543",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "e2af3e8f6e908607ff0291aa9782025ccd099727fe96abd95be82e7910308dc2",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____14_____0__0_0100____00000____002__________0__",
+    "original_sha256": "90e1a30d67dcbdf8fa9f31af2437d203c8784734c4d8fb35210a38782215b543",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "4cb06c3b303c719a2ee88d378db58bcd043413991f30fc78e390490050023388",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____14_____0__2_1100____00000____000__________0__",
+    "original_sha256": "90e1a30d67dcbdf8fa9f31af2437d203c8784734c4d8fb35210a38782215b543",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "e2af3e8f6e908607ff0291aa9782025ccd099727fe96abd95be82e7910308dc2",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____14_____0__2_1100____00000____002__________0__",
+    "original_sha256": "90e1a30d67dcbdf8fa9f31af2437d203c8784734c4d8fb35210a38782215b543",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "4cb06c3b303c719a2ee88d378db58bcd043413991f30fc78e390490050023388",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____14_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____1_____0__0_0100____00000____000__________0__",
+    "original_sha256": "f4e90781823a7849f8515aa289521143d252136c67068c0f7ff6ffeb429e7dc8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "5ada60b625960c41350737a8fd4693b73e8f7dbe45dabdd96a3c02a5f0467547",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____1_____0__0_0100____00000____002__________0__",
+    "original_sha256": "f4e90781823a7849f8515aa289521143d252136c67068c0f7ff6ffeb429e7dc8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "50745f5bd028b05be2b50fac472ee840cced0597476fcb98c4c253d3f4266881",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____1_____0__2_1100____00000____000__________0__",
+    "original_sha256": "f4e90781823a7849f8515aa289521143d252136c67068c0f7ff6ffeb429e7dc8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "5ada60b625960c41350737a8fd4693b73e8f7dbe45dabdd96a3c02a5f0467547",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____1_____0__2_1100____00000____002__________0__",
+    "original_sha256": "f4e90781823a7849f8515aa289521143d252136c67068c0f7ff6ffeb429e7dc8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "50745f5bd028b05be2b50fac472ee840cced0597476fcb98c4c253d3f4266881",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____1_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____2_____0__0_0100____00000____000__________0__",
+    "original_sha256": "15b84b30329c16bd8d3636fbdaacdbcb90e2108acd8e683aa9f669c75d9e2010",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "21ebe9a78d5c1ab833e027e4ad828bf32e413409c141f89e970a6046e8ae43bd",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____2_____0__0_0100____00000____002__________0__",
+    "original_sha256": "15b84b30329c16bd8d3636fbdaacdbcb90e2108acd8e683aa9f669c75d9e2010",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "9ee9ce1b165983b5671863676f32ee892c60ca47429afea7a9e431c09ae296b5",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____2_____0__2_1100____00000____000__________0__",
+    "original_sha256": "15b84b30329c16bd8d3636fbdaacdbcb90e2108acd8e683aa9f669c75d9e2010",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "21ebe9a78d5c1ab833e027e4ad828bf32e413409c141f89e970a6046e8ae43bd",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000000__00____2_____0__2_1100____00000____002__________0__",
+    "original_sha256": "15b84b30329c16bd8d3636fbdaacdbcb90e2108acd8e683aa9f669c75d9e2010",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "9ee9ce1b165983b5671863676f32ee892c60ca47429afea7a9e431c09ae296b5",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00000_00____2_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000001__00____0_____0__0_0100____00000____000__________0__",
+    "original_sha256": "41390700a06cd476b155546c2611fa06e84d5c32b09f8505cb5a09d5816cca1e",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "47c406b52c3de263797a412251a5d75b08ac6abe7ef4b4bb048e8eae5e184e1a",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____0_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000001__00____10_____0__0_0100____00000____000__________0__",
+    "original_sha256": "bc1c55bfa5863fb40d65a6e6bdaa362340adb98433644abfc07f6cf3e3f73fd8",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "ec0c71dda46a4a26a93e6160fce2da685be6c3d1dcdfc780bdd631a41dff32c6",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____10_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000001__00____12_____0__0_0100____00000____000__________0__",
+    "original_sha256": "0944efc51a708430f0b442c18d6660ed1e277038401d95d268504e6af3e7f3ca",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "b3b926a4508d2e026b7f6b26bd5d58b741d7da47bef70dcc1f0bb8e291e7a8e8",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____12_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000001__00____13_____0__0_0100____00000____000__________0__",
+    "original_sha256": "2036b213ff9c0a3497796ea2240ed6834e6f884c20c1c46a8bbfffcbdfb0500f",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "8d0592d8b1a2fe5acb8a4720d6705a68adf44f19dd7a5127a21f2560f37f0a94",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____13_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000001__00____14_____0__0_0100____00000____000__________0__",
+    "original_sha256": "56430552b7433dd184e13c82c6f9bc0db7def016e4a44db0fa532fb3398088e9",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "f17ce70e34a07df5443baa1c0b2fdf03c462fc9043cae645282a0725e34a4c80",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____14_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000001__00____1_____0__0_0100____00000____000__________0__",
+    "original_sha256": "d642438d7e3bad9daea8ce9e07be7c054bdc242127644ac4e6565f89618823f6",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "d9d59ef41dea834a4474dab865a283b24a47912ff2e2bcce9a107bb1ba1850be",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____1_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000001__00____2_____0__0_0100____00000____000__________0__",
+    "original_sha256": "656eec55a175b51937794e6f8e3a8c777d294262cfe1d5907ea8f903c2875014",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "0241f6e6d4cbfbc2a25f85bc0e483950f7db3d607dc5f6a9a50fff7e10536bb6",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00001_00____2_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____0_____0__0_0100____00000____000__________0__",
+    "original_sha256": "c1e6b6d2043e2f5354849911643ae30b930787a25cad1b7d0f5bae35bef19707",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____0_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "4f0c363a9f95d6b0ac13cebf9b053a5615f6cc26af4647e02a1e22aea1b86c8f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____0_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____0_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____0_____0__2_1100____00000____000__________0__",
+    "original_sha256": "c1e6b6d2043e2f5354849911643ae30b930787a25cad1b7d0f5bae35bef19707",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____0_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "4f0c363a9f95d6b0ac13cebf9b053a5615f6cc26af4647e02a1e22aea1b86c8f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____0_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____0_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____10_____0__0_0100____00000____000__________0__",
+    "original_sha256": "d7af35188f5c564b887ea95184dec44b1d79227dfbb39d081077fcca747c65aa",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____10_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "1c26e4babcb14f943ff59f712d00f899a3bad97abcef8ba52077412b434b68b8",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____10_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____10_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____10_____0__2_1100____00000____000__________0__",
+    "original_sha256": "d7af35188f5c564b887ea95184dec44b1d79227dfbb39d081077fcca747c65aa",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____10_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "1c26e4babcb14f943ff59f712d00f899a3bad97abcef8ba52077412b434b68b8",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____10_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____10_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____12_____0__0_0100____00000____000__________0__",
+    "original_sha256": "f4fcc605d059e8aeef5bc2eb29995d117ca09c3947b459c1e4393762877f564d",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____12_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "5121a6d9b4be62d54538ebb9f40ac0f777bb87d21c9fe3c8f9b78d34415df32d",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____12_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____12_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____12_____0__2_1100____00000____000__________0__",
+    "original_sha256": "f4fcc605d059e8aeef5bc2eb29995d117ca09c3947b459c1e4393762877f564d",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____12_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "5121a6d9b4be62d54538ebb9f40ac0f777bb87d21c9fe3c8f9b78d34415df32d",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____12_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____12_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____13_____0__0_0100____00000____000__________0__",
+    "original_sha256": "39ba1ed2a9fed2ba4d02c2e2f9d13be99e6328c275bb8930025ca87073897758",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____13_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "dd8582e2f416e6a651dea49b022d8152849904fe0953fe22ededda281b0cc8ee",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____13_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____13_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____13_____0__2_1100____00000____000__________0__",
+    "original_sha256": "39ba1ed2a9fed2ba4d02c2e2f9d13be99e6328c275bb8930025ca87073897758",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____13_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "dd8582e2f416e6a651dea49b022d8152849904fe0953fe22ededda281b0cc8ee",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____13_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____13_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____14_____0__0_0100____00000____000__________0__",
+    "original_sha256": "5c740122c9e489d272b4a5cc58248ac473f34476c3cf02d2e56f67a4158d0177",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____14_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "f389ce5251556ab411d08e48cf8fcf5a54a87e8b89e316d6f70f4a3227296082",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____14_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____14_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____14_____0__2_1100____00000____000__________0__",
+    "original_sha256": "5c740122c9e489d272b4a5cc58248ac473f34476c3cf02d2e56f67a4158d0177",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____14_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "f389ce5251556ab411d08e48cf8fcf5a54a87e8b89e316d6f70f4a3227296082",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____14_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____14_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____1_____0__0_0100____00000____000__________0__",
+    "original_sha256": "0f084f2348214955f6e3643d544b010e3580a35d2434b7cf21adb295e24097f2",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____1_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "dbeacf3b08f398f5c7140fb20b4734cf18e3e85b3afa93eea70bf344aaf80a6d",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____1_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____1_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____1_____0__2_1100____00000____000__________0__",
+    "original_sha256": "0f084f2348214955f6e3643d544b010e3580a35d2434b7cf21adb295e24097f2",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____1_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "dbeacf3b08f398f5c7140fb20b4734cf18e3e85b3afa93eea70bf344aaf80a6d",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____1_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____1_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____2_____0__0_0100____00000____000__________0__",
+    "original_sha256": "7c61bf2a901b6be21dd92517c32a566521f7ccda74b8d8150f7ea51894db61cd",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____2_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "3f197fed9df0567276b3cb393eb247544cbd581ee896d2a333b349762dc6cd0a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____2_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____2_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100000011__00____2_____0__2_1100____00000____000__________0__",
+    "original_sha256": "7c61bf2a901b6be21dd92517c32a566521f7ccda74b8d8150f7ea51894db61cd",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____2_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "3f197fed9df0567276b3cb393eb247544cbd581ee896d2a333b349762dc6cd0a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____2_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_00011_00____2_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____0_____0__0_0100____00000____000__________0__",
+    "original_sha256": "41390700a06cd476b155546c2611fa06e84d5c32b09f8505cb5a09d5816cca1e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____0_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "47c406b52c3de263797a412251a5d75b08ac6abe7ef4b4bb048e8eae5e184e1a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____0_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____0_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____0_____0__2_1100____00000____000__________0__",
+    "original_sha256": "41390700a06cd476b155546c2611fa06e84d5c32b09f8505cb5a09d5816cca1e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____0_____0__2_11111____00000____000__________0__",
+    "native_reference_sha256": "47c406b52c3de263797a412251a5d75b08ac6abe7ef4b4bb048e8eae5e184e1a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____0_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____0_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____10_____0__0_0100____00000____000__________0__",
+    "original_sha256": "bc1c55bfa5863fb40d65a6e6bdaa362340adb98433644abfc07f6cf3e3f73fd8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____10_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "ec0c71dda46a4a26a93e6160fce2da685be6c3d1dcdfc780bdd631a41dff32c6",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____10_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____10_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____10_____0__2_1100____00000____000__________0__",
+    "original_sha256": "bc1c55bfa5863fb40d65a6e6bdaa362340adb98433644abfc07f6cf3e3f73fd8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____10_____0__2_11111____00000____000__________0__",
+    "native_reference_sha256": "ec0c71dda46a4a26a93e6160fce2da685be6c3d1dcdfc780bdd631a41dff32c6",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____10_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____10_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____12_____0__0_0100____00000____000__________0__",
+    "original_sha256": "0944efc51a708430f0b442c18d6660ed1e277038401d95d268504e6af3e7f3ca",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____12_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "b3b926a4508d2e026b7f6b26bd5d58b741d7da47bef70dcc1f0bb8e291e7a8e8",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____12_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____12_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____12_____0__2_1100____00000____000__________0__",
+    "original_sha256": "0944efc51a708430f0b442c18d6660ed1e277038401d95d268504e6af3e7f3ca",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____12_____0__2_11111____00000____000__________0__",
+    "native_reference_sha256": "b3b926a4508d2e026b7f6b26bd5d58b741d7da47bef70dcc1f0bb8e291e7a8e8",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____12_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____12_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____13_____0__0_0100____00000____000__________0__",
+    "original_sha256": "2036b213ff9c0a3497796ea2240ed6834e6f884c20c1c46a8bbfffcbdfb0500f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____13_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "8d0592d8b1a2fe5acb8a4720d6705a68adf44f19dd7a5127a21f2560f37f0a94",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____13_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____13_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____13_____0__2_1100____00000____000__________0__",
+    "original_sha256": "2036b213ff9c0a3497796ea2240ed6834e6f884c20c1c46a8bbfffcbdfb0500f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____13_____0__2_11111____00000____000__________0__",
+    "native_reference_sha256": "8d0592d8b1a2fe5acb8a4720d6705a68adf44f19dd7a5127a21f2560f37f0a94",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____13_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____13_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____14_____0__0_0100____00000____000__________0__",
+    "original_sha256": "56430552b7433dd184e13c82c6f9bc0db7def016e4a44db0fa532fb3398088e9",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____14_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "f17ce70e34a07df5443baa1c0b2fdf03c462fc9043cae645282a0725e34a4c80",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____14_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____14_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____14_____0__2_1100____00000____000__________0__",
+    "original_sha256": "56430552b7433dd184e13c82c6f9bc0db7def016e4a44db0fa532fb3398088e9",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____14_____0__2_11111____00000____000__________0__",
+    "native_reference_sha256": "f17ce70e34a07df5443baa1c0b2fdf03c462fc9043cae645282a0725e34a4c80",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____14_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____14_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____1_____0__0_0100____00000____000__________0__",
+    "original_sha256": "d642438d7e3bad9daea8ce9e07be7c054bdc242127644ac4e6565f89618823f6",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____1_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "5c43e7fe23d189eb69271d69e0fc307c5629afcee0909b0c30e3a56fd095dc68",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____1_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____1_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____1_____0__2_1100____00000____000__________0__",
+    "original_sha256": "d642438d7e3bad9daea8ce9e07be7c054bdc242127644ac4e6565f89618823f6",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____1_____0__2_11111____00000____000__________0__",
+    "native_reference_sha256": "5c43e7fe23d189eb69271d69e0fc307c5629afcee0909b0c30e3a56fd095dc68",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____1_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____1_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____2_____0__0_0100____00000____000__________0__",
+    "original_sha256": "656eec55a175b51937794e6f8e3a8c777d294262cfe1d5907ea8f903c2875014",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____2_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "a556f71baa89aae9ee783656da5a0dd38895a13a54b8f2ad5938eada77f777ac",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____2_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____2_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 0,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100010001__00____2_____0__2_1100____00000____000__________0__",
+    "original_sha256": "656eec55a175b51937794e6f8e3a8c777d294262cfe1d5907ea8f903c2875014",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____2_____0__2_11111____00000____000__________0__",
+    "native_reference_sha256": "a556f71baa89aae9ee783656da5a0dd38895a13a54b8f2ad5938eada77f777ac",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____2_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_0___1100_10001_00____2_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____0_____0__1_0100____00000____000__________0__",
+    "original_sha256": "f9c80328403e9bcefa1b995baec931c2c643b0e310026e0dfdcbb4aeda7ead43",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____0_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "ebaa991ff5c88be63fcd50d966d0af1be053c81d561135bb22df2eed0924d2a3",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____0_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____0_____0__1_0100____00000____002__________0__",
+    "original_sha256": "f9c80328403e9bcefa1b995baec931c2c643b0e310026e0dfdcbb4aeda7ead43",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____0_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "ebaa991ff5c88be63fcd50d966d0af1be053c81d561135bb22df2eed0924d2a3",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____0_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____0_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____10_____0__1_0100____00000____000__________0__",
+    "original_sha256": "6478e56ca3be386b8db3eecff6015528e3575d511b060a28d9dd04bae08c6a7f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____10_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "35ad9e4fdbf806e93070021ac0652e7254faf65e4f492cd28c05682d7c461e4b",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____10_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____10_____0__1_0100____00000____002__________0__",
+    "original_sha256": "6478e56ca3be386b8db3eecff6015528e3575d511b060a28d9dd04bae08c6a7f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____10_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "35ad9e4fdbf806e93070021ac0652e7254faf65e4f492cd28c05682d7c461e4b",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____10_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____10_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____12_____0__1_0100____00000____000__________0__",
+    "original_sha256": "92dcb97f524c90b58f0bcc87b927e8f11500117d4896b57fcb075c477b6618b8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____12_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "ab0174e4b904f0878322fbf9df103741ed6fe63c62528bf53326e1a1b7d81b48",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____12_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____12_____0__1_0100____00000____002__________0__",
+    "original_sha256": "92dcb97f524c90b58f0bcc87b927e8f11500117d4896b57fcb075c477b6618b8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____12_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "ab0174e4b904f0878322fbf9df103741ed6fe63c62528bf53326e1a1b7d81b48",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____12_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____12_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____13_____0__1_0100____00000____000__________0__",
+    "original_sha256": "0b01899f6edbb56cdb86a637e8c27a9762b19104e150ee36e1bad423fe874c67",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____13_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "0ee70ac020bbb25f567a9bbcd4503cb462d6e1ff10bab4cd527b064dda79fb43",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____13_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____13_____0__1_0100____00000____002__________0__",
+    "original_sha256": "0b01899f6edbb56cdb86a637e8c27a9762b19104e150ee36e1bad423fe874c67",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____13_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "0ee70ac020bbb25f567a9bbcd4503cb462d6e1ff10bab4cd527b064dda79fb43",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____13_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____13_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____14_____0__1_0100____00000____000__________0__",
+    "original_sha256": "a9212234da3bd40735d2a81cab4b79a1f368c8281d2f5e3189aaf3214861e28e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____14_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "5d2428c6b5c5d7ee53e23068733f24f33b7a30afa3fd8d82a9bda86e26d64695",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____14_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____14_____0__1_0100____00000____002__________0__",
+    "original_sha256": "a9212234da3bd40735d2a81cab4b79a1f368c8281d2f5e3189aaf3214861e28e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____14_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "5d2428c6b5c5d7ee53e23068733f24f33b7a30afa3fd8d82a9bda86e26d64695",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____14_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____14_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____1_____0__1_0100____00000____000__________0__",
+    "original_sha256": "4869b87ca140eeeaeb7713f7b4123347b2198a6a9c2a345a97812f26873674e8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____1_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "1d5d5865088a106043c8a5a725f3e6b53c0642db7a16a1bc80b390d30de4d4d6",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____1_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____1_____0__1_0100____00000____002__________0__",
+    "original_sha256": "4869b87ca140eeeaeb7713f7b4123347b2198a6a9c2a345a97812f26873674e8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____1_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "1d5d5865088a106043c8a5a725f3e6b53c0642db7a16a1bc80b390d30de4d4d6",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____1_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____1_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____2_____0__1_0100____00000____000__________0__",
+    "original_sha256": "e10df548669636b88eb841e62c681574d90ff3b5d71bfbd4ba23f0077d2b6bef",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____2_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "a490b750cbd07aa03f95ec0e08938d931eb2bf75031d3661aa38c57db35b886f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____2_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000000__00____2_____0__1_0100____00000____002__________0__",
+    "original_sha256": "e10df548669636b88eb841e62c681574d90ff3b5d71bfbd4ba23f0077d2b6bef",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____2_____0__1_01110____00000____002__________0__",
+    "native_reference_sha256": "a490b750cbd07aa03f95ec0e08938d931eb2bf75031d3661aa38c57db35b886f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____2_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00000_00____2_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____0_____0__1_0100____00000____000__________0__",
+    "original_sha256": "1ca7cd12ca5f2adf21bddbb8735d24f83a84c4a6339784bb8e2b7a767180183f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____0_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "b0ae1a06c3efea443e4c3c20582c3c98a7beadd43e174b82197284bd8e4f7557",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____0_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____0_____0__1_0100____00000____002__________0__",
+    "original_sha256": "1ca7cd12ca5f2adf21bddbb8735d24f83a84c4a6339784bb8e2b7a767180183f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____0_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "47c406b52c3de263797a412251a5d75b08ac6abe7ef4b4bb048e8eae5e184e1a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____0_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____0_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____0_____0__1_0100____11000____000__________0__",
+    "original_sha256": "1ca7cd12ca5f2adf21bddbb8735d24f83a84c4a6339784bb8e2b7a767180183f",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____0_____0__1_01110____11000____000__________0__",
+    "native_reference_sha256": "b0ae1a06c3efea443e4c3c20582c3c98a7beadd43e174b82197284bd8e4f7557",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____0_____0__1_01000____11000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____0_____0__1_01010____11000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____10_____0__1_0100____00000____000__________0__",
+    "original_sha256": "c5b16aac284639a781f8ddb5b3f105336e31717b74790bf186ea9db7d8686ace",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____10_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "e1e46c2587095aefbbefc1ecabf4a4833bd8f447381d72a058bc014631b40661",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____10_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____10_____0__1_0100____00000____002__________0__",
+    "original_sha256": "c5b16aac284639a781f8ddb5b3f105336e31717b74790bf186ea9db7d8686ace",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____10_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "ec0c71dda46a4a26a93e6160fce2da685be6c3d1dcdfc780bdd631a41dff32c6",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____10_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____10_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____10_____0__1_0100____11000____000__________0__",
+    "original_sha256": "c5b16aac284639a781f8ddb5b3f105336e31717b74790bf186ea9db7d8686ace",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____10_____0__1_01110____11000____000__________0__",
+    "native_reference_sha256": "e1e46c2587095aefbbefc1ecabf4a4833bd8f447381d72a058bc014631b40661",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____10_____0__1_01000____11000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____10_____0__1_01010____11000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____12_____0__1_0100____00000____000__________0__",
+    "original_sha256": "94b08caac6bfa3460fad2613aa5a6713ebfc94fd88882f1c2378e44dea0546f3",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____12_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "8a1293d748500f1bc2e755501772ba09e4d987dc4c34f3cdfc1f2560c5ebbaae",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____12_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____12_____0__1_0100____00000____002__________0__",
+    "original_sha256": "94b08caac6bfa3460fad2613aa5a6713ebfc94fd88882f1c2378e44dea0546f3",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____12_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "b3b926a4508d2e026b7f6b26bd5d58b741d7da47bef70dcc1f0bb8e291e7a8e8",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____12_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____12_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____12_____0__1_0100____11000____000__________0__",
+    "original_sha256": "94b08caac6bfa3460fad2613aa5a6713ebfc94fd88882f1c2378e44dea0546f3",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____12_____0__1_01110____11000____000__________0__",
+    "native_reference_sha256": "8a1293d748500f1bc2e755501772ba09e4d987dc4c34f3cdfc1f2560c5ebbaae",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____12_____0__1_01000____11000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____12_____0__1_01010____11000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____13_____0__1_0100____00000____000__________0__",
+    "original_sha256": "0d3b774d5411678367100288b4727579c6beb45d77220029a8e02cbae0775eae",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____13_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "702f9ac71b76db8a78f45ec7d225b7c26c728bfd52bd59e74222ff90fbf2f067",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____13_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____13_____0__1_0100____00000____002__________0__",
+    "original_sha256": "0d3b774d5411678367100288b4727579c6beb45d77220029a8e02cbae0775eae",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____13_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "8d0592d8b1a2fe5acb8a4720d6705a68adf44f19dd7a5127a21f2560f37f0a94",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____13_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____13_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____13_____0__1_0100____11000____000__________0__",
+    "original_sha256": "0d3b774d5411678367100288b4727579c6beb45d77220029a8e02cbae0775eae",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____13_____0__1_01110____11000____000__________0__",
+    "native_reference_sha256": "702f9ac71b76db8a78f45ec7d225b7c26c728bfd52bd59e74222ff90fbf2f067",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____13_____0__1_01000____11000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____13_____0__1_01010____11000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____14_____0__1_0100____00000____000__________0__",
+    "original_sha256": "14db61a71eaf9474595e8ef9f0b9dfe71f51b4a53d78d27782e98e01ac5c143c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____14_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "a820b3decaa3f1cbc9d8322ccbf78ed97f870b6d388cdffcd70a4c4d85503361",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____14_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____14_____0__1_0100____00000____002__________0__",
+    "original_sha256": "14db61a71eaf9474595e8ef9f0b9dfe71f51b4a53d78d27782e98e01ac5c143c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____14_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "f17ce70e34a07df5443baa1c0b2fdf03c462fc9043cae645282a0725e34a4c80",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____14_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____14_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____14_____0__1_0100____11000____000__________0__",
+    "original_sha256": "14db61a71eaf9474595e8ef9f0b9dfe71f51b4a53d78d27782e98e01ac5c143c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____14_____0__1_01110____11000____000__________0__",
+    "native_reference_sha256": "a820b3decaa3f1cbc9d8322ccbf78ed97f870b6d388cdffcd70a4c4d85503361",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____14_____0__1_01000____11000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____14_____0__1_01010____11000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____1_____0__1_0100____00000____000__________0__",
+    "original_sha256": "6b6b8f77ae269ed6d809fdc76a9737400d7c1ad29fca2ab65cf1675160f05826",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____1_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "28f4d6270c702d533e9181044ff35aaa141dae95021fc0969aa4044b8649b6f7",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____1_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____1_____0__1_0100____00000____002__________0__",
+    "original_sha256": "6b6b8f77ae269ed6d809fdc76a9737400d7c1ad29fca2ab65cf1675160f05826",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____1_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "ef153426b174755d6b9691d6d7825a335dd51b3cb2c13265169da7aaabafdf87",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____1_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____1_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____2_____0__1_0100____00000____000__________0__",
+    "original_sha256": "109272025835888d92e14008471d5359eebfb2f40784fea03f87663a864e6c88",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____2_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "16949153beeb0ff88495190999dfe074f7273bfe57a15ab84e3286beb4acb05b",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____2_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000001__00____2_____0__1_0100____00000____002__________0__",
+    "original_sha256": "109272025835888d92e14008471d5359eebfb2f40784fea03f87663a864e6c88",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____2_____0__0_01111____00000____000__________0__",
+    "native_reference_sha256": "472943f665984f1cd792c5c4f6958161ba00923a41fd7c1b6df855fee6bf8a9f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____2_____0__1_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00001_00____2_____0__1_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000011__00____0_____0__1_0100____00000____000__________0__",
+    "original_sha256": "3edb0293465a860e6143e8d0d177d9eeb33f786ce883000181a18f1f37a8166c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____0_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "02f80ca70161a446589634f27cf466d9c25cd868bd19364804b650679770cf73",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____0_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000011__00____10_____0__1_0100____00000____000__________0__",
+    "original_sha256": "a85962182cdb9ccf901fe43af4fde3631acc6d44db44ac3a6497fe15cecee194",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____10_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "299ac065e042ed86de4d92b2c4e76af1961e1c47195c9a8f213141525c0adab0",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____10_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000011__00____12_____0__1_0100____00000____000__________0__",
+    "original_sha256": "e4504aeae3888dcc71ffc1d81559c264aa94267dfccc43b69080925689339df9",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____12_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "b8ec1d9b74d1b651604b448b5f033863e165f93175736f371026e3b33b3a49d1",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____12_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000011__00____13_____0__1_0100____00000____000__________0__",
+    "original_sha256": "fcc4bd590815b0e31506761f85b69a24b9fa741e244b76b5f2f423dc58b3ebd5",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____13_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "dc53decda3277a0ee1739f12db26e142652886b3d9e0b67360fd214f61424e1d",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____13_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000011__00____14_____0__1_0100____00000____000__________0__",
+    "original_sha256": "8440e0212c5431d843ea4351429fb5fde35e31c2acde53361a4de1c68229af44",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____14_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "feab2517a3afcb587ee3c52e0755f26d8b0b5735d57c5c42fe9ebd15e19bd27b",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____14_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000011__00____1_____0__1_0100____00000____000__________0__",
+    "original_sha256": "54c58ff4b5a28b13bf44b998c5c9e45a4297f889eb1159b3059ae6bfacd32f1e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____1_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "2b60231a8b5cdb1995439bdef92c0cb56ba8a784eebf701b113b36e144492f64",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____1_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000000011__00____2_____0__1_0100____00000____000__________0__",
+    "original_sha256": "83a5ab86efcf1831bc945ad18f9feca0f09c24a1fa13dde6b02ed2d1ca800dd4",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____2_____0__1_01110____00000____000__________0__",
+    "native_reference_sha256": "c3f45c4606531ce579e8ac165ca73f9951e72898e740525554b7d11eca86fb1f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1000_00011_00____2_____0__1_01000____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____0_____0__0_0100____00000____000__________0__",
+    "original_sha256": "55a2b52c01ff940cdfe19e2d3956437311abc376bacf15d3f33dbe4fee002689",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "8c9cb3dc510ee0d8d5ec838afea9d63a9995956160cd167f2713fd66ae871cb3",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____0_____0__0_0100____00000____002__________0__",
+    "original_sha256": "55a2b52c01ff940cdfe19e2d3956437311abc376bacf15d3f33dbe4fee002689",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "b7782f14c39eb2e0911e4becd600ee1dc16860b5bc72a5eafa24f6898b905226",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____0_____0__2_1100____00000____000__________0__",
+    "original_sha256": "55a2b52c01ff940cdfe19e2d3956437311abc376bacf15d3f33dbe4fee002689",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "8c9cb3dc510ee0d8d5ec838afea9d63a9995956160cd167f2713fd66ae871cb3",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____0_____0__2_1100____00000____002__________0__",
+    "original_sha256": "55a2b52c01ff940cdfe19e2d3956437311abc376bacf15d3f33dbe4fee002689",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "b7782f14c39eb2e0911e4becd600ee1dc16860b5bc72a5eafa24f6898b905226",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____0_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____10_____0__0_0100____00000____000__________0__",
+    "original_sha256": "b3fbbe7974863739d767fa09e42c16c3f27ddfbd1208adc3f9c7a1270d28ed4e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "4f228e9eb7af838daeb36a3d846a59b61bb94a2fd68dffbf8ce57fda5046f7f0",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____10_____0__0_0100____00000____002__________0__",
+    "original_sha256": "b3fbbe7974863739d767fa09e42c16c3f27ddfbd1208adc3f9c7a1270d28ed4e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "435615f15886a665d0f09ad058d6ce277108a8770b166e4906e6525ae04a9368",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____10_____0__2_1100____00000____000__________0__",
+    "original_sha256": "b3fbbe7974863739d767fa09e42c16c3f27ddfbd1208adc3f9c7a1270d28ed4e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "4f228e9eb7af838daeb36a3d846a59b61bb94a2fd68dffbf8ce57fda5046f7f0",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____10_____0__2_1100____00000____002__________0__",
+    "original_sha256": "b3fbbe7974863739d767fa09e42c16c3f27ddfbd1208adc3f9c7a1270d28ed4e",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "435615f15886a665d0f09ad058d6ce277108a8770b166e4906e6525ae04a9368",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____10_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____12_____0__0_0100____00000____000__________0__",
+    "original_sha256": "683b9bf84a29827f4e26ada04581c7121ff3eb13c8dddeea4d07b79d9216d6c0",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "4e04f3f1b4bc7575e14173025e9d84803f9cf1efa2612a0eaf5737e61841b4c7",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____12_____0__0_0100____00000____002__________0__",
+    "original_sha256": "683b9bf84a29827f4e26ada04581c7121ff3eb13c8dddeea4d07b79d9216d6c0",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "bfb9dff6651714fac3c73a0ef506c7b0a2f14959eafc999c9b442a2a2942a0bd",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____12_____0__2_1100____00000____000__________0__",
+    "original_sha256": "683b9bf84a29827f4e26ada04581c7121ff3eb13c8dddeea4d07b79d9216d6c0",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "4e04f3f1b4bc7575e14173025e9d84803f9cf1efa2612a0eaf5737e61841b4c7",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____12_____0__2_1100____00000____002__________0__",
+    "original_sha256": "683b9bf84a29827f4e26ada04581c7121ff3eb13c8dddeea4d07b79d9216d6c0",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "bfb9dff6651714fac3c73a0ef506c7b0a2f14959eafc999c9b442a2a2942a0bd",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____12_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____13_____0__0_0100____00000____000__________0__",
+    "original_sha256": "8b2c8b6a560bfa09a790910b88d12a8d5b0db22de366b807258e37d63557479c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "b6e1c69bed0ebfdc0ad06172a7d6989b70c1f7f355c6a8b99ce22db7f1a1202a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____13_____0__0_0100____00000____002__________0__",
+    "original_sha256": "8b2c8b6a560bfa09a790910b88d12a8d5b0db22de366b807258e37d63557479c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "1f0f0c05bcaa712278361f36205822256613f21cb9ec5c4cdd313a4c9fdf16a0",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____13_____0__2_1100____00000____000__________0__",
+    "original_sha256": "8b2c8b6a560bfa09a790910b88d12a8d5b0db22de366b807258e37d63557479c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "b6e1c69bed0ebfdc0ad06172a7d6989b70c1f7f355c6a8b99ce22db7f1a1202a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____13_____0__2_1100____00000____002__________0__",
+    "original_sha256": "8b2c8b6a560bfa09a790910b88d12a8d5b0db22de366b807258e37d63557479c",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "1f0f0c05bcaa712278361f36205822256613f21cb9ec5c4cdd313a4c9fdf16a0",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____13_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____14_____0__0_0100____00000____000__________0__",
+    "original_sha256": "90e1a30d67dcbdf8fa9f31af2437d203c8784734c4d8fb35210a38782215b543",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "e2af3e8f6e908607ff0291aa9782025ccd099727fe96abd95be82e7910308dc2",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____14_____0__0_0100____00000____002__________0__",
+    "original_sha256": "90e1a30d67dcbdf8fa9f31af2437d203c8784734c4d8fb35210a38782215b543",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "4cb06c3b303c719a2ee88d378db58bcd043413991f30fc78e390490050023388",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____14_____0__2_1100____00000____000__________0__",
+    "original_sha256": "90e1a30d67dcbdf8fa9f31af2437d203c8784734c4d8fb35210a38782215b543",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "e2af3e8f6e908607ff0291aa9782025ccd099727fe96abd95be82e7910308dc2",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____14_____0__2_1100____00000____002__________0__",
+    "original_sha256": "90e1a30d67dcbdf8fa9f31af2437d203c8784734c4d8fb35210a38782215b543",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "4cb06c3b303c719a2ee88d378db58bcd043413991f30fc78e390490050023388",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____14_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____1_____0__0_0100____00000____000__________0__",
+    "original_sha256": "f4e90781823a7849f8515aa289521143d252136c67068c0f7ff6ffeb429e7dc8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "5ada60b625960c41350737a8fd4693b73e8f7dbe45dabdd96a3c02a5f0467547",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____1_____0__0_0100____00000____002__________0__",
+    "original_sha256": "f4e90781823a7849f8515aa289521143d252136c67068c0f7ff6ffeb429e7dc8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "50745f5bd028b05be2b50fac472ee840cced0597476fcb98c4c253d3f4266881",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____1_____0__2_1100____00000____000__________0__",
+    "original_sha256": "f4e90781823a7849f8515aa289521143d252136c67068c0f7ff6ffeb429e7dc8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "5ada60b625960c41350737a8fd4693b73e8f7dbe45dabdd96a3c02a5f0467547",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____1_____0__2_1100____00000____002__________0__",
+    "original_sha256": "f4e90781823a7849f8515aa289521143d252136c67068c0f7ff6ffeb429e7dc8",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "50745f5bd028b05be2b50fac472ee840cced0597476fcb98c4c253d3f4266881",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____1_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____2_____0__0_0100____00000____000__________0__",
+    "original_sha256": "15b84b30329c16bd8d3636fbdaacdbcb90e2108acd8e683aa9f669c75d9e2010",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "21ebe9a78d5c1ab833e027e4ad828bf32e413409c141f89e970a6046e8ae43bd",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____2_____0__0_0100____00000____002__________0__",
+    "original_sha256": "15b84b30329c16bd8d3636fbdaacdbcb90e2108acd8e683aa9f669c75d9e2010",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__0_01110____00000____002__________0__",
+    "native_reference_sha256": "9ee9ce1b165983b5671863676f32ee892c60ca47429afea7a9e431c09ae296b5",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__0_01010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____2_____0__2_1100____00000____000__________0__",
+    "original_sha256": "15b84b30329c16bd8d3636fbdaacdbcb90e2108acd8e683aa9f669c75d9e2010",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "21ebe9a78d5c1ab833e027e4ad828bf32e413409c141f89e970a6046e8ae43bd",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000000__00____2_____0__2_1100____00000____002__________0__",
+    "original_sha256": "15b84b30329c16bd8d3636fbdaacdbcb90e2108acd8e683aa9f669c75d9e2010",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__2_11110____00000____002__________0__",
+    "native_reference_sha256": "9ee9ce1b165983b5671863676f32ee892c60ca47429afea7a9e431c09ae296b5",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00000_00____2_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000001__00____0_____0__0_0100____00000____000__________0__",
+    "original_sha256": "41390700a06cd476b155546c2611fa06e84d5c32b09f8505cb5a09d5816cca1e",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "47c406b52c3de263797a412251a5d75b08ac6abe7ef4b4bb048e8eae5e184e1a",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____0_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000001__00____10_____0__0_0100____00000____000__________0__",
+    "original_sha256": "bc1c55bfa5863fb40d65a6e6bdaa362340adb98433644abfc07f6cf3e3f73fd8",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "ec0c71dda46a4a26a93e6160fce2da685be6c3d1dcdfc780bdd631a41dff32c6",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____10_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000001__00____12_____0__0_0100____00000____000__________0__",
+    "original_sha256": "0944efc51a708430f0b442c18d6660ed1e277038401d95d268504e6af3e7f3ca",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "b3b926a4508d2e026b7f6b26bd5d58b741d7da47bef70dcc1f0bb8e291e7a8e8",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____12_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000001__00____13_____0__0_0100____00000____000__________0__",
+    "original_sha256": "2036b213ff9c0a3497796ea2240ed6834e6f884c20c1c46a8bbfffcbdfb0500f",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "8d0592d8b1a2fe5acb8a4720d6705a68adf44f19dd7a5127a21f2560f37f0a94",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____13_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000001__00____14_____0__0_0100____00000____000__________0__",
+    "original_sha256": "56430552b7433dd184e13c82c6f9bc0db7def016e4a44db0fa532fb3398088e9",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "f17ce70e34a07df5443baa1c0b2fdf03c462fc9043cae645282a0725e34a4c80",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____14_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000001__00____1_____0__0_0100____00000____000__________0__",
+    "original_sha256": "d642438d7e3bad9daea8ce9e07be7c054bdc242127644ac4e6565f89618823f6",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "d9d59ef41dea834a4474dab865a283b24a47912ff2e2bcce9a107bb1ba1850be",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____1_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000001__00____2_____0__0_0100____00000____000__________0__",
+    "original_sha256": "656eec55a175b51937794e6f8e3a8c777d294262cfe1d5907ea8f903c2875014",
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "0241f6e6d4cbfbc2a25f85bc0e483950f7db3d607dc5f6a9a50fff7e10536bb6",
+    "input_signature_equal": true,
+    "output_signature_equal": true,
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__0_01000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__0_01000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__0_01010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__0_01010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__0_01010____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__2_11000____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__2_11000____00000____002__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__2_11010____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__2_11010____00000____001__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00001_00____2_____0__2_11010____00000____002__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____0_____0__0_0100____00000____000__________0__",
+    "original_sha256": "c1e6b6d2043e2f5354849911643ae30b930787a25cad1b7d0f5bae35bef19707",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____0_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "4f0c363a9f95d6b0ac13cebf9b053a5615f6cc26af4647e02a1e22aea1b86c8f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____0_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____0_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 0,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____0_____0__2_1100____00000____000__________0__",
+    "original_sha256": "c1e6b6d2043e2f5354849911643ae30b930787a25cad1b7d0f5bae35bef19707",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____0_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "4f0c363a9f95d6b0ac13cebf9b053a5615f6cc26af4647e02a1e22aea1b86c8f",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____0_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____0_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____10_____0__0_0100____00000____000__________0__",
+    "original_sha256": "d7af35188f5c564b887ea95184dec44b1d79227dfbb39d081077fcca747c65aa",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____10_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "1c26e4babcb14f943ff59f712d00f899a3bad97abcef8ba52077412b434b68b8",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____10_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____10_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 10,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____10_____0__2_1100____00000____000__________0__",
+    "original_sha256": "d7af35188f5c564b887ea95184dec44b1d79227dfbb39d081077fcca747c65aa",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____10_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "1c26e4babcb14f943ff59f712d00f899a3bad97abcef8ba52077412b434b68b8",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____10_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____10_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____12_____0__0_0100____00000____000__________0__",
+    "original_sha256": "f4fcc605d059e8aeef5bc2eb29995d117ca09c3947b459c1e4393762877f564d",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____12_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "5121a6d9b4be62d54538ebb9f40ac0f777bb87d21c9fe3c8f9b78d34415df32d",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____12_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____12_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 12,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____12_____0__2_1100____00000____000__________0__",
+    "original_sha256": "f4fcc605d059e8aeef5bc2eb29995d117ca09c3947b459c1e4393762877f564d",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____12_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "5121a6d9b4be62d54538ebb9f40ac0f777bb87d21c9fe3c8f9b78d34415df32d",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____12_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____12_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____13_____0__0_0100____00000____000__________0__",
+    "original_sha256": "39ba1ed2a9fed2ba4d02c2e2f9d13be99e6328c275bb8930025ca87073897758",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____13_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "dd8582e2f416e6a651dea49b022d8152849904fe0953fe22ededda281b0cc8ee",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____13_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____13_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 13,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____13_____0__2_1100____00000____000__________0__",
+    "original_sha256": "39ba1ed2a9fed2ba4d02c2e2f9d13be99e6328c275bb8930025ca87073897758",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____13_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "dd8582e2f416e6a651dea49b022d8152849904fe0953fe22ededda281b0cc8ee",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____13_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____13_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____14_____0__0_0100____00000____000__________0__",
+    "original_sha256": "5c740122c9e489d272b4a5cc58248ac473f34476c3cf02d2e56f67a4158d0177",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____14_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "f389ce5251556ab411d08e48cf8fcf5a54a87e8b89e316d6f70f4a3227296082",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____14_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____14_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 14,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____14_____0__2_1100____00000____000__________0__",
+    "original_sha256": "5c740122c9e489d272b4a5cc58248ac473f34476c3cf02d2e56f67a4158d0177",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____14_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "f389ce5251556ab411d08e48cf8fcf5a54a87e8b89e316d6f70f4a3227296082",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____14_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____14_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____1_____0__0_0100____00000____000__________0__",
+    "original_sha256": "0f084f2348214955f6e3643d544b010e3580a35d2434b7cf21adb295e24097f2",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____1_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "dbeacf3b08f398f5c7140fb20b4734cf18e3e85b3afa93eea70bf344aaf80a6d",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____1_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____1_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 1,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____1_____0__2_1100____00000____000__________0__",
+    "original_sha256": "0f084f2348214955f6e3643d544b010e3580a35d2434b7cf21adb295e24097f2",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____1_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "dbeacf3b08f398f5c7140fb20b4734cf18e3e85b3afa93eea70bf344aaf80a6d",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____1_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____1_____0__2_11010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____2_____0__0_0100____00000____000__________0__",
+    "original_sha256": "7c61bf2a901b6be21dd92517c32a566521f7ccda74b8d8150f7ea51894db61cd",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____2_____0__0_01011____00000____000__________0__",
+    "native_reference_sha256": "3f197fed9df0567276b3cb393eb247544cbd581ee896d2a333b349762dc6cd0a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____2_____0__0_01000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____2_____0__0_01010____00000____000__________0__"
+    ]
+  },
+  {
+    "quality": 3,
+    "vertex": 2,
+    "original_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100000011__00____2_____0__2_1100____00000____000__________0__",
+    "original_sha256": "7c61bf2a901b6be21dd92517c32a566521f7ccda74b8d8150f7ea51894db61cd",
+    "input_signature_subset": true,
+    "native_reference_path": "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____2_____0__2_11011____00000____000__________0__",
+    "native_reference_sha256": "3f197fed9df0567276b3cb393eb247544cbd581ee896d2a333b349762dc6cd0a",
+    "paths": [
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____2_____0__2_11000____00000____000__________0__",
+      "shaders/sm_4_0/gbuffer_pass.ps/_3___1100_00011_00____2_____0__2_11010____00000____000__________0__"
+    ]
+  }
+]

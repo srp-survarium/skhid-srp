@@ -10,3 +10,6 @@ target/
 target-*/
 **/__pycache__/
 *.pdb
+
+# release/build-content's output (content-rev<n>, made where it is started)
+content-rev*/

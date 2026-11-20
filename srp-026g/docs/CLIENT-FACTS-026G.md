@@ -5,22 +5,13 @@
 > here is 0.26g's. The 0.21d facts are in CLIENT-FACTS-021D.md; do not mix
 > them: no 0.21d message is wire-compatible with 0.26g.
 
-> **Status, 2026-10-12.** The facts on this page come from reading the exe
-> and `resources.db`, from scripted clients and from tests; each says how
-> sure it is (PROVEN, LIKELY, GUESS). Since that day the server is live and
-> real clients play on it (SRP-026G.md); a fact that live play confirmed or
-> corrected says so, and `srp-026g/WORK.md` has the day's findings. The
-> players' exe is the full patch (section build, 50 ms hash interval); its
-> upload code runs in every live match. It does not have the battery rule
-> patch of that evening yet (the table of patch sites below).
-
 Addresses are virtual addresses in `survarium.exe` 0.26g (image base
 0x10000; `.text` VA 0x11000 = file 0x400, so file offset = VA − 0x10C00 in
 `.text`). Each fact keeps the tag its note gives it: **PROVEN** (read in the
 code or data at the address given), **LIKELY**, **GUESS**. A line with no tag
 is PROVEN in its note. Detail: `srp-026g/docs/notes/` (start with
 its `README.md`); "lobby.md §3" below points there. The server: SRP-026G.md.
-The work order: PLAN-026G.md. Matches: MATCH-SYNC-026G.md.
+Matches: MATCH-SYNC-026G.md.
 
 ## The exe and how its functions were named
 
@@ -28,7 +19,7 @@ The work order: PLAN-026G.md. Matches: MATCH-SYNC-026G.md.
 |---|---|---|
 | Build | "0.26g0" (string 0x9DAE98), build 2777, compiled 2015-01-14 | README.md |
 | File | `downloads/v026g/extracted/Survarium/game/binaries/x86/survarium.exe`, 12 894 840 bytes, sha256 `ac33d993…f153` (full value in `patch_026g.py`) | client_patch.md "Exes used" |
-| Layout | image base 0x10000, 7 sections, no ASLR flag (DLL characteristics 0x8000). Only 0x5D zero bytes after `.text` (0x86F5A3–0x86F5FF) | client_patch.md §3, §3.1, §3.3 |
+| Layout | image base 0x10000, 7 sections, no ASLR flag (DLL characteristics 0x8000; the patched exe 0x8100, NX_COMPAT added, client_patch.md §3.3). Only 0x5D zero bytes after `.text` (0x86F5A3–0x86F5FF) | client_patch.md §3, §3.1, §3.3 |
 | Symbols | **No PDB** (none for any public build after 0.21d) | README.md, RE-TOOLKIT.md |
 | `resources.db` | 2015-01-17, 6 285 533 906 bytes, 78 961 entries, CRC 0x4A01F332 | data.md, client_patch.md §0 |
 | OpenSSL | 1.0.1h (string 0x8B3F90) | login_chat.md §3 |
@@ -76,10 +67,10 @@ How names were found:
 | Option | What it does | Tag | Note |
 |---|---|---|---|
 | `-server=host:port` | login server | PROVEN | login_chat.md §1 |
-| `-splash_screen=0` | no splash (0.21d: `-no_splash_screen`) | used in the shortcut | PLAN-026G.md step 0 |
-| `-localization=ukrainian` | language. The client maps russian, english, ukrainian, german, polish to its chat room and language byte | used in the shortcut; mapping PROVEN | notes README.md, login_chat.md §5.6 |
-| `-minimum_resources_memory_size=<MiB>` | The floor of the resources arenas: option object 0xA83080, a float read at 0xE9966; default 0x150 = 336 MiB. PROVEN (read 2026-10-12) | used in the shortcut (768) | PLAN-026G.md step 0 |
-| `-mt_allocator=<MiB>` | The global multithreaded allocator's arena: option object 0xA80150, read at 0xE0FF5; without the key 16 + 360 = 376 MiB, with it `value << 20`. PROVEN (read 2026-10-12). A different arena from the line above. Upstream ran out of it loading a map (live, Wine) and passes 768 | **not in the shortcut yet**; in `make_client_026g.py` and the web page | `upstream_compare.md` §10 |
+| `-splash_screen=0` | no splash (0.21d: `-no_splash_screen`) | used in the shortcut | |
+| `-localization=ukrainian` | language. The client maps russian, english, ukrainian, german, polish to its chat room and language byte | used in the shortcut; mapping PROVEN | login_chat.md §5.6 |
+| `-minimum_resources_memory_size=<MiB>` | The floor of the resources arenas: option object 0xA83080, a float read at 0xE9966; default 0x150 = 336 MiB. PROVEN (read 2026-10-12) | used in the shortcut (768) | |
+| `-mt_allocator=<MiB>` | The global multithreaded allocator's arena: option object 0xA80150, read at 0xE0FF5; without the key 16 + 360 = 376 MiB, with it `value << 20`. PROVEN (read 2026-10-12). A different arena from the line above. Upstream ran out of it loading a map (live, Wine) and passes 768. Patch 37 made 768 the exe's default; patch 129 makes it at least 1024 MiB, a value given raised to that | no launch line passes it since patch 129: the exe owns the number | SRP-026G.md, `client_patch.md` 3.78 |
 | `-account_name=`, `-account_password=` | fill in the login (key objects 0xAA4910, 0xAA4B40) | PROVEN; that the launcher passes them LIKELY | login_chat.md §1 |
 | `-spectator` | "connect as spectator" | PROVEN it exists | login_chat.md §1 |
 | `-hash_check_interval_in_ms=N` | world hash interval; default 100 (0x27CC4F), option object 0xAA19F8 | PROVEN; the `=N` form LIKELY, not tried | match.md §14 |
@@ -92,7 +83,7 @@ How names were found:
 | `qos`, `match_bandwidth_in_kbits` | Windows qWAVE on the client's own socket; nothing on the wire | LIKELY client-only | transport.md §8 |
 
 The window: 0.26g shares `Documents\survarium\user.cfg` with 0.21d and needs
-the `HIGHDPIAWARE` compatibility flag (PLAN-026G.md step 0).
+the `HIGHDPIAWARE` compatibility flag.
 
 ## Login (`login_chat.md` §3, §4)
 
@@ -389,7 +380,7 @@ PROVEN in the exe on 2026-10-12 unless tagged.
   tests `[inventory+0x1C8]`, 0x40 bytes past the end of the 0x188-byte
   inventory object, and calls through it when it is not 0. Bit 25 (action
   0x24) takes slot 7 in the same case and is safe. No fix is applied;
-  OPEN-ISSUES.md 26-24.
+  match.md §20.
 - The kit byte of a profile input is checked (0x321790).
 - **A game whose first world is a Team Deathmatch in play has the tickets
   of the start in its statistics** (`tickets_count` each, and a draw),
@@ -471,7 +462,7 @@ All modes: 900 s, countdown 20 s, respawn 8 s, waiting limit 5 min,
 - Skills: `gameplay/skills/skills_tree.options`, 26 skills in two branches
   (101..113, 201..214), named modifiers, values as fractions. A row needs
   its `branch_points` spent in the rows above; exclusive pairs 111/113 and
-  213/214. Skills 206 and 210 can never be bought. §3.
+  213/214. Skills 206 and 210 can never be bought (Skhid removes them). §3.
 - `default.player`: carry limit 30 kg (0.21d 25), 3 ammo bags. §4.
 - Items wear out (`degrade_per_use`, `_per_match`, `_per_death`); 158
   modifications, 20 defects; armour keeps only `armor` (no `reduce`). §4.

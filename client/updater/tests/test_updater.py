@@ -29,11 +29,16 @@ import time
 import unittest
 import zipfile
 
+import run_logs
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-RELEASE = os.path.join("target", "i686-win7-windows-msvc", "release")
+RELEASE = os.path.join("target", "i686-pc-windows-msvc", "release")
 UPDATER = os.path.join(HERE, "..", "exe", RELEASE, "updater_skhid.exe")
+# Its BitTorrent, beside it as in the players' ZIP (build.sh puts it there).
+TORRENT_DLL = os.path.join(os.path.dirname(UPDATER), "skhid_torrent.dll")
 FAKE_EXE = os.path.join(HERE, "fake_exe", RELEASE, "fake-exe.exe")
 X86 = os.path.join("game", "binaries", "x86")
+LOGS = "game/logs"
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 kernel32.CreateMutexW.restype = ctypes.c_void_p
@@ -106,6 +111,7 @@ class Site:
         self.archive = b""
         self.manifest = None            # bytes to answer instead of the true manifest
         self.manifest_status = 200
+        self.manifest_delay = 0.0       # seconds before /api/client-files answers (a site that hangs)
         self.download_statuses = []     # statuses for the next downloads, then 200
         self.cut_downloads = 0          # the next N downloads end half way
         self.slow = 0.0                 # seconds between pieces of a download
@@ -144,6 +150,7 @@ class Site:
             def do_GET(self):
                 site.requests.append(self.path)
                 if self.path == "/api/client-files":
+                    time.sleep(site.manifest_delay)
                     body = site.manifest if site.manifest is not None else site.true_manifest()
                     self.answer(site.manifest_status, body if site.manifest_status == 200 else b"no\n")
                 elif self.path == "/download":
@@ -402,6 +409,8 @@ class UpdaterTest(unittest.TestCase):
         self.x86 = os.path.join(self.top, X86)
         os.makedirs(self.x86)
         shutil.copy(UPDATER, os.path.join(self.x86, "updater_skhid.exe"))
+        if os.path.isfile(TORRENT_DLL):
+            shutil.copy(TORRENT_DLL, os.path.join(self.x86, "skhid_torrent.dll"))
         # These scenarios exercise overlay updates over an existing game.
         self.write("game/resources.db", b"existing game resources")
         self.write(f"{X86}/survarium.exe", b"existing original game")
@@ -481,7 +490,7 @@ class UpdaterTest(unittest.TestCase):
         return launcher
 
     def log(self):
-        return self.read(f"{X86}/updater_skhid.log").decode("utf-8", "replace")
+        return run_logs.read(self.path(LOGS)).decode("utf-8", "replace")
 
     # --- the normal runs -------------------------------------------------
 
@@ -609,7 +618,7 @@ class UpdaterTest(unittest.TestCase):
         # By hand: with a launcher's pipe it would start the archive's real
         # launcher once that is installed.
         exe = os.path.join(self.x86, "updater_skhid.exe")
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], timeout=120).returncode, 0, self.log())
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], timeout=120).returncode, 0, self.log())
         with zipfile.ZipFile(bundle) as archive:
             for info in archive.infolist():
                 # (The archive's own .url would send the next test run elsewhere.)
@@ -630,18 +639,22 @@ class UpdaterTest(unittest.TestCase):
         launcher = self.launcher()
         # The server not reached is said in the updater's own box, in the
         # launcher's language (English here unless this PC's launcher keeps
-        # another): what failed and what to try. Retry runs it all again.
+        # another): its title (blocked on this network when Windows' own
+        # test site answers, else no connection), what happened, what to
+        # run, the log. Retry runs it all again.
         launcher.box_answers = [IDRETRY]
         launcher.wait_for(lambda l: len(l.boxes) == 2 and ERROR in l.states(), 90, "the updater's boxes")
         self.assertEqual(launcher.states(), ([CHECKING, CHECK_FAILED] * 2 + [CHECKING, ERROR]) * 2)
         for box in launcher.boxes:
-            self.assertEqual(len(box.splitlines()), 3, box)
-            self.assertIn("127.0.0.1", box.splitlines()[0])
-            for name in ("Skhid-network-setup.cmd", "VPN.txt", "launcher_skhid.exe", "survarium_skhid.exe",
-                         "updater_skhid.exe"):
-                self.assertIn(name, box)
-        if launcher.boxes[0].startswith("127.0.0.1"):
-            self.assertEqual(launcher.boxes[0].splitlines()[0], "127.0.0.1 refused the connection.")
+            lines = box.splitlines()
+            self.assertEqual(len(lines), 4, box)
+            self.assertRegex(lines[-1], r"updater_skhid\.[0-9_-]+\.log$", box)
+        if launcher.boxes[0].startswith(("Blocked", "No connection")):
+            title = launcher.boxes[0].splitlines()[0]
+            self.assertIn(title, ("Blocked on this network: 127.0.0.1 did not answer (connection refused)",
+                                  "No connection: 127.0.0.1 did not answer (connection refused)"))
+            self.assertIn("VPN.txt" if title.startswith("Blocked") else "Skhid-network-setup.cmd",
+                          launcher.boxes[0])
         # The box said it: the launcher is not told again.
         self.assertEqual(launcher.texts(), [])
         self.assertEqual(launcher.finish(), 1)
@@ -844,18 +857,18 @@ class UpdaterTest(unittest.TestCase):
     def test_by_hand_it_updates_without_a_launcher(self):
         files = self.offer(self.bundle())
         exe = os.path.join(self.x86, "updater_skhid.exe")
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], cwd=self.root, timeout=120).returncode, 0)
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], cwd=self.root, timeout=120).returncode, 0)
         self.assertEqual(self.read("README.txt"), files["README.txt"])
         self.site.manifest_status = 500
         os.remove(self.path(f"{X86}/survarium_skhid.exe"))
-        self.assertEqual(subprocess.run([exe, "check", "quiet"], timeout=120).returncode, 1)
+        self.assertEqual(subprocess.run([exe, "check", "quiet", "direct"], timeout=120).returncode, 1)
         self.assertIn("FAILED: x86/survarium_skhid.exe is missing or damaged and cannot be repaired now: "
                       "127.0.0.1 answered /api/client-files with error 500", self.log())
         # Outside game\binaries\x86 it does nothing.
         stray = os.path.join(self.root, "updater_skhid.exe")
         shutil.copy(exe, stray)
-        self.assertEqual(subprocess.run([stray, "check", "quiet"], timeout=30).returncode, 1)
-        self.assertEqual(os.listdir(self.root).count("updater_skhid.log"), 0)
+        self.assertEqual(subprocess.run([stray, "check", "quiet", "direct"], timeout=30).returncode, 1)
+        self.assertEqual(run_logs.paths(self.root), [])
 
     def test_a_bad_server_address_is_refused(self):
         self.write(f"{X86}/updater_skhid.url", b"http://example.com")   # plain HTTP to another host

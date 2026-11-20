@@ -1,0 +1,19 @@
+{
+ "_about": "Film grain of the maps ported from v0.11e (the owner, 2026-11-13: \"this map is always noisy in the distance\", \"it happens on almost all ported maps\"): their environments carry the old builds' grain, 0.08 at update frequency 2, where every stock 0.26g day map has 0.02 at 1 (stock rain at most 0.065). 0.26g adds the grain last, noise x colour^0.6 x intensity (aberration.ps), so it is four times stock and shows on the smooth bright parts: the sky and the haze. Stock day grain on Vostok v0.11 and Chemical Plant v0.11, in each mode's own copy of their projects. Nothing else of their environments changes. The STALKER maps (v0.10b) have it from resource-porter's importer, which now gives every early port stock day grain: a rebuild of the v0.11e pack (maps-v011e) has it too, and these entries go then. The v0.21d and v0.69d ports have stock grain already. Visual only.",
+ "set": [
+  {"file": "projects/v011e_level_03/day_2/client_project", "path": "client_objects[0]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
+  {"file": "projects/v011e_level_03/day_2/client_project", "path": "client_objects[0]/properties/image_grain_update_frequency", "from": 2, "to": 1},
+  {"file": "projects/v011e_level_03/day_4/client_project", "path": "client_objects[0]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
+  {"file": "projects/v011e_level_03/day_4/client_project", "path": "client_objects[0]/properties/image_grain_update_frequency", "from": 2, "to": 1},
+  {"file": "projects/v011e_level_03/day_5/client_project", "path": "client_objects[0]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
+  {"file": "projects/v011e_level_03/day_5/client_project", "path": "client_objects[0]/properties/image_grain_update_frequency", "from": 2, "to": 1},
+  {"file": "projects/v011e_level_03/day_8/client_project", "path": "client_objects[0]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
+  {"file": "projects/v011e_level_03/day_8/client_project", "path": "client_objects[0]/properties/image_grain_update_frequency", "from": 2, "to": 1},
+  {"file": "projects/v011e_level_04/day_2/client_project", "path": "client_objects[98]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
+  {"file": "projects/v011e_level_04/day_2/client_project", "path": "client_objects[98]/properties/image_grain_update_frequency", "from": 2, "to": 1},
+  {"file": "projects/v011e_level_04/day_4/client_project", "path": "client_objects[96]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
+  {"file": "projects/v011e_level_04/day_4/client_project", "path": "client_objects[96]/properties/image_grain_update_frequency", "from": 2, "to": 1},
+  {"file": "projects/v011e_level_04/day_8/client_project", "path": "client_objects[96]/properties/image_grain_intensity", "from": 0.08, "to": 0.02},
+  {"file": "projects/v011e_level_04/day_8/client_project", "path": "client_objects[96]/properties/image_grain_update_frequency", "from": 2, "to": 1}
+ ]
+}

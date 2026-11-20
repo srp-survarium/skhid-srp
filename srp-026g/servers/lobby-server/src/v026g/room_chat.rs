@@ -30,7 +30,7 @@
 //!   room gone, its chat is gone.
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 
 use session::v026g::rooms::ChatLine;
 use survarium::v026g::lobby::{self, ServerMessage, channel, sender};
@@ -41,21 +41,21 @@ use super::core::{Core, Who};
 const JOINED: &str = "joined the room";
 const LEFT: &str = "left the room";
 
-fn message(line: &ChatLine) -> ServerMessage {
+fn message(line: &ChatLine, body: &str) -> ServerMessage {
     lobby::chat_text(
         sender::ACCOUNT,
         line.from,
         &line.name,
         &line.tag,
         channel::ROOM,
-        &line.body,
+        body,
     )
 }
 
 impl Core<'_> {
     /// The links of room `key`'s members whose tab is up, with their
     /// accounts; none in a match.
-    fn room_listeners(&self, key: u32) -> Vec<(SocketAddr, u32)> {
+    fn room_listeners(&self, key: u32) -> Vec<(Peer, u32)> {
         self.players()
             .into_iter()
             .filter_map(|addr| {
@@ -72,15 +72,17 @@ impl Core<'_> {
     /// `except` (the sender: its game showed its own line) and those who
     /// ignore its sender.
     fn room_line(&mut self, key: u32, line: ChatLine, except: u32) {
-        let sent = message(&line);
         let from = line.from;
-        self.rooms.say(key, line);
+        self.rooms.say(key, line.clone());
         let mut reached = 0;
         for (addr, account_id) in self.room_listeners(key) {
-            if account_id == except || (from != 0 && self.ignores(account_id, from)) {
+            if account_id == except {
                 continue;
             }
-            self.send(addr, sent.clone());
+            let Some(body) = self.chat_body(account_id, from, &line.body) else {
+                continue;
+            };
+            self.send(addr, message(&line, body));
             reached += 1;
         }
         log::debug!("Room {key}: a chat line reached {reached} member(s)");
@@ -123,8 +125,10 @@ impl Core<'_> {
         let lines: Vec<ServerMessage> = room
             .chat
             .iter()
-            .filter(|line| line.from == 0 || !self.ignores(who.account_id, line.from))
-            .map(message)
+            .filter_map(|line| {
+                self.chat_body(who.account_id, line.from, &line.body)
+                    .map(|body| message(line, body))
+            })
             .collect();
         for line in lines {
             self.send(who.addr, line);

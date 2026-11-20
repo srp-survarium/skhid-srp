@@ -1,0 +1,14 @@
+name = "memory_report"
+patch = 126
+
+# after patch 97's receipt (order 1) and patch 109's skills (order 2): the connection's first world is in
+[[hook]]
+site = "world_load.loaded"
+handler = "on_loaded"
+order = 3
+
+# close_current_match's entry, its world still there, before patch 97 forgets the connection (order 2)
+[[hook]]
+site = "match_recovery.close"
+handler = "on_close"
+order = 1

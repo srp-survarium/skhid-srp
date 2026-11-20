@@ -15,8 +15,9 @@ package survarium.messages
    import survarium.controls.Message;
    import survarium.controls.PlayerInfo;
    import survarium.data.LocalizationData;
+   import survarium.constants.ItemCategory;
    import survarium.constants.ItemPlace;
-   import survarium.constants.MoneyType;
+   import survarium.constants.ProfileSlot;
    import survarium.constants.QuickSlotSize;
    
    public class MessageAsk extends MessageAccept
@@ -25,7 +26,12 @@ package survarium.messages
       // The most steps the count slider offers.
       private static const MAX_STEPS:int = 100;
       
-      protected var _money_type:Boolean = false;
+      // The count a buy of a consumable starts at (startCount). The owner, 2026-11-01: "when buying
+      // consumables, it should always try to buy at least 30 if enough money (this is for new
+      // players who might buy less and not understand why they no longer have consumables in the
+      // game)"; "this shouldn't take into account energy drinks and similar items which give
+      // passive bonuses per round".
+      private static const CONSUMABLE_START_COUNT:int = 30;
       
       protected var _step:uint = 1;
       
@@ -50,8 +56,6 @@ package survarium.messages
       public var _CountLabel2:TextField = new TextField();
       
       public var background:MovieClip = new MessageSmallBackground();
-      
-      protected var _fakeEnabled:Boolean = false;
       
       public function MessageAsk()
       {
@@ -204,16 +208,8 @@ package survarium.messages
          this._CountLabel.visible = false;
          if(_data)
          {
-            _money_type = _data.isPremium;
-            trace("MA::configUI",this._money_type,_data.isPremium);
-            if(this._money_type == true)
-            {
-               this.slider.icon.gotoAndStop(2);
-            }
-            else
-            {
-               this.slider.icon.gotoAndStop(1);
-            }
+            // Every price is silver: the game has no gold (the owner, 2026-11-08).
+            this.slider.icon.gotoAndStop(1);
             if(_data.clip_size)
             {
                _price = _data.price;
@@ -246,8 +242,7 @@ package survarium.messages
          var ammount:int = Math.ceil(sliderpos / this._step * this._price);
          var totalW:int;
          trace("ammount::",sliderpos,this._step,this._price);
-         this._CountPrice.moneyType = this._money_type;
-         this._CountPrice.textField.textColor = this._money_type ? Colors.GOLD : Colors.PRICE_REG;
+         this._CountPrice.textField.textColor = Colors.PRICE_REG;
          if(this.slider.visible)
          {
             this.updateCostPos();
@@ -259,21 +254,13 @@ package survarium.messages
             this._CountPrice.cost = int(this._price);
             totalW = this._CountPrice.textField.x + this._CountPrice.textField.textWidth + this._costLabel.textWidth + 8;
             this._costLabel.x = (this.background.width - totalW) / 2 - this._costLabel.getLineMetrics(0).x;
-            this._CountPrice.x = this._costLabel.x + this._costLabel.width + 5 - this._CountPrice.textField.getLineMetrics(0).x + (this._money_type ? 14 : 0);
+            this._CountPrice.x = this._costLabel.x + this._costLabel.width + 5 - this._CountPrice.textField.getLineMetrics(0).x;
          }
          if(_data.price != undefined && _data.sell == undefined)
          {
             if(this.slider.visible)
             {
                btnAccept.enabled = PlayerInfo.genericMoney >= ammount && sliderpos != 0;
-            }
-            else if(this._money_type == MoneyType.PREMIUM)
-            {
-               if(PlayerInfo.premiumMoney < this._price)
-               {
-                  _fakeEnabled = true;
-               }
-               btnAccept.enabled = true;
             }
             else
             {
@@ -284,25 +271,17 @@ package survarium.messages
       
       protected function updateCostPos() : void
       {
-         this._CountPrice.x = this.background.width / 2 + 10 - this._CountPrice.textField.getLineMetrics(0).x + (this._money_type ? 14 : 0);
+         this._CountPrice.x = this.background.width / 2 + 10 - this._CountPrice.textField.getLineMetrics(0).x;
       }
       
       protected function update_slider() : void
       {
          var _maxpos:Number;
-         var _money_tot:uint;
+         var _money_tot:uint = PlayerInfo.genericMoney;
          var _maxTot:Number;
          if(_data.clip_size)
          {
             _step = _data.clip_size;
-         }
-         if(!this._money_type)
-         {
-            _money_tot = PlayerInfo.genericMoney;
-         }
-         else
-         {
-            _money_tot = PlayerInfo.premiumMoney;
          }
          if(_data.price != undefined && _data.sell == undefined)
          {
@@ -316,9 +295,15 @@ package survarium.messages
          var fullPocket:Boolean = _data.quick_slot_item_size == QuickSlotSize.WHOLE;
          if(_data.targetSlot && _data.targetSlot != ItemPlace.INVENTORY)
          {
-            if(_data.targetSlot < ItemPlace.INVENTORY)
+            if(_data.price != undefined && _data.sell == undefined && ProfileSlot.isPocket(_data.targetSlot))
             {
-               _maxpos = Math.min(MAX_STEPS * this._step,_maxTot,fullPocket ? 1 : int(PlayerInfo.pocketSize));
+               // a buy dropped on a pocket: what the pocket does not take stays in the inventory
+               // (LobbyMenu.relocate_to_paperdoll), so the pocket's size does not cap it
+               _maxpos = Math.min(MAX_STEPS * this._step,_maxTot);
+            }
+            else if(_data.targetSlot < ItemPlace.INVENTORY)
+            {
+               _maxpos = Math.min(MAX_STEPS * this._step,_maxTot,_data.pocket_units != undefined ? int(_data.pocket_units) : (fullPocket ? 1 : int(PlayerInfo.pocketSize)));
             }
             else if(!_data.originData)
             {
@@ -333,26 +318,15 @@ package survarium.messages
          {
             _maxpos = Math.min(_maxTot,MAX_STEPS * this._step);
          }
-         if(this._money_type == MoneyType.PREMIUM)
-         {
-            if(_maxpos == 0)
-            {
-               _fakeEnabled = true;
-            }
-            _maxpos = Math.max(1,_maxpos);
-         }
-         else
-         {
-            _maxpos = Math.max(0,_maxpos);
-         }
-         trace("CreateAskSellWindow::",_maxpos,_maxTot,_data.originData,_data.targetSlot,this._step,_data.currentCount,this._price,this._fakeEnabled);
+         _maxpos = Math.max(0,_maxpos);
+         trace("CreateAskSellWindow::",_maxpos,_maxTot,_data.originData,_data.targetSlot,this._step,_data.currentCount,this._price);
          if(_data.sell != undefined)
          {
             this.setSliderProp(Math.min(_maxpos,_data.count != undefined ? _data.count : _maxpos),this._step);
          }
          else if(!_data.originData)
          {
-            this.setSliderProp(_maxpos,this._step);
+            this.setSliderProp(_maxpos,this._step,this.startCount(_maxpos));
          }
          else
          {
@@ -373,22 +347,28 @@ package survarium.messages
          {
             if(this.slider.visible)
             {
-               btnAccept.enabled = (_money_tot >= ammount || this._money_type == MoneyType.PREMIUM && _maxpos == 1) && sliderpos != 0;
+               btnAccept.enabled = _money_tot >= ammount && sliderpos != 0;
             }
             else
             {
-               btnAccept.enabled = _money_tot >= 1 * this._price || this._money_type == MoneyType.PREMIUM;
+               btnAccept.enabled = _money_tot >= 1 * this._price;
             }
          }
       }
       
-      protected function changeMoneyType(event:ButtonEvent = null) : void
+      // Where a buy's slider starts, up to max: a consumable a match uses up (a drug, a trap, a
+      // grenade: the pockets' categories) at CONSUMABLE_START_COUNT, or max when less; 0 (one step,
+      // setSliderProp) for anything else: ammo, a booster (it fills a whole pocket and works while
+      // carried, items.md §8), an item no stack, a relocation (no price).
+      private function startCount(max:Number) : uint
       {
-         _money_type = !this._money_type;
-         if(this._money_type == true)
+         var category:* = _data.category;
+         var consumable:Boolean = category == ItemCategory.MEDKITS || category == ItemCategory.BOOBY_TRAPS || category == ItemCategory.GRENADES;
+         if(_data.price == undefined || !_data.is_stack || !consumable || _data.quick_slot_item_size == QuickSlotSize.WHOLE)
          {
+            return 0;
          }
-         this.update_slider();
+         return uint(Math.min(CONSUMABLE_START_COUNT,max));
       }
       
       override protected function cleanUp(e:Event = null) : void
@@ -397,30 +377,9 @@ package survarium.messages
          this.content.removeChild(this.content.getChildAt(0));
       }
       
-      protected function onNoMoneyEnought() : void
-      {
-         var object:Object = {
-            text:LocalizationData.getName("cant_buy_premium_message"),
-            onYes:this.goToStore,
-            label_ok:LocalizationData.getName("btn_add_premium_message"),
-            label_cancel:LocalizationData.getName("cancel")
-         };
-         Message.showMessage("apply",object,true);
-      }
-      
-      protected function goToStore() : void
-      {
-         MessageMoneyExchange.buyGold();
-      }
-      
       override protected function onMessageAccept(event:ButtonEvent = null) : void
       {
          super.onMessageAccept();
-         if(this._fakeEnabled)
-         {
-            this.onNoMoneyEnought();
-            return;
-         }
          if(this.slider.visible)
          {
             _data.count = uint(uint(this.slider.value / this._step));
@@ -437,7 +396,7 @@ package survarium.messages
          }
          else if(_data.targetSlot == ItemPlace.INVENTORY)
          {
-            ExternalInterface.call("buy_ok_clicked",_data.uid,uint(_data.count),uint(_data.seller),this._money_type);
+            ExternalInterface.call("buy_ok_clicked",_data.uid,uint(_data.count),uint(_data.seller),false);
          }
          if(_data.onYes)
          {

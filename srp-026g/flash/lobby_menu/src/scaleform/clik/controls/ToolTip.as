@@ -19,7 +19,8 @@ package scaleform.clik.controls
       
       public static var tipContainer:DisplayObjectContainer;
       
-      protected static var _tip_interval:Timer = new Timer(300);
+      // Hover listens for TIMER_COMPLETE, so the delay must be one-shot.
+      protected static var _tip_interval:Timer = new Timer(300,1);
       
       protected static var _lastTarget:ToolTip;
       

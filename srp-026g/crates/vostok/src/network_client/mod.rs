@@ -1,8 +1,6 @@
 mod tcp_client;
-mod udp_client;
 
 pub use tcp_client::{TcpClient, tune_connection};
-pub use udp_client::UdpClient;
 
 use crate::serde::{Deserialize, DeserializeError, Serialize};
 

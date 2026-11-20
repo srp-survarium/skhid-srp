@@ -1,18 +1,18 @@
 {
-  "size": 7758,
-  "sha256": "4372714be10e507b1158dd5a3feecde9f2f70eb49000b9adf8e714ef95cd88fe",
+  "size": 7728,
+  "sha256": "c53353e7ff3d88ad06edc04b4d943880b0604a426d1d4ac100347ccf7f440c00",
   "symbols": {
-    "lj_complete": 2430,
-    "lj_prepare": 1771,
-    "lj_activate": 1717,
-    "lj_deactivate": 1650,
-    "lj_player_destroyed": 2655,
-    "lj_native_install": 3037,
-    "lj_native_animations": 2754
+    "lj_complete": 2435,
+    "lj_prepare": 1723,
+    "lj_activate": 1667,
+    "lj_deactivate": 1600,
+    "lj_player_destroyed": 2662,
+    "lj_native_install": 3016,
+    "lj_native_animations": 2753
   },
   "built_with": {
-    "cc": "cc (Debian 13.2.0-7) 13.2.0",
-    "ld": "GNU ld (GNU Binutils for Debian) 2.41.90.20240115",
-    "nasm": "NASM version 2.16.01"
+    "cc": "gcc (GCC) 15.2.0",
+    "ld": "GNU ld (GNU Binutils) 2.46",
+    "nasm": "NASM version 2.16.03 compiled on Apr 17 2024"
   }
 }

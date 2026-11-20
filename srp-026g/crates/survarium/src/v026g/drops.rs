@@ -1,5 +1,6 @@
-//! What a 0.26g match, a first match, a daily bonus and a drop card give:
-//! the game's `gameplay/drops/drops.options` (0.26g's `resources.db`;
+//! What a 0.26g match, a first match and a drop card give (the daily
+//! bonus gives nothing, `daily_bonus_drop` is not read): the game's
+//! `gameplay/drops/drops.options` (0.26g's `resources.db`;
 //! `docs/notes/data.md` §5) and each item's level, drop weight
 //! and rarity ([`super::item_params`]).
 //!
@@ -21,7 +22,10 @@
 //! 2. The items of the category with `drop_weight` above 0 [LIKELY: the
 //!    cosmetics that can drop are the ones of type `drp_camo` / `drp_decl`,
 //!    and exactly those have a drop weight; premium copies of weapons have
-//!    0].
+//!    0]. A camouflage or decal ([`COSMETIC_CATEGORIES`]) the player
+//!    already has is left out, and a group with nothing left to
+//!    give is not rolled [srp's choice, the owner's of 2026-10-31 and
+//!    2026-11-04: no repeats].
 //! 3. Unless the category is in `item_level_independent_categories`: an
 //!    item level from the row of the match's level (21 rows, as the 21 match
 //!    levels of `match_levels_dict`; 16 columns, item levels 0..=15), and
@@ -39,7 +43,7 @@
 //!    (`[0, 0, 0, 0, 2]`) always give rarity 3 and the daily bonus
 //!    (`[0, 0, 0, 0, 0, 2]`) always rarity 4, and money is the one item with
 //!    five rarities: the daily bonus, which only has premium money, is then
-//!    its fifth, 50 gold].
+//!    its fifth, 50 gold; srp pays it in silver, [`dropped`]].
 //! 6. A stack's count from the item's `rarity` pair for that rarity (its
 //!    last pair if it has fewer), in whole clips for ammo (every ammo's pair
 //!    is 2 to 5 clips); gear gets the rarity level of its `rarity` list
@@ -62,6 +66,7 @@ use binary_config_parser::tree::{ConfigError, ConfigValue};
 
 use super::dictionary::Dictionary;
 use super::item_params::{ItemParams, item_params, shop_unit};
+use super::prices::GOLD_IN_SILVER;
 use super::scopes::SCOPE_CATEGORY;
 pub use crate::v021d::drops::Rng;
 
@@ -74,6 +79,9 @@ pub const NOTHING: u8 = 0;
 /// How often a category and level are rolled again when the category has no
 /// item of the level, before the nearest level is taken.
 pub const TRIES: usize = 32;
+
+/// Camouflages and decals: a roll gives none the player already has.
+pub const COSMETIC_CATEGORIES: [u8; 2] = [25, 26];
 
 /// One row of `item_category_probabilities`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -129,12 +137,21 @@ pub struct Drops {
     /// After a match.
     pub generic: DropTable,
     pub new_player: DropTable,
-    pub daily_bonus: DropTable,
+    // `daily_bonus_drop` is not read: the daily bonus's seventh day gave its
+    // 50 gold and nothing else, and gives nothing now (the owner, 2026-11-08;
+    // `session::v026g::bonus`).
     /// From a drop card (the voucher `drop_card`, 153).
     pub drop_card: DropTable,
     pub playtime: PlaytimeDependence,
     pub game_mode: GameModeParams,
 }
+
+/// The dictionary's money items: silver, and gold, which srp no longer gives
+/// [the owner, 2026-11-08]: gold a table gives is paid in silver,
+/// [`GOLD_IN_SILVER`] a gold ([`dropped`]). The client keeps neither in its
+/// inventory.
+pub const SILVER_ITEM: &str = "generic_money";
+pub const GOLD_ITEM: &str = "premium_money";
 
 /// One dropped item.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -206,7 +223,6 @@ impl Drops {
         Ok(Self {
             generic: parse_table(root.req("generic_drop")?)?,
             new_player: parse_table(root.req("new_player_drop")?)?,
-            daily_bonus: parse_table(root.req("daily_bonus_drop")?)?,
             drop_card: parse_table(root.req("drop_card_drop")?)?,
             playtime: PlaytimeDependence {
                 play_period: number(playtime.req("play_period")?)?,
@@ -315,6 +331,20 @@ fn droppable(
 /// What a roll that picked `params` gives, at a rarity from the table
 /// (steps 5 and 6).
 fn dropped(table: &DropTable, dictionary: &Dictionary, params: &ItemParams, rng: &mut Rng) -> Drop {
+    let drop = rolled(table, dictionary, params, rng);
+    let named = |name| dictionary.item_named(name).map(|item| item.dict_id);
+    match (named(GOLD_ITEM), named(SILVER_ITEM)) {
+        (Some(gold), Some(silver)) if drop.dict_id == gold => Drop {
+            dict_id: silver,
+            count: drop.count.saturating_mul(GOLD_IN_SILVER),
+            ..drop
+        },
+        _ => drop,
+    }
+}
+
+/// What the table gives of `params` ([`dropped`] pays its gold in silver).
+fn rolled(table: &DropTable, dictionary: &Dictionary, params: &ItemParams, rng: &mut Rng) -> Drop {
     let rarity = usize::from(table.roll_rarity(rng));
     if dictionary.is_stack(params.dict_id) {
         let pairs = params.stack_rarity;
@@ -341,10 +371,12 @@ fn dropped(table: &DropTable, dictionary: &Dictionary, params: &ItemParams, rng:
 
 /// One roll of `table` for a match of `match_level` (0..=20), with
 /// `bonus_percent` more chance of an item
-/// ([`PlaytimeDependence::bonus_percent`], or 0). `None` is no drop.
+/// ([`PlaytimeDependence::bonus_percent`], or 0), for a player who has the
+/// items `owned` (dictionary ids). `None` is no drop.
 pub fn roll(
     table: &DropTable,
     dictionary: &Dictionary,
+    owned: &[u16],
     match_level: u8,
     bonus_percent: u32,
     rng: &mut Rng,
@@ -353,10 +385,18 @@ pub fn roll(
     if unit(rng) >= chance {
         return None;
     }
+    // [srp] A camouflage or decal the player has is never given (the
+    // owner's of 2026-11-04). A group with no category left to give is not
+    // rolled, so a player who has them all finds gear instead.
+    let new_to_player = |params: &&ItemParams| !owned.contains(&params.dict_id);
+    let gives = |category: &u8| {
+        !COSMETIC_CATEGORIES.contains(category)
+            || droppable(dictionary, *category).any(|params| new_to_player(&params))
+    };
     let groups: Vec<&CategoryGroup> = table
         .categories
         .iter()
-        .filter(|group| group.categories != [NOTHING])
+        .filter(|group| group.categories != [NOTHING] && group.categories.iter().any(gives))
         .collect();
     let weights: Vec<u32> = groups.iter().map(|group| group.weight).collect();
     let row = table
@@ -369,11 +409,14 @@ pub fn roll(
     let pick = |nearest: bool, rng: &mut Rng| {
         let category = group.categories[rng.below(group.categories.len() as u32) as usize];
         let level = rng.pick(row).unwrap_or(0) as u8;
-        let candidates = if nearest {
+        let mut candidates = if nearest {
             table.nearest_candidates(dictionary, category, level)
         } else {
             table.candidates(dictionary, category, level)
         };
+        if COSMETIC_CATEGORIES.contains(&category) {
+            candidates.retain(new_to_player);
+        }
         let item_weights: Vec<u32> = candidates.iter().map(|p| p.drop_weight).collect();
         rng.pick(&item_weights).map(|index| candidates[index])
     };
@@ -393,7 +436,6 @@ mod tests {
         for table in [
             &drops.generic,
             &drops.new_player,
-            &drops.daily_bonus,
             &drops.drop_card,
         ] {
             assert_eq!(table.levels.len(), 21);
@@ -436,13 +478,6 @@ mod tests {
         assert_eq!(drops.new_player.categories.len(), 2);
         assert_eq!(drops.new_player.rarity_points, [0.0, 0.0, 0.0, 0.0, 2.0]);
         assert_eq!(drops.new_player.item_chance(), 1.0);
-        assert_eq!(drops.daily_bonus.categories.len(), 1);
-        assert_eq!(drops.daily_bonus.categories[0].categories, [29]);
-        assert_eq!(
-            drops.daily_bonus.rarity_points,
-            [0.0, 0.0, 0.0, 0.0, 0.0, 2.0]
-        );
-        assert_eq!(drops.daily_bonus.levels[20][15], 100);
         assert_eq!(drops.drop_card.categories[0].weight, 40);
         assert_eq!(drops.drop_card.categories[0].categories, [25, 26]);
         assert_eq!(drops.drop_card.item_chance(), 1.0);
@@ -475,10 +510,9 @@ mod tests {
         assert_eq!(generic.rarity_at(1.59), 1);
         assert_eq!(generic.rarity_at(1.7), 2);
         assert_eq!(generic.rarity_at(1.95), 3);
-        // The new player's and the daily bonus's tables have one band.
+        // The new player's table has one band.
         for at in [0.0, 1.0, 1.99] {
             assert_eq!(drops.new_player.rarity_at(at), 3);
-            assert_eq!(drops.daily_bonus.rarity_at(at), 4);
         }
         // Over many rolls: half, 30 %, 15 %, 5 %.
         let mut rng = Rng::new(5);
@@ -552,7 +586,6 @@ mod tests {
             for table in [
                 &drops.generic,
                 &drops.new_player,
-                &drops.daily_bonus,
                 &drops.drop_card,
             ] {
                 for level in 0..=20 {
@@ -574,8 +607,10 @@ mod tests {
         let generic = &Drops::shared().generic;
         let mut rng = Rng::new(7);
         let (mut drops, mut gear, mut money) = (0u32, 0u32, 0u32);
+        // Gold is paid in silver: its counts times 100, by its own pairs.
+        let gold = item_params(dictionary.item_named(GOLD_ITEM).unwrap().dict_id).unwrap();
         for _ in 0..10_000 {
-            let Some(drop) = roll(generic, dictionary, 5, 0, &mut rng) else {
+            let Some(drop) = roll(generic, dictionary, &[], 5, 0, &mut rng) else {
                 continue;
             };
             drops += 1;
@@ -584,9 +619,14 @@ mod tests {
             assert!(params.drop_weight > 0, "{}", item.name);
             if item.is_stack {
                 assert!(drop.count >= 1);
-                let (least, most) = params.stack_rarity[usize::from(drop.rarity)];
+                let within = |pairs: &[(u32, u32)], times: u32| {
+                    pairs
+                        .get(usize::from(drop.rarity))
+                        .is_some_and(|&(least, most)| (least * times..=most * times).contains(&drop.count))
+                };
                 assert!(
-                    (least..=most).contains(&drop.count),
+                    within(params.stack_rarity, 1)
+                        || (item.name == SILVER_ITEM && within(gold.stack_rarity, GOLD_IN_SILVER)),
                     "{} × {}",
                     item.name,
                     drop.count
@@ -602,11 +642,12 @@ mod tests {
                     // Match level 5 gives item levels 3..=6.
                     assert!((3..=6).contains(&params.item_level), "{}", item.name);
                 }
+                // Silver, and gold paid in silver (10 to 40 gold): no gold.
                 28 => {
                     money += 1;
                     assert!((1000..=10_000).contains(&drop.count), "{}", drop.count);
                 }
-                29 => assert!([10, 20, 30, 40].contains(&drop.count), "{}", drop.count),
+                29 => panic!("gold dropped: {drop:?}"),
                 _ => {}
             }
         }
@@ -618,7 +659,7 @@ mod tests {
         // The first game of a play period: twice the chance.
         let mut drops = 0;
         for _ in 0..10_000 {
-            drops += u32::from(roll(generic, dictionary, 5, 100, &mut rng).is_some());
+            drops += u32::from(roll(generic, dictionary, &[], 5, 100, &mut rng).is_some());
         }
         assert!(
             (7800..8200).contains(&drops),
@@ -633,7 +674,7 @@ mod tests {
         let mut rng = Rng::new(11);
         for _ in 0..500 {
             // A new player: a weapon or armour of level 1 or 2, best rarity.
-            let drop = roll(&drops.new_player, dictionary, 0, 0, &mut rng).unwrap();
+            let drop = roll(&drops.new_player, dictionary, &[], 0, 0, &mut rng).unwrap();
             let item = dictionary.item(drop.dict_id).unwrap();
             assert!(matches!(item.category, 1..=8 | 13..=17), "{}", item.name);
             assert!(!item.is_stack);
@@ -641,18 +682,43 @@ mod tests {
             assert!((1..=2).contains(&level), "{} is level {level}", item.name);
             assert_eq!(drop.rarity, 3);
 
-            // The daily bonus: 50 gold.
-            let drop = roll(&drops.daily_bonus, dictionary, 9, 0, &mut rng).unwrap();
-            assert_eq!((drop.dict_id, drop.count, drop.rarity), (215, 50, 4));
-
             // A drop card: a cosmetic, armour or a weapon.
-            let drop = roll(&drops.drop_card, dictionary, 20, 0, &mut rng).unwrap();
+            let drop = roll(&drops.drop_card, dictionary, &[], 20, 0, &mut rng).unwrap();
             let item = dictionary.item(drop.dict_id).unwrap();
             assert!(
                 matches!(item.category, 1..=8 | 13..=17 | 25 | 26),
                 "{}",
                 item.name
             );
+        }
+    }
+
+    #[test]
+    fn a_cosmetic_the_player_has_never_drops_again() {
+        let dictionary = Dictionary::shared();
+        let mut table = Drops::shared().drop_card.clone();
+        table.categories = vec![CategoryGroup {
+            weight: 1,
+            categories: COSMETIC_CATEGORIES.to_vec(),
+        }];
+        let cosmetics: Vec<u16> = COSMETIC_CATEGORIES
+            .iter()
+            .flat_map(|&category| table.candidates(dictionary, category, 0))
+            .map(|params| params.dict_id)
+            .collect();
+        let (missing, owned) = cosmetics.split_last().unwrap();
+        let mut rng = Rng::new(5);
+        for _ in 0..300 {
+            let drop = roll(&table, dictionary, owned, 20, 0, &mut rng).unwrap();
+            assert_eq!(drop.dict_id, *missing);
+            // Every one owned: a table of cosmetics alone gives nothing.
+            assert_eq!(roll(&table, dictionary, &cosmetics, 20, 0, &mut rng), None);
+        }
+        // The drop card's own table: a player with every cosmetic finds gear.
+        let card = &Drops::shared().drop_card;
+        for _ in 0..300 {
+            let drop = roll(card, dictionary, &cosmetics, 20, 0, &mut rng).unwrap();
+            assert!(!cosmetics.contains(&drop.dict_id), "{drop:?}");
         }
     }
 
@@ -668,10 +734,108 @@ mod tests {
         }];
         let mut rng = Rng::new(3);
         for _ in 0..300 {
-            let drop = roll(&table, dictionary, 5, 0, &mut rng).unwrap();
+            let drop = roll(&table, dictionary, &[], 5, 0, &mut rng).unwrap();
             let params = item_params(drop.dict_id).unwrap();
             assert_eq!(drop.count % params.clip_size, 0);
             assert!((60..=150).contains(&drop.count));
+        }
+    }
+
+    /// The STK2 outfits' 14 items on game data with their packs
+    /// (`SRP_GAME_DATA`: `release/build-content`'s server-game-data.db with
+    /// stk2-bandit, stk2-novice and stk2-loner): no faction, sold by seller 0
+    /// at no rank at its own price, as the Novice's knit cap (the owner,
+    /// 2026-10-31), and dropped: each at the
+    /// owner's level and in the generic table's pool of its category at that
+    /// level, by its own drop weight (`armour::tests` holds it to its level's
+    /// range). It makes that data the process's:
+    /// run it alone.
+    #[test]
+    #[ignore = "needs game data with the STK2 outfits' packs (SRP_GAME_DATA); run alone"]
+    fn the_stk2_outfits_drop_and_are_sold_to_everyone() {
+        use super::super::{game_data, prices};
+        let path = std::env::var_os(game_data::GAME_DATA_ENV).expect("SRP_GAME_DATA");
+        game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
+        let dictionary = Dictionary::shared();
+        let generic = &Drops::shared().generic;
+        // (item, the owner's level, the stock piece its config copies)
+        let items: [(&str, u8, &str); 14] = [
+            ("stk2_bandit_026_torso", 6, "torso/edge_torso_1"),
+            ("stk2_bandit_026_legs", 6, "legs/edge_legs_1"),
+            ("stk2_bandit_026_boots", 6, "boots/edge_boots_1"),
+            ("stk2_novice_026_hood", 4, "helmet/scavenger_helmet_5"),
+            ("stk2_novice_026_torso", 4, "torso/blackmarket_torso_5"),
+            ("stk2_novice_026_torso_v2", 4, "torso/blackmarket_torso_5"),
+            ("stk2_novice_026_back", 4, "back/bm_back_1"),
+            ("stk2_novice_026_legs", 4, "legs/scavenger_legs_3"),
+            ("stk2_novice_026_boots", 4, "boots/scavenger_boots_3"),
+            ("stk2_novice_026_hand", 4, "gloves/eq046_blackmarket_gloves_5"),
+            ("stk2_loner_026_torso", 6, "torso/renesanse_torso_8"),
+            ("stk2_loner_026_legs", 6, "legs/renesanse_legs_8"),
+            ("stk2_loner_026_boots", 6, "boots/renesanse_boots_1"),
+            ("stk2_loner_026_hand", 6, "gloves/scavenger_gloves_5"),
+        ];
+        for (name, level, donor) in items {
+            let item = dictionary.item_named(name).unwrap_or_else(|| panic!("no {name}"));
+            let params = item_params(item.dict_id).unwrap();
+            let cfg = format!("gameplay/items/armour/{donor}.options");
+            let template = dictionary.items.iter().find(|i| i.cfg_name == cfg).unwrap();
+            let template = item_params(template.dict_id).unwrap();
+            assert_eq!(params.faction, 0, "{name}");
+            assert_eq!(params.item_level, level, "{name}");
+            // Its own drop weight (armour::tests checks it against its
+            // level's), in the same pool as its template's.
+            assert_eq!(params.kind, template.kind, "{name}");
+            assert!(params.drop_weight > 0, "{name}");
+            // Sold as the Novice's knit cap (the owner, 2026-10-31): by
+            // seller 0 at no rank, at its own price.
+            assert_eq!(prices::sellers_of(dictionary, item, params), [(0, 0)], "{name}");
+            assert!(
+                prices::price_list().iter().any(|r| r.dict_id == item.dict_id
+                    && r.faction_id == 0
+                    && r.level == 0
+                    && r.cost == item.base_cost),
+                "{name}"
+            );
+            assert!(!generic.level_independent.contains(&item.category), "{name}");
+            let pool = generic.candidates(dictionary, item.category, level);
+            assert!(pool.iter().any(|candidate| candidate.dict_id == item.dict_id), "{name}");
+        }
+    }
+
+    /// decals-069d's three badges on game data with the pack
+    /// (`SRP_GAME_DATA`: `release/build-content`'s server-game-data.db with
+    /// decals-069d@2): sold for 50,000 silver by seller 0 at no rank (the
+    /// owner, 2026-11-08), and no table drops them. It makes that data the
+    /// process's: run it alone.
+    #[test]
+    #[ignore = "needs game data with decals-069d@2 (SRP_GAME_DATA); run alone"]
+    fn the_069d_badges_are_sold_by_seller_0_and_never_dropped() {
+        use super::super::{game_data, prices};
+        let path = std::env::var_os(game_data::GAME_DATA_ENV).expect("SRP_GAME_DATA");
+        game_data::init_from(std::path::Path::new(&path)).expect("its data, alone");
+        let dictionary = Dictionary::shared();
+        let drops = Drops::shared();
+        let tables = [&drops.generic, &drops.new_player, &drops.drop_card];
+        for (name, dict_id) in [("decals_1_9", 1891), ("decals_1_10", 1892), ("decals_1_11", 1893)] {
+            let item = dictionary.item_named(name).unwrap_or_else(|| panic!("no {name}"));
+            let params = item_params(item.dict_id).unwrap();
+            assert_eq!(item.dict_id, dict_id, "{name}");
+            assert!(prices::is_badge(item, params), "{name}");
+            assert_eq!(prices::sellers_of(dictionary, item, params), [(0, 0)], "{name}");
+            let listed: Vec<_> = prices::price_list()
+                .iter()
+                .filter(|record| record.dict_id == dict_id)
+                .map(|record| (record.faction_id, record.level, record.cost))
+                .collect();
+            assert_eq!(listed, [(0, 0, 50_000)], "{name}");
+            assert_eq!(params.drop_weight, 0, "{name}");
+            for table in tables {
+                for level in 0..=15 {
+                    let pool = table.nearest_candidates(dictionary, item.category, level);
+                    assert!(pool.iter().all(|candidate| candidate.dict_id != dict_id), "{name}");
+                }
+            }
         }
     }
 }

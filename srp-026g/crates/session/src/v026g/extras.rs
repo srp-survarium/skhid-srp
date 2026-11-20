@@ -1,6 +1,6 @@
 //! What the lobby's later features keep of an account, beside the
-//! [`Account`](super::account::Account)'s own fields: the auto-repair box,
-//! the tutorial's steps and the daily bonus. Kept in its own table
+//! [`Account`](super::account::Account)'s own fields: the daily bonus and
+//! the shop's "Hide owned" box. Kept in its own table
 //! (`g26_extras`, `persist`), one row an account.
 //!
 //! The rules are in [`super::tutorial`], [`super::bonus`] and
@@ -16,12 +16,8 @@ pub struct DailyBonus {
     /// The victories that got the day's bonus, for each day of the run so
     /// far (0..=3 each).
     pub wins: [u8; 7],
-    /// What the seventh day gives: rolled when the run starts, so the
-    /// window can show it from the first day. A dict id of 0 before the
-    /// first run.
-    pub reward_dict: u16,
-    pub reward_count: u32,
-    /// The seventh day's reward was given.
+    /// The seventh day was made: the run is complete. (It gives nothing:
+    /// its gold reward is gone, the owner's of 2026-11-08.)
     pub completed: bool,
     /// The day (Unix days) the welcome window was last opened by the
     /// server.
@@ -31,11 +27,12 @@ pub struct DailyBonus {
 /// See the module.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Extras {
-    /// The auto-repair box (`49 01`, bit 1).
-    pub auto_repair: bool,
-    /// The tutorial's steps done: [`super::tutorial::flag`].
-    pub tutorial_flags: u32,
     pub bonus: DailyBonus,
+    /// The shop's "Hide owned" box as the account last set it
+    /// (`shop-owned-mark.md`; the owner's of 2026-11-15: "if someone
+    /// clicked it once, after restarting, it should be saved"); unticked
+    /// until then.
+    pub shop_owned: survarium::v026g::lobby::shop_filter::OwnedItems,
 }
 
 impl DailyBonus {

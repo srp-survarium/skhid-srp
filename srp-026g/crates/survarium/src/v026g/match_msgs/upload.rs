@@ -22,8 +22,9 @@ use std::collections::{BTreeMap, VecDeque};
 pub const CHUNK_DATA: usize = 480;
 /// `u32 item_time, u16 offset, u16 total`.
 pub const CHUNK_HEADER: usize = 8;
-/// The client serializes its world into a 0x8000-byte buffer.
-pub const MAX_TOTAL: usize = 0x8000;
+/// The client serializes its world into a 0xF000-byte buffer (patch 98;
+/// 0x8000 in the original exe), `world_frame::MAX_BODY`.
+pub const MAX_TOTAL: usize = 0xF000;
 /// The chunks of the largest world.
 pub const MAX_CHUNKS: usize = MAX_TOTAL.div_ceil(CHUNK_DATA);
 
@@ -32,7 +33,7 @@ pub const MAX_CHUNKS: usize = MAX_TOTAL.div_ceil(CHUNK_DATA);
 pub enum ChunkError {
     /// Shorter than the header and one byte.
     TooShort,
-    /// `total` is 0 or over 0x8000.
+    /// `total` is 0 or over [`MAX_TOTAL`].
     Total(u16),
     /// `offset` is no multiple of 480, or not below `total`.
     Offset { offset: u16, total: u16 },
@@ -66,7 +67,7 @@ pub struct Chunk<'a> {
 
 impl<'a> Chunk<'a> {
     /// Reads a non-empty 0xE0 payload: `offset % 480 == 0`,
-    /// `offset < total ≤ 0x8000` and exactly the length those two give.
+    /// `offset < total ≤ MAX_TOTAL` and exactly the length those two give.
     pub fn parse(payload: &'a [u8]) -> Result<Self, ChunkError> {
         if payload.len() <= CHUNK_HEADER {
             return Err(ChunkError::TooShort);
@@ -108,7 +109,7 @@ impl<'a> Chunk<'a> {
 
 /// The 0xE0 payloads a patched client sends for a world: what the injected
 /// code does, for tests and the client model. `None`: the body is empty or
-/// over 0x8000 bytes (the client asserts on such a world).
+/// over [`MAX_TOTAL`] bytes (the client asserts on such a world).
 pub fn split(item_time: u32, body: &[u8]) -> Option<Vec<Vec<u8>>> {
     if body.is_empty() || body.len() > MAX_TOTAL {
         return None;
@@ -310,13 +311,15 @@ mod tests {
         assert_eq!(chunk(0, 480, 480), Ok(()));
         assert_eq!(chunk(0, 481, 480), Ok(()));
         assert_eq!(chunk(480, 481, 1), Ok(()));
-        assert_eq!(chunk(0x7F80, 0x8000, 128), Ok(()), "the 69th chunk");
+        assert_eq!(chunk(0x7F80, 0x8000, 128), Ok(()), "the original's 69th chunk");
+        assert_eq!(chunk(0xEE20, 0xF000, 480), Ok(()), "the 128th chunk");
         // The header alone, or less.
         assert_eq!(chunk(0, 1, 0), Err(ChunkError::TooShort));
         assert_eq!(Chunk::parse(&[1, 2, 3]), Err(ChunkError::TooShort));
         // Totals.
         assert_eq!(chunk(0, 0, 1), Err(ChunkError::Total(0)));
-        assert_eq!(chunk(0, 0x8001, 480), Err(ChunkError::Total(0x8001)));
+        assert_eq!(chunk(0, 0x8001, 480), Ok(()), "past the original's 0x8000");
+        assert_eq!(chunk(0, 0xF001, 480), Err(ChunkError::Total(0xF001)));
         // Offsets: off the 480 grid, at or past the total.
         assert_eq!(
             chunk(1, 500, 480),
@@ -357,12 +360,14 @@ mod tests {
     }
 
     #[test]
-    fn the_largest_world_is_69_chunks() {
-        assert_eq!(MAX_CHUNKS, 69);
+    fn the_largest_world_is_128_chunks() {
+        // 128 full chunks: under the client's packet pool guard (256, 16
+        // kept), and every offset and the total in a u16.
+        assert_eq!(MAX_CHUNKS, 128);
         let chunks = split(100, &world(MAX_TOTAL)).unwrap();
-        assert_eq!(chunks.len(), 69);
+        assert_eq!(chunks.len(), 128);
         assert_eq!(chunks[0].len(), 488);
-        assert_eq!(chunks[68].len(), 8 + 128);
+        assert_eq!(chunks[127].len(), 8 + 480);
         assert_eq!(split(100, &world(MAX_TOTAL + 1)), None);
         assert_eq!(split(100, &[]), None);
     }

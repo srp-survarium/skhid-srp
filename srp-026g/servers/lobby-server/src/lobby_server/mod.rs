@@ -851,7 +851,7 @@ impl Connection<'_> {
             Some(account) => {
                 let account = account.locked();
                 let profile = shown_profile(&account).map(|profile| (profile.id, profile.revision));
-                (account.name.clone(), profile)
+                (account.name().to_owned(), profile)
             }
             None => (String::new(), None),
         };
@@ -1118,20 +1118,18 @@ mod tests {
         let store = SessionStore::new();
         let alice = player(&store, "alice");
         let bob = player(&store, "bob");
-        let carol = player(&store, "carol");
-        for mate in [&bob, &carol] {
-            store
-                .squads()
-                .invite_accepted(alice.account_id, mate.account_id);
-            let name = mate.account.locked().name.clone();
-            alice.answer(&add_to_squad(&name));
-        }
+        store
+            .squads()
+            .invite_accepted(alice.account_id, bob.account_id);
+        let name = bob.account.locked().name().to_owned();
+        alice.answer(&add_to_squad(&name));
         let mut play = vec![op::PLAY];
         play.extend(first_profile(&bob).0.to_le_bytes());
         bob.answer(&play);
         bob.squad_update();
 
-        assert!(carol.answer(&[op::SQUAD, 4]).is_empty());
+        // Alice leaves: a squad of one is none.
+        assert!(alice.answer(&[op::SQUAD, 4]).is_empty());
         let updates = bob.squad_update();
         assert_eq!(updates.len(), 2);
         assert_eq!(updates[1], lobby::client_state(ClientState::Lobby));

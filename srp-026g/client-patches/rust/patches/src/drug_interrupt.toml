@@ -1,0 +1,9 @@
+# Patch 84: a bullet that hits a player stops the healing drug he is using.
+# The site (hit_impl once the hit took health) is sites_026g.tsv's; the logic
+# is drug_interrupt.rs.
+name = "drug_interrupt"
+patch = 84
+
+[[hook]]
+site = "player.hit_applied"
+handler = "on_hit_applied"

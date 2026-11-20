@@ -1,16 +1,13 @@
 package survarium.controls
 {
    import flash.display.MovieClip;
-   import flash.geom.ColorTransform;
    import flash.text.TextField;
    import flash.text.TextFormat;
    import flash.text.TextFormatAlign;
    import scaleform.clik.constants.InvalidationType;
    import scaleform.clik.controls.ToolTip;
-   import survarium.Util;
    import survarium.constants.Colors;
    import survarium.constants.ItemCategory;
-   import survarium.constants.ItemCondition;
    import survarium.constants.SuperCategory;
    
    public class ItemRenderer extends ToolTip
@@ -66,23 +63,14 @@ package survarium.controls
       
       protected function updateData() : void
       {
-         var condition:int;
-         var trackColor:uint;
-         var colorTransform:ColorTransform;
          var isMoney:Boolean;
          this.iconRenderer.content = _data.icon;
-         this.damageIndicator.visible = !_data.isStack && _data.value < ItemCondition.FULL;
-         trace("IR::updateData",_data.name,_data.isStack,_data.value,this.damageIndicator.visible);
+         // No damage bar: items never wear (no repair, the owner 2026-11-08).
+         this.damageIndicator.visible = false;
          this.iconRenderer.y = _data.category == ItemCategory.DECALS ? -5 : -10;
          if(!_data.isStack)
          {
             this.textCount.visible = false;
-            this.damageIndicator.track.width = 165 * _data.value / ItemCondition.FULL;
-            condition = _data.value / ItemCondition.FULL * 510;
-            trackColor = Util.getColor(Math.min(510 - condition,255),Math.min(condition,255),0);
-            colorTransform = new ColorTransform();
-            colorTransform.color = trackColor;
-            this.damageIndicator.track.transform.colorTransform = colorTransform;
          }
          else
          {
@@ -92,7 +80,7 @@ package survarium.controls
             isMoney = _data.superCategory == SuperCategory.UPGRADES;
             this.textCount.text = (isMoney ? "" : "x") + _data.value;
             this.textCount.y = 42 + (isMoney ? 0 : 5);
-            this.textCount.textColor = isMoney ? (_data.category == ItemCategory.PREMIUM_MONEY ? Colors.GOLD : Colors.REGULAR) : Colors.SILVER;
+            this.textCount.textColor = isMoney ? Colors.REGULAR : Colors.SILVER;
          }
       }
    }

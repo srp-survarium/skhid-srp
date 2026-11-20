@@ -11,6 +11,7 @@ package survarium.controls
    import survarium.data.ItemData;
    import survarium.data.LocalizationData;
    import survarium.item.ItemFactory;
+   import survarium.item.WeaponMovement;
    import survarium.constants.Faction;
    import survarium.constants.ItemCategory;
    import survarium.constants.ItemPlace;
@@ -208,7 +209,6 @@ package survarium.controls
             this._items[seller].push(item);
             item.cost = p[i].cost;
             item.price = item.cost;
-            item.premiumCost = p[i].premium_cost;
             item.canBuy = this._unlockedLevel[seller] >= item.sellerLevel;
             item.buyValue = !item.canBuy;
             item.value = p[i].condition_or_stack;
@@ -460,19 +460,6 @@ package survarium.controls
          return false;
       }
       
-      public function getItemLockedCost(dictId:uint) : uint
-      {
-         if(this.getItemBuyable(dictId))
-         {
-            return 0;
-         }
-         if((this._itemsDict[dictId]))
-         {
-            return this._itemsDict[dictId].premiumCost;
-         }
-         return 0;
-      }
-      
       public function getItemPrice(dictId:uint) : uint
       {
          if((this._itemsDict[dictId]))
@@ -710,7 +697,6 @@ package survarium.controls
             descrData.modifiers = [];
          }
          obj.matchMakingLevel = descrData.match_making_level;
-         obj.isPremium = descrData.is_premium;
          obj.type = descrData.voucher_type;
          obj.modifiersDefault = descrData.modifiers;
          obj.rank = descrData.rarity_level;
@@ -728,6 +714,7 @@ package survarium.controls
             obj.itemDescription = descrData.descr;
          }
          obj.properties = descrData.item_properties;
+         WeaponMovement.expose(obj);
          obj.descriptor = ItemPlace.SHOP;
          obj.category = descrData.category;
          obj.superCategory = category;
@@ -769,7 +756,7 @@ package survarium.controls
                obj.ammoText = descrData.ammo_text;
             }
          }
-         obj.quickSlotItemSize = (descrData.fills_whole_pocket) ? QuickSlotSize.WHOLE : QuickSlotSize.HALF;
+         obj.quickSlotItemSize = QuickSlotSize.of(descrData);
          this._itemsDict[value] = obj;
          return obj;
       }

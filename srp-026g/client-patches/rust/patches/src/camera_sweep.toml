@@ -1,0 +1,11 @@
+# A diagnostics build's lobby camera sweep (camera_sweep.rs): the camera put
+# at a script's poses with no input, for static captures. Only in a
+# diagnostics build (--ragdoll-trace) with srp_camera_sweep.txt there; never
+# a release's.
+name = "camera_sweep"
+patch = 45
+
+[[hook]]
+site = "lobby_camera.view"
+handler = "on_view"
+order = 2                           # after the flight (weapon_flight.toml)

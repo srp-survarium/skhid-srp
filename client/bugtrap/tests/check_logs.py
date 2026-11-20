@@ -35,10 +35,10 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
         os.utime(path, (now - age, now - age))
         return path
 
-    def check(expected, mode="none", lock=None, messages=(), forbidden=()):
+    def check(expected, mode="none", lock=None, messages=(), forbidden=(), args=(), members=()):
         old = set(game.glob("*.zip"))
         result = subprocess.run(["wine", str(game / "logs_probe.exe"), "Z:" + str(docs), mode,
-                        "Z:" + str(lock or folder)], cwd=root, check=True,
+                        "Z:" + str(lock or folder), *args], cwd=root, check=True,
                        capture_output=True, timeout=45)
         if mode == "watch":
             assert b"log_stream_high_water=" in result.stdout, result.stdout
@@ -56,7 +56,13 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
             assert f"compressed_log_zip_bytes={contribution}" in manifest, manifest
             logs = {n: archive.read(n) for n in archive.namelist()
                     if n not in (dump, "crash.txt", "logs/collection.txt")}
-            assert all(re.fullmatch(r"logs/[a-z-]+/source-[0-9]{2}\.txt", n) for n in logs), list(logs)
+            # A source's ID (a run's log adds its kind and stamp); the crashed run's patch log, its own name.
+            stamp = r"[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}(_[1-9][0-9]?)?"
+            member = (rf"logs/[a-z-]+/source-[0-9]{{2}}(\.(game|srp_patches|updater_skhid)\.{stamp})?\.txt"
+                      rf"|logs/game-logs/srp_patches\.{stamp}\.log")
+            assert all(re.fullmatch(member, n) for n in logs), list(logs)
+            for name in members:
+                assert name in logs, (name, list(logs))
             actual = Counter((n.split("/")[1], data) for n, data in logs.items())
             wanted = Counter((n.split("/")[1], data) for n, data in expected.items())
             assert actual == wanted, (list(logs), list(expected), manifest)
@@ -196,3 +202,91 @@ with tempfile.TemporaryDirectory(prefix="srp-log-test-") as temporary:
         assert source.read_bytes() == raw
         source.unlink()
     print("PASS UTF-16/binary/oversized/multiline sources omitted atomically without credential echo", flush=True)
+    # Legacy code pages: the game writes its log in its locale's code page
+    # (Kobalt's log, 2026-10-26, -localization=russian: the audio devices in
+    # cp1251). Such lines are transcoded to UTF-8, then filtered as any other.
+    def sound(device):
+        return (safe.decode() + f"sound <info>\t[11:00:25.100]\t0: {device}\r\n"
+                "sound <info>\t[11:00:25.100]\trole: NotDefaultDevice \r\n"
+                f"sound <info>\t[11:00:25.100]\t1: {device}\r\n" + safe.decode())
+    for localization, code_page, device in (
+            ("russian", 1251, "Динамики (Realtek(R) Audio)"),
+            ("original", 1251, "Динамики (Realtek(R) Audio)"),
+            ("polish", 1250, "Głośniki (Realtek(R) Audio)"),
+            ("english", 1252, "Kopfhörer (Realtek(R) Audio)"),
+            ("ukrainian", 28591, "Kopfhörer (Realtek(R) Audio)")):
+        text = sound(device)
+        raw = text.encode(f"cp{code_page}" if code_page != 28591 else "latin-1")
+        source = add("Survarium_legacy.log", raw)
+        check({"logs/documents/Survarium_legacy.log": text.encode()}, args=(f"-localization={localization}",),
+              messages=(f"Legacy code page: cp{code_page} (the game's -localization",
+                        f"removed_lines=0, transcoded_lines=2 from cp{code_page},"))
+        assert source.read_bytes() == raw
+        source.unlink()
+    # UTF-8 stays as it is and is not counted. With no -localization the game's
+    # default (original) is cp1251, whatever Windows' ANSI code page.
+    source = add("Survarium_utf8.log", sound("Динамики").encode())
+    check({"logs/documents/Survarium_utf8.log": sound("Динамики").encode()},
+          messages=("Legacy code page: cp1251 (the game's default -localization (original))",
+                    "transcoded_lines=0,"))
+    source.unlink()
+    source = add("Survarium_default.log", sound("Динамики").encode("cp1251"))
+    check({"logs/documents/Survarium_default.log": sound("Динамики").encode()},
+          messages=("Legacy code page: cp1251 (the game's default -localization (original))",
+                    "removed_lines=0, transcoded_lines=2 from cp1251,"))
+    source.unlink()
+    # A control byte in a cp1251 line still omits the source; a sensitive cp1251
+    # record is still removed with its continuation.
+    source = add("Survarium_control.log", sound("Ди\x1bнамики").encode("cp1251"))
+    check({}, args=("-localization=russian",), messages=("unsafe text encoding", "source rolled back"))
+    source.unlink()
+    secret = "SYNTHETIC_CP1251"
+    raw = (safe.decode() + f"core <info>\t[01:02:03.456]\tИгрок password={secret} Динамики\r\n"
+           f"продолжение-{secret}\r\n" + safe.decode()).encode("cp1251")
+    source = add("Survarium_sensitive.log", raw)
+    check({"logs/documents/Survarium_sensitive.log": safe + removed + safe}, args=("-localization=russian",),
+          messages=("removed_lines=2, transcoded_lines=2 from cp1251,",), forbidden=(secret.encode(),))
+    assert source.read_bytes() == raw
+    source.unlink()
+    print("PASS cp1251/cp1250/cp1252/Latin-1 logs transcoded by the game's -localization; control bytes still refused; cp1251 credentials removed", flush=True)
+    # Each run's logs are files of their own, named by the run's start, the
+    # engine's, the patches' and the updater's in game\logs (one an older exe left in Documents): the crashed run's patch log
+    # (the newest srp_patches.<stamp>.log there) first, its tail, by its own
+    # name; the earlier runs' logs as sources whose IDs say their kind and
+    # stamp, never the rest of the name (the Windows user). A run's log an
+    # updater did not move out of the exe's folder is an earlier run's.
+    user = "Survarium_SYNTHETIC_FILENAME_SECRET"
+    run_logs = game_root / "logs"
+    run_logs.mkdir()
+    runs = [(run_logs, "game-logs", f"{user}.2026-11-15_14-03-07.log", 30),
+            (folder, "documents", f"{user}.2026-11-15_12-00-00.log", 3100),
+            (run_logs, "game-logs", "updater_skhid.2026-11-15_14-03-05.log", 20),
+            (game, "game-exe", "updater_skhid.log", 9000),
+            (run_logs, "game-logs", "srp_patches.2026-11-15_12-00-00_2.log", 2000),
+            (run_logs, "game-logs", "srp_patches.2026-11-15_12-00-00.log", 3000),
+            (game, "game-exe", "srp_patches.2026-11-14_10-00-00.log", 4000)]
+    expected = {}
+    for where, scope, name, age in runs:
+        data = f"srp: run log {name[-24:]}\r\n".encode()
+        add(name, data, age, where)
+        expected[f"logs/{scope}/{name}"] = data
+    add("srp_patches.2026-11-15_14-03-07.log", b"srp: the crashed run\r\n", 5, run_logs)
+    expected["logs/game-logs/srp_patches.2026-11-15_14-03-07.log"] = b"srp: the crashed run\r\n"
+    add("srp_patches.log", b"srp: the log before runs were named\r\n", 10000, game)
+    add("srp_patches.old.log", b"srp: its old part\r\n", 10000, game)
+    check(expected, forbidden=(b"SYNTHETIC_FILENAME_SECRET",), members=(
+        "logs/game-logs/srp_patches.2026-11-15_14-03-07.log",
+        "logs/game-logs/source-01.updater_skhid.2026-11-15_14-03-05.txt",
+        "logs/game-logs/source-02.game.2026-11-15_14-03-07.txt",
+        "logs/game-logs/source-03.srp_patches.2026-11-15_12-00-00_2.txt",
+        "logs/game-logs/source-04.srp_patches.2026-11-15_12-00-00.txt",
+        "logs/documents/source-05.game.2026-11-15_12-00-00.txt",
+        "logs/game-exe/source-06.srp_patches.2026-11-14_10-00-00.txt",
+        "logs/game-exe/source-07.txt"))
+    # No run's patch log in game\logs: none is taken, never the old srp_patches.log beside the exe.
+    for path in run_logs.glob("srp_patches.2026-*.log"):
+        path.unlink()
+    expected = {k: v for k, v in expected.items() if not k.startswith("logs/game-logs/srp_patches.2026")}
+    check(expected)
+    print("PASS run logs: the crashed run's patch log first by its stamp, earlier runs' by kind and stamp, "
+          "no user name; none when no run's is in game\\logs", flush=True)
