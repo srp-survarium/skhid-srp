@@ -1657,8 +1657,8 @@ pub struct BuildStats {
     pub edge_walk_offs: drop_check::EdgeWalkOffs,
     /// … and each link it made, for the build's log (debug).
     pub edge_walk_off_links: Vec<drop_check::EdgeWalkOffLink>,
-    /// [D2] The Drop links (take-off, landing) a walk overshot past the harmless fall that no other client way took down, for the
-    /// build's log (debug): a human crossing there is checked against them.
+    /// [D2] The Drop links a walk overshot past the harmless fall that no way within it took down, re-aimed to the walk's deep
+    /// landing (take-off, that landing), for the build's log (debug).
     pub drops_past_harmless_cut: Vec<(Vec3, Vec3)>,
     /// Of them, those onto a (take-off, landing) pair already re-aimed in the pass, folded into its one link, and which was kept.
     pub drops_reaim_pairs: drop_check::ReaimPairs,
@@ -2043,8 +2043,8 @@ impl WalkGrid {
         if body.drop_check {
             let failing = if body.drop_lands {
                 let world = world.expect("a world");
-                let (cut, reaim, lips, mut walked, deep_cut) = grid.landing_drops(&wide, world, seeds, spawns);
-                stats.drops_past_harmless_cut = deep_cut;
+                let (cut, reaim, lips, mut walked, deep_kept) = grid.landing_drops(&wide, world, seeds, spawns);
+                stats.drops_past_harmless_cut = deep_kept;
                 let held;
                 (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded, walked.walk_offs_released, held) =
                     grid.walk_off_links(&mut wide, world, seeds, spawns);
