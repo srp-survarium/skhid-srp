@@ -5,7 +5,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use session::v026g::account::Account;
 use session::v026g::clans::{Clan, Member, Rank, status};
 use session::v026g::persist::history::{
@@ -628,6 +628,44 @@ fn the_top_lists_leave_out_the_banned() {
         world.get("/api/history/top?by=balance").0,
         "400 Bad Request"
     );
+}
+
+#[test]
+fn the_days_leaders_and_the_all_time_totals() {
+    let world = world("leaders");
+    // Two of the three public matches ended today (UTC).
+    let today = world.ok("/api/history/today");
+    assert_eq!(keys(&today), ["leaders", "since"]);
+    assert_eq!(today["since"], NOW - NOW % 86_400);
+    assert_eq!(
+        keys(&today["leaders"]),
+        ["assists", "kills", "played_s", "score", "wins"]
+    );
+    let kills = today["leaders"]["kills"].as_array().unwrap();
+    assert_eq!(kills.len(), 2);
+    assert_eq!(keys(&kills[0]), ["player", "value"]);
+    assert_eq!((&kills[0]["player"]["name"], &kills[0]["value"]), (&json!("Alice"), &json!(28)));
+    assert_eq!(kills[1]["value"], 12);
+    // Bob won nothing today: not on that list.
+    assert_eq!(today["leaders"]["wins"].as_array().unwrap().len(), 1);
+    world.store.ban_account(
+        world.alice,
+        Ban {
+            until: None,
+            reason: "secret reason".to_owned(),
+        },
+    );
+    let kills = &world.ok("/api/history/today")["leaders"]["kills"];
+    assert_eq!(kills.as_array().unwrap().len(), 1, "a banned account leads nothing");
+    assert_eq!(kills[0]["player"]["name"], "Bob");
+
+    let all = world.ok("/api/history/totals");
+    assert_eq!(
+        keys(&all),
+        ["accuracy", "assists", "hits", "kills", "matches", "played_s", "players", "shots"]
+    );
+    assert_eq!((&all["players"], &all["matches"]), (&json!(2), &json!(3)));
+    assert_eq!(all["kills"], 3 * (14 + 6));
 }
 
 #[test]

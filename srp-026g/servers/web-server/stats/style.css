@@ -38,3 +38,11 @@
 .stats-team + .table-scroll .stats-table { border-top:2px solid var(--team) }
 .stats-team0 { --team:var(--team0) }
 .stats-team1 { --team:var(--team1) }
+/* The day's leaders: five short lists side by side, as many as fit. */
+.stats-leaders { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px }
+.stats-leaders .stats-table td.l { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis }
+/* Everything added up: one line of numbers, each over its name. */
+.stats-all { grid-template-columns:1fr }
+.stats-all dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:14px 20px }
+.stats-all dl>div { flex-direction:column-reverse; align-items:flex-start; gap:2px; border:0; padding:0 }
+.stats-all dd { text-align:left; font-size:1.25rem }

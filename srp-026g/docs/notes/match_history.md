@@ -11,7 +11,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   not part of wiki"), in the wiki's look: a frame the web server gives, which
   `servers/web-server/stats/history.js` fills from the API when it is viewed.
 - The address says what it shows: `?player=<name>`, `?match=<number>`, `?clan=<tag>`, else the
-  leaderboards (`?board=players|clans|best|latest&by=<key>`). Each view is drawn once empty in
+  leaderboards (`?board=players|clans|best|latest&by=<key>`), under the day's leaders (five
+  lists of five: kills, assists, score, wins, hours) and the all-time totals. Each view is drawn once empty in
   its final shape, then with its data, so nothing moves while it loads; match lists grow by
   "Older matches" (`before=`).
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
@@ -262,6 +263,28 @@ accounts left out.
 {"period":"day",
  "rows":[{"player":{"id":1042,"name":"Sheep","clan":null},"match":5531,"ended_at":1793500000,
           "level":12,"map":"Vostok","map_key":"level_03","mode":"Protective device","rules":2,"score":420,"kills":20,"deaths":3}]}
+```
+
+### `GET /api/history/today`
+
+The day's leaders: the players' counted public matches that ended since midnight (UTC, `since`)
+added up, the five with the most of each (ties: the older account; nobody with none), banned
+accounts left out. A day's lines are read (its matches by their end, each one's players).
+
+```json
+{"since":1793491200,
+ "leaders":{"kills":[{"player":{"id":1042,"name":"Sheep","clan":null},"value":64}],
+            "assists":[],"score":[],"wins":[],"played_s":[]}}
+```
+
+### `GET /api/history/totals`
+
+Everything counted, added up: the players with a counted match, the counted matches, and those
+players' totals together.
+
+```json
+{"players":812,"matches":5120,"kills":415000,"assists":96000,"shots":21400000,"hits":5560000,
+ "accuracy":0.26,"played_s":41000000}
 ```
 
 ### `GET /api/history/clans?by=<key>&limit=<n>`
