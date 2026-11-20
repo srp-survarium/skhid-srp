@@ -2315,8 +2315,8 @@ impl Motor {
     /// something (a wall between it and the route's next legs): with [`Feel::unclear_aim`] off it steers at the unclear
     /// point all the same (into the wall); on, at the farthest route point it does walk to in a line, within
     /// [`BACK_AIM_M`] back of `s`, and with none the route is lost to it ([`Aim::None`]: off the route, planned again from
-    /// where it stands).
-    fn aim_point(&self, route: &Route, s: f32, ahead: f32, clear: &impl Fn(Vec3) -> bool) -> Aim {
+    /// where it stands). `feet`: the body's, for the route's risers within reach.
+    fn aim_point(&self, route: &Route, s: f32, feet: Vec3, ahead: f32, clear: &impl Fn(Vec3) -> bool) -> Aim {
         let (target, found) = self.look_ahead(route, s, ahead, clear, self.heights());
         if found {
             return Aim::Clear(target);
@@ -2340,9 +2340,20 @@ impl Motor {
         // to the far side of a ledge does not exist (a 1.3-2 m drop: `clear` is right), and the route goes over it. The body
         // steers on as with the rule off (the drop's own aim and the lip guard act at the edge); stepping back along the
         // route would be away from the edge it is to take.
-        if route.link_ahead(s, ahead.max(self.feel.look_ahead_m) + MIN_AHEAD_M, mapdata::Body::client().step) {
+        let reach = ahead.max(self.feel.look_ahead_m) + MIN_AHEAD_M;
+        if route.link_ahead(s, reach, mapdata::Body::client().step) {
             #[cfg(test)]
             counts::unclear_link();
+            return Aim::Unclear(target);
+        }
+        // [fix-move S004] Nor where the route climbs a riser within reach ([`Route::riser_ahead`]: a Walk link up a face the
+        // walking body is held by, sprinted into or jumped, `drive::riser_gait`): every point up it is over the face for a walk
+        // in a line, so the look-ahead is cut to the body and the steps back reach the route under its own feet. Steering there
+        // turned the body about at the face every tick it got there (the Vector Laboratory spawn exit, 1.1 m up), so the riser
+        // gait's sprint, which needs the forward key into the face, never held. The body steers on up the riser's way.
+        if route.riser_ahead(feet, reach).is_some() {
+            #[cfg(test)]
+            counts::unclear_riser();
             return Aim::Unclear(target);
         }
         let mut back = MIN_AHEAD_M;
@@ -2520,7 +2531,7 @@ impl Motor {
                 if let Some(target) = route.flown_drop_target(s, pose.feet, ahead) {
                     target
                 } else {
-                    match (self.aim_point(route, s, ahead, &clear), self.precise.line()) {
+                    match (self.aim_point(route, s, pose.feet, ahead, &clear), self.precise.line()) {
                         // [S5] Along a thin top: on its line.
                         (Aim::Clear(_) | Aim::Unclear(_), Some((line, forward))) => line.target(pose.feet, forward, ahead),
                         (Aim::Clear(target), None) => match lane {
@@ -2942,7 +2953,7 @@ impl Motor {
                 if let Some(target) = route.flown_drop_target(s, pose.feet, ahead) {
                     target
                 } else {
-                    match (self.aim_point(route, s, ahead, &clear), self.precise.line()) {
+                    match (self.aim_point(route, s, pose.feet, ahead, &clear), self.precise.line()) {
                         // [S5] Along a thin top: on its line.
                         (Aim::Clear(_) | Aim::Unclear(_), Some((line, forward))) => line.target(pose.feet, forward, ahead),
                         (Aim::Clear(target) | Aim::Unclear(target), None) => target,
@@ -6000,7 +6011,7 @@ pub mod drop_aim {
 pub mod counts {
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    static COUNTS: [AtomicU64; 14] = [const { AtomicU64::new(0) }; 14];
+    static COUNTS: [AtomicU64; 15] = [const { AtomicU64::new(0) }; 15];
 
     fn add(k: usize) {
         COUNTS[k].fetch_add(1, Ordering::Relaxed);
@@ -6051,6 +6062,12 @@ pub mod counts {
     /// Of the unclear look-aheads (rule on), those with a planned jump or drop within reach: steered at, not back.
     pub fn unclear_link() {
         add(13);
+    }
+
+    /// Of the unclear look-aheads (rule on), those with a riser of the route within reach (none within reach planned): steered
+    /// at, not back.
+    pub fn unclear_riser() {
+        add(14);
     }
 
     /// Of the unclear look-aheads (rule on), those clear at the floor's heights: steered at, not back.
@@ -6157,8 +6174,8 @@ pub mod counts {
     /// (up at the first press, up later, given up, look-ahead cuts, side
     /// steps clear, side steps refused, lip guard changed, lip guard none, look-ahead ended unclear, of them steered back
     /// to a clear point, of them off the route, ahead cuts by a false clear at a hump, unclear look-aheads clear at the floor's
-    /// heights).
-    pub fn counts() -> [u64; 14] {
+    /// heights, unclear look-aheads at a planned jump or drop, at a riser).
+    pub fn counts() -> [u64; 15] {
         std::array::from_fn(|k| COUNTS[k].load(Ordering::Relaxed))
     }
 }
@@ -6819,13 +6836,13 @@ mod tests {
         // The body is on the far leg's nearest segment: past the doorway by the progress.
         assert!(s > 5.0, "{s}");
         // Off (the default): the point it steers at is one the wall is across.
-        match motor.aim_point(&route, s, 2.4, &clear) {
+        match motor.aim_point(&route, s, Vec3::ZERO, 2.4, &clear) {
             Aim::Unclear(point) => assert!(!clear(point), "{point:?}"),
             other => panic!("{other:?}"),
         }
         // On: a clear point of the route, back of the progress.
         let on = Motor::new(Feel { sway: 0.0, unclear_aim: true, ..feel_off() }, &mut rng);
-        match on.aim_point(&route, s, 2.4, &clear) {
+        match on.aim_point(&route, s, Vec3::ZERO, 2.4, &clear) {
             Aim::Clear(point) => assert!(clear(point) && point.z < 183.0, "{point:?}"),
             Aim::None => {}
             other => panic!("{other:?}"),
@@ -6850,15 +6867,15 @@ mod tests {
         // As it was (the chord's heights; the all-off arm keeps the floor's since A261): the point at the chord's height is
         // not clear, off and with the rule on its retry finds the floor's.
         let chord = Feel { floor_height_clear: false, ..feel_off() };
-        assert!(matches!(motor(chord.clone()).aim_point(&route, s, 3.0, &clear), Aim::Unclear(_)));
-        assert!(matches!(motor(Feel { unclear_aim: true, ..chord }).aim_point(&route, s, 3.0, &clear), Aim::Clear(_)));
+        assert!(matches!(motor(chord.clone()).aim_point(&route, s, Vec3::ZERO, 3.0, &clear), Aim::Unclear(_)));
+        assert!(matches!(motor(Feel { unclear_aim: true, ..chord }).aim_point(&route, s, Vec3::ZERO, 3.0, &clear), Aim::Clear(_)));
         // The floor heights: clear at once, at the look-ahead's full length, with the rule off too.
-        match motor(Feel { floor_height_clear: true, ..feel_off() }).aim_point(&route, s, 3.0, &clear) {
+        match motor(Feel { floor_height_clear: true, ..feel_off() }).aim_point(&route, s, Vec3::ZERO, 3.0, &clear) {
             Aim::Clear(point) => assert!((point.x - 12.0).abs() < 1e-3 && (point.y - 1.6).abs() < 1e-3, "{point:?}"),
             other => panic!("{other:?}"),
         }
         // Off the hump nothing differs: the same point either way.
-        let flat = |feel| motor(feel).aim_point(&route, 2.0, 1.0, &|_| true);
+        let flat = |feel| motor(feel).aim_point(&route, 2.0, Vec3::ZERO, 1.0, &|_| true);
         assert_ne!(flat(Feel { floor_height_clear: true, ..feel_off() }), Aim::None);
     }
 
@@ -6870,7 +6887,7 @@ mod tests {
     fn an_unclear_look_ahead_is_no_wall_at_a_planned_drop() {
         let p = |x, y, z| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
         let aim = |feel: Feel, route: &Route, s: f32, clear: &dyn Fn(Vec3) -> bool| {
-            Motor::new(Feel { sway: 0.0, ..feel }, &mut Rng::new(3)).aim_point(route, s, 0.8, &clear)
+            Motor::new(Feel { sway: 0.0, ..feel }, &mut Rng::new(3)).aim_point(route, s, Vec3::ZERO, 0.8, &clear)
         };
         let ua = || Feel { unclear_aim: true, ..Feel::default() };
         // Team 1's exit: the platform (y 29.14) to the next floor 0.95 m down, then on down; a body on the platform walks
@@ -6907,6 +6924,50 @@ mod tests {
         let leap = Waypoint { jump: Some(Leap::Ledge), ..p(2.0, 6.0, 0.0) };
         let hop = Route::new(vec![p(0.0, 5.0, 0.0), leap]);
         assert!(hop.link_ahead(0.0, 2.5, 0.8));
+    }
+
+    /// [fix-move S004] The Vector Laboratory team 0 spawn exit: a Walk link 1.1 m up a face (a riser, sprinted into). At the face
+    /// the body walks in a line to no point up the riser, so the look-ahead is cut to the body; the steps back took the route
+    /// under its own feet and the body turned about at the face. With the riser within reach the walk steers on up its way and
+    /// holds the forward key into the face; with no riser on the route the same walls answer as before.
+    #[test]
+    fn an_unclear_look_ahead_is_no_wall_at_a_route_riser() {
+        let p = |x, y, z| Waypoint { at: Vec3::new(x, y, z), node: 0, jump: None, low: false };
+        let climb = || Route::new(vec![p(0.0, 5.0, 0.0), p(1.0, 5.0, 0.0), p(1.5, 6.1, 0.0), p(3.0, 6.1, 0.0)]);
+        let riser = crate::v026g::bots::path::RiserUp {
+            top: Vec3::new(1.5, 6.1, 0.0),
+            take_off: Vec3::new(1.0, 5.0, 0.0),
+            press: crate::v026g::bots::path::RiserPress::Unflown,
+        };
+        // The lower floor only: the face holds a walk in a line.
+        let below = |q: Vec3| q.y < 5.5;
+        // At the face, a few centimetres off the route's line.
+        let feet = Vec3::new(1.12, 5.0, 0.06);
+        let ua = || Feel { sway: 0.0, unclear_aim: true, ..Feel::default() };
+        let (s, _) = climb().progress(feet);
+        let aim = |route: &Route| Motor::new(ua(), &mut Rng::new(3)).aim_point(route, s, feet, 0.8, &below);
+        match aim(&climb().with_riser(riser)) {
+            Aim::Unclear(target) => assert!(target.x > feet.x + 0.1, "up the riser's way: {target:?}"),
+            other => panic!("steered on up the riser, not {other:?}"),
+        }
+        // No riser on the route: steered back to the route under the feet, as before.
+        match aim(&climb()) {
+            Aim::Clear(target) => assert!(target.x <= feet.x + 0.05, "back: {target:?}"),
+            other => panic!("steered back, not {other:?}"),
+        }
+        // A riser that is climbed (its top under half a metre over the feet) is none ahead.
+        let up = Vec3::new(1.6, 6.1, 0.0);
+        assert!(climb().with_riser(riser).riser_ahead(up, 1.3).is_none());
+        // The walk at the face, facing the riser's way: the forward key with the riser, turned about without it.
+        let pose = Pose { feet, yaw: yaw_of([1.0, 0.0]), pitch: 0.0, speed: 0.5, ..Default::default() };
+        let keys = |mut route: Route| {
+            let mut motor = Motor::new(ua(), &mut Rng::new(3));
+            let (decision, walked) = motor.walk(&mut route, &pose, 5.0, below);
+            assert_eq!(walked, Walked::OnTheWay);
+            decision.keys
+        };
+        assert_ne!(keys(climb().with_riser(riser)) & key::FORWARD, 0);
+        assert_eq!(keys(climb()) & key::FORWARD, 0);
     }
 
     /// The walk reports the route lost (off it) when no route point back of the progress is clear either, so the drive
