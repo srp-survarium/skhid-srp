@@ -1441,7 +1441,7 @@ st_login_menu_accept	Elfogadás
 st_login_menu_cancel	Mégse
 st_login_menu_status_access_level_restriction	Nincs megfelelő hozzáférésed a belépéshez.
 st_login_menu_status_connecting	Bejelentkezés…
-st_login_menu_status_error_connection	A Skhid szerver nem érhető el. Engedélyezd a játékot a tűzfalon (Skhid-network-setup.cmd). Oroszországban használj VPN-t, és add hozzá a játék .exe fájljait (VPN.txt).
+st_login_menu_status_error_connection	A Skhid szerver nem érhető el. Indítsd a játékot a launcherből: megmutatja az okot.
 st_login_menu_status_invalid_user_or_password	Hibás becenév vagy jelszó
 st_login_menu_status_invalid_version	Elavult játékverziót használsz.
 st_login_menu_status_sign_in_already_online	 A felhasználó már játékban van
