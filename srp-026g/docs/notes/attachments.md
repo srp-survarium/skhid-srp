@@ -282,10 +282,11 @@ changes for them):
   the gun's own part in its muzzle slot (a stock row whose attach adds the bracket's slot), and
   the bracket is the grip's carrier in that slot. `resolve` seats a carrier on a slot a stock part
   brings, and with no muzzle fit nothing takes the suppressor's place
-  (`a_grip_hangs_on_a_built_in_suppressor_through_its_bracket`). Expected so: the 9A-91 (the
-  VSK-94's is a 0.69d0 default already). The OTs-14 and the SR-3M carry a brake in that slot and
-  show no suppressor today, so their five clamp grips stay refused, with that reason: a row would
-  put a suppressor on a gun that has none.
+  (`a_grip_hangs_on_a_built_in_suppressor_through_its_bracket`). Measured over the 102 guns: only
+  the VSK-94 and its premium item qualify (a 0.69d0 default there already). The 9A-91's linked
+  suppressor does not lie on the live mesh, and the OTs-14 and the SR-3M carry a brake in that
+  slot and show no suppressor today, so eight clamp grips stay refused (9A-91 three, OTs-14
+  three, SR-3M two), with that reason: a row would put a suppressor on a gun that has none.
 - **A gun with a default optic.** The game draws that optic itself (the scope item
   `addons/rifle_scope_dict_id` names) at the body's `scope_point`, with nothing fitted and with
   only a device or a grip fitted alike, since no scope's frame is written then. So a default optic
@@ -294,6 +295,17 @@ changes for them):
   part in a slot an optic takes has no row and is in neither body: what stands there with the
   default optic on is that optic's own models'. How a fitted scope takes its place is the scopes
   lane's.
+- **An optic's lens and reticle surfaces** take the players' `weapons/loc2` material of the same
+  name where there is one, and are left out where there is none (the ACOG TA31's light pipe); no
+  dot is baked yet.
+- **Left out by the content build, each with its reason in the build's record:** the
+  `short_picatinnyrail` that brings `picatinny_grip` (its locator is missing in 0.69d0's model);
+  and LIKELY, not seen in a picture: the PKP's and the RPD's rail bracket is read as an overlay by
+  its index.
+- **The content side's state, 2026-11-20:** all 102 guns built (pack `weapon-modules@1`, 214 module
+  rows, 6,933 comparisons with 0.69d0 through `Table::parse` and `resolve`, none off by 0.5 mm).
+  That check proves the arithmetic, not the conventions: the game's pictures are the evidence for
+  those, and nobody has judged a grip's hand yet.
 - **To mind in the scopes lane:** the game applies the weapon's own `aim_offset` (its config's,
   the matrix at weapon +6A0h) to whatever the aim record holds
   (`calculate_aim_alignment` 0x244D5B). A fitted optic's eye is therefore seen through the gun's
@@ -488,6 +500,12 @@ Not done:
   side's models (the grips lane), and one grip seen in a game.
 
 ## The three lanes (briefs, kept current)
+
+Not made by the content side's first pass, and so each lane's own: the device and grip items
+(dictionary rows, configs whose modification sets `srp_muzzle` / `srp_grip`, stats, texts, icons,
+prices); the shot effects' particles; the scope items on the new origin; the camouflage masks of
+the remodel bodies (by the camouflage work's rule: until then a camouflage on a remodel has no
+mask); `release/build-content --full` with the pack; clippy on the porter.
 
 They start when the core and the content run on one gun (the AK-74M: a brake, a flash hider, a grip
 on a swapped forend, a scope; both views and the lobby), each a sub-branch of `feat/attachments`.
