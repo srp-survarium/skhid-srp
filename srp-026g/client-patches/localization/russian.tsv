@@ -1441,7 +1441,7 @@ st_login_menu_accept	Принять
 st_login_menu_cancel	Отмена
 st_login_menu_status_access_level_restriction	Уровень доступа недостаточен для входа.
 st_login_menu_status_connecting	Авторизация...
-st_login_menu_status_error_connection	Нет связи с сервером Skhid. Разрешите игру в брандмауэре (Skhid-network-setup.cmd). В России включите VPN и добавьте в него .exe-файлы игры (VPN.txt).
+st_login_menu_status_error_connection	Нет связи с сервером Skhid. Запустите игру через лаунчер: он покажет причину. Разрешите игру в брандмауэре (Skhid-network-setup.cmd).
 st_login_menu_status_invalid_user_or_password	Неправильный никнейм или пароль
 st_login_menu_status_invalid_version	Вы используете устаревшую версию игры.
 st_login_menu_status_sign_in_already_online	Пользователь уже в игре
