@@ -829,13 +829,17 @@ moon textures were not read.
 
 Copies the normal target (t 10 -> 11 `normal_copy`, 0x178AA5) then binds the three G-buffer
 targets normal (10), albedo (13), surface_parameters (15) (0x178AEF..0x178B34) and draws each
-decal box (`decal_instance::draw` 0x14DEB0) with `decal_default_material_effect` (0x1E3070,
+decal box, lowest `draw_priority` first (`std::sort` 0x179650 on the decal's +0x6C; 0.31a2 sorts the same, 0x78D8A9), (`decal_instance::draw` 0x14DEB0) with `decal_default_material_effect` (0x1E3070,
 shader `decal_base`, depth test LESS_EQUAL no write, stencil test against the geometry bits,
 0x1E3288..0x1E3394). So decals modify the G-buffer before any lighting; they are lit like the
 surface. PROVEN. Blend: `deferred_decal.ps` writes the albedo with the decal alpha in o1.w and
 zeros elsewhere (e.g. 00adf4b1...d29172), consistent with per-target SRC_ALPHA blending from the
 material `blend_mode` (`effect_material_base::compile_begin` 0x1CD0B0): LIKELY, the per-target
 blend values were not read.
+
+0.31a2's stage (0x78AE40, vtable slot 1) does the same: the copy (0x78AF2E), the three targets, the
+same per-decal effect choice from the instance's +0x4C/+0x50/+0x54. Target ids are the same in both
+builds (`rt_index_to_name`: 0.26g table 0x16272C, 0.31a2 0x771ED4).
 
 ### 9.2 Other passes, one line each
 
