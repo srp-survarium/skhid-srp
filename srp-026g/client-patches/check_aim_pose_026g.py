@@ -21,10 +21,13 @@ aim offset of -0.11 m, a user whose mixing tree holds the animations given.
 - After that, a fire clip's kick of the bone: the alignment is the one the
   original gives for the idle bones (the kick is not followed); the original
   follows it.
+- A pose taken while the bone was off rest (a world that says idle with a
+  kicked bone): the next idle frame poses the locator again, at rest.
 - Not the idle state, a second animation of the gun (a clip fading), none of
   the gun's, no tree, no user: the locator untouched, the alignment the
   original's bit for bit.
-- A locator on no bone: untouched.
+- A model's own locator on no bone, on a weapon made where a posed one was:
+  untouched.
 In every run the registers at the return are the original's.
 """
 import math
@@ -190,7 +193,16 @@ def main():
     moved = math.dist(s_out[12:15], idle_out[12:15])
     check(0.015 < moved < 0.03, f"the original follows the kick ({moved * 1000:.1f} mm)")
 
-    # nothing else poses a locator
+    # a pose taken off rest (a world that says idle with the bone kicked) is taken again at rest
+    ours.weapon()
+    ours.align(KICKED_BONE)
+    check(ours.locator()[1] == NO_BONE and near(ours.locator()[0], product(LOCATOR, KICKED_BONE)),
+          "a world not at rest: the locator posed off rest")
+    o_out, _ = ours.align(IDLE_BONE)
+    check(near(ours.locator()[0], product(LOCATOR, IDLE_BONE)) and near(o_out, idle_out),
+          "the next idle frame: posed again at rest, the alignment the idle pose's")
+
+    # nothing else poses a locator (the last: a later weapon at the posed one's address, its locator its model's)
     for what, weapon in (("the fire state", dict(state=FIRE)),
                          ("a second animation of the gun (a clip fading)", dict(animations=(WEAPON, WEAPON))),
                          ("no animation of the gun", dict(animations=(OTHER,))),

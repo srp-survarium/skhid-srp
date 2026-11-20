@@ -23,11 +23,15 @@ is `shot-kick-045.md`.
 
 ## The rule
 
-- **The camera is the `aim` locator at the gun's idle pose.** The first aimed frame on which the
+- **The camera is the `aim` locator at the gun's idle pose.** On an aimed frame on which the
   gun's idle clip alone poses its bones (the weapon in its idle state, one animation of the gun
   in its user's mixing tree), the weapon's aim locator is moved from its bone into the gun's
   model at that pose (locator x bone, on no bone). The game's own alignment reads it from then
-  on, for as long as the weapon lives; a reloaded weapon model (`load_weapon`) starts again.
+  on; a new weapon starts again.
+- **The pose is taken again on every such frame** of the gun posed last (the patch keeps what
+  its locator was). The same pose writes nothing. A world loaded from another game carries the
+  weapon's state and the tree as that game sent them; should one say idle with the gun off rest,
+  the pose it gives lasts until the next frame at rest, not for the weapon's life.
 - **Until then** the alignment is the original's (a player who fires before ever aiming at rest
   sees the old behaviour until the shot's clip has faded).
 - **At rest nothing moves:** the idle pose is the pose the sights and scopes were fitted at
@@ -51,7 +55,10 @@ is `shot-kick-045.md`.
 
 - The idle pose is taken from the bones, not evaluated from the clip as 0.45a6 does, so it is the
   idle clip's pose at the frame it is taken: the same thing while the idle item clips hold the
-  aim's bones still, which they do in today's content. A pistol's and a double-barrelled gun's
-  two idle clips (loaded, empty) give one pose to those bones.
+  aim's bones still, which they do in today's content (103 live weapons read: 0.000 mm). A
+  pistol's and a double-barrelled gun's other idle clips (by the rounds loaded) give those bones
+  the same pose (within 0.001 mm).
+- Only the gun posed last is posed again: after a switch to another gun and back, the first
+  keeps the pose it has.
 - `check_aim_pose_026g.py` (`tools/check aim-pose`) runs the site through the game's own
   alignment in both exes.

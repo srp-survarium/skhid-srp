@@ -3591,3 +3591,4 @@ va	status	ref_021d	name
 0x000ed420	inferred-medium		vostok::math::float4x4::invert_4x3 [descriptive]
 0x002dec90	inferred-medium		survarium::weapon_core::select_recoil_animation [descriptive]
 0x0030e8a0	inferred-medium		survarium::weapon_core_fire_state::get_user_hands_lexeme [descriptive]
+0x0030e5c0	inferred-medium		survarium::weapon_core_fire_state::clip_time_scale [descriptive]

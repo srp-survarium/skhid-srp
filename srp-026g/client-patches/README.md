@@ -6225,8 +6225,8 @@ makes the gun's `aim` locator the camera from the bones of the frame, so a gun w
 on the bone its fire clip kicks (ten ported guns, on `offset`) showed no kick. A lohook in
 process_hands_ik before calculate_aim_alignment (`hands_ik.aim_alignment`) moves the weapon's aim
 locator into the gun's model at the idle pose (locator x bone, on no bone) the first aimed frame
-the idle clip alone poses the gun; the game's own alignment then reads that, as 0.45a6 reads the
-idle pose it keeps from a weapon's creation. At rest nothing moves. Drawing only: the recoil, the
+the idle clip alone poses the gun, and again on each later one; the game's own alignment then reads
+that, as 0.45a6 reads the idle pose it keeps from a weapon's creation. At rest nothing moves. Drawing only: the recoil, the
 shot and the worlds are the game's. `check_aim_pose_026g.py` (`tools/check aim-pose`) runs the
 site through the game's own alignment in both exes. Not run in a game on Windows.
 
