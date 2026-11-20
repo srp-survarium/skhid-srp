@@ -19,7 +19,8 @@
       meleeKills: 'Melee kills', batteries: 'Batteries', captures: 'Captures', artefacts: 'Artefacts', members: 'Members', commander: 'Commander',
       overall: 'Overall', inMatches: 'In matches', last30: 'Last 30 days', ended: 'Ended', duration: 'Duration',
       map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
-      win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', inTotals: 'In totals', yes: 'Yes', no: 'No', hours: 'Hours played',
+      win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', hours: 'Hours played', notCounted: 'Not counted',
+      why: {with_bots: 'with bots', few_players: 'under 6 players', short: 'under 5 minutes', no_result: 'no result'},
       today: 'Daily leaders', allTime: 'All time', shots: 'Shots fired',
       accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
       accuracyNote: '1000+ shots', averageNote: '20+ matches', headshotRate: 'HS %',
@@ -37,7 +38,8 @@
       meleeKills: 'Врукопаш', batteries: 'Батареї', captures: 'Захоплення', artefacts: 'Артефакти', members: 'Учасники', commander: 'Командир',
       overall: 'Загалом', inMatches: 'У матчах', last30: 'Останні 30 днів', ended: 'Завершено', duration: 'Тривалість',
       map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
-      win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', inTotals: 'У підсумках', yes: 'Так', no: 'Ні', hours: 'Годин у грі',
+      win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', hours: 'Годин у грі', notCounted: 'Не враховано',
+      why: {with_bots: 'з ботами', few_players: 'менше 6 гравців', short: 'менше 5 хвилин', no_result: 'без результату'},
       today: 'Лідери дня', allTime: 'За весь час', shots: 'Постріли',
       accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
       accuracyNote: '1000+ пострілів', averageNote: '20+ матчів', headshotRate: 'У голову %',
@@ -343,7 +345,8 @@
         [TEXT.mode, m ? name(m.mode) : null]]],
       [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : m.team_points.map(n).join(' : ')) : null],
         [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null],
-        [TEXT.inTotals, m ? (m.eligibility === 'counted' ? TEXT.yes : TEXT.no) : null]]]), ...teams.flat()];
+        // A match that adds to no total and no top list says why.
+        ...(m && m.eligibility !== 'counted' ? [[TEXT.notCounted, TEXT.why[m.eligibility] || '—']] : [])]]), ...teams.flat()];
     };
     root.replaceChildren(...view(null));
     const data = /^\d+$/.test(id) ? await api('match', {id}) : null;

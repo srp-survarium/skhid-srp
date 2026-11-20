@@ -287,7 +287,7 @@ try {
   assert.deepEqual(await cells('.stats-table tbody td:nth-child(8)'), answered.match.players.map(row => aim(row)));
   assert.equal(await fits(), true, 'the teams fit the width');
   await screenshot('match');
-  assert.equal(await panel('In totals'), 'Yes');
+  assert.equal(await panel('Not counted'), null, 'a counted match says nothing of it');
   // The teams in the Maps page's colours; the map leads to it there, in the match's mode.
   assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-team')].map(h => getComputedStyle(h).borderLeftColor))")),
     ['rgb(59, 130, 246)', 'rgb(229, 72, 77)']);
@@ -309,7 +309,7 @@ try {
   assert.equal(await panel('Points'), '—');
   await screenshot('match-free-for-all');
   await navigate('/stats?match=7&lang=en');
-  assert.equal(await panel('In totals'), 'No');
+  assert.equal(await panel('Not counted'), 'under 5 minutes');
   // One who left a match its team won lost it.
   await navigate('/stats?player=Dub&lang=en');
   assert.ok((await cells('.stats-paged tbody td:nth-child(6)')).includes('Loss · Left'));
