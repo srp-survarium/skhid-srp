@@ -54,11 +54,11 @@
 //!   places. The sides keep a squad together; late, the second goes on its
 //!   mate's side. The room's lists mark each pair (`Member::squad`).
 //! - **Remembered.** A room made by hand (a create, not Play) is its maker's
-//!   next create window, kept with the account (`room_remember`; not the
-//!   PIN; the owner's of 2026-10-20); the movie asks for it fitted to the
-//!   pool and the maker's equipment now (`room_settings::form`) once, as
-//!   its lobby comes up, so the window opens filled (the owner's of
-//!   2026-10-25).
+//!   next create window, kept with the account (`room_remember`; its PIN
+//!   too, pretyped; the owner's of 2026-10-20, 2026-11-19); the movie asks
+//!   for it fitted to the pool and the maker's equipment now
+//!   (`room_settings::form`) once, as its lobby comes up, so the window
+//!   opens filled (the owner's of 2026-10-25).
 //! - A member whose game is gone (crashed, killed, its link silent) keeps
 //!   its place while its session is kept: the link's 30 s and the session's
 //!   60 s, about 90 s in all (the owner's of 2026-10-18); then it leaves the
@@ -961,19 +961,24 @@ impl Core<'_> {
 
     /// A room made by hand: its settings are its maker's create window's
     /// start from now on, kept with the account (the owner's of
-    /// 2026-10-20). Not its PIN. A room Play makes keeps nothing. The
-    /// settings as the window sent them (`spec`): a private room's size and
-    /// players to start are not its own (it has none), but the window's,
-    /// kept for its next open room.
+    /// 2026-10-20), its PIN too (2026-11-19: pretyped). A room Play makes
+    /// keeps nothing. The settings as the window sent them (`spec`): a
+    /// private room's size and players to start are not its own (it has
+    /// none), but the window's, kept for its next open room.
     fn room_remember(&self, who: &Who, key: u32, spec: RoomSpec) {
         let Some(room) = self.rooms.get(key) else {
             return;
+        };
+        let pin = match room.spec.door {
+            Door::Pin { pin, .. } => Some(pin),
+            Door::Open { .. } => None,
         };
         let settings = RoomSettings::of_room(
             spec.size,
             spec.min_side,
             spec.max_level,
             spec.wait,
+            pin,
             &room.pool,
             &self.room_entries(),
         );

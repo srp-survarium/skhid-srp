@@ -822,6 +822,9 @@ pub struct RoomForm {
     pub tiles_on: Vec<bool>,
     /// The modes left out (`maps::MapMode::mode`).
     pub modes_off: Vec<u8>,
+    /// The PIN the window starts with typed, 0 to [`PIN_MAX`]: the last
+    /// room's (none: an empty field).
+    pub pin: Option<u16>,
 }
 
 /// A map a pool may hold, in [`room_pool`].
@@ -1103,9 +1106,11 @@ pub fn room_pool(entries: &[PoolEntry], page: u8) -> Result<ServerMessage, WireE
 }
 
 /// `91` as the answer to `3B 00 <ROOM_FORM> 1`, `place = ROOM_FORM + i`:
-/// `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>` (`saved`
-/// 1: the asker's own settings, 0: the defaults; `modes off` the modes left
-/// out, `,` between them, empty for none), then a row a chunk of 16 entries
+/// `S1;F;<saved>;<size>;<min side>;<max level>;<wait>;<modes off>;<pin>`
+/// (`saved` 1: the asker's own settings, 0: the defaults; `modes off` the
+/// modes left out, `,` between them, empty for none; `pin` its 4 digits,
+/// empty for none, last so a movie of before reads the row as it did), then
+/// a row a chunk of 16 entries
 /// of the pool, `E;<chunk>;<bits>`: entry `chunk × 16 + b`'s tile is in by
 /// bit `b` ([`RoomForm::tiles_on`]), every chunk the pool has (one at least).
 pub fn room_form(form: &RoomForm) -> Result<ServerMessage, WireError> {
@@ -1116,13 +1121,14 @@ pub fn room_form(form: &RoomForm) -> Result<ServerMessage, WireError> {
 fn form_names(form: &RoomForm) -> Vec<String> {
     let modes: Vec<String> = form.modes_off.iter().map(u8::to_string).collect();
     let mut names = vec![format!(
-        "{ROOMS_VERSION};F;{};{};{};{};{};{}",
+        "{ROOMS_VERSION};F;{};{};{};{};{};{};{}",
         u8::from(form.saved),
         form.size,
         form.min_side,
         form.max_level,
         form.wait,
-        modes.join(",")
+        modes.join(","),
+        form.pin.map_or(String::new(), |pin| format!("{pin:04}"))
     )];
     let chunk = BITS_PER_CHUNK as usize;
     let chunks = form.tiles_on.len().div_ceil(chunk).max(1);
@@ -1441,20 +1447,22 @@ mod tests {
             wait: 45,
             tiles_on,
             modes_off: vec![3, 4],
+            pin: Some(42),
         };
         assert_eq!(
             form_names(&form),
-            ["S1;F;1;9;2;7;45;3,4", "E;0;5", "E;1;88"]
+            ["S1;F;1;9;2;7;45;3,4;0042", "E;0;5", "E;1;88"]
         );
         assert!(room_form(&form).is_ok());
-        // No pool: one chunk all the same; no mode out: an empty field.
+        // No pool: one chunk all the same; no mode out, no PIN: empty fields.
         let form = RoomForm {
             saved: false,
             tiles_on: Vec::new(),
             modes_off: Vec::new(),
+            pin: None,
             ..form
         };
-        assert_eq!(form_names(&form), ["S1;F;0;9;2;7;45;", "E;0;0"]);
+        assert_eq!(form_names(&form), ["S1;F;0;9;2;7;45;;", "E;0;0"]);
         // A big pool (the free-for-alls' maps too): a row each 16, 256 at most.
         let big = RoomForm {
             tiles_on: (0..POOL_BITS).map(|index| index % 3 != 0).collect(),
