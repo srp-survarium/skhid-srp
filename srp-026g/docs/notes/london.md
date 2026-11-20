@@ -191,3 +191,9 @@ with them. The server (`survarium::v026g::maps::Build::of`) and the Maps tab
 (`scripts/released-game/game_maps.py`) read a config's `srp_build`, else the project's prefix, so the
 room list and the site order London between the 0.21 maps and 0.69. Until a release builds the content
 with it, London sorts with the 0.26 maps.
+
+A London of another build is a map of its own beside this one: 0.69d's, with `v069d_` projects, takes
+its build from that prefix (no `build` cell), a level of its own and its own two name keys
+(`st_level_<level>_name`, and `st_srp_map_london_v069` at its level in the lobby movie's `RoomsText`),
+"London (v0.69)". The lists then show London (v0.31) after the 0.21 maps and London (v0.69) among the
+0.69 maps.

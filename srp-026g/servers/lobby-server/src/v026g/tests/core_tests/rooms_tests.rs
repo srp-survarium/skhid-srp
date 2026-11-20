@@ -3092,6 +3092,7 @@ fn a_create_in_one_request_without_a_pin_or_malformed_is_refused() {
 /// The room list orders maps by build (the owner's of 2026-11-19), London,
 /// 0.31a2's, after the 0.21 maps and before 0.69 (2026-11-20), whatever
 /// order the pool has them in; a map's weathers stay day, evening, rain.
+/// 0.69d's London, a level of its own, is one of the 0.69 maps.
 #[test]
 fn the_room_list_puts_london_between_the_021_and_069_maps() {
     use maps::{Build, weather};
@@ -3104,6 +3105,7 @@ fn the_room_list_puts_london_between_the_021_and_069_maps() {
         bots: false,
     };
     let pool = vec![
+        (Build::V069, entry(290, 32, weather::DAY)),
         (Build::V069, entry(270, 14, weather::DAY)),
         (Build::V031, entry(276, 9, weather::RAIN)),
         (Build::V021, entry(166, 10, weather::DAY)),
@@ -3116,5 +3118,5 @@ fn the_room_list_puts_london_between_the_021_and_069_maps() {
         .iter()
         .map(|entry| entry.map_id.get())
         .collect();
-    assert_eq!(order, [61, 166, 181, 279, 276, 270, 200]);
+    assert_eq!(order, [61, 166, 181, 279, 276, 290, 270, 200]);
 }

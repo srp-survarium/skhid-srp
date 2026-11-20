@@ -1211,7 +1211,8 @@ mod tests {
 
     /// A map's build is its data's: a ported project's prefix, or for London
     /// (`level_09`, 0.31a2's) its configs' `srp_build` (`modes.tsv`); lists
-    /// show 0.21 maps, then London, then 0.69 (the owner, 2026-11-20).
+    /// show 0.21 maps, then London, then 0.69 (the owner, 2026-11-20), where
+    /// 0.69d's London (a `v069d_` project, a level of its own) falls.
     #[test]
     fn a_maps_build_is_its_prefix_or_its_srp_build() {
         let added = |id, level, project: &'static str, srp_build| fixtures::AddedMap {
@@ -1226,14 +1227,14 @@ mod tests {
             let table = fixtures::table_of(&fixtures::with_map(map)).unwrap();
             table.iter().find(|row| row.id == map.id).unwrap().build
         };
-        let v069 = added(200, 14, "v069d_level_01/day_4", None);
+        let v069 = added(200, 32, "v069d_level_09/day_4", None);
         let london = added(201, 9, "level_09/day_4", Some("v031a"));
         let v021 = added(202, 10, "v021d_level_03/day_4", None);
         let mut builds = [&v069, &london, &v021].map(|map| (build_of(map), map.level));
         builds.sort();
         assert_eq!(
             builds,
-            [(Build::V021, 10), (Build::V031, 9), (Build::V069, 14)]
+            [(Build::V021, 10), (Build::V031, 9), (Build::V069, 32)]
         );
         assert_eq!(build_of(&added(203, 9, "level_09/day_4", None)), Build::V026);
         assert!(all().iter().all(|map| map.build == Build::V026));
@@ -1527,6 +1528,22 @@ mod tests {
             .map(|m| (m.id.get(), m.solo_respawn_points))
             .collect();
         assert_eq!(rudnya, [(46, 60), (47, 60), (48, 60)]);
+    }
+
+    /// Built data: `modes.tsv`'s `build` reaches London's configs (day, rain,
+    /// evening) and Blackout's and Free for All's copies of them, and no other map.
+    #[test]
+    #[ignore = "needs SRP_TEST_GAME_DATA from build-content"]
+    fn the_built_data_says_london_is_a_031_map() {
+        let data = GameData::open(&env_path("SRP_TEST_GAME_DATA")).unwrap();
+        let maps = fixtures::table_of(&data).unwrap();
+        let ids = |of: &dyn Fn(&MapMode) -> bool| -> Vec<u16> {
+            maps.iter().filter(|map| of(map)).map(|map| map.id.get()).collect()
+        };
+        let london = ids(&|map| map.level == 9);
+        let v031 = ids(&|map| map.build == Build::V031);
+        assert_eq!(v031, london);
+        assert_eq!(london.len(), 12);
     }
 
     /// The live game data: 0.26g's archive (`SRP_TEST_RESOURCES_DB`) with
