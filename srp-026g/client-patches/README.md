@@ -200,7 +200,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/trap_stock_hit.rs`, `src/trap_stock_hit.toml`, `src/vostok/trap.rs`, `check_trap_stock_hit_026g.py` | Patch 151: a gun-stock hit disarms a trap (`../docs/notes/trap-stock-hit.md`): one lohook at `booby_trap_core::hit`'s entry (`trap.hit`); its check runs the hit in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `rust/patches/src/particle_room.rs`, `src/particle_room.toml`, `src/vostok/effect_presenter.rs`, `check_particle_room_026g.py` | Patch 122: the game world's particle presenters hold 32 effects, not six (README "Room for a presenter's particle effects"): five lohooks, a heap room per presenter, no entry for a play into a full list; its check runs the constructors, push_back, deserialize's local list, the swap and a play in the original and the build (needs Unicorn) |
-| `rust/patches/src/texture_lists.rs`, `src/texture_lists.toml`, `src/vostok/texture_lists.rs`, `check_texture_lists_026g.py` | Patch 163: the render's texture lists (the texture names, a texture pool's slots, a scene's streamable textures with its candidates and requests) move into a heap room twice the size when full (README "The render's texture lists"): four lohooks; its check runs the pushes and the scene destructor's site in the original and the build (needs Unicorn) |
+| `rust/patches/src/texture_lists.rs`, `src/texture_lists.toml`, `src/vostok/texture_lists.rs`, `check_texture_lists_026g.py` | Patch 163: the render's texture lists (the texture names, a texture pool's slots, a scene's streamable textures with its candidates and requests) move into a heap room twice the size when full, a streaming batch asks at most the requests' room (README "The render's texture lists"): five lohooks; its check runs the pushes, the scene destructor's site and the batch in the original and the build (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `rust/patches/src/weapon_camo.rs`, `weapon_camo.toml` | Patch 44's part in the baker (Rust, one lohook at `bake.own_camouflage`, 0x12E124): a weapon's bake takes only the camouflage textures its patch names (the colours and the `_smap`, not the `_nmap`, a cloth's weave), never the surface's own `<diffuse>_camo...`; `check_weapon_camo_026g.py` runs the site |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -6262,10 +6262,10 @@ and of this patch's first builds:
   request is out) erases the loaded ones nothing draws any more. Beside it, one entry each: the
   async worker's candidates (+98054Ch, 2048 of 64h; `update_wanted_mips` 0x1C2120 pushes one for
   every streamable texture, int3 0x1C2642) and the requests (+1CA164h, 1024 of 118h: one for every
-  candidate whose mips change, asked only while none is out). With 185 distinct items main's exe
-  asserted there 4 minutes into the match in one run of two.
+  candidate whose mips change, all asked in one batch, and only while none is out). With 185
+  distinct items main's exe asserted there 4 minutes into the match in one run of two.
 
-The patch (`texture_lists`, four lohooks): when a push finds its list full in its owner's room, the
+The patch (`texture_lists`, five lohooks): when a push finds its list full in its owner's room, the
 list's entries move to a room of ours twice the size, from the process heap, and the push goes on.
 Each entry is copied whole; one that begins with a `fixed_string` (a name, a streamable texture, a
 request) has that string's three pointers, which point into the entry itself, moved with it. The
@@ -6277,25 +6277,35 @@ candidates' first word), never an entry's address.
   lives as long as its storage, the game's: the storage's destructor at the game's end does not give
   it back.
 - `texture_lists.streaming_push` (0x155205, EBX the scene; gather has waited for the async worker at
-  0x1551E4): the streamable textures to 4096, the candidates to 4096 and the requests to 2048, the
-  three or none.
-- `texture_lists.scene_lists_destroyed` (0x14FDE6 in `scene::~scene`, once it has emptied the three
+  0x1551E4): the streamable textures and the candidates to 4096, both or neither.
+- `texture_lists.scene_lists_destroyed` (0x14FDE6 in `scene::~scene`, once it has emptied the
   lists; EBP the scene): a scene's rooms go back to the heap.
+- `texture_lists.request_batch` (0x15440A in `process_streaming`, ESI the candidates whose mips
+  change, EDI the scene): the requests keep their room of 1024 and a batch asks at most that many,
+  the first ones; the rest are asked in the next batch (the async worker makes the candidates again
+  for each). Before it asks, process_streaming makes room on the stack for every candidate of the
+  batch at once (0x154441..0x15445D and 0x1547C5, 14Ch each), and it runs on the main thread, whose
+  stack is the exe's 1 MiB (the game renders on it): 2048 candidates take 664 KiB, 4096 would
+  overflow it. Past 1024 the game asserted in the requests' push_back (0x1560A0) anyway, so a batch
+  the stock game asks is asked the same way.
 
 Past our room, or when the heap gives none, the game's assert stays (one line in the log). A move
 says itself in a line (`texture_lists: the texture pool 64x64 dxt1, full at 1024, moved to a room of
-2048`), and so does each new high of the names or the streamable textures by 256 in our room.
+2048`), and so do the names' and the streamable textures' highs from 1024 on, every 256 more (how
+full they get in a match, in either room), and a batch cut to the requests' room (at most a line a
+second).
 
 **What it costs.** Only the rooms, and only once a list is full: the names 1.06 MiB, a pool 56 KiB,
-a scene 2.22 MiB (1.28 + 0.39 + 0.55, back with the scene); a match that fills no list takes
-nothing. The game's own rooms stay in their owners, unused once a list has moved. The textures the
-lists index are loaded whatever the lists hold; what the room changes is that the match goes on
-with them instead of stopping. Every list is the render thread's (the crashes' thread: the names'
-push and erase, the pools' add and release, gather and process_streaming).
+a scene 1.67 MiB (1.28 + 0.39, back with the scene); a match that fills no list takes nothing. The
+game's own rooms stay in their owners, unused once a list has moved. The textures the lists index
+are loaded whatever the lists hold; what the room changes is that the match goes on with them
+instead of stopping. Every list is the main thread's, which renders (the crashes' thread: the
+names' push and erase, the pools' add and release, gather and process_streaming).
 
 `fields_026g.tsv` takes offsets to 16 MiB (`engine_026g.py`): a scene is 9B76A8h bytes.
 `check_texture_lists_026g.py` (`tools/check texture-lists`) runs the predicate, add_texture's push,
-gather's push and the destructor's site in both exes. Nothing a match computes.
+gather's push, the destructor's site and process_streaming's batch in both exes. Nothing a match
+computes.
 
 ## The ported 0.21 maps render the 0.21 way (patch 130, unreleased)
 
