@@ -364,9 +364,10 @@ pub enum RoomRequest {
 }
 
 /// The code of a create: `((((size − least size) × 16 + max level) × 10 + wait index)
-/// × 2 + PIN) × 3 + (min side − 1)`, PIN 1 when joining asks for one (the lobby movie sends one
-/// code, RoomsWire.CREATE_PIN: a private room has no size, level, wait or minimum of its own). A
-/// room has no level of its own to make: the server works it out from its players.
+/// × 2 + PIN) × 3 + (min side − 1)`, PIN 1 when joining asks for one (the lobby movies before
+/// the create in one request, [`RoomCreate`], sent one code, RoomsWire.CREATE_PIN: a private room
+/// has no size, level, wait or minimum of its own). A room has no level of its own to make: the
+/// server works it out from its players.
 pub fn create_start(spec: RoomSpec) -> u32 {
     let rules = rules();
     let wait = rules
@@ -512,6 +513,124 @@ pub fn room_request(start: u32, count: u8) -> Option<RoomRequest> {
         _ => return None,
     };
     Some(request)
+}
+
+/// The start of a create's text ([`RoomCreate`]): no player's name.
+pub const CREATE_TEXT: &str = "S1C;";
+
+/// A private room made in one request (since 2026-11-20; the owner's: "this is still awful
+/// experience for something which should be a single very fast request"): the game's player
+/// search, `4E 06` (Flash `find_players`, which sends the movie's text as it is, 3 bytes or
+/// more, `lobby.md` §2.16.3), whose text is `S1C;<door>;<pool>`. `door` is `P` (players) or `B`
+/// (with bots) and the 4-digit PIN; `pool` the entries chosen, in hex: character `k` the
+/// entries `4k` to `4k + 3`, entry `4k + b` in by bit `b`, [`POOL_BITS`] / 4 characters at most.
+/// Before it the movie sent the PIN, the pool in bits requests and the create one after
+/// another, each on the game's 500 ms lobby tick (4 to 8 s for 219 entries).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RoomCreate {
+    pub pin: u16,
+    pub kind: PrivateKind,
+    pub pool: PoolPick,
+}
+
+/// Who plays a private room's matches.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrivateKind {
+    /// Its members alone.
+    Players,
+    /// Its members, and bots to 8 a team ([`ROOM_CREATE_BOTS`]).
+    WithBots,
+}
+
+/// Pool entries chosen by their place in the pool offered (the index of [`room_pool`]'s rows),
+/// below [`POOL_BITS`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PoolPick([u64; POOL_BITS / 64]);
+
+impl PoolPick {
+    /// Entry `index` in; one past [`POOL_BITS`] is no entry.
+    pub fn with(mut self, index: usize) -> Self {
+        if let Some(word) = self.0.get_mut(index / 64) {
+            *word |= 1 << (index % 64);
+        }
+        self
+    }
+
+    pub fn has(self, index: usize) -> bool {
+        self.0
+            .get(index / 64)
+            .is_some_and(|word| word >> (index % 64) & 1 == 1)
+    }
+
+    /// The entries of `entries` (the pool offered, in its order) chosen.
+    pub fn of<T: Copy>(self, entries: &[T]) -> Vec<T> {
+        entries
+            .iter()
+            .enumerate()
+            .filter(|&(index, _)| self.has(index))
+            .map(|(_, &entry)| entry)
+            .collect()
+    }
+}
+
+/// A create's text that is not one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BadCreate;
+
+impl RoomCreate {
+    /// A player search's text: `None` when it is one (no [`CREATE_TEXT`] at its start).
+    pub fn parse(text: &str) -> Option<Result<Self, BadCreate>> {
+        let rest = text.strip_prefix(CREATE_TEXT)?;
+        Some(Self::parse_fields(rest).ok_or(BadCreate))
+    }
+
+    fn parse_fields(rest: &str) -> Option<Self> {
+        let (door, pool) = rest.split_once(';')?;
+        let kind = match door.get(..1)? {
+            "P" => PrivateKind::Players,
+            "B" => PrivateKind::WithBots,
+            _ => return None,
+        };
+        let pin = door.get(1..)?;
+        if pin.len() != 4 || !pin.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        if pool.is_empty() || pool.len() > POOL_BITS / 4 {
+            return None;
+        }
+        let mut pick = PoolPick::default();
+        for (k, digit) in pool.chars().enumerate() {
+            let nibble = digit.to_digit(16)?;
+            for b in 0..4 {
+                if nibble >> b & 1 == 1 {
+                    pick = pick.with(4 * k + b);
+                }
+            }
+        }
+        Some(Self {
+            pin: pin.parse().ok()?,
+            kind,
+            pool: pick,
+        })
+    }
+
+    /// Its text, as the movie writes it (`RoomsWire.createText`).
+    pub fn text(&self) -> String {
+        let door = match self.kind {
+            PrivateKind::Players => 'P',
+            PrivateKind::WithBots => 'B',
+        };
+        let last = (0..POOL_BITS).rev().find(|&index| self.pool.has(index));
+        let pool: String = (0..=last.map_or(0, |last| last / 4))
+            .map(|k| {
+                let nibble = (0..4).fold(0, |nibble, b| {
+                    nibble | u32::from(self.pool.has(4 * k + b)) << b
+                });
+                char::from_digit(nibble, 16).unwrap_or('0')
+            })
+            .collect();
+        format!("{CREATE_TEXT}{door}{:04};{pool}", self.pin)
+    }
 }
 
 /// Where a room is.
@@ -1260,6 +1379,60 @@ fn offer_name(offer: &RoomOffer) -> String {
 mod tests {
     use super::*;
 
+    /// A create in one text: its PIN, its kind and exactly the entries chosen, read back as
+    /// written; a player's search is none; anything else after its start is refused.
+    #[test]
+    fn a_create_text_is_read_back_and_a_search_is_none() {
+        let pool = (0..219)
+            .filter(|index| index % 3 != 0)
+            .fold(PoolPick::default(), PoolPick::with);
+        let create = RoomCreate {
+            pin: 42,
+            kind: PrivateKind::WithBots,
+            pool,
+        };
+        let text = create.text();
+        assert!(text.starts_with("S1C;B0042;6b"), "{text}");
+        assert_eq!(text.len(), CREATE_TEXT.len() + 6 + 55);
+        assert_eq!(RoomCreate::parse(&text), Some(Ok(create)));
+        let read = RoomCreate::parse(&text).unwrap().unwrap().pool;
+        assert!((0..POOL_BITS).all(|index| read.has(index) == (index < 219 && index % 3 != 0)));
+        assert_eq!(
+            RoomCreate::parse("S1C;P9999;1"),
+            Some(Ok(RoomCreate {
+                pin: 9999,
+                kind: PrivateKind::Players,
+                pool: PoolPick::default().with(0),
+            }))
+        );
+        assert_eq!(
+            RoomCreate::parse("S1C;P0000;8F")
+                .unwrap()
+                .unwrap()
+                .pool
+                .of(&[0, 1, 2, 3, 4, 5, 6, 7]),
+            [3, 4, 5, 6, 7]
+        );
+        assert_eq!(RoomCreate::parse("Bob"), None);
+        assert_eq!(RoomCreate::parse("S1;R"), None);
+        let too_long = format!("S1C;P1234;{}", "f".repeat(POOL_BITS / 4 + 1));
+        for bad in [
+            "S1C;",
+            "S1C;P1234",
+            "S1C;P1234;",
+            "S1C;X1234;1",
+            "S1C;P123;1",
+            "S1C;P12345;1",
+            "S1C;P12a4;1",
+            "S1C;-;1",
+            "S1C;P1234;1g",
+            "S1C;P1234;1;2",
+            &too_long,
+        ] {
+            assert_eq!(RoomCreate::parse(bad), Some(Err(BadCreate)), "{bad}");
+        }
+    }
+
     #[test]
     fn every_start_is_one_request_and_inside_an_int() {
         const {
@@ -1405,7 +1578,8 @@ mod tests {
                 }
             }
         }
-        // The movie's one code (RoomsWire.CREATE_PIN): the defaults and a PIN.
+        // The one code of the movies before the create in one request (their RoomsWire.CREATE_PIN):
+        // the defaults and a PIN.
         let spec = RoomSpec {
             size: 8,
             max_level: 0,

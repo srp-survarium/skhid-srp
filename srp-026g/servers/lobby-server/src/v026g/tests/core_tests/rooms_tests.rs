@@ -2951,3 +2951,116 @@ fn a_strong_late_joiner_goes_to_the_side_with_fewer_strong_players() {
     world.take(frank);
     assert_eq!(late_teams(&mut world, ticket, id, &[frank]), [0]);
 }
+
+/// The answers to a create in one request (`4E 06`, the movie's `find_players`, its text a
+/// `RoomCreate`): the rows of each `91`; anything else the game took fails.
+fn create_in_one(world: &mut World, index: usize, text: &str) -> Vec<Vec<String>> {
+    world.settle();
+    world.take(index);
+    world.ask(index, request::find_players(text));
+    world
+        .take(index)
+        .into_iter()
+        .map(|decoded| match decoded {
+            Decoded::EloList(rows) => rows.into_iter().map(|row| row.0).collect(),
+            other => panic!("not a room's answer: {other:?}"),
+        })
+        .collect()
+}
+
+/// The owner's of 2026-11-20 ("something which should be a single very fast request"): a
+/// private room made by one request carrying its PIN and pool, answered at once with the room;
+/// exactly the entries chosen are its pool, whatever was sent before; its PIN keeps the door and
+/// is its maker's next window's. No search list goes back, and no PIN or bits request is needed.
+#[test]
+fn a_private_room_is_made_by_one_request_with_its_pin_and_pool() {
+    use survarium::v026g::lobby::rooms::{PoolPick, PrivateKind, RoomCreate};
+
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let entries = world.core.room_entries();
+    assert!(entries.len() > 20, "{}", entries.len());
+    // A chain's bits sent before (an older movie's) are not this create's pool.
+    rows(&mut world, alice, bits_start(0, 0b1), 1);
+    let picked = [1, 2, entries.len() - 1];
+    let create = RoomCreate {
+        pin: 42,
+        kind: PrivateKind::Players,
+        pool: picked.iter().fold(PoolPick::default(), |pool, &index| pool.with(index)),
+    };
+    let answers = create_in_one(&mut world, alice, &create.text());
+    let [state] = &answers[..] else {
+        panic!("not one answer: {answers:?}");
+    };
+    assert_eq!(header(state)[1], "R", "{state:?}");
+    let key: u32 = header(state)[KEY].parse().unwrap();
+    let room = world.core.rooms.get(key).unwrap();
+    assert_eq!(room.pool, picked.map(|index| entries[index].map_id));
+    assert_eq!(
+        room.spec.door,
+        session::v026g::rooms::Door::Pin {
+            pin: 42,
+            bots: false
+        }
+    );
+    assert_eq!(form(&mut world, alice).0[5], "0042");
+    // Its PIN opens it, another does not.
+    let bob = world.connect("Bob");
+    rows(&mut world, bob, ROOM_PIN_BASE + 43, 1);
+    assert_eq!(
+        rows(&mut world, bob, ROOM_JOIN_BASE + key, 1),
+        ["S1;N;3;0;0"]
+    );
+    rows(&mut world, bob, ROOM_PIN_BASE + 42, 1);
+    assert_eq!(header(&rows(&mut world, bob, ROOM_JOIN_BASE + key, 1))[1], "R");
+
+    // With bots: only the maps its bots play of those chosen.
+    let bot_maps: Vec<MapId> = entries
+        .iter()
+        .filter(|entry| entry.mode == 2 && !entry.extra)
+        .map(|entry| entry.map_id)
+        .collect();
+    world.core.settings.pvb.enabled = true;
+    world.core.settings.pvb.bot_maps = bot_maps.clone();
+    let carol = world.connect("Carol");
+    let pool = (0..entries.len()).fold(PoolPick::default(), PoolPick::with);
+    let with_bots = RoomCreate {
+        pin: 7,
+        kind: PrivateKind::WithBots,
+        pool,
+    };
+    let answers = create_in_one(&mut world, carol, &with_bots.text());
+    let key: u32 = header(&answers[0])[KEY].parse().unwrap();
+    let room = world.core.rooms.get(key).unwrap();
+    assert!(room.with_bots());
+    assert_eq!(room.pool, bot_maps);
+}
+
+/// A create in one request without a PIN, or not well formed, is refused with the state (code 8)
+/// and changes nothing: no room made, the asker's room kept; it is never a search.
+#[test]
+fn a_create_in_one_request_without_a_pin_or_malformed_is_refused() {
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    for text in ["S1C;P;6", "S1C;-;6", "S1C;P1234;", "S1C;P1234;xyz", "S1C;Q1234;6"] {
+        assert_eq!(create_in_one(&mut world, alice, text), [["S1;N;8;0;0"]], "{text}");
+    }
+    assert_eq!(world.core.rooms.len(), 0);
+    // In a room, a bad one leaves it there.
+    let key = create(&mut world, alice, spec(8), Some(1));
+    let answers = create_in_one(&mut world, alice, "S1C;P0001;");
+    assert_eq!(header(&answers[0])[1], "R", "{answers:?}");
+    assert_eq!(header(&answers[0])[KEY], key.to_string());
+    assert_eq!(header(&answers[0])[CODE], "8");
+    assert_eq!(world.core.rooms.len(), 1);
+    // A search is still a search.
+    world.settle();
+    world.take(alice);
+    world.ask(alice, request::find_players("Ali"));
+    assert!(
+        world
+            .take(alice)
+            .iter()
+            .any(|decoded| matches!(decoded, Decoded::Friendship(FriendshipPush::Found { .. }))),
+    );
+}

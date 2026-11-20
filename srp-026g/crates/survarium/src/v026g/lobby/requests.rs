@@ -348,6 +348,9 @@ pub enum ClientMessage {
     },
     /// `4E`.
     Friendship(FriendshipAction),
+    /// `4E 06` whose text is a room create (`rooms::RoomCreate`), not a search: srp's lobby
+    /// movie's create in one request.
+    RoomCreate(Result<super::rooms::RoomCreate, super::rooms::BadCreate>),
     /// `4F`: the chat channels' ids by channel number, and the language
     /// (0 english, 1 russian, 2 ukrainian, 3 german, 4 polish).
     Subscribe {
@@ -635,20 +638,26 @@ fn parse_body(r: &mut Reader<'_>) -> Result<ClientMessage, ParseError> {
                 extra,
             }
         }
-        id::FRIENDSHIP => M::Friendship(match r.u8()? {
-            2 => FriendshipAction::RemoveFriend {
+        id::FRIENDSHIP => match r.u8()? {
+            2 => M::Friendship(FriendshipAction::RemoveFriend {
                 account_id: r.u32()?,
-            },
-            3 => FriendshipAction::Ignore {
+            }),
+            3 => M::Friendship(FriendshipAction::Ignore {
                 account_id: super::listed_account(r.u32()?),
-            },
-            4 => FriendshipAction::IgnoreByName { name: r.player_name()? },
-            5 => FriendshipAction::StopIgnoring {
+            }),
+            4 => M::Friendship(FriendshipAction::IgnoreByName { name: r.player_name()? }),
+            5 => M::Friendship(FriendshipAction::StopIgnoring {
                 account_id: super::listed_account(r.u32()?),
-            },
-            6 => FriendshipAction::FindPlayers { name: r.str()? },
+            }),
+            6 => {
+                let name = r.str()?;
+                match super::rooms::RoomCreate::parse(&name) {
+                    Some(create) => M::RoomCreate(create),
+                    None => M::Friendship(FriendshipAction::FindPlayers { name }),
+                }
+            }
             sub => return Err(r.unknown_sub(sub)),
-        }),
+        },
         id::SUBSCRIPTION => {
             let mut channel_ids = [0; 10];
             for channel_id in &mut channel_ids {

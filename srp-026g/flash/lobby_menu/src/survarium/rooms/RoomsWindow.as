@@ -134,8 +134,8 @@ package survarium.rooms
         // The list as last drawn, but its times: a change redraws it.
         private var _listSig:String = "";
         private var _windowsSeen:Object = {};
-        // A state answered while a chain (PIN, pool bits, then its create or
-        // join) is on its way: the chain goes on (a poll asked before it may
+        // A state answered while a join's chain (its PIN, then the join) is on
+        // its way: the chain goes on (a poll asked before it may
         // answer meanwhile). One with nothing left is done; the button
         // pressed is given back by the redraw.
         internal var _stepsAt:int = 0;
