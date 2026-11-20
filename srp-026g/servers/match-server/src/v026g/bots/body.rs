@@ -3618,7 +3618,7 @@ pub(super) mod tests {
     }
 
     /// [press forecast] A wall across x (a vertical quad from z0 to z1, y0 up to y1): the pit's sides the capsule meets.
-    fn wall_x(x: f32, z0: f32, z1: f32, y0: f32, y1: f32) -> [Triangle; 2] {
+    fn pit_wall(x: f32, z0: f32, z1: f32, y0: f32, y1: f32) -> [Triangle; 2] {
         let walker = WalkerBehaviour::BySlope;
         let (a, b, c, d) = (Vec3::new(x, y0, z0), Vec3::new(x, y0, z1), Vec3::new(x, y1, z1), Vec3::new(x, y1, z0));
         [Triangle { v: [a, b, c], walker }, Triangle { v: [a, c, d], walker }]
@@ -3631,8 +3631,8 @@ pub(super) mod tests {
         let mut triangles: Vec<Triangle> = floor(0.0, 0.0, 10.0, 10.0, 0.0).to_vec();
         triangles.extend(floor(10.0, 0.0, 11.2, 10.0, -1.0));
         triangles.extend(floor(11.2, 0.0, 20.0, 10.0, 0.0));
-        triangles.extend(wall_x(10.0, 0.0, 10.0, -1.0, 0.0));
-        triangles.extend(wall_x(11.2, 0.0, 10.0, -1.0, 0.0));
+        triangles.extend(pit_wall(10.0, 0.0, 10.0, -1.0, 0.0));
+        triangles.extend(pit_wall(11.2, 0.0, 10.0, -1.0, 0.0));
         let grid = WalkGrid::build(&triangles, [0.0, 0.0, 20.0, 10.0], 0.25, Body::default()).with_client_walker(&triangles);
         let kin = Kinematics { jump_arc: true, ..Kinematics::default() };
         assert_eq!((kin.jump_flight, kin.client_step), (JumpFlight::Controller, ClientStep::Kept), "the defaults");
