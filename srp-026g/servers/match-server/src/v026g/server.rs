@@ -558,6 +558,7 @@ impl Server {
                 log::info!("Match {match_id:#x}: no client came; given up");
                 self.results.match_ended(MatchResult {
                     match_id,
+                    replay_id: formed.replay_id.clone(),
                     map_id: formed.played.map().id,
                     mode: formed.played.mode(),
                     twist: formed.played.armed(),
