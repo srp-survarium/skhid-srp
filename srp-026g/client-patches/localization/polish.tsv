@@ -1441,7 +1441,7 @@ st_login_menu_accept	Akceptuj
 st_login_menu_cancel	Anuluj
 st_login_menu_status_access_level_restriction	Niewystarczający poziom dostępu, aby wejść.
 st_login_menu_status_connecting	Autoryzacja…
-st_login_menu_status_error_connection	Brak połączenia z serwerem Skhid. Uruchom grę z launchera: pokaże przyczynę. Zezwól na grę w zaporze (Skhid-network-setup.cmd).
+st_login_menu_status_error_connection	Brak połączenia z serwerem Skhid. Uruchom grę z launchera: pokaże przyczynę.
 st_login_menu_status_invalid_user_or_password	Nieprawidłowy nick lub hasło
 st_login_menu_status_invalid_version	Korzystasz z nieaktualnej wersji gry.
 st_login_menu_status_sign_in_already_online	Użytkownik jest już w grze

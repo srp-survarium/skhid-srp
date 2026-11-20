@@ -1441,7 +1441,7 @@ st_login_menu_accept	Prihvati
 st_login_menu_cancel	Odustani
 st_login_menu_status_access_level_restriction	Razina pristupa nije dovoljna za ulazak.
 st_login_menu_status_connecting	Autorizacija…
-st_login_menu_status_error_connection	Nije moguće pristupiti poslužitelju Skhid. Pokrenite igru iz launchera: pokazat će razlog. Dopustite igru u vatrozidu (Skhid-network-setup.cmd).
+st_login_menu_status_error_connection	Nije moguće pristupiti poslužitelju Skhid. Pokrenite igru iz launchera: pokazat će razlog.
 st_login_menu_status_invalid_user_or_password	Neispravan nadimak ili lozinka
 st_login_menu_status_invalid_version	Koristite zastarjelu inačicu igre.
 st_login_menu_status_sign_in_already_online	 Korisnik je već u igri

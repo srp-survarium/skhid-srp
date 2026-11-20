@@ -1441,7 +1441,7 @@ st_login_menu_accept	Accept
 st_login_menu_cancel	Cancel
 st_login_menu_status_access_level_restriction	The access level is insufficient to enter.
 st_login_menu_status_connecting	Authorizing…
-st_login_menu_status_error_connection	Can't reach the Skhid server. Start the game from the launcher: it tells you why. Allow the game in your firewall (Skhid-network-setup.cmd).
+st_login_menu_status_error_connection	Can't reach the Skhid server. Start the game from the launcher: it tells you why.
 st_login_menu_status_invalid_user_or_password	Invalid nickname or password
 st_login_menu_status_invalid_version	You're using an outdated version of the game.
 st_login_menu_status_sign_in_already_online	 The user is already in the game

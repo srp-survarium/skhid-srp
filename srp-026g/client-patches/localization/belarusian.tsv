@@ -1441,7 +1441,7 @@ st_login_menu_accept	Прыняць
 st_login_menu_cancel	Скасаваць
 st_login_menu_status_access_level_restriction	Недастатковы ўзровень доступу для ўваходу.
 st_login_menu_status_connecting	Аўтарызацыя...
-st_login_menu_status_error_connection	Няма сувязі з серверам Skhid. Запусціце гульню праз лаўнчар: ён пакажа прычыну. Дазвольце гульню ў брандмаўэры (Skhid-network-setup.cmd).
+st_login_menu_status_error_connection	Няма сувязі з серверам Skhid. Запусціце гульню праз лаўнчар: ён пакажа прычыну.
 st_login_menu_status_invalid_user_or_password	Няправільны нікнэйм або пароль
 st_login_menu_status_invalid_version	Вы карыстаецеся састарэлай версіяй гульні.
 st_login_menu_status_sign_in_already_online	Карыстальнік ужо ў гульні

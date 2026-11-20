@@ -1441,7 +1441,7 @@ st_login_menu_accept	Přijmout
 st_login_menu_cancel	Zrušit
 st_login_menu_status_access_level_restriction	Nemáš dostatečné oprávnění ke vstupu.
 st_login_menu_status_connecting	Přihlašování…
-st_login_menu_status_error_connection	Server Skhid není dostupný. Spusť hru z launcheru: ukáže důvod. Povol hru ve firewallu (Skhid-network-setup.cmd).
+st_login_menu_status_error_connection	Server Skhid není dostupný. Spusť hru z launcheru: ukáže důvod.
 st_login_menu_status_invalid_user_or_password	Nesprávná přezdívka nebo heslo
 st_login_menu_status_invalid_version	Používáš zastaralou verzi hry.
 st_login_menu_status_sign_in_already_online	 Uživatel už je ve hře
