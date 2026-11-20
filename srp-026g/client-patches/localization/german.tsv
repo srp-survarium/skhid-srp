@@ -1441,7 +1441,7 @@ st_login_menu_accept	Akzeptieren
 st_login_menu_cancel	Abrechnen
 st_login_menu_status_access_level_restriction	Niveau des Zuganges ist dem Eingang ungenügend.
 st_login_menu_status_connecting	Autorisierung
-st_login_menu_status_error_connection	Der Skhid-Server ist nicht erreichbar. Erlaube das Spiel in deiner Firewall (Skhid-network-setup.cmd). In Russland nutze ein VPN und füge die .exe-Dateien des Spiels hinzu (VPN.txt).
+st_login_menu_status_error_connection	Der Skhid-Server ist nicht erreichbar. Starte das Spiel über den Launcher: Er zeigt den Grund.
 st_login_menu_status_invalid_user_or_password	Ungültiger Spitzname oder Passwort
 st_login_menu_status_invalid_version	Sie verwenden eine veraltete Version des Spiels.
 st_login_menu_status_sign_in_already_online	Der Benutzer ist schon im Spiel

@@ -1441,7 +1441,7 @@ st_login_menu_accept	Prihvati
 st_login_menu_cancel	Otkaži
 st_login_menu_status_access_level_restriction	Nemate dovoljan nivo pristupa za prijavu.
 st_login_menu_status_connecting	Prijavljivanje…
-st_login_menu_status_error_connection	Nije moguće povezivanje sa Skhid serverom. Dozvolite igru u zaštitnom zidu (Skhid-network-setup.cmd). U Rusiji koristite VPN i dodajte .exe datoteke igre u njega (VPN.txt).
+st_login_menu_status_error_connection	Nije moguće povezivanje sa Skhid serverom. Pokrenite igru iz launchera: pokazaće razlog.
 st_login_menu_status_invalid_user_or_password	Pogrešan nadimak ili lozinka.
 st_login_menu_status_invalid_version	Koristite zastarelu verziju igre.
 st_login_menu_status_sign_in_already_online	Korisnik je već u igri.
