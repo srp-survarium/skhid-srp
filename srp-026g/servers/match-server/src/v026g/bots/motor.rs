@@ -9376,7 +9376,7 @@ mod tests {
             assert!(motor.press_flight() && !motor.press_hold(), "in the air, tick {k}");
         }
         for k in 0..30 {
-            let keys = after_press(&mut motor, &mut route, &mut stub, (1.0, -3.0, Footing::Ground), 5_150 + k * 50, 4_000 + k * 50);
+            let keys = after_press(&mut motor, &mut route, &mut stub, (1.0, -3.0, Footing::Ground), 5_150 + k * 50, 4_000 + k * 30);
             assert!(motor.press_hold() && motor.letting_go(), "down, no world since, tick {k}");
             assert_eq!(keys & MOVE_OR_JUMP, 0, "held, tick {k}");
         }
