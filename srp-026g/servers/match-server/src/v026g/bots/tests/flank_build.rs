@@ -457,12 +457,11 @@ fn camper_side(world: &World, centroid: [f32; 2]) -> Option<i32> {
 fn write_flank_routes() {
     let s = bench_settings();
     let (Some(dir), Some(input), Some(out)) =
-        (s.var_os("SRP_MAPDATA_DIR"), s.var_os("SRP_FLANK_INPUT"), s.var_os("SRP_WRITE_FLANK_ROUTES"))
+        (super::real_maps::dir(), s.var_os("SRP_FLANK_INPUT"), s.var_os("SRP_WRITE_FLANK_ROUTES"))
     else {
         eprintln!("skipping: SRP_MAPDATA_DIR, SRP_FLANK_INPUT and SRP_WRITE_FLANK_ROUTES are needed");
         return;
     };
-    let dir = std::path::PathBuf::from(dir);
     let input: Input = serde_json::from_str(&std::fs::read_to_string(&input).unwrap()).unwrap();
     let only: Option<Vec<String>> = s.var("SRP_FLANK_LEVELS").ok().map(|v| v.split(',').map(str::to_owned).collect());
     let mut groups: Vec<(String, u8)> = input.spots.iter().map(|p| (p.level.clone(), p.mode)).collect();
@@ -533,11 +532,10 @@ fn write_flank_routes() {
 #[ignore = "a probe; needs SRP_MAPDATA_DIR, SRP_BOT_FLANK_ROUTES"]
 fn probe_flank_route_floors() {
     let s = bench_settings();
-    let (Some(dir), Some(table)) = (s.var_os("SRP_MAPDATA_DIR"), s.var_os("SRP_BOT_FLANK_ROUTES")) else {
+    let (Some(dir), Some(table)) = (super::real_maps::dir(), s.var_os("SRP_BOT_FLANK_ROUTES")) else {
         eprintln!("skipping: SRP_MAPDATA_DIR and SRP_BOT_FLANK_ROUTES are needed");
         return;
     };
-    let dir = std::path::PathBuf::from(dir);
     let table = FlankTable::parse(&std::fs::read_to_string(&table).unwrap()).unwrap();
     let tuning = bench_tuning();
     // The goals the B3f/B3g logs named (level_05 mode 2).

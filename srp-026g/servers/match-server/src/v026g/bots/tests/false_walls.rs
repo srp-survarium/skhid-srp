@@ -48,7 +48,7 @@ fn tagged_faces(map: &mapdata::MapData) -> Vec<(mapdata::Triangle, u32)> {
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR, SRP_HUMAN_DIR and SRP_PROJECTS"]
 fn false_walls() {
     let (Some(maps), Ok(humans), Ok(projects)) =
-        (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var("SRP_HUMAN_DIR"), std::env::var("SRP_PROJECTS"))
+        (super::real_maps::dir(), std::env::var("SRP_HUMAN_DIR"), std::env::var("SRP_PROJECTS"))
     else {
         eprintln!("skipping: SRP_MAPDATA_DIR, SRP_HUMAN_DIR or SRP_PROJECTS is not set");
         return;

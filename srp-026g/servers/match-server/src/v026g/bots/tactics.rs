@@ -3335,7 +3335,7 @@ pub(super) mod tests {
     #[test]
     #[ignore = "needs the private map files"]
     fn the_walk_up_set_is_the_reference_set_on_the_real_maps() {
-        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+        let Some(dir) = crate::v026g::bots::tests::real_maps::dir() else {
             panic!("set SRP_MAPDATA_DIR");
         };
         let (mut cut, mut checked) = (0, 0);
@@ -3399,7 +3399,7 @@ pub(super) mod tests {
     #[test]
     #[ignore = "a measurement; needs the private map files"]
     fn progress_cost_on_the_real_maps() {
-        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR") else {
+        let Some(dir) = crate::v026g::bots::tests::real_maps::dir() else {
             panic!("set SRP_MAPDATA_DIR");
         };
         for level in 1..=8u8 {

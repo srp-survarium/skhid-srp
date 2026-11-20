@@ -93,7 +93,7 @@ fn floor_under(g: &WalkGrid, feet: Vec3) -> Result<NodeId, &'static str> {
 #[ignore = "NAV-FIRST: needs body positions and the map data (SRP_SCORE_POINTS, SRP_SCORE_MAP, SRP_MAPDATA_DIR)"]
 fn map_score_on_bodies() {
     let var = |name: &str| std::env::var(name).ok().filter(|v| !v.is_empty());
-    let (Some(points), Some(project), Some(dir)) = (var("SRP_SCORE_POINTS"), var("SRP_SCORE_MAP"), var("SRP_MAPDATA_DIR")) else {
+    let (Some(points), Some(project), Some(dir)) = (var("SRP_SCORE_POINTS"), var("SRP_SCORE_MAP"), super::real_maps::dir()) else {
         eprintln!("skipping: SRP_SCORE_POINTS, SRP_SCORE_MAP and SRP_MAPDATA_DIR are needed");
         return;
     };

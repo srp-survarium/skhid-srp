@@ -234,7 +234,7 @@ fn ramp_turn_starts(grid: &mapdata::grid::WalkGrid, door: Vec3, goal_node: u32) 
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
 fn door_717_walk() {
-    let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };

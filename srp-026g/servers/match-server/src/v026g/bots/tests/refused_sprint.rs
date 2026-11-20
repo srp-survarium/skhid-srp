@@ -120,7 +120,7 @@ fn run(world: &Arc<World>, start: Vec3, goal: Vec3, until: u32) -> Run {
 #[test]
 #[ignore = "a per-spot test on the real mapdata; needs SRP_MAPDATA_DIR"]
 fn a_bot_refused_the_sprint_at_schools_gap_walks_round_with_no_sprint_jump() {
-    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
