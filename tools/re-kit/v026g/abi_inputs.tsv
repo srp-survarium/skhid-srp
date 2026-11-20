@@ -6410,3 +6410,17 @@ va	name	location	role	basis
 0x001fb6c0	survarium::game_world::process_kill_cross_events	entry ESP+4	the last shown time (value of game_world+564h); events after it are walked	observed
 0x001fb6c0	survarium::game_world::process_kill_cross_events	entry ESP+8	&game_world+564h, passed on to the handler	observed
 0x00233770	survarium::game_world_ui::on_kill_cross_event	EDI	the world event (+18h type: 0 a kill)	observed
+0x001fdcc0	survarium::game_world_core::fixed_time_before	EAX	time in ms	observed
+0x001fdcc0	survarium::game_world_core::fixed_time_before	ECX	grid origin (core +18FBCh)	observed
+0x001fdcf0	survarium::game_world_core::fixed_time_at_or_after	EAX	time in ms	observed
+0x001fdcf0	survarium::game_world_core::fixed_time_at_or_after	ECX	grid origin (core +18FBCh)	observed
+0x002d1d00	survarium::game_world_core::tick_physics_world	ECX	game_world_core	observed
+0x002d1d00	survarium::game_world_core::tick_physics_world	entry ESP+4	step dt in ms	observed
+0x002d1d00	survarium::game_world_core::tick_physics_world	entry ESP+8	time in ms	observed
+0x002d1d00	survarium::game_world_core::tick_physics_world	entry ESP+0Ch	on-grid flag (unused)	observed
+0x003185f0	survarium::serialize_local_fixed_time	entry ESP+4	time in ms	observed
+0x003185f0	survarium::serialize_local_fixed_time	entry ESP+8	buffer_writer	observed
+0x00318620	survarium::serialize_local_time	ECX	time in ms	observed
+0x00318620	survarium::serialize_local_time	ESI	buffer_writer	observed
+0x00318690	survarium::deserialize_local_time	entry ESP+4	reference time (core +18FC0h)	observed
+0x00318690	survarium::deserialize_local_time	EDI	buffer_reader (+4 cursor)	observed
