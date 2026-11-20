@@ -73,6 +73,7 @@ fn page_text(lang: Lang) -> Value {
         ("day", lang.t("Day")),
         // A sign, no word.
         ("rank", "#".to_owned()),
+        ("id", lang.t("ID")),
         ("level", lang.t("Level")),
         ("experience", lang.t("Experience")),
         ("rating", lang.t("Rating")),
@@ -199,7 +200,7 @@ const LEADERS: [(&str, Leading); 5] = [
     ("wins", |totals| totals.wins),
     ("played_s", |totals| totals.played_ms / 1000),
 ];
-/// How many players a leaders' list names.
+/// How many players a leaders' list names when the request names no limit.
 const LEADERS_EACH: usize = 5;
 const DAY: u64 = 86_400;
 const HOUR: u64 = 3_600;
@@ -264,7 +265,7 @@ enum Endpoint {
         limit: usize,
     },
     Best(Period),
-    Today,
+    Today { limit: usize },
     AllTime,
     Clans {
         by: TotalsKey,
@@ -468,7 +469,9 @@ impl Endpoint {
                 Some("hour") => Period::Hour,
                 Some(_) => return Err(Refusal::BadRequest),
             }),
-            "today" => Self::Today,
+            "today" => Self::Today {
+                limit: query.limit(LEADERS_EACH)?,
+            },
             "totals" => Self::AllTime,
             "clans" => Self::Clans {
                 by: match query.text("by") {
@@ -668,7 +671,7 @@ fn answer(
                 .collect();
             json!({ "period": period.name(), "rows": rows })
         }
-        Endpoint::Today => {
+        Endpoint::Today { limit } => {
             let today = now - now % DAY;
             let all = history.totals_since(today, &|account_id| !banned(account_id))?;
             let mut leaders = serde_json::Map::new();
@@ -680,7 +683,7 @@ fn answer(
                 });
                 let rows: Vec<Value> = ranked
                     .iter()
-                    .take(LEADERS_EACH)
+                    .take(*limit)
                     .map(|(player, totals)| json!({ "player": named(player), "value": of(totals) }))
                     .collect();
                 leaders.insert(name.to_owned(), Value::Array(rows));

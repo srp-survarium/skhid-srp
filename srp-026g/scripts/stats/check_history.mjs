@@ -162,6 +162,24 @@ try {
   assert.deepEqual(await cells('.stats-leaders .table-scroll:first-child tbody td:nth-child(3)'),
     [...answered.today.leaders.kills.map(row => String(row.value)), ...Array(5 - answered.today.leaders.kills.length).fill('\u00a0')]);
   assert.equal(answered.today.leaders.kills.length, 5);
+  // They open up: twenty or fifty each, all as long as the longest.
+  assert.deepEqual(await cells('.stats-sizes button'), ['5', '20', '50']);
+  assert.equal(await text('.stats-sizes button[aria-pressed=true]'), '5');
+  await evaluate("[...document.querySelectorAll('.stats-sizes button')].find(b => b.textContent === '20').click()");
+  await settled();
+  const longest = Math.max(...Object.values(answered.today.leaders).map(rows => rows.length));
+  assert.ok(longest > 5 && longest <= 20, `${longest} of twenty`);
+  assert.equal(await count('.stats-leaders .stats-table tbody tr'), 5 * longest, 'every list as long as the longest');
+  assert.deepEqual((await cells('.stats-leaders .table-scroll:first-child tbody td:nth-child(3)')).slice(0, answered.today.leaders.kills.length),
+    answered.today.leaders.kills.map(row => String(row.value)));
+  assert.equal(await text('.stats-sizes button[aria-pressed=true]'), '20');
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('leaders')"), '20');
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=uk]').href")).includes('leaders=20'), 'the language link keeps it');
+  await screenshot('boards-leaders-20');
+  await evaluate("[...document.querySelectorAll('.stats-sizes button')].find(b => b.textContent === '5').click()");
+  await settled();
+  assert.equal(await count('.stats-leaders .stats-table tbody tr'), 25);
+  assert.equal(await evaluate("new URLSearchParams(location.search).has('leaders')"), false);
   assert.deepEqual((await cells('.stats-all thead th')).slice(0, 3), ['Players', 'Matches', 'Kills']);
   assert.deepEqual((await cells('.stats-all tbody td')).slice(0, 2), [String(answered.totals.players), String(answered.totals.matches)]);
   assert.equal(await evaluate("document.querySelector('.stats-all').previousElementSibling.textContent"), 'All time', 'its heading over it, as the leaders\' is');
@@ -224,7 +242,7 @@ try {
 
   // A player: nothing moves while it loads; 15 matches, then 8 older.
   await navigate('/stats?player=Sheep&lang=en', 'interactive');
-  assert.equal(await count('.stats-panels dd'), 25, 'the panels are drawn before their data');
+  assert.equal(await count('.stats-panels dd'), 26, 'the panels are drawn before their data');
   assert.equal(await count('.stats-favourites .stats-table tbody tr'), 10, 'five empty rows of each favourite');
   const loading = [await top(0), await top(1)];
   await settled();
@@ -232,6 +250,7 @@ try {
   assert.equal(await text('#stats-title'), 'Sheep');
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Clan').nextSibling.textContent"), '[SKH]');
   assert.equal(await count('.stats-paged .stats-table tbody tr'), 15);
+  assert.equal(await panel('ID'), String(answered.player.player.id), 'the account\'s id');
   assert.equal(await panel('Artefacts'), String(answered.player.totals.artefacts), 'the artefacts taken');
   assert.equal(await panel('Hours played'), (answered.player.totals.played_s / 3600).toFixed(1));
   assert.equal(await panel('Accuracy'), aim(answered.player.totals), 'accuracy in whole percents');

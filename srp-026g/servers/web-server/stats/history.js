@@ -279,7 +279,7 @@
   async function playerView(name) {
     heading(name, TEXT.player, TEXT.player);
     const head = (card, days) => panels(
-      [TEXT.overall, [[TEXT.level, card ? n(card.level) : null], [TEXT.experience, card ? n(card.experience) : null],
+      [TEXT.overall, [[TEXT.id, card ? String(card.player.id) : null], [TEXT.level, card ? n(card.level) : null], [TEXT.experience, card ? n(card.experience) : null],
         [TEXT.rating, card ? n(card.rating) : null],
         [TEXT.clan, card ? (card.player.clan ? link({clan: card.player.clan.tag}, `[${card.player.clan.tag}]`) : '—') : null], ...record(card && card.totals)]],
       [TEXT.inMatches, combat(card && card.totals)],
@@ -411,19 +411,50 @@
   }
 
   // The landing's own (today, totals): the day's leaders, five short lists
-  // (the day is UTC's), and everything counted added up.
+  // (the day is UTC's), and everything counted added up. The lists open
+  // up: five each, twenty or fifty (`?leaders=`), all as long as the
+  // longest, five rows at least. Gone when the day cannot be read.
   const LEADERS = [['kills', 'kills'], ['assists', 'assists'], ['score', 'score'], ['wins', 'wins'], ['played_s', 'hours']];
-  const LEADERS_EACH = 5;
-  function leaders(data) {
+  const LEADER_SIZES = [5, 20, 50];
+  function leaders() {
     const value = (key, amount) => key === 'played_s' ? hours.format(amount / 3600) : n(amount);
-    return [el('h2', {className: 'stats-heading'}, TEXT.today),
-      el('div', {className: 'stats-leaders'}, LEADERS.map(([key, label]) => {
-        const rows = data && (data.leaders[key] || []).map((row, rank) => ({...row, rank}));
-        const box = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
-          [TEXT[label], row => value(key, row.value)]], rows, LEADERS_EACH, '', openPlayer);
-        if (rows) box.blank(LEADERS_EACH - rows.length);
-        return box;
-      }))];
+    let size = LEADER_SIZES.includes(Number(asked('leaders'))) ? Number(asked('leaders')) : LEADER_SIZES[0], asking = 0;
+    const sizes = el('div', {className: 'slot-filter stats-sizes', role: 'group', ariaLabel: TEXT.today});
+    const lists = el('div', {className: 'stats-leaders'});
+    const box = el('div', {}, el('div', {className: 'stats-heading-row'}, el('h2', {className: 'stats-heading'}, TEXT.today), sizes), lists);
+    const draw = data => {
+      const of = key => data && (data.leaders[key] || []).map((row, rank) => ({...row, rank}));
+      const longest = Math.max(LEADER_SIZES[0], ...LEADERS.map(([key]) => (of(key) || []).length));
+      lists.replaceChildren(...LEADERS.map(([key, label]) => {
+        const rows = of(key);
+        const list = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
+          [TEXT[label], row => value(key, row.value)]], rows, longest, '', openPlayer);
+        if (rows) list.blank(longest - rows.length);
+        return list;
+      }));
+    };
+    // A list asked anew stays until the new one is here.
+    function load() {
+      const mine = ++asking;
+      for (const button of sizes.children) button.setAttribute('aria-pressed', String(Number(button.dataset.size) === size));
+      api('today', {limit: size}).then(data => { if (mine === asking) draw(data || {leaders: {}}); }, () => { if (mine === asking) box.replaceChildren(); });
+    }
+    for (const each of LEADER_SIZES) {
+      const button = el('button', {type: 'button'}, n(each));
+      button.dataset.size = each;
+      button.addEventListener('click', () => {
+        size = each;
+        const url = new URL(location.href);
+        if (size === LEADER_SIZES[0]) url.searchParams.delete('leaders'); else url.searchParams.set('leaders', size);
+        history.replaceState(null, '', url);
+        keepLanguage();
+        load();
+      });
+      sizes.append(button);
+    }
+    draw(null);
+    load();
+    return box;
   }
   // Everything added up: its heading, then one row in the tables' look.
   function allTime(data) {
@@ -514,9 +545,8 @@
       tabs.append(button);
     }
     tabs.append(note);
-    const today = el('div', {}, leaders(null)), all = el('div', {}, ...allTime(null));
+    const today = leaders(), all = el('div', {}, ...allTime(null));
     root.replaceChildren(finder(), today, all, tabs, keys, body);
-    api('today', {}).then(data => today.replaceChildren(...leaders(data || {leaders: {}})), () => today.replaceChildren());
     api('totals', {}).then(data => data ? all.replaceChildren(...allTime(data)) : all.replaceChildren(), () => all.replaceChildren());
     draw();
   }

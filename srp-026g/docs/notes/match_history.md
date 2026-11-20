@@ -12,11 +12,13 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   `servers/web-server/stats/history.js` fills from the API when it is viewed.
 - The address says what it shows: `?player=<name>`, `?match=<number>`, `?clan=<tag>`, else the
   leaderboards (`?board=players|clans|best|latest&by=<key>`), under the day's leaders (five
-  lists of five: kills, assists, score, wins, hours) and the all-time totals. Each view is drawn once empty in
+  lists of five: kills, assists, score, wins, hours; they open up to 20 or 50 each by the buttons
+  at their heading, `&leaders=20|50`, the owner, 2026-11-20) and the all-time totals. Each view is drawn once empty in
   its final shape, then with its data, so nothing moves while it loads; match lists grow by
   "Older matches" (`before=`). A list of players or clans sorts by a click on a column's
   heading (the owner, 2026-11-20), largest first, and smallest first on a second click
   (`&order=asc`); the players' list has no Level.
+- A player's page says the account's id first in Overall (the owner, 2026-11-20).
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
   headshots as their share of the kills (HS %); no batteries or artefacts (a profile's own panel
   has them).
@@ -295,10 +297,11 @@ accounts left out.
           "level":12,"map":"Vostok","map_key":"level_03","mode":"Protective device","rules":2,"score":420,"kills":20,"deaths":3}]}
 ```
 
-### `GET /api/history/today`
+### `GET /api/history/today?limit=<n>`
 
 The day's leaders: the players' counted public matches that ended since midnight (UTC, `since`)
-added up, the five with the most of each (ties: the older account; nobody with none), banned
+added up, the `limit` (1..50, default 5) with the most of each (ties: the older account; nobody
+with none), banned
 accounts left out. A day's lines are read (its matches by their end, each one's players).
 
 ```json

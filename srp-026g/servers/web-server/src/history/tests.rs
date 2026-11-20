@@ -662,6 +662,11 @@ fn the_days_leaders_and_the_all_time_totals() {
     assert_eq!(keys(&kills[0]), ["player", "value"]);
     assert_eq!((&kills[0]["player"]["name"], &kills[0]["value"]), (&json!("Alice"), &json!(28)));
     assert_eq!(kills[1]["value"], 12);
+    // As many of each list as asked, five without a word.
+    let first = world.ok("/api/history/today?limit=1");
+    assert_eq!(first["leaders"]["kills"], json!([kills[0]]));
+    assert_eq!(world.ok("/api/history/today?limit=50")["leaders"], today["leaders"]);
+    assert_eq!(world.get("/api/history/today?limit=51").0, "400 Bad Request");
     // Bob won nothing today: not on that list.
     assert_eq!(today["leaders"]["wins"].as_array().unwrap().len(), 1);
     world.store.ban_account(

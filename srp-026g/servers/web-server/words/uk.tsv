@@ -276,6 +276,7 @@ no: it sees the change at its next sign-in	ні: побачить зміну п�
 User name	Ім'я для входу	sign-in
 Character	Персонаж
 Account id	Id акаунта
+ID	ID
 In the game now	Зараз у грі
 Earlier moderation of this account	Попередня модерація цього акаунта
 not shown ({error})	не показано ({error})
