@@ -1,8 +1,11 @@
 //! [map 91] A slow gap press whose rest point has no floor in the walk grid: Mamayev Kurgan's 1.5 m rise, the gap jump
 //! (-22.60, 24.27, 57.88) -> (-21.85, 25.81, 57.88) the final build's matches waited at (`LOOPS.md` cause 1). The grid flew it as a
 //! standing press 0.4 m behind the take-off (its window 0.4-0.6 m), where the walk grid holds no floor; 0.2-0.3 m behind it holds a
-//! raised floor (0.26 m up), inside the motor's rest window. On the stand-in over the real mapdata, a bot sent across the link from
-//! every start 3-8 m off whose planned route takes it must come down on its landing.
+//! raised floor (0.26 m up), inside the motor's rest window. On the stand-in over the real mapdata and the server's game data, a
+//! bot is sent across the link from up to 4 starts 3-8 m off whose planned route takes it. Asserted: the link is pressed, and every
+//! press at it is the grid's (from rest, within the stored lead window). Reported, not asserted: where the bot comes down. The
+//! stand-in lands presses the exe does not (rig_real_v3: from 0.11-0.13 m to the line's left, where the stored window (0, 0.15)
+//! has no width, the exe body comes down short of the top at every lead tried), so its landing here is not the client's.
 //!
 //! ```text
 //! SRP_MAPDATA_DIR=<dir> SRP_GAME_DATA=<server-game-data.db> [SRP_BENCH_GRID_CACHE=<dir>] cargo test -p match-server --release rest_spots -- --ignored --nocapture
@@ -29,6 +32,8 @@ struct Crossing {
     rest_ms: u32,
     /// The feet at the first press.
     pressed_at: Option<Vec3>,
+    /// Every press: the feet and the body's speed over the stand-in's last step (a game tick), m/s.
+    presses_at: Vec<(Vec3, f32)>,
     /// The feet at every press, and every 500 ms (`SRP_REST_TRAIL=1` prints them).
     trail: Vec<(u32, Vec3, bool)>,
 }
@@ -47,9 +52,11 @@ fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: V
     let (mut clock, mut next_world) = (0, 1_000);
     let mut out = Crossing::default();
     let mut last = start;
+    let mut step_before = start;
     while clock < until {
         clock += 25;
         while game.tick + TICK_MS <= clock {
+            step_before = game.bodies[0].feet;
             game.step();
         }
         let mut notes = Vec::new();
@@ -79,6 +86,8 @@ fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: V
             if made.input.actions & key::JUMP != 0 {
                 out.presses += 1;
                 out.pressed_at.get_or_insert(game.bodies[0].feet);
+                let feet = game.bodies[0].feet;
+                out.presses_at.push((feet, feet.distance_xz(step_before) / (TICK_MS as f32 / 1000.0)));
                 out.trail.push((clock, game.bodies[0].feet, true));
             }
             let r = made.input.rotation;
@@ -184,7 +193,11 @@ fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
         }
     }
     assert!(!starts.is_empty(), "no start 3-8 m off whose route takes the link");
-    let mut missed = Vec::new();
+    // The stored window's leads (m behind the take-off along the press's way) and the turn of the way to its right.
+    let lead_window = link.window().expect("a flown press").lead_m;
+    let right = (way.1, -way.0);
+    let (mut pressed, mut landed, mut off_rule) = (0, 0, Vec::new());
+    let n_starts = starts.len();
     for start in starts {
         let c = cross(&world, start, a, b, goal, 40_000);
         eprintln!(
@@ -201,9 +214,27 @@ fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
                 eprintln!("REST   {t} ms ({:.2}, {:.2}, {:.2}){}", p.x, p.y, p.z, if *press { " PRESS" } else { "" });
             }
         }
-        if c.landed.is_none() {
-            missed.push(start);
+        landed += usize::from(c.landed.is_some());
+        let mut at_link = false;
+        for &(p, speed) in &c.presses_at {
+            let (dx, dz) = (a.x - p.x, a.z - p.z);
+            let behind = dx * way.0 + dz * way.1;
+            if p.distance_xz(a) > 1.0 || (p.y - a.y).abs() > 0.6 {
+                continue;
+            }
+            at_link = true;
+            let to_right = -(dx * right.0 + dz * right.1);
+            eprintln!("REST   press at the link {behind:.3} m behind, {to_right:+.3} m to the right, {speed:.2} m/s");
+            // The press of a flown stand press: from rest (under 0.3 m/s over the last step) and within the stored lead window,
+            // the motor's lead gate's 0.2 m on its earlier side (`lead_off`, F3).
+            let in_leads = behind >= lead_window.0 - 0.2 - 0.01 && behind <= lead_window.1 + 0.01;
+            if speed >= 0.3 || !in_leads {
+                off_rule.push((start, behind, to_right, speed));
+            }
         }
+        pressed += usize::from(at_link);
     }
-    assert!(missed.is_empty(), "the bot did not come down on the landing from {missed:?}");
+    eprintln!("REST pressed at the link from {pressed} of {n_starts} starts, came down on the landing (the stand-in's) from {landed}");
+    assert!(pressed > 0, "no start pressed the link");
+    assert!(off_rule.is_empty(), "presses at the link not from rest within the stored leads: {off_rule:?}");
 }
