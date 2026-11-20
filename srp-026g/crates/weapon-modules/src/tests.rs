@@ -572,6 +572,109 @@ fn no_bytes_panic_the_parse() {
     assert_eq!(Table::parse(b"SRPX").err(), Some(Malformed::Magic));
 }
 
+/// The finger matrices the game is taken to have made of a gun's own finger
+/// locators, for [`the_samples_loadouts_are_pinned`] and the client's check.
+fn own_fingers() -> [Affine; FINGERS] {
+    core::array::from_fn(|n| {
+        let n = (n + 1) as f32;
+        Affine::translation(0.001 * n, 0.002 * n, 0.003 * n)
+    })
+}
+
+fn row(out: &mut String, head: &str, bone: Option<BoneIndex>, matrices: &[Affine]) {
+    use core::fmt::Write;
+    out.push_str(head);
+    if let Some(bone) = bone {
+        write!(out, "\t{}", bone.0).unwrap();
+    }
+    for float in matrices.iter().flat_map(Affine::floats) {
+        write!(out, "\t{float:?}").unwrap();
+    }
+    out.push('\n');
+}
+
+fn placed(out: &mut String, head: &str, at: &Placement) {
+    row(out, head, Some(at.bone), &[at.offset]);
+}
+
+/// What `resolve` says of the sample table's guns, pinned in a checked-in
+/// file: the client's Unicorn check (`check_attachments_026g.py`) runs the
+/// game's code over `tests/sample-v2.srpm` and compares what the patch
+/// wrote with these rows, so it needs no second `resolve`.
+/// `SRP_WRITE_SAMPLE=1 cargo test -p weapon-modules` writes it.
+///
+/// A case is `case <gun> <scope> <muzzle> <grip>` (dict ids, 0 none) and
+/// then `whole`, `refused <why>`, or `bare <body> <bones>` with a row a
+/// thing: `part <model> <bone> <12 floats>`, `optic`, `eye optic|gun_idle`,
+/// `fire`, `wrist` (each a bone and twelve floats), `fingers gun|grip`
+/// (fifteen matrices, over [`own_fingers`]), `effect <path>`.
+#[test]
+fn the_samples_loadouts_are_pinned() {
+    use core::fmt::Write;
+    let source = source();
+    let bytes = encode(&source).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    let dict = |module: usize| DictId::new(source.modules[module].dict);
+    let cases = [
+        (AK_74M, None, None, None),
+        (AK_74M, None, dict(DTK3), None),
+        (AK_74M, None, None, dict(MIKI)),
+        (AK_74M, dict(PSO1), None, None),
+        (AK_74M, dict(EOTECH), None, None),
+        (AK_74M, dict(PSO1), dict(DTK3), dict(MIKI)),
+        (AK_74M_VICTORY, None, dict(DTK3), dict(MIKI)),
+        (FN_FNC, dict(EOTECH), None, dict(MIKI)),
+        (HK416, dict(EOTECH), None, dict(MIKI)),
+        (FN_P90, None, dict(TBRAKE), dict(MIKI)),
+        (FN_P90, None, dict(AEK_HIDER), dict(MIKI)),
+        (HK416, None, dict(DTK3), None),
+    ];
+    let mut out = String::new();
+    for (gun, scope, muzzle, grip) in cases {
+        let id = |module: Option<DictId>| module.map_or(0, DictId::get);
+        writeln!(out, "case\t{gun}\t{}\t{}\t{}", id(scope), id(muzzle), id(grip)).unwrap();
+        let gun = table.gun(DictId::new(gun).unwrap()).unwrap();
+        let bare = match resolve(gun, Wanted { scope, muzzle, grip }) {
+            Ok(Loadout::Whole) => {
+                out.push_str("whole\n");
+                continue;
+            }
+            Err(refusal) => {
+                writeln!(out, "refused\t{refusal:?}").unwrap();
+                continue;
+            }
+            Ok(Loadout::Bare(bare)) => bare,
+        };
+        writeln!(out, "bare\t{}\t{}", gun.bare().to_str().unwrap(), gun.bones()).unwrap();
+        for part in bare.parts() {
+            placed(&mut out, &std::format!("part\t{}", part.model().to_str().unwrap()), &part.at);
+        }
+        if let Some(optic) = &bare.optic {
+            placed(&mut out, "optic", &optic.frame);
+        }
+        if let Some(eye) = &bare.eye {
+            placed(&mut out, "eye\toptic", &eye.placed(EyeAnchor::Optic));
+            placed(&mut out, "eye\tgun_idle", &eye.placed(EyeAnchor::GunIdle));
+        }
+        if let Some(fire_point) = &bare.fire_point {
+            placed(&mut out, "fire", fire_point);
+        }
+        if let Some(hand) = &bare.left_hand {
+            placed(&mut out, "wrist", &hand.wrist);
+            row(&mut out, "fingers\tgun", None, &hand.fingers(FingerJoints::Gun, &own_fingers()));
+            row(&mut out, "fingers\tgrip", None, &hand.fingers(FingerJoints::Grip, &own_fingers()));
+        }
+        if let Some(effect) = bare.shot_effect {
+            writeln!(out, "effect\t{}", effect.to_str().unwrap()).unwrap();
+        }
+    }
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v2.loadouts.tsv");
+    if std::env::var_os("SRP_WRITE_SAMPLE").is_some() {
+        std::fs::write(&path, &out).unwrap();
+    }
+    assert!(std::fs::read_to_string(&path).unwrap() == out, "tests/sample-v2.loadouts.tsv is not what resolve gives");
+}
+
 fn refused(change: impl FnOnce(&mut Source)) -> Malformed {
     let mut source = source();
     change(&mut source);

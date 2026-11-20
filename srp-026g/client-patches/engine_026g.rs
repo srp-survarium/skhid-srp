@@ -337,6 +337,8 @@ unsafe extern "C" {
     pub fn engine_pin_resource(pinned: *mut c_void, resource: *mut c_void);
     /// 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0
     pub fn engine_unpin_resource(pinned: *mut c_void);
+    /// 0x243bc0 survarium::weapon::calculate_locator: locator ESP+4, world ESP+8, bones ESP+12, extra ESP+16, output EDI; pops 16
+    pub fn engine_calculate_locator(locator: *const c_void, world: *const f32, bones: *const f32, extra: *const f32, output: *mut f32);
 }
 
 #[allow(dead_code)]

@@ -1069,6 +1069,36 @@ pub extern "C" fn hook_attachments_on_dictionary_configs(frame: &mut Frame) -> u
 
 // ---- attachments (patch 161) ----
 
+/// The entry `attachments_on_request_room` (0x24aab4, weapon_cook::on_weapon_config_loaded (0x24A920) before it sizes the requests' alloca (lea esi,[eax*8+0]; 0x424CA0 at 0x24AABD): EAX the requests it will push, EBX the weapon config's root) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_request_room(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_request_room` calls this, from the game's jump at 0x24aab4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_request_room(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
+/// The entry `attachments_on_asked` (0x24ac30, on_weapon_config_loaded after weapon_cook::allocate_weapon (0x24A780, called at 0x24AC2B; it keeps EBX) returned the weapon in EAX, every request of the game's pushed (the last at 0x24ABEE) and none read yet (query_resources at 0x24AC95): mov bl,[ebp+10h] / sub esp,20h; EBX the weapon config's root, [ebp-40h] the requests) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_asked(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_asked` calls this, from the game's jump at 0x24ac30,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_asked(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
 /// The entry `attachments_on_ready` (0x24acf0, weapon_cook::on_weapon_subresources_ready's entry (sub esp,24h / push ebx / push ebp): [esp+8] the weapon config's resource, [esp+0Ch] the weapon weapon_cook made, as the cook's functor binds them (0x24AC39..); by load_weapon both slots are the shots' loop's temporaries (0x24B063, 0x24AFA4, 0x24B044)) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_attachments_on_ready(frame: &mut Frame) -> u32 {
@@ -1091,6 +1121,51 @@ pub extern "C" fn hook_attachments_on_loaded(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::attachments::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
+/// The entry `attachments_on_draw` (0x245017, weapon::draw (0x244E10) after the weapon model's update and the aimed scope's add or remove (every path joins here; mov esi,[ebp+14h] / test esi,esi): EBX the weapon, [ebp+8] its world matrix, [ebp+0Ch] its bones) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_draw(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_draw` calls this, from the game's jump at 0x245017,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_draw(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
+/// The entry `attachments_on_culled` (0x245353, weapon::on_culled_player_draw (0x245250) after the weapon model's update at the player's root (mov ebx,[ebx+1808h]; EBX the weapon until it)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_culled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_culled` calls this, from the game's jump at 0x245353,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_culled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
+/// The entry `attachments_on_hidden` (0x244017, weapon::on_hide (0x243FA0) after the weapon model's removal (0x244012, or the aimed scope's 181Dh skipping it; mov edi,[esi+1808h]): ESI the weapon) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_hidden(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_hidden` calls this, from the game's jump at 0x244017,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_hidden(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},

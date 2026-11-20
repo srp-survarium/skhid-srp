@@ -1,10 +1,13 @@
-//! Patch 161's game side: where a client weapon keeps what its scope, eye,
-//! left hand and shells stand on (`docs/notes/attachments.md`, "The client's
-//! runtime"). All of it is data the game fills once from the weapon's model
-//! and reads each frame; the patch writes it again after the game did:
+//! Patch 161's game side: where a client weapon keeps what its parts, scope,
+//! eye, fire point, left hand and shells stand on
+//! (`docs/notes/attachments.md`, "The client's runtime").
 //!
-//! - the scope's and the eye's locator records (weapon +744h, +7A8h), filled
-//!   by `load_weapon` (`attachments.loaded` is right after it);
+//! Most of it is data the game fills once from the weapon's model and reads
+//! each frame; the patch writes it again after the game did:
+//!
+//! - the fire point's, the scope's and the eye's locator records (weapon
+//!   +6E0h, +744h, +7A8h), filled by `load_weapon` (`attachments.loaded` is
+//!   right after it);
 //! - the hand IK's records of the left hand (weapon +1A20h, eight), filled
 //!   by `weapon::activate` (`attachments.hands`);
 //! - the finger corrector's sets of the left hand (weapon +20F0h, four),
@@ -13,10 +16,22 @@
 //! - the frame the shell effect plays at, which is the scope's
 //!   (`attachments.shells`).
 //!
-//! What a weapon is fitted with comes from its config at the cook's
-//! callback (`attachments.ready`) and is kept here by the weapon's address
-//! ([`FITTED`]) until the weapon goes (`attachments.release`): the hand and
-//! finger sites come back long after the cook.
+//! The parts are models of their own, asked for by the weapon cook's own
+//! query and drawn with the weapon's model:
+//!
+//! - the cook's requests ([`more_requests`] at `attachments.request_room`,
+//!   [`request_parts`] at `attachments.asked`): the bare body in place of
+//!   the weapon's model, and each part's model after the game's own;
+//! - their results ([`Asked::hold`] at `attachments.ready`), kept with each
+//!   part's placement;
+//! - each draw ([`draw`] at `attachments.draw`): every part at its frame, in
+//!   the scene exactly while the weapon's model is; out of it when the
+//!   weapon is culled or hidden ([`leave`]);
+//! - [`released`] when the weapon goes.
+//!
+//! One owner, [`FITTED`]: the weapons with something fitted, by address
+//! (compared, never read through), each [`Fit`] holding one reference to
+//! every part's model, given back once.
 //!
 //! The modules table ([`modules`]) is game data, one file of raw bytes
 //! ([`TABLE`]). It comes with the items dictionary's own configs: the
@@ -28,13 +43,15 @@
 //! parse: a line says why) every weapon stays as the game made it.
 
 use core::ffi::CStr;
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 use weapon_modules::{Affine, BoneIndex, DictId, FINGERS, Malformed, Placement, Table, Wanted};
 
 use super::config::{ConfigTable, ConfigValue};
 use super::context::{Context, Reg};
-use super::gun_cook::allocator;
+use super::carry_flower::Model;
+use super::carry_runtime::Scene;
+use super::gun_cook::{allocator, free};
 use super::hook::Handle;
 use super::log::{Piece, line};
 use super::world::{floats, read, write_floats};
@@ -53,6 +70,13 @@ const LABEL: &CStr = c"srp weapon modules";
 /// The weapons with something fitted at once: the lobby's few, a match's
 /// players' and the pickups' copies.
 const SLOTS: usize = 256;
+/// A static model's resource class (a scope's idle model, the flower's).
+const STATIC_MODEL: u32 = 15;
+/// A skeleton model's: the weapon's own `object/model` request
+/// (on_weapon_config_loaded 0x24AB04).
+const SKELETON_MODEL: u32 = 16;
+/// calculate_locator's last matrix, applied first: weapon::draw's own.
+const IDENTITY: [f32; 16] = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0];
 
 /// A weapon by its address: compared, never read through.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -65,7 +89,7 @@ pub struct Named {
     pub wanted: Wanted,
 }
 
-/// What is kept of a fitted weapon.
+/// What the hand, finger and shell sites need of a fitted weapon.
 #[derive(Clone, Copy)]
 pub struct Kept {
     pub named: Named,
@@ -74,26 +98,133 @@ pub struct Kept {
     pub shells: Option<Affine>,
 }
 
-/// A place of [`FITTED`] or [`PARKED`]. Its tag first and `Free` 0, so the
-/// state is all zeros and the arena keeps it in `patches.state`.
-#[repr(C, u32)]
-#[derive(Clone, Copy)]
-enum Slot<T> {
-    Free = 0,
-    Taken(WeaponId, T),
+/// A part in the scene's terms: its model, one reference of ours, and the
+/// locator record its frame is worked out from each draw.
+struct Drawn {
+    model: Model,
+    at: raw::WeaponLocatorStorage,
 }
 
-static FITTED: Lock<[Slot<Kept>; SLOTS]> = Lock::new([Slot::Free; SLOTS]);
-/// What `attachments.ready` read, until `attachments.loaded` of the same
-/// call takes it.
-static PARKED: Lock<Slot<Named>> = Lock::new(Slot::Free);
-static MODULES: Lock<Option<Table<'static>>> = Lock::new(None);
+/// A weapon's parts: memory of the game's allocator, freed with them.
+struct Parts {
+    first: core::ptr::NonNull<Drawn>,
+    /// The parts written so far, `room` at most.
+    count: usize,
+    room: usize,
+}
+
+impl Parts {
+    fn with_room(room: usize) -> Option<Parts> {
+        let bytes = u32::try_from(room.max(1).checked_mul(core::mem::size_of::<Drawn>())?).ok()?;
+        // SAFETY: the game's allocator, alive from before any cook.
+        let memory = unsafe { raw::engine_malloc(allocator()?, bytes, LABEL.as_ptr().cast()) };
+        Some(Parts { first: core::ptr::NonNull::new(memory.cast::<Drawn>())?, count: 0, room })
+    }
+
+    /// False when there is no room left: `part` is dropped.
+    fn push(&mut self, part: Drawn) -> bool {
+        if self.count >= self.room {
+            return false;
+        }
+        // SAFETY: room for `room` parts, `count` of them written.
+        unsafe { self.first.add(self.count).write(part) };
+        self.count += 1;
+        true
+    }
+
+    fn all(&mut self) -> &mut [Drawn] {
+        // SAFETY: `count` parts written, ours alone (inside FITTED's lock).
+        unsafe { core::slice::from_raw_parts_mut(self.first.as_ptr(), self.count) }
+    }
+}
+
+impl Drop for Parts {
+    fn drop(&mut self) {
+        // SAFETY: the written parts dropped once (each model's reference
+        // given back), then the memory, the allocator's own.
+        unsafe {
+            core::ptr::drop_in_place(self.all());
+            free(self.first.as_ptr() as usize as u32);
+        }
+    }
+}
+
+/// A fitted weapon, from the cook's requests to its release.
+enum Fit {
+    /// The cook asked for its parts' models: `count` requests from `first`
+    /// of its query.
+    Asked { named: Named, first: usize, count: usize },
+    /// The models came and are held.
+    Held { kept: Kept, parts: Parts },
+}
+
+// SAFETY: a Fit crosses the game's threads (the cook's callbacks, mt_draw's
+// tasks, the resource's deletion) only inside FITTED's lock; its models are
+// atomic resource references, its memory the game's allocator's.
+unsafe impl Send for Fit {}
+
+/// A place of [`FITTED`]. Its tag first and `Free` 0, so the registry is
+/// all zeros and the arena keeps it in `patches.state`.
+#[repr(C, u32)]
+enum Slot {
+    Free = 0,
+    Taken(WeaponId, Fit),
+}
+
+struct Fitted([Slot; SLOTS]);
+
+impl Fitted {
+    fn find(&mut self, weapon: WeaponId) -> Option<&mut Fit> {
+        self.0.iter_mut().find_map(|slot| match slot {
+            Slot::Taken(id, fit) if *id == weapon => Some(fit),
+            _ => None,
+        })
+    }
+
+    fn take(&mut self, weapon: WeaponId) -> Option<Fit> {
+        let slot = self.0.iter_mut().find(|slot| matches!(slot, Slot::Taken(id, _) if *id == weapon))?;
+        match core::mem::replace(slot, Slot::Free) {
+            Slot::Taken(_, fit) => Some(fit),
+            Slot::Free => None,
+        }
+    }
+
+    fn has_room(&self) -> bool {
+        self.0.iter().any(|slot| matches!(slot, Slot::Free))
+    }
+
+    /// `fit` back when every place is taken.
+    fn put(&mut self, weapon: WeaponId, fit: Fit) -> Option<Fit> {
+        match self.0.iter_mut().find(|slot| matches!(slot, Slot::Free)) {
+            Some(slot) => {
+                *slot = Slot::Taken(weapon, fit);
+                None
+            }
+            None => Some(fit),
+        }
+    }
+}
+
+static FITTED: Lock<Fitted> = Lock::new(Fitted([const { Slot::Free }; SLOTS]));
+static MODULES: Lock<Option<&'static Table<'static>>> = Lock::new(None);
 /// The matrix the shell effect is handed (`attachments.shells`): the game
 /// reads it inside play_weapon_shell_pfx, on the thread that wrote it.
 static SHELLS: Lock<[f32; 16]> = Lock::new([0.0; 16]);
 
-/// The modules table, once game data gave one.
-pub fn modules(thread: &Thread) -> Option<Table<'static>> {
+static NOT_ASKED: AtomicBool = AtomicBool::new(false);
+static NOT_HELD: AtomicBool = AtomicBool::new(false);
+static MISFIT: AtomicBool = AtomicBool::new(false);
+
+/// A line the first time `flag` is met: a weapon whose parts cannot be
+/// drawn says why, once a kind.
+fn once(flag: &AtomicBool, text: &str, number: u32) {
+    if !flag.swap(true, Ordering::Relaxed) {
+        line(&[Piece::Text(text), Piece::Dec(number)]);
+    }
+}
+
+/// The modules table, once game data gave one: kept for the game's life.
+pub fn modules(thread: &Thread) -> Option<&'static Table<'static>> {
     MODULES.with(thread, |table| *table)
 }
 
@@ -187,6 +318,18 @@ pub fn arrived(ctx: &Context<'_>) -> Result<(), NoTable> {
         copy?
     };
     let table = Table::parse(bytes).map_err(NoTable::Malformed)?;
+    // SAFETY: room of the game's allocator for the parsed views, written
+    // once and never freed: the reference is good for the game's life.
+    let table: &'static Table<'static> = unsafe {
+        let room = allocator().map(|allocator| {
+            raw::engine_malloc(allocator, core::mem::size_of::<Table<'static>>() as u32, LABEL.as_ptr().cast())
+        });
+        let Some(room) = room.and_then(|room| core::ptr::NonNull::new(room.cast::<Table<'static>>())) else {
+            return Err(NoTable::OutOfMemory);
+        };
+        room.write(table);
+        room.as_ref()
+    };
     MODULES.with(ctx.thread(), |kept| *kept = Some(table));
     line(&[Piece::Text("attachments: the modules table, bytes "), Piece::Dec(bytes.len() as u32)]);
     Ok(())
@@ -212,31 +355,47 @@ pub fn refused(why: NoTable) {
     line(&[Piece::Text(text)]);
 }
 
-pub fn remember(thread: &Thread, weapon: WeaponId, kept: Kept) {
-    FITTED.with(thread, |slots| {
-        if let Some(slot) = slots.iter_mut().find(|slot| matches!(slot, Slot::Free)) {
-            *slot = Slot::Taken(weapon, kept);
-        }
-    });
-}
-
+/// What the hand, finger and shell sites need of `weapon`, once its parts
+/// are held.
 pub fn kept(thread: &Thread, weapon: WeaponId) -> Option<Kept> {
-    FITTED.with(thread, |slots| {
-        slots.iter().find_map(|slot| match slot {
-            Slot::Taken(id, kept) if *id == weapon => Some(*kept),
-            _ => None,
-        })
+    FITTED.with(thread, |fitted| match fitted.find(weapon) {
+        Some(Fit::Held { kept, .. }) => Some(*kept),
+        _ => None,
     })
 }
 
-pub fn forget(thread: &Thread, weapon: WeaponId) {
-    FITTED.with(thread, |slots| {
-        for slot in slots.iter_mut() {
-            if matches!(slot, Slot::Taken(id, _) if *id == weapon) {
-                *slot = Slot::Free;
-            }
+/// The shells' frame of a held weapon, worked out once its model is loaded.
+pub fn set_shells(thread: &Thread, weapon: WeaponId, shells: Option<Affine>) {
+    FITTED.with(thread, |fitted| {
+        if let Some(Fit::Held { kept, .. }) = fitted.find(weapon) {
+            kept.shells = shells;
         }
     });
+}
+
+/// `weapon` is as the game made it from here on: its parts' models given
+/// back. Only for a weapon whose parts are not in the scene (one being
+/// cooked).
+pub fn forget(thread: &Thread, weapon: WeaponId) {
+    // dropped outside the lock: a model's last reference runs the game's
+    // own release
+    drop(FITTED.with(thread, |fitted| fitted.take(weapon)));
+}
+
+/// `attachments.asked`: a weapon made anew at an address keeps nothing of
+/// the one before it.
+pub fn fresh(ctx: &Context<'_>) {
+    // SAFETY: the site's EAX is the weapon allocate_weapon just made, or 0.
+    if let Some(weapon) = unsafe { raw::site::attachments_asked::weapon(ctx) } {
+        forget(ctx.thread(), WeaponId(weapon.address()));
+    }
+}
+
+/// A weapon whose model has fewer bones than the table says of its gun: it
+/// is forgotten and a line says so once (the game's own records stay).
+pub fn misfit(thread: &Thread, weapon: WeaponId, named: Named) {
+    forget(thread, weapon);
+    once(&MISFIT, "attachments: a weapon's model has fewer bones than the table's gun ", u32::from(named.gun.get()));
 }
 
 fn dict(data: &ConfigTable<'_>, key: &CStr) -> Option<DictId> {
@@ -244,28 +403,243 @@ fn dict(data: &ConfigTable<'_>, key: &CStr) -> Option<DictId> {
     DictId::new(u16::try_from(id).ok()?)
 }
 
-/// `attachments.ready`: the weapon the cook's callback is for, and what its
-/// config names under `data` (`srp_gun`, the gun's dict id, and
-/// `srp_scope`, `srp_muzzle`, `srp_grip`, each a fitted module's dict id or
-/// 0), parked for [`Records::loaded`]. A config without `srp_gun` parks
-/// nothing.
-pub fn park(ctx: &Context<'_>) {
-    // SAFETY: the callback's entry (ESP its return address): [esp+8] the
-    // config's resource the cook asked for, retained by its functor while
-    // the callback runs, [esp+0Ch] the weapon weapon_cook made.
-    let named = unsafe {
-        let Some(frame) = raw::site::attachments_ready::frame(ctx) else { return };
-        let (Some(weapon), Some(root)) = (frame.weapon(), frame.config().and_then(|config| config.root())) else {
+/// What a weapon config names under `data`: `srp_gun`, the gun's dict id,
+/// and `srp_scope`, `srp_muzzle`, `srp_grip`, each a fitted module's dict
+/// id or 0. None for a config without `srp_gun`.
+///
+/// # Safety
+/// `root` is a live weapon config's root.
+unsafe fn named(root: raw::EngineCfg) -> Option<Named> {
+    // SAFETY: the caller's.
+    let data = unsafe { ConfigValue::read(root) }.ok()?.table().ok()?.get(c"data").ok()??.table().ok()?;
+    let wanted = Wanted { scope: dict(&data, c"srp_scope"), muzzle: dict(&data, c"srp_muzzle"), grip: dict(&data, c"srp_grip") };
+    Some(Named { gun: dict(&data, c"srp_gun")?, wanted })
+}
+
+/// A site of weapon_cook::on_weapon_config_loaded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Cook {
+    /// `attachments.request_room`.
+    Room,
+    /// `attachments.asked`.
+    Asked,
+}
+
+/// What the config of the weapon being cooked names, at either site of the
+/// cook.
+pub fn cooking(ctx: &Context<'_>, site: Cook) -> Option<Named> {
+    // SAFETY: both sites' EBX is on_weapon_config_loaded's root (0x24A97F),
+    // its config retained by the cook ([ebp+8], 0x24A958..0x24ACD5).
+    unsafe {
+        named(match site {
+            Cook::Room => raw::site::attachments_request_room::root(ctx),
+            Cook::Asked => raw::site::attachments_asked::root(ctx),
+        }?)
+    }
+}
+
+/// `attachments.request_room`: `parts` more places in the requests' alloca
+/// (EAX, the count it sizes them by).
+pub fn more_requests(ctx: &mut Context<'_>, parts: usize) {
+    // SAFETY: the site's EAX, a count.
+    let count = unsafe { raw::site::attachments_request_room::count(ctx) };
+    ctx.set_reg(Reg::Eax, count.wrapping_add(parts as u32));
+}
+
+/// `attachments.asked`: the weapon's own model request becomes `body`'s and
+/// each of `models` is asked for after the game's requests, in the places
+/// [`more_requests`] made; the weapon is remembered with where its parts'
+/// results will be. All of it or nothing: with no room in the requests, no
+/// model request to change or every place of the registry taken, the cook
+/// goes on as the game's own and a line says so once.
+pub fn request_parts(ctx: &Context<'_>, named: Named, body: &'static CStr, models: impl Iterator<Item = &'static CStr> + Clone) {
+    let parts = models.clone().count();
+    // SAFETY: the site's EAX is the weapon allocate_weapon just made, EBP
+    // on_weapon_config_loaded's frame: its requests a live buffer_vector
+    // over the cook's alloca, read by query_resources after this (0x24AC84),
+    // which copies each path; the paths are the table's, kept for the
+    // game's life.
+    unsafe {
+        let Some(weapon) = raw::site::attachments_asked::weapon(ctx).map(|weapon| WeaponId(weapon.address())) else { return };
+        let Some(requests) = raw::site::attachments_asked::frame(ctx).map(|frame| frame.requests()) else { return };
+        let (Some(begin), Some(end), Some(capacity)) = (requests.begin(), requests.end(), requests.capacity()) else {
             return;
         };
-        let data = ConfigValue::read(root).ok().and_then(|value| value.table().ok());
-        let data = data.and_then(|root| root.get(c"data").ok()??.table().ok());
-        data.and_then(|data| {
-            let wanted = Wanted { scope: dict(&data, c"srp_scope"), muzzle: dict(&data, c"srp_muzzle"), grip: dict(&data, c"srp_grip") };
-            Some(Slot::Taken(WeaponId(weapon.address()), Named { gun: dict(&data, c"srp_gun")?, wanted }))
-        })
+        let (Some(first), Some(room)) = (end.index_from(begin), capacity.index_from(begin)) else { return };
+        let model = (0..first).map(|index| begin.at(index)).find(|request| read(request.class()) == SKELETON_MODEL);
+        let registered = FITTED.with(ctx.thread(), |fitted| match (model, first.checked_add(parts)) {
+            (Some(_), Some(last)) if last <= room && fitted.has_room() => {
+                fitted.put(weapon, Fit::Asked { named, first, count: parts }).is_none()
+            }
+            _ => false,
+        });
+        let (true, Some(model)) = (registered, model) else {
+            return once(&NOT_ASKED, "attachments: a weapon's parts were not asked for, gun ", u32::from(named.gun.get()));
+        };
+        model.set_path(body.as_ptr().cast_mut().cast());
+        for (index, path) in models.enumerate() {
+            let request = begin.at(first + index);
+            request.set_path(path.as_ptr().cast_mut().cast());
+            *request.class() = STATIC_MODEL;
+        }
+        requests.set_end(Some(begin.at(first + parts)));
+    }
+}
+
+/// A weapon whose parts' models have come: the cook's callback at its entry
+/// (`attachments.ready`).
+pub struct Asked<'t> {
+    weapon: WeaponId,
+    named: Named,
+    first: usize,
+    count: usize,
+    results: raw::QueriesResult,
+    thread: &'t Thread,
+}
+
+/// `attachments.ready`: the weapon the callback is for, when its cook asked
+/// for parts.
+pub fn asked<'t>(ctx: &'t Context<'_>) -> Option<Asked<'t>> {
+    // SAFETY: the callback's entry (ESP its return address): [esp+4] the
+    // queries' results, [esp+0Ch] the weapon weapon_cook made, both alive
+    // while the callback runs on this thread.
+    let (weapon, results) = unsafe {
+        let frame = raw::site::attachments_ready::frame(ctx)?;
+        (WeaponId(frame.weapon()?.address()), frame.results()?)
     };
-    PARKED.with(ctx.thread(), |parked| *parked = named.unwrap_or(Slot::Free));
+    FITTED.with(ctx.thread(), |fitted| match fitted.find(weapon) {
+        Some(Fit::Asked { named, first, count }) => {
+            Some(Asked { weapon, named: *named, first: *first, count: *count, results, thread: ctx.thread() })
+        }
+        _ => None,
+    })
+}
+
+impl Asked<'_> {
+    pub fn named(&self) -> Named {
+        self.named
+    }
+
+    /// Each part's model taken from the cook's results with a reference of
+    /// ours and kept with its placement, in the order they were asked for.
+    /// A model that did not come, or other parts than were asked for: the
+    /// weapon is forgotten (drawn as its bare body alone) and a line says so
+    /// once.
+    pub fn hold(self, placements: impl Iterator<Item = Placement>) {
+        // SAFETY: the results are alive for the callback, one a request in
+        // its order; ours are `count` from `first`, each a static model's
+        // holder or 0.
+        let parts = unsafe {
+            let enough = self.first.checked_add(self.count).is_some_and(|last| read(self.results.count()) as usize == last);
+            let mut parts = Parts::with_room(self.count).filter(|_| enough);
+            let mut placed = 0;
+            for (index, at) in placements.enumerate() {
+                placed += 1;
+                let model = (index < self.count).then(|| self.results.results().at(self.first + index).model()).flatten();
+                let (Some(held), Some(model)) = (&mut parts, model) else {
+                    parts = None;
+                    continue;
+                };
+                let mut record = raw::WeaponLocatorStorage::zeroed();
+                Records::place(record.handle(), &at);
+                held.push(Drawn { model: Model::retain(model), at: record });
+            }
+            parts.filter(|_| placed == self.count)
+        };
+        let fit = match parts {
+            Some(parts) => Some(Fit::Held { kept: Kept { named: self.named, shells: None }, parts }),
+            None => {
+                once(&NOT_HELD, "attachments: a weapon's parts did not load, gun ", u32::from(self.named.gun.get()));
+                None
+            }
+        };
+        // the place is this weapon's own (Asked): put back as Held, or left free
+        let dropped = FITTED.with(self.thread, |fitted| {
+            let old = fitted.take(self.weapon);
+            (old, fit.and_then(|fit| fitted.put(self.weapon, fit)))
+        });
+        drop(dropped);
+    }
+}
+
+/// The weapon model's scene membership (its render instance's in-scene
+/// byte, 0x244EE7), and the two bytes that say how it is drawn (the
+/// first-person pass, a movable model: weapon::set_foreground 0x243D40,
+/// set_movable_static 0x243CB0).
+///
+/// # Safety
+/// `weapon` is a live client weapon.
+unsafe fn shown(weapon: raw::Weapon) -> Option<(u8, u8)> {
+    // SAFETY: the caller's; its model holder and instance are its own.
+    unsafe {
+        let instance = weapon.model()?.render_instance().instance()?;
+        (read(instance.in_scene()) != 0).then(|| (read(instance.foreground()), read(instance.movable())))
+    }
+}
+
+/// `attachments.draw`: every part of the weapon in the scene at its frame
+/// (the game's calculate_locator on the part's record, as the weapon's own
+/// locators), drawn as the weapon's model is, exactly while that model is
+/// in the scene (draw added or removed it with the aimed scope).
+pub fn draw(ctx: &Context<'_>) {
+    // SAFETY: weapon::draw's EBX and EBP: the weapon it draws and its frame
+    // ([ebp+8] the world matrix, [ebp+0Ch] the bones, which draw gives
+    // calculate_locator itself at 0x244E51), alive for the draw, and its
+    // world's scene, which draw itself submits to (0x244EDB..). A part's
+    // record names a bone of the weapon's model (Records::loaded checked
+    // it).
+    unsafe {
+        let Some(weapon) = raw::site::attachments_draw::weapon(ctx) else { return };
+        let Some(frame) = raw::site::attachments_draw::frame(ctx) else { return };
+        let shown = shown(weapon);
+        FITTED.with(ctx.thread(), |fitted| {
+            let Some(Fit::Held { parts, .. }) = fitted.find(WeaponId(weapon.address())) else { return };
+            let Some(scene) = weapon.world().and_then(|world| Scene::of_world(world)) else { return };
+            for part in parts.all() {
+                let model = part.model.get();
+                let Some((foreground, movable)) = shown else {
+                    scene.remove(model);
+                    continue;
+                };
+                if let Some(instance) = model.render_instance().instance() {
+                    instance.foreground().write(foreground);
+                    instance.movable().write(movable);
+                }
+                let mut at = [0.0f32; 16];
+                raw::engine_calculate_locator(Some(part.at.handle()), frame.world(), frame.bones(), IDENTITY.as_ptr(), at.as_mut_ptr());
+                scene.present(model, &at);
+            }
+        });
+    }
+}
+
+/// Where a weapon leaves the scene with its parts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Leaving {
+    /// on_culled_player_draw (`attachments.culled`): at the player's root.
+    Culled,
+    /// on_hide (`attachments.hidden`).
+    Hidden,
+}
+
+/// The weapon's parts out of the scene.
+pub fn leave(ctx: &Context<'_>, at: Leaving) {
+    // SAFETY: each site's weapon register, the live weapon its function
+    // works on, and its world's scene, which that function submits to.
+    unsafe {
+        let weapon = match at {
+            Leaving::Culled => raw::site::attachments_culled::weapon(ctx),
+            Leaving::Hidden => raw::site::attachments_hidden::weapon(ctx),
+        };
+        let Some(weapon) = weapon else { return };
+        FITTED.with(ctx.thread(), |fitted| {
+            let Some(Fit::Held { parts, .. }) = fitted.find(WeaponId(weapon.address())) else { return };
+            let Some(scene) = weapon.world().and_then(|world| Scene::of_world(world)) else { return };
+            for part in parts.all() {
+                scene.remove(part.model.get());
+            }
+        });
+    }
 }
 
 /// Which of the left hand's locators a record or a finger set is for.
@@ -326,13 +700,22 @@ impl<'t> Records<'t> {
         self.thread
     }
 
-    /// What [`park`] read for this weapon in the same callback; taken once.
-    pub fn parked(&self) -> Option<Named> {
-        let id = self.id();
-        PARKED.with(self.thread, |parked| match core::mem::replace(parked, Slot::Free) {
-            Slot::Taken(weapon, named) if weapon == id => Some(named),
-            _ => None,
-        })
+    /// The bones of the weapon's model (its skeleton render model's inverse
+    /// binds, one a bone): a locator record's bone must be below it, the
+    /// game indexes the bones by it unchecked. None for a model that is no
+    /// skeleton model's instance.
+    pub fn bones(&self) -> Option<usize> {
+        // SAFETY: the weapon's model holder and render instance are its
+        // own, set by load_weapon (0x243A9A); a skeleton instance by its
+        // vtable, its original model immutable.
+        unsafe {
+            let skeleton = self.weapon.model()?.render_instance().instance()?.skeleton();
+            if read(skeleton.vtable()) != raw::image::SKELETON_INSTANCE_VTABLE {
+                return None;
+            }
+            let original = skeleton.original()?;
+            original.inverse_binds_end()?.index_from(original.inverse_binds()?)
+        }
     }
 
     /// # Safety
@@ -351,6 +734,13 @@ impl<'t> Records<'t> {
             write_floats(record.offset(), at.offset.matrix());
             record.bone().write(at.bone.0);
         }
+    }
+
+    /// The fire point: weapon::draw evaluates this record into +620h, where
+    /// the shot's effects play. `at`'s bone is one of the weapon's model's.
+    pub fn set_fire_point(&mut self, at: &Placement) {
+        // SAFETY: as set_scope, the barrel record +6E0h.
+        unsafe { Self::place(self.weapon.barrel_locator(), at) }
     }
 
     /// The scope's locator record as it stands.
@@ -428,11 +818,28 @@ pub fn eject_at(ctx: &mut Context<'_>, frame: &Affine) {
     ctx.set_reg(Reg::Eax, at as usize as u32);
 }
 
-/// `attachments.release`: the weapon weapon_cook frees.
-pub fn released(ctx: &Context<'_>) -> Option<WeaponId> {
+/// `attachments.release`: the weapon weapon_cook frees is forgotten. Its
+/// parts leave the scene if they are still there (while the world's scene
+/// lives, as the flower's) and their references are given back.
+pub fn released(ctx: &Context<'_>) {
     // SAFETY: delete_resource's entry: [esp+4] the weapon's resource base
-    // (the weapon + 10h), or 0.
-    unsafe { Some(WeaponId(raw::site::attachments_release::frame(ctx)?.resource()?.weapon().address())) }
+    // (the weapon + 10h), or 0; the cook deletes the weapon after this.
+    unsafe {
+        let Some(weapon) = raw::site::attachments_release::frame(ctx).and_then(|frame| frame.resource()).map(|r| r.weapon()) else {
+            return;
+        };
+        let Some(mut fit) = FITTED.with(ctx.thread(), |fitted| fitted.take(WeaponId(weapon.address()))) else { return };
+        if let Fit::Held { parts, .. } = &mut fit
+            && let Some(world) = weapon.world()
+            && read(world.scene().value()) != 0
+            && let Some(scene) = Scene::of_world(world)
+        {
+            for part in parts.all() {
+                scene.remove(part.model.get());
+            }
+        }
+        drop(fit);
+    }
 }
 
 /// The finger corrector `attachments.fingers_view` refills.

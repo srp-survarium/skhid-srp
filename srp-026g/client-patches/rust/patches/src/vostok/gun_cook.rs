@@ -107,7 +107,7 @@ pub fn dump_statistics(_: &Thread) {
 }
 
 /// Frees memory of the allocator's (its address), as the game does.
-fn free(address: u32) {
+pub(in crate::vostok) fn free(address: u32) {
     let Some(allocator) = allocator() else { return };
     let mut pointer = address as usize as *mut c_void;
     // SAFETY: memory the same allocator gave (engine_malloc), freed once.

@@ -124,7 +124,7 @@ pub struct Bare<'t> {
 impl<'t> Bare<'t> {
     /// The parts to draw on the bare body, the gun's own that stay, the
     /// carriers, the muzzle device and the grip; not the scope.
-    pub fn parts(&self) -> impl Iterator<Item = &Part<'t>> {
+    pub fn parts(&self) -> impl Iterator<Item = &Part<'t>> + Clone {
         self.parts.iter().flatten()
     }
 }

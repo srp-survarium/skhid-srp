@@ -1503,3 +1503,15 @@ vostok::resources::managed_resource	references	0xDC	u32	its reference count (loc
 vostok::resources::loaded_resource	managed	0x0	ptr<vostok::resources::managed_resource>	a result's managed resource, what a raw data request (class 3) gives: game::on_configs_loaded takes startup.cfg's and user.cfg's so (queries_result +128h, +408h: 0x1EA296, 0x1EA2D4); 0 for a request that failed
 survarium::dictionary_query_frame	requests	0x3C	obj<survarium::resource_request>	items_dictionary_cook::translate_query's five requests by ESP at 0x2C8963 (the address its lea eax,[esp+3Ch] takes for query_resources): five binary configs, class 1Fh
 survarium::dictionary_configs_frame	results	0x4	ptr<vostok::resources::queries_result>	items_dictionary_cook::on_configs_loaded 0x2C8AA0's argument at its entry (by ESP): the queries_result of translate_query's query
+survarium::weapon	barrel_locator	0x6E0	obj<survarium::weapon_locator>	the fire point's locator, the model's `barrel_point` (load_weapon 0x243A30): weapon::draw evaluates it into +620h each frame (calculate_locator, 0x244E68), where the shot effects play (0x24413E) and update_pfx_transform reads (0x2445BA); nothing a match computes
+survarium::weapon_cook_frame	requests	-0x40	obj<survarium::resource_requests>	weapon_cook::on_weapon_config_loaded 0x24A920's sub-resource requests (by EBP: ebp-40h begin, -3Ch end, -38h capacity end), pushed by 0x5FCB0 into the alloca 0x24AABD sizes from the count at 0x24AAB4, queried at 0x24AC95 ((end - begin) / 8 of them, 0x24AC84..0x24AC92)
+survarium::resource_requests	begin	0x0	ptr<survarium::resource_request>	a buffer_vector of {path, class} requests: the first
+survarium::resource_requests	end	0x4	ptr<survarium::resource_request>	past the last
+survarium::resource_requests	capacity	0x8	ptr<survarium::resource_request>	past the room (the cook's alloca, exactly the count at 0x24AAB4)
+survarium::resource_requests	size	0xC	size	a buffer_vector's three pointers
+survarium::weapon_ready_frame	results	0x4	ptr<vostok::resources::queries_result>	weapon_cook::on_weapon_subresources_ready 0x24ACF0's first argument at its entry (attachments.ready, by ESP): the queries' results, one a request in its order (the callback indexes them so, 0x24ADC8); [esp+38h] of the body until the shots' loop takes the slot, 0x24B063
+vostok::query_result	model	0x0	ptr<survarium::scene_model>	the result's resource for a class 15 request, a static model's holder (the weapon cook reads the scope's so, 0x24ADD4); 0 for a model that did not load
+survarium::weapon_draw_frame	world	0x8	ptr<f32>	weapon::draw 0x244E10's [ebp+8]: the weapon's world matrix (calculate_locator's second argument at 0x244E51)
+survarium::weapon_draw_frame	bones	0xC	ptr<f32>	its [ebp+0Ch]: the model-space bone matrices (calculate_locator's third, 0x244E4D)
+vostok::render::skeleton_instance	vtable	0x0	u32	its vtable: survarium::image::skeleton_instance_vtable for a skeleton_render_model_instance
+survarium::image	skeleton_instance_vtable	0x9F0F24	u32	skeleton_render_model_instance's vtable (written at 0x15A111, 0x15A220): +24h get_locator 0x15A9C0, a tail jump through the original model (+62B4h)'s vtable +28h
