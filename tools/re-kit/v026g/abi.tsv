@@ -1383,7 +1383,7 @@ va	name	source	ret_cleanup	result
 0x0031eb80	survarium::weapon_core_base_state::serialize	manual	8	
 0x0031ebb0	survarium::weapon_core_base_state::deserialize	manual	12	
 0x00321b90	survarium::bullet_manager::serialize	manual	4	
-0x00321c50	survarium::bullet_manager::deserialize	manual	4	
+0x00321c50	survarium::bullet_manager::deserialize	manual	4	EAX: the manager; reads +0B4h, +0h, +4h (the id counter) and the count; drops every bullet in flight (0x322920: the presenter +90h vtable +1Ch for each with +8Ah not 0FFFFh) and makes each one read again (0x32BBC0), handing it to the presenter (vtable +18h) as emit_bullet does: every rollback takes every tracer away and puts it back
 0x003237e0	survarium::kd_stats_rule::on_event	manual	12	
 0x00323870	survarium::kd_stats_rule::serialize	manual	4	
 0x00323910	survarium::kd_stats_rule::deserialize	manual	8	
@@ -1427,7 +1427,7 @@ va	name	source	ret_cleanup	result
 0x0032d960		auto	16	
 0x0032de40		auto	12	
 0x0032e460	survarium::player_shootmarks_storage::add_shootmark	manual	8	AL: new-entry count1 or incremented existing eight-bit occurrence count; higher EAX bits unspecified
-0x0032e4f0		auto	16	
+0x0032e4f0	survarium::bullet::process_front_face_piercing	manual	16	its decal (add_decal 0x321FA0), sound (0x3222F0) and impact (play_particle 0x3223E0) only when add_shootmark (0x32E460, the owner's ring at 0A2B22A0h + owner x 10Ch, the key the bullet id +4h and its segments +84h) says first (AL 1): a hit played again in a re-simulation does not make them again while its key is the same; back_face_piercing 0x32E7CF, process_reflection 0x32E9F5 and process_collision 0x32EC74 test it the same way
 0x0032e740		auto	16	
 0x0032e970		auto	16	
 0x0032ebd0		auto	16	
@@ -2737,3 +2737,8 @@ va	name	source	ret_cleanup	result
 0x002ee650	survarium::artefact_core_cook::on_config_loaded	manual	4	
 0x002ee7c0	survarium::artefact_core_cook::on_effect_loaded	manual	16	
 0x002e5040	survarium::damage_model::tick	manual	8	
+0x002dddf0	survarium::game_effect_player::deserialize	manual	12	at every world load (a rollback, a resync): removes every effect of kind 1 or 2 (0x2DE870) and makes each one read again (0x2DE100); no effect is kept across a load. Callers: base_player::deserialize 0x2DB57E (the player's +358h), game_world_core::deserialize 0x2D2C54 (the world's +18FE8h)
+0x002de870		manual	0	EDI: a game_effect_player +8h; removes each effect whose kind (+2Ch) is not 0 from the list (+24h, next +4Ch) under the lock at +8h, destroying it (0x2DD7F0); EAX the first removed or 0
+0x002de750		manual	0	EDI: a game_effect_player +8h; removes each effect whose state (+44h) is 2 and whose presenters' instances (+40h, a vector) are empty, destroying it (0x2DD7F0)
+0x002dd7f0		manual	0	EAX: an effect; releases its refs at +0Ch (+8h of them), its presenters' instances (+40h, 0x2DE710) and its +0h, then gives it back to the pool [1F1D9C4h]
+0x002de710		manual	0	EDI: a vector {begin, end} of 18h entries: releases each entry's +0h (count +1Ch; at 0 its +0Ch's vtable +1Ch destroys it) and empties the vector
