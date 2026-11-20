@@ -456,13 +456,6 @@ pub mod request {
         (0x47, body)
     }
 
-    /// `47 03`, paid in silver (0) or gold (1).
-    pub fn repair(item_id: u32, kind: u8) -> (u8, Vec<u8>) {
-        let mut body = vec![3];
-        body.extend(item_id.to_le_bytes());
-        body.push(kind);
-        (0x47, body)
-    }
 
     pub fn exchange(gold: u32) -> (u8, Vec<u8>) {
         let mut body = vec![4];
@@ -481,10 +474,6 @@ pub mod request {
 
     pub fn reset_skills(branch: u8, payment: u8) -> (u8, Vec<u8>) {
         (0x48, vec![1, branch, payment])
-    }
-
-    pub fn autobuy(on: bool) -> (u8, Vec<u8>) {
-        (0x49, vec![1, u8::from(on)])
     }
 
     pub fn active_kit(kit_id: u32) -> (u8, Vec<u8>) {
@@ -542,6 +531,25 @@ pub mod request {
         let mut body = vec![3];
         body.extend(account_id.to_le_bytes());
         (0x4E, body)
+    }
+
+    pub fn stop_ignoring(account_id: u32) -> (u8, Vec<u8>) {
+        let mut body = vec![5];
+        body.extend(account_id.to_le_bytes());
+        (0x4E, body)
+    }
+
+    pub fn chat_mute(
+        name: &str,
+        mode: Option<survarium::v026g::lobby::ChatMuteMode>,
+    ) -> (u8, Vec<u8>) {
+        let mut body = vec![5];
+        string(&mut body, name);
+        body.extend([
+            survarium::v026g::lobby::CHAT_MUTE_ACTION,
+            mode.map_or(0, |mode| mode as u8),
+        ]);
+        (0x49, body)
     }
 
     pub fn find_players(name: &str) -> (u8, Vec<u8>) {

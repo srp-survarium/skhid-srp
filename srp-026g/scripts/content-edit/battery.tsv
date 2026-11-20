@@ -1,0 +1,4 @@
+key	value
+parameters/movement_speed_modifier	-0.05
+states[0]/take_time	0.5
+states[2]/put_time	0.6

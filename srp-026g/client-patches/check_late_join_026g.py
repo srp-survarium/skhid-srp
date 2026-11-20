@@ -534,6 +534,11 @@ def native_profile(data):
     for length in range(len(wire)):
         run(wire[:length], False)
     run(wire + b"\0", False)
+    for side in (0, 1, *range(4, 24)):
+        run(bytes([side]) + wire[1:], True)
+        assert m.read(BASE + 0x45EC) == side
+    for side in (2, 3, 24, 255):
+        run(bytes([side]) + wire[1:], False)
     for offset, replacement in (
         (0, b"\x02"), (1, b"\x40"), (5, b"\x0f"),
         (12, b"\x04"), (13, b"\x46"),
@@ -740,7 +745,7 @@ def native_animations(data):
             assert [m.read(entries[index] + 8) for index in expected] == list(range(count))
 
 
-def native_preparation(data, grenades=0, traps=0):
+def native_preparation(data, grenades=0, traps=0, free_for_all=False):
     """Exercise the composed ready -> E4 -> query -> install -> ACK -> teardown.
 
     Native profile reading, callback invocation, slot/player/inventory binding
@@ -828,7 +833,9 @@ def native_preparation(data, grenades=0, traps=0):
     uc.mem_write(histories_at, histories)
     body = b"\x01\x03new\0" + struct.pack("<I", 10) + b"\x01\0"
     body += b"\0" + struct.pack("<I", 1) + b"\0" + bytes(20)
-    payload = b"\xffLJ\x01" + struct.pack("<II", seed, 123) + b"\x02\x07" + body
+    side, squad = (6, 0) if free_for_all else (1, 7)
+    body = bytes([side]) + body[1:]
+    payload = b"\xffLJ\x01" + struct.pack("<II", seed, 123) + bytes([2, squad]) + body
     uc.mem_write(wire_at, payload)
     for offset, value in ((0, wire_at), (4, wire_at), (8, len(payload))):
         m.write(reader + offset, value)
@@ -947,7 +954,8 @@ def native_preparation(data, grenades=0, traps=0):
     assert m.read(state + 56) == 3 and uc.mem_read(options + 0x577B5, 1)[0] == 3
     assert uc.mem_read(statistics + 8 + 0x31E0, 1)[0] == 3
     assert uc.mem_read(statistics + 0x31E0, 1)[0] == 0x5A
-    assert uc.mem_read(options + 0x5782C + 2, 1)[0] == 7
+    assert uc.mem_read(options + 0x5782C + 2, 1)[0] == squad
+    assert m.read(options + 2 * 0x45FC + 0x45EC) == side
     assert bytes(uc.mem_read(options + 2 * 0x45FC + 8, 4)) == b"new\0"
     expected_ack = b"\xff" * 6 + b"\0\0" + struct.pack("<II", seed, 123) + b"\x02\0\x01\0"
     assert messages == [expected_ack]
@@ -1141,6 +1149,9 @@ HUD_CALLS = {0x236AD0: ("show_pregame", 0), 0x236B50: ("set_pregame", 4), 0x236A
              0x236C30: ("set_respawn_time", 4), 0xE0210: ("destroy_player", 0)}
 
 
+WELCOME_SITE = 0x23B36A          # update_ui's `mov byte [edi+370h],1` (sites_026g.tsv game_world_ui.welcome)
+
+
 def hud_update(data, countdown, mode, tip_shown):
     """game_world_ui::update_ui (0x23B200) from its test of the countdown
     flag (0x23B307) to the players' rows (0x23B421), the game's own
@@ -1171,6 +1182,13 @@ def hud_update(data, countdown, mode, tip_shown):
     calls = []
 
     def visit(uc, address, size, _):
+        # patch 88's lohook at game_world_ui.welcome (0x23B36A, the music's): its entry replays the
+        # 7 bytes it replaced (`mov byte [edi+370h],1`) before the music's handler, which this
+        # check of update_ui's own flow does not run: the replayed instruction, then on
+        if address == WELCOME_SITE and bytes(uc.mem_read(WELCOME_SITE, 1)) == b"\xe9":
+            uc.mem_write(uc.reg_read(UC_X86_REG_EDI) + 0x370, b"\x01")
+            uc.reg_write(UC_X86_REG_EIP, WELCOME_SITE + 7)
+            return
         if address not in HUD_CALLS:
             return
         name, pops = HUD_CALLS[address]
@@ -1889,6 +1907,7 @@ def check(original, nasm):
     native_direct_match(patch.build(original, nasm, test_session=0x1002), 0x1002)
     native_animations(changed)
     native_preparation(changed)
+    native_preparation(changed, free_for_all=True)
     for grenades, traps in ((2, 0), (0, 1), (6, 3), (1, 1)):
         native_preparation(changed, grenades, traps)
     saved_objects(changed)
@@ -1912,9 +1931,9 @@ def check(original, nasm):
         m.uc.reg_write(UC_X86_REG_EBX, 0x12345600 | debug)
         m.write(STACK + 0x1c, 0x98765432)
         m.start(0x27A23D, end=0x27A244)
-        assert m.uc.mem_read(BASE + 4, 1)[0] == (0x80 | (debug & 1))
+        assert m.uc.mem_read(BASE + 4, 1)[0] == (0x82 | (debug & 1))
         assert m.uc.reg_read(UC_X86_REG_EAX) == 0x98765432
-        assert m.uc.reg_read(UC_X86_REG_EBX) == (0x12345680 | (debug & 1))
+        assert m.uc.reg_read(UC_X86_REG_EBX) == (0x12345682 | (debug & 1))
         assert m.uc.reg_read(UC_X86_REG_ESP) == STACK
     for roster in (0, 1, 2, 8, 9, 16, 20):
         for reading in (False, True):

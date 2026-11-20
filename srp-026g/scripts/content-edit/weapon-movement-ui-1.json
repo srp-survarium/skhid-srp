@@ -1,0 +1,12 @@
+{
+  "add_entry": [
+    {
+      "files": "gameplay/items/weapons/wpn_*.options",
+      "list": "ui_desc/props_list",
+      "after": {"prop_id": 15},
+      "like": {"prop_id": 15},
+      "values": {"prop_id": 105, "prop_value": "{parameters/movement_speed_modifier}"},
+      "only_if": "parameters/movement_speed_modifier"
+    }
+  ]
+}

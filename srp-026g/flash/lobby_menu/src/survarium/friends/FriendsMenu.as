@@ -35,9 +35,9 @@ package survarium.friends
       
       protected static var _statusMap:Array = ["friend_state_lobby","friend_state_game","friend_state_offline","friend_state_away","friend_invite"];
       
-      protected static var _friends:Array;
+      protected static var _friends:Array = [];
       
-      protected static var _ignored:Array;
+      protected static var _ignored:Array = [];
       
       protected static var _invites:Array;
       
@@ -132,30 +132,36 @@ package survarium.friends
       
       public static function isIgnored(playerName:String) : Boolean
       {
-         var i:int = 0;
-         while(i < _ignored.length)
-         {
-            if(playerName == _ignored[i].name)
-            {
-               return true;
-            }
-            i++;
-         }
-         return false;
+         return getIgnoredPlayer(playerName) != null;
       }
       
       public static function isFriend(playerName:String) : Boolean
       {
-         var i:int = 0;
-         while(i < _friends.length)
+         return getFriend(playerName) != null;
+      }
+
+      // Remove actions need the account id from the server's lists, not a
+      // ranking place or a room session id. Each server push replaces a list.
+      public static function getIgnoredPlayer(playerName:String) : Object
+      {
+         return listedPlayer(_ignored,playerName);
+      }
+
+      public static function getFriend(playerName:String) : Object
+      {
+         return listedPlayer(_friends,playerName);
+      }
+
+      private static function listedPlayer(players:Array, playerName:String) : Object
+      {
+         for each(var player:Object in players)
          {
-            if(playerName == _friends[i].name)
+            if(player.name == playerName)
             {
-               return true;
+               return player;
             }
-            i++;
          }
-         return false;
+         return null;
       }
       
       public static function isFriendOnline(playerName:String) : Boolean

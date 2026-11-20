@@ -267,7 +267,12 @@ impl Game {
     }
 
     fn spawn(&mut self, place: Place) {
-        let side = i32::from(self.bodies[place].team);
+        // A team's body at its base; a free-for-all's (a team of its own,
+        // 4 and up) at one of the map's team-2 points, as the game has it.
+        let side = match self.bodies[place].team {
+            team @ 0..=1 => i32::from(team),
+            _ => 2,
+        };
         let spawns: Vec<Vec3> = self
             .world
             .map
@@ -801,11 +806,11 @@ fn soak_tuned(
     let driven = vec![true; teams.len()];
     let roles: Vec<Option<&str>> = vec![None; teams.len()];
     let mode = if timed_s.is_some() {
-        survarium::v026g::maps::mode::TIMED_BATTERIES
+        survarium::v026g::maps::RuleMode::TimedBatteries
     } else if win > 0 {
-        survarium::v026g::maps::mode::BATTERIES
+        survarium::v026g::maps::RuleMode::Batteries
     } else {
-        survarium::v026g::maps::mode::TEAM_DEATHMATCH
+        survarium::v026g::maps::RuleMode::TeamDeathmatch
     };
     let mut bots = Bots::new(
         0x50AC + seed as u32,
@@ -1014,7 +1019,7 @@ fn the_bots_rest_through_the_start_countdown() {
     let teams: Vec<u8> = (0..4).map(|p| u8::from(p >= 2)).collect();
     let mut bots = Bots::new(
         0x50AC,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true; 4],
@@ -1278,7 +1283,7 @@ fn a_bot_standing_on_a_battery_steps_off_and_takes_it() {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x7A6E,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -1353,7 +1358,7 @@ fn a_bot_takes_a_battery_from_round_a_wall_its_use_cannot_pass() {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x7A6F,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -1465,7 +1470,7 @@ fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBattery {
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0x15AA,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -1522,7 +1527,7 @@ fn lost_battery_run(look_weight: Option<f32>, limit: u32) -> LostBattery {
                 bots.facts(facts);
             }
         }
-        if out.look.is_none() && !bots.teams[0].knowledge.looks.is_empty() {
+        if out.look.is_none() && !bots.teams[Side::team(0)].knowledge.looks.is_empty() {
             out.look = Some(clock);
         }
         let (made, _) = bots.poll(Clock {
@@ -1618,7 +1623,7 @@ fn theft_drop_run(weight: Option<f32>, drop_at: Vec3, drop_ms: u32, limit: u32) 
     let teams = [0u8, 1];
     let mut bots = Bots::new(
         0xF2,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, false],
@@ -1681,12 +1686,18 @@ fn theft_drop_run(weight: Option<f32>, drop_at: Vec3, drop_ms: u32, limit: u32) 
                 bots.facts(facts);
             }
         }
-        if out.look.is_none() && bots.teams[0].knowledge.looks.iter().any(|l| l.theft) {
+        if out.look.is_none()
+            && bots.teams[Side::team(0)]
+                .knowledge
+                .looks
+                .iter()
+                .any(|l| l.theft)
+        {
             out.look = Some(clock);
         }
         if out.seen.is_none()
             && out.dropped.is_some()
-            && bots.teams[0].knowledge.battery(0).is_some()
+            && bots.teams[Side::team(0)].knowledge.battery(0).is_some()
         {
             out.seen = Some(clock);
         }
@@ -1876,8 +1887,8 @@ fn timed_poll(bots: &mut Bots, clock: Clock, times: &mut Times) -> (Vec<Made>, V
         .view(&clock, &bots.tuning.kin, world.as_deref());
     let viewed = Instant::now();
     if bots.tactics.is_some() {
-        for team in 0..2u8 {
-            if now >= bots.teams[usize::from(team)].next_commander {
+        for team in bots.teams.sides() {
+            if now >= bots.teams[team].next_commander {
                 bots.commander(team, &view, &mut notes);
             }
         }
@@ -1951,21 +1962,21 @@ fn real_bot_cost() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
-    use survarium::v026g::maps::mode;
-    let maps: Vec<(u8, u8)> = std::env::var("SRP_BENCH_MAPS")
+    use survarium::v026g::maps::RuleMode;
+    let maps: Vec<(u8, RuleMode)> = std::env::var("SRP_BENCH_MAPS")
         .ok()
         .map(|s| {
             s.split(',')
                 .filter_map(|m| {
                     let (level, mode) = m.split_once('/')?;
-                    Some((level.parse().ok()?, mode.parse().ok()?))
+                    Some((level.parse().ok()?, RuleMode::of_config(mode.parse().ok()?)?))
                 })
                 .collect()
         })
         .unwrap_or(vec![
-            (6, mode::BATTERIES),
-            (1, mode::TEAM_DEATHMATCH),
-            (3, mode::TIMED_BATTERIES),
+            (6, RuleMode::Batteries),
+            (1, RuleMode::TeamDeathmatch),
+            (3, RuleMode::TimedBatteries),
         ]);
     for (level, mode) in maps {
         let project = format!("level_{level:02}/day_{mode}");
@@ -2013,8 +2024,8 @@ fn real_bot_cost() {
             let ready_mb = memory_mb().map(|(now, _)| now);
             reset_peak_memory();
             let (tickets, timed) = match mode {
-                mode::TEAM_DEATHMATCH => (Some(60), None),
-                mode::TIMED_BATTERIES => (None, Some(20_000)),
+                RuleMode::TeamDeathmatch => (Some(60), None),
+                RuleMode::TimedBatteries => (None, Some(20_000)),
                 _ => (None, None),
             };
             let mut game = Game::new(
@@ -2032,7 +2043,7 @@ fn real_bot_cost() {
                 .ok()
                 .and_then(|n| n.parse::<usize>().ok())
                 && timed.is_none()
-                && mode != mode::TEAM_DEATHMATCH
+                && mode != RuleMode::TeamDeathmatch
             {
                 let mut items: Vec<Vec3> =
                     world.map.battery_spawners.iter().map(|s| s.item).collect();
@@ -2053,7 +2064,7 @@ fn real_bot_cost() {
                     let (a, b) = s.split_once(',')?;
                     Some([a.trim().parse().ok()?, b.trim().parse().ok()?])
                 })
-                .filter(|_| mode != mode::TEAM_DEATHMATCH)
+                .filter(|_| mode != RuleMode::TeamDeathmatch)
                 .unwrap_or([0, 0]);
             let mut lying = 0..game.batteries.len();
             for team in 0..2u8 {
@@ -2148,7 +2159,7 @@ fn real_bot_cost() {
                     let mut on_attack = [0u64; 2];
                     for bot in bots.bots.iter().flatten() {
                         if game.bodies[bot.place].alive && attacking(bot.place) {
-                            on_attack[usize::from(bot.team)] += 1;
+                            on_attack[bot.team.index()] += 1;
                         }
                     }
                     for (side, n) in by_team.iter_mut().zip(on_attack) {
@@ -2213,7 +2224,7 @@ fn real_bot_cost() {
                         for (battery, mark) in game.stolen_marks.iter().enumerate() {
                             if let Some((owner, Some((_, alive)))) = *mark
                                 && matches!(game.batteries.get(battery), Some(Lying::Free(..)))
-                                && bots.teams[usize::from(owner)]
+                                && bots.teams[Side::team(owner)]
                                     .knowledge
                                     .battery(battery)
                                     .is_none()
@@ -2222,7 +2233,7 @@ fn real_bot_cost() {
                             }
                             if let Some((owner, Some((fell, _)))) = *mark
                                 && !stolen_known.contains(&(battery, fell))
-                                && (bots.teams[usize::from(owner)]
+                                && (bots.teams[Side::team(owner)]
                                     .knowledge
                                     .battery(battery)
                                     .is_some()
@@ -2371,7 +2382,7 @@ fn real_bot_cost() {
                             .is_some()
                     });
                     eprintln!(
-                        "  bot {} team {} side {:?} at {me:?} goal {goal:?} objective {} from {from:?} to {to:?}: path open {open:?}, allowed {allowed:?}, objective-allowed {objective:?}; play {:?}",
+                        "  bot {} {} side {:?} at {me:?} goal {goal:?} objective {} from {from:?} to {to:?}: path open {open:?}, allowed {allowed:?}, objective-allowed {objective:?}; play {:?}",
                         bot.place,
                         bot.team,
                         bot.side,
@@ -2541,13 +2552,13 @@ fn standing(time: u32, x: f32, alive: bool) -> Fix {
 /// A bot that left is forgotten by the others.
 #[test]
 fn a_bot_that_left_is_forgotten() {
-    use survarium::v026g::maps::mode;
+    use survarium::v026g::maps::RuleMode;
     // A human of team 0 at x = 0; team 1's bots at 5, 40 and 30 m.
     let teams = [0, 1, 1, 1];
     let driven = [false, true, true, true];
     let mut bots = Bots::new(
         0x6A7E,
-        mode::BATTERIES,
+        RuleMode::Batteries,
         0,
         &teams,
         &driven,
@@ -2600,7 +2611,7 @@ fn a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud() {
     let teams = [0, 1];
     let mut bots = Bots::new(
         0xF1,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true, true],
@@ -2618,7 +2629,7 @@ fn a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud() {
         marks: vec![mask],
         ..WorldFacts::default()
     };
-    let known = |bots: &Bots, team: usize| bots.teams[team].knowledge.battery(0).copied();
+    let known = |bots: &Bots, team: u8| bots.teams[Side::team(team)].knowledge.battery(0).copied();
     let dropped = Vec3::new(-43.58, 19.55, 3.80);
     let reset = Vec3::new(-41.6, 21.6, 3.5);
     bots.facts(lying(1_000, Vec3::new(-14.0, 21.7, -61.4), 0));
@@ -2648,7 +2659,7 @@ fn a_dropped_battery_put_back_after_a_fall_stays_on_its_teams_hud() {
 fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() {
     let mut bots = Bots::new(
         0x417,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &[0, 1],
         &[true, true],
@@ -2688,6 +2699,45 @@ fn a_bot_spent_of_its_first_kit_picks_its_second_for_the_next_life() {
     assert_eq!(rusher.kits[1].0.primary.0.item, "uzi");
 }
 
+/// A bot of the lobby wears its profile's kits (its match's equipment
+/// level, `session::v026g::bot_kits`): their weapons, rounds and pockets
+/// from its first life, in place of its role's fixed ones; a place that is
+/// no bot, or kits of no known weapon, change nothing.
+#[test]
+fn a_bot_wears_the_kits_of_its_profile() {
+    use survarium::v026g::loadouts::BotRole;
+    use survarium::v026g::loadouts::bot_gear::bot_kit_of;
+    let dictionary = survarium::v026g::dictionary::Dictionary::shared();
+    let dict = |name: &str| dictionary.item_named(name).unwrap().dict_id;
+    let mut bots = Bots::new(
+        0x418,
+        survarium::v026g::maps::RuleMode::Batteries,
+        0,
+        &[0, 1],
+        &[true, false],
+        &[Some("camper"), None],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    let svd = bot_kit_of(&[], dict("svd"), dict("ammo_7.62x54_7n1"), BotRole::Camper).unwrap();
+    let ak = bot_kit_of(&[], dict("ak_12"), dict("ammo_6.5x39"), BotRole::Support).unwrap();
+    let kits: Vec<Arms> = [&svd, &ak].into_iter().filter_map(Arms::of_kit).collect();
+    bots.wear(0, kits.clone());
+    bots.wear(1, kits);
+    bots.wear(0, Vec::new());
+    assert!(bots.bots[1].is_none());
+    let bot = bots.bots[0].as_mut().unwrap();
+    assert_eq!(bot.kits.len(), 2);
+    assert_eq!(bot.reflex.held_gun().item, "svd");
+    assert_eq!(bot.reflex.left(), 120);
+    assert_eq!(bot.kits[1].0.primary.0.item, "ak_12");
+    // Bare kits: one pocket, a medkit, no grenade.
+    assert_eq!((bot.kits[0].0.medkits, bot.kits[0].0.grenades), (1, 0));
+    // Its next life is still in the SVD's kit.
+    bot.new_life(0.5, None, Vec3::ZERO);
+    assert_eq!((bot.kit, bot.reflex.held_gun().item), (0, "svd"));
+}
+
 /// Match 0x5402a730 (2026-10-16): the client's world has a dead body
 /// without feet, and `game::driven` hands the bots its bodies before its
 /// statistics, so the death the statistics show came with no spot: no
@@ -2700,7 +2750,7 @@ fn a_partners_death_the_world_shows_without_feet_is_traded_by_both_teammates() {
     let teams = [0, 0, 0, 1, 1, 1];
     let mut bots = Bots::new(
         0x5402,
-        survarium::v026g::maps::mode::BATTERIES,
+        survarium::v026g::maps::RuleMode::Batteries,
         0,
         &teams,
         &[true; 6],
@@ -2776,7 +2826,7 @@ fn a_partners_death_the_world_shows_without_feet_is_traded_by_both_teammates() {
         "{:?}",
         view.deaths
     );
-    let danger = &bots.teams[0].knowledge.danger;
+    let danger = &bots.teams[Side::team(0)].knowledge.danger;
     assert_eq!(danger.len(), 1, "{danger:?}");
     assert_eq!(danger[0].victim, 1);
     assert!(danger[0].at.distance_xz(spots[1]) < 1.0, "{danger:?}");
@@ -2794,4 +2844,352 @@ fn a_partners_death_the_world_shows_without_feet_is_traded_by_both_teammates() {
             "bot {place}"
         );
     }
+}
+
+/// A free-for-all's teams as the match registry gives them: one a place
+/// (`registry::own_side`).
+fn ffa_teams(places: usize) -> Vec<u8> {
+    (0..places)
+        .map(survarium::v026g::maps::free_for_all_team)
+        .collect()
+}
+
+/// A free-for-all's map: Team Deathmatch's field (the two bases, no
+/// container, no battery) with team-2 points all over it, as content edit
+/// ffa-1 gives a Team Deathmatch project.
+fn ffa_world() -> Arc<World> {
+    super::tactics::tests::field_with(|map| {
+        let point = |x: f32, z: f32| mapdata::Spawn {
+            position: Vec3::new(x, 0.0, z),
+            rotation: Vec3::ZERO,
+            team: 2,
+            priority: 0,
+            point_id: 0,
+            layer: "default".into(),
+        };
+        map.spawns.extend([
+            point(20.0, 34.0),
+            point(30.0, 8.0),
+            point(36.0, 32.0),
+            point(48.0, 30.0),
+            point(55.0, 8.0),
+            point(62.0, 34.0),
+        ]);
+    })
+}
+
+/// A free-for-all (`docs/notes/ffa.md`) by the script: every place is a
+/// side of its own, whatever team the match gives it. Two bots that see
+/// each other fight; a bot's death is its own side's danger and nobody
+/// else's; it comes back anywhere with no base of its own; a kill between
+/// a bot and a human is a duel of that bot's side alone; and a late joiner
+/// is one side more, an enemy as every other place is.
+#[test]
+fn a_free_for_alls_bots_each_play_for_themselves() {
+    use survarium::v026g::maps::{RuleMode, free_for_all_team};
+    let mut bots = Bots::new(
+        0xFFA,
+        RuleMode::FreeForAll,
+        0,
+        &ffa_teams(3),
+        &[true, true, false],
+        &[None; 3],
+        Arc::new(Tuning::default()),
+        Trace::none(0),
+    );
+    bots.map_ready(ffa_world());
+    for place in 0..3 {
+        bots.entered(place, true, 0);
+    }
+    // Bots 0 and 1 face each other 12 m apart in the open; the human
+    // stands behind the wall, and the late joiner (place 3) will come out
+    // beside bot 0.
+    let face = |x: f32| super::kin::yaw_of([x, 0.0]);
+    let mut spots = [
+        (Vec3::new(10.0, 0.0, 32.0), face(1.0)),
+        (Vec3::new(22.0, 0.0, 32.0), face(-1.0)),
+        (Vec3::new(72.0, 0.0, 6.0), face(-1.0)),
+        (Vec3::new(18.0, 0.0, 36.0), face(-1.0)),
+    ];
+    let body = |time: u32, (feet, yaw): (Vec3, f32), life: Option<u32>| Fix {
+        time,
+        alive: life.is_some(),
+        inserted: life.unwrap_or(100),
+        feet: life.map(|_| feet),
+        yaw,
+        pitch: 0.0,
+        keys: 0,
+        speed: Some(0.0),
+    };
+    let clock = |clock: u32| Clock {
+        clock,
+        time_left_s: 600.0,
+        total_s: 900.0,
+        playing: true,
+    };
+    let side = |place: Place| Side::Solo(place);
+    // A side's duels with humans: (its K/D, how many).
+    let duels =
+        |bots: &Bots, place: Place, now: u32| bots.teams[side(place)].skill.kd(now, 300_000);
+    let bot = |bots: &Bots, place: Place| -> (Side, Option<i32>, Option<Place>, bool) {
+        let bot = bots.bots[place].as_ref().unwrap();
+        (bot.team, bot.side, bot.partner, bot.paired)
+    };
+    // Polls the bots on to `until`; the places each bot aimed at meanwhile.
+    let play = |bots: &mut Bots, from: u32, until: u32| -> Vec<(Place, Place)> {
+        let mut aimed = Vec::new();
+        for now in (from..=until).step_by(25) {
+            bots.poll(clock(now));
+            for bot in bots.bots.iter().flatten() {
+                if let Some(target) = bot.reflex.target()
+                    && !aimed.contains(&(bot.place, target))
+                {
+                    aimed.push((bot.place, target));
+                }
+            }
+        }
+        aimed
+    };
+
+    for place in 0..3 {
+        bots.fixed(place, body(1_000, spots[place], Some(100)), Some(1.0));
+    }
+    bots.facts(WorldFacts {
+        time: 1_000,
+        stats: vec![(0, 0, 0); 3],
+        ..WorldFacts::default()
+    });
+    let aimed = play(&mut bots, 1_025, 4_000);
+    // Each its own side, with no base and no partner; and each aims at the
+    // other.
+    for place in 0..2 {
+        assert_eq!(bot(&bots, place), (side(place), None, None, false));
+    }
+    assert!(
+        aimed.contains(&(0, 1)) && aimed.contains(&(1, 0)),
+        "{aimed:?}"
+    );
+    let view = bots.tracker().view(&clock(4_000), &bots.tuning.kin, None);
+    let enemies = |view: &MatchView, place: Place| -> Vec<Place> {
+        view.enemies_of(side(place)).map(|p| p.place).collect()
+    };
+    assert_eq!(enemies(&view, 0), [1, 2]);
+    assert_eq!(enemies(&view, 1), [0, 2]);
+    assert!(view.team(side(0)).all(|p| p.place == 0));
+
+    // Bot 0 kills bot 1: the danger is bot 1's own, no duel with a human,
+    // and bot 0 knows him no longer.
+    bots.fixed(0, body(5_000, spots[0], Some(100)), Some(0.6));
+    bots.fixed(1, body(5_000, spots[1], None), Some(0.0));
+    bots.fixed(2, body(5_000, spots[2], Some(100)), Some(1.0));
+    bots.facts(WorldFacts {
+        time: 5_000,
+        stats: vec![(1, 0, 1), (0, 1, 0), (0, 0, 0)],
+        ..WorldFacts::default()
+    });
+    let danger = |bots: &Bots, place: Place| bots.teams[side(place)].knowledge.danger.len();
+    assert_eq!(
+        (danger(&bots, 0), danger(&bots, 1), danger(&bots, 2)),
+        (0, 1, 0)
+    );
+    assert_eq!((duels(&bots, 0, 5_000).1, duels(&bots, 1, 5_000).1), (0, 0));
+    let knows = |bots: &Bots, place: Place, who: Place| {
+        let bot = bots.bots[place].as_ref().unwrap();
+        bot.memory.tracks().iter().any(|track| track.who == who)
+    };
+    assert!(!knows(&bots, 0, 1));
+    play(&mut bots, 5_025, 7_000);
+
+    // It comes back at a point across the field: a new life, still of no
+    // base, and it plays on.
+    spots[1] = (Vec3::new(62.0, 0.0, 34.0), face(-1.0));
+    let notes = bots.fixed(1, body(8_000, spots[1], Some(7_500)), Some(1.0));
+    assert!(
+        notes.iter().any(|note| note.text.contains("is alive at")),
+        "{notes:?}"
+    );
+    bots.fixed(0, body(8_000, spots[0], Some(100)), Some(0.6));
+    bots.fixed(2, body(8_000, spots[2], Some(100)), Some(1.0));
+    bots.facts(WorldFacts {
+        time: 8_000,
+        stats: vec![(1, 0, 1), (0, 1, 0), (0, 0, 0)],
+        ..WorldFacts::default()
+    });
+    play(&mut bots, 8_025, 10_000);
+    assert_eq!(bot(&bots, 1), (side(1), None, None, false));
+    assert!(bots.bots[1].as_ref().unwrap().assignment.is_some());
+
+    // A bot kills the human: a duel won, that bot's alone. The human kills
+    // a bot: a duel lost, that bot's alone.
+    bots.fixed(2, body(11_000, spots[2], None), Some(0.0));
+    bots.facts(WorldFacts {
+        time: 11_000,
+        stats: vec![(2, 0, 2), (0, 1, 0), (0, 1, 0)],
+        ..WorldFacts::default()
+    });
+    assert_eq!(duels(&bots, 0, 11_000), (1.0, 1));
+    assert_eq!(duels(&bots, 1, 11_000).1, 0);
+    bots.fixed(2, body(12_000, spots[2], Some(11_500)), Some(1.0));
+    bots.fixed(1, body(12_000, spots[1], None), Some(0.0));
+    bots.facts(WorldFacts {
+        time: 12_000,
+        stats: vec![(2, 0, 2), (0, 2, 0), (1, 1, 1)],
+        ..WorldFacts::default()
+    });
+    assert_eq!(duels(&bots, 0, 12_000), (1.0, 1));
+    assert_eq!(duels(&bots, 1, 12_000), (0.0, 1));
+
+    // A late joiner: one place more, its own side, with a state of its
+    // own; bot 0, which it comes out beside, takes it for an enemy.
+    bots.push_place(free_for_all_team(3));
+    assert_eq!(bots.tracker().side(3), Some(side(3)));
+    assert_eq!(bots.teams.sides(), [side(0), side(1), side(2), side(3)]);
+    assert!(!bots.is_bot(3));
+    bots.entered(3, true, 12_500);
+    for place in [0, 2, 3] {
+        bots.fixed(place, body(13_000, spots[place], Some(100)), Some(1.0));
+    }
+    bots.facts(WorldFacts {
+        time: 13_000,
+        stats: vec![(2, 0, 2), (0, 2, 0), (1, 1, 1), (0, 0, 0)],
+        ..WorldFacts::default()
+    });
+    let view = bots.tracker().view(&clock(13_000), &bots.tuning.kin, None);
+    assert_eq!(enemies(&view, 0), [2, 3]);
+    assert_eq!(enemies(&view, 3), [0, 2]);
+    let aimed = play(&mut bots, 13_025, 17_000);
+    assert!(aimed.contains(&(0, 3)), "{aimed:?}");
+}
+
+/// A free-for-all of bots against the stand-in game: four bots, each for
+/// itself, coming out at the map's team-2 points. They find each other,
+/// fight, die and come back, with no input out of the rules; a place that
+/// joins late is shot at as any other.
+#[test]
+fn a_free_for_all_soak_has_every_bot_fight_every_other() {
+    use survarium::v026g::maps::{RuleMode, free_for_all_team};
+    const BOTS: usize = 4;
+    let world = ffa_world();
+    // The stand-in game has the late joiner's body from the start (it
+    // stands where it came out); the bots learn of its place at 40 s.
+    let joiner = BOTS;
+    let teams = ffa_teams(BOTS + 1);
+    let mut bots = Bots::new(
+        0xFFA5,
+        RuleMode::FreeForAll,
+        0,
+        &teams[..BOTS],
+        &[true; BOTS],
+        &[None; BOTS],
+        Arc::new(bench_tuning()),
+        Trace::none(0),
+    );
+    bots.map_ready(world.clone());
+    let mut game = Game::new(world, &teams, 7, None, None);
+    assert!(game.containers.is_empty() && game.batteries.is_empty());
+    for place in 0..BOTS {
+        bots.entered(place, true, 0);
+    }
+    let limit_ms = 180_000;
+    let (mut clock, mut next_world) = (0, 1_000);
+    let mut aimed: Vec<(Place, Place)> = Vec::new();
+    let mut lives = [0u32; BOTS];
+    while clock < limit_ms {
+        clock += 25;
+        while game.tick + TICK_MS <= clock {
+            game.step();
+        }
+        if clock == 40_000 {
+            bots.push_place(free_for_all_team(joiner));
+            bots.entered(joiner, true, clock);
+        }
+        if clock >= next_world {
+            next_world += 1_000;
+            if let Some((_, fixes, health, facts)) = game.world_at(clock / TICK_MS * TICK_MS - 300)
+            {
+                for (place, (fix, health)) in fixes.into_iter().zip(health).enumerate() {
+                    for note in bots.fixed(place, fix, Some(health)) {
+                        if note.text.contains("is alive at") {
+                            lives[note.place] += 1;
+                        }
+                    }
+                }
+                bots.facts(facts);
+            }
+        }
+        let (made, _) = bots.poll(Clock {
+            clock,
+            time_left_s: (limit_ms - clock) as f32 / 1000.0,
+            total_s: limit_ms as f32 / 1000.0,
+            playing: true,
+        });
+        for made in made {
+            assert!(made.time > clock && made.time <= clock + 100);
+            assert_eq!(made.input.actions & key::NEVER, 0);
+            assert!(made.input.rotation_is_sane());
+            let r = made.input.rotation;
+            let turn = (
+                half_value(u16::from_le_bytes([r[0], r[1]])),
+                half_value(u16::from_le_bytes([r[2], r[3]])),
+            );
+            let bot = bots.bots[made.place].as_ref().unwrap();
+            let target = bot.reflex.target();
+            if let Some(target) = target
+                && !aimed.contains(&(made.place, target))
+            {
+                aimed.push((made.place, target));
+            }
+            game.inputs[made.place].push_back((
+                made.time,
+                made.input.actions,
+                turn,
+                target,
+                bot.reflex.held_gun(),
+            ));
+        }
+    }
+    let kills: Vec<u32> = game.stats.iter().map(|stats| stats.0).collect();
+    let deaths: Vec<u32> = game.stats.iter().map(|stats| stats.1).collect();
+    if std::env::var_os("SRP_BOT_NOTES").is_some() {
+        eprintln!(
+            "kills {kills:?}; deaths {deaths:?}; the bots' lives {lives:?}; hits {} of {} shots; aimed (by, at) {aimed:?}",
+            game.hits, game.shots
+        );
+    }
+    assert!(
+        kills[..BOTS].iter().sum::<u32>() >= 4,
+        "kills {kills:?}, deaths {deaths:?} ({} hits of {} shots)",
+        game.hits,
+        game.shots
+    );
+    for place in 0..BOTS {
+        let bot = bots.bots[place].as_ref().unwrap();
+        assert_eq!(
+            (bot.team, bot.side, bot.partner),
+            (Side::Solo(place), None, None)
+        );
+        // Every life it began: its first and one after each death but,
+        // maybe, the last.
+        assert!(
+            lives[place] >= deaths[place] && lives[place] <= deaths[place] + 1,
+            "bot {place}: {} lives, {} deaths",
+            lives[place],
+            deaths[place]
+        );
+        assert!(game.bodies[place].moved > 20.0, "bot {place}");
+        // It aimed at another bot, never at itself.
+        assert!(
+            aimed.iter().any(|&(by, at)| by == place && at < BOTS),
+            "bot {place}: {aimed:?}"
+        );
+        assert!(!aimed.contains(&(place, place)));
+    }
+    // Some bot died and came back.
+    assert!(lives.iter().any(|&lives| lives >= 2), "{lives:?}");
+    // The late joiner: a side of its own, and a target.
+    assert_eq!(bots.tracker().side(joiner), Some(Side::Solo(joiner)));
+    assert!(
+        aimed.iter().any(|&(_, at)| at == joiner),
+        "nobody aimed at the late joiner: {aimed:?}, deaths {deaths:?}"
+    );
 }

@@ -23,7 +23,7 @@
 //! client).
 
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::item_params::item_params;
+use survarium::v026g::loadouts;
 
 use super::account::{Account, Kit};
 use super::rules;
@@ -31,28 +31,17 @@ use crate::Level;
 
 /// The level of a kit: see the module, step 1.
 pub fn kit_level(account: &Account, kit: &Kit) -> u8 {
-    let dictionary = Dictionary::shared();
-    let weights = &dictionary.match_maker.slots_weight;
-    let highest = kit
-        .slots
-        .iter()
-        .enumerate()
-        .filter_map(|(slot, held)| {
-            let held = held.as_ref()?;
-            let item = account.item(held.item_id)?;
-            // A stack with nothing in the slot or left of it is no gear
-            // (0x2F7A26..0x2F7A3A).
-            if dictionary.is_stack(item.dict_id)
-                && (held.count == 0 || item.condition_or_stack == 0)
-            {
-                return None;
-            }
-            let level = item_params(item.dict_id)?.match_making_level;
-            Some(f32::from(level) * weights.get(slot).copied().unwrap_or(1.0))
-        })
-        .fold(0.0_f32, f32::max);
-    // The client adds 0.5 and floors (0x2F7A9E).
-    (highest + 0.5).floor().clamp(0.0, 255.0) as u8
+    // A stack with nothing in the slot or left of it is no gear
+    // (0x2F7A26..0x2F7A3A): its units are the fewer of the two.
+    loadouts::gear_level(kit.slots.iter().enumerate().filter_map(|(slot, held)| {
+        let held = held.as_ref()?;
+        let item = account.item(held.item_id)?;
+        Some((
+            slot as u8,
+            item.dict_id,
+            held.count.min(item.condition_or_stack),
+        ))
+    }))
 }
 
 /// The highest level of the account's kits that can be played at `now`
@@ -110,6 +99,20 @@ pub fn match_level(levels: &[u8]) -> u16 {
     mean.min(last) as u16
 }
 
+/// The highest level a match can have: [`match_level`] of players all at
+/// the highest level (step 4's highest `item_level_min`).
+pub fn highest_match_level() -> u16 {
+    let highest = Dictionary::shared()
+        .match_maker
+        .items_levels_modifiers
+        .iter()
+        .map(|row| row.item_level_min)
+        .max()
+        .unwrap_or(0)
+        .min(u32::from(u8::MAX)) as u8;
+    match_level(&[highest])
+}
+
 /// How many matches the account was put in on the map `level`
 /// (`maps::MapMode::level`, a number of the game data's).
 pub fn map_plays(account: &Account, level: u8) -> u32 {
@@ -135,6 +138,7 @@ pub fn count_map_play(account: &mut Account, level: u8) {
 mod tests {
     use super::*;
     use crate::v026g::account::KitSlot;
+    use survarium::v026g::item_params::item_params;
 
     /// A dictionary item by its name.
     fn dict_id(name: &str) -> u16 {
@@ -246,6 +250,8 @@ mod tests {
         assert_eq!(match_level(&[15; 16]), 15);
         // Never past the multipliers' last row.
         assert_eq!(match_level(&[200, 200]), 20);
+        // The highest gear (15) is the highest level, whatever the rating.
+        assert_eq!(highest_match_level(), 15);
         assert!(
             Dictionary::shared()
                 .match_level(usize::from(match_level(&[15, 15])))

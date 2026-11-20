@@ -1,9 +1,10 @@
 //! The admin's account moderation on the 0.26g page
 //! (`docs/notes/account-moderation.md`). The owner, 2026-10-20: "we need the
-//! ability to take away items in the admin panel", and the silver (gold for
-//! one of them) that players farmed taken out again.
+//! ability to take away items in the admin panel", and the silver that
+//! players farmed taken out again (the one currency: gold is gone, the
+//! owner's of 2026-11-08).
 //!
-//! - The Money tab: an account's silver and/or gold changed by a signed
+//! - The Money tab: an account's silver changed by a signed
 //!   amount, never below 0; a take of more than it has takes what it has,
 //!   and the page says how much that was.
 //! - The Take items tab: the account's items listed (name, dictionary id,
@@ -30,6 +31,11 @@
 //! (`GameAccounts::write_admin`: that account only, the database refusing
 //! is an error on the page), and then the account's open game is sent its
 //! account again, as after a purchase. No other account is touched.
+//!
+//! The Mute tab (`docs/notes/admin-chat-mute.md`) is one step: an account's
+//! chat muted for some hours or for good, with a reason its player is told,
+//! or lifted. The mute is the store's (a `session::Ban`, kept with the
+//! account like a ban); each one is an audit row.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -39,13 +45,15 @@ use session::v026g::account::Account;
 use session::v026g::moderation::{
     self, AdminAction, MoneyChange, Pick, TakeRefused, Taking, plan_take, take, take_key,
 };
-use session::{LockExt, ResetWrite};
+use session::{Ban, LockExt, ResetWrite};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::modifications::Modifications;
 
-use super::password_reset::date_utc;
 use super::v026g::Game;
-use super::{AdminView, Lang, Request, Web, clock_utc, delta, escape, unix_now};
+use super::{
+    AdminView, BadHours, Lang, Request, Web, ban_end, ban_until, clock_utc, date_utc, delta,
+    escape, unix_now,
+};
 
 /// The audit rows shown with an account.
 const HISTORY: usize = 8;
@@ -119,7 +127,6 @@ struct Card {
 pub(crate) struct MoneyView {
     user: String,
     silver: String,
-    gold: String,
     reason: String,
     shown: Option<MoneyShown>,
 }
@@ -192,7 +199,7 @@ fn signed(value: i64) -> String {
 }
 
 /// What the page says of a write ([`ResetWrite`]), after `done`.
-fn written_note(lang: Lang, written: &ResetWrite) -> String {
+pub(crate) fn written_note(lang: Lang, written: &ResetWrite) -> String {
     match written {
         ResetWrite::Written => String::new(),
         ResetWrite::Pending => lang.tr(
@@ -214,7 +221,7 @@ fn written_note(lang: Lang, written: &ResetWrite) -> String {
     }
 }
 
-fn log_write(peer: &str, what: &str, written: &ResetWrite) {
+pub(crate) fn log_write(peer: &str, what: &str, written: &ResetWrite) {
     match written {
         ResetWrite::Written => {}
         ResetWrite::Pending => {
@@ -300,7 +307,6 @@ impl Web {
         let mut view = MoneyView {
             user: request.field("user").to_owned(),
             silver: request.field("silver").to_owned(),
-            gold: request.field("gold").to_owned(),
             reason: request.field("money_reason").to_owned(),
             shown: None,
         };
@@ -315,11 +321,11 @@ impl Web {
             Ok(found) => found,
             Err(message) => return (message, view),
         };
-        let (Some(silver), Some(gold)) = (delta(&view.silver), delta(&view.gold)) else {
+        let Some(silver) = delta(&view.silver) else {
             return (
                 lang.tr(
-                    "Silver and gold are whole numbers, + or -, or empty.",
-                    "Срібло і золото — цілі числа, + або -, або порожньо.",
+                    "Silver is a whole number, + or -, or empty.",
+                    "Срібло — ціле число, + або -, або порожньо.",
                 ),
                 view,
             );
@@ -334,7 +340,7 @@ impl Web {
         };
         let (change, applied) = {
             let mut account = account.locked();
-            let change = MoneyChange::plan(account_id, &account, silver, gold);
+            let change = MoneyChange::plan(account_id, &account, silver);
             let apply = confirm
                 && reason.is_some()
                 && !change.is_nothing()
@@ -365,34 +371,27 @@ impl Web {
             let note = written_note(lang, &done);
             written = Some(done);
             view.silver.clear();
-            view.gold.clear();
             view.reason.clear();
             lang.tr(
                 &format!(
-                    "{}: silver {} → {} ({}), gold {} → {} ({}).",
+                    "{}: silver {} → {} ({}).",
                     card.name,
                     grouped(change.silver.0.into()),
                     grouped(change.silver.1.into()),
                     signed(change.silver_change()),
-                    grouped(change.gold.0.into()),
-                    grouped(change.gold.1.into()),
-                    signed(change.gold_change()),
                 ),
                 &format!(
-                    "{}: срібло {} → {} ({}), золото {} → {} ({}).",
+                    "{}: срібло {} → {} ({}).",
                     card.name,
                     grouped(change.silver.0.into()),
                     grouped(change.silver.1.into()),
                     signed(change.silver_change()),
-                    grouped(change.gold.0.into()),
-                    grouped(change.gold.1.into()),
-                    signed(change.gold_change()),
                 ),
             ) + &note
-        } else if silver == 0 && gold == 0 {
+        } else if silver == 0 {
             lang.tr(
-                "Type the silver and/or gold to add (+) or take (-). The balance is below.",
-                "Введіть срібло та/або золото, щоб додати (+) чи забрати (-). Баланс нижче.",
+                "Type the silver to add (+) or take (-). The balance is below.",
+                "Введіть срібло, щоб додати (+) чи забрати (-). Баланс нижче.",
             )
         } else if change.is_nothing() {
             lang.tr(
@@ -613,6 +612,159 @@ impl Web {
         game.accounts
             .admin_actions(account_id, HISTORY, written.is_none())
     }
+
+    /// The Mute tab (`docs/notes/admin-chat-mute.md`): an account's chat
+    /// muted for some hours or for good, with a reason its player is told,
+    /// or the mute lifted. It holds from the account's next line; each one
+    /// is in the audit trail.
+    pub(crate) fn admin_chat_mute(&self, request: &Request, peer: &str) -> String {
+        let lang = request.lang;
+        let Some(game) = &self.game else {
+            return String::new();
+        };
+        let user = request.field("mute_user");
+        // The token alone (the page's first press): nothing asked yet.
+        if user.trim().is_empty() {
+            return String::new();
+        }
+        let now = unix_now();
+        let ask = match mute_ask(
+            request.field("unmute") == "1",
+            request.field("mute_hours"),
+            request.field("mute_reason"),
+            now,
+        ) {
+            Ok(ask) => ask,
+            Err(MuteRefused::Hours) => return BadHours::text(lang),
+            Err(MuteRefused::NoReason) => {
+                return lang.tr(
+                    "A reason is required: the player is told it.",
+                    "Потрібна причина: гравцю її покажуть.",
+                );
+            }
+        };
+        let (account_id, account) = match self.find_026g(game, lang, user) {
+            Ok(found) => found,
+            Err(message) => return message,
+        };
+        let name = account.locked().name.clone();
+        drop(account);
+        let before = self.store.chat_ban(account_id);
+        let (message, after, reason) = match ask {
+            MuteAsk::Mute(ban) => {
+                let message = lang.tr(
+                    &format!("{name}'s chat muted {}.", ban_end(lang, &ban)),
+                    &format!("Чат {name} вимкнено {}.", ban_end(lang, &ban)),
+                );
+                let after = Some(ban.clone());
+                let reason = ban.reason.clone();
+                self.store.mute_chat(account_id, ban);
+                (message, after, reason)
+            }
+            MuteAsk::Unmute => {
+                if !self.store.unmute_chat(account_id) {
+                    return lang.tr(
+                        &format!("{name}'s chat was not muted."),
+                        &format!("Чат {name} не був вимкнений."),
+                    );
+                }
+                let message = lang.tr(
+                    &format!("{name}'s chat unmuted."),
+                    &format!("Чат {name} увімкнено."),
+                );
+                (message, None, String::new())
+            }
+        };
+        let state = |ban: &Option<Ban>| match ban {
+            None => "not muted".to_owned(),
+            Some(ban) => ban_end(Lang::En, ban),
+        };
+        let action = AdminAction {
+            at: now,
+            admin: peer.to_owned(),
+            account_id,
+            account: name.clone(),
+            kind: "chat_mute".to_owned(),
+            change: match &after {
+                Some(_) => "chat muted".to_owned(),
+                None => "chat unmuted".to_owned(),
+            },
+            reason,
+            before: state(&before),
+            after: state(&after),
+        };
+        log::warn!(
+            "Admin from {peer}: {} of {name} ({account_id:#x}): {} -> {}; reason {:?}",
+            action.change,
+            action.before,
+            action.after,
+            action.reason
+        );
+        let done = game.accounts.write_admin(account_id, action);
+        log_write(
+            peer,
+            &format!("chat mute of account {account_id:#x}"),
+            &done,
+        );
+        message + &written_note(lang, &done)
+    }
+}
+
+/// What the Mute tab asks ([`mute_ask`]).
+#[derive(Debug, PartialEq, Eq)]
+enum MuteAsk {
+    Mute(Ban),
+    Unmute,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum MuteRefused {
+    /// Not hours a ban takes ([`ban_until`]).
+    Hours,
+    /// A mute needs a reason: its player is told it.
+    NoReason,
+}
+
+/// The Mute tab's fields as what they ask, at `now` (Unix seconds): the
+/// Unmute button, or a mute of `hours` ([`ban_until`]) for `reason`
+/// ([`moderation::clean_reason`]).
+fn mute_ask(unmute: bool, hours: &str, reason: &str, now: u64) -> Result<MuteAsk, MuteRefused> {
+    if unmute {
+        return Ok(MuteAsk::Unmute);
+    }
+    let until = ban_until(hours, now).map_err(|BadHours| MuteRefused::Hours)?;
+    let reason = moderation::clean_reason(reason).ok_or(MuteRefused::NoReason)?;
+    Ok(MuteAsk::Mute(Ban { until, reason }))
+}
+
+/// The Mute tab's panel.
+pub(crate) fn mute_panel(lang: Lang) -> String {
+    format!(
+        "<div class=\"panel p-mute\">\
+         <label for=mu>{}</label><input id=mu name=mute_user maxlength=99>\
+         <label for=mh>{}</label><input id=mh name=mute_hours inputmode=numeric placeholder=24>\
+         <label for=mr>{}</label><input id=mr name=mute_reason maxlength=100>\
+         <small>{}</small><br>\
+         <button>{}</button> <button name=unmute value=1 class=quiet>{}</button></div>",
+        lang.tr(
+            "Account: user name or character name",
+            "Акаунт: ім'я для входу або ім'я персонажа"
+        ),
+        lang.tr("Hours (empty: for good)", "Години (порожньо — назавжди)"),
+        lang.tr(
+            "Reason (the player is told it)",
+            "Причина (її покажуть гравцю)"
+        ),
+        lang.tr(
+            "Nobody gets its chat lines, on any channel; it gets \"muted for &lt;reason&gt;\" (or \
+             \"muted until &lt;time&gt; UTC: &lt;reason&gt;\") back instead. Unmute needs the account only.",
+            "Його рядки чату не отримує ніхто, на жодному каналі; натомість він отримує \
+             \"muted for &lt;причина&gt;\" (або \"muted until &lt;час&gt; UTC: &lt;причина&gt;\"). Для зняття \
+             потрібен лише акаунт."
+        ),
+        lang.tr("Mute", "Вимкнути чат"),
+        lang.tr("Unmute", "Увімкнути чат"),
+    )
 }
 
 /// A confirm whose token is not good (used already, or too old).
@@ -821,7 +973,7 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
             };
             format!(
                 "<h3>{}</h3><table>{}\
-                 <tr><th>{}</th><td>{}</td></tr><tr><th>{}</th><td>{}</td></tr></table>\
+                 <tr><th>{}</th><td>{}</td></tr></table>\
                  {}{button}{}",
                 if shown.applied {
                     lang.tr("Done", "Зроблено")
@@ -834,14 +986,7 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
                     change.silver.0,
                     change.silver.1,
                     change.silver_change(),
-                    change.asked.0
-                )),
-                lang.tr("Gold", "Золото"),
-                escape(&line(
-                    change.gold.0,
-                    change.gold.1,
-                    change.gold_change(),
-                    change.asked.1
+                    change.asked
                 )),
                 shown
                     .plan
@@ -857,7 +1002,6 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
         "<div class=\"panel p-money\">\
          <label for=u>{}</label><input id=u name=user maxlength=99 value=\"{}\">\
          <label for=s>{}</label><input id=s name=silver placeholder=-100000 value=\"{}\">\
-         <label for=g>{}</label><input id=g name=gold placeholder=+500 value=\"{}\">\
          <label for=mr>{}</label><input id=mr name=money_reason maxlength=200 value=\"{}\">\
          <small>{}</small><br><button>{}</button>{shown}</div>",
         lang.tr(
@@ -867,8 +1011,6 @@ pub(crate) fn money_panel(lang: Lang, view: &AdminView) -> String {
         escape(&money.user),
         lang.tr("Silver, + or -", "Срібло, + або -"),
         escape(&money.silver),
-        lang.tr("Gold, + or -", "Золото, + або -"),
-        escape(&money.gold),
         lang.tr(
             "Reason (required; only admins see it)",
             "Причина (обов'язково; бачать лише адміни)"
@@ -1066,4 +1208,34 @@ pub(crate) fn items_panel(lang: Lang, view: &AdminView) -> String {
         ),
         lang.tr("List / preview", "Список / перегляд"),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_mute_tabs_fields_parse_to_what_they_ask() {
+        let now = 1_000;
+        let mute = |until, reason: &str| {
+            Ok(MuteAsk::Mute(Ban {
+                until,
+                reason: reason.to_owned(),
+            }))
+        };
+        assert_eq!(mute_ask(false, "", " spam ", now), mute(None, "spam"));
+        assert_eq!(
+            mute_ask(false, " 2 ", "spam", now),
+            mute(Some(now + 7200), "spam")
+        );
+        assert_eq!(
+            mute_ask(false, "soon", "spam", now),
+            Err(MuteRefused::Hours)
+        );
+        assert_eq!(mute_ask(false, "2", "  ", now), Err(MuteRefused::NoReason));
+        // Control characters go; the reason is one line.
+        assert_eq!(mute_ask(false, "", "a\nb", now), mute(None, "a b"));
+        // Unmute needs nothing else.
+        assert_eq!(mute_ask(true, "soon", "", now), Ok(MuteAsk::Unmute));
+    }
 }

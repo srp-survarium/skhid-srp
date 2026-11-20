@@ -1,0 +1,41 @@
+{
+ "_about": "Chemical Plant v0.21's keys for exe patch 130 (v021d_render), as v021d-renderer-1.json gives the other five 0.21 maps: srp_renderer_v021d true at the root of its six client projects (0.21d wet surfaces, rain drops, god rays once a frame), srp_grass_v021d in material/g_stage/effect of the one material its vegetation layers' models use (ported/v021d/flora/grass_l04: 0.21d's grass sway), srp_water_v021d in material/forward/effect of its two water materials (0.21d's wave normals). The files the patch draws with: pack v021d-renderer.",
+ "add_value": [
+  {
+   "files": [
+    "projects/v021d_level_04/day_2/client_project",
+    "projects/v021d_level_04/day_4/client_project",
+    "projects/v021d_level_04/evening_2/client_project",
+    "projects/v021d_level_04/evening_4/client_project",
+    "projects/v021d_level_04/rain_2/client_project",
+    "projects/v021d_level_04/rain_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_renderer_v021d",
+   "value": true
+  },
+  {
+   "files": [
+    "material_instances/ported/v021d/flora/grass_l04.material"
+   ],
+   "table": "material/g_stage/effect",
+   "key": "srp_grass_v021d",
+   "value": {
+    "value": true,
+    "is_model_parameter": false
+   }
+  },
+  {
+   "files": [
+    "material_instances/ported/v021d/water/water_l04_deep.material",
+    "material_instances/ported/v021d/water/water_l04_shallow.material"
+   ],
+   "table": "material/forward/effect",
+   "key": "srp_water_v021d",
+   "value": {
+    "value": true,
+    "is_model_parameter": false
+   }
+  }
+ ]
+}

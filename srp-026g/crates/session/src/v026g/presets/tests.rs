@@ -47,12 +47,11 @@ fn owned_id(account: &Account, name: &str) -> u32 {
 
 /// What choosing may never change: the items owned (ids, types, units,
 /// modifications), the next item id and the money.
-fn owned(account: &Account) -> (Vec<Item>, u32, u32, u32) {
+fn owned(account: &Account) -> (Vec<Item>, u32, u32) {
     (
         account.inventory.clone(),
         account.next_item_id,
         account.generic_money,
-        account.premium_money,
     )
 }
 
@@ -399,6 +398,16 @@ fn an_item_type_goes_into_one_pocket() {
     let grenades = account.add_item(dict("rgd-5"), 3);
     let booster = account.add_item(dict("speed_booster"), 2);
     let mut preset = empty_preset();
+    // Gear that opens the pockets, as the kit wears it.
+    account.wear_roomy_gear(0);
+    for slot in [2, 3] {
+        let held = account.kits[0].slots[slot].unwrap();
+        preset.kits[0][slot] = Some(PresetSlot {
+            item_id: held.item_id,
+            dict_id: account.item(held.item_id).unwrap().dict_id,
+            count: 1,
+        });
+    }
     // Kept from before the rule: grenades in two pockets, a booster in two.
     for (pocket, item_id, dict_id, count) in [
         (13, grenades, dict("rgd-5"), 1),

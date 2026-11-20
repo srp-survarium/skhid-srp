@@ -62,5 +62,25 @@ package survarium.constants
       {
          super();
       }
+
+      // A pocket: quick slots 13..18.
+      // Supply pockets share six quick positions with artifact placeholders.
+      public static const MAX_POCKETS:int = 6;
+      public static const QUICK_POSITIONS:int = 6;
+
+      public static function pocketCount(count:int) : int
+      {
+         return Math.max(0,Math.min(MAX_POCKETS,count));
+      }
+
+      public static function artifactCount(pockets:int, artifacts:int) : int
+      {
+         return Math.max(0,Math.min(QUICK_POSITIONS-pocketCount(pockets),artifacts));
+      }
+
+      public static function isPocket(slot:int) : Boolean
+      {
+         return slot >= QUICK_1 && slot <= QUICK_6;
+      }
    }
 }

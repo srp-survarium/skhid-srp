@@ -1,0 +1,32 @@
+# Patch 120: a match its game never played closes too: a kick, a timeout, a
+# lost link or the farewell in the handshake, while the level loads or
+# before the first world ends the match as it ends a played one (README "A
+# match closed before it played"). The sites are sites_026g.tsv's; the logic
+# is unplayed_match.rs and vostok/match_close.rs.
+name = "unplayed_match"
+patch = 120
+
+# connect_to_match connects: a match is open.
+[[hook]]
+site = "unplayed.connect"
+handler = "on_connect"
+
+# The logoff: the match given up.
+[[hook]]
+site = "unplayed.sign_off"
+handler = "on_sign_off"
+
+# close_current_match's guard.
+[[hook]]
+site = "unplayed.close_guard"
+handler = "on_close"
+
+# on_project_loaded's abort test: the load goes on for an open match.
+[[hook]]
+site = "unplayed.load_end"
+handler = "on_load_end"
+
+# on_match_ready's end: a close that waited for the load.
+[[hook]]
+site = "unplayed.ready_end"
+handler = "on_ready"

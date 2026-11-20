@@ -1,11 +1,12 @@
 //! The 0.26g client's reliable-UDP transport, server side: shared by the
-//! lobby server and the match server (PLAN-026G step 1). The spec is
+//! lobby server and the match server. The spec is
 //! `docs/notes/transport.md`; section numbers in the comments
 //! (§2.2, §4.1 …) point there, and hex addresses are in the 0.26g client.
 //!
 //! - [`Transport`]: one per client. It owns no socket: a server keeps one
-//!   UDP socket and a map of peers, feeds each datagram to its peer's
-//!   `receive`, and sends what `poll` returns.
+//!   UDP socket ([`relay::Datagrams`]) and a map of peers ([`relay::Peer`]),
+//!   feeds each datagram to its peer's `receive`, and sends what `poll`
+//!   returns.
 //! - [`Table`]: which connection it is. The match and the lobby run on the
 //!   same transport code in the client, with different per-id tables.
 //! - [`PacketLog`]: the opt-in raw datagram log (`SRP_PACKET_LOG=<dir>`).
@@ -14,16 +15,19 @@
 //!
 //! ```no_run
 //! use std::collections::HashMap;
-//! use std::net::{SocketAddr, UdpSocket};
+//! use std::net::UdpSocket;
 //! use std::time::Instant;
+//! use udp_transport::relay::{Datagrams, Peer, Relays};
 //! use udp_transport::{Event, PacketLog, Table, Transport};
 //!
 //! let socket = UdpSocket::bind("0.0.0.0:1236").unwrap();
+//! let mut socket = Datagrams::new(&socket, Relays::from_env().unwrap()).unwrap();
 //! let log = PacketLog::from_env();
-//! let mut peers: HashMap<SocketAddr, Transport> = HashMap::new();
+//! // By peer: an address and the route it came by, never the address alone.
+//! let mut peers: HashMap<Peer, Transport> = HashMap::new();
 //! let mut buffer = [0; 2048];
 //! loop {
-//!     let (len, from) = socket.recv_from(&mut buffer).unwrap();
+//!     let Ok((len, from)) = socket.recv_from(&mut buffer) else { continue };
 //!     let now = Instant::now();
 //!     let peer = peers.entry(from).or_insert_with(|| {
 //!         let mut transport = Transport::new(Table::Match, now);
@@ -43,6 +47,7 @@
 //! }
 //! ```
 
+pub mod relay;
 pub mod ack;
 pub mod packet_log;
 pub mod seq;

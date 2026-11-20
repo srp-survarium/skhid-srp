@@ -46,6 +46,7 @@ use updater_logic::patches::{
     parse_list, todo, write_list,
 };
 use updater_logic::pipe::{ToLauncher, state, step};
+use updater_logic::problem::{self, Fault};
 use updater_logic::sha256::to_hex;
 use updater_logic::url::Url;
 use windows_sys::Win32::Foundation::{
@@ -58,6 +59,7 @@ use crate::http::{self, HttpError};
 use crate::install::Layout;
 use crate::log::log;
 use crate::text;
+use crate::torrent;
 use crate::win::{self, Code, File};
 
 /// Beside the updater: the server's last list, as it was read.
@@ -246,7 +248,7 @@ fn survey(
                 Local::Found(sha256)
             }
             Err(code) if win::is_missing(code) => Local::Missing,
-            Err(_) if session.as_deref().is_some_and(|session| session.stopped) => return None,
+            Err(_) if session.as_deref().is_some_and(|session| session.stopped()) => return None,
             Err(code) => {
                 log!("patches: {path} cannot be read ({})", win::error_text(code));
                 Local::Unreadable
@@ -387,8 +389,8 @@ enum Miss {
         reason: String,
         /// For the log.
         why: String,
-        /// It sent a file with another SHA-256.
-        wrong: bool,
+        /// How: not reached, or what it sent (another SHA-256: damaged).
+        miss: problem::Miss,
         /// A second round may do better (the network, a cut, a 5xx).
         again: bool,
     },
@@ -450,29 +452,35 @@ const WRITE_STEP: &str = "write the patch";
 struct Run<'a> {
     session: &'a mut Session,
     layout: &'a Layout,
-    server: &'a Url,
+    /// Where the list comes from: the server, or the list built into this
+    /// updater ([`built_in`]) when the server could not be reached.
+    source: Source<'a>,
     look: Look,
     record: &'a mut Record,
     /// The folder is about to change, or has: the status says so.
     changing: bool,
+    /// Patches the torrent gave, checked in their parts, with their identity
+    /// when hashed.
+    torrented: Vec<(u8, Option<Identity>)>,
 }
 
 impl Run<'_> {
-    /// The server's list, asked for a few times.
+    /// The server's list, asked for a few times; or the one built in.
     fn list(&mut self) -> Result<List, Fail> {
+        let server = match &self.source {
+            Source::Server(server) => *server,
+            Source::BuiltIn(list) | Source::Torrent(list) => return Ok(list.clone()),
+        };
         let mut last = String::new();
         for attempt in 1..=LIST_TRIES {
             let session = &mut *self.session;
-            let result = http::get(self.server, "/patches", MAX_LIST, &mut |_, _| {
-                session.pump()
-            });
-            self.session
-                .reached(self.server, result.as_ref().map(|_| ()));
+            let result = http::get(server, "/patches", MAX_LIST, &mut |_, _| session.pump());
+            self.session.reached(server, result.as_ref().map(|_| ()));
             let error = match result {
                 Ok(body) => {
                     return parse_list(&body).map_err(|error| {
                         Fail::Blocked(
-                            text::patches_bad_list(self.server, &list_error(&error)),
+                            text::patches_bad_list(server, &list_error(&error)),
                             format!("the list is not one ({error:?})"),
                         )
                     });
@@ -480,19 +488,19 @@ impl Run<'_> {
                 Err(HttpError::Stopped) => return Err(Fail::Stopped),
                 Err(HttpError::Status(404)) => {
                     return Err(Fail::Blocked(
-                        text::patches_not_offered(self.server),
+                        text::patches_not_offered(server),
                         "the server has no /patches".into(),
                     ));
                 }
                 Err(HttpError::TooLarge) => {
                     return Err(Fail::Blocked(
-                        text::patches_bad_list(self.server, "too large"),
+                        text::patches_bad_list(server, "too large"),
                         "the list is too large".into(),
                     ));
                 }
                 Err(error) => error,
             };
-            last = text::http(self.server, "/patches", &error);
+            last = text::http(server, "/patches", &error);
             log!("patches: the list, try {attempt} of {LIST_TRIES}: {last}");
             if attempt < LIST_TRIES && !self.session.pause(RETRY_PAUSE_MS) {
                 return Err(Fail::Stopped);
@@ -554,17 +562,27 @@ impl Run<'_> {
     }
 
     /// Downloads one patch into its place, from the first of its addresses
-    /// that gives it: `true` when the file in place is known by its file ID
-    /// to be the one hashed (else it is hashed there again).
+    /// that gives it, unless the launcher turns torrent on meanwhile.
     fn fetch(&mut self, patch: &Patch) -> Result<bool, Fail> {
         let name = patch.file_name();
         let target = place(self.layout, &name);
         let part = format!("{target}{PART}");
+        if let Some(at) = self.torrented.iter().position(|(number, _)| *number == patch.number) {
+            let (_, identity) = self.torrented.remove(at);
+            return self.put(patch, &part, &target, identity, "by torrent", 0);
+        }
+        if patch.addresses.is_empty() {
+            return Err(Fail::Blocked(
+                text::patches_download(&name, "it is the revision's torrent's alone, and no peer gave it."),
+                format!("{name}: no address, and the torrent did not give it"),
+            ));
+        }
         let count = patch.addresses.len();
-        // Which addresses a second round tries, and the first failure's
-        // words.
+        // Which addresses a second round tries, the first failure's words,
+        // and how each address failed last.
         let mut again = alloc::vec![true; count];
-        let mut first: Option<(String, bool, &Address)> = None;
+        let mut first: Option<(String, problem::Miss, &Address)> = None;
+        let mut misses: Vec<Option<problem::Miss>> = alloc::vec![None; count];
         for round in 1..=FETCH_TRIES {
             if round > 1 {
                 if !again.contains(&true) {
@@ -583,7 +601,21 @@ impl Run<'_> {
                 }
                 self.session.state(state::DOWNLOADING);
                 self.session.begin_progress();
-                let result = self.download(&part, patch, address);
+                log!(
+                    "patches: {name}: address {} of {count}, {} (try {round} of {FETCH_TRIES}): \
+                     asking",
+                    at + 1,
+                    address.text
+                );
+                // Too slow is a failure only while another address will be
+                // tried this round (the second tries again only those that
+                // failed on the network).
+                let slow = if again[at + 1..].contains(&true) {
+                    http::Slow::Leave
+                } else {
+                    http::Slow::Wait
+                };
+                let result = self.download(&part, patch, address, slow);
                 let identity = match result {
                     Ok(identity) => identity,
                     Err(miss) => {
@@ -594,7 +626,7 @@ impl Run<'_> {
                             Miss::There {
                                 reason,
                                 why,
-                                wrong,
+                                miss,
                                 again: worth,
                             } => {
                                 log!(
@@ -604,52 +636,24 @@ impl Run<'_> {
                                     address.text
                                 );
                                 again[at] = worth && round < FETCH_TRIES;
+                                misses[at] = Some(miss);
                                 if first.is_none() {
-                                    first = Some((reason, wrong, address));
+                                    first = Some((reason, miss, address));
                                 }
                                 continue;
                             }
                         }
                     }
                 };
-                // Checked: into its place, unless the game runs now.
-                if let Err(fail) = self.guard() {
-                    let _ = win::delete(&part);
-                    return Err(fail);
-                }
-                if let Err(code) =
-                    retried("renamed", &part, &mut || win::rename(&part, &target, true))
-                {
-                    let _ = win::delete(&part);
-                    return Err(file_fail(&target, code, "replaced"));
-                }
-                self.session.state(state::INSTALLING);
-                self.session.send(ToLauncher::InstallInfo {
-                    step: step::EXTRACT,
-                    text: &name,
-                });
-                self.session.named_file = true;
-                log!(
-                    "patches: {name}: downloaded {} (address {} of {count}), checksum right ({})",
-                    address.text,
-                    at + 1,
-                    hex(&patch.sha256)
-                );
-                // The file hashed is the one in place when the rename kept
-                // its ID.
-                let kept = identity
-                    .filter(|identity| win::identity(&target).ok() == Some(*identity))
-                    .inspect(|identity| {
-                        self.record
-                            .hashed(patch.number, patch.sha256, *identity, win::now());
-                    });
-                return Ok(kept.is_some());
+                return self.put(patch, &part, &target, identity, &address.text, at + 1);
             }
         }
-        let (reason, wrong, address) = first.expect("an address failed");
+        let (reason, miss, address) = first.expect("an address failed");
+        let misses: Vec<problem::Miss> = misses.into_iter().flatten().collect();
+        self.session.failed(&name, &misses);
         let message = if count > 1 {
             text::patches_no_address(&name, count, &reason)
-        } else if wrong {
+        } else if miss == problem::Miss::Answered(Fault::Damaged) {
             text::patches_wrong(&address.url, &name)
         } else {
             text::patches_download(&name, &reason)
@@ -667,6 +671,7 @@ impl Run<'_> {
         part: &str,
         patch: &Patch,
         address: &Address,
+        slow: http::Slow,
     ) -> Result<Option<Identity>, Miss> {
         let output = retried("written", part, &mut || File::create(part))
             .map_err(|code| Miss::Here(file_fail(part, code, "written")))?;
@@ -679,9 +684,11 @@ impl Run<'_> {
         let session = &mut *self.session;
         let result = http::get_file(
             &address.url,
+            0,
             MAX_PATCH,
+            slow,
             &mut |to| log!("patches: {name}: {} redirects to {to}", address.text),
-            &mut |chunk| {
+            &mut |_, chunk| {
                 written += chunk.len() as u64;
                 output
                     .write(chunk)
@@ -742,7 +749,7 @@ impl Run<'_> {
                 return Err(Miss::There {
                     why: message.clone(),
                     reason: message,
-                    wrong: false,
+                    miss: error.miss(),
                     again,
                 });
             }
@@ -764,10 +771,130 @@ impl Run<'_> {
                     hex(&sha256),
                     hex(&patch.sha256)
                 ),
-                wrong: true,
+                miss: problem::Miss::Answered(Fault::Damaged),
                 again: false,
             }),
+            // Gone or denied the moment it was written: an antivirus took it.
+            Err(code) if Stop::after_write(code) == Some(Stop::Virus) => {
+                Err(Miss::Here(Fail::Stop(
+                    Stop::Virus,
+                    patch.file_name(),
+                    format!(
+                        "{part} cannot be read back ({}, error {code}): an antivirus took it",
+                        win::error_text(code)
+                    ),
+                )))
+            }
             Err(code) => Err(Miss::Here(file_fail(part, code, "read back"))),
+        }
+    }
+
+    /// A checked part into its place, unless the game runs now; `true` as in
+    /// [`Got::Placed`]. `address`: its number in the list, 0 for the torrent.
+    fn put(
+        &mut self,
+        patch: &Patch,
+        part: &str,
+        target: &str,
+        identity: Option<Identity>,
+        from: &str,
+        address: usize,
+    ) -> Result<bool, Fail> {
+        let name = patch.file_name();
+        if let Err(fail) = self.guard() {
+            let _ = win::delete(part);
+            return Err(fail);
+        }
+        if let Err(code) = retried("renamed", part, &mut || win::rename(part, target, true)) {
+            let _ = win::delete(part);
+            return Err(file_fail(target, code, "replaced"));
+        }
+        self.session.state(state::INSTALLING);
+        self.session.send(ToLauncher::InstallInfo {
+            step: step::EXTRACT,
+            text: &name,
+        });
+        self.session.named_file = true;
+        let count = patch.addresses.len();
+        log!(
+            "patches: {name}: downloaded {from}{}, checksum right ({})",
+            if address > 0 {
+                format!(" (address {address} of {count})")
+            } else {
+                String::new()
+            },
+            hex(&patch.sha256)
+        );
+        // The file hashed is the one in place when the rename kept its ID.
+        let kept = identity
+            .filter(|identity| win::identity(target).ok() == Some(*identity))
+            .inspect(|identity| {
+                self.record
+                    .hashed(patch.number, patch.sha256, *identity, win::now());
+            });
+        Ok(kept.is_some())
+    }
+
+    /// What the torrent has of `fetch`, into parts checked against the
+    /// list's SHA-256 for [`Run::fetch`] to put in place; the rest comes
+    /// from their addresses.
+    fn by_torrent(&mut self, fetch: &[&Patch]) -> Result<(), Fail> {
+        let Some(offered) = torrent::offered(self.session, self.layout) else {
+            return Ok(());
+        };
+        let wanted: Vec<(&Patch, usize, String)> = fetch
+            .iter()
+            .filter_map(|patch| {
+                let index = torrent::file_index(&offered.torrent, &format!("game/{}", patch.file_name()))?;
+                let part = format!("{}{PART}", place(self.layout, &patch.file_name()));
+                Some((*patch, index, part))
+            })
+            .collect();
+        if wanted.is_empty() {
+            return Ok(());
+        }
+        let needed = wanted
+            .iter()
+            .map(|(_, index, _)| offered.torrent.files[*index].size)
+            .sum::<u64>()
+            .saturating_add(DISK_MARGIN);
+        if win::free_space(&self.layout.game_dir).is_none_or(|free| free < needed) {
+            return Ok(());
+        }
+        log!("patches: {} by torrent", wanted.len());
+        let files: Vec<(usize, String)> = wanted
+            .iter()
+            .map(|(_, index, part)| (*index, part.clone()))
+            .collect();
+        let outcome = torrent::fetch(self.session, &offered, &files);
+        for (patch, _, part) in &wanted {
+            if let torrent::Fetched::Done = outcome {
+                match win::hash_file_identity(part, &mut |_| true) {
+                    Ok((_, sha256, identity)) if sha256 == patch.sha256 => {
+                        self.torrented.push((patch.number, identity));
+                        continue;
+                    }
+                    Ok((_, sha256, _)) => log!(
+                        "patches: {}: the torrent's has SHA-256 {}, the list says {}",
+                        patch.file_name(),
+                        hex(&sha256),
+                        hex(&patch.sha256)
+                    ),
+                    Err(code) => log!(
+                        "patches: {part} cannot be read back ({})",
+                        win::error_text(code)
+                    ),
+                }
+            }
+            let _ = win::delete(part);
+        }
+        match outcome {
+            torrent::Fetched::Stopped => Err(Fail::Stopped),
+            torrent::Fetched::Not(why) => {
+                log!("patches: by torrent: {why}: from their addresses");
+                Ok(())
+            }
+            torrent::Fetched::Done => Ok(()),
         }
     }
 
@@ -791,7 +918,20 @@ impl Run<'_> {
             Some(&mut *self.session),
         )
         .ok_or(Fail::Stopped)?;
-        let todo = todo(&list, &found, &mut |patch| lookup(&hashed, patch));
+        let mut todo = todo(&list, &found, &mut |patch| lookup(&hashed, patch));
+        // The list built in (the server not reached) only adds: the game exe
+        // may be newer than this updater (one restored from an old archive,
+        // or the .bat's install, which keeps the updater it has) and need
+        // patches this list does not name. Nor is it kept as the server's.
+        let built_in = matches!(self.source, Source::BuiltIn(_));
+        if built_in && !todo.delete.is_empty() {
+            log!(
+                "patches: the list built in: {} patch file(s) it has not are kept ({})",
+                todo.delete.len(),
+                todo.delete.join(", ")
+            );
+            todo.delete.clear();
+        }
         log!(
             "patches: the list has {} patch(es){}; {} to download, {} to delete",
             list.patches.len(),
@@ -816,7 +956,7 @@ impl Run<'_> {
         let list_path = beside(self.layout, LIST_FILE);
         let list_text = write_list(&list);
         let kept = win::read_file(&list_path, MAX_LIST).ok();
-        if !todo.is_empty() || kept.as_deref() != Some(&list_text[..]) {
+        if !built_in && (!todo.is_empty() || kept.as_deref() != Some(&list_text[..])) {
             self.changing = true;
             if let Err(code) = save(&beside(self.layout, STATUS_FILE), b"blocked checking\r\n") {
                 log!(
@@ -833,6 +973,11 @@ impl Run<'_> {
         }
         for name in &todo.delete {
             self.delete(name)?;
+        }
+        // The site answered: its addresses, as with torrent off.
+        if !matches!(self.source, Source::Server(_)) {
+            let wanted: Vec<&Patch> = todo.fetch.iter().map(|fetch| &fetch.patch).collect();
+            self.by_torrent(&wanted)?;
         }
         // Downloaded: whether known in place by the file ID.
         let mut downloaded: Vec<(u8, bool)> = Vec::new();
@@ -856,7 +1001,9 @@ impl Run<'_> {
         // above (nothing has changed them since).
         let layout = self.layout;
         let record = &mut *self.record;
-        check(&list, &files(layout), &mut |patch| match downloaded
+        // Built in: the patches it lists in place, any other let be.
+        let others = if built_in { Vec::new() } else { files(layout) };
+        check(&list, &others, &mut |patch| match downloaded
             .iter()
             .find(|(number, _)| *number == patch.number)
         {
@@ -891,6 +1038,28 @@ fn list_error(error: &ListError) -> String {
     }
 }
 
+/// Where the patch step's list comes from.
+enum Source<'a> {
+    /// `GET <server>/patches`.
+    Server(&'a Url),
+    /// The server could not be asked: the signed torrent's patches
+    /// ([`torrent_list`]).
+    Torrent(List),
+    /// The server could not be reached: the list built in ([`built_in`]).
+    BuiltIn(List),
+}
+
+/// The list of the release this updater was built for (`SKHID_BUILTIN_PATCHES`,
+/// the `/patches` of `release/patches.tsv`, which `release/build-zip` passes
+/// to the build), for when the server cannot be reached: a provider that
+/// blocks the server need not block the patches' addresses. A list of no
+/// patch is none: it would delete every patch file.
+fn built_in() -> Option<List> {
+    option_env!("SKHID_BUILTIN_PATCHES")
+        .and_then(|text| parse_list(text.as_bytes()).ok())
+        .filter(|list| !list.patches.is_empty())
+}
+
 /// Writes `data` beside, then renames it over `path`.
 fn save(path: &str, data: &[u8]) -> Result<(), Code> {
     if win::read_file(path, data.len() + 1).ok().as_deref() == Some(data) {
@@ -906,15 +1075,17 @@ fn save(path: &str, data: &[u8]) -> Result<(), Code> {
 
 /// The server, or its list, could not be fetched: the game may be played
 /// when the folder is as the list kept says, after a run that ended
-/// `ready`. Else PLAY stays off with `message`.
+/// `ready`. Else the step is made with the list built in, when there is
+/// one; else PLAY stays off with `message`.
 fn offline(
     session: &mut Session,
     layout: &Layout,
+    overlay: &[&str],
     record: &mut Record,
     look: Look,
     message: &str,
 ) -> Outcome {
-    match kept_in_place(layout, Some(session), record, look) {
+    match kept_in_place(layout, Some(&mut *session), record, look) {
         Ok(()) => {
             log!("patches: the server could not be asked; the patches kept are in place");
             Outcome::Ready
@@ -923,11 +1094,143 @@ fn offline(
             log!("patches: stopped");
             Outcome::Stopped
         }
-        Err(Some(why)) => {
-            log!("patches: BLOCKED: {why}. The player is told: {message}");
-            Outcome::Blocked(message.into())
+        Err(Some(why)) => match torrent_list(session, layout) {
+            Ok(Some(list)) => {
+                log!("patches: the server could not be asked and {why}: the torrent's patches");
+                step(session, layout, Source::Torrent(list), overlay, look, record)
+            }
+            Err(None) => {
+                log!("patches: stopped");
+                Outcome::Stopped
+            }
+            Err(Some(fail)) => {
+                log!("patches: BLOCKED: {fail}. The player is told: {message}");
+                Outcome::Blocked(message.into())
+            }
+            // No torrent, or it gave nothing.
+            Ok(None) => offline_built_in(session, layout, overlay, record, look, message, &why),
+        },
+    }
+}
+
+/// The list built into this updater, when the server could not be asked
+/// and nothing else can be checked against.
+fn offline_built_in(
+    session: &mut Session,
+    layout: &Layout,
+    overlay: &[&str],
+    record: &mut Record,
+    look: Look,
+    message: &str,
+    why: &str,
+) -> Outcome {
+    match built_in() {
+            Some(list) => {
+                log!(
+                    "patches: the server could not be asked and {why}: the list built into this \
+                     updater is used"
+                );
+                step(
+                    session,
+                    layout,
+                    Source::BuiltIn(list),
+                    overlay,
+                    look,
+                    record,
+                )
+            }
+            None => {
+                log!("patches: BLOCKED: {why}. The player is told: {message}");
+                Outcome::Blocked(message.into())
+            }
+    }
+}
+
+/// The signed torrent's patches as a list, each checked in place or fetched
+/// by it, its SHA-256 from the checked file. Addresses are the kept list's
+/// for the same file, else none until the server's list names it again.
+/// `Ok(None)`: not by torrent; `Err(None)`: stopped.
+fn torrent_list(session: &mut Session, layout: &Layout) -> Result<Option<List>, Option<String>> {
+    let Some(offered) = torrent::offered(session, layout) else {
+        return Ok(None);
+    };
+    let torrent = &offered.torrent;
+    let ours: Vec<(u8, usize)> = (0..torrent.files.len())
+        .filter_map(|index| {
+            let name = torrent.files[index].path.strip_prefix("game/")?;
+            Some((updater_logic::patches::file_number(name)?, index))
+        })
+        .collect();
+    if ours.is_empty() {
+        return Ok(None);
+    }
+    let places: Vec<(usize, String)> = ours
+        .iter()
+        .map(|(number, index)| (*index, place(layout, &format!("{FILE_PREFIX}{number}"))))
+        .collect();
+    let Some(whole) = torrent::whole(session, &offered, &places) else {
+        return if session.stopped() { Err(None) } else { Ok(None) };
+    };
+    let missing: Vec<(usize, String)> = ours
+        .iter()
+        .zip(&whole)
+        .filter(|(_, whole)| !**whole)
+        .map(|(patch, _)| patch)
+        .map(|(number, index)| (*index, format!("{}{PART}", place(layout, &format!("{FILE_PREFIX}{number}")))))
+        .collect();
+    if !missing.is_empty() {
+        log!("patches: {} of the torrent's to fetch by it", missing.len());
+        match torrent::fetch(session, &offered, &missing) {
+            torrent::Fetched::Done => {}
+            torrent::Fetched::Stopped => return Err(None),
+            torrent::Fetched::Not(why) => {
+                for (_, part) in &missing {
+                    let _ = win::delete(part);
+                }
+                log!("patches: the torrent did not give its patches: {why}");
+                return Ok(None);
+            }
+        }
+        for (index, part) in &missing {
+            // Every piece was checked; only extra bytes could be wrong.
+            let size = torrent.files[*index].size;
+            if win::file_size(part).ok() != Some(size) {
+                let _ = win::delete(part);
+                return Err(Some(format!("{part} is not of the torrent's {size} bytes")));
+            }
+            let target = part.strip_suffix(PART).expect("a part");
+            if let Err(code) = File::alone(&place(layout, DB_NAME))
+                .map(drop)
+                .or_else(|code| if win::is_missing(code) { Ok(()) } else { Err(code) })
+                .and_then(|()| win::rename(part, target, true))
+            {
+                let _ = win::delete(part);
+                return Err(Some(format!("{target} cannot be put in place: {}", win::error_text(code))));
+            }
         }
     }
+    let kept = win::read_file(&beside(layout, LIST_FILE), MAX_LIST)
+        .ok()
+        .and_then(|bytes| parse_list(&bytes).ok())
+        .unwrap_or_default();
+    let mut patches = Vec::new();
+    for (number, _) in &ours {
+        let path = place(layout, &format!("{FILE_PREFIX}{number}"));
+        let (_, sha256) = win::hash_file(&path).map_err(|code| Some(format!("{path}: {}", win::error_text(code))))?;
+        let addresses = kept
+            .get(*number)
+            .filter(|patch| patch.sha256 == sha256)
+            .map(|patch| patch.addresses.clone())
+            .unwrap_or_default();
+        patches.push(Patch {
+            number: *number,
+            sha256,
+            addresses,
+        });
+    }
+    patches.sort_by_key(|patch| patch.number);
+    log!("patches: the torrent lists {} patch(es)", patches.len());
+    Ok(Some(List { patches }))
 }
 
 /// The patch step. `server`: `Err(why)` when the server could not be asked
@@ -947,10 +1250,18 @@ pub fn run(
     let mut record = read_record(layout, look);
     let before = record.clone();
     let outcome = match server {
-        Ok(server) => step(session, layout, server, overlay, look, &mut record),
+        Ok(server) => step(
+            session,
+            layout,
+            Source::Server(server),
+            overlay,
+            look,
+            &mut record,
+        ),
         Err(reason) => offline(
             session,
             layout,
+            overlay,
             &mut record,
             look,
             &text::patches_offline(reason),
@@ -965,18 +1276,20 @@ pub fn run(
 fn step(
     session: &mut Session,
     layout: &Layout,
-    server: &Url,
+    source: Source,
     overlay: &[&str],
     look: Look,
     record: &mut Record,
 ) -> Outcome {
+    let built_in = matches!(source, Source::BuiltIn(_));
     let mut run = Run {
         session,
         layout,
-        server,
+        source,
         look,
         record,
         changing: false,
+        torrented: Vec::new(),
     };
     let outcome = run.step(overlay);
     let changing = run.changing;
@@ -991,13 +1304,17 @@ fn step(
         }
     };
     match outcome {
+        // The list built in is not the server's: `ready` and the next start
+        // without the server check the folder against the one kept, as
+        // before; this run's PLAY stands on the patches it lists in place.
+        Ok(()) if built_in => Outcome::Ready,
         Ok(()) => {
             status(b"ready\r\n");
             Outcome::Ready
         }
         Err(Fail::Offline(message, why)) => {
             log!("patches: {why}: the folder is checked against the list kept");
-            offline(session, layout, record, look, &message)
+            offline(session, layout, overlay, record, look, &message)
         }
         Err(Fail::Stopped) => {
             log!("patches: stopped; the rest next time");

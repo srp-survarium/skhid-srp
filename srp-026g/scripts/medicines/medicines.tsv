@@ -1,0 +1,23 @@
+# The medicines: one row each, the owner's table (2026-10-31; srp-026g/docs/notes/medicines.md), each
+# standing on its own. make_pack.py makes every config of it whole, from 0.26g's medkit.options, at
+# gameplay/items/medicines/<name>.options.
+# dict_id: bandages 66 and the Medikit 67 are 0.26g's rows (their configs repointed here by
+# content-edit medicines-1, their base_cost the dictionary's); the coloured medkits' the donor's own,
+# free in 0.26g and every pack (0.27d's 390 and 391; 0.46c2's 1196: its 759 and 760 are the Rattle's).
+# key: the name and description keys are <key>_name and <key>_description
+# (client-patches/localization/*.tsv).
+# faction: who sells it (0: srp's prices.rs EXCEPTIONS row, the Scavengers; 2 Black Market,
+# 3 Renaissance, 4 Fringe), from parameters/faction. cost: silver (base_cost). The numbers (times,
+# heals, weight, levels) are content-edit's medicines.tsv.
+# injuries: removes the limbs' injuries (hand_damage, leg_damage). An infection heal also takes away
+# poisoning and radiation sickness.
+# row, col: the icon's cell of LobbyMenu_AmmoIcons; source: stock (0.26g's own), 0.27d's atlas cell,
+# or 0.46c2's single icon (donor.sha256). The match's quick slot knows a cell by its id only,
+# (col - 1) x 22 + row - 1, in any atlas: a new one's id is one no quick-slot item has, with its row in
+# flash/hud's QuickSlots.SRP_HUD_ICONS (medicines.md).
+# name	dict_id	key	colour	faction	cost	injuries	row	col	source	english
+bandages	66	st_base_bandages	white	0	10	yes	2	2	stock	Pack of bandages
+medkit	67	st_base_medkit	orange	0	20	yes	15	1	stock	Medikit
+military_medkit	390	st_military_medkit	blue	3	40	yes	16	3	0.27d [16, 3]	Military Medkit
+blackmarket_medkit	1196	st_blackmarket_medkit	green	2	40	no	17	3	0.46c2 ammo_3_28	Black Market Medkit
+science_medkit	391	st_science_medkit	yellow	4	40	yes	18	3	0.27d [14, 1]	Science Medkit

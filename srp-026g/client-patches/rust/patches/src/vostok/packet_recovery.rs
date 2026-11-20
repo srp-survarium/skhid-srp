@@ -1,0 +1,229 @@
+//! One owner for receipt sending (refusals are logged by `log::refusal`).
+//!
+//! One receipt per event, never one dropped for time: a world's load or
+//! refusal is told once per generation (the server offers each generation
+//! once and answers a refusal with the next one), a refused handshake
+//! message (0xE3/0xE4) once per message (the server sends one again only in
+//! answer to a refusal). A refusal the server never hears leaves its wait
+//! for it without an end, so none is dropped:
+//! - 0xE0 is plain and resent until acked (transport.md section 3.3), so
+//!   the server gets copies of one refusal. A world's carries its generation.
+//!   One that cannot name what it refuses (a handshake message, or a world
+//!   whose generation cannot be read) carries its number on this connection
+//!   (1, 2, ...) in the generation byte; the server answers each number once.
+//! - A receipt the packet pool has no room for waits, the newest of its kind, and
+//!   goes on the next frame (`game.tick`) that has room. It goes with its
+//!   connection: a closed one tells the server by its silence.
+//!
+//! The client reports (`srp_validate::report`, patch 126 on) go the same
+//! way, all of a report's carriers at once or none ([`Connection::tell`]).
+use super::{Context, GameCell, Thread};
+use super::world::read;
+use crate::raw;
+use srp_validate::recovery::{Outcome, Receipt};
+use srp_validate::report::Report;
+
+/// Receipts the pool had no room for, the newest of each kind: one kind
+/// never makes another moot (a handshake or unreadable refusal is no
+/// answer to the world a Loaded or Rejected is for).
+#[derive(Clone, Copy, Default)]
+struct Waiting {
+    world: Option<Receipt>,
+    handshake: Option<Receipt>,
+    unreadable: Option<Receipt>,
+}
+impl Waiting {
+    fn slot(&mut self, outcome: Outcome) -> &mut Option<Receipt> {
+        match outcome {
+            Outcome::Loaded | Outcome::Rejected => &mut self.world,
+            Outcome::OptionsRejected => &mut self.handshake,
+            Outcome::Unreadable => &mut self.unreadable,
+        }
+    }
+}
+/// What this connection has told and has still to tell. It is the
+/// connection's (its client's, until `match_recovery.close`), not its
+/// match seed's: the seed (+577BCh) is written mid-connection, by the first
+/// 0xE3 taken (0x1F0E7A), and a refusal's number must go on across it, or
+/// the server takes the next one for a copy of an earlier one. A receipt
+/// names its seed, so `told` is of that seed's match only.
+#[derive(Clone, Copy)]
+struct Budget {
+    client: usize,
+    /// The last world outcome told.
+    told: Option<Receipt>,
+    /// Refusals that name no generation so far (handshake messages, worlds
+    /// whose generation could not be read): the next one's number less one.
+    numbered: u8,
+    waiting: Waiting,
+}
+static BUDGET: GameCell<Option<Budget>> = GameCell::new(None);
+
+pub struct Connection<'a> {
+    client: raw::NetworkClient,
+    holder: raw::MatchOptionsHolder,
+    client_key: usize,
+    seed: u32,
+    thread: &'a Thread,
+}
+impl<'a> Connection<'a> {
+    pub(super) fn of(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
+        Self::any(client, thread).filter(Self::live)
+    }
+    /// The client's connection, whatever its transport's state.
+    fn any(client: raw::NetworkClient, thread: &'a Thread) -> Option<Self> {
+        // SAFETY: the synchronous dispatch/load boundary owns this client.
+        unsafe {
+            let holder = client.options_holder()?;
+            let (client_key, seed) = (client.address() as usize, read(holder.match_seed()));
+            Some(Self { client, holder, client_key, seed, thread })
+        }
+    }
+    /// Its transport is the live match's (2), so a packet can go.
+    fn live(&self) -> bool {
+        // SAFETY: as `any`: a plain word of the client.
+        unsafe { read(self.client.match_connection_state()) <= 2 }
+    }
+    pub(crate) fn at_loaded(ctx: &'a Context<'_>) -> Option<Self> {
+        // SAFETY: generated site owns EDI until this hook returns.
+        let client = unsafe { raw::site::world_load_loaded::client(ctx)? };
+        Self::of(client, ctx.thread())
+    }
+    /// The game's connection, at `game.tick` (EBX the game).
+    pub(crate) fn at_game_tick(ctx: &'a Context<'_>) -> Option<Self> {
+        // SAFETY: the site's EBX is the game, alive and ticking on this
+        // thread; its network client (+53ACh) is the game's own.
+        let client = unsafe { raw::site::game_tick::game(ctx)?.network_client()? };
+        Self::of(client, ctx.thread())
+    }
+    /// The match closing on its game, at `match_recovery.close` (ECX the
+    /// client), whatever its transport's state: a report of the match's end
+    /// is kept in the log even when its link is gone.
+    pub(crate) fn at_close(ctx: &'a Context<'_>) -> Option<Self> {
+        // SAFETY: generated site owns ECX until this hook returns.
+        let client = unsafe { raw::site::match_recovery_close::client(ctx)? };
+        Self::any(client, ctx.thread())
+    }
+    pub(crate) fn closing(ctx: &Context<'_>) { BUDGET.set(ctx.thread(), None); }
+    /// Which connection this is: its client and match seed (a new match is
+    /// a new seed, even on a client made anew at the same address).
+    pub(crate) fn key(&self) -> (usize, u32) { (self.client_key, self.seed) }
+    /// The match's id as reports name it (its seed).
+    pub(crate) fn match_id(&self) -> u32 { self.seed }
+    fn budget(&self) -> Budget {
+        BUDGET.get(self.thread).filter(|budget| budget.client == self.client_key)
+            .unwrap_or(Budget { client: self.client_key, told: None, numbered: 0, waiting: Waiting::default() })
+    }
+    /// The number of a refusal that names no generation: the next on the
+    /// connection.
+    fn next_number(&self) -> u8 {
+        let mut budget = self.budget();
+        budget.numbered = budget.numbered.wrapping_add(1);
+        BUDGET.set(self.thread, Some(budget));
+        budget.numbered
+    }
+    pub(super) fn options_rejected(&self) {
+        let number = self.next_number();
+        self.send(Receipt { match_id: self.seed, generation: number, outcome: Outcome::OptionsRejected });
+    }
+    /// A world refused by its envelope, before the native generation write:
+    /// `generation` read from its first byte.
+    pub(super) fn rejected(&self, generation: u8) {
+        self.send(Receipt { match_id: self.seed, generation, outcome: Outcome::Rejected });
+    }
+    /// A world refused by its body, after the native generation write
+    /// (0x27C040): the generation stored is its own.
+    pub(super) fn rejected_current(&self) {
+        // SAFETY: the client is the synchronous load's; a plain byte read.
+        let generation = unsafe { read(self.client.world_generation()) };
+        self.rejected(generation);
+    }
+    /// A world refused whose generation could not be read (its reader
+    /// outside its buffer, or no byte): the generation stored is an older
+    /// world's, so the refusal goes by number and the server takes it as a
+    /// refusal of the world on its way.
+    pub(super) fn unreadable(&self) {
+        let number = self.next_number();
+        self.send(Receipt { match_id: self.seed, generation: number, outcome: Outcome::Unreadable });
+    }
+    pub(crate) fn loaded(&self) {
+        // SAFETY: native deserialize returned; its envelope generation is current.
+        let generation = unsafe { read(self.client.world_generation()) };
+        self.send(Receipt { match_id: self.seed, generation, outcome: Outcome::Loaded });
+    }
+    /// The receipts that waited for room in the pool, if there is room now.
+    pub(crate) fn send_waiting(&self) {
+        let mut budget = self.budget();
+        let waiting = core::mem::take(&mut budget.waiting);
+        BUDGET.set(self.thread, Some(budget));
+        for receipt in [waiting.world, waiting.handshake, waiting.unreadable].into_iter().flatten() {
+            self.send(receipt);
+        }
+    }
+    fn send(&self, receipt: Receipt) {
+        let mut budget = self.budget();
+        // The same world's outcome again (a flood of one corrupt world): told
+        // already. A numbered refusal is an event of its own.
+        let numbered = matches!(receipt.outcome, Outcome::OptionsRejected | Outcome::Unreadable);
+        if !numbered && budget.told == Some(receipt) { return; }
+        let sent = self.room_for(1) && self.carry(&receipt.encode());
+        if sent {
+            // A newer receipt of its kind makes an older one that waited
+            // moot: the server waits for the answer to its newest offer.
+            *budget.waiting.slot(receipt.outcome) = None;
+            if !numbered { budget.told = Some(receipt); }
+        } else {
+            *budget.waiting.slot(receipt.outcome) = Some(receipt);
+        }
+        BUDGET.set(self.thread, Some(budget));
+    }
+
+    /// A client report's carriers, all at once: `false` when none went (the
+    /// transport is no longer the match's, or the pool has no room for
+    /// them all). Nothing waits: a report is of its moment, and its log
+    /// line keeps it.
+    pub(crate) fn tell(&self, report: &Report) -> bool {
+        let parts = report.parts();
+        self.live()
+            && self.room_for(u32::from(parts))
+            && (0..parts)
+                .filter_map(|part| report.part(self.seed, part))
+                .all(|(bytes, len)| self.carry(bytes.get(..len).unwrap_or_default()))
+    }
+
+    /// One bounded executable-transfer carrier, with the usual pool reserve.
+    pub(crate) fn executable(&self, carrier: srp_validate::executable::Carrier<'_>) -> bool {
+        self.live() && self.room_for(1) && carrier.encode().is_some_and(|(bytes, len)| self.carry(&bytes[..len]))
+    }
+
+    /// The pool has room for `packets` more 0xE0 carriers and the sixteen
+    /// entries late join's prepared send keeps free. Asked before begin,
+    /// which asserts on an exhausted pool.
+    fn room_for(&self, packets: u32) -> bool {
+        // SAFETY: the holder and its pool are live during this synchronous hook.
+        unsafe {
+            self.holder.packet_pool().is_some_and(|pool| {
+                read(pool.used()).checked_add(16 + packets).is_some_and(|used| used <= read(pool.capacity()))
+            })
+        }
+    }
+
+    /// One 0xE0 carrier of `bytes`, plain and resent until acked (flag
+    /// 0x40 cleared). `false`: begin gave no packet.
+    fn carry(&self, bytes: &[u8]) -> bool {
+        // SAFETY: the connection and pool remain live during this synchronous
+        // hook; the caller asked `room_for` first.
+        unsafe {
+            match raw::engine_match_packet_begin(Some(self.holder), 0xe0) {
+                Some(packet) => {
+                    let flags = read(packet.flags()) & !0x40;
+                    packet.flags().write_volatile(flags);
+                    raw::engine_append_packet_bytes(Some(packet.writer()), bytes.as_ptr(), bytes.len() as u32);
+                    raw::engine_match_packet_send(Some(self.holder), Some(packet));
+                    true
+                }
+                None => false,
+            }
+        }
+    }
+}
