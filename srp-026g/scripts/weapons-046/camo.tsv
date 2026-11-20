@@ -1,43 +1,43 @@
 # The 0.46c2 guns' textures that get an _aoac (../weapon-camo/weapon_camo.py, its guns.tsv format:
 # texture, donors (none: no premium copies), the model surfaces whose UVs use it). Made from the pack's
 # models (surfaces of sights, barrels, muzzle devices and rounds left out, as guns.tsv leaves them).
-weapons/smg/mp5a1/mp5a1		weapons/smg/mp5a1/mp5a1:mp5a1_s,weapons/smg/mp5a1/mp5a1:handguard_mp5a1_s
-weapons/sniper/svu_a/svu_a_magazine		weapons/sniper/svu_a/svu_a:svu_a_magazine_s
-weapons/sniper/svu_a/svu_a_handguard		weapons/sniper/svu_a/svu_a:svu_a_handguard_s
-weapons/sniper/svu_a/svu_a_grip		weapons/sniper/svu_a/svu_a:svu_a_grip_s
-weapons/sniper/svu_a/svu_a_base		weapons/sniper/svu_a/svu_a:svu_a_base_s
-weapons/assault/enfield_l85a2/enfield_l85a2_part2		weapons/assault/enfield_l85a2/enfield_l85a2:enfield_l85a2_part2_s
-weapons/assault/enfield_l85a2/enfield_l85a2_part1		weapons/assault/enfield_l85a2/enfield_l85a2:enfield_l85a2_part1_s
-weapons/assault/enfield_l85a2/enfield_l85a2_mag		weapons/assault/enfield_l85a2/enfield_l85a2:enfield_l85a2_mag_s
-weapons/assault/enfield_l85a2/enfield_l85a2_handguard		weapons/assault/enfield_l85a2/enfield_l85a2:handguard_enfield_l85a2_handguard_s
-weapons/lmg/fort_401/fort_401_part2		weapons/lmg/fort_401/fort_401:fort_401_part2_s
-weapons/lmg/fort_401/fort_401_part1		weapons/lmg/fort_401/fort_401:fort_401_part1_s
-weapons/lmg/fort_401/fort_401_mag		weapons/lmg/fort_401/fort_401:fort_401_mag_s
-weapons/lmg/fort_401/fort_401_buttstock		weapons/lmg/fort_401/fort_401:fort_401_buttstock_s
-weapons/shotguns/jackhammer/jackhammer		weapons/shotguns/jackhammer/jackhammer:jackhammer_s
-weapons/shotguns/jackhammer/jackhammer_magazin		weapons/shotguns/jackhammer/jackhammer:jackhammer_magazin_s
-weapons/pistols/cz_75b/cz_75b		weapons/pistols/cz_75b:cz_75b_s
-weapons/pistols/mp_443/mp_443		weapons/pistols/mp_443:mp_443_s
-weapons/pistols/beretta_93r/beretta_93r		weapons/pistols/beretta_93r:beretta_93r_s
-weapons/pistols/glock_17/glock_17_frame		weapons/pistols/glock_17/glock_17:glock_17_frame_s
-weapons/pistols/glock_17/glock_17_frame_daily_quest		weapons/pistols/glock_17/glock_17:frame_glock_17_frame_s
-weapons/pistols/glock_17/glock_17_bolt_daily_quest		weapons/pistols/glock_17/glock_17:bolt_glock_17_bolt_s
-weapons/pistols/glock_17/glock_17_mag		weapons/pistols/glock_17/glock_17:mag_glock_17_mag_s
-weapons/pistols/colt_m1911/colt_m1911_usm		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_usm_s
-weapons/pistols/colt_m1911/colt_m1911_stock		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_stock_s
-weapons/pistols/colt_m1911/colt_m1911_mag		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_mag_s
-weapons/pistols/colt_m1911/colt_m1911_frame		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_frame_s
-weapons/pistols/colt_m1911/colt_m1911_bolt		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_bolt_s
+weapons/smg/mp5a1/mp5a1	69:weapons/smg/mp5a1/mp5a1_hw2017@69:weapons/smg/mp5a1/mp5a1,69:weapons/smg/mp5a1/mp5a1_stpatricksday2018/mp5a1_stpatricksday2018@69:weapons/smg/mp5a1/mp5a1	weapons/smg/mp5a1/mp5a1:mp5a1_s,weapons/smg/mp5a1/mp5a1:handguard_mp5a1_s			69:weapons/smg/mp5a1/mp5a1_fmap
+weapons/sniper/svu_a/svu_a_magazine	69:weapons/sniper/svu_a/svu_a_magazine_camo@69:weapons/sniper/svu_a/svu_a_magazine,69:weapons/sniper/svu_a/svu_a_newyear2019/svu_a_magazine_mat@69:weapons/sniper/svu_a/svu_a_magazine	weapons/sniper/svu_a/svu_a:svu_a_magazine_s			69:weapons/sniper/svu_a/svu_a_magazine_fmap
+weapons/sniper/svu_a/svu_a_handguard	69:weapons/sniper/svu_a/svu_a_handguard_camo@69:weapons/sniper/svu_a/svu_a_handguard,69:weapons/sniper/svu_a/svu_a_newyear2019/svu_a_handguard_mat@69:weapons/sniper/svu_a/svu_a_handguard	weapons/sniper/svu_a/svu_a:svu_a_handguard_s,weapons/sniper/svu_a/svu_a:muzzle_svu_a_handguard_s			69:weapons/sniper/svu_a/svu_a_handguard_fmap
+weapons/sniper/svu_a/svu_a_grip	69:weapons/sniper/svu_a/svu_a_grip_camo@69:weapons/sniper/svu_a/svu_a_grip,69:weapons/sniper/svu_a/svu_a_newyear2019/svu_a_grip_m@69:weapons/sniper/svu_a/svu_a_grip	weapons/sniper/svu_a/svu_a:svu_a_grip_s			69:weapons/sniper/svu_a/svu_a_grip_fmap
+weapons/sniper/svu_a/svu_a_base	69:weapons/sniper/svu_a/svu_a_base_camo@69:weapons/sniper/svu_a/svu_a_base,69:weapons/sniper/svu_a/svu_a_newyear2019/svu_a_base_m@69:weapons/sniper/svu_a/svu_a_base	weapons/sniper/svu_a/svu_a:svu_a_base_s			69:weapons/sniper/svu_a/svu_a_base_fmap
+weapons/assault/enfield_l85a2/enfield_l85a2_part2	69:weapons/assault/enfield_l85a2/enfield_l85a2_part2_camo@69:weapons/assault/enfield_l85a2/enfield_l85a2_part2,69:weapons/assault/enfield_l85a2/enfield_l85a2_stpatricksday2019/enfield_l85a2_part2@69:weapons/assault/enfield_l85a2/enfield_l85a2_part2	weapons/assault/enfield_l85a2/enfield_l85a2:enfield_l85a2_part2_s			69:weapons/assault/enfield_l85a2/enfield_l85a2_part2_fmap
+weapons/assault/enfield_l85a2/enfield_l85a2_part1	69:weapons/assault/enfield_l85a2/enfield_l85a2_part1_camo@69:weapons/assault/enfield_l85a2/enfield_l85a2_part1,69:weapons/assault/enfield_l85a2/enfield_l85a2_stpatricksday2019/enfield_l85a2_part1@69:weapons/assault/enfield_l85a2/enfield_l85a2_part1	weapons/assault/enfield_l85a2/enfield_l85a2:enfield_l85a2_part1_s			69:weapons/assault/enfield_l85a2/enfield_l85a2_part1_fmap
+weapons/assault/enfield_l85a2/enfield_l85a2_mag	69:weapons/assault/enfield_l85a2/enfield_l85a2_mag_camo@69:weapons/assault/enfield_l85a2/enfield_l85a2_mag,69:weapons/assault/enfield_l85a2/enfield_l85a2_stpatricksday2019/enfield_l85a2_mag@69:weapons/assault/enfield_l85a2/enfield_l85a2_mag	weapons/assault/enfield_l85a2/enfield_l85a2:enfield_l85a2_mag_s			69:weapons/assault/enfield_l85a2/enfield_l85a2_mag_fmap
+weapons/assault/enfield_l85a2/enfield_l85a2_handguard	69:weapons/assault/enfield_l85a2/enfield_l85a2_handguard_camo@69:weapons/assault/enfield_l85a2/enfield_l85a2_handguard,69:weapons/assault/enfield_l85a2/enfield_l85a2_stpatricksday2019/enfield_l85a2_handguard@69:weapons/assault/enfield_l85a2/enfield_l85a2_handguard	weapons/assault/enfield_l85a2/enfield_l85a2:handguard_enfield_l85a2_handguard_s			69:weapons/assault/enfield_l85a2/enfield_l85a2_handguard_fmap
+weapons/lmg/fort_401/fort_401_part2	69:weapons/lmg/fort_401/fort_401_newyear2019/fort_401_part2_m@69:weapons/lmg/fort_401/fort_401_part2,69:weapons/lmg/fort_401/fort_401_prem/fort_401_prem_part2@69:weapons/lmg/fort_401/fort_401_part2	weapons/lmg/fort_401/fort_401:fort_401_part2_s			69:weapons/lmg/fort_401/fort_401_part2_fmap
+weapons/lmg/fort_401/fort_401_part1	69:weapons/lmg/fort_401/fort_401_newyear2019/fort_401_part1_m@69:weapons/lmg/fort_401/fort_401_part1,69:weapons/lmg/fort_401/fort_401_prem/fort_401_prem_part1@69:weapons/lmg/fort_401/fort_401_part1	weapons/lmg/fort_401/fort_401:fort_401_part1_s			69:weapons/lmg/fort_401/fort_401_part1_fmap
+weapons/lmg/fort_401/fort_401_mag	69:weapons/lmg/fort_401/fort_401_newyear2019/fort_401_mag_m@69:weapons/lmg/fort_401/fort_401_mag,69:weapons/lmg/fort_401/fort_401_prem/fort_401_prem_mag@69:weapons/lmg/fort_401/fort_401_mag	weapons/lmg/fort_401/fort_401:fort_401_mag_s			69:weapons/lmg/fort_401/fort_401_mag_fmap
+weapons/lmg/fort_401/fort_401_buttstock	69:weapons/lmg/fort_401/fort_401_newyear2019/fort_401_buttstock_m@69:weapons/lmg/fort_401/fort_401_buttstock,69:weapons/lmg/fort_401/fort_401_prem/fort_401_prem_buttstock@69:weapons/lmg/fort_401/fort_401_buttstock	weapons/lmg/fort_401/fort_401:fort_401_buttstock_s			69:weapons/lmg/fort_401/fort_401_buttstock_fmap
+weapons/shotguns/jackhammer/jackhammer	69:weapons/shotguns/jackhammer/jackhammer_camo@69:weapons/shotguns/jackhammer/jackhammer	weapons/shotguns/jackhammer/jackhammer:jackhammer_s			69:weapons/shotguns/jackhammer/jackhammer_fmap
+weapons/shotguns/jackhammer/jackhammer_magazin		weapons/shotguns/jackhammer/jackhammer:jackhammer_magazin_s			69:weapons/shotguns/jackhammer/jackhammer_magazin_fmap
+weapons/pistols/cz_75b/cz_75b		weapons/pistols/cz_75b:cz_75b_s			69:weapons/pistols/cz_75b/cz_75b_fmap
+weapons/pistols/mp_443/mp_443		weapons/pistols/mp_443:mp_443_s			69:weapons/pistols/mp_443/mp_443_fmap
+weapons/pistols/beretta_93r/beretta_93r	69:weapons/pistols/beretta_93r/beretta_93r_camo@69:weapons/pistols/beretta_93r/beretta_93r	weapons/pistols/beretta_93r:beretta_93r_s			69:weapons/pistols/beretta_93r/beretta_93r_fmap
+weapons/pistols/glock_17/glock_17_frame	69:weapons/pistols/glock_17/glock_17_frame_hw2017@69:weapons/pistols/glock_17/glock_17_frame_black,69:weapons/pistols/glock_17/glock_17_frame_hw2017_premium@69:weapons/pistols/glock_17/glock_17_frame_black,69:weapons/pistols/glock_17/glock_17_frame_olive@69:weapons/pistols/glock_17/glock_17_frame_black,69:weapons/pistols/glock_17/glock_17_frame_sandy@69:weapons/pistols/glock_17/glock_17_frame_black	weapons/pistols/glock_17/glock_17:glock_17_frame_s			69:weapons/pistols/glock_17/glock_17_frame_fmap
+weapons/pistols/glock_17/glock_17_frame_daily_quest	69:weapons/pistols/glock_17/glock_17_frame_hw2017@69:weapons/pistols/glock_17/glock_17_frame_black,69:weapons/pistols/glock_17/glock_17_frame_hw2017_premium@69:weapons/pistols/glock_17/glock_17_frame_black,69:weapons/pistols/glock_17/glock_17_frame_olive@69:weapons/pistols/glock_17/glock_17_frame_black,69:weapons/pistols/glock_17/glock_17_frame_sandy@69:weapons/pistols/glock_17/glock_17_frame_black	weapons/pistols/glock_17/glock_17:frame_glock_17_frame_s			69:weapons/pistols/glock_17/glock_17_frame_fmap
+weapons/pistols/glock_17/glock_17_bolt_daily_quest	69:weapons/pistols/glock_17/glock_17_bolt_bright@69:weapons/pistols/glock_17/glock_17_bolt_dark,69:weapons/pistols/glock_17/glock_17_bolt_hw2017@69:weapons/pistols/glock_17/glock_17_bolt_dark,69:weapons/pistols/glock_17/glock_17_bolt_hw2017_premium@69:weapons/pistols/glock_17/glock_17_bolt_dark	weapons/pistols/glock_17/glock_17:bolt_glock_17_bolt_s			69:weapons/pistols/glock_17/glock_17_bolt_fmap
+weapons/pistols/glock_17/glock_17_mag		weapons/pistols/glock_17/glock_17:mag_glock_17_mag_s			69:weapons/pistols/glock_17/glock_17_mag_fmap
+weapons/pistols/colt_m1911/colt_m1911_usm		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_usm_s			69:weapons/pistols/colt_m1911/colt_m1911_usm_fmap
+weapons/pistols/colt_m1911/colt_m1911_stock	69:weapons/pistols/colt_m1911/colt_m1911_stock_russian_order@69:weapons/pistols/colt_m1911/colt_m1911_stock	weapons/pistols/colt_m1911/colt_m1911:colt_m1911_stock_s			69:weapons/pistols/colt_m1911/colt_m1911_stock_fmap
+weapons/pistols/colt_m1911/colt_m1911_mag		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_mag_s			69:weapons/pistols/colt_m1911/colt_m1911_mag_fmap
+weapons/pistols/colt_m1911/colt_m1911_frame	69:weapons/pistols/colt_m1911/colt_m1911_frame_russian_order@69:weapons/pistols/colt_m1911/colt_m1911_frame	weapons/pistols/colt_m1911/colt_m1911:colt_m1911_frame_s			69:weapons/pistols/colt_m1911/colt_m1911_frame_fmap
+weapons/pistols/colt_m1911/colt_m1911_bolt	69:weapons/pistols/colt_m1911/colt_m1911_bolt_russian_order@69:weapons/pistols/colt_m1911/colt_m1911_bolt	weapons/pistols/colt_m1911/colt_m1911:colt_m1911_bolt_s			69:weapons/pistols/colt_m1911/colt_m1911_bolt_fmap
 # The sights, barrels, muzzle brakes and rounds get a mask that paints nothing (parts.tsv: no part,
 # weapon_camo.py --bare-masks), so a camouflaged gun finds every surface's _aoac and they stay bare.
-weapons/assault/enfield_l85a2/enfield_l85a2_muzzle_brake		weapons/assault/enfield_l85a2/enfield_l85a2:muzzle_enfield_l85a2_muzzle_brake_s
-weapons/assault/enfield_l85a2/enfield_l85a2_ironsight		weapons/assault/enfield_l85a2/enfield_l85a2:scope_enfield_l85a2_ironsight_s
-weapons/lmg/fort_401/fort_401_ironsight		weapons/lmg/fort_401/fort_401:scope_fort_401_ironsight_s
-weapons/lmg/fort_401/fort_401_muzzle_brake		weapons/lmg/fort_401/fort_401:muzzle_fort_401_muzzle_brake_s
-weapons/pistols/glock_17/glock_17_barrel		weapons/pistols/glock_17/glock_17:barrel_glock_17_barrel_s
-weapons/pistols/glock_17/glock_17_back_cap		weapons/pistols/glock_17/glock_17:back_cap_glock_17_back_cap_s
-weapons/pistols/glock_17/glock_17_ironsight		weapons/pistols/glock_17/glock_17:ironsight_glock_17_ironsight_s
-weapons/ammo/para_9x19/para_9x19		weapons/pistols/glock_17/glock_17:mag_para_9x19_s
-weapons/pistols/colt_m1911/colt_m1911_barrel		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_barrel_s
-weapons/pistols/colt_m1911/colt_m1911_ironsight		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_ironsight_s
-weapons/ammo/acp_45/acp_45		weapons/pistols/colt_m1911/colt_m1911:acp_45_s
+weapons/assault/enfield_l85a2/enfield_l85a2_muzzle_brake	69:weapons/assault/enfield_l85a2/enfield_l85a2_muzzle_brake_camo@69:weapons/assault/enfield_l85a2/enfield_l85a2_muzzle_brake,69:weapons/assault/enfield_l85a2/enfield_l85a2_stpatricksday2019/enfield_l85a2_muzzle_brake@69:weapons/assault/enfield_l85a2/enfield_l85a2_muzzle_brake	weapons/assault/enfield_l85a2/enfield_l85a2:muzzle_enfield_l85a2_muzzle_brake_s			69:weapons/assault/enfield_l85a2/enfield_l85a2_muzzle_brake_fmap
+weapons/assault/enfield_l85a2/enfield_l85a2_ironsight	69:weapons/assault/enfield_l85a2/enfield_l85a2_ironsight_camo@69:weapons/assault/enfield_l85a2/enfield_l85a2_ironsight,69:weapons/assault/enfield_l85a2/enfield_l85a2_stpatricksday2019/enfield_l85a2_ironsight@69:weapons/assault/enfield_l85a2/enfield_l85a2_ironsight	weapons/assault/enfield_l85a2/enfield_l85a2:scope_enfield_l85a2_ironsight_s			69:weapons/assault/enfield_l85a2/enfield_l85a2_ironsight_fmap
+weapons/lmg/fort_401/fort_401_ironsight	69:weapons/lmg/fort_401/fort_401_newyear2019/fort_401_ironsight_m@69:weapons/lmg/fort_401/fort_401_ironsight,69:weapons/lmg/fort_401/fort_401_prem/fort_401_prem_ironsight@69:weapons/lmg/fort_401/fort_401_ironsight	weapons/lmg/fort_401/fort_401:scope_fort_401_ironsight_s			69:weapons/lmg/fort_401/fort_401_ironsight_fmap
+weapons/lmg/fort_401/fort_401_muzzle_brake	69:weapons/lmg/fort_401/fort_401_newyear2019/fort_401_muzzle_brake_m@69:weapons/lmg/fort_401/fort_401_muzzle_brake,69:weapons/lmg/fort_401/fort_401_prem/fort_401_prem_muzzle_brake@69:weapons/lmg/fort_401/fort_401_muzzle_brake	weapons/lmg/fort_401/fort_401:muzzle_fort_401_muzzle_brake_s			69:weapons/lmg/fort_401/fort_401_muzzle_brake_fmap
+weapons/pistols/glock_17/glock_17_barrel		weapons/pistols/glock_17/glock_17:barrel_glock_17_barrel_s			69:weapons/pistols/glock_17/glock_17_barrel_fmap
+weapons/pistols/glock_17/glock_17_back_cap	69:weapons/pistols/glock_17/glock_17_back_cap_hw2017@69:weapons/pistols/glock_17/glock_17_back_cap	weapons/pistols/glock_17/glock_17:back_cap_glock_17_back_cap_s			69:weapons/pistols/glock_17/glock_17_back_cap_fmap
+weapons/pistols/glock_17/glock_17_ironsight		weapons/pistols/glock_17/glock_17:ironsight_glock_17_ironsight_s			69:weapons/pistols/glock_17/glock_17_ironsight_fmap
+weapons/ammo/para_9x19/para_9x19		weapons/pistols/glock_17/glock_17:mag_para_9x19_s			69:weapons/ammo/para_9x19/para_9x19_fmap
+weapons/pistols/colt_m1911/colt_m1911_barrel		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_barrel_s			69:weapons/pistols/colt_m1911/colt_m1911_barrel_fmap
+weapons/pistols/colt_m1911/colt_m1911_ironsight		weapons/pistols/colt_m1911/colt_m1911:colt_m1911_ironsight_s			69:weapons/pistols/colt_m1911/colt_m1911_ironsight_fmap
+weapons/ammo/acp_45/acp_45		weapons/pistols/colt_m1911/colt_m1911:acp_45_s			69:weapons/ammo/acp_45/acp_45_fmap

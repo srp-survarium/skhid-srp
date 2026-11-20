@@ -1,98 +1,106 @@
 # The weapons' textures that get an _aoac (weapon_camo.py), one a line, tabs between:
-# texture	donors: premium textures of the same UVs (28: from 0.28a2), two when there are two, none without
-# 	surfaces (model:surface) whose UVs use the texture	premium textures of the same UVs that get the same _aoac
-# 	the plain texture the donors were painted over, when it is not ours (28: 0.28a2's own)
-# Two donors
+# texture	painted versions of the same UVs, each `<painted>[@<the plain texture it was painted over>]`: our premiums,
+# 	0.28a2's (28:), 0.69d0's (69:, references.py writes them); a part they repaint counts as painted
+# 	surfaces (model:surface) whose UVs use the texture (references.py adds the weapon models')
+# 	premium textures of the same UVs that get the same _aoac
+# 	the plain texture the painted versions without an @ were painted over, when it is not ours
+# 	the metalness map of the same UVs (69:, references.py): polymer and wood from metal
+# Not here, and so never painted: barrels, sights, suppressors and attachments with textures of their own
+# (the HK416's barrel and rear sight, the Kriss's suppressor, the MP7's Zeiss sight), the 12-gauge shell,
+# the SV-98's net.
 weapons/uzi/uzi	weapons/uzi/uzi_camo_st,28:weapons/uzi/uzi_camo	weapons/uzi:uzisg1	weapons/uzi/uzi_camo_st
-weapons/sks/sks	weapons/sks/sks_camo_01,weapons/sks/sks_camo_st	weapons/sks:sks_sks_s1	weapons/sks/sks_camo_01,weapons/sks/sks_camo_st
-weapons/akmn/akmn	weapons/akmn/akmn_camo,weapons/akmn/akmn_camo_st	weapons/akmn/akmn:akmn1sg	weapons/akmn/akmn_camo,weapons/akmn/akmn_camo_st
-weapons/izh_27_lancaster/izh_27_lancaster	weapons/izh_27_lancaster/izh_27_lancaster_camo_st,28:weapons/izh_27_lancaster/izh_27_lancaster_camo	weapons/izh_27_lancaster/izh_27_lancaster_:izh_27_lancastersg1	weapons/izh_27_lancaster/izh_27_lancaster_camo_st	28:weapons/izh_27_lancaster/izh_27_lancaster
-weapons/ak_74n/ak74_stock_wood	weapons/ak_74n/ak74_stock_wood_camo_st,28:weapons/ak_74n/ak74_stock_wood_camo	weapons/ak74n/ak_74n:lowfbxasc032poly002sg3	weapons/ak_74n/ak74_stock_wood_camo_st	28:weapons/ak_74n/ak74_stock_wood
-# One donor
-weapons/akmn/akm_stock_wood	weapons/akmn/akmn_stock_camo	weapons/akmn/akmn:akmn1sg1	weapons/akmn/akmn_stock_camo
-weapons/ak_12/ak_12	weapons/ak_12/ak_12_camo	weapons/ak_12/ak_12:ak_12_sg	weapons/ak_12/ak_12_camo
-weapons/ak_74u/aks74u	weapons/ak_74u/aks74u_camo	weapons/ak74u:lowfbxasc032poly002sg4	weapons/ak_74u/aks74u_camo
-weapons/ak_74n/ak74n	28:weapons/ak_74n/ak74n_camo	weapons/ak74n/ak_74n:lowfbxasc032poly002sg1		28:weapons/ak_74n/ak74n
-weapons/kiparis/kiparis	28:weapons/kiparis/kiparis_camo	weapons/kiparis:kiparis_kiparis_s	
-weapons/vityaz/vityaz	28:weapons/vityaz/vityaz_camo	weapons/vityaz/vityaz:box001sg3		28:weapons/vityaz/vityaz
-weapons/neostead/neostead	weapons/neostead/neostead_camo	weapons/neostead/neostead:blinn2sg	weapons/neostead/neostead_camo
-weapons/rem_700/rem700	weapons/rem_700/rem700_camo	weapons/rem_700:object011sg	weapons/rem_700/rem700_camo
-weapons/saiga_12s/saiga_12s	weapons/saiga_12s/saiga_12_camo	weapons/saiga_12s/saiga_12s:saiga_12s_receiver_sg,weapons/saiga_12s/saiga_12s:saiga_12s_blocker_sg	weapons/saiga_12s/saiga_12_camo
-weapons/ak74m/ak74_stock_plastic	weapons/saiga_12s/saiga_12_stock_camo	weapons/saiga_12s/saiga_12s:ak74m_stock_plastic_sg,weapons/ak74m/ak74m:ak74lpsg5	weapons/saiga_12s/saiga_12_stock_camo
-weapons/vepr12/vepr12	weapons/vepr12/vepr_12_camo	weapons/vepr_12/vepr_12_short:vepr_12_receiver_sg	weapons/vepr12/vepr_12_camo
-weapons/vepr/vepr_main	weapons/vepr/vepr_main_camo	weapons/vepr:secondary002sg1	weapons/vepr/vepr_main_camo
+weapons/sks/sks	weapons/sks/sks_camo_01,weapons/sks/sks_camo_st,69:weapons/dmr/sks/sks_camo@69:weapons/dmr/sks/sks,69:weapons/dmr/sks/sks_camo_st@69:weapons/dmr/sks/sks,69:weapons/dmr/sks/sks_victoryday2020/sks_victoryday2020@69:weapons/dmr/sks/sks	weapons/sks:sks_sks_s1	weapons/sks/sks_camo_01,weapons/sks/sks_camo_st		69:weapons/dmr/sks/sks_fmap
+weapons/akmn/akmn	weapons/akmn/akmn_camo,weapons/akmn/akmn_camo_st,69:weapons/assault/akmn/akmn_camo@69:weapons/assault/akmn/akmn,69:weapons/assault/akmn/akmn_camo_st@69:weapons/assault/akmn/akmn,69:weapons/assault/akmn/victoryday2019/akmn@69:weapons/assault/akmn/akmn	weapons/akmn/akmn:akmn1sg	weapons/akmn/akmn_camo,weapons/akmn/akmn_camo_st		69:weapons/assault/akmn/akmn_fmap
+weapons/izh_27_lancaster/izh_27_lancaster	weapons/izh_27_lancaster/izh_27_lancaster_camo_st,28:weapons/izh_27_lancaster/izh_27_lancaster_camo,69:weapons/shotguns/izh_27_lancaster/izh_27_lancaster_camo@69:weapons/shotguns/izh_27_lancaster/izh_27_lancaster,69:weapons/shotguns/izh_27_lancaster/izh_27_lancaster_camo_st@69:weapons/shotguns/izh_27_lancaster/izh_27_lancaster	weapons/izh_27_lancaster/izh_27_lancaster_:izh_27_lancastersg1	weapons/izh_27_lancaster/izh_27_lancaster_camo_st	28:weapons/izh_27_lancaster/izh_27_lancaster	69:weapons/shotguns/izh_27_lancaster/izh_27_lancaster_fmap
+weapons/ak_74n/ak74_stock_wood	weapons/ak_74n/ak74_stock_wood_camo_st,28:weapons/ak_74n/ak74_stock_wood_camo,69:weapons/assault/ak_74n/ak74_stock_wood_camo@69:weapons/assault/ak_74n/ak74_stock_wood	weapons/ak74n/ak_74n:lowfbxasc032poly002sg3	weapons/ak_74n/ak74_stock_wood_camo_st	28:weapons/ak_74n/ak74_stock_wood	69:weapons/assault/akmn/akmn_stock_wood_fmap
+weapons/akmn/akm_stock_wood	weapons/akmn/akmn_stock_camo,69:weapons/assault/akmn/akmn_stock_camo@69:weapons/assault/akmn/akmn_stock_wood,69:weapons/assault/akmn/akmn_stock_camo_st@69:weapons/assault/akmn/akmn_stock_wood,69:weapons/assault/akmn/victoryday2019/akmn_stock@69:weapons/assault/akmn/akmn_stock_wood	weapons/akmn/akmn:akmn1sg1	weapons/akmn/akmn_stock_camo		69:weapons/assault/akmn/akmn_stock_wood_fmap
+weapons/ak_12/ak_12	weapons/ak_12/ak_12_camo,69:weapons/assault/ak_12/ak_12_camo@69:weapons/assault/ak_12/ak_12,69:weapons/assault/ak_12/ak_12_halloween_2020/ak_12_halloween_2020@69:weapons/assault/ak_12/ak_12	weapons/ak_12/ak_12:ak_12_sg	weapons/ak_12/ak_12_camo		69:weapons/assault/ak_12/ak_12_fmap
+weapons/ak_74u/aks74u	weapons/ak_74u/aks74u_camo,69:weapons/assault/aks_74u/aks_74u_camo@69:weapons/assault/aks_74u/aks_74u	weapons/ak74u:lowfbxasc032poly002sg4	weapons/ak_74u/aks74u_camo		69:weapons/assault/aks_74u/aks_74u_fmap
+weapons/ak_74n/ak74n	28:weapons/ak_74n/ak74n_camo,69:weapons/assault/ak_74n/ak74n_camo@69:weapons/assault/ak_74n/ak74n,69:weapons/assault/ak_74n/ak74n_camo_st@69:weapons/assault/ak_74n/ak74n	weapons/ak74n/ak_74n:lowfbxasc032poly002sg1,weapons/saiga_12s/saiga_12s:ak_74n_handle_sg		28:weapons/ak_74n/ak74n	69:weapons/assault/ak_74n/ak74n_fmap
+weapons/kiparis/kiparis	28:weapons/kiparis/kiparis_camo,69:weapons/smg/ots02_kiparis/ots02_kiparis_camo@69:weapons/smg/ots02_kiparis/ots02_kiparis,69:weapons/smg/ots02_kiparis/ots02_kiparis_victoryday2020/ots02_kiparis@69:weapons/smg/ots02_kiparis/ots02_kiparis	weapons/kiparis:kiparis_kiparis_s			69:weapons/smg/ots02_kiparis/ots02_kiparis_fmap
+weapons/vityaz/vityaz	28:weapons/vityaz/vityaz_camo,69:weapons/smg/pp_1901_vityaz/pp_1901_vityaz_camo@69:weapons/smg/pp_1901_vityaz/pp_1901_vityaz,69:weapons/smg/pp_1901_vityaz/pp_1901_vityaz_newyear2018@69:weapons/smg/pp_1901_vityaz/pp_1901_vityaz	weapons/vityaz/vityaz:box001sg3		28:weapons/vityaz/vityaz	69:weapons/smg/pp_1901_vityaz/pp_1901_vityaz_fmap
+weapons/neostead/neostead	weapons/neostead/neostead_camo,69:weapons/shotguns/neostead/neostead_camo@69:weapons/shotguns/neostead/neostead	weapons/neostead/neostead:blinn2sg	weapons/neostead/neostead_camo		69:weapons/shotguns/neostead/neostead_fmap
+weapons/rem_700/rem700	weapons/rem_700/rem700_camo,69:weapons/sniper/rem_700/rem_700_camo_st@69:weapons/sniper/rem_700/rem700,69:weapons/sniper/rem_700/rem_700_summer17@69:weapons/sniper/rem_700/rem700	weapons/rem_700:object011sg	weapons/rem_700/rem700_camo		69:weapons/sniper/rem_700/rem700_fmap
+weapons/saiga_12s/saiga_12s	weapons/saiga_12s/saiga_12_camo,69:weapons/shotguns/saiga_12s/saiga_12_camo@69:weapons/shotguns/saiga_12s/saiga_12s,69:weapons/shotguns/saiga_12s/saiga_12_spring_league_2020/saiga_12_spring_league_2020@69:weapons/shotguns/saiga_12s/saiga_12s	weapons/saiga_12s/saiga_12s:saiga_12s_receiver_sg,weapons/saiga_12s/saiga_12s:saiga_12s_blocker_sg	weapons/saiga_12s/saiga_12_camo		69:weapons/shotguns/saiga_12s/saiga_12s_fmap
+weapons/ak74m/ak74_stock_plastic	weapons/saiga_12s/saiga_12_stock_camo,69:weapons/assault/ak_74m/ak_74m_victoryday2020/ak_74m_stock_plastic@69:weapons/assault/ak_74m/ak_74m_stock_plastic	weapons/saiga_12s/saiga_12s:ak74m_stock_plastic_sg,weapons/ak74m/ak74m:ak74lpsg5	weapons/saiga_12s/saiga_12_stock_camo		69:weapons/assault/akmn/akmn_stock_wood_fmap
+weapons/vepr12/vepr12	weapons/vepr12/vepr_12_camo,69:weapons/shotguns/vepr_12/vepr_12_camo@69:weapons/shotguns/vepr_12/vepr_12,69:weapons/shotguns/vepr_12/vepr_12_legend_0919@69:weapons/shotguns/vepr_12/vepr_12,69:weapons/shotguns/vepr_12/vepr_12_new_year_2021/vepr_12_new_year_2021@69:weapons/shotguns/vepr_12/vepr_12	weapons/vepr_12/vepr_12_short:vepr_12_receiver_sg,weapons/saiga_12s/saiga_12s:vepr12_mag_sg	weapons/vepr12/vepr_12_camo		69:weapons/shotguns/vepr_12/vepr_12_fmap
+weapons/vepr/vepr_main	weapons/vepr/vepr_main_camo,69:weapons/assault/vepr/vepr_main_camo@69:weapons/assault/vepr/vepr_main,69:weapons/assault/vepr/vepr_summer_heat_2020/vepr_main_summer_heat_2020@69:weapons/assault/vepr/vepr_main	weapons/vepr:secondary002sg1	weapons/vepr/vepr_main_camo		69:weapons/assault/vepr/vepr_main_fmap
 weapons/vepr/vepr_sec	weapons/vepr/vepr_sec_camo	weapons/vepr:secondary002sg	weapons/vepr/vepr_sec_camo
-weapons/vsk94/vsk_9a91	weapons/vsk94/vsk_9a91_camo	weapons/vsk_94/vsk_94:blinn1sg,weapons/a9_91/a9_91:blinn1sg	weapons/vsk94/vsk_9a91_camo
-weapons/vssk/vssk	weapons/vssk/vssk_camo_red	weapons/vssk/vssk:vssk_magazine_sg	weapons/vssk/vssk_camo_red
-weapons/vssk/vssk_brl	weapons/vssk/vssk_brl_camo_red	weapons/vssk/vssk:vssk_silenser_sg	weapons/vssk/vssk_brl_camo_red
-weapons/vss/vss	28:weapons/vss/vss_camo	weapons/vss/vss:vss_02_vss_receiversg1,weapons/sr3m/sr3m:sr3_lp002sg3,weapons/val/val:vss_receiversg1	
-weapons/vss/vss_stock_wood	28:weapons/vss/vss_stock_camo	weapons/vss/vss:vss_02_vss_receiversg3	
-weapons/vss/sr3m	28:weapons/vss/sr3m_camo	weapons/sr3m/sr3m:sr3_lp002sg1	
-weapons/vss/sr3_mag	28:weapons/vss/sr3_mag_camo	weapons/sr3m/sr3m:sr3_lp002sg7,weapons/val/val:vss_receiversg5	
-weapons/vss/stock_val	28:weapons/vss/stock_sr3m_camo	weapons/sr3m/sr3m:sr3_lp002sg5,weapons/val/val:vss_receiversg3	
-# No premium: the parts come from parts.tsv, else the suggestion (the large parts)
-weapons/a_545/a_545		weapons/a_545/a_545:a_545_sg1
-weapons/aek_919k/aek_919k		weapons/aek_919k/aek_919k:blinn3sg
-weapons/ak74m/ak74m		weapons/a_545/a_545:magazine_object006sg1,weapons/ak74m/ak74m:ak74lpsg4
-weapons/aps/aps		weapons/aps/aps:aps_s
-weapons/ash_12/ash-12		weapons/ash_12/ash_12:kolya_ash_12_sg
-weapons/benelli_m4_super90/benelli		weapons/benelli_m4/benelli_m4:benelli_s
+weapons/vsk94/vsk_9a91	weapons/vsk94/vsk_9a91_camo,69:weapons/assault/vsk_94_a9_91/a9_91_newyear2019/vsk_94_a9_91_m@69:weapons/assault/vsk_94_a9_91/vsk_94_9a91,69:weapons/assault/vsk_94_a9_91/vsk_94_9a91_camo@69:weapons/assault/vsk_94_a9_91/vsk_94_9a91,69:weapons/assault/vsk_94_a9_91/vsk_94_9a91_summer_heat_2020/vsk_94_9a91_summer_heat_2020@69:weapons/assault/vsk_94_a9_91/vsk_94_9a91	weapons/vsk_94/vsk_94:blinn1sg,weapons/a9_91/a9_91:blinn1sg	weapons/vsk94/vsk_9a91_camo		69:weapons/assault/vsk_94_a9_91/vsk_94_9a91_fmap
+weapons/vssk/vssk	weapons/vssk/vssk_camo_red,69:weapons/sniper/vssk/vssk_camo_red@69:weapons/sniper/vssk/vssk	weapons/vssk/vssk:vssk_magazine_sg	weapons/vssk/vssk_camo_red		69:weapons/sniper/vssk/vssk_fmap
+weapons/vssk/vssk_brl	weapons/vssk/vssk_brl_camo_red,69:weapons/sniper/vssk/vssk_barrel_camo_red@69:weapons/sniper/vssk/vssk_barrel	weapons/vssk/vssk:vssk_silenser_sg	weapons/vssk/vssk_brl_camo_red		69:weapons/sniper/vssk/vssk_barrel_fmap
+weapons/vss/vss	28:weapons/vss/vss_camo,69:weapons/sniper/vss/vss_camo@69:weapons/sniper/vss/vss,69:weapons/sniper/vss/vss_victoryday2021/vss@69:weapons/sniper/vss/vss	weapons/vss/vss:vss_02_vss_receiversg1,weapons/sr3m/sr3m:sr3_lp002sg3,weapons/val/val:vss_receiversg1			69:weapons/sniper/vss/vss_fmap
+weapons/vss/vss_stock_wood	28:weapons/vss/vss_stock_camo,69:weapons/sniper/vss/vss_stock_camo@69:weapons/sniper/vss/vss_stock_wood,69:weapons/sniper/vss/vss_victoryday2021/vss_stock@69:weapons/sniper/vss/vss_stock_wood	weapons/vss/vss:vss_02_vss_receiversg3			69:weapons/sniper/vss/vss_stock_wood_fmap
+weapons/vss/sr3m	28:weapons/vss/sr3m_camo	weapons/sr3m/sr3m:sr3_lp002sg1
+weapons/vss/sr3_mag	28:weapons/vss/sr3_mag_camo,69:weapons/assault/sr3m/sr3m_mag_camo@69:weapons/assault/sr3m/sr3m_mag	weapons/sr3m/sr3m:sr3_lp002sg7,weapons/val/val:vss_receiversg5			69:weapons/assault/sr3m/sr3m_mag_fmap
+weapons/vss/stock_val	28:weapons/vss/stock_sr3m_camo,69:weapons/assault/val/val_halloween2018/val_stock_halloween2018@69:weapons/assault/val/val_stock	weapons/sr3m/sr3m:sr3_lp002sg5,weapons/val/val:vss_receiversg3			69:weapons/assault/val/val_stock_fmap
+weapons/a_545/a_545	69:weapons/assault/a_545/a_545_newyear2018@69:weapons/assault/a_545/a_545	weapons/a_545/a_545:a_545_sg1			69:weapons/assault/a_545/a_545_fmap
+weapons/aek_919k/aek_919k		weapons/aek_919k/aek_919k:blinn3sg			69:weapons/smg/aek_919k/aek_919k_fmap
+weapons/ak74m/ak74m	69:weapons/assault/ak_74m/ak_74m_victoryday2020/ak_74m@69:weapons/assault/ak_74m/ak_74m	weapons/a_545/a_545:magazine_object006sg1,weapons/ak74m/ak74m:ak74lpsg4,weapons/ak_12/ak_12:magaz_sg			69:weapons/assault/ak_74m/ak_74m_fmap1
+weapons/aps/aps	69:weapons/pistols/aps/aps_hallowen_2020@69:weapons/pistols/aps/aps	weapons/aps/aps:aps_s			69:weapons/pistols/aps/aps_fmap
+weapons/ash_12/ash-12	69:weapons/assault/ash_12/ash_12_new_year_16@69:weapons/assault/ash_12/ash_12	weapons/ash_12/ash_12:kolya_ash_12_sg			69:weapons/assault/ash_12/ash_12_fmap
+weapons/benelli_m4_super90/benelli	69:weapons/shotguns/benelli_m4/benelli_m4_newyear2018/benelli_m4_newyear2018@69:weapons/shotguns/benelli_m4/benelli_m4,69:weapons/shotguns/benelli_m4/benelli_m4_patrick20@69:weapons/shotguns/benelli_m4/benelli_m4	weapons/benelli_m4/benelli_m4:benelli_s			69:weapons/shotguns/benelli_m4/benelli_m4_fmap
 weapons/fn_fnc/fn_fnc_grip		weapons/fn_fnc/fn_fnc:gripsg
-weapons/fn_fnc/fn_fnc_handguard		weapons/fn_fnc/fn_fnc:handguardsg
-weapons/fn_fnc/fn_fnc_mag		weapons/fn_fnc/fn_fnc:magsg
-weapons/fn_fnc/fn_fnc_receiver		weapons/fn_fnc/fn_fnc:receiversg
-weapons/fn_fnc/fn_fnc_stock		weapons/fn_fnc/fn_fnc:stocksg
-weapons/fn_p90/fn_p90		weapons/fn_p90/fn_p90:fn_p90_s
-weapons/fort_17/fort_17		weapons/fort_17/fort_17:fort17_s
-weapons/hk416_a5/hk416_buttstock		weapons/hk416_a5/hk416_a5:hk416_buttstock_s
-weapons/hk416_a5/hk416_grip		weapons/hk416_a5/hk416_a5:hk416_grip_s
-weapons/hk416_a5/hk416_handguard		weapons/hk416_a5/hk416_a5:hk416_handguard_s
-weapons/hk416_a5/hk416_magazine		weapons/hk416_a5/hk416_a5:hk416_magazine_s
-weapons/hk416_a5/hk416_receiver		weapons/hk416_a5/hk416_a5:hk416_receiver_s
-weapons/hk_mp7/hk_mp7		weapons/hk_mp7/hk_mp7_silencer:hk_mp7_s
-weapons/hk_mp7/hk_mp7_black		weapons/hk_mp7/hk_mp7:hk_mp7_black_s
-weapons/kriss_vector/kriss_vector_body		weapons/kriss_vector/kriss_vector:kriss_vector_body_s
-weapons/kriss_vector/kriss_vector_mag		weapons/kriss_vector/kriss_vector:kriss_vector_mag_s
-weapons/kriss_vector/kriss_vector_stock		weapons/kriss_vector/kriss_vector:kriss_vector_stock_s
+weapons/fn_fnc/fn_fnc_handguard	69:weapons/assault/fn_fnc/fn_fnc_handguard_hw2016@69:weapons/assault/fn_fnc/fn_fnc_handguard	weapons/fn_fnc/fn_fnc:handguardsg			69:weapons/assault/fn_fnc/fn_fnc_handguard_fmap
+weapons/fn_fnc/fn_fnc_mag	69:weapons/assault/fn_fnc/fn_fnc_mag_hw2016@69:weapons/assault/fn_fnc/fn_fnc_mag	weapons/fn_fnc/fn_fnc:magsg			69:weapons/assault/fn_fnc/fn_fnc_mag_fmap
+weapons/fn_fnc/fn_fnc_receiver	69:weapons/assault/fn_fnc/fn_fnc_receiver_hw2016@69:weapons/assault/fn_fnc/fn_fnc_receiver	weapons/fn_fnc/fn_fnc:receiversg			69:weapons/assault/fn_fnc/fn_fnc_receiver_fmap
+weapons/fn_fnc/fn_fnc_stock	69:weapons/assault/fn_fnc/fn_fnc_stock_hw2016@69:weapons/assault/fn_fnc/fn_fnc_stock	weapons/fn_fnc/fn_fnc:stocksg			69:weapons/assault/fn_fnc/fn_fnc_stock_fmap
+weapons/fn_p90/fn_p90	69:weapons/smg/fn_p90/fn_p90_leagues_01_2017@69:weapons/smg/fn_p90/fn_p90,69:weapons/smg/fn_p90/fn_p90_patrick20@69:weapons/smg/fn_p90/fn_p90	weapons/fn_p90/fn_p90:fn_p90_s			69:weapons/smg/fn_p90/fn_p90_fmap
+weapons/fort_17/fort_17		weapons/fort_17/fort_17:fort17_s			69:weapons/pistols/fort_17/fort_17_fmap
+weapons/hk416_a5/hk416_buttstock	69:weapons/assault/hk416_a5/hk416_a5_stpatricksday2018/hk416_buttstock_m@69:weapons/assault/hk416_a5/hk416_buttstock	weapons/hk416_a5/hk416_a5:hk416_buttstock_s			69:weapons/assault/hk416_a5/hk416_buttstock_fmap
+weapons/hk416_a5/hk416_grip	69:weapons/assault/hk416_a5/hk416_a5_stpatricksday2018/hk416_grip_m@69:weapons/assault/hk416_a5/hk416_grip	weapons/hk416_a5/hk416_a5:hk416_grip_s			69:weapons/assault/hk416_a5/hk416_grip_fmap
+weapons/hk416_a5/hk416_handguard	69:weapons/assault/hk416_a5/hk416_a5_stpatricksday2018/hk416_handguard_m@69:weapons/assault/hk416_a5/hk416_handguard	weapons/hk416_a5/hk416_a5:hk416_handguard_s			69:weapons/assault/hk416_a5/hk416_handguard_fmap
+weapons/hk416_a5/hk416_magazine	69:weapons/assault/hk416_a5/hk416_a5_stpatricksday2018/hk416_magazine_m@69:weapons/assault/hk416_a5/hk416_magazine	weapons/hk416_a5/hk416_a5:hk416_magazine_s			69:weapons/assault/hk416_a5/hk416_magazine_fmap
+weapons/hk416_a5/hk416_receiver	69:weapons/assault/hk416_a5/hk416_a5_stpatricksday2018/hk416_receiver_m@69:weapons/assault/hk416_a5/hk416_receiver	weapons/hk416_a5/hk416_a5:hk416_receiver_s			69:weapons/assault/hk416_a5/hk416_receiver_fmap
+weapons/hk_mp7/hk_mp7	69:weapons/smg/hk_mp7/hk_mp7_black@69:weapons/smg/hk_mp7/hk_mp7,69:weapons/smg/hk_mp7/hk_mp7_newyear2019/hk_mp7_newyear2019@69:weapons/smg/hk_mp7/hk_mp7,69:weapons/smg/hk_mp7/hk_mp7_prem/hk_mp7_prem@69:weapons/smg/hk_mp7/hk_mp7	weapons/hk_mp7/hk_mp7_silencer:hk_mp7_s			69:weapons/smg/hk_mp7/hk_mp7_fmap
+weapons/hk_mp7/hk_mp7_black	69:weapons/smg/hk_mp7/hk_mp7_black@69:weapons/smg/hk_mp7/hk_mp7,69:weapons/smg/hk_mp7/hk_mp7_newyear2019/hk_mp7_newyear2019@69:weapons/smg/hk_mp7/hk_mp7,69:weapons/smg/hk_mp7/hk_mp7_prem/hk_mp7_prem@69:weapons/smg/hk_mp7/hk_mp7	weapons/hk_mp7/hk_mp7:hk_mp7_black_s			69:weapons/smg/hk_mp7/hk_mp7_fmap
+weapons/kriss_vector/kriss_vector_body	69:weapons/smg/kriss_vector/kriss_vector_stpatricksday2018/kriss_vector_body_m@69:weapons/smg/kriss_vector/kriss_vector_body	weapons/kriss_vector/kriss_vector:kriss_vector_body_s			69:weapons/smg/kriss_vector/kriss_vector_body_fmap
+weapons/kriss_vector/kriss_vector_mag	69:weapons/smg/kriss_vector/kriss_vector_stpatricksday2018/kriss_vector_mag_m@69:weapons/smg/kriss_vector/kriss_vector_mag	weapons/kriss_vector/kriss_vector:kriss_vector_mag_s			69:weapons/smg/kriss_vector/kriss_vector_mag_fmap
+weapons/kriss_vector/kriss_vector_stock	69:weapons/smg/kriss_vector/kriss_vector_stpatricksday2018/kriss_vector_stock_m@69:weapons/smg/kriss_vector/kriss_vector_stock	weapons/kriss_vector/kriss_vector:kriss_vector_stock_s			69:weapons/smg/kriss_vector/kriss_vector_stock_fmap
 weapons/m4a1/m4a1		weapons/m4a1/m4a1:m4a1_s
-weapons/magnum/magnum		weapons/magnum/magnum:object013sg
-weapons/mosin_nagant/mosin_nagant		weapons/mosin_nagant/mosin_nagant:mosin_nagant_mosin_nagant_s	weapons/sniper/mosin_nagant/mosin_nagant
-weapons/mp-153/mp-153		weapons/mp153/mp153:mp153_mp_153_s
-weapons/msbs/msbs_carbine_body		weapons/msbs/msbs_carbine:msbs_carbine_bodysg
-weapons/msbs/msbs_carbine_grip		weapons/msbs/msbs_carbine:msbs_carbine_gripsg
-weapons/msbs/msbs_carbine_mag		weapons/msbs/msbs_carbine:msbs_carbine_magsg
-weapons/msbs/msbs_carbine_receiver		weapons/msbs/msbs_carbine:msbs_carbine_receiversg
-weapons/pkp_pecheneg/pkp_pecheneg_uv1		weapons/pkp_pecheneg/pkp_pecheneg:pkp_pecheneg_uv1_s
-weapons/pkp_pecheneg/pkp_pecheneg_uv2		weapons/pkp_pecheneg/pkp_pecheneg:pkp_pecheneg_uv2_s
-weapons/pm/pm		weapons/pm/pm:pm_lp_pm001sg
-weapons/pp-2000/pp-2000		weapons/pp2000/pp2000:pp2000_sg
-weapons/pp9_klin/pp9_klin		weapons/pp9_klin/pp9_klin:pp9_klin_s
-weapons/ppsh/ppsh		weapons/ppsh/ppsh:lp_ppsh001sg6
-weapons/ppsh/ppsh_mag		weapons/ppsh/ppsh:lp_ppsh001sg7
-weapons/rem_870/rem870		weapons/rem_870:lp002sg
-weapons/rpd/rpd		weapons/rpd/rpd:rpd_s
-weapons/rpk/rpk		weapons/rpk/rpk:rpk_finalsg2
-weapons/rpk/rpk_pl		weapons/rpk/rpk:rpk_finalsg3
-weapons/socom16/socom		weapons/socom16/socom16:muzzle_socom16sg1
-weapons/soc_vepr/soc_vepr		weapons/soc_vepr/soc_vepr:soc_vepr_s
+weapons/magnum/magnum		weapons/magnum/magnum:object013sg			69:weapons/pistols/magnum/magnum_fmap
+weapons/mosin_nagant/mosin_nagant	69:weapons/sniper/mosin_nagant/victoryday2019/mosin_nagant@69:weapons/sniper/mosin_nagant/mosin_nagant	weapons/mosin_nagant/mosin_nagant:mosin_nagant_mosin_nagant_s	weapons/sniper/mosin_nagant/mosin_nagant		69:weapons/sniper/mosin_nagant/mosin_nagant_fmap
+weapons/mp-153/mp-153		weapons/mp153/mp153:mp153_mp_153_s			69:weapons/shotguns/mp_153/mp_153_fmap
+weapons/msbs/msbs_carbine_body	69:weapons/assault/msbs_carbine/summer_2021/msbs_carbine_body@69:weapons/assault/msbs_carbine/msbs_carbine_body	weapons/msbs/msbs_carbine:msbs_carbine_bodysg			69:weapons/assault/msbs_carbine/msbs_carbine_body_fmap
+weapons/msbs/msbs_carbine_grip	69:weapons/assault/msbs_carbine/summer_2021/msbs_carbine_grip@69:weapons/assault/msbs_carbine/msbs_carbine_grip	weapons/msbs/msbs_carbine:msbs_carbine_gripsg			69:weapons/assault/msbs_carbine/msbs_carbine_grip_fmap
+weapons/msbs/msbs_carbine_mag	69:weapons/assault/msbs_carbine/summer_2021/msbs_carbine_mag@69:weapons/assault/msbs_carbine/msbs_carbine_mag	weapons/msbs/msbs_carbine:msbs_carbine_magsg			69:weapons/assault/msbs_carbine/msbs_carbine_mag_fmap
+weapons/msbs/msbs_carbine_receiver	69:weapons/assault/msbs_carbine/summer_2021/msbs_carbine_receiver@69:weapons/assault/msbs_carbine/msbs_carbine_receiver	weapons/msbs/msbs_carbine:msbs_carbine_receiversg			69:weapons/assault/msbs_carbine/msbs_carbine_receiver_fmap
+weapons/pkp_pecheneg/pkp_pecheneg_uv1	69:weapons/lmg/pkp_pecheneg/pkp_pecheneg_prem/pkp_pecheneg_uv1_prem@69:weapons/lmg/pkp_pecheneg/pkp_pecheneg_uv1	weapons/pkp_pecheneg/pkp_pecheneg:pkp_pecheneg_uv1_s			69:weapons/lmg/pkp_pecheneg/pkp_pecheneg_uv1_fmap
+weapons/pkp_pecheneg/pkp_pecheneg_uv2	69:weapons/lmg/pkp_pecheneg/pkp_pecheneg_prem/pkp_pecheneg_uv2_prem@69:weapons/lmg/pkp_pecheneg/pkp_pecheneg_uv2	weapons/pkp_pecheneg/pkp_pecheneg:pkp_pecheneg_uv2_s			69:weapons/lmg/pkp_pecheneg/pkp_pecheneg_uv2_fmap
+weapons/pm/pm		weapons/pm/pm:pm_lp_pm001sg			69:weapons/pistols/pm/pm_fmap
+weapons/pp-2000/pp-2000	69:weapons/smg/pp2000/pp2000_summer17@69:weapons/smg/pp2000/pp2000	weapons/pp2000/pp2000:pp2000_sg			69:weapons/smg/pp2000/pp2000_fmap
+weapons/pp9_klin/pp9_klin	69:weapons/smg/pp91_kedr/pp91_kedr_prem/pp9_klin_prem@69:weapons/smg/pp91_kedr/pp91_kedr	weapons/pp9_klin/pp9_klin:pp9_klin_s			69:weapons/smg/pp91_kedr/pp91_kedr_fmap
+weapons/ppsh/ppsh	69:weapons/smg/ppsh/ppsh_event_09_05_2017@69:weapons/smg/ppsh/ppsh	weapons/ppsh/ppsh:lp_ppsh001sg6			69:weapons/smg/ppsh/ppsh_fmap
+weapons/ppsh/ppsh_mag		weapons/ppsh/ppsh:lp_ppsh001sg7			69:weapons/smg/ppsh/ppsh_mag_smap
+weapons/rem_870/rem870	69:weapons/shotguns/rem_870/rem_870_prem/rem_870_m@69:weapons/shotguns/rem_870/rem_870	weapons/rem_870:lp002sg			69:weapons/shotguns/rem_870/rem_870_fmap
+weapons/rpd/rpd	69:weapons/lmg/rpd/rpd_premium/rpd_perm@69:weapons/lmg/rpd/rpd	weapons/rpd/rpd:rpd_s			69:weapons/lmg/rpd/rpd_fmap
+weapons/rpk/rpk		weapons/rpk/rpk:rpk_finalsg2			69:weapons/lmg/rpk_74m/rpk_74m_fmap
+weapons/rpk/rpk_pl		weapons/rpk/rpk:rpk_finalsg3			69:weapons/lmg/rpk_74m/rpk_74m_buttstock_fmap
+weapons/socom16/socom	69:weapons/dmr/socom16/socom16_summer17@69:weapons/dmr/socom16/socom16	weapons/socom16/socom16:muzzle_socom16sg1			69:weapons/dmr/socom16/socom16_fmap
+weapons/soc_vepr/soc_vepr		weapons/soc_vepr/soc_vepr:soc_vepr_s			69:weapons/dmr/soc_vepr/soc_vepr_fmap
 weapons/spas12/spas12		weapons/spas_12/spas_12:_blinn4sg
-weapons/sr2m/sr2m		weapons/sr2m/sr2m:srsg1
-weapons/sv98/sv98		weapons/sv98/sv_98:sv98_s
-weapons/svd/svd		weapons/svd_riffle/svd:svd_sg
-weapons/svd/svd_chest		weapons/svd_riffle/svd:handguard_sg
-weapons/toz_122/toz122		weapons/toz_122:lpsg4
-weapons/toz_34/toz_34		weapons/toz34/toz_34:tozik34sg2
+weapons/sr2m/sr2m	69:weapons/smg/sr2m/sr2m_prem/sr2m_prem@69:weapons/smg/sr2m/sr2m	weapons/sr2m/sr2m:srsg1			69:weapons/smg/sr2m/sr2m_fmap
+weapons/sv98/sv98		weapons/sv98/sv_98:sv98_s			69:weapons/sniper/sv98/sv98_fmap
+weapons/svd/svd	69:weapons/sniper/svd/svd_new_year_16@69:weapons/sniper/svd/svd,69:weapons/sniper/svd/svd_snow_20@69:weapons/sniper/svd/svd	weapons/svd_riffle/svd:svd_sg			69:weapons/sniper/svd/svd_fmap
+weapons/svd/svd_chest	69:weapons/sniper/svd/svd_wood_new_year_16@69:weapons/sniper/svd/svd_wood,69:weapons/sniper/svd/svd_wood_snow_20@69:weapons/sniper/svd/svd_wood	weapons/svd_riffle/svd:handguard_sg			69:weapons/sniper/svd/svd_wood_fmap
+weapons/toz_122/toz122	69:weapons/sniper/toz_122/toz122_hw2017@69:weapons/sniper/toz_122/toz122	weapons/toz_122:lpsg4			69:weapons/sniper/toz_122/toz122_fmap
+weapons/toz_34/toz_34	69:weapons/shotguns/toz_34/victoryday2019/toz_34@69:weapons/shotguns/toz_34/toz_34	weapons/toz34/toz_34:tozik34sg2			69:weapons/shotguns/toz_34/toz_34_fmap
 weapons/toz_66/bm16		weapons/toz_66:bmlpsg
-weapons/tt33/tt		weapons/tt33:ttsg
-weapons/ump_45/ump_45		weapons/ump_45/ump_45:ump_45_mat_s
-weapons/valmetrk62/valmetrk62_grip		weapons/valmet_rk62/valmet_rk62:valmetrk62_grip_s
-weapons/valmetrk62/valmetrk62_mag		weapons/valmet_rk62/valmet_rk62:valmetrk62_mag_s
-weapons/valmetrk62/valmetrk62_reciever		weapons/valmet_rk62/valmet_rk62:valmetrk62_reciever_s
-weapons/vepr12/vepr12_add		weapons/vepr_12/vepr_12_short:vepr_12_atch_sg,weapons/vepr_12_camo/vepr_12_medium_camo:vepr_12_atch_sg
-weapons/vsk94/vsk_9a91_butt		weapons/a9_91/a9_91:blinn2sg,weapons/vsk_94/vsk_94:blinn2sg,weapons/vsk_94/vsk_94_camo:blinn2sg
-weapons/vz58/vz58_grip		weapons/vz58/vz58:vz58_grip_s
-weapons/vz58/vz58_handguard		weapons/vz58/vz58:vz58_handguard_s
-weapons/vz58/vz58_mag		weapons/vz58/vz58:vz58_mag_s
-weapons/vz58/vz58_receiver		weapons/vz58/vz58:vz58_receiver_s
-weapons/vz58/vz58_stock		weapons/vz58/vz58:vz58_stock_s
-weapons/winchester_1894/winchester_1894		weapons/winchester_1894:winchester_1894_winchester_1894_s
+weapons/tt33/tt		weapons/tt33:ttsg			69:weapons/pistols/tt33/tt33_fmap
+weapons/ump_45/ump_45	69:weapons/smg/ump_45/ump_45_halloween2018/ump_45_halloween2018@69:weapons/smg/ump_45/ump_45,69:weapons/smg/ump_45/ump_45_new_year_16@69:weapons/smg/ump_45/ump_45	weapons/ump_45/ump_45:ump_45_mat_s			69:weapons/smg/ump_45/ump_45_fmap
+weapons/valmetrk62/valmetrk62_grip	69:weapons/assault/valmet_rk62/valmet_rk62_grip_newyear2017@69:weapons/assault/valmet_rk62/valmet_rk62_grip,69:weapons/assault/valmet_rk62/valmet_rk62_victoryday2020/valmet_rk62_grip@69:weapons/assault/valmet_rk62/valmet_rk62_grip	weapons/valmet_rk62/valmet_rk62:valmetrk62_grip_s			69:weapons/assault/valmet_rk62/valmet_rk62_grip_fmap
+weapons/valmetrk62/valmetrk62_mag	69:weapons/assault/valmet_rk62/valmet_rk62_mag_newyear2017@69:weapons/assault/valmet_rk62/valmet_rk62_mag,69:weapons/assault/valmet_rk62/valmet_rk62_victoryday2020/valmet_rk62_mag@69:weapons/assault/valmet_rk62/valmet_rk62_mag	weapons/valmet_rk62/valmet_rk62:valmetrk62_mag_s			69:weapons/assault/valmet_rk62/valmet_rk62_mag_fmap
+weapons/valmetrk62/valmetrk62_reciever	69:weapons/assault/valmet_rk62/valmet_rk62_reciever_newyear2017@69:weapons/assault/valmet_rk62/valmet_rk62_reciever,69:weapons/assault/valmet_rk62/valmet_rk62_victoryday2020/valmet_rk62_reciever@69:weapons/assault/valmet_rk62/valmet_rk62_reciever	weapons/valmet_rk62/valmet_rk62:valmetrk62_reciever_s			69:weapons/assault/valmet_rk62/valmet_rk62_reciever_fmap
+weapons/vepr12/vepr12_add	69:weapons/shotguns/vepr_12/vepr_12_add_legend_0919@69:weapons/shotguns/vepr_12/vepr_12_add,69:weapons/shotguns/vepr_12/vepr_12_new_year_2021/vepr_12_add_new_year_2021@69:weapons/shotguns/vepr_12/vepr_12_add	weapons/vepr_12/vepr_12_short:vepr_12_atch_sg,weapons/vepr_12_camo/vepr_12_medium_camo:vepr_12_atch_sg			69:weapons/shotguns/vepr_12/vepr_12_add_fmap
+weapons/vsk94/vsk_9a91_butt	69:weapons/assault/vsk_94_a9_91/a9_91_newyear2019/vsk_94_a9_91_buttstock_m@69:weapons/assault/vsk_94_a9_91/vsk_94_9a91_buttstock	weapons/a9_91/a9_91:blinn2sg,weapons/vsk_94/vsk_94:blinn2sg,weapons/vsk_94/vsk_94_camo:blinn2sg			69:weapons/assault/vsk_94_a9_91/vsk_94_9a91_buttstock_fmap
+weapons/vz58/vz58_grip	69:weapons/assault/vz58/vz58_grip_camo@69:weapons/assault/vz58/vz58_grip,69:weapons/assault/vz58/vz58_summer_league_2019/vz58_grip_summer_league_2019@69:weapons/assault/vz58/vz58_grip	weapons/vz58/vz58:vz58_grip_s			69:weapons/assault/vz58/vz58_grip_fmap
+weapons/vz58/vz58_handguard	69:weapons/assault/vz58/vz58_handguard_camo@69:weapons/assault/vz58/vz58_handguard,69:weapons/assault/vz58/vz58_summer_league_2019/vz58_handguard_summer_league_2019@69:weapons/assault/vz58/vz58_handguard	weapons/vz58/vz58:vz58_handguard_s			69:weapons/assault/vz58/vz58_handguard_fmap
+weapons/vz58/vz58_mag	69:weapons/assault/vz58/vz58_mag_camo@69:weapons/assault/vz58/vz58_mag,69:weapons/assault/vz58/vz58_summer_league_2019/vz58_mag_summer_league_2019@69:weapons/assault/vz58/vz58_mag	weapons/vz58/vz58:vz58_mag_s			69:weapons/assault/vz58/vz58_mag_fmap
+weapons/vz58/vz58_receiver	69:weapons/assault/vz58/vz58_receiver_camo@69:weapons/assault/vz58/vz58_receiver,69:weapons/assault/vz58/vz58_summer_league_2019/vz58_receiver_summer_league_2019@69:weapons/assault/vz58/vz58_receiver	weapons/vz58/vz58:vz58_receiver_s			69:weapons/assault/vz58/vz58_receiver_fmap
+weapons/vz58/vz58_stock	69:weapons/assault/vz58/vz58_stock_camo@69:weapons/assault/vz58/vz58_stock,69:weapons/assault/vz58/vz58_summer_league_2019/vz58_stock_summer_league_2019@69:weapons/assault/vz58/vz58_stock	weapons/vz58/vz58:vz58_stock_s			69:weapons/assault/vz58/vz58_stock_fmap
+weapons/winchester_1894/winchester_1894	69:weapons/dmr/winchester_1894/victoryday2019/winchester_1894@69:weapons/dmr/winchester_1894/winchester_1894	weapons/winchester_1894:winchester_1894_winchester_1894_s			69:weapons/dmr/winchester_1894/winchester_1894_fmap
+weapons/vepr12/vepr12_attach	69:weapons/shotguns/vepr_12/vepr_12_attach_camo@69:weapons/shotguns/vepr_12/vepr_12_attach,69:weapons/shotguns/vepr_12/vepr_12_attach_legend_0919@69:weapons/shotguns/vepr_12/vepr_12_attach,69:weapons/shotguns/vepr_12/vepr_12_new_year_2021/vepr_12_attach_new_year_2021@69:weapons/shotguns/vepr_12/vepr_12_attach	weapons/vepr_12/vepr_12_short:vepr_12_mag_sg			69:weapons/shotguns/vepr_12/vepr_12_attach_fmap
+weapons/ak_12/ak_12_mag_camo	69:weapons/assault/ak_12/ak_12_halloween_2020/ak_545x29_plastic_30_round_halloween_2020_mag@69:weapons/assault/ak_12/ak_12_mag_camo	weapons/ak_12_camo/ak_12_camo:magaz_sg			69:weapons/assault/ak_74m/ak_74m_fmap
+weapons/saiga_12s/saiga_12_grip_camo	69:weapons/shotguns/saiga_12s/saiga_12_spring_league_2020/ak_74n_saiga_12_spring_league_2020@69:weapons/shotguns/saiga_12s/saiga_12_grip_camo	weapons/saiga_12s/saiga_12s_camo:ak_74n_handle_sg			69:weapons/assault/ak_74n/ak74n_fmap
+weapons/saiga_12s/saiga_12_mag_camo	69:weapons/shotguns/saiga_12s/saiga_12_spring_league_2020/vepr_12_mag_saiga_12_spring_league_2020@69:weapons/shotguns/saiga_12s/saiga_12_mag_camo	weapons/saiga_12s/saiga_12s_camo:vepr12_mag_sg			69:weapons/shotguns/vepr_12/vepr_12_fmap
+weapons/vepr12/vepr_12_mag_camo	69:weapons/shotguns/vepr_12/vepr_12_attach_camo@69:weapons/shotguns/vepr_12/vepr_12_attach,69:weapons/shotguns/vepr_12/vepr_12_attach_legend_0919@69:weapons/shotguns/vepr_12/vepr_12_attach,69:weapons/shotguns/vepr_12/vepr_12_new_year_2021/vepr_12_attach_new_year_2021@69:weapons/shotguns/vepr_12/vepr_12_attach	weapons/vepr_12_camo/vepr_12_medium_camo:vepr_12_mag_sg			69:weapons/shotguns/vepr_12/vepr_12_attach_fmap

@@ -2,19 +2,21 @@
 """weapon_camo.py: the `_aoac` textures that let a weapon wear an armour camouflage.
 
 usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out folder | ->
-           [--only <texture>] [--camo <camouflage .dds>] [--previews <folder>]
+           [--v069 <0.69d0 folder>] [--only <texture>] [--camo <camouflage .dds>] [--previews <folder>]
            [--picker <page.html> [--camos <camouflage item folder>]] [--pack <id>@<version>]
            [--bare-masks]
 
 <game folder>   the players' game files at their game paths or flattened as dbgrab writes them
                 (models__weapons__uzi.skinned_model__settings): the stock resources.db with every
-                offered patch over it, for the models (their meshes' UVs) and the textures in guns.tsv
+                offered patch over it, for the models (their meshes) and the textures in guns.tsv
 <donor folder>  the same for a later build's files that guns.tsv names with `28:` (0.28a2's
                 resources.db: premium weapons whose camouflaged textures our data does not have)
+--v069          the same for 0.69d0's, named with `69:` (references.py writes those columns: its
+                painted textures and metalness maps of the same UVs)
 <out folder>    gets textures/<texture>_aoac.dds and .options for every row and every premium
                 texture of the row (the same mask: the same UVs); must not exist yet (-: none)
---previews      also writes <texture>.png there: the plain texture, a premium one, the mask, and the
-                texture as the game's bake would make it with --camo (default: the first donor)
+--previews      also writes <texture>.png there: the plain texture, a painted version, the mask, and
+                the texture as the game's bake would make it with --camo (default: the painted version)
 --picker        also writes a page to choose the painted parts by hand (needs --camo): the texture
                 and the weapon in 3D side by side; click a part on either to paint it or not; the
                 page gives the lines of parts.tsv
@@ -28,26 +30,19 @@ usage: python3 -I weapon_camo.py <guns.tsv> <game folder> <donor folder> <out fo
 --camos         the camouflage items' configs (gameplay/items/upgrades/camouflages, as dbgrab writes
                 them): the picker offers each item's camouflage (textures from the game folder)
 
-Which parts are painted: parts.tsv beside guns.tsv names them (a UV point on each part) for the
-textures it has a line for; for the others, the large parts the premium painted (suggest()).
+Which parts are painted: one rule for every weapon (choose(), README.md), part by part: a part is what
+a UV island's texels cover on the model. parts.tsv beside guns.tsv holds the hand picks over it.
 
 The engine bakes a camouflage into a surface's textures (camouflage_decal_texture_type_baker_cook,
 bake_decal_composition.ps) only when `<diffuse>_aoac.dds` loads beside the diffuse:
     c = lerp(diffuse, camo(uv * scale), 1 - aoac.G)       G: 1 bare, 0 painted
     c = overlay(c, aoac.B)                                B: 0.5 changes nothing
     c = c * aoac.R                                        R: 1 changes nothing
-What the premium weapons' own textures say was painted (most premiums are repainted as a whole,
-so this alone paints nearly the whole weapon):
-- two premium textures of one weapon (two camouflages over the same base): the texels the two
-  leave the same are bare. A part of the model (a UV island) is painted when the two differ on
-  most of it and each differs from the plain texture there (a part one of them only tints, the
-  Uzi's grips in uzi_camo_st, is no paint);
-- one premium texture: a UV island is painted when the premium differs from the plain texture on
-  most of it (the premium was painted again as a whole, so texel by texel says too little).
 On a painted part B carries the plain texture's fine shading (scratches, edges) and R its broad
 shading, so the camouflage keeps the part's wear and shape; elsewhere G is 1, B 0.5 and R 1: the
 bake leaves the texture as it is.
 """
+import collections
 import hashlib
 import json
 import os
@@ -67,6 +62,7 @@ class Files:
     def __init__(self, root):
         self.root = root
         self.flat = set(os.listdir(root)) if os.path.isdir(root) else set()
+        self.spans = {}
 
     def path(self, game_path):
         p = os.path.join(self.root, *game_path.split('/'))
@@ -89,6 +85,16 @@ class Files:
         pre = ('models/%s.skinned_model/render/' % model).replace('/', '__')
         return sorted(f[len(pre):-len('__converted_model')] for f in self.flat
                       if f.startswith(pre) and f.endswith('__converted_model'))
+
+    def mesh(self, model, surface):
+        return mesh(self.read('models/%s.skinned_model/render/%s/converted_model' % (model, surface)))
+
+    def span(self, model):
+        """A weapon model from butt to muzzle: (z0, z1) of all its surfaces."""
+        if model not in self.spans:
+            z = np.concatenate([self.mesh(model, s)[2][:, 2] for s in self.surfaces(model)])
+            self.spans[model] = (float(z.min()), float(z.max()))
+        return self.spans[model]
 
 
 def config_value(buf, path):
@@ -117,27 +123,31 @@ def config_value(buf, path):
     return [config_value(buf, path + '/' + str(i)) for i in range(cnt)] if t == 4 else None
 
 
-def mesh_uv(buf):
-    """(uv[n,2], triangles[m,3]) of a converted_model: a vertex chunk (3) of `count` vertices whose
-    last 8 bytes are the UV as two floats, then the 16-bit index chunk (4)."""
+def mesh(buf):
+    """(uv[n,2], triangles[m,3], xyz[n,3]) of a converted_model: a vertex chunk (3) of `count` vertices,
+    each starting with its position (three floats) and ending with its UV (two floats), then the 16-bit
+    index chunk (4)."""
     kind, size, count = struct.unpack_from('<III', buf, 0)
     assert kind == 3 and (size - 4) % count == 0, 'no vertex chunk'
     stride = (size - 4) // count
     raw = np.frombuffer(buf, dtype=np.uint8, count=count * stride, offset=12).reshape(count, stride)
     uv = raw[:, stride - 8:].copy().view('<f4').reshape(count, 2).astype(np.float64)
+    xyz = raw[:, :12].copy().view('<f4').reshape(count, 3).astype(np.float64)
     at = 12 + count * stride
     kind, _, indices = struct.unpack_from('<III', buf, at)
     assert kind == 4 and indices % 3 == 0, 'no index chunk'
     tris = np.frombuffer(buf, dtype='<u2', count=indices, offset=at + 12).reshape(-1, 3).astype(np.int64)
-    return uv, tris
+    return uv, tris, xyz
 
 
-def islands(meshes, size):
-    """A raster [h,w] of UV island numbers (0 = no island) for the triangles of `meshes`, two
-    triangles in one island when they share an edge in UV (parts packed side by side that only
-    touch at a corner stay apart)."""
-    h, w = size
-    labels = np.zeros((h, w), dtype=np.int32)
+def mesh_uv(buf):
+    return mesh(buf)[:2]
+
+
+def island_triangles(meshes):
+    """(island number of each triangle, its UV corners [t,3,2], whether it tiles past 0..1) for the
+    triangles of `meshes` ([(uv, triangles, ...)]) in their order: two triangles are in one island when
+    they share an edge in UV (parts packed side by side that only touch at a corner stay apart)."""
     parent = []
 
     def find(a):
@@ -146,8 +156,8 @@ def islands(meshes, size):
             a = parent[a]
         return a
 
-    tri_keys, edges = [], {}
-    for uv, tris in meshes:
+    edges = {}
+    for uv, tris, *_ in meshes:
         keys = [tuple(k) for k in np.round(uv * 4096).astype(np.int64)]
         for t in tris:
             n = len(parent)
@@ -159,17 +169,29 @@ def islands(meshes, size):
                 ra, rb = find(other), find(n)
                 if ra != rb:
                     parent[rb] = ra
-            tri_keys.append((uv[t], n))
+    if not parent:
+        return np.zeros(0, np.int64), np.zeros((0, 3, 2)), np.zeros(0, bool)
+    corners = np.concatenate([uv[tris] for uv, tris, *_ in meshes])
     # a part laid out whole UVs away (the TOZ-66's, u -6..11) samples the texture where its
     # fraction falls: move each triangle by the whole part of its centre
-    tri_keys = [(corners - np.floor(corners.mean(0)), find(n)) for corners, n in tri_keys]
-    ids = {}
+    corners = corners - np.floor(corners.mean(axis=1))[:, None, :]
+    outside = np.maximum(0, np.abs(corners - 0.5) - 0.5).max(axis=(1, 2)) > 1e-3
+    numbers = {}
+    for i in np.argsort(outside, kind='stable'):       # the islands inside 0..1 numbered first
+        numbers.setdefault(find(int(i)), len(numbers) + 1)
+    return np.array([numbers[find(i)] for i in range(len(parent))]), corners, outside
+
+
+def islands(meshes, size, triangles=None):
+    """A raster [h,w] of UV island numbers (0 = no island) for the triangles of `meshes`
+    (island_triangles(), given or made)."""
+    h, w = size
+    labels = np.zeros((h, w), dtype=np.int32)
+    ids, all_corners, outside = triangles if triangles is not None else island_triangles(meshes)
     # triangles inside 0..1 first; one that tiles past it (a barrel's repeated strip) only fills
     # texels no other island has, so it never takes a part's texels
-    outside = lambda corners: float(np.maximum(0, np.abs(corners - 0.5) - 0.5).max())
-    tri_keys.sort(key=lambda tk: outside(tk[0]) > 1e-3)
-    for corners, root in tri_keys:
-        n = ids.setdefault(root, len(ids) + 1)
+    for k in np.argsort(outside, kind='stable'):
+        corners, n = all_corners[k], ids[k]
         x = corners[:, 0] * w - 0.5
         y = corners[:, 1] * h - 0.5
         x0, x1 = int(np.floor(x.min())), int(np.ceil(x.max()))
@@ -184,7 +206,7 @@ def islands(meshes, size):
         l2 = ((cy - ay) * (gx - cx) + (ax - cx) * (gy - cy)) / den
         inside = (l1 >= -0.02) & (l2 >= -0.02) & (1 - l1 - l2 >= -0.02)
         px, py = gx[inside] % w, gy[inside] % h            # UVs past 0..1 wrap, as the sampler does
-        if outside(corners) > 1e-3:
+        if outside[k]:
             free = labels[py, px] == 0
             px, py = px[free], py[free]
         labels[py, px] = n
@@ -230,73 +252,154 @@ def grow(labels, steps):
 
 
 DIFFER = 0.10      # a texel's colour differs from the plain texture's (smoothed, 0..1 per channel)
-DIFFER_AB = 6 / 255
-ONE_DONOR = 0.2   # a part with one donor is painted when this much of it differs (dark camo blobs
-                  # over a dark part do not differ: the Rem 700 stock is 0.44, bare parts under 0.06)
+
+# A part of a weapon: what one UV island's texels cover on it. `area` m2; `length` its extent along
+# the weapon (z: the bore, the muzzle at +z), m; `tube`: the radius of the tube about that axis it is
+# (m), None when it is none; `along`: where its middle is on the weapon, 0 the butt, 1 the muzzle;
+# `texels` in the raster.
+Part = collections.namedtuple('Part', 'area length tube along texels')
+ROUND = 0.10        # a tube: its corners within this share of the radius from a circle about its axis ...
+FACET = 0.15        # ... and its facets' middles within this one (an octagon's are 0.08, a box's 0.2 and more)
+RING = 75.0         # degrees: a whole tube leaves no wider gap around its axis; a part that does (a
+SHELL = 8.0         # slide, a receiver cover, open below) is a tube only this many diameters long (a
+                    # barrel unwrapped in halves)
 
 
-def paint_mask(base, donors, labels):
-    """(mask[h,w] 0..1, per-island decisions) from the plain texture and its premium donors."""
-    n = labels.max()
+def tube(triangles):
+    """The radius of the tube triangles ([t,3,3], z along the bore) are the wall of, or None. About the
+    least-squares axis of their corners: each corner as far from it as the others at its place along
+    the bore (a barrel tapers), each facet's middle nearly so (a box's corners are on a circle too, its
+    sides are not), and corners all around it."""
+    points = np.unique(triangles.reshape(-1, 3), axis=0)
+    xy = np.unique(points[:, :2], axis=0)
+    if len(xy) < 6:
+        return None
+    a = np.column_stack([xy, np.ones(len(xy))])
+    (cx, cy, _), *_ = np.linalg.lstsq(a, (xy ** 2).sum(axis=1), rcond=None)
+    centre = np.array([cx, cy]) / 2
+    far = np.hypot(*(points[:, :2] - centre).T)
+    radius = float(np.median(far))
+    if radius <= 0 or radius > np.ptp(xy, axis=0).max():
+        return None
+    wall = far > 0.5 * radius                              # not an end cap's middle
+    place = np.round(points[:, 2] / 0.002).astype(np.int64)
+    order = np.lexsort((far, place))
+    starts = np.flatnonzero(np.r_[True, place[order][1:] != place[order][:-1]])
+    ends = np.r_[starts[1:], len(order)]
+    local = np.empty(len(points))
+    for s, e in zip(starts, ends):                         # the corners at one place along the bore
+        local[order[s:e]] = np.median(far[order[s:e]][far[order[s:e]] > 0.5 * radius]) if wall[order[s:e]].any() else radius
+    if np.percentile(np.abs(far - local)[wall] / radius, 75) > ROUND:
+        return None
+    ends_a, ends_b = triangles, np.roll(triangles, 1, axis=1)
+    across = np.abs(ends_a[..., 2] - ends_b[..., 2]) < 0.25 * np.hypot(*(ends_a[..., :2] - ends_b[..., :2]).transpose(2, 0, 1))
+    if across.any():                                       # the facets' edges around the bore
+        da, db = (np.hypot(*(e[..., :2] - centre).transpose(2, 0, 1)) for e in (ends_a, ends_b))
+        middle = np.hypot(*((ends_a[..., :2] + ends_b[..., :2]) / 2 - centre).transpose(2, 0, 1))
+        rim = across & (da > 0.5 * radius) & (db > 0.5 * radius)
+        if rim.any() and np.percentile(1 - middle[rim] / ((da + db) / 2)[rim], 75) > FACET:
+            return None
+    angle = np.sort(np.degrees(np.arctan2(*(points[wall][:, 1::-1] - centre[::-1]).T)))
+    gap = float(np.diff(np.r_[angle, angle[0] + 360]).max())
+    if gap > RING and np.ptp(points[:, 2]) < SHELL * 2 * radius:
+        return None
+    return radius
+
+
+def parts_of(meshes, labels, triangles, spans):
+    """{island: Part} of the islands' raster. A triangle belongs to the island that has the texel under
+    its centre: halves mirrored over one another in UV are one part (they take the same paint).
+    Measured on the mesh that has most of the part (two guns sharing a texture each have it); `spans`:
+    each mesh's weapon from butt to muzzle, (z0, z1)."""
+    h, w = labels.shape
+    _, corners, _ = triangles
+    centre = corners.mean(axis=1)
+    owner = labels[(centre[:, 1] * h).astype(int) % h, (centre[:, 0] * w).astype(int) % w]
+    texels = np.bincount(labels.ravel(), minlength=int(labels.max()) + 1)
+    out, at = {}, 0
+    for (uv, tris, xyz), (z0, z1) in zip(meshes, spans):
+        mine = owner[at:at + len(tris)]
+        at += len(tris)
+        p = xyz[tris]
+        area = 0.5 * np.linalg.norm(np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]), axis=1)
+        for i in np.unique(mine[mine > 0]):
+            sel = mine == i
+            total = float(area[sel].sum())
+            if i in out and out[i].area >= total:
+                continue
+            lo, hi = p[sel][:, :, 2].min(), p[sel][:, :, 2].max()
+            along = ((lo + hi) / 2 - z0) / max(z1 - z0, 1e-6)
+            out[int(i)] = Part(total, float(hi - lo), tube(p[sel]), float(along), int(texels[i]))
+    return out
+
+
+def repainted(plain, painted):
+    """[h,w] bool: the texels a painted version of a texture (a premium, a 0.69d0 skin) painted over."""
     smooth = lambda img: np.stack([blur(img[..., k], 2) for k in range(3)], 2)
-    sb = smooth(base)
-    differs = [np.abs(smooth(d) - sb).max(axis=2) > DIFFER for d in donors]
-    decisions = {}
-    if not donors:                     # no premium: every part may be painted (the suggestion and
-        for i in range(1, n + 1):      # parts.tsv choose)
-            area = (labels == i).sum()
-            if area:
-                decisions[i] = (area, True, ())
-        return labels > 0, decisions
-    if len(donors) >= 2:
-        a, b = donors[0], donors[1]
-        h, w = labels.shape
-        d = np.abs(a - b).max(axis=2)
-        blocks = d[:h // 4 * 4, :w // 4 * 4].reshape(h // 4, 4, w // 4, 4).max(axis=(1, 3)) > DIFFER_AB
-        texel = np.zeros((h, w), dtype=bool)
-        texel[:h // 4 * 4, :w // 4 * 4] = blocks.repeat(4, 0).repeat(4, 1)
-        for i in range(1, n + 1):
-            at = labels == i
-            area = at.sum()
-            if not area:
-                continue
-            ab, da, db = texel[at].mean(), differs[0][at].mean(), differs[1][at].mean()
-            decisions[i] = (area, ab > 0.5 and min(da, db) > 0.3, (ab, da, db))
-        painted = np.zeros(labels.shape, dtype=bool)
-        for i, (_, yes, _) in decisions.items():
-            if yes:
-                painted |= labels == i
-        # the two donors' own boundary inside a painted island; a painted island counts whole
-        # where its texels differ in blocks (a hole of a few blocks is a stripe both painted alike)
-        m = Image.fromarray((painted & texel).astype(np.uint8) * 255)
-        m = m.filter(ImageFilter.MaxFilter(9)).filter(ImageFilter.MinFilter(9))
-        mask = (np.asarray(m) > 127) & painted
-    else:
-        for i in range(1, n + 1):
-            at = labels == i
-            area = at.sum()
-            if not area:
-                continue
-            dp = differs[0][at].mean()
-            decisions[i] = (area, dp > ONE_DONOR, (dp,))
-        mask = np.zeros(labels.shape, dtype=bool)
-        for i, (_, yes, _) in decisions.items():
-            if yes:
-                mask |= labels == i
-    return mask, decisions
+    return np.abs(smooth(painted) - smooth(plain)).max(axis=2) > DIFFER
+
+
+def shares(labels, raster):
+    """{island: the mean of `raster` over its texels}."""
+    n = int(labels.max()) + 1
+    count = np.bincount(labels.ravel(), minlength=n)
+    total = np.bincount(labels.ravel(), weights=raster.ravel().astype(np.float64), minlength=n)
+    return {i: total[i] / count[i] for i in range(1, n) if count[i]}
+
+
+# The rule (docs/notes/weapon-camo.md, "Where the paint goes"): a weapon is painted on its body, all
+# of its outside, and not on what stays bare metal on a painted gun.
+TINY = 3e-4         # m2: under 3 cm2 a part is a pin, a screw, a trigger, a sight's blade
+METAL = 0.10        # 0.69d0's metalness map: a part under this is polymer, wood or bakelite
+FROM = 0.3          # a metal tube not at the butt (a wire stock's struts) is
+ROD = 0.014         # m: a rod under this radius: barrel, gas tube, piston, cleaning rod, magazine tube;
+SLIM = 0.020        # m: a slim tube under this one, when it is ...
+LONG = 2.0          # ... this many times longer than wide: a heavy barrel, a suppressor
+BODY = 10e-4        # m2: any other metal part of 10 cm2 is a piece of the body (receiver, cover, slide)
+REPAINTED = 0.5     # a painted version (a premium, a 0.69d0 skin) paints a part when it repaints this much
+
+
+def choose(parts, metal, repaint):
+    """{island: why} of the parts that take the camouflage. `metal` {island: metalness} of the texture's
+    0.69d0 metalness map ({} without one: every part counts as metal), `repaint` {island: the largest
+    share of it a painted version of the weapon repaints} ({} without one). What is not metal is painted;
+    of the metal a rod never, a slim tube and a small part only where a painted version paints it, the
+    rest (the body) always."""
+    chosen = {}
+    for i, part in parts.items():
+        if part.area < TINY or not part.texels:
+            continue
+        tube = part.tube is not None and part.along >= FROM
+        if metal and metal.get(i, 1.0) < METAL:
+            chosen[i] = 'not metal'
+        elif tube and part.tube < ROD:
+            continue
+        elif part.area >= BODY and not (tube and part.tube < SLIM and part.length >= LONG * 2 * part.tube):
+            chosen[i] = 'body'
+        elif repaint.get(i, 0.0) >= REPAINTED:
+            chosen[i] = 'repainted'
+    return chosen
 
 
 def aoac(base, mask, labels, detail=4.0, ao=0.7):
-    """The aoac texture [h,w,3] 0..1 for the plain texture and its paint mask."""
-    owner = grow(labels * mask, 6) > 0
+    """The aoac texture [h,w,3] 0..1 for the plain texture and its paint mask. A painted part is shaded
+    against its own bright level (the 80th percentile of its texels' luminance), not the weapon's:
+    paint covers a dark part as it covers a light one (until 2026-11-20 one level for the whole
+    texture, and the camouflage came out at half its brightness on a black receiver beside tan
+    furniture)."""
+    part = grow(labels * mask, 6)
+    owner = part > 0
     soft = blur(owner.astype(np.float32), 1.0)
     L = lum(base)
     high = L - blur(L, 4)
     B = 0.5 + np.clip(detail * high, -0.5, 0.5) * soft
     broad = blur(L, 12)
-    painted_l = broad[owner]
-    ref = np.percentile(painted_l, 90) if painted_l.size else 1.0
-    R = 1 - ao * np.clip(1 - broad / max(ref, 1e-3), 0, 1) * soft
+    ids = (labels * mask).ravel()
+    order = np.lexsort((L.ravel(), ids))
+    count = np.bincount(ids, minlength=int(part.max()) + 1)
+    bright = L.ravel()[order][np.maximum(np.cumsum(count) - 1 - (0.2 * count).astype(np.int64), 0)]
+    ref = np.maximum(np.where(count > 0, bright, 1.0)[part], 1e-3)
+    R = 1 - ao * np.clip(1 - broad / ref, 0, 1) * soft
     G = 1 - soft
     return np.stack([R, G, B], 2)
 
@@ -362,16 +465,6 @@ def dds_dxt1(img):
     return header + body
 
 
-MIN_PART = 0.02   # the suggestion: a part the premium painted, of at least this share of the
-                  # texture's parts (the receiver, handguard, stock, magazine; not pins, triggers)
-
-
-def suggest(decisions, labels):
-    """The parts painted when parts.tsv has no line for the texture: the premium's large ones."""
-    used = (labels > 0).sum()
-    return {i for i, (area, yes, _) in decisions.items() if yes and area >= MIN_PART * used}
-
-
 def island_points(labels):
     """{island: (u, v)}: a texel of each island, the one nearest its centre, as parts.tsv names it."""
     h, w = labels.shape
@@ -391,25 +484,35 @@ def island_points(labels):
 
 
 def read_parts(path):
-    """parts.tsv: {texture: [(u, v)]}, a point on each painted part (none: the texture stays plain)."""
+    """parts.tsv: {texture: [(paint, u, v)]}: the hand picks over the rule, a UV point on each part:
+    `+u,v` paints it, `-u,v` leaves it bare. A texture with no points stays plain."""
     parts = {}
     for line in open(path, encoding='utf-8'):
         line = line.rstrip('\n')
         if not line or line.startswith('#'):
             continue
         texture, _, points = line.partition('\t')
-        parts[texture] = [tuple(float(c) for c in p.split(',')) for p in points.split()]
+        picks = []
+        for p in points.split():
+            if p[0] not in '+-':
+                sys.exit('%s: %s: a pick is +u,v (paint the part) or -u,v (leave it bare)' % (path, texture))
+            u, v = (float(c) for c in p[1:].split(','))
+            picks.append((p[0] == '+', u, v))
+        parts[texture] = picks
     return parts
 
 
-def parts_islands(points, labels, texture):
+def picked(chosen, picks, labels, texture):
+    """The rule's parts with the texture's hand picks applied."""
+    if not picks:
+        return set()
     h, w = labels.shape
-    chosen = set()
-    for u, v in points:
+    chosen = set(chosen)
+    for paint, u, v in picks:
         i = int(labels[min(int(v * h), h - 1), min(int(u * w), w - 1)])
         if not i:
             sys.exit('%s: parts.tsv point %.4f,%.4f is on no part (the UVs changed? pick again)' % (texture, u, v))
-        chosen.add(i)
+        (chosen.add if paint else chosen.discard)(i)
     return chosen
 
 
@@ -453,11 +556,9 @@ def picker_model(game, model, textures):
     import gzip
     out = []
     for surface in game.surfaces(model):
-        buf = game.read('models/%s.skinned_model/render/%s/converted_model' % (model, surface))
-        uv, tris = mesh_uv(buf)
-        _, size, count = struct.unpack_from('<III', buf, 0)
-        xyz = np.frombuffer(buf, np.uint8, count=count * ((size - 4) // count), offset=12).reshape(count, -1)[:, :12]
-        blob = struct.pack('<II', count, tris.size) + xyz.tobytes() + uv.astype('<f4').tobytes() + tris.astype('<u2').tobytes()
+        uv, tris, xyz = game.mesh(model, surface)
+        blob = struct.pack('<II', len(uv), tris.size) + xyz.astype('<f4').tobytes() + uv.astype('<f4').tobytes() \
+            + tris.astype('<u2').tobytes()
         out.append({'surface': surface, 'texture': textures.get('%s:%s' % (model, surface)),
                     'mesh': base64.b64encode(gzip.compress(blob, 9, mtime=0)).decode()})
     return out
@@ -488,17 +589,21 @@ def write_picker(path, entries, camos, models):
     open(path, 'w', encoding='utf-8').write(page.replace('/*DATA*/null', json.dumps(data)))
 
 
+Row = collections.namedtuple('Row', 'texture painted surfaces premiums metal')
+
+
 def read_rows(path):
+    """The table's rows. `painted`: [(painted version, the plain texture it was painted over)]."""
     rows = []
     for line in open(path, encoding='utf-8'):
         line = line.rstrip('\n')
         if not line or line.startswith('#'):
             continue
-        cols = line.split('\t')
-        texture, donors, surfaces = cols[0], [d for d in cols[1].split(',') if d], cols[2].split(',')
-        premiums = [p for p in cols[3].split(',') if p] if len(cols) > 3 else []
-        compare = cols[4] if len(cols) > 4 and cols[4] else None
-        rows.append((texture, donors, surfaces, premiums, compare))
+        cols = line.split('\t') + [''] * 6
+        texture, surfaces = cols[0], cols[2].split(',')
+        over = cols[4] or texture
+        painted = [tuple((d + '@' + over).split('@')[:2]) for d in cols[1].split(',') if d]
+        rows.append(Row(texture, painted, surfaces, [p for p in cols[3].split(',') if p], cols[5] or None))
     return rows
 
 
@@ -506,18 +611,19 @@ def main():
     args = [a for a in sys.argv[1:]]
     opt = lambda name: args[args.index(name) + 1] if name in args else None
     only, camo_path, previews, picker = opt('--only'), opt('--camo'), opt('--previews'), opt('--picker')
-    camos_dir, pack = opt('--camos'), opt('--pack')
+    camos_dir, pack, v069 = opt('--camos'), opt('--pack'), opt('--v069')
     bare_masks = '--bare-masks' in args
     if bare_masks:
         args.remove('--bare-masks')
-    for name in ('--only', '--camo', '--previews', '--picker', '--camos', '--pack'):
+    for name in ('--only', '--camo', '--previews', '--picker', '--camos', '--pack', '--v069'):
         if name in args:
             i = args.index(name)
             del args[i:i + 2]
     if len(args) != 4 or (picker and not camo_path) or (pack and (args[3] == '-' or only or '@' not in pack)):
         sys.exit(__doc__)
     table, game, donor, out = args
-    game, donor = Files(game), Files(donor)
+    sources = {'28': Files(donor), '69': Files(v069) if v069 else None}
+    game = Files(game)
     if out != '-' and os.path.exists(out):
         sys.exit('%s: already there' % out)
     parts_path = os.path.join(os.path.dirname(os.path.abspath(table)), 'parts.tsv')
@@ -525,32 +631,47 @@ def main():
     options = game.read(OPTIONS_TEMPLATE)
     camo = load_rgb(open(camo_path, 'rb').read()) if camo_path else None
     written, entries = [], []
+
     def texture_of(name, size=None):
-        files, name = (donor, name[3:]) if name.startswith('28:') else (game, name)
+        files = game
+        if name[2:3] == ':':
+            files, name = sources[name[:2]], name[3:]
+            if files is None:
+                sys.exit('%s: the table names 0.69d0 textures: --v069 <folder>' % table)
         img = load_rgb(files.read('textures/%s.dds' % name))
         return resize(img, size) if size else img
 
-    for texture, donors, surfaces, premiums, compare in read_rows(table):
+    for row in read_rows(table):
+        texture = row.texture
         if only and texture != only:
             continue
         base = texture_of(texture)
         size = base.shape[:2]
-        imgs = [texture_of(d, size) for d in donors]
-        first = imgs[0] if imgs else base          # the premium the previews and the picker show
-        plain = texture_of(compare, size) if compare else base
-        meshes = []
-        for s in surfaces:
+        meshes, spans = [], []
+        for s in row.surfaces:
             model, surface = s.split(':')
-            meshes.append(mesh_uv(game.read('models/%s.skinned_model/render/%s/converted_model' % (model, surface))))
-        labels = islands(meshes, size)
-        _, decisions = paint_mask(plain, imgs, labels)
-        suggested = suggest(decisions, labels)
-        chosen = parts_islands(parts[texture], labels, texture) if texture in parts else suggested
+            meshes.append(game.mesh(model, surface))
+            spans.append(game.span(model))
+        triangles = island_triangles(meshes)
+        labels = islands(meshes, size, triangles)
+        weapon = parts_of(meshes, labels, triangles, spans)
+        metal = shares(labels, texture_of(row.metal, size)[..., 0]) if row.metal else {}
+        repaint = {}
+        for painted, plain in row.painted:
+            for i, share in shares(labels, repainted(texture_of(plain, size), texture_of(painted, size))).items():
+                repaint[i] = max(repaint.get(i, 0.0), share)
+        first = texture_of(row.painted[0][0], size) if row.painted else base   # what the previews and the picker show
+        rule = choose(weapon, metal, repaint)
+        chosen = picked(rule, parts[texture], labels, texture) if texture in parts else set(rule)
         mask = np.isin(labels, sorted(chosen))
         a = aoac(base, mask, labels)
-        print('%-44s %d donors, %3d parts, premium painted %3d, %3d painted (%s), %5.1f%% of the parts'
-              % (texture, len(imgs), len(decisions), sum(1 for _, y, _ in decisions.values() if y), len(chosen),
-                 'parts.tsv' if texture in parts else 'suggested', 100 * mask.sum() / max(1, (labels > 0).sum())))
+        why = collections.Counter(rule.values())
+        print('%-58s %3d parts, %3d painted (%s%s), %5.1f%% of its surface'
+              % (texture, len(weapon), len(chosen), ', '.join('%d %s' % (n, w) for w, n in sorted(why.items())) or 'none',
+                 '; parts.tsv: %d picks' % len(parts[texture]) if texture in parts else '',
+                 100 * sum(weapon[i].area for i in chosen) / max(1e-9, sum(p.area for p in weapon.values()))))
+        premiums = row.premiums
+        suggested = set(rule)
         if picker:
             models = list(dict.fromkeys(s.split(':')[0] for s in surfaces))
             entries.append(picker_entry(texture, base, first, labels, island_points(labels), suggested, chosen,
@@ -578,7 +699,7 @@ def main():
                 row.paste(sm(img), (512 * k, 0))
             row.save(os.path.join(previews, texture.replace('/', '__') + '.png'))
     if picker:
-        textures = {s: t for t, _, surfaces, _, _ in read_rows(table) for s in surfaces}
+        textures = {s: row.texture for row in read_rows(table) for s in row.surfaces}
         models = {m: picker_model(game, m, textures) for e in entries for m in e['models']}
         camos = [(os.path.basename(camo_path).rsplit('.', 1)[0].rsplit('__', 1)[-1], camo)]
         if camos_dir:                  # the items instead, --camo's first

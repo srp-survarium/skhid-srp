@@ -23,9 +23,10 @@ stats are the donor's own, scaled by a peer both builds ship, and the guns sit i
 - Configs at `gameplay/items/weapons/wpn_<name>.options`, so the edit lists' `wpn_*` globs (weapon
   details, movement, kill feed icon in the lobby) cover them. The batch's own edit list `weapon-camo-031-1`
   gives them a camouflage and a decal (as weapon-camo-1 and weapon-decals-1 the live guns), and its
-  own pack `weapons-031-camo@2` their 20 `_aoac` masks (`scripts/weapons-031/camo.tsv`, the
-  suggested parts; the SCAR-H's and VHS-2's sights a mask that paints nothing, `--bare-masks`, so
-  no surface of a camouflaged gun fails to load its mask): no shared list or pack changes, as batch 2's `weapons-046-camo`.
+  own pack `weapons-031-camo@3` their 20 `_aoac` masks (`scripts/weapons-031/camo.tsv`, by
+  `weapon_camo.py`'s rule for every gun since @3, weapon-camo.md; the SCAR-H's and VHS-2's sights a
+  mask that paints nothing, `--bare-masks`, so no surface of a camouflaged gun fails to load its
+  mask): no shared list or pack changes, as batch 2's `weapons-046-camo`.
 - Lobby cell `[row, col]` of `LobbyMenu_WeaponIcons`: the donor's own cell (free in 0.26g); the
   donor's icon (a cell and its 8-pixel gap, 171x91) scaled into a 0.26g cell.
 - Kill feed icon: the donor's number; the hud's `CombatLogWeapon<icon>` is 0.31a2's

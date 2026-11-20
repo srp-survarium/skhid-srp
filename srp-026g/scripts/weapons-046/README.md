@@ -27,7 +27,8 @@ vostok-port pack from-bundle --base-db $SKHID_STOCK_DB $B --bundle BUNDLE \
 #    textures/character/human/black_market_01/black_market_01_torso_aoac.options (the players')
 python3 -I srp-026g/scripts/weapon-camo/weapon_camo.py srp-026g/scripts/weapons-046/camo.tsv \
   <game folder> <empty folder> $SKHID_PACKS_DIR/weapons-046-camo-<n> --pack weapons-046-camo@<n> \
-  --bare-masks   # (#949's weapon_camo.py) every surface gets an _aoac, the parts.tsv ones bare
+  --bare-masks --v069 <0.69d0's weapon files>   # ../weapon-camo/README.md: its rule; every surface
+                                                # gets an _aoac, the parts.tsv ones bare
 # 3. the kill-feed icons, then the lobby's copies of them
 python3 -I srp-026g/scripts/kill-feed-icons/make_weapon_icons_046.py --log-046c2 <0.46c2 log icons> \
   --log-069d0 <0.69d0 log icons> --cells $SKHID_PACKS_DIR/weapons-046-<n>/icons --out srp-026g/flash/hud
