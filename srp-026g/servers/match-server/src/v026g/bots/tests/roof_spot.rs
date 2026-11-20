@@ -99,15 +99,12 @@ fn run(world: &Arc<World>, start: Vec3, goal: Vec3, until: u32) -> (Option<u32>,
     (None, lowest, presses, nearest)
 }
 
-/// The crouched walk under the beam is marked, the planned way to the drop's landing ([`LANDING`]) does not take it and goes
-/// over the beam's top, and a bot from each start is on the landing within the route's walk and [`MARGIN_S`], never under
-/// [`OFF_ROOF_Y`] east of the beam on the way.
-#[test]
-#[ignore = "a per-spot test on the real mapdata; needs SRP_MAPDATA_DIR"]
-fn a_bot_on_schools_east_roof_goes_west_over_the_beam_not_under_it() {
+/// School day_2's world as the server builds it (the tuning's body, links and extras; through the grid cache when one is set),
+/// or None without SRP_MAPDATA_DIR.
+fn school() -> Option<Arc<World>> {
     let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
-        return;
+        return None;
     };
     let t = Tuning::default();
     let bytes = std::fs::read(dir.join(mapdata::format::file_name(PROJECT))).unwrap();
@@ -124,7 +121,12 @@ fn a_bot_on_schools_east_roof_goes_west_over_the_beam_not_under_it() {
         pull_walk: t.grid.pull_walk,
         walker_shapes: t.grid.walker_shapes,
     };
-    let world = Arc::new(super::grid_cache::world(map, map_file, mapdata::CELL, t.grid_body(), t.off_mesh_links(), extras));
+    Some(Arc::new(super::grid_cache::world(map, map_file, mapdata::CELL, t.grid_body(), t.off_mesh_links(), extras)))
+}
+
+/// Checks the crouched walk under the beam is marked and each start's planned way to the drop's landing ([`LANDING`]) does not
+/// take it and goes over the beam's top; gives each start's floor, the landing's floor and the route's length.
+fn planned_over_the_beam(world: &World) -> Vec<(Vec3, Vec3, f32)> {
     let grid = &world.grid;
     let floor = |p: Vec3| {
         grid.floors_in([p.x - 0.1, p.z - 0.1, p.x + 0.1, p.z + 0.1]).find(|&f| (grid.position(f).y - p.y).abs() < 0.05).expect("the floor")
@@ -132,17 +134,44 @@ fn a_bot_on_schools_east_roof_goes_west_over_the_beam_not_under_it() {
     let (foot, top) = (floor(RISER.0), floor(RISER.1));
     assert!(grid.walk_marked(foot, top), "the crouched walk under the beam is marked");
     let landing = grid.locate(LANDING, 0.5).expect("the drop's landing's floor");
-    for (i, &start) in STARTS.iter().enumerate() {
-        let from = grid.locate(start, 0.5).expect("the start's floor");
-        let route = path::plan(grid, from, landing).expect("a way west and down");
-        let pts = route.points();
-        eprintln!("ROOFSPOT {i} route {:.1} m: {:?}", route.length(), pts.iter().map(|p| (p.at, p.jump.is_some())).collect::<Vec<_>>());
-        let under = pts.windows(2).any(|w| w[0].at.distance_xz(RISER.0) < 0.1 && w[1].at.distance_xz(RISER.1) < 0.1);
-        assert!(!under, "{i}: the route walks under the beam");
-        // Up onto the beam by a gap press or a riser (a Walk link the risers' table presses up): either way over its top.
-        assert!(pts.iter().any(|p| p.at.distance_xz(BEAM) < 0.3 && (p.at.y - BEAM.y).abs() < 0.1), "{i}: the route goes over the beam's top");
-        let allowed_ms = (route.length() / mapdata::grid::controlled::WALK_MPS + MARGIN_S) * 1000.0;
-        let (there, lowest, presses, nearest) = run(&world, grid.position(from), grid.position(landing), allowed_ms as u32 + 20_000);
+    STARTS
+        .iter()
+        .enumerate()
+        .map(|(i, &start)| {
+            let from = grid.locate(start, 0.5).expect("the start's floor");
+            let route = path::plan(grid, from, landing).expect("a way west and down");
+            let pts = route.points();
+            eprintln!("ROOFSPOT {i} route {:.1} m: {:?}", route.length(), pts.iter().map(|p| (p.at, p.jump.is_some())).collect::<Vec<_>>());
+            let under = pts.windows(2).any(|w| w[0].at.distance_xz(RISER.0) < 0.1 && w[1].at.distance_xz(RISER.1) < 0.1);
+            assert!(!under, "{i}: the route walks under the beam");
+            // Up onto the beam by a gap press or a riser (a Walk link the risers' table presses up): either way over its top.
+            let over = pts.iter().any(|p| p.at.distance_xz(BEAM) < 0.3 && (p.at.y - BEAM.y).abs() < 0.1);
+            assert!(over, "{i}: the route goes over the beam's top");
+            (grid.position(from), grid.position(landing), route.length())
+        })
+        .collect()
+}
+
+/// The planner's part: the crouched walk under the beam is marked, and from each start the planned way to the drop's landing
+/// does not take it and goes over the beam's top.
+#[test]
+#[ignore = "a per-spot test on the real mapdata; needs SRP_MAPDATA_DIR"]
+fn schools_east_roof_plans_west_over_the_beam_not_under_it() {
+    let Some(world) = school() else { return };
+    planned_over_the_beam(&world);
+}
+
+/// The whole way: planned over the beam, a bot from each start is on the drop's landing within the route's walk and
+/// [`MARGIN_S`], never under [`OFF_ROOF_Y`] east of the beam on the way. Up the beam's riser takes a sprint run-up (on the exe a
+/// full sprint from its foot, or from up to 2 m back, gets on top; a stand start does not): until the motor starts the climb so,
+/// the bot stalls at the riser's foot.
+#[test]
+#[ignore = "a per-spot test on the real mapdata; needs SRP_MAPDATA_DIR"]
+fn a_bot_on_schools_east_roof_goes_west_over_the_beam_not_under_it() {
+    let Some(world) = school() else { return };
+    for (i, (from, landing, length)) in planned_over_the_beam(&world).into_iter().enumerate() {
+        let allowed_ms = (length / mapdata::grid::controlled::WALK_MPS + MARGIN_S) * 1000.0;
+        let (there, lowest, presses, nearest) = run(&world, from, landing, allowed_ms as u32 + 20_000);
         eprintln!("ROOFSPOT {i} there {there:?} ms, lowest {lowest:.2}, presses {presses}, nearest the riser's top {nearest:.2} m, allowed {allowed_ms:.0} ms");
         let there = there.unwrap_or_else(|| panic!("{i}: never reached the drop's landing"));
         assert!(there as f32 <= allowed_ms, "{i}: on the landing at {there} ms, over {allowed_ms:.0} ms");
