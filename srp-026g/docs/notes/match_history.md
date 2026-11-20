@@ -15,7 +15,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   leaderboards (`?board=players|clans|best|latest&by=<key>`), under the day's leaders (five
   lists of five: kills, assists, score, wins, hours) and the all-time totals. Each view is drawn once empty in
   its final shape, then with its data, so nothing moves while it loads; match lists grow by
-  "Older matches" (`before=`).
+  "Older matches" (`before=`). A list of players or clans sorts by a click on a column's
+  heading (the owner, 2026-11-20), largest first; the players' list has no Level.
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
   headshots as their share of the kills (HS %); no batteries or artefacts (a profile's own panel
   has them).
@@ -169,10 +170,12 @@ Common objects:
   the kit's, not a weapon's; `weapons` and `armour` are by slot, `id` the items_dict id, `name`
   the game data's in `lang` (`null` for an item it no longer has). A match with no trusted
   snapshot has its kit with counters 0.
-- An item of `player/equipment`: `{"id":155,"key":"ak_74m","name":"AK-74M","matches":40}`: the
+- An item of `player/equipment`: `{"id":155,"key":"ak_74m","name":"AK-74M","icon":"/wiki/icons/items/ak_74m.webp?v=…","matches":40}`: the
   counted public matches in which a kit the player used held it. `key` is its items_dict name
   (`null`, as `name`, for an item the game data no longer has): the page links a favourite to its
   card in the wiki by it (`/wiki/weapons#wpn_<key>`, `/wiki/equipment#<key>`).
+  `icon` is the address of its lobby icon (`null` without one), in every item of the API; the
+  page draws it left of a favourite's name.
 
 ### `GET /api/history/player?name=<name>` or `?id=<id>`
 
@@ -299,8 +302,9 @@ kept of the ask: the page asks again every two seconds while the answer is `prep
 
 ### `GET /api/history/top?by=<key>&limit=<n>`
 
-The top players by their totals. `by`: `rating`, `matches`, `wins`, `kills`, `score_avg`,
-`accuracy` (default `rating`); `limit` 1..50 (default 50). `score_avg` lists only the players
+The top players by their totals. `by`: `rating`, `matches`, `wins`, `win_rate`, `kills`, `kd`,
+`score_avg`, `headshot_rate`, `accuracy` (default `rating`); `limit` 1..50 (default 50). The
+ratios `score_avg`, `win_rate`, `kd` and `headshot_rate` list only the players
 with at least 20 counted matches (`SCORE_AVG_MIN_MATCHES`). Players with
 a counted public match only. `accuracy` lists only the players with at least 1000 shots in their counted public
 matches (`ACCURACY_MIN_SHOTS`; a few lucky shots do not top it), best first; ties by account.

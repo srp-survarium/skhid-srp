@@ -280,6 +280,9 @@ fn ranking_name(by: PlayerRanking) -> &'static str {
         PlayerRanking::Totals(key) => totals_key_name(key),
         PlayerRanking::Accuracy => "accuracy",
         PlayerRanking::ScoreAvg => "score_avg",
+        PlayerRanking::WinRate => "win_rate",
+        PlayerRanking::Kd => "kd",
+        PlayerRanking::HeadshotRate => "headshot_rate",
     }
 }
 
@@ -327,6 +330,9 @@ impl Endpoint {
                     None | Some("rating") => PlayerRanking::Rating,
                     Some("accuracy") => PlayerRanking::Accuracy,
                     Some("score_avg") => PlayerRanking::ScoreAvg,
+                    Some("win_rate") => PlayerRanking::WinRate,
+                    Some("kd") => PlayerRanking::Kd,
+                    Some("headshot_rate") => PlayerRanking::HeadshotRate,
                     Some(text) => {
                         PlayerRanking::Totals(totals_key(text).ok_or(Refusal::BadRequest)?)
                     }
@@ -693,6 +699,7 @@ fn item_ref(dict_id: u16, lang: Lang) -> Value {
         "id": dict_id,
         "key": item.map(|item| item.name.as_str()),
         "name": item.map(|_| modifiers::item_name(lang, dict_id)),
+        "icon": item.and_then(|item| icons::url(IconSet::Item, &item.name)),
     })
 }
 

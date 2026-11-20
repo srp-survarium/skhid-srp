@@ -103,32 +103,45 @@ try {
   assert.equal(await text('.stats-board .stats-table tbody tr td:nth-child(2)'), named(answered.top.players[0]));
   assert.equal(named(answered.top.players[0]), '[SKH] Sheep');
   assert.equal(await text('.stats-board .stats-table thead th.sorted'), 'Rating');
-  assert.equal(await evaluate("[...document.querySelector('.stats-keys').childNodes].every(node => node.nodeType === 1)"), true, 'nothing but the keys');
+  assert.equal(await evaluate("document.querySelector('.stats-keys').hidden"), true, 'the players sort by their headings');
+  assert.equal(await evaluate("document.querySelector('.stats-board thead th.sorted').getAttribute('aria-sort')"), 'descending');
   assert.equal(await evaluate("document.querySelector('.breadcrumb').hidden"), true, 'no way back on the boards themselves');
   await screenshot('boards-players');
-  await evaluate("[...document.querySelectorAll('.stats-keys button')].find(b => b.textContent === 'Kills').click()");
+  await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Kills').click()");
   await settled();
   assert.equal(await text('.stats-board .stats-table thead th.sorted'), 'Kills');
-  assert.equal(await evaluate("[...document.querySelectorAll('.stats-board .stats-table tbody tr')].map(r => Number(r.children[7].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'sorted by kills');
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-board .stats-table tbody tr')].map(r => Number(r.children[6].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'sorted by kills');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('by')"), 'kills');
   assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('by=kills'), 'the language link keeps the board');
-  assert.equal(await evaluate("[...document.querySelectorAll('.stats-keys button')].map(b => b.textContent).join()"), 'Rating,Matches,Wins,Kills,Avg score,Accuracy');
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-board thead th button')].map(b => b.textContent).join()"), 'Rating,Matches,Wins,Win rate,Kills,K/D,Avg score,HS %,Accuracy');
   const board = await cells('.stats-board thead th');
-  assert.ok(board.includes('HS %') && board.includes('Avg score'));
-  assert.ok(!['Score', 'Headshots', 'Batteries', 'Artefacts'].some(label => board.includes(label)), board.join());
-  assert.equal(await count('.stats-keys .stats-note'), 0, 'a note only for a list that leaves players out');
-  await evaluate("[...document.querySelectorAll('.stats-keys button')].find(b => b.textContent === 'Avg score').click()");
+  assert.ok(!['Level', 'Score', 'Headshots', 'Batteries', 'Artefacts'].some(label => board.includes(label)), board.join());
+  for (const [label, by, value] of [['Win rate', 'win_rate', row => row.totals.win_rate], ['K/D', 'kd', row => row.totals.kd],
+    ['HS %', 'headshot_rate', row => row.totals.headshots / Math.max(row.totals.kills, 1)]]) {
+    await evaluate(`[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === '${label}').click()`);
+    await settled();
+    assert.equal(answered.top.by, by);
+    assert.equal(await text('.stats-board .stats-table thead th.sorted'), label);
+    assert.equal(await text('.slot-filter .stats-note'), '20+ matches');
+    const values = answered.top.players.map(value);
+    assert.ok(values.length > 1 && values.every((v, i) => !i || values[i - 1] >= v - 0.006), `${by}: ${values.join()}`);
+    assert.ok(!answered.top.players.some(row => row.player.name === 'Yasen'), 'under 20 matches: not listed');
+  }
+  await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Kills').click()");
+  await settled();
+  assert.equal(await text('.slot-filter .stats-note'), '', 'a note only for a list that leaves players out');
+  await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Avg score').click()");
   await settled();
   assert.equal(answered.top.by, 'score_avg');
-  assert.equal(await text('.stats-keys .stats-note'), '20+ matches');
+  assert.equal(await text('.slot-filter .stats-note'), '20+ matches');
   assert.equal(await count('.stats-board .stats-table tbody tr'), answered.top.players.length);
   assert.ok(answered.top.players.length > 0 && !answered.top.players.some(row => row.player.name === 'Yasen'), 'under 20 matches: not listed');
   assert.deepEqual(await cells('.stats-board .stats-table tbody td.sorted'), answered.top.players.map(row => String(row.totals.score_avg)));
-  await evaluate("[...document.querySelectorAll('.stats-keys button')].find(b => b.textContent === 'Accuracy').click()");
+  await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Accuracy').click()");
   await settled();
   assert.equal(answered.top.by, 'accuracy');
   assert.equal(await text('.stats-board .stats-table thead th.sorted'), 'Accuracy');
-  assert.equal(await text('.stats-keys .stats-note'), '1000+ shots');
+  assert.equal(await text('.slot-filter .stats-note'), '1000+ shots');
   assert.equal(await count('.stats-board .stats-table tbody tr'), answered.top.players.length);
   assert.ok(!answered.top.players.some(row => row.player.name === 'Yasen'), 'under 1000 shots: not listed');
   assert.deepEqual(await cells('.stats-board .stats-table tbody td.sorted'), answered.top.players.map(row => aim(row.totals)));
@@ -227,6 +240,9 @@ try {
   assert.equal(await text('.stats-heading'), 'Favourite equipment');
   assert.deepEqual(await cells('.stats-favourites .table-scroll:first-child thead th'), ['Weapon', 'Matches'], 'no kills of an item');
   assert.equal(await count('.stats-favourites .stats-table tbody tr'), 10);
+  assert.equal(await count('.stats-favourites tbody .stats-item'), 10, 'an icon or its empty frame a row');
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-favourites img.stats-item')].every(i => i.complete && i.naturalWidth > 0)"), true, 'the icons load');
+  assert.equal(await evaluate("new Set([...document.querySelectorAll('.stats-favourites tbody tr')].map(r => r.offsetHeight)).size"), 1, 'empty rows as tall as full ones');
   assert.deepEqual(await cells('.stats-favourites .table-scroll:first-child tbody td.l'),
     [...favourite.weapons.map(item => item.name ?? '—'), ...Array(5 - favourite.weapons.length).fill('\u00a0')]);
   assert.deepEqual(await cells('.stats-favourites .table-scroll:last-child tbody td:nth-child(2)'),

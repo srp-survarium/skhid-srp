@@ -515,7 +515,7 @@ fn a_match_row_has_the_kits_used_and_their_items() {
     assert_eq!(kits[0]["kills"], 14);
     let weapons = kits[0]["weapons"].as_array().unwrap();
     assert_eq!(weapons.len(), 1);
-    assert_eq!(keys(&weapons[0]), ["id", "key", "name", "slot"]);
+    assert_eq!(keys(&weapons[0]), ["icon", "id", "key", "name", "slot"]);
     assert_eq!(weapons[0]["slot"], 7);
     assert_eq!(weapons[0]["id"], dict_id("ak_74u"));
     assert!(
@@ -547,7 +547,7 @@ fn a_players_equipment_is_its_most_used_items() {
     let weapons = body["weapons"].as_array().unwrap();
     assert_eq!(weapons.len(), 1);
     // No kills or shots of an item: the game counts those by kit.
-    assert_eq!(keys(&weapons[0]), ["id", "key", "matches", "name"]);
+    assert_eq!(keys(&weapons[0]), ["icon", "id", "key", "matches", "name"]);
     assert_eq!(weapons[0]["key"], "ak_74u");
     assert_eq!(weapons[0]["id"], dict_id("ak_74u"));
     // Its three public matches: the private one and the bots' are not
@@ -689,6 +689,11 @@ fn the_top_lists_leave_out_the_banned() {
     let by_average = world.ok("/api/history/top?by=score_avg");
     assert_eq!(by_average["by"], "score_avg");
     assert!(by_average["players"].as_array().unwrap().is_empty());
+    for key in ["win_rate", "kd", "headshot_rate"] {
+        let by_ratio = world.ok(&format!("/api/history/top?by={key}"));
+        assert_eq!(by_ratio["by"], key);
+        assert!(by_ratio["players"].as_array().unwrap().is_empty());
+    }
     assert_eq!(world.get("/api/history/top?by=artefacts").0, "400 Bad Request");
     let accurate = world.ok("/api/history/top?by=accuracy");
     assert_eq!(accurate["by"], "accuracy");
