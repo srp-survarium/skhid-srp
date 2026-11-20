@@ -647,7 +647,7 @@ impl Rooms {
         &mut self,
         owner: u32,
         gear: u8,
-        mut spec: Spec,
+        spec: Spec,
         entries: &[MapId],
         default: &[MapId],
         bot_maps: &[MapId],
@@ -655,9 +655,25 @@ impl Rooms {
         now: Instant,
         below: &mut impl FnMut(usize) -> usize,
     ) -> Result<u32, Refused> {
-        let mut pool = self
+        let pool = self
             .take_draft(owner, entries, now)
             .unwrap_or_else(|| default.to_vec());
+        self.create_with_pool(owner, gear, spec, pool, bot_maps, most_rooms, below)
+    }
+
+    /// [`Self::create`] with its pool named in the create itself (the lobby movie's create in
+    /// one request, since 2026-11-20): `pool` the maps chosen; no draft is read.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_with_pool(
+        &mut self,
+        owner: u32,
+        gear: u8,
+        mut spec: Spec,
+        mut pool: Vec<MapId>,
+        bot_maps: &[MapId],
+        most_rooms: usize,
+        below: &mut impl FnMut(usize) -> usize,
+    ) -> Result<u32, Refused> {
         if let Door::Pin { bots, .. } = spec.door {
             spec.size = PRIVATE_SIZE;
             if bots {

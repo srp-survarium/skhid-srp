@@ -405,6 +405,7 @@ impl Core<'_> {
                 ..
             } => self.important(who, &target_name, kind, &text, now),
             M::Friendship(action) => self.friendship(who, &action, now),
+            M::RoomCreate(create) => self.room_create_text(who, create, now),
             M::Subscribe {
                 channel_ids,
                 language,

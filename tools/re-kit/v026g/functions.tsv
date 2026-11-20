@@ -1959,6 +1959,10 @@ va	status	ref_021d	name
 0x002855b0	verified		survarium::simple_game_project::remove_static
 0x00285fa0	verified		survarium::render_visual::insert
 0x00285fe0	verified		survarium::render_visual::remove
+0x00290930	verified	0x001a7008	survarium::object_ambient_light::insert
+0x00290ae0	verified		survarium::object_ambient_light::remove
+0x00292cc0	verified		survarium::object_particle_visual::insert
+0x00292dc0	verified		survarium::object_particle_visual::remove
 0x00291720	verified		survarium::object_light::load
 0x00291790	verified		survarium::object_light::insert
 0x002917d0	verified		survarium::object_light::remove
@@ -2459,3 +2463,5 @@ va	status	ref_021d	name
 0x0015fe20	verified		vostok::render::grass_world::set_wind_parameters
 0x001cbb70	verified	0x0013afad	vostok::render::pack_direction
 0x00070e30	verified		vostok::math::random32::random_f
+0x0028bee0	reviewed		survarium::lobby_menu::find_players
+0x0026b660	reviewed		survarium::messaging_client::find_players
