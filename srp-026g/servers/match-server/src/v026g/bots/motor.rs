@@ -493,6 +493,11 @@ pub struct Pose {
     pub walk_cap: WalkCap,
     /// [A386] On the ground or in the air, as the reckoning has it ([`Footing`]): the let-go after a link's reckoned landing.
     pub footing: Footing,
+    /// [press forecast] The time the reckoned body is at, ms (`PlaceView::known_at`: the body after the last decided tick).
+    pub known_at: u32,
+    /// [press forecast] The time of the newest world that showed the body, ms (`PlaceView::seen_at`): a world at T has the feet the
+    /// reckoning has at T (`kin::StepInput`), so one at or after a reckoned time shows where the body really was then.
+    pub seen_at: u32,
 }
 
 /// [A386] Whether the reckoned body is on the ground, or in a jump or a fall (`body::Estimate::arc`, `body::Estimate::fall`).
@@ -1006,8 +1011,11 @@ pub struct Motor {
     cast_line: Option<String>,
     /// [press forecast] The last forecast press, followed for its line ([`Self::cast_watch_tick`]).
     cast_watch: Option<CastWatch>,
-    /// [press forecast] This tick the last forecast press is in its flight ([`Self::press_flight`]).
-    in_press_flight: bool,
+    /// [press forecast] What the last forecast press's watch makes of this tick ([`Self::cast_watch_tick`]).
+    watch_now: WatchNow,
+    /// [press forecast] A world ended a press's hold showing the body up on the landing, here, for the driver
+    /// ([`Self::take_held_up`]).
+    held_up: Option<Vec3>,
     /// [press forecast] This tick's keys by the forecast press, if it decided them ([`Self::press_stops`]).
     cast_keys: Option<CastKeys>,
     /// The sway's phase and the time, seconds, for it.
@@ -1271,7 +1279,38 @@ struct CastWatch {
     cap: f32,
     /// The press's part of the line.
     text: String,
+    /// In its flight, or held for a world after the reckoning brought the body down off the landing.
+    phase: WatchPhase,
 }
+
+/// [press forecast] Where a forecast press's watch is ([`Motor::cast_watch_tick`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum WatchPhase {
+    /// From the press until the reckoned body is down on the ground.
+    Flying,
+    /// The reckoned body came down off the landing (not [`is_up`]) at `at` (ms, the reckoning's time; `tick` the motor's) at
+    /// `feet`: the forecast flew this press to the landing and the reckoning disagrees, and only a world shows which is right
+    /// (the suite's S235/2: the walk-in press landed at the forecast's rest, the reckoned flight, started 0.1 m off it, stopped at
+    /// the top's face and fell; the landing brake then pushed the landed body back off). Held until a world at or after `at`
+    /// ([`Pose::seen_at`]), at most [`HOLD_MOST_S`].
+    Held { at: u32, tick: u32, feet: Vec3 },
+}
+
+/// What the watch makes of a walk tick ([`Motor::press_flight`], [`Motor::press_hold`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum WatchNow {
+    /// No forecast press in its flight or held.
+    #[default]
+    Off,
+    /// In its flight.
+    Flight,
+    /// Held for a world ([`WatchPhase::Held`]).
+    Hold,
+}
+
+/// [press forecast] The longest a forecast press's body is held for a world ([`WatchPhase::Held`]), s: two of the PvB server's world
+/// periods while bots play (`v026g::DEFAULT_PVB_WORLD_MS`), so a world missed or late does not hold it longer.
+const HOLD_MOST_S: f32 = 2.0 * crate::v026g::DEFAULT_PVB_WORLD_MS as f32 / 1000.0;
 
 /// [press forecast] A press is judged by its landing: up on the link's landing on the ground ([`is_up`]), or not up this long after
 /// it, s: past the flight's landing step (19 steps at most) and the stay steps (7) the forecast played (1.3 s), and a world's fix
@@ -1983,7 +2022,8 @@ impl Motor {
             cast: None,
             cast_line: None,
             cast_watch: None,
-            in_press_flight: false,
+            watch_now: WatchNow::Off,
+            held_up: None,
             cast_keys: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
@@ -2106,7 +2146,7 @@ impl Motor {
     /// [press forecast] Tests: a forecast press in its flight ([`Self::press_flight`]).
     #[cfg(test)]
     pub(crate) fn test_press_flight(&mut self) {
-        self.in_press_flight = true;
+        self.watch_now = WatchNow::Flight;
     }
 
     /// [spot suite] TEST ONLY: this tick's route jump went unpressed for `held` ([`Self::bench_link_text`]).
@@ -2172,8 +2212,8 @@ impl Motor {
         self.jump = None;
         self.pressed = None;
         self.lining = Lining::No;
-        // [press forecast] Set again by a walk's `cast_watch_tick`; a tick with no walk has no forecast flight to leave.
-        self.in_press_flight = false;
+        // [press forecast] Set again by a walk's `cast_watch_tick`; a tick with no walk has no forecast flight to leave nor hold.
+        self.watch_now = WatchNow::Off;
         self.aimed_walk = false;
         self.jump_line = None;
     }
@@ -2638,6 +2678,8 @@ impl Motor {
         // [item 10] A held sprint's held steps keep the heading it flew (`jump::held_flight` walks along it).
         let turn = self.held_turn(pose, turn);
         let keys = if self.holding_landing() { key::FORWARD } else { keys };
+        // [press forecast] Held for a world after a forecast press ([`Self::press_hold`]): no move key and no jump.
+        let keys = if self.press_hold() { keys & !(key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT | key::JUMP) } else { keys };
         (Decision { keys, turn }, Walked::OnTheWay)
     }
 
@@ -2674,10 +2716,10 @@ impl Motor {
     }
 
     /// [A1b] Whether the body was let go at a walk-off's release and is not yet down and still ([`super::walk_off::WalkOff::LetGo`]),
-    /// or [item 10] is in a held sprint's held steps ([`Stay::Held`]): the lip guard, the landing brake and the stuck and
-    /// progress watches leave it be.
+    /// or [item 10] is in a held sprint's held steps ([`Stay::Held`]), or [press forecast] is held for a world after a forecast
+    /// press ([`Self::press_hold`]): the lip guard, the landing brake and the stuck and progress watches leave it be.
     pub fn letting_go(&self) -> bool {
-        matches!(self.walk_off, super::walk_off::WalkOff::LetGo { .. }) || self.holding_landing()
+        matches!(self.walk_off, super::walk_off::WalkOff::LetGo { .. }) || self.holding_landing() || self.press_hold()
     }
 
     /// [A1b] The log line of the last walk-off at release that ended, once.
@@ -3940,7 +3982,16 @@ impl Motor {
                     link.landing.z
                 );
                 let rest_lead = rest.then(|| link.before(plan.at(0).feet));
-                let watch = CastWatch { at: self.clock, take_off: link.take_off, landing: link.landing, forecast, rest_lead, cap: link.cap, text };
+                let watch = CastWatch {
+                    at: self.clock,
+                    take_off: link.take_off,
+                    landing: link.landing,
+                    forecast,
+                    rest_lead,
+                    cap: link.cap,
+                    text,
+                    phase: WatchPhase::Flying,
+                };
                 if let Some(old) = self.cast_watch.replace(watch) {
                     self.cast_line = Some(format!("{}; not followed to its rest", old.text));
                 }
@@ -4022,7 +4073,15 @@ impl Motor {
     /// clip's air time only; a rest press up a metre is still in the air after it (the suite's S057/2: 0.75 s after the press,
     /// braked back and right, pulled back to the top's edge and walked off).
     pub fn press_flight(&self) -> bool {
-        self.in_press_flight
+        self.watch_now == WatchNow::Flight
+    }
+
+    /// [press forecast] Whether the last forecast press's body is held this tick ([`WatchPhase::Held`]): the reckoning has it down
+    /// off the landing and no world since has shown where it is. The move keys and the jump are let go ([`Self::walk_with`]), and
+    /// the lip guard, the landing brake and the stuck and progress watches leave it ([`Self::letting_go`]): they would act on that
+    /// reckoning.
+    pub fn press_hold(&self) -> bool {
+        self.watch_now == WatchNow::Hold
     }
 
     /// [press forecast] Whether the forecast press stops the body this tick (no key, coming to rest: no press from this walk-in, the
@@ -4037,28 +4096,77 @@ impl Motor {
         self.cast_line.take()
     }
 
+    /// [press forecast] Where a world showed a held press's body up on its landing ([`WatchPhase::Held`]), once: the reckoning had it
+    /// down off the landing, so the route the walk followed on that reckoning is planned again from the body (`drive`), as after a
+    /// world `REPLAN_ERROR_M` off it (the suite's S204/2: up 0.7 m from the reckoned fall, the walk on to the link's landing point,
+    /// 0.3 m over the floor it lands on, held the forward key into the rim for 3.5 s).
+    pub fn take_held_up(&mut self) -> Option<Vec3> {
+        self.held_up.take()
+    }
+
     /// [press forecast] A forecast press followed to [`CAST_WATCH_S`] after it: its line, with whether the body is up and how far
     /// it is from the forecast's rest (the reckoned body, the world's fixes in it).
     fn cast_watch_tick<'f>(&mut self, pose: &Pose, flyer: Option<&mut (dyn PressFlyer + 'f)>) {
-        let Some(watch) = self.cast_watch.as_ref() else {
-            self.in_press_flight = false;
+        let clock = self.clock;
+        let Some(watch) = self.cast_watch.as_mut() else {
+            self.watch_now = WatchNow::Off;
             return;
         };
-        let after = self.since(watch.at);
+        let after = clock.wrapping_sub(watch.at) as f32 * TICK_S;
         // In its flight: from the press to its first step on the ground after the take-off's (the press tick's and the next may
         // still be on the ground), at most the forecast's own flight ([`super::body::PRESS_FLIGHT_STEPS`] and the press's step).
-        let ticks = self.clock.wrapping_sub(watch.at);
-        self.in_press_flight =
-            ticks <= super::body::PRESS_FLIGHT_STEPS + 1 && !(ticks >= 2 && pose.footing == Footing::Ground);
+        let ticks = clock.wrapping_sub(watch.at);
+        let flying = ticks <= super::body::PRESS_FLIGHT_STEPS + 1 && !(ticks >= 2 && pose.footing == Footing::Ground);
         // Judged by the landing: up on the link's landing on the ground, or not up in time.
         let up = pose.footing == Footing::Ground && is_up(pose.feet, watch.take_off, watch.landing);
-        if !up && after < CAST_WATCH_S {
+        // Down off the landing on the reckoning: held until a world shows where the body is ([`WatchPhase::Held`]).
+        if watch.phase == WatchPhase::Flying && !flying && !up && pose.footing == Footing::Ground {
+            watch.phase = WatchPhase::Held { at: pose.known_at, tick: clock, feet: pose.feet };
+            press_casts::count(press_casts::Slot::Held);
+        }
+        let held = match watch.phase {
+            WatchPhase::Held { at, tick, .. } => !up && pose.seen_at < at && clock.wrapping_sub(tick) as f32 * TICK_S < HOLD_MOST_S,
+            WatchPhase::Flying => false,
+        };
+        self.watch_now = if flying {
+            WatchNow::Flight
+        } else if held {
+            WatchNow::Hold
+        } else {
+            WatchNow::Off
+        };
+        if held || (!up && after < CAST_WATCH_S) {
             return;
         }
         let Some(watch) = self.cast_watch.take() else {
             return;
         };
         press_casts::count(if up { press_casts::Slot::WatchedUp } else { press_casts::Slot::WatchedNotUp });
+        // The hold's part of the line: where the reckoning had the body down, how long it was held, and the world that ended it.
+        let hold = match watch.phase {
+            WatchPhase::Held { at, tick, feet } => {
+                let seen = pose.seen_at >= at;
+                if up {
+                    press_casts::count(press_casts::Slot::HeldUp);
+                    if seen {
+                        self.held_up = Some(pose.feet);
+                    }
+                }
+                let world = match (seen, up) {
+                    (true, _) => format!("the world of {} ms", pose.seen_at),
+                    (false, true) => String::from("up on the reckoning before a world came"),
+                    (false, false) => String::from("no world came"),
+                };
+                format!(
+                    "; the reckoning had it down off the landing at ({:.2}, {:.2}, {:.2}) at {at} ms: held {:.2} s, {world}",
+                    feet.x,
+                    feet.y,
+                    feet.z,
+                    clock.wrapping_sub(tick) as f32 * TICK_S
+                )
+            }
+            WatchPhase::Flying => String::new(),
+        };
         // A rest that got up is the link's learned rest; one that did not is dropped from it (design §9.5).
         if let (Some(flyer), Some(lead)) = (flyer, watch.rest_lead) {
             if up {
@@ -4078,7 +4186,7 @@ impl Motor {
             format!(", {flat:.2} m flat and {:+.2} m in height off the forecast rest ({:.2}, {:.2}, {:.2})", pose.feet.y - rest.y, rest.x, rest.y, rest.z)
         });
         self.cast_line = Some(format!(
-            "{}; {} {after:.2} s after at ({:.2}, {:.2}, {:.2}){off}",
+            "{}; {} {after:.2} s after at ({:.2}, {:.2}, {:.2}){off}{hold}",
             watch.text,
             if up { "landed up" } else { "not up" },
             pose.feet.x,
@@ -5449,9 +5557,13 @@ pub mod press_casts {
         LearnedRest,
         /// A walk-in skipped for what the match learned.
         LearnedSkip,
+        /// A press held for a world: the reckoning had the body down off the landing ([`super::WatchPhase::Held`]).
+        Held,
+        /// … and a world then showed it up on the landing.
+        HeldUp,
     }
 
-    pub const SLOTS: [Slot; 18] = [
+    pub const SLOTS: [Slot; 20] = [
         Slot::Planned,
         Slot::NoZone,
         Slot::Flights,
@@ -5470,9 +5582,11 @@ pub mod press_casts {
         Slot::LearnedNoRun,
         Slot::LearnedRest,
         Slot::LearnedSkip,
+        Slot::Held,
+        Slot::HeldUp,
     ];
 
-    static COUNTS: [AtomicU64; 18] = [const { AtomicU64::new(0) }; 18];
+    static COUNTS: [AtomicU64; 20] = [const { AtomicU64::new(0) }; 20];
 
     /// Since the last match end ([`take_match`]): the chains and the flights.
     static MATCH: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
@@ -9255,6 +9369,62 @@ mod tests {
         assert!(stub.chains >= 1 && stub.flights >= 4, "{} {}", stub.chains, stub.flights);
         let line = motor.cast_watch.as_ref().map(|watch| watch.text.clone()).unwrap_or_default();
         assert!(line.contains("press forecast: try 1 pressed at plan tick") && line.contains("LLLL"), "{line}");
+    }
+
+    /// [press forecast] After a press, one walk tick with the reckoned body at (`x`, `y`) on `footing`, the reckoning's time `known_at`
+    /// and the newest world's `seen_at`: the keys sent.
+    fn after_press(motor: &mut Motor, route: &mut Route, stub: &mut Stub<impl Fn(&Estimate) -> bool>, at: (f32, f32, Footing), known_at: u32, seen_at: u32) -> u32 {
+        let (x, y, footing) = at;
+        let pose = Pose { feet: Vec3::new(x, y, 0.0), yaw: yaw_of([1.0, 0.0]), footing, known_at, seen_at, ..Default::default() };
+        motor.walk_with(route, &pose, 5.0, |_| true, None, Some(stub)).0.keys
+    }
+
+    /// [press forecast] A press whose reckoned body comes down off the landing (in the gap, at 5,150 ms) is held, no move key and
+    /// no jump, and the lip guard, the landing brake and the stuck watches leave it, while the newest world is older than that; a
+    /// world of that time showing the body up ends the hold, and the press is judged up with the hold in its line (the suite's
+    /// S235/2: the press landed at the forecast's rest, the reckoning had it fall, and the walk on it took the body back off).
+    #[test]
+    fn a_press_the_reckoning_has_down_off_the_landing_is_held_for_a_world() {
+        const MOVE_OR_JUMP: u32 = key::FORWARD | key::BACK | key::LEFT | key::RIGHT | key::SPRINT | key::JUMP;
+        let mut motor = cast_motor(true);
+        let mut route = cast_route();
+        let mut stub = Stub::new(-4.4, 3.5, |at: &Estimate| (-1.3..=-0.7).contains(&at.feet.x));
+        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 60, None);
+        assert!(pressed.is_some(), "no press: {ends:?}");
+        for k in 0..3 {
+            after_press(&mut motor, &mut route, &mut stub, (0.5 + k as f32 * 0.5, 0.3, Footing::Air), 5_000 + k * 50, 4_000);
+            assert!(motor.press_flight() && !motor.press_hold(), "in the air, tick {k}");
+        }
+        for k in 0..30 {
+            let keys = after_press(&mut motor, &mut route, &mut stub, (1.0, -3.0, Footing::Ground), 5_150 + k * 50, 4_000 + k * 30);
+            assert!(motor.press_hold() && motor.letting_go(), "down, no world since, tick {k}");
+            assert_eq!(keys & MOVE_OR_JUMP, 0, "held, tick {k}");
+        }
+        after_press(&mut motor, &mut route, &mut stub, (3.2, -1.7, Footing::Ground), 6_700, 5_150);
+        assert!(!motor.press_hold());
+        let line = motor.take_cast_line().unwrap_or_default();
+        assert!(line.contains("landed up") && line.contains("held 1.50 s, the world of 5150 ms"), "{line}");
+        assert_eq!(motor.take_held_up(), Some(Vec3::new(3.2, -1.7, 0.0)), "the driver plans again from the body");
+        assert_eq!(motor.take_held_up(), None, "once");
+    }
+
+    /// [press forecast] A world at or after the reckoned landing that shows the body down too ends the hold: the walk goes on as
+    /// before (the press is judged not up at its time).
+    #[test]
+    fn a_world_that_shows_the_press_down_ends_its_hold() {
+        let mut motor = cast_motor(true);
+        let mut route = cast_route();
+        let mut stub = Stub::new(-4.4, 3.5, |at: &Estimate| (-1.3..=-0.7).contains(&at.feet.x));
+        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 60, None);
+        assert!(pressed.is_some(), "no press: {ends:?}");
+        for k in 0..3 {
+            after_press(&mut motor, &mut route, &mut stub, (0.5 + k as f32 * 0.5, 0.3, Footing::Air), 5_000 + k * 50, 4_000);
+        }
+        after_press(&mut motor, &mut route, &mut stub, (1.0, -3.0, Footing::Ground), 5_150, 4_000);
+        assert!(motor.press_hold());
+        after_press(&mut motor, &mut route, &mut stub, (1.0, -3.0, Footing::Ground), 5_200, 5_200);
+        assert!(!motor.press_hold() && !motor.letting_go());
+        assert_eq!(motor.take_held_up(), None, "not up: the route goes on");
     }
 
     /// [press forecast] With the poll's forecast taken by another bot on every other poll, the flights come late: a candidate
