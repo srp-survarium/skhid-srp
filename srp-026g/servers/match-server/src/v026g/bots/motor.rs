@@ -1423,6 +1423,39 @@ impl Ahead {
     fn out_of_reach(&self, reach: f32) -> bool {
         under_reach(self.leap, self.take_off_above, self.take_off_above + self.rise, reach)
     }
+
+    /// The turn off the jump's way a press is made within, radians: a flown press's tested turn ([`FlownWindow::TURN_RAD`]),
+    /// else [`JUMP_FACING`].
+    fn press_facing(&self) -> f32 {
+        if self.leap.flown() { FlownWindow::TURN_RAD } else { JUMP_FACING }
+    }
+
+    /// [map 91] Whether a body on the jump's line `still` off its way walks: within [`LINE_UP_GO`]; a press from a stand (a slow
+    /// gap press with no walk-up steps, `WalkPress::Slow(0)`) only within its press's own facing ([`Self::press_facing`]), so
+    /// the walk starts on the tick of the press: the body at rest, the jump with forward held, as the grid flew it (the
+    /// exe's stand presses). A walk started within [`LINE_UP_GO`] carried the body out of the press's window while it still
+    /// turned (Mamayev Kurgan's rise: at rest 0.31 m before the take-off, facing within the press's turn at 0.23 m and 1.1 m/s,
+    /// off the stored leads, backed off).
+    fn walks_lined(&self, still: f32) -> bool {
+        if matches!(self.leap, Leap::Gap(GapPress { walk: WalkPress::Slow(0), .. })) {
+            still <= self.press_facing()
+        } else {
+            still < LINE_UP_GO
+        }
+    }
+
+    /// [map 91] Whether the body is at the press's point for the press wait ([`PRESS_WAIT_S`]): a gap press's body not past its
+    /// press point by more than [`FlownWindow::LEAD_M`] and within [`LINED_SIDE_M`] of the line; a ledge's anywhere its `near`
+    /// holds. A body past a gap's take-off on the landing's side (the route coming in from there) is not at it: its wait's
+    /// clock ran out while it walked round to the rest point (Mamayev Kurgan's rise, the wait started 2 m past the take-off).
+    fn at_press_point(&self) -> bool {
+        match self.leap {
+            Leap::Gap(GapPress { lead, .. }) | Leap::SprintGap(SprintPress { lead, .. }) => {
+                self.before >= lead.metres() - FlownWindow::LEAD_M && self.side <= LINED_SIDE_M
+            }
+            Leap::Ledge | Leap::SprintLedge => true,
+        }
+    }
 }
 
 /// Whether a ledge jump pressed from feet `take_off_above` under its take-off and `landing_above` under its landing cannot get
@@ -1549,6 +1582,28 @@ fn lead_off(at: f32, lead: f32, window: Option<mapdata::grid::gap::TakeoffWindow
 /// `jump::blend_steps_m(speed, 5)`. 0.61 m from the walk cap's 3.5 m/s, three times [`FlownWindow::LEAD_M`].
 pub fn let_go_travel_m(speed: f32) -> f32 {
     speed * TICK_S + mapdata::controller::jump::blend_steps_m(speed, 5)
+}
+
+/// [map 91] The steps a slow press's rest is looked for at along the jump's line ([`rest_in_window`]), m: a fifth of the grid's
+/// cell.
+const REST_SEARCH_STEP_M: f32 = mapdata::CELL / 5.0;
+
+/// [map 91] The farthest a slow press's rest is looked for from its run-up point along the line ([`rest_in_window`]), m: the
+/// widest of the rest tests' windows ([`FlownWindow::LEAD_M`], [`LEDGE_STAND_LEAD_M`], [`AT_RUN_UP_M`]).
+const REST_SEARCH_M: f32 = max_abs([FlownWindow::LEAD_M, LEDGE_STAND_LEAD_M, AT_RUN_UP_M]);
+
+/// [map 91] Where a slow press rests when its run-up point (`at(run_up)`) has no line from the body: the point on the jump's line
+/// nearest it, [`REST_SEARCH_STEP_M`] apart up to [`REST_SEARCH_M`] either way and never past the take-off, that the rest test
+/// takes (`rest_near`) and the body walks to in a line (`clear`). The rest test decides, so a rest found is one the press is
+/// walked up from. None when the window has no such point.
+fn rest_in_window(run_up: f32, at: impl Fn(f32) -> Vec3, rest_near: &impl Fn(Vec3) -> bool, clear: &impl Fn(Vec3) -> bool) -> Option<Vec3> {
+    let steps = (REST_SEARCH_M / REST_SEARCH_STEP_M).round() as i32;
+    (1..=steps)
+        .flat_map(|k| [-k, k])
+        .map(|k| run_up + k as f32 * REST_SEARCH_STEP_M)
+        .filter(|&m| m >= 0.0)
+        .map(at)
+        .find(|&p| rest_near(p) && clear(p))
 }
 
 /// [F3] A window side narrower than this has no width (the neighbours are 0.1 m apart; the stored leads are centimetres), m.
@@ -2186,8 +2241,8 @@ impl Motor {
         if jump.is_some_and(|jump| jump.stand) {
             // [A386] A slow press's body comes to rest at its run-up point.
             self.walking = false;
-        } else if lined {
-            self.walking = still < LINE_UP_GO;
+        } else if let Some(jump) = jump.filter(|jump| jump.lined) {
+            self.walking = jump.walks_lined(still);
         } else if self.walking && still > self.feel.stop_turn {
             self.walking = false;
         } else if !self.walking && still < self.feel.go_turn {
@@ -2571,7 +2626,7 @@ impl Motor {
         let mut keys;
         if let Some(jump) = lined {
             let still = wrap(yaw_of(jump.way) - (pose.yaw + turn.0)).abs();
-            self.walking = still < LINE_UP_GO;
+            self.walking = jump.walks_lined(still);
             self.key_hold = None;
             keys = if self.walking { key::FORWARD } else { 0 };
         } else {
@@ -3161,6 +3216,15 @@ impl Motor {
             )
         } else if !under && clear(at(run_up)) {
             at(run_up)
+        } else if let Some(rest) = (!under && slow && jump.walk_up == WalkUp::ToRest)
+            .then(|| rest_in_window(run_up, at, &rest_near_at, &clear))
+            .flatten()
+        {
+            // [map 91] A slow press's rest point the body has no line to (no floor there in the walk grid): the clear point
+            // nearest it that the rest test takes ([`rest_in_window`]). The route's way ends at the take-off, out of the
+            // window, and the rest was waited at forever: Mamayev Kurgan's rise (-22.60, 24.27, 57.88), its rest 0.4 m
+            // behind on no grid floor, a raised floor 0.2-0.3 m behind in the window.
+            rest
         } else {
             // The run-up not in a line yet (round a corner): the route, up
             // to the take-off.
@@ -3325,13 +3389,13 @@ impl Motor {
         };
         // [A386] A flown press faces its way within the flight's tested turn ([`FlownWindow::TURN_RAD`]); a body still turning
         // waits for it.
-        let facing = if ahead.leap.flown() { FlownWindow::TURN_RAD } else { JUMP_FACING };
+        let facing = ahead.press_facing();
         if !(ahead.lined && ahead.going && self.walking && still <= facing && near && rested) {
             // [loops] At the press point and not pressing: the wait's clock, from its first tick at this try; once it has
             // lasted [`PRESS_WAIT_S`] the try is spent as a back-off spends it, so the link fails after [`JUMP_TRIES`]. Only
             // with the take-off within the feet's reach: a body a floor under it is held and walks the route's legs up, and
             // only [`Feel::press_in_reach`] gives that up (the reach test is its own).
-            if near && rested && !ahead.out_of_reach(most) {
+            if near && rested && ahead.at_press_point() && !ahead.out_of_reach(most) {
                 let wait = match jump.wait {
                     Some(wait) if wait.tries == jump.tries => wait,
                     _ => PressWait { since: self.clock, tries: jump.tries },
@@ -6793,6 +6857,25 @@ mod tests {
         assert!(!lead_off(0.41, lead, w) && lead_off(0.39, lead, w) && !lead_off(0.79, lead, w));
     }
 
+    /// [map 91] [`rest_in_window`]: a slow press's rest point with no line to it (Mamayev Kurgan's rise, the rest 0.4 m behind the
+    /// take-off on no grid floor, a raised floor 0.2-0.3 m behind) rests at the nearest clear point the rest test takes; none
+    /// when the window has none; never past the take-off.
+    #[test]
+    fn a_rest_with_no_line_is_the_nearest_clear_point_the_rest_test_takes() {
+        // The take-off at x 0, the way +x: a point m behind it is at x -m.
+        let at = |m: f32| Vec3::new(-m, 0.0, 0.0);
+        let flown_window = |p: Vec3| (p.x + 0.4).abs() <= FlownWindow::LEAD_M + 1e-4;
+        let floor_to_0_3 = |p: Vec3| -p.x <= 0.3 + 1e-4;
+        let rest = rest_in_window(0.4, at, &flown_window, &floor_to_0_3).expect("the raised floor is in the window");
+        assert!((rest.x + 0.3).abs() < 1e-4, "the clear point nearest the rest point: {rest:?}");
+        // No clear point in the window: none, not a rest the press is not walked up from.
+        assert_eq!(rest_in_window(0.4, at, &flown_window, &|p: Vec3| -p.x <= 0.15), None);
+        // A clear point the rest test does not take is not a rest.
+        assert_eq!(rest_in_window(0.4, at, &|p: Vec3| (p.x + 0.4).abs() <= 0.05, &floor_to_0_3), None);
+        // Never past the take-off.
+        assert_eq!(rest_in_window(0.1, at, &|_| true, &|p: Vec3| p.x > 0.0), None);
+    }
+
     /// [A386] [`press_due`]: the key moves the body a step later (`StepInput::Previous`), so the press is the tick whose next
     /// step starts nearest the lead: at 5 m/s (0.25 m a step) the ticks from 0.875 m before the lead's point down.
     #[test]
@@ -7378,6 +7461,53 @@ mod tests {
         assert!(ahead(0.35, 0.7, Leap::Ledge).out_of_reach(STANDING_JUMP_M));
         // A gap link is pressed at its own point: not asked.
         assert!(!ahead(1.0, 1.0, Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.5), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None })).out_of_reach(SPRINT_JUMP_LOW_M));
+    }
+
+    /// [map 91] [`Ahead::walks_lined`] and [`Ahead::at_press_point`] on Mamayev Kurgan's rise (a flown standing press, lead 0.4 m):
+    /// the stand press's body walks only within its press's facing, so the walk starts on the press's tick; any other lined
+    /// body within [`LINE_UP_GO`]. The press wait counts only at the press's point, not past the take-off on the landing's side.
+    #[test]
+    fn a_stand_press_walks_only_facing_its_press_and_waits_only_at_its_point() {
+        let gap = |walk: WalkPress| Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.4), walk, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None });
+        let ahead = |leap: Leap, before: f32, side: f32| Ahead {
+            aim: Vec3::ZERO,
+            lined: true,
+            way: [1.0, 0.0],
+            before,
+            side,
+            going: true,
+            end: None,
+            stand: false,
+            let_go: false,
+            leap,
+            approach: Approach::Walk,
+            rise: 1.54,
+            take_off_above: 0.0,
+            lead_m: 0.0,
+            least_m: 0.0,
+            run_up: 0.4,
+            span: 1.7,
+        };
+        let stand = ahead(gap(WalkPress::Slow(0)), 0.31, 0.11);
+        assert!(stand.leap.flown());
+        // The trace's turns at rest 0.31 m before: 0.36, 0.16 and 0.11 rad off the way stand; within the flight's turn it walks.
+        for still in [0.36, 0.16, 0.11] {
+            assert!(!stand.walks_lined(still), "{still}");
+        }
+        assert!(stand.walks_lined(FlownWindow::TURN_RAD) && stand.walks_lined(0.05));
+        // A walk-up of steps, a walking press and a ledge walk within LINE_UP_GO, as before.
+        for leap in [gap(WalkPress::Slow(2)), gap(WalkPress::Cap), Leap::Ledge] {
+            let a = ahead(leap, 0.31, 0.11);
+            assert!(a.walks_lined(0.36) && !a.walks_lined(LINE_UP_GO));
+        }
+        // The wait: at the rest (0.31 m before) and to within the window past the press point (0.21 m before); not 1.95 m past the
+        // take-off on the landing's side, nor 0.41 m off the line.
+        assert!(stand.at_press_point());
+        assert!(ahead(gap(WalkPress::Slow(0)), 0.21, 0.0).at_press_point());
+        assert!(!ahead(gap(WalkPress::Slow(0)), -1.95, 0.0).at_press_point());
+        assert!(!ahead(gap(WalkPress::Slow(0)), 0.47, 0.41).at_press_point());
+        // A ledge's wait is as before.
+        assert!(ahead(Leap::Ledge, -0.5, 0.5).at_press_point());
     }
 
     /// A route's end up a ledge is not arrived at from under it; up it, it
