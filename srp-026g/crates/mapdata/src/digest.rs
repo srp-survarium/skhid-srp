@@ -23,6 +23,13 @@ impl Digest {
         Self(0xcbf2_9ce4_8422_2325)
     }
 
+    /// A digest started from `seed`: another function of the same words than [`Self::new`]'s (a second lane of a wider digest).
+    pub fn seeded(seed: u64) -> Self {
+        let mut digest = Self::new();
+        digest.u64(seed);
+        digest
+    }
+
     pub fn u64(&mut self, value: u64) {
         let mixed = (self.0 ^ value).wrapping_mul(0x9e37_79b9_7f4a_7c15);
         self.0 = mixed ^ (mixed >> 29);

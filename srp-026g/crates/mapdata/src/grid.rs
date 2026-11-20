@@ -3632,9 +3632,22 @@ impl WalkGrid {
     /// Writes the grid to `path` as the grid of `key` ([`crate::built`],
     /// [`crate::grid_key`]).
     pub fn write(&self, path: &std::path::Path, key: u64) -> Result<(), Error> {
+        built::write(path, built::GRID_MAGIC, key, self.digest(), |out| self.write_body(out))
+    }
+
+    /// [incremental grids] The 128-bit digest of every byte [`Self::write`] puts between the file's header and its end mark: two
+    /// grids of one key with equal `digest_full` are written to byte-equal files. [`Self::digest`] covers what the grid answers
+    /// (and is in the header); this covers every stored table, the log-only ones too (`held_taken`). The proof that an
+    /// incremental build is the full build.
+    pub fn digest_full(&self) -> u128 {
+        built::body_digest(|out| self.write_body(out))
+    }
+
+    /// The grid's part of its file ([`Self::write`]), after the header.
+    fn write_body(&self, out: &mut built::Out) -> std::io::Result<()> {
         // [F1b] The flown shares' neighbourhood masks, last in the file: one a off link, then one a riser.
         let masks = self.share_masks();
-        built::write(path, built::GRID_MAGIC, key, self.digest(), |out| {
+        {
             for value in [self.x0, self.z0, self.cell] {
                 out.f32(value)?;
             }
@@ -3761,7 +3774,7 @@ impl WalkGrid {
                 return Ok(());
             }
             out.plain(&masks, |m| m.to_le_bytes())
-        })
+        }
     }
 
     /// Reads the grid of `key` that [`Self::write`] wrote, built for `body`: checked index by index, then by its digest, so
@@ -6290,6 +6303,47 @@ pub(crate) mod tests {
         std::fs::write(&path, &bytes[..bytes.len() / 2]).unwrap();
         assert!(WalkGrid::read(&path, 7, Body::default()).is_err());
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    /// [incremental grids] `digest_full` is the digest of the file's bytes between its header and its end mark: equal for two
+    /// builds, changed by any stored table, the log-only ones too.
+    #[test]
+    fn the_full_digest_is_the_written_bodys() {
+        let grid = two_rooms();
+        assert_eq!(grid.digest_full(), two_rooms().digest_full());
+        let path = std::env::temp_dir().join(format!("srp-grid-full-{}.bin", std::process::id()));
+        grid.write(&path, 7).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        let body = &bytes[28..bytes.len() - 4];
+        // Fed in pieces of other sizes than the write's: the same stream, the same digest.
+        let pieces = crate::built::body_digest(|out| body.chunks(5).try_for_each(|piece| out.bytes(piece)));
+        assert_eq!(pieces, grid.digest_full());
+        // A table the answer digest leaves out still changes it.
+        let mut taken = two_rooms();
+        taken.held_taken.push(Vec3::new(1.0, 0.0, 1.0));
+        assert_eq!(taken.digest(), grid.digest());
+        assert_ne!(taken.digest_full(), grid.digest_full());
+        let mut moved = two_rooms();
+        moved.height[0] += 0.001;
+        assert_ne!(moved.digest_full(), grid.digest_full());
+    }
+
+    /// [incremental grids] A build's timing names its passes in order and is never a difference between two builds' stats.
+    #[test]
+    fn a_build_times_its_passes() {
+        let mut tris = Vec::new();
+        tris.extend(floor(0.0, 0.0, 30.0, 12.0, 0.0));
+        let build = || WalkGrid::build_with_stats(&tris, [0.0, 0.0, 30.0, 12.0], 0.25, Body::default()).1;
+        let (a, b) = (build(), build());
+        assert_eq!(a, b);
+        let passes: Vec<&str> = a.timing.passes.iter().map(|p| p.pass).collect();
+        assert_eq!(passes.first(), Some(&"rasterize, floors"));
+        assert_eq!(passes.last(), Some(&"warm"));
+        assert!(passes.contains(&"keep reached") && passes.contains(&"pack"), "{passes:?}");
+        let laps: f64 = a.timing.passes.iter().map(|p| p.wall_s).sum();
+        assert!(laps <= a.timing.total_s + 1e-6, "{laps} > {}", a.timing.total_s);
+        assert!(!timing::running(), "the build's clock stops with it");
     }
 
     fn quad(min: Vec3, max_x: f32, max_z: f32, walker: WalkerBehaviour) -> [Triangle; 2] {
