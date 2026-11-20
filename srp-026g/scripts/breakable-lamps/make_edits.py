@@ -46,18 +46,24 @@ REPLACEMENTS = {
 # two flicker variants, three tubes in a tubeless lamp_midle_04 housing).
 # A broken fixture hides them; nothing replaces them.
 TUBE_GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
-# Kerosene lamps (London, Tarakanovsky Fort, level_04): a frame that stays,
+# Kerosene lamps (London, Tarakanovsky Fort, level_04, and the 0.21 ports'
+# copies of the models: Fort and Chemical Plant v0.21): a frame that stays,
 # standing, hung on a rope or nailed to a wall; its lit glass, a model of its
 # own; and its flame, a particle object in the glass (FLAME), which lights
 # the place too: there is no light object. A break hides the glass and puts
 # the flame out. A frame without the lit glass is an unlit lamp: scenery.
-LANTERN_GLASS = {'props/light/stand_group_batlamp_glass_emit', 'props/light/wall_group_nailed_batlamp_glass_emit'}
+# The chain lamp (ceiling_group_chain_lamp) has its glass in its own mesh,
+# the oil lamp (stand_group_oil_lamp) is never lit, a torch has no glass:
+# scenery all three.
+LANTERN_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/')
+LANTERN_GLASS = {prefix + 'props/light/' + model + '_glass_emit' for prefix in LANTERN_PREFIXES
+                 for model in ('stand_group_batlamp', 'wall_group_nailed_batlamp')}
 FLAME, FLAME_REACH = 'fx/lights/oil_lamp', 0.4
 GLASS = TUBE_GLASS | LANTERN_GLASS
 # Housings that stay when their glass breaks. A housing belongs to a fixture
 # (its bounds, so a shot into the housing breaks the glass) only together
 # with glass; on its own it is scenery.
-HOUSINGS = {'props/light/lamp_midle_04', 'props/light/stand_group_batlamp', 'props/light/wall_group_nailed_batlamp'}
+HOUSINGS = {'props/light/lamp_midle_04'} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
