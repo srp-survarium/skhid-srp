@@ -19,7 +19,9 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   has them).
 - A match line shows the weapons of the kits it used (each kit in full, with the kit's own kills
   and accuracy, on hover). A free-for-all is one list by place. A click anywhere on a row
-  opens what the row is of: the match, the player or the clan.
+  opens what the row is of: the match, the player or the clan; a favourite weapon or armour
+  piece, its card in the wiki. A map's name leads to the map in the wiki's Maps page. A match's
+  two teams are in the Maps page's colours.
 - `scripts/stats/check_history.mjs` exercises it in an isolated Firefox over the site's own
   endpoints: the preview (`cargo test -p web-server serve_wiki_preview -- --ignored --nocapture`,
   port 24583) keeps a made-up history (`history::tests::preview`); the script serves it again on
@@ -127,10 +129,12 @@ Common objects:
   three decimals. `matches` - `wins` - `losses` were draws or had no known winner. `played_s`:
   seconds in those matches.
 - A match: `{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-  "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
+  "map_key":"level_03","mode":"Protective device","rules":2,"level":12,"winner":0,"team_points":[5,3],"players":12,
   "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, `"free_for_all"` (no team wins one:
-  its lines' `outcome` says who did) or `null` when not known. `map` is `null` for a map the
-  game data no longer has; `mode` is the text the rooms name the mode by ("FFA: Racket").
+  its lines' `outcome` says who did) or `null` when not known. `map` and `map_key` (the map's
+  key in the wiki's Maps page, its project's folder) are `null` for a map the game data no longer
+  has; `mode` is the text the rooms name the mode by ("FFA: Racket"), `rules` its rules' number
+  (the Maps page's mode: the page links a map as `/wiki/maps#<map_key>/<rules>`).
 - A player's line of a match: `"team":0,"place":1,"outcome":"won","left":false,"rating":1180,
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
   "melee_kills":0,"batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,
@@ -138,13 +142,15 @@ Common objects:
   `played_s` too.
 - A kit of a line (`kits`, the kits the player used, by place): `{"kit":0,"kills":12,
   "headshots":3,"shots":380,"hits":120,"accuracy":0.316,"weapons":[{"slot":7,"id":155,
-  "name":"AK-74M"},{"slot":10,"id":60,"name":"TT-33"}],"armour":[{"slot":0,"id":301,
+  "key":"ak_74m","name":"AK-74M"},{"slot":10,"id":60,"name":"TT-33"}],"armour":[{"slot":0,"id":301,
   "name":"Helmet"}]}`. `kit` is its place among the player's three kits (0..2); the counters are
   the kit's, not a weapon's; `weapons` and `armour` are by slot, `id` the items_dict id, `name`
   the game data's in `lang` (`null` for an item it no longer has). A match with no trusted
   snapshot has its kit with counters 0.
-- An item of `player/equipment`: `{"id":155,"name":"AK-74M","matches":40}`: the counted public
-  matches in which a kit the player used held it.
+- An item of `player/equipment`: `{"id":155,"key":"ak_74m","name":"AK-74M","matches":40}`: the
+  counted public matches in which a kit the player used held it. `key` is its items_dict name
+  (`null`, as `name`, for an item the game data no longer has): the page links a favourite to its
+  card in the wiki by it (`/wiki/weapons#wpn_<key>`, `/wiki/equipment#<key>`).
 
 ### `GET /api/history/player?name=<name>` or `?id=<id>`
 
@@ -165,8 +171,8 @@ account without a public match, as for no account.
 A player's public matches, newest first: the match, the player's line and its kits.
 
 ```json
-{"matches":[{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-             "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
+{"matches":[{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok","map_key":"level_03",
+             "mode":"Protective device","rules":2,"level":12,"winner":0,"team_points":[5,3],"players":12,
              "eligibility":"counted","team":0,"place":1,"outcome":"won","left":false,"rating":1180,"score":310,"kills":14,
              "deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,"melee_kills":0,
              "batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,"accuracy":0.31,
@@ -207,8 +213,8 @@ A player's counted public matches added up by day (UTC), oldest first, days with
 The latest public matches, newest first; with `clan`, those a member of that clan played in.
 
 ```json
-{"matches":[{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-             "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
+{"matches":[{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok","map_key":"level_03",
+             "mode":"Protective device","rules":2,"level":12,"winner":0,"team_points":[5,3],"players":12,
              "eligibility":"counted"}],
  "next":5530}
 ```
@@ -218,8 +224,8 @@ The latest public matches, newest first; with `clan`, those a member of that cla
 A public match and every player's line with its kits, by team, then place.
 
 ```json
-{"match":{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
-          "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
+{"match":{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok","map_key":"level_03",
+          "mode":"Protective device","rules":2,"level":12,"winner":0,"team_points":[5,3],"players":12,
           "eligibility":"counted"},
  "players":[{"player":{"id":1042,"name":"Sheep","clan":null},"level":34,
              "team":0,"place":1,"outcome":"won","left":false,"rating":1180,"score":310,"kills":14,
@@ -255,7 +261,7 @@ accounts left out.
 ```json
 {"period":"day",
  "rows":[{"player":{"id":1042,"name":"Sheep","clan":null},"match":5531,"ended_at":1793500000,
-          "level":12,"map":"Vostok","mode":"Batteries","score":420,"kills":20,"deaths":3}]}
+          "level":12,"map":"Vostok","map_key":"level_03","mode":"Protective device","rules":2,"score":420,"kills":20,"deaths":3}]}
 ```
 
 ### `GET /api/history/clans?by=<key>&limit=<n>`

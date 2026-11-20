@@ -32,3 +32,9 @@
  .stats-find { grid-template-columns:1fr 1fr }
  .stats-find label:first-child,.stats-find button { grid-column:1 / -1 }
 }
+/* A match's two teams, in the Maps page's colours (maps-tab/template.html; a test holds them together). */
+#stats { --team0: #3b82f6; --team1: #e5484d }
+.stats-team { padding-left:10px; border-left:4px solid var(--team) }
+.stats-team + .table-scroll .stats-table { border-top:2px solid var(--team) }
+.stats-team0 { --team:var(--team0) }
+.stats-team1 { --team:var(--team1) }

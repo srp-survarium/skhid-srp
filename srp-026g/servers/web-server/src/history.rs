@@ -451,18 +451,17 @@ fn answer(
                 })?
                 .iter()
                 .map(|best| {
-                    let (map, mode) = names(&best.summary.info, lang);
-                    json!({
+                    let mut value = json!({
                         "player": named(&best.player),
                         "match": best.summary.id,
                         "ended_at": best.summary.info.ended_at,
                         "level": best.summary.info.match_level,
-                        "map": map,
-                        "mode": mode,
                         "score": best.line.score,
                         "kills": best.line.kills,
                         "deaths": best.line.deaths,
-                    })
+                    });
+                    extend(&mut value, played(&best.summary.info, lang));
+                    value
                 })
                 .collect();
             json!({ "period": period.name(), "rows": rows })
@@ -573,13 +572,16 @@ fn kit_counts(counts: &KitCounts) -> Value {
     })
 }
 
-/// An item by its dict id, named from the game data in `lang`; `name` is
-/// `null` for an item the game data no longer has.
+/// An item by its dict id, with its items_dict name (`key`: the wiki's
+/// pages open an item by it) and its name in `lang`, from the game data;
+/// both `null` for an item the game data no longer has.
 fn item_ref(dict_id: u16, lang: Lang) -> Value {
-    let name = Dictionary::shared()
-        .item(dict_id)
-        .map(|_| modifiers::item_name(lang, dict_id));
-    json!({ "id": dict_id, "name": name })
+    let item = Dictionary::shared().item(dict_id);
+    json!({
+        "id": dict_id,
+        "key": item.map(|item| item.name.as_str()),
+        "name": item.map(|_| modifiers::item_name(lang, dict_id)),
+    })
 }
 
 /// The kits a player used in a match: each its place, its counters, and
@@ -644,32 +646,36 @@ fn winner(winner: Winner) -> Value {
     }
 }
 
-/// The map's name in `lang`, from the game data (`None` for a map it no
-/// longer has), and the mode's as the rooms name it.
-fn names(info: &MatchInfo, lang: Lang) -> (Option<String>, String) {
-    (
-        maps::map_mode(info.map_id).map(|map| launcher::map_name(lang, map)),
-        launcher::lobby_mode_name(lang, info.mode),
-    )
+/// What a match was played on, in `lang`: the map's name and its key in the
+/// wiki's Maps page (its project's folder; both `null` for a map the game
+/// data no longer has), the mode's name as the rooms name it, and its
+/// rules' number (the Maps page's mode).
+fn played(info: &MatchInfo, lang: Lang) -> Value {
+    let map = maps::map_mode(info.map_id);
+    json!({
+        "map": map.map(|map| launcher::map_name(lang, map)),
+        "map_key": map.and_then(|map| map.project.split('/').next()),
+        "mode": launcher::lobby_mode_name(lang, info.mode),
+        "rules": info.mode.mode().rules().number(),
+    })
 }
 
 fn match_summary(summary: &MatchSummary, lang: Lang) -> Value {
     let info = &summary.info;
-    let (map, mode) = names(info, lang);
-    json!({
+    let mut value = json!({
         "id": summary.id,
         "replay_id": summary.replay_id.as_str(),
         "ended_at": info.ended_at,
         "duration_s": info.duration_ms.div_ceil(1000),
         "map_id": info.map_id.get(),
-        "map": map,
-        "mode": mode,
         "level": info.match_level,
         "winner": winner(info.winner),
         "team_points": info.team_points,
         "players": summary.players,
         "eligibility": summary.eligibility.as_str(),
-    })
+    });
+    extend(&mut value, played(info, lang));
+    value
 }
 
 /// A player's line of a match.

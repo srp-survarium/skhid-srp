@@ -122,18 +122,20 @@
   // A table: columns [label, cell(row), className, sort key, empty()]; rows
   // null while loading (`placeholder` empty rows of the same height: a
   // column's `empty` gives its empty cell the shape of a full one). With
-  // `open` (a row's address), a click anywhere on a row goes there, but on
-  // a link of its own or while text is selected.
+  // `open` (where a row leads: the stats' own parameters, or an address;
+  // null for nowhere), a click anywhere on a row goes there, but on a link
+  // of its own or while text is selected.
   function table(columns, rows, placeholder = PAGE, sorted = '', open = null) {
     const body = el('tbody');
     const head = el('thead', {}, el('tr', {}, columns.map(([label, , kind, key]) =>
       el('th', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`, scope: 'col'}, label))));
     const wrap = el('div', {className: 'table-scroll'}, el('table', {className: 'stats-table'}, head, body));
     wrap.add = list => body.append(...list.map(row => {
-      const line = el('tr', {className: open ? 'stats-open' : ''}, columns.map(([, cell, kind, key]) =>
+      const to = open && open(row);
+      const line = el('tr', {className: to ? 'stats-open' : ''}, columns.map(([, cell, kind, key]) =>
         el('td', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`}, cell(row))));
-      if (open) line.addEventListener('click', event => {
-        if (!event.target.closest('a') && !String(getSelection())) location.assign(address(open(row)));
+      if (to) line.addEventListener('click', event => {
+        if (!event.target.closest('a') && !String(getSelection())) location.assign(typeof to === 'string' ? to : address(to));
       });
       return line;
     }));
@@ -224,15 +226,24 @@
   // rows each, empty ones too, so its height is the same loading or not.
   const FAVOURITES = 5;
   function favourites(data) {
-    const list = (label, items) => {
-      const box = table([[label, item => name(item.name), 'l'], [TEXT.matches, item => n(item.matches)]], items, FAVOURITES);
+    // An item's place in the wiki: a weapon's card, an armour piece's; none
+    // for one the game data no longer has.
+    const wiki = (page, anchor) => item => item.key ? `/wiki/${page}?${new URLSearchParams({lang})}#${anchor}${item.key}` : null;
+    const list = (label, items, where) => {
+      const box = table([[label, item => where(item) ? el('a', {href: where(item)}, name(item.name)) : name(item.name), 'l'],
+        [TEXT.matches, item => n(item.matches)]], items, FAVOURITES, '', where);
       if (items) box.blank(FAVOURITES - items.length);
       return box;
     };
     return [el('h2', {className: 'stats-heading'}, TEXT.favourites),
-      el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons), list(TEXT.armour, data && data.armour))];
+      el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons, wiki('weapons', 'wpn_')), list(TEXT.armour, data && data.armour, wiki('equipment', '')))];
   }
   const matchLink = row => link({match: row.id}, `${row.id}`);
+  // A map's name, leading to it in the wiki's Maps page in the match's mode;
+  // plain for a map the game data no longer has.
+  const mapLink = row => row.map_key
+    ? el('a', {href: `/wiki/maps?${new URLSearchParams({lang})}#${row.map_key}/${row.rules}`}, row.map)
+    : name(row.map);
   // Where a click on a match's row goes, and on a player's.
   const openMatch = row => ({match: row.id});
   const openPlayer = row => ({player: row.player.name});
@@ -241,7 +252,7 @@
   // Two lines a match: the time under the day, the mode under the map.
   const MATCH_COLUMNS = [
     [TEXT.ended, row => ended(row.ended_at), 'l', '', twoLines], [TEXT.match, matchLink],
-    [TEXT.map, row => [name(row.map), el('small', {className: 'stats-under'}, name(row.mode))], 'l', '', twoLines],
+    [TEXT.map, row => [mapLink(row), el('small', {className: 'stats-under'}, name(row.mode))], 'l', '', twoLines],
     [TEXT.level, row => n(row.level)],
   ];
 
@@ -312,10 +323,10 @@
         : [0, 1].map(team => {
           const rows = data ? data.players.filter(row => row.team === team) : null;
           const title = `${TEXT.team} ${team + 1}${m ? ` · ${n(m.team_points[team])}` : ''}${m && m.winner === team ? ` · ${TEXT.win}` : ''}`;
-          return [el('h2', {className: 'stats-heading'}, title), table(columns, rows, 6, '', openPlayer)];
+          return [el('h2', {className: `stats-heading stats-team stats-team${team}`}, title), table(columns, rows, 6, '', openPlayer)];
         });
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
-        [TEXT.map, m ? name(m.map) : null], [TEXT.mode, m ? name(m.mode) : null]]],
+        [TEXT.map, m ? mapLink(m) : null], [TEXT.mode, m ? name(m.mode) : null]]],
       [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : m.team_points.map(n).join(' : ')) : null],
         [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null],
         [TEXT.inTotals, m ? (m.eligibility === 'counted' ? TEXT.yes : TEXT.no) : null]]]), ...teams.flat()];
@@ -385,7 +396,7 @@
     const bestColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
       [TEXT.score, row => n(row.score), 'sorted'], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.match, row => link({match: row.match}, `${row.match}`)], [TEXT.ended, row => when(row.ended_at), 'l'],
-      [TEXT.map, row => name(row.map), 'l'], [TEXT.mode, row => name(row.mode), 'l'], [TEXT.level, row => n(row.level)]];
+      [TEXT.map, mapLink, 'l'], [TEXT.mode, row => name(row.mode), 'l'], [TEXT.level, row => n(row.level)]];
     const latestColumns = [...MATCH_COLUMNS, [TEXT.points, points], [TEXT.players, row => n(row.players)]];
     // A ranked list: its rows numbered.
     const ranked = columns => columns.map(([label, cell, ...rest]) => [label, row => cell(row, row.rank), ...rest]);

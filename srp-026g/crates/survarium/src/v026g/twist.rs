@@ -165,6 +165,14 @@ impl LobbyMode {
         Self::ALL.into_iter().find(|mode| mode.number() == number)
     }
 
+    /// The mode whose map and rules it plays: a twist's is the free-for-all.
+    pub const fn mode(self) -> GameMode {
+        match self {
+            Self::Plain(mode) => mode,
+            Self::Racket | Self::Cowboy(_) => GameMode::FreeForAll,
+        }
+    }
+
     /// The key of its name in the game's texts: the one the rooms name it by
     /// (`RoomsText.as`, `MODES`; a test holds the two together).
     pub const fn name_key(self) -> &'static str {

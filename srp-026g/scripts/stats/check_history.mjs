@@ -217,6 +217,17 @@ try {
   assert.deepEqual(await cells('.stats-favourites .table-scroll:last-child tbody td:nth-child(2)'),
     [...favourite.armour.map(item => String(item.matches)), ...Array(5 - favourite.armour.length).fill('\u00a0')]);
   assert.ok(favourite.weapons.some(item => item.name === null), 'an item gone from the game data');
+  // A favourite leads to its card in the wiki: by its name's link, or a click anywhere on its row.
+  const known = favourite.weapons.find(item => item.key), piece = favourite.armour[0];
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.stats-favourites a')].map(a => a.pathname + a.hash).join()"),
+    [...favourite.weapons.filter(item => item.key).map(item => `/wiki/weapons#wpn_${item.key}`), ...favourite.armour.map(item => `/wiki/equipment#${item.key}`)].join());
+  await evaluate("document.querySelector('.stats-favourites .table-scroll:last-child tbody tr td:nth-child(2)').click()");
+  await new Promise(resolve => setTimeout(resolve, 800));
+  assert.equal(await evaluate('location.pathname + location.hash'), `/wiki/equipment#${piece.key}`);
+  assert.equal(await evaluate(`document.getElementById(${JSON.stringify(piece.key)}).open`), true, 'the piece is opened there');
+  await navigate(`/wiki/weapons?lang=en#wpn_${known.key}`);
+  assert.equal(await evaluate(`document.getElementById(${JSON.stringify('wpn_' + known.key)}) !== null`), true, 'the weapon has a card');
+  await navigate('/stats?player=Sheep&lang=en');
   assert.equal(await fits(), true, 'the matches fit the width');
   await screenshot('player');
   await evaluate("document.querySelector('.stats-paged button').click()");
@@ -264,6 +275,15 @@ try {
   assert.equal(await fits(), true, 'the teams fit the width');
   await screenshot('match');
   assert.equal(await panel('In totals'), 'Yes');
+  // The teams in the Maps page's colours; the map leads to it there, in the match's mode.
+  assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-team')].map(h => getComputedStyle(h).borderLeftColor))")),
+    ['rgb(59, 130, 246)', 'rgb(229, 72, 77)']);
+  const played = answered.match.match;
+  assert.equal(await evaluate("(a => a.pathname + a.hash)([...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Map').nextSibling.querySelector('a'))"),
+    `/wiki/maps#${played.map_key}/${played.rules}`);
+  await navigate(`/wiki/maps?lang=en#${played.map_key}/${played.rules}`);
+  assert.equal(await evaluate("document.querySelector('#maps [aria-pressed=true], .chip[aria-pressed=true]') !== null"), true, 'the Maps page opens');
+  await navigate(`/stats?match=${newest}&lang=en`);
   await navigate('/stats?match=99&lang=en');
   assert.equal(await text('.stats-empty'), 'No public match 99.');
   // A free-for-all: one list by place, its winners named. A match too short: not in the totals.

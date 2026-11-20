@@ -304,7 +304,7 @@ const TOTALS: [&str; 20] = [
     "wins",
 ];
 
-const SUMMARY: [&str; 12] = [
+const SUMMARY: [&str; 14] = [
     "duration_s",
     "eligibility",
     "ended_at",
@@ -312,9 +312,11 @@ const SUMMARY: [&str; 12] = [
     "level",
     "map",
     "map_id",
+    "map_key",
     "mode",
     "players",
     "replay_id",
+    "rules",
     "team_points",
     "winner",
 ];
@@ -479,7 +481,7 @@ fn a_match_row_has_the_kits_used_and_their_items() {
     assert_eq!(kits[0]["kills"], 14);
     let weapons = kits[0]["weapons"].as_array().unwrap();
     assert_eq!(weapons.len(), 1);
-    assert_eq!(keys(&weapons[0]), ["id", "name", "slot"]);
+    assert_eq!(keys(&weapons[0]), ["id", "key", "name", "slot"]);
     assert_eq!(weapons[0]["slot"], 7);
     assert_eq!(weapons[0]["id"], dict_id("ak_74u"));
     assert!(
@@ -511,7 +513,8 @@ fn a_players_equipment_is_its_most_used_items() {
     let weapons = body["weapons"].as_array().unwrap();
     assert_eq!(weapons.len(), 1);
     // No kills or shots of an item: the game counts those by kit.
-    assert_eq!(keys(&weapons[0]), ["id", "matches", "name"]);
+    assert_eq!(keys(&weapons[0]), ["id", "key", "matches", "name"]);
+    assert_eq!(weapons[0]["key"], "ak_74u");
     assert_eq!(weapons[0]["id"], dict_id("ak_74u"));
     // Its three public matches: the private one and the bots' are not
     // counted.
@@ -637,7 +640,8 @@ fn the_best_scores_are_of_the_period() {
     assert_eq!(
         keys(&rows[0]),
         [
-            "deaths", "ended_at", "kills", "level", "map", "match", "mode", "player", "score"
+            "deaths", "ended_at", "kills", "level", "map", "map_key", "match", "mode", "player", "rules",
+            "score"
         ]
     );
     assert_eq!(rows[0]["score"], 310);
@@ -1031,4 +1035,20 @@ fn the_previews_history_is_served() {
     assert_eq!(sorted, (1..=11).collect::<Vec<u64>>(), "placed among everyone");
     assert_eq!(ask("/api/history/match?id=7")["match"]["eligibility"], "short");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The match page paints its teams as the Maps page does: the same two
+/// colours, held together here.
+#[test]
+fn the_teams_colours_are_the_maps_pages() {
+    let colour = |text: &'static str, name: &str| -> &'static str {
+        let from = text.find(&format!("{name}:")).unwrap_or_else(|| panic!("{name}"));
+        let value = text[from + name.len() + 1..].trim_start();
+        &value[..7]
+    };
+    let maps = include_str!("../../maps/maps.html");
+    for team in ["--team0", "--team1"] {
+        assert_eq!(colour(STYLE, team), colour(maps, team), "{team}");
+        assert!(colour(STYLE, team).starts_with('#'));
+    }
 }
