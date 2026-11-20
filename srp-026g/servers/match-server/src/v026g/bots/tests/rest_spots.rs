@@ -39,6 +39,8 @@ pub(super) struct Crossing {
     pub(super) notes: Vec<(u32, String)>,
     /// The feet at every press, and every 500 ms (`SRP_REST_TRAIL=1` prints them).
     pub(super) trail: Vec<(u32, Vec3, bool)>,
+    /// [press forecast] The bot's reckoned body and speed level each press was decided from (`Bot::reckoned`).
+    pub(super) reckoned: Vec<(u32, crate::v026g::bots::body::Estimate, f32)>,
 }
 
 /// A press of the jump key on the way.
@@ -103,6 +105,9 @@ pub(super) fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Ve
                 let motor = bots.bots[0].as_ref().and_then(|bot| bot.motor.route_press()).map(|press| (press.take_off, press.landing));
                 out.presses_at.push(Press { feet, speed: feet.distance_xz(step_before) / (TICK_MS as f32 / 1000.0), link: motor });
                 out.trail.push((clock, game.bodies[0].feet, true));
+                if let Some((at, level)) = bots.bots[0].as_ref().and_then(|bot| bot.reckoned) {
+                    out.reckoned.push((clock, at, level));
+                }
             }
             let r = made.input.rotation;
             let turn = (half_value(u16::from_le_bytes([r[0], r[1]])), half_value(u16::from_le_bytes([r[2], r[3]])));

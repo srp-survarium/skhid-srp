@@ -81,6 +81,27 @@ fn press_forecast_crossings_on_map_91() {
         for (t, text) in &lines {
             eprintln!("PRESS SPOT   {t} ms: {text}");
         }
+        // The reckoned body each press was decided from, flown again by the forecast as it is and with its kept controller dropped
+        // (set anew at the feet): whether the controller kept across the walk moves the verdict.
+        for &(t, at, level) in &c.reckoned {
+            use crate::v026g::bots::body::{AfterLanding, Estimate, PressPlan, PressWorld, press_forecast};
+            let kin = tuning.kin.clone();
+            let world = PressWorld { kin: &kin, level, grid: &world.grid };
+            let plan = PressPlan { walk: key::FORWARD, press_in: 0, take_off: a, landing: b, after: AfterLanding::Hold };
+            let kept = press_forecast(&at, &plan, &world);
+            let fresh = press_forecast(&Estimate { kept: None, ..at }, &plan, &world);
+            eprintln!(
+                "PRESS SPOT   reckoned at the press {t} ms: feet ({:.3}, {:.3}, {:.3}) v ({:.2}, {:.2}) keys {:#x} step {:?} kept {}: forecast {kept:?}; kept dropped {fresh:?}",
+                at.feet.x,
+                at.feet.y,
+                at.feet.z,
+                at.velocity[0],
+                at.velocity[1],
+                at.keys,
+                at.step,
+                at.kept.is_some()
+            );
+        }
         // The stand-in's body (the game's, not the bot's reckoning) 2.5 s after each press: up on the link's landing or not.
         for &(t, feet, press) in &c.trail {
             if !press {
