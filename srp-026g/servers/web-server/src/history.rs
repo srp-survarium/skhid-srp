@@ -198,7 +198,7 @@ const BEST: usize = 20;
 /// request names no limit.
 const FAVOURITES: usize = 10;
 /// How many of the names a player left its card lists, the last left first.
-const FORMER_NAMES: usize = 10;
+const FORMER_NAMES: usize = MatchHistory::MAX_ROWS;
 /// What a leaders' list ranks a player's day by.
 type Leading = fn(&Totals) -> u64;
 /// The day's leaders' lists: each its name and what it ranks by, most first

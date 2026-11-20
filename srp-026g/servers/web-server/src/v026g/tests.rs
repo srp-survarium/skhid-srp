@@ -1313,7 +1313,15 @@ fn serve_wiki_preview() {
     }
     let dir = std::env::temp_dir().join(format!("srp-wiki-preview-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    let mut world = world_with(crate::history::tests::preview(&dir, crate::unix_now()));
+    // SRP_PREVIEW_CROWD: that many more players in the history, for long lists.
+    let crowd = std::env::var("SRP_PREVIEW_CROWD")
+        .map(|text| text.parse().expect("SRP_PREVIEW_CROWD is a number of players"))
+        .unwrap_or(0);
+    let mut world = world_with(crate::history::tests::preview(
+        &dir,
+        crate::unix_now(),
+        crowd,
+    ));
     world.web.game.as_mut().unwrap().replays =
         Some(Arc::new(crate::history::tests::preview_replays(&dir)));
     // SRP_PREVIEW_PORT: another port, for two previews side by side.

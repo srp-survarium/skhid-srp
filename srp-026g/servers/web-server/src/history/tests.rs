@@ -950,8 +950,10 @@ fn an_unknown_endpoint_is_not_found_and_no_database_no_history() {
 /// Yasen in the newest 15 only, with too few shots for the accuracy list
 /// and no weapons counted;
 /// Dub leaves every fifth; one weapon is gone from the game data; Sheep was
-/// Baran, then Yahnia.
-pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
+/// Baran, then Yahnia. With a `crowd`, as many more players, each with a few
+/// matches of today among themselves (newer than the 23), and Sheep with a
+/// dozen more names left: for looking at long lists.
+pub(crate) fn preview(dir: &std::path::Path, now: u64, crowd: u32) -> GameAccounts {
     const NAMES: [&str; 13] = [
         "Sheep", "Volk", "Kvitka", "Lys", "Bars", "Grim", "Sova", "Taras", "Zhuk", "Orel", "Dub",
         "Yasen", "Nova",
@@ -1218,6 +1220,90 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
         };
         repository.record_match(&record).unwrap();
     }
+    // The crowd: its own matches of today, sixteen a match, each of them in
+    // six or so, and a dozen more names Sheep left.
+    if crowd > 0 {
+        for nth in 0..12 {
+            let name = format!("Baran{nth:02}");
+            repository.save(FIRST, &Account::new(&name)).unwrap();
+        }
+        repository.save(FIRST, &Account::new("Sheep")).unwrap();
+        let mut sheep = Account::new("Sheep");
+        sheep.rating = 1180;
+        sheep.exp_total = 1_234_567;
+        repository.save(FIRST, &sheep).unwrap();
+    }
+    const CROWD_FIRST: u32 = FIRST + 100;
+    for index in 0..crowd {
+        let mut account = Account::new(&format!("Stalker{:03}", index + 1));
+        account.rating = 900 + (index * 37 % 400) as u16;
+        account.exp_total = 20_000 + 7_919 * index;
+        repository.save(CROWD_FIRST + index, &account).unwrap();
+    }
+    for i in 0..(crowd * 6).div_ceil(16) {
+        let winner = if random(2) == 0 {
+            Winner::FirstTeam
+        } else {
+            Winner::SecondTeam
+        };
+        let players = (0..16u32.min(crowd))
+            .map(|seat| {
+                let (kills, deaths) = (random(22), 1 + random(12));
+                let shots = 25 * kills + 15 * random(9) + 20;
+                let team = (seat % 2) as u8;
+                let won = (winner == Winner::FirstTeam) == (team == 0);
+                PlayerRecord {
+                    account_id: CROWD_FIRST + (i * 16 + seat * 7) % crowd,
+                    clan_id: None,
+                    line: PlayerLine {
+                        team,
+                        place: (seat / 2) as u8 + 1,
+                        seat: seat as u8,
+                        presence: Presence::Finished,
+                        outcome: if won { Outcome::Won } else { Outcome::Lost },
+                        rating: 1000,
+                        score: 60 + 25 * kills + random(90),
+                        kills,
+                        deaths,
+                        counters: Counters {
+                            assists: random(8),
+                            headshots: random(kills.max(1)),
+                            grenade_kills: random(2),
+                            melee_kills: 0,
+                            batteries: random(4),
+                            capture_hundredths: 0,
+                            artefacts: random(3),
+                            shots,
+                            hits: shots * (18 + 3 * random(7)) / 100,
+                        },
+                        played_ms: 600_000 + 1_000 * random(300) as u32,
+                    },
+                    kits: Vec::new(),
+                    weapons: BTreeMap::new(),
+                }
+            })
+            .collect();
+        let ended_at = now - 60 * u64::from(i + 1);
+        repository
+            .record_match(&MatchRecord {
+                replay_id: ReplayId::new(
+                    0x5E1B_0000 + i,
+                    std::time::UNIX_EPOCH + std::time::Duration::from_secs(ended_at - 900),
+                ),
+                kind: MatchKind::Public(Eligibility::Counted),
+                info: MatchInfo {
+                    ended_at,
+                    duration_ms: 700_000,
+                    map_id: map_of(GameMode::Batteries, i as usize),
+                    mode: LobbyMode::Plain(GameMode::Batteries),
+                    match_level: 12,
+                    winner,
+                    team_points: if winner == Winner::FirstTeam { [5, 3] } else { [2, 5] },
+                },
+                players,
+            })
+            .unwrap();
+    }
     GameAccounts::with_repository(Box::new(repository)).unwrap()
 }
 
@@ -1259,7 +1345,7 @@ pub(crate) fn preview_replays(dir: &std::path::Path) -> Replays {
 fn a_matchs_replay_is_asked_for_by_anyone() {
     let dir = std::env::temp_dir().join(format!("srp-web-history-replay-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    let accounts = preview(&dir, NOW);
+    let accounts = preview(&dir, NOW, 0);
     let replays = preview_replays(&dir);
     let ask = |target: &str, replays: Option<&Replays>| {
         let (path, query) = target.split_once('?').unwrap();
@@ -1294,7 +1380,7 @@ fn the_previews_history_is_served() {
         std::thread::current().id()
     ));
     let _ = std::fs::remove_dir_all(&dir);
-    let accounts = preview(&dir, NOW);
+    let accounts = preview(&dir, NOW, 0);
     let history = accounts.history().unwrap();
     let ask = |target: &str| {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
@@ -1346,7 +1432,7 @@ fn a_match_has_its_maps_picture_as_the_rooms_draw_it() {
     }
     let dir = std::env::temp_dir().join(format!("srp-web-history-map-picture-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    let accounts = preview(&dir, NOW);
+    let accounts = preview(&dir, NOW, 0);
     let endpoint = Endpoint::parse("/api/history/matches", "limit=50").unwrap();
     let answer = answer(&endpoint, accounts.history().unwrap(), None, &|_| false, Lang::En, NOW).unwrap();
     for played in answer["matches"].as_array().unwrap() {
