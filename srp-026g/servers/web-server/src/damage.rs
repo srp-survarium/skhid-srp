@@ -92,7 +92,7 @@ margin:-20px calc(-1*max(16px,env(safe-area-inset-right,0px))) 22px calc(-1*max(
 .site nav a:hover{color:var(--ink)}.site nav a[aria-current]{color:var(--accent)}\
 .site .lang{position:relative;font:.8rem var(--font-body)}\
 .site .lang summary{list-style:none;cursor:pointer;color:var(--ink-2);border:1px solid var(--rule);background:var(--bg);padding:.15rem .7rem;border-radius:999px}\
-.site .lang summary::-webkit-details-marker{display:none}.site .lang summary:hover,.site .lang[open] summary{border-color:var(--ink-3);color:var(--ink)}\
+.site .lang summary::-webkit-details-marker{display:none}.site .lang summary::after{content:'';display:inline-block;width:.36em;height:.36em;margin:0 0 .2em .55em;border:solid currentColor;border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}.site .lang[open] summary::after{margin-bottom:0;transform:rotate(-135deg)}.site .lang summary:hover,.site .lang[open] summary{border-color:var(--ink-3);color:var(--ink)}\
 .site .lang div{position:absolute;right:0;top:calc(100% + 4px);z-index:20;display:grid;min-width:9.5rem;background:var(--bg);border:1px solid var(--ink-3);padding:.25rem 0}\
 .site .lang div a{color:var(--ink-2);text-decoration:none;padding:.3rem .8rem}.site .lang div a:hover{color:var(--ink);background:var(--rule)}\
 .site .badge{background:#d64531;color:#fff;font:700 .75rem system-ui,sans-serif;letter-spacing:.14em;padding:.2rem .55rem;border-radius:2px}\
