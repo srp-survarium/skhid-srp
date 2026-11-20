@@ -190,3 +190,12 @@ vtable	slot	va	class	base	basis
 0x009f3440	0x8	0x001ce100	vostok::render::effect_wet_surface	vostok::render::effect_descriptor	observed: compile; written into the static descriptor 0x2261118 at 0x17CCAC
 0x009f5108	0x4	0x00054e10	vostok::render::effect_rain	vostok::render::effect_descriptor	observed: should_recompile_when_global_changes, the base's (returns false)
 0x009f5108	0x8	0x001d3b90	vostok::render::effect_rain	vostok::render::effect_descriptor	observed: compile; written into the static descriptor 0x2260F8C at 0x1AE12C
+0x00a04174	0x44	0x002e2f50	survarium::weapon	survarium::weapon_core	observed: installed by weapon::weapon 0x243656; player::mt_draw calls it at 0x2476AB
+0x00a04174	0x48	0x00244e10	survarium::weapon	survarium::weapon_core	observed: installed by weapon::weapon 0x243656; player::mt_draw calls it at 0x2477DD
+0x00a04174	0x4c	0x00245250	survarium::weapon	survarium::weapon_core	observed: installed by weapon::weapon 0x243656; player::mt_draw's culled path calls it at 0x24781C
+0x009f0f24	0x24	0x0015a9c0	vostok::render::skeleton_render_model_instance	vostok::render::render_model_instance	observed: load_weapon calls it at 0x243AD7, 0x243AF6, 0x243B22; forwards to the original's (+62B4h) vtable+28h, render_model::get_locator 0x1585B0
+0x009f2b24	0x24	0x0016f5e0	vostok::render::static_render_model_instance	vostok::render::render_model_instance	observed: forwards to the original's (+290h) vtable+28h, render_model::get_locator 0x1585B0
+0x00a04c34	0x1c	0x00298630	survarium::portable_interactive_object_with_finger_correction	survarium::portable_interactive_object_core	observed: RTTI; correct_fingers, called by update_bones_matrices 0x2FF8C3; the base's and portable_interactive_object's slot is a ret 8 (0x15A4B0)
+0x00a04c34	0x20	0x002959d0	survarium::portable_interactive_object_with_finger_correction	survarium::portable_interactive_object_core	observed: RTTI; solve_hands_ik, called by update_bones_matrices 0x2FF76C; the core's slot is a ret 10h (0x2DED60)
+0x00a04c34	0x28	0x00298680	survarium::portable_interactive_object_with_finger_correction	survarium::portable_interactive_object_with_finger_correction	observed: RTTI; release_left_hand, reached through the thunk 0x2DD760 bound in weapon::activate
+0x00a0b3c4	0x20	0x002959d0	survarium::portable_interactive_object	survarium::portable_interactive_object_core	observed: RTTI; solve_hands_ik; victory items' object (ctor 0x295560 from 0x231B9A), no finger corrector
