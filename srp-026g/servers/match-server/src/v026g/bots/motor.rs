@@ -3963,7 +3963,7 @@ impl Motor {
 
     /// [press forecast] A forecast press followed to [`CAST_WATCH_S`] after it: its line, with whether the body is up and how far
     /// it is from the forecast's rest (the reckoned body, the world's fixes in it).
-    fn cast_watch_tick(&mut self, pose: &Pose, flyer: Option<&mut dyn PressFlyer>) {
+    fn cast_watch_tick<'f>(&mut self, pose: &Pose, flyer: Option<&mut (dyn PressFlyer + 'f)>) {
         let Some(watch) = self.cast_watch.as_ref() else {
             return;
         };
