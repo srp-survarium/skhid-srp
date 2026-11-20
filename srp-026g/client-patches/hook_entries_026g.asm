@@ -9367,6 +9367,162 @@ text_input_on_char_replay:
     db 0x8b, 0x47, 0xe8, 0x8b, 0x70, 0x10
     jmp 0x79d36f
 
+; 0x3df7d1 remove_texture_predicate 0x3DF780 for a name the resource manager does not hold, before its push_back 0x1326F0 at 0x3DF7D6 (push ebx / lea eax,[esp+14h]): EBX the manager's names (+1Ch), full when end equals capacity end: lohook -> texture_lists_on_name_push
+global texture_lists_on_name_push
+extern hook_texture_lists_on_name_push
+texture_lists_on_name_push:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_lists_on_name_push
+    mov edx, texture_lists_on_name_push_replay
+    cmp eax, 0
+    je texture_lists_on_name_push_go
+    mov edx, 0x3df7d6
+    cmp eax, 1
+    je texture_lists_on_name_push_go
+    ud2
+texture_lists_on_name_push_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_lists_on_name_push_replay:
+    db 0x53, 0x8d, 0x44, 0x24, 0x14
+    jmp 0x3df7d6
+
+; 0x155205 gather_streamable_textures 0x154FA0 for a texture the scene does not stream yet, before its push_back 0x155F60 at 0x155217 (lea eax,[ebx+126158h]); the async worker is done (0x1551E4..0x155200 waited for it): EBX the scene: lohook -> texture_lists_on_streaming_push
+global texture_lists_on_streaming_push
+extern hook_texture_lists_on_streaming_push
+texture_lists_on_streaming_push:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_lists_on_streaming_push
+    mov edx, texture_lists_on_streaming_push_replay
+    cmp eax, 0
+    je texture_lists_on_streaming_push_go
+    mov edx, 0x15520b
+    cmp eax, 1
+    je texture_lists_on_streaming_push_go
+    ud2
+texture_lists_on_streaming_push_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_lists_on_streaming_push_replay:
+    db 0x8d, 0x83, 0x58, 0x61, 0x12, 0x00
+    jmp 0x15520b
+
+; 0x14fde6 scene::~scene 0x14FAC0 once its streaming lists are emptied (the candidates' end 0x14FC56, the requests 0x14FDC0, the streamable textures 0x14FDD9; mov edx,[ebp+120148h]), nothing of it reads them after: EBP the scene: lohook -> texture_lists_on_scene_lists_destroyed
+global texture_lists_on_scene_lists_destroyed
+extern hook_texture_lists_on_scene_lists_destroyed
+texture_lists_on_scene_lists_destroyed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_lists_on_scene_lists_destroyed
+    mov edx, texture_lists_on_scene_lists_destroyed_replay
+    cmp eax, 0
+    je texture_lists_on_scene_lists_destroyed_go
+    mov edx, 0x14fdec
+    cmp eax, 1
+    je texture_lists_on_scene_lists_destroyed_go
+    ud2
+texture_lists_on_scene_lists_destroyed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_lists_on_scene_lists_destroyed_replay:
+    db 0x8b, 0x95, 0x48, 0x01, 0x12, 0x00
+    jmp 0x14fdec
+
+; 0x3d319d texture_pool::add_texture 0x3D3010 before it pushes the texture it made (add esi,64h / lea edi,[esp+18h]; push_back 0x3D35B0 at 0x3D31A4): ESI the pool (mov esi,[esp+64h], add_texture's first argument): lohook -> texture_lists_on_pool_slot_push
+global texture_lists_on_pool_slot_push
+extern hook_texture_lists_on_pool_slot_push
+texture_lists_on_pool_slot_push:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_texture_lists_on_pool_slot_push
+    mov edx, texture_lists_on_pool_slot_push_replay
+    cmp eax, 0
+    je texture_lists_on_pool_slot_push_go
+    mov edx, 0x3d31a4
+    cmp eax, 1
+    je texture_lists_on_pool_slot_push_go
+    ud2
+texture_lists_on_pool_slot_push_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+texture_lists_on_pool_slot_push_replay:
+    db 0x83, 0xc6, 0x64, 0x8d, 0x7c, 0x24, 0x18
+    jmp 0x3d31a4
+
 ; 0x155980 scene::update_streaming_data's start (sub esp,18h / push ebx / mov ebx,[eax+12615Ch]), every frame from process_streaming (0x1540DE) while the scene has streamable textures: EAX the scene; returned is its `ret` (0x1559FE): lohook -> texture_streaming_on_update
 global texture_streaming_on_update
 extern hook_texture_streaming_on_update

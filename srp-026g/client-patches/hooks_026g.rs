@@ -5480,6 +5480,66 @@ pub extern "C" fn hook_text_input_on_char(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- texture_lists (patch 163) ----
+
+/// The entry `texture_lists_on_name_push` (0x3df7d1, remove_texture_predicate 0x3DF780 for a name the resource manager does not hold, before its push_back 0x1326F0 at 0x3DF7D6 (push ebx / lea eax,[esp+14h]): EBX the manager's names (+1Ch), full when end equals capacity end) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_lists_on_name_push(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_lists_on_name_push` calls this, from the game's jump at 0x3df7d1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_lists::on_name_push(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- texture_lists (patch 163) ----
+
+/// The entry `texture_lists_on_streaming_push` (0x155205, gather_streamable_textures 0x154FA0 for a texture the scene does not stream yet, before its push_back 0x155F60 at 0x155217 (lea eax,[ebx+126158h]); the async worker is done (0x1551E4..0x155200 waited for it): EBX the scene) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_lists_on_streaming_push(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_lists_on_streaming_push` calls this, from the game's jump at 0x155205,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_lists::on_streaming_push(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- texture_lists (patch 163) ----
+
+/// The entry `texture_lists_on_scene_lists_destroyed` (0x14fde6, scene::~scene 0x14FAC0 once its streaming lists are emptied (the candidates' end 0x14FC56, the requests 0x14FDC0, the streamable textures 0x14FDD9; mov edx,[ebp+120148h]), nothing of it reads them after: EBP the scene) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_lists_on_scene_lists_destroyed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_lists_on_scene_lists_destroyed` calls this, from the game's jump at 0x14fde6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_lists::on_scene_lists_destroyed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- texture_lists (patch 163) ----
+
+/// The entry `texture_lists_on_pool_slot_push` (0x3d319d, texture_pool::add_texture 0x3D3010 before it pushes the texture it made (add esi,64h / lea edi,[esp+18h]; push_back 0x3D35B0 at 0x3D31A4): ESI the pool (mov esi,[esp+64h], add_texture's first argument)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_texture_lists_on_pool_slot_push(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `texture_lists_on_pool_slot_push` calls this, from the game's jump at 0x3d319d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::texture_lists::on_pool_slot_push(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- texture_streaming (patch 137) ----
 
 /// The named exits of texture_streaming::on_update (the order the shim's Flow code

@@ -2461,3 +2461,12 @@ va	status	ref_021d	name
 0x00070e30	verified		vostok::math::random32::random_f
 0x0028bee0	reviewed		survarium::lobby_menu::find_players
 0x0026b660	reviewed		survarium::messaging_client::find_players
+0x001326f0	reviewed	0x000f4104	vostok::buffer_vector<vostok::fixed_string<260> >::push_back
+0x00155f60	reviewed	0x001319cf	vostok::buffer_vector<vostok::render::streamable_texture_info>::push_back
+0x00157270	reviewed	0x001325ad	stlp_std::priv::__find_if<vostok::render::streamable_texture_info *,vostok::render::remove_texture_predicate>
+0x001c25e0	reviewed	0x00135495	vostok::buffer_vector<vostok::render::potential_request>::push_back
+0x003c3e60	reviewed	0x0026b822	vostok::buffer_vector<vostok::fixed_string<260> >::erase
+0x003c5250	reviewed	0x0026e6bb	stlp_std::priv::__find<vostok::fixed_string<260> *,char const *>
+0x003df780	reviewed	0x0027fdf4	vostok::render::remove_texture_predicate::operator()
+0x003e12a0	reviewed	0x00280f82	stlp_std::priv::__find_if<vostok::render::effect_compiler::texture_query_desc *,vostok::render::remove_texture_predicate>
+0x003d35b0	observed		vostok::buffer_vector<vostok::render::texture_pool_slot>::push_back

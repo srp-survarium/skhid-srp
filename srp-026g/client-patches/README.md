@@ -200,6 +200,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/trap_stock_hit.rs`, `src/trap_stock_hit.toml`, `src/vostok/trap.rs`, `check_trap_stock_hit_026g.py` | Patch 151: a gun-stock hit disarms a trap (`../docs/notes/trap-stock-hit.md`): one lohook at `booby_trap_core::hit`'s entry (`trap.hit`); its check runs the hit in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
 | `rust/patches/src/particle_room.rs`, `src/particle_room.toml`, `src/vostok/effect_presenter.rs`, `check_particle_room_026g.py` | Patch 122: the game world's particle presenters hold 32 effects, not six (README "Room for a presenter's particle effects"): five lohooks, a heap room per presenter, no entry for a play into a full list; its check runs the constructors, push_back, deserialize's local list, the swap and a play in the original and the build (needs Unicorn) |
+| `rust/patches/src/texture_lists.rs`, `src/texture_lists.toml`, `src/vostok/texture_lists.rs`, `check_texture_lists_026g.py` | Patch 163: the render's texture lists (the texture names, a texture pool's slots, a scene's streamable textures with its candidates and requests) move into a heap room twice the size when full (README "The render's texture lists"): four lohooks; its check runs the pushes and the scene destructor's site in the original and the build (needs Unicorn) |
 | `weapon_camo_026g.asm`, `weapon_camo_026g.section.bin` | The source of patch 44's code (a weapon wears the camouflage its item holds) and that code assembled for `.srpw`, its own section on the page after `.srpc` (0xA42A000), which `patch_026g.py` reads. Assembling the source again gives the same bytes |
 | `rust/patches/src/weapon_camo.rs`, `weapon_camo.toml` | Patch 44's part in the baker (Rust, one lohook at `bake.own_camouflage`, 0x12E124): a weapon's bake takes only the camouflage textures its patch names (the colours and the `_smap`, not the `_nmap`, a cloth's weave), never the surface's own `<diffuse>_camo...`; `check_weapon_camo_026g.py` runs the site |
 | `research_026g.asm`, `research_arena/`, `../crates/research-rule/` | Patch 53 (Research): four aligned assembly entries, the integer rules in Rust, and the cook, rule slots and UI integration in Rust |
@@ -6229,6 +6230,72 @@ drawn the game's log file (`<application>_<user>.log`) through the engine's scro
 and move the view's pad; the console still takes every key and wheel turn before the game's handlers.
 Nothing a match computes changes. `check_console_scroll_026g.py` (`tools/check console-scroll`) runs
 the three functions on the game's own scroll view in both exes. Not run in a game.
+
+## The render's texture lists (patch 163, unreleased)
+
+A match whose players wear many different items crashes on the render's fixed lists of textures
+(the memory test of 2026-11-19: a 10 v 10 against 19 bots, three kits each of all-different gear).
+Each list is a fixed_vector with its room inside its owner, and its push_back asserts ("buffer
+overflow") when it is full; nothing grows it. What each holds, read from full dumps of main's exe
+and of this patch's first builds:
+
+- **The resource manager's texture names** (`resource_manager` +1Ch, 2048 `fixed_string<260>` of
+  110h, 544 KiB inside the manager). `effect_cook::on_binary_shaders` (0x3DF800) drops from an
+  effect's texture queries those the manager already knows (`remove_if` with
+  `remove_texture_predicate` 0x3DF780 and the unrolled `__find_if` 0x3E12A0): a new name is pushed
+  (push_back 0x1326F0 at 0x3DF7D6, its int3 0x132755) and queried; `resource_manager::release`
+  (0x3BEE00) erases the name when its texture goes (0x3C3E60). It is an index of the textures
+  registered: at the crash at load (340 distinct items worn) the 2048 names were distinct and each
+  was a texture of the registry (2349 there: the 2048, 227 `$user$` bakes and 74 loaded by other
+  paths); 879 were characters', 149 the lobby scene's (it stays loaded during a match). Nothing
+  leaks or repeats, and the textures are loaded whatever the index holds.
+- **A texture pool's slots** (`texture_pool` +64h, 1024 of 1Ch, 28 KiB inside the pool). The
+  texture storage (`resource_manager` +94914h) keeps its textures in pools by size and format
+  ("64x64 dxt1"); a slot is one texture of that size alive, `add_texture` (0x3D3010) makes one more
+  when no slot is free (push_back 0x3D35B0, int3 0x3D360D), and a released texture's slot is used
+  again. With the names given room, the same load filled the 64x64 DXT1 pool next: its 1024 slots
+  in use, each a distinct texture alive at its smallest streamed mips (2263 slots in use in all the
+  pools, no name on two). A 64x64 DXT1 texture with its mips is 2.7 KiB of video memory.
+- **A scene's streamable textures** (`scene` +126158h, 2048 of 148h): `gather_streamable_textures`
+  (0x154FA0) pushes a texture a model draws with that the scene does not stream yet (0x155217,
+  push_back 0x155F60, int3 0x155FC2); `process_streaming`'s sweep (0x1548F4, run only while no
+  request is out) erases the loaded ones nothing draws any more. Beside it, one entry each: the
+  async worker's candidates (+98054Ch, 2048 of 64h; `update_wanted_mips` 0x1C2120 pushes one for
+  every streamable texture, int3 0x1C2642) and the requests (+1CA164h, 1024 of 118h: one for every
+  candidate whose mips change, asked only while none is out). With 185 distinct items main's exe
+  asserted there 4 minutes into the match in one run of two.
+
+The patch (`texture_lists`, four lohooks): when a push finds its list full in its owner's room, the
+list's entries move to a room of ours twice the size, from the process heap, and the push goes on.
+Each entry is copied whole; one that begins with a `fixed_string` (a name, a streamable texture, a
+request) has that string's three pointers, which point into the entry itself, moved with it. The
+game's code reads only a list's three pointers and keeps indices into the streamable textures (the
+candidates' first word), never an entry's address.
+
+- `texture_lists.name_push` (0x3DF7D1, EBX the manager's names): the names, to 4096.
+- `texture_lists.pool_slot_push` (0x3D319D, ESI the pool): that pool's slots, to 2048. A pool's room
+  lives as long as its storage, the game's: the storage's destructor at the game's end does not give
+  it back.
+- `texture_lists.streaming_push` (0x155205, EBX the scene; gather has waited for the async worker at
+  0x1551E4): the streamable textures to 4096, the candidates to 4096 and the requests to 2048, the
+  three or none.
+- `texture_lists.scene_lists_destroyed` (0x14FDE6 in `scene::~scene`, once it has emptied the three
+  lists; EBP the scene): a scene's rooms go back to the heap.
+
+Past our room, or when the heap gives none, the game's assert stays (one line in the log). A move
+says itself in a line (`texture_lists: the texture pool 64x64 dxt1, full at 1024, moved to a room of
+2048`), and so does each new high of the names or the streamable textures by 256 in our room.
+
+**What it costs.** Only the rooms, and only once a list is full: the names 1.06 MiB, a pool 56 KiB,
+a scene 2.22 MiB (1.28 + 0.39 + 0.55, back with the scene); a match that fills no list takes
+nothing. The game's own rooms stay in their owners, unused once a list has moved. The textures the
+lists index are loaded whatever the lists hold; what the room changes is that the match goes on
+with them instead of stopping. Every list is the render thread's (the crashes' thread: the names'
+push and erase, the pools' add and release, gather and process_streaming).
+
+`fields_026g.tsv` takes offsets to 16 MiB (`engine_026g.py`): a scene is 9B76A8h bytes.
+`check_texture_lists_026g.py` (`tools/check texture-lists`) runs the predicate, add_texture's push,
+gather's push and the destructor's site in both exes. Nothing a match computes.
 
 ## The ported 0.21 maps render the 0.21 way (patch 130, unreleased)
 

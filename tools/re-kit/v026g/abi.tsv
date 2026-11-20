@@ -2705,3 +2705,8 @@ va	name	source	ret_cleanup	result
 0x00311070	survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme	manual	12	EAX: the lexeme out-param (stack+4); the clip speed it hands on is +14Ch through 0x2D5AE0 index 13 (0x3110D5)
 0x0028bee0	survarium::lobby_menu::find_players	manual	4	AL: 1 (callback handled); the text of 3 bytes or more goes to 0x26B660 as it is (no cut, no check of its bytes), a shorter one nowhere
 0x0026b660	survarium::messaging_client::find_players	manual	8	none: writes 4E 06 {u8 strlen & FFh, the bytes} on the lobby link (0x37A0E0 begin, 0x379640 queue: it leaves on the link's next 500 ms tick); nothing unless the link is connected (state 0 or 4)
+0x001326f0	vostok::buffer_vector<vostok::fixed_string<260> >::push_back	manual	4	
+0x00155f60	vostok::buffer_vector<vostok::render::streamable_texture_info>::push_back	manual	4	
+0x003df780	vostok::render::remove_texture_predicate::operator()	manual	0	AL: 1 when the resource manager holds the name already (the query is dropped), 0 when it was pushed
+0x003e12a0	stlp_std::priv::__find_if<vostok::render::effect_compiler::texture_query_desc *,vostok::render::remove_texture_predicate>	manual	0	EAX: the first query the predicate drops, else last
+0x003d35b0	vostok::buffer_vector<vostok::render::texture_pool_slot>::push_back	manual	0	
