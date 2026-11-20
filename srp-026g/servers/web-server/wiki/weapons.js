@@ -144,8 +144,8 @@ function WikiWeaponSlots(weapons, roundsOf, tr, collator, changed) {
     const keys = [['a', pickers[0].value], ['b', pickers[1].value], ['ra', round(0)], ['rb', round(1)]];
     for (const [key, value] of keys) if (value) url.searchParams.set(key, value); else url.searchParams.delete(key);
     history.replaceState(null, '', url);
-    const language = document.querySelector('a.lang');
-    if (language) {
+    // Each of the header's languages keeps the choice.
+    for (const language of document.querySelectorAll('.lang a')) {
       const next = new URL(language.href);
       for (const [key] of keys) {
         if (url.searchParams.has(key)) next.searchParams.set(key, url.searchParams.get(key)); else next.searchParams.delete(key);

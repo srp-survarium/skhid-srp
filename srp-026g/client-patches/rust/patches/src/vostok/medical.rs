@@ -1,6 +1,6 @@
 //! Medical hooks over generated typed native handles. A borrowed player lives
 //! for the paused hook; a core lookup owns one reference until its guard drops.
-use super::{Context, Reg, Thread, drug::DrugsInUse};
+use super::{Context, Reg, Thread, drug::{self, DrugsInUse, Effect}};
 use crate::{
     medical_skills::{Antitoxin, Painkiller, Regeneration, Skills, Stance},
     raw,
@@ -52,9 +52,9 @@ impl<'t> Player<'t> {
     }
     /// Any antitoxin of its inventory in use, by the same flag.
     fn antitoxin(self) -> Antitoxin {
-        // SAFETY: as painkiller; a drug in use owns its healing records.
+        // SAFETY: as painkiller.
         let active = unsafe {
-            DrugsInUse::of(self.thread, self.at).any(|drug| antitoxin(drug.medkit()))
+            DrugsInUse::of(self.thread, self.at).any(|drug| drug.effect() == Effect::Antitoxin)
         };
         if active { Antitoxin::Active } else { Antitoxin::Inactive }
     }
@@ -183,26 +183,6 @@ unsafe fn painkiller(item: raw::Medkit) -> bool {
         };
         (0..usize::from(*item.protection_count()))
             .any(|i| name_equal(first.at(i).name(), c"pain".as_ptr().cast()))
-    }
-}
-/// An antitoxin: of its data/influences, those that heal (an amount above 0)
-/// heal the infection pool and nothing else. Its config keeps the medkit
-/// template's seven records at 0; the science medkit heals infection and the
-/// body too: a medkit.
-unsafe fn antitoxin(item: raw::Medkit) -> bool {
-    // SAFETY: item owns its declared array of healing records, each with its
-    // pool's name inline.
-    unsafe {
-        let Some(first) = item.heals() else {
-            return false;
-        };
-        let infection = c"infection".as_ptr().cast();
-        let mut healing = (0..usize::from(*item.influences()))
-            .map(|i| first.at(i))
-            .filter(|record| *record.amount() > 0.0)
-            .map(|record| name_equal(record.name(), infection))
-            .peekable();
-        healing.peek().is_some() && healing.all(|infection| infection)
     }
 }
 /// # Safety
@@ -394,7 +374,7 @@ pub fn drug_begin(ctx: &mut Context<'_>) {
         let (Some(item), Some(at)) = (site::item(ctx), site::player(ctx)) else {
             return;
         };
-        if !antitoxin(item) {
+        if drug::effect(item) != Effect::Antitoxin {
             return;
         }
         let stamina = at.stamina();

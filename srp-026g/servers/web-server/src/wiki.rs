@@ -9,7 +9,8 @@
 //! The quests ([`crate::quests`]) come from the server's game data and pay rules.
 
 use crate::{
-    ContentType, Lang, Response, damage, equipment, escape, maps, modifiers, quests, skills,
+    ContentType, Lang, Response, Written, damage, equipment, escape, maps, modifiers, quests,
+    skills,
 };
 
 pub(crate) const PATH: &str = "/wiki";
@@ -62,89 +63,81 @@ pub(crate) fn page(
     now: &skills::Now,
 ) -> Response {
     let (title, body) = if path == WEAPONS {
-        let body = match lang {
-            Lang::En => include_str!("../wiki/weapons.en.html"),
-            Lang::Uk => include_str!("../wiki/weapons.uk.html"),
+        let body = match lang.written() {
+            Written::En => include_str!("../wiki/weapons.en.html"),
+            Written::Uk => include_str!("../wiki/weapons.uk.html"),
         };
-        (lang.tr("Weapons", "Зброя"), body.to_owned())
+        (lang.t("Weapons"), body.to_owned())
     } else if path == SIMULATORS {
-        let body = match lang {
-            Lang::En => include_str!("../wiki/simulators.en.html"),
-            Lang::Uk => include_str!("../wiki/simulators.uk.html"),
+        let body = match lang.written() {
+            Written::En => include_str!("../wiki/simulators.en.html"),
+            Written::Uk => include_str!("../wiki/simulators.uk.html"),
         };
-        (lang.tr("Simulators", "Симулятори"), body.to_owned())
+        (lang.t("Simulators"), body.to_owned())
     } else if path == skills::PATH {
-        (lang.tr("Skills", "Навички"), skills::body(lang, now))
+        (lang.t("Skills"), skills::body(lang, now))
     } else if path == quests::PATH {
-        (lang.tr("Quests", "Завдання"), quests::body(lang))
+        (lang.t("Quests"), quests::body(lang))
     } else if path == EQUIPMENT {
-        (lang.tr("Equipment", "Спорядження"), equipment::body(lang))
+        (lang.t("Equipment"), equipment::body(lang))
     } else if path == MODIFIERS {
         (
-            lang.tr("Modifiers", "Модифікатори"),
+            lang.t("Modifiers"),
             modifiers::body(lang, modifiers::chosen(query)),
         )
     } else {
         (
-            lang.tr("Wiki", "Вікі"),
+            lang.t("Wiki"),
             format!(
                 "<div class=wiki-heading><h1>{}</h1></div><div class=wiki-sections>{}{}{}{}{}{}{}{}</div>",
-                lang.tr("Wiki", "Вікі"),
+                lang.t("Wiki"),
                 section(
                     lang,
                     WEAPONS,
-                    &lang.tr("Weapons", "Зброя"),
-                    &lang.tr("Browse weapons, compare base stats and explore their damage and handling.",
-                        "Переглядайте зброю, порівнюйте базові характеристики, ушкодження та швидкість перезаряджання."),
+                    &lang.t("Weapons"),
+                    &lang.t("Browse weapons, compare base stats and explore their damage and handling."),
                 ),
                 section(
                     lang,
                     SIMULATORS,
-                    &lang.tr("Simulators", "Симулятори"),
-                    &lang.tr("Recoil and spread of any weapon: aim, stance, skills, gear and injuries.",
-                        "Відбій і розкид будь-якої зброї: приціл, положення, навички, спорядження й травми."),
+                    &lang.t("Simulators"),
+                    &lang.t("Recoil and spread of any weapon: aim, stance, skills, gear and injuries."),
                 ),
                 section(
                     lang,
                     EQUIPMENT,
-                    &lang.tr("Equipment", "Спорядження"),
-                    &lang.tr("Every armour piece: protection, weight, built-in bonuses and what it can roll.",
-                        "Усе спорядження: захист, вага, вбудовані властивості й модифікатори."),
+                    &lang.t("Equipment"),
+                    &lang.t("Every armour piece: protection, weight, built-in bonuses and what it can roll."),
                 ),
                 section(
                     lang,
                     MODIFIERS,
-                    &lang.tr("Modifiers", "Модифікатори"),
-                    &lang.tr("Every modifier, its strengths and the items that can get it.",
-                        "Усі модифікатори, їхня сила та предмети, на які вони випадають."),
+                    &lang.t("Modifiers"),
+                    &lang.t("Every modifier, its strengths and the items that can get it."),
                 ),
                 section(
                     lang,
                     skills::PATH,
-                    &lang.tr("Skills", "Навички"),
-                    &lang.tr("Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives.",
-                        "Рівні й скільки досвіду вони потребують; усі гілки навичок: пороги, ранги й що дає кожен ранг."),
+                    &lang.t("Skills"),
+                    &lang.t("Levels and the experience they take; every skill tree: thresholds, ranks and what each rank gives."),
                 ),
                 section(
                     lang,
                     quests::PATH,
-                    &lang.tr("Quests", "Завдання"),
-                    &lang.tr("Every faction quest: its goal at each reputation level and what it pays.",
-                        "Усі завдання угруповань: мета на кожному рівні репутації й винагорода."),
+                    &lang.t("Quests"),
+                    &lang.t("Every faction quest: its goal at each reputation level and what it pays."),
                 ),
                 section(
                     lang,
                     damage::PATH,
-                    &lang.tr("Damage calculator", "Калькулятор шкоди"),
-                    &lang.tr("Shots to kill a target in any armour, at any distance.",
-                        "Скільки влучань треба, щоб убити ціль у будь-якій броні на будь-якій відстані."),
+                    &lang.t("Damage calculator"),
+                    &lang.t("Shots to kill a target in any armour, at any distance."),
                 ),
                 section(
                     lang,
                     maps::PATH,
-                    &lang.tr("Maps", "Мапи"),
-                    &lang.tr("Spawns, batteries, chargers, containers and artefacts on every map.",
-                        "Точки появи, батареї, зарядні пристрої, контейнери й артефакти на кожній мапі."),
+                    &lang.t("Maps"),
+                    &lang.t("Spawns, batteries, chargers, containers and artefacts on every map."),
                 ),
             ),
         )
@@ -152,7 +145,7 @@ pub(crate) fn page(
     framed(
         lang,
         &title,
-        &lang.tr("Skhid wiki", "Вікі Сходу"),
+        &lang.t("Skhid wiki"),
         header,
         &body,
     )
