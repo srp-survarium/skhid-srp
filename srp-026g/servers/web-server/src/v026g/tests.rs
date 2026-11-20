@@ -1307,8 +1307,10 @@ fn serve_wiki_preview() {
     let dir = std::env::temp_dir().join(format!("srp-wiki-preview-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let world = world_with(crate::history::tests::preview(&dir, crate::unix_now()));
-    let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
-    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki, stats: http://127.0.0.1:24583/stats");
+    // SRP_PREVIEW_PORT: another port, for two previews side by side.
+    let port = std::env::var("SRP_PREVIEW_PORT").unwrap_or_else(|_| "24583".to_owned());
+    let listener = std::net::TcpListener::bind(format!("127.0.0.1:{port}")).unwrap();
+    eprintln!("Wiki preview: http://127.0.0.1:{port}/wiki, stats: http://127.0.0.1:{port}/stats");
     for stream in listener.incoming() {
         world.web.serve(stream.unwrap());
     }

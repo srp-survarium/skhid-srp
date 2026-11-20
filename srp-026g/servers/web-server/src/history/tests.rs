@@ -304,13 +304,14 @@ const TOTALS: [&str; 20] = [
     "wins",
 ];
 
-const SUMMARY: [&str; 14] = [
+const SUMMARY: [&str; 15] = [
     "duration_s",
     "eligibility",
     "ended_at",
     "id",
     "level",
     "map",
+    "map_icon",
     "map_id",
     "map_key",
     "mode",
@@ -678,7 +679,8 @@ fn the_best_scores_are_of_the_period() {
     assert_eq!(
         keys(&rows[0]),
         [
-            "deaths", "ended_at", "kills", "level", "map", "map_key", "match", "mode", "player", "rules",
+            "deaths", "ended_at", "kills", "level", "map", "map_icon", "map_key", "match", "mode",
+            "player", "rules",
             "score"
         ]
     );
@@ -1089,4 +1091,25 @@ fn the_teams_colours_are_the_maps_pages() {
         assert_eq!(colour(STYLE, team), colour(maps, team), "{team}");
         assert!(colour(STYLE, team).starts_with('#'));
     }
+}
+
+/// Every map a match can be played on has the rooms' picture of it, and the
+/// history gives its address.
+#[test]
+fn a_match_has_its_maps_picture_as_the_rooms_draw_it() {
+    for map in survarium::v026g::maps::playable() {
+        let key = format!("{}_{}", map.level, map.weather);
+        let url = icons::url(IconSet::Map, &key).unwrap_or_else(|| panic!("no picture {key}"));
+        let path = url.split_once("?v=").unwrap().0;
+        assert!(icons::file(path).is_some_and(|(_, bytes)| !bytes.is_empty()), "{path}");
+    }
+    let dir = std::env::temp_dir().join(format!("srp-web-history-map-picture-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let accounts = preview(&dir, NOW);
+    let endpoint = Endpoint::parse("/api/history/matches", "limit=50").unwrap();
+    let answer = answer(&endpoint, accounts.history().unwrap(), &|_| false, Lang::En, NOW).unwrap();
+    for played in answer["matches"].as_array().unwrap() {
+        assert!(played["map_icon"].as_str().unwrap().starts_with("/wiki/icons/maps/"));
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }

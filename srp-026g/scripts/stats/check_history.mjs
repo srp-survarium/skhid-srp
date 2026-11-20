@@ -157,6 +157,10 @@ try {
   const newest = answered.matches.matches[0].id;
   assert.equal(newest, 23);
   assert.equal(await text('.stats-board .stats-table tbody tr td:nth-child(2)'), String(newest), 'newest first');
+  // Each match with its map's picture, the rooms' own.
+  assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-board img.stats-map')].map(i => new URL(i.src).pathname + new URL(i.src).search))")),
+    answered.matches.matches.map(row => row.map_icon));
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-board img.stats-map')].every(i => i.complete ? i.naturalWidth === 128 : true)"), true);
   // A click anywhere on a match's row opens it.
   await evaluate("document.querySelector('.stats-board .stats-table tbody tr td:nth-child(4)').click()");
   await new Promise(resolve => setTimeout(resolve, 500));

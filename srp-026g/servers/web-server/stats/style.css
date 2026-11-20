@@ -6,7 +6,7 @@
 .stats-panels { grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); border:1px solid var(--rule); background:var(--panel); margin-top:20px }
 .stats-heading { margin:26px 0 10px; font-size:1.1rem }
 .stats-table { border-collapse:collapse; width:100%; font:.82rem var(--data); background:var(--panel); border:1px solid var(--rule) }
-.stats-table th,.stats-table td { padding:6px; border-bottom:1px solid var(--rule); text-align:right; white-space:nowrap; vertical-align:baseline }
+.stats-table th,.stats-table td { padding:6px; border-bottom:1px solid var(--rule); text-align:right; white-space:nowrap; vertical-align:middle }
 .stats-table thead th { font:700 .7rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3) }
 .stats-table .l { text-align:left; font-family:var(--body) }
 .stats-table .sorted { color:var(--accent) }
@@ -46,3 +46,6 @@
 .stats-all dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:14px 20px }
 .stats-all dl>div { flex-direction:column-reverse; align-items:flex-start; gap:2px; border:0; padding:0 }
 .stats-all dd { text-align:left; font-size:1.25rem }
+/* A match's map: the rooms' picture of it beside its name and mode. */
+.stats-map-cell { display:flex; align-items:center; gap:10px }
+.stats-map { flex:none; display:block; width:64px; height:36px; background:var(--rule); object-fit:cover }

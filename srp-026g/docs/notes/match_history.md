@@ -132,9 +132,11 @@ Common objects:
 - A match: `{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
   "map_key":"level_03","mode":"Protective device","rules":2,"level":12,"winner":0,"team_points":[5,3],"players":12,
   "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, `"free_for_all"` (no team wins one:
-  its lines' `outcome` says who did) or `null` when not known. `map` and `map_key` (the map's
-  key in the wiki's Maps page, its project's folder) are `null` for a map the game data no longer
-  has; `mode` is the text the rooms name the mode by ("FFA: Racket"), `rules` its rules' number
+  its lines' `outcome` says who did) or `null` when not known. `map`, `map_key` (the map's
+  key in the wiki's Maps page, its project's folder) and `map_icon` (the address of the map's
+  picture as the rooms draw it, by its level and weather: `servers/web-server/src/icons.rs`,
+  cut by the lobby's table `MapRenders.tsv`, which the rooms read too) are `null` for a map the
+  game data no longer has; `mode` is the text the rooms name the mode by ("FFA: Racket"), `rules` its rules' number
   (the Maps page's mode: the page links a map as `/wiki/maps#<map_key>/<rules>`).
 - A player's line of a match: `"team":0,"place":1,"outcome":"won","left":false,"rating":1180,
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
