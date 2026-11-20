@@ -1913,8 +1913,8 @@ fn faq(lang: Lang) -> String {
                 "«Заблоковано в цій мережі: …»",
             ),
             lang.tr(
-                "Your provider may block skhid.link: use a VPN and add the game's programs to it, see <code>VPN.txt</code>.",
-                "Можливо, ваш провайдер блокує skhid.link: скористайтеся VPN і додайте до нього програми гри, див. <code>VPN.txt</code>.",
+                "Your provider blocks skhid.link: the launcher sets <b>Relay</b> (bottom left) to auto. Press Retry.",
+                "Ваш провайдер блокує skhid.link: лаунчер ставить <b>Релей</b> (ліворуч унизу) на авто. Натисніть «Повторити».",
             ),
         ),
         (
@@ -3461,22 +3461,22 @@ mod tests {
                 "Skhid-defender-setup.cmd",
                 "Skhid.bat",
                 "Skhid-network-setup.cmd",
-                "VPN.txt",
                 "Skhid-collect-logs.cmd",
                 "Skhid-without-updater.bat",
             ] {
                 assert!(faq.contains(said), "{said}: {faq}");
             }
             // The updater's box titles, in the order of the questions; the
-            // VPN only in the blocked one's answer.
+            // relay row only in the blocked one's answer, a VPN in none.
             let mut rest = faq;
             for title in titles {
                 let at = rest.find(title).unwrap_or_else(|| panic!("{title}: {faq}"));
                 rest = &rest[at + title.len()..];
             }
             let (no_connection, blocked) = faq.split_once(titles[3]).unwrap();
-            assert!(!no_connection.contains("VPN"), "{no_connection}");
-            assert!(blocked.contains("VPN.txt"), "{blocked}");
+            assert!(!no_connection.contains("relay") && !no_connection.contains("релей"), "{no_connection}");
+            assert!(blocked.contains("<b>Relay</b>") || blocked.contains("<b>Релей</b>"), "{blocked}");
+            assert!(!faq.contains("VPN"), "{faq}");
             // The Discord invite is the last answer's, nothing after the pairs.
             let last = faq.rsplit("<dd>").next().unwrap();
             assert!(

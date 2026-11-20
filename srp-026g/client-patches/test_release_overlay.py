@@ -144,6 +144,14 @@ class ReleaseTests(unittest.TestCase):
                       (output / 'game/binaries/x86/play_skhid.bat').read_bytes())
         for name in (overlay.LINUX_LAUNCHER, overlay.MAC_LAUNCHER):
             self.assertIn(b'updater_skhid.exe play', (output / name).read_bytes())
+        # A provider that blocks the server: the launcher's "Relay" row, in
+        # the README and on the launcher's own page; no VPN advice.
+        readme = (output / 'README.txt').read_text(encoding='utf-8')
+        self.assertIn("set Relay, at the launcher's bottom left,", readme)
+        self.assertNotIn('VPN', readme)
+        page = (output / 'game/binaries/x86/launcher_skhid/index-en.html').read_text(encoding='utf-8')
+        self.assertIn('set Relay, at the bottom left, to auto.', page)
+        self.assertNotIn('VPN', page)
 
     def test_relay_refuses_incompatible_ports_and_no_updater(self):
         for index, options in enumerate((['--relay=203.0.113.8:1234'],

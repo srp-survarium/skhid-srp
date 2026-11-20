@@ -73,7 +73,7 @@
 166F1 launcher::run_delegated_command_line
 1679F launcher::on_launcher_window_closing
 167BF launcher::on_new_form_ready
-16811 launcher::refresh_status
+16811 launcher::refresh_status                      # esi = the launcher; 0x1687C: load_string(id, buffer, 128) for states 6 (0x87) and 7 (0xB2), cdecl, result unused (patch 16 hooks the call)
 16FE3 launcher::on_form_input
 17027 launcher::create_instance_mutex
 1707C launcher::close_instance_mutex
@@ -83,7 +83,7 @@
 17309 launcher::on_port_changed
 17319 launcher::send_switch_download_type_message   # 0x1A
 173B1 launcher::send_port_message                   # 0x21
-1749F launcher::send_simple_message(type)           # 0x1B abort, 0x1C retry, 0x1D cancel
+1749F launcher::send_simple_message(type)           # 0x1B abort, 0x1C retry, 0x1D cancel; stdcall (launcher, type), ret 8, al = written; patch 16 sends 0x22, 0x23, 0x24 (the relay menu: auto, on, off)
 17522 function0::operator()
 175DC function1::operator()
 18DE1 io_service::poll

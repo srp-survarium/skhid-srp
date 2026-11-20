@@ -536,8 +536,16 @@ def sh(server, embedded=False, name="play_skhid.sh"):
         b"server=\n", f"server={'' if embedded else server}\n".encode("ascii"), 1)
 
 
-def readme(server, description, files, embedded=False, site=None):
-    """`site`: the bundle has the launcher and its updater, which ask it."""
+def readme(server, description, files, embedded=False, site=None, relay=False):
+    """`site`: the bundle has the launcher and its updater, which ask it.
+    `relay`: a download with a relay, whose launcher has the "Relay" row."""
+    # A provider that blocks the server: the launcher's own row where there
+    # is a relay, else a VPN.
+    blocked = (["Russian) and answer Yes when Windows asks for administrator rights. If",
+                "your provider blocks the server, set Relay, at the launcher's bottom left,",
+                "to auto."] if relay else
+               ["Russian) and answer Yes when Windows asks for administrator rights. In",
+                f"Russia, use a VPN and add the game's .exe files to it: see {VPN_HELP}."])
     lines = [
         "SURVARIUM 0.26g - SKHID COMMUNITY SERVER FILES (UNOFFICIAL)",
         "",
@@ -590,8 +598,7 @@ def readme(server, description, files, embedded=False, site=None):
             "",
             "CANNOT REACH THE SERVER?",
             f"Allow the game in your firewall: run {NETWORK_SETUP} (Windows, in",
-            "Russian) and answer Yes when Windows asks for administrator rights. In",
-            f"Russia, use a VPN and add the game's .exe files to it: see {VPN_HELP}.",
+            *blocked,
             "",
             "STILL NOT WORKING?",
             f"Run {COLLECT_LOGS}: it puts the game's logs and the state of its",
@@ -827,10 +834,10 @@ def main():
             (COLLECT_LOGS, russian_script(COLLECT_LOGS)),
         ]
         files += [(os.path.join("game", EXE_DIR, L.PAGES_DIR, name), data)
-                  for name, data in sorted(launcher_pages.pages(site).items())]
+                  for name, data in sorted(launcher_pages.pages(site, bool(relay)).items())]
     listed = [(name.replace(os.sep, "/"), sha256(data)) for name, data in files]
     files.append(("README.txt", readme(server, description, listed, embedded,
-                                       site if launcher else None)))
+                                       site if launcher else None, bool(relay))))
 
     if not check and archive:
         os.makedirs(os.path.dirname(output), exist_ok=True)
