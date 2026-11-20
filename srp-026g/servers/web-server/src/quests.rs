@@ -178,9 +178,9 @@ pub(crate) fn body(lang: Lang) -> String {
     let mut out = format!(
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{}</a> / {}</p>\
          <div class=wiki-heading><div><h1>{}</h1></div></div>",
-        lang.tr("Wiki", "Вікі"),
-        lang.tr("Quests", "Завдання"),
-        lang.tr("Quests", "Завдання"),
+        lang.t("Wiki"),
+        lang.t("Quests"),
+        lang.t("Quests"),
     );
     for faction in FACTIONS {
         faction_section(lang, &mut out, faction);
@@ -188,7 +188,7 @@ pub(crate) fn body(lang: Lang) -> String {
     let _ = write!(
         out,
         "<section class=\"modifiers quests\" id=match-level><h2>{}</h2>",
-        lang.tr("Pay by match level", "Оплата за рівнем матчу"),
+        lang.t("Pay by match level"),
     );
     level_grid(lang, &mut out);
     out.push_str("</section>");

@@ -167,10 +167,7 @@ const STEP: u32 = 250_000;
 fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
     let (first, step) = (cost(1), cost(2) - cost(1));
     // The formulas' names: a level's own experience, and the total to it.
-    let (exp, total) = match lang.written() {
-        Written::En => ("Exp", "Total"),
-        Written::Uk => ("Досвід", "Усього"),
-    };
+    let (exp, total) = (lang.tc("formula", "Exp"), lang.tc("formula", "Total"));
     let lines = level_start(MAX_LEVEL).div_ceil(STEP);
     let y_max = f64::from(lines * STEP);
     let x = |level: u8| LEFT + (RIGHT - LEFT) * f64::from(level) / f64::from(MAX_LEVEL);
@@ -180,10 +177,7 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
         t if t >= 1_000_000 => format!("{}M", f64::from(t) / 1e6),
         t => format!("{}k", t / 1000),
     };
-    let rule = match lang.written() {
-        Written::En => "Experience gives levels, and every level gives one skill point.",
-        Written::Uk => "Досвід дає рівні, а кожен рівень — одне очко навичок.",
-    };
+    let rule = lang.t("Experience gives levels, and every level gives one skill point.");
     // For the skills' planner (skills.js): the formula, the last level and what a match is now.
     let play = per_match.map_or(String::new(), |per_match| {
         format!(
@@ -201,18 +195,18 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
          <p class=levels-formula>{total}<sub>L</sub> <span>= {} × L + {} × L × (L − 1)</span></p>\
          <div class=table-scroll><table class=protection><thead><tr><th>{}</th><th>{}</th>\
          <th>{}</th>{}</tr></thead><tbody>",
-        lang.tr("Levels", "Рівні"),
+        lang.t("Levels"),
         thousands(lang, step),
         thousands(lang, first),
         thousands(lang, first),
         thousands(lang, step / 2),
-        lang.tr("Level", "Рівень"),
-        lang.tr("This level", "Цей рівень"),
-        lang.tr("Total", "Усього"),
+        lang.t("Level"),
+        lang.t("This level"),
+        lang.t("Total"),
         per_match.map_or(String::new(), |_| format!(
             "<th>{}</th><th>{}</th>",
-            lang.tr("Matches", "Матчів"),
-            lang.tr("Hours", "Годин")
+            lang.t("Matches"),
+            lang.t("Hours")
         )),
     );
     for level in LISTED {
@@ -238,7 +232,7 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
     let _ = write!(
         out,
         "<figure class=levels-graph><svg viewBox=\"0 0 {WIDTH} {HEIGHT}\" role=img aria-label=\"{}\">",
-        lang.tr("Total experience by level", "Досвід усього за рівнем"),
+        lang.t("Total experience by level"),
     );
     for line in 0..=lines {
         let total = line * STEP;
@@ -264,7 +258,7 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
         "<text class=axis-name x={} y={} text-anchor=middle>{}</text>",
         (LEFT + RIGHT) / 2.0,
         HEIGHT - 2.0,
-        lang.tr("Level", "Рівень")
+        lang.t("Level")
     );
     let points: Vec<String> = (0..=MAX_LEVEL)
         .map(|level| format!("{:.1},{:.1}", x(level), y(level_start(level))))
@@ -292,7 +286,7 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
             BOTTOM - TOP,
             px + dx,
             (py - 10.0).max(TOP + 12.0),
-            lang.tr("Level", "Рівень"),
+            lang.t("Level"),
             thousands(lang, level_start(level)),
         );
     }

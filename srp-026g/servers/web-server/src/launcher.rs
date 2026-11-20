@@ -436,10 +436,7 @@ pub(crate) fn map_name(lang: Lang, map: &maps::MapMode) -> String {
 pub(crate) fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
     match localization::text(game_language(lang), map.mode_name_key) {
         Some(name) => name.to_owned(),
-        None => lang.tr(
-            &format!("mode {}", map.mode.lobby_number()),
-            &format!("режим {}", map.mode.lobby_number()),
-        ),
+        None => lang.tf("mode {0}", &[("0", &map.mode.lobby_number())]),
     }
 }
 
@@ -448,10 +445,7 @@ pub(crate) fn mode_name(lang: Lang, map: &maps::MapMode) -> String {
 pub(crate) fn lobby_mode_name(lang: Lang, mode: LobbyMode) -> String {
     match localization::text(game_language(lang), mode.name_key()) {
         Some(name) => name.to_owned(),
-        None => lang.tr(
-            &format!("mode {}", mode.number()),
-            &format!("режим {}", mode.number()),
-        ),
+        None => lang.tf("mode {0}", &[("0", &mode.number())]),
     }
 }
 
@@ -475,10 +469,7 @@ fn matches(lang: Lang, live: &[LiveMatch]) -> String {
     if open.is_empty() {
         return format!(
             "<p class=none>{}</p>",
-            lang.tr(
-                "No match is being played now.",
-                "Зараз не грається жодного матчу."
-            )
+            lang.t("No match is being played now.")
         );
     }
     let listed = if open.len() > MOST_MATCHES {
@@ -493,20 +484,17 @@ fn matches(lang: Lang, live: &[LiveMatch]) -> String {
             None => ("?".to_owned(), "?".to_owned()),
         };
         let started = match (each.phase, each.played) {
-            (LivePhase::Gathering, _) => lang.tr("waiting", "очікування"),
-            (LivePhase::Countdown, _) => lang.tr("starting", "старт"),
+            (LivePhase::Gathering, _) => lang.t("waiting"),
+            (LivePhase::Countdown, _) => lang.t("starting"),
             (_, Some(played)) => match played.as_secs() / 60 {
-                0 => lang.tr("just now", "щойно"),
-                minutes => lang.tr(&format!("{minutes} min ago"), &format!("{minutes} хв тому")),
+                0 => lang.t("just now"),
+                minutes => lang.tf("{minutes} min ago", &[("minutes", &minutes)]),
             },
             (_, None) => NONE.to_owned(),
         };
         let left = each.time_left.map_or(NONE.to_owned(), |left| {
             let minutes = left.as_secs().div_ceil(60).max(1);
-            lang.tr(
-                &format!("&le; {minutes} min"),
-                &format!("&le; {minutes} хв"),
-            )
+            lang.tf("&le; {minutes} min", &[("minutes", &minutes)])
         });
         let score = each
             .standing
@@ -531,10 +519,7 @@ fn matches(lang: Lang, live: &[LiveMatch]) -> String {
             {
                 (each.players[0] + each.players[1]).to_string()
             } else {
-                lang.tr(
-                    &format!("{} v {}", each.players[0], each.players[1]),
-                    &format!("{} на {}", each.players[0], each.players[1]),
-                )
+                lang.tf("{0} v {1}", &[("0", &each.players[0]), ("1", &each.players[1])])
             },
         );
     }
@@ -542,17 +527,17 @@ fn matches(lang: Lang, live: &[LiveMatch]) -> String {
         let more = open.len() - listed;
         rows += &format!(
             "<tr><td class=m colspan=5><i>{}</i></td></tr>",
-            lang.tr(&format!("and {more} more"), &format!("і ще {more}"))
+            lang.tf("and {more} more", &[("more", &more)])
         );
     }
     format!(
         "<table cellspacing=0 cellpadding=0><tr><th class=m>{}</th><th class=s>{}</th>\
          <th class=a>{}</th><th class=e>{}</th><th class=c>{}</th></tr>{rows}</table>",
-        lang.tr("Match", "Матч"),
-        lang.tr("Players", "Гравці"),
-        lang.tr("Started", "Початок"),
-        lang.tr("Time left", "До кінця"),
-        lang.tr("Score", "Рахунок"),
+        lang.t("Match"),
+        lang.t("Players"),
+        lang.t("Started"),
+        lang.t("Time left"),
+        lang.t("Score"),
     )
 }
 
@@ -579,18 +564,15 @@ fn places(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts) -> [Str
     let table = if board.top.is_empty() {
         format!(
             "<p class=none>{}</p>",
-            lang.tr(
-                "No battle has been fought yet. Be the first.",
-                "Ще не відбулося жодного бою. Будьте першими."
-            )
+            lang.t("No battle has been fought yet. Be the first.")
         )
     } else {
         format!(
             "<table cellspacing=0 cellpadding=0><tr><th class=n>#</th><th class=p>{}</th>\
              <th class=l>{}</th><th class=r>{}</th></tr>{rows}</table>",
-            lang.tr("Player", "Гравець"),
-            lang.tr("Level", "Рівень"),
-            lang.tr("Rating", "Рейтинг"),
+            lang.t("Player"),
+            lang.t("Level"),
+            lang.t("Rating"),
         )
     };
     let cell = |value: u64, label: String| {
@@ -598,30 +580,24 @@ fn places(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts) -> [Str
     };
     let now = format!(
         "<table class=nums cellspacing=0 cellpadding=0><tr>{}{}{}{}</tr></table>",
-        cell(counts.online as u64, lang.tr("online", "онлайн")),
-        cell(counts.rooms as u64, lang.tr("rooms", "кімнат")),
-        cell(counts.in_rooms as u64, lang.tr("in rooms", "у кімнатах")),
+        cell(counts.online as u64, lang.t("online")),
+        cell(counts.rooms as u64, lang.t("rooms")),
+        cell(counts.in_rooms as u64, lang.t("in rooms")),
         cell(
             counts.matches as u64,
-            lang.tr("matches now", "матчів зараз")
+            lang.t("matches now")
         ),
     );
     let totals = format!(
         "<table class=nums cellspacing=0 cellpadding=0><tr>{}{}{}</tr></table>",
-        cell(counts.registered as u64, lang.tr("players", "гравців")),
-        cell(board.battles, lang.tr("battles fought", "проведено боїв")),
-        cell(counts.clans as u64, lang.tr("clans", "кланів")),
+        cell(counts.registered as u64, lang.t("players")),
+        cell(board.battles, lang.t("battles fought")),
+        cell(counts.clans as u64, lang.t("clans")),
     );
     let status = match counts.maintenance {
-        Some(0) => lang.tr(
-            "Maintenance: the server is down",
-            "Технічні роботи: сервер вимкнено",
-        ),
-        Some(minutes) => lang.tr(
-            &format!("Maintenance in {minutes} min"),
-            &format!("Технічні роботи через {minutes} хв"),
-        ),
-        None => lang.tr("On the server now", "Зараз на сервері"),
+        Some(0) => lang.t("Maintenance: the server is down"),
+        Some(minutes) => lang.tf("Maintenance in {minutes} min", &[("minutes", &minutes)]),
+        None => lang.t("On the server now"),
     };
     let status_class = if counts.maintenance.is_some() {
         "cap warn"
@@ -634,7 +610,7 @@ fn places(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts) -> [Str
         format!("{now}<div class=\"{status_class}\">{status}</div>"),
         format!(
             "{totals}<div class=cap>{}</div>",
-            lang.tr("Since the server opened", "Від відкриття сервера")
+            lang.t("Since the server opened")
         ),
     ]
 }
@@ -642,18 +618,11 @@ fn places(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts) -> [Str
 fn render(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts, test: bool) -> String {
     let [table, matches, now, totals] = places(lang, board, live, counts);
     let badge = if test {
-        format!(" <em>{}</em>", lang.tr("TEST SERVER", "ТЕСТОВИЙ СЕРВЕР"))
+        format!(" <em>{}</em>", lang.t("TEST SERVER"))
     } else {
         String::new()
     };
-    let legal = lang.tr(
-        "Unofficial community server. Not affiliated with or endorsed by Vostok Games. \
-         Survarium is a trademark of its owners. An early test: accounts and progress \
-         can be reset at any time.",
-        "Неофіційний ком'юніті сервер. Не пов'язаний із Vostok Games і не схвалений ними. \
-         Survarium є торговельною маркою її власників. Раннє тестування: акаунти та \
-         прогрес можуть бути скинуті будь-коли.",
-    );
+    let legal = lang.t("Unofficial community server. Not affiliated with or endorsed by Vostok Games. Survarium is a trademark of its owners. An early test: accounts and progress can be reset at any time.");
     format!(
         "<!DOCTYPE html><html lang={code}><head><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\">\
          <meta http-equiv=\"content-type\" content=\"text/html; charset=UTF-8\">\
@@ -674,13 +643,10 @@ fn render(lang: Lang, board: &Board, live: &[LiveMatch], counts: Counts, test: b
         second = PLACES[3],
         discord = DISCORD_LINK.trim(),
         code = lang.code(),
-        top = lang.tr("Top 10 players", "Топ-10 гравців"),
-        playing = lang.tr("Matches now", "Матчі зараз"),
-        server = lang.tr(
-            "Skhid &middot; Survarium <i>0.26g</i> community server",
-            "Схід &middot; ком'юніті сервер Survarium <i>0.26g</i>"
-        ),
-        notice = lang.tr("Legal notice", "Правова інформація"),
+        top = lang.t("Top 10 players"),
+        playing = lang.t("Matches now"),
+        server = lang.t("Skhid &middot; Survarium <i>0.26g</i> community server"),
+        notice = lang.t("Legal notice"),
         legal = escape(&legal),
     )
 }
