@@ -1626,16 +1626,15 @@ fn page_title(lang: Lang, version: &str, test: bool) -> String {
     }
 }
 
-/// The line beside the name in the header.
-fn page_tag(lang: Lang, version: &str, test: bool) -> String {
-    let version = version.to_uppercase();
+/// The line beside the name in the header: what the site is, no more (the
+/// owner, 2026-11-20: the name, the version and "unofficial" there are
+/// unnecessary; the footer says the last).
+fn page_tag(lang: Lang, test: bool) -> &'static str {
     match (test, lang) {
-        (false, Lang::En) => {
-            format!("SKHID · COMMUNITY SERVER FOR SURVARIUM {version} · UNOFFICIAL")
-        }
-        (false, Lang::Uk) => format!("КОМ'ЮНІТІ СЕРВЕР SURVARIUM {version} · НЕОФІЦІЙНИЙ"),
-        (true, Lang::En) => format!("SKHID · TEST SERVER FOR SURVARIUM {version} · UNOFFICIAL"),
-        (true, Lang::Uk) => format!("ТЕСТОВИЙ СЕРВЕР SURVARIUM {version} · НЕОФІЦІЙНИЙ"),
+        (false, Lang::En) => "COMMUNITY SERVER FOR SURVARIUM",
+        (false, Lang::Uk) => "КОМ'ЮНІТІ СЕРВЕР SURVARIUM",
+        (true, Lang::En) => "TEST SERVER FOR SURVARIUM",
+        (true, Lang::Uk) => "ТЕСТОВИЙ СЕРВЕР SURVARIUM",
     }
 }
 
@@ -1741,7 +1740,6 @@ fn site_header(
         Lang::En => ("uk", "Українська"),
         Lang::Uk => ("en", "English"),
     };
-    let version = if v026g { "0.26g" } else { "0.21d" };
     let other_version = if v026g { "0.21d" } else { "0.26g" };
     // A test server names the other server in its notice, as the players'.
     let (other_link, badge, test_notice) = if test {
@@ -1779,7 +1777,7 @@ fn site_header(
         "<header><a class=brand href=\"/?lang={code}\">СХІД</a>{badge}\
          <span class=tag>{}</span>\
          <nav>{home_link}{wiki_link}{other_link}</nav> <a class=lang href=\"?lang={other}\">{other_name}</a></header>",
-        page_tag(lang, version, test),
+        page_tag(lang, test),
     );
     (header, test_notice)
 }
@@ -3107,7 +3105,7 @@ mod tests {
             let test = page_as(Lang::En, form, "", true, url).body;
             assert!(test.contains(" TEST server</title>"), "{test}");
             assert!(test.contains("<span class=badge>TEST</span>"));
-            assert!(test.contains("TEST SERVER FOR SURVARIUM 0."));
+            assert!(test.contains("TEST SERVER FOR SURVARIUM<"));
             assert!(test.contains("<b>Test server.</b>"));
             assert!(test.contains("accounts and progress here can be reset"));
             // The other server is the players', named in the notice and
@@ -3182,7 +3180,7 @@ mod tests {
     fn pages_are_branded_unofficial_and_localized() {
         let en = page(Lang::En, Form::None, "").body;
         let uk = page(Lang::Uk, Form::None, "").body;
-        assert!(en.contains("СХІД") && en.contains("SKHID") && en.contains("unofficial"));
+        assert!(en.contains("СХІД") && en.contains("COMMUNITY SERVER FOR SURVARIUM<") && en.contains("unofficial"));
         assert!(uk.contains("СХІД") && uk.contains("Неофіційний ком'юніті"));
         assert!(uk.contains("Головна") && en.contains(">Home</a>"));
     }
