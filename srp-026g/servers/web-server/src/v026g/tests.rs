@@ -190,6 +190,7 @@ fn world_with(accounts: GameAccounts) -> World {
         resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(std::collections::HashMap::new()),
+        replay_asks: Mutex::new(std::collections::HashMap::new()),
         plans: Default::default(),
         game: Some(Game {
             accounts: accounts.clone(),
@@ -1306,7 +1307,9 @@ fn serve_wiki_preview() {
     }
     let dir = std::env::temp_dir().join(format!("srp-wiki-preview-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    let world = world_with(crate::history::tests::preview(&dir, crate::unix_now()));
+    let mut world = world_with(crate::history::tests::preview(&dir, crate::unix_now()));
+    world.web.game.as_mut().unwrap().replays =
+        Some(Arc::new(crate::history::tests::preview_replays(&dir)));
     // SRP_PREVIEW_PORT: another port, for two previews side by side.
     let port = std::env::var("SRP_PREVIEW_PORT").unwrap_or_else(|_| "24583".to_owned());
     let listener = std::net::TcpListener::bind(format!("127.0.0.1:{port}")).unwrap();

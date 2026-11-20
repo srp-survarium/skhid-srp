@@ -290,13 +290,31 @@ try {
   // The teams in the Maps page's colours; the map leads to it there, in the match's mode.
   assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-team')].map(h => getComputedStyle(h).borderLeftColor))")),
     ['rgb(59, 130, 246)', 'rgb(229, 72, 77)']);
+  assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-panels .stats-side')].map(s => getComputedStyle(s).color))")),
+    [answered.match.match.winner === 0 ? 'rgb(59, 130, 246)' : 'rgb(229, 72, 77)', 'rgb(59, 130, 246)', 'rgb(229, 72, 77)'], 'the winner and the points in the teams\' colours');
   const played = answered.match.match;
-  assert.equal(await evaluate("(i => new URL(i.src).pathname + new URL(i.src).search)(document.querySelector('.stats-panels img.stats-map-large'))"), played.map_icon, 'the match with its map\'s picture');
+  assert.equal(await evaluate("(i => new URL(i.src).pathname + new URL(i.src).search)(document.querySelector('.stats-panels img.stats-map'))"), played.map_icon, 'the match with its map\'s picture');
   assert.equal(await evaluate("(a => a.pathname + a.hash)([...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Map').nextSibling.querySelector('a'))"),
     `/wiki/maps#${played.map_key}/${played.rules}`);
   await navigate(`/wiki/maps?lang=en#${played.map_key}/${played.rules}`);
   assert.equal(await evaluate("document.querySelector('#maps [aria-pressed=true], .chip[aria-pressed=true]') !== null"), true, 'the Maps page opens');
   await navigate(`/stats?match=${newest}&lang=en`);
+  // The newest match has a replay: one Download, which asks for it and takes its file. The one before it stays being made.
+  assert.equal(answered.match.replay, true);
+  assert.equal(await text('.stats-replay button'), 'Download');
+  await evaluate("document.querySelector('.stats-replay button').click()");
+  await new Promise(resolve => setTimeout(resolve, 800));
+  await settled();
+  assert.equal(answered.replay.status, 'ready');
+  assert.equal(await evaluate("document.querySelector('.stats-replay a').pathname"), answered.replay.url);
+  assert.equal(await text('.stats-replay a'), 'Download');
+  assert.equal(await evaluate('location.search'), `?match=${newest}&lang=en`, 'the page stays');
+  await navigate(`/stats?match=${newest - 1}&lang=en`);
+  await evaluate("document.querySelector('.stats-replay button').click()");
+  await new Promise(resolve => setTimeout(resolve, 800));
+  assert.equal(await text('.stats-replay'), 'Preparing…');
+  await navigate(`/stats?match=${newest - 2}&lang=en`);
+  assert.equal(await count('.stats-replay'), 0, 'no button for a match without a recording');
   await navigate('/stats?match=99&lang=en');
   assert.equal(await text('.stats-empty'), 'No public match 99.');
   // A free-for-all: one list by place, its winners named.

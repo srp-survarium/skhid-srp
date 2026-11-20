@@ -8,7 +8,10 @@
 //! `clans::MAX_MEMBERS`; `player/days`: up to `MAX_DAYS` days).
 
 use serde_json::{Value, json};
+use std::time::Instant;
+
 use session::SessionStore;
+use session::v026g::replays::{Replays, Status};
 use session::v026g::persist::history::{
     ClanKey, ClanLine, Counters, Gear, ItemTotals, KitCounts, KitLine, MatchHistory, MatchInfo,
     MatchSummary,
@@ -22,6 +25,10 @@ use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, wiki
 
 /// Where the API is.
 pub(crate) const PREFIX: &str = "/api/history/";
+/// The ask for a match's replay: the one endpoint that starts work (a
+/// conversion), so the web server says how often an address may ask
+/// (`Web::replay_ask_allowed`).
+pub(crate) const REPLAY: &str = "/api/history/replay";
 /// The stats page.
 pub(crate) const PATH: &str = "/stats";
 /// The page's policy: the wiki's (`damage::POLICY`), and its script may ask
@@ -147,6 +154,7 @@ enum Endpoint {
     PlayerEquipment { account_id: u32, limit: usize },
     Matches { page: Page, clan: Option<u32> },
     Match(u64),
+    Replay(u64),
     Top { by: PlayerRanking, limit: usize },
     Best(Period),
     Today,
@@ -179,6 +187,15 @@ impl Refusal {
             content_type: ContentType::Json,
             body: json!({ "error": error }).to_string(),
         }
+    }
+}
+
+/// The answer to an address that asks for replays too often.
+pub(crate) fn too_many() -> Response {
+    Response {
+        status: "429 Too Many Requests",
+        content_type: ContentType::Json,
+        body: json!({ "error": "too many" }).to_string(),
     }
 }
 
@@ -299,6 +316,7 @@ impl Endpoint {
                 clan: query.number("clan")?,
             },
             "match" => Self::Match(query.required("id")?),
+            "replay" => Self::Replay(query.required("id")?),
             "top" => Self::Top {
                 by: match query.text("by") {
                     None | Some("rating") => PlayerRanking::Rating,
@@ -348,7 +366,7 @@ pub(crate) fn response(
     let answer = Endpoint::parse(path, query).and_then(|endpoint| {
         let history = game.accounts.history().ok_or(Refusal::NoHistory)?;
         let banned = |account_id: u32| store.account_ban(account_id).is_some();
-        answer(&endpoint, history, &banned, lang, now)
+        answer(&endpoint, history, game.replays.as_deref(), &banned, lang, now)
     });
     match answer {
         Ok(body) => Response {
@@ -363,6 +381,7 @@ pub(crate) fn response(
 fn answer(
     endpoint: &Endpoint,
     history: &MatchHistory,
+    replays: Option<&Replays>,
     banned: &dyn Fn(u32) -> bool,
     lang: Lang,
     now: u64,
@@ -445,7 +464,36 @@ fn answer(
                     value
                 })
                 .collect();
-            json!({ "match": match_summary(&summary, lang), "players": players })
+            // Whether the page offers its replay: one made, or a recording
+            // to make it from.
+            let replay = replays.is_some_and(|replays| {
+                replays.has_recording(summary.replay_id.match_id(), Instant::now())
+            });
+            json!({ "match": match_summary(&summary, lang), "players": players, "replay": replay })
+        }
+        Endpoint::Replay(id) => {
+            let (summary, _) = history.game_match(*id)?.ok_or(Refusal::NotFound)?;
+            let asked = match replays {
+                Some(replays) => {
+                    replays.ask_for_site(summary.replay_id.match_id(), Instant::now())
+                }
+                None => return Ok(json!({ "status": Status::Off.word() })),
+            };
+            let mut value = json!({ "status": asked.status.word() });
+            if asked.status == Status::Preparing {
+                extend(&mut value, json!({ "place": asked.place }));
+            }
+            if let Some(ready) = &asked.ready {
+                extend(
+                    &mut value,
+                    json!({
+                        "url": format!("/replays/{}", ready.token),
+                        "size": ready.size,
+                        "sha256": ready.sha256,
+                    }),
+                );
+            }
+            value
         }
         Endpoint::Top { by, limit } => {
             let players: Vec<Value> = history

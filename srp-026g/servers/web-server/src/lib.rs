@@ -354,6 +354,20 @@ fn replay_log_line(request: &Request, match_id: u32, token: &str) -> String {
     )
 }
 
+/// Asks for a replay (`/api/history/replay`) an address may make in
+/// [`REPLAY_ASK_WINDOW`]: the stats page asks again every two seconds while
+/// one is being made.
+const REPLAY_ASKS: u32 = 40;
+const REPLAY_ASK_WINDOW: Duration = Duration::from_secs(60);
+/// Addresses whose asks are remembered, at most.
+const REPLAY_ASK_ADDRESSES: usize = 4096;
+
+/// The asks for a replay of one address, since the first of the minute.
+struct ReplayAsks {
+    count: u32,
+    since: Instant,
+}
+
 /// The failed `/replays/` lookups of one address.
 struct ReplayFailures {
     count: u32,
@@ -420,6 +434,8 @@ struct Web {
     replay_downloads: AtomicU32,
     /// Failed `/replays/` lookups by address ([`REPLAY_FAILURES`]).
     replay_failures: Mutex<HashMap<Option<IpAddr>, ReplayFailures>>,
+    /// Asks for a replay by address ([`REPLAY_ASKS`]).
+    replay_asks: Mutex<HashMap<Option<IpAddr>, ReplayAsks>>,
     /// The admin's moderation previews waiting for their confirm.
     plans: moderation::Plans,
     /// `Some`: the page of the 0.26g stack.
@@ -549,6 +565,7 @@ pub fn serve_on(
         resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(HashMap::new()),
+        replay_asks: Mutex::new(HashMap::new()),
         plans: Default::default(),
         game,
     });
@@ -845,6 +862,24 @@ impl Web {
         drop(download);
     }
 
+    /// One ask for a replay of an address: whether it is within
+    /// [`REPLAY_ASKS`] of this minute.
+    fn replay_ask_allowed(&self, client: Option<IpAddr>, now: Instant) -> bool {
+        let mut all = locked(&self.replay_asks);
+        if all.len() >= REPLAY_ASK_ADDRESSES && !all.contains_key(&client) {
+            all.retain(|_, asks| now.saturating_duration_since(asks.since) < REPLAY_ASK_WINDOW);
+            if all.len() >= REPLAY_ASK_ADDRESSES {
+                return false;
+            }
+        }
+        let asks = all.entry(client).or_insert(ReplayAsks { count: 0, since: now });
+        if now.saturating_duration_since(asks.since) >= REPLAY_ASK_WINDOW {
+            *asks = ReplayAsks { count: 0, since: now };
+        }
+        asks.count += 1;
+        asks.count <= REPLAY_ASKS
+    }
+
     /// Whether an address is waiting out its failed `/replays/` lookups.
     fn replay_blocked(&self, client: Option<IpAddr>, now: Instant) -> bool {
         locked(&self.replay_failures)
@@ -1003,6 +1038,11 @@ impl Web {
                 match request.path.as_str() {
                     "/api/stats" => return stats::response(&self.store, game),
                     history::PATH => return stats_page(request.lang),
+                    history::REPLAY
+                        if !self.replay_ask_allowed(request.client, Instant::now()) =>
+                    {
+                        return history::too_many();
+                    }
                     path if path.starts_with(history::PREFIX) => {
                         let query = request
                             .target
@@ -2560,6 +2600,7 @@ mod tests {
             resource_downloads: AtomicU32::new(0),
             replay_downloads: AtomicU32::new(0),
             replay_failures: Mutex::new(HashMap::new()),
+            replay_asks: Mutex::new(HashMap::new()),
             plans: Default::default(),
             game: None,
         }

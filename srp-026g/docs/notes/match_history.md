@@ -22,7 +22,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   and accuracy, on hover). A free-for-all is one list by place. A click anywhere on a row
   opens what the row is of: the match, the player or the clan; a favourite weapon or armour
   piece, its card in the wiki. A map's name leads to the map in the wiki's Maps page. A match's
-  two teams are in the Maps page's colours.
+  two teams are in the Maps page's colours. A match with a replay has one Download: pressed, the
+  replay is prepared if it has to be, and its file then downloads by itself.
 - `scripts/stats/check_history.mjs` exercises it in an isolated Firefox over the site's own
   endpoints: the preview (`cargo test -p web-server serve_wiki_preview -- --ignored --nocapture`,
   port 24583) keeps a made-up history (`history::tests::preview`); the script serves it again on
@@ -238,6 +239,27 @@ A public match and every player's line with its kits, by team, then place.
                       "weapons":[{"slot":7,"id":155,"name":"AK-74M"}],
                       "armour":[{"slot":0,"id":301,"name":"Helmet"}]}]}]}
 ```
+
+`replay` (in the answer, beside `match` and `players`): whether the match has a replay to ask
+for, one made or a recording kept to make it from.
+
+### `GET /api/history/replay?id=<match>`
+
+A visitor asks for a public match's replay (`docs/notes/replay_watch.md`: the same desk the
+lobby's "Watch replay" asks, `Replays::ask_for_site`). Nobody is signed in, so any public match
+may be asked for (the owner, 2026-11-20; a player's own was a courtesy already), and nothing is
+kept of the ask: the page asks again every two seconds while the answer is `preparing`.
+
+- `{"status":"preparing","place":1}`: its recording is being converted (`place` in the line; the
+  first ask for a kept recording queues it, one conversion at a time, 20 waiting at most).
+- `{"status":"ready","url":"/replays/<token>","size":5120000,"sha256":"..."}`: the file is the
+  game's own replay (`.sur`), which the updater opens. The token is the site's one of that match,
+  its visitors' together for ten minutes; 16 such matches at most at a time, then `busy`.
+- `{"status":"incompatible"}`: recorded by games older than the oldest replayable revision (the
+  visitor is taken to run the newest game). `gone`, `not_recorded`, `failed`, `busy`, `off`: as
+  the lobby's (`replays::Status`).
+- An address may ask 40 times a minute; past that, `429 {"error":"too many"}`.
+- `404` for an unknown or non-public match.
 
 ### `GET /api/history/top?by=<key>&limit=<n>`
 
