@@ -54,15 +54,14 @@
   // An empty cell's text, so it has a line's height.
   const BLANK = '\u00a0';
   const BOARDS = {
-    players: ['rating', 'matches', 'wins', 'kills', 'score_avg', 'accuracy'],
+    players: ['rating', 'matches', 'wins', 'win_rate', 'kills', 'kd', 'score_avg', 'headshot_rate', 'accuracy'],
     clans: ['matches', 'wins', 'kills'],
     best: ['day', 'hour'],
     latest: [],
   };
-  const KEY_TEXT = {rating: 'rating', matches: 'matches', wins: 'wins', kills: 'kills', score_avg: 'scoreAvg',
-    accuracy: 'accuracy', day: 'day', hour: 'hour'};
-  // What a list by a key leaves out, said beside the keys.
-  const KEY_NOTE = {accuracy: 'accuracyNote', score_avg: 'averageNote'};
+  // What a list by a key leaves out, said beside the boards.
+  const KEY_NOTE = {accuracy: 'accuracyNote', score_avg: 'averageNote', win_rate: 'averageNote', kd: 'averageNote',
+    headshot_rate: 'averageNote'};
   const numbers = new Intl.NumberFormat(lang, {maximumFractionDigits: 2});
   const pair = new Intl.NumberFormat(lang, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const percent = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 1});
@@ -130,11 +129,23 @@
   // column's `empty` gives its empty cell the shape of a full one). With
   // `open` (where a row leads: the stats' own parameters, or an address;
   // null for nowhere), a click anywhere on a row goes there, but on a link
-  // of its own or while text is selected.
-  function table(columns, rows, placeholder = PAGE, sorted = '', open = null) {
+  // of its own or while text is selected. With `sort` ({ask, up}), the
+  // heading of a column with a key is a button that asks for the list by
+  // it (`ask(key)`); `up`: the sorted one is smallest first.
+  function table(columns, rows, placeholder = PAGE, sorted = '', open = null, sort = null) {
     const body = el('tbody');
-    const head = el('thead', {}, el('tr', {}, columns.map(([label, , kind, key]) =>
-      el('th', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`, scope: 'col'}, label))));
+    const head = el('thead', {}, el('tr', {}, columns.map(([label, , kind, key]) => {
+      const th = el('th', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`, scope: 'col'}, label);
+      const up = Boolean(sort && sort.up);
+      if (key && key === sorted) th.setAttribute('aria-sort', up ? 'ascending' : 'descending');
+      if (key && key === sorted && up) th.classList.add('up');
+      if (sort && key) {
+        const button = el('button', {type: 'button'}, label);
+        button.addEventListener('click', () => sort.ask(key));
+        th.replaceChildren(button);
+      }
+      return th;
+    })));
     const wrap = el('div', {className: 'table-scroll'}, el('table', {className: 'stats-table'}, head, body));
     wrap.add = list => body.append(...list.map(row => {
       const to = open && open(row);
@@ -231,12 +242,19 @@
   // A player's most used weapons and armour (player/equipment), FAVOURITES
   // rows each, empty ones too, so its height is the same loading or not.
   const FAVOURITES = 5;
+  // An item's icon as the lobby draws it, beside its name (a link with
+  // `href`); an empty frame of its size while loading, in an empty row,
+  // and for an item without one.
+  const itemCell = (item, href) => el('span', {className: 'stats-item-cell'},
+    item && item.icon ? el('img', {className: 'stats-item', src: item.icon, alt: '', width: 54, height: 26, loading: 'lazy'})
+      : el('span', {className: 'stats-item'}),
+    item ? (href ? el('a', {href}, name(item.name)) : name(item.name)) : BLANK);
   function favourites(data) {
     // An item's place in the wiki: a weapon's card, an armour piece's; none
     // for one the game data no longer has.
     const wiki = (page, anchor) => item => item.key ? `/wiki/${page}?${new URLSearchParams({lang})}#${anchor}${item.key}` : null;
     const list = (label, items, where) => {
-      const box = table([[label, item => where(item) ? el('a', {href: where(item)}, name(item.name)) : name(item.name), 'l'],
+      const box = table([[label, item => itemCell(item, where(item)), 'l', '', () => itemCell(null)],
         [TEXT.matches, item => n(item.matches)]], items, FAVOURITES, '', where);
       if (items) box.blank(FAVOURITES - items.length);
       return box;
@@ -457,15 +475,18 @@
     heading(TEXT.stats, document.getElementById('stats-eyebrow').textContent, '');
     let board = BOARDS[asked('board')] ? asked('board') : 'players';
     let key = BOARDS[board].includes(asked('by')) ? asked('by') : BOARDS[board][0];
+    // Smallest first: a second click on the sorted heading, and back.
+    let up = asked('order') === 'asc' && (board === 'players' || board === 'clans');
     const tabs = el('div', {className: 'slot-filter', role: 'group', ariaLabel: TEXT.stats});
     const keys = el('div', {className: 'slot-filter stats-keys', role: 'group'});
+    const note = el('small', {className: 'stats-note'});
     const body = el('div', {className: 'stats-board'});
     const playerColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
-      [TEXT.level, row => n(row.level)], [TEXT.rating, row => n(row.rating), '', 'rating'],
+      [TEXT.rating, row => n(row.rating), '', 'rating'],
       [TEXT.matches, row => n(row.totals.matches), '', 'matches'], [TEXT.wins, row => n(row.totals.wins), '', 'wins'],
-      [TEXT.winRate, row => rate(row.totals.win_rate)], [TEXT.kills, row => n(row.totals.kills), '', 'kills'],
-      [TEXT.kd, row => kd(row.totals.kd)], [TEXT.scoreAvg, row => n(row.totals.score_avg), '', 'score_avg'],
-      [TEXT.headshotRate, row => headshotRate(row.totals)], [TEXT.accuracy, row => aim(row.totals), '', 'accuracy']];
+      [TEXT.winRate, row => rate(row.totals.win_rate), '', 'win_rate'], [TEXT.kills, row => n(row.totals.kills), '', 'kills'],
+      [TEXT.kd, row => kd(row.totals.kd), '', 'kd'], [TEXT.scoreAvg, row => n(row.totals.score_avg), '', 'score_avg'],
+      [TEXT.headshotRate, row => headshotRate(row.totals), '', 'headshot_rate'], [TEXT.accuracy, row => aim(row.totals), '', 'accuracy']];
     const clanColumns = [[TEXT.rank, (row, i) => n(i + 1)], [TEXT.clan, row => link({clan: row.tag}, `[${row.tag}] ${row.name}`), 'l'],
       [TEXT.level, row => n(row.level)], [TEXT.members, row => n(row.members)],
       [TEXT.matches, row => n(row.totals.matches), '', 'matches'], [TEXT.wins, row => n(row.totals.wins), '', 'wins'],
@@ -482,26 +503,32 @@
     let shown = 0;
     async function draw() {
       const drawing = ++shown;
-      for (const button of tabs.children) button.setAttribute('aria-pressed', String(button.dataset.board === board));
-      keys.replaceChildren(...BOARDS[board].map(value => {
-        const button = el('button', {type: 'button'}, TEXT[KEY_TEXT[value]]);
+      for (const button of tabs.querySelectorAll('button')) button.setAttribute('aria-pressed', String(button.dataset.board === board));
+      // The best scores' periods are buttons of a row of their own; a list
+      // of players or clans sorts by its columns' headings.
+      note.textContent = KEY_NOTE[key] ? TEXT[KEY_NOTE[key]] : '';
+      keys.hidden = board !== 'best';
+      keys.replaceChildren(...(board === 'best' ? BOARDS.best : []).map(value => {
+        const button = el('button', {type: 'button'}, TEXT[value]);
         button.setAttribute('aria-pressed', String(value === key));
         button.addEventListener('click', () => { key = value; draw(); });
         return button;
-      }), ...(KEY_NOTE[key] ? [el('small', {className: 'stats-note'}, TEXT[KEY_NOTE[key]])] : []));
+      }));
       const url = new URL(location.href);
       url.searchParams.set('board', board);
       if (key) url.searchParams.set('by', key); else url.searchParams.delete('by');
+      if (up) url.searchParams.set('order', 'asc'); else url.searchParams.delete('order');
       history.replaceState(null, '', url);
       keepLanguage();
       if (board === 'latest') return body.replaceChildren(paged(latestColumns, before => api('matches', {limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
       const [path, params, columns, list, size] = {
-        players: ['top', {by: key, limit: TOP}, playerColumns, data => data.players, TOP],
-        clans: ['clans', {by: key, limit: TOP}, clanColumns, data => data.clans, 20],
+        players: ['top', {by: key, limit: TOP, ...(up ? {order: 'asc'} : {})}, playerColumns, data => data.players, TOP],
+        clans: ['clans', {by: key, limit: TOP, ...(up ? {order: 'asc'} : {})}, clanColumns, data => data.clans, 20],
         best: ['best', {period: key}, bestColumns, data => data.rows, 20],
       }[board];
       const sorted = board === 'best' ? '' : key;
-      body.replaceChildren(table(ranked(columns), null, Math.min(size, body.rows || size), sorted));
+      const sort = board === 'best' ? null : {up, ask: value => { up = value === key && !up; key = value; draw(); }};
+      body.replaceChildren(table(ranked(columns), null, Math.min(size, body.rows || size), sorted, null, sort));
       let rows;
       try {
         const data = await api(path, params);
@@ -513,14 +540,17 @@
       if (drawing !== shown) return;
       rows.forEach((row, i) => { row.rank = i; });
       body.rows = rows.length || 1;
-      body.replaceChildren(rows.length ? table(ranked(columns), rows, 0, sorted, {players: openPlayer, clans: row => ({clan: row.tag}), best: row => ({match: row.match})}[board]) : notice(TEXT.nobody));
+      // An empty list that sorts keeps its headings: the way to another.
+      const drawn = table(ranked(columns), rows, 0, sorted, {players: openPlayer, clans: row => ({clan: row.tag}), best: row => ({match: row.match})}[board], sort);
+      body.replaceChildren(...(rows.length ? [drawn] : sort ? [drawn, notice(TEXT.nobody)] : [notice(TEXT.nobody)]));
     }
     for (const value of Object.keys(BOARDS)) {
       const button = el('button', {type: 'button'}, TEXT[value]);
       button.dataset.board = value;
-      button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; draw(); });
+      button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; up = false; draw(); });
       tabs.append(button);
     }
+    tabs.append(note);
     const today = el('div', {}, leaders(null)), all = el('div', {}, ...allTime(null));
     root.replaceChildren(finder(), today, all, tabs, keys, body);
     api('today', {}).then(data => today.replaceChildren(...leaders(data || {leaders: {}})), () => today.replaceChildren());
