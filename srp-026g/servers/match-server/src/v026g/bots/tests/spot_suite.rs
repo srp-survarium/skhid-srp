@@ -23,6 +23,11 @@
 //!   reaches from A (else the first): it passes when the body gets off and reaches G with 0 errors. Without a floor at A (or
 //!   at P) the spot's one row is `via` no-route. Made once and kept, so every commit walks the same starts; the run still
 //!   reads a starts file without the `why` column (`spot-starts-v1.tsv`).
+//!   ANY WAY (`SRP_SPOT_SUITE_ANY_WAY=<file: one spot a line, or S001,S002>`): the named spots are the ones no player crosses
+//!   from A to P in the recordings (the human crossings list) and no planner route takes. For them the route need not pass
+//!   A, then P: the goal is one past P (P's own floor, else the nearest floor within 4 m), the starts are the candidates on
+//!   A's side of the spot (nearer A than the goal) the planner has a route from, by any way (`via` any-way). The spot passes
+//!   when every start reaches the goal with 0 errors.
 //! - `spot_suite_run`: `SRP_SPOT_SUITE_STARTS=<starts tsv>`, `SRP_SPOT_SUITE_OUT=<results tsv>`, optional
 //!   `SRP_SPOT_SUITE_ONLY=S001,S017`, `SRP_SPOT_SUITE_THREADS=<n>` (default 2), `SRP_SPOT_SUITE_SECONDS` (default 60),
 //!   `SRP_SPOT_SUITE_NOTES=<notes tsv>` (default the results' path with `.notes.tsv` appended), `SRP_SPOT_SUITE_TRACE` (any
@@ -264,6 +269,8 @@ enum Via {
     GoalAtSpot,
     /// No routed start: the one start on A's floor.
     AtA,
+    /// A spot no player crosses from A to P: starts on A's side, a goal past P, by any way ([`Rule::AnyWay`]).
+    AnyWay,
 }
 
 impl Via {
@@ -273,8 +280,125 @@ impl Via {
             Self::Past => "past",
             Self::GoalAtSpot => "goal-at-spot",
             Self::AtA => "at-A",
+            Self::AnyWay => "any-way",
         }
     }
+}
+
+/// What a spot's starts must walk.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Rule {
+    /// The planner's route passes A, then P (the link the spot names).
+    ThroughTheLink,
+    /// Any way from A's side to a goal past P (`SRP_SPOT_SUITE_ANY_WAY`).
+    AnyWay,
+}
+
+/// The `why` of an any-way spot's starts (the report's tag).
+const ANY_WAY_WHY: &str = "no-human: any-way";
+
+/// How near a floor an any-way spot's P may have when P itself has none, m.
+const ANY_WAY_FLOOR_M: f32 = 4.0;
+
+/// The spots of `SRP_SPOT_SUITE_ANY_WAY`: a file of one spot a line, or a comma list; none when unset.
+fn any_way_spots() -> Vec<String> {
+    let Ok(value) = std::env::var("SRP_SPOT_SUITE_ANY_WAY") else { return Vec::new() };
+    let text = std::fs::read_to_string(&value).unwrap_or_else(|_| value.replace(',', "\n"));
+    text.lines().map(str::trim).filter(|s| !s.is_empty() && !s.starts_with('#')).map(str::to_owned).collect()
+}
+
+/// An any-way spot's goals and starts ([`Rule::AnyWay`]): the goal past P (the furthest 4-10 m of grid way on, then its fork,
+/// then one on P's top) that the planner takes and routes to from a start on A's side; up to three starts, by any way.
+fn plan_any_way(grid: &WalkGrid, tactics: &Tactics, p: Vec3, a: Vec3) -> Option<Plan> {
+    let local = Local::around(grid, p);
+    let pn = floor_of(grid, p).or_else(|| grid.locate(p, ANY_WAY_FLOOR_M)).and_then(|n| local.index.get(&n).copied())?;
+    let p_at = grid.position(local.nodes[pn]);
+    let past = local.dijkstra(grid, pn, GOAL_FAR_MAX_M);
+    let stays = |i: usize| {
+        let (node, at) = (local.nodes[i], grid.position(local.nodes[i]));
+        grid.locate(at, 1.0) == Some(node)
+            && crate::v026g::bots::path::off_lip(grid, at).is_none()
+            && tactics.hazards.allowed(node, PLAN_MS)
+    };
+    let furthest = |pick: &dyn Fn(usize, u32) -> bool| {
+        past.iter()
+            .enumerate()
+            .filter_map(|(i, b)| b.filter(|&(d, _)| pick(i, d) && stays(i)).map(|_| i))
+            .max_by(|&i, &j| flat(grid.position(local.nodes[i]), a).total_cmp(&flat(grid.position(local.nodes[j]), a)))
+    };
+    let far = furthest(&|_, d| (GOAL_FAR_MIN_M * 1000.0) as u32 <= d);
+    let far2 = far.and_then(|f| {
+        let first = grid.position(local.nodes[f]);
+        furthest(&|i, d| (GOAL_FAR_MIN_M * 1000.0) as u32 <= d && flat(grid.position(local.nodes[i]), first) >= 4.0)
+    });
+    let on_top = furthest(&|i, _| {
+        let q = grid.position(local.nodes[i]);
+        (q.y - p_at.y).abs() <= GOAL_TOP_Y_M && (GOAL_MIN_M..=GOAL_MAX_M).contains(&flat(q, p_at))
+    });
+    let candidates = start_candidates(grid, p_at);
+    for g in [far, far2, on_top].into_iter().flatten() {
+        let goal = local.nodes[g];
+        let goal_at = grid.position(goal);
+        let mut found: Vec<(f32, f32, NodeId, f32)> = Vec::new();
+        for &s in &candidates {
+            let at = grid.position(s);
+            // Before the spot: on A's side of it, nearer A than the goal.
+            if flat(at, a) >= flat(at, goal_at) || !planner_takes(tactics, goal, at) {
+                continue;
+            }
+            let Some(route) = crate::v026g::bots::path::plan(grid, s, goal) else { continue };
+            let bearing = (at.z - p_at.z).atan2(at.x - p_at.x).to_degrees();
+            found.push((route.length() / (flat(at, goal_at) + 1.0), bearing, s, route.length()));
+        }
+        if found.is_empty() {
+            continue;
+        }
+        return Some(Plan { goal: goal_at, starts: choose_starts(grid, found), via: Via::AnyWay });
+    }
+    None
+}
+
+/// The candidate starts round P: the floor nearest P's height near each of 12 bearings x 4 distances from P, one a body can
+/// be at (reached from a spawn and back).
+fn start_candidates(grid: &WalkGrid, p_at: Vec3) -> Vec<NodeId> {
+    let mut candidates: Vec<NodeId> = Vec::new();
+    for k in 0..12 {
+        let angle = k as f32 * std::f32::consts::TAU / 12.0;
+        for d in [12.0, 18.0, 24.0, 30.0f32] {
+            let c = Vec3::new(p_at.x + d * angle.cos(), p_at.y, p_at.z + d * angle.sin());
+            if let Some(n) = grid
+                .floors_in([c.x - 1.5, c.z - 1.5, c.x + 1.5, c.z + 1.5])
+                .filter(|&n| grid.reached(n) && grid.returns(n) && (START_MIN_M..=START_MAX_M).contains(&flat(grid.position(n), p_at)))
+                .min_by(|&x, &y| (grid.position(x).y - c.y).abs().total_cmp(&(grid.position(y).y - c.y).abs()))
+                && !candidates.contains(&n)
+            {
+                candidates.push(n);
+            }
+        }
+    }
+    candidates
+}
+
+/// Up to three of `found` (directness, bearing, start, route m), the most direct first, of bearings apart and 3 m apart.
+fn choose_starts(grid: &WalkGrid, mut found: Vec<(f32, f32, NodeId, f32)>) -> Vec<Start> {
+    found.sort_by(|x, y| x.0.total_cmp(&y.0));
+    let mut chosen: Vec<(f32, f32, NodeId, f32)> = Vec::new();
+    for apart in [BEARING_APART_DEG, 15.0, 0.0] {
+        for f in &found {
+            if chosen.len() >= 3 {
+                break;
+            }
+            let off = |c: &(f32, f32, NodeId, f32)| {
+                let d = (c.1 - f.1).rem_euclid(360.0);
+                d.min(360.0 - d)
+            };
+            let far = |c: &(f32, f32, NodeId, f32)| flat(grid.position(c.2), grid.position(f.2)) >= 3.0;
+            if chosen.iter().all(|c| c.2 != f.2 && off(c) >= apart && far(c)) {
+                chosen.push(*f);
+            }
+        }
+    }
+    chosen.iter().map(|c| Start { at: grid.position(c.2), way_m: Some(c.3) }).collect()
 }
 
 /// Why no start of a spot has the planner's route through it (the starts' `why`).
@@ -355,23 +479,7 @@ fn plan_spot(grid: &WalkGrid, tactics: &Tactics, p: Vec3, a: Vec3) -> Planned {
         furthest(&|i, d| (GOAL_FAR_MIN_M * 1000.0) as u32 <= d && flat(grid.position(local.nodes[i]), first) >= 4.0)
     });
     let at_spot = stays(pn).then_some(pn);
-    // The candidate starts: the floor nearest P's height near each of 12 bearings x 4 distances from P, one a body can be at
-    // (reached from a spawn and back).
-    let mut candidates: Vec<NodeId> = Vec::new();
-    for k in 0..12 {
-        let angle = k as f32 * std::f32::consts::TAU / 12.0;
-        for d in [12.0, 18.0, 24.0, 30.0f32] {
-            let c = Vec3::new(p_at.x + d * angle.cos(), p_at.y, p_at.z + d * angle.sin());
-            if let Some(n) = grid
-                .floors_in([c.x - 1.5, c.z - 1.5, c.x + 1.5, c.z + 1.5])
-                .filter(|&n| grid.reached(n) && grid.returns(n) && (START_MIN_M..=START_MAX_M).contains(&flat(grid.position(n), p_at)))
-                .min_by(|&x, &y| (grid.position(x).y - c.y).abs().total_cmp(&(grid.position(y).y - c.y).abs()))
-                && !candidates.contains(&n)
-            {
-                candidates.push(n);
-            }
-        }
-    }
+    let candidates = start_candidates(grid, p_at);
     let goals = [(on_top, Via::Top), (far, Via::Past), (far2, Via::Past), (at_spot, Via::GoalAtSpot)];
     for (g, via) in goals {
         let Some(g) = g else { continue };
@@ -400,25 +508,7 @@ fn plan_spot(grid: &WalkGrid, tactics: &Tactics, p: Vec3, a: Vec3) -> Planned {
         if found.is_empty() {
             continue;
         }
-        found.sort_by(|x, y| x.0.total_cmp(&y.0));
-        let mut chosen: Vec<(f32, f32, NodeId, f32)> = Vec::new();
-        for apart in [BEARING_APART_DEG, 15.0, 0.0] {
-            for f in &found {
-                if chosen.len() >= 3 {
-                    break;
-                }
-                let off = |c: &(f32, f32, NodeId, f32)| {
-                    let d = (c.1 - f.1).rem_euclid(360.0);
-                    d.min(360.0 - d)
-                };
-                let far = |c: &(f32, f32, NodeId, f32)| flat(grid.position(c.2), grid.position(f.2)) >= 3.0;
-                if chosen.iter().all(|c| c.2 != f.2 && off(c) >= apart && far(c)) {
-                    chosen.push(*f);
-                }
-            }
-        }
-        let starts = chosen.iter().map(|c| Start { at: grid.position(c.2), way_m: Some(c.3) }).collect();
-        return Planned::Routed(Plan { goal: grid.position(goal), starts, via });
+        return Planned::Routed(Plan { goal: grid.position(goal), starts: choose_starts(grid, found), via });
     }
     // No routed start: the body placed on A's floor, its goal the first one past P (the spot itself only when A is a point of
     // its own) that the planner takes from there, one it has a route to first.
@@ -465,6 +555,7 @@ fn spot_suite_plan() {
         return;
     };
     setup();
+    let any_way = any_way_spots();
     let (_, rows) = tsv_rows(&spots);
     let mut by_project: Vec<(String, Vec<&HashMap<String, String>>)> = Vec::new();
     for row in &rows {
@@ -502,6 +593,25 @@ fn spot_suite_plan() {
                     ));
                 }
             };
+            let rule = if any_way.contains(spot) { Rule::AnyWay } else { Rule::ThroughTheLink };
+            if rule == Rule::AnyWay {
+                let said = match plan_any_way(grid, &tactics, p, a) {
+                    Some(plan) => {
+                        push(&mut lines, &plan, ANY_WAY_WHY);
+                        plan.via.word()
+                    }
+                    None => {
+                        lines.push(format!(
+                            "{spot}\t{project}\t-\tno-route\t{kind}\tnan\tnan\tnan\tnan\tnan\tnan\t{}\t{}\t-\t{ANY_WAY_WHY}",
+                            fmt(p),
+                            fmt(a)
+                        ));
+                        "no-route (any way: no start)"
+                    }
+                };
+                eprintln!("{spot} {project} planned: {said}");
+                continue;
+            }
             let said = match plan_spot(grid, &tactics, p, a) {
                 Planned::Routed(plan) => {
                     push(&mut lines, &plan, "-");
