@@ -270,18 +270,34 @@ changes for them):
   Nothing looks a stock part or a carrier up by its dict id (`Gun::fit` reads the gun's fits
   alone), so the two ranges may overlap.
 - A rail mount's own `aim` is not written: an optic's eye and a stock part's are.
-- **A gun's built-in suppressor needs no new rule.** It is the gun's own part in its muzzle slot
-  (a stock row whose attach adds the bracket's slot), and the bracket is the grip's carrier in
-  that slot. `resolve` seats a carrier on a slot a stock part brings, and with no muzzle fit
-  nothing takes the suppressor's place
-  (`a_grip_hangs_on_a_built_in_suppressor_through_its_bracket`, 0.69d0's OTs-14 chain). So the
-  eleven suppressor-clamp grip fits are rows, not refusals.
+- **A stock part's row sets neither the eye nor the fire point.** Both bodies keep the live
+  model's `aim` and `barrel_point`, so with nothing fitted, or only a grip, the iron sights and the
+  flash are where they are today: the client writes the aim's and the barrel's records only when
+  the loadout moves them, and leaves the model's own otherwise. The eye comes from a fitted optic
+  alone, the fire point from a fitted device or a carrier (the P90's forend). The crate allows a
+  stock part to set them (0.69d0's HK416 takes its eye from its rear sight, the crate's test); the
+  content does not use it, and the client needs nothing else.
+- **A gun's built-in suppressor needs no new rule, and is measured, not listed.** Where 0.69d0
+  links a suppressor to the gun and it lies on the live mesh (median gap 1.5 mm at most), it is
+  the gun's own part in its muzzle slot (a stock row whose attach adds the bracket's slot), and
+  the bracket is the grip's carrier in that slot. `resolve` seats a carrier on a slot a stock part
+  brings, and with no muzzle fit nothing takes the suppressor's place
+  (`a_grip_hangs_on_a_built_in_suppressor_through_its_bracket`). Expected so: the 9A-91 (the
+  VSK-94's is a 0.69d0 default already). The OTs-14 and the SR-3M carry a brake in that slot and
+  show no suppressor today, so their five clamp grips stay refused, with that reason: a row would
+  put a suppressor on a gun that has none.
 - **A gun with a default optic.** The game draws that optic itself (the scope item
   `addons/rifle_scope_dict_id` names) at the body's `scope_point`, with nothing fitted and with
-  only a device or a grip fitted alike, since no scope's frame is written then. So it is not a
-  stock part of the table (it would be drawn twice), both bodies keep `scope_point` and `aim` for
-  it, and the gun's sights, where they are parts, have the folded shape as their main one. How a
-  fitted scope takes its place is the scopes lane's.
+  only a device or a grip fitted alike, since no scope's frame is written then. So a default optic
+  is never a stock part of the table (it would be drawn twice) and both bodies keep `scope_point`
+  and `aim` for it. A stock sight's row of such a gun has the folded shape as its main model. A
+  part in a slot an optic takes has no row and is in neither body: what stands there with the
+  default optic on is that optic's own models'. How a fitted scope takes its place is the scopes
+  lane's.
+- **To mind in the scopes lane:** the game applies the weapon's own `aim_offset` (its config's,
+  the matrix at weapon +6A0h) to whatever the aim record holds
+  (`calculate_aim_alignment` 0x244D5B). A fitted optic's eye is therefore seen through the gun's
+  iron-sight eye relief unless the scope's modification sets `aim_offset` for it.
 - **The first AK-74M run needs no device items.** A local edit that sets `data/srp_gun` and
   `data/srp_muzzle` or `data/srp_grip` on the gun's config is all the client reads for a device or
   a grip (with the fit's row in the table under that dict id). A scope needs one thing more: the
