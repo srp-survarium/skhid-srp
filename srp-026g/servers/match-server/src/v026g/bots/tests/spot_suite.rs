@@ -943,7 +943,19 @@ fn leg_text(route: &Route) -> String {
         let t = points[j - 1].at;
         format!("{} from ({:.1}, {:.1}, {:.1})", leg_kind(points, j, &drops).word(), t.x, t.y, t.z)
     });
-    format!("leg {}, next link {next}", leg_kind(points, k, &drops).word())
+    let kind = leg_kind(points, k, &drops);
+    // [debug trace] A walk leg names its rise over its length, and "climb step" where it rises over the client's step
+    // (`mapdata::Body::client().step`): a ledge the grid made a walk shows in the notes.
+    let rise = match kind {
+        LegKind::Walk | LegKind::Low => {
+            let (a, b) = (points[k - 1].at, points[k].at);
+            let up = b.y - a.y;
+            let climb = if up > mapdata::Body::client().step { ", climb step" } else { "" };
+            format!(" ({up:+.2} m over {:.1} m{climb})", a.distance_xz(b))
+        }
+        _ => String::new(),
+    };
+    format!("leg {}{rise}, next link {next}", kind.word())
 }
 
 /// The bot's route as last seen at a poll ([`RouteSeen::look`]): a note often comes out of the decision that dropped the

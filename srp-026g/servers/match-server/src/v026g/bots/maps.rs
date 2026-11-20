@@ -886,6 +886,22 @@ fn build(
                             e.linked,
                             e.same_pair
                         );
+                        // [D2] At debug, each Drop link a walk overshot past the harmless fall that no way within it took down,
+                        // kept at the walk's deep landing (its count is in the drops walked above).
+                        if log::log_enabled!(log::Level::Debug) {
+                            for (from, to) in &stats.drops_past_harmless_cut {
+                                log::debug!(
+                                    "Bot map {} drop past the harmless fall, kept at its depth: ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2})",
+                                    path.display(),
+                                    from.x,
+                                    from.y,
+                                    from.z,
+                                    to.x,
+                                    to.y,
+                                    to.z
+                                );
+                            }
+                        }
                         if log::log_enabled!(log::Level::Debug) {
                             for l in &stats.edge_walk_off_links {
                                 log::debug!(
