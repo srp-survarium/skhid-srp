@@ -3589,3 +3589,5 @@ va	status	ref_021d	name
 0x002ee7c0	inferred-medium	0x001dc2e0	survarium::artefact_core_cook::on_effect_loaded
 0x002e58b0	inferred-medium	0x001d7fdb	survarium::damage_model::find_body_part
 0x002e5040	inferred-medium		survarium::damage_model::tick
+0x002f4b40	inferred-high		survarium::shared_statistics::shared_statistics
+0x002f4c20	inferred-high		survarium::shared_statistics::clear

@@ -74,6 +74,7 @@ fn main() {
                         artefacts: None,
                         objects: None,
                         inventory: None,
+                        dict_ids: None,
                     };
                     match world::validate(body, &context) {
                         Ok(()) => println!("  check: OK"),

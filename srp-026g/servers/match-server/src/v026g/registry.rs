@@ -22,7 +22,7 @@ use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, GameMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
-use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
+use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing, WeaponCounts};
 use survarium::v026g::match_msgs::static_info::score_weights as static_info_weights;
 use survarium::v026g::match_msgs::static_info::{
     MatchOptions, MatchProfile, SCORE_EVENTS, StaticInfo, StaticInfoError,
@@ -1103,6 +1103,11 @@ pub struct PlayerResult {
     /// (`survarium::v026g::match_msgs::players`). `None`: no trusted
     /// snapshot, the player was not in it, or its block did not read.
     pub supplies: Option<Supplies>,
+    /// What it did with each weapon, as the games counted it in the last
+    /// trusted snapshot (exe patch 165; `snapshot::WeaponCounts`): an entry
+    /// a dict id, rising, `dict_id` 0 no weapon known. Empty: no snapshot
+    /// was trusted, or its games count none.
+    pub weapons: Vec<WeaponCounts>,
 }
 
 /// How a match ended, for the results screen and the rewards. Every match

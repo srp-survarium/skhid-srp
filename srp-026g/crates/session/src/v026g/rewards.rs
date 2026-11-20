@@ -326,6 +326,9 @@ pub struct PlayerResult {
     /// not, the kit in use, and what is left of every item of its profile
     /// (`Supplies::left` adds a stack item up). `None`: not known.
     pub supplies: Option<survarium::v026g::match_msgs::players::Supplies>,
+    /// What it did with each weapon, in the last trusted snapshot (the
+    /// match server's `PlayerResult::weapons`); empty: not known.
+    pub weapons: Vec<survarium::v026g::match_msgs::snapshot::WeaponCounts>,
 }
 
 /// How a match ended (the match server's `MatchResult`).

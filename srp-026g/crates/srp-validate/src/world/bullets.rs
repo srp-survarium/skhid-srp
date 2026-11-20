@@ -634,6 +634,7 @@ mod tests {
             artefacts: None,
             objects: None,
             inventory,
+            dict_ids: None,
         }
     }
     fn checked(records: &[u8], count: u32, context: &Context<'_>) -> Result<(), Refusal> {

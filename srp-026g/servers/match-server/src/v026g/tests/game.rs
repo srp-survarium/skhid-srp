@@ -3744,6 +3744,40 @@ fn the_registry_says_a_match_with_its_result_is_over() {
 }
 
 #[test]
+fn a_trusted_worlds_weapon_counts_are_the_results() {
+    use survarium::v026g::dictionary::Dictionary;
+    use survarium::v026g::match_msgs::snapshot::WeaponCounts;
+    let rifle = Dictionary::shared().items[0].dict_id;
+    let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
+    bench.join_all();
+    settle(&mut bench);
+    bench.run_long(130_000);
+    let at = bench.clock() / 50 * 50 + 100;
+    let killer = WeaponCounts {
+        dict_id: rifle,
+        kills: 2,
+        wall_kills: 1,
+        kill_distance_dm: 700,
+        longest_kill_dm: 450,
+        held_ms: 60_000,
+        ..WeaponCounts::default()
+    };
+    let victim = WeaponCounts { deaths: 2, ..WeaponCounts::default() };
+    for client in &mut bench.clients {
+        client.sim.points_from = Some((at, [10, 0]));
+        client.sim.kills_from = Some((at, 2));
+        client.sim.weapons_from = Some((at, vec![vec![killer], vec![victim]]));
+    }
+    assert!(bench.until(12_000, |bench| {
+        bench.clients.iter().all(|client| client.closed)
+    }));
+    let result = bench.results.try_recv().expect("a result");
+    assert_eq!(result.players[0].weapons, [killer]);
+    assert_eq!(result.players[1].weapons, [victim]);
+    bench.assert_no_faults();
+}
+
+#[test]
 fn repeated_kill_payment_limit_preserves_the_match_result_statistics() {
     let mut bench = Bench::new(2, MAP_BATTERIES, Settings::default());
     bench.join_all();

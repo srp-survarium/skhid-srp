@@ -1965,6 +1965,7 @@ mod tests {
                 artefacts: None,
                 objects: Some(&objects),
                 inventory: None,
+                dict_ids: None,
             };
             let section = srp_validate::world::Section { at: 0, bytes: &bytes };
             assert_eq!(srp_validate::world::objects(&section, &context), Ok(()), "{}", map.project);

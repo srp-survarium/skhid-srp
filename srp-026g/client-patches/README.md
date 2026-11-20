@@ -169,6 +169,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/unplayed_match.rs`, `src/unplayed_match.toml`, `src/vostok/match_close.rs`, `check_unplayed_match_026g.py` | Patch 120: a match its game never played (the time rule's state 0: the handshake, a level loading, a level loaded before its first world) closes too, kicked, timed out, cut off or given its farewell: five lohooks (connect_to_match's connect, the logoff, close_current_match's guard, on_project_loaded's abort test, on_match_ready's end); its check runs each from the game's code on a made-up network client, the original beside (needs Unicorn; `../docs/notes/client_patch.md` section 3.74) |
 | `rust/patches/src/faces.rs`, `src/faces.toml`, `src/vostok/skin_cook.rs`, `check_faces_026g.py` | Patch 123: every player drawn with srp's face of the account (`../docs/notes/face-choice.md`): the faces srp gives: the account's and its squad's by name (0x87's and 0x88's byte), a match's or replay's by place (its options' entry 5) until its scene is left; the character cook's head made from `body_parts.heads[face]`, its mask or helmet variant by the kit's models, its hair, `f<face>_` in the skin's name; a worn helmet's or mask's `data_head_<face>` entry when its config has one; a late joiner's face from srp's block after its proposal's profile; eight lohooks; its check runs each site, the head beside the original's (needs Unicorn; `../docs/notes/client_patch.md` section 3.87) |
 | `rust/patches/src/geometry_share.rs`, `src/geometry_share.toml`, `src/vostok/memory.rs`, `check_geometry_share_026g.py` | Patch 164: a pooled vertex or index buffer with the same bytes, stride and pool as a live one (8 KiB or more) takes that one's range of the render's geometry pool, not a copy: each character skin makes every part's mesh again (skeleton_combined_model_cook), so two skins with a part in common held it twice, and faces make more skins (`../docs/notes/client_patch.md` section 3.88). Three lohooks: hw_buffer_pool::allocate's start (bytes a kept range holds: that range, `ret 14h` with 1), untyped_buffer's pooled path (its new range kept, SipHash-2-4 twice over its bytes), hw_buffer_pool::deallocate's start (a range another buffer holds stays); a table of 2048 ranges under a lock. The memory profile tells the pools and the sharing (`pool` lines). Drawn the same; nothing a match computes; `check_geometry_share_026g.py` runs the three sites over a made-up pool in both exes (Unicorn) |
+| `rust/patches/src/weapon_stats.rs`, `src/weapon_stats.toml`, `src/vostok/weapon_stats.rs`, `check_weapon_stats_026g.py` | Patch 165: what each place did with each weapon in a match (kills, of them headshots, through cover and by a ricochet, deaths, shots, hits, damage, kill distances, time held), counted beside the statistics and saved after their tail in the world (`docs/notes/kill_weapon.md` section 4). Its table's type, wire layout and domains are `crates/srp-validate/src/world/weapons.rs`, the same code the match server reads it with. See "Per-weapon counts (patch 165)". |
 | `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
 | `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
@@ -4168,6 +4169,26 @@ saved after the record's own fields (0x334F66, 0x3350D0). A match's computation 
 statistics change: every client of a match needs it, and the server reads 3 bytes and 2 a carrier
 more a battery. `check_battery_progress_026g.py` runs the hooks and the game's own serialize and
 deserialize.
+
+## Per-weapon counts (patch 165, unreleased)
+
+The game counts a kill, a shot and a hit per place and kit and is told the weapon at each, which it
+drops (`docs/notes/kill_weapon.md`). The Rust `weapon_stats` hooks keep a table beside the
+statistics: per place, per weapon's dict id (at most 16 entries, the one of "no weapon known" among
+them), the kills (and of them the headshots, those through cover and those by a ricochet), the
+deaths with it in the hands, the bullets fired, the hits, the pain taken off enemies, the kills'
+distances and the time it was held. Each count the statistics have too is made at their own call
+and under their own tests (`on_player_killed` 0x26DA00, `generate_hit_event` 0x2DA10C, `on_fire`
+0x2D7843), so a place's weapons add up to its record; the time held is a tick of 50 ms for what a
+live player holds, at `base_player::tick` (0x2DAAD3, with patches 92, 109 and 111). The table
+begins where the statistics' records are zeroed (their constructor 0x2F4BC1, the reset between
+matches 0x2F4C31), is saved after their tail (0x2F5BD0) and loaded with them (0x2F5C83): a
+rollback, a resync and a late joiner have it as every game does, and the match server reads it from
+a trusted world into the match's result. A world without it leaves the statistics uncounted until
+their next reset, and the game then writes none either: the worlds of an older game's match and of
+its replay stay theirs byte for byte. What a match plays out does not change; the world's bytes
+do, so every game of a match needs it. `check_weapon_stats_026g.py` runs the game's own on_fire,
+generate_hit_event, kill call, constructor, reset, serialize and deserialize in both exes.
 
 ## Free for all (patch 142, unreleased)
 

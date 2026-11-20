@@ -2294,6 +2294,7 @@ impl World {
                     statistics: Some(statistics),
                     pay_statistics: None,
                     supplies: None,
+                    weapons: Vec::new(),
                 }
             })
             .collect();
@@ -2367,6 +2368,7 @@ impl World {
                 statistics: None,
                 pay_statistics: None,
                 supplies: None,
+                weapons: Vec::new(),
             })
             .collect();
         let result = MatchResult {

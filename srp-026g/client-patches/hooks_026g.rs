@@ -649,6 +649,21 @@ pub extern "C" fn hook_artefact_keeper_on_tick(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_tick` calls this, from the game's jump at 0x2daad3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_keeper (patch 109) ----
 
 /// The entry `artefact_keeper_on_world_loaded` (0x2d2d5d, game_world_core::deserialize's end (mov byte [ebp+18FE0h],0 after pop edi / pop esi; the je at 0x2D2CBB and the loop's end join at 0x2D2D5B): every place's current kit and its inventory loaded, every object (the anomalies, their artefacts with their inventory and slot) loaded, every active place put into the world; EBP the core world. Every world load passes here: a rollback's (move 0x2D2FF0, 0x2D357A), a joiner's or a resync's (0x2D0B70 -> 0x2D0FB9), a replay's seek) calls this with the saved machine.
@@ -6573,6 +6588,111 @@ pub extern "C" fn hook_weapon_pickup_on_load_record(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_killed` (0x26da00, base_game_statistics_handler::on_player_killed's start (push esi / mov esi,ecx / mov eax,[esi+3238h]; vtable 0xA0755C slot +0, called only by generate_killed_event 0x2DA46C): ECX the handler, the site's ESP its 17 arguments, before shared_statistics::on_player_killed 0x2F4EB0 counts the kill) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_killed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_killed` calls this, from the game's jump at 0x26da00,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_killed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_hit` (0x2da10c, generate_hit_event 0x2D9F40 after the damage record's add (0x2DA10A), before the handler's on_player_damaged (slot +4, the only call, 0x2DA164; mov ecx,[esi+120h]): ESI the victim, EDI the attacker's player or 0, EBP the bullet or 0, EBX the victim's place, the site's ESP the frame; every path of the function comes here (0x2DA043, 0x2DA0C4, 0x2DA0ED)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_hit` calls this, from the game's jump at 0x2da10c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_fired` (0x2d7843, base_player::on_fire 0x2D7800 after its fire listeners, before the handler's on_player_weapon_firing (slot +8, the only call, 0x2D78A5; mov ecx,[esi+10h] / mov ebx,[ecx+18FA8h]): ESI the player + 110h, the site's ESP+14h the bullets fired) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_fired(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_fired` calls this, from the game's jump at 0x2d7843,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_fired(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_save` (0x2f5bd0, shared_statistics::serialize 0x2F5AC0 after its tail's last write (m_active_in_match_players_mask, 0x2F5BCB), at its epilogue (pop edi / pop ebx / mov esp,ebp / pop ebp): ESI the statistics, EDI the writer) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_save` calls this, from the game's jump at 0x2f5bd0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_load` (0x2f5c83, shared_statistics::deserialize 0x2F5BE0 with its tail read, the reader's cursor past it (pop edi / mov [esi+31C4h],ecx; ECX the mask read): ESI the statistics, EDI the reader, whose bytes are the world's statistics section alone (world apply 0x2D2AEE..0x2D2B09)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_load` calls this, from the game's jump at 0x2f5c83,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_reset` (0x2f4c31, the shared statistics' reset between matches (0x2F4C20, called by the handler's clear 0x26D880 alone), which zeroes every place's events (0x2F4C7E..0x2F4CD6): mov [edi+31C0h],ebx; EDI the statistics) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_reset(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_reset` calls this, from the game's jump at 0x2f4c31,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_reset(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_made` (0x2f4bc1, the shared statistics' constructor (0x2F4B40, called by the handler's 0x26D75B alone) with its 20 records made, their events 0: mov [edi+31C0h],ebx; EDI the statistics) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_made` calls this, from the game's jump at 0x2f4bc1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- world_check (patch 87) ----
 
 /// The named exits of world_check::on_unpacked (the order the shim's Flow code
@@ -6640,6 +6760,8 @@ pub extern "C" fn hook_battery_progress_on_carrier_tick_chain(frame: &mut Frame)
     let flow = hook_forest_glow_on_tick(frame);
     if flow != 0 { return flow; }
     let flow = hook_artefact_keeper_on_tick(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_weapon_stats_on_tick(frame);
     if flow != 0 { return flow; }
     0
 }
