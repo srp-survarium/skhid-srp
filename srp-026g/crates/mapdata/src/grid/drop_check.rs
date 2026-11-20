@@ -1493,4 +1493,40 @@ mod tests {
         let world = Collision::build(&tris);
         assert!(follows(&world, &Settings::LIVE, Vec3::new(-0.25, 2.0, 0.0), Vec3::new(0.25, 0.0, 0.0)));
     }
+
+    /// [edge walk-offs] A deck over the ground across a 0.6 m gap: no Drop link leads off its edge (the next cell holds no floor),
+    /// so without the pass no floor of the ground is reached from the deck and the build lets them go. With it, 2 m up, the deck's
+    /// edge floors get off-mesh GapDrop links the client's body walks off and lands on the ground, and the ground is kept; 6 m up
+    /// (past the harmless fall, `Body::max_drop`) there are none either way.
+    #[test]
+    fn an_edge_over_a_gap_gets_walk_offs_to_the_ground_within_the_harmless_fall() {
+        for (high, lands) in [(2.0f32, true), (6.0, false)] {
+            let mut tris = Vec::new();
+            tris.extend(quad(0.0, 5.0, 0.0, 10.0, high));
+            tris.extend(quad(5.6, 12.0, 0.0, 10.0, 0.0));
+            let seeds = [Vec3::new(2.0, high, 5.0)];
+            for edge in [false, true] {
+                let body = super::super::Body { drop_check: true, drop_lands: true, edge_walk_offs: edge, ..super::super::Body::client() };
+                assert!(high > body.step && (high <= body.max_drop) == lands);
+                let (grid, stats) = WalkGrid::build_kept_with_stats(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, body, &seeds, &[]);
+                let case = format!("{high} m up, edge walk-offs {edge}: {:?}", stats.edge_walk_offs);
+                assert!(grid.locate(seeds[0], 0.3).is_some(), "{case}");
+                let ground = grid.locate(Vec3::new(9.0, 0.0, 5.0), 0.3);
+                let downs: Vec<_> = grid.off_links().iter().filter(|l| l.kind == LinkKind::GapDrop).collect();
+                if edge && lands {
+                    assert!(ground.is_some(), "the ground is reached: {case}");
+                    assert!(!downs.is_empty(), "{case}");
+                    for l in &downs {
+                        let (a, b) = (grid.position(l.from), grid.position(l.to));
+                        assert!((a.y - high).abs() < 0.05 && a.x > 4.5 && b.y.abs() < 0.05 && b.x > 5.6, "{case}: {l:?} {a:?} -> {b:?}");
+                    }
+                    assert!(downs.iter().any(|l| l.press == Takeoff::WalkOff), "{case}");
+                    assert_eq!(stats.edge_walk_offs.walk_offs + stats.edge_walk_offs.pressed, downs.len(), "{case}");
+                } else {
+                    assert!(ground.is_none(), "the ground is not reached: {case}");
+                    assert!(downs.is_empty(), "{case}: {downs:?}");
+                }
+            }
+        }
+    }
 }
