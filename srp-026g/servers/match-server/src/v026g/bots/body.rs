@@ -581,6 +581,32 @@ impl Estimate {
             step_creep: Creep::Unknown,
         }
     }
+
+    /// TEST ONLY: a body standing at `feet` facing `yaw`, no keys, on no known floor.
+    #[cfg(test)]
+    pub(crate) fn at_rest(feet: Vec3, yaw: f32) -> Self {
+        Self {
+            time: 0,
+            feet,
+            velocity: [0.0, 0.0],
+            blend: Blend::at([0.0, 0.0]),
+            yaw: wrap(yaw),
+            pitch: 0.0,
+            kick: 0.0,
+            keys: 0,
+            node: None,
+            air_until: 0,
+            air_cap: f32::INFINITY,
+            arc: None,
+            scale: PitchScale::Radian,
+            fall: Fall::Ground,
+            step: None,
+            grid_extra: GridExtra::default(),
+            kept: None,
+            creep: Creep::Unknown,
+            step_creep: Creep::Unknown,
+        }
+    }
 }
 
 /// What the stop check [`stays_up`] plays the body over: its movement model and speed level, the grid, the
@@ -712,6 +738,32 @@ pub enum PressOutcome {
     /// The press starts no flight of the client's (a side or back key, a crouched capsule, a body in the air, no client walker,
     /// the clip's jump configured): no forecast.
     NoFlight,
+}
+
+/// [press forecast] The match's forecasts of one poll: one chain or one flight ([`press_chain`], [`press_forecast`]) a poll for all
+/// its bots, so the worst poll pays for one (design §5.4). The poll is set before each bot's drive ([`Self::begin`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PressToken {
+    /// The poll now (the match clock's ms).
+    poll: u32,
+    /// The poll the last forecast was taken in.
+    taken: Option<u32>,
+}
+
+impl PressToken {
+    /// The poll of the match clock `poll` is under way.
+    pub fn begin(&mut self, poll: u32) {
+        self.poll = poll;
+    }
+
+    /// Takes this poll's forecast: false when one was taken in it already.
+    pub fn take(&mut self) -> bool {
+        if self.taken == Some(self.poll) {
+            return false;
+        }
+        self.taken = Some(self.poll);
+        true
+    }
 }
 
 /// [press forecast] The steps of the client's flight a forecast plays at most: the sprint jump's landing step (n = 18,
@@ -3662,6 +3714,19 @@ pub(super) mod tests {
             PressOutcome::NotDown { at } => Some(at),
             PressOutcome::NoFlight => None,
         }
+    }
+
+    /// [press forecast] The match's one forecast a poll: taken once in a poll, free again in the next.
+    #[test]
+    fn the_press_token_gives_one_forecast_a_poll() {
+        let mut token = PressToken::default();
+        token.begin(50);
+        assert!(token.take());
+        assert!(!token.take(), "the second forecast of the poll");
+        token.begin(50);
+        assert!(!token.take(), "the same poll begun again by the next bot");
+        token.begin(100);
+        assert!(token.take(), "the next poll");
     }
 
     /// [press forecast] [`press_forecast`] plays the reckoning's own steps ([`Role::Press`]): for every press of the gap (0-19

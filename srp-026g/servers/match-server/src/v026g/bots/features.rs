@@ -94,6 +94,8 @@ features! {
         kit_choices: Vec<(Place, u8)>,
         /// How the teams' own traps went off (`trap_know`).
         own_traps: trap_know::OwnTrapCounts,
+        /// [press forecast] This poll's one forecast of a press (`body::PressToken`, `motor::PressFlyer`).
+        press_token: body::PressToken,
         /// This poll's route searches (`search`).
         searching: search::Searching,
         /// The armed traps the last world showed and the snaps given to the ears (`trap_know`).

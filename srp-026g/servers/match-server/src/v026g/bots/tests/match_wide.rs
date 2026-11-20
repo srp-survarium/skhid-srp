@@ -24,7 +24,7 @@
 use super::*;
 
 /// The match-wide keys: a dotted path into the tuning's JSON, a section's name standing for every key under it.
-const MATCH_WIDE: [&str; 23] = [
+const MATCH_WIDE: [&str; 24] = [
     "grid",
     "kin",
     "hazard.margin_m",
@@ -37,6 +37,8 @@ const MATCH_WIDE: [&str; 23] = [
     "aim.combat.live_eye",
     "aim.combat.grenade_rest_flown",
     "aim.combat.fire.weapon_class_by_data",
+    // [press forecast] One forecast of a press a poll for the whole match (`body::PressToken`): a side's switch takes the other's.
+    "feel.press_forecast",
     "sense.use_ray_m",
     "sense.sprint_body_mps",
     "traps.react.on",
@@ -160,7 +162,7 @@ fn the_defaults_and_all_off_differ_in_these_match_wide_keys() {
 }
 
 /// The match-wide keys all_off.json sets apart from the defaults (pinned by the test above).
-const ALL_OFF_MATCH_WIDE: [&str; 23] = [
+const ALL_OFF_MATCH_WIDE: [&str; 24] = [
     "grid.client_controller",
     "grid.crouch_floors",
     "grid.drop_room_walk_faces",
@@ -179,6 +181,7 @@ const ALL_OFF_MATCH_WIDE: [&str; 23] = [
     "hazard.artefact_know",
     "hazard.live_zones",
     "aim.combat.fire.weapon_class_by_data",
+    "feel.press_forecast",
     "traps.react.on",
     "traps.react.hear",
     "avoid.bot_pockets",

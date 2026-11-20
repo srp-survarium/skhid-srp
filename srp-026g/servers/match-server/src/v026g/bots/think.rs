@@ -162,6 +162,9 @@ impl Bots {
         bot.reflex.tracing = bot.tracing;
         let world = self.tactics.as_ref().map(|t| t.world.clone());
         let searching = &mut self.features.searching;
+        // [press forecast] One forecast of a press a poll for the match's bots (`body::PressToken`).
+        let press_token = &mut self.features.press_token;
+        press_token.begin(clock.clock);
         for time in bot.encoder.ticks(clock.clock, entered + START_AFTER_MS) {
             #[cfg(test)]
             {
@@ -215,7 +218,8 @@ impl Bots {
                         path::take_last_no_route();
                         bot.reckoned_creep = at.creep;
                         bot.reckoned_kept = at.kept;
-                        let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching);
+                        bot.reckoned = Some((at, self.tracker.body(bot.place).map_or(1.0, |body| body.level())));
+                        let decision = drive_tick(bot, &me, view, tactics, &tuning, time, searching, press_token);
                         #[cfg(test)]
                         if let Some(life) = bot.bench_life.as_mut() {
                             life.drove(time, path::take_last_no_route());

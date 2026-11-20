@@ -6,6 +6,7 @@
 //! press at it is the grid's (from rest, within the stored lead window). Reported, not asserted: where the bot comes down. The
 //! stand-in lands presses the exe does not (rig_real_v3: from 0.11-0.13 m to the line's left, where the stored window (0, 0.15)
 //! has no width, the exe body comes down short of the top at every lead tried), so its landing here is not the client's.
+//! The motor's own press path: run with the press forecast off (`Feel::press_forecast`; `press_forecast_spots` runs it on).
 //!
 //! ```text
 //! SRP_MAPDATA_DIR=<dir> SRP_GAME_DATA=<server-game-data.db> [SRP_BENCH_GRID_CACHE=<dir>] cargo test -p match-server --release rest_spots -- --ignored --nocapture
@@ -24,36 +25,35 @@ const LANDING: Vec3 = Vec3::new(-21.851, 25.805, 57.875);
 
 /// What one run across the link came to.
 #[derive(Debug, Default)]
-struct Crossing {
-    presses: u32,
+pub(super) struct Crossing {
+    pub(super) presses: u32,
     /// The clock the feet were first on the landing (0.6 m across, 0.5 m in height), ms.
-    landed: Option<u32>,
+    pub(super) landed: Option<u32>,
     /// The ms the body was at rest (under 0.3 m/s) within 2 m of the take-off.
-    rest_ms: u32,
+    pub(super) rest_ms: u32,
     /// The feet at the first press.
     pressed_at: Option<Vec3>,
     /// Every press.
-    presses_at: Vec<Press>,
+    pub(super) presses_at: Vec<Press>,
     /// The bot's notes (ms, text), printed with `SRP_REST_TRAIL=1`.
-    notes: Vec<(u32, String)>,
+    pub(super) notes: Vec<(u32, String)>,
     /// The feet at every press, and every 500 ms (`SRP_REST_TRAIL=1` prints them).
-    trail: Vec<(u32, Vec3, bool)>,
+    pub(super) trail: Vec<(u32, Vec3, bool)>,
 }
 
 /// A press of the jump key on the way.
 #[derive(Debug)]
-struct Press {
-    feet: Vec3,
+pub(super) struct Press {
+    pub(super) feet: Vec3,
     /// The body's speed over the stand-in's last step (a game tick), m/s.
-    speed: f32,
+    pub(super) speed: f32,
     /// The motor's route jump it pressed, its take-off and landing (`Motor::route_press`; None: another jump, the stuck watch's,
     /// an escape's).
-    link: Option<(Vec3, Vec3)>,
+    pub(super) link: Option<(Vec3, Vec3)>,
 }
 
 /// A bot on the stand-in walks to `goal` from `start` for at most `until` ms (as `drop_spots`' walk).
-fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: Vec3, until: u32) -> Crossing {
-    let tuning = Tuning::default();
+pub(super) fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: Vec3, until: u32, tuning: Tuning) -> Crossing {
     let teams = [0u8, 1];
     let mut bots = Bots::new(0x1005, survarium::v026g::maps::RuleMode::TeamDeathmatch, 0, &teams, &[true, false], &[None, None], Arc::new(tuning), Trace::none(0));
     bots.map_ready(world.clone());
@@ -122,20 +122,35 @@ fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: V
                 out.rest_ms += TICK_MS;
             }
         }
-        if feet.distance_xz(landing) <= 0.6 && (feet.y - landing.y).abs() <= 0.5 && game.bodies[0].alive {
+        // Run on 2.6 s past the landing, so the motor's line of a forecast press (written 2.5 s after it) is in the notes.
+        if out.landed.is_none() && feet.distance_xz(landing) <= 0.6 && (feet.y - landing.y).abs() <= 0.5 && game.bodies[0].alive {
             out.landed = Some(clock);
+        }
+        if out.landed.is_some_and(|at| clock >= at + 2_600) {
             break;
         }
     }
     out
 }
 
-#[test]
-#[ignore = "needs SRP_MAPDATA_DIR"]
-fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
+/// The map 91 link on the real map: its world, ends, press way and stored window, the goal past it and up to 4 starts whose
+/// planned route takes it.
+pub(super) struct Map91 {
+    pub(super) world: Arc<World>,
+    pub(super) a: Vec3,
+    pub(super) b: Vec3,
+    pub(super) way: (f32, f32),
+    pub(super) window: Option<mapdata::grid::gap::TakeoffWindow>,
+    pub(super) goal: Vec3,
+    pub(super) goal_node: NodeId,
+    pub(super) starts: Vec<Vec3>,
+}
+
+/// [`Map91`] from `SRP_MAPDATA_DIR`; none (said so) when it is not set.
+pub(super) fn map91() -> Option<Map91> {
     let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
-        return;
+        return None;
     };
     let t = Tuning::default();
     let bytes = std::fs::read(dir.join(mapdata::format::file_name(PROJECT))).unwrap();
@@ -208,13 +223,26 @@ fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
         }
     }
     assert!(!starts.is_empty(), "no start 3-8 m off whose route takes the link");
+    let window = link.window();
+    Some(Map91 { world, a, b, way, window, goal, goal_node, starts })
+}
+
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
+    let Some(Map91 { world, a, b, way, window, goal, goal_node, starts }) = map91() else {
+        return;
+    };
+    let grid = &world.grid;
     // The stored window's leads (m behind the take-off along the press's way) and the turn of the way to its right.
-    let lead_window = link.window().expect("a flown press").lead_m;
+    let lead_window = window.expect("a flown press").lead_m;
     let right = (way.1, -way.0);
     let (mut pressed, mut landed, mut off_rule) = (0, 0, Vec::new());
     let n_starts = starts.len();
     for start in starts {
-        let c = cross(&world, start, a, b, goal, 40_000);
+        let mut off = Tuning::default();
+        off.feel.press_forecast = false;
+        let c = cross(&world, start, a, b, goal, 40_000, off);
         eprintln!(
             "REST from ({:.2}, {:.2}, {:.2}) ({:.1} m): landed {:?} ms, presses {}, first press at {:?}, rest {} ms near the take-off",
             start.x, start.y, start.z, start.distance_xz(a), c.landed, c.presses, c.pressed_at, c.rest_ms
