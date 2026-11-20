@@ -44,6 +44,7 @@
 
 mod damage;
 mod equipment;
+mod history;
 mod icons;
 pub mod item_tables;
 mod launcher;
@@ -353,6 +354,20 @@ fn replay_log_line(request: &Request, match_id: u32, token: &str) -> String {
     )
 }
 
+/// Asks for a replay (`/api/history/replay`) an address may make in
+/// [`REPLAY_ASK_WINDOW`]: the stats page asks again every two seconds while
+/// one is being made.
+const REPLAY_ASKS: u32 = 40;
+const REPLAY_ASK_WINDOW: Duration = Duration::from_secs(60);
+/// Addresses whose asks are remembered, at most.
+const REPLAY_ASK_ADDRESSES: usize = 4096;
+
+/// The asks for a replay of one address, since the first of the minute.
+struct ReplayAsks {
+    count: u32,
+    since: Instant,
+}
+
 /// The failed `/replays/` lookups of one address.
 struct ReplayFailures {
     count: u32,
@@ -419,6 +434,8 @@ struct Web {
     replay_downloads: AtomicU32,
     /// Failed `/replays/` lookups by address ([`REPLAY_FAILURES`]).
     replay_failures: Mutex<HashMap<Option<IpAddr>, ReplayFailures>>,
+    /// Asks for a replay by address ([`REPLAY_ASKS`]).
+    replay_asks: Mutex<HashMap<Option<IpAddr>, ReplayAsks>>,
     /// The admin's moderation previews waiting for their confirm.
     plans: moderation::Plans,
     /// `Some`: the page of the 0.26g stack.
@@ -548,6 +565,7 @@ pub fn serve_on(
         resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(HashMap::new()),
+        replay_asks: Mutex::new(HashMap::new()),
         plans: Default::default(),
         game,
     });
@@ -702,6 +720,7 @@ impl Web {
             let file = damage::file(&request.path)
                 .or_else(|| self.game.as_ref().and_then(|_| maps::file(&request.path)))
                 .or_else(|| self.game.as_ref().and_then(|_| wiki::file(&request.path)))
+                .or_else(|| self.game.as_ref().and_then(|_| history::file(&request.path)))
                 .or_else(|| self.game.as_ref().and_then(|_| skills::file(&request.path)))
                 .or_else(|| self.game.as_ref().and_then(|_| icons::file(&request.path)));
             if let Some((content_type, bytes)) = file {
@@ -732,6 +751,8 @@ impl Web {
             damage::POLICY
         } else if self.game.is_some() && request.path == maps::PATH {
             maps::POLICY
+        } else if self.game.is_some() && request.path == history::PATH {
+            history::POLICY
         } else if self.game.is_some()
             && matches!(
                 request.path.as_str(),
@@ -839,6 +860,24 @@ impl Web {
         );
         // The token's one download is over.
         drop(download);
+    }
+
+    /// One ask for a replay of an address: whether it is within
+    /// [`REPLAY_ASKS`] of this minute.
+    fn replay_ask_allowed(&self, client: Option<IpAddr>, now: Instant) -> bool {
+        let mut all = locked(&self.replay_asks);
+        if all.len() >= REPLAY_ASK_ADDRESSES && !all.contains_key(&client) {
+            all.retain(|_, asks| now.saturating_duration_since(asks.since) < REPLAY_ASK_WINDOW);
+            if all.len() >= REPLAY_ASK_ADDRESSES {
+                return false;
+            }
+        }
+        let asks = all.entry(client).or_insert(ReplayAsks { count: 0, since: now });
+        if now.saturating_duration_since(asks.since) >= REPLAY_ASK_WINDOW {
+            *asks = ReplayAsks { count: 0, since: now };
+        }
+        asks.count += 1;
+        asks.count <= REPLAY_ASKS
     }
 
     /// Whether an address is waiting out its failed `/replays/` lookups.
@@ -998,6 +1037,26 @@ impl Web {
             if request.method == "GET" {
                 match request.path.as_str() {
                     "/api/stats" => return stats::response(&self.store, game),
+                    history::PATH => return stats_page(request.lang),
+                    history::REPLAY
+                        if !self.replay_ask_allowed(request.client, Instant::now()) =>
+                    {
+                        return history::too_many();
+                    }
+                    path if path.starts_with(history::PREFIX) => {
+                        let query = request
+                            .target
+                            .split_once('?')
+                            .map_or("", |(_, query)| query);
+                        return history::response(
+                            path,
+                            query,
+                            request.lang,
+                            &self.store,
+                            game,
+                            unix_now(),
+                        );
+                    }
                     "/patches" => return patches::response(&game.downloads),
                     "/game" => {
                         if let Some(response) = patches::game_response(&game.downloads) {
@@ -1607,16 +1666,15 @@ fn page_title(lang: Lang, version: &str, test: bool) -> String {
     }
 }
 
-/// The line beside the name in the header.
-fn page_tag(lang: Lang, version: &str, test: bool) -> String {
-    let version = version.to_uppercase();
+/// The line beside the name in the header: what the site is, no more (the
+/// owner, 2026-11-20: the name, the version and "unofficial" there are
+/// unnecessary; the footer says the last).
+fn page_tag(lang: Lang, test: bool) -> &'static str {
     match (test, lang) {
-        (false, Lang::En) => {
-            format!("SKHID · COMMUNITY SERVER FOR SURVARIUM {version} · UNOFFICIAL")
-        }
-        (false, Lang::Uk) => format!("КОМ'ЮНІТІ СЕРВЕР SURVARIUM {version} · НЕОФІЦІЙНИЙ"),
-        (true, Lang::En) => format!("SKHID · TEST SERVER FOR SURVARIUM {version} · UNOFFICIAL"),
-        (true, Lang::Uk) => format!("ТЕСТОВИЙ СЕРВЕР SURVARIUM {version} · НЕОФІЦІЙНИЙ"),
+        (false, Lang::En) => "COMMUNITY SERVER FOR SURVARIUM",
+        (false, Lang::Uk) => "КОМ'ЮНІТІ СЕРВЕР SURVARIUM",
+        (true, Lang::En) => "TEST SERVER FOR SURVARIUM",
+        (true, Lang::Uk) => "ТЕСТОВИЙ СЕРВЕР SURVARIUM",
     }
 }
 
@@ -1662,6 +1720,15 @@ fn damage_page(lang: Lang) -> Response {
 /// The maps: their page under the site's header.
 fn maps_page(lang: Lang) -> Response {
     maps::page(lang, &tool_header(lang, &lang.tr("Maps", "Мапи")))
+}
+
+/// The stats: their page under the site's header, a tab of its own.
+fn stats_page(lang: Lang) -> Response {
+    let connect = CONNECT.get();
+    let test = connect.is_some_and(|connect| connect.test_server);
+    let other_url = connect.and_then(|connect| connect.other_url.as_deref());
+    let (header, notice) = site_header(lang, true, test, other_url, history::PATH);
+    history::page(lang, &format!("{header}{notice}"))
 }
 
 fn wiki_page(path: &str, target: &str, lang: Lang, game: &Game) -> Response {
@@ -1713,7 +1780,6 @@ fn site_header(
         Lang::En => ("uk", "Українська"),
         Lang::Uk => ("en", "English"),
     };
-    let version = if v026g { "0.26g" } else { "0.21d" };
     let other_version = if v026g { "0.21d" } else { "0.26g" };
     // A test server names the other server in its notice, as the players'.
     let (other_link, badge, test_notice) = if test {
@@ -1729,7 +1795,8 @@ fn site_header(
             String::new(),
         )
     };
-    // The wiki (the calculator and the maps are in it) is the 0.26g game's.
+    // The wiki (the calculator and the maps are in it) and the stats are the
+    // 0.26g game's.
     let tab = |path: &str, name: &str| {
         format!(
             "<a href=\"{path}?lang={code}\"{}>{name}</a>",
@@ -1742,7 +1809,7 @@ fn site_header(
     };
     let home_link = tab("/", &lang.tr("Home", "Головна"));
     let wiki_link = if v026g {
-        tab(wiki::PATH, &lang.tr("Wiki", "Вікі"))
+        tab(wiki::PATH, &lang.tr("Wiki", "Вікі")) + &tab(history::PATH, &lang.tr("Stats", "Статистика"))
     } else {
         String::new()
     };
@@ -1750,7 +1817,7 @@ fn site_header(
         "<header><a class=brand href=\"/?lang={code}\">СХІД</a>{badge}\
          <span class=tag>{}</span>\
          <nav>{home_link}{wiki_link}{other_link}</nav> <a class=lang href=\"?lang={other}\">{other_name}</a></header>",
-        page_tag(lang, version, test),
+        page_tag(lang, test),
     );
     (header, test_notice)
 }
@@ -1884,8 +1951,8 @@ fn faq(lang: Lang) -> String {
                 "«Заблоковано в цій мережі: …»",
             ),
             lang.tr(
-                "Your provider may block skhid.link: use a VPN and add the game's programs to it, see <code>VPN.txt</code>.",
-                "Можливо, ваш провайдер блокує skhid.link: скористайтеся VPN і додайте до нього програми гри, див. <code>VPN.txt</code>.",
+                "Your provider blocks skhid.link: the launcher sets <b>Relay</b> (bottom left) to auto. Press Retry.",
+                "Ваш провайдер блокує skhid.link: лаунчер ставить <b>Релей</b> (ліворуч унизу) на авто. Натисніть «Повторити».",
             ),
         ),
         (
@@ -2533,6 +2600,7 @@ mod tests {
             resource_downloads: AtomicU32::new(0),
             replay_downloads: AtomicU32::new(0),
             replay_failures: Mutex::new(HashMap::new()),
+            replay_asks: Mutex::new(HashMap::new()),
             plans: Default::default(),
             game: None,
         }
@@ -3078,7 +3146,7 @@ mod tests {
             let test = page_as(Lang::En, form, "", true, url).body;
             assert!(test.contains(" TEST server</title>"), "{test}");
             assert!(test.contains("<span class=badge>TEST</span>"));
-            assert!(test.contains("TEST SERVER FOR SURVARIUM 0."));
+            assert!(test.contains("TEST SERVER FOR SURVARIUM<"));
             assert!(test.contains("<b>Test server.</b>"));
             assert!(test.contains("accounts and progress here can be reset"));
             // The other server is the players', named in the notice and
@@ -3153,7 +3221,7 @@ mod tests {
     fn pages_are_branded_unofficial_and_localized() {
         let en = page(Lang::En, Form::None, "").body;
         let uk = page(Lang::Uk, Form::None, "").body;
-        assert!(en.contains("СХІД") && en.contains("SKHID") && en.contains("unofficial"));
+        assert!(en.contains("СХІД") && en.contains("COMMUNITY SERVER FOR SURVARIUM<") && en.contains("unofficial"));
         assert!(uk.contains("СХІД") && uk.contains("Неофіційний ком'юніті"));
         assert!(uk.contains("Головна") && en.contains(">Home</a>"));
     }
@@ -3432,22 +3500,22 @@ mod tests {
                 "Skhid-defender-setup.cmd",
                 "Skhid.bat",
                 "Skhid-network-setup.cmd",
-                "VPN.txt",
                 "Skhid-collect-logs.cmd",
                 "Skhid-without-updater.bat",
             ] {
                 assert!(faq.contains(said), "{said}: {faq}");
             }
             // The updater's box titles, in the order of the questions; the
-            // VPN only in the blocked one's answer.
+            // relay row only in the blocked one's answer, a VPN in none.
             let mut rest = faq;
             for title in titles {
                 let at = rest.find(title).unwrap_or_else(|| panic!("{title}: {faq}"));
                 rest = &rest[at + title.len()..];
             }
             let (no_connection, blocked) = faq.split_once(titles[3]).unwrap();
-            assert!(!no_connection.contains("VPN"), "{no_connection}");
-            assert!(blocked.contains("VPN.txt"), "{blocked}");
+            assert!(!no_connection.contains("relay") && !no_connection.contains("релей"), "{no_connection}");
+            assert!(blocked.contains("<b>Relay</b>") || blocked.contains("<b>Релей</b>"), "{blocked}");
+            assert!(!faq.contains("VPN"), "{faq}");
             // The Discord invite is the last answer's, nothing after the pairs.
             let last = faq.rsplit("<dd>").next().unwrap();
             assert!(

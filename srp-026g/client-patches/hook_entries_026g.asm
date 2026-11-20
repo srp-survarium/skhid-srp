@@ -4485,6 +4485,246 @@ memory_report_on_close_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0x27a796
 
+; 0x205662 profile_skin_visual_cook::on_configs_loaded's default head, reached only when no item's remove_head_model took record 0 (the je at 0x205653), past its relocated `mov edi,9FD770h` ("head"): lea eax,[esp+0A8h] (the body_parts copy, before add esi,234h, record 0); 0x205659..0x2056E6 assign body_parts/head/data's base_model and part_name to record 0 and tag it 0; made is the join after it (0x2056F0), where every record is made and the skin's name is queried (patch 123): lohook -> faces_on_head
+global faces_on_head
+extern hook_faces_on_head
+faces_on_head:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_head
+    mov edx, faces_on_head_replay
+    cmp eax, 0
+    je faces_on_head_go
+    mov edx, 0x205669
+    cmp eax, 1
+    je faces_on_head_go
+    mov edx, 0x2056f0
+    cmp eax, 2
+    je faces_on_head_go
+    ud2
+faces_on_head_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_head_replay:
+    db 0x8d, 0x84, 0x24, 0xa8, 0x00, 0x00, 0x00
+    jmp 0x205669
+
+; 0x27030b process_own_account (0x270260, the 0x87 handler) after its last field, exp_next_level (mov esi,ebx / mov [ebx+1EA96Ch],ecx, before the items' copy 0x270320): EBX the lobby client, its account profile at +1E6344h; ESI the message's reader, its cursor past the field: srp's face byte there (patch 123): lohook -> faces_on_own_account
+global faces_on_own_account
+extern hook_faces_on_own_account
+faces_on_own_account:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_own_account
+    mov edx, faces_on_own_account_replay
+    cmp eax, 0
+    je faces_on_own_account_go
+    mov edx, 0x270313
+    cmp eax, 1
+    je faces_on_own_account_go
+    ud2
+faces_on_own_account_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_own_account_replay:
+    db 0x8b, 0xf3, 0x89, 0x8b, 0x6c, 0xa9, 0x1e, 0x00
+    jmp 0x270313
+
+; 0x274c01 the 0x88 handler (squad member account, 0x274BCE) after its revision (mov edx,[ebx+1E56C0h], before on_squad_member_profile_arrived 0x222FE0 copies the profile to the member's lobby character): ESI the message's reader past the revision, srp's face byte there; EDI the member's profile, read by deserialize_static 0x1F1070 (patch 123): lohook -> faces_on_squad_member
+global faces_on_squad_member
+extern hook_faces_on_squad_member
+faces_on_squad_member:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_squad_member
+    mov edx, faces_on_squad_member_replay
+    cmp eax, 0
+    je faces_on_squad_member_go
+    mov edx, 0x274c07
+    cmp eax, 1
+    je faces_on_squad_member_go
+    ud2
+faces_on_squad_member_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_squad_member_replay:
+    db 0x8b, 0x93, 0xc0, 0x56, 0x1e, 0x00
+    jmp 0x274c07
+
+; 0x1f9520 game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left: lohook -> voice_on_deactivate
+global voice_on_deactivate
+extern hook_voice_on_deactivate_chain
+voice_on_deactivate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_voice_on_deactivate_chain
+    mov edx, voice_on_deactivate_replay
+    cmp eax, 0
+    je voice_on_deactivate_go
+    mov edx, 0x1f9525
+    cmp eax, 1
+    je voice_on_deactivate_go
+    ud2
+voice_on_deactivate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+voice_on_deactivate_replay:
+    db 0x53, 0x56, 0x57, 0x8b, 0xf9
+    jmp 0x1f9525
+
+; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
+global message_check_on_message
+extern hook_message_check_on_message_chain
+message_check_on_message:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_message_check_on_message_chain
+    mov edx, message_check_on_message_replay
+    cmp eax, 0
+    je message_check_on_message_go
+    mov edx, 0x27a327
+    cmp eax, 1
+    je message_check_on_message_go
+    mov edx, 0x27a72c
+    cmp eax, 2
+    je message_check_on_message_go
+    ud2
+message_check_on_message_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+message_check_on_message_replay:
+    db 0x89, 0x45, 0x0c, 0x05, 0x1d, 0xff, 0xff, 0xff
+    jmp 0x27a327
+
+; 0x204b36 profile_skin_visual_cook::on_configs_loaded's worn item, its entry's key chosen (the join of 0x204B26/0x204B2F): EDI the key ("data" 0x9FD6C4, or the torso's and pants' data_<model_type>), the item's config at [esp+10h], its profile slot at [esp+60h]; mov esi,[esp+10h] / mov eax,[esi+108h], then cfg_child (0x204B40) of the root by EDI, the 24-byte node copied to [esp+20h], which the records' base_model, part_name, material, remove_head_model, model_type and additional_models are read from (0x2051C0..0x20561C) (patch 123: a helmet's or mask's data_head_<face>): lohook -> faces_on_item_data
+global faces_on_item_data
+extern hook_faces_on_item_data
+faces_on_item_data:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_faces_on_item_data
+    mov edx, faces_on_item_data_replay
+    cmp eax, 0
+    je faces_on_item_data_go
+    mov edx, 0x204b40
+    cmp eax, 1
+    je faces_on_item_data_go
+    ud2
+faces_on_item_data_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+faces_on_item_data_replay:
+    db 0x8b, 0x74, 0x24, 0x10, 0x8b, 0x86, 0x08, 0x01, 0x00, 0x00
+    jmp 0x204b40
+
 ; 0x2a6485 player_equipment_sound_effect::on_player_sound_event's guard (mov edi,[esi+10h] / cmp edi,[ecx+18FC4h] / setbe cl / test cl,cl; the jne at 0x2A6493 skips an event at or before the newest played time): EAX the effect, ESI the event, ECX its player's world core (not 0: the je at 0x2A6483); play goes on to the object test and the switch, skip is the handler's return 0: lohook -> footsteps_on_step_guard
 global footsteps_on_step_guard
 extern hook_footsteps_on_step_guard
@@ -5015,6 +5255,129 @@ game_volume_on_general_go:
 game_volume_on_general_replay:
     db 0x38, 0x87, 0xf0, 0x48, 0x00, 0x00
     jmp 0x59ae5
+
+; 0x3d43e0 hw_buffer_pool::allocate's start (sub esp,10h / push ebx / mov ebx,[esp+18h]): the site's ESP+4 the pool, +8 the range it fills, +0Ch the bytes, +10h their count, +14h the stride; shared is its `ret 14h`, AL its result: lohook -> geometry_share_on_allocate
+global geometry_share_on_allocate
+extern hook_geometry_share_on_allocate
+geometry_share_on_allocate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_geometry_share_on_allocate
+    mov edx, geometry_share_on_allocate_replay
+    cmp eax, 0
+    je geometry_share_on_allocate_go
+    mov edx, 0x3d43e8
+    cmp eax, 1
+    je geometry_share_on_allocate_go
+    mov edx, 0x3d44fa
+    cmp eax, 2
+    je geometry_share_on_allocate_go
+    ud2
+geometry_share_on_allocate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+geometry_share_on_allocate_replay:
+    db 0x83, 0xec, 0x10, 0x53, 0x8b, 0x5c, 0x24, 0x18
+    jmp 0x3d43e8
+
+; 0x3d1178 untyped_buffer::untyped_buffer with its range of a pool taken, both pools' calls joined (mov ecx,[esi] / mov eax,[ecx+0C00Ch]): EDI the buffer (its +4h the range, +14h its bytes, +18h its stride), EBP its frame (+10h the bytes it was filled with): lohook -> geometry_share_on_pooled
+global geometry_share_on_pooled
+extern hook_geometry_share_on_pooled
+geometry_share_on_pooled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_geometry_share_on_pooled
+    mov edx, geometry_share_on_pooled_replay
+    cmp eax, 0
+    je geometry_share_on_pooled_go
+    mov edx, 0x3d1180
+    cmp eax, 1
+    je geometry_share_on_pooled_go
+    ud2
+geometry_share_on_pooled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+geometry_share_on_pooled_replay:
+    db 0x8b, 0x0e, 0x8b, 0x81, 0x0c, 0xc0, 0x00, 0x00
+    jmp 0x3d1180
+
+; 0x3d4510 hw_buffer_pool::deallocate's start (sub esp,14h / mov ecx,[eax+8]): EAX the range a buffer gives back (0x3D1680, when its references reach 0); kept is its bare ret, the range left in its chunk: lohook -> geometry_share_on_deallocate
+global geometry_share_on_deallocate
+extern hook_geometry_share_on_deallocate
+geometry_share_on_deallocate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_geometry_share_on_deallocate
+    mov edx, geometry_share_on_deallocate_replay
+    cmp eax, 0
+    je geometry_share_on_deallocate_go
+    mov edx, 0x3d4516
+    cmp eax, 1
+    je geometry_share_on_deallocate_go
+    mov edx, 0x3d455c
+    cmp eax, 2
+    je geometry_share_on_deallocate_go
+    ud2
+geometry_share_on_deallocate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+geometry_share_on_deallocate_replay:
+    db 0x83, 0xec, 0x14, 0x8b, 0x48, 0x08
+    jmp 0x3d4516
 
 ; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> hand_kill_on_hit
 global hand_kill_on_hit
@@ -7671,48 +8034,6 @@ memory_profile_on_out_of_memory_replay:
     db 0x55, 0x8b, 0xec, 0x83, 0xe4, 0xf8
     jmp 0xe4d76
 
-; 0x27a31f on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue: lohook -> message_check_on_message
-global message_check_on_message
-extern hook_message_check_on_message
-message_check_on_message:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_message_check_on_message
-    mov edx, message_check_on_message_replay
-    cmp eax, 0
-    je message_check_on_message_go
-    mov edx, 0x27a327
-    cmp eax, 1
-    je message_check_on_message_go
-    mov edx, 0x27a72c
-    cmp eax, 2
-    je message_check_on_message_go
-    ud2
-message_check_on_message_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-message_check_on_message_replay:
-    db 0x89, 0x45, 0x0c, 0x05, 0x1d, 0xff, 0xff, 0xff
-    jmp 0x27a327
-
 ; module_watch.thread patch 125's TLS callback (module_watch_026g.asm module_watch_tls, the one callback of the exe's TLS directory): Windows calls it, the loader's lock held, on the main thread before the exe's entry point (reason 1) and on every thread the process gets before that thread's own start (reason 2); stdcall (the module, the reason, reserved), our code pushes the address of module_watch_dll before its call and returns with ret 0Ch: entry -> module_report_on_thread
 global module_report_on_thread
 extern hook_module_report_on_thread
@@ -10281,45 +10602,6 @@ voice_on_finish_go:
 voice_on_finish_replay:
     db 0x57, 0x8b, 0xf8, 0x8b, 0x87, 0x9c, 0x00, 0x00, 0x00
     jmp 0x1f96f9
-
-; 0x1f9520 game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left: lohook -> voice_on_deactivate
-global voice_on_deactivate
-extern hook_voice_on_deactivate
-voice_on_deactivate:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_voice_on_deactivate
-    mov edx, voice_on_deactivate_replay
-    cmp eax, 0
-    je voice_on_deactivate_go
-    mov edx, 0x1f9525
-    cmp eax, 1
-    je voice_on_deactivate_go
-    ud2
-voice_on_deactivate_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-voice_on_deactivate_replay:
-    db 0x53, 0x56, 0x57, 0x8b, 0xf9
-    jmp 0x1f9525
 
 ; 0x25cf70 game_world::on_mouse_key_action after it asked the input world for the keyboard (mov edi,eax / mov eax,[edi] / mov edx,[eax]; its first ten bytes are patch 31's jump, WARMUP_KEYS_HOOK, which comes back at 0x25CF6A for every button it does not take): ESI the game world's input handler (the keyboard's, the hud at +4: its cursor flag +2E0h is the hud's +2DCh), ESP+14h the button's key (151h + the button), +18h its kind; every mouse button of a match comes here before the player's handler (input priority 7, before 10): lohook -> voice_on_mouse_key
 global voice_on_mouse_key

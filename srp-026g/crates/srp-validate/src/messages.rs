@@ -166,7 +166,10 @@ pub fn check(message: u8, payload: &[u8]) -> Result<(), Refusal> {
         // The late join's profile proposal (`late_join::Prepare`, every
         // client of the dialect): its magic, the match, the serial, the
         // place, the squad, then the profile, which the late join's own
-        // check takes (`late_join_validate_026g.c`). Here the header: a
+        // check takes (`late_join_validate_026g.c`), and srp's block with
+        // the faces entry of the one place when its face is not 0 (read and
+        // taken off at the dispatch by the faces patch, which steps over the
+        // profile with the items dictionary: `faces.rs`). Here the header: a
         // place the first player cannot have, under 20, a serial not 0.
         id::STATIC_INFO if payload.starts_with(&LATE_JOIN_PREPARE) => {
             if len < LATE_JOIN_HEADER {
@@ -425,8 +428,9 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
     // The squad bytes.
     reader.skip(MAX_PLAYERS).map_err(short)?;
     // srp appends an SRPX block for a Blackout match (shipped patch 65), for
-    // a free-for-all (its kill target) and for a map id over a byte (patch
-    // 154: the whole id, the options' byte its low byte).
+    // a free-for-all (its kill target), for a map id over a byte (patch
+    // 154: the whole id, the options' byte its low byte) and for the
+    // roster's faces when one is not face 0 (the faces patch).
     // Keep this in sync with static_info::read_srp_block on the server.
     let mut wide = None;
     if !reader.is_done() {
@@ -437,10 +441,12 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
         }
         reader.skip(4).map_err(short)?;
         // Entries `{tag, len, bytes}`, each tag once: the whole map id's
-        // `{4, 2, id}` (over a byte, its low byte the options' byte), and
+        // `{4, 2, id}` (over a byte, its low byte the options' byte),
         // Blackout's `{2, 1, 1}` or a free-for-all's `{3, 2, kills to win}`
-        // (a u16, never 0), which only a roster of own sides has.
-        let mut mode = false;
+        // (a u16, never 0), which only a roster of own sides has, and the
+        // faces' `{5, roster, a face a place}` (not every one face 0; a
+        // face the game's data does not list is drawn as face 0).
+        let (mut mode, mut faces) = (false, false);
         while !reader.is_done() {
             let fits = match reader.rest() {
                 [4, 2, low, high, ..] => {
@@ -451,6 +457,12 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
                 [3, 2, low, high, ..] => {
                     own_sides && (*low, *high) != (0, 0) && !core::mem::replace(&mut mode, true)
                 }
+                [5, len, entry @ ..] if *len == roster => {
+                    entry
+                        .get(..usize::from(roster))
+                        .is_some_and(|entry| entry.iter().any(|&face| face != 0))
+                        && !core::mem::replace(&mut faces, true)
+                }
                 _ => false,
             };
             if !fits {
@@ -459,7 +471,7 @@ pub fn options(bytes: &[u8], dictionary: &dyn Dictionary) -> Result<u8, Refusal>
             let [_tag, len] = reader.array().map_err(short)?;
             reader.skip(usize::from(len)).map_err(short)?;
         }
-        if !mode && (own_sides || wide.is_none()) {
+        if !mode && (own_sides || (wide.is_none() && !faces)) {
             return Err(trailing(&reader));
         }
     } else if own_sides {

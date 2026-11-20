@@ -70,6 +70,7 @@ pub mod memory_profile;
 mod options;
 pub mod parse;
 pub mod resources;
+pub mod skin_cook;
 pub mod renderer;
 pub mod render_stage;
 pub mod effect_compile;
@@ -137,7 +138,7 @@ pub use input::{Action, ActionMask, ActionState, InputChange, InputHandler, Keyb
 pub use keyboard::{Dik, GameWorldButton, GameWorldKey, GameWorldKeys, KeyEvents, KeyKind, KeyMoves, KeyName, TabTest};
 pub use hud_input::{CursorMovie, Hud, HudCall, HudView, MenuChange, MenuClose};
 pub use lobby::{Lobby, MuteChoice, Muted, NotConnected};
-pub use options::{MapId, OptionsRead};
+pub use options::{MapId, OptionsRead, PLACES, Places};
 pub use world_load::WorldLoad;
 pub use upgrades::{AttachedPairs, CookQuery, FlashUpgrade, PreviewApply, PreviewChange, Records};
 pub use rt::c_u32;

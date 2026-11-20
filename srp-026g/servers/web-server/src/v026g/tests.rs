@@ -190,6 +190,7 @@ fn world_with(accounts: GameAccounts) -> World {
         resource_downloads: AtomicU32::new(0),
         replay_downloads: AtomicU32::new(0),
         replay_failures: Mutex::new(std::collections::HashMap::new()),
+        replay_asks: Mutex::new(std::collections::HashMap::new()),
         plans: Default::default(),
         game: Some(Game {
             accounts: accounts.clone(),
@@ -290,7 +291,7 @@ fn the_exchange_page_says_there_is_no_gold() {
             "{code}"
         );
         assert!(answer.body.contains(text), "{code}: {}", answer.body);
-        assert!(answer.body.contains("SURVARIUM 0.26G") && !answer.body.contains("<form"));
+        assert!(answer.body.contains("href=\"/wiki?lang=") && !answer.body.contains("<form"));
     }
     // Without a code: the page's own language.
     let mut browser = get("/exchange");
@@ -604,7 +605,7 @@ fn the_pages_are_the_026g_ones() {
     }
     let missing = world.web.route(&get("/nothing"), "t");
     assert_eq!(missing.status, "404 Not Found");
-    assert!(missing.body.contains("0.26G"));
+    assert!(missing.body.contains("Survarium 0.26g community server</title>"));
     let mut elsewhere = get("/hidden");
     elsewhere.client = "203.0.113.5".parse().ok();
     assert_eq!(world.web.route(&elsewhere, "t").status, "404 Not Found");
@@ -1220,6 +1221,32 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
     );
 }
 
+/// The stats are a tab of their own beside the wiki, on every page of the
+/// 0.26g site: a frame for their script, which may ask the site for JSON.
+#[test]
+fn the_stats_page_is_a_tab_of_its_own() {
+    let world = world();
+    for lang in [Lang::En, Lang::Uk] {
+        let mut request = get("/stats");
+        request.lang = lang;
+        let page = world.web.route(&request, "t");
+        assert_eq!(page.status, "200 OK");
+        let code = lang.code();
+        assert!(page.body.contains(&format!("<html lang=\"{code}\">")));
+        assert!(page.body.contains(&format!("href=\"/stats?lang={code}\" aria-current=page")));
+        assert!(!page.body.contains(&format!("href=\"/wiki?lang={code}\" aria-current=page")));
+        assert!(page.body.contains("<div id=stats>"));
+        let script = page.body.split_once("<script src=\"").unwrap().1;
+        let script = script.split_once("?v=").unwrap().0;
+        assert!(crate::history::file(script).is_some_and(|(_, bytes)| !bytes.is_empty()));
+    }
+    for path in ["/", "/wiki", "/wiki/weapons"] {
+        assert!(world.web.route(&get(path), "t").body.contains("href=\"/stats?lang=en\">Stats</a>"), "{path}");
+    }
+    assert!(!world.web.route(&get("/wiki"), "t").body.contains("wiki-link href=\"/stats"));
+    assert!(crate::history::POLICY.contains("connect-src 'self'"));
+}
+
 #[test]
 fn the_calculators_and_the_maps_old_addresses_lead_into_the_wiki() {
     use std::io::{Read, Write};
@@ -1268,7 +1295,8 @@ fn the_calculators_and_the_maps_old_addresses_lead_into_the_wiki() {
 }
 
 /// A standalone local review of the real HTTP routes, with in-memory test
-/// accounts. Does not start or connect to login, lobby or match servers.
+/// accounts and a made-up match history (`history::tests::preview`). Does
+/// not start or connect to login, lobby or match servers.
 #[test]
 #[ignore = "local browser preview; serves until stopped"]
 fn serve_wiki_preview() {
@@ -1277,9 +1305,15 @@ fn serve_wiki_preview() {
     if std::env::var_os("SRP_GAME_DATA").is_some() {
         survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads as srp's game data");
     }
-    let world = world();
-    let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
-    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki");
+    let dir = std::env::temp_dir().join(format!("srp-wiki-preview-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut world = world_with(crate::history::tests::preview(&dir, crate::unix_now()));
+    world.web.game.as_mut().unwrap().replays =
+        Some(Arc::new(crate::history::tests::preview_replays(&dir)));
+    // SRP_PREVIEW_PORT: another port, for two previews side by side.
+    let port = std::env::var("SRP_PREVIEW_PORT").unwrap_or_else(|_| "24583".to_owned());
+    let listener = std::net::TcpListener::bind(format!("127.0.0.1:{port}")).unwrap();
+    eprintln!("Wiki preview: http://127.0.0.1:{port}/wiki, stats: http://127.0.0.1:{port}/stats");
     for stream in listener.incoming() {
         world.web.serve(stream.unwrap());
     }

@@ -15,8 +15,12 @@ still count the client's own address (the PROXY header's for a relayed peer).
 srp parses `SRP_RELAYS` once at its start and gives the result to the four
 servers; a wrong value starts none of them.
 
+The player picks the route in the launcher's "Relay" row (auto, on, off:
+Automatic, the relay, direct; `client/updater/README.md`, "The route"); a player who never
+picked has Automatic in Russia (the Windows region) and direct elsewhere;
+direct found blocked while the relay answers becomes Automatic by itself.
 Automatic fallback runs before PLAY starts the game. With `updater_skhid.relay`
-installed, the updater probes direct login TCP and lobby/match UDP concurrently,
+installed and Automatic, the updater probes direct login TCP and lobby/match UDP concurrently,
 then tries the relay if any fails. The server echoes a 22-byte nonce challenge
 without creating an account, session or match. A successful route is passed as
 `-server=IP:port`; the origin advertises the relay for lobby and match, and voice
@@ -24,7 +28,10 @@ uses match + 1. Explicit `-server=` and replay options bypass route selection.
 A failed route never switches a running match: launch again to choose anew.
 
 The updater's HTTPS requests to the configured login hostname on port 443 also
-fall back, on network errors only, to the relay's port 8080 CONNECT service.
+fall back (Automatic), on network errors only, to the relay's port 8080 CONNECT
+service; with the relay chosen they go through it only, with direct never.
+Under Wine a request through it has the whole address in its request line
+(`GET https://skhid.link:443/...`), which Caddy answers as the path alone.
 It permits only `skhid.link:443` (or the configured `--https-origin`). TLS stays
 end to end, with normal hostname/certificate verification. Other download hosts
 retain their existing mirror behavior. This is not a general HTTP proxy and does

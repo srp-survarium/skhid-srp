@@ -1441,7 +1441,7 @@ st_login_menu_accept	Prihvati
 st_login_menu_cancel	Odustani
 st_login_menu_status_access_level_restriction	Razina pristupa nije dovoljna za ulazak.
 st_login_menu_status_connecting	Autorizacija…
-st_login_menu_status_error_connection	Nije moguće pristupiti poslužitelju Skhid. Dopustite igru u vatrozidu (Skhid-network-setup.cmd). U Rusiji koristite VPN i dodajte mu .exe datoteke igre (VPN.txt).
+st_login_menu_status_error_connection	Nije moguće pristupiti poslužitelju Skhid. Pokrenite igru iz launchera: pokazat će razlog.
 st_login_menu_status_invalid_user_or_password	Neispravan nadimak ili lozinka
 st_login_menu_status_invalid_version	Koristite zastarjelu inačicu igre.
 st_login_menu_status_sign_in_already_online	 Korisnik je već u igri
@@ -2538,6 +2538,8 @@ st_srp_equipment069_snow_20_legs_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_legs_7_name	Hlače Snow-20
 st_srp_equipment069_snow_20_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_torso_7_name	Prsluk Snow-20
+st_srp_face	Lice
+st_srp_face_card	Lice %1$s
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij bodove igrača
 st_srp_hit_markers_all	Svi pokazatelji pogodaka

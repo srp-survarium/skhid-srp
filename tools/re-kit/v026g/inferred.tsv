@@ -1259,6 +1259,7 @@ va	status	ref_021d	name
 0x00222330	inferred-medium	0x001745c0	survarium::lobby_menu::on_profile_changed
 0x00223190	inferred-medium	0x00174d56	survarium::lobby_menu::on_price_items_arrived
 0x00223460	inferred-medium	0x00174e9e	survarium::lobby_menu::fill_reputation_levels
+0x00223840	inferred-medium		survarium::lobby_menu::set_account_name [descriptive]
 0x00223a70	inferred-medium		survarium::lobby_menu::fill_skills_properties
 0x00224420	inferred-medium	0x00175809	survarium::lobby_menu::fill_character_data
 0x00224ed0	inferred-medium	0x00175d90	survarium::lobby_menu::fill_service_prices
@@ -3524,6 +3525,12 @@ va	status	ref_021d	name
 0x00132a90	inferred-medium		vostok::render::backend::set_ps_constant
 0x0014e800	inferred-medium		vostok::math::normalize_safe
 0x00133f50	inferred-medium		vostok::render::stage_rain::rain_rotation_basis
+0x00129bb0	inferred-medium		vostok::buffer_string::assign_config_text
+0x00204500	inferred-medium		survarium::profile_skin_visual_cook::model_folder
+0x0011aa10	inferred-medium		vostok::render::resource_pools::allocate_geometry_pool [descriptive]
+0x003d40d0	inferred-medium		vostok::render::hw_buffer_pool::hw_buffer_pool [descriptive]
+0x003d3c70	inferred-medium		vostok::render::hw_buffer_pool_chunk::hw_buffer_pool_chunk [descriptive]
+0x003d43a0	inferred-medium		vostok::render::hw_buffer_pool::used_memory [descriptive]
 0x0030f5a0	inferred-medium		survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme
 0x00311070	inferred-medium		survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme
 0x003cfaf0	inferred-medium		vostok::render::res_render_output::fullscreen_output

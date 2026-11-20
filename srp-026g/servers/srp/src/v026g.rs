@@ -230,6 +230,7 @@ impl MatchHost for RegistryHost {
 pub fn match_result(result: matches::MatchResult) -> rewards::MatchResult {
     rewards::MatchResult {
         match_id: result.match_id,
+        replay_id: result.replay_id,
         map_id: result.map_id,
         mode: result.mode,
         twist: result.twist,

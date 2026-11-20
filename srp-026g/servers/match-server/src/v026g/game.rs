@@ -1145,7 +1145,12 @@ impl Game {
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
         });
-        self.recording = Some(recorder.open(self.id, self.formed.vs_bots, header, now));
+        self.recording = Some(recorder.open(
+            &self.formed.replay_id,
+            self.formed.vs_bots,
+            header,
+            now,
+        ));
     }
 
     /// The places from `from` on, for a recording.
@@ -5406,6 +5411,7 @@ impl Game {
             .collect();
         MatchResult {
             match_id: self.id,
+            replay_id: self.formed.replay_id.clone(),
             map_id: self.formed.played.map().id,
             mode: self.formed.played.mode(),
             twist: self.formed.played.armed(),

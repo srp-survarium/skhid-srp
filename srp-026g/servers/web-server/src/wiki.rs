@@ -149,6 +149,17 @@ pub(crate) fn page(
             ),
         )
     };
+    framed(
+        lang,
+        &title,
+        &lang.tr("Skhid wiki", "Вікі Сходу"),
+        header,
+        &body,
+    )
+}
+
+/// A page in the wiki's look: `body` under `header`, titled `title · site`.
+pub(crate) fn framed(lang: Lang, title: &str, site: &str, header: &str, body: &str) -> Response {
     Response {
         status: "200 OK",
         content_type: ContentType::Html,
@@ -158,8 +169,8 @@ pub(crate) fn page(
              <title>{} · {}</title><style>{}{}{STYLE}</style>{header}\
              <main class=wiki>{body}</main></html>",
             lang.code(),
-            escape(&title),
-            lang.tr("Skhid wiki", "Вікі Сходу"),
+            escape(title),
+            escape(site),
             damage::font_faces(),
             crate::STYLE,
         ),

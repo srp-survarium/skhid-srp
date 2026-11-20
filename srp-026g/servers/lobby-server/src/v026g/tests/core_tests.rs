@@ -1874,10 +1874,11 @@ fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
     // its revision, or the client would ask again for ever (0x227C59).
     world.ask(alice, request::squad_member(bob_id, bob_kit));
     let decoded = world.take(alice);
-    let [Decoded::SquadMemberAccount { body, revision }] = &decoded[..] else {
+    let [Decoded::SquadMemberAccount { body, revision, face }] = &decoded[..] else {
         panic!("{decoded:?}");
     };
     assert_eq!(body.name, "Bob");
+    assert_eq!(*face, survarium::v026g::faces::Face::DEFAULT);
     assert_eq!(body.kits.len(), 1);
     assert_eq!(body.kits[0].id, bob_kit);
     let listed = world.store.squads().of(alice_id).unwrap();
@@ -2298,6 +2299,7 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
+            replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: setup.played.map().id,
             mode: setup.played.mode(),
             twist: setup.played.armed(),
@@ -2369,6 +2371,7 @@ impl World {
             .collect();
         let result = MatchResult {
             match_id,
+            replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: setup.played.map().id,
             mode: setup.played.mode(),
             twist: setup.played.armed(),
@@ -2844,6 +2847,7 @@ mod balance_tests;
 mod chat_mute_tests;
 mod clan_tests;
 mod comments_tests;
+mod faces_tests;
 mod feedback_tests;
 mod gear_tests;
 mod items_tests;
