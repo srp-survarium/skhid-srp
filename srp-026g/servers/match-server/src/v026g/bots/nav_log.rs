@@ -411,6 +411,13 @@ impl NavLog {
         if capped && self.written[kind as usize] >= MAX_PER_KIND {
             return;
         }
+        // [press forecast] A try's lines (spent, pressed, landed) can come within the limit of each other; each is the try's own,
+        // and a link has three tries: none is held.
+        if kind == Kind::Press {
+            self.written[kind as usize] += 1;
+            self.pending.push((time, text));
+            return;
+        }
         let slot = &mut self.last[kind as usize];
         match slot {
             Some((at, held)) if time < *at + EVERY_MS => *held += 1,

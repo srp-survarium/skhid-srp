@@ -9260,7 +9260,7 @@ mod tests {
         assert!(now - spent >= u64::from(JUMP_TRIES), "{}", now - spent);
     }
 
-    /// [press forecast] A body pushed off the chain's place (5 cm sideways after the lock) is planned again from where it is, and
+    /// [press forecast] A body pushed off the chain's place (2 cm sideways after the lock, inside [`LOCK_SIDE_M`]) is planned again from where it is, and
     /// still pressed in the landing ticks.
     #[test]
     fn a_pushed_body_is_planned_again() {
@@ -9268,7 +9268,7 @@ mod tests {
         let mut route = cast_route();
         let mut stub = Stub::new(-4.4, 3.5, |at: &Estimate| (-1.3..=-0.7).contains(&at.feet.x));
         let moved = press_casts::get(press_casts::Slot::Moved);
-        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 60, Some((12, Vec3::new(0.0, 0.0, 0.05))));
+        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 60, Some((12, Vec3::new(0.0, 0.0, 0.02))));
         let (feet, _) = pressed.unwrap_or_else(|| panic!("no press: {ends:?}"));
         assert!((-1.3..=-0.7).contains(&feet.x), "pressed at {feet:?}");
         assert!(press_casts::get(press_casts::Slot::Moved) > moved, "planned again");
