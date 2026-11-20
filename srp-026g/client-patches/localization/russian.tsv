@@ -707,6 +707,7 @@ st_character_decals_4_72_name	Флаг Анголы
 st_character_decals_4_73_name	Флаг Нигерии
 st_character_decals_4_74_name	Флаг ЮАР
 st_character_decals_4_75_name	Флаг Уэльса
+st_character_decals_4_76_name	Флаг Косово
 st_character_decals_4_7_name	Флаг Литвы
 st_character_decals_4_8_name	Флаг Эстонии
 st_character_decals_4_9_name	Флаг Молдовы
@@ -746,6 +747,7 @@ st_character_decals_5_3_name	Герб Украины
 st_character_decals_5_40_name	Герб Ирландии
 st_character_decals_5_41_name	Герб Хорватии
 st_character_decals_5_42_name	Герб Боснии и Герцеговины
+st_character_decals_5_43_name	Герб Косово
 st_character_decals_5_4_name	Герб Беларуси
 st_character_decals_5_5_name	Герб Казахстана
 st_character_decals_5_6_name	Герб Латвии
@@ -883,9 +885,13 @@ st_crosshair_static_option	Статический прицел
 st_crosshair_type_option	Выбор прицела
 st_crouch_action	Присесть (удерж.)
 st_crouch_toggle_action	Присесть
+st_cs_mp_atp_name	АТП
 st_cs_mp_bath_name	Бассейн
+st_cs_mp_darkvalley_name	Тёмная долина
+st_cs_mp_firestation_name	Пожарная станция
 st_cs_mp_military_1_name	Армейские склады
 st_cs_mp_rembasa_name	Ремонтная база
+st_cs_mp_sport_center_name	Спортивный центр
 st_cs_training_camp_name	Тренировочный лагерь
 st_ct_max_members_count_error	Ошибка добавления. В клановой команде уже находится максимальное количество игроков.
 st_current_value	\nТекущее значение:
@@ -1421,6 +1427,10 @@ st_level_11_name	Мамаев курган (v0.21)
 st_level_12_name	Химзавод (v0.11)
 st_level_13_name	РЛС "Восток" (v0.11)
 st_level_14_name	Рудня (v0.69)
+st_level_25_name	Школа (v0.21)
+st_level_26_name	Таракановский форт (v0.21)
+st_level_29_name	Рудня (v0.21)
+st_level_31_name	Химзавод (v0.21)
 st_lifebone_activation_hint	Живокост активирован! Все критические повреждения вылечены! Здоровье восстановлено!
 st_lifebone_pickup_hint	Артефакт Живокост. Повышает регенерацию здоровья.
 st_lightning_quality_option	Качество освещения
@@ -1777,8 +1787,9 @@ st_profile_selection_warning	+20 секунд времени возрожден�
 st_profile_warning_weapon	Профиль не активен: нет оружия
 st_profile_warning_weapon_ammo	Профиль не активен: недостаточно патронов в рюкзаке
 st_profile_warning_weapon_ammo_in_inv	Профиль не активен: недостаточно патронов на складе
-st_ptt_action	Говорить (удерживать)
+st_ptt_action	Говорить по рации
 st_ptt_button_option	PTT
+st_ptt_nearby_action	Говорить рядом
 st_put_item	Положить ({USE})
 st_quest_change_warning	Внимание! При смене задания лояльность группировки к вам понизится!
 st_quest_completed	Задание выполнено!
@@ -2088,6 +2099,8 @@ st_scavengers_win_x_games_obj	Выиграть боев:
 st_science_medkit_description	Полностью лечит руки, ноги, тело и голову. Восстанавливает 50% боли. Излечивает отравление и лучевую болезнь.
 st_science_medkit_name	Научная аптечка
 st_scientists_faction	Институт
+st_screenshot_action	Снимок экрана
+st_screenshot_no_ui_action	Снимок без интерфейса
 st_search_label	Поиск
 st_search_range	Уровень матча
 st_second_weapon_action	Оружие 2
@@ -2109,10 +2122,16 @@ st_shop	Магазин
 st_shop_label	Магазин
 st_shop_scope_1p69_hyperon_description	Четырехкратный оптический прицел
 st_shop_scope_1p69_hyperon_name	Оптический прицел Зенит "Гиперон", x4
+st_shop_scope_acog_ta01_description	Четырехкратный оптический прицел
+st_shop_scope_acog_ta01_name	Оптический прицел TA01, x4
 st_shop_scope_acog_ta31_description	Четырехкратный оптический прицел
 st_shop_scope_acog_ta31_name	Оптический прицел TA31, x4
 st_shop_scope_aimpoint_compm4_description	Шведский коллиматорный прицел с точкой 2 MOA и батареей, которой хватает до восьми лет непрерывной работы. Принят на вооружение армии США как M68 CCO; крепится на планку Пикатинни.
-st_shop_scope_aimpoint_compm4_name	Коллиматор CompM4
+st_shop_scope_aimpoint_compm4_name	Коллиматор CompM4, x2
+st_shop_scope_aperture_description	Трехкратный оптический прицел
+st_shop_scope_aperture_name	Оптический прицел Aperture, x3
+st_shop_scope_belomo_pk01_description	Коллиматорный прицел с двукратным увеличением.
+st_shop_scope_belomo_pk01_name	Коллиматор ПК-01ВИ, x2
 st_shop_scope_cobra_ekp_8_description	Российский коллиматорный прицел с четырьмя сменными красными прицельными марками. Позволяет быстро целиться с обоими открытыми глазами; крепится на боковую планку оружия семейства Калашникова.
 st_shop_scope_cobra_ekp_8_name	Коллиматор Кобра ЭКП-8
 st_shop_scope_docter_description	Компактный немецкий открытый коллиматорный прицел с красной точкой. Лёгкий и быстрый в прицеливании; создан для гладкоствольного оружия, пистолетов и компактного оружия.
@@ -2121,10 +2140,18 @@ st_shop_scope_elcan_specterdr_description	Четырехкратный опти�
 st_shop_scope_elcan_specterdr_name	Оптический прицел SpecterDR, x4
 st_shop_scope_eotech_552_description	Американский голографический прицел: кольцо 65 MOA с точкой 1 MOA в центре, питание от батарей AA. Быстрый на ближней и средней дистанции; крепится на планку Пикатинни.
 st_shop_scope_eotech_552_name	Коллиматор EOTech 552
+st_shop_scope_eotech_xps2_description	Коллиматорный прицел для быстрого прицеливания.
+st_shop_scope_eotech_xps2_name	Коллиматор EOTech XPS2
+st_shop_scope_hensoldt_rsas_description	Коллиматорный прицел с двукратным увеличением.
+st_shop_scope_hensoldt_rsas_name	Коллиматор RSA-S, x2
+st_shop_scope_leupold_3_7_description	Шестикратный оптический прицел
+st_shop_scope_leupold_3_7_name	Оптический прицел Leupold 3-7, x6
 st_shop_scope_leupold_deltapoint_description	Компактный американский коллиматорный прицел с красной треугольной прицельной маркой. Создан для пистолетов и лёгкого оружия; настолько мал, что не мешает.
 st_shop_scope_leupold_deltapoint_name	Коллиматор Leupold DeltaPoint
 st_shop_scope_leupold_mk4_description	Четырехкратный оптический прицел
 st_shop_scope_leupold_mk4_name	Оптический прицел Leupold MK4, x4
+st_shop_scope_ncstar_4_description	Коллиматорный прицел для быстрого прицеливания.
+st_shop_scope_ncstar_4_name	Коллиматор NcSTAR 4
 st_shop_scope_pso_1_description	Четырехкратный оптический прицел
 st_shop_scope_pso_1_name	Оптический прицел ПСО-1, x4
 st_shop_scope_pso_1_old_description	Четырехкратный оптический прицел
@@ -2581,21 +2608,29 @@ st_srp_login_ban_ends	Закончится в %1$s (через %2$s).
 st_srp_login_ban_forever	Бан бессрочный.
 st_srp_map_chemical_plant	Химзавод
 st_srp_map_chemical_plant_v011	Химзавод (v0.11)
+st_srp_map_chemical_plant_v021	Химзавод (v0.21)
 st_srp_map_cologne	Кельн
+st_srp_map_cs_mp_atp	АТП
 st_srp_map_cs_mp_bath	Бассейн
+st_srp_map_cs_mp_darkvalley	Тёмная долина
+st_srp_map_cs_mp_firestation	Пожарная станция
 st_srp_map_cs_mp_military_1	Армейские склады
 st_srp_map_cs_mp_rembasa	Ремонтная база
+st_srp_map_cs_mp_sport_center	Спортивный центр
 st_srp_map_cs_training_camp	Тренировочный лагерь
 st_srp_map_london	Лондон
 st_srp_map_mamayev_kurgan	Мамаев курган
 st_srp_map_mamayev_kurgan_v021	Мамаев курган (v0.21)
 st_srp_map_names_option	Имена на карте
 st_srp_map_rudnya	Рудня
+st_srp_map_rudnya_v021	Рудня (v0.21)
 st_srp_map_rudnya_v069	Рудня (v0.69)
 st_srp_map_school	Школа
+st_srp_map_school_v021	Школа (v0.21)
 st_srp_map_soc_ug_depository	Хранилище
 st_srp_map_soc_ug_station	Станция
 st_srp_map_tarakanovsky_fort	Таракановский форт
+st_srp_map_tarakanovsky_fort_v021	Таракановский форт (v0.21)
 st_srp_map_vector	Лаборатория "Вектор"
 st_srp_map_vostok	РЛС "Восток"
 st_srp_map_vostok_v011	РЛС "Восток" (v0.11)
@@ -2634,24 +2669,29 @@ st_srp_medical_312_description	Бонус к здоровью, восстана�
 st_srp_medical_312_name	Медицинская подготовка
 st_srp_medical_313_description	Бонус к здоровью, восстанавливаемому аптечками и бинтами в приседе:
 st_srp_medical_313_name	В укрытие
+st_srp_medical_314_description	Пока действует антитоксин, снижение времени прицеливания:
+st_srp_medical_314_name	Зоркий глаз
 st_srp_medical_321_description	Бонус к скорости передвижения при здоровье ниже 30:
 st_srp_medical_321_name	Адреналин
 st_srp_medical_322_description	Каждый карман с медикаментами вмещает ещё один предмет.
 st_srp_medical_322_name	Дополнительные медикаменты
 st_srp_medical_323_description	Пока действует обезболивающее, снижение останавливающей силы вражеских попаданий:
 st_srp_medical_323_name	Непоколебимый
+st_srp_medical_324_description	Когда антитоксин начинает действовать, восстановление энергии:
+st_srp_medical_324_name	Второе дыхание
 st_srp_medical_331_description	Заменяет ячейку дополнительного оружия дополнительным карманом для припасов.
 st_srp_medical_331_name	Карман для припасов
 st_srp_medical_332_description	Бонус к максимальному здоровью рук и ног:
 st_srp_medical_332_name	Крепкие кости
-st_srp_medical_333_description	Пока действует обезболивающее, снижение раскачивания прицела:
+st_srp_medical_333_description	Пока действует антитоксин, бонус к скорости перезарядки:
 st_srp_medical_333_name	Концентрация
 st_srp_medical_342_description	Снижение урона, получаемого от союзников:
 st_srp_medical_342_name	Братья по оружию
 st_srp_medical_seconds	 s
+st_srp_medicine_aim_time	Время прицеливания
 st_srp_medicine_crouched_healing	Лечение в приседе
 st_srp_medicine_hit_slow	Замедление от пуль
-st_srp_medicine_sight_sway	Раскачивание
+st_srp_medicine_reload_speed	Темп перезарядки
 st_srp_medicine_sprint_stamina	Энергия на спринт
 st_srp_melee_knockback	Отбрасывание прикладом
 st_srp_mic_test	Проверить микрофон
@@ -2664,6 +2704,7 @@ st_srp_microphone_default	По умолчанию
 st_srp_mode_blackout	Защитное устройство: блэкаут
 st_srp_mode_chargers	Защитное устройство: зарядники
 st_srp_mode_cowboy	FFA: Салун
+st_srp_mode_cowboy_winchester	FFA: Салун (Винчестер)
 st_srp_mode_free_for_all	Все против всех
 st_srp_mode_protective_device	Защитное устройство
 st_srp_mode_racket	FFA: Движ
@@ -2727,10 +2768,10 @@ st_srp_replay_not_yours	Смотреть можно только повторы 
 st_srp_replay_off	Повторы на этом сервере отключены.
 st_srp_replay_old_game	Ваша версия игры не воспроизводит повторы. Обновите игру: запустите её снова через лаунчер.
 st_srp_replay_place_in_line	Место в очереди: %1$s. Ожидание: %2$s с.
-st_srp_replay_ready	Повтор этого матча готов.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F11 для управления: игроки, камера, перемотка, скорость.
-st_srp_replay_ready_size	Повтор этого матча: %1$s.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F11 для управления: игроки, камера, перемотка, скорость.
+st_srp_replay_ready	Повтор этого матча готов.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F9 для управления: игроки, камера, перемотка, скорость.
+st_srp_replay_ready_size	Повтор этого матча: %1$s.\n\nОн загружается с сервера матча, который хранит достоверную запись матча. Откроется второе окно игры и воспроизведёт его; лобби останется открытым.\n\nВ повторе нажмите F9 для управления: игроки, камера, перемотка, скорость.
 st_srp_replay_size	%1$s,%2$s МБ
-st_srp_replay_starting	Запускаем повтор: откроется второе окно игры, лобби останется открытым. Если что-то пойдёт не так, программа обновления покажет, что случилось.\n\nВ повторе нажмите F11 для управления.
+st_srp_replay_starting	Запускаем повтор: откроется второе окно игры, лобби останется открытым. Если что-то пойдёт не так, программа обновления покажет, что случилось.\n\nВ повторе нажмите F9 для управления.
 st_srp_replay_still_preparing	Повтор ещё готовится. Сервер продолжает его создавать; откройте «Смотреть повтор» ещё раз через минуту.
 st_srp_replay_title	Смотреть повтор
 st_srp_replay_waiting	Ожидание: %1$s с.

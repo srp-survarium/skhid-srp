@@ -6,10 +6,10 @@ package
 
     // The Sound tab's "Test microphone" button (exe patch 66, docs/notes/voice-chat.md, "Microphone
     // test"; the owner, 2026-11-14: "you press button, it records for 10 seconds, then plays it back"),
-    // the last of the tab's voice controls, under the Microphone sensitivity slider (Settings.layoutVoice):
+    // the last of the tab's voice controls, under the Microphone list (Settings.layoutVoice):
     // the tab's own button (SetingsButton, the Controls and Graphics tabs' Default, as the
-    // Vulkan options' is). A press tells the exe the two voice sliders as they stand, accepted or
-    // not: ExternalInterface.call("srp_mic_test", "<volume> <sensitivity>"). The voice DLL then records,
+    // Vulkan options' is). A press tells the exe the "Voice chat" volume slider as it stands, accepted
+    // or not: ExternalInterface.call("srp_mic_test", "<volume>"). The voice DLL then records,
     // plays back and is idle again, or stops if it was doing so; the Settings window closed tells the
     // exe "stop" (the exe itself stops a test at a tab's change and when the main menu closes: the
     // button is not seen then). The button shows only what the exe
@@ -22,9 +22,10 @@ package
     {
         public static const NAME:String = "srp_mic_test";
         private static const SOUND_FRAME:int = 4;
-        // The timeline's names of the two voice sliders ("Voice chat": its "c" is the Cyrillic one).
+        // The timeline's name of the "Voice chat" slider (its "c" is the Cyrillic one), and of the
+        // hidden sensitivity slider, whose left edge is the voice column's.
         private static const VOLUME:String = "_sound_сhat";
-        private static const SENSITIVITY:String = "_mic_sens";
+        private static const COLUMN:String = "_mic_sens";
         // The call's value when the Settings window closes.
         private static const STOP:String = "stop";
         // The button's width whatever it says: the Settings' lists' (the minimap position's box, the
@@ -64,12 +65,12 @@ package
         // column's left edge.
         public function layout(top:Number):void
         {
-            var sensitivity:DisplayObject = slider(SENSITIVITY) as DisplayObject;
-            if (sensitivity == null)
+            var column:DisplayObject = slider(COLUMN) as DisplayObject;
+            if (column == null)
             {
                 return;
             }
-            button.x = sensitivity.x;
+            button.x = column.x;
             button.y = Math.round(top);
             button.width = WIDTH;
         }
@@ -93,11 +94,10 @@ package
 
         private function onPress(event:ButtonEvent):void
         {
-            var sensitivity:Object = slider(SENSITIVITY);
             var volume:Object = slider(VOLUME);
-            if (sensitivity != null && volume != null)
+            if (volume != null)
             {
-                SrpExe.call(NAME, Math.round(volume.selectedIndex) + " " + Math.round(sensitivity.selectedIndex));
+                SrpExe.call(NAME, String(Math.round(volume.selectedIndex)));
             }
         }
 

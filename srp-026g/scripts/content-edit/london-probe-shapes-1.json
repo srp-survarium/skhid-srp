@@ -1,0 +1,1377 @@
+{
+ "_about": "London (level_09): its environment probes' boxes, places, radii and side widths as 0.31a2 authors them, project by project (0.31a2's day_2/3/4, rain_2/3/4 and evening_2/3/4; day_5 and Free for All's day_8 take day_2's). Skhid's London came from an earlier build of the map, where seven probes differ: the boxes of hall_2_floor, hall_box(1) and ladder(1), the places of hall_2_floor and gerkin(3), the side widths of hall_2_floor and gerkin(22), and the radii of gerkin(1), gerkin(3) and hall_box_1_floor(2). Both builds draw the visible probes largest radius first (the same sort in both executables), so the radii decide which probe's reflection lies on top: with radius 5, gerkin(3) ties gerkin_hall_centre; 0.31a2's 4 draws it after. Every London project (merge #2213 first).",
+ "set_entry": [
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(1)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 1.25
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "radius": 5,
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "radius": 4,
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ],
+    "probe_side_width": 0.4
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ],
+    "probe_side_width": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box_1_floor(2)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(1)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 1.25
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "radius": 5,
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "radius": 4,
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ],
+    "probe_side_width": 0.4
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ],
+    "probe_side_width": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box_1_floor(2)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(1)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 1.25
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "radius": 5,
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "radius": 4,
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ],
+    "probe_side_width": 0.4
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ],
+    "probe_side_width": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box_1_floor(2)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(1)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 1.25
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "radius": 5,
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "radius": 4,
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ],
+    "probe_side_width": 0.4
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ],
+    "probe_side_width": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box_1_floor(2)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(1)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 1.25
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "radius": 5,
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "radius": 4,
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ],
+    "probe_side_width": 0.4
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ],
+    "probe_side_width": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box_1_floor(2)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ]
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/rain_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ]
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 0.5
+   }
+  },
+  {
+   "file": "projects/level_09/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ]
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(1)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 0.4
+   }
+  },
+  {
+   "file": "projects/level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "radius": 5,
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "radius": 4,
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ]
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(1)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 0.4
+   }
+  },
+  {
+   "file": "projects/level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "radius": 5,
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "radius": 4,
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ]
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(1)"
+   },
+   "from": {
+    "radius": 5
+   },
+   "to": {
+    "radius": 4
+   }
+  },
+  {
+   "file": "projects/level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(22)"
+   },
+   "from": {
+    "probe_side_width": 1.1
+   },
+   "to": {
+    "probe_side_width": 0.4
+   }
+  },
+  {
+   "file": "projects/level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/gerkin(3)"
+   },
+   "from": {
+    "radius": 5,
+    "position": [
+     6.726,
+     15.631,
+     2.402
+    ]
+   },
+   "to": {
+    "radius": 4,
+    "position": [
+     6.726,
+     15.861,
+     2.402
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_2_floor"
+   },
+   "from": {
+    "scale": [
+     5.322,
+     1.936,
+     5.57
+    ],
+    "position": [
+     -59.548,
+     11.631,
+     -0.594
+    ]
+   },
+   "to": {
+    "scale": [
+     5.456,
+     2.205,
+     5.763
+    ],
+    "position": [
+     -59.494,
+     11.631,
+     -0.404
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/hall_box(1)"
+   },
+   "from": {
+    "scale": [
+     4.4,
+     2.083,
+     4.643
+    ]
+   },
+   "to": {
+    "scale": [
+     4.4,
+     2.265,
+     4.643
+    ]
+   }
+  },
+  {
+   "file": "projects/level_09/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "full_name": "environment_and_lights/probes/ladder(1)"
+   },
+   "from": {
+    "scale": [
+     1.739,
+     4.029,
+     3.913
+    ]
+   },
+   "to": {
+    "scale": [
+     1.739,
+     4.029,
+     4.109
+    ]
+   }
+  }
+ ]
+}

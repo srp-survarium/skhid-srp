@@ -149,6 +149,7 @@ DOCUMENTS = b"C:\\Users\\p\\Documents"
 EXE_PATH = b"C:\\Game\\game\\binaries\\x86\\survarium_skhid.exe"
 USER_CFG = "C:\\Users\\p\\Documents\\survarium\\user.cfg"
 DXVK_DIR = "C:\\Game\\game\\binaries\\x86\\dxvk\\"
+PATCHES_LOGS = "..\\..\\logs\\"   # the patches' run logs' folder, game\logs, from the exe's
 DXVK = ("dxgi.dll", "d3d11.dll", "d3d10core.dll", "d3d9.dll")   # the load order (d3d8.dll shipped, never loaded)
 VULKAN, INSTANCE, DEVICES = 0x71000000, 0x73000000, 0x74000000
 # kernel32's and shell32's import slots patch 83 calls at the process's start and the login screen
@@ -158,7 +159,8 @@ SLOTS = {"CreateFileA": (0x870048, 7), "ReadFile": (0x870064, 5), "WriteFile": (
          "GetModuleHandleA": (0x87003C, 1), "SetEnvironmentVariableA": (0x87029C, 2),
          "GetEnvironmentVariableA": (0x8701B4, 3), "FindFirstFileA": (0x870238, 2), "FindNextFileA": (0x87023C, 2),
          "FindClose": (0x870228, 1), "GetSystemTimeAsFileTime": (0x870244, 1),
-         "FileTimeToLocalFileTime": (0x870230, 2), "FileTimeToSystemTime": (0x87022C, 2)}
+         "FileTimeToLocalFileTime": (0x870230, 2), "FileTimeToSystemTime": (0x87022C, 2),
+         "CreateDirectoryA": (0x870220, 2)}
 # kernel32's functions patch 83 finds by GetProcAddress
 KERNEL_DYNAMIC = {"K32EnumProcessModules": 4}
 KERNEL32, EXE_MODULE, DRIVER_MODULES, NEGOTIATE = 0x76000000, 0x400000, 0x77000000, 0x77FF0000
@@ -288,7 +290,7 @@ class Run(language.Run):
             path, disposition = self.text(arg(0)).decode(), arg(4)
             # the patches' log (vostok::log; the run's, patch 147, once the process started): opened
             # once, its lines are its writes
-            log = path.startswith("srp_patches") and path.endswith(".log")
+            log = path.removeprefix(PATCHES_LOGS).startswith("srp_patches") and path.endswith(".log")
             if not log:
                 self.calls_made.append((name, path, disposition))
             if log:
@@ -354,7 +356,7 @@ class Run(language.Run):
                 self.word(arg(1) + 4 * i, module)
             self.word(arg(3), 4 * len(loaded))
             result = 1
-        elif name == "FindFirstFileA" and self.text(arg(0)).startswith(b"srp_patches"):
+        elif name == "FindFirstFileA" and self.text(arg(0)).startswith(PATCHES_LOGS.encode() + b"srp_patches"):
             result = 0xFFFFFFFF                 # patch 147's look for the patches' run logs: none here
         elif name == "FindFirstFileA":
             pattern = self.text(arg(0)).decode()
@@ -692,12 +694,13 @@ def main():
     a_regs, a_sp, a_head = stock.start()
     b_regs, b_sp, b_head = ours.start()
     # patch 81's `srp_lobby`, a later member of the site's chain, registers after these; patch
-    # 133's command `where` (order 6), then patch 66's voice variables (order 7) and the game volume's last, at the head
+    # 133's command `where` (order 6), then patch 66's voice variables (order 7), the game volume's and patch 156's
+    # `collision` last, at the head
     nodes = [node for node in registered(ours, b_head, head_before) if ours.text(ours.read(node + 0x10)) != b"srp_lobby"]
     names = [ours.text(ours.read(node + 0x10)).decode() for node in nodes]
     variables = {name: console_bool(ours, node) for name, node in zip(names, nodes) if name in SETTINGS}
     expect(a_regs == b_regs and a_sp == b_sp and a_head == head_before
-           and names == ["s_ingame_volume", "srp_microphone", "srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_mic_sens", "s_chat_volume",
+           and names == ["collision", "s_ingame_volume", "srp_microphone", "srp_voice_mutes", "g_hide_spam", "s_use_microphone", "s_chat_volume",
                          "where", "srp_mouse_vertical", "srp_mouse_vertical_locked", "s_music_volume",
                          "srp_hide_hit_markers", "srp_dxvk_overlay", "srp_dxvk_frame_limit", "srp_dxvk_dedicated_gpu",
                          "srp_dxvk_tear_free", "srp_dxvk_low_latency", "srp_dxvk", "srp_hide_crosshair", "srp_map_names",

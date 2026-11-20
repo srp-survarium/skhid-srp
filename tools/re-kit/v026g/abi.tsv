@@ -694,6 +694,7 @@ va	name	source	ret_cleanup	result
 0x001a3690	vostok::render::stage_atmosphere::fill_surfaces	manual	16	
 0x001a39d0	vostok::render::stage_atmosphere::stage_atmosphere	manual	8	
 0x001a4200	vostok::render::stage_atmosphere::execute	manual	0	
+0x001a5520	vostok::render::stage_atmosphere::god_rays_pass	manual	4	
 0x001a6ee0	vostok::render::effect_debug_modify_gbuffer::compile	manual	12	
 0x001a7280	vostok::render::stage_composition::stage_composition	manual	0	
 0x001a78d0	vostok::render::stage_composition::gather_subsurface_scattering_models	manual	4	
@@ -915,14 +916,14 @@ va	name	source	ret_cleanup	result
 0x001f1930	survarium::player::inflicted_damage_collector::serialize	manual	0	
 0x001f2720	survarium::player::insert	manual	4	none; base_player::insert 0x2DA850 (+33Fh := 1; alive: activate_physics 0x2D9930; link 1: the world's tick lists +18860h/+18880h), then the 3D icon's and models' part (+0F4E0h := 1, 0x1F2300 with link 1); the respawn rule calls it through vtable+20h with 1 (0x316EA9)
 0x001f28e0	survarium::player::on_player_death	manual	4	none; remove_alive(this, 1), then the inventory, +33Eh := 1, +33Dh := 0
-0x001f3480	survarium::player::update_camera	manual	4	
+0x001f3480	survarium::player::update_camera	manual	4	none; for the camera's player (its +0F470h handler) the view (+48h) from update_inverted_view 0x2422B0, given in modes 0 and 4 the eyes' transform +44Ch (bone Item: 1.06 m over the feet crouched, 1.5 m standing, 0.13 m ahead; EAX at 0x1F3643), else the orbit; camera_director::apply 0x243440 takes it (head-clearance.md)
 0x001f37a0	survarium::player::set_head_visibility	manual	4	
 0x001f3740	survarium::player::set_effect_presenter	manual	0	void; the old holder's presenter cleared (vfn +4), the new one's set_player (vfn +20h) to ESI, and on a change the effect player's presenter (+390h) and its effects presented again (0x2DE560)
 0x001f3de0	vostok::network_core::buffer_writer::w<unsigned char>	manual	20	
 0x001f48a0	vostok::network_core::buffer_writer::w<unsigned int>	manual	20	
 0x001f6d50	survarium::game_world::register_cooks	manual	0	
 0x001f7620	survarium::game_world::on_after_tick	manual	0	
-0x001f7660	survarium::game_world::get_player	manual	4	
+0x001f7660	survarium::game_world::get_player	manual	4	EAX = the place's current kit player (network_client::get_player through the game's client, its reference given back) or 0
 0x001f8190	survarium::game_world::switch_to_warmup_camera	manual	0	
 0x001f8200	survarium::game_world::switch_to_player_camera	manual	4	
 0x001f8270	survarium::game_world::switch_to_free_fly_camera	manual	4	
@@ -1212,8 +1213,8 @@ va	name	source	ret_cleanup	result
 0x002e17d0	survarium::weapon_core::load_magazine	manual	0	
 0x002e18e0	survarium::weapon_core::unload_ammo	manual	0	
 0x002e1a00	survarium::weapon_core::reload_one_round	manual	0	
-0x002e1b50		auto	0	
-0x002e1bf0		auto	0	
+0x002e1b50	survarium::weapon_core::instant_aim_start	manual	0	none: the sight's raising time +608h = +5F8h aim_time through 0x2D5AE0 index 49 (0x2E1B9A, k 1) unless +604h is already at its end
+0x002e1bf0	survarium::weapon_core::instant_aim_end	manual	0	none: the sight's lowering time +608h = +5F8h aim_time through 0x2D5AE0 index 49 (0x2E1C3B, k 1) unless +604h is already at its end
 0x002e1d50	survarium::weapon_core::get_dispersed_bullet_direction	manual	12	D = get_static_dispersion + (state +404h + shot +418h) x k, k = 0 when the aim interpolator's value (weapon +5FCh) is exactly 1, else 1; tilt = 0.5 x D x modf(N(0, 0.5)) degrees about an axis turned by a uniform [0, 2 pi) angle (+5C0h/+5C4h, generator +5BCh, seed 1) about the transform's forward; the direction at [stack+8]
 0x002e2120	survarium::weapon_core::get_dispersed_buckshot_direction	manual	8	
 0x002e23a0	survarium::weapon_core::instant_fire	manual	8	
@@ -1440,8 +1441,8 @@ va	name	source	ret_cleanup	result
 0x00331220	survarium::dispersion_calculator::get_static_dispersion	manual	0	XMM0: base_dispersion (weapon +3D8h) x the ammo's dispersion (ammo +26Ch, data/dispersion; 1 without ammo); ECX = dispersion_calculator
 0x003312f0	survarium::dispersion_calculator::serialize	manual	4	
 0x00331330	survarium::dispersion_calculator::tick	manual	20	EDI = dispersion_calculator: w (+34h) = skill influence of the stance; target T = apply_modifier((aimed ? aim_multiplier +3F4h : from_the_hip_multiplier +3F0h) x stance dispersion (0x331560) + injury (0x3317C0), w, index 0); state part (+0Ch interpolator) restarts toward T when T changes, at growth_speed (+3E8h) up, apply_modifier(speed_of_aiming +3E4h, 1, index 1 aiming_speed) down
-0x00331480	survarium::character_dispersion_calculator::get_skill_influence	manual	4	XMM0: the stance's character_dispersion_skill_influence (table at [EDX+8]); its low-stamina one (+30h) when XMM0 in (stamina deficit) is over the threshold at 0xA0D984
-0x00331560	survarium::character_dispersion_calculator::get_target_koef	manual	8	XMM0: the stance's character_dispersion_params value (table at [EBX+4]; idle_dispersion +0, idle_aim_dispersion +4, crouch +18h/+1Ch, ...): aimed as is, from the hip through apply_modifier(index 38h dispersion_from_hip); at least low_stamina_dispersion (+30h) x stack+8 (stamina deficit)
+0x00331480	survarium::character_dispersion_calculator::get_skill_influence	manual	4	XMM0: the stance's character_dispersion_skill_influence (table at [EDX+8]: idle +0, idle_aim +4, walk +8, walk_aim +0Ch, run +10h, jump +14h, crouch +18h, crouch_aim +1Ch, crouch_walk +20h, crouch_walk_aim +24h, low_stamina +30h; load 0x2F1050): stack+4 the posture (0 standing, 1 crouched, else the constant at 0xA70884, 1.0), ESI the movement (0 still, 1 walking, 2 sprinting, 3 jumping; crouched: 0 still, else walking), the _aim_ one when the weapon's m_aimed (+5E8h) is set (none for sprinting or jumping); its low-stamina one (+30h) when XMM0 in (stamina deficit) is over the threshold at 0xA0D984, which is 0.0
+0x00331560	survarium::character_dispersion_calculator::get_target_koef	manual	8	XMM0: the stance's character_dispersion_params value (table at [EBX+4], the order of 0x331480's; load 0x2F0D30; injury penalties +34h/+38h), ECX the posture, ESI the movement as 0x331480's: aimed (m_aimed +5E8h) as is, but walking through apply_modifier(index 18h dispersion_movement_influence); from the hip through apply_modifier(index 38h dispersion_from_hip), walking through apply_modifiers({18h, 1}, {38h, 1}) (0x331715); sprinting and jumping through index 38h, aimed or not; at least low_stamina_dispersion (+30h) x stack+8 (stamina deficit)
 0x003317c0	survarium::character_dispersion_calculator::get_broken_hands_penalty	manual	4	XMM0: 0 with no broken hand, else injury_penalty_for_double_handed (+34h) / _for_one_handed (+38h), through apply_modifier(index 41h injury_penalty)
 0x00334900	survarium::victory_item_event_manager::start_match	manual	4	no result
 0x00334ac0	survarium::victory_item_event_manager::on_event	manual	12	
@@ -2180,7 +2181,7 @@ va	name	source	ret_cleanup	result
 0x002e13a0	survarium::weapon_core::get_camera_shake_lexeme	manual	4	Builds the lexeme of recoil_animations[2] (camerashake_v2) into ECX: weight calculator 0x2E39B0 (+0Ch), animated object the user (+2Ch), time scale (+44h) = weapon +450h (shake_time_scale) when [[weapon+330h]+124h] == 5 (fire state; 0.10b order inactive, show, hide, idle, reload, fire, aim, aim_fire, chamber, chamber_aimed) else 0, time-sync group 1 (+4Ch), additivity priority 5 (+54h). Called last by get_recoil_expression (0x2E1369). Lexeme offsets: 0.10b animation_lexeme_parameters plus 0Ch before animated_object.
 0x00329ff0	survarium::body_part_parameters::hit_by_type	manual	20	the hit's damage in place: D x (1 - clamp(A - P, 0, 1)), A the part's summed armour for the hit type (its type list at +18h, value +8), P the penetration (0x32A07E..0x32A0AC; observed)
 0x00331a50	survarium::weapon_recoil_calculator::tick	manual	4	Recoil object in ESI (weapon_core+468h): until 60/rpm after the last shot moves side x (+0Ch), top y (+10h) and shake z (+14h) at their speeds (+18h, +1Ch, +20h); for the rest of the tick the PID 0x3321E0 pulls all three to 0. Clamps x and y to -1..1, z to 0..1.
-0x00331c50	survarium::weapon_recoil_calculator::on_shot	manual	0	A shot (recoil object in EDI, weapon in [EDI]): x += (R - L)(1 - |x|^p), y += T(1 - max(y,0)^p), z += S(1 - z^p), S uniform in min/max_shake_recoil (weapon +448h/+44Ch, raw), R, L, T as the side/top ranges (+430h..+444h), p = recoil_power (+454h), each times apply_modifier (0x2D5AE0, index 12h); x, y clamped -1..1, z 0..1; speeds = (new - old) / (60/rpm) (+464h). Generator: [EDI+4] = [EDI+4] * 8088405h + 1.
+0x00331c50	survarium::weapon_recoil_calculator::on_shot	manual	0	A shot (recoil object in EDI, weapon in [EDI]): x += (R - L)(1 - |x|^p), y += T(1 - max(y,0)^p), z += S(1 - z^p), S uniform in min/max_shake_recoil (weapon +448h/+44Ch, raw), R, L, T as the side/top ranges (+430h..+444h), p = recoil_power (+454h), each step (draw x (1 - pos^p), the shake's too) through apply_modifier (0x2D5AE0, index 12h recoil set once in ESI at 0x331D95, weight 1.0): x at 0x331DC7, y at 0x331EA5, z at 0x331F5A, before the old position is added; the recovery PID takes no modifier; x, y clamped -1..1, z 0..1; speeds = (new - old) / (60/rpm) (+464h). Generator: [EDI+4] = [EDI+4] * 8088405h + 1.
 0x003321e0	survarium::weapon_recoil_calculator::compensation_pid	manual	4	One PID over the three axes (x, y, z at EDX, state at ECX = recoil object +24h: integrals +18h..+20h, previous errors +0Ch..+14h, gains Kp/Ki/Kd +24h/+28h/+2Ch); XMM4 = dt. Writes the three outputs at [EAX] (the tick negates them into the speeds).
 0x00331ff0	survarium::weapon_recoil_calculator::serialize	manual	0	none; writes the recoil object (EDI, weapon_core+468h) to the writer (ESI): u32 +4 (the generator), u32 +8 (the last shot time, -1 none), and only if it is not -1: x, y, z +0Ch, their speeds +18h, the PID previous errors and integrals +30h, +3Ch (3 floats each). Called by weapon_core::serialize at 0x2E32BC, so the shake z is in the hashed world
 0x003320b0	survarium::weapon_recoil_calculator::deserialize	manual	0	none; reads what 0x331FF0 writes (reader ECX, cursor +4) into the recoil object EAX; last shot time -1: jumps to reset 0x332140. Called by weapon_core::deserialize at 0x2E35FB
@@ -2209,6 +2210,10 @@ va	name	source	ret_cleanup	result
 0x002de350	survarium::game_effect_player::remove	manual	0	void; the node playing the effect (walked from +2Ch, each +4Ch the next) set to state 2 (+44h), its stop sent (0x2DE3A0), the list swept (0x2DE750); damage_zone_core 0x31A255 stops its inside effect so
 0x00285fa0	survarium::render_visual::insert	manual	4	none
 0x00285fe0	survarium::render_visual::remove	manual	4	none
+0x00290930	survarium::object_ambient_light::insert	manual	0	none
+0x00290ae0	survarium::object_ambient_light::remove	manual	0	none
+0x00292cc0	survarium::object_particle_visual::insert	manual	0	none
+0x00292dc0	survarium::object_particle_visual::remove	manual	0	none
 0x00291720	survarium::object_light::load	manual	12	none
 0x00291790	survarium::object_light::insert	manual	0	none
 0x002917d0	survarium::object_light::remove	manual	0	none
@@ -2468,6 +2473,7 @@ va	name	source	ret_cleanup	result
 0x001ed430	survarium::game::on_fullscreen_alttab	manual	0	
 0x001ed450	survarium::game::on_alttab	manual	0	
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	manual	0	EAX: the first element equal to *EDI, or ESI (last) when none is (four-way unrolled, as stlport __find)
+0x002acc20	vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::push_back	manual	4	none; asserts "buffer overflow" (the int3 0x2ACC7F, branch 0x2ACC2B) when end == capacity end: m_effects never grows (six inline in a presenter, its constructors 0x297570 / 0x2971C0)
 0x002010e0	survarium::game_options::process_key_input	manual	4	AL: 1 the key wait ends here (Esc, DIK 1, at once 0x2010F2; a key without a conflict, given by assign_binding 0x201384), the caller then calls finish_binding or its copy; 0 it goes on (a key with no name, 0x20110F) or a conflict's message ended it (root.show_reassign_message, +10h shown, +3Ch 48h: 0x20133D..0x20134F)
 0x002015a0	survarium::game_options::finish_binding	manual	0	none; the key wait's end: root.end_keybind on the menu movie (+0Ch, 0x2015B8), the cursor movie +10h back in +30h's scene (0x2015C3), +3Ch 48h (0x2015C8)
 0x002015e0	survarium::game_options::on_keyboard_action	manual	12	AL: 1. Awaiting a key (+3Ch not 48h) a press goes to process_key_input and, when it ends the wait, finish_binding (0x201605); never forwarded to the movie
@@ -2599,6 +2605,58 @@ va	name	source	ret_cleanup	result
 0x001603b0	vostok::render::grass_world::process_culling's patch order	manual	0	AL: 1 for ECX's patch before EAX's
 0x00161e50	stlp_std::priv::__linear_insert<vostok::render::grass_patch **>	manual	0	
 0x00162060	stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>	manual	0	
+0x002e4100	survarium::weapon_core::melee_pred [descriptive]	manual	0	EAX: 1 when the gun's clip set's posture ([[[+278h]+20h]+24h]) is not 4 (player_logic_stand_jump_state, 0x336B87: in the air), the gun's +5E8h is 0 and the user's actions [[+8]+330h] have bit 27 (melee); else 0. ECX the gun
+0x0033ab50	survarium::weapon_core_melee_state_base::on_shoot [descriptive]	manual	4	EAX 0; ECX the melee state (+120h its gun), entry ESP+4 the clip event (+10h its time): emit_bullet(gun EDI, +5A0h, &eye.position (+30h), &(eye forward row +20h x gun+578h), gun+53Ch, the event's time, player+110h, player+118h, 0)
+0x002e2940	survarium::weapon_core::subscribe_animation_event [descriptive]	manual	16	entry ESP+4 the gun, +8 the channel id (a byte: 3 the clip end), +0Ch the subscriber, +10h the boost functor: animation_player::subscribe_event_channel on the user's player +750h
+0x00301240	survarium::victory_item_core::tick [descriptive]	manual	0	ECX the battery: fsm::tick(+168h), then its user animations' tick (0x2FB980); the main vtable's +2Ch (0xA13DE8)
+0x003018c0	survarium::victory_item_core::is_carrying [descriptive]	manual	0	AL: the current state's kind [[+178h]+20h] is 3 (carry); the main vtable's +64h (0xA13E20)
+0x00301b30	survarium::victory_item_core::is_user_switching [descriptive]	manual	0	EAX: 1 when the user [+8] has a next held item (+12Ch) other than its held (+128h) and its +33Ch set; ECX the battery. initialize_logic binds it as carry -> put's predicate (0x301ABD)
+0x00338930	survarium::victory_item_core_animation_end_aware_state::is_ready_for_transition [descriptive]	manual	0	AL: [ECX+28h], set by on_animation_end 0x344830 when the clip it waits for ([+0C8h][+0CCh]) ends; the take and put vtables' +18h
+0x00338eb0	survarium::victory_item_core_carry_state::register_animations [descriptive]	manual	4	ECX the state, entry ESP+4 the registry: register_animation of each pair at +0C8h..+0E0h
+0x00303450	boost::detail::function::function_invoker0<bool (__cdecl*)(void),bool>::invoke [descriptive]	manual	0	jmp [buffer]: the stored function is entered with the buffer's address still at entry ESP+4 (cdecl, the fsm pops it, 0x38CA7C); the invoker of the functor vtable 0xA13CAC (manager 0x303420)
+0x0028f040	boost::function0<bool>::function0 (copy) [descriptive]	manual	0	EAX: ESI; ECX the source, ESI the room: a tagged (bit 0) vtable copies the 24-byte buffer, else its manager clones it
+0x002fa400	survarium::victory_item_core_cook::on_animations_loaded [descriptive]	manual	4	the cook's queries callback: three 6-clip arrays (take, carry, put; each 4 player clips then 2 battery clips, query order) at ESP+58h, +40h, +28h, then initialize_logic (call 0x2FA7E4, ESI the battery kept)
+0x00338940	survarium::victory_item_core_take_state::victory_item_core_take_state	manual	12	EAX: the state (ESI); vtable 0xA1BF84, kind +20h 1, +24h -3, +28h 0, the clip index to wait +0CCh 0FFh, +0E8h the scale (first player clip's frames / 30 / time, 0x30D750)
+0x00301920	survarium::victory_item_core::initialize_logic	manual	20	
+0x00322830	survarium::bullet_manager::emit_bullet	manual	32	EAX: the bullet
+0x00372420	survarium::weapon_core_throw_grenade_base_substate::is_ready_for_transition	manual	0	AL: 1 (mov al,1 / ret; folded: also take -> carry's and hit -> carry's predicate)
+0x00397c20	survarium::victory_item_core_take_state::is_ready_to_be_deactivated [descriptive]	manual	0	AL: 0 (xor al,al / ret, folded): the take state's vtable +20h (0xA1BFA4); victory_item_core::is_ready_to_be_deactivated 0x301270 asks the current state
+0x00338e90	survarium::victory_item_core_carry_state::is_ready_to_be_deactivated [descriptive]	manual	0	AL: 1 when the battery's user ([[ECX+1Ch]+8]) is not alive (+33Ch 0): the carry's vtable +20h (0xA1BFD8); a living carrier leaves through carry -> put
+0x003b3050	vostok::animation::time_channel::domains_count	manual	0	EAX = 1 + the spans j in [3, n-2] of the track at EDI ({u32 n; n (knot, value) f32 pairs}) with knot[j+1] - knot[j] >= 1e-7: the baked channel's count (never 0)
+0x003b3250	vostok::animation::bake_time_channel	manual	4	none; EAX the track, ESI the channel header {count, offset from the header}, ESP+4 its data's place: count-1 power-basis float4 domains of the B-spline's spans (any knot multiplicity), then the knots
+0x003b50d0	vostok::animation::baked_animation_size	manual	0	EAX = the baked animation's bytes from the clip's tracks' domains_count (20 per domain) and its event channels: create_baked_animation's buffer, never smaller than it writes
+0x002fa050	survarium::victory_item_core_cook::process_loading_victory_item_core	manual	16	none; its requests in a buffer_vector on its stack with room for 20 (esp+8Ch..12Ch at 0x2FA05D/0x2FA071): the user animations, the skeleton, per states[] entry 2 animations and 4 user animations; patch 143 gives it room for 64
+0x00344f60	survarium::victory_item_core_base_state::get_user_hands_lexeme_impl	manual	20	EAX the lexeme out; the user's clip pair, a time scale: the parameters' +50h 1, +58h (the bone mask) 2: the carrier's arms alone (skeleton bone masks: 1 spine/head/Root/Weapon/Item, 2 clavicles to fingers, 4 hips and legs)
+0x00345070	survarium::victory_item_core_base_state::get_item_lexeme_impl	manual	12	EAX the lexeme out; the battery's own clip pair, its bone mask left at the default -1 (every bone of the battery's skeleton)
+0x0031e960	vostok::animation::mixing::animation_lexeme_parameters::animation_lexeme_parameters	manual	8	EAX the parameters out; defaults: +50h -1, +54h 0, +58h -1 (the bone mask: every bone), +44h 1.0
+0x003b2050	vostok::animation::bone_matrices_computer::computed_local_bone_transform	manual	24	one bone's mix: an animation (entries of B0h, +0A8h its parameters) counts only if its parameters' +30h is the computer's, +54h the group asked (ESP+14h) and +58h & the bone's mask (ESP+10h) is not 0 (0x3B20F2)
+0x003737f0	vostok::network::torrent_client::start_seeding	manual	4	none; skipped while torrent_client+1Ch (in a match) is set; else posts start_seeding_impl(lobby_torrent_stats 0x1F1D9D1, change_seeding_upload_rate 0xA799CC) to the network thread
+0x00373910	vostok::network::torrent_client::stop_seeding	manual	4	none; posts stop_seeding_impl
+0x003739e0	vostok::network::torrent_client::change_upload_speed_limit	manual	4	none; posts change_upload_speed_limit_impl(change_seeding_upload_rate 0xA799CC)
+0x00373ad0	vostok::network::torrent_client::set_debug_info_state	manual	4	none; posts set_debug_info_state_impl(lobby_torrent_stats 0x1F1D9D1)
+0x00373c20	vostok::network::torrent_client::start_seeding_impl	manual	8	none; a pipe in state 1 is deleted; with no pipe: new win_utils::pipe, accept L"\\.\pipe\vostok_updater_pipe-%s" (the narrow product name 0xE4390 through a wide %s: garbled, 0x373CB0), message handler 0x373BD0 into this+0Ch; OpenSCManagerA/OpenServiceA("<product> Update Service", SERVICE_START); 9 argv (<exe dir>\survarium_updater.exe, seed, pipe, InstallLocation, user data folder, user name, port_number, true/false, limit x 1024 "%d"); StartServiceW (0x373F4A) only when HKCU Software\Vostok Games\<garbled product> opens (it never does, 0x373EE2: silent return); its failure logs "Can't start survarium updater for seeding torrents". No CreateProcess fallback
+0x00374020	vostok::network::torrent_client::stop_seeding_impl	manual	0	none; pipe state neither 0 nor 1: pipe::disconnect, debug info's seeding byte (this+0Ch) := 0. The updater exits on the pipe's close
+0x00374050	vostok::network::torrent_client::change_upload_speed_limit_impl	manual	4	none; pipe state 3: sends id 1Eh, u64 limit x 1024 (bytes/s), logs "Can't change upload speed limit to value %d. Error code: [%d]" on a send error; pipe not connected: binds itself as the pipe's on_connected (pipe+20h), so the limit goes out when the updater connects; no pipe: nothing
+0x00374260	vostok::network::torrent_client::set_debug_info_state_impl	manual	4	none; pipe state 3 and the flag differs from this+8: sends id 22h, u8 FFh (on) or 0, then this+8 := flag
+0x00373bd0	vostok::network::torrent_client::start_seeding_impl's pipe message handler (seeding debug info)	manual	0	none; copies packet bytes +3 (u8, != 0 = seeding), +4, +8, +0Ch (three u32) into the 16-byte debug info; reads no id (the updater's 18h seeding_debug_tick is the shape it expects)
+0x003736d0	vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)	manual	8	AL: 1 when the value is REG_SZ and fits (terminated in place)
+0x00373730	vostok::network::torrent_client's product GUID (HKLM Software\Vostok Games\<product>, "product GUID")	manual	0	EAX: the wide GUID buffer 0xA264880 ("" when absent); read once (flags 0xAE7723, 0xAE7724)
+0x003e36a1	get_install_location (InstallLocation of an uninstall key, HKCU then HKLM)	manual	0	AL: 1 when found (cdecl, the caller pops 8)
+0x00373090	vostok::win_utils::pipe::pipe	manual	0	EAX: the pipe (ESI); state +10C4h := 1, a 1000h-byte packet at +9Ch, four boost::function callbacks at +0, +20h, +40h, +60h cleared
+0x00373230	vostok::win_utils::pipe::accept (CreateNamedPipeW server, overlapped ConnectNamedPipe)	manual	4	error_code at [entry ESP+4]; only in state 1: CreateNamedPipeW(name, 40080003h, 0, 1 instance, 10000h, 10000h, 0, NULL), state := 2, completion 0x373510
+0x003733c0	vostok::win_utils::pipe::disconnect	manual	0	none; closes the handle, state := 1
+0x00373400	vostok::win_utils::pipe::send	manual	0	error_code at [EDI]; writes u16 (size - 2) at the packet's start, then the packet
+0x00373510	vostok::win_utils::pipe's accept completion (state 3, on_connected, first read)	manual	8	none; success: state := 3, on_connected (+20h), reads start; error: closed, state := 1, the error callback (+60h)
+0x001ee550	survarium::game's change_seeding_upload_rate command callback	manual	4	none; network client vtable +20h true: tail jump to torrent_client::change_upload_speed_limit(vtable +48h)
+0x001ee580	survarium::game's enable_torrent_seeding command callback	manual	4	none; network client vtable +20h true: enable_torrent_seeding (0xA712B6) on: start_seeding, off: stop_seeding
+0x001ee5d0	survarium::game's lobby_torrent_stats command callback	manual	4	none; network client vtable +20h true: tail jump to torrent_client::set_debug_info_state
+0x001f60a0	survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)	manual	0	none; only while lobby_torrent_stats (0x1F1D9D1); the debug info by value on the stack: seeding byte on: peers "%d" (+0Ch), upload (+4) and limit (+8) as x*8/1024 "%d Kbit"; else empty cells; root.setData
+0x00262250	survarium::options_torrent_seeding_selector's read of change_seeding_upload_rate	manual	0	none; selected (+1Dh) := the last index of {256, 512, 1024, 2048, 4096, 8192, 100000} (0xA743C8) not above the command's value (100000 without one)
+0x002622a0	survarium::options_torrent_seeding_selector's apply (executes change_seeding_upload_rate <KiB/s>)	manual	0	none; executes the command (vtable +4) with the selected value as "%d"
+0x001ed1e0	survarium::game::switch_to_lobby	manual	0	none; network client vtable +20h true: torrent_client+1Ch (in a match) := 0, then start_seeding (0x1ED21D) only while enable_torrent_seeding (0xA712B6, 1 in the original's .data; patch 150: 0) is set (the je 0x1ED20D); the lobby menu (game+5390h) made the active scene (game+539Ch); game+586Ch := 1
+0x001ed260	survarium::game::switch_to_login	manual	4	none; network client vtable +20h true: login_menu::set_status(game+5394h, the argument), torrent_client+1Ch := 0, start_seeding (0x1ED2AD) only while enable_torrent_seeding is set (the je 0x1ED29D); the login menu made the active scene; game+586Ch := 1
+0x000e4390	the product name (narrow)	manual	0	EAX: the product's narrow name ("survarium"), which start_seeding_impl formats into its pipe's wide name with %s (0x373CB5: garbled) and into "<product> Update Service" (0x373D28)
+0x003745b0	a wide snprintf into EDX's buffer (start_seeding_impl's names)	manual	0	none (cdecl, the caller pops the format and its arguments); start_seeding_impl gives it [ebp-4B8h] and L"%s-%s" with L"\\.\pipe\vostok_updater_pipe" and the narrow product name (0x373CC6), and Software\Vostok Games\%s (0x373EAD)
 0x0005c060	vostok::sound::sound_scene::process_fade	manual	0	none; state +2FCh 1 (fading in): volume +2E4h += elapsed / +2ECh, at 1 the state 0; 2 (fading out): -= elapsed / +2F0h, at 0 the scene leaves the active list (0x5A320) and +2F9h is cleared; either way its submix +2E0h gets SetVolume(+2E8h x +2E4h, 0) (vtable +30h; 0x5C0E8, 0x5C1B3); state 0 writes nothing
 0x00316bc0	survarium::player_respawn_rule_base::on_player_entered_match	manual	8	
 0x00316c90	survarium::player_respawn_rule_base::serialize	manual	4	
@@ -2607,3 +2665,74 @@ va	name	source	ret_cleanup	result
 0x00316fc0	survarium::player_respawn_rule_core::deserialize	manual	8	
 0x000e29c0	vostok::core::generate_log_file_name	manual	0	the name in EDI's buffer_string: user_data_directory (+ "\\" + the application name, appended as a path) + "_%s" (0x9E6248) of the Windows user name when it has one + ".%s" (0x9E624C) of "log" (0x9E62E4, the extension inlined); its only call 0xE31F3 (logging_initialize)
 0x001128d0	vostok::logging::new_log_file	manual	0	EAX the log_file (0x4460 bytes of the allocator 0x1F1D61C) or 0; log_file::log_file 0x112340 with g_log_file_usage 0x1B3A1B8: usage 1 (create_log) opens the file create_always, any other append_or_create (0x11245F: dec/neg/sbb/and 2); the name copied (0x1123E9); cdecl, its only call 0xE31FD
+0x00305540	survarium::booby_trap_core::hit	manual	40	no result used
+0x00305580	survarium::booby_trap_core::hit	manual	32	no result used
+0x003050c0	survarium::booby_trap_core::defuse_completed	manual	0	no result used
+0x001f63e0	survarium::game_world::get_step_manager	manual	0	EAX: the world's step manager, its +4D5Ch (lea eax,[ecx+4D5Ch]); game_world vtable 0x9FC4F4 slot +34h, which on_foot_step (0x2A6558) and player::on_landing (0x1F3B5D) call
+0x001f3bd0	survarium::player::is_first_view	manual	0	AL: 1 when the player is the network client's local player by place (+114h against the local player's) and that player's camera (+0F470h, +358h) is in mode 0 or 4, else 0
+0x0023fbe0	survarium::player's landing step (on_step at the root, from player::on_landing)	manual	16	no result used
+0x002a63c0	survarium::player_equipment_sound_effect::update_feet	manual	0	no result used
+0x002a6410	survarium::player_equipment_sound_effect::set_feet	manual	4	no result used
+0x0032c520	survarium::bullet::compute_damage_speed	manual	0	none; +7Ch from the bullet's data and its start velocity (+34h..+3Ch): the constructor's last step (0x32BBAB)
+0x00300690	survarium::victory_item_core::deactivate_physics [descriptive]	manual	0	none; when its body is in the physics world (+2C8h set): the main vtable +B0h (0x301DB0, the body +2A8h out of the world), the user's hook, +2C8h 0; the main vtable +A0h, called by picked_up_by_player 0x300D0E: a carried battery has no body in the physics world, so no ray meets it
+0x00301db0	survarium::victory_item_core::remove_physics_body [descriptive]	manual	0	none; the physics world's (+1B0h) vtable +38h with the body +2A8h and 1 (activate_physics 0x301CB0 adds it through +2Ch); the main vtable +B0h
+0x003917d0	vostok::animation::animation_player::tick	manual	4	AL: a callback asked to stop the tick (the 0.10b source's tick: skip_time_if_needed 0x3915F0, ++m_in_tick [+0E114h], the mixing tree's tick 0x3A19F0 to the time, compact_callbacks 0x391E10); a living player's is ticked by the world's steps alone (tick_animations 0x2D8F7D), never by its draw (mt_draw 0x24751C skips 0x247543 unless +33Ch is 0)
+0x00338be0	survarium::victory_item_core_carry_state::victory_item_core_carry_state	manual	8	EAX: the state (its room); vtable 0xA1BFB8, kind +20h 3, +24h -3, +28h 0; references its six clips (the two battery clips +0D8h, the four player clips +0C8h)
+0x001f0e70	survarium::match_options::deserialize	manual	8	
+0x0009ff40	btCollisionWorld::updateSingleAabb	manual	0	void
+0x000205e0	boost::function1<void,bool>::operator()	manual	4	void
+0x00094c00	btAxisSweep3Internal<unsigned short>::setAabb	manual	16	void
+0x000a8660	btBvhTriangleMeshShape::processAllTriangles	manual	12	void
+0x000c5600	btConvexTriangleCallback::processTriangle	manual	12	void
+0x0001eaa0	vostok::console_impl::on_keyboard_action	manual	8	AL 1 on every path: the open console takes every key (a pressed Esc or ~ closes it with m_self_deactivate +4, Up, Down and Tab its tips +260h, Caps Lock moves the focus between the line and the view; every other key, and every key's up and held kinds, to its dialog's input handler, 0x1EDFC)
+0x0001c810	vostok::engine::game_console::on_mouse_move	manual	16	AL 1: the move given to the console's dialog's input handler (vtable+0Ch) and taken, the wheel too: no later handler (the game world's, the player's) gets it
+0x0001c760	vostok::engine::game_console::on_activate	manual	0	none; the text edit focused (+1Ch, w() vtable+14h, set_focused +34h), m_active +264h 1, the console's input handler (+268h) added to the input world (+26Ch, vtable+10h)
+0x0001d0d0	vostok::console_impl::tick	manual	8	none; under the log file's transaction (g_log_file 0x1F1D608, its lines +4438h): the view (+18h) not following and its v scroll's |position| as last time (+0Ch, within 1e-5): only a new line's room added to the last item (0x1D209); else, the lines changed or the position moved, the view cleared and filled again: a spacer of the position's height (following: lines x 20 - the view's height + the text edit's height), floor(height / 20) lines from the log (goto_line floor(position / 20), at most lines - shown), a tail; the count (+34h), the position (+0Ch) and the step 20 kept
+0x00349c60	vostok::ui::ui_scroll_view::set_follow_last_line	manual	4	none; bit 1 of the flags (+44h) set (follow) or cleared
+0x00349ca0	vostok::ui::ui_scroll_v_source::set_position	manual	4	none; the pad's position y set (its window's set_position, vtable+0), x kept
+0x0001c7a0	vostok::engine::game_console::on_deactivate	manual	0	
+0x0034b4d0	vostok::ui::insert_char_action::execute	manual	4	AL: 1
+0x0034a4c0	vostok::ui::create_char_action	manual	0	EAX: the new insert_char_action (vtable 0xA1DEBC), 0 when the allocation failed
+0x003482c0	vostok::ui::ui_text_edit::paste_from_clipboard	manual	0	none; the engine's stub: it logs "ui_text_edit::paste_from_clipboard not implemented" (channel ui, 0x9EEFDC) and pastes nothing (0.21d's 0x21152B the same)
+0x003479d0	vostok::ui::ui_text_edit::set_text	manual	4	none; a text equal to the line (_stricmp 0x426F29) changes nothing; else the line is the text cut at the max length, text-changed event 5 (0x346FA0), the caret clamped to the length, an undo step pushed (unless an undo or redo runs, +2ADh, +2AEh) and the redo steps dropped
+0x003488a0	vostok::ui::ui_text_edit::set_caret_position	manual	8	none; the caret (+2A6h) clamped to the line's length; when it moved, the selection (+2A8h, +2AAh) collapsed to it, or with select and Shift held (+2ACh & 30h) one end of it moved
+0x003486a0	vostok::ui::ui_text_edit's delete of the selection	manual	0	none; the line without [+2A8h, +2AAh) (set_text), the caret and both ends of the selection at its start
+0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	manual	4	AL 1 (the key taken); calls its method (+18h) with its object (+14h) as ECX, no argument
+0x00290930	survarium::object_ambient_light::insert	manual	0	result not established
+0x001858e0	vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity	manual	0	EAX end of retained pointer range
+0x002aa870	vostok::buffer_vector<survarium::sound_game_effect_presenter::effect_data>::push_back	manual	4	none; asserts "buffer overflow" (branch 0x2AA87B) when end == capacity end: a sound presenter's list holds 16 entries of 14h inline (140h, the constructors 0x297570 at +0D8h and 0x2971C0 at +330h) and nothing grows it; only an effect with a sound reaches it (the 2026-11-18 dumps: 0 entries beside 6 particle ones)
+0x0034e1e0	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >	manual	0	void; fills supplied environment properties
+0x0017cc90	vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>	manual	0	none: the effect lands in *EDI, now (force_sync) or when its async query completes
+0x001ae110	vostok::render::effect_manager::create_effect<vostok::render::effect_rain>	manual	0	none: the effect lands in *EDI, now (force_sync) or when its async query completes
+0x0015fe20	vostok::render::grass_world::set_wind_parameters	manual	4	none
+0x00070e30	vostok::math::random32::random_f	manual	8	ST0: a float from min to max
+0x0030f5a0	survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme	manual	12	EAX: the lexeme out-param (stack+4); the clip speed it hands 0x31EBD0 is +138h through 0x2D5AE0 index 13 (0x30F61D), as weapon_core_reload_state's
+0x00311070	survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme	manual	12	EAX: the lexeme out-param (stack+4); the clip speed it hands on is +14Ch through 0x2D5AE0 index 13 (0x3110D5)
+0x0028bee0	survarium::lobby_menu::find_players	manual	4	AL: 1 (callback handled); the text of 3 bytes or more goes to 0x26B660 as it is (no cut, no check of its bytes), a shorter one nowhere
+0x0026b660	survarium::messaging_client::find_players	manual	8	none: writes 4E 06 {u8 strlen & FFh, the bytes} on the lobby link (0x37A0E0 begin, 0x379640 queue: it leaves on the link's next 500 ms tick); nothing unless the link is connected (state 0 or 4)
+0x003cfaf0	vostok::render::res_render_output::fullscreen_output	manual	0	EAX the IDXGIOutput that SetFullscreenState gets (show 0x3CF62B, apply_fullscreen_state 0x3CFDF6, goto_fullscreen 0x3CFE5F): the render device's outputs (+184h..+188h of [0x2260478]) at r_monitor_index (render options +D0h); 0 when windowed (+EDh) or the index is past the list
+0x000dde70	vostok::command_line::key::is_set	manual	0	EAX: 1 when the key is on the command line (state +224h is not 1 after the lazy parse 0xDF020)
+0x001ae390	vostok::render::stage_apply_distortion::is_effects_ready	manual	0	EAX: 1 when both effects (+10h apply_distortion, +14h olta) exist
+0x001ae500	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>	manual	0	
+0x001ae5f0	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>	manual	0	
+0x001bd6a0	vostok::render::stage::is_enabled	manual	0	AL: the stage's enabled byte +0Ch (1 from every stage constructor, e.g. 0x1AE2C8)
+0x001fb6c0	survarium::game_world::process_kill_cross_events	manual	8	
+0x00233770	survarium::game_world_ui::on_kill_cross_event	manual	8	
+0x001fdcc0	survarium::game_world_core::fixed_time_before	manual	0	EAX: largest grid time below the input (origin if input <= origin)
+0x001fdcf0	survarium::game_world_core::fixed_time_at_or_after	manual	0	EAX: smallest grid time >= input (origin+50 if input <= origin)
+0x002d1ce0	survarium::game_world_core::tick_game_effect_player	manual	12
+0x002d1d00	survarium::game_world_core::tick_physics_world	manual	12
+0x003185f0	survarium::serialize_local_fixed_time	manual	0
+0x00318620	survarium::serialize_local_time	manual	0
+0x00318690	survarium::deserialize_local_time	manual	0	EAX: time in ms
+0x0023c050	survarium::game_world_ui::set_player_icon_position	manual	4	
+0x002dda80	survarium::game_effect_player::resolve_link	manual	8	
+0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	manual	4	
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	manual	8	
+0x002ac310	survarium::particle_game_effect_presenter::update_effect	manual	8	
+0x002ac360	survarium::particle_game_effect_presenter::clear	manual	0	
+0x002ac870	survarium::particle_game_effect_presenter::deserialize	manual	12	
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	manual	32	EAX: ESI
+0x002ae1e0	survarium::particle_game_effect::particle_game_effect	manual	28	EAX: ESI
+0x002ee650	survarium::artefact_core_cook::on_config_loaded	manual	4	
+0x002ee7c0	survarium::artefact_core_cook::on_effect_loaded	manual	16	

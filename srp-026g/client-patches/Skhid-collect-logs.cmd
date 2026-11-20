@@ -11,10 +11,10 @@ rem   Skhid-collect-logs.cmd --dry-run       say what it would collect, collect 
 rem
 rem What it takes (the PowerShell code at the end of this file):
 rem - the logs: the updater's and the client patches' of each run
-rem   (updater_skhid.<time>.log, srp_patches.<time>.log, and the
-rem   updater_skhid.log and srp_patches.log of before the runs were named),
-rem   the launcher's, the game's own (Documents\Survarium\Survarium*.log,
-rem   one a run), DXVK's,
+rem   (updater_skhid.<time>.log, srp_patches.<time>.log in game\logs, and
+rem   the updater_skhid.log and srp_patches.log of before the runs were
+rem   named), the launcher's, the game's own (game\logs and Documents\Survarium\Survarium*.log,
+rem   one a run), DXVK's, skhid-wine.log (game\logs) of Skhid.sh,
 rem   skhid-download.log of Skhid-without-updater.bat; each through a filter
 rem   that removes every line naming a password, a digest, a token, a key, a
 rem   cookie, a command line or a URL with a user in it (the crash
@@ -42,9 +42,8 @@ rem The code page: this file is kept in UTF-8, and make_client_026g.py ships
 rem it in code page 866 (DOS Cyrillic). cmd reads each line of a script in
 rem the console's code page at the time, so it switches the console to 866 here,
 rem before the first line with a Russian letter, and back at the end: the
-rem text is right on a Russian Windows (866 already) and on any other. (Not
-rem 65001: Windows 7's cmd stops reading a script in it.) Every line above
-rem the chcp is ASCII. PowerShell reads its code below in 866 too.
+rem text is right on a Russian Windows (866 already) and on any other.
+rem Every line above the chcp is ASCII. PowerShell reads its code below in 866 too.
 setlocal EnableExtensions DisableDelayedExpansion
 set "SKHID_CP="
 for /f "tokens=2 delims=:" %%C in ('chcp') do set "SKHID_CP=%%C"
@@ -121,7 +120,7 @@ goto end
 %RU% Пробный запуск: ничего не собирается, только выводится, что было бы собрано.
 %EN% Dry run: nothing is collected, only what would be is printed.
 echo.
-echo [dry-run] logs: Documents\Survarium, "%X86%", "%TOP%\game", "%TOP%", "%TOP%\temp"
+echo [dry-run] logs: Documents\Survarium, "%TOP%\game\logs", "%X86%", "%TOP%\game", "%TOP%", "%TOP%\temp"
 echo [dry-run] crash reports: SRP-crash-*.txt in "%X86%" and the temporary folder, the text of the newest 5 SRP-crash-*.zip
 echo [dry-run] sha256: game\binaries\x86 programs, the certificate, game\resources.db, game\resources.db.patch_*
 echo [dry-run] servers: updater_skhid.url's (else https://skhid.link) /api/client-files, /patches, /game and their hosts
@@ -150,10 +149,10 @@ goto end
 :no_powershell
 %RU% Не найден PowerShell, без него собрать логи нельзя. Отправьте сами
 %RU% новейшие файлы updater_skhid.*.log и srp_patches.*.log из папки
-%RU% game\binaries\x86 и логи из папки Документы\Survarium.
+%RU% game\logs и логи из папки Документы\Survarium.
 %EN% PowerShell is not found, and the logs cannot be collected without it.
 %EN% Send the newest updater_skhid.*.log and srp_patches.*.log of the folder
-%EN% game\binaries\x86 and the logs in the folder
+%EN% game\logs and the logs in the folder
 %EN% Documents\Survarium yourself.
 set "RC=1"
 goto end
@@ -176,8 +175,8 @@ rem line above runs.
 # Reads only: nothing of the game, its folder or Windows is changed. It
 # writes its own folder Skhid-logs-<date>-<time> on the Desktop (else in
 # the game folder, when the Desktop cannot be written), makes the ZIP of it
-# beside it and deletes the folder. Windows PowerShell 2 (Windows 7) to 5.1;
-# PowerShell 7 elsewhere (the tests). What Windows has not (Defender's,
+# beside it and deletes the folder. Windows PowerShell 5.1; PowerShell 7
+# elsewhere (the tests). What Windows has not (Defender's,
 # the firewall's cmdlets, the event log) is said in the report, not failed.
 $ErrorActionPreference = 'Stop'
 $global:skhidStatus = 1
@@ -526,7 +525,7 @@ try {
         # A run's log: <kind>.<its start, YYYY-MM-DD_HH-MM-SS>[_<n>].log (client/bugtrap/src/run_name.rs).
         $run = '(\.\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d(_\d{1,2})?)?'
         $name = '^(survarium(_.*)?' + $run + '\.(log|journal)|(updater_skhid|srp_patches)' + $run + '\.log|launcher(_skhid)?\.log|skhid-download\.log|skhid-wine\.log)$'
-        $places = @(@('documents', $gameDocuments), @('game-x86', $x86), @('game', $game), @('game-folder', $top), @('game-folder-temp', (Under $top @('temp'))))
+        $places = @(@('documents', $gameDocuments), @('game-logs', (Under $game @('logs'))), @('game-x86', $x86), @('game', $game), @('game-folder', $top), @('game-folder-temp', (Under $top @('temp'))))
         $found = @()
         foreach ($place in $places) {
             if (-not $place[1] -or -not [IO.Directory]::Exists($place[1])) { Line ('  ' + $place[0] + ': no folder'); continue }
@@ -627,10 +626,7 @@ try {
     }
 
     Part 'Other antivirus programs' {
-        $products = $null
-        try { $products = @(Get-CimInstance -Namespace 'root/SecurityCenter2' -ClassName AntiVirusProduct -ErrorAction Stop) } catch {
-            $products = @(Get-WmiObject -Namespace 'root\SecurityCenter2' -Class AntiVirusProduct -ErrorAction Stop)
-        }
+        $products = @(Get-CimInstance -Namespace 'root/SecurityCenter2' -ClassName AntiVirusProduct -ErrorAction Stop)
         foreach ($p in $products) { Line ('  ' + $p.displayName + ' (state ' + $p.productState + ')') }
         if (-not $products) { Line '  none registered' }
     }

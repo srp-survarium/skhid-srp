@@ -67,7 +67,9 @@ kills wins, no elimination phases (not 0.31's "The Last Stand"). His rules of th
     `channel`, by patch 142's `free_for_all::running`): everyone a mate. The relay sends every
     match whole since 2026-11-15, when opponents near became heard in the team modes too (it
     decided by the mode until then, `registry::VoiceChannel::of`). The Tab menu's voice mute and the
-    talking list take every player (in Blackout the list still only on Tab).
+    talking list take every player (in Blackout the list still only on Tab). Since 2026-11-16
+    there are two keys (voice-chat.md, "Two keys"): the radio's reaches every player of a
+    free-for-all at any distance (`registry::RadioChannel::Match`), the nearby voice's those near (12 m since 2026-11-16).
   - **No team chat** (the owner, 2026-11-12: "i'd rather it didn't have team chat"); the chat
     goes by these sides, never by the seating:
     - The HUD offers no team tab ("The player's screens", below).
@@ -265,7 +267,11 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
     floor 3.5 m over 13's, 10.9 m from it in plan, flat (1°), facing the longest view. The roof
     has no way down within the walk model's 5 m drops and is not reached on foot: placed anyway,
     as he asked (`--stranded-ok` takes the nearest roof with a flat, clear floor without one).
-    48 -> 74 points.
+  - A roof spawn, 96, on the checkpoint (the owner, 2026-11-15, standing in it on v0.21 at
+    24.563 0.912 30.789: "we want the spawn on top of the building those coords have", "to all
+    vostok maps"; `picks --roof-at`, a roof spawn at a place that is no pick): on its slab at
+    21.938 5.64 28.664, facing the longest view, down by the porch or a 4.9 m drop. It stands on
+    the collision of "Vostok's roofs" below. 48 -> 75 points.
   - 58 hold the rule; 2, 3, 23 and 38 have no cover, 21, 22, 58-63 and 68-70 are in the perimeter
     band (5.7 m): kept as his.
 - **Vostok's picks on its ports** (the owner, 2026-11-14: "all of my spawns most likely can be
@@ -277,11 +283,31 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   else it stays out (none found one). Each in its port's own `day_8` project:
   - v0.21 (`ffa-vostok-v021-picks-1`, `v021d_level_03/day_8`): 71 of 73, the first 44 in point_ids
     22-65, 27 new 66-92; 67 and 68 out (inside the rust anomaly's `gas_damage_zone` there). The
-    roof spawn at 13, 93, lands on the same roof (3.2 m over 13's floor), here with a way down on
-    foot. 44 -> 72 points.
+    roof spawn at 13, 93, lands on the same roof, on it as drawn (13.45; before the roofs' list on
+    the ceiling plane at 13.2), here with a way down on foot; the checkpoint's roof spawn, 94,
+    where native Vostok's is. 44 -> 73 points.
   - v0.11 (`ffa-vostok-v011-picks-1`, `v011e_level_03/day_8`): 71 of 73, the first 44 in point_ids
-    28-71, 27 new 72-98; 71 and 72 out (no floor players reach within 1.5 m). No roof spawn: the
-    roof check finds only a surface 144 m up over 13 here. 44 -> 71 points.
+    28-71, 27 new 72-98; 71 and 72 out (no floor players reach within 1.5 m). The roof spawn at
+    13, 99, with no way down within 5 m drops as native Vostok's (`--stranded-ok 13`; before the
+    roofs' list the check found only the border box's top, 140 m up: of roofs as near, the lower
+    is taken first); the checkpoint's roof spawn, 100, where native Vostok's is. 44 -> 73 points.
+- **Vostok's roofs** (the owner, 2026-11-15: "note that roof doesn't have collision so we want to
+  add it", "we also added one spawn on top of another roof which doesn't have good collision too",
+  "to all vostok maps"). Content edit `ffa-vostok-roofs-1` (`scripts/ffa-mode/
+  make_vostok_roofs_edits.py`), before the three Vostok picks lists, in Free for All's own
+  projects only: boxes of 0.26g's unit walker primitive (`editor/walker_collision`, scaled by its
+  half extents; cgroup 2, cmask 4), their tops on the roofs as the models' LOD0 meshes draw them.
+  - The checkpoint (`kpp`, one model at one place on the three maps): its walker mesh had no roof,
+    its bullet mesh has one, so a player spawned there fell to its floor. Three boxes: the slab
+    (5.64), the lower east part (5.0) and the porch's slope west of the slab (4.27 to 4.75). The
+    east part's rafters (0.3 m wide, 0.56 m high) stay walked through.
+  - The long building (`hospital`), v0.21 and v0.11: their walker mesh has the top floor's ceiling
+    plane (13.21, the roof is drawn at 13.45) in two strips and nothing between or beyond them, so
+    a player stood 0.24 m in the roof and fell through it off a strip. Three boxes cover what
+    native Vostok's walker roof covers, but the part broken round the tree; native's is right.
+  - Only where a roof is drawn (the owner, 2026-11-15: "only collission where there is roof").
+    v0.11's fence behind the checkpoint ends at the roof's height (5.6), where native Vostok and
+    v0.21 have their boundary plane to 13.2; it gets no wall.
 - **Mamayev Kurgan v0.21 at the owner's picks** (2026-11-15: 66 `where` places,
   `private/spawn-examples/mamayev021-2026-11-14.tsv`; "just mine for all maps"). Content edit
   `ffa-mamayev-v021-picks-1`, from `scripts/ffa-mode/mamayev-v021-picks.tsv` (`picks --harmful-ok
@@ -305,6 +331,66 @@ A match's first spawn and every respawn go through the same respawn tick, so bot
   - The owner's against the checks: 17, 30 and 31, 1.01, 1.77 and 0.17 m from `fire_soft_damage`,
     and 55 and 57, inside and 1.44 m from `frogs_damage_zone`. 35 hold the rule; 33 have no cover
     or stand in the perimeter band, kept as his.
+  - Six more (2026-11-16, on evening_8 once the tunnel roof opened, `level06-tunnel-top.md`:
+    `private/spawn-examples/mamayev026-tunnel-2026-11-16.tsv`): content edit
+    `ffa-mamayev-tunnel-picks-1`, after `level06-tunnel-top-1`, from
+    `scripts/ffa-mode/mamayev-tunnel-picks.tsv` (`picks --as-stood 3 --project
+    level_06/<weather>_8`, its moved rows: the places, not their point ids), new points 98-103
+    after 97, copies of point 30. One on the west hill, three on the roof, two at the west edge;
+    all on their ground and 2 m from harmful zones but 3, kept as he stood over a seam of the roof
+    (the floor the check finds is 2.93 m below); all fail the cover rule, kept as his. 68 -> 74
+    points.
+- **Training Camp at the owner's picks** (2026-11-15: 47 `where` places on day_8, "i also set
+  spawns", `private/spawn-examples/training-camp-2026-11-15.tsv`). Content edit
+  `ffa-training-camp-picks-1`, from `scripts/ffa-mode/training-camp-picks.tsv` (`picks --as-stood
+  13,25,26,27,28,44,45,46,47 --project v010b_cs_training_camp/day_8`) and `make_picks_edits.py
+  training-camp`, in its own project only, after `training-camp-arena-1`, `ffa-cover-maps-1` and
+  `training-camp-fires-1`:
+  - All 47 facing as he faced, in point_ids 0-46 (position and rotation only); 47-51 go. 52 -> 47
+    points: only his, none of the planner's raised places or the cover rule's (`stalker-ffa.md`).
+  - All on raised floors, 4.8 to 28.5 m up (the base's ground is at about -1 m): none on the
+    ground. 38 on their floor (0 to 20 cm). The owner's against the checks: 13, 25-28 and 44-47
+    where he stood, on the middle island under the hub (25, 26, 27, 44, 45, 46) and three small islands
+    (13, 28, 47), floors the walk model (1.3 m jumps, 5 m drops) does not reach from the other
+    spawns, so no way down is checked there. Every one body clear, 2 m from the bonfires' fire
+    zones and inside the fence (the nearest 4.1 m from it); 37 hold the rule, 10 have no cover,
+    kept as his.
+- **London at the owner's picks** (2026-11-16: 50 `where` places on day_8,
+  `private/spawn-examples/london-2026-11-16.tsv`). Content edit `ffa-london-picks-1`, from
+  `scripts/ffa-mode/london-picks.tsv` (`picks --project level_09/day_8`) and `make_picks_edits.py
+  london`, in its own project only, after `ffa-center-1`, `ffa-london-underpass-1` and
+  `ffa-cover-maps-1`:
+  - All 50 facing as he faced, in point_ids 20-69 (position and rotation only); 70-83 go. 64 -> 50
+    points: only his, none of the centre move's, the underpass list's or the cover rule's left.
+  - 19 on the rotunda's second storey (14.06; 1-14, 43-47), 20 on the street and mounds (5.7 to
+    11.0; 15-28, 40-42, 48-50) and 11 in the underpass (0.58 to 1.27; 29-39); none on the third
+    storey.
+  - Every one on its ground (0 to 9 cm: 15, 21, 31, 40 and 48 lowered), body clear, 2 m from
+    harmful zones, and every one holds the spawn rule: no override needed.
+- **Fire Station at the owner's picks** (2026-11-16: 42 `where` places on day_8,
+  `private/spawn-examples/fire-station-2026-11-16.tsv`). Content edit `ffa-fire-station-picks-1`,
+  from `scripts/ffa-mode/fire-station-picks.tsv` (`picks --project v010b_cs_mp_firestation/day_8`)
+  and `make_picks_edits.py fire-station`, in its own project only, after `ffa-stalker-2`:
+  - All 42 facing as he faced, in point_ids 0-41 (position and rotation only); 42-47 go. 48 -> 42
+    points: only his, none of the spawn rule's left.
+  - Every one on its ground (0 to 22 cm: 6, 9 and 24 lowered), body clear and 2 m from harmful
+    zones; 39 hold the spawn rule, 18, 31 and 34 have no cover, kept as his. 16 and 28 stand
+    0.35 m apart, both kept.
+- **Chemical Plant at the owner's picks** (2026-11-16: 97 `where` places on day_8,
+  `private/spawn-examples/chemical-plant-2026-11-16.txt`). Content edit
+  `ffa-chemical-plant-picks-1`, from `scripts/ffa-mode/chemical-plant-picks.tsv` (`picks --project
+  level_04/<weather>_8` for day, evening and rain; no pick needed `--harmful-ok` or `--as-stood`)
+  and `make_picks_edits.py chemical-plant`, in its three own projects, after `ffa-center-1` and
+  `ffa-cover-maps-1`:
+  - All 97 facing as he faced: the first 60 in point_ids 75-134 (position and rotation only), 37
+    new 135-171, copies of the first solo spawn (20 m exclusion, 500 ms protection, no zones).
+    60 -> 97 points: only his, none of the centre move's or the cover rule's left.
+  - Every one on its ground (0 to 14 cm: 26, 28, 44, 56, 84, 87 and 97 lowered), body clear and
+    2 m from harmful zones, the same in the three weathers; 1.5 to 12.7 m up.
+  - 52 hold the spawn rule; kept as his: 17, 18, 23, 25, 26, 41, 82, 83, 84 and 93 have no cover,
+    1, 2, 4, 5, 7-12, 19-21, 54, 56-58, 62-65, 68, 69, 73, 76, 77, 79, 86 and 97 stand in the
+    perimeter band (6.1 m), 24, 66, 67 and 70-72 both. 89 and 91 are 0.2 m apart in plan, on
+    floors 4 m apart.
 - A map more is a row of `MAPS` in `make_picks_edits.py`, its picks TSV and its content row.
 - **Half the perimeter spawns in the centre** (the owner, 2026-11-13: "I would remove half spawns
   on perimeter", "almost on all maps", "and put them in the center"; he approved the reviewed
@@ -495,15 +581,16 @@ and spatial review; they still need multiplayer playtesting for balance.
     blackout should be in general pool"; before, each free-for-all was one more entry the three
     cards were drawn from alike, and Blackout had the third card, 2026-11-02): every vote, public
     or private, of a room whose pool has a free-for-all.
-    - Cards 1 and 2: drawn from the rest of the pool, Blackout's maps as any other's (on one of
-      the two at the most, `blackout.md`); never a free-for-all.
+    - Cards 1 and 2: drawn from the rest of the pool, of two modes while it has them (the owner,
+      2026-11-15: "no mode repeats", `rooms.md`, "Each card is drawn from pools"); never a
+      free-for-all.
     - Card 3: one of the pool's free-for-alls at random, on a map cards 1 and 2 are not while
       there is one; won, its match is a free-for-all (as below). Drawn map first, then weather
       (the owner, 2026-11-15: "make 3 new stalker maps 3 times as likely in FFA", "the pick
       should be first map, then weather"; Training Camp had been played twice in about 35
       free-for-alls): every free-for-all map alike, so Experimental Pool, Military Warehouses
       and Training Camp (one weather each) come as often as a levels 1-8 map (three); before,
-      every id alike, a third as often (`rooms.md`, "A card is drawn map first").
+      every id alike, a third as often (`rooms.md`, "Each card is drawn from pools").
     - No switch. A pool without one (a private room's maker unticked the mode, or the server's
       `SRP_MATCH_MODES` leaves 8 out) or of free-for-alls alone: its three cards drawn as before.
       A public room's pool has them (the default pool is every playable map).
@@ -559,9 +646,14 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   - **Cowboy**, "Saloon" in the lobby, 20 % (the owner, 2026-11-15: "let's make saloon 20% with
     two variations (no need to name them)"; 10 % before, 2026-11-14: "cowboy version should be
     rare with only 10% chance"), in two variations (the owner, 2026-11-14: "saloon should have
-    two variations with winchesters and colts or just with colts"), half and half (my pick: 10 %
-    each, `twist::Armed`): every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
-    (`ffa-cowboy.md`). One name for both: the card draws its variation with its twist.
+    two variations with winchesters and colts or just with colts"), the Winchester and Colt 15 %
+    and the Colt alone 5 % (the owner, 2026-11-15, once each had its own name: "and now since
+    those are two modes, simple saloon can stay at 5, and new one get 15"; half and half before,
+    my pick, `twist::Armed`): every kit a Winchester 1894 and a Colt Python, or a Colt Python alone
+    (`ffa-cowboy.md`). The card draws its variation with its twist and names it (the owner,
+    2026-11-15: "let's make Sallon (winchester) variation, and make it visible in names", "this
+    is easier, since we already have Saloon (Colt), so people know what they get and can vote
+    based on this"): "FFA: Saloon (Winchester)" and "FFA: Saloon" (the Colt alone).
 
   Won, the card's match plays its twist.
 - **Not in private rooms** (the owner, 2026-11-15: "we can also remove from private lobbies FFA:
@@ -575,10 +667,16 @@ rules, spawns, pay and results, every kit's guns changed by the server.
   `st_srp_mode_racket` FFA: Racket, Движ, Двіж (uk, be), Raban, Radau, Rambajz, Galama, Zsivaj,
   Meteli. `st_srp_mode_cowboy` (mine) FFA: Saloon, Салун (ru, uk, be), Saloon (pl, de, cs, hu),
   Salun, Saluuna: a saloon brawl, everyone against everyone (the owner, 2026-11-14, of an earlier
-  "Showdown" / "Дуэль": "duel usually means 1vs1").
-  The lobby's mode numbers 9 Racket and 10 Cowboy (`Twist::lobby_number`; 7 is Scarcity's): a card's tag and colour, the
-  room's banner of its match (`lobby.md`, rooms' `C` and `L` rows), the log's "mode". The game's
-  own screens (loading, results, the HUD) say Free for all: they read the map's config.
+  "Showdown" / "Дуэль": "duel usually means 1vs1"). `st_srp_mode_cowboy_winchester` (since
+  2026-11-15) its Saloon word and its Winchester in parentheses: FFA: Saloon (Winchester), Салун
+  (Винчестер), Салун (Вінчестер) (uk), Салун (Вінчэстар) (be), Saloon (Winchester) (pl, de, cs,
+  hu), Salun (Winchester), Saluuna (Winchester) (the game's own words for the Winchester: its
+  item's and its ammunition's).
+  The lobby's mode numbers 9 Racket, 10 Saloon (the Colt alone) and 11 Saloon (Winchester)
+  (`Armed::lobby_number`: the twist as it arms; 7 is Scarcity's; the two Saloons' tags one
+  colour): a card's tag and colour, the room's banner of its match (`lobby.md`, rooms' `C` and `L`
+  rows), the log's "mode". The game's own screens (loading, results, the HUD) say Free for all:
+  they read the map's config.
 - **The kits:** the server owns what spawns: the static info's profiles, which every game cooks
   each life from. The match server arms every profile it gives (the first players', each late
   joiner's) before the Keeper's draw; the clients, late joiners and replays get the armed ones.
@@ -613,8 +711,10 @@ rules, spawns, pay and results, every kit's guns changed by the server.
     lobby's (`loadouts::KitLayout`): the player's 3, plus the `ammo_bags_modifier` of its worn
     items' modifications (their defaults and their own) and its skills' (modifier 16); the ammo it
     keeps takes a clip's `required_bags` for every clip it holds, the last one begun. That ammo
-    goes in the first slot emptied or else its first empty ammo slot. A kit that holds ammo the
-    gun fires already keeps its own (in a level-10 room any 5.45x39 the AK-74N takes); one with no
+    goes in the first slot emptied or else its first empty ammo slot. A kit that already holds
+    the gun's own ammo (7N10, 6.5x39) keeps it; one holding only other ammo the gun fires (7N6M
+    beside the AK-74N) still gets its clips of the gun's own (the owner, 2026-11-15, of the clean
+    review's finding: "let's quickly fix that"); one with no
     ammo slot or no bag free has the gun's magazine alone. (A sniper's kit of three bags: 90
     rounds. A Val beside an SR-3M on one SP-6: the SR-3M keeps the SP-6, the AK-12 has the bags it
     leaves.)

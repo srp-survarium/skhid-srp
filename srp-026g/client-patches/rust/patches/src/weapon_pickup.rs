@@ -76,8 +76,8 @@ use crate::vostok::pickup::{self as native, Failure, Fresh, GunBox, GunPose, Ins
 use crate::vostok::world::{GameWorld, ItemId, MatchId, Player, PlayerId, WorldKey};
 use crate::vostok::{clock, ActionMask, Context, Flow, GameCell, GameWorldUi, InputHandler, Lock, NoExit, Thread, WorldLoad};
 use crate::use_scan::rule::{use_owner, UseOwner};
-use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnLoadQuietExit, WeaponPickupOnSaveQuietExit,
-                    WeaponPickupOnSwitchExit, WeaponPickupOnUseHintExit};
+use crate::vostok::{WeaponPickupOnCanUseExit, WeaponPickupOnLoadQuietExit, WeaponPickupOnLoadRecordExit,
+                    WeaponPickupOnSaveQuietExit, WeaponPickupOnSwitchExit, WeaponPickupOnUseHintExit};
 
 /// The longest a wait runs the callbacks before it gives up (the pickup is
 /// then refused, logged).
@@ -2303,6 +2303,19 @@ pub fn on_load_quiet(ctx: &mut Context<'_>) -> Flow<WeaponPickupOnLoadQuietExit>
 pub fn on_load_ordinal(ctx: &mut Context<'_>) -> Flow<NoExit> {
     native::clamp_bullet_ordinal(ctx);
     Flow::Continue
+}
+
+/// `bullets.load_record`: a bullet whose shooter has no gun in its slot is
+/// not made ([`native::load_record`]), with a line saying so.
+pub fn on_load_record(ctx: &mut Context<'_>) -> Flow<WeaponPickupOnLoadRecordExit> {
+    match native::load_record(ctx) {
+        native::BulletRecord::Armed => Flow::Continue,
+        native::BulletRecord::Unarmed { place, slot } => {
+            log(&[Text("a loaded bullet of place "), Dec(u32::from(place)), Text(" names its slot "),
+                  Dec(u32::from(slot)), Text(", which has no gun: not made")]);
+            Flow::Exit(WeaponPickupOnLoadRecordExit::Skip)
+        }
+    }
 }
 
 #[cfg(test)]

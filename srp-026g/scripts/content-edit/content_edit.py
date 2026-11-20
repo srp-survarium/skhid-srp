@@ -22,8 +22,8 @@ Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
                                                        be the live value (a stale base is refused); the
                                                        path's `name[i]` is item i of an indexed table
-  "set_vector":     [{"file", "path", "from", "to"}]   a float3 (a model's `bounding_box/min`): `from` the
-                                                       live three numbers, `to` the new ones, in place
+  "set_vector":     [{"file", "path", "from", "to"}]   a float2/3/4 (e.g. a model's `bounding_box/min`): `from` the
+                                                       live components, `to` the new ones, in place
   "set_bool":       [{"file", "path", "from", "to"}]   a native boolean; both values must be JSON booleans,
                                                        type and every other byte are preserved
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
@@ -60,6 +60,8 @@ Edits (edits.json):
                     declare source .b-spline and .bones_names dependencies in _inputs.
   "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
                     append a new indexed record, refusing stale counts and duplicate identities;
+                    "unique_key": null for a list whose entries are known by their index (the
+                    game reads them by it: a battery's `states`), the count check alone;
                     arrays in the new value are indexed tables, leaving existing records intact;
                     "files" and "expected_counts" (two lists, a count a file) in place of
                     "file" and "expected_count" append the same record to each file; with
@@ -134,6 +136,16 @@ Edits (edits.json):
                     the source's zero-time pose. The clamped cubic eases in/out with zero endpoint
                     velocity; no events, no edits to stock clips. Not shipped: the carry's pose
                     source (scripts/artefact-carry/pose.json) runs it to compile its curves.
+  "remove_faces":   [{"files": ["<mesh>/vertices", "<mesh>/indices", "<mesh>/face_data"], "faces"}]
+                    a collision mesh (a model's collision or walker_collision) without the triangles
+                    whose corners are `faces` (each three points of the vertices file, in model space,
+                    within 0.0005 and in the file's order): indices and face_data lose them, the
+                    vertices stay; a face not exactly one triangle is refused
+  "files_from_repo": [{"source", "output", "sha256"}]
+                    a new animations/ resource from a file of this repo (`source`, relative to
+                    the edit list), its bytes pinned by `sha256`; a `.b-spline` must parse as a
+                    clip. The battery swing's clips: scripts/battery-hit/make_clips.py writes
+                    them from its keys, and checks them (`--check`)
   "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
                                                        preserve runtime positions/normals byte for byte;
                                                        reject unknown, duplicate or malformed chunks
@@ -166,6 +178,7 @@ import re
 import struct
 import sys
 import zlib
+from pathlib import Path
 
 T_BOOL, T_INT, T_FLOAT, T_NAMED, T_INDEXED, T_STR = 0, 1, 2, 3, 4, 5
 REC = struct.Struct('<QQIHH')
@@ -257,14 +270,16 @@ def set_number(buf, path, frm, to, as_float=False):
 
 
 def set_vector(buf, path, frm, to):
-    """A float3 value's three numbers, in place."""
+    """A native float2, float3 or float4, preserving its type and dimensions."""
     at, _, _, t, _ = rec(buf, find(buf, path))
-    if t != 7 or len(frm) != 3 or len(to) != 3:
-        raise TypeError('%s: a float3 and three numbers each' % path)
-    old = struct.unpack_from('<3f', buf, at)
+    dimensions = {6: 2, 7: 3, 8: 4}.get(t)
+    if dimensions is None or len(frm) != dimensions or len(to) != dimensions:
+        raise TypeError('%s: a float2/3/4 and matching numbers each' % path)
+    fmt = '<%df' % dimensions
+    old = struct.unpack_from(fmt, buf, at)
     if any(abs(a - b) > 1e-6 for a, b in zip(old, frm)):
         raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
-    struct.pack_into('<3f', buf, at, *to)
+    struct.pack_into(fmt, buf, at, *to)
 
 
 def set_bool(buf, path, frm, to):
@@ -598,11 +613,14 @@ def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
     _, name, crc, kind, count = rec(buf, off)
     if kind != T_INDEXED or count != expected_count:
         raise ValueError(f'{path}: expected indexed table of {expected_count}, got {kind}/{count}')
-    if not isinstance(value, dict) or unique_key not in value:
-        raise ValueError(f'{path}: new entry must have {unique_key}')
     entries = children(buf, off)
-    if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
-        raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    if unique_key is not None:
+        if not isinstance(value, dict) or unique_key not in value:
+            raise ValueError(f'{path}: new entry must have {unique_key}')
+        if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
+            raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    elif not isinstance(value, dict):
+        raise ValueError(f'{path}: a new entry is a table')
     records = [bytes(buf[entry:entry + 24]) for entry in entries]
     records.append(value_record(buf, 0, '', as_table(value, vectors)))
     REC.pack_into(buf, off, append_array(buf, records), name, crc, kind, count + 1)
@@ -2282,6 +2300,44 @@ def vegetation_chunks(data):
     return chunks
 
 
+def mesh_chunks(data):
+    """{id: body} of a collision mesh file's sequential chunks (u32 id, u32 size)."""
+    chunks, at = {}, 0
+    while at < len(data):
+        if at + 8 > len(data):
+            raise ValueError('mesh: truncated chunk header')
+        kind, size = struct.unpack_from('<II', data, at)
+        if kind in chunks or at + 8 + size > len(data):
+            raise ValueError('mesh: duplicate or truncated chunk %#x' % kind)
+        chunks[kind] = data[at + 8:at + 8 + size]
+        at += 8 + size
+    return chunks
+
+
+def remove_faces(vertices, indices, face_data, faces):
+    """(indices, face_data) of a collision mesh (chunks 0x19 vertices, 0x1a indices, 0x1b face names,
+    0x1c a u16 per triangle) without the triangles whose corners are `faces`."""
+    v, i, f = mesh_chunks(vertices), mesh_chunks(indices), mesh_chunks(face_data)
+    if set(v) != {0x19} or set(i) != {0x1a} or set(f) != {0x1b, 0x1c}:
+        raise ValueError('mesh: unexpected chunks')
+    points = [p for p in struct.iter_unpack('<3f', v[0x19])]
+    tris = [t for t in struct.iter_unpack('<3I', i[0x1a])]
+    if len(f[0x1c]) != 2 * len(tris) or any(k >= len(points) for t in tris for k in t):
+        raise ValueError('mesh: %d triangles, %d face entries' % (len(tris), len(f[0x1c]) // 2))
+    near = lambda a, b: all(abs(x - y) <= 5e-4 for x, y in zip(a, b))
+    drop = set()
+    for face in faces:
+        hit = [n for n, t in enumerate(tris) if all(near(points[k], c) for k, c in zip(t, face))]
+        if len(hit) != 1:
+            raise ValueError('remove_faces: %d triangles at %r, not 1: the base is not the live data' % (len(hit), face))
+        drop |= set(hit)
+    keep = [n for n in range(len(tris)) if n not in drop]
+    body = b''.join(struct.pack('<3I', *tris[n]) for n in keep)
+    faces_body = b''.join(f[0x1c][2 * n:2 * n + 2] for n in keep)
+    return (struct.pack('<II', 0x1a, len(body)) + body,
+            struct.pack('<II', 0x1b, len(f[0x1b])) + f[0x1b] + struct.pack('<II', 0x1c, len(faces_body)) + faces_body)
+
+
 def runtime_vegetation(data):
     """Keep complete runtime chunks in original order, including their headers."""
     original = vegetation_chunks(data)
@@ -2441,7 +2497,6 @@ def main():
                 sys.exit('remove_key: no file of %s has %s' % (e['files'], key))
             print('remove %s: %d files' % (key, n))
     if 'localization' in edits:
-        from pathlib import Path
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
         from build_localization_026g import compile_catalog
         from localization_026g import FLASH_MOVIES, LANGUAGES, flash_rows, read_config, read_translations
@@ -2644,6 +2699,20 @@ def main():
         clips[stem + '.b-spline'] = make_pose_clip(source_bytes, names_bytes, e)
         clips[stem + '.bones_names'] = names_bytes
         print('pose clip %s: %g frames, %d authored bones' % (stem, e['frames'], len(e['end'])))
+    for e in edits.get('files_from_repo', []):
+        stem = e['output']
+        if not stem.startswith('animations/') or '..' in stem.split('/') or '\\' in stem:
+            raise ValueError('files_from_repo: output must be a new animations/ resource path')
+        if stem in files or stem in bufs or stem in clips:
+            raise ValueError('files_from_repo: output already exists: ' + stem)
+        source = Path(edits_file).resolve().parent / e['source']
+        data = source.read_bytes()
+        if hashlib.sha256(data).hexdigest() != e['sha256']:
+            raise ValueError('files_from_repo: %s differs from its pinned sha256' % e['source'])
+        if stem.endswith('.b-spline'):
+            clip_parse(data)
+        clips[stem] = data
+        print('file from the repo %s: %d bytes' % (stem, len(data)))
     for e in edits.get('add_event_channel', []):
         p = e['file']
         if p in bufs:
@@ -2675,6 +2744,15 @@ def main():
         source = open(files[e['file']], 'rb').read()
         require_headwear_bind(source, {b['file'] for b in edits.get('append_headwear_bind', [])})
         print('character bind reference verified: ' + e['file'])
+
+    for e in edits.get('remove_faces', []):
+        vertices, indices, face_data = e['files']
+        for p in (indices, face_data):
+            if p in bufs or p in clips:
+                sys.exit('remove_faces: %s already edited' % p)
+        read = lambda p: open(files[p], 'rb').read()
+        clips[indices], clips[face_data] = remove_faces(read(vertices), read(indices), read(face_data), e['faces'])
+        print('remove_faces %s: %d triangles out' % (indices.rpartition('/')[0], len(e['faces'])))
 
     # Binary render assets: each operation checks its format and unchanged bytes.
     if edits.get('append_headwear_bind') or edits.get('rigid_headwear'):
@@ -2749,6 +2827,8 @@ def main():
                                                            for k, x in prefixed.get(p, ()))) or \
                 (o is None and any(q == a or q.startswith(a + '/') or q.startswith(a + '[') for a in added.get(p, ()))) or \
                 (n is None and any(q == g or q.startswith(g + '/') or q.startswith(g + '[') for g in gone.get(p, ()))) or \
+                any((q == g or q.startswith(g + '/') or q.startswith(g + '[')) and g in added.get(p, ())
+                    for g in gone.get(p, ())) or \
                 (o and n and o[0] == n[0] and n[1] - o[1] == grown.get(p, {}).get(q, 0) != 0)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))

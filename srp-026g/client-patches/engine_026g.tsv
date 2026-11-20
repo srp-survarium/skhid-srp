@@ -83,6 +83,7 @@ engine_play_sound	0x3222f0	ESP+4:manager ESP+8:sound ESP+12:position	void engine
 engine_user_data_directory	0x018bd0	-	const char *engine_user_data_directory(void)	thunk	
 engine_match_options	survarium::base_network_client+0x34	ECX:client	struct match_options *engine_match_options(struct network_client *client)	virtual
 engine_active_player	survarium::base_network_client+0x50	ECX:client ESP+4:out ESP+8:place	struct player **engine_active_player(struct network_client *client, struct player **out, unsigned int place)	virtual
+engine_bullet_player	survarium::bullet_manager_engine+0x24	ECX:engine ESP+4:place	struct player *engine_bullet_player(struct bullet_manager_engine *engine, unsigned int place)	virtual
 engine_query_performance_counter	0x870158	-	unsigned int engine_query_performance_counter(unsigned int *count)	import	
 engine_query_performance_frequency	0x870150	-	unsigned int engine_query_performance_frequency(unsigned int *frequency)	import	
 engine_get_current_thread_id	0x870118	-	unsigned int engine_get_current_thread_id(void)	import	
@@ -111,6 +112,10 @@ engine_visual_insert	0x285fa0	ECX:visual ESP+4:scene	void engine_visual_insert(s
 engine_visual_remove	0x285fe0	ECX:visual ESP+4:scene	void engine_visual_remove(struct render_visual *visual, struct game_scene *scene)	thiscall	visual: RenderVisual, scene: GameScene ->
 engine_light_insert	0x291790	ECX:light	void engine_light_insert(struct object_light *light)	thiscall	light: ObjectLight ->
 engine_light_remove	0x2917d0	ECX:light	void engine_light_remove(struct object_light *light)	thiscall	light: ObjectLight ->
+engine_ambient_light_insert	0x290930	ECX:light	void engine_ambient_light_insert(struct object_ambient_light *light)	thiscall	light: ObjectAmbientLight ->
+engine_ambient_light_remove	0x290ae0	ECX:light	void engine_ambient_light_remove(struct object_ambient_light *light)	thiscall	light: ObjectAmbientLight ->
+engine_particle_insert	0x292cc0	ECX:particle	void engine_particle_insert(struct object_particle_visual *particle)	thiscall	particle: ObjectParticleVisual ->
+engine_particle_remove	0x292dc0	ECX:particle	void engine_particle_remove(struct object_particle_visual *particle)	thiscall	particle: ObjectParticleVisual ->
 engine_inventory_remove	0x2fc680	ESI:inventory EAX:slot	void engine_inventory_remove(struct inventory *inventory, unsigned int slot)	thunk
 engine_inventory_take_artefact	0x2fc850	EAX:inventory ESP+4:incoming	void engine_inventory_take_artefact(struct inventory *inventory, struct artefact *const *incoming)	thunk
 engine_quick_inventory_slot	0x2fe7f0	ESP+4:inventory ESP+8:ordinal	unsigned int engine_quick_inventory_slot(struct inventory *inventory, unsigned int ordinal)	thunk
@@ -217,6 +222,7 @@ engine_ray_callback	0x075b40	EAX:this ESI:from EDX:to ESP+4:group ESP+8:mask ESP
 engine_ray_needs_collision	0x075bd0	ECX:this ESP+4:proxy	unsigned char engine_ray_needs_collision(struct closest_ray_result_callback *callback, struct bt_broadphase_proxy *proxy)	thunk	
 engine_ray_test_single	0x0a02d0	ESP+4:rayFromTrans ESP+8:rayToTrans ESP+12:object ESP+16:shape ESP+20:transform ESP+24:callback	void engine_ray_test_single(struct bt_transform *from, struct bt_transform *to, struct bt_collision_object *object, struct bt_collision_shape *shape, struct bt_transform *transform, struct closest_ray_result_callback *callback)	cdecl	
 engine_key_name	0x3b9c00	ECX:keyboard ESP+4:key ESP+8:buffer ESP+12:size	unsigned char engine_key_name(struct keyboard *keyboard, unsigned int key, char *name, unsigned int size)	thiscall	
+engine_key_text	0x3b92d0	ECX:keyboard ESP+4:key ESP+8:WCHAR	unsigned char engine_key_text(struct keyboard *keyboard, unsigned int key, unsigned short *text)	thiscall	
 engine_activate_keyboard_layout	0xaeff20	-	unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)	import	
 engine_get_window_long_a	0xaefe8c	-	unsigned int engine_get_window_long_a(void *window, unsigned int index)	import	
 engine_set_window_long_a	0xaeff44	-	unsigned int engine_set_window_long_a(void *window, unsigned int index, unsigned int value)	import	
@@ -263,3 +269,40 @@ engine_respawn_point_clear	0x2f4800	ESI:point ESP+4:team ESP+8:players	unsigned 
 engine_respawn_points_push	0x3174c0	ESI:vector ESP+4:point	void engine_respawn_points_push(struct respawn_point_vector *vector, struct respawn_point_core *const *point)	thunk	
 engine_sound_pan	0x057d70	ESP+4:scene ESP+8:panning ESP+12:sound_type ESP+16:position ESP+20:distance ESP+24:matrix ESP+28:coefficient	void engine_sound_pan(struct sound_scene *scene, struct panning_lut *table, struct sound_instance_proxy *proxy, const float *position, float distance, float *matrix, float *coefficient)	thunk	
 engine_listener_position	0x057560	EAX:scene ESI:out	float *engine_listener_position(struct sound_scene *scene, float *out)	thunk	
+engine_battery_take_state	0x338940	ESI:room ESP+4:battery ESP+8:clips ESP+12:time	struct battery_state *engine_battery_take_state(void *room, struct victory_item_core *battery, const struct battery_clips *clips, float time)	thunk	
+engine_battery_carry_state	0x338be0	EAX:battery ESP+4:room ESP+8:clips	struct battery_state *engine_battery_carry_state(struct victory_item_core *battery, void *room, const struct battery_clips *clips)	thunk	
+engine_fsm_append_transition	0x38c970	ESP+4:source ESP+8:destination ESP+12:predicate	void engine_fsm_append_transition(struct battery_state *source, struct battery_state *destination, const struct fsm_predicate *predicate)	stdcall	
+engine_emit_bullet	0x322830	EDI:gun ESP+4:manager ESP+8:point ESP+12:velocity ESP+16:data ESP+20:time ESP+24:owner ESP+28:second ESP+32:unused	struct bullet *engine_emit_bullet(struct weapon *gun, struct bullet_manager *manager, const float *point, const float *velocity, const void *data, unsigned int time, struct bullet_owner *owner, void *second, unsigned int unused)	thunk	
+engine_battery_state_finalize	0x3447f0	ECX:state	void engine_battery_state_finalize(struct battery_state *state)	thiscall	state: BatteryState ->
+engine_fsm_always	0x372420	ESP+4:buffer	unsigned char engine_fsm_always(const struct predicate_buffer *buffer)	cdecl	buffer: PredicateBuffer -> bool
+engine_take_deactivatable	0x397c20	ECX:state	unsigned char engine_take_deactivatable(struct battery_state *state)	thiscall	state: BatteryState -> bool
+engine_get_last_error	0x87005c	-	unsigned int engine_get_last_error(void)	import	
+engine_create_process_w	-	-	unsigned int engine_create_process_w(const unsigned short *application, unsigned short *command, void *process_security, void *thread_security, unsigned int inherit, unsigned int flags, void *environment, const unsigned short *folder, void *startup, void *information)	dynamic	
+engine_swap_chain_get_buffer	IDXGISwapChain+0x24	-	unsigned int engine_swap_chain_get_buffer(struct swap_chain *chain, unsigned int buffer, const void *iid, struct hw_resource **surface)	com	
+engine_texture2d_get_desc	ID3D11Texture2D+0x28	-	void engine_texture2d_get_desc(struct hw_resource *texture, void *desc)	com	
+engine_device_child_get_device	ID3D11DeviceChild+0xc	-	void engine_device_child_get_device(struct hw_resource *child, struct d3d_device **device)	com	
+engine_device_create_texture2d	ID3D11Device+0x14	-	unsigned int engine_device_create_texture2d(struct d3d_device *device, const void *desc, const void *initial, struct hw_resource **texture)	com	
+engine_context_copy_resource	ID3D11DeviceContext+0xbc	-	void engine_context_copy_resource(struct immediate_context *context, struct hw_resource *destination, struct hw_resource *source)	com	
+engine_context_map	ID3D11DeviceContext+0x38	-	unsigned int engine_context_map(struct immediate_context *context, struct hw_resource *resource, unsigned int subresource, unsigned int map_type, unsigned int flags, void *mapped)	com	
+engine_d3d_resource_release	IUnknown+0x8	-	unsigned int engine_d3d_resource_release(struct hw_resource *resource)	com	
+engine_d3d_device_release	IUnknown+0x8	-	unsigned int engine_d3d_device_release(struct d3d_device *device)	com	
+engine_on_step	0x248ad0	ECX:step_manager EAX:position ESP+4:direction ESP+8:material ESP+12:view	void engine_on_step(struct step_manager *manager, const float *position, const float *direction, unsigned int foot_material, unsigned int view)	thunk	
+engine_step_manager	survarium::game_world+0x34	ECX:world	struct step_manager *engine_step_manager(struct game_world *world)	virtual	
+engine_triangle_material	vostok::physics::base_physics_object+0x10	ECX:body ESP+4:triangle ESP+8:compound	unsigned short engine_triangle_material(struct hit_object *object, unsigned int triangle, unsigned int compound)	virtual	
+engine_is_first_view	0x1f3bd0	ECX:player	unsigned int engine_is_first_view(struct player *player)	thunk	
+engine_draw_lines	0x11cd10	EAX:vertex-end ESP+4:renderer ESP+8:vertex-begin ESP+12:index-begin ESP+16:index-end ESP+20:flag	void engine_draw_lines(const void *vertex_end, struct system_renderer *renderer, const void *vertex_begin, const unsigned short *index_begin, const unsigned short *index_end, unsigned int technique)	thunk	
+engine_process_all_triangles	0x0a8660	ECX:shape ESP+4:callback ESP+8:aabbMin ESP+12:aabbMax	void engine_process_all_triangles(struct bt_collision_shape *shape, struct triangle_callback *callback, const float *aabb_min, const float *aabb_max)	thunk	
+engine_triangle_process	0x0c5600	ECX:callback ESP+4:triangle ESP+8:part ESP+12:index	void engine_triangle_process(struct triangle_callback *callback, const float *triangle, unsigned int part, unsigned int index)	thiscall	callback: TriangleSink, triangle: Triangle, part: u32, index: u32 ->
+engine_scroll_view_set_follow	0x349c60	ECX:view ESP+4:follow	void engine_scroll_view_set_follow(struct ui_scroll_view *view, unsigned int follow)	thiscall
+engine_scroll_set_position	0x349ca0	ECX:source ESP+4:position	void engine_scroll_set_position(struct scroll_source *source, float position)	thiscall
+engine_draw_triangles	0x11e370	ESP+4:renderer ESP+8:vertex-begin ESP+12:vertex-end ESP+16:index-begin ESP+20:index-end ESP+24:override	void engine_draw_triangles(struct system_renderer *renderer, const void *vertex_begin, const void *vertex_end, const unsigned short *index_begin, const unsigned short *index_end, unsigned int override_flag)	thunk	
+engine_text_edit_set_text	0x3479d0	ECX:part ESP+4:new	void engine_text_edit_set_text(struct ui_text_edit_text *part, const char *text)	thiscall
+engine_text_edit_set_caret	0x3488a0	ECX:edit ESP+4:position ESP+8:select	void engine_text_edit_set_caret(struct ui_text_edit *edit, unsigned int position, unsigned int select)	thiscall
+engine_text_edit_delete_selection	0x3486a0	ESI:edit	void engine_text_edit_delete_selection(struct ui_text_edit *edit)	thunk
+engine_open_clipboard	0xaefedc	-	unsigned int engine_open_clipboard(void *window)	import
+engine_get_clipboard_data	0xaefed8	-	void *engine_get_clipboard_data(unsigned int format)	import
+engine_close_clipboard	0xaefed4	-	unsigned int engine_close_clipboard(void)	import
+engine_global_lock	0x870078	-	void *engine_global_lock(void *memory)	import
+engine_global_unlock	0x87007c	-	unsigned int engine_global_unlock(void *memory)	import
+engine_global_size	-	-	unsigned int engine_global_size(void *memory)	dynamic
+engine_set_texture	0x3d98b0	ESP+4:receiver ESP+8:binding ESP+12:path ESP+16:option ESP+20:selector ESP+24:unsigned ESP+28:float ESP+32:flag	void engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag)	stdcall	

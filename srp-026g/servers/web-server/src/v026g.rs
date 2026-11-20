@@ -53,7 +53,7 @@ pub use session::v026g::matches_now::Phase as LivePhase;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LiveMatch {
     /// The `maps_dict` id: the map and the mode.
-    pub map_id: u8,
+    pub map_id: survarium::v026g::maps::MapId,
     pub phase: LivePhase,
     /// Each team's players who have not left.
     pub players: [u8; 2],

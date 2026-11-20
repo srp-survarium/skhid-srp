@@ -15,6 +15,7 @@ order = 6
 [[hook]]
 site = "camera.viewed"
 handler = "on_viewed"
+order = 1
 
 # the command's object: a copy of cc_delegate's vtable, execute ours
 [[vtable]]

@@ -26,6 +26,8 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
+use udp_transport::relay::Peer;
+
 use session::matchmaking_policy::{self as policy, LateRule, Worth};
 use session::v026g::bot_kits::{self, BotKit, BotKits};
 use session::v026g::level_stats;
@@ -829,7 +831,7 @@ impl Core<'_> {
     /// signed in again) goes back to it, as in 0.21d: by Play, and by its
     /// room's Join match or turn (`rooms::room_late_join`). False: it has
     /// no place in a match.
-    pub(super) fn back_to_seat(&mut self, addr: SocketAddr, now: Instant) -> bool {
+    pub(super) fn back_to_seat(&mut self, addr: Peer, now: Instant) -> bool {
         let Some(player) = self.player(addr) else {
             return false;
         };
@@ -888,7 +890,7 @@ impl Core<'_> {
     ///   sent);
     /// - once its match is seated, "match found" and where the match server
     ///   is (0x82), once.
-    pub(super) fn queue_status(&mut self, addr: SocketAddr, now: Instant) {
+    pub(super) fn queue_status(&mut self, addr: Peer, now: Instant) {
         let Some(player) = self.player(addr) else {
             return;
         };
@@ -1015,11 +1017,12 @@ impl Core<'_> {
     /// The match server's host for the client at `addr`: one on this
     /// machine or its network is told the address it reached srp at, when
     /// the match server is on this machine too.
-    fn match_host_for(&self, addr: SocketAddr, ticket: &MatchTicket) -> String {
-        let reached = self
-            .player(addr)
-            .and_then(|player| player.reached)
-            .map(|reached| reached.to_canonical());
+    pub(super) fn match_host_for(&self, addr: Peer, ticket: &MatchTicket) -> String {
+        let reached = match self.player(addr).map(|player| &player.arrival) {
+            Some(super::core::Arrival::Relayed(ip)) => return ip.to_string(),
+            Some(super::core::Arrival::Direct(reached)) => reached.map(|ip| ip.to_canonical()),
+            None => None,
+        };
         match reached {
             Some(IpAddr::V4(reached))
                 if self.settings.local_peers
@@ -1146,7 +1149,7 @@ impl Core<'_> {
             );
             players
         });
-        let plain = |map_id: u8| (map_id, maps::MatchMap::of(map_id).map(Played::plain));
+        let plain = |map_id: maps::MapId| (map_id, maps::MatchMap::of(map_id).map(Played::plain));
         let (chosen, played) = match (pvb, room_played) {
             (Some(choice), _) => plain(choice.map_id),
             (None, Some(played)) => (played.map().id, Some(played)),
@@ -1160,7 +1163,7 @@ impl Core<'_> {
                         maps::GameMode::Blackout | maps::GameMode::FreeForAll
                     )
                 };
-                let pool: Vec<u8> = self
+                let pool: Vec<maps::MapId> = self
                     .settings
                     .maps
                     .iter()
@@ -1169,7 +1172,7 @@ impl Core<'_> {
                     .map(|map| map.id)
                     .collect();
                 plain(match pool.len() {
-                    0 => maps::playable().find(drawn).map_or(0, |map| map.id),
+                    0 => maps::playable().find(drawn).map_or(maps::MapId::new(0), |map| map.id),
                     count => pool[self.rng.below(count as u32) as usize],
                 })
             }
@@ -1382,6 +1385,9 @@ impl Core<'_> {
         let Some(running) = self.matches.remove(&match_id) else {
             return;
         };
+        // Its leaves first: `end_match` drops the ones no tick has read yet,
+        // and a leave that ended the match would put its member back.
+        self.room_left_matches();
         self.store.matchmaking().end_match(match_id);
         // A room's match: its players are back in the room.
         if made {
@@ -1433,7 +1439,7 @@ impl Core<'_> {
     /// when the match is over by then, and in the lobby when it ends later.
     /// What the match changed of the account, such a client has from its
     /// sign-in or gets with the account's next push.
-    pub(super) fn show_results(&mut self, addr: SocketAddr, after_sign_in: bool) {
+    pub(super) fn show_results(&mut self, addr: Peer, after_sign_in: bool) {
         let Some(who) = self.who(addr) else {
             return;
         };

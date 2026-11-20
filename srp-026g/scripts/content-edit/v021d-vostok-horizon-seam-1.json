@@ -1,0 +1,8 @@
+{
+  "_about": "Vostok Radar Station v0.21: the background mountains meet the terrain. The 0.21d project places background_mountains 0.11 m above terrain_all (render_visuals position y 0.11), while the mountains' inner edge is the terrain's outer edge vertex for vertex (within 0.6 mm in model space); the 11 cm step between them is a slit through which the sky shows as a bright line along the hills at the map's edge. At y 0 the two meshes meet; they do not overlap anywhere, so nothing z-fights. Every live project of the map: day_2, day_4 and day_8 (Free for All, copied from day_4 by ffa-projects-1).",
+  "set_entry": [
+    {"file": "projects/v021d_level_03/day_2/client_project", "list": "render_visuals", "where": {"visual_name": "ported/v021d/level/03/background_mountains"}, "from": {"position": [0.0, 0.11, 0.0]}, "to": {"position": [0.0, 0.0, 0.0]}},
+    {"file": "projects/v021d_level_03/day_4/client_project", "list": "render_visuals", "where": {"visual_name": "ported/v021d/level/03/background_mountains"}, "from": {"position": [0.0, 0.11, 0.0]}, "to": {"position": [0.0, 0.0, 0.0]}},
+    {"file": "projects/v021d_level_03/day_8/client_project", "list": "render_visuals", "where": {"visual_name": "ported/v021d/level/03/background_mountains"}, "from": {"position": [0.0, 0.11, 0.0]}, "to": {"position": [0.0, 0.0, 0.0]}}
+  ]
+}

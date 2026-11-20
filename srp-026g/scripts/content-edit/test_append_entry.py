@@ -21,6 +21,14 @@ class AppendEntry(unittest.TestCase):
             buf=self.config();before=bytes(buf)
             with self.assertRaises(ValueError):ce.append_entry(buf,'skills_tree',count,'id',value)
             self.assertEqual(bytes(buf),before)
+    def test_a_list_known_by_its_index(self):
+        # unique_key None (a battery's states): the count is checked, no identity
+        buf=self.config()
+        self.assertEqual(ce.append_entry(buf,'skills_tree',1,None,{'ui':{'position':[3,1]}}),1)
+        self.assertEqual(ce.rec(buf,ce.find(buf,'skills_tree'))[3:],(ce.T_INDEXED,2))
+        buf=self.config();before=bytes(buf)
+        with self.assertRaises(ValueError):ce.append_entry(buf,'skills_tree',2,None,{'ui':{}})
+        self.assertEqual(bytes(buf),before)
     def test_vectors_and_empty_lists_as_the_games_objects_have_them(self):
         buf=self.config()
         value={'id':302,'position':[0.0,-1000.0,0.0],'containers':[],'pool':[{'dict_id':54,'count':20}]}

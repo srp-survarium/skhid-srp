@@ -701,10 +701,10 @@ mod tests {
     use session::v026g::matches_now::SCORE_AGE;
 
     /// Team Deathmatch and batteries on Rudnya, Team Deathmatch on School.
-    const RUDNYA_TDM: u8 = 117;
-    const RUDNYA_BATTERIES: u8 = 61;
+    const RUDNYA_TDM: maps::MapId = maps::MapId::new(117);
+    const RUDNYA_BATTERIES: maps::MapId = maps::MapId::new(61);
 
-    fn playing(map_id: u8, points: [u16; 2], leader: Option<usize>) -> LiveMatch {
+    fn playing(map_id: maps::MapId, points: [u16; 2], leader: Option<usize>) -> LiveMatch {
         LiveMatch {
             map_id,
             phase: LivePhase::Playing,
@@ -968,7 +968,7 @@ mod tests {
         }
     }
 
-    fn row_uk(map_id: u8) -> String {
+    fn row_uk(map_id: maps::MapId) -> String {
         matches(Lang::Uk, &[playing(map_id, [1, 0], Some(0))])
     }
 

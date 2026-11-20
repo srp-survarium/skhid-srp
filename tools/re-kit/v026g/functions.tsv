@@ -401,7 +401,7 @@ va	status	ref_021d	name
 0x0014deb0	reviewed	0x000f2199	vostok::render::decal_instance::draw
 0x0014ef90	reviewed	0x000f2ac6	vostok::render::scene::particle_engine::create_render_emitter_instance
 0x0014f000	reviewed	0x000f2b1d	vostok::render::scene::particle_engine::destroy
-0x0014f080	reviewed	0x000f2b53	vostok::render::scene::particle_engine::get_scene
+0x0014f080	verified	0x000f2b53	vostok::render::scene::particle_engine::get_scene
 0x0014f200	reviewed	0x000f2c90	vostok::render::scene::particle_engine::add_light
 0x0014f260	reviewed	0x000f2ce0	vostok::render::scene::particle_engine::update_light
 0x0014f3a0	reviewed	0x000f2da6	vostok::render::scene::particle_engine::remove_light
@@ -645,6 +645,7 @@ va	status	ref_021d	name
 0x001a3690	reviewed	0x00120122	vostok::render::stage_atmosphere::fill_surfaces
 0x001a39d0	reviewed	0x00120336	vostok::render::stage_atmosphere::stage_atmosphere
 0x001a4200	reviewed	0x00120709	vostok::render::stage_atmosphere::execute
+0x001a5520	observed		vostok::render::stage_atmosphere::god_rays_pass
 0x001a6ee0	reviewed	0x0011ec51	vostok::render::effect_debug_modify_gbuffer::compile
 0x001a7280	reviewed	0x0011ee27	vostok::render::stage_composition::stage_composition
 0x001a78d0	reviewed	0x0011f135	vostok::render::stage_composition::gather_subsurface_scattering_models
@@ -863,6 +864,7 @@ va	status	ref_021d	name
 0x001f1930	reviewed	0x00155f89	survarium::player::inflicted_damage_collector::serialize
 0x001f2720	observed	0x00156ad2	survarium::player::insert
 0x001f2870	reviewed	0x00156be1	survarium::player::remove
+0x001f3480	observed	0x00157440	survarium::player::update_camera
 0x001f3de0	reviewed	0x00157d77	vostok::network_core::buffer_writer::w<unsigned char>
 0x001f48a0	reviewed	0x00158564	vostok::network_core::buffer_writer::w<unsigned int>
 0x001f6d50	reviewed	0x0015a3f2	survarium::game_world::register_cooks
@@ -1958,6 +1960,10 @@ va	status	ref_021d	name
 0x002855b0	verified		survarium::simple_game_project::remove_static
 0x00285fa0	verified		survarium::render_visual::insert
 0x00285fe0	verified		survarium::render_visual::remove
+0x00290930	verified	0x001a7008	survarium::object_ambient_light::insert
+0x00290ae0	verified		survarium::object_ambient_light::remove
+0x00292cc0	verified		survarium::object_particle_visual::insert
+0x00292dc0	verified		survarium::object_particle_visual::remove
 0x00291720	verified		survarium::object_light::load
 0x00291790	verified		survarium::object_light::insert
 0x002917d0	verified		survarium::object_light::remove
@@ -2045,7 +2051,7 @@ va	status	ref_021d	name
 0x00118540	reviewed	0x000d5f76	vostok::render::engine::world::remove_model
 0x001bd7f0	verified	0x0012fccf	vostok::render::fill_light
 0x001c9e40	observed		vostok::render::light::set_color_and_intensity
-0x0034e020	observed		vostok::render::environment_sun_direction
+0x0034e020	verified	0x0021570f	vostok::render::environment_sun_direction
 0x001a8900	observed		vostok::render::effect_compiler::set_constant_float4
 0x003e2ea0	observed		vostok::render::state_descriptor::set_alpha_blend
 0x001acb30	observed		vostok::render::reflection_surface_rejected
@@ -2264,6 +2270,8 @@ va	status	ref_021d	name
 0x00103140	observed		vostok::resources::resources_manager::on_created_resource
 0x00109bd0	observed	0x000cbaaa	vostok::resources::query_result::finish_translated_query
 0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >
+0x002acc20	observed		vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::push_back
+0x002ac720	observed		survarium::particle_game_effect_presenter::serialize
 0x00200f50	reviewed	0x0015f1b6	survarium::game_options::activate
 0x002010e0	reviewed	0x0015f2d4	survarium::game_options::process_key_input
 0x002015a0	reviewed	0x0015f5e9	survarium::game_options::finish_binding
@@ -2360,13 +2368,106 @@ va	status	ref_021d	name
 0x0005e150	reviewed		vostok::sound::panning_lut::panning_lut
 0x0005e050	reviewed	0x000438d2	vostok::sound::pos_to_angle
 0x00064f00	observed		vostok::buffer_vector<unsigned int>::push_back
-0x001603b0	reviewed		vostok::render::grass_world::process_culling's patch order (patch+50h, then squared distance of patch+4084h to the camera)
+0x001603b0	reviewed		vostok::render::grass_world::process_culling's patch order
 0x001610b0	reviewed		stlp_std::sort<vostok::render::grass_patch **> (grass_world::process_culling's)
 0x00161e50	reviewed		stlp_std::priv::__linear_insert<vostok::render::grass_patch **>
 0x00162060	reviewed		stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>
+0x003737f0	observed		vostok::network::torrent_client::start_seeding
+0x00373910	observed		vostok::network::torrent_client::stop_seeding
+0x003739e0	observed		vostok::network::torrent_client::change_upload_speed_limit
+0x00373ad0	observed		vostok::network::torrent_client::set_debug_info_state
+0x00373c20	observed		vostok::network::torrent_client::start_seeding_impl
+0x00374050	observed		vostok::network::torrent_client::change_upload_speed_limit_impl
+0x00374020	reviewed		vostok::network::torrent_client::stop_seeding_impl (the task stop_seeding posts)
+0x00374260	reviewed		vostok::network::torrent_client::set_debug_info_state_impl (the task set_debug_info_state posts)
+0x00373bd0	reviewed		vostok::network::torrent_client::start_seeding_impl's pipe message handler (seeding debug info)
+0x003736d0	reviewed		vostok::network::torrent_client's registry string read (RegQueryValueExW, REG_SZ only)
+0x00373730	reviewed		vostok::network::torrent_client's product GUID (HKLM Software\Vostok Games\<product>, "product GUID")
+0x003e36a1	reviewed		get_install_location (InstallLocation of an uninstall key, HKCU then HKLM)
+0x00373090	reviewed		vostok::win_utils::pipe::pipe
+0x00373140	reviewed		vostok::win_utils::pipe::~pipe
+0x00373230	reviewed		vostok::win_utils::pipe::accept (CreateNamedPipeW server, overlapped ConnectNamedPipe)
+0x003733c0	reviewed		vostok::win_utils::pipe::disconnect
+0x00373400	reviewed		vostok::win_utils::pipe::send
+0x00373510	reviewed		vostok::win_utils::pipe's accept completion (state 3, on_connected, first read)
+0x001ee550	reviewed		survarium::game's change_seeding_upload_rate command callback
+0x001ee580	reviewed		survarium::game's enable_torrent_seeding command callback
+0x001ee5d0	reviewed		survarium::game's lobby_torrent_stats command callback
+0x001f60a0	reviewed		survarium::network_stats_lobby_torrent's row update (seeding, peers, upload, max upload limit)
+0x00262250	reviewed		survarium::options_torrent_seeding_selector's read of change_seeding_upload_rate
+0x002622a0	reviewed		survarium::options_torrent_seeding_selector's apply (executes change_seeding_upload_rate <KiB/s>)
 0x0005c060	reviewed		vostok::sound::sound_scene::process_fade
 0x00316bc0	observed		survarium::player_respawn_rule_base::on_player_entered_match
 0x00316c90	observed		survarium::player_respawn_rule_base::serialize
 0x00316d50	observed		survarium::player_respawn_rule_base::deserialize
 0x00316f10	observed		survarium::player_respawn_rule_core::serialize
 0x00316fc0	observed		survarium::player_respawn_rule_core::deserialize
+0x00305540	observed		survarium::booby_trap_core::hit
+0x00305580	observed		survarium::booby_trap_core::hit
+0x003050c0	observed		survarium::booby_trap_core::defuse_completed
+0x001f63e0	observed		survarium::game_world::get_step_manager
+0x001f3bd0	observed	0x00157a52	survarium::player::is_first_view
+0x0023fbe0	observed		survarium::player's landing step (on_step at the root, from player::on_landing)
+0x002a63c0	observed		survarium::player_equipment_sound_effect::update_feet
+0x002a6410	observed		survarium::player_equipment_sound_effect::set_feet
+0x003917d0	reviewed		vostok::animation::animation_player::tick
+0x0009ff40	reviewed		btCollisionWorld::updateSingleAabb
+0x000a01e0	reviewed		btCollisionWorld::updateAabbs
+0x00094c00	reviewed		btAxisSweep3Internal<unsigned short>::setAabb
+0x000205e0	reviewed		boost::function1<void,bool>::operator() (the renderer's on_draw_scene, 0x13D9BC and 0x13DC78)
+0x000a8660	reviewed		btBvhTriangleMeshShape::processAllTriangles
+0x000c5600	reviewed		btConvexTriangleCallback::processTriangle
+0x000a86a0	reviewed		btBvhTriangleMeshShape::processAllTriangles::MyNodeOverlapCallback::processNode
+0x000c26c0	reviewed		btQuantizedBvh::reportAabbOverlappingNodex
+0x00298ab0	reviewed		survarium::damage_zone::~damage_zone
+0x0001d0d0	reviewed	0x00018037	vostok::console_impl::tick
+0x0001c7f0	reviewed		vostok::engine::game_console::on_keyboard_action
+0x0001c8b0	reviewed		vostok::engine::game_console::on_gamepad_action
+0x0001c8e0	reviewed		vostok::engine::game_console::on_mouse_key_action
+0x0001c810	reviewed		vostok::engine::game_console::on_mouse_move
+0x0001c8a0	reviewed		vostok::engine::game_console::get_active
+0x0001c740	reviewed		vostok::engine::game_console::tick
+0x00349540	reviewed		vostok::ui::ui_scroll_view::ui_scroll_view
+0x00349520	reviewed		vostok::ui::ui_scroll_view::get_follow_last_line
+0x00349c60	reviewed		vostok::ui::ui_scroll_view::set_follow_last_line
+0x00349530	reviewed		vostok::ui::ui_scroll_view::get_v_scroll
+0x00349cf0	reviewed		vostok::ui::ui_scroll_view::w
+0x00349c80	reviewed		vostok::ui::ui_scroll_v_source::get_length
+0x00349c90	reviewed		vostok::ui::ui_scroll_v_source::get_position
+0x00349ca0	reviewed		vostok::ui::ui_scroll_v_source::set_position
+0x00349500	reviewed		vostok::ui::ui_scroll_v_source::get_step_size
+0x00349510	reviewed		vostok::ui::ui_scroll_v_source::set_step_size
+0x0001c760	observed		vostok::engine::game_console::on_activate
+0x0001c7a0	observed		vostok::engine::game_console::on_deactivate
+0x0034b4d0	observed		vostok::ui::insert_char_action::execute
+0x0001eaa0	reviewed	0x0001924f	vostok::console_impl::on_keyboard_action
+0x00348120	observed		vostok::ui::ui_text_edit::copy_to_clipboard
+0x003481f0	observed		vostok::ui::ui_text_edit::cut_to_clipboard
+0x003482c0	observed		vostok::ui::ui_text_edit::paste_from_clipboard
+0x003479d0	reviewed	0x00210e30	vostok::ui::ui_text_edit::set_text
+0x003488a0	reviewed	0x00211990	vostok::ui::ui_text_edit::set_caret_position
+0x0034a5e0	reviewed	0x00212f52	vostok::ui::ui_text_edit::init_internals
+0x00348000	reviewed		vostok::ui::ui_text_edit's insert of a typed character at the caret
+0x003486a0	reviewed		vostok::ui::ui_text_edit's delete of the selection
+0x00348a10	reviewed		vostok::ui::ui_text_edit's keyboard action (its key bindings, by key and modifiers)
+0x0034a450	reviewed		vostok::ui::ui_text_edit's make of a key binding to one of its methods
+0x0034b430	reviewed		vostok::ui::ui_text_edit key binding's test of the key's kind and modifiers
+0x0034b4c0	reviewed		vostok::ui::ui_text_edit method key binding's execute
+0x00181660	verified	0x0010efaa	vostok::render::stage_ambient_lighting::render_ambient_light_list
+0x001858e0	verified		vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity
+0x0034d9a0	verified	0x00215157	vostok::render::environment_properties::environment_properties
+0x002aa870	observed		vostok::buffer_vector<survarium::sound_game_effect_presenter::effect_data>::push_back
+0x0034e1e0	observed	0x002157f7	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >
+0x0017cc90	verified		vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>
+0x001ae110	verified		vostok::render::effect_manager::create_effect<vostok::render::effect_rain>
+0x001d3730	verified	0x0013fc08	vostok::render::particle_rain_drops_geometry::particle_rain_drops_geometry
+0x0015fe20	verified		vostok::render::grass_world::set_wind_parameters
+0x001cbb70	verified	0x0013afad	vostok::render::pack_direction
+0x00070e30	verified		vostok::math::random32::random_f
+0x0028bee0	reviewed		survarium::lobby_menu::find_players
+0x0026b660	reviewed		survarium::messaging_client::find_players
+0x000dde70	reviewed	0x000ac765	vostok::command_line::key::is_set
+0x001ae390	reviewed	0x0010affb	vostok::render::stage_apply_distortion::is_effects_ready
+0x001ae500	reviewed	0x00123a52	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>
+0x001ae5f0	reviewed	0x00123ad4	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>
+0x001bd6a0	reviewed	0x0012fc3d	vostok::render::stage::is_enabled

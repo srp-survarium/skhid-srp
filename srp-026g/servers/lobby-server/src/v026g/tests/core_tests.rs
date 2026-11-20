@@ -2,7 +2,7 @@
 //! round is 10 ms, and the transports, the rooms and the timeouts all take
 //! the time they are given.
 
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -38,7 +38,7 @@ struct World {
     host: &'static TestHost,
     inbox: &'static Inbox,
     core: Core<'static>,
-    clients: Vec<(SocketAddr, TestClient)>,
+    clients: Vec<(Peer, TestClient)>,
     /// `(account id, session id)` of each client.
     ids: Vec<(u32, u32)>,
     now: Instant,
@@ -129,8 +129,31 @@ impl World {
     }
 
     fn connect_session(&mut self, ids: (u32, u32)) -> usize {
+        let addr = self.next_direct();
+        self.connect_session_at(ids, addr)
+    }
+
+    /// The direct peer the next client gets.
+    fn next_direct(&self) -> Peer {
+        Peer::direct(format!("127.0.0.1:{}", 40_000 + self.clients.len()).parse().unwrap())
+    }
+
+    /// A new account signs in from the next client's address as `via` makes
+    /// a peer of it (through a relay, say).
+    fn connect_as(&mut self, name: &str, via: fn(Peer) -> Peer) -> usize {
+        let addr = via(self.next_direct());
+        self.connect_at(name, addr)
+    }
+
+    /// A new account signs in as the peer `addr`.
+    fn connect_at(&mut self, name: &str, addr: Peer) -> usize {
+        let (account, _) = signed_in(self.store, name);
+        let session = self.store.create_session_with_revision(account, PATCH_REVISION);
+        self.connect_session_at((account, session), addr)
+    }
+
+    fn connect_session_at(&mut self, ids: (u32, u32), addr: Peer) -> usize {
         let index = self.clients.len();
-        let addr: SocketAddr = format!("127.0.0.1:{}", 40_000 + index).parse().unwrap();
         let mut client = TestClient::new();
         client.sign_in(ids.1, true);
         self.clients.push((addr, client));
@@ -400,7 +423,7 @@ fn a_sign_in_is_answered_with_the_whole_account_in_the_clients_order() {
 fn nothing_but_the_sign_in_answer_goes_before_it_is_acked() {
     let mut world = World::new();
     let (_, session) = signed_in(world.store, "Alice");
-    let addr: SocketAddr = "127.0.0.1:40000".parse().unwrap();
+    let addr = Peer::direct("127.0.0.1:40000".parse().unwrap());
     let mut client = TestClient::new();
     client.sign_in(session, true);
     let now = world.now;
@@ -459,7 +482,7 @@ fn an_unknown_or_ended_session_is_refused() {
 #[test]
 fn a_datagram_that_is_no_sign_in_makes_no_link() {
     let mut world = World::new();
-    let addr: SocketAddr = "127.0.0.1:40000".parse().unwrap();
+    let addr = Peer::direct("127.0.0.1:40000".parse().unwrap());
     let mut client = TestClient::new();
     let (id, body) = request::play(1);
     client.send(id, &body);
@@ -1756,6 +1779,39 @@ fn a_squad_info_carries_the_lobby_picks() {
 }
 
 #[test]
+fn the_shops_hide_owned_box_is_kept_with_the_account() {
+    use survarium::v026g::lobby::shop_filter::{OwnedItems, SHOP_FILTER_FIRST};
+    let mut world = World::new();
+    let alice = world.connect("Alice");
+    let answers = |decoded: &[Decoded]| -> Vec<String> {
+        decoded
+            .iter()
+            .filter_map(|message| match message {
+                Decoded::EloList(rows) if rows.first().is_some_and(|row| row.1 == SHOP_FILTER_FIRST) => {
+                    Some(rows[0].0.clone())
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    let ask = |world: &mut World, offset: u32| world.ask(alice, request::ranking(SHOP_FILTER_FIRST + offset, 1));
+    world.take(alice);
+    // Nothing kept: unticked.
+    ask(&mut world, 0);
+    assert_eq!(answers(&world.take(alice)), ["H1;0"]);
+    // A click's is kept, not answered.
+    ask(&mut world, 2);
+    assert!(answers(&world.take(alice)).is_empty());
+    assert_eq!(world.account(alice).extras.shop_owned, OwnedItems::Hidden);
+    ask(&mut world, 0);
+    assert_eq!(answers(&world.take(alice)), ["H1;1"]);
+    ask(&mut world, 1);
+    ask(&mut world, 0);
+    assert_eq!(answers(&world.take(alice)), ["H1;0"]);
+    assert_eq!(world.account(alice).extras.shop_owned, OwnedItems::Shown);
+}
+
+#[test]
 fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
     let mut world = World::new();
     let alice = world.connect("Alice");
@@ -2163,7 +2219,7 @@ fn a_client_whose_link_broke_connects_again_with_its_session() {
     // The client gave up on its link (5 s without a datagram) and connects
     // again, from a new port, while the server's link still stands.
     world.clients[alice].1 = TestClient::new();
-    world.clients[alice].0 = "127.0.0.1:49999".parse().unwrap();
+    world.clients[alice].0 = Peer::direct("127.0.0.1:49999".parse().unwrap());
     world.client(alice).sign_in(ids.1, false);
     world.settle();
     assert!(world.client(alice).model.is_signed_in());
@@ -2182,7 +2238,7 @@ fn a_client_whose_link_broke_connects_again_with_its_session() {
     assert!(sent_to_match(&world.take(alice)).is_some());
     let silent = std::mem::replace(&mut world.clients[alice].1, TestClient::new());
     drop(silent);
-    world.clients[alice].0 = "127.0.0.1:49998".parse().unwrap();
+    world.clients[alice].0 = Peer::direct("127.0.0.1:49998".parse().unwrap());
     // (A player in a match has two minutes: `away_tests`.)
     world.advance(Duration::from_secs(125));
     assert_eq!(world.core.links.len(), 1);
@@ -3282,5 +3338,110 @@ fn a_new_account_has_no_tutorial_and_what_it_paid() {
         assert!(world.take(again).is_empty());
     }
     assert_eq!(world.account(again).generic_money, money);
+    world.assert_clean();
+}
+
+/// The relay of the tests' `SRP_RELAYS`: only that setting makes one.
+fn test_relay() -> udp_transport::relay::Relay {
+    udp_transport::relay::Relays::parse("10.77.0.2=203.0.113.8")
+        .unwrap()
+        .relay("10.77.0.2".parse().unwrap())
+        .unwrap()
+}
+
+/// `client`'s address as a relay names it.
+fn through_relay(direct: Peer) -> Peer {
+    let std::net::SocketAddr::V4(address) = direct.address() else {
+        unreachable!("the tests' clients are on 127.0.0.1")
+    };
+    Peer::relayed(address, test_relay())
+}
+
+#[test]
+fn relayed_lobby_connection_keeps_the_match_on_the_relay() {
+    let mut world = World::new();
+    let direct = world.connect("direct-player");
+    let relayed = world.connect_as("relay-player", through_relay);
+    let ticket = crate::v026g::MatchTicket {
+        match_id: 42, host: "203.0.113.67".into(), port: 1236,
+    };
+    let (direct, relayed) = (world.clients[direct].0, world.clients[relayed].0);
+    assert_eq!(world.core.match_host_for(direct, &ticket), "203.0.113.67");
+    assert_eq!(world.core.match_host_for(relayed, &ticket), "203.0.113.8");
+}
+
+#[test]
+fn a_datagram_by_another_route_is_another_peer_and_leaves_the_link_alone() {
+    let mut world = World::new();
+    let alice = world.connect("alice");
+    let direct = world.clients[alice].0;
+    let claimed = through_relay(direct);
+    let session = world.core.player(direct).unwrap().session_id;
+    // Datagrams that name alice's address but came through the relay: empty,
+    // garbage, and a sign-in with a session nobody has.
+    world.core.datagram(claimed, &[], world.now);
+    world.core.datagram(claimed, &[1, 2, 3, 4, 5, 6, 7], world.now);
+    let mut stranger = TestClient::new();
+    stranger.sign_in(0xDEAD_BEEF, true);
+    for datagram in stranger.poll(world.now) {
+        world.core.datagram(claimed, &datagram, world.now);
+    }
+    // None of it made a player, and none of it touched hers.
+    assert!(world.core.player(claimed).is_none());
+    assert_eq!(world.core.player(direct).unwrap().session_id, session);
+    assert_eq!(world.core.by_account[&world.ids[alice].0], direct);
+    // She is still heard, and answered by her own route.
+    world.take(alice);
+    world.ask(alice, request::ranking(1, 1));
+    assert_eq!(world.core.player(direct).unwrap().session_id, session);
+    world.assert_clean();
+}
+
+#[test]
+fn a_direct_datagram_does_not_touch_a_relayed_player_of_the_same_address() {
+    let mut world = World::new();
+    let alice = world.connect_as("alice", through_relay);
+    let relayed = world.clients[alice].0;
+    let direct = Peer::direct(relayed.address());
+    let session = world.core.player(relayed).unwrap().session_id;
+    world.core.datagram(direct, &[], world.now);
+    world.core.datagram(direct, &[9, 9, 9, 9, 9, 9, 9, 9], world.now);
+    let mut stranger = TestClient::new();
+    stranger.sign_in(0xDEAD_BEEF, true);
+    for datagram in stranger.poll(world.now) {
+        world.core.datagram(direct, &datagram, world.now);
+    }
+    assert!(world.core.player(direct).is_none());
+    assert_eq!(world.core.player(relayed).unwrap().session_id, session);
+    assert_eq!(world.core.by_account[&world.ids[alice].0], relayed);
+    world.take(alice);
+    world.ask(alice, request::ranking(1, 1));
+    assert_eq!(world.core.player(relayed).unwrap().session_id, session);
+    world.assert_clean();
+}
+
+#[test]
+fn two_players_of_one_address_by_two_routes_are_both_in_the_lobby() {
+    let mut world = World::new();
+    let near = world.connect("near");
+    let direct = world.clients[near].0;
+    // The second player has the very same public address, through the relay.
+    let far = world.connect_at("far", through_relay(direct));
+    let relayed = world.clients[far].0;
+    assert_eq!(direct.address(), relayed.address());
+    assert_ne!(direct, relayed);
+    let (near_player, far_player) = (
+        world.core.player(direct).unwrap().account_id,
+        world.core.player(relayed).unwrap().account_id,
+    );
+    assert_ne!(near_player, far_player);
+    assert_eq!(world.core.by_account[&near_player], direct);
+    assert_eq!(world.core.by_account[&far_player], relayed);
+    // Each asks and each is answered: nobody took the other's place.
+    for index in [near, far] {
+        world.take(index);
+        world.ask(index, request::ranking(1, 1));
+    }
+    assert!(world.core.player(direct).is_some() && world.core.player(relayed).is_some());
     world.assert_clean();
 }

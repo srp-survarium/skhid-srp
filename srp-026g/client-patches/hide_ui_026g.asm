@@ -57,15 +57,29 @@
 ; toggle_replay_ui in the game group, labelled st_hide_interface_action
 ; (its text in client-patches/localization/*.tsv), and a 42nd for patch 78:
 ; artefact (23h, default H, its default key patch_026g.py's
-; ARTEFACT_KEY_DEFAULT), st_hold_artifact_action; patch_026g.py points the six
-; functions at it and makes their counts 2Ah. The binding is the binder's
-; as any other: applied with `bind toggle_replay_ui <key>`, saved and read
-; back by the binder's own bind command (its save 0x207450 writes every bound
-; action).
+; ARTEFACT_KEY_DEFAULT), st_hold_artifact_action, and a 43rd for patch 66:
+; ptt_nearby (37h, default O: patch_026g.py's VOICE_ACTION), the 10 m voice's
+; push-to-talk, st_ptt_nearby_action, and a 44th and 45th for patch 152:
+; screenshot (1Ah, default F11) and screenshot_no_ui (1Bh, default F12),
+; st_screenshot_action and st_screenshot_no_ui_action; patch_026g.py points
+; the six functions at it and makes their counts 2Dh. The binding is the
+; binder's as any other: applied with `bind hide_interface <key>`, saved and
+; read back by the binder's own bind command (its save 0x207450 writes every
+; bound action).
+;
+; The action's name and key since patch 152 (patch_026g.py's
+; SCREENSHOT_ACTIONS): F11 is the screenshot's, so the action table's entry
+; of 19h is named hide_interface and its default key is F9. The new name is
+; what moves the key for a player who had it: the old `bind toggle_replay_ui
+; kF11` of a saved user.cfg names no action now and binds nothing (bind_key
+; 0x207DC0 returns on a name the table does not have), where the same name
+; would have taken F11 back from the screenshot.
 BITS 32
 %include "engine_026g.inc"
 global hide_ui_match, hide_ui_lobby, hide_ui_reset
-global controls                    ; the options' controls, 42 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global controls                    ; the options' controls, 43 rows (patch_026g.py's HIDE_UI_TABLE_REFS)
+global ptt_nearby_action           ; the action table's entry 37h's new name (patch_026g.py's VOICE_ACTION)
+global hide_interface_action, screenshot_action, screenshot_no_ui_action   ; the entries 19h, 1Ah and 1Bh's (SCREENSHOT_ACTIONS)
 section .text
 
 %define REPLAY_TOGGLE 0x25CEDB     ; the case 19h after its replay test: the replay's controls
@@ -82,6 +96,9 @@ section .text
 %define NO_ACTION 0x49             ; the binder's answer for a key without an action
 %define TOGGLE_UI 0x19             ; toggle_replay_ui
 %define HOLD_ARTIFACT 0x23         ; artefact: unused by the game; patch 78 holds it with a quick-use key
+%define PTT_NEARBY 0x37            ; serialize_player_state renamed by patch 66 (VOICE_ACTION), a chat key
+%define SCREENSHOT 0x1A            ; torch and night_vision: unread by the game; patch 152's two keys
+%define SCREENSHOT_NO_UI 0x1B
 %define MATCH_KINDS 1              ; the kind the game world asks (0x25CD5F)
 
 ; The case of action 19h in on_keyboard_action, at 0x25CED1 (`mov esi,[esp+10h] /
@@ -294,6 +311,15 @@ hide_interface_label:
 hold_artifact_label:
     db "st_hold_artifact_action", 0
 
+ptt_nearby_label:
+    db "st_ptt_nearby_action", 0
+
+screenshot_label:
+    db "st_screenshot_action", 0
+
+screenshot_no_ui_label:
+    db "st_screenshot_no_ui_action", 0
+
 ; A row of the controls: the action, its label's key, the group, the type, and
 ; two empty buffer_strings (begin, end, the buffer's end; 32 bytes).
 %macro CONTROL 4
@@ -349,5 +375,17 @@ controls:                          ; the game's 40 rows (0xA9DB28), in their ord
     CONTROL 0x46, 0x9FC910, 1, 0   ; st_select_send_to_action
     CONTROL 0x47, 0x9FC900, 2, 1   ; st_ptt_action: the game's row is group 1 (chat), type 0 (its key button
                                    ; disabled, BindKeyRender.as); patch 66's push-to-talk is a game key, rebindable
-    CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F11)
+    CONTROL TOGGLE_UI, hide_interface_label, 2, 1   ; st_hide_interface_action (F9)
     CONTROL HOLD_ARTIFACT, hold_artifact_label, 2, 1   ; st_hold_artifact_action (H): patch 78's carry chord
+    CONTROL PTT_NEARBY, ptt_nearby_label, 2, 1   ; st_ptt_nearby_action (O): patch 66's 10 m voice
+    CONTROL SCREENSHOT, screenshot_label, 2, 1   ; st_screenshot_action (F11): patch 152
+    CONTROL SCREENSHOT_NO_UI, screenshot_no_ui_label, 2, 1   ; st_screenshot_no_ui_action (F12)
+
+ptt_nearby_action:                 ; in data: the game's action table points at it
+    db "ptt_nearby", 0
+hide_interface_action:
+    db "hide_interface", 0
+screenshot_action:
+    db "screenshot", 0
+screenshot_no_ui_action:
+    db "screenshot_no_ui", 0

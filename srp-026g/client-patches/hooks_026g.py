@@ -125,7 +125,7 @@ TYPES["f32"] = {
 }
 # Native presentation interfaces. Their raw kinds come from fields_026g.tsv;
 # the public views borrow the generated hook's thread.
-for _view in ("RenderVisual", "GameScene", "ObjectLight"):
+for _view in ("RenderVisual", "GameScene", "ObjectLight", "ObjectAmbientLight", "ObjectParticleVisual"):
     TYPES[_view] = {
         "raw": f"Option<{_view}>", "fallible": True,
         "build": f"{_view}::from_raw(&thread, {{a}})",
@@ -145,6 +145,38 @@ TYPES["ConsoleArguments"] = {
     "raw": "*const u8",
     "binding": "let {n} = unsafe {{ ConsoleArguments::from_raw(&thread, {a}) }};",
     "orig_type": "&ConsoleArguments", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
+}
+
+# Patch 156's triangle callback (vostok::shape): our copy of a
+# btTriangleCallback's vtable, the triangle the BVH found (three btVector3)
+# and its part and index.
+TYPES["TriangleSink"] = {
+    "raw": "Option<TriangleCallback>", "fallible": True,
+    "build": "TriangleSink::from_raw(&thread, {a})",
+    "orig_type": "&mut TriangleSink", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+TYPES["Triangle"] = {
+    "raw": "*const f32",
+    "binding": "let {n} = unsafe {{ Triangle::from_raw(&thread, {a}) }};",
+    "orig_type": "&Triangle", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
+}
+TYPES["u32"] = {
+    "raw": "u32", "binding": "let {n} = {a};", "orig_type": "u32", "orig_raw": "{n}", "pass": "{n}", "null": "{a}",
+}
+
+# Patch 143's battery swing (vostok::battery): the state its finalize gets,
+# and the buffer its carry -> swing predicate is entered with.
+TYPES["BatteryState"] = {
+    "raw": "Option<BatteryState>", "fallible": True,
+    "build": "BatteryState::from_raw(&thread, {a})",
+    "orig_type": "&mut BatteryState", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
+TYPES["PredicateBuffer"] = {
+    "raw": "Option<PredicateBuffer>",
+    "binding": "let {n} = unsafe {{ PredicateBuffer::from_raw(&thread, {a}) }};",
+    "orig_type": "&PredicateBuffer", "orig_raw": "-", "pass": "{n}", "null": "{a}",
 }
 
 # A handler result, mapped to F's: the raw result engine_026g.tsv must give,
@@ -577,11 +609,12 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # Sharing an exact lohook site is explicit and ordered. Partial overlaps,
     # mixed kinds and implicit order remain errors. One machine save/replay
     # wraps the chain; the first non-Continue result ends it.
-    # A callback rewrites nothing (the patch hands its own entry to the
-    # game), so the handlers of one callback site are never a chain.
+    # A callback or a vtable slot rewrites nothing (the patch hands its own
+    # entry to the game, or puts it in its own copy of the vtable), so the
+    # handlers of one such site are never a chain.
     grouped = {}
     for h in out:
-        key = (h["entry"] if h["kind"] == "callback"
+        key = (h["entry"] if h["kind"] in ("callback", "vtable")
                else h["site_name"] if h["site"] is None else h["site"])
         grouped.setdefault(key, []).append(h)
     out = []
@@ -608,7 +641,7 @@ def hooks(tomls=None, functions=None, sites=None, exe=None):
     # and C installs too, is selftest_026g.py's span check): no two sites'
     # replaced spans overlap. Each hook names its owning patch.
     spans = sorted((h["site"], h["site"] + len(h["original"]), h["patch"]) for h in out
-                   if h["site"] is not None and h["kind"] != "callback")
+                   if h["site"] is not None and h["kind"] not in ("callback", "vtable"))
     for (lo, hi, a), (lo2, _, b) in zip(spans, spans[1:]):
         if lo2 < hi:
             raise Bad(f"the hooks of {a} and {b} overlap at {lo2:#x} (the bytes {lo:#x}..{hi:#x})")

@@ -54,11 +54,11 @@
 //!   places. The sides keep a squad together; late, the second goes on its
 //!   mate's side. The room's lists mark each pair (`Member::squad`).
 //! - **Remembered.** A room made by hand (a create, not Play) is its maker's
-//!   next create window, kept with the account (`room_remember`; not the
-//!   PIN; the owner's of 2026-10-20); the movie asks for it fitted to the
-//!   pool and the maker's equipment now (`room_settings::form`) once, as
-//!   its lobby comes up, so the window opens filled (the owner's of
-//!   2026-10-25).
+//!   next create window, kept with the account (`room_remember`; its PIN
+//!   too, pretyped; the owner's of 2026-10-20, 2026-11-19); the movie asks
+//!   for it fitted to the pool and the maker's equipment now
+//!   (`room_settings::form`) once, as its lobby comes up, so the window
+//!   opens filled (the owner's of 2026-10-25).
 //! - A member whose game is gone (crashed, killed, its link silent) keeps
 //!   its place while its session is kept: the link's 30 s and the session's
 //!   60 s, about 90 s in all (the owner's of 2026-10-18); then it leaves the
@@ -82,7 +82,7 @@
 //! | `SRP_ROOMS_EXTRA_MAPS` | (none) | playable `maps_dict` ids a creator may add to a pool besides the match pool (`SRP_MATCH_MAPS`): the experimental maps |
 
 use std::collections::{HashMap, HashSet};
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 use std::time::Instant;
 
 use session::matchmaking_policy::{self as policy, Closed, Worth};
@@ -145,7 +145,7 @@ pub struct Config {
     pub max_rooms: usize,
     /// `SRP_ROOMS_EXTRA_MAPS`: playable ids a pool may hold besides the
     /// match pool.
-    pub extra_maps: Vec<u8>,
+    pub extra_maps: Vec<maps::MapId>,
 }
 
 impl Default for Config {
@@ -184,18 +184,28 @@ impl Config {
 }
 
 /// `SRP_ROOMS_EXTRA_MAPS`: playable ids, comma-separated; empty is none.
-fn parse_extra(value: &str) -> Option<Vec<u8>> {
+fn parse_extra(value: &str) -> Option<Vec<maps::MapId>> {
     value
         .split(',')
         .map(str::trim)
         .filter(|id| !id.is_empty())
         .map(|id| {
-            let id: u8 = id.parse().ok()?;
+            let id: maps::MapId = id.parse().ok()?;
             maps::map_mode(id)
                 .filter(|map| map.is_playable())
                 .map(|_| id)
         })
         .collect()
+}
+
+/// Where a new room's PIN and pool come from.
+enum Made {
+    /// Given before its create: the PIN and bits requests of the lobby movies before the create
+    /// in one request (kept for one release), none for Play's (the default pool). `bots`: a
+    /// private room with bots.
+    Before { bots: bool },
+    /// In the create itself ([`wire::RoomCreate`]).
+    InRequest { door: Door, pool: Vec<maps::MapId> },
 }
 
 /// The wire's code for a refusal of the model's.
@@ -243,8 +253,14 @@ struct Ready {
 }
 
 impl Core<'_> {
-    /// The maps a pool may hold, in the order their bits name them: the
-    /// match pool (Blackout's maps too, mode 6), then the experimental maps.
+    /// The maps a pool may hold, in the order their bits name them and the
+    /// create window lists them: the match pool (Blackout's maps too, mode
+    /// 6), then the experimental maps, the STALKER maps of both after every
+    /// other (the owner's of 2026-11-15: "also when creating private rooms,
+    /// stalker maps should be at the bottom of the list"), each part in its
+    /// order. A map's weathers come day, evening, rain whatever their ids
+    /// (the owner's of 2026-11-18: "it should be day, evening, rain like in
+    /// others"; the 0.21 School's rain is id 1, its day 174).
     pub(super) fn room_entries(&self) -> Vec<PoolEntry> {
         let pool = &self.settings.maps;
         let extra = self
@@ -253,21 +269,33 @@ impl Core<'_> {
             .extra_maps
             .iter()
             .filter(|id| !pool.contains(id));
-        pool
+        let mut entries: Vec<(maps::Build, PoolEntry)> = pool
             .iter()
             .map(|id| (*id, false))
             .chain(extra.map(|id| (*id, true)))
             .filter_map(|(id, extra)| {
                 let map = maps::map_mode(id)?;
-                Some(PoolEntry {
+                let entry = PoolEntry {
                     map_id: id,
                     level: map.level,
                     weather: map.weather,
                     mode: map.mode.lobby_number(),
                     extra,
                     bots: self.settings.pvb.bot_maps.contains(&id),
-                })
+                };
+                Some((map.build(), entry))
             })
+            .collect();
+        // Stable: by build (0.26, 0.11, 0.21, 0.69, STALKER), each map where
+        // its first id came, its weathers in the list's order.
+        let levels: Vec<u8> = entries.iter().map(|(_, entry)| entry.level).collect();
+        entries.sort_by_key(|&(build, entry)| {
+            let map = levels.iter().position(|&level| level == entry.level);
+            (build, map, maps::weather::list_place(entry.weather))
+        });
+        entries
+            .into_iter()
+            .map(|(_, entry)| entry)
             // A create names its entries by bit: no more than the bits.
             .take(wire::POOL_BITS)
             .collect()
@@ -576,13 +604,15 @@ impl Core<'_> {
                     Err(RoomCode::PublicCreate)
                 }) {
                     Err(code) => code,
-                    Ok(()) => match self.room_create(who, spec, false, now) {
-                        Ok(key) => {
-                            self.room_remember(who, key, spec);
-                            RoomCode::None
+                    Ok(()) => {
+                        match self.room_create(who, spec, Made::Before { bots: false }, now) {
+                            Ok(key) => {
+                                self.room_remember(who, key, spec);
+                                RoomCode::None
+                            }
+                            Err(refused) => code_of(refused),
                         }
-                        Err(refused) => code_of(refused),
-                    },
+                    }
                 };
                 if code != RoomCode::None {
                     log::info!("{}: create a room: refused ({code:?})", who.name);
@@ -610,7 +640,7 @@ impl Core<'_> {
                     }) {
                     Err(code) => code,
                     Ok(()) => self
-                        .room_create(who, spec, true, now)
+                        .room_create(who, spec, Made::Before { bots: true }, now)
                         .err()
                         .map_or(RoomCode::None, code_of),
                 };
@@ -846,66 +876,145 @@ impl Core<'_> {
         }
     }
 
-    /// A room made by hand; `bots`: a private one with bots (`spec.pin`).
+    /// The create in one request (`wire::RoomCreate`, the movie's since 2026-11-20): a private
+    /// room, its PIN and pool in it. Its settings are kept as the rules' defaults, as for the
+    /// chain's create (the window has no size, level or wait of a private room). Answered with
+    /// the state.
+    pub(super) fn room_create_text(
+        &mut self,
+        who: &Who,
+        create: Result<wire::RoomCreate, wire::BadCreate>,
+        now: Instant,
+    ) {
+        self.room_shown(who.account_id);
+        let code = match create {
+            Err(wire::BadCreate) => RoomCode::Bad,
+            Ok(create) => match self.room_fit(who) {
+                Err(code) => code,
+                Ok(()) => {
+                    let default = wire::rules().default;
+                    let spec = RoomSpec {
+                        size: default.size,
+                        max_level: default.max_level,
+                        wait: default.wait,
+                        pin: true,
+                        min_side: default.min_side,
+                    };
+                    let entries: Vec<maps::MapId> = self
+                        .room_entries()
+                        .iter()
+                        .map(|entry| entry.map_id)
+                        .collect();
+                    let bots = create.kind == wire::PrivateKind::WithBots;
+                    let made = Made::InRequest {
+                        door: Door::Pin {
+                            pin: create.pin,
+                            bots,
+                        },
+                        pool: create.pool.of(&entries),
+                    };
+                    match self.room_create(who, spec, made, now) {
+                        // A room with bots keeps nothing: its pool is the bots' maps only.
+                        Ok(key) if !bots => {
+                            self.room_remember(who, key, spec);
+                            RoomCode::None
+                        }
+                        Ok(_) => RoomCode::None,
+                        Err(refused) => code_of(refused),
+                    }
+                }
+            },
+        };
+        if code != RoomCode::None {
+            log::info!(
+                "{}: create a room in one request: refused ({code:?})",
+                who.name
+            );
+        }
+        self.send_room_state(who, code, now);
+    }
+
+    /// A room made by hand or by Play.
     fn room_create(
         &mut self,
         who: &Who,
         spec: RoomSpec,
-        bots: bool,
+        made: Made,
         now: Instant,
     ) -> Result<u32, Refused> {
-        let entries: Vec<u8> = self
-            .room_entries()
-            .iter()
-            .map(|entry| entry.map_id)
-            .collect();
-        // The whole pool but the experimental maps: the match pool,
-        // Blackout's maps with it (the owner's of 2026-10-25: Blackout
-        // is part of the standard pool).
-        let default: Vec<u8> = self
-            .room_entries()
-            .iter()
-            .filter(|entry| !entry.extra)
-            .map(|entry| entry.map_id)
-            .collect();
-        // A room with a PIN asks for the one its maker gave just before; it
-        // has no max level (the owner's of 2026-10-26), the window's is
-        // only kept for the next open room (`room_remember`).
-        let door = match spec.pin {
-            false => Door::Open {
-                max_level: spec.max_level,
-            },
-            true => Door::Pin {
-                pin: self
-                    .rooms
-                    .take_pin(who.account_id, now)
-                    .ok_or(Refused::Bad)?,
-                bots,
-            },
-        };
         let gear = matchmaking::gear_level(&who.account.locked(), quests::now());
-        let rng = &mut self.rng;
-        let key = self.rooms.create(
-            who.account_id,
-            gear,
-            Spec {
-                size: spec.size,
-                wait: spec.wait,
-                door,
-                min_players: 2 * spec.min_side,
-            },
-            &entries,
-            &default,
-            &self.settings.pvb.bot_maps,
-            self.settings.rooms.max_rooms,
-            now,
-            &mut |bound| rng.below(bound as u32) as usize,
-        )?;
-        let (pool, size) = self
-            .rooms
-            .get(key)
-            .map_or((0, 0), |room| (room.pool.len(), room.spec.size));
-        if spec.pin {
+        let key = match made {
+            Made::Before { bots } => {
+                let entries: Vec<maps::MapId> = self
+                    .room_entries()
+                    .iter()
+                    .map(|entry| entry.map_id)
+                    .collect();
+                // The whole pool but the experimental maps: the match pool,
+                // Blackout's maps with it (the owner's of 2026-10-25: Blackout
+                // is part of the standard pool).
+                let default: Vec<maps::MapId> = self
+                    .room_entries()
+                    .iter()
+                    .filter(|entry| !entry.extra)
+                    .map(|entry| entry.map_id)
+                    .collect();
+                // A room with a PIN asks for the one its maker gave just before; it
+                // has no max level (the owner's of 2026-10-26), the window's is
+                // only kept for the next open room (`room_remember`).
+                let door = match spec.pin {
+                    false => Door::Open {
+                        max_level: spec.max_level,
+                    },
+                    true => Door::Pin {
+                        pin: self
+                            .rooms
+                            .take_pin(who.account_id, now)
+                            .ok_or(Refused::Bad)?,
+                        bots,
+                    },
+                };
+                let rng = &mut self.rng;
+                self.rooms.create(
+                    who.account_id,
+                    gear,
+                    Spec {
+                        size: spec.size,
+                        wait: spec.wait,
+                        door,
+                        min_players: 2 * spec.min_side,
+                    },
+                    &entries,
+                    &default,
+                    &self.settings.pvb.bot_maps,
+                    self.settings.rooms.max_rooms,
+                    now,
+                    &mut |bound| rng.below(bound as u32) as usize,
+                )?
+            }
+            Made::InRequest { door, pool } => {
+                let rng = &mut self.rng;
+                self.rooms.create_with_pool(
+                    who.account_id,
+                    gear,
+                    Spec {
+                        size: spec.size,
+                        wait: spec.wait,
+                        door,
+                        min_players: 2 * spec.min_side,
+                    },
+                    pool,
+                    &self.settings.pvb.bot_maps,
+                    self.settings.rooms.max_rooms,
+                    &mut |bound| rng.below(bound as u32) as usize,
+                )?
+            }
+        };
+        let (pool, size, door) = match self.rooms.get(key) {
+            Some(room) => (room.pool.len(), room.spec.size, room.spec.door),
+            None => return Ok(key),
+        };
+        if let Door::Pin { bots, .. } = door {
             log::info!(
                 "{}: made room {key}: private (PIN){}, {} v {}, started by its owner, any \
                  equipment, {pool} maps",
@@ -943,19 +1052,24 @@ impl Core<'_> {
 
     /// A room made by hand: its settings are its maker's create window's
     /// start from now on, kept with the account (the owner's of
-    /// 2026-10-20). Not its PIN. A room Play makes keeps nothing. The
-    /// settings as the window sent them (`spec`): a private room's size and
-    /// players to start are not its own (it has none), but the window's,
-    /// kept for its next open room.
+    /// 2026-10-20), its PIN too (2026-11-19: pretyped). A room Play makes
+    /// keeps nothing. The settings as the window sent them (`spec`): a
+    /// private room's size and players to start are not its own (it has
+    /// none), but the window's, kept for its next open room.
     fn room_remember(&self, who: &Who, key: u32, spec: RoomSpec) {
         let Some(room) = self.rooms.get(key) else {
             return;
+        };
+        let pin = match room.spec.door {
+            Door::Pin { pin, .. } => Some(pin),
+            Door::Open { .. } => None,
         };
         let settings = RoomSettings::of_room(
             spec.size,
             spec.min_side,
             spec.max_level,
             spec.wait,
+            pin,
             &room.pool,
             &self.room_entries(),
         );
@@ -1122,7 +1236,7 @@ impl Core<'_> {
                 pin: false,
                 min_side: wire::rules().default.min_side,
             },
-            false,
+            Made::Before { bots: false },
             now,
         )?;
         Ok(key)
@@ -1572,7 +1686,7 @@ impl Core<'_> {
                     Stage::InMatch { .. } => room.last,
                     _ => room.leading(),
                 };
-                let map_id = shown.map_or(0, |played| played.map().id);
+                let map_id = shown.map(|played| played.map().id);
                 RoomRow {
                     key: room.key,
                     level: self.room_level(room),
@@ -1802,7 +1916,7 @@ impl Core<'_> {
     /// the room, as by Leave: it may join again, and while the match is
     /// played it goes into it again as a new place (the owner's of
     /// 2026-10-19).
-    fn room_left_matches(&mut self) {
+    pub(super) fn room_left_matches(&mut self) {
         for (match_id, account_id) in self.store.matchmaking().take_left() {
             let left = self.rooms.of(account_id).is_some_and(|room| {
                 matches!(room.stage, Stage::InMatch { match_id: id, .. } if id == match_id)
@@ -1887,7 +2001,7 @@ impl Core<'_> {
 
     /// The member's link if it is free in the lobby: its game told its
     /// room, in no match, not on its way to one.
-    fn room_free(&self, account_id: u32) -> Option<SocketAddr> {
+    fn room_free(&self, account_id: u32) -> Option<Peer> {
         // Its game started anew and does not know of the room yet.
         if self.room_unseen.contains_key(&account_id) {
             return None;
@@ -2577,7 +2691,7 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.max_rooms, wire::rules().rooms_most);
         assert_eq!(parse_extra(""), Some(vec![]));
-        assert_eq!(parse_extra("61, 117"), Some(vec![61, 117]));
+        assert_eq!(parse_extra("61, 117"), Some(vec![maps::MapId::new(61), maps::MapId::new(117)]));
         // 107: level_08 night, which has no project.
         assert_eq!(parse_extra("107"), None);
         assert_eq!(parse_extra("x"), None);
