@@ -901,6 +901,20 @@ fn build(
                                 );
                             }
                         }
+                        // [give-back ids] A log's only: per link table the passes before the wall give-back made (the walk check's
+                        // marked and crouched walks, the risers' presses, the lips, the drops' landing speeds), its entries, how many
+                        // the give-back moved to new ids, and how many name no link after it (the final grid drops those).
+                        let t = stats.give_back_tables;
+                        let ids = |t: mapdata::grid::TableIds| format!("{}/{}/{}", t.entries, t.moved, t.not_links);
+                        log::info!(
+                            "Bot map {} link tables after the wall give-back (entries/moved/naming no link): marked {}, crouched {}, risers {}, lips {}, landing speeds {}",
+                            path.display(),
+                            ids(t.marked),
+                            ids(t.crouched),
+                            ids(t.risers),
+                            ids(t.lips),
+                            ids(t.drop_speeds)
+                        );
                         // [item 2] Each held floor's drop a steep landing closes for a full pool: its take-off, the point the
                         // walk aimed at and its landing (what re-walks it from data), and its landings' speeds, all of them and
                         // on walkable ground alone. A log's only.

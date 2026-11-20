@@ -83,6 +83,7 @@ pub mod plays;
 pub mod pockets;
 pub mod pools;
 pub mod precise;
+pub mod press_plan;
 pub mod protection;
 pub mod push;
 pub mod recoil;
@@ -499,6 +500,9 @@ pub struct Bot {
     /// [A388 step 2b] Its own reckoned body's kept controller at its last decided tick ([`body::Estimate::kept`]), which the lip
     /// guard's forecast starts from; set before each drive.
     reckoned_kept: Option<body::KeptBody>,
+    /// [press forecast] Its own reckoned body before this tick's decision and its speed level ([`body::BodyTrack::level`]): what
+    /// the motor's forecast presses fly from (`motor::PressFlyer`).
+    reckoned: Option<(body::Estimate, f32)>,
     /// [F42] Its own reckoned body's crouch selector state at its last decided tick ([`body::Creep`]), for the steady creep
     /// ([`drive::steady_creep`]); set before each drive.
     reckoned_creep: body::Creep,
@@ -737,6 +741,7 @@ impl Bot {
             crouch_climb: None,
             creep: None,
             reckoned_kept: None,
+            reckoned: None,
             reckoned_creep: body::Creep::Unknown,
             nav_log: nav_log::NavLog::default(),
             view: view_schedule::View::default(),
@@ -2646,15 +2651,20 @@ impl Bots {
         // time a step took.
         let (steps, ns) = body::kept_clock::take(body::kept_clock::Of::Reckoning);
         let (forecast_steps, forecast_ns) = body::kept_clock::take(body::kept_clock::Of::Forecast);
+        // [press forecast] Its ground chains and flights (`body::press_forecast`), last on the line so the parts before keep their place.
+        let (press_steps, press_ns) = body::kept_clock::take(body::kept_clock::Of::Press);
+        let (chains, flights) = motor::press_casts::take_match();
         let (left, ground, held) = body::kept_edges::take();
         lines.push(format!(
-            "{}kept controller steps since the last match end (every match on this server): the reckoning's {steps}, {} ns a step, {:.1} ms in all; the lip guard forecast's {forecast_steps}, {} ns a step, {:.1} ms in all; the reckoning's off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
+            "{}kept controller steps since the last match end (every match on this server): the reckoning's {steps}, {} ns a step, {:.1} ms in all; the lip guard forecast's {forecast_steps}, {} ns a step, {:.1} ms in all; the reckoning's off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}; the press forecast's {press_steps}, {} ns a step, {:.1} ms in all, in {chains} chains and {flights} flights",
             nav_log::PREFIX,
             ns.checked_div(steps).unwrap_or(0),
             ns as f64 / 1e6,
             forecast_ns.checked_div(forecast_steps).unwrap_or(0),
             forecast_ns as f64 / 1e6,
-            left + ground + held
+            left + ground + held,
+            press_ns.checked_div(press_steps).unwrap_or(0),
+            press_ns as f64 / 1e6
         ));
         // [A388 step 3] The reckoning's jump presses by what flew them, and how the client's flights ended.
         let [short, sprint, not_forward, landed, falling] = body::flown_jumps::take();

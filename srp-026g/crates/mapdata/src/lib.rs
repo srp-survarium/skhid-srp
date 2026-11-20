@@ -273,7 +273,9 @@ pub const WALK_FACE_STANDS_ALGO: u32 = 0x5389_0302;
 /// 0108: the own-point stand test (`rest_floors::settle_near`: a standing body put on the floor's own point, no push out of the
 /// walls, and 0.05-0.10 m around it where it jams there; a body jammed in faces is no rest), the exe's class on 52 of 53 floors.
 /// 0109: the test body's downward speed given once, at the put (as the game's, `can_skip_player_step` 0x7C7E0).
-pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0109;
+/// 0110: [give-back ids] the per-link tables made before the give-back (the walk check's marked and crouched walks, the risers'
+/// presses, the held floors' drops, the lips, the drops' landing speeds) follow the floors' new ids.
+pub const WALL_GIVE_BACK_ALGO: u32 = 0x5318_0110;
 /// The same for the walk-tick passes with the exe's collision rules ([`Body::exe_collision`], A325), in
 /// [`grid_key_with_links`] only for a body that asks for it. A value of its own.
 pub const EXE_COLLISION_ALGO: u32 = 0x5325_0101;

@@ -2711,6 +2711,12 @@ pub(crate) fn real_bot_cost() {
                 crate::v026g::bots::motor::press_waits::count(),
                 crate::v026g::bots::motor::press_waits::blocked_count()
             );
+            // [press forecast] The forecast presses' events (`Feel::press_forecast`), slot by slot.
+            {
+                use crate::v026g::bots::motor::press_casts;
+                let slots: Vec<String> = press_casts::SLOTS.iter().map(|&slot| format!("{slot:?} {}", press_casts::get(slot))).collect();
+                eprintln!("press forecasts so far: {}", slots.join(", "));
+            }
             // [drop give-ups] Ticks the lip guard left to the route's own walk-off.
             eprintln!("walk-off guard so far: ticks left to the route's walk-off {}", crate::v026g::bots::drive::walk_off_guards::count());
             // [A416] The view schedule.

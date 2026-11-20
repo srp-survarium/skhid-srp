@@ -364,6 +364,7 @@ pub(super) fn choose_step(
 
 /// One drive tick: the bot's stamina reckoning follows the keys of its last decision ([`stamina`]); with
 /// `think.stamina` the motor is told the bar and a jump the bar cannot pay is not pressed.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn drive_tick(
     bot: &mut Bot,
     me: &PlaceView,
@@ -372,6 +373,7 @@ pub(super) fn drive_tick(
     tuning: &Tuning,
     time: u32,
     searching: &mut Searching,
+    press: &mut body::PressMatch,
 ) -> Decision {
     // [A364 P10] The bar is spent only in the sprint state: its own reload refuses it (`can_sprint`).
     let reloading = bot.reflex.reload_note().is_some_and(|reload| reload.at <= time && time < reload.until);
@@ -381,7 +383,7 @@ pub(super) fn drive_tick(
     bot.motor.carrying = tuning.feel.carry_jumps && bot.carry.holds(time);
     // [S6] The closed drops of this bot's searches only.
     drop(mapdata::take_falls_closed());
-    let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching);
+    let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching, press);
     log_falls_closed(bot, &tactics.world.grid, time);
     // The motor turned the view's elevation; the input carries the game's pitch unit (`pitch.rs`).
     decision.turn.1 = Pitch::view(me.pitch, bot.reflex.kick_before()).turn_for(tuning.kin.pitch_scale, decision.turn.1);
@@ -523,6 +525,43 @@ pub(super) fn crouch_climb_watch(bot: &mut Bot, me: &PlaceView, keys: u32, time:
     bot.crouch_climb = ahead.map(|(take_off, top)| (take_off, top, time));
 }
 
+/// [press forecast] The motor's body model for a route jump's press (`motor::PressFlyer`): the bot's reckoned body, the grid with
+/// the client's walker, and the match's (`body::PressMatch`): the poll's one forecast and the links learned.
+struct PressFlyer<'a> {
+    body: Option<body::Estimate>,
+    world: Option<body::PressWorld<'a>>,
+    press: &'a mut body::PressMatch,
+}
+
+impl motor::PressFlyer for PressFlyer<'_> {
+    fn ready(&self) -> bool {
+        self.body.is_some() && self.world.is_some()
+    }
+
+    fn body(&self) -> Option<body::Estimate> {
+        self.body
+    }
+
+    fn chain(&mut self, from: &body::Estimate, keys: u32, ticks: u32) -> Option<Vec<body::Estimate>> {
+        let world = self.world?;
+        self.press.token.take().then(|| body::press_chain(from, keys, ticks, &world))
+    }
+
+    fn learned(&self, take_off: mapdata::Vec3, landing: mapdata::Vec3, cap: f32) -> body::LinkLearned {
+        self.press.learned.get(take_off, landing, cap)
+    }
+
+    fn learn(&mut self, take_off: mapdata::Vec3, landing: mapdata::Vec3, cap: f32, learn: &mut dyn FnMut(&mut body::LinkLearned)) {
+        self.press.learned.learn(take_off, landing, cap, learn);
+    }
+
+    fn fly(&mut self, from: &body::Estimate, plan: &body::PressPlan) -> Option<body::PressOutcome> {
+        let world = self.world?;
+        self.press.token.take().then(|| body::press_forecast(from, plan, &world))
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn drive_tick_inner(
     bot: &mut Bot,
     me: &PlaceView,
@@ -531,6 +570,7 @@ fn drive_tick_inner(
     tuning: &Tuning,
     time: u32,
     searching: &mut Searching,
+    press: &mut body::PressMatch,
 ) -> Decision {
     // [recoil] The weapon's update first, as the client's; the view is the
     // base pitch and the kick the last tick left (the reflex takes back
@@ -2065,6 +2105,16 @@ fn drive_tick_inner(
                         }
                         None => None,
                     };
+                    // [press forecast] The body model the motor asks when to press a route jump (`Feel::press_forecast`).
+                    let mut flyer = PressFlyer {
+                        body: bot.reckoned.map(|(at, _)| at),
+                        world: bot.reckoned.filter(|_| tactics.world.grid.has_client_walker()).map(|(_, level)| body::PressWorld {
+                            kin: &tuning.kin,
+                            level,
+                            grid: &tactics.world.grid,
+                        }),
+                        press,
+                    };
                     let (decision, walked) = match aim {
                         Some(aim) => {
                             walking_aimed = true;
@@ -2085,9 +2135,9 @@ fn drive_tick_inner(
                                     Some(node) if (grid.position(node).y - target.y).abs() >= LANE_FLOOR_M => Err(apart::Unsafe::OtherFloor),
                                     Some(_) => Ok(()),
                                 };
-                                bot.motor.walk_in_lane(route, &pose, OFF_ROUTE_M, clear, Some(motor::LaneAim { offset_m, body, safe: &safe }))
+                                bot.motor.walk_with(route, &pose, OFF_ROUTE_M, clear, Some(motor::LaneAim { offset_m, body, safe: &safe }), Some(&mut flyer))
                             }
-                            None => bot.motor.walk(route, &pose, OFF_ROUTE_M, clear),
+                            None => bot.motor.walk_with(route, &pose, OFF_ROUTE_M, clear, None, Some(&mut flyer)),
                         },
                     };
                     #[cfg(test)]
@@ -2101,6 +2151,10 @@ fn drive_tick_inner(
                     // [item 10] A held sprint's walk that ended: where the held steps left the body (decision-neutral).
                     if let Some(line) = bot.motor.take_held_line() {
                         bot.nav_log.push(super::nav_log::Kind::Jump, time, line);
+                    }
+                    // [press forecast] A forecast press made, or a try it spent, with its reason (decision-neutral).
+                    if let Some(line) = bot.motor.take_cast_line() {
+                        bot.nav_log.push(super::nav_log::Kind::Press, time, line);
                     }
                     // Pressing against something while walking the route: counted, nothing is decided from it.
                     let counted = bot.contact.tick(time, walks_the_route && walked == Walked::OnTheWay, decision.keys, me.speed());
@@ -3369,6 +3423,32 @@ fn lip_ok_of<'a>(bot: &mut Bot, me: &'a PlaceView, tactics: &'a Tactics, tuning:
     }
 }
 
+/// [fix-lip] A take-off this near the feet (across) is the route's own for the guard's take-off note.
+const TAKE_OFF_NOTE_M: f32 = 2.0;
+
+/// [fix-lip] The take-off of a jump or drop link of the route's leg the body is on or the next, within [`TAKE_OFF_NOTE_M`] across
+/// of `feet`: the link's word and its take-off (the nearest).
+fn take_off_near(route: &super::path::Route, feet: Vec3) -> Option<(&'static str, Vec3)> {
+    use super::path::{DropTruth, Leap};
+    let points = route.points();
+    let drops = route.drop_landings(route.walked(), route.length(), DropTruth::Links);
+    (route.segment() + 1..points.len())
+        .take(2)
+        .filter_map(|k| {
+            let word = match points[k].jump {
+                Some(Leap::Ledge) => "ledge",
+                Some(Leap::SprintLedge) => "sprint-ledge",
+                Some(Leap::Gap(_)) => "gap",
+                Some(Leap::SprintGap(_)) => "sprint-gap",
+                None if drops.contains(&points[k].at) => "drop",
+                None => return None,
+            };
+            let take_off = points[k - 1].at;
+            (take_off.distance_xz(feet) <= TAKE_OFF_NOTE_M).then_some((word, take_off))
+        })
+        .min_by(|a, b| a.1.distance_xz(feet).total_cmp(&b.1.distance_xz(feet)))
+}
+
 /// [`lip_guard_with`] on the tick's decision.
 fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, time: u32) {
     #[cfg(test)]
@@ -3379,8 +3459,36 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     if bot.motor.feel.lip_guard_ticks == 0 {
         return;
     }
-    // A jump (the route's, a hop) goes off the floor on purpose; [A1b] so does a body let go at a walk-off's release.
-    if decision.keys & key::JUMP != 0 || bot.motor.lining_up() || bot.motor.letting_go() {
+    // A jump (the route's, a hop) goes off the floor on purpose; [A1b] so does a body let go at a walk-off's release. [press forecast]
+    // A body the press forecast stops (no press from this walk-in: it coasts up to `motor::let_go_travel_m` on) is judged as any.
+    // [press forecast] A forecast press in its flight is left too (`Motor::press_flight`): the forecast flew it to its landing.
+    if decision.keys & key::JUMP != 0
+        || (bot.motor.lining_up() && !bot.motor.press_stops())
+        || bot.motor.letting_go()
+        || bot.motor.press_flight()
+    {
+        let rule = if decision.keys & key::JUMP != 0 {
+            "jump pressed"
+        } else if bot.motor.press_flight() {
+            "the forecast's press in its flight"
+        } else if bot.motor.lining_up() {
+            "lining up"
+        } else {
+            "walk-off let go"
+        };
+        take_off_note(bot, me, tactics, tuning, decision, time, "left", rule, None);
+        #[cfg(test)]
+        {
+            bot.bench_guard = 5;
+        }
+        return;
+    }
+    // [fix-lip] A route jump carried through its clip (`jump_carry`, `Feel::carry_jumps`): the carry has the last word on the tick's
+    // keys (forward and the sprint as pressed, `JumpCarry::hold`, applied after this guard in `drive_tick`), so a brake or a swap here
+    // changed no key the client got. It only wrote a "braked" line (the spot suite counted it as the start's error) and fed the
+    // give-up watch (`LipWatch`) a held tick for each tick of the flight, which could leave the guard given up after the landing.
+    if bot.motor.carrying {
+        take_off_note(bot, me, tactics, tuning, decision, time, "left", "carried jump", None);
         #[cfg(test)]
         {
             bot.bench_guard = 5;
@@ -3427,6 +3535,7 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         },
     );
     if own_walk_off {
+        take_off_note(bot, me, tactics, tuning, decision, time, "left", "the route's own walk-off", None);
         walk_off_guards::left();
         #[cfg(test)]
         {
@@ -3525,9 +3634,35 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
             motor::counts::guard_from(from, GUARD_FLOOR.get());
         }
     }
-    if let LipGuard::Swapped(keys) | LipGuard::Braked(keys) = guard {
-        decision.keys = keys;
+    if let LipGuard::Swapped(to) | LipGuard::Braked(to) = guard {
+        let verdict = if matches!(guard, LipGuard::Braked(_)) { "braked" } else { "swapped" };
+        take_off_note(bot, me, tactics, tuning, decision, time, verdict, "the stop forecast falls", Some(to));
+        decision.keys = to;
     }
+}
+
+/// [fix-lip] The guard's word near a take-off of the route's own jump or drop links ([`take_off_near`]), for the log
+/// ([`super::nav_log::take_off_line`], [`super::nav_log::Kind::TakeOff`]): `verdict` and `rule`, and the stop forecast of the tick's keys
+/// (made only when the line is due: at most one a bot per [`super::nav_log::EVERY_MS`], [`super::nav_log::MAX_PER_KIND`] a match;
+/// played with no planned landing, so it shows where the keys would take the body). `to`: the keys the guard put instead.
+/// Decision-neutral.
+#[allow(clippy::too_many_arguments)]
+fn take_off_note(bot: &mut Bot, me: &PlaceView, tactics: &Tactics, tuning: &Tuning, decision: &Decision, time: u32, verdict: &str, rule: &str, to: Option<u32>) {
+    use super::nav_log::Kind;
+    let Some((link, take_off)) = bot.route.as_ref().and_then(|(route, _)| take_off_near(route, me.feet)) else {
+        return;
+    };
+    if !bot.nav_log.due(Kind::TakeOff, time) {
+        bot.nav_log.push(Kind::TakeOff, time, String::new());
+        return;
+    }
+    let grid = &tactics.world.grid;
+    let at = body::Estimate { kept: bot.reckoned_kept, ..body::Estimate::of_view(me, grid.locate(me.feet, 1.5)) };
+    let stop = body::Stop { kin: &tuning.kin, level: 1.0, grid, planned: &[], hold: bot.motor.feel.lip_guard_ticks };
+    let end = body::stop_path(&at, decision.keys, decision.turn.0, &stop).last().copied();
+    let air = bot.footing == motor::Footing::Air;
+    let line = super::nav_log::take_off_line(verdict, rule, me.feet, link, take_off, end, bot.motor.carrying, air, decision.keys, to.unwrap_or(decision.keys));
+    bot.nav_log.push(Kind::TakeOff, time, line);
 }
 
 /// A walk's keys with the side step `strafe` woven in: a walk straight to
@@ -4167,6 +4302,48 @@ mod tests {
         bot.unstick = Some((key::FORWARD, 10));
         let d = unstick_replay(&mut bot, &me, &tactics, &tuning, 1_100).expect("a replay tick");
         assert_ne!(d.keys & key::FORWARD, 0, "{:#x}", d.keys);
+    }
+
+    /// [fix-lip] The guard leaves a carried route jump (the carry's keys are the client's, `JumpCarry::hold`); the same walk at the
+    /// same rim, not carried, is still held.
+    #[test]
+    fn the_guard_leaves_a_carried_jump() {
+        let world = slab();
+        let tactics = crate::v026g::bots::tactics::Tactics::new(world.clone(), 1.0);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let toward = -std::f32::consts::FRAC_PI_2; // facing +x, the rim at x = 56
+        let me = on_the_slab(55.4, toward, 3.5);
+        let guarded = |bot: &mut Bot| {
+            let mut decision = Decision { keys: key::FORWARD, turn: (0.0, 0.0) };
+            guard_keys(bot, &mut decision, &me, &tactics, &tuning, 1_000);
+            decision.keys
+        };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        assert!(bot.motor.feel.lip_guard_ticks > 0, "the guard is on");
+        assert_ne!(guarded(&mut bot), key::FORWARD, "on the ground the walk over the rim is held");
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.motor.carrying = true;
+        assert_eq!(guarded(&mut bot), key::FORWARD, "a carried jump");
+    }
+
+    /// [press forecast] The guard leaves a forecast press in its flight (`Motor::press_flight`): the same walk at the same rim, out
+    /// of it, is still held.
+    #[test]
+    fn the_guard_leaves_a_forecast_press_in_its_flight() {
+        let world = slab();
+        let tactics = crate::v026g::bots::tactics::Tactics::new(world.clone(), 1.0);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let me = on_the_slab(55.4, -std::f32::consts::FRAC_PI_2, 3.5);
+        let guarded = |bot: &mut Bot| {
+            let mut decision = Decision { keys: key::FORWARD, turn: (0.0, 0.0) };
+            guard_keys(bot, &mut decision, &me, &tactics, &tuning, 1_000);
+            decision.keys
+        };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        assert_ne!(guarded(&mut bot), key::FORWARD, "on the ground the walk over the rim is held");
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.motor.test_press_flight();
+        assert_eq!(guarded(&mut bot), key::FORWARD, "a forecast press in its flight");
     }
 
     /// [`kin::Edge::ClientWalksOff`] (A269): a slab 6 m over the field, deeper than the harmless drop, so no link leaves its rim and

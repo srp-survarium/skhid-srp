@@ -281,6 +281,23 @@ pub fn guard_line(verdict: &str, feet: Vec3, keys: u32, to: Option<u32>, speed: 
     format!("{PREFIX}lip guard {verdict} at {}, keys {keys:#x} to {to}, speed {speed:.2} m/s, {edge}", at(feet))
 }
 
+/// [fix-lip] The lip guard's word near a take-off: `nav: lip guard near a take-off: <verdict> (<rule>) at (..), <link> take-off (..)
+/// D m across, stop (..) | no stop forecast, carried yes|no, air yes|no, keys K to K2`. `stop`: where the guard's stop forecast of the
+/// tick's keys left the feet (none when the rule left the keys before any forecast).
+#[allow(clippy::too_many_arguments)]
+pub fn take_off_line(verdict: &str, rule: &str, feet: Vec3, link: &str, take_off: Vec3, stop: Option<Vec3>, carried: bool, air: bool, keys: u32, to: u32) -> String {
+    let yes = |b: bool| if b { "yes" } else { "no" };
+    let stop = stop.map_or("no stop forecast".to_string(), |p| format!("stop {}", at(p)));
+    format!(
+        "{PREFIX}lip guard near a take-off: {verdict} ({rule}) at {}, {link} take-off {} {:.2} m across, {stop}, carried {}, air {}, keys {keys:#x} to {to:#x}",
+        at(feet),
+        at(take_off),
+        take_off.distance_xz(feet),
+        yes(carried),
+        yes(air)
+    )
+}
+
 /// [owner-5 R4] The landings of `route`'s drops: its planner's Drop links ([`super::path::DropTruth::Links`]) and its gap
 /// jumps down (a landing a lip's height or more under the take-off).
 fn route_drops(route: &super::path::Route) -> Vec<Vec3> {
@@ -358,10 +375,16 @@ pub enum Kind {
     WalkOff,
     /// [take.known_threats] A take within reach waiting for a man known by its battery (`plays/collect.rs` `take`).
     Take,
+    /// [fix-lip] The lip guard's word near a take-off of the route's own jump or drop links: braked, swapped or left to the link,
+    /// and why (`drive.rs` `guard_keys`, [`take_off_line`]).
+    TakeOff,
+    /// [press forecast] A route jump's try under the press forecast: its press (followed to its rest) or the try spent, with every
+    /// plan's verdicts (`motor.rs` `Motor::take_cast_line`). Not capped: one line a try, and a link has three.
+    Press,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 15;
+const KINDS: usize = 17;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -384,8 +407,15 @@ impl NavLog {
     /// A line of `kind` at `time`: kept for the next poll, or held back (counted) within [`EVERY_MS`] of the last one. The
     /// owner-5 kinds also stop at [`MAX_PER_KIND`] a match.
     pub fn push(&mut self, kind: Kind, time: u32, text: String) {
-        let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift);
+        let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift | Kind::Press);
         if capped && self.written[kind as usize] >= MAX_PER_KIND {
+            return;
+        }
+        // [press forecast] A try's lines (spent, pressed, landed) can come within the limit of each other; each is the try's own,
+        // and a link has three tries: none is held.
+        if kind == Kind::Press {
+            self.written[kind as usize] += 1;
+            self.pending.push((time, text));
             return;
         }
         let slot = &mut self.last[kind as usize];
@@ -399,6 +429,13 @@ impl NavLog {
                 self.pending.push((time, text));
             }
         }
+    }
+
+    /// [fix-lip] Whether a line of `kind` at `time` would be written now ([`Self::push`]'s limits): a line costly to make is made only
+    /// then; one not due is still counted held by [`Self::push`] (its text unused).
+    pub fn due(&self, kind: Kind, time: u32) -> bool {
+        let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift);
+        !(capped && self.written[kind as usize] >= MAX_PER_KIND) && !matches!(self.last[kind as usize], Some((at, _)) if time < at + EVERY_MS)
     }
 
     /// [owner-5] A line of `kind` for the decision `key` (a hash of what the line is about and its verdict): written the first
