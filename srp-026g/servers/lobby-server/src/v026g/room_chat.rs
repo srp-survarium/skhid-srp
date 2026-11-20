@@ -30,7 +30,7 @@
 //!   room gone, its chat is gone.
 
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 
 use session::v026g::rooms::ChatLine;
 use survarium::v026g::lobby::{self, ServerMessage, channel, sender};
@@ -55,7 +55,7 @@ fn message(line: &ChatLine, body: &str) -> ServerMessage {
 impl Core<'_> {
     /// The links of room `key`'s members whose tab is up, with their
     /// accounts; none in a match.
-    fn room_listeners(&self, key: u32) -> Vec<(SocketAddr, u32)> {
+    fn room_listeners(&self, key: u32) -> Vec<(Peer, u32)> {
         self.players()
             .into_iter()
             .filter_map(|addr| {

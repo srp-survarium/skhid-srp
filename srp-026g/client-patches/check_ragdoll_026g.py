@@ -17,14 +17,16 @@ read; 0x24781E when it is 0), 0x24757C (the cull) and 0x247716 (the
 bones), update_camera 0x1F3643 (the eye), bullet::
 check_collision 0x32D627 (a bullet's ray; the original's code at the same
 site runs too, from the original exe, for the same state). The step reaches the
-places through the game's own network client code (match_options 0x219990,
-get_active_player 0x27A9C0 and active_player_ptr 0x2D0AB0, from the client's
-vtable 0x9FFB14) on a made-up client, world core and match options; the
+places through the game's own virtual methods: live-client vtable 0x9FFB14
+(match_options 0x219990, get_active_player 0x27A9C0), and replay vtable
+0x9FF344 (0x2189E0, 0x26D6A0). Both use active_player_ptr 0x2D0AB0 on a
+made-up world core. Replay tests poison the live-layout fields with both
+crash reports' values and also leave their page unmapped; the
 players are made up with the fields the step reads (ragdoll.md section 8),
 their skeleton is scavengers_01 in the cook's order (ragdoll.md section 8,
 `add_bone` 0x3ACDA0), the bones a standing body. Stubs: ray_test (0x75E20,
 a walker floor at y = 0 and the hittable floor 4 cm over it, as Rudnya's
-collision over its walker mesh; the filter checked: group 434h, mask 20Ah,
+collision over its walker mesh; the filter checked: group 414h, mask 20Ah,
 no delegate: the level's two collisions and the batteries), QueryPerformanceCounter / -Frequency (60
 frames a second), GetCurrentThreadId (the patches' lock: one thread),
 and the bullet manager's play_particle (0x3223E0) and
@@ -49,9 +51,10 @@ Checked:
   life) starts from the clip again;
 - a skeleton that is not ours (a bone missing) gets no ragdoll;
 - the ragdoll falls onto the floor and settles there, on the hittable
-  floor over the walker one, through the grenades' and the players' slabs
-  (their groups and masks the game's: the filter meets neither); the level
-  is read only through ray_test with the level's filter;
+  floor over the walker one, through the grenades', the players' and the
+  bushes' slabs (their groups and masks the game's and the STALKER maps'
+  bushes' 8/20h: the filter meets none); the level is read only through
+  ray_test with the level's filter;
 - a bullet's ray: the build's hook does the original's two moves (the same
   registers, frame and XMM0 as the original exe's code from the same
   state) and changes no byte of the bullet, its result or the frame; with
@@ -100,7 +103,7 @@ RAY_TEST, QPC_SLOT, QPF_SLOT, THREAD_SLOT = 0x75E20, 0x870158, 0x870150, 0x87011
 CREATE_FILE_SLOT, WRITE_FILE_SLOT, USER_DATA = 0x870048, 0x870108, 0x18BD0
 CHANGE_TRAJECTORY = 0x32EE20
 PLAY_PARTICLE, PLAY_SOUND = 0x3223E0, 0x3222F0
-CLIENT_VTABLE = 0x9FFB14
+CLIENT_VTABLE, REPLAY_CLIENT_VTABLE = 0x9FFB14, 0x9FF344
 HITTABLE_FLOOR = 0.04                         # the collision bullets hit, over the walker floor at 0
 ZF = 1 << 6
 
@@ -173,7 +176,7 @@ def matrix(position, turn=0.0):
 
 
 class Game:
-    def __init__(self, data):
+    def __init__(self, data, client_vtable=CLIENT_VTABLE):
         self.emu = emu = Uc(UC_ARCH_X86, UC_MODE_32)
         for _, rva, vsize, raw, rsize, _ in base.Headers(data).sections(data):
             start = base.IMAGE_BASE + rva
@@ -185,9 +188,10 @@ class Game:
         self.ticks, self.rays, self.hits = 0, [], {}
         # the level: its walker collision at y = 0 (cgroup 2, cmask 4) and the
         # collision bullets hit 4 cm over it (cgroup 8, cmask 16), as Rudnya's
-        # drawn ground over its walker mesh; a grenade's (818h/8) and a
-        # player's (824h/3) slabs where the body falls, which it must not meet;
-        # and batteries lying around x = 20 (a slab 0.3 m high
+        # drawn ground over its walker mesh; a grenade's (818h/8), a
+        # player's (824h/3) and a bush's (cgroup 8 / cmask 20h, what a step's
+        # ray alone meets: stalker-maps.md) slabs where the body falls, which
+        # it must not meet; and batteries lying around x = 20 (a slab 0.3 m high
         # with a gap where the player stands: group 0A18h, mask 418h,
         # victory_item_core 0x301CB0)
         near = lambda p: abs(p[0]) < 5 and abs(p[2]) < 5
@@ -195,6 +199,7 @@ class Game:
                         ("hittable floor", (0x08, 0x10), HITTABLE_FLOOR, lambda p: True),
                         ("grenade", (0x818, 0x08), 0.3, near),
                         ("player", (0x824, 0x03), 0.5, near),
+                        ("bush", (0x08, 0x20), 0.4, near),
                         ("battery", (0xA18, 0x418), 0.3,
                          lambda p: 18 <= p[0] <= 22 and -2 <= p[2] <= 2
                          and not (19.6 < p[0] < 20.4 and -0.4 < p[2] < 0.5))]
@@ -219,6 +224,7 @@ class Game:
         emu.hook_add(UC_HOOK_CODE, self.write_file, begin=STUBS + 0x30, end=STUBS + 0x30)
         emu.hook_add(UC_HOOK_CODE, self.user_data, begin=USER_DATA, end=USER_DATA)
         emu.hook_add(UC_HOOK_CODE, self.ray_test, begin=RAY_TEST, end=RAY_TEST)
+        self.eye_rays = 0
         self.particles, self.sounds = [], []
         # update_skeleton (EDI the scene renderer; the instance, the bones
         # twice, the count; pops 16): records its arguments and the matrices
@@ -234,9 +240,15 @@ class Game:
         # the world, the game, the network client (the game's own vtable)
         self.u32(WORLD + 0x9C, GAME)
         self.u32(GAME + 0x53AC, CLIENT)
-        self.u32(CLIENT, CLIENT_VTABLE)
-        self.u32(CLIENT + 0x1F1C48, OPTIONS)
-        self.u32(CLIENT + 0x1F1C40, NC_CORE)
+        self.u32(CLIENT, client_vtable)
+        if client_vtable == REPLAY_CLIENT_VTABLE:
+            self.options = CLIENT + 0x1C
+            self.u32(CLIENT + 0x578BC, NC_CORE)
+        else:
+            assert client_vtable == CLIENT_VTABLE
+            self.options = OPTIONS + 0xC
+            self.u32(CLIENT + 0x1F1C48, OPTIONS)
+            self.u32(CLIENT + 0x1F1C40, NC_CORE)
         self.core = NC_CORE + 0x1F8
         # the skeleton: object_movement, then the cooked bones
         names = NAMES
@@ -302,7 +314,15 @@ class Game:
         length = struct.unpack("<f", emu.mem_read(esp + 16, 4))[0]
         group, mask, delegate, unflipped = (self.u32(esp + 20 + 4 * i) for i in range(4))
         assert emu.reg_read(UC_X86_REG_ECX) == PHYSICS, "ray_test on the player's physics world"
-        assert (group, mask, delegate) == (0x434, 0x20A, 0), f"the level's filter: {group:#x} {mask:#x} {delegate}"
+        if (group, mask, delegate) == (0x10, 0x8, 0):
+            # patch 158's eye ray at the same site (check_head_clearance_026g.py): nothing in its way
+            self.eye_rays += 1
+            emu.mem_write(result + 0x1C, struct.pack("<I", 0))
+            emu.reg_write(UC_X86_REG_EAX, result)
+            emu.reg_write(UC_X86_REG_ESP, esp + 4 + 32)
+            emu.reg_write(UC_X86_REG_EIP, ret)
+            return
+        assert (group, mask, delegate) == (0x414, 0x20A, 0), f"the level's filter: {group:#x} {mask:#x} {delegate}"
         o = self.floats(origin, 3)
         d = self.floats(direction, 3)
         assert abs(math.sqrt(sum(x * x for x in d)) - 1) < 1e-3, "a unit direction"
@@ -445,7 +465,7 @@ class Game:
         self.u32(self.core + 0x18458, PLACES_ARRAY)
         self.u32(self.core + 0x1845C, PLACES_ARRAY + 0x30 * count)
         self.u32(self.core + 0x18FD8, (1 << count) - 1)
-        self.u8(OPTIONS + 0xC + 0x577B5, count)
+        self.u8(self.options + 0x577B5, count)
         return player
 
     def set_alive(self, player, alive, spawned):
@@ -507,6 +527,20 @@ class Game:
         for reg, value in regs.items():
             assert out[reg] == value, f"on_cull changed register {reg}"
         return bool(out[UC_X86_REG_EFLAGS] & ZF)
+
+    def culled(self, player):
+        """mt_draw's cull of a player the game would cull (its model not seen, an item to switch
+        to at +12Ch): the hook leaves at 0x24781E, past the bones and past the held item's
+        on_culled_player_draw (0x247811), every register kept. A hook that does not leave so
+        runs on into the game's own cull, whose call of the held item (ESI, a mark) fails."""
+        self.u8(player + NOT_SEEN, 1)
+        self.emu.mem_write(player + 0x12C, struct.pack("<I", 1))
+        regs = {**self.MARKS, UC_X86_REG_EBX: player}
+        out = self.run(CULL_SITE, NO_BONES, regs)
+        self.emu.mem_write(player + 0x12C, struct.pack("<I", 0))
+        for reg, value in regs.items():
+            assert out[reg] == value, f"on_cull changed register {reg}"
+        return True
 
     def draw(self, player, turn=0.0):
         """mt_draw's bones: the game's standing pose in, the bones out."""
@@ -626,12 +660,19 @@ def main():
     check(rays > 0 and all(r[2] > 0 for r in game.rays), f"the level read through ray_test ({len(game.rays)} rays)")
     check(hip < 0.5 and min(lowest) > -0.12, f"the body fell onto the floor (the hip at {hip:.2f} m, the lowest "
           f"bone at {min(lowest):.2f} m)")
-    check(game.hits.get("hittable floor", 0) > 0 and not game.hits.get("grenade") and not game.hits.get("player"),
-          f"it fell onto the hittable floor, through the grenade's and the player's slabs ({game.hits})")
+    check(game.hits.get("hittable floor", 0) > 0
+          and not any(game.hits.get(slab) for slab in ("grenade", "player", "bush")),
+          f"it fell onto the hittable floor, through the grenade's, the player's and the bush's slabs ({game.hits})")
     settled = len(game.rays)
     for _ in range(10):
         game.step()
     check(len(game.rays) == settled, "a settled ragdoll asks the level nothing")
+    game.draw(a)
+    check(game.cull(a, 0) and not game.cull(a, 1),
+          "a settled corpse whose pose a draw gave: seen, the game draws it; not seen with nothing to switch to, "
+          "the cull is the game's")
+    check(game.culled(a), "not seen and the game would cull it: culled past the held item's on_culled_player_draw "
+          "(0x24781E), which would move its weapon to the player's root")
 
     # bullets through the settled corpse (bone 7 is Spin: the torso)
     lying = game.draw(a)[0]
@@ -862,8 +903,54 @@ def main():
     still = all(max(abs(a - b) for a, b in zip(m, n)) < 1e-5 for m, n in zip(frames[-1], frames[-2]))
     check(still and frames[0] != frames[-1] and min(m[13] for m in frames[-1]) > -0.2,
           f"held nothing, it falls and settles: the hip at {frames[-1][1][13]:.2f} m, the bones still")
+    check_replay(built)
     check_headwear(built)
     print("all checks passed")
+
+
+def check_replay(built):
+    """Real native dispatch from the built hook, including seek and exit states.
+
+    The replay client is smaller than the live client's +1F1C40h fields.
+    Nearby memory happened to hold 0 / 2 in the two revision-42 reports;
+    its accessibility must not matter. Do not stub either lookup.
+    """
+    for unrelated in (0, 2, None):
+        game = Game(built, REPLAY_CLIENT_VTABLE)
+        if unrelated is None:
+            game.emu.mem_unmap(CLIENT + 0x1F1000, 0x1000)
+        else:
+            game.u32(CLIENT + 0x1F1C40, unrelated)
+            game.u32(CLIENT + 0x1F1C48, unrelated)
+        first = game.add_player(0, 0.0, 0.0)
+        last = game.add_player(5, 10.0, 0.0)
+        # Sparse roster: the native lookup must also return no player for
+        # empty places, without leaking references or borrowing a stale out.
+        game.set_local(last)
+        game.step()
+        check(all(game.u32(p + REFS) == 1 for p in (first, last)),
+              f"replay start, unrelated live fields {unrelated}: players 0/5 and empty places, references balanced")
+        game.set_alive(last, False, 1000)
+        for _ in range(5):
+            game.step()
+            game.draw(last)
+        check(game.draw(last)[1] and not game.draw(first)[1],
+              "replay's own options and active-player methods find the dead player at place 5")
+        game.set_alive(last, True, 1000)
+        game.step()
+        check(not game.draw(last)[1] and game.eye(last) == last + EYE,
+              "a replay seek restoring the player alive clears the corpse and camera")
+        # Exit: the game no longer owns a network client. Re-enter the same
+        # replay afterwards; a later life must still get a ragdoll.
+        game.u32(GAME + 0x53AC, 0)
+        game.step()
+        game.u32(GAME + 0x53AC, CLIENT)
+        game.set_alive(last, False, 2000)
+        for _ in range(5):
+            game.step()
+            game.draw(last)
+        check(game.draw(last)[1] and all(game.u32(p + REFS) == 1 for p in (first, last)),
+              "replay exit/re-entry and a new death keep dispatch and references correct")
 
 
 def check_headwear(built):

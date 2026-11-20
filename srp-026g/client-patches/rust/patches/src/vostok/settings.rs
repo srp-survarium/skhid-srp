@@ -6,10 +6,11 @@
 
 use core::cell::UnsafeCell;
 use core::ffi::CStr;
+use core::marker::PhantomData;
 
 use super::context::Context;
 use super::hook::Thread;
-use super::ui::{TEXT_LIMIT, c_string, movie_of, string_argument};
+use super::ui::{Movie, TEXT_LIMIT, c_string, movie_of, string_argument};
 use crate::raw;
 
 /// Writes user.cfg now (game::save_user_config 0x1E9030, what the game does
@@ -17,6 +18,47 @@ use crate::raw;
 pub fn save_user_config(_: &Thread) {
     // SAFETY: the game's own save of every saved console variable.
     unsafe { raw::engine_save_user_config() }
+}
+
+// A file of the game's working folder (`binaries\x86`, where its certificate
+// and srp_patches.log are found too), by name: kernel32's CreateFileA,
+// CloseHandle and DeleteFileA through the exe's import slots, which the loader
+// filled before the game ran; NUL-terminated names.
+const OPEN_EXISTING: u32 = 3;
+const CREATE_ALWAYS: u32 = 2;
+const SHARE_ALL: u32 = 7;
+const NORMAL: u32 = 0x80;
+
+fn open(name: &CStr, access: u32, disposition: u32) -> bool {
+    let null = core::ptr::null_mut();
+    // SAFETY: see above; the handle is closed at once.
+    unsafe {
+        let file = (raw::engine_create_file_a)(name.as_ptr().cast(), access, SHARE_ALL, null, disposition, NORMAL, null);
+        if file as isize == -1 {
+            return false;
+        }
+        (raw::engine_close_handle)(file);
+    }
+    true
+}
+
+/// Whether the file is there.
+pub fn file_exists(_: &Thread, name: &CStr) -> bool {
+    open(name, 0, OPEN_EXISTING)
+}
+
+/// Makes the file, empty (or empties it).
+pub fn create_file(_: &Thread, name: &CStr) {
+    const GENERIC_WRITE: u32 = 1 << 30;
+    open(name, GENERIC_WRITE, CREATE_ALWAYS);
+}
+
+/// Deletes the file when it is there.
+pub fn delete_file(_: &Thread, name: &CStr) {
+    // SAFETY: see above.
+    unsafe {
+        (raw::engine_delete_file_a)(name.as_ptr().cast());
+    }
 }
 
 /// The console variable object, a cc_bool (cc_value<bool>::cc_value 0x1DDB0),
@@ -43,10 +85,11 @@ const USER_CFG: u32 = 2;
 /// A console variable on or off that the engine saves in user.cfg and sets
 /// from it (`<name> on|off`, a line game::on_configs_loaded runs). The engine
 /// writes the value itself (executing the line); a patch reads and writes it
-/// inside a hook. Off until the file says otherwise.
+/// inside a hook. Its default (off for `new`) until the file says otherwise.
 pub struct ConsoleBool {
     storage: UnsafeCell<BoolStorage>,
     registration: UnsafeCell<Registration>,
+    initial: bool,
 }
 
 // SAFETY: the game drives every hook, and the console's reads and writes of
@@ -55,10 +98,22 @@ unsafe impl Sync for ConsoleBool {}
 
 impl ConsoleBool {
     pub const fn new() -> ConsoleBool {
+        ConsoleBool::with(false)
+    }
+
+    /// On or off until the file says otherwise (the engine's constructor
+    /// keeps the value it is given).
+    pub const fn with(default: bool) -> ConsoleBool {
         ConsoleBool {
-            storage: UnsafeCell::new(BoolStorage { object: raw::CcBoolStorage::zeroed(), value: 0 }),
+            storage: UnsafeCell::new(BoolStorage { object: raw::CcBoolStorage::zeroed(), value: default as u8 }),
             registration: UnsafeCell::new(Registration::Unregistered),
+            initial: default,
         }
+    }
+
+    /// Its value until user.cfg says otherwise (`with`'s).
+    pub fn initial(&self) -> bool {
+        self.initial
     }
 
     /// Puts the variable in the engine's list once, saved in user.cfg, so the
@@ -160,6 +215,13 @@ impl ConsoleFloat {
         // SAFETY: on the game's thread, the value's only user while it runs.
         unsafe { (*self.storage.get()).value }
     }
+
+    /// A value within the range (the caller's type keeps it there), as the
+    /// console's setter would store it.
+    pub fn set(&self, _: &Thread, value: f32) {
+        // SAFETY: as get.
+        unsafe { (*self.storage.get()).value = value }
+    }
 }
 
 /// The Settings' call to the exe at `options.callback`: the movie's
@@ -220,5 +282,153 @@ impl<'c> OptionsCall<'c> {
         // hook's thread (the options' own Invoke reads it so, 0x1FF98F).
         let Some(movie) = (unsafe { movie_of(self.options.menu()) }) else { return false };
         movie.invoke_strings(method, values)
+    }
+
+    /// The menu that called, to tell it something as [`Menu`] does.
+    pub fn menu(&self) -> Option<Menu<'_>> {
+        // SAFETY: as answer and translate: the options' menu and game, alive
+        // for the call.
+        let (movie, game) = unsafe { (movie_of(self.options.menu())?, self.options.game()?) };
+        Some(Menu { movie, game, thread: PhantomData })
+    }
+}
+
+/// The main menu's movie (the Settings are in it) with the game's
+/// dictionary: what a patch tells the Settings by, in answer to a call of
+/// theirs ([`OptionsCall::menu`]) or at a frame while the menu is shown
+/// ([`Menu::shown_at_game_tick`]).
+pub struct Menu<'t> {
+    movie: Movie<'t>,
+    game: raw::Game,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> Menu<'t> {
+    /// At `game.tick` (every frame, in a match or not), while the main menu
+    /// is shown; None while it is not.
+    pub fn shown_at_game_tick(ctx: &'t Context<'_>) -> Option<Menu<'t>> {
+        // SAFETY: the site's EBX is the game, alive and ticking on this
+        // thread; the main menu is inside it, its shown byte its own, its
+        // movie holder the one it shows while that byte is set.
+        unsafe {
+            let game = raw::site::game_tick::game(ctx)?;
+            let options = game.options();
+            if *options.shown() == 0 {
+                return None;
+            }
+            Some(Menu { movie: movie_of(options.menu())?, game, thread: PhantomData })
+        }
+    }
+
+    /// A dictionary text of the running language into `out`, as
+    /// [`OptionsCall::translate`].
+    pub fn translate<'o>(&self, key: &CStr, out: &'o mut [u8; 0x200]) -> &'o CStr {
+        out[0] = 0;
+        // SAFETY: the game and its text translator, alive for the hook;
+        // translate_text copies a text shorter than 200h bytes with its zero
+        // into `out` (0x1FF15D) and leaves it alone otherwise.
+        unsafe {
+            raw::engine_translate_text(Some(self.game.text_translator()), key.as_ptr().cast(), out.as_mut_ptr());
+        }
+        out[0x1FF] = 0;
+        CStr::from_bytes_until_nul(out).unwrap_or(c"")
+    }
+
+    /// Invokes the movie's `method` with these strings (UTF-8); whether the
+    /// movie took it.
+    pub fn tell(&self, method: &CStr, values: &[&CStr]) -> bool {
+        self.movie.invoke_strings(method, values)
+    }
+}
+
+/// A Settings slider's value in its whole steps (the slider's snap: patch
+/// 112's hundredths, the field of view's degrees), as the movie sends it to
+/// the exe and the exe answers it: decimal digits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SliderSteps(u16);
+
+impl SliderSteps {
+    pub const fn new(steps: u16) -> SliderSteps {
+        SliderSteps(steps)
+    }
+
+    pub fn get(self) -> u16 {
+        self.0
+    }
+
+    /// The Settings' text of one: one to four decimal digits, nothing else.
+    pub fn parse(text: &CStr) -> Option<SliderSteps> {
+        let digits = text.to_bytes();
+        if digits.is_empty() || digits.len() > 4 || !digits.iter().all(u8::is_ascii_digit) {
+            return None;
+        }
+        Some(SliderSteps(digits.iter().fold(0, |n, d| n * 10 + u16::from(d - b'0'))))
+    }
+
+    /// The nearest whole steps to `value` (`per_unit` steps to a unit:
+    /// 100 for hundredths), within `least..=most`.
+    pub fn nearest(value: f32, per_unit: f64, least: SliderSteps, most: SliderSteps) -> SliderSteps {
+        let n = (f64::from(value) * per_unit + 0.5) as u32;
+        SliderSteps(n.clamp(u32::from(least.0), u32::from(most.0)) as u16)
+    }
+
+    /// Its digits into `out`, with the zero.
+    pub fn text(self, out: &mut [u8; 8]) -> &CStr {
+        let mut n = self.0;
+        let mut digits = [0u8; 5];
+        let mut len = 0;
+        loop {
+            digits[len] = b'0' + (n % 10) as u8;
+            len += 1;
+            n /= 10;
+            if n == 0 {
+                break;
+            }
+        }
+        for i in 0..len {
+            out[i] = digits[len - 1 - i];
+        }
+        out[len] = 0;
+        CStr::from_bytes_until_nul(&out[..=len]).unwrap_or(c"")
+    }
+}
+
+/// The game's field of view, `uro_fov` (patch 22: the camera's angle in
+/// degrees unaimed, read at every frame; saved in user.cfg), and the range its
+/// registration gives it (0x85ADF0: 50 by patch 22, 100).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FieldOfView {
+    pub degrees: f32,
+    pub least: f32,
+    pub most: f32,
+}
+
+impl FieldOfView {
+    /// The variable now; None before its static initializer ran (never at
+    /// the Settings).
+    pub fn now(_: &Thread) -> Option<FieldOfView> {
+        let variable = raw::image::uro_fov();
+        // SAFETY: the engine's own cc_float, a static of the image; its value
+        // is the float its registration points at, on the game's thread.
+        unsafe {
+            let value = variable.value();
+            if value.is_null() {
+                return None;
+            }
+            Some(FieldOfView { degrees: *value, least: *variable.least(), most: *variable.most() })
+        }
+    }
+
+    /// Sets the value when it is within the range, as the console's setter
+    /// (0xECB70) would store it; whether it did.
+    pub fn set(thread: &Thread, degrees: f32) -> bool {
+        let Some(now) = FieldOfView::now(thread) else { return false };
+        if !(now.least..=now.most).contains(&degrees) {
+            return false;
+        }
+        // SAFETY: as now; the value's writers are the console and this, on
+        // the game's thread.
+        unsafe { *raw::image::uro_fov().value() = degrees }
+        true
     }
 }

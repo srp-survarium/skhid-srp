@@ -52,6 +52,7 @@ PROVEN from `projects/*` and `gameplay/game_modes/*.options` (`match_making_para
 - 0.21d `projects/<lvl>/<var>/server_project` files (18) are all gone. 0.26g has 72 level client_projects = 8 maps × 3 variants × 3 modes. PROVEN.
 - `gameplay/game_modes/level_08_night_2.options` / `_night_3.options` (maps_dict ids 107/108) name `level_08/night_2`/`night_3`, **which have no project** → would fail to load. PROVEN (data); never offer them.
 - `loading_screen_id` (0..25) and `map_weather_id` now come from the mode config (`ui.loading_screen_id`, `match_making_params.map_weather_id`), replacing srp's `MAPS[].pictures` level_id byte. PROVEN (data); whether match_options still carries a picture byte: see sibling static_info.md.
+- Chemical Plant v0.11 (`v011e_level_04`, level 12) has a picture of its own since 2026-11-18 (the owner: "do another image prerender on chemical plant 0.11"): `Level_v011e_chemical`, loading picture 40 (`modes.tsv`; its Blackout and Free for All copies take it from the copied config) and the rooms' tile and vote card (`RoomsLook.RENDER_ONE`). Before, its tile showed Vostok v0.11's picture (`Level_v011e`) and its loading screen stock Chemical Plant's (5). A frame of the game itself, as the STALKER maps' (`stalker-maps.md`): headless, 2560 x 1440, every quality at its highest, 100 degrees across, pose `plant-n` (14, 16, 125), yaw 180, pitch -7 (the whole plant from the north), scaled to cover 1920 x 798, JPEG quality 92.
 
 ### Per-project rule objects (0.26g `client_project.server_objects`, 0.21d `server_project.server_objects`) — PROVEN
 
@@ -260,7 +261,7 @@ is played as soon as the server runs on data with it.
   is the 72 ids of §3; with London 75 (181, 182, 183); with the Research
   pack 25 more (mode 5; a mode-5 id also needs its `resources_count`).
 - **From the project** (`server_objects` of `client_project`, which the server
-  data keeps of every project: `resources_db::server::server_objects_of`):
+  data keeps of every project: `resources_db::server::objects_of`):
   `MapMode::respawn_points`, every entry of `respawn_points` (§2's table, the
   number of pairs the respawn rule writes, snapshot_rules.md §2.3), and in
   modes 2 and 3 `MapMode::container_teams`, `victory_items_containers[..].team`

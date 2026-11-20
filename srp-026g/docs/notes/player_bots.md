@@ -366,7 +366,8 @@ the archive's index: a loader must follow them.
      weighs 0.3 of a Team Deathmatch one).
    - Kit and role (`survarium::v026g::loadouts::BotRole`): flanker (Uzi),
      support (AK-74U), rusher (TOZ-34), camper (Mosin), each with two
-     medkits, two RGD-5 and the radio (passive: −20 % respawn time, PROVEN
+     medkits, one RGD-5 (it takes two pocket units; two before 2026-11-05)
+     and the radio (passive: −20 % respawn time, PROVEN
      in the client); the role is read back from the gear and sets the
      bot's personality.
    - Weapons (`guns.rs`): each weapon's rounds a load, shot time, trigger

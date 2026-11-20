@@ -6,6 +6,7 @@ import hashlib
 import importlib.util
 from pathlib import Path
 import sys
+from typing import NamedTuple
 
 HERE = Path(__file__).resolve().parent
 SCRIPTS = HERE.parent
@@ -23,6 +24,8 @@ SOUNDS = {257: 'sounds/composite/{}.composite_sound', 258: 'sounds/collections/{
 DONOR_ICONS = 'flash_movies/textures/ui_icons/items/equipment/equipment_{col}_{row}.png'
 # resource-porter's build-armour-069d writes these beside its overlay.
 BUNDLE_RECORDS = ('port-manifest.json', 'fit-report.json')
+# equipment-046's built pack (the `equipment046` inputs): its manifest, under it its files.
+E046_MANIFEST = 'pack.json'
 
 
 def sha(data):
@@ -33,9 +36,39 @@ def sound_file(kind, name):
     return SOUNDS[kind].format(name)
 
 
+class Template(NamedTuple):
+    """What a piece's config starts from (items.tsv `template`): a released piece's config
+    (`native:<id>`, its parameters and card; the row sets level, faction, weight, drop weight
+    and bonuses), or an equipment-046 piece's, copied whole (`equipment-046:<id>`; the row
+    states that piece's numbers) with this piece's models, icon and texts."""
+    copy: bool
+    ident: int
+
+
+def template(spec):
+    source, ident = spec['template'].split(':')
+    if source not in ('native', 'equipment-046'):
+        raise ValueError(f"{spec['id']}: template {spec['template']!r} is neither native: nor equipment-046:")
+    return Template(copy=source == 'equipment-046', ident=int(ident))
+
+
 def specs():
     with (HERE / 'items.tsv').open() as source:
         return list(csv.DictReader(source, delimiter='\t', quoting=csv.QUOTE_NONE))
+
+
+def e046_entries(manifest):
+    """equipment-046's dictionary rows, by id, from its pack.json."""
+    return {e['dict_id']: e for op in manifest['operations'] if op['op'] == 'dictionary_add' for e in op['entries']}
+
+
+def data_sections(config):
+    return [value for key, value in config.items() if key == 'data' or key.startswith('data_')]
+
+
+def model_parts(config):
+    """Every model part a config draws: each data section and its additional models."""
+    return [part for section in data_sections(config) for part in [section] + section.get('additional_models', [])]
 
 
 def text_keys(spec):

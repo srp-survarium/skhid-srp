@@ -18,7 +18,11 @@ package survarium.controls
    // mouse. An entry is {key: its text's dictionary key, method: the exe's call with the row's place (and
    // its choice, when it has one)}. The exe answers each call (root.srp_friend_request -> requested,
    // root.srp_chat_mute -> muted) and the menu shows the answer's line in its place. The list hidden (Tab
-   // let go) or a press elsewhere closes it, the answer's line too.
+   // let go) or a press elsewhere closes it, the answer's line too. A teammate's voice (exe patch 66,
+   // voice-chat.md): before the row's entries the menu asks srp_voice_menu(place), answered
+   // root.srp_voice_menu -> voiceOffered, and adds "Mute voice" or "Unmute voice" after the chat's;
+   // srp_voice_mute(place, choice) is answered root.srp_voice_mute -> voiceMuted. No answer (no voice
+   // in this match, an enemy, a bot): no voice entry.
    public class PlayerRowMenu extends Sprite
    {
       // The menu's states: closed; asking the exe for a row's entries; open; an entry sent, awaiting its
@@ -45,6 +49,11 @@ package survarium.controls
                                          {key:"st_srp_hud_mute_mask",method:"srp_chat_mute",choice:"2"},
                                          {key:"st_srp_hud_unmute",method:"srp_chat_mute",choice:"0"}];
 
+      // The voice entries (exe patch 66): the one that changes the teammate's voice mute.
+      public static const VOICE_MUTE:Object = {key:"st_srp_hud_voice_mute",method:"srp_voice_mute",choice:"1"};
+
+      public static const VOICE_UNMUTE:Object = {key:"st_srp_hud_voice_unmute",method:"srp_voice_mute",choice:"0"};
+
       private static const ROW:Number = 24;
 
       private static const PAD:Number = 8;
@@ -63,6 +72,9 @@ package survarium.controls
 
       // the entry sent, while SENDING
       private var _sent:Object;
+
+      // the row's voice entry (VOICE_MUTE or VOICE_UNMUTE), while ASKING once the exe offered one
+      private var _voice:Object;
 
       private var _format:TextFormat;
 
@@ -123,6 +135,7 @@ package survarium.controls
          this._state = ASKING;
          x = atX;
          y = atY;
+         this.call("srp_voice_menu",String(row.id));
          this.call("srp_player_menu",String(row.id));
       }
 
@@ -148,6 +161,10 @@ package survarium.controls
                }
             }
          }
+         if(this._voice)
+         {
+            entries.push(this._voice);
+         }
          if(entries.length == 0)
          {
             this.close();
@@ -156,6 +173,27 @@ package survarium.controls
          this.draw(entries);
          this._state = OPEN;
          this.listen(true);
+      }
+
+      // The exe's answer to srp_voice_menu: whether the row at `place` is a teammate whose voice can be
+      // muted, and whether it is.
+      public function voiceOffered(place:uint, offered:Boolean, muted:Boolean) : void
+      {
+         if(this._state != ASKING || uint(this._row.id) != place)
+         {
+            return;
+         }
+         this._voice = !offered ? null : muted ? VOICE_UNMUTE : VOICE_MUTE;
+      }
+
+      // The exe's answer to srp_voice_mute: done or not.
+      public function voiceMuted(place:uint, done:Boolean) : void
+      {
+         if(!this.answered(place,VOICE_MUTE.method))
+         {
+            return;
+         }
+         this.tell(!done ? "st_srp_hud_voice_not_muted" : this._sent.choice == "0" ? "st_srp_hud_voice_unmuted" : "st_srp_hud_voice_muted");
       }
 
       // The exe's answer to srp_add_friend: the request sent or not.
@@ -197,6 +235,7 @@ package survarium.controls
          this._state = CLOSED;
          this._row = null;
          this._sent = null;
+         this._voice = null;
          visible = false;
          this.clear();
       }

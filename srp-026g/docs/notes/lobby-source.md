@@ -19,7 +19,7 @@ ours is an edit of a tree, and a movie is built from its whole tree; nothing is 
 The owner, 2026-10-21: "we now got the source code" "and we just modify it".
 
 - Put the code in the game's class that owns the behaviour, in that class's style:
-  - Get Gold and the exchange: `MessageMoneyExchange` (`buyGold`, `open`);
+  - a window's payment: its dialog (`MessageRepair`, `MessageRerollItem`);
   - a right-click menu: the list that builds it (`InventoryList`); a dialog's buttons: the dialog
     (`MessageCraftItem`);
   - a request and its answer: the class with the answer's handler (`LobbyMenu`); the click that asks:
@@ -45,8 +45,6 @@ python3 tools/actionscript/flash_tree.py build srp-026g/flash/<movie> <the origi
   original movie in place of the original's code. The graphics are the original's.
 - The build checks that every ABC block parses and every class a symbol is bound to is defined.
   Whether the movie works is checked in the game.
-- `build_lobby_026g.py` says whether the movie is `RESULT_SHA256`, the one last checked in the game
-  (the same tree gives the same bytes). Set `RESULT_SHA256` when the owner has checked a new one.
 - `flash_tree.py original srp-026g/flash/<movie> <archive> <out.swf>` cuts an original from its
   archive.
 - Tests: `python3 -m unittest discover` in `srp-026g/client-patches` and in `tools/actionscript`;
@@ -92,8 +90,8 @@ package of its own; no behaviour changes:
 - the craft window's Buy and Sell: `InventoryList.showCraftMenu`, `findCraftWindow`,
   `buyFromCraftMenu`; its Continue and Exit: `MessageCraftItem.offerContinue`, `onContinue`, `holds`
   (was `SrpCraftMenu`);
-- Get Gold: `MessageMoneyExchange.buyGold` (was `SrpBuyGold`); the exchange: `MessageMoneyExchange`
-  itself (was `SrpExchange`, removed from the movie);
+- Get Gold and the exchange: `MessageMoneyExchange.buyGold` and `MessageMoneyExchange` (was
+  `SrpBuyGold`, `SrpExchange`); both removed with gold (the owner, 2026-11-08: [buy-gold.md](buy-gold.md));
 - the player gear: `LobbyMenu.showPlayerInfoMenu`, the ask in flight, `takePlayerInfo`;
   `PlayerRanking.onPlayerRightClick` (was `SrpPlayerGear`);
 - the rooms: `survarium/rooms` (was `SrpRooms`, removed from the movie); their parts in `TopMenu`,
@@ -132,8 +130,8 @@ keeps revision 24's bytes. The byte-exact proof, the per-class compiler settings
 reconstruction diffs are in git history. The lobby of 6064476c built this way (882 classes, 883 ABC
 blocks) was checked in the game by the owner: "good, it works". compc lays the code out by where
 the source lies, so the build compiles every tree from one place (`/tmp/srp-flash-build/<movie>`);
-the tree of 6064476c gives `8b099212…` (`RESULT_SHA256`), the movie checked was `c3898574…`, the
-same tree compiled from another place.
+the tree of 6064476c gives `8b099212…`, the movie checked was `c3898574…`, the same tree compiled
+from another place.
 
 The HUD tree took three source fixes Flex asks for (those classes had been compiled with FFDec's
 compiler): `Minimap`'s `§default§` written as `["default"]` and a field initializer without
@@ -169,9 +167,14 @@ Ctrl+F over an item list ([item-search.md](item-search.md)), written in the clas
 - Esc in the box: `LobbyMenu.close_active_window`; the exe's window keys while Ctrl is held over the
   list: `LobbyMenu.windowKeysOff`; the Ctrl keys: `onKeyDownStage`, `onKeyUpStage`,
   `MainScene.isCtrl`, `KeyCode`;
-- the empty box's word is the dictionary's `st_srp_inventory_search`
-  (`client-patches/localization`); the item-kind words of every language are the code's own
-  (`InventoryList.SEARCH_KINDS`: search words, any language matches).
+- the empty box's word is the dictionary's `st_srp_inventory_search`, its dimmer examples
+  `st_srp_inventory_search_examples` (`SrvTextInput.defaultTextMore`), its tip's cells
+  `st_srp_inventory_search_tip_*` (`client-patches/localization`; the tip's rows:
+  `ReasonsTip`'s `tipData.rows`, `anchor`); the item-kind words of every
+  language and the bonuses' English words are the code's own (`InventoryList.SEARCH_KINDS`,
+  `SEARCH_BONUSES`: search words, any language matches);
+- the "+" words (2026-11-06): the text read once into a `SearchQuery` (a class of
+  `InventoryList.as`'s own); checked in Ruffle by `scripts/item-search/check.sh`.
 
 ## Scaleform pitfalls
 
@@ -184,6 +187,11 @@ What the game's Scaleform did differently from Flash, found building the rooms w
   finds the control under the point with `hitTestPoint` and calls its handler.
 - **A fill of alpha 0 is not hit-tested:** use 0.01. A gap inside a Sprite takes no click: put
   a 0.01 hit Shape over the whole row.
+- **`Array.concat` with more than one argument does not join the arrays:** each further argument
+  came out as one element (seen 2026-11-10: `a.concat([heading],rows)` drew two rows reading
+  "undefined" in the Regeneration tip and no heading; Ruffle joins them as Flash does). Join one
+  array a call (`a.concat(b)`, as every other tip does) or `push`. `scripts/weight-ui/check_ui.sh`
+  refuses a lobby source with such a call.
 - `drawCircle` after `lineStyle` draws a stray line from the pen: draw two filled circles.
 - `BitmapData.draw` from a BitmapData that was itself drawn into shows red; repeated
   alpha-blended draws wash out to white. Draw once, from the library bitmap.
@@ -193,3 +201,20 @@ What the game's Scaleform did differently from Flash, found building the rooms w
 - A CLIK button keeps its label at its natural height: don't squeeze its `setSize` height (a
   skinned server button: 32).
 - A weakly held closure as a listener may be collected: keep listeners strong.
+
+## The top bar's level badge at level 100 (2026-11-10)
+
+The owner, on a level-100 account: "100lvl is not aligned", "a circle shows over a bit".
+
+- The badge left of the name is `txLevel` (sprite 713, `top_fla.topRankLabel_60`): a ring (shape
+  711, 22 px with its line) and the number, placed in the player panel (sprite 737,
+  `topPanelLeftContainer_56`) at 6, 1; the ring's middle is at 13.5, 14.5 of the panel.
+- At level 100 (`StatusPanel.TOP_RANK_LEVEL`) the game shows `top_rank_icon` instead (sprite 736,
+  a 31 px gold star bitmap), which the timeline places at 0, 0 at scale 0.785 (24.3 px), depth 28:
+  its middle at 12.2, 12.2, so 1.3 px left of and 2.3 px above the ring's. The original only
+  emptied the number, so the ring stayed and showed past the star's right and bottom edges.
+- Now `StatusPanel.set player_level` shows one of the two (the whole `txLevel` is hidden at the
+  top rank) and the panel's constructor puts the icon's middle on the ring's, from their bounds.
+- FFDec does not show the icon's placement: it is a PlaceObject3 (tag 70) whose "has visible"
+  flag has no byte behind it, listed as `TagStub` in an XML dump and missing from an export.
+  Read such a sprite's tags from the file's bytes.

@@ -10,3 +10,7 @@ va	name	location	role	basis
 0x20014bb60	survarium::loading_screen::on_music_loaded	RDX	query result (resource pointer at +0x238)	observed
 0x20062a8f0	vostok::sound::sound_instance_proxy::fade_out	RCX	sound instance proxy	observed
 0x20062a8f0	vostok::sound::sound_instance_proxy::fade_out	EDX	fade-out duration in milliseconds	observed
+0x20023ece0	survarium::player_input_handler::on_mouse_move	RCX	the handler	observed
+0x20023ece0	survarium::player_input_handler::on_mouse_move	R8D	x	observed
+0x20023ece0	survarium::player_input_handler::on_mouse_move	R9D	y	observed
+0x20023ece0	survarium::player_input_handler::on_mouse_move	entry RSP+28h	the wheel (0x159/0x15A key actions)	observed

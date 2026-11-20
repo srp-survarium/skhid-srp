@@ -19,9 +19,10 @@ package {
   private function loaded(e:Event):void {
    try {
     var hud:Object = loader.content;
-    hud.set_localization_data({st_artefact_take_teammate:"Take artifact (E)",st_weapon_pick_up:"Pick up %1$s (E)"});
     // These native HUD methods set their state before touching game-only
-    // view objects, which need not exist in this headless fixture.
+    // view objects, which need not exist in this headless fixture (the
+    // texts are kept before the pregame line is drawn again).
+    try { hud.set_localization_data({st_artefact_take_teammate:"Take artifact (E)",st_weapon_pick_up:"Pick up %1$s (E)"}); } catch(nativePregame:Error) {}
     try { hud.show_profiles_selector(false); } catch(nativeProfile:Error) {}
     if(!hud.contextInfo) {
      var Widget:Class = loader.contentLoaderInfo.applicationDomain.getDefinition("SrvContextInfo") as Class;

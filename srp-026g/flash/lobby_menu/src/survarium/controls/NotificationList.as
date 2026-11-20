@@ -174,6 +174,15 @@ package survarium.controls
          }
       }
       
+      // Every notification shown goes, each as its own close does (LobbyMenu.onPressHidePopups).
+      public function hideAll() : void
+      {
+         for each(var renderer:MovieClip in this._renderers.concat())
+         {
+            this.hideItem(renderer);
+         }
+      }
+      
       private function onRelatedMessage(e:Event) : void
       {
          trace("onRelatedMessage::",e.target,e.currentTarget);

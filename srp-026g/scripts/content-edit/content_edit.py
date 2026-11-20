@@ -22,8 +22,8 @@ Edits (edits.json):
   "set":            [{"file", "path", "from", "to"}]   a number (float or int, its type kept); `from` must
                                                        be the live value (a stale base is refused); the
                                                        path's `name[i]` is item i of an indexed table
-  "set_vector":     [{"file", "path", "from", "to"}]   a float3 (a model's `bounding_box/min`): `from` the
-                                                       live three numbers, `to` the new ones, in place
+  "set_vector":     [{"file", "path", "from", "to"}]   a float2/3/4 (e.g. a model's `bounding_box/min`): `from` the
+                                                       live components, `to` the new ones, in place
   "set_bool":       [{"file", "path", "from", "to"}]   a native boolean; both values must be JSON booleans,
                                                        type and every other byte are preserved
   "rename_key":     [{"files" (glob on the game path), "table", "from", "to"}]
@@ -36,7 +36,7 @@ Edits (edits.json):
   "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended
   "edit_text":      [{"file", "path", "from", "to"}]   in one text (UTF-8, as the localization tables
                                                        keep it), its one `from` becomes `to`
-  "add_entry":      [{"files", "list", "after", "like", "values", "only_if"}]
+  "add_entry":      [{"files", "list", "after", "like", "values", "only_if", "expected_files"}]
                     a new entry of the indexed table `list` (a lobby card's `ui_desc/props_list`, the
                     card lines' `ui_properties`) after the entry whose keys match `after`, made like
                     the entry matching `like` with `values` set; a value "{a/b}" is that number of
@@ -44,7 +44,29 @@ Edits (edits.json):
                     indexed table of vectors (a wire's points) made anew; a key of `values` may be a
                     path in the entry (`spawned_item/position`): the tables on its way are copied
                     anew, the like entry's own stay as they are; files without `only_if`, the table
-                    or those entries are left alone
+                    or those entries are left alone, unless `expected_files` says how many files
+                    must take the entry (a project's object: any other number is refused)
+  "_inputs":        [{"files" (glob)}]               read-only dependencies supplied by build-content.
+                    add_entry with reload_clip_ratio:true copies the empty/tactical hands-clip
+                    duration ratio into prop_value, only for state 314. Declare its clips here.
+                    add_entry with "pierce_line": {"tiers": [[material, text], ...]} puts in a
+                    round's prop_value, for each weapon the dictionary pairs it with, the hardest
+                    material their bullet gets through and the damage it keeps there (pierce_lines:
+                    "<weapon dict_id>:<rank>:<text>:<percent> ..."), only on the rounds of its
+                    `files`. Declare the weapons, game_materials/game.materials and
+                    gameplay/db_static_dictionaries here.
+  "retime_reload":  [{"files" (glob)}]               compile explicit reload_empty_time pairs after
+                    weapon-stats.tsv. Private hands/item clips and event times follow the pair;
+                    declare source .b-spline and .bones_names dependencies in _inputs.
+  "append_entry":   [{"file", "list", "expected_count", "unique_key", "value"}]
+                    append a new indexed record, refusing stale counts and duplicate identities;
+                    "unique_key": null for a list whose entries are known by their index (the
+                    game reads them by it: a battery's `states`), the count check alone;
+                    arrays in the new value are indexed tables, leaving existing records intact;
+                    "files" and "expected_counts" (two lists, a count a file) in place of
+                    "file" and "expected_count" append the same record to each file; with
+                    "vectors": true a list of 2 to 4 numbers is a native vector (a position)
+                    and [] an empty indexed table, as the game's own objects have them
   "add_key":        [{"file", "table", "key", "text"}] a new text of a localization table
   "add_value":      [{"files" (a list of game paths), "table" ("" the root), "key", "value"}]
                     a new key of the named table in each file, in its place by name CRC: a bool,
@@ -85,7 +107,9 @@ Edits (edits.json):
   "set_entry":      [{"file", "list", "where", "from", "to"}]
                     the one entry of the indexed table `list` whose keys match `where`: each key of
                     `from` must hold that value, then takes the value in `to` (a number keeps its type,
-                    a string or a vector, a list of 2-4 numbers, is appended); a key of `from` and `to`
+                    a string or a vector, a list of 2-4 numbers, is appended; an indexed table takes
+                    the list given, made as append_entry makes one, so it may shrink or grow: a
+                    skill's `modifiers`); a key of `from` and `to`
                     may be a path in the entry (`spawned_item/position`, `collision_geometries[0]/name`)
   "append_rows":    [{"file", "path", "rows"}]         append rows of strings to an indexed UI table
   "add_item":       [{"file", "list", "where", "key", "value"}]
@@ -112,6 +136,16 @@ Edits (edits.json):
                     the source's zero-time pose. The clamped cubic eases in/out with zero endpoint
                     velocity; no events, no edits to stock clips. Not shipped: the carry's pose
                     source (scripts/artefact-carry/pose.json) runs it to compile its curves.
+  "remove_faces":   [{"files": ["<mesh>/vertices", "<mesh>/indices", "<mesh>/face_data"], "faces"}]
+                    a collision mesh (a model's collision or walker_collision) without the triangles
+                    whose corners are `faces` (each three points of the vertices file, in model space,
+                    within 0.0005 and in the file's order): indices and face_data lose them, the
+                    vertices stay; a face not exactly one triangle is refused
+  "files_from_repo": [{"source", "output", "sha256"}]
+                    a new animations/ resource from a file of this repo (`source`, relative to
+                    the edit list), its bytes pinned by `sha256`; a `.b-spline` must parse as a
+                    clip. The battery swing's clips: scripts/battery-hit/make_clips.py writes
+                    them from its keys, and checks them (`--check`)
   "runtime_vegetation": [{"files" (glob)}]             remove only .veg editor chunks 0x4d/0x4e;
                                                        preserve runtime positions/normals byte for byte;
                                                        reject unknown, duplicate or malformed chunks
@@ -144,6 +178,7 @@ import re
 import struct
 import sys
 import zlib
+from pathlib import Path
 
 T_BOOL, T_INT, T_FLOAT, T_NAMED, T_INDEXED, T_STR = 0, 1, 2, 3, 4, 5
 REC = struct.Struct('<QQIHH')
@@ -235,14 +270,16 @@ def set_number(buf, path, frm, to, as_float=False):
 
 
 def set_vector(buf, path, frm, to):
-    """A float3 value's three numbers, in place."""
+    """A native float2, float3 or float4, preserving its type and dimensions."""
     at, _, _, t, _ = rec(buf, find(buf, path))
-    if t != 7 or len(frm) != 3 or len(to) != 3:
-        raise TypeError('%s: a float3 and three numbers each' % path)
-    old = struct.unpack_from('<3f', buf, at)
+    dimensions = {6: 2, 7: 3, 8: 4}.get(t)
+    if dimensions is None or len(frm) != dimensions or len(to) != dimensions:
+        raise TypeError('%s: a float2/3/4 and matching numbers each' % path)
+    fmt = '<%df' % dimensions
+    old = struct.unpack_from(fmt, buf, at)
     if any(abs(a - b) > 1e-6 for a, b in zip(old, frm)):
         raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
-    struct.pack_into('<3f', buf, at, *to)
+    struct.pack_into(fmt, buf, at, *to)
 
 
 def set_bool(buf, path, frm, to):
@@ -434,7 +471,10 @@ def add_entry(buf, path, after, like, values):
 
 def copied_table(buf, table, values, path):
     """A new array of the records of the table at `table`, the keys of `values` set; a key `a/b` (or
-    `a[0]/b`) sets b in a copy of the table a. Returns the array's offset."""
+    `a[0]/b`) sets b in a copy of the table a. Every nested table gets its own records:
+    the native loader (0xF6D00) relocates each reachable record in place, so sharing
+    an unchanged subtree would relocate it twice. Strings/vector payloads may be
+    shared: only their owning records are mutated. Returns the array's offset."""
     recs = []
     named = rec(buf, table)[3] == T_NAMED
     for k, c in enumerate(children(buf, table)):
@@ -474,6 +514,8 @@ def copied_table(buf, table, values, path):
                 d = (d & ~0xffffffff) | struct.unpack('<I', struct.pack('<f', v))[0]
             else:
                 d = (d & ~0xffffffff) | (1 if v else 0)
+        elif t in (T_NAMED, T_INDEXED):
+            d = copied_table(buf, c, {}, path)
         recs.append(REC.pack(d, i, crc, t, cnt))
     return append_array(buf, recs)
 
@@ -492,10 +534,16 @@ def add_key(buf, table, key, text):
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
 
 
+class EmptyList:
+    """An empty indexed table (an empty dict is an empty named one)."""
+
+
 def value_record(buf, name_off, key, value):
     """A 24-byte record of `value` named `key` (its name at `name_off`); a table's children and
     texts are appended."""
     crc = zlib.crc32(key.encode()) & 0xffffffff
+    if isinstance(value, EmptyList):
+        return REC.pack(0, name_off, crc, T_INDEXED, 0)
     if isinstance(value, dict) and value and all(isinstance(k, int) for k in value):
         if sorted(value) != list(range(len(value))):
             raise ValueError('%s: items %s, not 0 to %d' % (key, sorted(value), len(value) - 1))
@@ -524,15 +572,59 @@ def value_record(buf, name_off, key, value):
 
 def add_value(buf, table, key, value):
     """A new key of the named table `table` ('' the root), in its place by name CRC."""
-    toff = find(buf, table) if table else 0
-    assert rec(buf, toff)[3] == T_NAMED, (table, 'not a named table')
+    insert_value(buf, find(buf, table) if table else 0, key, value)
+
+
+def insert_value(buf, toff, key, value):
+    """A new key of the named table at `toff`, in its place by name CRC."""
+    assert rec(buf, toff)[3] == T_NAMED, (key, 'not in a named table')
     kids = [bytes(buf[c:c + 24]) for c in children(buf, toff)]
     crc = zlib.crc32(key.encode()) & 0xffffffff
-    assert all(REC.unpack(r)[2] != crc for r in kids), (table, key, 'its CRC is taken')
+    assert all(REC.unpack(r)[2] != crc for r in kids), (key, 'its CRC is taken')
     record = value_record(buf, append(buf, key.encode() + b'\0'), key, value)
     new = sorted(kids + [record], key=lambda r: REC.unpack(r)[2])
     d, i, c, ty, cnt = rec(buf, toff)
     REC.pack_into(buf, toff, append_array(buf, new), i, c, ty, cnt + 1)
+
+
+def as_table(value, vectors=False):
+    """A JSON value for value_record: a list an indexed table; with `vectors`, a list of 2 to 4
+    numbers a native vector and an empty list an empty indexed table."""
+    if vectors and isinstance(value, list):
+        if not value:
+            return EmptyList()
+        if 2 <= len(value) <= 4 and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in value):
+            return value
+    if isinstance(value, list):
+        return {i: as_table(item, vectors) for i, item in enumerate(value)}
+    if isinstance(value, dict):
+        return {key: as_table(item, vectors) for key, item in value.items()}
+    return value
+
+
+def append_entry(buf, path, expected_count, unique_key, value, vectors=False):
+    """Append a new record, refusing stale counts and duplicate identities.
+
+    New JSON lists are indexed tables; with `vectors`, a list of 2 to 4 numbers is a native vector
+    and an empty list an empty indexed table. This operation never replaces an existing value, so
+    existing native vectors and scalar types stay intact.
+    """
+    off = find(buf, path)
+    _, name, crc, kind, count = rec(buf, off)
+    if kind != T_INDEXED or count != expected_count:
+        raise ValueError(f'{path}: expected indexed table of {expected_count}, got {kind}/{count}')
+    entries = children(buf, off)
+    if unique_key is not None:
+        if not isinstance(value, dict) or unique_key not in value:
+            raise ValueError(f'{path}: new entry must have {unique_key}')
+        if any(matches(buf, entry, {unique_key: value[unique_key]}) for entry in entries):
+            raise ValueError(f'{path}: duplicate {unique_key}={value[unique_key]}')
+    elif not isinstance(value, dict):
+        raise ValueError(f'{path}: a new entry is a table')
+    records = [bytes(buf[entry:entry + 24]) for entry in entries]
+    records.append(value_record(buf, 0, '', as_table(value, vectors)))
+    REC.pack_into(buf, off, append_array(buf, records), name, crc, kind, count + 1)
+    return count
 
 
 def items_of(buf, path):
@@ -650,6 +742,91 @@ def promoted_defaults(read, categories, from_top):
     return edits
 
 
+GAME_MATERIALS = 'game_materials/game.materials'
+
+
+def single(v):
+    """`v` in single precision, as the game computes."""
+    return struct.unpack('<f', struct.pack('<f', v))[0]
+
+
+def pierce_kept(pierce, armor):
+    """What a wall of material `armor` leaves of a bullet of piercing `pierce` (its damage, speed and
+    piercing are all multiplied by it; 0 stops it), as survarium::bullet::try_pierce 0x32D960 computes
+    it in single precision: t = clamp((P - A) / A, 0, 1), 1 when A is 0; 1 - (1 - t)^2. No thickness
+    and no angle: every wall of the material alike."""
+    t = 1.0 if armor == 0 else min(1.0, max(0.0, single(single(pierce - armor) / armor)))
+    return single(1 - single(single(1 - t) * single(1 - t)))
+
+
+def pierce_lines(read, paths, spec):
+    """{round config: its pierce line} (add_entry's `pierce_line`), for each round config of `paths`
+    the item dictionary pairs (items_compatibility) with a weapon config of `paths`: for each such
+    weapon, by its dictionary id ascending, "<dict_id>:<rank>:<text>:<percent>", space-separated.
+    The text is the hardest tier the pair's bullet gets through, as try_pierce has it: piercing P
+    above the material's armor A (it stops at P <= A; A = 0 lets every bullet through); the rank the
+    tier's place, 0 the softest (the lobby compares cards by it); the percent what of its damage it
+    keeps there, round(100 x pierce_kept). P is the weapon's parameters/bullet_pierce x the round's
+    data/k_arp (bullet::bullet 0x32BA60: +74h = ammo +24h x weapon +520h). spec["tiers"]:
+    [material, text], softest first, their game_materials/game.materials `armor` rising from 0.
+    The round carries its weapons' texts, the weapon none: no weapon config grows (several are
+    within 3 entries of the client's arena, tables.rs MAX_CONFIG_ENTRIES); the lobby takes a
+    weapon's from its rounds."""
+    mats = read(GAME_MATERIALS)
+    armor = {}
+    for i, _ in enumerate(children(mats, find(mats, 'materials'))):
+        at = 'materials[%d]' % i
+        armor[value_of(mats, find(mats, at + '/name'))] = value_of(mats, find(mats, at + '/physic/armor'))
+    missing = [m for m, _ in spec['tiers'] if m not in armor]
+    if missing:
+        raise ValueError('pierce_line: no material %s in %s' % (missing[0], GAME_MATERIALS))
+    tiers = [(armor[m], text) for m, text in spec['tiers']]
+    if tiers[0][0] != 0 or any(a >= b for (a, _), (b, _) in zip(tiers, tiers[1:])):
+        raise ValueError('pierce_line: the tiers\' armor is not 0 and rising: %s' %
+                         ', '.join('%s %g' % (m, armor[m]) for m, _ in spec['tiers']))
+    cache = {}
+
+    def number(cfg, path):
+        if cfg not in paths:
+            return None
+        if cfg not in cache:
+            cache[cfg] = read(cfg)
+        try:
+            return value_of(cache[cfg], find(cache[cfg], path))
+        except KeyError:
+            return None
+    dictionary = read(DICTIONARY)
+    cfg_of = {}
+    for i, _ in enumerate(children(dictionary, find(dictionary, 'items_dict'))):
+        at = 'items_dict[%d]' % i
+        cfg_of[value_of(dictionary, find(dictionary, at + '/dict_id'))] = value_of(dictionary, find(dictionary, at + '/cfg_name'))
+    lines = {}  # round config -> {weapon dict id: "<rank>:<text>:<percent>"}
+    for pair in children(dictionary, find(dictionary, 'items_compatibility')):
+        ids = [value_of(dictionary, find(dictionary, k, pair)) for k in ('first_item', 'second_item')]
+        for wid, mid in (ids, ids[::-1]):
+            w, m = cfg_of.get(wid), cfg_of.get(mid)
+            pierce, k_arp = number(w, 'parameters/bullet_pierce'), number(m, 'data/k_arp')
+            if pierce is None or k_arp is None:
+                continue
+            bullet = single(pierce * k_arp)
+            rank, wall, text = [(rank, a, text) for rank, (a, text) in enumerate(tiers) if a == 0 or bullet > a][-1]
+            percent = math.floor(100 * pierce_kept(bullet, wall) + 0.5)
+            lines.setdefault(m, {})[wid] = '%d:%s:%d' % (rank, text, percent)
+    return {m: ' '.join('%d:%s' % (wid, line) for wid, line in sorted(texts.items())) for m, texts in lines.items()}
+
+
+def prop_text(buf, prop_id):
+    """The `ui_desc/props_list` text of line `prop_id`, None when the config has no such line."""
+    try:
+        lines = children(buf, find(buf, 'ui_desc/props_list'))
+    except KeyError:
+        return None
+    for entry in lines:
+        if value_of(buf, find(buf, 'prop_id', entry)) == prop_id:
+            return value_of(buf, find(buf, 'prop_value', entry))
+    return None
+
+
 def shifted(path, lst, at):
     """A path of the file before an entry was put at `at` of the table `lst`, after it."""
     head = lst + '['
@@ -720,29 +897,39 @@ def weapon_card(buf):
 
 def ammo_card(buf):
     """{prop_id: text} of an ammo card: 21 damage (every pellet) x100, 22 piercing x100, 16 rounds a clip,
-    15 a clip's weight."""
+    15 a clip's weight, 163 the muzzle speed, 164 the range x100, 165 the pellets a shot."""
     def number(path):
         return value_of(buf, find(buf, path))
     return {21: number_text(number('data/k_damage') * number('data/buck_shot') * 100),
             22: number_text(number('data/k_arp') * 100), 16: number_text(number('parameters/clip_size')),
-            15: weight_text(number('parameters/clip_weight'))}
+            15: weight_text(number('parameters/clip_weight')),
+            163: number_text(number('data/muzzle_speed')),
+            164: number_text(round(number('data/k_max_damage_distance') * 100, 4)),
+            165: number_text(number('data/buck_shot'))}
 
 
 def throwable_card(buf):
-    """{prop_id: text} of a grenade's or a trap's card: 1 damage x100 (a grenade's on every body it
-    hits, a trap's on its foot), 23 a grenade's radius, 15 the weight."""
+    """{prop_id: text} of a grenade's or a trap's card (throwable-cards-1): 1 the damage x100 on each
+    body it hits (a grenade's at the centre on each of its splash bodies, a trap's on the foot), 3 its
+    piercing x100, 15 the weight; a grenade's 132 stopping power x100, 167 stamina damage, 23 radius,
+    168 fuse (s) and 169 throw speed (m/s); a trap's 170 defuse time (s)."""
     def number(path):
         try:
             return value_of(buf, find(buf, path))
         except KeyError:
             return None
+
+    def text(path, times=1):
+        return number_text(round(number(path) * times, 4))
     out = {15: weight_text(number('parameters/weight'))}
     if number('data/splash_max_damage') is not None:
-        bodies = len(children(buf, find(buf, 'data/splash_affected_bodies')))
-        out.update({1: number_text(number('data/splash_max_damage') * 100 * bodies),
-                    23: number_text(number('data/splash_radius'))})
+        out.update({1: text('data/splash_max_damage', 100), 3: text('data/splash_pierce', 100),
+                    132: text('data/stopping_power', 100), 167: text('data/stamina_damage'),
+                    23: text('data/splash_radius'), 168: text('data/ttl_ms', 0.001),
+                    169: text('data/throw_power')})
     if number('data/damage_parameters[0]/amount') is not None:
-        out[1] = number_text(number('data/damage_parameters[0]/amount') * 100)
+        out.update({1: text('data/damage_parameters[0]/amount', 100),
+                    3: text('data/damage_parameters[0]/armor_piercing', 100), 170: text('data/defuse_time')})
     return out
 
 
@@ -874,17 +1061,98 @@ def default_modification(decade):
         new = REC.pack(int(cell) & 0xffffffff, ii, icrc, T_INT, icnt)
         REC.pack_into(buf, items, append_array(buf, [bytes(buf[c:c + 24]) for c in kids] + [new]), i, crc, t, cnt + 1)
         return ['[%d]' % cnt], []
-    return Derived('default_modifications', read, write)
+    out = Derived('default_modifications', read, write)
+    out.decade = decade
+    return out
 
 
-# A medicine's pools, for its card's % lines: a pool's health is 1, the head's 0.4 (0.26g's human_hit_params).
-POOLS = {'limbs': 1, 'body': 1, 'head': 0.4, 'pain': 1}
+def built_in_order(columns):
+    """The kinds (id decades) of a table's built-in bonus columns, in the columns' order."""
+    return [key.decade for key in columns.values() if hasattr(key, 'decade')]
+
+
+def built_in_kinds(buf, items):
+    """The kind of each item of a default list."""
+    return [as_number(T_INT, rec(buf, c)[0] & 0xffffffff) // 10 for c in children(buf, items)]
+
+
+def sorted_built_ins(kinds, order):
+    """The indexes of a default list's items by kind in `order`; kinds it lacks after them, as they were."""
+    return sorted(range(len(kinds)), key=lambda k: order.index(kinds[k]) if kinds[k] in order else len(order))
+
+
+def sort_built_ins(buf, items, order):
+    """A default list's items put in `order` (sorted_built_ins), in place: the indexes that changed."""
+    kids = children(buf, items)
+    was = [bytes(buf[c:c + 24]) for c in kids]
+    now = [was[k] for k in sorted_built_ins(built_in_kinds(buf, items), order)]
+    for c, r in zip(kids, now):
+        buf[c:c + 24] = r
+    return [k for k in range(len(was)) if was[k] != now[k]]
+
+
+def shown_value():
+    """A modification's (or a defect's) value, one place for all it shows: every modifier's `value`
+    (the cell; modifiers that differ read a|b), and, when it changes, what the lobby shows of it by the
+    same ratio: each number of `lobby_info` and each card line's `ui_desc/props_list[*]/prop_value` (its
+    text, with its decimals: 0.05 -> 0.20 for 0.05 -> 0.2; an armour line, x100 of its value, 8 for
+    0.08), as the game's own rows have them (each kind one ratio of text to value)."""
+    def read(buf, entry):
+        return '|'.join(sorted({cell_text(buf, o) for _, o in resolve(buf, 'modifiers[*]/value', entry)}))
+
+    def write(buf, entry, cell):
+        values = resolve(buf, 'modifiers[*]/value', entry)
+        olds = {value_of(buf, o) for _, o in values}
+        if len(olds) != 1 or not NUMBER.fullmatch(cell):
+            raise ValueError('a value of modifiers that differ (%s), or not a number (%r)' % (sorted(olds), cell))
+        old, written = olds.pop(), []
+        for at, o in values:
+            if not same_cell(cell, cell_text(buf, o)):
+                write_cell(buf, o, cell)
+                written.append(at)
+        if not old or same_cell(cell, '%.9g' % old):
+            return written, []
+        ratio = float(cell) / old
+        info = child(buf, entry, 'lobby_info')
+        for c in children(buf, info) if info is not None else ():
+            write_cell(buf, c, '%.6g' % (value_of(buf, c) * ratio))
+            written.append('/lobby_info/' + name_at(buf, rec(buf, c)[1]).decode())
+        for at, o in resolve(buf, 'ui_desc/props_list[*]/prop_value', entry):
+            text = cell_text(buf, o)
+            if not NUMBER.fullmatch(text):
+                raise ValueError('card line %s is %r, not a number to scale' % (at, text))
+            decimals = len(text.partition('.')[2])
+            write_cell(buf, o, '%.*f' % (decimals, float(text) * ratio))
+            written.append(at)
+        return written, []
+    return Derived('', read, write)
+
+
+def id_list(key):
+    """An indexed table of ids `key` of a list entry (an items_dict entry's srp_start): its ids, a space
+    between; written into an entry that lacks it."""
+    def read(buf, entry):
+        off = child(buf, entry, key)
+        return '' if off is None else ' '.join(cell_text(buf, c) for c in children(buf, off))
+
+    def write(buf, entry, cell):
+        if child(buf, entry, key) is not None or not cell:
+            raise ValueError('%s: written only into an entry without it, from a cell of ids' % key)
+        insert_value(buf, entry, key, dict(enumerate(int(i) for i in cell.split())))
+        return ['/' + key], []
+    return Derived('', read, write)
+
+
+# Pool maxima for medicine card percentages, from 0.26g's human_hit_params.
+POOLS = {'limbs': 0.5, 'left_hand': 0.5, 'right_hand': 0.5, 'left_leg': 0.5,
+         'right_leg': 0.5, 'body': 1, 'head': 0.4, 'pain': 1, 'infection': 1}
 
 
 def medicine_card(buf):
     """{prop_id: text} of a medicine's card: 18 its active and 19 its delay seconds, 15 the weight, 135
     the limbs', 136 the body's and 137 the pain pool's share it heals over its active time (%), 13 its
-    infection cure a second x100."""
+    total infection cure x100. Config amounts are course totals; the native
+    medkit constructor divides them by duration to obtain runtime rates."""
     def number(path):
         found = resolve(buf, path)
         return value_of(buf, found[0][1]) if found else None
@@ -894,7 +1162,7 @@ def medicine_card(buf):
     for prop, column in ((135, 'limbs'), (136, 'body'), (137, 'pain')):
         amount = number(STATS['medicines']['columns'][column])
         if amount is not None:
-            out[prop] = number_text(min(100, round(amount * active / POOLS[column] * 100)))
+            out[prop] = number_text(min(100, round(amount / POOLS[column] * 100)))
     infection = number(STATS['medicines']['columns']['infection'])
     if infection is not None:
         out[13] = number_text(round(infection * 100, 4))
@@ -922,7 +1190,8 @@ STATS = {
         'columns': {
             'damage': 'parameters/bullet_damage', 'pierce': 'parameters/bullet_pierce',
             'rpm': 'parameters/rounds_per_minute', 'magazine': 'parameters/magazine_capacity',
-            'reload': 'parameters/reload_time', 'reload_start': 'parameters/reload_start_time',
+            'reload': 'parameters/reload_time', 'reload_empty': 'parameters/reload_empty_time',
+            'reload_start': 'parameters/reload_start_time',
             'reload_end': 'parameters/reload_end_time', 'chamber': 'parameters/chamber_a_round_time',
             'aim_time': 'parameters/aim_time', 'show_time': 'parameters/show_time',
             'hide_time': 'parameters/hide_time', 'zoom': 'parameters/aim_zoom_factor',
@@ -944,13 +1213,26 @@ STATS = {
             'shake_time': 'recoil/shake_time_scale',
             'sway_h': 'breath_vibration/base_horizontal_amplitude', 'sway_v': 'breath_vibration/base_vertical_amplitude',
             'sway_period': 'breath_vibration/base_period', 'melee': 'melee/data/k_damage',
+            'rarity': 'parameters/base_rarity_level',
+            # built-in bonuses, a column a kind: the modification's id
+            'silver_bonus': default_modification(123), 'damage_bonus': default_modification(200),
+            'spread_bonus': default_modification(202), 'rpm_bonus': default_modification(203),
+            'reload_bonus': default_modification(204), 'chamber_bonus': default_modification(205),
+            'weight_bonus': default_modification(206), 'aim_bonus': default_modification(207),
+            'recoil_bonus': default_modification(208),
+            'reliability_bonus': default_modification(209),
         },
-        'match': {'damage', 'pierce', 'rpm', 'magazine', 'reload', 'reload_start', 'reload_end', 'chamber',
+        # a bonus cell of a gun with no built-in list makes its default_modifications
+        'add': {'reload_empty', 'silver_bonus', 'damage_bonus', 'spread_bonus', 'rpm_bonus', 'reload_bonus',
+                'chamber_bonus', 'weight_bonus', 'aim_bonus', 'recoil_bonus', 'reliability_bonus'},
+        'match': {'damage', 'pierce', 'rpm', 'magazine', 'reload', 'reload_empty', 'reload_start', 'reload_end', 'chamber',
                   'aim_time', 'show_time', 'hide_time', 'weight', 'movement', 'stopping', 'stamina_damage',
                   'near_m', 'far_m', 'far_damage', 'spread', 'shot_spread', 'max_spread', 'spread_growth',
                   'aim_speed', 'hip_spread', 'aim_spread', 'reload_spread', 'recoil', 'top_min', 'top_max',
                   'left_min', 'left_max', 'right_min', 'right_max', 'pid_p', 'pid_i', 'pid_d', 'shake_min',
-                  'shake_max', 'shake_time', 'sway_h', 'sway_v', 'sway_period', 'melee'},
+                  'shake_max', 'shake_time', 'sway_h', 'sway_v', 'sway_period', 'melee', 'damage_bonus',
+                  'spread_bonus', 'rpm_bonus', 'reload_bonus', 'chamber_bonus', 'weight_bonus', 'aim_bonus',
+                  'recoil_bonus', 'reliability_bonus'},
         'cards': weapon_card,
     },
     'ammo': {
@@ -984,7 +1266,11 @@ STATS = {
             'deploy_m': 'data/max_deploy_distance', 'slope_deg': 'data/max_slope_angle',
             'weight': 'parameters/weight', 'level': 'parameters/item_level',
             'mm_level': 'parameters/match_making_level',
+            # srp's key: the units one takes of a pocket, 2 or none (srp-026g/docs/notes/one-pocket-a-type.md;
+            # pocket-units-1 carries it to the lobby as card property 166)
+            'pocket_units': 'parameters/pocket_units',
         },
+        'add': {'pocket_units'},
         'match': {'splash_damage', 'splash_min', 'splash_pierce', 'splash_radius', 'stopping', 'stamina_damage',
                   'throw_power', 'fuse_ms', 'roll_ms', 'safe_ms', 'contact', 'damage', 'pierce', 'defuse_s',
                   'armed_life_s', 'disarmed_life_s', 'fired_life_s', 'deploy_m', 'slope_deg', 'weight'},
@@ -1036,13 +1322,13 @@ STATS = {
     },
     'modifications': {
         'configs': 'gameplay/items/modifications/modifications.options#modifications[id]',
-        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': 'modifiers[*]/value',
+        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': shown_value(),
                     'op': 'modifiers[*]/type', 'drop_weight': 'drop_weight'},
         'match': {'kind', 'value', 'op'},
     },
     'defects': {
         'configs': 'gameplay/items/modifications/modifications.options#defects[id]',
-        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': 'modifiers[*]/value',
+        'columns': {'kind': Derived('modifiers', modifier_kind, set_modifier_kind), 'value': shown_value(),
                     'op': 'modifiers[*]/type', 'drop_weight': 'drop_weight', 'fix_cost': 'fix_cost_general',
                     'fix_gold': 'fix_cost_gold', 'fix_time': 'fix_time_general'},
         'match': {'kind', 'value', 'op'},
@@ -1050,7 +1336,8 @@ STATS = {
     'maps': {
         'configs': 'projects/*/*/client_project',
         'columns': {
-            'spawn_protection_s': 'server_objects/respawn_points[*]/invulnerability_time',
+            # the two teams' points; team 2's are Free for all's, with its own protection (ffa-1.json)
+            'spawn_protection_s': 'server_objects/respawn_points[team=0|1]/invulnerability_time',
             'spawn_zone_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_duration',
             'spawn_zone_fade_ms': 'client_objects[game_object_type=effect_zone]/invulnerability_attenuation',
             'resupply_ms': 'client_objects[game_object_type=resupply_zone]/resupply_time_in_ms',
@@ -1067,28 +1354,32 @@ STATS = {
             'back': armour_values('back'), 'weight': 'parameters/weight', 'oxygen_s': 'data/amount_time_sec',
             'level': 'parameters/item_level', 'mm_level': 'parameters/match_making_level',
             'rarity': 'parameters/base_rarity_level', 'mods': 'parameters/available_modifications_mask',
-            # built-in bonuses, a column a kind: the modification's id
-            'pockets': default_modification(103),
-            'artefact_slots': default_modification(104),
+            # built-in bonuses, a column a kind: the modification's id; an item's default list is kept
+            # in this order (sort_built_ins), the card's lines too: what it carries (ammo bags first),
+            # then the body, the gun, the rest
             'ammo_bags': default_modification(105),
+            'pockets': default_modification(103),
+            'slot_size': default_modification(117),
+            'artefact_slots': default_modification(104),
+            'max_weight': default_modification(112),
+            'movement': default_modification(111),
+            'stamina_spend': default_modification(116),
+            'stamina_regen': default_modification(110),
+            'health_regen': default_modification(109),
             'accuracy': default_modification(107),
             'aim': default_modification(108),
-            'max_weight': default_modification(112),
-            'health_regen': default_modification(109),
-            'stamina_regen': default_modification(110),
-            'movement': default_modification(111),
-            'artefact_search': default_modification(113),
             'reload_speed': default_modification(114),
             'recoil': default_modification(115),
-            'stamina_spend': default_modification(116),
-            'slot_size': default_modification(117),
+            'artefact_search': default_modification(113),
             'experience': default_modification(124),
             'rep_scav': default_modification(125),
             'rep_bm': default_modification(126),
+            # scope sway (breath vibration), the NVD's alone among the gear (the aiming booster has 1210)
+            'sway': default_modification(121),
         },
         'match': {'armor', 'ano', 'arms', 'back', 'weight', 'oxygen_s', 'pockets', 'artefact_slots', 'ammo_bags',
                   'accuracy', 'aim', 'max_weight', 'health_regen', 'stamina_regen', 'movement', 'artefact_search',
-                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size'},
+                  'reload_speed', 'recoil', 'stamina_spend', 'slot_size', 'sway'},
         'cards': armour_card,
     },
     'medicines': {
@@ -1104,10 +1395,50 @@ STATS = {
         'match': {'use_s', 'active_s', 'limbs', 'body', 'head', 'pain', 'infection', 'weight'},
         'cards': medicine_card,
     },
+    # A booster works while in a pocket: survarium::booster (0x33F690) makes a player modifier of each
+    # of its 68 `parameters/*_modifier` that is not 0, its built-in modifications' sums included.
+    'boosters': {
+        'configs': 'gameplay/items/boosters/*.options',
+        'columns': {
+            'weight': 'parameters/weight',
+            # built-in bonuses, a column a kind: the modification's id; kept in this order, the armour's
+            'max_weight': default_modification(112),
+            'movement': default_modification(111),
+            'stamina_regen': default_modification(110),
+            'health_regen': default_modification(109),
+            'artefact_search': default_modification(113),
+            'sway': default_modification(121),
+            'respawn': default_modification(122),
+            # player modifier 38: the artefact's end of active (0x313530) starts cooldown x (1 + it)
+            'artefact_cooldown': default_modification(131),
+            # srp's player modifiers 10 and 9, which the exe never read (regeneration-booster-1.json):
+            # body_part::regenerate (exe patch 94, 0x32A53F) adds them to a regenerating pool's delay
+            # after a hit (seconds) and to its limit (a fraction of the maximum, at most all of it)
+            'regen_delay': default_modification(129),
+            'regen_limit': default_modification(130),
+            # srp's player modifier 29, which the exe never reads (force-protein-knockback-1.json): the
+            # ragdoll (patch 76, visual only) pushes a gun-stock kill's body 1 + it times as hard
+            'knockback': default_modification(133),
+        },
+        'match': {'weight', 'artefact_cooldown', 'regen_delay', 'regen_limit', 'health_regen', 'stamina_regen', 'movement', 'max_weight',
+                  'artefact_search', 'sway', 'respawn'},
+    },
     'character': {'configs': 'gameplay/players/default.player', 'match': {'player'}},
     'battery': {'configs': 'gameplay/victory_items/default.options', 'match': {'parameters', 'states'}},
-    # srp reads it from its game data (RoomRules): nothing a match computes.
+    # srp reads them from its game data (RoomRules, ShopRules): nothing a match computes.
     'rooms': {'configs': 'gameplay/srp/rooms.options', 'match': set()},
+    'shop': {'configs': 'gameplay/srp/shop.options', 'match': set()},
+    # srp reads it from its game data (survarium v026g::new_account): a new account's grant.
+    'new-account': {'configs': 'gameplay/srp/new_account.options', 'match': set()},
+    # `like`: the plain item a golden or premium one is a copy of (its name); `start`: the modifications
+    # of its own a new item comes with. srp reads both from the dictionary.
+    'items': {
+        'configs': DICTIONARY + '#items_dict[dict_id]',
+        'columns': {'name': 'name', 'base_cost': 'base_cost', 'premium': 'is_premium', 'like': 'srp_like',
+                    'start': id_list('srp_start')},
+        'add': {'like'},
+        'match': set(),
+    },
 }
 
 
@@ -1318,8 +1649,21 @@ def stats_problems(category, columns, rows, targets, files, table):
                                                                 have or 'absent', cell or 'nothing')
                         for column, key, cell, have in stats_differences(files[p], off, columns, rows[row], row,
                                                                          present)]
+                out += ['%s: built-in bonuses %s, not in the order of the columns' % (stats_label(category, row, p), at)
+                        for at, kinds in built_ins_unsorted(files[p], off, columns)]
             except ValueError as why:
                 out.append('%s: %s' % (stats_label(category, row, p), why))
+    return out
+
+
+def built_ins_unsorted(buf, off, columns):
+    """[(walk path, kinds)] of each default list under `off` not in the columns' order (built_in_order)."""
+    order = built_in_order(columns)
+    out = []
+    for at, o in resolve(buf, 'default_modifications', off) if order else ():
+        kinds = built_in_kinds(buf, o)
+        if sorted_built_ins(kinds, order) != list(range(len(kinds))):
+            out.append((at, kinds))
     return out
 
 
@@ -1343,6 +1687,12 @@ def stats_write(category, columns, rows, data, table):
             root = dict(zip(value_offsets(b), (q for q, _, _ in walk(b))))[off]  # the entry's own path
             for column, key, cell, have in stats_differences(b, off, columns, rows[row], row, present):
                 if isinstance(key, Derived):
+                    if cell and not resolve(b, key, off) and column in category.get('add', ()):
+                        # a built-in list the config lacks (an `add` bonus column): made with this one
+                        insert_value(b, off, key, {0: int(cell)})
+                        written.setdefault(p, []).extend([root + '/' + key, root + '/' + key + '[0]'])
+                        print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
+                        continue
                     for at, o in resolve(b, key, off):
                         changed, taken = key.write(b, o, cell)
                         written.setdefault(p, []).extend(root + at + q for q in changed)
@@ -1366,6 +1716,13 @@ def stats_write(category, columns, rows, data, table):
                         write_cell(b, o, cell)
                         written.setdefault(p, []).append(root + at)
                 print('%s %s: %s -> %s' % (stats_label(category, row, p), column, have, cell))
+            for at, o in resolve(b, 'default_modifications', off) if built_in_order(columns) else ():
+                was = built_in_kinds(b, o)
+                moved = sort_built_ins(b, o, built_in_order(columns))
+                if moved:
+                    written.setdefault(p, []).extend(root + at + '[%d]' % k for k in moved)
+                    lists.setdefault(p, set()).add(root + at)
+                    print('%s built-in order: %s -> %s' % (stats_label(category, row, p), was, built_in_kinds(b, o)))
             if stats_differences(b, off, columns, rows[row], row, present):
                 raise ValueError('%s: does not read back as its row' % stats_label(category, row, p))
             for prop_id, text, want in card_differences(b, category['cards']) if category.get('cards') else ():
@@ -1502,6 +1859,11 @@ def set_entry(buf, path, where, frm, to):
         if t == T_STR:
             new = v.encode()
             REC.pack_into(buf, c, append(buf, new + b'\0'), i, crc, t, len(new) + 1)
+        elif t == T_INDEXED:
+            if not isinstance(v, list):
+                raise ValueError('%s[%d]/%s is an indexed table: its value is a list' % (path, at, k))
+            d, _, _, _, cnt = REC.unpack(value_record(buf, 0, '', as_table(v)))
+            REC.pack_into(buf, c, d, i, crc, t, cnt)
         elif t > T_STR:
             if not isinstance(v, list) or len(v) != t - 4:
                 raise ValueError('%s[%d]/%s takes %d numbers' % (path, at, k, t - 4))
@@ -1647,6 +2009,117 @@ def clip_end(tracks):
     """The clip's length in frames: the last knot of its first track."""
     n = struct.unpack_from('<I', tracks, 0)[0]
     return struct.unpack_from('<f', tracks, 4 + 8 * (n - 1))[0]
+
+
+def reload_clip_ratio(config, read_clip):
+    """Empty/tactical duration for distinct state-314 clips; None otherwise.
+
+    0x30FC50 normalizes the first hands clip to parameters/reload_time via
+    0x30D750. 0x30FE90 selects the tactical/empty pair at that same speed.
+    Refuse stance-dependent durations instead of publishing a misleading stat.
+    """
+    try:
+        state = value_of(config, find(config, 'states/reload/state_type'))
+    except KeyError:
+        return None
+    if state != 314:
+        return None
+    clips = children(config, find(config, 'states/reload/user_animations'))
+    if len(clips) != 8:
+        raise ValueError('two-clip reload must have eight hands animations')
+    names = [value_of(config, off).removeprefix('resources/') for off in clips]
+    # Jackhammer and SVU-A use state 314 with the same clip in both slots.
+    # Equal durations alone do not imply this: Kedr/Kiparis have distinct clips.
+    if all(names[i] == names[i + 1] for i in range(0, 8, 2)):
+        return None
+    durations = []
+    for name in names:
+        tracks = clip_parse(read_clip(name + '.b-spline'))[2]
+        duration = clip_end(tracks) - struct.unpack_from('<f', tracks, 4)[0]
+        if not math.isfinite(duration) or duration <= 0:
+            raise ValueError(f'{name}: invalid reload duration {duration}')
+        durations.append(duration)
+    if any(not math.isclose(d, durations[i % 2], rel_tol=1e-6)
+           for i, d in enumerate(durations)):
+        raise ValueError(f'reload durations vary by stance/view: {durations}')
+    return durations[1] / durations[0]
+
+
+def retime_clip(source, scale):
+    """Scale the time axis of every bone curve and event; keep poses and event payloads exact."""
+    if not math.isfinite(scale) or scale <= 0:
+        raise ValueError('invalid animation time scale')
+    start, heads, tracks, channels, pads = clip_parse(source)
+    if clip_bytes(start, heads, tracks, channels, pads) != source:
+        raise ValueError('reload clip does not roundtrip')
+    changed = bytearray(tracks)
+    off = 0
+    while off < len(tracks):
+        count = struct.unpack_from('<I', tracks, off)[0]
+        for i in range(count):
+            at = off + 4 + 8 * i
+            time = struct.unpack_from('<f', tracks, at)[0] * scale
+            if not math.isfinite(time):
+                raise ValueError('invalid animation knot')
+            struct.pack_into('<f', changed, at, time)
+        off += 4 + count * 8
+    events = [dict(c, knots=[k * scale for k in c['knots']]) for c in channels]
+    if any(not math.isfinite(k) for c in events for k in c['knots']):
+        raise ValueError('invalid animation event time')
+    return clip_bytes(start, heads, changed, events, pads)
+
+
+def retime_reload(config, weapon, read_asset):
+    """Compile an explicit tactical/empty pair to private clips for the unmodified 0.26g engine.
+
+    Returns generated assets and changed config paths. Item clips use the corresponding hands'
+    scale, preserving their timing relative to the hands. All stances/views must agree.
+    """
+    try:
+        empty = value_of(config, find(config, 'parameters/reload_empty_time'))
+    except KeyError:
+        return {}, []
+    tactical = value_of(config, find(config, 'parameters/reload_time'))
+    if any(not math.isfinite(t) or t <= 0 for t in (tactical, empty)):
+        raise ValueError('reload times must be finite and positive')
+    if reload_clip_ratio(config, read_asset) is None:
+        raise ValueError('explicit empty time requires distinct state-314 reload clips')
+    if not re.fullmatch(r'wpn_[a-z0-9_]+', weapon):
+        raise ValueError('invalid reload weapon name')
+    hands = [value_of(config, o) for o in children(config, find(config, 'states/reload/user_animations'))]
+    scales = []
+    for name, seconds in zip(hands[:2], (tactical, empty)):
+        tracks = clip_parse(read_asset(name.removeprefix('resources/') + '.b-spline'))[2]
+        frames = clip_end(tracks) - struct.unpack_from('<f', tracks, 4)[0]
+        scales.append(30 * seconds / frames)
+    assets, written = {}, []
+    for key, count, label in [('user_animations', 8, 'hands'), ('animations', 2, 'item')]:
+        path = 'states/reload/' + key
+        names = [value_of(config, o) for o in children(config, find(config, path))]
+        if len(names) != count:
+            raise ValueError(f'reload {key} must have {count} clips')
+        for i, name in enumerate(names):
+            source = name.removeprefix('resources/')
+            stem = f'animations/single/weapons/srp_reload/{weapon}/{label}_{i}'
+            if source.startswith('animations/single/weapons/srp_reload/'):
+                raise ValueError('reload retiming must start from the original clips')
+            assets[stem + '.b-spline'] = retime_clip(read_asset(source + '.b-spline'), scales[i % 2])
+            assets[stem + '.bones_names'] = read_asset(source + '.bones_names')
+            edit_text(config, f'{path}[{i}]', name, 'resources/' + stem)
+            written.append(f'/{path}[{i}]')
+    actual = reload_clip_ratio(config, assets.__getitem__)
+    if not math.isclose(actual, empty / tactical, rel_tol=1e-6):
+        raise ValueError('retimed reload does not reproduce the explicit durations')
+    # UI metadata was generated before the stat table and must follow the compiled pair.
+    props = children(config, find(config, 'ui_desc/props_list'))
+    for prop in props:
+        if value_of(config, find(config, 'prop_id', prop)) == 162:
+            old = value_of(config, find(config, 'prop_value', prop))
+            written.append(set_prop(config, 162, old, format(actual, '.9g')))
+            break
+    else:
+        raise ValueError('retimed reload lacks tactical UI metadata')
+    return assets, written
 
 
 def f32(values):
@@ -1827,6 +2300,44 @@ def vegetation_chunks(data):
     return chunks
 
 
+def mesh_chunks(data):
+    """{id: body} of a collision mesh file's sequential chunks (u32 id, u32 size)."""
+    chunks, at = {}, 0
+    while at < len(data):
+        if at + 8 > len(data):
+            raise ValueError('mesh: truncated chunk header')
+        kind, size = struct.unpack_from('<II', data, at)
+        if kind in chunks or at + 8 + size > len(data):
+            raise ValueError('mesh: duplicate or truncated chunk %#x' % kind)
+        chunks[kind] = data[at + 8:at + 8 + size]
+        at += 8 + size
+    return chunks
+
+
+def remove_faces(vertices, indices, face_data, faces):
+    """(indices, face_data) of a collision mesh (chunks 0x19 vertices, 0x1a indices, 0x1b face names,
+    0x1c a u16 per triangle) without the triangles whose corners are `faces`."""
+    v, i, f = mesh_chunks(vertices), mesh_chunks(indices), mesh_chunks(face_data)
+    if set(v) != {0x19} or set(i) != {0x1a} or set(f) != {0x1b, 0x1c}:
+        raise ValueError('mesh: unexpected chunks')
+    points = [p for p in struct.iter_unpack('<3f', v[0x19])]
+    tris = [t for t in struct.iter_unpack('<3I', i[0x1a])]
+    if len(f[0x1c]) != 2 * len(tris) or any(k >= len(points) for t in tris for k in t):
+        raise ValueError('mesh: %d triangles, %d face entries' % (len(tris), len(f[0x1c]) // 2))
+    near = lambda a, b: all(abs(x - y) <= 5e-4 for x, y in zip(a, b))
+    drop = set()
+    for face in faces:
+        hit = [n for n, t in enumerate(tris) if all(near(points[k], c) for k, c in zip(t, face))]
+        if len(hit) != 1:
+            raise ValueError('remove_faces: %d triangles at %r, not 1: the base is not the live data' % (len(hit), face))
+        drop |= set(hit)
+    keep = [n for n in range(len(tris)) if n not in drop]
+    body = b''.join(struct.pack('<3I', *tris[n]) for n in keep)
+    faces_body = b''.join(f[0x1c][2 * n:2 * n + 2] for n in keep)
+    return (struct.pack('<II', 0x1a, len(body)) + body,
+            struct.pack('<II', 0x1b, len(f[0x1b])) + f[0x1b] + struct.pack('<II', 0x1c, len(faces_body)) + faces_body)
+
+
 def runtime_vegetation(data):
     """Keep complete runtime chunks in original order, including their headers."""
     original = vegetation_chunks(data)
@@ -1920,9 +2431,13 @@ def main():
     for e in edits.get('set_bool', []):
         set_bool(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    remade = {}  # file -> the indexed tables set_entry made again: anything under them may differ
     for e in edits.get('set_entry', []):
         at = set_entry(buf(e['file']), e['list'], e['where'], e['from'], e['to'])
-        allowed.setdefault(e['file'], set()).update('/%s[%d]/%s' % (e['list'], at, k) for k in e['to'])
+        paths = ['/%s[%d]/%s' % (e['list'], at, k) for k in e['to']]
+        allowed.setdefault(e['file'], set()).update(paths)
+        remade.setdefault(e['file'], set()).update(
+            q for q in paths if rec(buf(e['file']), find(buf(e['file']), q[1:]))[3] == T_INDEXED)
     shifts, added, grown = {}, {}, {}  # grown: file -> table -> entries added (less those removed)
     gone = {}
     if stats is not None:
@@ -1982,7 +2497,6 @@ def main():
                 sys.exit('remove_key: no file of %s has %s' % (e['files'], key))
             print('remove %s: %d files' % (key, n))
     if 'localization' in edits:
-        from pathlib import Path
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'client-patches'))
         from build_localization_026g import compile_catalog
         from localization_026g import FLASH_MOVIES, LANGUAGES, flash_rows, read_config, read_translations
@@ -2038,14 +2552,31 @@ def main():
             print('localization %s: %d keys, no fallback' % (p, len(new_keys)))
     for e in edits.get('add_entry', []):
         n = 0
-        for p in sorted(fnmatch.filter(list(files) + list(copies), e['files'])):
+        paths = sorted(fnmatch.filter(list(files) + list(copies), e['files']))
+        # Computed from the live files (the weapons, materials and dictionary declared in _inputs):
+        # each round's pierce line.
+        pierced = pierce_lines(lambda path: bufs[path] if path in bufs else bytearray(open(files[path], 'rb').read()),
+                               set(files) | set(copies), e['pierce_line']) if e.get('pierce_line') else None
+        for p in paths:
             b = bytearray(open(files[p], 'rb').read()) if p not in bufs else bufs[p]
             if e.get('only_if'):
                 try:
                     find(b, e['only_if'])
                 except KeyError:
                     continue
-            at = add_entry(b, e['list'], e['after'], e['like'], e['values'])
+            values = e['values']
+            if e.get('reload_clip_ratio'):
+                # The edit list declares the clips as read-only _inputs so
+                # build-content supplies the same composed files players get.
+                ratio = reload_clip_ratio(b, lambda path: open(files[path], 'rb').read())
+                if ratio is None:
+                    continue
+                values = dict(values, prop_value=format(ratio, '.9g'))
+            if pierced is not None:
+                if p not in pierced:
+                    continue
+                values = dict(values, prop_value=pierced[p])
+            at = add_entry(b, e['list'], e['after'], e['like'], values)
             if at is None:
                 continue
             bufs[p] = b
@@ -2057,7 +2588,24 @@ def main():
             added.setdefault(p, []).append('%s[%d]' % (lst, at))
             grown.setdefault(p, {}).setdefault(lst, 0)
             grown[p][lst] += 1
+        if 'expected_files' in e and n != e['expected_files']:
+            raise ValueError('add_entry %s of %s after %s: %d files took it, not %d'
+                             % (e['list'], e['files'], e['after'], n, e['expected_files']))
         print('entry %s after %s: %d files' % (e['list'], e['after'], n))
+    for e in edits.get('append_entry', []):
+        if 'files' in e:
+            if len(e['files']) != len(e['expected_counts']):
+                raise ValueError('append_entry: %d files, %d expected counts' % (len(e['files']), len(e['expected_counts'])))
+            targets = list(zip(e['files'], e['expected_counts']))
+        else:
+            targets = [(e['file'], e['expected_count'])]
+        for p, expected in targets:
+            at = append_entry(buf(p), e['list'], expected, e['unique_key'], e['value'], e.get('vectors', False))
+            table = '/' + e['list']
+            added.setdefault(p, []).append('%s[%d]' % (table, at))
+            grown.setdefault(p, {}).setdefault(table, 0)
+            grown[p][table] += 1
+            print('append %s %s[%d]' % (p, e['list'], at))
     for e in edits.get('add_key', []):
         add_key(buf(e['file']), e['table'], e['key'], e['text'])
         added.setdefault(e['file'], []).append('/%s/%s' % (e['table'], e['key']))
@@ -2110,10 +2658,27 @@ def main():
         grown[e['file']].setdefault(lst, 0)
         grown[e['file']][lst] -= 1
         allowed[e['file']] = {q for q in (unshifted(q, lst, at) for q in allowed.get(e['file'], ())) if q is not None}
+        remade[e['file']] = {q for q in (unshifted(q, lst, at) for q in remade.get(e['file'], ())) if q is not None}
         if any(unshifted(a, lst, at) is None for a in added.get(e['file'], ())):
             sys.exit('remove_entry: %s[%d] is an entry this list adds' % (lst, at))
         added[e['file']] = [unshifted(a, lst, at) for a in added.get(e['file'], ())]
     clips = {}  # animation clips: not configs, so add_event_channel reads them back itself
+    for e in edits.get('retime_reload', []):
+        paths = sorted(fnmatch.filter(files, e['files']))
+        if not paths:
+            raise ValueError('retime_reload: no matching weapons')
+        for p in paths:
+            b = bytearray(open(files[p], 'rb').read())
+            assets, written = retime_reload(b, os.path.basename(p).removesuffix('.options'),
+                                           lambda path: open(files[path], 'rb').read())
+            if not assets:
+                continue
+            if p in bufs or set(assets) & (set(files) | set(clips)):
+                raise ValueError('retime_reload: conflicting output for ' + p)
+            bufs[p] = b
+            allowed.setdefault(p, set()).update(written)
+            clips.update(assets)
+            print('retimed reload %s: %d private animation resources' % (p, len(assets)))
     for e in edits.get('make_held_flower', []):
         made = make_held_flower({p: open(files[p], 'rb').read() for p in e['files']}, e)
         for p, data in made.items():
@@ -2134,6 +2699,20 @@ def main():
         clips[stem + '.b-spline'] = make_pose_clip(source_bytes, names_bytes, e)
         clips[stem + '.bones_names'] = names_bytes
         print('pose clip %s: %g frames, %d authored bones' % (stem, e['frames'], len(e['end'])))
+    for e in edits.get('files_from_repo', []):
+        stem = e['output']
+        if not stem.startswith('animations/') or '..' in stem.split('/') or '\\' in stem:
+            raise ValueError('files_from_repo: output must be a new animations/ resource path')
+        if stem in files or stem in bufs or stem in clips:
+            raise ValueError('files_from_repo: output already exists: ' + stem)
+        source = Path(edits_file).resolve().parent / e['source']
+        data = source.read_bytes()
+        if hashlib.sha256(data).hexdigest() != e['sha256']:
+            raise ValueError('files_from_repo: %s differs from its pinned sha256' % e['source'])
+        if stem.endswith('.b-spline'):
+            clip_parse(data)
+        clips[stem] = data
+        print('file from the repo %s: %d bytes' % (stem, len(data)))
     for e in edits.get('add_event_channel', []):
         p = e['file']
         if p in bufs:
@@ -2165,6 +2744,15 @@ def main():
         source = open(files[e['file']], 'rb').read()
         require_headwear_bind(source, {b['file'] for b in edits.get('append_headwear_bind', [])})
         print('character bind reference verified: ' + e['file'])
+
+    for e in edits.get('remove_faces', []):
+        vertices, indices, face_data = e['files']
+        for p in (indices, face_data):
+            if p in bufs or p in clips:
+                sys.exit('remove_faces: %s already edited' % p)
+        read = lambda p: open(files[p], 'rb').read()
+        clips[indices], clips[face_data] = remove_faces(read(vertices), read(indices), read(face_data), e['faces'])
+        print('remove_faces %s: %d triangles out' % (indices.rpartition('/')[0], len(e['faces'])))
 
     # Binary render assets: each operation checks its format and unchanged bytes.
     if edits.get('append_headwear_bind') or edits.get('rigid_headwear'):
@@ -2233,11 +2821,14 @@ def main():
             if o == n:
                 continue
             ok = (q in allowed.get(p, ()) and o and n and n[0] in (o[0], T_FLOAT)) or \
+                any(q.startswith(t + '[') for t in remade.get(p, ())) or \
                 (o and n and o[0] == n[0] == T_STR and (o[1], n[1]) in strings) or \
                 (o and n and o[0] == n[0] == T_STR and any(q.endswith('/' + k.decode()) and n[1] == x + o[1]
                                                            for k, x in prefixed.get(p, ()))) or \
                 (o is None and any(q == a or q.startswith(a + '/') or q.startswith(a + '[') for a in added.get(p, ()))) or \
                 (n is None and any(q == g or q.startswith(g + '/') or q.startswith(g + '[') for g in gone.get(p, ()))) or \
+                any((q == g or q.startswith(g + '/') or q.startswith(g + '[')) and g in added.get(p, ())
+                    for g in gone.get(p, ())) or \
                 (o and n and o[0] == n[0] and n[1] - o[1] == grown.get(p, {}).get(q, 0) != 0)
             bad += not ok
             print('%s%s %s: %s -> %s' % ('' if ok else 'UNEXPECTED ', p, q, show(o), show(n)))

@@ -10,15 +10,20 @@ rem   Skhid-collect-logs.cmd                 make the ZIP
 rem   Skhid-collect-logs.cmd --dry-run       say what it would collect, collect nothing
 rem
 rem What it takes (the PowerShell code at the end of this file):
-rem - the logs: updater_skhid.log, srp_patches.log, the launcher's, the
-rem   game's own (Documents\Survarium\Survarium*.log), DXVK's,
+rem - the logs: the updater's and the client patches' of each run
+rem   (updater_skhid.<time>.log, srp_patches.<time>.log in game\logs, and
+rem   the updater_skhid.log and srp_patches.log of before the runs were
+rem   named), the launcher's, the game's own (game\logs and Documents\Survarium\Survarium*.log,
+rem   one a run), DXVK's, skhid-wine.log (game\logs) of Skhid.sh,
 rem   skhid-download.log of Skhid-without-updater.bat; each through a filter
 rem   that removes every line naming a password, a digest, a token, a key, a
 rem   cookie, a command line or a URL with a user in it (the crash
 rem   reporter's, client/bugtrap/src/sanitize.rs), and the record it starts;
 rem - the crash reporter's text reports (SRP-crash-*.txt, beside the game
-rem   and in the temporary folder); its dumps are only listed, never taken
-rem   (their memory may hold the password);
+rem   and in the temporary folder), and of the newest 5 crash ZIPs their
+rem   crash.txt and breadcrumbs.txt (the match and its last events); its
+rem   dumps are only listed, never taken (their memory may hold the
+rem   password), the ZIPs too, for the dump in them;
 rem - the updater's small state files and play_skhid.bat;
 rem - the list of the folder game (names, sizes, dates) and of this
 rem   folder's Skhid files (no other name of it), the sha256 of the game's
@@ -37,9 +42,8 @@ rem The code page: this file is kept in UTF-8, and make_client_026g.py ships
 rem it in code page 866 (DOS Cyrillic). cmd reads each line of a script in
 rem the console's code page at the time, so it switches the console to 866 here,
 rem before the first line with a Russian letter, and back at the end: the
-rem text is right on a Russian Windows (866 already) and on any other. (Not
-rem 65001: Windows 7's cmd stops reading a script in it.) Every line above
-rem the chcp is ASCII. PowerShell reads its code below in 866 too.
+rem text is right on a Russian Windows (866 already) and on any other.
+rem Every line above the chcp is ASCII. PowerShell reads its code below in 866 too.
 setlocal EnableExtensions DisableDelayedExpansion
 set "SKHID_CP="
 for /f "tokens=2 delims=:" %%C in ('chcp') do set "SKHID_CP=%%C"
@@ -116,8 +120,8 @@ goto end
 %RU% Пробный запуск: ничего не собирается, только выводится, что было бы собрано.
 %EN% Dry run: nothing is collected, only what would be is printed.
 echo.
-echo [dry-run] logs: Documents\Survarium, "%X86%", "%TOP%\game", "%TOP%", "%TOP%\temp"
-echo [dry-run] crash reports: SRP-crash-*.txt in "%X86%" and the temporary folder
+echo [dry-run] logs: Documents\Survarium, "%TOP%\game\logs", "%X86%", "%TOP%\game", "%TOP%", "%TOP%\temp"
+echo [dry-run] crash reports: SRP-crash-*.txt in "%X86%" and the temporary folder, the text of the newest 5 SRP-crash-*.zip
 echo [dry-run] sha256: game\binaries\x86 programs, the certificate, game\resources.db, game\resources.db.patch_*
 echo [dry-run] servers: updater_skhid.url's (else https://skhid.link) /api/client-files, /patches, /game and their hosts
 echo [dry-run] write: Desktop\Skhid-logs-^<date^>-^<time^>.zip
@@ -143,10 +147,12 @@ set "RC=1"
 goto end
 
 :no_powershell
-%RU% Не найден PowerShell, без него собрать логи нельзя. Отправьте сами файл
-%RU% game\binaries\x86\updater_skhid.log и логи из папки Документы\Survarium.
+%RU% Не найден PowerShell, без него собрать логи нельзя. Отправьте сами
+%RU% новейшие файлы updater_skhid.*.log и srp_patches.*.log из папки
+%RU% game\logs и логи из папки Документы\Survarium.
 %EN% PowerShell is not found, and the logs cannot be collected without it.
-%EN% Send game\binaries\x86\updater_skhid.log and the logs in the folder
+%EN% Send the newest updater_skhid.*.log and srp_patches.*.log of the folder
+%EN% game\logs and the logs in the folder
 %EN% Documents\Survarium yourself.
 set "RC=1"
 goto end
@@ -169,8 +175,8 @@ rem line above runs.
 # Reads only: nothing of the game, its folder or Windows is changed. It
 # writes its own folder Skhid-logs-<date>-<time> on the Desktop (else in
 # the game folder, when the Desktop cannot be written), makes the ZIP of it
-# beside it and deletes the folder. Windows PowerShell 2 (Windows 7) to 5.1;
-# PowerShell 7 elsewhere (the tests). What Windows has not (Defender's,
+# beside it and deletes the folder. Windows PowerShell 5.1; PowerShell 7
+# elsewhere (the tests). What Windows has not (Defender's,
 # the firewall's cmdlets, the event log) is said in the report, not failed.
 $ErrorActionPreference = 'Stop'
 $global:skhidStatus = 1
@@ -283,12 +289,18 @@ function Take($file, [string]$name, [long]$cap) {
     $what = '{0}  {1} bytes, {2} UTC' -f $name, $file.Length, (Utc $file.LastWriteTime)
     $size = [Math]::Min([long]$file.Length, $cap)
     $bytes = Read-Bytes $file.FullName ($file.Length - $size) $size
+    Keep $bytes $name $what ($size -lt $file.Length)
+}
+# Text `bytes` (`cut`: the end of a longer file) into the folder at `name`,
+# cleaned: `what` and what became of it, for the report.
+function Keep([byte[]]$bytes, [string]$name, [string]$what, [bool]$cut) {
+    $size = $bytes.Length
     if ([Array]::IndexOf($bytes, [byte]0) -ge 0) { return ($what + ', not taken: not text') }
-    $clean = Clean $bytes ($size -lt $file.Length)
+    $clean = Clean $bytes $cut
     $to = Under $stage ($name -split '/')
     [void][IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($to))
     [IO.File]::WriteAllBytes($to, $clean.Bytes)
-    if ($size -lt $file.Length) { $what += ", its last $size bytes" }
+    if ($cut) { $what += ", its last $size bytes" }
     if ($clean.Removed) { $what += ", $($clean.Removed) lines removed (credentials)" }
     $state.Taken += $size
     $what
@@ -510,8 +522,10 @@ try {
 
     Say 'Логи...' 'Logs...'
     Part 'Logs taken (newest first)' {
-        $name = '^(survarium(_.*)?\.(log|journal)|updater_skhid\.log|launcher(_skhid)?\.log|srp_patches\.log|skhid-download\.log|skhid-wine\.log)$'
-        $places = @(@('documents', $gameDocuments), @('game-x86', $x86), @('game', $game), @('game-folder', $top), @('game-folder-temp', (Under $top @('temp'))))
+        # A run's log: <kind>.<its start, YYYY-MM-DD_HH-MM-SS>[_<n>].log (client/bugtrap/src/run_name.rs).
+        $run = '(\.\d{4}-\d\d-\d\d_\d\d-\d\d-\d\d(_\d{1,2})?)?'
+        $name = '^(survarium(_.*)?' + $run + '\.(log|journal)|(updater_skhid|srp_patches)' + $run + '\.log|launcher(_skhid)?\.log|skhid-download\.log|skhid-wine\.log)$'
+        $places = @(@('documents', $gameDocuments), @('game-logs', (Under $game @('logs'))), @('game-x86', $x86), @('game', $game), @('game-folder', $top), @('game-folder-temp', (Under $top @('temp'))))
         $found = @()
         foreach ($place in $places) {
             if (-not $place[1] -or -not [IO.Directory]::Exists($place[1])) { Line ('  ' + $place[0] + ': no folder'); continue }
@@ -547,6 +561,30 @@ try {
             try { Line ('  ' + (Take $newest[$i].File $entry 1MB)) } catch { Line ('  ' + $entry + ': not read: ' + (Why $_.Exception)) }
         }
         if (-not $reports) { Line '  no SRP-crash-*.txt' }
+        # A crash ZIP's text (crash.txt: the crash, the match and its last
+        # events; breadcrumbs.txt: all of them), the newest 5 ZIPs: their dumps
+        # stay out, as every dump.
+        $zips = @($dumps | Where-Object { $_.File.Name -like 'SRP-crash-*.zip' } | Sort-Object { $_.File.LastWriteTimeUtc } -Descending)
+        for ($i = 0; $i -lt [Math]::Min($zips.Length, 5); $i++) {
+            $z = $zips[$i]
+            $folder = 'crash/' + $z.Place + '/' + [IO.Path]::GetFileNameWithoutExtension($z.File.Name)
+            try {
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                $archive = [IO.Compression.ZipFile]::OpenRead($z.File.FullName)
+                try {
+                    foreach ($member in @('crash.txt', 'breadcrumbs.txt')) {
+                        $e = $archive.GetEntry($member)
+                        if (-not $e) { continue }
+                        if ($e.Length -gt 1MB) { Line ('  ' + $folder + '/' + $member + ': not taken, over 1 MB'); continue }
+                        $from = $e.Open()
+                        $bytes = New-Object IO.MemoryStream
+                        try { $from.CopyTo($bytes) } finally { $from.Dispose() }
+                        $what = '{0}/{1}  {2} bytes, from its ZIP' -f $folder, $member, $e.Length
+                        Line ('  ' + (Keep $bytes.ToArray() ($folder + '/' + $member) $what $false))
+                    }
+                } finally { $archive.Dispose() }
+            } catch { Line ('  ' + $folder + '.zip: its text not read: ' + (Why $_.Exception)) }
+        }
         # The dumps hold the game's memory (perhaps the password): named, never taken.
         foreach ($d in @($dumps | Sort-Object { $_.File.LastWriteTimeUtc } -Descending)) {
             Line ('  not taken: {0}/{1}  {2} bytes, {3} UTC' -f $d.Place, $d.File.Name, $d.File.Length, (Utc $d.File.LastWriteTime))
@@ -588,10 +626,7 @@ try {
     }
 
     Part 'Other antivirus programs' {
-        $products = $null
-        try { $products = @(Get-CimInstance -Namespace 'root/SecurityCenter2' -ClassName AntiVirusProduct -ErrorAction Stop) } catch {
-            $products = @(Get-WmiObject -Namespace 'root\SecurityCenter2' -Class AntiVirusProduct -ErrorAction Stop)
-        }
+        $products = @(Get-CimInstance -Namespace 'root/SecurityCenter2' -ClassName AntiVirusProduct -ErrorAction Stop)
         foreach ($p in $products) { Line ('  ' + $p.displayName + ' (state ' + $p.productState + ')') }
         if (-not $products) { Line '  none registered' }
     }

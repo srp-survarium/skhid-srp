@@ -40,10 +40,13 @@ package survarium.player
          if(_kit19 != 0) result.push({name:LocalizationData.getName("st_srp_skills"),value:_kit19});
          return result;
       }
+      // As the speed's rows: the items (armour head to boots, the pockets), the skills, the weight.
       public function sources() : Array
       {
-         var result:Array = sources19();
+         var result:Array = _items.concat();
+         if(_kit19 != 0) result.push({name:LocalizationData.getName("st_srp_skills"),value:_kit19});
          if(_skill67 != 0) result.push({name:SpeedParts.skillName(201),value:_skill67});
+         if(_weight != 0) result.push({name:LocalizationData.getName("equipment_weight"),value:_weight});
          return result;
       }
       // The use as a fraction of the base drain.
@@ -59,7 +62,7 @@ package survarium.player
       public function heading() : Object
       {
          var value:String = LocalizationData.format("st_srp_unit_percent",percent.toString());
-         return {heading:LocalizationData.format("st_srp_weight_sprint_stamina",value),headingValue:value,
+         return {heading:LocalizationData.getName("st_srp_weight_sprint_stamina") + ": " + value,headingValue:value,
             headingStyle:percent > 100 ? "red" : percent < 100 ? "green" : "white"};
       }
       // Less use is better: a cut is green, an increase red.

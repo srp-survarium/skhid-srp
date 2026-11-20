@@ -7,6 +7,9 @@ patch = 92
 [[hook]]
 site = "battery.carrier_tick"
 handler = "on_carrier_tick"
+# before Resonance's re-selection (patch 109, order 2) and Forest Protection's glow
+# (patch 111, order 3)
+order = 1
 
 [[hook]]
 site = "battery.match_start"

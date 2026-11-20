@@ -1,0 +1,23 @@
+weapon	donor	name	role	tradeoff
+wpn_ak_12	ak_12	AK-12	Top-level benchmark	Unchanged
+wpn_ots14	ots14	Groza	High penetration, compact assault rifle	20 rounds, sharper falloff and slow bullets
+wpn_scar_h	scar_h	SCAR-H	Hard-hitting battle rifle	20 rounds, deliberate kick
+wpn_vhs_2	vhs_2	VHS-2	Accurate medium-range automatic	Less penetration than AK-12
+wpn_fn_minimi	fn_minimi	Minimi	Fast sustained fire	Long reload and movement penalty
+wpn_mp5a1	mp5a1	MP5	Level-10 pool: mobile, controlled SMG	Weak against heavy armour
+wpn_svu_a	svu_a	SVU-A	Quick follow-up sniper	Five rounds and substantial kick
+wpn_l85a2	l85a2	L85A2	Level-10 pool: steady rifle with good reach	Slower close-range TTK than AK-12
+wpn_fort_401	fort_401	Fort-401	Stable belt-fed gun with good reach	Heavy and slow to aim
+wpn_jackhammer	jackhammer	Jackhammer	Automatic room-clearing shotgun	Pellet accuracy, kick and sharp falloff
+wpn_cz_75	cz_75	CZ 75	Precise backup with slightly longer reach	Weak pistol damage
+wpn_mp443	mp443	MP-443	Fast-drawing, 18-round backup	Less precise than CZ 75
+wpn_beretta93r	beretta93r	Beretta 93R	Fast three-shot emergency bursts	Weak rounds and trigger cadence between bursts
+wpn_glock_17	glock_17	Glock 17	Light automatic backup	Pronounced kick, weak rounds
+wpn_colt_m1911	colt_m1911	Colt M1911	Harder-hitting individual pistol rounds	Seven-round magazine and heavy kick
+wpn_akmsu	akmsu	AKMSU	Level-10 pool: quick compact rifle	Short reach and strong kick
+wpn_famas	famas	FAMAS	Close-range high fire rate	Fast ammunition use, recoil buildup and early falloff
+wpn_g3sg1	g3a3	G3SG/1	Long-range sustained marksman fire	Slow cadence and large kick
+wpn_mauser_m712	mauser	Mauser M.712	Fast automatic backup	Ten weak rounds; cannot kill Zubr +8 torso in one magazine
+wpn_ks_23m	ks_23	KS-23M	Level-10 pool: heavy close-range pump	Four shells, slow pump, unreliable against heavy armour
+wpn_ppsh_drum	ppsh_drum	PPSh Drum	Level-10 pool: 71-round sustained fire	Weak penetration, slow reload and aim
+wpn_pkp_pecheneg	pkp_pecheneg	PKP	Top-level sustained-fire reference	Unchanged

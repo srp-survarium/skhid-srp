@@ -20,9 +20,10 @@
 #      image srp-026g:before-rev<n>-<stamp>; puts the rollback in the folder;
 #   5. the server data and the ZIP into place (hard links renamed over the
 #      old ones, while srp26 is stopped: the site never offers the old ZIP
-#      beside the new /patches and revision), SRP_MIN_PATCH_REVISION=<n> in
-#      .env (that one line; the file is never printed), docker compose up -d
-#      --no-deps --force-recreate srp26;
+#      beside the new /patches and revision), SRP_MIN_PATCH_REVISION=<n>
+#      and SRP_RELEASED_EXE_SHA256=<the sha256 of the ZIP's game exe> in
+#      .env (those lines only; the file is never printed), docker compose up
+#      -d --no-deps --force-recreate srp26;
 #   6. checks the container (running, healthy, not restarting), its log's
 #      game data line, $SKHID_SITE/patches and /game (the list's files, any
 #      rows of srp's mirrors.tsv after each one's URLs) and

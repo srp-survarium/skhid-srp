@@ -33,9 +33,8 @@ records each call. The original runs the same way and must do what it did:
   same-team names only in Blackout (an enemy's never), preserving other decisions, registers and
   stack; a new match resets the held key;
 - the input: process_first_person_mode's epilogue 0x2421B0 to its `ret 8`:
-  while Tab is held in a Blackout match the action mask has no move and no
-  act, an act held through Tab stays out until let go; the original and a
-  match without send what is pressed.
+  a Blackout match sends what is pressed, Tab held or not, as the original
+  and a match without (the hook there is patch 78's, which passes it on).
 """
 import struct
 import sys
@@ -332,69 +331,38 @@ def main():
     print("Tab (on_keyboard_action 0x25CD2C, the input builder's end 0x2421B0)")
     moving = FORWARD | SPRINT | FIRE | AIM | CROUCH | WEAPON_1
     steps = [
-        ("Tab up: moving, sprinting, firing and aiming, crouched", 0, moving, moving),
-        ("Tab down: no move, no fire, no aim; the crouch and the weapon key stay", 1, moving,
-         CROUCH | WEAPON_1),
-        ("Tab held, fire still held: a grenade, melee, use, quick use 1, jump, reload pressed: none of them; "
-         "spot stays", 1, FIRE | GRENADE | MELEE | USE | QUICK_1 | JUMP | RELOAD | SPOT, SPOT),
-        ("Tab up, fire and the grenade still held: they stay out, the moves come back", 0,
-         FORWARD | LEFT | FIRE | GRENADE, FORWARD | LEFT),
-        ("fire let go, the grenade still held", 0, FORWARD | GRENADE, FORWARD),
-        ("fire pressed again: it fires; the grenade let go", 0, FORWARD | FIRE, FORWARD | FIRE),
-        ("the grenade pressed again", 0, GRENADE, GRENADE),
+        ("Tab up: moving, sprinting, firing and aiming, crouched", 0, moving),
+        ("Tab down: the same, as in every mode", 1, moving),
+        ("Tab held: a grenade, melee, quick use 1, jump, reload, spot and use", 1,
+         FIRE | GRENADE | MELEE | USE | QUICK_1 | JUMP | RELOAD | SPOT),
+        ("Tab up, all still held", 0, FORWARD | LEFT | FIRE | GRENADE | USE),
     ]
     for run in (stock, patched):
         run.static_info(empty_options(on))
-    for name, down, mask, want in steps:
+    for name, down, mask in steps:
         a_tab, b_tab = stock.tab(down), patched.tab(down)
-        stock.ticks += 200
-        patched.ticks += 200
         a, b = stock.input(mask), patched.input(mask)
-        ok = a_tab == (KEY_END if down else KEY_ON) and b_tab == KEY_ON and a == (mask, True) and b == (want, True)
-        report(ok, f"{name}: {b[0]:#x} sent (pressed {mask:#x}); the original sends what is pressed; "
-                   "show_player_list given the byte; the key goes on (0x25cd41: the kits' keys 1 to 3)"
+        ok = a_tab == (KEY_END if down else KEY_ON) and b_tab == KEY_ON and a == (mask, True) and b == (mask, True)
+        report(ok, f"{name}: {b[0]:#x} sent, what is pressed, as the original; show_player_list given the byte; "
+                   "the key goes on (0x25cd41: the kits' keys 1 to 3)"
                    + (", the original's to the end (0x25cf0d: its Tab list)" if down else ""))
-    patched.tab(1)
-    patched.ticks += 200
-    blocked = FORWARD | BACK | LEFT | RIGHT | SPRINT | JUMP | FIRE | RELOAD | AIM | 0xFC000 | 0x100000 \
-        | USE | 0x400000 | GRENADE | MELEE
-    b = patched.input(0xFFFFFFFF)
-    blocked |= 1 << 29  # the carry chord's marker is produced only by a valid chord
-    report(b == (0xFFFFFFFF & ~blocked, True), f"Tab down, every bit pressed: {b[0]:#x} sent, all but the moves "
-           "and acts")
     patched.tab(0)
-    patched.input(0)
     patched.static_info(empty_options(b""))
     where = patched.tab(1)
     b = patched.input(moving)
     report(b == (moving, True) and where == KEY_END, f"a match without Blackout, Tab down: {b[0]:#x} sent, all "
            "that is pressed; the key to the end (0x25cf0d) as the original's")
-    patched.static_info(empty_options(on))
-    b = patched.input(moving)
-    report(b == (moving, True), "a new Blackout match's static info forgets a Tab of before: all that is pressed")
+    patched.tab(0)
 
-    print("Tab movement grace: immediate names, 200 ms before stopping movement")
+    print("Tab held: names shown at once and while held; a new match forgets Tab")
     patched.static_info(empty_options(on))
-    patched.ticks = 1000
     patched.tab(1)
-    for now in (1000, 1199, 1200, 1250):
-        patched.ticks = now
-        patched.tab(1)
+    for _ in range(3):
         visible, _, kept = patched.name_visible(0, 0, 0)
-        expected = moving & ~(FIRE | AIM) if now < 1200 else CROUCH | WEAPON_1
-        report(patched.input(moving) == (expected, True) and visible == 1 and kept,
-               f"Tab at {now - 1000} ms: movement {'kept' if now < 1200 else 'blocked'}, names shown")
-    patched.tab(0)
-    report(patched.input(FORWARD | FIRE) == (FORWARD, True), "release restores movement; held fire stays suppressed")
-    patched.ticks = 1300
-    patched.tab(1)
-    patched.ticks = 1399
-    patched.tab(0)
-    report(patched.input(FORWARD) == (FORWARD, True), "a short Tab tap never stops movement")
-    patched.tab(1)
+        report(visible == 1 and kept, "Tab held: the teammate's name shown, registers and stack kept")
     patched.static_info(empty_options(on))
-    patched.ticks += 500
-    report(patched.input(moving) == (moving, True), "new match clears the grace and held actions")
+    visible, _, kept = patched.name_visible(0, 0, 0)
+    report(visible == 0 and kept, "a new match's static info forgets a Tab of before: the native decision")
 
     print("teammate names: the Alt/crosshair result, after visibility and projection")
     for blackout in (False, True):

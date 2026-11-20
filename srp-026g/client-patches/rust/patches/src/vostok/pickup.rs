@@ -41,7 +41,7 @@ pub use weapon_pickup::{Ammo, AmmoBags, CarryRule, Handedness, Hands, Place, Ref
 use super::config::{ConfigError, ConfigValue};
 
 use super::gun_cook::{self, CookId};
-use super::world::{floats, read, ItemId, Player, WorldKey};
+use super::world::{floats, read, ItemId, NetworkClient, Player, WorldKey};
 use super::{Context, Lock, Thread};
 use crate::raw;
 
@@ -140,6 +140,10 @@ pub enum Refusal {
     RegistryTaken,
     /// The player's pending object is not the registered gun.
     NotPending,
+    /// The slot's gun is a cooked copy's, not the player's own (a pick
+    /// whose restore was refused left it there): parked in another copy it
+    /// would make that copy's gun this one.
+    NotOwnGun,
 }
 
 impl Refusal {
@@ -152,6 +156,7 @@ impl Refusal {
             Refusal::Changed => "the slots no longer hold what the install put there",
             Refusal::RegistryTaken => "the registry's reserved id is taken (the game's own ids reach it, or another gun holds it)",
             Refusal::NotPending => "the player's pending object is not the picked gun",
+            Refusal::NotOwnGun => "the slot's gun is a cooked copy's, not the player's own",
         }
     }
 }
@@ -325,6 +330,12 @@ pub fn write_record(ctx: &Context<'_>, bytes: &[u8; weapon_pickup::Record::BYTES
     }
 }
 
+/// The player state's stream offset at `pickup.load` (base_player::deserialize's start).
+pub fn load_offset(ctx: &Context<'_>) -> Option<u32> {
+    // SAFETY: base_player::deserialize's live reader (the site's ESI).
+    super::carry_runtime::offset_of(unsafe { raw::site::pickup_load::reader(ctx) }?)
+}
+
 /// Reads the record's bytes at `pickup.load` (None: the state is shorter).
 pub fn read_record(ctx: &Context<'_>) -> Option<[u8; weapon_pickup::Record::BYTES]> {
     // SAFETY: base_player::deserialize's live reader (the site's ESI).
@@ -350,29 +361,43 @@ pub fn hand_view(ctx: &mut Context<'_>, site: Site, view: View) {
     ctx.set_reg(reg, view.0.address());
 }
 
-impl Player<'_> {
-    /// `place`'s player of `kit` in this player's world, whether its place
-    /// is in the world or not (core_active_player 0x2D0AB0 refuses a place
-    /// whose bit core+18FD8h is clear: a departed place, in every game). The
-    /// place keeps its players and its profile when its player leaves, and a
-    /// returning player gets them again: what a pick's recipe is cooked from.
-    pub fn kit_player(&self, place: Place, kit: weapon_pickup::Kit) -> Option<Player<'_>> {
-        // SAFETY: the live player's world core and its places' vector, the
-        // place bounded by the vector's end before its entry is read.
-        unsafe {
-            let core = self.this.world_core()?;
-            let (begin, end) = (core.places()?, core.places_end()?);
-            if end.index_from(begin)? <= usize::from(place.get()) {
-                return None;
-            }
-            let entry = begin.at(usize::from(place.get()));
-            let this = match kit.get() {
-                0 => entry.kit0(),
-                1 => entry.kit1(),
-                _ => entry.kit2(),
-            }?;
-            Some(Player { this, thread: self.thread })
+/// `place`'s player of `kit` in `core`'s place table (core+18458h), whether
+/// its place is in the world or not (core_active_player 0x2D0AB0 refuses a
+/// place whose bit core+18FD8h is clear: a departed place in every game, and
+/// every place before a late joiner's first world, whose load sets the bits).
+/// The place keeps its players and its profile when its player leaves, and a
+/// returning player gets them again: what a pick's recipe is cooked from.
+fn kit_player_in(core: raw::CoreWorld, thread: &Thread, place: Place, kit: weapon_pickup::Kit) -> Option<Player<'_>> {
+    // SAFETY: a live world core and its places' vector, the place bounded by
+    // the vector's end before its entry is read.
+    unsafe {
+        let (begin, end) = (core.places()?, core.places_end()?);
+        if end.index_from(begin)? <= usize::from(place.get()) {
+            return None;
         }
+        let entry = begin.at(usize::from(place.get()));
+        let this = match kit.get() {
+            0 => entry.kit0(),
+            1 => entry.kit1(),
+            _ => entry.kit2(),
+        }?;
+        Some(Player { this, thread })
+    }
+}
+
+impl NetworkClient<'_> {
+    /// `place`'s player of `kit` in the client's match ([`kit_player_in`]).
+    pub fn kit_player(&self, place: Place, kit: weapon_pickup::Kit) -> Option<Player<'_>> {
+        // SAFETY: the client's live match and its world core.
+        kit_player_in(unsafe { self.this.pvp_match()?.core() }, self.thread, place, kit)
+    }
+}
+
+impl Player<'_> {
+    /// `place`'s player of `kit` in this player's world ([`kit_player_in`]).
+    pub fn kit_player(&self, place: Place, kit: weapon_pickup::Kit) -> Option<Player<'_>> {
+        // SAFETY: the live player's world core.
+        kit_player_in(unsafe { self.this.world_core()? }, self.thread, place, kit)
     }
 
     /// The world core: the match the records are of.
@@ -435,6 +460,24 @@ unsafe fn cooked_gun(inventory: raw::Inventory, slot: WeaponSlot) -> Option<(raw
         let gun = item.active_object();
         (read(gun.vtable()) == raw::image::WEAPON_VTABLE).then_some((item, gun))
     }
+}
+
+/// The client weapons in a just made cooked inventory's weapon slots 7 and
+/// 10: each the copy's own gun for as long as the copy lives (an install
+/// parks the picker's own gun in its place only until its restore).
+///
+/// # Safety
+/// `inventory` is a live cooked inventory.
+pub(in crate::vostok) unsafe fn made_guns(inventory: raw::Inventory) -> [Option<ItemId>; 2] {
+    [WeaponSlot::First, WeaponSlot::Second].map(|slot| unsafe { cooked_gun(inventory, slot) }.map(|(_, gun)| ItemId::of(gun)))
+}
+
+/// Whether the made cook `cook`'s `slot` holds a gun other than the one it
+/// was made with (a picker's own gun parked there by an install whose
+/// restore was refused): such a copy is no gun of its recipe, never handed
+/// out again. False while it cooks or while it holds its own gun.
+pub fn stray(thread: &Thread, cook: CookId, slot: WeaponSlot) -> bool {
+    gun_cook::made_gun(thread, cook, slot).is_some_and(|made| gun_id(thread, cook, slot) != Some(made))
 }
 
 /// The cooked gun's handedness (+5E9h). None: it is missing.
@@ -675,6 +718,11 @@ fn place(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, i
         }
         if matches!(mode, Mode::Switch(..)) && held != Some(own_gun) {
             return Err(Refusal::NotInHands);
+        }
+        // Only the player's own gun is parked in the cooked inventory: a
+        // copy's gun there would be handed out later as this copy's.
+        if gun_cook::is_made_gun(player.thread, ItemId::of(own_gun)) {
+            return Err(Refusal::NotOwnGun);
         }
         let (gun_item, gun) = cooked_gun(cooked, slot).ok_or(Refusal::NoCookedGun)?;
         let (w, ow) = (gun.weapon(), own_gun.weapon());
@@ -1199,6 +1247,9 @@ fn checks(player: &Player<'_>, own: WeaponSlot, cook: CookId, slot: WeaponSlot, 
         if read(own_gun.vtable()) != raw::image::WEAPON_VTABLE || held != Some(own_gun) {
             return Err(Refusal::NotInHands);
         }
+        if replacing.is_none() && gun_cook::is_made_gun(player.thread, ItemId::of(own_gun)) {
+            return Err(Refusal::NotOwnGun);
+        }
         if let Some(old) = replacing {
             if old.own != own || old.gun != ItemId::of(own_gun) || old.id != ids.0 {
                 return Err(Refusal::NotInHands);
@@ -1608,6 +1659,15 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
         if !ours.has(Models::BODY) && Scene::has(model) {
             return ours;
         }
+        let scope = weapon.optics().and_then(|optics| optics.model())
+            .filter(|&scope| ours.has(Models::SCOPE) || !Scene::has(scope));
+        // A body placed before, no scope to place: only moved (its bind pose
+        // is skinned once; its model's binds, which gave it then, stay).
+        if ours.has(Models::BODY) && scope.is_none() {
+            Scene::as_world(model);
+            scene.present(model, transform);
+            return ours;
+        }
         // The bind pose: each bone the inverse of its inverse bind (the
         // renderer skins with inverse bind x bone: the mesh as authored).
         let mut bones = [IDENTITY; super::draw::MAX_BONES];
@@ -1628,8 +1688,7 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
             scene.skin(model, bones);
             now |= Models::BODY;
         }
-        if let Some(scope) = weapon.optics().and_then(|optics| optics.model())
-            && (ours.has(Models::SCOPE) || !Scene::has(scope)) {
+        if let Some(scope) = scope {
             let mut at = [0.0f32; 16];
             raw::engine_weapon_locator(at.as_mut_ptr(), Some(weapon.scope_locator()), transform.as_ptr(),
                                        bones.as_ptr().cast(), IDENTITY.as_ptr());
@@ -1706,6 +1765,51 @@ pub fn clamp_bullet_ordinal(ctx: &mut Context<'_>) {
     };
     if ordinal > count {
         ctx.set_reg8(super::Reg::Ecx, count);
+    }
+}
+
+/// A bullet record's length: fixed, the quiet byte always in it (srp-validate's `RECORD`).
+const BULLET_RECORD: usize = 69;
+
+/// The record at `bullets.load_record`'s reader, as the loader would read it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BulletRecord {
+    /// The shooter has a gun in the record's slot: the loader reads it.
+    Armed,
+    /// Its shooter (+3Fh) has no gun in its slot (+41h): passed over.
+    Unarmed { place: u8, slot: u8 },
+}
+
+/// `bullets.load_record`: the loader takes the record's shooter by place
+/// (0x32BD4E) and reads its slot's item as a gun (0x32BDA1, 0x2E2750), with
+/// no check of either. A bullet still in flight when a pickup's swap moved
+/// its gun is saved with the gun's new slot (+254h, 0x32C0B5), the cooked
+/// inventory's, which the shooter may have empty: the loader read a null gun
+/// (the 0x2E2753 crash of 2026-11-17). Such a record is passed over, the
+/// reader past it and no bullet made; this game's world then differs from
+/// the others' by that bullet until it lands (a resync).
+pub fn load_record(ctx: &Context<'_>) -> BulletRecord {
+    // SAFETY: the loop's manager and reader; the world's check (patch 87)
+    // passed the section, so a whole record is at the cursor and its slot is
+    // 7 or 10; the player the loader's own lookup gives, its slot's item
+    // read as a weapon only after its active object's vtable says so.
+    unsafe {
+        let (Some(manager), Some(reader)) =
+            (raw::site::bullets_load_record::manager(ctx), raw::site::bullets_load_record::reader(ctx)) else {
+            return BulletRecord::Armed;
+        };
+        let at = reader.cursor();
+        let (place, slot) = (read(at.add(63)), read(at.add(65)));
+        let armed = manager.engine()
+            .and_then(|engine| raw::engine_bullet_player(Some(engine), u32::from(place)))
+            .and_then(|player| player.inventory())
+            .and_then(|inventory| inventory.slots().at(usize::from(slot)).item())
+            .is_some_and(|item| read(item.active_object().vtable()) == raw::image::WEAPON_VTABLE);
+        if armed {
+            return BulletRecord::Armed;
+        }
+        reader.set_cursor(at.add(BULLET_RECORD));
+        BulletRecord::Unarmed { place, slot }
     }
 }
 

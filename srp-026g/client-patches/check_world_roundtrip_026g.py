@@ -105,8 +105,27 @@ RUN = {
 # trip. Not run here = the bytes it owns are in a section no decoder of this repository locates (bullets,
 # objects, the statistics' batteries), or it owns no bytes.
 OWN_CHECKS = {
+    (0x33DD65, 6): "medical.duration_restore: derives painkiller duration from config and kit ranks, "
+                   "does not read/write serialized bytes; check_medical_skills_026g.py executes start, tick "
+                   "and restore with identical config duration for ranks 0..5 and two client memory layouts",
+
+    (0x27C116, 5): "world_load.loaded: application receipt, exercised by check_packet_recovery_026g.py",
+    (0x2D2D5D, 7): "keeper.world_loaded (patch 109): after the load, every kit's slots made to hold the registered "
+                   "artefacts the world has in them; writes no byte a save writes: of the current kit's "
+                   "inventory a save writes +180h/+184h, never touched here, and the saved range's slots, which "
+                   "the load just wrote from the same records this compares with (it empties only slots outside "
+                   "that range, fills only the slot an artefact's own record names), and the artefacts' records "
+                   "it never writes; check_artefact_keeper_026g.py runs it after the game's own "
+                   "inventory::deserialize and asserts a mended current kit keeps its loaded +180h/+184h",
+    (0x38CD22, 7): "FSM null-state guard owns no serialized bytes; check_deserialize_guards_026g.py",
+    (0x31B0FF, 9): "anomaly state bounds own no serialized bytes; check_deserialize_guards_026g.py",
+    (0x2FE65E, 5): "artefact bounds own no serialized bytes; check_deserialize_guards_026g.py",
     (0x27C0FF, 6): "world_load.raw: the same preparation as world_load.unpacked (world_check.rs `check`), for a "
                    "world sent raw; check_world_check_026g.py",
+    (0x27C059, 5): "WORLD_UNPACK (patch 98): the 0xE8 handler's stack buffer for a packed world, 0x8000 -> 0xF000 "
+                   "bytes, a capacity, no bytes of the world; check_world_sections_026g.py (a packed 0xA014-byte "
+                   "world through the whole handler loads whole)",
+    (0x27C07C, 5): "WORLD_UNPACK (patch 98): the decompress and mutable_buffer capacity, as 0x27C059",
     (0x2D1050, 10): "first_load input and kit (late_join_026g.asm): the place's input and kit choice into the core's "
                     "lists at a first load, no bytes of the world; check_late_join_026g.py",
     (0x2F5ACF, 6): "shared_statistics::serialize: twenty records, a constant, as its deserialize; selftest_026g.py",
@@ -114,7 +133,10 @@ OWN_CHECKS = {
     (0x2F5BE6, 6): "shared_statistics::deserialize: twenty records, as its serialize",
     (0x2F5C03, 6): "shared_statistics::deserialize: twenty records (its second loop)",
     (0x313735, 6): "carry.ground_save: a dropped artefact's 20 bytes in the objects section (no decoder locates "
-                   "them); check_artefact_carry_026g.py (state 6's 20 bytes saved, then loaded)",
+                   "them); check_artefact_carry_026g.py (state 6's 20 bytes saved, then loaded); and patch 109's "
+                   "4 bytes of an active one (state 4), the places Cascade's activation reached; "
+                   "check_artefact_skills_026g.py `check_cascade_activation` (saved, loaded by a late joiner, saved "
+                   "the same)",
     (0x3137EC, 5): "carry.ground_load: as carry.ground_save",
     (0x321C3B, 5): "bullet_history.saved: patch 75's lamp words after the bullets' history (the bullets section, "
                    "no decoder); check_lamps_026g.py (a rollback's and a late joiner's load: the lamps the words say)",
@@ -124,9 +146,16 @@ OWN_CHECKS = {
     (0x32BE12, 7): "bullet.load_quiet: the quiet byte always read, as bullet.save_quiet",
     (0x32BDBA, 5): "bullet.load_ordinal: an ordinal past the loading gun's ammo is none (the same in a world whose "
                    "guns match); check_weapon_pickup_026g.py `bullet_record`",
+    (0x321CA0, 6): "bullets.load_record: a record whose shooter has no gun in its slot passed over, no bullet made "
+                   "(none in a world whose guns match); check_weapon_pickup_026g.py `bullet_record`",
     (0x334F66, 10): "battery.save: patch 92's life after each battery's record (the statistics, modes 2 and 3; "
                     "none in the recorded match); check_battery_progress_026g.py (a load gives every life back)",
     (0x3350D0, 6): "battery.load: as battery.save",
+    (0x316FB8, 5): "respawn.save: patch 142's spawn history, 40 bytes after the respawn rule's (the rules section, a "
+                   "free-for-all's only: the corpus is Team Deathmatch's, where it writes nothing); "
+                   "check_free_for_all_026g.py (saved after the game's own bytes, loaded by a late joiner and in a "
+                   "rollback, saved the same, the same choices after; another mode's bytes the game's alone)",
+    (0x317038, 7): "respawn.load: as respawn.save",
 }
 CODEC = re.compile(r"::(de)?serialize")
 CODEC_ALSO = {0x32BBC0: "survarium::bullet::bullet (the bullet loader)",
@@ -492,7 +521,13 @@ def main():
     parser.add_argument("worlds", nargs="*", default=[WORLDS], help="dumps, or folders of them")
     parser.add_argument("--exe", dest="built", help="a built exe to run instead of this tree's build")
     parser.add_argument("--show", type=int, default=10, help="failures shown per game (default 10)")
+    parser.add_argument("--contexts", help="srp-validate drift_dump TSV for a corpus other than the historical TDM fixtures")
     args = parser.parse_args()
+    contexts = {}
+    if args.contexts:
+        for row in open(args.contexts):
+            file,now,mode,batteries,points,_ = row.rstrip().split('\t')
+            contexts[os.path.basename(file)] = tuple(map(int,(mode,batteries,points)))
     started = time.time()
     original = open(args.exe, "rb").read()
     if args.built:
@@ -519,6 +554,8 @@ def main():
         failures = []
         for name, now, body in loaded:
             game = resync if what == "resync" else games[what]()
+            if args.contexts:
+                game.validation_context = contexts[name]
             failures += round_trip(game, name, now, body)
         for _, _, _, line in failures[:args.show]:
             print(f"  FAIL  {what}: {line}")

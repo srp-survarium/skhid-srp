@@ -126,7 +126,7 @@ def read_table():
 
 def share(row, pool):
     """The % of `pool` a row heals over its active time, as its card says (content_edit.medicine_card)."""
-    return str(min(100, round(row['heal'][pool] * row['active'] / ce.POOLS.get(pool, 1) * 100)))
+    return str(min(100, round(row['heal'][pool] / ce.POOLS[pool] * 100)))
 
 
 def drug_of(row):

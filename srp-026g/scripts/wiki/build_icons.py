@@ -19,6 +19,14 @@ release makes them again from its own patches. Writes <out>/ anew:
   tables/survarium/data/ShopFilters.tsv, its EQUIPMENT and WEAPONS lists, names
   each filter's icon and category, as the movie has them; FFDec exports the
   frames);
+- quests/<ui.icon>.webp: each frame of the quest list's icon, frame n + 1 for
+  a quest's `ui.icon` n (QuestListRender: questIcon.gotoAndStop(quest_icon + 1);
+  the exe's add_quest 0x28DE20 sends `quest_icon` from the quest's ui.icon,
+  which its quest reader 0x321300 keeps at descriptor + 0xB8), a glyph;
+- factions/<faction id>.webp: the quest window's faction tab emblem, frame
+  `faction_id` of SrvQuestFactionTab's `icon` (ButtonQuestFaction sets its
+  data's icon to faction_id; ButtonIconCenter: icon.gotoAndStop(icon)), in
+  its colours;
 - files.rs: those files, for the server's include (servers/web-server/src/icons.rs).
 
 The modification and filter icons are light glyphs with a dark drop shadow.
@@ -42,6 +50,7 @@ from PIL import Image
 # The movie build's reader of a lobby table (tools/actionscript/flash_tree.py).
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools" / "actionscript"))
 from flash_tree import read_table  # noqa: E402
+import swf  # noqa: E402
 
 MOD_ATLAS = "3279_LobbyMenu_ModifierIcons.png"
 MOD_CELL = 38
@@ -49,6 +58,10 @@ MOD_CELL = 38
 # 300 + icon draws a filter's icon. FFDec exports its frames as SVG.
 FILTER_SPRITE = 1125
 FILTER_FRAME = 300
+# The quest window's renderers and the child each draws an icon with:
+# (class, instance name, folder, side in pixels it is written at).
+QUEST_ICONS = (("SrvQuestSideRenderer", "questIcon", "quests", 64),
+               ("SrvQuestFactionTab", "icon", "factions", 96))
 TYPES = {"webp": "image/webp"}
 
 
@@ -102,6 +115,50 @@ def frame_image(frames, frame):
     if len(found) != 1:
         raise SystemExit(f"sprite {FILTER_SPRITE} frame {frame}: {len(found)} bitmaps, not one")
     return Image.open(io.BytesIO(base64.b64decode(found[0])))
+
+
+def renderer_child(svg, name):
+    """The character id of the child named `name` on a sprite's first frame (FFDec's SVG)."""
+    for use in re.findall(r"<use\b[^>]*>", svg):
+        if re.search(rf'\bid="{name}"', use):
+            found = re.search(r'characterId="(\d+)"', use)
+            if found:
+                return int(found.group(1))
+    raise SystemExit(f"lobby_menu.swf: no child {name}")
+
+
+def quest_icons(swf_path, ffdec, tmp):
+    """{folder: (side, [each frame's picture])} of QUEST_ICONS, from the movie."""
+    _, tags = swf.split(swf_path.read_bytes())
+    ids = {name: cid for cid, name in swf.symbol_classes(tags)}
+    missing = [cls for cls, *_ in QUEST_ICONS if cls not in ids]
+    if missing:
+        raise SystemExit(f"lobby_menu.swf: no {', '.join(missing)}")
+    subprocess.run(["java", "-jar", str(ffdec), "-format", "sprite:svg", "-selectid",
+                    ",".join(str(ids[cls]) for cls, *_ in QUEST_ICONS), "-export", "sprite", str(tmp / "renderers"),
+                    str(swf_path)], check=True, capture_output=True)
+    sprite_dir = lambda root, cid: next(d for d in root.iterdir() if re.fullmatch(rf"DefineSprite_{cid}(_.*)?", d.name))
+    children = {folder: renderer_child((sprite_dir(tmp / "renderers", ids[cls]) / "1.svg").read_text(encoding="utf-8"), name)
+                for cls, name, folder, _ in QUEST_ICONS}
+    subprocess.run(["java", "-jar", str(ffdec), "-format", "sprite:png", "-zoom", "2", "-selectid",
+                    ",".join(map(str, children.values())), "-export", "sprite", str(tmp / "icons"), str(swf_path)],
+                   check=True, capture_output=True)
+    found = {}
+    for _, _, folder, side in QUEST_ICONS:
+        frames = sprite_dir(tmp / "icons", children[folder])
+        count = len(list(frames.glob("*.png")))
+        found[folder] = (side, [Image.open(frames / f"{n}.png").convert("RGBA") for n in range(1, count + 1)])
+    return found
+
+
+def fitted(image, box, side):
+    """`image` cut to `box` (its set's pictures' bounds, so they keep their sizes) and scaled
+    into a `side` square, centred."""
+    image = image.crop(box)
+    image.thumbnail((side, side), Image.LANCZOS)
+    square = Image.new("RGBA", (side, side))
+    square.paste(image, ((side - image.width) // 2, (side - image.height) // 2))
+    return square
 
 
 def main():
@@ -158,14 +215,24 @@ def main():
         frames = Path(tmp) / f"DefineSprite_{FILTER_SPRITE}"
         for category, icon in sorted(categories.items()):
             write(f"groups/{category}.webp", webp(glyph(frame_image(frames, FILTER_FRAME + icon))))
+        for folder, (side, pictures) in quest_icons(args.swf, args.ffdec, Path(tmp)).items():
+            boxes = [picture.getbbox() for picture in pictures if picture.getbbox()]
+            box = (min(b[0] for b in boxes), min(b[1] for b in boxes), max(b[2] for b in boxes), max(b[3] for b in boxes))
+            # A quest's icon is frame ui.icon + 1, a faction's frame faction_id.
+            for frame, picture in enumerate(pictures, start=1):
+                if folder == "quests":
+                    write(f"quests/{frame - 1}.webp", webp(glyph(fitted(picture, box, side))))
+                else:
+                    write(f"factions/{frame}.webp", webp(fitted(picture, box, side)))
 
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/wiki/build_icons.py; do not edit. The wiki's icons.\n"
         "files! {\n" + "".join(f'    "{path}" => "{kind}",\n' for path, kind in sorted(files.items())) + "}\n")
     total = sum((out / path).stat().st_size for path in files)
-    counts = {kind: sum(path.startswith(kind + "/") for path in files) for kind in ("items", "mods", "groups")}
-    print(f"{out}: {counts['items']} items, {counts['mods']} modification and {counts['groups']} group icons, "
-          f"{total / 1024:.0f} KB")
+    counts = {kind: sum(path.startswith(kind + "/") for path in files)
+              for kind in ("items", "mods", "groups", "quests", "factions")}
+    print(f"{out}: {counts['items']} items, {counts['mods']} modification, {counts['groups']} group, "
+          f"{counts['quests']} quest and {counts['factions']} faction icons, {total / 1024:.0f} KB")
 
 
 if __name__ == "__main__":

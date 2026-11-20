@@ -49,6 +49,10 @@ package survarium.controls
          if(!this._label)
          {
             _label = makeLabel();
+            // its own format's colour (a copy): each text set later takes it
+            var format:TextFormat = this._label.defaultTextFormat;
+            format.color = this.nameColor;
+            this._label.defaultTextFormat = format;
          }
          if(this._label.text != name || this._label.parent != this)
          {
@@ -63,6 +67,12 @@ package survarium.controls
             addChild(this._label);
          }
          this._label.visible = true;
+      }
+
+      // The name's colour: white; an enemy's red (PlayerRed), as the game's names over heads.
+      protected function get nameColor() : uint
+      {
+         return 0xFFFFFF;
       }
 
       // The name shown over the icon, or null.

@@ -55,7 +55,7 @@ use super::rng::Rng;
 use super::signals::{MatchSignals, Mods};
 use super::tactics::Tactics;
 use super::tuning::{Personality, PlayTuning, Tuning};
-use super::view::{MatchView, Place, PlaceView};
+use super::view::{MatchView, Place, PlaceView, Side};
 
 /// The rank bands, highest first: a candidate of a higher band beats any
 /// of a lower one (research B1 point 3); the commander counts an
@@ -706,7 +706,7 @@ impl Ctx<'_> {
 /// With the battery cheat off: the batteries team `team` cannot place, of
 /// the mode's count (on the HUD): neither in a container (the HUD's
 /// counts), nor carried by a teammate, nor believed lying somewhere.
-pub fn batteries_unaccounted(view: &MatchView, team: u8, known: &TeamKnowledge) -> usize {
+pub fn batteries_unaccounted(view: &MatchView, team: Side, known: &TeamKnowledge) -> usize {
     use super::view::BatteryState;
     let home: usize = view.containers.iter().map(|c| c.batteries).sum();
     let mut placed = 0;

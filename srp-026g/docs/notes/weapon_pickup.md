@@ -24,6 +24,8 @@
   (below, "The drop's gun is its copy"), drawn until the drop ends and
   offered where it lies on this client; a late joiner (no pose) draws and
   offers none, and every game plays a pickup sent.
+- A player's own drop can be taken too (the owner, 2026-11-05): back from
+  a respawn into another kit, the old body's gun.
 - The picked gun has the bullets left in its magazine (chamber included) and
   one full magazine in reserve.
 - A picked gun starts unworn (condition 1.0), whatever the dropped gun's wear
@@ -102,6 +104,14 @@
   offered all the same (the pickup waits for it, at most 2 s). Not aimed at, out of
   reach or out of sight: no prompt, as for the crate and the artefacts. A
   dead player has no prompt.
+- What the game's own Use takes goes first (the owner, 2026-11-07, from a
+  player: a battery lying by a body's gun was missed for the gun): while the
+  game's use scan (patch 23's, `use_scan::detect`) finds an object whose
+  can_use says yes (a battery, a battery container, an artefact container,
+  the ammo crate, a trap), no gun prompt is shown and Use goes to the game;
+  one that refuses (a battery while already carrying one) leaves the gun's
+  pickup as it was. One rule, not a battery's: any usable object in reach
+  wins (my pick).
 - The replacement rule (Codex's, approved): the gun in hands is replaced,
   never the other slot's; any gun for any gun; the carry rules after the
   skill modifiers hold: `disable_second_weapon` (modifier 64) keeps guns to
@@ -120,7 +130,7 @@
   was held in and whether its body left), 29 bytes at the start of its
   state; nothing else of the own kit a pick sets aside. The command rides in the input (patch 78's bit 29 with a pattern of
   two or more quick bits naming the place); the server drops an input whose
-  pickup names no other place, and the client never sends one.
+  pickup names no place of the match, and the client never sends one.
 - My picks for stage 2a (the owner: "just don't overcomplicate the
   feature", smallest version everywhere):
   - the records are kept by place, not by kit player object: a state is a
@@ -303,7 +313,15 @@ local: nothing synced, no `simulation_changes` row.
   was not installed there. The cook now takes the recipe's place's player
   of its kit from the core's place table (core+18458h, 30h a place, the kit
   players at +0/+4/+8; `Player::kit_player`), which keeps them
-  (`a_departed_donors_gun_is_cooked`). Only the profile's changing part differs: the world carries it for
+  (`a_departed_donors_gun_is_cooked`). Before a world's load the table is
+  read in the client's match (`NetworkClient::kit_player`): a late
+  joiner's first world comes before its local player and before any
+  place's bit (the core's constructor clears them, 0x2D00D7; the load sets
+  them, 0x2D2862). Rev57 read it through the local player: the joiner
+  cooked nothing, the reader's cook inside the load was not made in 2 s,
+  and the native reader read the picked gun's bytes into the own gun, 2
+  bytes short; the next slot's item read garbage and crashed (report of
+  2026-11-13, exe+0x2EFF87). Only the profile's changing part differs: the world carries it for
   the places in it, so a joiner has a departed place's from the static info
   (its items' wear 1.0). A held gun's wear comes with the world; a pickup
   waiting for its switch is not in the world, so at the swap the picked gun
@@ -331,6 +349,65 @@ local: nothing synced, no `simulation_changes` row.
   it at once. With rev41's build, 421 of them differ (record bytes 20..23,
   the own kit set aside) and 36 departed donors' picks are not installed.
   With #1045's build, none differ.
+
+## Rev47's crash: one record, two guns (match 0x5bfde2e7, 2026-11-04)
+
+Place 19 picked place 5's kit-2 primary (taken 854400 ms, switched 855100).
+Every client that later loaded place 19's state (the resync at 860050, the
+rejoins at 885450 and 909300) misread its inventory and asserted in
+body_part_parameters::deserialize ("affects_count buffer overflow"): 7
+clients and every joiner crashed while place 19 held the gun.
+
+- **What differed.** Not a field of one gun's codec: two different guns. In
+  the majority's worlds (the server's snapshots) place 19's slot 7 has a
+  chamber byte (has_chamber, weapon+5F0h, a config constant; weapon_core
+  serialize 0x2E3209) and a 4-round magazine; the recipe's gun (place 5's
+  own kit-2 primary in the same worlds, the minority's copy, every fresh
+  cook) has none and 20 rounds. weapon_core's codec is symmetric only for one
+  weapon: has_chamber, the user (+8h), ammo_count (+5B0h) and the two state
+  machines (vostok::ai::fsm 0x38CC90/0x38CCF0 over the weapon's +320h and its
+  controller's states, weapon_controller_core 0x2FF930/0x2FF970) are the
+  reader's own. The resync reader (its kept copy, the recipe's gun) ended
+  place 19's inventory 4 bytes early; the joiners (a fresh cook) 116 late.
+- **How a copy held another gun.** The only code that puts anything but the
+  cooked gun in a copy's weapon slot is the install, which parks the
+  picker's own gun there until the restore. Unpick moved a copy to an idle
+  state (let go, or back in its drop) even when its restore was refused, and
+  re-use, drops and loaded records chose copies by recipe alone: such a copy
+  handed out the picker's own gun as the recipe's (check_weapon_pickup's
+  one_gun_a_copy reproduces it on main: the refused copy is re-used for its
+  donor's next drop). An install also parked whatever gun its slot held,
+  a copy's too.
+- **The split at 855100.** The owner's client rolled back into the holster
+  (855000) and re-registered an older idle copy of the recipe (let_go
+  preferred ended drops and other pickers' let-go copies to the copy back in
+  its drop); the clients that did not roll back kept the drop's copy.
+- **The fix.** gun_cook keeps the gun each copy was made with
+  (`made_gun`); a copy whose slot holds another (`pickup::stray`) is never
+  handed out (let_go, reuse, body_drop, revive, before_world_load's idle
+  count); an install refuses a slot whose gun is any copy's
+  (Refusal::NotOwnGun); and a copy remembers the pick it last went to, which
+  a rollback naming that pick takes back first.
+- **Where the other gun came from: an earlier match.** The recording's key
+  frames show it for every pick of the recipe (place 5, kit 2, slot 7) in
+  the match, from place 11's at 291550 ms on: a chamber gun, while place 5's
+  kit 2 primary is an ASh-12 (dict 364, 20 rounds; its kit 1 a VSSK). The
+  owner's log (one process for a day of matches) has it: at 292400 ms place
+  11 got copy 0x7cfa44a8, cooked in the match before for that match's place
+  5 kit 2 and kept past its end (on_destroy moved its holder to a body
+  destroyed before it, so nothing freed it). Copies were matched by recipe
+  alone, never by match: a client that had played the match before took
+  that match's gun for this one's place 5. Now each copy keeps its match
+  (`MatchId`, the options' seed, the 0xE4's match id): the next match frees
+  the copies of the one before wherever it first reaches them (its frames, a
+  world's or a record's load, a death, a pickup).
+- **The replay repro** (test/crash-repros, key frame 294650 of
+  0x5bfde2e7): the world was written by those rev47 clients (place 11 with
+  the earlier match's gun, a chamber byte); the replay's own copy is the
+  ASh-12 (weapon+5F0h 0 in its dump), so the native reader ends place 11's
+  weapon early and inventory_item::deserialize reads a place and kit of
+  garbage (0xFA) and a null kit player (read of 10Ch at 0x2FFF87). A world
+  of rev47's clients with such a gun stays unloadable.
 
 ## The switch: holster, then draw (option (b), exp/pickup-holster-b, built, not run in a game)
 
@@ -497,7 +574,7 @@ cooked gun).
   calls `weapon_pickup::on_filter` before patch 78 filters the actions):
   the command (`weapon_pickup::command` of +330h); the rule
   (`weapon_pickup::decide`: alive, a gun of its two slots held and pending
-  in slot 7 or 10, another place's open drop, the carry rule: the other
+  in slot 7 or 10, an open drop (its own place's too), the carry rule: the other
   slot's gun's +5E9h and the kit's modifiers 64 and 25 through
   apply_modifier 0x2D5AE0) first without the gun's handedness; the gun from
   the cache (a cook of that place, kit and slot nobody holds, whatever its
@@ -603,6 +680,17 @@ cooked gun).
   (`bullet.load_ordinal`) an ordinal at or past the loading gun's ammo
   count is that count, its own none (+53Ch). A record is one byte longer
   for a one-pellet ammo; the server keeps the bullets' section opaque.
+- **A record whose slot is empty** (the 0x2E2753 crash, rev62,
+  2026-11-17): the slot a record names is the gun's own (+254h) at the
+  save, so a bullet in flight when a swap moved its gun into a cooked
+  inventory names that inventory's slot (the donor's 10), which the shooter
+  may have empty; the loader read a null gun. `bullets.load_record` (the
+  deserialize loop, 0x321CA0) looks the record's shooter up as the loader
+  does (the engine's get_player, 0x1F7660) and passes a record with no gun
+  in its slot over (69 bytes, no bullet made, a log line). That game then
+  lacks one bullet the others have until it lands, so its world hash may
+  differ for that while (a resync). The gun itself outlives its bullets: a
+  copy once in hands is kept until its holder is destroyed.
 - **The bound** (the owner's): 20 places x 3 kits x 2 weapon slots = 120
   recipes at most (40..60 in practice); another copy of a recipe only while
   all of its copies are in use, at most 60 at once (two held a player, one
@@ -622,7 +710,7 @@ cooked gun).
   the byte writer recorded): the records written at a death and read back;
   a rifle for a held pistol taken; a second double-handed gun refused, then
   taken with modifier 25; a gun held in slot 10 refused with modifier 64
-  (the game's apply_modifier); the picker's own place, a second command, a
+  (the game's apply_modifier); a second command, a
   command after the donor's remove(1) refused with nothing changed, one 60 s
   after the death with the body there taken; the pickup's slots (the
   borrowed stack in the own gun's slot 8, the own stack parked), owners,
@@ -691,10 +779,15 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   engine_cfg_child reads past the end for a missing one), translated by the
   game's text translator (0x1FF0F0); `Pick up %1$s ({USE})`, `{USE}` the
   bound key (the localizer's), `%1$s` the name (the movie's
-  `LocalizationData.format`). The target is remembered for Use.
-  Each kept pose's verdict is logged once per drop body and change of
-  reason (never per frame): `pickup: place P sees the gun of place T:
-  offered`, or `out of reach (2.2 m)` (the box's centre farther than the
+  `LocalizationData.format`). The target is remembered for Use. First of
+  all (when any drop is seen) the game's use scan (`use_scan::detect`, the
+  Rust detect_usable_object): an object Use takes now there means no prompt
+  and no target (`use_scan::rule::use_owner`).
+  Each kept pose's verdict is logged once per drop body and kind of
+  verdict (a refusal by its reason; never per frame, and a viewer turning
+  to and from a drop says each once; the last 4 bodies of a place are
+  remembered, with the box line at a body's first verdict):
+  `pickup: place P sees the gun of place T: offered`, or `out of reach (2.2 m)` (the box's centre farther than the
   reach and its padded half diagonal), `in reach, not aimed at its box`,
   `not offered, no line of sight`, `already taken`, `no drop in its
   record`, `the body drawn is not its drop's`, `its gun not made on this
@@ -709,7 +802,7 @@ over `vostok/pickup.rs` (`drawn_gun`, `gun_name`) and `vostok/ui.rs`
   after patch 78's chord step): on Use's down edge while a gun is the
   prompt's and the input has no carry command, the mask becomes
   `weapon_pickup::encode(actions, target)` when `weapon_pickup::sane`
-  passes it (the server's check: another place of the match); the press
+  passes it (the server's check: a place of the match); the press
   then stays the pickup's (Use cleared) until Use is let go. Logged:
   `pickup: place P sends a pickup of the gun of place T`.
 - **The text**: `st_weapon_pick_up` in the ten `localization/*.tsv`;
@@ -863,8 +956,9 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   `Frame::states`) names its picks and its pending pickup; a pick the
   place's player holds (or has pending) as named is kept by the reader; for
   each recipe, as many copies as the rest name, less its idle copies (in a
-  drop or let go), are cooked from the recipe's place's player (the
-  network client's get_active_player 0x27A9C0) and waited for. That wait is
+  drop or let go), are cooked from the recipe's place's player of its kit
+  (the client's match's place table, `NetworkClient::kit_player`; else
+  get_active_player 0x27A9C0) and waited for. That wait is
   not refused on the mark: here the game's own frame dispatch could have
   run every callback, a late join's install among them (it then binds its
   slot before the world is installed, between simulation updates); the game
@@ -882,6 +976,10 @@ policy, the cache, the log) over `vostok/gun_cook.rs` (the cook).
   MiB`; at the next frame `cook of ...: made, inventory 0x..., N ms after it
   was asked for (the death), address space A -> B MiB` or `FAILED`; a wait:
   `pickup: waited W ms for the gun of place P kit K slot S: made` or why not.
+  `death hook: place P life L at T ms` and `its body left the world: ...` are
+  said once for each death and removal: a rollback runs both hooks again at
+  each tick it simulates again (the owner's log of 2026-11-09: 13 064 and
+  7 977 such lines in its last 3 MB).
 - **Checked:** `check_weapon_pickup_026g.py` (Unicorn) runs the death, the
   frame's step and the destruction of the built exe with the game's own
   profile code, match_options, boost binder and invoker: the query and its
@@ -929,6 +1027,44 @@ query):
   textures.
 - **Expected:** a cooked gun costs the per-instance objects (weapon, states, pose,
   ammo) and not the mesh or textures. The cook's log measures it.
+
+## Revision 42 resyncs: records surviving their owners (2026-11-02)
+
+The reported first match of rambalbi, `0x30e6dd21` (15:39:38–15:55:05 UTC),
+had 78 out-of-sync resyncs across 17 places; his place 11 had six. Several
+groups disagreed from the same tick (six places from about 400550 ms).
+Victorianbeauty's place 2 in `0x17dde519` had eight resyncs, with a final
+round trip of 9 ms. The profile selector appearing was a resync symptom.
+
+The saved equal-tick worlds of `0x30e6dd21` and `0x67ea552c` isolate the
+difference to the pickup record: state offsets 3 and 30, its drop tag and
+recipe. At 100550–100950 ms in the former, rambalbi's own world has no drop
+for place 11; the accepted world has an open, detached slot-7 gun of place
+11, kit 0. All other bytes agree. This also occurs at later joins. At
+3750 ms, before combat, clients already disagree over several places'
+drop recipes (kit 0, 1 or 2).
+
+Victorianbeauty's own rejected worlds in `0x17dde519` have the same
+two-byte difference: at 36250–36700 ms and 38100 ms, the accepted world
+has a detached slot-7 drop of place 8, kit 1, and his world has none.
+At 38700 ms the difference moves to newly joined place 9's drop, and at
+54550 ms to place 10's. Other saved pairs also have broader differences;
+this finding isolates the stale-drop failures, not every disagreement.
+
+`on_destroy` used to clear only `picks`, leaving the drop and body in
+`RECORDS`. Its `WorldKey` is the native core's address, which does not
+identify a new allocation at that address. Proven with the built patch
+under Unicorn: a death, respawn, destruction, then a new player and world
+at the same addresses saves the old drop; a fresh client saves none.
+This mechanism matches the live stale-drop differences. The server logs
+and snapshots do not contain the clients' native addresses.
+
+Destruction now forgets the whole place record for that world. Respawn
+and departure still use `on_remove` and retain their drop. The regression
+`a_destroyed_places_record_does_not_reach_the_next_match` runs those hooks,
+including serialization, and checks that address reuse starts empty.
+The fix requires a client release; the live observations alone do not
+prove every reported close-range frame stall has this cause.
 
 ## 83b's and 83c's freeze (2026-10-31, fixed in 83f)
 

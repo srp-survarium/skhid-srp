@@ -18,8 +18,13 @@ vostok = { workspace = true }
 
 lobby-server = { path = "../lobby-server" }
 login-server = { path = "../login-server" }
+udp-transport = { workspace = true }
 match-server = { path = "../match-server" }
 web-server = { path = "../web-server" }
 
 # The test bot's sign-in (`src/bot.rs`): TLS, as the client does it.
 openssl = { workspace = true }
+
+[dev-dependencies]
+socket2 = { workspace = true }
+ban-reason = { workspace = true }
