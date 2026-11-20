@@ -3561,19 +3561,17 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
             let planned = route.drop_landings(walked, PLANNED_DROP_M, truth);
             // [fix-lip] A body already over the edge of the route's own walk-off (its take-off behind, within reach, and no ground of the
             // client's walker within a step under the feet: the walk-off came, `body::kept_off_ground`'s test) is down the drop: a brake
-            // there is the air control against it. Its line is the drop's, kept within twice the reckoning's error (the body drifts off
-            // the line in its first air steps: 0.31 m and 0.41 m in the suite's S101 and S306).
+            // there is the air control against it.
             let grid = &tactics.world.grid;
             let over_own_edge = || {
                 route.walk_off_behind(walked, reach)
                     && grid.has_client_walker()
                     && grid.walker_ground_below(me.feet, me.feet.y + 0.1, 0.1 + grid.body().step).is_none()
             };
-            let line_m = if off > body::RECKONING_M && off <= 2.0 * body::RECKONING_M && over_own_edge() {
-                2.0 * body::RECKONING_M
-            } else {
-                body::RECKONING_M
-            };
+            // Over it, the line is no test: the body's drift off it in its first air steps grows with its speed (the suite's S101 0.31 m
+            // and 0.64 m, S306 0.41 m, S377 1.02 m), and a brake in the air is only the air control against the drop.
+            let over = off > body::RECKONING_M && over_own_edge();
+            let line_m = if over { f32::INFINITY } else { body::RECKONING_M };
             let own = if off > line_m {
                 OwnDrop::OffLine(off)
             } else if !route.walk_off_within(walked, reach) {
