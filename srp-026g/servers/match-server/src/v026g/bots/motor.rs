@@ -1344,6 +1344,9 @@ const LOCK_YAW_RAD: f32 = 0.01;
 const LOCK_SIDE_M: f32 = 0.03;
 /// [press forecast] The walk onto the press's line aims this far ahead along it, m (a 0.2 m offset closes in about 0.3 s at the cap).
 const LINE_CONVERGE_M: f32 = 1.0;
+/// [press forecast] A body off the line before the lock aims at least this many times its distance off it ahead along it (the
+/// pursuit's look-ahead): it meets the line at under 27 degrees (atan 1/2), so its turn at the cap is made before it crosses.
+const CAST_PURSUIT_SIDES: f32 = 2.0;
 /// [press forecast] The most ticks a moving plan's chain plays.
 const CHAIN_TICKS_MAX: u32 = 24;
 /// [press forecast] A plan not pressed this long after the body first reached the lock spends the try, s (design §3.4 step 5).
@@ -3300,9 +3303,14 @@ impl Motor {
         // along its heading ([`aimed_line`]); every point the lining, the press and its window measure from is on it. The link's
         // own take-off stays the jump's (is it up, its tries, its log).
         let (line_from, way) = aimed_line(take_off, way, leap);
+        // [press forecast] The forecast plans a walk on the take-off's floor: a body off its height (under a take-off on a riser,
+        // the suite's S276: 0.91 m) is the old path's (its line, run-up, gates and press at the face) until it is up there; one in
+        // the air is the forecast's (its own press, followed to its rest).
+        let level = (take_off.y - feet.y).abs() <= FLOWN_RUN_UP_HEIGHT_M;
+        let forecast_here = flyer.is_some() && (level || in_the_air);
         // [press forecast] Its line moved sideways to the middle of the stored side window (design §3.1).
-        let line_from = match (&flyer, leap.window()) {
-            (Some(_), Some(window)) => {
+        let line_from = match (forecast_here, leap.window()) {
+            (true, Some(window)) => {
                 let shift = (window.side_m.1 - window.side_m.0) / 2.0;
                 Vec3::new(line_from.x + way[1] * shift, line_from.y, line_from.z - way[0] * shift)
             }
@@ -3420,7 +3428,7 @@ impl Motor {
         };
         // [press forecast] The zone and the lock (design §2.4, §3.2): from the stored lead window, at the walk cap; the run-up
         // behind the lock where it is clear, so a body from rest there walks in at the cap.
-        let cast_zone = flyer.as_ref().map(|_| {
+        let cast_zone = forecast_here.then(|| {
             let lead = match leap {
                 Leap::Gap(press) => press.lead.metres(),
                 _ => 0.0,
@@ -3524,7 +3532,7 @@ impl Motor {
                     cap,
                     on_line,
                     side,
-                    level: (take_off.y - feet.y).abs() <= FLOWN_RUN_UP_HEIGHT_M,
+                    level,
                     in_the_air,
                     may_press: !pose.no_jump && !self.carrying && jump.pressed.is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S)),
                     after: if let_go { super::body::AfterLanding::Hold } else { super::body::AfterLanding::WalkOn },
@@ -3571,6 +3579,17 @@ impl Motor {
                 landing.y,
                 line_from.z + way[1] * past,
             )
+        } else if let Some(m) = cast_zone
+            .filter(|_| cast.is_some() && !jump.back && !under)
+            .map(|(_, lock_from, _)| lock_from)
+            .filter(|&lock_from| along <= -lock_from && along >= -(run_up + LINED_BEHIND_M))
+            .map(|lock_from| (along + LINE_CONVERGE_M.max(CAST_PURSUIT_SIDES * side)).min(-lock_from))
+        {
+            // [press forecast] Off the line between the run-up and the lock: onto the line ahead (pure pursuit), at most to the
+            // lock. Aimed back at the run-up point, a body that came onto the line across it at the cap overshot past
+            // [`LINED_SIDE_M`], turned back to the run-up, crossed again, and so on until the try's wait spent its tries (the
+            // suite's S089 and S276: 14 s each, a run-up point 3.1-3.2 m out reached at 90 degrees to the line).
+            Vec3::new(line_from.x + way[0] * m, landing.y, line_from.z + way[1] * m)
         } else if !under && clear(at(run_up)) {
             at(run_up)
         } else if let Some(rest) = (!under && slow && jump.walk_up == WalkUp::ToRest)
@@ -3672,8 +3691,30 @@ impl Motor {
             && let Some(mut jump) = self.jump_try
             && jump.pressed.is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S))
         {
+            let tries = jump.tries;
             self.hold_tick(&mut jump);
             press_waits::blocked();
+            // [press forecast] A forecast try the wait spent before its lock writes its line too (the forecast's own spends do).
+            if jump.tries != tries
+                && let Some(cast) = self.cast.as_ref().filter(|cast| matches!(cast.state, CastState::Approach))
+            {
+                self.cast_line = Some(format!(
+                    "{}press forecast: try {} spent by the try's wait (still {PRESS_WAIT_S:.1} s, not locked) at ({:.2}, {:.2}, {:.2}){}{}; take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2})",
+                    super::nav_log::PREFIX,
+                    jump.tries,
+                    pose.feet.x,
+                    pose.feet.y,
+                    pose.feet.z,
+                    if cast.notes.is_empty() { "" } else { "; plans: " },
+                    cast.notes,
+                    cast.take_off.x,
+                    cast.take_off.y,
+                    cast.take_off.z,
+                    cast.landing.x,
+                    cast.landing.y,
+                    cast.landing.z
+                ));
+            }
         }
         keys
     }
