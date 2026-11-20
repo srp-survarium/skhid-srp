@@ -408,6 +408,7 @@ mod tests {
             0,                                      // level
             0, 0, 0, 0,  0, 0, 0, 0,  0xF4, 0x01, 0, 0,
             0,                                      // srp: the face, 0 for a new account
+            survarium::v026g::faces::Faces::shared().count(), // srp: the faces' count
         ]);
         assert_eq!(bytes(&own_account(&account).unwrap()), expected);
         // The stock account has no money.
