@@ -1,41 +1,49 @@
-//! Patch 161: a weapon's scope, eye, left hand and shells stand where its
-//! fitted modules put them (`docs/notes/attachments.md`, "The client's
-//! runtime"). A weapon config names its gun and what is fitted to it;
-//! `weapon_modules::resolve` says where everything is; the game keeps all of
-//! it as data it fills once from the weapon's model, and here that data is
-//! written again after the game filled it:
+//! Patch 161: a weapon's fitted modules (`docs/notes/attachments.md`, "The
+//! client's runtime"). A weapon config names its gun and what is fitted to
+//! it; `weapon_modules::resolve` says what stands where; the game is handed
+//! that in its own terms:
 //!
 //! - `on_dictionary_requests`, `on_dictionary_configs` (the items
 //!   dictionary cook's query and its callback): the modules table is asked
 //!   for with the dictionary's configs and kept, before any weapon is made;
+//! - `on_request_room`, `on_asked` (the weapon cook, as it asks for the
+//!   weapon's own resources): the bare body in place of the weapon's model,
+//!   and each part's model;
 //! - `on_ready`, `on_loaded` (the cook's callback, its entry and after
-//!   load_weapon): the scope's frame and the eye, two locator records, and
-//!   the left hand's fingers; the weapon is remembered;
+//!   load_weapon): the parts' models kept with their placements; the fire
+//!   point, the scope's frame and the eye, three locator records, and the
+//!   left hand's fingers, all data the game filled once from the weapon's
+//!   model and written again here;
+//! - `on_draw`, `on_culled`, `on_hidden` (weapon::draw, a culled player's
+//!   weapon, on_hide): the parts in the scene with the weapon's model;
 //! - `on_hands` (weapon::activate, after it filled the hand IK's records):
 //!   the left hand's place;
 //! - `on_fingers_view` (the game refills the fingers when the user's view
 //!   changes): the fingers again;
 //! - `on_shells`: the shells keep the frame the scope had before it moved;
-//! - `on_release`: the weapon is forgotten.
+//! - `on_release`: the parts' models given back, the weapon forgotten.
 //!
 //! A grip carries one set of hand locators, the idle one; the lobby's clips
 //! ask for the lobby set, which gets the same.
 //!
 //! What a match computes does not change: every value written is read by
-//! drawing alone (the scope's models, the first view's gun before the
-//! camera, the arms' IK, an effect's place).
+//! drawing alone (the models, the first view's gun before the camera, the
+//! arms' IK, an effect's place).
 
 #![forbid(unsafe_code)]
 
-use weapon_modules::{Bare, EyeAnchor, FingerJoints, Hand, Loadout, Placement, resolve};
+use weapon_modules::{Bare, EyeAnchor, FingerJoints, Gun, Hand, Loadout, Placement, resolve};
 
-use crate::vostok::attachments::{self, FingerCorrector, HandSet, Kept, Named, Records};
+use crate::vostok::attachments::{self, Cook, FingerCorrector, HandSet, Leaving, Named, Records};
 use crate::vostok::{Context, Flow, NoExit, OrigFingersSetWeaponModel, Thread};
 
-/// What the eye is fixed to while aiming through an optic: the optic (its
-/// reticle centred at every moment; the shot's kick of the optic's bone not
-/// seen while aiming), or the gun's aimed idle pose (the kick seen).
-pub const EYE: EyeAnchor = EyeAnchor::Optic;
+/// What the eye is fixed to while aiming through an optic: the gun's aimed
+/// idle pose, so the reticle is centred at rest and the shot's kick of the
+/// optic's bone is seen (the owner's ask behind patch 165). The optic's own
+/// anchor never shows it. Under patch 165 both give one eye
+/// (weapon-modules' test of the two beside its rule; attachments.md, "The
+/// two switches").
+pub const EYE: EyeAnchor = EyeAnchor::GunIdle;
 
 /// Whose finger joints the left hand keeps on a grip: the gun's own (the
 /// 0.26g hand's, the grip turning each finger), or the grip's whole (0.69d's
@@ -44,12 +52,13 @@ pub const FINGER_JOINTS: FingerJoints = FingerJoints::Gun;
 
 const HAND_SETS: [HandSet; 2] = [HandSet::Idle, HandSet::Lobby];
 
-/// The bare gun `named` resolves to: None for a gun the table lacks, a fit
-/// it refuses, or nothing fitted (the game's own weapon stays as it is).
-fn bare(thread: &Thread, named: Named, with: impl FnOnce(&Bare<'_>)) {
-    let Some(table) = attachments::modules(thread) else { return };
-    if let Some(Ok(Loadout::Bare(bare))) = table.gun(named.gun).map(|gun| resolve(gun, named.wanted)) {
-        with(&bare);
+/// The gun `named` is and its bare loadout: nothing for a gun the table
+/// lacks, a fit it refuses, or nothing fitted (the game's own weapon stays
+/// as it is).
+fn bare(thread: &Thread, named: Named, with: impl FnOnce(Gun<'static>, &Bare<'static>)) {
+    let Some(gun) = attachments::modules(thread).and_then(|table| table.gun(named.gun)) else { return };
+    if let Ok(Loadout::Bare(bare)) = resolve(gun, named.wanted) {
+        with(gun, &bare);
     }
 }
 
@@ -80,19 +89,46 @@ pub fn on_dictionary_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// on_weapon_config_loaded before it sizes its requests (0x24AAB4).
+pub fn on_request_room(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(named) = attachments::cooking(ctx, Cook::Room) {
+        let mut parts = 0;
+        bare(ctx.thread(), named, |_, bare| parts = bare.parts().count());
+        attachments::more_requests(ctx, parts);
+    }
+    Flow::Continue
+}
+
+/// on_weapon_config_loaded with its weapon made and its requests pushed
+/// (0x24AC30).
+pub fn on_asked(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    attachments::fresh(ctx);
+    if let Some(named) = attachments::cooking(ctx, Cook::Asked) {
+        bare(ctx.thread(), named, |gun, bare| {
+            attachments::request_parts(ctx, named, gun.bare(), bare.parts().map(|part| part.model()));
+        });
+    }
+    Flow::Continue
+}
+
 /// on_weapon_subresources_ready's entry (0x24ACF0).
 pub fn on_ready(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    attachments::park(ctx);
+    if let Some(asked) = attachments::asked(ctx) {
+        let named = asked.named();
+        bare(ctx.thread(), named, |_, bare| asked.hold(bare.parts().map(|part| part.at)));
+    }
     Flow::Continue
 }
 
 /// on_weapon_subresources_ready after load_weapon (0x24B0E1).
 pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(mut weapon) = Records::loaded(ctx) else { return Flow::Continue };
-    // a weapon made anew at an address keeps nothing of the one before it
-    attachments::forget(weapon.thread(), weapon.id());
-    let Some(named) = weapon.parked() else { return Flow::Continue };
-    bare(weapon.thread(), named, |bare| {
+    let Some(kept) = attachments::kept(weapon.thread(), weapon.id()) else { return Flow::Continue };
+    bare(weapon.thread(), kept.named, |gun, bare| {
+        // every placement of this gun names a bone below the table's count
+        if weapon.bones().is_none_or(|bones| usize::from(gun.bones()) > bones) {
+            return attachments::misfit(weapon.thread(), weapon.id(), kept.named);
+        }
         let was = weapon.scope();
         if let Some(optic) = &bare.optic {
             weapon.set_scope(&optic.frame);
@@ -100,12 +136,33 @@ pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
         if let Some(eye) = &bare.eye {
             weapon.set_eye(&eye.placed(EYE));
         }
+        if let Some(fire_point) = &bare.fire_point {
+            weapon.set_fire_point(fire_point);
+        }
         if let Some(hand) = &bare.left_hand {
             fingers(&mut weapon, hand);
         }
         let shells = bare.optic.as_ref().and_then(|optic| shells(&was, &optic.frame));
-        attachments::remember(weapon.thread(), weapon.id(), Kept { named, shells });
+        attachments::set_shells(weapon.thread(), weapon.id(), shells);
     });
+    Flow::Continue
+}
+
+/// weapon::draw after the weapon model's update (0x245017).
+pub fn on_draw(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    attachments::draw(ctx);
+    Flow::Continue
+}
+
+/// weapon::on_culled_player_draw (0x245353).
+pub fn on_culled(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    attachments::leave(ctx, Leaving::Culled);
+    Flow::Continue
+}
+
+/// weapon::on_hide (0x244017).
+pub fn on_hidden(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    attachments::leave(ctx, Leaving::Hidden);
     Flow::Continue
 }
 
@@ -113,7 +170,7 @@ pub fn on_loaded(ctx: &mut Context<'_>) -> Flow<NoExit> {
 pub fn on_hands(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(mut weapon) = Records::activated(ctx) else { return Flow::Continue };
     let Some(kept) = attachments::kept(weapon.thread(), weapon.id()) else { return Flow::Continue };
-    bare(weapon.thread(), kept.named, |bare| {
+    bare(weapon.thread(), kept.named, |_, bare| {
         if let Some(hand) = &bare.left_hand {
             for set in HAND_SETS {
                 weapon.set_left_hand(set, &hand.wrist);
@@ -128,7 +185,7 @@ pub fn on_fingers_view(refill: &OrigFingersSetWeaponModel, corrector: &mut Finge
     refill.call(corrector, instance, first_view);
     let mut weapon = corrector.weapon();
     let Some(kept) = attachments::kept(weapon.thread(), weapon.id()) else { return };
-    bare(weapon.thread(), kept.named, |bare| {
+    bare(weapon.thread(), kept.named, |_, bare| {
         if let Some(hand) = &bare.left_hand {
             fingers(&mut weapon, hand);
         }
@@ -148,9 +205,7 @@ pub fn on_shells(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 /// weapon_cook::delete_resource's entry (0x24B190).
 pub fn on_release(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    if let Some(weapon) = attachments::released(ctx) {
-        attachments::forget(ctx.thread(), weapon);
-    }
+    attachments::released(ctx);
     Flow::Continue
 }
 

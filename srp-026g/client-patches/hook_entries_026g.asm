@@ -1780,6 +1780,84 @@ attachments_on_dictionary_configs_replay:
     db 0x55, 0x8b, 0xec, 0x81, 0xec, 0xe8, 0x00, 0x00, 0x00
     jmp 0x2c8aa9
 
+; 0x24aab4 weapon_cook::on_weapon_config_loaded (0x24A920) before it sizes the requests' alloca (lea esi,[eax*8+0]; 0x424CA0 at 0x24AABD): EAX the requests it will push, EBX the weapon config's root: lohook -> attachments_on_request_room
+global attachments_on_request_room
+extern hook_attachments_on_request_room
+attachments_on_request_room:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_request_room
+    mov edx, attachments_on_request_room_replay
+    cmp eax, 0
+    je attachments_on_request_room_go
+    mov edx, 0x24aabb
+    cmp eax, 1
+    je attachments_on_request_room_go
+    ud2
+attachments_on_request_room_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_request_room_replay:
+    db 0x8d, 0x34, 0xc5, 0x00, 0x00, 0x00, 0x00
+    jmp 0x24aabb
+
+; 0x24ac30 on_weapon_config_loaded after weapon_cook::allocate_weapon (0x24A780, called at 0x24AC2B; it keeps EBX) returned the weapon in EAX, every request of the game's pushed (the last at 0x24ABEE) and none read yet (query_resources at 0x24AC95): mov bl,[ebp+10h] / sub esp,20h; EBX the weapon config's root, [ebp-40h] the requests: lohook -> attachments_on_asked
+global attachments_on_asked
+extern hook_attachments_on_asked
+attachments_on_asked:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_asked
+    mov edx, attachments_on_asked_replay
+    cmp eax, 0
+    je attachments_on_asked_go
+    mov edx, 0x24ac36
+    cmp eax, 1
+    je attachments_on_asked_go
+    ud2
+attachments_on_asked_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_asked_replay:
+    db 0x8a, 0x5d, 0x10, 0x83, 0xec, 0x20
+    jmp 0x24ac36
+
 ; 0x24acf0 weapon_cook::on_weapon_subresources_ready's entry (sub esp,24h / push ebx / push ebp): [esp+8] the weapon config's resource, [esp+0Ch] the weapon weapon_cook made, as the cook's functor binds them (0x24AC39..); by load_weapon both slots are the shots' loop's temporaries (0x24B063, 0x24AFA4, 0x24B044): lohook -> attachments_on_ready
 global attachments_on_ready
 extern hook_attachments_on_ready
@@ -1857,6 +1935,123 @@ attachments_on_loaded_go:
 attachments_on_loaded_replay:
     db 0x8b, 0x4c, 0x24, 0x48, 0x8b, 0x54, 0x24, 0x44
     jmp 0x24b0e9
+
+; 0x245017 weapon::draw (0x244E10) after the weapon model's update and the aimed scope's add or remove (every path joins here; mov esi,[ebp+14h] / test esi,esi): EBX the weapon, [ebp+8] its world matrix, [ebp+0Ch] its bones: lohook -> attachments_on_draw
+global attachments_on_draw
+extern hook_attachments_on_draw
+attachments_on_draw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_draw
+    mov edx, attachments_on_draw_replay
+    cmp eax, 0
+    je attachments_on_draw_go
+    mov edx, 0x24501c
+    cmp eax, 1
+    je attachments_on_draw_go
+    ud2
+attachments_on_draw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_draw_replay:
+    db 0x8b, 0x75, 0x14, 0x85, 0xf6
+    jmp 0x24501c
+
+; 0x245353 weapon::on_culled_player_draw (0x245250) after the weapon model's update at the player's root (mov ebx,[ebx+1808h]; EBX the weapon until it): lohook -> attachments_on_culled
+global attachments_on_culled
+extern hook_attachments_on_culled
+attachments_on_culled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_culled
+    mov edx, attachments_on_culled_replay
+    cmp eax, 0
+    je attachments_on_culled_go
+    mov edx, 0x245359
+    cmp eax, 1
+    je attachments_on_culled_go
+    ud2
+attachments_on_culled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_culled_replay:
+    db 0x8b, 0x9b, 0x08, 0x18, 0x00, 0x00
+    jmp 0x245359
+
+; 0x244017 weapon::on_hide (0x243FA0) after the weapon model's removal (0x244012, or the aimed scope's 181Dh skipping it; mov edi,[esi+1808h]): ESI the weapon: lohook -> attachments_on_hidden
+global attachments_on_hidden
+extern hook_attachments_on_hidden
+attachments_on_hidden:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_attachments_on_hidden
+    mov edx, attachments_on_hidden_replay
+    cmp eax, 0
+    je attachments_on_hidden_go
+    mov edx, 0x24401d
+    cmp eax, 1
+    je attachments_on_hidden_go
+    ud2
+attachments_on_hidden_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+attachments_on_hidden_replay:
+    db 0x8b, 0xbe, 0x08, 0x18, 0x00, 0x00
+    jmp 0x24401d
 
 ; 0x244649 weapon::activate (0x244610) after hand_to_weapon_ik_solver::set_weapon_locators (0x392AE0, called at 0x244644) filled the solver's sixteen records from the weapon's model (mov al,[esi+5E9h], the double_handed test): ESI the weapon: lohook -> attachments_on_hands
 global attachments_on_hands

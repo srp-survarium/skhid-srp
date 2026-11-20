@@ -1,5 +1,5 @@
-# Patch 161: a weapon's scope, eye, left hand and shells stand where its
-# fitted modules put them (docs/notes/attachments.md, "The client's
+# Patch 161: a weapon's parts, scope, eye, fire point, left hand and shells
+# stand where its fitted modules put them (docs/notes/attachments.md, "The client's
 # runtime"). Only the decisions: which sites, and the handlers. The sites
 # (VAs, kinds, spans, what their registers hold) are sites_026g.tsv's; the
 # logic is attachments.rs over the weapon-modules crate.
@@ -15,12 +15,32 @@ site = "attachments.dictionary_configs"
 handler = "on_dictionary_configs"
 
 [[hook]]
+site = "attachments.request_room"
+handler = "on_request_room"
+
+[[hook]]
+site = "attachments.asked"
+handler = "on_asked"
+
+[[hook]]
 site = "attachments.ready"
 handler = "on_ready"
 
 [[hook]]
 site = "attachments.loaded"
 handler = "on_loaded"
+
+[[hook]]
+site = "attachments.draw"
+handler = "on_draw"
+
+[[hook]]
+site = "attachments.culled"
+handler = "on_culled"
+
+[[hook]]
+site = "attachments.hidden"
+handler = "on_hidden"
 
 [[hook]]
 site = "attachments.hands"

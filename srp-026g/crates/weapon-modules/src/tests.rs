@@ -433,6 +433,53 @@ fn one_carrier_serves_two_kinds_and_a_taken_slot_is_refused() {
     assert_eq!(refusal(&table, FN_P90, both), Refusal::Taken(S::M12x1lMuzzle));
 }
 
+/// A gun whose suppressor is built in (the design's decision 3; 0.69d0's
+/// OTs-14 chain `ots144a_groza_lock_suppressor > barrel_bracket_01_picatinnyrail`,
+/// fits69.tsv): the suppressor is the gun's own part in its muzzle slot and
+/// brings the bracket's slot, the bracket is the grip's carrier. The table
+/// as it is says it: a grip goes on through the bracket, the suppressor
+/// stays, and with no muzzle fit nothing takes its place.
+#[test]
+fn a_grip_hangs_on_a_built_in_suppressor_through_its_bracket() {
+    let mut source = source();
+    let (suppressor, bracket) = (source.modules.len(), source.modules.len() + 1);
+    source.modules.push(module(
+        1601,
+        Role::Stock,
+        "weapons/modules/suppressors/ots144a_groza_lock_suppressor",
+        vec![AttachSource {
+            adds: vec![(S::OnbarrelTacticalPicatinnyrail, locator(60))],
+            fire_point: Some(locator(61)),
+            ..AttachSource::new(S::GrozaLockMuzzle)
+        }],
+    ));
+    source.modules.push(module(
+        1602,
+        Role::Carrier,
+        "weapons/modules/picatinnyrails/barrel_bracket_01_picatinnyrail",
+        vec![AttachSource { adds: vec![(S::PicatinnyGrip, locator(62))], ..AttachSource::new(S::OnbarrelTacticalPicatinnyrail) }],
+    ));
+    const OTS14: u16 = 900;
+    source.guns.push(GunSource {
+        stock: vec![(S::GrozaLockMuzzle, suppressor)],
+        carriers: vec![(S::PicatinnyGrip, vec![(bracket, S::OnbarrelTacticalPicatinnyrail)])],
+        fits: vec![MIKI],
+        ..gun(OTS14, &[(S::GrozaLockMuzzle, 63)])
+    });
+    let bytes = encode(&source).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    with(&table, OTS14, Wanted { grip: dict(MIKI), ..Wanted::default() }, |bare| {
+        assert_eq!(models(&bare), ["ots144a_groza_lock_suppressor", "barrel_bracket_01_picatinnyrail", "fabdefence_miki_foregrip"]);
+        let on_suppressor = on_offset(locator(63)).child(&locator(60));
+        let grip = bare.parts().nth(2).unwrap();
+        assert_eq!(grip.at, on_suppressor.child(&locator(62)));
+        // the fire point stays the suppressor's
+        assert_eq!(bare.fire_point, Some(on_offset(locator(63)).child(&locator(61))));
+        assert!(bare.left_hand.is_some());
+    });
+    assert_eq!(refusal(&table, OTS14, Wanted { muzzle: dict(DTK3), ..Wanted::default() }), Refusal::NoFit(Kind::Muzzle));
+}
+
 /// The bones of a frame: the root where `root` puts it, `offset` moved by
 /// `kick` from its idle pose.
 fn bones(root: &Affine, kick: &Affine) -> impl Fn(BoneIndex) -> Affine + use<> {
@@ -475,6 +522,63 @@ fn the_eye_is_fixed_to_the_optic_or_to_the_guns_idle_pose() {
         let shown = optic_before_the_eye(&frame, &eye.placed(EyeAnchor::GunIdle), &kicked);
         assert!((shown.t[1] - centred.t[1]).abs() > 0.005 || (shown.t[2] - centred.t[2]).abs() > 0.005);
     });
+}
+
+/// Patch 165's rule for the aimed view (`docs/notes/aim-pose.md`): on an
+/// aimed frame at rest the aim record leaves its bone for the gun's model at
+/// that pose (the record's offset times the bone, on no bone), and the
+/// game's alignment reads that from then on. The optic before such an eye
+/// (`calculate_locator` takes no bone's matrix for a record on none).
+fn optic_before_the_posed_eye(frame: &Placement, eye: &Placement, rest: &impl Fn(BoneIndex) -> Affine, bones: &impl Fn(BoneIndex) -> Affine) -> Affine {
+    let world = Affine::translation(10.0, 1.5, -4.0);
+    let aim_offset = Affine::translation(0.0, 0.0, 0.05);
+    let posed = eye.offset.then(&rest(eye.bone));
+    let frame = locator_frame(&Affine::IDENTITY, frame, &bones(frame.bone), &world);
+    let eye = aim_offset.then(&Affine::HALF_TURN).then(&posed).then(&world);
+    frame.then(&eye.inverse().unwrap())
+}
+
+/// The two anchors beside patch 165, on a gun whose own `aim` is on the
+/// root (every stock gun) and on one whose `aim` is on the bone the fire
+/// clip kicks (the ten ported guns the patch was made for):
+///
+/// - alone, the optic's anchor never shows the kick; the idle pose's shows
+///   it where the gun's own `aim` is on a still bone, and not on the ten;
+/// - under the patch both anchors give one eye: centred at rest, the whole
+///   kick shown, on every gun. So the kick is seen with either setting once
+///   the patch is in, and without it only with the idle pose's.
+#[test]
+fn the_idle_pose_anchor_shows_the_kick_and_agrees_with_patch_165() {
+    let kick = Affine::translation(0.0, 0.01, -0.03);
+    let moved = |a: &Affine, b: &Affine| (a.t[1] - b.t[1]).abs() > 0.005 || (a.t[2] - b.t[2]).abs() > 0.005;
+    for aim_bone in [0, OFFSET_BONE] {
+        let mut source = source();
+        source.guns[0].aim_bone = aim_bone;
+        let bytes = encode(&source).unwrap();
+        let table = Table::parse(&bytes).unwrap();
+        with(&table, AK_74M, Wanted { scope: dict(EOTECH), ..Wanted::default() }, |bare| {
+            let (frame, eye) = (bare.optic.unwrap().frame, bare.eye.unwrap());
+            let (rest, kicked) = (bones(&Affine::IDENTITY, &Affine::IDENTITY), bones(&Affine::IDENTITY, &kick));
+            let (on_optic, on_idle) = (eye.placed(EyeAnchor::Optic), eye.placed(EyeAnchor::GunIdle));
+            let centred = optic_before_the_eye(&frame, &on_optic, &rest);
+            // alone
+            assert!(near(&centred, &optic_before_the_eye(&frame, &on_optic, &kicked)));
+            assert!(near(&centred, &optic_before_the_eye(&frame, &on_idle, &rest)));
+            let alone = optic_before_the_eye(&frame, &on_idle, &kicked);
+            assert_eq!(moved(&alone, &centred), aim_bone != OFFSET_BONE);
+            // under patch 165
+            for anchor in [&on_optic, &on_idle] {
+                assert!(near(&centred, &optic_before_the_posed_eye(&frame, anchor, &rest, &rest)));
+                let shown = optic_before_the_posed_eye(&frame, anchor, &rest, &kicked);
+                assert!(moved(&shown, &centred));
+                assert!(near(&shown, &optic_before_the_posed_eye(&frame, &on_optic, &rest, &kicked)));
+            }
+            // and what it shows is what the idle pose's anchor shows alone on a gun aimed from the root
+            if aim_bone != OFFSET_BONE {
+                assert!(near(&alone, &optic_before_the_posed_eye(&frame, &on_optic, &rest, &kicked)));
+            }
+        });
+    }
 }
 
 #[test]
@@ -570,6 +674,109 @@ fn no_bytes_panic_the_parse() {
     other[4] = 3;
     assert_eq!(Table::parse(&other).err(), Some(Malformed::Version(3)));
     assert_eq!(Table::parse(b"SRPX").err(), Some(Malformed::Magic));
+}
+
+/// The finger matrices the game is taken to have made of a gun's own finger
+/// locators, for [`the_samples_loadouts_are_pinned`] and the client's check.
+fn own_fingers() -> [Affine; FINGERS] {
+    core::array::from_fn(|n| {
+        let n = (n + 1) as f32;
+        Affine::translation(0.001 * n, 0.002 * n, 0.003 * n)
+    })
+}
+
+fn row(out: &mut String, head: &str, bone: Option<BoneIndex>, matrices: &[Affine]) {
+    use core::fmt::Write;
+    out.push_str(head);
+    if let Some(bone) = bone {
+        write!(out, "\t{}", bone.0).unwrap();
+    }
+    for float in matrices.iter().flat_map(Affine::floats) {
+        write!(out, "\t{float:?}").unwrap();
+    }
+    out.push('\n');
+}
+
+fn placed(out: &mut String, head: &str, at: &Placement) {
+    row(out, head, Some(at.bone), &[at.offset]);
+}
+
+/// What `resolve` says of the sample table's guns, pinned in a checked-in
+/// file: the client's Unicorn check (`check_attachments_026g.py`) runs the
+/// game's code over `tests/sample-v2.srpm` and compares what the patch
+/// wrote with these rows, so it needs no second `resolve`.
+/// `SRP_WRITE_SAMPLE=1 cargo test -p weapon-modules` writes it.
+///
+/// A case is `case <gun> <scope> <muzzle> <grip>` (dict ids, 0 none) and
+/// then `whole`, `refused <why>`, or `bare <body> <bones>` with a row a
+/// thing: `part <model> <bone> <12 floats>`, `optic`, `eye optic|gun_idle`,
+/// `fire`, `wrist` (each a bone and twelve floats), `fingers gun|grip`
+/// (fifteen matrices, over [`own_fingers`]), `effect <path>`.
+#[test]
+fn the_samples_loadouts_are_pinned() {
+    use core::fmt::Write;
+    let source = source();
+    let bytes = encode(&source).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    let dict = |module: usize| DictId::new(source.modules[module].dict);
+    let cases = [
+        (AK_74M, None, None, None),
+        (AK_74M, None, dict(DTK3), None),
+        (AK_74M, None, None, dict(MIKI)),
+        (AK_74M, dict(PSO1), None, None),
+        (AK_74M, dict(EOTECH), None, None),
+        (AK_74M, dict(PSO1), dict(DTK3), dict(MIKI)),
+        (AK_74M_VICTORY, None, dict(DTK3), dict(MIKI)),
+        (FN_FNC, dict(EOTECH), None, dict(MIKI)),
+        (HK416, dict(EOTECH), None, dict(MIKI)),
+        (FN_P90, None, dict(TBRAKE), dict(MIKI)),
+        (FN_P90, None, dict(AEK_HIDER), dict(MIKI)),
+        (HK416, None, dict(DTK3), None),
+    ];
+    let mut out = String::new();
+    for (gun, scope, muzzle, grip) in cases {
+        let id = |module: Option<DictId>| module.map_or(0, DictId::get);
+        writeln!(out, "case\t{gun}\t{}\t{}\t{}", id(scope), id(muzzle), id(grip)).unwrap();
+        let gun = table.gun(DictId::new(gun).unwrap()).unwrap();
+        let bare = match resolve(gun, Wanted { scope, muzzle, grip }) {
+            Ok(Loadout::Whole) => {
+                out.push_str("whole\n");
+                continue;
+            }
+            Err(refusal) => {
+                writeln!(out, "refused\t{refusal:?}").unwrap();
+                continue;
+            }
+            Ok(Loadout::Bare(bare)) => bare,
+        };
+        writeln!(out, "bare\t{}\t{}", gun.bare().to_str().unwrap(), gun.bones()).unwrap();
+        for part in bare.parts() {
+            placed(&mut out, &std::format!("part\t{}", part.model().to_str().unwrap()), &part.at);
+        }
+        if let Some(optic) = &bare.optic {
+            placed(&mut out, "optic", &optic.frame);
+        }
+        if let Some(eye) = &bare.eye {
+            placed(&mut out, "eye\toptic", &eye.placed(EyeAnchor::Optic));
+            placed(&mut out, "eye\tgun_idle", &eye.placed(EyeAnchor::GunIdle));
+        }
+        if let Some(fire_point) = &bare.fire_point {
+            placed(&mut out, "fire", fire_point);
+        }
+        if let Some(hand) = &bare.left_hand {
+            placed(&mut out, "wrist", &hand.wrist);
+            row(&mut out, "fingers\tgun", None, &hand.fingers(FingerJoints::Gun, &own_fingers()));
+            row(&mut out, "fingers\tgrip", None, &hand.fingers(FingerJoints::Grip, &own_fingers()));
+        }
+        if let Some(effect) = bare.shot_effect {
+            writeln!(out, "effect\t{}", effect.to_str().unwrap()).unwrap();
+        }
+    }
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v2.loadouts.tsv");
+    if std::env::var_os("SRP_WRITE_SAMPLE").is_some() {
+        std::fs::write(&path, &out).unwrap();
+    }
+    assert!(std::fs::read_to_string(&path).unwrap() == out, "tests/sample-v2.loadouts.tsv is not what resolve gives");
 }
 
 fn refused(change: impl FnOnce(&mut Source)) -> Malformed {
