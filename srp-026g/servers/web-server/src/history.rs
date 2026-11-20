@@ -125,7 +125,7 @@ fn page_text(lang: Lang) -> Value {
         ("kit", lang.t("Kit")),
         ("favourites", lang.t("Favourite equipment")),
         ("accuracyNote", lang.t("1000+ shots")),
-        ("averageNote", lang.t("20+ matches")),
+        ("averageNote", lang.t("5+ matches")),
         ("headshotRate", lang.t("HS %")),
         ("noMatches", lang.t("No public matches yet.")),
         ("noPlayer", lang.t("No player with public matches named “{}”.")),

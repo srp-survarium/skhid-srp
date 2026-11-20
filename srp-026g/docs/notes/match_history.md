@@ -273,7 +273,7 @@ The top players by their totals. `by`: `rating`, `matches`, `wins`, `win_rate`, 
 `score_avg`, `headshot_rate`, `accuracy` (default `rating`); `order`: `desc` (the largest first,
 the default) or `asc`, here and in `clans`; `limit` 1..50 (default 50). The
 ratios `score_avg`, `win_rate`, `kd` and `headshot_rate` list only the players
-with at least 20 counted matches (`SCORE_AVG_MIN_MATCHES`). Players with
+with at least 5 counted matches (`SCORE_AVG_MIN_MATCHES`; the owner, 2026-11-20: it was 20). Players with
 a counted public match only. `accuracy` lists only the players with at least 1000 shots in their counted public
 matches (`ACCURACY_MIN_SHOTS`; a few lucky shots do not top it), best first; ties by account.
 

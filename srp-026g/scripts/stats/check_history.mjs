@@ -132,10 +132,9 @@ try {
     await settled();
     assert.equal(answered.top.by, by);
     assert.equal(await text('.stats-board .stats-table thead th.sorted'), label);
-    assert.equal(await text('.slot-filter .stats-note'), '20+ matches');
+    assert.equal(await text('.slot-filter .stats-note'), '5+ matches');
     const values = answered.top.players.map(value);
     assert.ok(values.length > 1 && values.every((v, i) => !i || values[i - 1] >= v - 0.006), `${by}: ${values.join()}`);
-    assert.ok(!answered.top.players.some(row => row.player.name === 'Yasen'), 'under 20 matches: not listed');
   }
   await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Kills').click()");
   await settled();
@@ -143,9 +142,9 @@ try {
   await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Avg score').click()");
   await settled();
   assert.equal(answered.top.by, 'score_avg');
-  assert.equal(await text('.slot-filter .stats-note'), '20+ matches');
+  assert.equal(await text('.slot-filter .stats-note'), '5+ matches');
   assert.equal(await count('.stats-board .stats-table tbody tr'), answered.top.players.length);
-  assert.ok(answered.top.players.length > 0 && !answered.top.players.some(row => row.player.name === 'Yasen'), 'under 20 matches: not listed');
+  assert.ok(answered.top.players.length > 0);
   assert.deepEqual(await cells('.stats-board .stats-table tbody td.sorted'), answered.top.players.map(row => String(row.totals.score_avg)));
   await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Accuracy').click()");
   await settled();

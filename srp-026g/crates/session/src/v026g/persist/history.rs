@@ -184,6 +184,15 @@ pub(super) const MIGRATION: &str = "
     CREATE INDEX g26_clan_members_by_account ON g26_clan_members (account_id);
     ";
 
+/// The schema step that lowers the average score list's bound from 20
+/// matches to [`SCORE_AVG_MIN_MATCHES`] (the owner, 2026-11-20): its partial
+/// index made anew, the same number.
+pub(super) const SCORE_AVG_BOUND_MIGRATION: &str = "
+    DROP INDEX g26_player_totals_score_avg;
+    CREATE INDEX g26_player_totals_score_avg ON g26_player_totals (CAST(score AS REAL) / matches)
+        WHERE matches >= 5;
+    ";
+
 /// Who could join a match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatchKind {
@@ -403,9 +412,10 @@ pub struct Counters {
 /// is the same number).
 pub const ACCURACY_MIN_SHOTS: u64 = 1000;
 /// The fewest counted matches a player's totals need for the average score
-/// top list, so that one good match does not top it
-/// (`g26_player_totals_score_avg` is the same number).
-pub const SCORE_AVG_MIN_MATCHES: u64 = 20;
+/// top list and the other ratios', so that one good match does not top them
+/// (`g26_player_totals_score_avg` is the same number, as
+/// [`SCORE_AVG_BOUND_MIGRATION`] makes it).
+pub const SCORE_AVG_MIN_MATCHES: u64 = 5;
 
 /// What a kit's counters say of one match, or of the matches added up.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
