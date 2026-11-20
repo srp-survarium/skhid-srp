@@ -98,7 +98,7 @@ def check(run, updater, x86, started, log, win, survarium):
         expect(f'127.0.0.1:{port}')
         assert choice.read_bytes() == b'direct\r\n', choice.read_bytes()
         # Direct, the direct route silent but the relay answering: blocked
-        # here, so the box ticks itself (Automatic, saved) and the game goes
+        # here, so the choice turns to Automatic by itself (saved) and the game goes
         # through the relay.
         enabled[0].clear()
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')

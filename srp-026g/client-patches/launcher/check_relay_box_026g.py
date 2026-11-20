@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Runs the "Use relay" box of the patched launcher (patch 16,
-launcher_values_026g.asm "Use relay") under Unicorn, through the sites the
-patch changed, at its own base and rebased, with Windows' functions and the
+"""Runs the "Relay" row of the patched launcher (patch 16,
+launcher_values_026g.asm "Relay") under Unicorn, through the sites the patch
+changed, at its own base and rebased, with Windows' functions and the
 launcher's helpers stubbed (check_torrent_box_026g's).
 
 Usage: python check_relay_box_026g.py ORIGINAL_survarium_launcher.exe
@@ -9,27 +9,30 @@ Usage: python check_relay_box_026g.py ORIGINAL_survarium_launcher.exe
 Checks:
 - message 0A (on_updater_message's dispatch, 0x15BAC, to the handlers' end
   0x16093, the stack and the launcher's registers as they were): a view of
-  1..6 is kept with the launcher; the box (VK's control) shows it: ticked
-  (its picture and the one under the pointer Facebook's second) for 3 and 5,
-  else unticked, ShowWindow(SW_SHOWNA); refresh_status runs once (the panel
-  and its text anew); 0, 7 and 255 change nothing and show nothing;
-- the tooltip: made once for the box's window (comctl32 loaded,
+  1..6 is kept with the launcher; the button (VK's control) is shown
+  (ShowWindow(SW_SHOWNA)), its pictures left as they are; refresh_status
+  runs once (the panel and its text anew); 0, 7 and 255 change nothing and
+  show nothing;
+- the tooltip: made once for the button's window (comctl32 loaded,
   InitCommonControlsEx with ICC_BAR_CLASSES, a topmost tooltips_class32
-  popup owned by the box's parent, 360 pixels wide, 30 s), the box its tool
-  (TTF_IDISHWND | TTF_SUBCLASS), its text what the relay is and the view's
-  line in the launcher's language; another view updates the text in place;
-  a box made again (the window made again in another language) destroys
-  the old tooltip and makes one for the new box;
-- the box's making (0x1AEA8..0x1AEEA): VK's control at 28, 46, 20 by 20 in
-  the bottom panel, its click 0x1BD3C; hidden (SW_HIDE) until a view came,
-  else as that view says;
-- the bottom panel's text: none while hidden; "Use relay (auto)" for 1..4,
-  "Use relay" for 5 and 6, 25 pixels right of the box and 1 below its top,
-  in the launcher's language (Russian and Ukrainian share it; German,
-  Polish; English for the game's other languages);
-- a click (the box's window procedure, WM_LBUTTONDOWN): 22 to the updater
-  (send_simple_message) while the pipe is connected and a view came; nothing
-  otherwise;
+  popup owned by the button's parent, 360 pixels wide, 30 s), the button its
+  tool (TTF_IDISHWND | TTF_SUBCLASS), its text what the relay is and the
+  view's line in the launcher's language; another view updates the text in
+  place; a button made again (the window made again in another language)
+  destroys the old tooltip and makes one for the new button;
+- the button's making (0x1AEA8..0x1AEEA): VK's control at 28, 46, 20 by 20
+  in the bottom panel, with its three pictures (the gear's), its click
+  0x1BD3C; hidden (SW_HIDE) until a view came, else shown;
+- the bottom panel's text: none while hidden; "Relay: auto" (1 and 4),
+  "Relay: auto (off)" (2), "Relay: auto (on)" (3), "Relay: on" (5), "Relay:
+  off" (6), 25 pixels right of the button and 1 below its top, in the
+  launcher's language (Russian, Ukrainian, German, Polish; English for the
+  game's other languages);
+- a click (the button's window procedure, WM_LBUTTONDOWN): a menu of the
+  three in the launcher's language, the chosen one checked (auto for 1..4),
+  under the button; a pick is 22h, 23h or 24h to the updater
+  (send_simple_message), no pick nothing; no menu while no updater is
+  connected or no view came;
 - the status line of the launcher's states 6 and 7 (refresh_status's
   load_string call, 0x1687C to 0x16881): "Server maintenance..." (0B2h)
   while the updater counts the seconds to its next try (message 13h's byte,
@@ -49,26 +52,37 @@ import patch_launcher_026g as L
 HERE = Path(__file__).resolve().parent
 FORM, LAUNCHER, FRAME = T.FORM, T.LAUNCHER, T.FRAME
 RELAY = 0x6C0
-SLOTS, PNGS = T.RELAY_SLOTS, T.RELAY_PNGS     # unticked, under the pointer, pressed, ticked
+SLOTS, PNGS = T.RELAY_SLOTS, T.RELAY_PNGS     # the gear: its picture, under the pointer, pressed
 STATE, VIEW, TIP, TIP_TOOL = 0x4A800, 0x4A804, 0x4A808, 0x4A80C
 LANGUAGE_GLOBAL = 0x4819C
 BOX_WINDOW, PARENT, TOOLTIP = 0x991, 0x445, 0x5551
 RECT = (28, 46, 48, 66)
-LABELS = {'en': ('Use relay', 'Use relay (auto)'), 'ru': ('Через релей', 'Через релей (авто)'),
-          'de': ('Über Relay', 'Über Relay (auto)'), 'pl': ('Przez relay', 'Przez relay (auto)')}
-# The game's languages (launcher_languages_026g.inc order) -> the box's.
-BY_INDEX = {0: 'en', 1: 'ru', 2: 'ru', 3: 'de', 4: 'pl', 5: 'en', 6: 'en'}
-NOW_EN = ['Automatic, checking...', 'Automatic: direct.', 'Automatic: through the relay.',
-          'Automatic: the server does not answer.', 'Relay.', 'Direct.']
+BUTTON_RECT = (300, 600, 320, 620)      # the button's window on the screen
+# The row's text by the view: auto (1 probing, 4 no answer), auto (off), auto (on), on, off.
+LABELS = {'en': ('Relay: auto', 'Relay: auto (off)', 'Relay: auto (on)', 'Relay: on', 'Relay: off'),
+          'ru': ('Релей: авто', 'Релей: авто (выкл)', 'Релей: авто (вкл)', 'Релей: вкл', 'Релей: выкл'),
+          'uk': ('Релей: авто', 'Релей: авто (вимк)', 'Релей: авто (увімк)', 'Релей: увімк', 'Релей: вимк'),
+          'de': ('Relay: auto', 'Relay: auto (aus)', 'Relay: auto (an)', 'Relay: an', 'Relay: aus'),
+          'pl': ('Relay: auto', 'Relay: auto (wył.)', 'Relay: auto (wł.)', 'Relay: wł.', 'Relay: wył.')}
+LABEL_OF_VIEW = {1: 0, 2: 1, 3: 2, 4: 0, 5: 3, 6: 4}
+# The menu's rows: auto, on, off.
+ROWS = {'en': ('Auto: only when blocked', 'On: always through the relay', 'Off: never'),
+        'ru': ('Авто: только при блокировке', 'Вкл: всегда через релей', 'Выкл: никогда'),
+        'uk': ('Авто: лише при блокуванні', 'Увімк: завжди через релей', 'Вимк: ніколи'),
+        'de': ('Auto: nur bei Sperre', 'An: immer über das Relay', 'Aus: nie'),
+        'pl': ('Auto: tylko przy blokadzie', 'Wł.: zawsze przez relay', 'Wył.: nigdy')}
+# The game's languages (launcher_languages_026g.inc order) -> the row's.
+BY_INDEX = {0: 'en', 1: 'uk', 2: 'ru', 3: 'de', 4: 'pl', 5: 'en', 6: 'en'}
+NOW_EN = ['auto, checking...', 'auto: direct.', 'auto: through the relay.',
+          'auto: the server does not answer.', 'on: through the relay.', 'off: direct.']
 RESTART = {'en': 'The server is restarting. Next try in {} s.',
            'ru': 'Сервер перезапускается. Повтор через {} с.',
            'uk': 'Сервер перезапускається. Повтор через {} с.',
            'de': 'Der Server startet neu. Nächster Versuch in {} s.',
            'pl': 'Serwer uruchamia się ponownie. Kolejna próba za {} s.'}
-RESTART_BY_INDEX = dict(BY_INDEX) | {1: 'uk'}
 TIP_EN = ('The relay is a second server that forwards your game when your provider blocks ours.\r\n'
-          'Automatic: direct first, the relay if needed.\r\nRelay: always through the relay (a bit more ping).\r\n'
-          'Direct: never the relay.\r\nClick to change.\r\n\r\nNow: ')
+          'Auto: through the relay only when the direct way is blocked.\r\n'
+          'On: always through the relay (a bit more ping).\r\nOff: never.\r\nClick the gear to choose.\r\n\r\nNow: ')
 
 NEW = {'ShowWindow': 2, 'GetParent': 1, 'SendMessageW': 4, 'CreateWindowExW': 12, 'DestroyWindow': 1,
        'LoadLibraryW': 1, 'InitCommonControlsEx': 1}
@@ -138,6 +152,17 @@ class Relay(T.Box):
         self.u.mem_write(buffer, f'string {number:#x}'.encode('utf-16-le') + b'\0\0')
         return 1
 
+    def GetWindowRect(self, window, rect):
+        assert window == BOX_WINDOW, window
+        self.u.mem_write(rect, struct.pack('<4i', *BUTTON_RECT))
+        return 1
+
+    def TrackPopupMenu(self, menu, flags, x, y, reserved, window, rect):
+        # Under the button, at its left.
+        assert (menu, flags, x, y, window) == (0x900, 0x180, BUTTON_RECT[0], BUTTON_RECT[3], BOX_WINDOW)
+        self.log.append(('menu', list(self.menu)))
+        return self.pick
+
     def refresh(self, *_):
         self.log.append(('refresh', self.reg(UC_X86_REG_ESI)))
         return 0
@@ -195,9 +220,8 @@ def check(data, delta):
         one.log.clear()
         message(one, view)
         assert one.word(STATE + delta) == LAUNCHER and one.byte(VIEW) == view
-        ticked = view in (3, 5)
-        pictures = [one.word(FORM + RELAY + 8), one.word(FORM + RELAY + 0xC)]
-        assert pictures == ([PNGS[3], PNGS[3]] if ticked else [PNGS[0], PNGS[1]]), (view, pictures)
+        # The button's pictures are the form's: no view changes them.
+        assert [one.word(FORM + RELAY + 8), one.word(FORM + RELAY + 0xC)] == [0, 0], view
         assert ('show', BOX_WINDOW, 8) in one.log and ('refresh', LAUNCHER) in one.log
         assert [e for e in one.log if e[0] == 'refresh'] == [('refresh', LAUNCHER)]
         tools = [e for e in one.log if e[0] == 'tool']
@@ -220,8 +244,8 @@ def check(data, delta):
         assert one.byte(VIEW) == 1 and not one.log, (view, one.log)
         count += 1
 
-    # The box's making: hidden before any view; as the view says after one,
-    # the tooltip made again for the new window.
+    # The button's making: hidden before any view; shown after one, the
+    # tooltip made again for the new window.
     for view in (0, 3, 6):
         one = Relay(data, delta)
         form(one, delta)
@@ -241,14 +265,12 @@ def check(data, delta):
         control = FORM + RELAY
         assert ('window', control, PARENT, 0x50000000, RECT) in one.log, one.log
         assert one.word(control + 0x18) == 0x1BD3C + delta and one.word(control + 0x1C) == FORM
+        assert [one.word(control + at) for at in (8, 0xC, 0x10)] == list(PNGS)
         if not view:
             assert [e for e in one.log if e[0] == 'show'] == [('show', BOX_WINDOW + 1, 0)]
-            assert [one.word(control + at) for at in (8, 0xC, 0x10)] == list(PNGS[:3])
             assert not [e for e in one.log if e[0] in ('create', 'tool')]
         else:
             assert [e for e in one.log if e[0] == 'show'] == [('show', BOX_WINDOW + 1, 8)]
-            picture = PNGS[3] if view == 3 else PNGS[0]
-            assert one.word(control + 8) == picture
             assert one.log.index(('destroy', TOOLTIP + 1)) < one.log.index(next(e for e in one.log if e[0] == 'create'))
             assert [e for e in one.log if e[0] == 'tool'] == [
                 ('tool', TOOLTIP + 2, 0x432, (44, 0x11, PARENT, BOX_WINDOW + 1), tip_text(view))]
@@ -256,7 +278,7 @@ def check(data, delta):
         count += 1
 
     # The panel's text: none while hidden; the view's, in each language.
-    for view in (0, 1, 4, 5, 6):
+    for view in (0, 1, 2, 3, 4, 5, 6):
         for index, language in BY_INDEX.items():
             one = Relay(data, delta)
             form(one, delta)
@@ -269,14 +291,18 @@ def check(data, delta):
             if not view:
                 assert not relay, relay
             else:
-                label = LABELS[language][1 if view <= 4 else 0]
+                label = LABELS[language][LABEL_OF_VIEW[view]]
                 assert relay == [('text', label, T.PANEL, T.FONT, 0xFFFFFF, 0, 28 + 25, 0, 46 + 1)], relay
             count += 1
 
-    # A click: 22 while connected and shown; nothing else.
-    for connected, view, sent in ((3, 5, True), (2, 5, False), (3, 0, False)):
+    # A click: the menu of the three while connected and shown, the chosen
+    # row checked; its pick to the updater. No menu otherwise.
+    cases = [(3, view, pick, index) for view in (1, 2, 3, 4, 5, 6) for pick in (0, 1, 2, 3) for index in (0, 2)]
+    cases += [(3, 5, 2, index) for index in BY_INDEX] + [(2, 5, 1, 0), (3, 0, 1, 0)]
+    for connected, view, pick, index in cases:
         one = Relay(data, delta)
         form(one, delta)
+        one.word(LANGUAGE_GLOBAL + delta, index)
         one.word(LAUNCHER + 0x2B70, connected)
         if view:
             message(one, view)
@@ -285,14 +311,24 @@ def check(data, delta):
         control = FORM + RELAY
         one.word(control + 4, BOX_WINDOW)
         one.log.clear()
+        one.pick, one.menu_destroyed = pick, False
         one.u.mem_write(control + 0x14, b'\0\0')
         one.go(0x126F4, C.STOP, args=(BOX_WINDOW, 0x201, 1, 0), ecx=control)
-        assert [e for e in one.log if e[0] == 'pipe'] == ([('pipe', LAUNCHER, 0x22)] if sent else []), one.log
+        menus = [e for e in one.log if e[0] == 'menu']
+        sent = [e for e in one.log if e[0] == 'pipe']
+        if connected == 3 and view:
+            chosen = {5: 1, 6: 2}.get(view, 0)
+            rows = [(8 if row == chosen else 0, row + 1, text) for row, text in enumerate(ROWS[BY_INDEX[index]])]
+            assert menus == [('menu', rows)], menus
+            assert one.menu_destroyed
+            assert sent == ([('pipe', LAUNCHER, 0x21 + pick)] if pick else []), one.log
+        else:
+            assert not menus and not sent, one.log
         count += 1
     # The status line: the restart's count in the place of "Server
     # maintenance...", only while the updater counts.
     buffer = T.FRAME + 0x400
-    for index, language in RESTART_BY_INDEX.items():
+    for index, language in BY_INDEX.items():
         for number, seconds in ((0xB2, 0), (0xB2, 1), (0xB2, 5), (0xB2, 60), (0xB2, 255), (0x87, 0), (0x87, 5)):
             one = Relay(data, delta)
             one.word(LANGUAGE_GLOBAL + delta, index)
@@ -318,8 +354,8 @@ def main():
     patched, _ = L.build(original, code)
     C.use_documents(C.DOCUMENTS_FOLDERS[0])
     for delta in (0, 0x100000):
-        print(f'base+{delta:#x}: {check(bytes(patched), delta)} Use relay cases pass')
-    print('ALL USE RELAY CASES PASSED')
+        print(f'base+{delta:#x}: {check(bytes(patched), delta)} Relay cases pass')
+    print('ALL RELAY CASES PASSED')
 
 
 if __name__ == '__main__':

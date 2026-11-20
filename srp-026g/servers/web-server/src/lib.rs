@@ -1884,8 +1884,8 @@ fn faq(lang: Lang) -> String {
                 "«Заблоковано в цій мережі: …»",
             ),
             lang.tr(
-                "Your provider blocks skhid.link: the launcher turns <b>Use relay</b> on (bottom left). Press Retry.",
-                "Ваш провайдер блокує skhid.link: лаунчер вмикає <b>Через релей</b> (ліворуч унизу). Натисніть «Повторити».",
+                "Your provider blocks skhid.link: the launcher sets <b>Relay</b> (bottom left) to auto. Press Retry.",
+                "Ваш провайдер блокує skhid.link: лаунчер ставить <b>Релей</b> (ліворуч унизу) на авто. Натисніть «Повторити».",
             ),
         ),
         (
@@ -3438,7 +3438,7 @@ mod tests {
                 assert!(faq.contains(said), "{said}: {faq}");
             }
             // The updater's box titles, in the order of the questions; the
-            // relay box only in the blocked one's answer, a VPN in none.
+            // relay row only in the blocked one's answer, a VPN in none.
             let mut rest = faq;
             for title in titles {
                 let at = rest.find(title).unwrap_or_else(|| panic!("{title}: {faq}"));
@@ -3446,7 +3446,7 @@ mod tests {
             }
             let (no_connection, blocked) = faq.split_once(titles[3]).unwrap();
             assert!(!no_connection.contains("relay") && !no_connection.contains("релей"), "{no_connection}");
-            assert!(blocked.contains("<b>Use relay</b>") || blocked.contains("<b>Через релей</b>"), "{blocked}");
+            assert!(blocked.contains("<b>Relay</b>") || blocked.contains("<b>Релей</b>"), "{blocked}");
             assert!(!faq.contains("VPN"), "{faq}");
             // The Discord invite is the last answer's, nothing after the pairs.
             let last = faq.rsplit("<dd>").next().unwrap();

@@ -91,7 +91,7 @@ fn launch(arguments: &[String], wait: bool, quiet: bool) -> Result<(), Ended> {
             let language = win::documents().as_deref().and_then(win::game_language);
             let (caption, message) = route::words(diagnosis, language);
             let again = match diagnosis {
-                // The box ticks itself: the relay answers, so on through
+                // The row turns to auto: the relay answers, so on through
                 // it, after the player has read why (quiet: at once).
                 Diagnosis::Blocked => {
                     route::blocked();

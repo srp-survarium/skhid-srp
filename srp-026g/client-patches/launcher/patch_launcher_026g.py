@@ -53,7 +53,7 @@ SECTION_NAME = b".skhid\0\0"
 SECTION_RVA = 0x48A000
 SECTION_VA = IMAGE_BASE + SECTION_RVA           # 0x49A000, the CAVE of the .bin
 SECTION_CHARACTERISTICS = 0x60000020            # code, execute, read (as .text)
-SECTION_PAGES = 3                               # its pages at most (the code and the site's addresses)
+SECTION_PAGES = 4                               # its pages at most (the code and the site's addresses)
 
 # launcher_values_026g.bin: the code, three zero-filled ASCII slots, then the
 # entries (ENTRIES_AT on), the language code with the generated language
@@ -108,17 +108,18 @@ TORRENT_HOOKS = [
     (0x1BD03, "837c240400", "jmp", "YouTube's click is the box's: Allow torrent toggled, saved, told"),
     (0x1AEA3, "e8a076ffff", "call", "launcher_form: Twitter's control, over the box's text, is opaque"),
 ]
-# 16. "Use relay" is a second box, under "Allow torrent": VK's control
-# (gone since 8) with the same pictures, what it shows said by the updater
-# (message 0A, the dispatch table's entry below), its click sent to it (22)
-# (launcher_values_026g.asm, "Use relay"). The status line's text of the
+# 16. "Relay: auto / on / off" is a row under "Allow torrent": VK's control
+# (gone since 8) with the settings gear's pictures, and a text beside it;
+# what it shows is said by the updater (message 0A, the dispatch table's
+# entry below), its click opens a menu of the three and the pick is sent to
+# the updater (22, 23, 24) (launcher_values_026g.asm, "Relay"). The status line's text of the
 # launcher's states 6 and 7 goes through `restart_text`: "Server
 # maintenance..." counts the updater's seconds to its next try (message 13h)
 # while a server restarts. Their entries follow the torrent's; no relocation
 # is under any.
 RELAY_HOOKS = [
-    (0x1AEE5, "e85e76ffff", "call", "launcher_form: VK's control is the relay box, shown as the updater said"),
-    (0x1BD3C, "837c240400", "jmp", "VK's click is the relay box's: 22 to the updater"),
+    (0x1AEE5, "e85e76ffff", "call", "launcher_form: VK's control is the relay button, shown as the updater said"),
+    (0x1BD3C, "837c240400", "jmp", "VK's click is the relay button's: the menu, its pick to the updater"),
     (0x1687C, "e827cfffff", "call", "refresh_status: \"Server maintenance...\" counts the updater's seconds to its next try"),
 ]
 ENTRY_HOOKS = LANGUAGE_HOOKS + TORRENT_HOOKS + RELAY_HOOKS
@@ -128,7 +129,7 @@ ENTRY_HOOKS = LANGUAGE_HOOKS + TORRENT_HOOKS + RELAY_HOOKS
 # relocated dword, and it stays one.
 ROUTE_TABLE = (0x160C2, 0x16093, "on_updater_message: message 0A is what the relay box shows")
 ROUTE_ENTRY = len(ENTRY_HOOKS)
-# The relay box's state (launcher_values_026g.asm RELAY_STATE, 0x4A800..
+# The relay row's state (launcher_values_026g.asm RELAY_STATE, 0x4A800..
 # 0x4A810) is in .data past its last variable: its VirtualSize grows into
 # the page that was already there, zero and unused.
 DATA_SECTION = (2, b".data\0\0\0", 0x67FC, 0x6810)
@@ -193,15 +194,14 @@ PATCHES = [
     # widest text, Russian, is 134 pixels; its initializer adds at most 127).
     (0x3A746, "a1", "c3", "Twitter's rect: its initializer returns at once"),
     (0x458CC, "0000000000000000", "bb00000028000000", "Twitter's rect: right 187, bottom 40"),
-    # 16. The relay box is VK's control: the same pictures as the torrent
-    # box's in VK's place (unticked, under the pointer, pressed) and in
-    # Facebook's second (ticked), and its 20 by 20 pixels.
-    (0x1ABA7, "6851010000", "685b010000", "launcher_form: VK's picture is PNG 347, the relay box unticked"),
-    (0x1ABBA, "6852010000", "6859010000", "launcher_form: VK's under the pointer is PNG 345"),
-    (0x1ABCD, "6853010000", "685a010000", "launcher_form: VK's pressed is PNG 346"),
-    (0x1AB48, "684c010000", "6858010000", "launcher_form: Facebook's second picture is PNG 344, the relay box ticked"),
-    (0x3A766, "83c01b", "83c014", "VK's rect: add eax,20 (the relay box's width)"),
-    (0x3A773, "83c01b", "83c014", "VK's rect: add eax,20 (the relay box's height)"),
+    # 16. The relay button is VK's control: the settings gear's pictures (the
+    # launcher's own: PNG 308, under the pointer 309, pressed 310) in VK's
+    # place, and its 20 by 20 pixels.
+    (0x1ABA7, "6851010000", "6834010000", "launcher_form: VK's picture is PNG 308, the gear"),
+    (0x1ABBA, "6852010000", "6835010000", "launcher_form: VK's under the pointer is PNG 309"),
+    (0x1ABCD, "6853010000", "6836010000", "launcher_form: VK's pressed is PNG 310"),
+    (0x3A766, "83c01b", "83c014", "VK's rect: add eax,20 (the relay button's width)"),
+    (0x3A773, "83c01b", "83c014", "VK's rect: add eax,20 (the relay button's height)"),
 ]
 
 # start_updater, when no version could be read (the game exe PLAY starts is
@@ -279,7 +279,7 @@ RECTS = [
     (0x458A4, 32, 28, 28, 20, "YouTube's: the Allow torrent box (15)"),
     (0x458B4, 68, 28, GONE, 28, "Facebook"),
     (0x458C4, 104, 28, 53, 20, "Twitter's: over the Allow torrent text, clickable (15)"),
-    (0x458D4, 140, 28, 28, 46, "VK's: the relay box (16), hidden until the updater says"),
+    (0x458D4, 140, 28, 28, 46, "VK's: the relay button (16), hidden until the updater says"),
 ]
 
 
@@ -531,7 +531,7 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
                   f"site {site}, PLAY (or Enter) starts {game_exe} {arguments}, updater {UPDATER_NAME}, "
                   f"the language in user.cfg ({len(LANGUAGE_HOOKS)} sites), "
                   f"Allow torrent on the main window ({len(TORRENT_HOOKS)} sites), "
-                  f"Use relay under it ({len(RELAY_HOOKS)} sites and message 0A), "
+                  f"Relay: auto/on/off under it ({len(RELAY_HOOKS)} sites and message 0A), "
                   f"local pages in {PAGES_DIR}, {sum(1 for r in RECTS if r[3] == GONE)} buttons removed, "
                   "signature removed")
 

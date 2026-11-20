@@ -1,7 +1,7 @@
 //! The player's route to the game servers, in a download with a relay
 //! (`updater_skhid.relay`, `srp-026g/deploy/relay/README.md`): the launcher's
-//! "Use relay" box (launcher patch 16) shows it and changes it, the updater
-//! keeps it (`<Documents>\survarium\launcher_skhid.route`, beside user.cfg:
+//! "Relay" row (launcher patch 16: "Relay: auto", "on", "off", and a menu of
+//! the three) shows it and changes it, the updater keeps it (`<Documents>\survarium\launcher_skhid.route`, beside user.cfg:
 //! the Windows user's, as the language) and PLAY and the updater's HTTPS
 //! follow it.
 
@@ -53,12 +53,14 @@ impl Choice {
         }
     }
 
-    /// A click on the box.
-    pub fn next(self) -> Self {
-        match self {
-            Self::Automatic => Self::Relay,
-            Self::Relay => Self::Direct,
-            Self::Direct => Self::Automatic,
+    /// The launcher's message of the menu's row picked (`22`, `23`, `24`:
+    /// auto, on, off; launcher patch 16).
+    pub fn of_message(id: u8) -> Option<Self> {
+        match id {
+            0x22 => Some(Self::Automatic),
+            0x23 => Some(Self::Relay),
+            0x24 => Some(Self::Direct),
+            _ => None,
         }
     }
 }
@@ -71,9 +73,9 @@ pub enum Probed {
     Neither,
 }
 
-/// What the launcher's box shows: the choice and, in [`Choice::Automatic`],
-/// the route the probe picked (`None` while it runs). The box is ticked for
-/// the relay; "(auto)" follows its text in Automatic.
+/// What the launcher's row shows: the choice and, in [`Choice::Automatic`],
+/// the route the probe picked (`None` while it runs): "Relay: on", "off",
+/// "auto", "auto (on)", "auto (off)".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Shown {
     Automatic(Option<Probed>),
@@ -81,20 +83,21 @@ pub enum Shown {
     Direct,
 }
 
-/// What the box's owner does next.
+/// What happens to the row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Event {
-    /// The player clicked the box.
-    Clicked,
+    /// The player picked a row of the menu.
+    Chosen(Choice),
     /// A probe ended.
     Probed(Probed),
     /// The direct route was found blocked while the relay answers
-    /// (`crate::diagnosis::Diagnosis::Blocked`): the box ticks itself.
+    /// (`crate::diagnosis::Diagnosis::Blocked`): the row turns to auto by
+    /// itself.
     Blocked,
 }
 
-/// A transition's result: what the box shows now, the choice to save (a
-/// click's), and whether a probe is to run.
+/// A transition's result: what the row shows now, the choice to save (a
+/// pick's, a block's), and whether a probe is to run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Step {
     pub shown: Shown,
@@ -103,7 +106,7 @@ pub struct Step {
 }
 
 impl Shown {
-    /// The box at the start, for the saved choice.
+    /// The row at the start, for the saved choice.
     pub fn start(choice: Choice) -> Step {
         Self::step(choice, None)
     }
@@ -129,17 +132,14 @@ impl Shown {
         }
     }
 
-    /// The one transition. A probe that ends after the player clicked away
-    /// from Automatic is dropped; one that ends after they came back is
-    /// taken (it is a few seconds old at most). A block moves the choice
-    /// to Automatic, whose probe then picks the relay: saved and shown as a
-    /// click's, the player's to change.
+    /// The one transition. A probe that ends after the player picked
+    /// another row than Automatic is dropped; one that ends after they came
+    /// back is taken (it is a few seconds old at most). A block moves the
+    /// choice to Automatic, whose probe then picks the relay: saved and
+    /// shown as a pick, the player's to change.
     pub fn on(self, event: Event) -> Step {
         match (self, event) {
-            (_, Event::Clicked) => {
-                let next = self.choice().next();
-                Self::step(next, Some(next))
-            }
+            (_, Event::Chosen(choice)) => Self::step(choice, Some(choice)),
             (_, Event::Blocked) => Self::step(Choice::Automatic, Some(Choice::Automatic)),
             (Self::Automatic(None), Event::Probed(probed)) => Step {
                 shown: Self::Automatic(Some(probed)),
@@ -190,19 +190,24 @@ mod tests {
     }
 
     #[test]
-    fn clicks_cycle_and_are_saved_and_automatic_probes() {
+    fn a_pick_is_shown_and_saved_and_automatic_probes() {
         let start = Shown::start(Choice::Automatic);
         assert_eq!(start, Step { shown: Shown::Automatic(None), save: None, probe: true });
         assert_eq!(Shown::start(Choice::Direct), Step { shown: Shown::Direct, save: None, probe: false });
-        let mut shown = Shown::Automatic(Some(Probed::Direct));
-        for (choice, probe) in [(Choice::Relay, false), (Choice::Direct, false), (Choice::Automatic, true)] {
-            let step = shown.on(Event::Clicked);
-            assert_eq!(step.save, Some(choice));
-            assert_eq!(step.probe, probe);
-            assert_eq!(step.shown.choice(), choice);
-            shown = step.shown;
+        for from in [Shown::Automatic(Some(Probed::Direct)), Shown::Relay, Shown::Direct] {
+            for (choice, shown, probe) in [
+                (Choice::Relay, Shown::Relay, false),
+                (Choice::Direct, Shown::Direct, false),
+                (Choice::Automatic, Shown::Automatic(None), true),
+            ] {
+                assert_eq!(from.on(Event::Chosen(choice)), Step { shown, save: Some(choice), probe });
+            }
         }
-        assert_eq!(shown, Shown::Automatic(None));
+        // The menu's three messages, and no other.
+        assert_eq!(
+            [0x21, 0x22, 0x23, 0x24, 0x25].map(Choice::of_message),
+            [None, Some(Choice::Automatic), Some(Choice::Relay), Some(Choice::Direct), None]
+        );
     }
 
     #[test]
@@ -217,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn a_block_ticks_the_box_by_automatic_whatever_it_showed() {
+    fn a_block_turns_the_row_to_automatic_whatever_it_showed() {
         for shown in [Shown::Direct, Shown::Relay, Shown::Automatic(Some(Probed::Neither))] {
             assert_eq!(
                 shown.on(Event::Blocked),

@@ -98,7 +98,7 @@ pub enum ToLauncher<'a> {
     /// patch 16; the original keeps the byte and shows nothing of it); 0:
     /// no count, "Server maintenance..." again.
     NextTry(u8),
-    /// `0A`: what the "Use relay" box shows (`crate::route::Shown::byte`;
+    /// `0A`: what the "Relay" row shows (`crate::route::Shown::byte`;
     /// launcher patch 16). The original launcher ignores 0A..0D.
     Route(crate::route::Shown),
 }
@@ -194,8 +194,9 @@ pub enum FromLauncher {
     Port(u16),
     /// `1E`: bytes a second; `None` for 0, no limit.
     UploadLimit(Option<u64>),
-    /// `22`: the "Use relay" box was clicked (launcher patch 16).
-    RouteClicked,
+    /// `22`, `23`, `24`: the relay menu's row picked: auto, on, off
+    /// (launcher patch 16).
+    RouteChosen(crate::route::Choice),
     /// Any other id.
     Other(u8),
 }
@@ -262,7 +263,10 @@ impl Reader {
                     FromLauncher::UploadLimit((limit != 0).then_some(limit.min(0x7FFF_FFFF)))
                 }
                 0x1B => FromLauncher::Abort,
-                0x22 => FromLauncher::RouteClicked,
+                id @ 0x22..=0x24 => match crate::route::Choice::of_message(id) {
+                    Some(choice) => FromLauncher::RouteChosen(choice),
+                    None => FromLauncher::Other(id),
+                },
                 0x1C => FromLauncher::Yes,
                 0x1D => FromLauncher::No,
                 0x21 if payload.len() >= 3 => {
@@ -342,7 +346,7 @@ mod tests {
             3, 0, 0x21, 0x39, 0x30, // port 12345
             9, 0, 0x1E, 0, 4, 0, 0, 0, 0, 0, 0, // 1 KiB a second
             2, 0, 0x1A, 0, // torrent allowed
-            1, 0, 0x22, // the relay box clicked
+            1, 0, 0x23, // the relay menu: on
             4, 0, 0x99, 1, 2, 3, // unknown
         ];
         let expected = [
@@ -353,7 +357,7 @@ mod tests {
             FromLauncher::Port(12345),
             FromLauncher::UploadLimit(Some(1024)),
             FromLauncher::AllowTorrent(true),
-            FromLauncher::RouteClicked,
+            FromLauncher::RouteChosen(crate::route::Choice::Relay),
             FromLauncher::Other(0x99),
         ];
         let mut reader = Reader::default();

@@ -681,7 +681,7 @@ mod tests {
         assert_eq!(
             blocked.message(None, LOG),
             "Blocked on this network: skhid.link did not answer (timed out)\n\
-             Your provider blocks the server, but the relay answers: \"Use relay\" is now on (at \
+             Your provider blocks the server, but the relay answers: \"Relay\" is now on auto (at \
              the launcher's bottom left). Try again.\n\
              Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );

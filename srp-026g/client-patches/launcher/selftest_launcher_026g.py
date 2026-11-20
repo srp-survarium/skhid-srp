@@ -13,9 +13,9 @@ Checks:
  3. the jump in registry_key::get_string lands on the new code, and the new
     code comes back to the byte after the replaced instructions; the same
     for the Enter key's jump in the message loop; each language site and
-    each site of the Allow torrent box (patch 15) and of the Use relay box
+    each site of the Allow torrent box (patch 15) and of the Relay row
     (16) calls or jumps to its entry, and each entry jumps into the new
-    code; message 0A's dispatch entry is the relay box's, still relocated;
+    code; message 0A's dispatch entry is the relay row's, still relocated;
  4. the two addresses the launcher opens are the site's, where their
     operands point, and the operands are still relocated;
  5. no relocation touches a changed instruction (but the five disabled ones);
@@ -157,7 +157,7 @@ def main():
                       and va + 5 + struct.unpack_from("<i", site, 1)[0] == L.SECTION_VA + entry
                       and set(site[5:]) <= {0x90} and section[entry] == 0xE9
                       and L.SECTION_VA + entries_end <= jump_to < L.SECTION_VA + len(section))
-    check("3c", all(landed), f"{sum(landed)} of {len(L.ENTRY_HOOKS)} language, Allow torrent and Use relay "
+    check("3c", all(landed), f"{sum(landed)} of {len(L.ENTRY_HOOKS)} language, Allow torrent and Relay "
           "sites reach their code through their entries")
     route_entry = L.ENTRIES_AT + 8 * L.ROUTE_ENTRY
     table = struct.unpack_from("<I", patched, image.offset(L.ROUTE_TABLE[0], 4))[0]

@@ -1,7 +1,7 @@
 //! Why the server cannot be reached, told apart so that the player is given
 //! the one thing that helps: no internet, the server offline or restarting
 //! (nothing to do but wait), this network blocking it while the relay
-//! answers (the "Use relay" box, `crate::route`), the relay down while the
+//! answers (the launcher's "Relay" row, `crate::route`), the relay down while the
 //! server answers directly, or none of these to be told (a firewall). Asked
 //! after a failure: the server's site and game both ways, then Windows
 //! whether this PC is online.
@@ -48,7 +48,7 @@ pub enum Diagnosis {
     ServerDown,
     /// Back in a minute: the updater waits for it.
     Restarting,
-    /// Not directly, but through the relay: the box.
+    /// Not directly, but through the relay: the "Relay" row turns to auto.
     Blocked,
     /// The relay was used and does not answer, but the server does directly.
     RelayDown,
@@ -141,32 +141,32 @@ impl Diagnosis {
             (1, NoInternet) => "Проверьте сеть и попробуйте снова.",
             (1, ServerDown) => "Он не отвечает ни напрямую, ни через релей. Попробуйте позже.",
             (1, Restarting) => "Он вернётся через минуту.",
-            (1, Blocked) => "Провайдер блокирует сервер, но релей отвечает: «Через релей» теперь включён (в лаунчере слева внизу). Попробуйте снова.",
-            (1, RelayDown) => "Сервер отвечает напрямую: в лаунчере слева внизу нажимайте «Через релей», пока галочка не исчезнет, и попробуйте снова.",
+            (1, Blocked) => "Провайдер блокирует сервер, но релей отвечает: «Релей» теперь на авто (в лаунчере слева внизу). Попробуйте снова.",
+            (1, RelayDown) => "Сервер отвечает напрямую: поставьте «Релей» на авто или выкл в лаунчере слева внизу и попробуйте снова.",
             (1, Unclear) => "Сервер здесь не отвечает: возможно, игру блокирует брандмауэр. Запустите Skhid-network-setup.cmd (рядом со Skhid.bat) и попробуйте снова.",
             (2, NoInternet) => "Перевірте мережу й спробуйте знову.",
             (2, ServerDown) => "Він не відповідає ні напряму, ні через релей. Спробуйте пізніше.",
             (2, Restarting) => "Він повернеться за хвилину.",
-            (2, Blocked) => "Провайдер блокує сервер, але релей відповідає: «Через релей» тепер увімкнено (у лаунчері ліворуч унизу). Спробуйте знову.",
-            (2, RelayDown) => "Сервер відповідає напряму: у лаунчері ліворуч унизу натискайте «Через релей», доки позначка не зникне, і спробуйте знову.",
+            (2, Blocked) => "Провайдер блокує сервер, але релей відповідає: «Релей» тепер на авто (у лаунчері ліворуч унизу). Спробуйте знову.",
+            (2, RelayDown) => "Сервер відповідає напряму: поставте «Релей» на авто або вимк у лаунчері ліворуч унизу і спробуйте знову.",
             (2, Unclear) => "Сервер тут не відповідає: можливо, гру блокує брандмауер. Запустіть Skhid-network-setup.cmd (поруч зі Skhid.bat) і спробуйте знову.",
             (3, NoInternet) => "Prüfe dein Netzwerk und versuche es erneut.",
             (3, ServerDown) => "Er antwortet weder direkt noch über das Relay. Versuche es später.",
             (3, Restarting) => "Er ist in einer Minute zurück.",
-            (3, Blocked) => "Dein Anbieter sperrt den Server, das Relay antwortet aber: „Über Relay“ ist jetzt an (im Launcher unten links). Versuche es erneut.",
-            (3, RelayDown) => "Der Server antwortet direkt: klicke im Launcher unten links auf „Über Relay“, bis es nicht mehr angehakt ist, und versuche es erneut.",
+            (3, Blocked) => "Dein Anbieter sperrt den Server, das Relay antwortet aber: „Relay“ steht jetzt auf Auto (im Launcher unten links). Versuche es erneut.",
+            (3, RelayDown) => "Der Server antwortet direkt: stelle „Relay“ im Launcher unten links auf Auto oder Aus und versuche es erneut.",
             (3, Unclear) => "Der Server antwortet hier nicht: vielleicht blockiert eine Firewall das Spiel. Starte Skhid-network-setup.cmd (neben Skhid.bat) und versuche es erneut.",
             (4, NoInternet) => "Sprawdź sieć i spróbuj ponownie.",
             (4, ServerDown) => "Nie odpowiada ani bezpośrednio, ani przez relay. Spróbuj później.",
             (4, Restarting) => "Wróci za minutę.",
-            (4, Blocked) => "Dostawca blokuje serwer, ale relay odpowiada: „Przez relay” jest teraz włączone (w launcherze na dole po lewej). Spróbuj ponownie.",
-            (4, RelayDown) => "Serwer odpowiada bezpośrednio: w launcherze na dole po lewej klikaj „Przez relay”, aż zaznaczenie zniknie, i spróbuj ponownie.",
+            (4, Blocked) => "Dostawca blokuje serwer, ale relay odpowiada: „Relay” jest teraz na auto (w launcherze na dole po lewej). Spróbuj ponownie.",
+            (4, RelayDown) => "Serwer odpowiada bezpośrednio: ustaw „Relay” w launcherze na dole po lewej na auto lub wył. i spróbuj ponownie.",
             (4, Unclear) => "Serwer tu nie odpowiada: być może zapora blokuje grę. Uruchom Skhid-network-setup.cmd (obok Skhid.bat) i spróbuj ponownie.",
             (_, NoInternet) => "Check your network, then try again.",
             (_, ServerDown) => "It does not answer, directly or through the relay. Try again later.",
             (_, Restarting) => "It is back in a minute.",
-            (_, Blocked) => "Your provider blocks the server, but the relay answers: \"Use relay\" is now on (at the launcher's bottom left). Try again.",
-            (_, RelayDown) => "The server answers directly: click \"Use relay\" at the launcher's bottom left until it is unticked, then try again.",
+            (_, Blocked) => "Your provider blocks the server, but the relay answers: \"Relay\" is now on auto (at the launcher's bottom left). Try again.",
+            (_, RelayDown) => "The server answers directly: set \"Relay\" to auto or off at the launcher's bottom left, then try again.",
             (_, Unclear) => "The server does not answer here: a firewall may block the game. Run Skhid-network-setup.cmd (beside Skhid.bat), then try again.",
         }
     }
@@ -279,8 +279,8 @@ mod tests {
             for diagnosis in ALL {
                 let advice = diagnosis.advice(language);
                 assert!(!advice.contains("VPN"), "{advice}");
-                let names_the_box = advice.contains("relay\"") || advice.contains("релей»")
-                    || advice.contains("Relay“") || advice.contains("relay”");
+                let names_the_box = advice.contains("\"Relay\"") || advice.contains("«Релей»")
+                    || advice.contains("„Relay“") || advice.contains("„Relay”");
                 assert_eq!(
                     names_the_box,
                     matches!(diagnosis, Diagnosis::Blocked | Diagnosis::RelayDown),

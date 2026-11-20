@@ -142,11 +142,11 @@ struct Session {
     trouble: Option<Failed>,
     /// The launcher's torrent settings, and the torrent engine (`torrent.rs`).
     torrents: torrent::Torrents,
-    /// The launcher's "Use relay" box, in a download with a relay.
+    /// The launcher's "Relay" row, in a download with a relay.
     route: Option<RouteBox>,
 }
 
-/// What the "Use relay" box shows (launcher patch 16), and the probe that
+/// What the "Relay" row shows (launcher patch 16), and the probe that
 /// runs for it in Automatic.
 struct RouteBox {
     config: &'static relay_client::Config,
@@ -209,7 +209,7 @@ impl Session {
         }
     }
 
-    /// The box's transition: shown, saved, probed.
+    /// The row's transition: shown, saved, probed.
     fn route(&mut self, event: Option<Event>) {
         let Some(route) = &mut self.route else { return };
         let step = match event {
@@ -218,7 +218,7 @@ impl Session {
         };
         let routing::Step { shown, save, probe } = step;
         if shown != route.shown || event.is_none() {
-            log!("route: the box shows {shown:?}");
+            log!("route: the row shows {shown:?}");
         }
         route.shown = shown;
         if let Some(choice) = save {
@@ -230,8 +230,8 @@ impl Session {
         self.send(ToLauncher::Route(shown));
     }
 
-    /// The direct route is blocked while the relay answers: the box ticks
-    /// itself (saved also with no launcher to show it).
+    /// The direct route is blocked while the relay answers: the row turns
+    /// to auto by itself (saved also with no launcher to show it).
     fn blocked(&mut self) {
         if self.route.is_some() {
             self.route(Some(Event::Blocked));
@@ -248,7 +248,7 @@ impl Session {
     /// Reads what the launcher wrote. `false` once it asked to stop or
     /// closed the pipe.
     fn pump(&mut self) -> bool {
-        let mut clicks = 0;
+        let mut chosen = None;
         if let Some(pipe) = &mut self.pipe {
             for message in pipe.receive() {
                 match message {
@@ -268,7 +268,7 @@ impl Session {
                             self.run = Run::Again;
                         }
                     }
-                    FromLauncher::RouteClicked => clicks += 1,
+                    FromLauncher::RouteChosen(choice) => chosen = Some(choice),
                     other => log!("launcher message ignored: {other:?}"),
                 }
             }
@@ -277,14 +277,16 @@ impl Session {
                 self.run = Run::Stopped;
             }
         }
-        // The box: each click the next choice, saved; the update runs again
-        // by it (its HTTPS goes the new way).
-        for _ in 0..clicks {
-            self.route(Some(Event::Clicked));
-        }
-        if clicks > 0 && self.route.is_some() && self.run == Run::Going {
-            log!("route changed: the update runs again");
-            self.run = Run::Again;
+        // The menu's pick (the last, of several): saved; the update runs
+        // again by it (its HTTPS goes the new way).
+        if let Some(choice) = chosen
+            && self.route.as_ref().is_some_and(|route| route.shown.choice() != choice)
+        {
+            self.route(Some(Event::Chosen(choice)));
+            if self.run == Run::Going {
+                log!("route changed: the update runs again");
+                self.run = Run::Again;
+            }
         }
         let probed = self.route.as_mut().and_then(|route| {
             let answer = route.probing.as_ref()?.try_recv();
@@ -1521,8 +1523,8 @@ fn run() -> u32 {
         torrents: torrent::Torrents::new(options.torrenting, &layout),
         route: None,
     };
-    // The box, shown only to a launcher (one that knows it, patch 16) in a
-    // download with a relay.
+    // The "Relay" row, shown only to a launcher (one that knows it, patch
+    // 16) in a download with a relay.
     if session.pipe.is_some() && !options.copy {
         match play::config() {
             Ok(Some(config)) => {
@@ -1641,7 +1643,7 @@ fn pass(session: &mut Session, layout: &Layout, look: patches::Look, product: Op
                         log!("the server is restarting: asked again every {RESTART_WAIT_S} s");
                         session.state(state::MAINTENANCE);
                         if !session.await_server(server(layout).ok().as_ref()) {
-                            // Stopped, or to run again (the box clicked):
+                            // Stopped, or to run again (another route picked):
                             // nothing is told of a wait that was cut.
                             done = Done::Stopped;
                             break;

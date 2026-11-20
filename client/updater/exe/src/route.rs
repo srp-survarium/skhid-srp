@@ -2,8 +2,8 @@
 //! reached (`updater_logic::diagnosis`). This module is the one owner of the
 //! choice: read once from `<Documents>\survarium\launcher_skhid.route`, the
 //! first time decided by the Windows region and saved at once (so that it is
-//! the player's from then on, shown and changed in the launcher's box), and
-//! changed only by that box ([`set`]).
+//! the player's from then on, shown and changed in the launcher's "Relay" row), and
+//! changed only by that row or a block found ([`set`]).
 
 use alloc::format;
 use alloc::string::String;
@@ -49,14 +49,14 @@ pub fn choice() -> Choice {
     choice
 }
 
-/// The box's click.
+/// The row's pick.
 pub fn set(choice: Choice) {
     save(folder().as_deref(), choice);
     *CHOICE.lock().unwrap_or_else(|e| e.into_inner()) = Some(choice);
 }
 
-/// The direct route is blocked while the relay answers, and no box shows
-/// it (PLAY, the updater by hand): the choice a box would move to, saved.
+/// The direct route is blocked while the relay answers, and no row shows
+/// it (PLAY, the updater by hand): the choice the row would move to, saved.
 pub fn blocked() {
     if let Some(choice) = Shown::start(choice()).shown.on(Event::Blocked).save {
         set(choice);
@@ -84,7 +84,7 @@ fn region() -> i32 {
     unsafe { GetUserGeoID(GEOCLASS_NATION) }
 }
 
-/// The probe of PLAY's route, in a thread of its own: what the box shows.
+/// The probe of PLAY's route, in a thread of its own: what the row shows.
 pub fn probe(config: &'static Config) -> mpsc::Receiver<Probed> {
     let (send, receive) = mpsc::channel();
     std::thread::spawn(move || {
@@ -228,7 +228,7 @@ fn windows_online() -> Option<bool> {
     .flatten()
 }
 
-/// The box's words: what the player is told, in the launcher's language.
+/// A message box's words: what the player is told, in the launcher's language.
 pub fn words(diagnosis: Diagnosis, language: Option<u32>) -> (String, String) {
     let language = language.filter(|&n| n < 5).unwrap_or(0);
     (

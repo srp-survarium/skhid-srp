@@ -83,7 +83,7 @@
 17309 launcher::on_port_changed
 17319 launcher::send_switch_download_type_message   # 0x1A
 173B1 launcher::send_port_message                   # 0x21
-1749F launcher::send_simple_message(type)           # 0x1B abort, 0x1C retry, 0x1D cancel; stdcall (launcher, type), ret 8, al = written; patch 16 sends 0x22 (the relay box clicked)
+1749F launcher::send_simple_message(type)           # 0x1B abort, 0x1C retry, 0x1D cancel; stdcall (launcher, type), ret 8, al = written; patch 16 sends 0x22, 0x23, 0x24 (the relay menu: auto, on, off)
 17522 function0::operator()
 175DC function1::operator()
 18DE1 io_service::poll
