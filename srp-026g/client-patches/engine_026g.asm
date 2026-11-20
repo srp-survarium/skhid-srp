@@ -92,6 +92,8 @@ global engine_light_insert
 global engine_light_remove
 global engine_ambient_light_insert
 global engine_ambient_light_remove
+global engine_particle_insert
+global engine_particle_remove
 global engine_inventory_remove
 global engine_inventory_take_artefact
 global engine_quick_inventory_slot
@@ -301,6 +303,8 @@ engine_light_insert equ 0x291790   ; 0x291790 survarium::object_light::insert: l
 engine_light_remove equ 0x2917d0   ; 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
 engine_ambient_light_insert equ 0x290930   ; 0x290930 survarium::object_ambient_light::insert: light ECX; pops 0; thiscall, called directly
 engine_ambient_light_remove equ 0x290ae0   ; 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly
+engine_particle_insert equ 0x292cc0   ; 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly
+engine_particle_remove equ 0x292dc0   ; 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
 engine_read_file equ 0x870064   ; the IAT slot 0x870064 (an import, stdcall)
 engine_play_voice equ 0x5aba0   ; 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
 engine_free_voice equ 0x5b390   ; 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly

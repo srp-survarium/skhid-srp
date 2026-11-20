@@ -45,11 +45,19 @@ REPLACEMENTS = {
 # Lit tubes that are models of their own (Vector, level_09: fx/lamp2 and its
 # two flicker variants, three tubes in a tubeless lamp_midle_04 housing).
 # A broken fixture hides them; nothing replaces them.
-GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
+TUBE_GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
+# Kerosene lamps (London, Tarakanovsky Fort, level_04): a frame that stays,
+# standing, hung on a rope or nailed to a wall; its lit glass, a model of its
+# own; and its flame, a particle object in the glass (FLAME), which lights
+# the place too: there is no light object. A break hides the glass and puts
+# the flame out. A frame without the lit glass is an unlit lamp: scenery.
+LANTERN_GLASS = {'props/light/stand_group_batlamp_glass_emit', 'props/light/wall_group_nailed_batlamp_glass_emit'}
+FLAME, FLAME_REACH = 'fx/lights/oil_lamp', 0.4
+GLASS = TUBE_GLASS | LANTERN_GLASS
 # Housings that stay when their glass breaks. A housing belongs to a fixture
-# (its bounds, so a shot into the housing breaks the tubes) only together
+# (its bounds, so a shot into the housing breaks the glass) only together
 # with glass; on its own it is scenery.
-HOUSINGS = {'props/light/lamp_midle_04'}
+HOUSINGS = {'props/light/lamp_midle_04', 'props/light/stand_group_batlamp', 'props/light/wall_group_nailed_batlamp'}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
@@ -161,8 +169,21 @@ def rebound_lights(path, lamps, objects):
     return bindings
 
 
+def close(a, b):
+    """Two lamp tables alike: the same keys and values, numbers within the f32 rounding of a file."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        return a.keys() == b.keys() and all(close(a[k], b[k]) for k in a)
+    if isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        return abs(a - b) <= 1e-4 * max(1, abs(a))
+    return a == b
+
+
 def author(path, data, bounds, break_material, effect_material):
+    """A project's lamp edits. A project a pack made from a lamp-carrying day (London's and the
+    0.21 maps' rain and evening) has the day's broken models and table already: its fixtures are
+    authored over them, and the table is replaced only where this rule now binds otherwise."""
     root = tree(data)
+    carried = root.get('srp_lamps')
     visuals = root.get('render_visuals', [])
     components = [(i, v) for i, v in enumerate(visuals) if v.get('visual_name') in PARTS]
     # Overlapping bulb/cover meshes form one fixture (level_06). A shot
@@ -191,7 +212,8 @@ def author(path, data, bounds, break_material, effect_material):
         return nearest_fixture(path, position, centers, limit, among)
 
     alarms = [i for i, group in enumerate(lamps) if any(v['visual_name'] in LIT_ALARMS for _, v in group)]
-    glows = [[] for _ in lamps]
+    lanterns = [i for i, group in enumerate(lamps) if any(v['visual_name'] in LANTERN_GLASS for _, v in group)]
+    glows, flames = [[] for _ in lamps], [[] for _ in lamps]
     for light in root.get('client_objects', []):
         if light.get('game_object_type') == 'light':
             near = nearest(light['position'], 0.85)
@@ -201,6 +223,10 @@ def author(path, data, bounds, break_material, effect_material):
             near = nearest(light['position'], ALARM_GLOW_REACH, alarms)
             if near is not None:
                 glows[near].append(light)
+        elif light.get('game_object_type') == 'particle' and light.get('lib_name') == FLAME:
+            near = nearest(light['position'], FLAME_REACH, lanterns)
+            if near is not None:
+                flames[near].append(light)
     placements, result = [], bytearray(data)
     for i, v in enumerate(visuals):
         legacy = v.get('visual_name') == LEGACY_CONE
@@ -238,6 +264,8 @@ def author(path, data, bounds, break_material, effect_material):
                 tip = emitters[0]['position']
             start = world_bounds(v, CONE_LIGHT_START, CONE_LIGHT_START)[0]
             position = [p + t - a for p, t, a in zip(v['position'], tip, start)]
+            if carried is not None and close(dict(enumerate(position)), dict(enumerate(v['position']))):
+                continue
             edit = {'file': path, 'list': 'render_visuals', 'where': selector(v),
                     'from': {'position': v['position']}, 'to': {'position': position}}
             c.set_entry(result, edit['list'], edit['where'], edit['from'], edit['to'])
@@ -254,6 +282,9 @@ def author(path, data, bounds, break_material, effect_material):
         if broken_key in added:
             continue
         added.add(broken_key)
+        if carried is not None and any(all(k in f and c.same(f[k], val) for k, val in
+                                           dict(match, visual_name=replacement).items()) for f in visuals):
+            continue
         edit = {'files': path, 'list': 'render_visuals', 'after': match, 'like': match,
                 'values': {'visual_name': replacement, 'lib_name': replacement}}
         assert c.add_entry(result, edit['list'], match, match, edit['values']) is not None
@@ -290,28 +321,33 @@ def author(path, data, bounds, break_material, effect_material):
         row |= dict(zip(('glass_from_x', 'glass_from_y', 'glass_from_z', 'glass_to_x', 'glass_to_y', 'glass_to_z'),
                         start + end))
         rows[f'lamp{i:03d}'] = dict(row, visuals=vs, lights=ls)
-        if glows[i]:   # the few fixtures with one; the others' rows have no table
-            rows[f'lamp{i:03d}']['ambient_lights'] = {
-                f'light{j}': dict(zip(('x', 'y', 'z'), light['position']), name=light['full_name'])
-                for j, light in enumerate(glows[i])}
-    return placements, additions, {'files': [path], 'table': '', 'key': 'srp_lamps',
-                       'value': {'version': 3, 'break_material': break_material,
-                                 'effect_material': effect_material, 'lamps': rows}}
+        # The few fixtures with one; the others' rows have no table.
+        for table, key, objects in (('ambient_lights', 'light', glows[i]), ('particles', 'particle', flames[i])):
+            if objects:
+                rows[f'lamp{i:03d}'][table] = {
+                    f'{key}{j}': dict(zip(('x', 'y', 'z'), o['position']), name=o['full_name'])
+                    for j, o in enumerate(objects)}
+    value = {'version': 3, 'break_material': break_material, 'effect_material': effect_material, 'lamps': rows}
+    if carried is not None and close(carried, value):
+        return [], [], None
+    return placements, additions, {'files': [path], 'table': '', 'key': 'srp_lamps', 'value': value,
+                                   'replaces': carried is not None}
 
 
 def check_built(path, data):
     """Problems of a built client_project's srp_lamps against the file itself:
     each visual index names its role's model (intact: a breakable lamp inside
     its row's bounds; broken: that lamp's broken model, placed as it; cone: a
-    light shaft), each light position is exactly one light of the map and
-    each ambient light position exactly one ambient light (what the client
-    binds; a later edit list or a map-editor save can move them)."""
+    light shaft), each light position is exactly one light of the map, each
+    ambient light position exactly one ambient light and each particle
+    position exactly one particle object (what the client binds; a later edit
+    list or a map-editor save can move them)."""
     root = tree(data)
     if 'srp_lamps' not in root:
         return []
     visuals = root.get('render_visuals', [])
     placed = {kind: [o['position'] for o in root.get('client_objects', []) if o.get('game_object_type') == kind]
-              for kind in ('light', 'ambient_light')}
+              for kind in ('light', 'ambient_light', 'particle')}
     problems = []
     for name, row in root['srp_lamps']['lamps'].items():
         def visual(key):
@@ -337,7 +373,8 @@ def check_built(path, data):
         for end in ('from', 'to'):
             if not all(row['min_' + a] - 1e-3 <= row[f'glass_{end}_{a}'] <= row['max_' + a] + 1e-3 for a in 'xyz'):
                 problems.append(f'{path}: {name}: its glass line leaves its bounds')
-        for table, kind, what in (('lights', 'light', 'lights'), ('ambient_lights', 'ambient_light', 'ambient lights')):
+        for table, kind, what in (('lights', 'light', 'lights'), ('ambient_lights', 'ambient_light', 'ambient lights'),
+                                  ('particles', 'particle', 'particles')):
             for key, light in row.get(table, {}).items():
                 found = sum(p == [light['x'], light['y'], light['z']] for p in placed[kind])
                 if found != 1:
@@ -370,7 +407,7 @@ def main():
     if any(len(ids) != 1 for ids in live.values()):
         raise ValueError('expected one live glass and one live bullet material in the authoring game data')
     edits = {'_about': 'Breakable lamps: one bullet breaks the fixture, removes its linked lights and cones '
-             "(a lit alarm lamp's red ambient glow too), "
+             "(a lit alarm lamp's red ambient glow and a kerosene lamp's flame too), "
              'and displays the broken model. Source authored by scripts/breakable-lamps/make_edits.py '
              'from manifest-base projects and Research. Explicit indices refer to the final render_visuals '
              'after these additions. Bulb bounds use stock geometry and placed rotation/scale. '
@@ -381,12 +418,15 @@ def main():
         placements, adds, spec = author(str(p.relative_to(args.projects)), p.read_bytes(), bounds,
                                         live['glass'][0], live['bullet'][0])
         if spec:
+            if spec.pop('replaces'):
+                edits.setdefault('remove_key', []).append({'files': spec['files'][0], 'keys': ['srp_lamps']})
             edits['set_entry'].extend(placements)
             edits['add_entry'].extend(adds); edits['add_value'].append(spec)
             rows = spec['value']['lamps']
             print(f'{p.parts[-3]}/{p.parts[-2]}: {len(rows)} lamps, '
                   f'{sum(len(r["lights"]) for r in rows.values())} lights, '
-                  f'{sum(len(r.get("ambient_lights", {})) for r in rows.values())} ambient lights')
+                  f'{sum(len(r.get("ambient_lights", {})) for r in rows.values())} ambient lights, '
+                  f'{sum(len(r.get("particles", {})) for r in rows.values())} flames')
     args.out.write_text(json.dumps(edits, indent=2, ensure_ascii=False) + '\n')
 
 

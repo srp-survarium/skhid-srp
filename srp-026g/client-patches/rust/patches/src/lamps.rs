@@ -99,6 +99,8 @@ impl MetadataError {
             Self::Binding(BindingError::AmbiguousLight) => Some("a light position two lights of the map have"),
             Self::Binding(BindingError::UnknownAmbientLight) => Some("an ambient light position no ambient light of the map has"),
             Self::Binding(BindingError::AmbiguousAmbientLight) => Some("an ambient light position two ambient lights of the map have"),
+            Self::Binding(BindingError::UnknownParticle) => Some("a particle position no particle of the map has"),
+            Self::Binding(BindingError::AmbiguousParticle) => Some("a particle position two particles of the map have"),
             Self::Binding(BindingError::DuplicateObject) => Some("one object bound twice"),
             _ => None,
         }
@@ -130,7 +132,7 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
     let rows = spec.required(c"lamps")?.entries()?;
     let count = LampCount::parse(rows.len() as u32).ok_or(MetadataError::Count)?;
     let methods = MethodTables::new(vostok::lamps_visual_vtable_handle(), vostok::lamps_light_vtable_handle(),
-                                    vostok::lamps_ambient_light_vtable_handle());
+                                    vostok::lamps_ambient_light_vtable_handle(), vostok::lamps_particle_vtable_handle());
     let mut plan = project.plan((), methods)?;
     let mut fixtures = BoundedVec::new();
     for (i, row) in rows.iter().enumerate() {
@@ -157,6 +159,13 @@ fn prepare(project: ProjectView<'_>) -> Result<Option<ProjectPlan<'_, Lamps, Bin
             for light in lights.entries()?.iter() {
                 let position = position(&light?.table()?, [c"x", c"y", c"z"])?;
                 plan.ambient_light_at(position, Binding { lamp, visible_when: Condition::Intact })?;
+            }
+        }
+        // A kerosene lamp's flame, a particle: the same, in a table of its own.
+        if let Some(particles) = row.get(c"particles")? {
+            for particle in particles.entries()?.iter() {
+                let position = position(&particle?.table()?, [c"x", c"y", c"z"])?;
+                plan.particle_at(position, Binding { lamp, visible_when: Condition::Intact })?;
             }
         }
     }
@@ -253,4 +262,10 @@ pub fn on_ambient_light_insert(_: &vostok::OrigAmbientLightInsert, light: &mut v
 }
 pub fn on_ambient_light_remove(_: &vostok::OrigAmbientLightRemove, light: &mut vostok::ObjectAmbientLight<'_>) {
     PROJECT.ambient_light_remove(light);
+}
+pub fn on_particle_insert(_: &vostok::OrigParticleInsert, particle: &mut vostok::ObjectParticleVisual<'_>) {
+    PROJECT.particle_insert(particle);
+}
+pub fn on_particle_remove(_: &vostok::OrigParticleRemove, particle: &mut vostok::ObjectParticleVisual<'_>) {
+    PROJECT.particle_remove(particle);
 }

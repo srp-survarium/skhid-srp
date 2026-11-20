@@ -419,6 +419,10 @@ unsafe extern "thiscall" {
     pub fn engine_ambient_light_insert(light: Option<ObjectAmbientLight>);
     /// 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly
     pub fn engine_ambient_light_remove(light: Option<ObjectAmbientLight>);
+    /// 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly
+    pub fn engine_particle_insert(particle: Option<ObjectParticleVisual>);
+    /// 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
+    pub fn engine_particle_remove(particle: Option<ObjectParticleVisual>);
     /// 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
     pub fn engine_play_voice(proxy: Option<SoundInstanceProxy>, mode: u32, producer: *const c_void, receiver: *const c_void);
     /// 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
@@ -6520,6 +6524,15 @@ impl ProjectObject {
     pub unsafe fn ambient_light(self) -> ObjectAmbientLight {
         ObjectAmbientLight(unsafe { self.0.byte_add(0x0) })
     }
+
+    /// +0x0 (obj<survarium::object_particle_visual>): only when the native vtable identifies object_particle_visual
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn particle(self) -> ObjectParticleVisual {
+        ObjectParticleVisual(unsafe { self.0.byte_add(0x0) })
+    }
 }
 
 /// A survarium::render_visual (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -6646,6 +6659,39 @@ impl ObjectAmbientLight {
     }
 
     /// +0x140 (f32): translation float3, the last row of the transform (+110h) object_ambient_light::insert 0x290930 copies
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn position(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x140).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::object_particle_visual (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ObjectParticleVisual(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ObjectParticleVisual {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): particle object interface
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x140 (f32): translation float3, the last row of the transform (+110h) object_particle_visual::insert 0x292CC0 plays its system (+158h) at
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -6853,6 +6899,73 @@ impl ObjectAmbientLightMethodsStorage {
     #[inline(always)]
     pub fn first(rooms: &mut [Self]) -> Option<ObjectAmbientLightMethods> {
         (!rooms.is_empty()).then(|| ObjectAmbientLightMethods(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::object_particle_visual_methods (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ObjectParticleVisualMethods(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ObjectParticleVisualMethods {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x4 (u32): native complete object locator
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn rtti(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// 0x28 bytes: ten methods, insert/remove at indices 8 and 9
+    pub const SIZE: usize = 0x28;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::object_particle_visual_methodss (0x28 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ObjectParticleVisualMethodsStorage([u8; 0x28]);
+
+#[allow(dead_code)]
+impl ObjectParticleVisualMethodsStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x28])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ObjectParticleVisualMethods {
+        ObjectParticleVisualMethods(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ObjectParticleVisualMethods> {
+        (!rooms.is_empty()).then(|| ObjectParticleVisualMethods(NonNull::from(rooms).cast()))
     }
 }
 
@@ -27072,6 +27185,13 @@ pub mod image {
     pub fn ambient_light_methods() -> ObjectAmbientLightMethods {
         // SAFETY: an image VA, not 0.
         ObjectAmbientLightMethods(unsafe { NonNull::new_unchecked(0xa0ac4c as *mut c_void) })
+    }
+
+    /// 0xa0afac (obj<survarium::object_particle_visual_methods>, survarium::image): object_particle_visual native vtable (its first, of the object at +0) including RTTI at -4
+    #[inline(always)]
+    pub fn particle_methods() -> ObjectParticleVisualMethods {
+        // SAFETY: an image VA, not 0.
+        ObjectParticleVisualMethods(unsafe { NonNull::new_unchecked(0xa0afac as *mut c_void) })
     }
 
     /// 0xa04174 (u32, survarium::image): client weapon active interface; constructor 0x243640
