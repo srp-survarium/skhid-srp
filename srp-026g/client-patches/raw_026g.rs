@@ -23220,6 +23220,60 @@ impl ResourceManager {
     pub unsafe fn textures(self) -> TextureRegistryNode {
         TextureRegistryNode(unsafe { self.0.byte_add(0x8809c) })
     }
+
+    /// +0x881a0 (u32): the bytes of the vertex buffers that are their own D3D11 buffer, not a range of the vertex pool: the dynamic ones, and those the pool had no room for (untyped_buffer::untyped_buffer adds the size at 0x3D14E7, its release 0x3D16D8 takes it off)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn unpooled_vertex_bytes(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x881a0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x881a4 (u32): the same of the index buffers (0x3D14D2, 0x3D16CD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn unpooled_index_bytes(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x881a4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x881a8 (ptr<vostok::render::hw_buffer_pool>): the index pool (resource_pools +8h, 0x1CFC0B4: renderer_cook::create_resource copies it at 0x1167AE; made by resource_pools::allocate_geometry_pool 0x11AA10); 0 before it, and untyped_buffer then makes every buffer its own
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn index_pool(self) -> Option<HwBufferPool> {
+        unsafe { self.0.byte_add(0x881a8).cast::<Option<HwBufferPool>>().read_volatile() }
+    }
+
+    /// +0x881a8 (ptr<vostok::render::hw_buffer_pool>): the index pool (resource_pools +8h, 0x1CFC0B4: renderer_cook::create_resource copies it at 0x1167AE; made by resource_pools::allocate_geometry_pool 0x11AA10); 0 before it, and untyped_buffer then makes every buffer its own
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_index_pool(self, value: Option<HwBufferPool>) {
+        unsafe { self.0.byte_add(0x881a8).cast::<Option<HwBufferPool>>().write_volatile(value) }
+    }
+
+    /// +0x881ac (ptr<vostok::render::hw_buffer_pool>): the vertex pool (resource_pools +4h, 0x1CFC0B0: 0x1167B4; 0x11AA10)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vertex_pool(self) -> Option<HwBufferPool> {
+        unsafe { self.0.byte_add(0x881ac).cast::<Option<HwBufferPool>>().read_volatile() }
+    }
+
+    /// +0x881ac (ptr<vostok::render::hw_buffer_pool>): the vertex pool (resource_pools +4h, 0x1CFC0B0: 0x1167B4; 0x11AA10)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_vertex_pool(self, value: Option<HwBufferPool>) {
+        unsafe { self.0.byte_add(0x881ac).cast::<Option<HwBufferPool>>().write_volatile(value) }
+    }
 }
 
 /// A vostok::render::texture_registry_node (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -23324,6 +23378,589 @@ impl TextureRegistryNode {
     #[inline(always)]
     pub unsafe fn set_texture(self, value: Option<ResTexture>) {
         unsafe { self.0.byte_add(0x124).cast::<Option<ResTexture>>().write_volatile(value) }
+    }
+}
+
+/// A vostok::render::hw_buffer_pool (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HwBufferPool(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HwBufferPool {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::hw_buffer_pool_chunk_slot>): its chunks' buffer_vector, the begin: its own room at +0Ch (hw_buffer_pool::hw_buffer_pool 0x3D40D8; allocate walks it, 0x3D43ED)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn chunks(self) -> Option<HwBufferPoolChunkSlot> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<HwBufferPoolChunkSlot>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::hw_buffer_pool_chunk_slot>): its chunks' buffer_vector, the begin: its own room at +0Ch (hw_buffer_pool::hw_buffer_pool 0x3D40D8; allocate walks it, 0x3D43ED)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_chunks(self, value: Option<HwBufferPoolChunkSlot>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<HwBufferPoolChunkSlot>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::render::hw_buffer_pool_chunk_slot>): the end (0x3D43E8); the pool makes all its chunks in its constructor (0x3D4240..0x3D428C) and never another
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn chunks_end(self) -> Option<HwBufferPoolChunkSlot> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<HwBufferPoolChunkSlot>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::hw_buffer_pool_chunk_slot>): the end (0x3D43E8); the pool makes all its chunks in its constructor (0x3D4240..0x3D428C) and never another
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_chunks_end(self, value: Option<HwBufferPoolChunkSlot>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<HwBufferPoolChunkSlot>>().write_volatile(value) }
+    }
+
+    /// +0xc (obj<vostok::render::hw_buffer_pool_chunk_slot>): the vector's room, 800h chunks (capacity end at +200Ch, 0x3D40DE)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn chunk_room(self) -> HwBufferPoolChunkSlot {
+        HwBufferPoolChunkSlot(unsafe { self.0.byte_add(0xc) })
+    }
+
+    /// 0x2090 bytes: a pool's bytes (allocate_geometry_pool's malloc, 0x11AA29), from the render arena
+    pub const SIZE: usize = 0x2090;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::hw_buffer_pools (0x2090 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct HwBufferPoolStorage([u8; 0x2090]);
+
+#[allow(dead_code)]
+impl HwBufferPoolStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x2090])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> HwBufferPool {
+        HwBufferPool(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<HwBufferPool> {
+        (!rooms.is_empty()).then(|| HwBufferPool(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::hw_buffer_pool_chunk_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HwBufferPoolChunkSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HwBufferPoolChunkSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::hw_buffer_pool_chunk>): a chunk (0x3D4256..0x3D4280)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn chunk(self) -> Option<HwBufferPoolChunk> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<HwBufferPoolChunk>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::hw_buffer_pool_chunk>): a chunk (0x3D4256..0x3D4280)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_chunk(self, value: Option<HwBufferPoolChunk>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<HwBufferPoolChunk>>().write_volatile(value) }
+    }
+
+    /// 0x4 bytes: one pointer
+    pub const SIZE: usize = 0x4;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::hw_buffer_pool_chunk_slots (0x4 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct HwBufferPoolChunkSlotStorage([u8; 0x4]);
+
+#[allow(dead_code)]
+impl HwBufferPoolChunkSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x4])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> HwBufferPoolChunkSlot {
+        HwBufferPoolChunkSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<HwBufferPoolChunkSlot> {
+        (!rooms.is_empty()).then(|| HwBufferPoolChunkSlot(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::hw_buffer_pool_chunk (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HwBufferPoolChunk(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HwBufferPoolChunk {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::render::hw_buffer_pool_range>): its taken ranges' buffer_vector, the begin: its own room at +0Ch (hw_buffer_pool_chunk's constructor 0x3D3C7A); kept sorted by first (gather_free_ranges 0x3D3F37)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ranges(self) -> Option<HwBufferPoolRange> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<HwBufferPoolRange>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::hw_buffer_pool_range>): its taken ranges' buffer_vector, the begin: its own room at +0Ch (hw_buffer_pool_chunk's constructor 0x3D3C7A); kept sorted by first (gather_free_ranges 0x3D3F37)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ranges(self, value: Option<HwBufferPoolRange>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<HwBufferPoolRange>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::render::hw_buffer_pool_range>): the end; allocate_range's commit pushes onto it with no room test (0x3D3E43): a chunk with 1000h ranges stops the game at buffer_vector's assertion (int3 0x3D465D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn ranges_end(self) -> Option<HwBufferPoolRange> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<HwBufferPoolRange>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::hw_buffer_pool_range>): the end; allocate_range's commit pushes onto it with no room test (0x3D3E43): a chunk with 1000h ranges stops the game at buffer_vector's assertion (int3 0x3D465D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_ranges_end(self, value: Option<HwBufferPoolRange>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<HwBufferPoolRange>>().write_volatile(value) }
+    }
+
+    /// +0xc (obj<vostok::render::hw_buffer_pool_range>): the vector's room, 1000h ranges (capacity end at +C00Ch, 0x3D3C82)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn range_room(self) -> HwBufferPoolRange {
+        HwBufferPoolRange(unsafe { self.0.byte_add(0xc) })
+    }
+
+    /// +0xc020 (u32): the chunk's D3D11 buffer's bytes (the constructor 0x3D3C91; allocate_geometry_pool sums them, 0x11AA96)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bytes(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc020).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc010 (ptr<vostok::render::hw_buffer_pool>): the pool it is of (its constructor 0x3D3CAE)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pool(self) -> Option<HwBufferPool> {
+        unsafe { self.0.byte_add(0xc010).cast::<Option<HwBufferPool>>().read_volatile() }
+    }
+
+    /// +0xc010 (ptr<vostok::render::hw_buffer_pool>): the pool it is of (its constructor 0x3D3CAE)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_pool(self, value: Option<HwBufferPool>) {
+        unsafe { self.0.byte_add(0xc010).cast::<Option<HwBufferPool>>().write_volatile(value) }
+    }
+
+    /// 0xc028 bytes: a chunk's bytes (malloc 0x3D4251), from the render arena
+    pub const SIZE: usize = 0xc028;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::hw_buffer_pool_chunks (0xc028 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct HwBufferPoolChunkStorage([u8; 0xc028]);
+
+#[allow(dead_code)]
+impl HwBufferPoolChunkStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xc028])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> HwBufferPoolChunk {
+        HwBufferPoolChunk(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<HwBufferPoolChunk> {
+        (!rooms.is_empty()).then(|| HwBufferPoolChunk(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::hw_buffer_pool_range (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HwBufferPoolRange(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl HwBufferPoolRange {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): its first byte in the chunk, a multiple of the buffer's stride (allocate_range's commit 0x3D3E3D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x8 (u32): its last byte, the range's size less 1 (0x3D3E40; 0x3D43A0 counts last - first + 1)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn last(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x0 (ptr<vostok::render::hw_buffer_pool_chunk>): the chunk it is of (allocate_range's commit 0x3D3E3A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn chunk(self) -> Option<HwBufferPoolChunk> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<HwBufferPoolChunk>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::hw_buffer_pool_chunk>): the chunk it is of (allocate_range's commit 0x3D3E3A)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_chunk(self, value: Option<HwBufferPoolChunk>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<HwBufferPoolChunk>>().write_volatile(value) }
+    }
+
+    /// +0x0 (u32): the same word as an address: patch 164 writes a range it gives again with it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn chunk_address(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// 0xc bytes: {chunk, first, last} (the vectors step 0Ch, 0x3D43C6)
+    pub const SIZE: usize = 0xc;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::hw_buffer_pool_ranges (0xc bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct HwBufferPoolRangeStorage([u8; 0xc]);
+
+#[allow(dead_code)]
+impl HwBufferPoolRangeStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xc])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> HwBufferPoolRange {
+        HwBufferPoolRange(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<HwBufferPoolRange> {
+        (!rooms.is_empty()).then(|| HwBufferPoolRange(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::pool_allocate_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PoolAllocateFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PoolAllocateFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::render::hw_buffer_pool>): hw_buffer_pool::allocate's (0x3D43E0, ret 14h) first argument, by the site's ESP at its start: the pool (untyped_buffer::untyped_buffer's calls 0x3D116F, 0x3D12FD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pool(self) -> Option<HwBufferPool> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<HwBufferPool>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::render::hw_buffer_pool>): hw_buffer_pool::allocate's (0x3D43E0, ret 14h) first argument, by the site's ESP at its start: the pool (untyped_buffer::untyped_buffer's calls 0x3D116F, 0x3D12FD)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_pool(self, value: Option<HwBufferPool>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<HwBufferPool>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<vostok::render::hw_buffer_pool_range>): the range it fills when it returns 1 (the buffer's +4h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn range(self) -> Option<HwBufferPoolRange> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<HwBufferPoolRange>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::render::hw_buffer_pool_range>): the range it fills when it returns 1 (the buffer's +4h)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_range(self, value: Option<HwBufferPoolRange>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<HwBufferPoolRange>>().write_volatile(value) }
+    }
+
+    /// +0xc (ptr<u8>): the buffer's bytes, copied into the range (allocate_range's memcpy 0x3D3E7E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn data(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0xc).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0xc (ptr<u8>): the buffer's bytes, copied into the range (allocate_range's memcpy 0x3D3E7E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_data(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0xc).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x10 (u32): their count
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bytes(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x10).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x14 (u32): the buffer's stride: a range starts at a multiple of it (allocate_range's div 0x3D3DA7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn stride(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::untyped_buffer (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UntypedBuffer(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UntypedBuffer {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its reference count: its owners add one when create_buffer gives it (inc dword [eax], 0x1CD477) and take it off, 0x3D1680 when it reaches 0 (0x16EC82)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x4 (obj<vostok::render::hw_buffer_pool_range>): its range of a pool's chunk when pooled, zeros otherwise (the constructor 0x3D1106..0x3D1110; 0x3D1680 gives it back)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn range(self) -> HwBufferPoolRange {
+        HwBufferPoolRange(unsafe { self.0.byte_add(0x4) })
+    }
+
+    /// +0x14 (u32): its bytes (the constructor 0x3D1115)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bytes(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x14).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x18 (u32): its stride (0x3D111F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn stride(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x18).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::untyped_buffer_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UntypedBufferFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl UntypedBufferFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (ptr<u8>): untyped_buffer::untyped_buffer's bytes to fill it with, by its EBP (0x3D1168)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn data(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x10).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<u8>): untyped_buffer::untyped_buffer's bytes to fill it with, by its EBP (0x3D1168)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_data(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x10).cast::<*mut u8>().write_volatile(value) }
     }
 }
 
@@ -32533,6 +33170,60 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn profile(machine: &impl Machine) -> Option<PlayerProfile> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(PlayerProfile)
+        }
+    }
+
+    /// geometry_share.allocate (0x3d43e0): hw_buffer_pool::allocate's start (sub esp,10h / push ebx / mov ebx,[esp+18h]): the site's ESP+4 the pool, +8 the range it fills, +0Ch the bytes, +10h their count, +14h the stride; shared is its `ret 14h`, AL its result
+    pub mod geometry_share_allocate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::render::pool_allocate_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<PoolAllocateFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(PoolAllocateFrame)
+        }
+    }
+
+    /// geometry_share.pooled (0x3d1178): untyped_buffer::untyped_buffer with its range of a pool taken, both pools' calls joined (mov ecx,[esi] / mov eax,[ecx+0C00Ch]): EDI the buffer (its +4h the range, +14h its bytes, +18h its stride), EBP its frame (+10h the bytes it was filled with)
+    pub mod geometry_share_pooled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a vostok::render::untyped_buffer (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn buffer(machine: &impl Machine) -> Option<UntypedBuffer> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(UntypedBuffer)
+        }
+
+        /// EBP: a vostok::render::untyped_buffer_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<UntypedBufferFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(UntypedBufferFrame)
+        }
+    }
+
+    /// geometry_share.deallocate (0x3d4510): hw_buffer_pool::deallocate's start (sub esp,14h / mov ecx,[eax+8]): EAX the range a buffer gives back (0x3D1680, when its references reach 0); kept is its bare ret, the range left in its chunk
+    pub mod geometry_share_deallocate {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::render::hw_buffer_pool_range (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn range(machine: &impl Machine) -> Option<HwBufferPoolRange> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(HwBufferPoolRange)
         }
     }
 }

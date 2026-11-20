@@ -3283,6 +3283,61 @@ pub extern "C" fn hook_game_volume_on_general(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- geometry_share (patch 164) ----
+
+/// The named exits of geometry_share::on_allocate (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum GeometryShareOnAllocateExit { Shared }
+/// The entry `geometry_share_on_allocate` (0x3d43e0, hw_buffer_pool::allocate's start (sub esp,10h / push ebx / mov ebx,[esp+18h]): the site's ESP+4 the pool, +8 the range it fills, +0Ch the bytes, +10h their count, +14h the stride; shared is its `ret 14h`, AL its result) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_geometry_share_on_allocate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `geometry_share_on_allocate` calls this, from the game's jump at 0x3d43e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::geometry_share::on_allocate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- geometry_share (patch 164) ----
+
+/// The entry `geometry_share_on_pooled` (0x3d1178, untyped_buffer::untyped_buffer with its range of a pool taken, both pools' calls joined (mov ecx,[esi] / mov eax,[ecx+0C00Ch]): EDI the buffer (its +4h the range, +14h its bytes, +18h its stride), EBP its frame (+10h the bytes it was filled with)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_geometry_share_on_pooled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `geometry_share_on_pooled` calls this, from the game's jump at 0x3d1178,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::geometry_share::on_pooled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- geometry_share (patch 164) ----
+
+/// The named exits of geometry_share::on_deallocate (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum GeometryShareOnDeallocateExit { Kept }
+/// The entry `geometry_share_on_deallocate` (0x3d4510, hw_buffer_pool::deallocate's start (sub esp,14h / mov ecx,[eax+8]): EAX the range a buffer gives back (0x3D1680, when its references reach 0); kept is its bare ret, the range left in its chunk) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_geometry_share_on_deallocate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `geometry_share_on_deallocate` calls this, from the game's jump at 0x3d4510,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::geometry_share::on_deallocate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- hand_kill (patch 108) ----
 
 /// The entry `hand_kill_on_hit` (0x2e50c7, EDI damage model ESI hit_info; invulnerability applied) calls this with the saved machine.

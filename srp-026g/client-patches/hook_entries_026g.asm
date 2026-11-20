@@ -5256,6 +5256,129 @@ game_volume_on_general_replay:
     db 0x38, 0x87, 0xf0, 0x48, 0x00, 0x00
     jmp 0x59ae5
 
+; 0x3d43e0 hw_buffer_pool::allocate's start (sub esp,10h / push ebx / mov ebx,[esp+18h]): the site's ESP+4 the pool, +8 the range it fills, +0Ch the bytes, +10h their count, +14h the stride; shared is its `ret 14h`, AL its result: lohook -> geometry_share_on_allocate
+global geometry_share_on_allocate
+extern hook_geometry_share_on_allocate
+geometry_share_on_allocate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_geometry_share_on_allocate
+    mov edx, geometry_share_on_allocate_replay
+    cmp eax, 0
+    je geometry_share_on_allocate_go
+    mov edx, 0x3d43e8
+    cmp eax, 1
+    je geometry_share_on_allocate_go
+    mov edx, 0x3d44fa
+    cmp eax, 2
+    je geometry_share_on_allocate_go
+    ud2
+geometry_share_on_allocate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+geometry_share_on_allocate_replay:
+    db 0x83, 0xec, 0x10, 0x53, 0x8b, 0x5c, 0x24, 0x18
+    jmp 0x3d43e8
+
+; 0x3d1178 untyped_buffer::untyped_buffer with its range of a pool taken, both pools' calls joined (mov ecx,[esi] / mov eax,[ecx+0C00Ch]): EDI the buffer (its +4h the range, +14h its bytes, +18h its stride), EBP its frame (+10h the bytes it was filled with): lohook -> geometry_share_on_pooled
+global geometry_share_on_pooled
+extern hook_geometry_share_on_pooled
+geometry_share_on_pooled:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_geometry_share_on_pooled
+    mov edx, geometry_share_on_pooled_replay
+    cmp eax, 0
+    je geometry_share_on_pooled_go
+    mov edx, 0x3d1180
+    cmp eax, 1
+    je geometry_share_on_pooled_go
+    ud2
+geometry_share_on_pooled_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+geometry_share_on_pooled_replay:
+    db 0x8b, 0x0e, 0x8b, 0x81, 0x0c, 0xc0, 0x00, 0x00
+    jmp 0x3d1180
+
+; 0x3d4510 hw_buffer_pool::deallocate's start (sub esp,14h / mov ecx,[eax+8]): EAX the range a buffer gives back (0x3D1680, when its references reach 0); kept is its bare ret, the range left in its chunk: lohook -> geometry_share_on_deallocate
+global geometry_share_on_deallocate
+extern hook_geometry_share_on_deallocate
+geometry_share_on_deallocate:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_geometry_share_on_deallocate
+    mov edx, geometry_share_on_deallocate_replay
+    cmp eax, 0
+    je geometry_share_on_deallocate_go
+    mov edx, 0x3d4516
+    cmp eax, 1
+    je geometry_share_on_deallocate_go
+    mov edx, 0x3d455c
+    cmp eax, 2
+    je geometry_share_on_deallocate_go
+    ud2
+geometry_share_on_deallocate_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+geometry_share_on_deallocate_replay:
+    db 0x83, 0xec, 0x14, 0x8b, 0x48, 0x08
+    jmp 0x3d4516
+
 ; 0x2e50c7 EDI damage model ESI hit_info; invulnerability applied: lohook -> hand_kill_on_hit
 global hand_kill_on_hit
 extern hook_hand_kill_on_hit_chain

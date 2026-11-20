@@ -3525,3 +3525,7 @@ va	status	ref_021d	name
 0x00133f50	inferred-medium		vostok::render::stage_rain::rain_rotation_basis
 0x00129bb0	inferred-medium		vostok::buffer_string::assign_config_text
 0x00204500	inferred-medium		survarium::profile_skin_visual_cook::model_folder
+0x0011aa10	inferred-medium		vostok::render::resource_pools::allocate_geometry_pool [descriptive]
+0x003d40d0	inferred-medium		vostok::render::hw_buffer_pool::hw_buffer_pool [descriptive]
+0x003d3c70	inferred-medium		vostok::render::hw_buffer_pool_chunk::hw_buffer_pool_chunk [descriptive]
+0x003d43a0	inferred-medium		vostok::render::hw_buffer_pool::used_memory [descriptive]

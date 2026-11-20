@@ -53,6 +53,10 @@ marked [pick] is a worker's choice the owner may change.
 - A face the client does not know (the data has fewer) is face 0: never a crash.
 - Two players in the same gear with other faces are other skins: the face is in the combined
   skin's name (cache key). Face 0 adds nothing, so today's skins keep their names.
+- A skin makes its own copy of every part's mesh, so more skins filled the render's 88 MiB
+  vertex pool (a 10 v 10 with faces: 92 MiB asked, 71 MiB on main; 63 MiB with patch 164). Patch 164 has buffers with
+  the same bytes share one range of the pool (`client_patch.md` section 3.88): the copies are
+  gone, with faces or without.
 
 ## Fit
 

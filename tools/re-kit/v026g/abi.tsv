@@ -2703,3 +2703,7 @@ va	name	source	ret_cleanup	result
 0x001ae110	vostok::render::effect_manager::create_effect<vostok::render::effect_rain>	manual	0	none: the effect lands in *EDI, now (force_sync) or when its async query completes
 0x0015fe20	vostok::render::grass_world::set_wind_parameters	manual	4	none
 0x00070e30	vostok::math::random32::random_f	manual	8	ST0: a float from min to max
+0x0011aa10	vostok::render::resource_pools::allocate_geometry_pool [descriptive]	manual	4	EDX:EAX: the two pools' chunk bytes summed (resource_pools::initialize logs it as "geometry pool size" and takes it from the texture pool's budget)
+0x003d40d0	vostok::render::hw_buffer_pool::hw_buffer_pool [descriptive]	manual	12	EAX: the receiver (EDI)
+0x003d3c70	vostok::render::hw_buffer_pool_chunk::hw_buffer_pool_chunk [descriptive]	manual	4	EAX: the receiver (ESI)
+0x003d43a0	vostok::render::hw_buffer_pool::used_memory [descriptive]	manual	0	EAX: the bytes of every chunk's taken ranges (last - first + 1 each; untyped_buffer's "No enough memory" line prints it as the first figure)

@@ -137,3 +137,4 @@ pub mod lobby_seeding;
 pub mod console_scroll;
 pub mod v021d_render;
 pub mod faces;
+pub mod geometry_share;
