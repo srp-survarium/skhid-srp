@@ -351,45 +351,62 @@ impl MapMode {
 }
 
 /// The build a map's scene comes from, in the order lists show them (the owner,
-/// 2026-11-19: 0.26 maps, 0.11, 0.21, 0.69, the STALKER maps; 2026-11-20: London's
-/// 0.31 after the 0.21 maps).
+/// 2026-11-19: 0.26 maps, 0.11, 0.21, 0.69, the STALKER maps; 2026-11-20: the two
+/// Londons, 0.32's and 0.42's rework, after the 0.21 maps).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Build {
     V026,
     V011,
     V021,
-    V031,
+    V032,
+    V042,
     V069,
     Stalker,
 }
 
 impl Build {
-    /// The build a tag names: a ported project's prefix (`v021d_level_03`) or
-    /// a config's `srp_build`.
+    /// The build a tag names: a ported project's prefix, its donor build
+    /// (`v021d_level_03`), or a config's `srp_build`, the build its map's
+    /// name shows (`v032`: "London (v0.32)").
     fn of_tag(tag: &str) -> Option<Self> {
         match tag {
             "v011e" => Some(Self::V011),
             "v021d" => Some(Self::V021),
-            "v031a" => Some(Self::V031),
+            "v032" => Some(Self::V032),
+            "v042" => Some(Self::V042),
             "v069d" => Some(Self::V069),
             "v010b" => Some(Self::Stalker),
             _ => None,
         }
     }
 
-    /// A config's build: its `mode.srp_build` (`modes.tsv`'s `build`, for a
-    /// port whose projects keep their native names: London's `level_09` is
-    /// 0.31a2's), else its project's prefix; a project with none is 0.26g's.
+    /// A config's build: its `mode.srp_build` (`modes.tsv`'s `build`) where
+    /// it has one, whatever its project is called (London's projects keep the
+    /// native `level_09`; the reworked London's prefix is its donor's, a
+    /// later build than the 0.42 it is listed as); else its project's prefix.
+    /// A project with no build's prefix is 0.26g's; a prefix that reads as a
+    /// build (`v044a_`) and is none of these needs the config's `srp_build`.
     pub fn of(srp_build: Option<&str>, project: &str) -> Result<Self, ConfigError> {
-        match srp_build {
-            Some(tag) => Self::of_tag(tag)
-                .ok_or_else(|| ConfigError(format!("`srp_build` {tag} is none of srp's builds"))),
-            None => Ok(project
-                .split_once('_')
-                .and_then(|(prefix, _)| Self::of_tag(prefix))
-                .unwrap_or(Self::V026)),
+        let none_of = |what: &str, tag: &str| {
+            ConfigError(format!("{what} {tag} of {project} is none of srp's builds"))
+        };
+        if let Some(tag) = srp_build {
+            return Self::of_tag(tag).ok_or_else(|| none_of("`srp_build`", tag));
+        }
+        match project.split_once('_') {
+            Some((prefix, _)) if reads_as_a_build(prefix) => Self::of_tag(prefix)
+                .ok_or_else(|| none_of("without an `srp_build`, the prefix", prefix)),
+            _ => Ok(Self::V026),
         }
     }
+}
+
+/// Whether a project's prefix is a build's name (`v021d`), not a level's own
+/// (`level`).
+fn reads_as_a_build(prefix: &str) -> bool {
+    prefix
+        .strip_prefix('v')
+        .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
 }
 
 /// A number of a game mode config; a missing one is 0.
@@ -1209,12 +1226,13 @@ mod tests {
         );
     }
 
-    /// A map's build is its data's: a ported project's prefix, or for London
-    /// (`level_09`, 0.31a2's) its configs' `srp_build` (`modes.tsv`); lists
-    /// show 0.21 maps, then London, then 0.69 (the owner, 2026-11-20), where
-    /// 0.69d's London (a `v069d_` project, a level of its own) falls.
+    /// A map's build is its data's: its configs' `srp_build` (`modes.tsv`),
+    /// as London's (`level_09`) and the reworked London's (a donor's prefix
+    /// no build of srp's has) say theirs, else its project's prefix. Lists
+    /// show the 0.21 maps, London (v0.32), London (v0.42), then 0.69 (the
+    /// owner, 2026-11-20).
     #[test]
-    fn a_maps_build_is_its_prefix_or_its_srp_build() {
+    fn a_maps_build_is_its_srp_build_or_its_prefix() {
         let added = |id, level, project: &'static str, srp_build| fixtures::AddedMap {
             id: MapId::new(id),
             config: leak_str(&format!("{}.options", project.replace('/', "_"))),
@@ -1224,22 +1242,32 @@ mod tests {
             ..fixtures::AddedMap::level_12_tdm()
         };
         let build_of = |map: &fixtures::AddedMap| {
-            let table = fixtures::table_of(&fixtures::with_map(map)).unwrap();
-            table.iter().find(|row| row.id == map.id).unwrap().build
+            fixtures::table_of(&fixtures::with_map(map))
+                .map(|table| table.iter().find(|row| row.id == map.id).unwrap().build)
         };
-        let v069 = added(200, 32, "v069d_level_09/day_4", None);
-        let london = added(201, 9, "level_09/day_4", Some("v031a"));
-        let v021 = added(202, 10, "v021d_level_03/day_4", None);
-        let mut builds = [&v069, &london, &v021].map(|map| (build_of(map), map.level));
+        let v069 = added(200, 14, "v069d_level_01/day_4", None);
+        let reworked = added(201, 32, "v044a_level_09/day_4", Some("v042"));
+        let london = added(202, 9, "level_09/day_4", Some("v032"));
+        let v021 = added(203, 10, "v021d_level_03/day_4", None);
+        let mut builds =
+            [&v069, &reworked, &london, &v021].map(|map| (build_of(map).unwrap(), map.level));
         builds.sort();
         assert_eq!(
             builds,
-            [(Build::V021, 10), (Build::V031, 9), (Build::V069, 32)]
+            [
+                (Build::V021, 10),
+                (Build::V032, 9),
+                (Build::V042, 32),
+                (Build::V069, 14)
+            ]
         );
-        assert_eq!(build_of(&added(203, 9, "level_09/day_4", None)), Build::V026);
+        // With no `srp_build`: a level's own project is 0.26g's, a build's
+        // prefix that is none of srp's is refused, as an unknown `srp_build` is.
+        let unmarked = build_of(&added(204, 9, "level_09/day_4", None)).unwrap();
+        assert_eq!(unmarked, Build::V026);
         assert!(all().iter().all(|map| map.build == Build::V026));
-        let unknown = added(204, 9, "level_09/day_4", Some("v031"));
-        assert!(fixtures::table_of(&fixtures::with_map(&unknown)).is_err());
+        assert!(build_of(&added(205, 32, "v044a_level_09/day_4", None)).is_err());
+        assert!(build_of(&added(206, 9, "level_09/day_4", Some("v031"))).is_err());
     }
 
     #[test]
@@ -1534,15 +1562,15 @@ mod tests {
     /// evening) and Blackout's and Free for All's copies of them, and no other map.
     #[test]
     #[ignore = "needs SRP_TEST_GAME_DATA from build-content"]
-    fn the_built_data_says_london_is_a_031_map() {
+    fn the_built_data_says_london_is_a_032_map() {
         let data = GameData::open(&env_path("SRP_TEST_GAME_DATA")).unwrap();
         let maps = fixtures::table_of(&data).unwrap();
         let ids = |of: &dyn Fn(&MapMode) -> bool| -> Vec<u16> {
             maps.iter().filter(|map| of(map)).map(|map| map.id.get()).collect()
         };
         let london = ids(&|map| map.level == 9);
-        let v031 = ids(&|map| map.build == Build::V031);
-        assert_eq!(v031, london);
+        let v032 = ids(&|map| map.build == Build::V032);
+        assert_eq!(v032, london);
         assert_eq!(london.len(), 12);
     }
 

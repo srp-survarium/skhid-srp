@@ -27,9 +27,9 @@ MODES = (2, 3, 4, 5, FREE_FOR_ALL)
 WANTED = ["client_project", "gameplay/game_modes/", "gameplay/db_static_dictionaries",
           "localization/english/localization", "localization/ukrainian/localization", "flash_movies/hud.swf"]
 # The builds a map's scene comes from, in the order lists show them (crates/survarium/src/v026g/maps.rs,
-# `Build`): a ported project's prefix, or its configs' `mode.srp_build` where the projects keep
-# their native names (London's level_09 is 0.31a2's); a project with neither is 0.26g's.
-BUILDS = ("v026g", "v011e", "v021d", "v031a", "v069d", "v010b")
+# `Build`): its configs' `mode.srp_build` where they have one (v032, v042: the two Londons, whatever
+# their projects are called), else a ported project's prefix; a project with neither is 0.26g's.
+BUILDS = ("v026g", "v011e", "v021d", "v032", "v042", "v069d", "v010b")
 
 
 def load(raw, path):
@@ -80,10 +80,12 @@ def playable(raw):
 def build_of(mode, folder):
     """A config's build, one of BUILDS (maps.rs `Build::of`)."""
     tag = mode.get("srp_build")
-    if tag and tag not in BUILDS:
-        die(f"srp_build {tag} is none of srp's builds")
     prefix = folder.split("_")[0]
-    return tag or (prefix if prefix in BUILDS else "v026g")
+    if not tag and not re.match(r"v\d", prefix):
+        return "v026g"
+    if (tag or prefix) not in BUILDS[1:]:
+        die(f"{folder}: {'srp_build' if tag else 'without an srp_build, the prefix'} {tag or prefix} is none of srp's builds")
+    return tag or prefix
 
 
 def _number(text):

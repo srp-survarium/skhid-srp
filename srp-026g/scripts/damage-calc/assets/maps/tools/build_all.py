@@ -77,7 +77,7 @@ PORTED = {
 # the game overlays them) put in WORK_DIR/db like the stock ones. `project`:
 # the project the render is of, where the map has no day_2.
 PATCHED = {
-    'level_09': dict(size=140, posX=0, posY=-5, bitmap='971_Map_09_Map_09.png', area='alpha:0.4', name='London (v0.31)', origin='London, patch 14',
+    'level_09': dict(size=140, posX=0, posY=-5, bitmap='971_Map_09_Map_09.png', area='alpha:0.4', name='London (v0.32)', origin='London, patch 14',
                      name_key='st_level_09_name', modes=(2, 3, 4), map_ids={181: 2, 182: 3, 183: 4}),
     'v011e_level_03': dict(size=100, posX=14.23, posY=-42.196, bitmap='985_minimap_bv11.png', area='line', origin='0.11e port, patch 22',
                            name='Vostok Radar Station (v0.11)', name_key='st_level_13_name', modes=(2, 4),

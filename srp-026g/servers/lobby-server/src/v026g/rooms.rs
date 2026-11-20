@@ -253,7 +253,7 @@ struct Ready {
 }
 
 /// The room list's entries ordered by their maps' builds (0.26, 0.11, 0.21,
-/// 0.31, 0.69, STALKER: the owner's of 2026-11-19 and, for London, of
+/// 0.32, 0.42, 0.69, STALKER: the owner's of 2026-11-19 and, for the Londons, of
 /// 2026-11-20), each map where its first entry came, its weathers in the
 /// list's order. Stable.
 pub(super) fn by_build(mut entries: Vec<(maps::Build, PoolEntry)>) -> Vec<PoolEntry> {

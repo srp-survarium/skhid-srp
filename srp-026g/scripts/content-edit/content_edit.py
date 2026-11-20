@@ -1315,8 +1315,8 @@ STATS = {
             'resources': 'mode/parameters/resources_count',
             'restore_mul': 'mode/parameters/restore_multiplier',
             'loading_screen': 'mode/ui/loading_screen_id', 'icon': 'mode/ui/icon',
-            # srp's key: the build a port whose projects keep their native names comes from (London's
-            # level_09 is 0.31a2's: v031a), as a ported project's prefix says it (survarium maps::Build)
+            # srp's key: the build lists show the map under, where its project's prefix does not say it
+            # (v032, v042: the two Londons; survarium maps::Build)
             'build': 'mode/srp_build',
         },
         'add': {'build'},

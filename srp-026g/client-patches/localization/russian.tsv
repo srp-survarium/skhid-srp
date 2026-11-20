@@ -1421,7 +1421,7 @@ st_level_05_name	Таракановский форт
 st_level_06_name	Мамаев курган
 st_level_07_name	Лаборатория "Вектор"
 st_level_08_name	Кельн
-st_level_09_name	Лондон (v0.31)
+st_level_09_name	Лондон (v0.32)
 st_level_10_name	РЛС "Восток" (v0.21)
 st_level_11_name	Мамаев курган (v0.21)
 st_level_12_name	Химзавод (v0.11)
@@ -2618,7 +2618,7 @@ st_srp_map_cs_mp_military_1	Армейские склады
 st_srp_map_cs_mp_rembasa	Ремонтная база
 st_srp_map_cs_mp_sport_center	Спортивный центр
 st_srp_map_cs_training_camp	Тренировочный лагерь
-st_srp_map_london	Лондон (v0.31)
+st_srp_map_london	Лондон (v0.32)
 st_srp_map_mamayev_kurgan	Мамаев курган
 st_srp_map_mamayev_kurgan_v021	Мамаев курган (v0.21)
 st_srp_map_names_option	Имена на карте
