@@ -29,7 +29,9 @@
 //!   A's side of the spot (nearer A than the goal) the planner has a route from, by any way (`via` any-way). The spot passes
 //!   when every start reaches the goal with 0 errors.
 //! - `spot_suite_run`: `SRP_SPOT_SUITE_STARTS=<starts tsv>`, `SRP_SPOT_SUITE_OUT=<results tsv>`, optional
-//!   `SRP_SPOT_SUITE_ONLY=S001,S017`, `SRP_SPOT_SUITE_THREADS=<n>` (default 2), `SRP_SPOT_SUITE_SECONDS` (default 60),
+//!   `SRP_SPOT_SUITE_ONLY=S001,S017`, `SRP_SPOT_SUITE_THREADS=<n>` (default 2; each start runs on a thread of its own, so no
+//!   per-thread cache of the planner carries from one start to the next and the rows do not depend on the threads' timing),
+//!   `SRP_SPOT_SUITE_SECONDS` (default 60),
 //!   `SRP_SPOT_SUITE_NOTES=<notes tsv>` (default the results' path with `.notes.tsv` appended), `SRP_SPOT_SUITE_TRACE` (any
 //!   value: the per-tick trace below). One line a start: whether the bot reached G, passed P, and its ERRORS, read from its
 //!   own notes:
@@ -1303,7 +1305,13 @@ fn spot_suite_run() {
                             let a = v3(row, "ax", "ay", "az").unwrap_or(p);
                             let leg = Leg { start: s, goal: g, a, p };
                             let mut trace = trace_out.as_ref().map(|_| TickTrace { head: format!("{}\t{}", row["spot"], row["start"]), rows: String::new() });
-                            let o = walk(&world, &project, &leg, limit_ms, i as u32, trace.as_mut());
+                            // Each start on a thread of its own: the planner keeps per-thread caches whose filling decides what a
+                            // poll's budget walks (mapdata's PULL_WALKS: a cached pull-walk answer is free, a new one spends
+                            // the poll's walk ticks), so on a shared worker a start's routes would depend on the starts that
+                            // ran there before it, and the run's rows on the workers' timing.
+                            let o = std::thread::scope(|own| {
+                                own.spawn(|| walk(&world, &project, &leg, limit_ms, i as u32, trace.as_mut())).join().expect("a start's walk")
+                            });
                             if let (Some(file), Some(trace)) = (trace_out.as_ref(), trace) {
                                 file.lock().unwrap().write_all(trace.rows.as_bytes()).unwrap();
                             }
