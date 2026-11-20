@@ -6389,3 +6389,7 @@ va	name	location	role	basis
 0x001cd0b0	vostok::render::effect_material_base::compile_begin	entry ESP+16	byte +6 bits 0..5: the vertex input type, written from the options record's byte 0 (0x1CD0C1..0x1CD0CD) before begin_pass; 0Bh grassmesh_vertex_input	observed
 0x0030f5a0	survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme	EDI	reload state; weapon at +120h (its user [+8] the kit read for index 13), clip speed +138h	observed
 0x00311070	survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme	EDI	reload substate; weapon at +120h (its user [+8] the kit read for index 13), clip speed +14Ch	observed
+0x0028bee0	survarium::lobby_menu::find_players	ECX	lobby_menu receiver; [+9Ch]+53ACh the network client (vtable +44h gives the sender's first argument)	observed
+0x0028bee0	survarium::lobby_menu::find_players	entry ESP+4	Flash callback params; +8 points to the first value: the search text (its string at [+8], or [[+8]] for a managed one, by bit 6 of +4)	observed
+0x0026b660	survarium::messaging_client::find_players	entry ESP+4	client whose [+4] is the lobby client (link at +8, connection at +1E55C8h)	observed
+0x0026b660	survarium::messaging_client::find_players	entry ESP+8	NUL-terminated search text	observed
