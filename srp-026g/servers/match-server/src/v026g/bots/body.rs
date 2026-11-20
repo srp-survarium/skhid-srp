@@ -1907,7 +1907,9 @@ fn advance(
                     at.arc = None;
                     at.kept = Some(after);
                     let under = grid.locate(feet, LOCATE_M).or(Some(node));
-                    let counted = role == Role::Reckoning;
+                    // The press forecast's flights are not the reckoning's count (a stop forecast stepping a flight it was handed
+                    // counts as before).
+                    let counted = role != Role::Press;
                     if landed {
                         if counted {
                             flown_jumps::count(flown_jumps::Kind::Landed);
