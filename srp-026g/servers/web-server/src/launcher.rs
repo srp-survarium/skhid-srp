@@ -278,20 +278,25 @@ fn client_files_of(file: Option<&PathBuf>, min_revision: u8) -> Response {
 }
 
 /// The page's language from the launcher's own. The launcher asks for
-/// `/launcher/v2/survarium/?lang=<en|ru|ua|de|pl>`: `ua` and `en` are read
-/// with the request ([`Lang::pick`]), and for the three languages the site
-/// has no text in, the browser's language decides as on every page. A code
-/// as the last part of the path (`/launcher/ua`, `/launcher/v2/index-ua.html`)
-/// is taken too.
+/// `/launcher/v2/survarium/?lang=<en|ru|ua|de|pl>` (English for its other
+/// languages), read with the request ([`Lang::pick`]). A code as the last
+/// part of the path (`/launcher/ua`, `/launcher/v2/index-ua.html`), or a
+/// language's name in the game's settings, is taken too.
 pub(super) fn language(path: &str, chosen: Lang) -> Lang {
     let last = path.rsplit('/').next().unwrap_or("").to_ascii_lowercase();
     let last = last.strip_suffix(".html").unwrap_or(&last);
     let code = last.rsplit('-').next().unwrap_or("");
-    match code {
-        "ua" | "uk" | "ukrainian" => Lang::Uk,
-        "en" | "ru" | "de" | "pl" | "english" | "russian" | "german" | "polish" => Lang::En,
-        _ => chosen,
-    }
+    Lang::of_code(code)
+        .or_else(|| {
+            Lang::ALL.into_iter().find(|lang| {
+                lang.game()
+                    .path()
+                    .split('/')
+                    .nth(1)
+                    .is_some_and(|name| name == code)
+            })
+        })
+        .unwrap_or(chosen)
 }
 
 /// What the page counts, beside the board.
@@ -411,10 +416,7 @@ fn grouped(value: u64) -> String {
 
 /// The game's language of the page's.
 fn game_language(lang: Lang) -> Language {
-    match lang {
-        Lang::En => Language::English,
-        Lang::Uk => Language::Ukrainian,
-    }
+    lang.game()
 }
 
 /// The game's own name of a map: the text of its config's `ui.map_name`
@@ -1212,14 +1214,15 @@ mod tests {
         ] {
             assert_eq!(language(path, Lang::En), Lang::Uk, "{path}");
         }
-        for path in [
-            "/launcher/v2/index-en.html",
-            "/launcher/ru",
-            "/launcher/v2/de",
-            "/launcher/pl",
-            "/launcher/v2/english",
+        for (path, lang) in [
+            ("/launcher/v2/index-en.html", Lang::En),
+            ("/launcher/ru", Lang::Ru),
+            ("/launcher/v2/de", Lang::De),
+            ("/launcher/pl", Lang::Pl),
+            ("/launcher/v2/english", Lang::En),
+            ("/launcher/v2/hungarian", Lang::Hu),
         ] {
-            assert_eq!(language(path, Lang::Uk), Lang::En, "{path}");
+            assert_eq!(language(path, Lang::Uk), lang, "{path}");
         }
         // Nothing in the path (the launcher's own form,
         // `/launcher/v2/survarium/?lang=ua`): `?lang=` or the browser's
@@ -1228,8 +1231,8 @@ mod tests {
         assert_eq!(language("/launcher/v2/survarium/", Lang::En), Lang::En);
         assert_eq!(Lang::pick("ua", "en-US"), Lang::Uk);
         assert_eq!(Lang::pick("en", "uk-UA"), Lang::En);
-        assert_eq!(Lang::pick("ru", "uk-UA,uk;q=0.9"), Lang::Uk);
-        assert_eq!(Lang::pick("de", "de-DE"), Lang::En);
+        assert_eq!(Lang::pick("ru", "uk-UA,uk;q=0.9"), Lang::Ru);
+        assert_eq!(Lang::pick("de", "de-DE"), Lang::De);
         assert_eq!(language("/launcher/v2/", Lang::Uk), Lang::Uk);
         assert_eq!(language("/launcher", Lang::En), Lang::En);
     }

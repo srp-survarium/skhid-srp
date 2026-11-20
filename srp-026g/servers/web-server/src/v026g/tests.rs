@@ -1040,7 +1040,7 @@ fn the_damage_calculator_is_a_026g_page_under_the_sites_header() {
     assert!(page.body.contains("<nav><a href=\"/?lang=en\">Home</a>"));
     assert!(
         page.body
-            .contains("<a class=lang href=\"?lang=uk\">Українська</a>")
+            .contains("<a href=\"?lang=uk\" lang=uk hreflang=uk>Українська</a>")
     );
     assert!(!page.body.contains("{{LANG}}") && !page.body.contains("<!--SITE-HEADER-->"));
     // Nothing inline runs and nothing is fetched from elsewhere.

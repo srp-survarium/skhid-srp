@@ -318,13 +318,13 @@ fn about_html(lang: Lang, params: &ItemParams, armour: &Armour, faction: &str) -
             lang.tr(
                 &format!(
                     "{}: hits up to {} stopped, the rest ×{}",
-                    part_name(Lang::En, filter.part),
+                    part_name(lang, filter.part),
                     filter.threshold,
                     filter.hit_coeff
                 ),
                 &format!(
                     "{}: удари до {} зупинено, решта ×{}",
-                    part_name(Lang::Uk, filter.part),
+                    part_name(lang, filter.part),
                     filter.threshold,
                     filter.hit_coeff
                 ),
