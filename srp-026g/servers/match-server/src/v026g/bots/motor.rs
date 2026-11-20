@@ -7446,8 +7446,10 @@ mod tests {
     /// A ledge whose take-off is 0.6 m over the floor the body walks (the route's take-off on a step the body is not
     /// on, as at Vostok Radar Station and Mamayev Kurgan, A198): the landing is 1.5 m over the feet, out of any jump's
     /// reach. It is never pressed, the switch on or off (the hold is always on); with `press_in_reach` it is given up at the
-    /// take-off's place, off the walk goes on (no give-up: the route's legs up to the take-off are walked). An ordinary ledge
-    /// is climbed the same with the switch on and off.
+    /// take-off's place; off, the walk goes on up the route's legs, and a body held still there with its walk held has the
+    /// try's deadline ([`Motor::jump_key`], the stuck watch left to the motor at a link): the link fails after [`JUMP_TRIES`]
+    /// waits of [`PRESS_WAIT_S`], not before, where it was held forever. An ordinary ledge is climbed the same with the switch
+    /// on and off.
     #[test]
     fn a_jump_out_of_reach_of_the_feet_is_not_pressed_with_press_in_reach() {
         let p = |x: f32, y: f32, jump: bool| Waypoint { at: Vec3::new(x, y, 0.0), node: 0, jump: jump.then_some(ledge_to(y)), low: false };
@@ -7461,10 +7463,10 @@ mod tests {
             let (mut route, ledge) = high();
             let climb = climb_ledge_feel(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 800, false, 0, feel.clone());
             assert!(climb.presses.is_empty(), "on {on}: {:?}", climb.presses);
-            if on {
-                assert_eq!(climb.walked, Walked::JumpFailed(Vec3::new(4.6, 0.6, 0.0)), "{:?}", climb.poses.last());
-            } else {
-                assert!(!matches!(climb.walked, Walked::JumpFailed(_)), "no give-up: {:?}", climb.walked);
+            assert_eq!(climb.walked, Walked::JumpFailed(Vec3::new(4.6, 0.6, 0.0)), "on {on}: {:?}", climb.poses.last());
+            if !on {
+                let held_s = climb.poses.len() as f32 * TICK_S;
+                assert!(held_s >= JUMP_TRIES as f32 * PRESS_WAIT_S, "the deadline's waits, not sooner: {held_s:.2} s");
             }
             let (mut route, ledge) = up_a_ledge(false);
             let climb = climb_ledge_feel(&mut route, &ledge, Vec3::ZERO, yaw_of([1.0, 0.0]), 300, false, 0, feel);
