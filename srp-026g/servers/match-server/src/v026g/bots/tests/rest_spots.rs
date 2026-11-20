@@ -191,7 +191,7 @@ fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
             "REST from ({:.2}, {:.2}, {:.2}) ({:.1} m): landed {:?} ms, presses {}, first press at {:?}, rest {} ms near the take-off",
             start.x, start.y, start.z, start.distance_xz(a), c.landed, c.presses, c.pressed_at, c.rest_ms
         );
-        if bench_settings().var_os("SRP_REST_TRAIL").is_some() {
+        if std::env::var_os("SRP_REST_TRAIL").is_some() {
             if let Some(route) = grid.locate(start, 1.0).and_then(|n| path::plan(grid, n, goal_node)) {
                 for w in route.points().iter().filter(|w| w.jump.is_some()) {
                     eprintln!("REST   route jump to ({:.2}, {:.2}, {:.2}) {:?}", w.at.x, w.at.y, w.at.z, w.jump);

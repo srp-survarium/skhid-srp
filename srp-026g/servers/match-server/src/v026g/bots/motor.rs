@@ -3085,7 +3085,7 @@ impl Motor {
         } else if !under && clear(at(run_up)) {
             at(run_up)
         } else if let Some(rest) = (!under && slow && jump.walk_up == WalkUp::ToRest)
-            .then(|| rest_in_window(run_up, &at, &rest_near_at, &clear))
+            .then(|| rest_in_window(run_up, at, &rest_near_at, &clear))
             .flatten()
         {
             // [map 91] A slow press's rest point the body has no line to (no floor there in the walk grid): the clear point
