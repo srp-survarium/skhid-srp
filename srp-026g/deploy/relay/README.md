@@ -21,7 +21,10 @@ picked has Automatic in Russia (the Windows region) and direct elsewhere;
 direct found blocked while the relay answers becomes Automatic by itself.
 Automatic fallback runs before PLAY starts the game. With `updater_skhid.relay`
 installed and Automatic, the updater probes direct login TCP and lobby/match UDP concurrently,
-then tries the relay if any fails. The server echoes a 22-byte nonce challenge
+in rounds over a few seconds, and tries the relay only when no round answers whole
+(3 rounds when nothing answers, 5 when a part does, one more after a game played
+direct; 10.5 s at most; `client/updater/README.md`, "The check"): through the relay
+the ping is higher, so one lost packet must not choose it. The server echoes a 22-byte nonce challenge
 without creating an account, session or match. A successful route is passed as
 `-server=IP:port`; the origin advertises the relay for lobby and match, and voice
 uses match + 1. Explicit `-server=` and replay options bypass route selection.

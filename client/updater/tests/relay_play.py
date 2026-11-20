@@ -6,8 +6,10 @@ import time
 
 def check(run, updater, x86, started, log, win, survarium):
     """`survarium`: the prefix's Documents\\survarium, where the updater keeps
-    the player's route (launcher_skhid.route)."""
+    the player's route (launcher_skhid.route) and the route the last game
+    played by (launcher_skhid.route_played)."""
     choice = survarium / 'launcher_skhid.route'
+    played = survarium / 'launcher_skhid.route_played'
 
     stop = threading.Event()
     enabled = [threading.Event(), threading.Event()]
@@ -94,23 +96,37 @@ def check(run, updater, x86, started, log, win, survarium):
         # None chosen yet: decided once by the Windows region (Wine's: the
         # United States) and saved: direct.
         choice.unlink(missing_ok=True)
+        played.unlink(missing_ok=True)
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
         expect(f'127.0.0.1:{port}')
         assert choice.read_bytes() == b'direct\r\n', choice.read_bytes()
-        # Direct, the direct route silent but the relay answering: blocked
+        # One round, and the route it played by kept for the next check.
+        assert 'play: route check (last game none): direct in 1 round: (1) answered -> Direct(' in log(), log()
+        assert played.read_bytes() == b'direct\r\n', played.read_bytes()
+        # Direct, the direct route's UDP silent but the relay answering: blocked
         # here, so the choice turns to Automatic by itself (saved) and the game goes
-        # through the relay.
+        # through the relay. Its login TCP answers, and the last game played
+        # direct: six rounds before the relay is asked.
         enabled[0].clear()
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
         expect(f'127.0.0.2:{port}')
         assert 'route: diagnosis Some(Blocked)' in log(), log()
         assert choice.read_bytes() == b'automatic\r\n', choice.read_bytes()
+        assert 'play: route check (last game direct): direct in 6 rounds: (1) login TCP ok, lobby UDP TimedOut, ' \
+            'match UDP TimedOut; (2) ' in log(), log()
+        assert '(6) login TCP ok, lobby UDP TimedOut, match UDP TimedOut; relay: answered -> Relay(' in log(), log()
+        assert played.read_bytes() == b'relay\r\n', played.read_bytes()
         # Direct, nothing answering either way: no game, and the choice stays.
         enabled[1].clear()
         choice.write_text('direct\r\n')
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768', expected=1)
         assert not started.exists(), 'unreachable routes must not launch the game'
         assert choice.read_bytes() == b'direct\r\n', choice.read_bytes()
+        # After a game through the relay: five rounds, not six; no game, so
+        # the route played by stays.
+        assert 'play: route check (last game relay): direct in 5 rounds: ' in log(), log()
+        assert '; relay: login TCP ok, lobby UDP TimedOut, match UDP TimedOut -> Unreachable' in log(), log()
+        assert played.read_bytes() == b'relay\r\n', played.read_bytes()
         # The relay chosen: through it, unprobed (nothing answers at all).
         choice.write_text('relay\r\n')
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
@@ -121,9 +137,11 @@ def check(run, updater, x86, started, log, win, survarium):
         choice.write_text('automatic\r\n')
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
         expect(f'127.0.0.1:{port}')
+        assert played.read_bytes() == b'direct\r\n', played.read_bytes()
         enabled[0].clear()
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768')
         expect(f'127.0.0.2:{port}')
+        assert played.read_bytes() == b'relay\r\n', played.read_bytes()
         enabled[1].clear()
         run(updater, 'play', 'quiet', '-minimum_resources_memory_size=768', expected=1)
         assert not started.exists(), 'unreachable routes must not launch the game'
@@ -156,6 +174,7 @@ def check(run, updater, x86, started, log, win, survarium):
     finally:
         config.unlink(missing_ok=True)
         choice.unlink(missing_ok=True)
+        played.unlink(missing_ok=True)
         stop.set()
         for s in sockets:
             s.close()
