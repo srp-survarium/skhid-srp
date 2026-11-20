@@ -1321,6 +1321,33 @@ mod tests {
         assert_eq!((off.riser_count(), rim_off.risers), (0, 0));
     }
 
+    /// [give-back ids] With floors given back beside a wall in the first rows ([`Body::wall_give_back`]: a 2 m wall at x 2.22 over
+    /// z 0-2, the floor centred 0.345 m off it, as `wall_give_back`'s own test; the give-back runs after the risers are flown
+    /// and gives each floor a new id, the cells' order), every riser still names a Walk link up the block's 0.78 m face: each
+    /// rises [`Body::walked_step`] or more, as the pass made it. Before, the risers kept the old ids, so past the first
+    /// given-back floor each named whichever floors took those ids (School day_2: 109 of 114 level links).
+    #[test]
+    fn the_risers_name_their_links_when_floors_are_given_back() {
+        let b = Body { erosion: super::super::Erosion::Exact, wall_give_back: true, ..body(true) };
+        let top = 0.78;
+        let mut tris = Vec::new();
+        quad(&mut tris, Vec3::new(-2.0, 0.0, 0.0), Vec3::new(-2.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 6.0), Vec3::new(5.0, 0.0, 0.0));
+        quad(&mut tris, Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(12.0, top, 6.0), Vec3::new(12.0, top, 0.0));
+        quad(&mut tris, Vec3::new(5.0, 0.0, 0.0), Vec3::new(5.0, top, 0.0), Vec3::new(5.0, top, 6.0), Vec3::new(5.0, 0.0, 6.0));
+        quad(&mut tris, Vec3::new(2.22, 0.0, 0.0), Vec3::new(2.22, 0.0, 2.0), Vec3::new(2.22, 2.0, 2.0), Vec3::new(2.22, 2.0, 0.0));
+        let start = [Vec3::new(1.0, 0.0, 3.0)];
+        let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, b, &start, &start, OffMeshLinks::Gaps);
+        assert!(stats.wall_given_back > 0 && grid.riser_count() > 0, "given back {}, risers {}", stats.wall_given_back, grid.riser_count());
+        // The build's log: the risers' table moved with the floors and names links only.
+        let risers = stats.give_back_tables.risers;
+        assert!(risers.entries > 0 && risers.moved > 0 && risers.not_links == 0, "{:?}", stats.give_back_tables);
+        for &(a, c, _) in &grid.riser {
+            let rise = grid.height[c as usize] - grid.height[a as usize];
+            assert!(rise >= b.walked_step() - 1e-3, "riser {:?} -> {:?} rises {rise}", grid.position(a), grid.position(c));
+            assert_eq!(grid.link_gait(a, c), Some(super::super::WalkGait::SprintOrJump), "{:?} -> {:?}", grid.position(a), grid.position(c));
+        }
+    }
+
     /// One rim jump on a real map, every press's outcome printed: `RIM_MAP` (a format 6 map), `RIM_FROM` and `RIM_TO` ("x z y",
     /// the take-off and landing floors). `cargo test -- --ignored --nocapture fly_one`.
     #[test]

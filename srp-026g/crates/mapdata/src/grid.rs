@@ -1567,6 +1567,27 @@ struct Adjacency {
     from: Vec<u32>,
 }
 
+/// [give-back ids] One table of link pairs a pass before the wall give-back made, for the build's log: its entries, how many
+/// the give-back moved to new ids, and how many name no link of the grid after it (the final grid drops those: a link cut after
+/// its table entry was made, or a stale id, as the give-back left before it remapped them).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TableIds {
+    pub entries: usize,
+    pub moved: usize,
+    pub not_links: usize,
+}
+
+/// [give-back ids] The per-link tables after the wall give-back ([`Body::wall_give_back`]), for the build's log (the held
+/// floors' drops are remapped too; none of them reads as a link, so they are not counted).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct GiveBackTables {
+    pub marked: TableIds,
+    pub crouched: TableIds,
+    pub risers: TableIds,
+    pub lips: TableIds,
+    pub drop_speeds: TableIds,
+}
+
 /// Counts of a build, for logs and the docs.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BuildStats {
@@ -1621,6 +1642,8 @@ pub struct BuildStats {
     pub drops_under_solid_kept: usize,
     /// The floors given back beside walls the body clears ([`Body::wall_give_back`]).
     pub wall_given_back: usize,
+    /// [give-back ids] The per-link tables after the wall give-back ([`GiveBackTables`]).
+    pub give_back_tables: GiveBackTables,
     /// [A389] The floors given back where the client's body rests and no other floor names the place ([`Body::rest_floors`]).
     pub rest_floors: usize,
     /// [A389] The edge floors no body stays on and the drops from the last held floors ([`Body::held_floors`]).
@@ -2008,7 +2031,21 @@ impl WalkGrid {
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
         if body.wall_give_back {
-            stats.wall_given_back = grid.give_back_aside(&mut wide);
+            let mut tables;
+            (stats.wall_given_back, tables) = grid.give_back_aside(&mut wide);
+            // [give-back ids] Each table's pairs that name no link after it, for the build's log.
+            let named = |t: &mut TableIds, pairs: &mut dyn Iterator<Item = (u32, u32)>| {
+                for (a, b) in pairs {
+                    t.entries += 1;
+                    t.not_links += usize::from(!wide.out(a as usize).any(|x| x == b));
+                }
+            };
+            named(&mut tables.marked, &mut wide.marked.iter().copied());
+            named(&mut tables.crouched, &mut wide.crouch.iter().copied());
+            named(&mut tables.risers, &mut wide.riser.iter().map(|&(a, b, _)| (a, b)));
+            named(&mut tables.lips, &mut wide.lips.iter().copied());
+            named(&mut tables.drop_speeds, &mut wide.drop_speed.iter().map(|&(a, b, _)| (a, b)));
+            stats.give_back_tables = tables;
         }
         grid.pieces(&wide);
         grid.mark_pockets(&wide, spawns);
@@ -2872,11 +2909,13 @@ impl WalkGrid {
     /// into it, or on from such a floor through given-back floors only: none opens a region the grid without them did not reach
     /// (A318: on level_01 an opening into the terrain past the play area's edge would have kept 170k floors no human stands on).
     /// A given-back floor has walks only (a step up or down, the room to crouch), to and from its neighbours of the 8 directions;
-    /// a kept floor walks into one only on a side it has no link on (a jump past it stays the way on). Returns how many came back.
-    fn give_back_aside(&mut self, wide: &mut Wide) -> usize {
+    /// a kept floor walks into one only on a side it has no link on (a jump past it stays the way on). Returns how many came back,
+    /// and per link table how many of its pairs moved to new ids ([`TableIds::moved`]).
+    fn give_back_aside(&mut self, wide: &mut Wide) -> (usize, GiveBackTables) {
+        let mut tables = GiveBackTables::default();
         let aside = std::mem::take(&mut wide.aside);
         if aside.is_empty() {
-            return 0;
+            return (0, tables);
         }
         // The floors, the kept and the given back, in the grid's order: by cell, then by height.
         let old = self.len();
@@ -2942,6 +2981,39 @@ impl WalkGrid {
         for (a, s) in &mut wide.slips {
             *a = new_id[*a as usize];
             *s = new_id[*s as usize];
+        }
+        // [give-back ids] The per-link tables the passes before made name the kept floors by their old ids, as the links do:
+        // each pair to the new ids, as [`Self::compact`] does (a kept floor's new id keeps the old order, so each table's order
+        // stays). Before, they kept the old ids, so past the first given-back floor each named another link or none: on School's
+        // final grid 109 of the 114 risers (each made rising `walked_step` or more) were level links and none of the 19 marked
+        // walks rose.
+        let pair = |(a, b): (u32, u32)| (new_id[a as usize], new_id[b as usize]);
+        let remap = |p: &mut (u32, u32), t: &mut TableIds| {
+            let q = pair(*p);
+            t.moved += usize::from(q != *p);
+            *p = q;
+        };
+        for p in &mut wide.marked {
+            remap(p, &mut tables.marked);
+        }
+        for p in &mut wide.crouch {
+            remap(p, &mut tables.crouched);
+        }
+        for p in &mut wide.lips {
+            remap(p, &mut tables.lips);
+        }
+        for p in &mut wide.held {
+            *p = pair(*p);
+        }
+        for (a, b, _) in &mut wide.riser {
+            let mut p = (*a, *b);
+            remap(&mut p, &mut tables.risers);
+            (*a, *b) = p;
+        }
+        for (a, b, _) in &mut wide.drop_speed {
+            let mut p = (*a, *b);
+            remap(&mut p, &mut tables.drop_speeds);
+            (*a, *b) = p;
         }
         self.cell_of = cell_of;
         self.height = height;
@@ -3018,7 +3090,7 @@ impl WalkGrid {
         if back < aside.len() {
             self.compact(wide, &kept);
         }
-        back
+        (back, tables)
     }
 
     /// Whether the side of `a` along `d`, with no link, is a wall for
