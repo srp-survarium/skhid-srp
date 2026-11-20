@@ -1037,6 +1037,115 @@ pub extern "C" fn hook_executable_report_on_loaded(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- attachments (patch 161) ----
+
+/// The entry `attachments_on_ready` (0x24acf0, weapon_cook::on_weapon_subresources_ready's entry (sub esp,24h / push ebx / push ebp): [esp+8] the weapon config's resource, [esp+0Ch] the weapon weapon_cook made, as the cook's functor binds them (0x24AC39..); by load_weapon both slots are the shots' loop's temporaries (0x24B063, 0x24AFA4, 0x24B044)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_ready(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_ready` calls this, from the game's jump at 0x24acf0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_ready(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
+/// The entry `attachments_on_loaded` (0x24b0e1, on_weapon_subresources_ready (0x24ACF0) after load_weapon 0x243A30 returned (mov ecx,[esp+48h] / mov edx,[esp+44h]): EDI the weapon, its barrel, scope and aim locator records (+6E0h, +744h, +7A8h) and its finger corrector's sets (set_weapon_model at 0x243BB6) just filled from its model) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_loaded(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_loaded` calls this, from the game's jump at 0x24b0e1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_loaded(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
+/// The entry `attachments_on_hands` (0x244649, weapon::activate (0x244610) after hand_to_weapon_ik_solver::set_weapon_locators (0x392AE0, called at 0x244644) filled the solver's sixteen records from the weapon's model (mov al,[esi+5E9h], the double_handed test): ESI the weapon) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_hands(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_hands` calls this, from the game's jump at 0x244649,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_hands(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
+/// engine_fingers_set_weapon_model (0x390620), as the call hook at 0x298664 wraps it.
+pub struct OrigFingersSetWeaponModel;
+
+impl OrigFingersSetWeaponModel {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, corrector: &mut FingerCorrector, instance: u32, first_view: u32) {
+        // SAFETY: engine_fingers_set_weapon_model at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_fingers_set_weapon_model(Some(corrector.raw()), instance, first_view) }
+    }
+}
+
+/// The entry `attachments_on_fingers_view` (0x298664, correct_fingers (0x298630) at its refill of the finger corrector from the weapon's model, made only when the user's view changed (the je at 0x29864F skips it)) calls this with
+/// engine_fingers_set_weapon_model's 3 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `attachments_on_fingers_view`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_attachments_on_fingers_view(a0: Option<raw::FingersCorrector>, a1: u32, a2: u32) -> u32 {
+    // SAFETY: only the entry `attachments_on_fingers_view` calls this, from the game's call at
+    // 0x298664, on the game's thread; a0.. are engine_fingers_set_weapon_model's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut corrector) = (unsafe { FingerCorrector::from_raw(&thread, a0) }) else {
+        // a null FingerCorrector never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_fingers_set_weapon_model(a0, a1, a2) }; 0 };
+    };
+    let instance = a1;
+    let first_view = a2;
+    let orig = OrigFingersSetWeaponModel;
+    { crate::attachments::on_fingers_view(&orig, &mut corrector, instance, first_view); 0 }
+}
+
+// ---- attachments (patch 161) ----
+
+/// The entry `attachments_on_shells` (0x2443ee, play_weapon_shell_pfx (0x2443D0) at its read of the scope's frame (lea eax,[esi+660h], pushed twice from 0x2443F4): ESI the weapon, EAX the matrix the shell effect plays at) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_shells(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_shells` calls this, from the game's jump at 0x2443ee,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_shells(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- attachments (patch 161) ----
+
+/// The entry `attachments_on_release` (0x24b190, weapon_cook::delete_resource's entry (push ebx / push esi / push edi / mov edi,[esp+10h]): [esp+4] the weapon's +10h, 0 for none) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_attachments_on_release(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `attachments_on_release` calls this, from the game's jump at 0x24b190,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::attachments::on_release(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- bake_async (patch 121) ----
 
 /// The named exits of bake_async::on_issue (the order the shim's Flow code

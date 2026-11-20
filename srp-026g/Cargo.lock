@@ -1006,6 +1006,10 @@ name = "weapon-kit"
 version = "0.1.0"
 
 [[package]]
+name = "weapon-modules"
+version = "0.1.0"
+
+[[package]]
 name = "weapon-pickup"
 version = "0.1.0"
 
