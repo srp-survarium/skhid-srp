@@ -319,9 +319,21 @@
   }
 
   // The names a player left, the last left first, each saying until when
-  // on a hover.
-  const formerNames = names => names.length ? names.flatMap((former, i) => [i ? ', ' : '',
-    el('span', {title: say(TEXT.until, day.format(new Date(former.until * 1000)))}, former.name)]) : '—';
+  // on a hover: the last FORMER_SHOWN, the rest behind a button that says
+  // how many they are.
+  const FORMER_SHOWN = 5;
+  function formerNames(names) {
+    if (!names.length) return '—';
+    const said = list => list.flatMap((former, i) => [i ? ', ' : '',
+      el('span', {title: say(TEXT.until, day.format(new Date(former.until * 1000)))}, former.name)]);
+    const box = el('span', {className: 'stats-names'}, said(names.slice(0, FORMER_SHOWN)));
+    if (names.length > FORMER_SHOWN) {
+      const rest = el('button', {type: 'button', className: 'quiet', ariaLabel: TEXT.formerNames}, `+${n(names.length - FORMER_SHOWN)}`);
+      rest.addEventListener('click', () => box.replaceChildren(...said(names)));
+      box.append(' ', rest);
+    }
+    return box;
+  }
   async function playerView(name) {
     heading(name, TEXT.player, TEXT.player);
     const head = (card, days) => panels(

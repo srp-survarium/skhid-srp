@@ -20,7 +20,7 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   heading (the owner, 2026-11-20), largest first, and smallest first on a second click
   (`&order=asc`); the players' list has no Level.
 - A player's page says the account's id first in Overall (the owner, 2026-11-20), then its
-  earlier names (the owner, 2026-11-20: "we also need name history"): those it left (fifty at most), the
+  earlier names (the owner, 2026-11-20: "we also need name history"): those it left (fifty at most; the last five shown, the rest behind a `+N` button), the
   last left first, each with its day on a hover; `?player=` finds a player by a name it left
   while nobody has that name now.
 - A match's teams (a free-for-all's one list) come by place and sort in the page by a click on

@@ -281,7 +281,8 @@ try {
   const left = answered.player.names.map(former => former.name);
   assert.deepEqual([...left].sort(), ['Baran', 'Yahnia'], 'the names it left (the preview leaves both in one second)');
   assert.equal(await panel('Earlier names'), left.join(', '));
-  assert.ok((await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Earlier names').nextSibling.querySelector('span').title")).startsWith('until '));
+  assert.ok((await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Earlier names').nextSibling.querySelector('span[title]').title")).startsWith('until '));
+  assert.equal(await count('.stats-names button'), 0, 'two names: none folded away');
   assert.equal(await panel('Artefacts'), String(answered.player.totals.artefacts), 'the artefacts taken');
   assert.equal(await panel('Hours played'), (answered.player.totals.played_s / 3600).toFixed(1));
   assert.equal(await panel('Accuracy'), aim(answered.player.totals), 'accuracy in whole percents');

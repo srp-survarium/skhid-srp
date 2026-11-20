@@ -1588,7 +1588,8 @@ impl MatchHistory {
 
     /// The names the account left that the site may say, the last left
     /// first, at most `limit`: not one an administrator took from it (the
-    /// audit trail's `nickname` rows), which was taken for a reason.
+    /// audit trail's `nickname` rows), which was taken for a reason, nor
+    /// the one it has again now.
     pub fn former_names(
         &self,
         account_id: u32,
@@ -1598,6 +1599,7 @@ impl MatchHistory {
         let mut statement = connection.prepare_cached(&format!(
             "SELECT n.name, MAX(n.until) FROM g26_account_names n
              WHERE n.account_id = ?1 AND {SAID}
+                 AND n.name <> (SELECT a.name FROM g26_accounts a WHERE a.account_id = ?1)
              GROUP BY n.name ORDER BY MAX(n.until) DESC, n.name LIMIT ?2"
         ))?;
         let names = statement
@@ -3404,6 +3406,15 @@ mod tests {
         assert_eq!(names(&history), ["Alice"]);
         assert_eq!(history.account_by_name("Alisa").unwrap(), None);
         assert_eq!(history.former_names(99, 10).unwrap(), []);
+        // A name taken again is the name now, not one left.
+        repository.save(11, &Account::new("Bob")).unwrap();
+        let left: Vec<String> = history
+            .former_names(11, 10)
+            .unwrap()
+            .into_iter()
+            .map(|former| former.name)
+            .collect();
+        assert_eq!(left, ["Alice"]);
     }
 
     #[test]
