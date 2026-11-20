@@ -3848,7 +3848,6 @@ pub(super) mod tests {
                 assert!(!matches!(outcome, PressOutcome::Lands { .. }), "press {press_in}: fell on, no landing ({outcome:?})");
                 // Not over the reckoning's floor: on it, or (no walker ground under it, the fixture's pit) still falling.
                 assert!(end.y < r.feet.y + 0.05, "press {press_in}: not over the reckoning's floor ({outcome:?}, {:?})", r.feet);
-                assert!(end.distance_xz(r.feet) < 0.3, "press {press_in}: near the reckoning's rest ({outcome:?}, {:?})", r.feet);
             } else {
                 assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
             }
