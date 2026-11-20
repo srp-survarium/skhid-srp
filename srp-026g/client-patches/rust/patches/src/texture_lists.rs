@@ -23,8 +23,8 @@
 //! process heap: nothing of it is taken before. A scene's rooms go back in
 //! its destructor; a pool's live as long as its storage (the game). Past
 //! our room the game's assert stays, as when the heap gives none (one line
-//! in the log). In a room of ours, each new high of the names or the
-//! streamable textures by 256 entries gets a line: how full they get.
+//! in the log). The names' and the streamable textures' highs get a line
+//! from 1024 entries on, every 256 more: how full they get in a match.
 #![forbid(unsafe_code)]
 
 use crate::vostok::log::{self, Piece::{Dec, Text}};
@@ -37,7 +37,8 @@ const NAMES: u32 = 2 * OWN_NAMES;
 const POOL_SLOTS: u32 = 2 * OWN_POOL_SLOTS;
 const ROOMS: StreamingRooms = StreamingRooms { streamable: 2 * OWN_STREAMABLE, requested: 2 * OWN_REQUESTED };
 
-/// A new high this many entries over the last one logged gets a line.
+/// The first high logged, and every this many entries over the last one.
+const FIRST: u32 = 1024;
 const STEP: u32 = 256;
 
 /// What a push into a list does first.
@@ -59,30 +60,36 @@ fn push(fill: Fill) -> Push {
     }
 }
 
-/// The highest count logged of a list in a room of ours (0: none yet).
+/// The highest count of a list logged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct High(u32);
+enum High {
+    None,
+    Logged(u32),
+}
 
 impl High {
-    /// `held` entries in a room of ours: the new high to log, if it is one.
-    fn reached(&mut self, fill: Fill) -> Option<u32> {
-        let next = if self.0 == 0 { fill.held } else { self.0 + STEP };
-        (fill.place == Place::Ours && fill.held >= next).then(|| {
-            self.0 = fill.held;
-            fill.held
+    /// `held` entries: the new high to log, if it is one.
+    fn reached(&mut self, held: u32) -> Option<u32> {
+        let next = match *self {
+            High::None => FIRST,
+            High::Logged(last) => last + STEP,
+        };
+        (held >= next).then(|| {
+            *self = High::Logged(held);
+            held
         })
     }
 }
 
 /// The names' high, and the streamable textures' of the scenes alive.
-static HIGHS: Lock<(High, High)> = Lock::new((High(0), High(0)));
+static HIGHS: Lock<(High, High)> = Lock::new((High::None, High::None));
 
 pub fn on_name_push(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(names) = Names::at(ctx) else { return Flow::Continue };
     let fill = names.fill();
     match push(fill) {
         Push::Room => {
-            if let Some(held) = HIGHS.with(ctx.thread(), |(high, _)| high.reached(fill)) {
+            if let Some(held) = HIGHS.with(ctx.thread(), |(high, _)| high.reached(fill.held)) {
                 log::line(&[Text("texture_lists: the texture names hold "), Dec(held)]);
             }
         }
@@ -102,7 +109,7 @@ pub fn on_streaming_push(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let fill = streaming.streamable();
     match push(fill) {
         Push::Room => {
-            if let Some(held) = HIGHS.with(ctx.thread(), |(_, high)| high.reached(fill)) {
+            if let Some(held) = HIGHS.with(ctx.thread(), |(_, high)| high.reached(fill.held)) {
                 log::line(&[Text("texture_lists: a scene streams "), Dec(held), Text(" textures")]);
             }
         }
@@ -137,9 +144,8 @@ pub fn on_pool_slot_push(ctx: &mut Context<'_>) -> Flow<NoExit> {
 
 pub fn on_scene_lists_destroyed(ctx: &mut Context<'_>) -> Flow<NoExit> {
     if let Some(streaming) = Streaming::at_destroyed(ctx) {
-        if streaming.give_back() == Place::Ours {
-            HIGHS.with(ctx.thread(), |(_, high)| *high = High(0));
-        }
+        streaming.give_back();
+        HIGHS.with(ctx.thread(), |(_, high)| *high = High::None);
     }
     Flow::Continue
 }
@@ -161,15 +167,15 @@ mod tests {
     }
 
     #[test]
-    fn a_high_is_logged_once_and_then_every_step() {
-        let mut high = High(0);
-        assert_eq!(high.reached(fill(2047, 2048, Place::Own)), None);
-        assert_eq!(high.reached(fill(2048, 4096, Place::Ours)), Some(2048));
-        assert_eq!(high.reached(fill(2049, 4096, Place::Ours)), None);
-        assert_eq!(high.reached(fill(2100, 4096, Place::Ours)), None);
-        assert_eq!(high.reached(fill(2304, 4096, Place::Ours)), Some(2304));
-        assert_eq!(high.reached(fill(2000, 4096, Place::Ours)), None);
-        assert_eq!(high.reached(fill(2559, 4096, Place::Ours)), None);
-        assert_eq!(high.reached(fill(2560, 4096, Place::Ours)), Some(2560));
+    fn a_high_is_logged_from_1024_and_then_every_256() {
+        let mut high = High::None;
+        assert_eq!(high.reached(1023), None);
+        assert_eq!(high.reached(1024), Some(1024));
+        assert_eq!(high.reached(1025), None);
+        assert_eq!(high.reached(1279), None);
+        assert_eq!(high.reached(1300), Some(1300));
+        assert_eq!(high.reached(1000), None);
+        assert_eq!(high.reached(1555), None);
+        assert_eq!(high.reached(1556), Some(1556));
     }
 }
