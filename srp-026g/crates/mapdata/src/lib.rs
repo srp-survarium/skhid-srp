@@ -237,7 +237,9 @@ pub const WALL_HELD_TOPS_ALGO: u32 = 0x5401_0001;
 /// link where they came down on its own top). 000e: [jump down] a jump off the edge is flown on after the clip's `end_jump`
 /// for as long as a walk-off's landing may take (`grid::drop_check` `LAND_STEPS`): one off an edge about 3 m high was still in
 /// the air at the flight's last step, and no landing was found.
-pub const DROP_LANDS_ALGO: u32 = 0x5067_000e;
+/// 000f: [D2] no re-aim, and no taught or released landing, deeper than the harmless fall (`Body::max_drop`) under the take-off:
+/// a walk that overshoots a ledge and comes to rest past it leaves the other ways down onto the ledge their turn.
+pub const DROP_LANDS_ALGO: u32 = 0x5067_000f;
 /// The same for the gap links flown by the client's jump ([`Body::gap_flights`], A389), in [`grid_key_with_links`] only for a
 /// body that asks for it. A value of its own. 0007: [S3] the floors on the thin tops the gaps over one cross carry their top's
 /// centre line where a body is held on it (`grid::line_tops`), in the grid file. 0008: [F1] no clip pass press is kept unflown:

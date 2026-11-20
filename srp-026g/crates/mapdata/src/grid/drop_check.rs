@@ -527,6 +527,9 @@ pub struct DropStats {
     /// only a jump off the edge does (a short or a sprint jump): each an off-mesh GapDrop carrying that press.
     pub walked_off_crouched: usize,
     pub jumped_down: usize,
+    /// [D2] Of the Drop links, those a walk line came to rest from deeper than the harmless fall ([`super::Body::max_drop`]):
+    /// no re-aim there; the link went on to the other client ways down onto its own landing (or was cut).
+    pub past_harmless_fall: usize,
 }
 
 /// [feed 67] What [`super::Body::drop_lands`] does with one Drop link.
@@ -613,8 +616,8 @@ impl WalkGrid {
             self.drop_verdict(world, &s, start, l.from, self.position(l.from), l.to)
         });
         let (mut moved, mut none, mut released) = (0, 0, 0);
-        let held = verdicts.iter().filter(|(_, held)| *held).count();
-        for (&i, (v, _)) in todo.iter().zip(verdicts) {
+        let held = verdicts.iter().filter(|(_, held, _)| *held).count();
+        for (&i, (v, _, _)) in todo.iter().zip(verdicts) {
             match v {
                 Verdict::Keep => {}
                 Verdict::Pressed(b, press, share) => {
@@ -676,7 +679,7 @@ impl WalkGrid {
         let s = self.body.controller().1;
         let start = self.body.walk_start();
         let verdicts = parallel(&links, |&(a, d, from, to)| {
-            let (v, held) = self.drop_verdict(world, &s, start, a, from, wide.links[a as usize][d]);
+            let (v, held, deep) = self.drop_verdict(world, &s, start, a, from, wide.links[a as usize][d]);
             let lip = match v {
                 Verdict::Keep => self.stops_below(world, &s, start, from, to),
                 Verdict::Reaim(b) | Verdict::Taught(b) => self.stops_below(world, &s, start, from, self.position(b)),
@@ -684,13 +687,14 @@ impl WalkGrid {
                 // landing, no lip by a stop past it.
                 Verdict::Pressed(..) | Verdict::Cut => false,
             };
-            (v, lip, held)
+            (v, lip, held, deep)
         });
-        stats.releases_held_thin = verdicts.iter().filter(|(_, _, held)| *held).count();
+        stats.releases_held_thin = verdicts.iter().filter(|(_, _, held, _)| *held).count();
+        stats.past_harmless_fall = verdicts.iter().filter(|(_, _, _, deep)| *deep).count();
         let mut cut = Vec::new();
         let mut reaim = Vec::new();
         let mut lips = Vec::new();
-        for (&(a, d, _, _), (v, lip, _)) in links.iter().zip(verdicts) {
+        for (&(a, d, _, _), (v, lip, _, _)) in links.iter().zip(verdicts) {
             match v {
                 Verdict::Keep if lip => lips.push((a, wide.links[a as usize][d])),
                 Verdict::Keep => {}
@@ -856,10 +860,13 @@ impl WalkGrid {
     /// [feed 67] One link of [`Self::landing_drops`] from `a` (at `from`) to the floor `b`. [F2] Each way down is judged by
     /// where its flight RESTS ([`walk_off_rest`]: the forward key let go on the landing step), on `b`'s own top
     /// ([`WalkGrid::own_top`]): the link is kept where a walk line's rest is there.
-    fn drop_verdict(&self, world: &Collision, s: &Settings, start: WalkStart, a: u32, from: Vec3, b: u32) -> (Verdict, bool) {
-        let mut held = false;
-        let v = self.drop_verdict_holding(world, s, start, a, from, b, &mut held);
-        (v, held)
+    ///
+    /// Returns the verdict, whether a release was not made off a thin top, and [D2] whether a walk line came to rest deeper
+    /// than the harmless fall ([`super::Body::max_drop`]), where no link goes.
+    fn drop_verdict(&self, world: &Collision, s: &Settings, start: WalkStart, a: u32, from: Vec3, b: u32) -> (Verdict, bool, bool) {
+        let (mut held, mut deep) = (false, false);
+        let v = self.drop_verdict_holding(world, s, start, a, from, b, &mut held, &mut deep);
+        (v, held, deep)
     }
 
     /// [F2] Whether the take-off `a` is a thin top along `way` (flat, unit): its level (within a step,
@@ -886,9 +893,20 @@ impl WalkGrid {
         false
     }
 
-    /// [`Self::drop_verdict`], `held` set when a release was not made off a thin top.
+    /// [`Self::drop_verdict`], `held` set when a release was not made off a thin top, `deep` when a walk line came to rest deeper
+    /// than the harmless fall.
     #[allow(clippy::too_many_arguments)]
-    fn drop_verdict_holding(&self, world: &Collision, s: &Settings, start: WalkStart, a: u32, from: Vec3, b: u32, held: &mut bool) -> Verdict {
+    fn drop_verdict_holding(
+        &self,
+        world: &Collision,
+        s: &Settings,
+        start: WalkStart,
+        a: u32,
+        from: Vec3,
+        b: u32,
+        held: &mut bool,
+        deep: &mut bool,
+    ) -> Verdict {
         let to = self.position(b);
         let len = flat(from, to).max(1e-3);
         let side = Vec3::new(-(to.z - from.z) / len, 0.0, (to.x - from.x) / len);
@@ -898,10 +916,20 @@ impl WalkGrid {
         if walks.iter().any(|w| *w == DropWalk::NoMove || on_top(w, b)) {
             return Verdict::Keep;
         }
+        // [D2] A floor deeper than the harmless fall under the take-off ([`super::Body::max_drop`], as the edge walk-offs refuse
+        // a rest out of it) is no landing: a walk line that overshoots the link's own landing (a ledge) and comes to rest there is
+        // not re-aimed to it, and the other client ways down get their turn on the ledge (the release first). School day_4's
+        // ledge (15.95, 21.69, 125.47) -> (15.70, 20.72, 125.22), crossed by players, was re-aimed to the ground 5.94 m down
+        // (landing at 10.8 m/s) and then had no way down onto the ledge.
+        let within_fall = |g: u32| from.y - self.position(g).y <= self.body.max_drop;
         for (w, off) in walks.iter().zip(STARTS) {
             let DropWalk::LandsAt(feet, _) = *w else { continue };
             let Some(g) = self.rest_floor(feet) else { continue };
             if g == a || self.position(g).y >= from.y - self.body.step {
+                continue;
+            }
+            if !within_fall(g) {
+                *deep = true;
                 continue;
             }
             if on_top(&rest(Stance::Standing, WALK_MPS, off, self.position(g)), g) {
@@ -909,7 +937,8 @@ impl WalkGrid {
             }
         }
         // [A389] No cut on the walk alone (a link is cut only where no client action takes the body down there): a walk line's own landing on a floor lower down, then the crouched walk-off, then the jumps off the edge.
-        let lower = |feet: Vec3| self.rest_floor(feet).filter(|&g| g != a && self.position(g).y < from.y - self.body.step);
+        // [D2] Within the harmless fall.
+        let lower = |feet: Vec3| self.rest_floor(feet).filter(|&g| g != a && self.position(g).y < from.y - self.body.step && within_fall(g));
         // [A1b] The walk-off at release: on the link's own landing before a walk line's landing elsewhere (the shallow ledge a
         // steady walk overshoots), on another lower floor before the crouched walk-off.
         let thin = self.on_thin_top(a, Vec3::new((to.x - from.x) / len, 0.0, (to.z - from.z) / len));
@@ -1545,6 +1574,30 @@ mod tests {
                     assert!(ground.is_none(), "the ground is not reached: {case}");
                     assert!(downs.is_empty(), "{case}: {downs:?}");
                 }
+            }
+        }
+    }
+
+    /// [D2] A deck with a ledge 1 m under its edge, 0.6 m wide, over the ground 5.6 m under the deck (past the harmless fall,
+    /// `Body::max_drop`): the client's body walking off the deck overshoots the ledge and comes to rest on the ground. That rest
+    /// is no landing: no link goes from the deck down to the ground, and the drop count says a walk rested past the fall.
+    #[test]
+    fn a_walk_off_that_overshoots_a_ledge_past_the_harmless_fall_is_not_re_aimed_there() {
+        let high = 5.6f32;
+        let mut tris = Vec::new();
+        tris.extend(quad(0.0, 5.0, 0.0, 10.0, high));
+        tris.extend(quad(5.0, 5.6, 0.0, 10.0, high - 1.0));
+        tris.extend(quad(5.6, 12.0, 0.0, 10.0, 0.0));
+        let seeds = [Vec3::new(2.0, high, 5.0)];
+        let body = super::super::Body { drop_check: true, drop_lands: true, edge_walk_offs: false, ..super::super::Body::client() };
+        assert!(high > body.max_drop && 1.0 > body.step);
+        let (grid, stats) = WalkGrid::build_kept_with_stats(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, body, &seeds, &[]);
+        let case = format!("{:?}", stats.drops_walked);
+        assert!(stats.drops_walked.past_harmless_fall > 0, "a walk off the deck rests past the harmless fall: {case}");
+        for a in (0..grid.len() as u32).filter(|&a| (grid.position(a).y - high).abs() < 0.05) {
+            for (b, kind) in grid.links(a) {
+                let fall = high - grid.position(b).y;
+                assert!(fall <= body.max_drop, "{case}: {kind:?} from {:?} to {:?}, {fall:.2} m down", grid.position(a), grid.position(b));
             }
         }
     }
