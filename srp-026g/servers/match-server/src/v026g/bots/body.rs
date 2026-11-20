@@ -811,7 +811,7 @@ pub struct PressMatch {
 
 /// [press forecast] The steps of the client's flight a forecast plays at most: the sprint jump's landing step (n = 18,
 /// `SPRINT_LANDING_N`, `mapdata/controller/jump.rs`; the short jump's is 16) and the step it starts on.
-const PRESS_FLIGHT_STEPS: u32 = 19;
+pub(crate) const PRESS_FLIGHT_STEPS: u32 = 19;
 
 /// [press forecast] The body `at` playing `keys` (constant, no turn) for `ticks` ticks, by the reckoning's own steps ([`Role::Press`]):
 /// each tick's state, `at` first. The ground chain a press's candidates are flown from.

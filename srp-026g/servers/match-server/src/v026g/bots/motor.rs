@@ -1006,6 +1006,8 @@ pub struct Motor {
     cast_line: Option<String>,
     /// [press forecast] The last forecast press, followed for its line ([`Self::cast_watch_tick`]).
     cast_watch: Option<CastWatch>,
+    /// [press forecast] This tick the last forecast press is in its flight ([`Self::press_flight`]).
+    in_press_flight: bool,
     /// [press forecast] This tick's keys by the forecast press, if it decided them ([`Self::press_stops`]).
     cast_keys: Option<CastKeys>,
     /// The sway's phase and the time, seconds, for it.
@@ -1981,6 +1983,7 @@ impl Motor {
             cast: None,
             cast_line: None,
             cast_watch: None,
+            in_press_flight: false,
             cast_keys: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
@@ -2100,6 +2103,12 @@ impl Motor {
         self.lining = Lining::Walk;
     }
 
+    /// [press forecast] Tests: a forecast press in its flight ([`Self::press_flight`]).
+    #[cfg(test)]
+    pub(crate) fn test_press_flight(&mut self) {
+        self.in_press_flight = true;
+    }
+
     /// [spot suite] TEST ONLY: this tick's route jump went unpressed for `held` ([`Self::bench_link_text`]).
     #[cfg(test)]
     fn bench_hold(&mut self, held: PressHeld) {
@@ -2163,6 +2172,8 @@ impl Motor {
         self.jump = None;
         self.pressed = None;
         self.lining = Lining::No;
+        // [press forecast] Set again by a walk's `cast_watch_tick`; a tick with no walk has no forecast flight to leave.
+        self.in_press_flight = false;
         self.aimed_walk = false;
         self.jump_line = None;
     }
@@ -4005,6 +4016,15 @@ impl Motor {
         cast.state = CastState::Approach;
     }
 
+    /// [press forecast] Whether the last forecast press is in its flight this tick: from the press to the body's first step on the
+    /// ground after the take-off, at most the forecast's flight. The lip guard leaves it (`drive::guard_keys`): the forecast flew it
+    /// to its landing, and a brake in the air turns the air control back. A route jump's carry (`jump_carry`) lasts the short
+    /// clip's air time only; a rest press up a metre is still in the air after it (the suite's S057/2: 0.75 s after the press,
+    /// braked back and right, pulled back to the top's edge and walked off).
+    pub fn press_flight(&self) -> bool {
+        self.in_press_flight
+    }
+
     /// [press forecast] Whether the forecast press stops the body this tick (no key, coming to rest: no press from this walk-in, the
     /// jump blocked at its tick): it coasts on up to [`let_go_travel_m`], so the lip guard judges it as any body (`drive::guard_keys`).
     /// A body walking a plan's chain or held at rest for its ask is not stopping.
@@ -4021,9 +4041,15 @@ impl Motor {
     /// it is from the forecast's rest (the reckoned body, the world's fixes in it).
     fn cast_watch_tick<'f>(&mut self, pose: &Pose, flyer: Option<&mut (dyn PressFlyer + 'f)>) {
         let Some(watch) = self.cast_watch.as_ref() else {
+            self.in_press_flight = false;
             return;
         };
         let after = self.since(watch.at);
+        // In its flight: from the press to its first step on the ground after the take-off's (the press tick's and the next may
+        // still be on the ground), at most the forecast's own flight ([`super::body::PRESS_FLIGHT_STEPS`] and the press's step).
+        let ticks = self.clock.wrapping_sub(watch.at);
+        self.in_press_flight =
+            ticks <= super::body::PRESS_FLIGHT_STEPS + 1 && !(ticks >= 2 && pose.footing == Footing::Ground);
         // Judged by the landing: up on the link's landing on the ground, or not up in time.
         let up = pose.footing == Footing::Ground && is_up(pose.feet, watch.take_off, watch.landing);
         if !up && after < CAST_WATCH_S {

@@ -3461,9 +3461,16 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
     }
     // A jump (the route's, a hop) goes off the floor on purpose; [A1b] so does a body let go at a walk-off's release. [press forecast]
     // A body the press forecast stops (no press from this walk-in: it coasts up to `motor::let_go_travel_m` on) is judged as any.
-    if decision.keys & key::JUMP != 0 || (bot.motor.lining_up() && !bot.motor.press_stops()) || bot.motor.letting_go() {
+    // [press forecast] A forecast press in its flight is left too (`Motor::press_flight`): the forecast flew it to its landing.
+    if decision.keys & key::JUMP != 0
+        || (bot.motor.lining_up() && !bot.motor.press_stops())
+        || bot.motor.letting_go()
+        || bot.motor.press_flight()
+    {
         let rule = if decision.keys & key::JUMP != 0 {
             "jump pressed"
+        } else if bot.motor.press_flight() {
+            "the forecast's press in its flight"
         } else if bot.motor.lining_up() {
             "lining up"
         } else {
@@ -4317,6 +4324,26 @@ mod tests {
         let mut bot = Bot::new(1, 0, 0, None, &tuning);
         bot.motor.carrying = true;
         assert_eq!(guarded(&mut bot), key::FORWARD, "a carried jump");
+    }
+
+    /// [press forecast] The guard leaves a forecast press in its flight (`Motor::press_flight`): the same walk at the same rim, out
+    /// of it, is still held.
+    #[test]
+    fn the_guard_leaves_a_forecast_press_in_its_flight() {
+        let world = slab();
+        let tactics = crate::v026g::bots::tactics::Tactics::new(world.clone(), 1.0);
+        let tuning = crate::v026g::bots::tuning::Tuning::default();
+        let me = on_the_slab(55.4, -std::f32::consts::FRAC_PI_2, 3.5);
+        let guarded = |bot: &mut Bot| {
+            let mut decision = Decision { keys: key::FORWARD, turn: (0.0, 0.0) };
+            guard_keys(bot, &mut decision, &me, &tactics, &tuning, 1_000);
+            decision.keys
+        };
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        assert_ne!(guarded(&mut bot), key::FORWARD, "on the ground the walk over the rim is held");
+        let mut bot = Bot::new(1, 0, 0, None, &tuning);
+        bot.motor.test_press_flight();
+        assert_eq!(guarded(&mut bot), key::FORWARD, "a forecast press in its flight");
     }
 
     /// [`kin::Edge::ClientWalksOff`] (A269): a slab 6 m over the field, deeper than the harmless drop, so no link leaves its rim and
