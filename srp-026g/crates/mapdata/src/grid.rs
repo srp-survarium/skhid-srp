@@ -5022,7 +5022,17 @@ impl WalkGrid {
             (LinkKind::Walk, Some(r)) => r.share().failed_tries() * ((q - p).length() + r.run_up_m()),
             _ => 0.0,
         };
-        (q - p).length() + kind.penalty() + lip + fall + descent + sprint + riser
+        // [marked walk] A Walk link the client's tick does not walk, kept only as a floor's only walking way in or back
+        // ([`Self::walk_marked`], [2c]), is priced as a link no press makes ([`gap::Share::failed_tries`] of none landing: each
+        // try the link again), so a route takes it only where no way the body makes goes. School day_2's roof: the crouched
+        // walk (36.70, 21.48, 113.97) -> (36.45, 21.76, 113.97) fails on all three lines (the exe's crouched body stalls at
+        // 36.68), and the way round is the standing press onto the beam (36.45, 22.45, 112.97) and the walk down, as players go.
+        let marked = if kind == LinkKind::Walk && self.walk_marked(from, to) {
+            gap::Share::landed(0).failed_tries() * (q - p).length()
+        } else {
+            0.0
+        };
+        (q - p).length() + kind.penalty() + lip + fall + descent + sprint + riser.max(marked)
     }
 
     /// [A389] How far a body's feet at height `y` are from standing on floor `f` while the grid is built: 0 from its `walk` faces'
