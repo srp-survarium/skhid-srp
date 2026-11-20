@@ -48,9 +48,12 @@ full build 37.
   and Fast Bandaging: its 3 points open row 2; Metabolism row 2 column 2,
   Medical Training column 3.
 - "An antitoxin" is a drug whose data/influences heal the infection pool and
-  nothing else (`medical::antitoxin`; the science medkit heals infection and
+  nothing else (`drug::Effect::Antitoxin`; the science medkit heals infection and
   the body: a medkit). "Active" is native set_active's flag, as for the
-  painkiller (its use delay included).
+  painkiller (its use delay included): from the press, the antitoxin's 1 s of
+  use and its 15 s of active time (the owner, 2026-11-20: "it should last 15
+  seconds"; 10 s before), whatever hits its holder (a bullet no longer stops
+  an antitoxin, drug-interrupt.md); his death ends it.
 - Sharp Eye (314, new, row 2): while an antitoxin is active, the sight's aim
   time (modifier 49, as it comes up and as it goes down) takes -0.05/-0.10/
   -0.15 added to the kit's sum: B x max(0, 1 + S - bonus). Icon: retail
@@ -354,8 +357,8 @@ drug_begin}`; sites_026g.tsv `medical.reload*`, `medical.aim_*`,
   the whole active time (0x33D860). The lohook at 0x33D872 (EDI the drug,
   EBP its holder; `movzx edx,byte [ebp+115h]` replayed) gives an antitoxin's
   holder its stamina (player+6C0h: +0 the most, +6Ch now).
-- The antitoxin test reads the drug's influences: +280h the records (14h
-  each, the pool's name inline at +0, the amount at +10h: the antitoxin keeps the medkit template's seven at 0, so a drug is one when only infection's amount is above 0), +288h their
+- The antitoxin test (`vostok::drug::effect`, patch 84's too) reads the drug's influences: +280h the records (14h
+  each, the pool's name inline at +0, the amount at +10h: a drug is one when, of its records, only infection's amount is above 0; the live config has that one record, a config made from the medkit template would keep its seven at 0), +288h their
   count (medkit::tick's loop, 0x33D8F5 / 0x33DA1B).
 
 ## Effect ownership, capacity and duration
