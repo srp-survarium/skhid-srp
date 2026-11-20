@@ -98,6 +98,7 @@ mod gap_flown;
 pub mod held_floors;
 mod line_tops;
 mod rest_floors;
+pub mod timing;
 pub use gap::{Aim, GapStats, GridWay, Mask, OffLink, OffMeshLinks, PressLead, Share, SpeedBand, TakeoffWindow};
 pub use rim::{Riser, LAND_HEIGHT_M};
 pub use line_tops::{LineTop, TopFace, ACROSS_WAYS, MEASURE_STEP_M};
@@ -1668,6 +1669,9 @@ pub struct BuildStats {
     pub steep_closed: Vec<held_floors::SteepClosed>,
     /// The gap pass ([`gap`]).
     pub gaps: gap::GapStats,
+    /// [incremental grids] Where the build's time went, per pass and per `parallel` call ([`timing`]): the log's only, never
+    /// part of the stats' equality.
+    pub timing: timing::BuildTiming,
 }
 
 impl WalkGrid {
@@ -1752,6 +1756,7 @@ impl WalkGrid {
         let nx = (((area[2] - x0) / cell).max(0.0) as usize) + 1;
         let nz = (((area[3] - z0) / cell).max(0.0) as usize) + 1;
         let mut stats = BuildStats::default();
+        let mut clock = timing::Clock::start();
         let columns = rasterize(
             triangles,
             x0,
@@ -1871,6 +1876,7 @@ impl WalkGrid {
             solids.ground_start.push(solids.ground_spans.len() as u32);
         }
         stats.floors = height.len();
+        clock.lap("rasterize, floors");
 
         let mut grid = Self {
             x0,
@@ -1910,18 +1916,24 @@ impl WalkGrid {
             pull_walk: None,
         };
         let mut wide = grid.link(&forced);
+        clock.lap("link");
         grid.drop_narrow_landings(&mut wide, &solids);
+        clock.lap("narrow landings");
         (stats.drops_deep, stats.drops_crossable) = grid.drop_deep_flights(&mut wide);
+        clock.lap("deep flights");
         if !body.run_ups_after_erosion {
             let run = RunUp::Cells(((SPRINT_RUN_UP_M + body.radius) / cell).ceil() as usize);
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, run);
         }
+        clock.lap("short run-ups (cells)");
         // With `steep_walk_base`: the walker faces bodies stand on (a `dont_walk` face is never ground), to tell a perched floor.
         let ground = body
             .steep_walk_base
             .then(|| RayTree::from_corners(triangles.iter().filter(|t| t.walker != WalkerBehaviour::DontWalk).map(|t| t.v)));
         let cut = grid.cut_steep_climbs(&mut wide, &forced, &steep_face, ground.as_ref());
+        clock.lap("steep climbs");
         let walls = (body.erosion == Erosion::Exact || body.drop_room).then(|| exact::Walls::new(triangles, x0, z0, cell, nx, nz));
+        clock.lap("walls");
         // The world the client's body is flown and walked on (the rest floors, the rim jumps, [A389] the gap flights and the Drop
         // links' walk, the wall give-back's stand test): the game's shapes, else the walker triangles with the body's caster; built
         // once, only for a pass that needs it.
@@ -1931,6 +1943,7 @@ impl WalkGrid {
             (gaps && (body.rim_jumps || body.gap_flights)) || (body.drop_check && body.drop_lands) || body.rest_floors || body.held_floors || body.wall_give_back;
         let own = (needs_world && shapes.is_none()).then(|| crate::controller::Collision::build(triangles).with_caster(caster));
         let world = shapes.or(own.as_ref()).filter(|_| needs_world);
+        clock.lap("world (walker triangles)");
         (stats.exact_eroded, stats.wall_given_back, stats.rest_floors) = grid.erode(
             &mut wide,
             &cut,
@@ -1941,6 +1954,7 @@ impl WalkGrid {
         );
         wide.held.sort_unstable();
         wide.held.dedup();
+        clock.lap("erode");
         // [A389] The edge floors no body stays on go; the ways down from the last held floors are made drops after the gap pass.
         let unheld = match world.filter(|_| body.held_floors) {
             Some(world) => {
@@ -1950,9 +1964,11 @@ impl WalkGrid {
             }
             None => Vec::new(),
         };
+        clock.lap("unheld floors");
         if body.run_ups_after_erosion {
             (stats.sprint_cut, stats.capped_no_run_up) = grid.drop_short_run_ups(&mut wide, RunUp::Metres(SPRINT_RUN_UP_M));
         }
+        clock.lap("run-ups after erosion");
         // [S3] The thin tops the gaps over one cross: their floors get a line ([`Self::line_tops_of`]) once the grid is final.
         let mut thin_tops = Vec::new();
         wide.off = match (links, world) {
@@ -1964,6 +1980,7 @@ impl WalkGrid {
             }
             (OffMeshLinks::Gaps, _) => grid.gap_links(&wide, &solids, &mut stats.gaps),
         };
+        clock.lap("gap links");
         // [A364 C2 rows 11/12] The rim jumps, made as gap links where a client press lands (on the game's shapes, else the walker
         // triangles with the body's caster): after the erosion, no press from a floor only a crouched body fits.
         let mut rim_unmade: Vec<(Vec3, Vec3)> = Vec::new();
@@ -1971,26 +1988,34 @@ impl WalkGrid {
             let world = world.expect("a world");
             let (unmade, cut);
             (stats.rim, unmade, cut) = grid.fly_rim_jumps(&mut wide, world, &s, &solids);
+            clock.lap("rim jumps");
             // [C2 rows 11/12/14] The plain jumps no press lands on go, but none that is a floor's only way in or back.
             (stats.rim.jumps_cut, stats.rim.jumps_kept) = grid.cut_keeping_reach(&mut wide, cut, seeds, spawns, body.keep_last_resorts, false);
+            clock.lap("rim jumps' cut (reach)");
             grid.fly_risers(&mut wide, world, &s, &mut stats.rim);
             rim_unmade = unmade.into_iter().map(|(a, b)| (grid.position(a), grid.position(b))).collect();
         }
+        clock.lap("risers");
         // [A389] The held floors' drops, from the floors a body gets to (the gap and rim links made): a drop off a roof no body
         // gets onto would only make the roof lead in, and keep it.
         stats.held.unreached = grid.add_unheld_drops(&mut wide, &unheld, seeds, spawns);
+        clock.lap("unheld drops");
         if body.fall_stops_on_solids {
             // The faces' own geometry, not a walk test that may miss: a floor no body gets down to is let go as the carried
             // landings' are ([`Body::keep_last_resorts`]); the only way back out of a floor a body walks to stays.
             let failing = grid.drops_under_solids(&wide, &solids);
+            clock.lap("drops under solids");
             (stats.drops_under_solid, stats.drops_under_solid_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, body.keep_last_resorts, false);
         }
+        clock.lap("drops under solids' cut (reach)");
         if body.slip_landings {
             wide.slips = grid.slip_landings(&wide, &solids);
         }
+        clock.lap("slip landings");
         if body.client_controller {
             let (controlled, failing) = grid.controlled_links(&mut wide, triangles, shapes);
             stats.controlled = controlled;
+            clock.lap("walk check");
             // The walk links the client's body does not walk go, but none that is a floor's only way in from the seeds and spawns
             // or its only way back (a 39 deg log on Cologne humans jump onto and stand on: ~70 floors lost with its two ends).
             let tried: Vec<(u32, u32)> = failing.iter().map(|&(a, d, _)| (a, wide.links[a as usize][d])).collect();
@@ -2007,6 +2032,7 @@ impl WalkGrid {
                 wide.marked.dedup();
             }
         }
+        clock.lap("walk check's cut (reach)");
         drop(solids);
         if body.drop_room && body.drop_room_walk_faces {
             // The walk-offs' walls with the steep `walk` faces too (the erosion's are as before).
@@ -2015,9 +2041,11 @@ impl WalkGrid {
         } else if let Some(walls) = walls.as_ref().filter(|_| body.drop_room) {
             stats.drops_blocked = grid.cut_blocked_walk_offs(&mut wide, walls);
         }
+        clock.lap("drop room");
         if body.landing_carry {
             let gone;
             (stats.overshot_cut, stats.overshot_kept, gone) = grid.drop_overshot_landings(&mut wide, seeds, spawns);
+            clock.lap("landing carry (reach)");
             // [S4] The jumps the carry rule took away, flown as rim jumps: a link where a press lands and stays, priced by its share
             // (`railings-design.md` §8: width is not the limit, the flown share is).
             if body.rim_jumps && gaps && !gone.is_empty() {
@@ -2026,28 +2054,37 @@ impl WalkGrid {
                 (stats.carry_flown, _, _) = grid.fly_rim_todo(&mut wide, world, &s, gone);
             }
         }
+        clock.lap("landing carry flown");
         if body.drop_check {
             let failing = if body.drop_lands {
                 let world = world.expect("a world");
                 let (cut, reaim, lips, mut walked, deep_kept, deep_also) = grid.landing_drops(&wide, world, seeds, spawns);
                 stats.drops_past_harmless_cut = deep_kept;
+                clock.lap("landing drops");
                 let held;
                 (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded, walked.walk_offs_released, held, walked.walk_offs_blocked) =
                     grid.walk_off_links(&mut wide, world, seeds, spawns);
+                clock.lap("walk-off links");
                 walked.releases_held_thin += held;
                 stats.drops_walked = walked;
                 (stats.drops_reaimed, stats.drops_reaim_pairs) = grid.reaim_drops(&mut wide, &reaim);
+                clock.lap("re-aimed drops");
                 // [deep walk-offs] The deep landings a way within the harmless fall went before, kept beside it.
                 stats.drops_past_harmless_also = grid.keep_deep_landings(&mut wide, &deep_also);
+                clock.lap("deep landings kept");
                 wide.lips = lips;
                 cut
             } else {
-                grid.unfollowed_drops(&wide, triangles, seeds, spawns)
+                let failing = grid.unfollowed_drops(&wide, triangles, seeds, spawns);
+                clock.lap("unfollowed drops");
+                failing
             };
             (stats.drops_unfollowed, stats.drops_unfollowed_kept) = grid.cut_keeping_reach(&mut wide, failing, seeds, spawns, true, false);
         }
+        clock.lap("drop check's cut (reach)");
         stats.floors_after_erosion = grid.len();
         grid.keep_reached(&mut wide, seeds);
+        clock.lap("keep reached");
         if body.wall_give_back {
             let mut tables;
             (stats.wall_given_back, tables) = grid.give_back_aside(&mut wide);
@@ -2068,17 +2105,23 @@ impl WalkGrid {
             // ran before they were made.
             if body.client_controller && body.walk_every_link {
                 let world = world.expect("a world");
+                clock.lap("give back");
                 grid.walk_given_back(&mut wide, world, seeds, spawns, &mut stats.controlled);
+                clock.lap("given-back walks");
             }
         }
+        clock.lap("give back, rest");
         grid.pieces(&wide);
         grid.mark_pockets(&wide, spawns);
+        clock.lap("pieces, pockets");
         let fall = std::mem::take(&mut wide.fall);
         grid.pack(wide);
         grid.rim_unmade = rim_unmade;
+        clock.lap("pack");
         if let Some(world) = world.filter(|_| !thin_tops.is_empty()) {
             grid.line_tops = grid.line_tops_of(&thin_tops, triangles, world, &s);
         }
+        clock.lap("line tops");
         grid.mark_no_exit(walls.as_ref().filter(|_| body.pocket_exits_walled));
         // [A347] The exits a body cannot take, left out of the escape's tries.
         if body.exits_in_reach
@@ -2089,15 +2132,19 @@ impl WalkGrid {
         grid.mark_near(&fall, NEAR_FALL);
         let lips: Vec<bool> = (0..grid.len() as NodeId).map(|a| grid.is_lip(a)).collect();
         grid.mark_near(&lips, NEAR_LIP);
+        clock.lap("marks (no exit, walled exits, near)");
         // [A304] The ramp faces under the kept floors.
         if body.ramp_faces {
             grid.ramp = grid.ramp_slopes(triangles);
             stats.ramp_floors = grid.ramp.iter().filter(|&&d| d > 0).count();
         }
+        clock.lap("ramp faces");
         stats.floors_kept = grid.len();
         // [A389] The walk faces' low points are the build's only (a grid read back has none).
         grid.walk_low = Vec::new();
         grid.warm();
+        clock.lap("warm");
+        stats.timing = clock.finish();
         (grid, stats)
     }
 
