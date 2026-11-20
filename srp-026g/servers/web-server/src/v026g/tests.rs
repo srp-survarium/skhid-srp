@@ -1220,6 +1220,32 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
     );
 }
 
+/// The stats are a tab of their own beside the wiki, on every page of the
+/// 0.26g site: a frame for their script, which may ask the site for JSON.
+#[test]
+fn the_stats_page_is_a_tab_of_its_own() {
+    let world = world();
+    for lang in [Lang::En, Lang::Uk] {
+        let mut request = get("/stats");
+        request.lang = lang;
+        let page = world.web.route(&request, "t");
+        assert_eq!(page.status, "200 OK");
+        let code = lang.code();
+        assert!(page.body.contains(&format!("<html lang=\"{code}\">")));
+        assert!(page.body.contains(&format!("href=\"/stats?lang={code}\" aria-current=page")));
+        assert!(!page.body.contains(&format!("href=\"/wiki?lang={code}\" aria-current=page")));
+        assert!(page.body.contains("<div id=stats>"));
+        let script = page.body.split_once("<script src=\"").unwrap().1;
+        let script = script.split_once("?v=").unwrap().0;
+        assert!(crate::history::file(script).is_some_and(|(_, bytes)| !bytes.is_empty()));
+    }
+    for path in ["/", "/wiki", "/wiki/weapons"] {
+        assert!(world.web.route(&get(path), "t").body.contains("href=\"/stats?lang=en\">Stats</a>"), "{path}");
+    }
+    assert!(!world.web.route(&get("/wiki"), "t").body.contains("wiki-link href=\"/stats"));
+    assert!(crate::history::POLICY.contains("connect-src 'self'"));
+}
+
 #[test]
 fn the_calculators_and_the_maps_old_addresses_lead_into_the_wiki() {
     use std::io::{Read, Write};
@@ -1268,7 +1294,8 @@ fn the_calculators_and_the_maps_old_addresses_lead_into_the_wiki() {
 }
 
 /// A standalone local review of the real HTTP routes, with in-memory test
-/// accounts. Does not start or connect to login, lobby or match servers.
+/// accounts and a made-up match history (`history::tests::preview`). Does
+/// not start or connect to login, lobby or match servers.
 #[test]
 #[ignore = "local browser preview; serves until stopped"]
 fn serve_wiki_preview() {
@@ -1277,9 +1304,11 @@ fn serve_wiki_preview() {
     if std::env::var_os("SRP_GAME_DATA").is_some() {
         survarium::v026g::game_data::init().expect("SRP_GAME_DATA reads as srp's game data");
     }
-    let world = world();
+    let dir = std::env::temp_dir().join(format!("srp-wiki-preview-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let world = world_with(crate::history::tests::preview(&dir, crate::unix_now()));
     let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
-    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki");
+    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki, stats: http://127.0.0.1:24583/stats");
     for stream in listener.incoming() {
         world.web.serve(stream.unwrap());
     }
