@@ -353,11 +353,20 @@ class Lamps(unittest.TestCase):
         self.assertEqual(maps, {f'level_0{i}' for i in range(2, 10)} |
                          {'v011e_level_03', 'v011e_level_04', 'v021d_level_02', 'v021d_level_04',
                           'v021d_level_03', 'v021d_level_05', 'v021d_level_06'})
-        # School/Fort/Chemical Plant battery and TDM projects, and London's rain and evening, whose
-        # tables replace the day's they carry.
-        self.assertEqual(len(source['add_value']), 108)
-        self.assertEqual(sorted(e['files'] for e in source['remove_key']),
-                         [f'projects/level_09/{w}_{m}/client_project' for w in ('evening', 'rain') for m in (2, 3, 4)])
+        # School/Fort/Chemical Plant battery and TDM projects, and the rain and evening of London
+        # and of Fort and Chemical Plant v0.21 (their kerosene lamps), whose tables replace the
+        # day's they carry.
+        self.assertEqual(len(source['add_value']), 116)
+        weathers = [f'projects/{level}/{w}_{m}/client_project' for level, modes in
+                    (('level_09', (2, 3, 4)), ('v021d_level_04', (2, 4)), ('v021d_level_05', (2, 4)))
+                    for w in ('evening', 'rain') for m in modes]
+        self.assertEqual(sorted(e['files'] for e in source['remove_key']), sorted(weathers))
+        # Every lit kerosene lamp of every map, the 0.21 ports' copies of the models included.
+        flames = {project['files'][0].split('/')[1]: sum(len(lamp.get('particles', {}))
+                                                         for lamp in project['value']['lamps'].values())
+                  for project in source['add_value'] if '/day_4/' in project['files'][0]}
+        self.assertEqual({k: v for k, v in flames.items() if v},
+                         {'level_04': 1, 'level_05': 9, 'level_09': 10, 'v021d_level_04': 1, 'v021d_level_05': 9})
         # Each of Vostok v0.11's ten hanging-lamp shafts must disappear
         # with its fixture. The two outdoor scenery shafts have no owner.
         for project in source['add_value']:

@@ -28,13 +28,15 @@ goes out with it (below).
 in `release/content.tsv`. `scripts/breakable-lamps/make_edits.py` authored it
 from the manifest's base projects plus Research, using model bounds from
 those same layers (including the ported models).
-Its input is the base with the manifest's packs composed over it. A pack that
+Its input is every project as the manifest's rows above the list leave it
+(the base, the packs, and the earlier edit lists: the 0.21 weathers' own
+geometry, `v021d-weather-geometry-1.json`, comes just before it). A pack that
 copies a lamp day into another weather (London's rain and evening, the 0.21
 maps' rain and evening) carries the day's broken models and table: the
 generator authors such a project over them and replaces its table
 (`remove_key`, then the new value) only where the rule now binds otherwise
-(London's weathers: their kerosene lamps, and the battery modes' extra
-hanging lamp).
+(London's weathers, Fort's and Chemical Plant's v0.21 weathers: their
+kerosene lamps, and London's battery modes' extra hanging lamp).
 The list adds the broken visuals and a project-root `srp_lamps` table:
 
 - `version = 3`, `break_material`: the glass material id read from
@@ -56,7 +58,8 @@ The list adds the broken visuals and a project-root `srp_lamps` table:
 - Nearby light/cone assignments are explicit in the list, not guessed at
   runtime. Authoring rejects ambiguous assignments. Overlapping bulb and cover
   meshes, such as level_06's ceiling fixture, are one lamp.
-- A lit kerosene lamp (London 11, Tarakanovsky Fort 9, level_04 1; the
+- A lit kerosene lamp (London 11, Tarakanovsky Fort 9, level_04 1, and the
+  0.21 ports' copies of the models: Fort v0.21 9, Chemical Plant v0.21 1; the
   owner's `2026-11-15-20-44-11.png`) is three things: a frame
   (`stand_group_batlamp`, standing or on a rope, or `wall_group_nailed_batlamp`),
   its lit glass, a model of its own (`..._glass_emit`), and its flame, a
@@ -66,8 +69,13 @@ The list adds the broken visuals and a project-root `srp_lamps` table:
   within 0.4 m of the fixture is listed in a `particles` table, as `lights`
   (`LANTERN_GLASS`, `FLAME`, `FLAME_REACH`). A break hides the glass, puts the
   flame out and bursts along the glass (0.27 m: two bursts). A frame without
-  the lit glass is an unlit lamp, scenery; the Fort's one flame of no lamp
-  stays.
+  the lit glass is an unlit lamp, scenery. A survey of every map project
+  (2026-11-20) found three more flame fixtures, all scenery: the Fort's (and
+  Fort v0.21's) one hanging chain lamp (`ceiling_group_chain_lamp`), whose
+  flame burns in a model with its glass in its own mesh, so there is no glass
+  to hide and no broken model; `stand_group_oil_lamp` (level_02, the Fort,
+  School v0.21), never lit (no flame); and the Fort's wall torches
+  (`wall_group_torch_emit`, six on each map), an open flame with no glass.
 - A lit alarm lamp (`alarm_red_light`) has no light object: it glows through
   a red ambient light beside it. Its row lists it in an `ambient_lights`
   table, as `lights` (exact positions, names for review); the other rows have
