@@ -1567,6 +1567,15 @@ struct Adjacency {
     from: Vec<u32>,
 }
 
+/// [marked walk] How many times [`WalkGrid::link_cost_reaching`] priced a marked walk ([`WalkGrid::walk_marked`]) up past its
+/// own price (the route searches' and the objective fields' alike), for the server's log.
+static MARKED_WALK_PRICED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// [marked walk] The marked walks priced up since the last call ([`MARKED_WALK_PRICED`]), the count set back to 0.
+pub fn take_marked_walk_priced() -> u64 {
+    MARKED_WALK_PRICED.swap(0, std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Counts of a build, for logs and the docs.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BuildStats {
@@ -5032,6 +5041,9 @@ impl WalkGrid {
         } else {
             0.0
         };
+        if marked > riser {
+            MARKED_WALK_PRICED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
         (q - p).length() + kind.penalty() + lip + fall + descent + sprint + riser.max(marked)
     }
 

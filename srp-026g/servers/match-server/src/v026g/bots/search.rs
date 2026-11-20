@@ -467,6 +467,13 @@ impl Drop for SearchMemory {
         if left == Ok(0) {
             let bytes = mapdata::search_memory_bytes();
             mapdata::free_search_memory();
+            // [marked walk] A log's only, once the last match with bots ends: how often the marked walks' price (a link the
+            // client's walk tick does not walk, priced as no press makes) raised a link's price in the searches and fields, and
+            // how many routes still took one (no other way went).
+            let (priced, taken) = (mapdata::grid::take_marked_walk_priced(), path::take_marked_walk_routes());
+            if priced > 0 || taken > 0 {
+                log::info!("Bots' marked walks since the last such line: priced up {priced} times, taken by {taken} routes");
+            }
             if bytes > 0 {
                 log::info!(
                     "No match with bots left: their search arrays given back ({:.1} MB)",
