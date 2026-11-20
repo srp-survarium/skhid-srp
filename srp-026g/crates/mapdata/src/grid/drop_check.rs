@@ -1606,8 +1606,9 @@ mod tests {
 
     /// [D2] A deck with a ledge 1 m under its edge, 0.6 m wide, over the ground 5.6 m under the deck (past the harmless fall,
     /// `Body::max_drop`): the client's body walking off the deck overshoots the ledge and comes to rest on the ground. That deep
-    /// rest is a take-off's way down only where no way within the harmless fall (the release, the crouched walk-off, a jump)
-    /// takes the body down from it: no take-off has both, and every one counted past the fall has one of them.
+    /// rest is a Drop link's way down only where no way within the harmless fall (the release, the crouched walk-off, a jump)
+    /// takes the body down along it: along the deck's edge (away from its ends, where a link along the edge has no ledge under
+    /// it) every take-off goes down onto the ledge, none to the ground, and those kept at depth are counted and listed.
     #[test]
     fn a_walk_off_that_overshoots_a_ledge_past_the_harmless_fall_is_not_re_aimed_there() {
         let high = 5.6f32;
@@ -1621,11 +1622,17 @@ mod tests {
         let (grid, stats) = WalkGrid::build_kept_with_stats(&tris, [0.0, 0.0, 12.0, 10.0], 0.25, body, &seeds, &[]);
         let case = format!("{:?}", stats.drops_walked);
         assert!(stats.drops_walked.past_harmless_fall > 0, "a walk off the deck rests past the harmless fall: {case}");
-        for a in (0..grid.len() as u32).filter(|&a| (grid.position(a).y - high).abs() < 0.05) {
+        let mut onto_ledge = 0;
+        for a in (0..grid.len() as u32).filter(|&a| {
+            let p = grid.position(a);
+            (p.y - high).abs() < 0.05 && (1.0..=9.0).contains(&p.z)
+        }) {
             let falls: Vec<f32> = grid.links(a).map(|(b, _)| high - grid.position(b).y).filter(|&f| f > body.step).collect();
-            let (deep, within) = (falls.iter().any(|&f| f > body.max_drop), falls.iter().any(|&f| f <= body.max_drop));
-            assert!(!(deep && within), "{case}: {:?} has a way down within the harmless fall and one past it: {falls:?}", grid.position(a));
+            assert!(falls.iter().all(|&f| f <= body.max_drop), "{case}: {:?} goes down past the harmless fall: {falls:?}", grid.position(a));
+            onto_ledge += usize::from(!falls.is_empty());
         }
+        assert!(onto_ledge > 0, "the deck's edge goes down onto the ledge: {case}");
+        assert!(stats.drops_walked.past_harmless_fall_kept < stats.drops_walked.past_harmless_fall, "{case}");
         assert_eq!(stats.drops_past_harmless_cut.len(), stats.drops_walked.past_harmless_fall_kept, "{case}");
     }
 }
