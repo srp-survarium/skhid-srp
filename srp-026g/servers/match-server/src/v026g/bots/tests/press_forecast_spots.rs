@@ -154,3 +154,58 @@ fn press_forecast_crossings_on_map_91() {
     assert!(pressed > 0, "no start pressed the link");
     assert!(not_forecast.is_empty(), "motor presses of the link with no forecast line (start, presses, lines): {not_forecast:?}");
 }
+
+/// [press forecast] The stand-in game against the forecast on one press from rest at map 91: the same keys (at rest, one tick of
+/// forward, forward and jump, forward through the flight, let go) from the same rest, the game's body each tick printed against
+/// the forecast's outcome. A measurement: where the two flights part.
+#[test]
+#[ignore = "needs SRP_MAPDATA_DIR"]
+fn the_stand_in_and_the_forecast_fly_a_rest_press_on_map_91() {
+    use crate::v026g::bots::body::{AfterLanding, Estimate, PressPlan, PressWorld, press_forecast};
+    let Some(Map91 { world, a, b, way, .. }) = map91() else {
+        return;
+    };
+    let grid = &world.grid;
+    let kin = Tuning::default().kin;
+    let yaw = crate::v026g::bots::kin::yaw_of([way.0, way.1]);
+    for rest in [Vec3::new(-23.07, 24.29, 58.01), Vec3::new(-22.69, 24.27, 57.88), Vec3::new(-22.97, 24.47, 57.57)] {
+        let node = grid.locate(rest, 1.0);
+        let rest = node.map_or(rest, |n| Vec3::new(rest.x, grid.position(n).y, rest.z));
+        let at = Estimate { node, ..Estimate::at_rest(rest, yaw) };
+        let plan = PressPlan { walk: key::FORWARD, press_in: 1, take_off: a, landing: b, after: AfterLanding::Hold };
+        let outcome = press_forecast(&at, &plan, &PressWorld { kin: &kin, level: 1.0, grid });
+        let teams = [0u8, 1];
+        let mut game = Game::new(world.clone(), &teams, 3, None, None);
+        game.bodies[0].node = node;
+        game.bodies[0].feet = rest;
+        game.bodies[0].yaw = yaw;
+        game.bodies[1].alive = false;
+        let gun = Arms::fallback().primary.0;
+        let mut keys: Vec<u32> = vec![0; 6];
+        keys.push(key::FORWARD);
+        keys.push(key::FORWARD | key::JUMP);
+        keys.extend(std::iter::repeat_n(key::FORWARD, 19));
+        keys.extend(std::iter::repeat_n(0, 10));
+        let mut trail = Vec::new();
+        for k in keys {
+            let t = game.tick + TICK_MS;
+            game.inputs[0].push_back((t, k, (0.0, 0.0), None, gun));
+            game.step();
+            trail.push(game.bodies[0].feet);
+        }
+        let end = *trail.last().unwrap();
+        eprintln!(
+            "PRESS FLY from ({:.2}, {:.2}, {:.2}): forecast {outcome:?}; the game's body at the end ({:.2}, {:.2}, {:.2}) {}",
+            rest.x,
+            rest.y,
+            rest.z,
+            end.x,
+            end.y,
+            end.z,
+            if crate::v026g::bots::motor::is_up(end, a, b) { "up" } else { "not up" }
+        );
+        for (i, p) in trail.iter().enumerate().skip(5) {
+            eprintln!("PRESS FLY   tick {i}: ({:.3}, {:.3}, {:.3})", p.x, p.y, p.z);
+        }
+    }
+}
