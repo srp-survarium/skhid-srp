@@ -82,6 +82,8 @@ pub(super) const MIGRATION: &str = "
         -- Bullets fired and bullets that hit (events 22 and 23).
         shots         INTEGER NOT NULL,
         hits          INTEGER NOT NULL,
+        -- How long it was in the match.
+        played_ms     INTEGER NOT NULL,
         PRIMARY KEY (match_id, account_id)
     ) WITHOUT ROWID;
     CREATE INDEX g26_match_players_by_account ON g26_match_players (account_id, match_id);
@@ -105,7 +107,8 @@ pub(super) const MIGRATION: &str = "
         captures      INTEGER NOT NULL,
         artefacts     INTEGER NOT NULL,
         shots         INTEGER NOT NULL,
-        hits          INTEGER NOT NULL
+        hits          INTEGER NOT NULL,
+        played_ms     INTEGER NOT NULL
     );
     CREATE INDEX g26_player_totals_matches ON g26_player_totals (matches);
     CREATE INDEX g26_player_totals_wins ON g26_player_totals (wins);
@@ -137,7 +140,8 @@ pub(super) const MIGRATION: &str = "
         captures      INTEGER NOT NULL,
         artefacts     INTEGER NOT NULL,
         shots         INTEGER NOT NULL,
-        hits          INTEGER NOT NULL
+        hits          INTEGER NOT NULL,
+        played_ms     INTEGER NOT NULL
     );
     -- The kits a player used in a match ([`KitLine`]; no bot): one row a
     -- kit, with that kit's own counters.
@@ -493,6 +497,8 @@ pub struct PlayerLine {
     pub kills: u64,
     pub deaths: u64,
     pub counters: Counters,
+    /// How long it was in the match.
+    pub played_ms: u32,
 }
 
 /// One player of a [`MatchRecord`].
@@ -540,6 +546,8 @@ pub struct Totals {
     pub kills: u64,
     pub deaths: u64,
     pub counters: Counters,
+    /// Time in the matches.
+    pub played_ms: u64,
 }
 
 /// A total the top lists sort by.
@@ -749,9 +757,9 @@ pub(super) fn record(
         transaction.execute(
             "INSERT INTO g26_match_players (match_id, account_id, clan_id, team, place, presence,
                  rating, score, kills, deaths, assists, headshots, grenade_kills, melee_kills,
-                 batteries, captures, artefacts, shots, hits, seat, outcome)
+                 batteries, captures, artefacts, shots, hits, seat, outcome, played_ms)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                 ?17, ?18, ?19, ?20, ?21)",
+                 ?17, ?18, ?19, ?20, ?21, ?22)",
             params![
                 match_id,
                 player.account_id,
@@ -774,6 +782,7 @@ pub(super) fn record(
                 counters.hits as i64,
                 line.seat,
                 line.outcome.as_str(),
+                line.played_ms,
             ],
         )?;
         record_kits(&transaction, match_id, player)?;
@@ -834,6 +843,7 @@ impl Totals {
             kills: line.kills,
             deaths: line.deaths,
             counters: line.counters,
+            played_ms: u64::from(line.played_ms),
         }
     }
 
@@ -860,6 +870,7 @@ impl Totals {
                 shots: own.shots + more.shots,
                 hits: own.hits + more.hits,
             },
+            played_ms: self.played_ms + member.played_ms,
         }
     }
 }
@@ -935,8 +946,9 @@ fn add_totals(
     transaction.execute(
         &format!(
             "INSERT INTO {table} ({key}, matches, wins, losses, score, kills, deaths, assists,
-                 headshots, grenade_kills, melee_kills, batteries, captures, artefacts, shots, hits)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+                 headshots, grenade_kills, melee_kills, batteries, captures, artefacts, shots, hits,
+                 played_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
              ON CONFLICT({key}) DO UPDATE SET
                  matches = matches + excluded.matches, wins = wins + excluded.wins,
                  losses = losses + excluded.losses,
@@ -948,7 +960,8 @@ fn add_totals(
                  batteries = batteries + excluded.batteries,
                  captures = captures + excluded.captures,
                  artefacts = artefacts + excluded.artefacts,
-                 shots = shots + excluded.shots, hits = hits + excluded.hits"
+                 shots = shots + excluded.shots, hits = hits + excluded.hits,
+                 played_ms = played_ms + excluded.played_ms"
         ),
         params![
             id,
@@ -967,6 +980,7 @@ fn add_totals(
             counters.artefacts as i64,
             counters.shots as i64,
             counters.hits as i64,
+            totals.played_ms as i64,
         ],
     )?;
     Ok(())
@@ -988,14 +1002,15 @@ const SUMMARY: &str = "m.id, m.ended_at, m.duration_ms, m.map_id, m.game_mode, m
      (SELECT COUNT(*) FROM g26_match_players n WHERE n.match_id = m.id), m.eligibility,
      m.replay_id";
 const SUMMARY_COLUMNS: usize = 12;
-/// The columns of a [`PlayerLine`] of `p` (eighteen).
+/// The columns of a [`PlayerLine`] of `p` (nineteen).
 const LINE: &str = "p.team, p.place, p.presence, p.rating, p.score, p.kills, p.deaths, p.assists,
      p.headshots, p.grenade_kills, p.melee_kills, p.batteries, p.captures, p.artefacts, p.shots,
-     p.hits, p.seat, p.outcome";
+     p.hits, p.seat, p.outcome, p.played_ms";
 /// The columns of [`Totals`] of `t` ([`TOTALS_COLUMNS`]).
-const TOTALS_COLUMNS: usize = 15;
+const TOTALS_COLUMNS: usize = 16;
 const TOTALS: &str = "t.matches, t.wins, t.losses, t.score, t.kills, t.deaths, t.assists, t.headshots,
-     t.grenade_kills, t.melee_kills, t.batteries, t.captures, t.artefacts, t.shots, t.hits";
+     t.grenade_kills, t.melee_kills, t.batteries, t.captures, t.artefacts, t.shots, t.hits,
+     t.played_ms";
 /// A match's kits and what they held, of `k` and `i`, by account and
 /// place, then slot (eight columns: account, kit, its four counters, slot,
 /// dict id); `{filter}` narrows `k` further.
@@ -1130,6 +1145,7 @@ fn line_at(row: &Row, at: usize) -> rusqlite::Result<PlayerLine> {
             shots: u64_at(row, at + 14)?,
             hits: u64_at(row, at + 15)?,
         },
+        played_ms: row.get(at + 18)?,
     })
 }
 
@@ -1153,6 +1169,7 @@ fn totals_at(row: &Row, at: usize) -> rusqlite::Result<Totals> {
             shots: u64_at(row, at + 13)?,
             hits: u64_at(row, at + 14)?,
         },
+        played_ms: u64_at(row, at + 15)?,
     })
 }
 
@@ -1332,9 +1349,10 @@ impl MatchHistory {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(
             "SELECT date(m.ended_at, 'unixepoch') AS day, COUNT(*),
-                 SUM(p.outcome = 'won'), SUM(p.outcome = 'lost'), SUM(p.score), SUM(p.kills), SUM(p.deaths), SUM(p.assists), SUM(p.headshots),
-                 SUM(p.grenade_kills), SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures),
-                 SUM(p.artefacts), SUM(p.shots), SUM(p.hits)
+                 SUM(p.outcome = 'won'), SUM(p.outcome = 'lost'), SUM(p.score), SUM(p.kills),
+                 SUM(p.deaths), SUM(p.assists), SUM(p.headshots), SUM(p.grenade_kills),
+                 SUM(p.melee_kills), SUM(p.batteries), SUM(p.captures), SUM(p.artefacts),
+                 SUM(p.shots), SUM(p.hits), SUM(p.played_ms)
              FROM g26_match_players p JOIN g26_matches m ON m.id = p.match_id
              WHERE p.account_id = ?1 AND m.eligibility = 'counted' AND m.ended_at >= ?2
                AND p.match_id >= IFNULL((SELECT MIN(id) FROM g26_matches WHERE ended_at >= ?2),
@@ -1687,6 +1705,7 @@ mod tests {
                 shots: 100,
                 hits: 40,
             },
+            played_ms: 600_000,
         }
     }
 
@@ -2075,6 +2094,7 @@ mod tests {
                     shots: 200,
                     hits: 80,
                 },
+                played_ms: 1_200_000,
             }
         );
         let bob = history.player(11).unwrap().unwrap();
@@ -2397,6 +2417,7 @@ mod tests {
                     shots: 800,
                     hits: 320,
                 },
+                played_ms: 4_800_000,
             }
         );
         // The list of clans and the clan's matches agree with the card.

@@ -85,6 +85,7 @@ fn line(team: u8, score: u64, kills: u64, deaths: u64) -> PlayerLine {
             shots: 400,
             hits: 100,
         },
+        played_ms: 840_000,
     }
 }
 
@@ -279,7 +280,7 @@ fn keys(value: &Value) -> Vec<&str> {
     keys
 }
 
-const TOTALS: [&str; 19] = [
+const TOTALS: [&str; 20] = [
     "accuracy",
     "artefacts",
     "assists",
@@ -294,6 +295,7 @@ const TOTALS: [&str; 19] = [
     "losses",
     "matches",
     "melee_kills",
+    "played_s",
     "score",
     "score_avg",
     "shots",
@@ -316,7 +318,7 @@ const SUMMARY: [&str; 12] = [
     "winner",
 ];
 
-const LINE: [&str; 19] = [
+const LINE: [&str; 20] = [
     "accuracy",
     "artefacts",
     "assists",
@@ -332,6 +334,7 @@ const LINE: [&str; 19] = [
     "melee_kills",
     "outcome",
     "place",
+    "played_s",
     "rating",
     "score",
     "shots",
@@ -918,6 +921,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
                             shots,
                             hits,
                         },
+                        played_ms: if k == 10 && i % 5 == 0 { 300_000 } else { 780_000 },
                     },
                     kits,
                 }

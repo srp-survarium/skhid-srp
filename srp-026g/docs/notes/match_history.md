@@ -1,8 +1,27 @@
-# Match history and the stats API (`/api/history/...`)
+# Match history, the stats page (`/stats`) and its API (`/api/history/...`)
 
 What survarium.pro showed of players, matches and clans, kept by srp itself and served as JSON by
 `servers/web-server` for the site's stats page. The history is written in
-`crates/session/src/v026g/persist/history.rs`; the endpoints are `servers/web-server/src/history.rs`.
+`crates/session/src/v026g/persist/history.rs`; the page and the endpoints are
+`servers/web-server/src/history.rs`.
+
+## The page
+
+- `/stats` is a tab of the site's own, beside Home and Wiki (the owner, 2026-11-20: "stats are
+  not part of wiki"), in the wiki's look: a frame the web server gives, which
+  `servers/web-server/stats/history.js` fills from the API when it is viewed.
+- The address says what it shows: `?player=<name>`, `?match=<number>`, `?clan=<tag>`, else the
+  leaderboards (`?board=players|clans|best|latest&by=<key>`). Each view is drawn once empty in
+  its final shape, then with its data, so nothing moves while it loads; match lists grow by
+  "Older matches" (`before=`).
+- A match line shows the weapons of the kits it used (each kit in full, with the kit's own kills
+  and accuracy, on hover). A free-for-all is one list by place. A click anywhere on a match's
+  row opens the match.
+- `scripts/stats/check_history.mjs` exercises it in an isolated Firefox over the site's own
+  endpoints: the preview (`cargo test -p web-server serve_wiki_preview -- --ignored --nocapture`,
+  port 24583) keeps a made-up history (`history::tests::preview`); the script serves it again on
+  port 24584 with each answer 300 ms late. `node scripts/stats/check_history.mjs
+  http://127.0.0.1:24583 9457`.
 
 ## Owner's rules
 
@@ -40,7 +59,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - `g26_match_players`: one row a player who was in the match (finished or left): team, place in
   its team by score (from 1; of a free-for-all, where each is its own team, among everyone by
   kills), its roster place (`seat`), rating after the match, clan at the time,
-  score, kills, deaths, the counters below, and what the match was for it (`outcome`).
+  score, kills, deaths, the counters below, how long it was in the match, and what the match
+  was for it (`outcome`).
 - A line's `outcome` is said once, when the match is settled (`rewards`), as its rating took it:
   `won` for one who stayed to the end on the winning team (in a free-for-all: with the most
   kills), `lost` for everyone else of a match that had a winner (one who left lost whatever its
@@ -98,9 +118,10 @@ Common objects:
 - Totals: `{"matches":120,"wins":64,"losses":52,"kills":900,"deaths":700,"assists":210,
   "score":30500,"headshots":180,"grenade_kills":12,"melee_kills":3,"batteries":40,"captures":5.5,
   "artefacts":25,"shots":52000,"hits":15600,"accuracy":0.3,"kd":1.29,"win_rate":0.533,
-  "score_avg":254.2}`. `kd` = kills / deaths (deaths 0 counts as 1), two decimals; `win_rate`
+  "score_avg":254.2,"played_s":93600}`. `kd` = kills / deaths (deaths 0 counts as 1), two decimals; `win_rate`
   0..1, three decimals; `score_avg` one decimal; `accuracy` = hits / shots (0 with no shot), 0..1,
-  three decimals. `matches` - `wins` - `losses` were draws or had no known winner.
+  three decimals. `matches` - `wins` - `losses` were draws or had no known winner. `played_s`:
+  seconds in those matches.
 - A match: `{"id":5531,"replay_id":"rec026g_20261103-115320_5e1a09c3","ended_at":1793500000,"duration_s":845,"map_id":3,"map":"Vostok",
   "mode":"Batteries","level":12,"winner":0,"team_points":[5,3],"players":12,
   "eligibility":"counted"}`. `winner` is 0 or 1, `"draw"`, `"free_for_all"` (no team wins one:
@@ -109,7 +130,8 @@ Common objects:
 - A player's line of a match: `"team":0,"place":1,"outcome":"won","left":false,"rating":1180,
   "score":310,"kills":14,"deaths":6,"kd":2.33,"assists":4,"headshots":3,"grenade_kills":1,
   "melee_kills":0,"batteries":2,"captures":0,"artefacts":1,"shots":420,"hits":130,
-  "accuracy":0.31,"kits":[...]`. `outcome` is `"won"`, `"lost"` or `"neither"`.
+  "accuracy":0.31,"kits":[...]`. `outcome` is `"won"`, `"lost"` or `"neither"`; a line has its
+  `played_s` too.
 - A kit of a line (`kits`, the kits the player used, by place): `{"kit":0,"kills":12,
   "headshots":3,"shots":380,"hits":120,"accuracy":0.316,"weapons":[{"slot":7,"id":155,
   "name":"AK-74M"},{"slot":10,"id":60,"name":"TT-33"}],"armour":[{"slot":0,"id":301,

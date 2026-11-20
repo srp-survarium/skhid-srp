@@ -1830,6 +1830,7 @@ impl<'a> Shared<'a> {
                         shots: count(event::BULLET_FIRE),
                         hits: count(event::BULLET_HIT),
                     },
+                    played_ms: player.time_in_match_ms,
                 },
                 kits,
             });

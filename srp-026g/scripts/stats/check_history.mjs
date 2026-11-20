@@ -1,4 +1,4 @@
-// The stats page (/wiki/stats, history.js) in an isolated Firefox, over the
+// The stats page (/stats, servers/web-server/stats/history.js) in an isolated Firefox, over the
 // site's own endpoints. Node 22+; Firefox: --headless --remote-debugging-port
 // 9457. The page, its script, its policy and /api/history/... are the HTTP
 // preview's (cargo test -p web-server serve_wiki_preview -- --ignored
@@ -85,20 +85,24 @@ try {
   const weapons = row => row.kits.length ? row.kits.map(kit => kit.weapons.length ? kit.weapons.map(item => item.name ?? '—').join(' · ') : '—').join(' / ') : '—';
   await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
 
-  // The wiki's index leads to it.
+  // A tab of its own beside the wiki, on the wiki's pages too.
   await navigate('/wiki');
-  assert.ok(await evaluate("[...document.querySelectorAll('.wiki-link')].some(a => a.pathname === '/wiki/stats')"));
-  const policy = (await fetch(base + '/wiki/stats')).headers.get('content-security-policy');
+  assert.equal(await evaluate("[...document.querySelectorAll('header nav a')].map(a => a.textContent).slice(0, 3).join()"), 'Home,Wiki,Stats');
+  assert.equal(await evaluate("document.querySelector('header nav a[aria-current]').textContent"), 'Wiki');
+  const policy = (await fetch(base + '/stats')).headers.get('content-security-policy');
   assert.ok(policy.includes("connect-src 'self'") && policy.includes("script-src 'self'"), policy);
 
   // The leaderboards: players by rating first, then each board and key.
-  await navigate('/wiki/stats');
+  await navigate('/stats');
   assert.equal(await text('#stats-title'), 'Stats');
+  assert.equal(await evaluate("document.querySelector('header nav a[aria-current]').textContent"), 'Stats');
   assert.equal(await count('.stats-table tbody tr'), 12, 'every player with a match, Nova not');
   const named = ({player}) => `${player.clan ? `[${player.clan.tag}] ` : ''}${player.name}`;
   assert.equal(await text('.stats-table tbody tr td:nth-child(2)'), named(answered.top.players[0]));
   assert.equal(named(answered.top.players[0]), '[SKH] Sheep');
   assert.equal(await text('.stats-table thead th.sorted'), 'Rating');
+  assert.equal(await evaluate("[...document.querySelector('.stats-keys').childNodes].every(node => node.nodeType === 1)"), true, 'nothing but the keys');
+  assert.equal(await evaluate("document.querySelector('.breadcrumb').hidden"), true, 'no way back on the boards themselves');
   await screenshot('boards-players');
   await evaluate("[...document.querySelectorAll('.stats-keys button')].find(b => b.textContent === 'Kills').click()");
   await settled();
@@ -139,21 +143,27 @@ try {
   const newest = answered.matches.matches[0].id;
   assert.equal(newest, 23);
   assert.equal(await text('.stats-table tbody tr td:nth-child(2)'), String(newest), 'newest first');
+  // A click anywhere on a match's row opens it.
+  await evaluate("document.querySelector('.stats-table tbody tr td:nth-child(4)').click()");
+  await new Promise(resolve => setTimeout(resolve, 500));
+  await settled();
+  assert.equal(await evaluate('location.search'), `?match=${newest}&lang=en`);
+  await navigate('/stats?board=latest&lang=en');
   await evaluate("document.querySelector('.stats-paged button').click()");
   await settled();
   assert.equal(await count('.stats-table tbody tr'), 23);
   assert.equal(await evaluate("document.querySelector('.stats-paged button').hidden"), true, 'no older page');
 
   // The search goes to a player with only what is filled in.
-  await navigate('/wiki/stats');
+  await navigate('/stats');
   await evaluate("document.querySelector('.stats-find [name=player]').value = ' sheep ';document.querySelector('.stats-find button').click()");
   await new Promise(resolve => setTimeout(resolve, 500));
   await settled();
   assert.equal(await evaluate('location.search'), '?player=sheep&lang=en');
 
   // A player: nothing moves while it loads; 15 matches, then 8 older.
-  await navigate('/wiki/stats?player=Sheep&lang=en', 'interactive');
-  assert.equal(await count('.stats-panels dd'), 24, 'the panels are drawn before their data');
+  await navigate('/stats?player=Sheep&lang=en', 'interactive');
+  assert.equal(await count('.stats-panels dd'), 25, 'the panels are drawn before their data');
   assert.equal(await count('.stats-favourites .stats-table tbody tr'), 10, 'five empty rows of each favourite');
   const loading = [await top(0), await top(1)];
   await settled();
@@ -162,6 +172,7 @@ try {
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Clan').nextSibling.textContent"), '[SKH]');
   assert.equal(await count('.stats-paged .stats-table tbody tr'), 15);
   assert.equal(await panel('Artefacts'), String(answered.player.totals.artefacts), 'the artefacts taken');
+  assert.equal(await panel('Hours played'), (answered.player.totals.played_s / 3600).toFixed(1));
   assert.equal(await panel('Accuracy'), aim(answered.player.totals), 'accuracy in whole percents');
   assert.ok((await columns()).includes('Artefacts'), 'a match line has its artefacts');
   assert.ok((await columns()).includes('Accuracy') && (await columns()).includes('Weapons'), 'and its accuracy and weapons');
@@ -193,7 +204,7 @@ try {
   assert.ok(results.includes('Draw') && results.includes('Win') && results.includes('Loss'), results.join());
 
   // Yasen played exactly a page: the older page is empty, so the button just goes.
-  await navigate('/wiki/stats?player=Yasen&lang=en');
+  await navigate('/stats?player=Yasen&lang=en');
   assert.equal(await count('.stats-paged .stats-table tbody tr'), 15);
   assert.equal(await evaluate("document.querySelector('.stats-paged button').hidden"), false, 'a full page may have more');
   await evaluate("document.querySelector('.stats-paged button').click()");
@@ -205,16 +216,16 @@ try {
   assert.equal(await evaluate("document.querySelector('.stats-paged button').hidden"), true, 'no button left');
 
   // A player without a public match is the same as an unknown one.
-  await navigate('/wiki/stats?player=Nova&lang=en');
+  await navigate('/stats?player=Nova&lang=en');
   assert.equal(await text('.stats-empty'), 'No player with public matches named “Nova”.');
   assert.equal(await count('.stats-panels'), 0);
-  await navigate('/wiki/stats?player=Nobody&lang=en');
+  await navigate('/stats?player=Nobody&lang=en');
   assert.equal(await text('.stats-empty'), 'No player with public matches named “Nobody”.');
   assert.equal(await count('.stats-find'), 1, 'the search stays');
   await screenshot('player-not-found');
 
   // A match, an unknown one.
-  await navigate(`/wiki/stats?match=${newest}&lang=en`, 'interactive');
+  await navigate(`/stats?match=${newest}&lang=en`, 'interactive');
   assert.equal(await count('.stats-table tbody tr'), 12, 'six empty rows a team while it loads');
   assert.equal(await count('.stats-under'), 12, 'each with room for the weapons');
   const loadingMatch = await top(1);
@@ -230,24 +241,24 @@ try {
   assert.equal(await fits(), true, 'the teams fit the width');
   await screenshot('match');
   assert.equal(await panel('In totals'), 'Yes');
-  await navigate('/wiki/stats?match=99&lang=en');
+  await navigate('/stats?match=99&lang=en');
   assert.equal(await text('.stats-empty'), 'No public match 99.');
   // A free-for-all: one list by place, its winners named. A match too short: not in the totals.
-  await navigate('/wiki/stats?match=3&lang=en');
+  await navigate('/stats?match=3&lang=en');
   assert.equal(await count('.stats-table'), 1);
   assert.equal(await count('.stats-table tbody tr'), answered.match.players.length);
   assert.deepEqual(await cells('.stats-table tbody td:first-child'), answered.match.players.map((_, i) => String(i + 1)), 'by place');
   assert.equal(await panel('Result'), answered.match.players.filter(row => row.outcome === 'won').map(row => row.player.name).join(', '));
   assert.equal(await panel('Points'), '—');
   await screenshot('match-free-for-all');
-  await navigate('/wiki/stats?match=7&lang=en');
+  await navigate('/stats?match=7&lang=en');
   assert.equal(await panel('In totals'), 'No');
   // One who left a match its team won lost it.
-  await navigate('/wiki/stats?player=Dub&lang=en');
+  await navigate('/stats?player=Dub&lang=en');
   assert.ok((await cells('.stats-paged tbody td:nth-child(6)')).includes('Loss · Left'));
 
   // A clan: its commander first, its matches paged.
-  await navigate('/wiki/stats?clan=skh&lang=en');
+  await navigate('/stats?clan=skh&lang=en');
   assert.equal(await text('#stats-title'), '[SKH] Skhid');
   assert.equal(await count('.stats-table:first-of-type tbody tr'), 3 + 15);
   assert.match(await text('.stats-table tbody tr td'), /Sheep · Commander/);
@@ -256,24 +267,24 @@ try {
   assert.ok((await columns()).includes('Artefacts'), 'the members have theirs');
   await screenshot('clan');
   // RAD's commander has no public match: the clan counts him, lists only who played.
-  await navigate('/wiki/stats?clan=RAD&lang=en');
+  await navigate('/stats?clan=RAD&lang=en');
   assert.equal(await panel('Members'), String(answered.clan.clan.members));
   assert.equal(await count('#stats > .table-scroll tbody tr'), answered.clan.members.length);
   assert.equal(await panel('Commander'), answered.clan.clan.leader ? answered.clan.clan.leader.name : '—');
   assert.deepEqual([answered.clan.clan.members, answered.clan.members.length, answered.clan.clan.leader], [3, 2, null]);
   assert.equal(await panel('Accuracy'), aim(answered.clan.totals));
-  await navigate('/wiki/stats?clan=NONE&lang=en');
+  await navigate('/stats?clan=NONE&lang=en');
   assert.equal(await text('.stats-empty'), 'No clan tagged [NONE].');
 
   // Ukrainian: its longer words fit too.
   for (const path of ['player=Sheep', `match=${newest}`, 'board=players&by=accuracy', 'clan=SKH']) {
-    await navigate(`/wiki/stats?${path}&lang=uk`);
+    await navigate(`/stats?${path}&lang=uk`);
     assert.equal(await fits(), true, `${path} fits the width in Ukrainian`);
   }
 
   // Ukrainian, and a phone's width.
   await send('browsingContext.setViewport', {context, viewport: {width: 390, height: 844}, devicePixelRatio: 1});
-  await navigate('/wiki/stats?player=Sheep&lang=uk');
+  await navigate('/stats?player=Sheep&lang=uk');
   assert.equal(await evaluate('document.documentElement.lang'), 'uk');
   assert.equal(await text('.stats-heading'), 'Улюблене спорядження');
   assert.equal((await cells('.stats-heading'))[1], 'Матчі');
@@ -283,7 +294,7 @@ try {
   assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('player=Sheep'));
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile page fits');
   await screenshot('player-mobile-uk');
-  await navigate(`/wiki/stats?match=${newest}&lang=uk`);
+  await navigate(`/stats?match=${newest}&lang=uk`);
   assert.equal(await count('.stats-kit.stats-under'), 12);
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile match fits');
   await screenshot('match-mobile-uk');

@@ -1,4 +1,4 @@
-// The stats page (servers/web-server/src/wiki.rs): public matches from the
+// The stats page (servers/web-server/src/history.rs): public matches from the
 // match history's JSON (/api/history/..., docs/notes/match_history.md), asked
 // for as the page is viewed. The address says what it shows: ?player=<name>,
 // ?match=<number>, ?clan=<tag>, else the leaderboards (?board=, ?by=).
@@ -19,7 +19,7 @@
       meleeKills: 'Melee kills', batteries: 'Batteries', captures: 'Captures', artefacts: 'Artefacts', members: 'Members', commander: 'Commander',
       overall: 'Overall', inMatches: 'In matches', last30: 'Last 30 days', ended: 'Ended', duration: 'Duration',
       map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
-      win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', inTotals: 'In totals', yes: 'Yes', no: 'No',
+      win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', inTotals: 'In totals', yes: 'Yes', no: 'No', hours: 'Hours played',
       accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
       accuracyNote: '1000+ shots',
       noMatches: 'No public matches yet.', noPlayer: 'No player with public matches named “{}”.', noClan: 'No clan tagged [{}].',
@@ -36,7 +36,7 @@
       meleeKills: 'Врукопаш', batteries: 'Батареї', captures: 'Захоплення', artefacts: 'Артефакти', members: 'Учасники', commander: 'Командир',
       overall: 'Загалом', inMatches: 'У матчах', last30: 'Останні 30 днів', ended: 'Завершено', duration: 'Тривалість',
       map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
-      win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', inTotals: 'У підсумках', yes: 'Так', no: 'Ні',
+      win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', inTotals: 'У підсумках', yes: 'Так', no: 'Ні', hours: 'Годин у грі',
       accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
       accuracyNote: '1000+ пострілів',
       noMatches: 'Публічних матчів ще немає.', noPlayer: 'Гравця з публічними матчами на ім’я «{}» немає.', noClan: 'Клану [{}] немає.',
@@ -58,6 +58,7 @@
   const numbers = new Intl.NumberFormat(lang, {maximumFractionDigits: 2});
   const pair = new Intl.NumberFormat(lang, {minimumFractionDigits: 2, maximumFractionDigits: 2});
   const percent = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 1});
+  const hours = new Intl.NumberFormat(lang, {minimumFractionDigits: 1, maximumFractionDigits: 1});
   // Accuracy in whole percents: shots count pellets and kits, not aimed bullets.
   const whole = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 0});
   const dates = new Intl.DateTimeFormat(lang, {dateStyle: 'medium', timeStyle: 'short'});
@@ -73,7 +74,7 @@
     node.append(...children.flat().filter(child => child !== null && child !== undefined && child !== false));
     return node;
   }
-  const address = params => `/wiki/stats?${new URLSearchParams({...params, lang})}`;
+  const address = params => `/stats?${new URLSearchParams({...params, lang})}`;
   const link = (params, text) => el('a', {href: address(params)}, text);
   const n = value => value === null || value === undefined ? '—' : numbers.format(value);
   const kd = value => value === null || value === undefined ? '—' : pair.format(value);
@@ -102,6 +103,8 @@
     document.getElementById('stats-title').textContent = title;
     document.getElementById('stats-eyebrow').textContent = eyebrow;
     document.getElementById('stats-crumb').textContent = crumb ? ` / ${crumb}` : '';
+    // The way back to the leaderboards, where there is one to go.
+    document.querySelector('.breadcrumb').hidden = !crumb;
     document.title = `${title} · ${document.title.split(' · ').pop()}`;
   }
 
@@ -114,14 +117,22 @@
 
   // A table: columns [label, cell(row), className, sort key, empty()]; rows
   // null while loading (`placeholder` empty rows of the same height: a
-  // column's `empty` gives its empty cell the shape of a full one).
-  function table(columns, rows, placeholder = PAGE, sorted = '') {
+  // column's `empty` gives its empty cell the shape of a full one). With
+  // `open` (a row's address), a click anywhere on a row goes there, but on
+  // a link of its own or while text is selected.
+  function table(columns, rows, placeholder = PAGE, sorted = '', open = null) {
     const body = el('tbody');
     const head = el('thead', {}, el('tr', {}, columns.map(([label, , kind, key]) =>
       el('th', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`, scope: 'col'}, label))));
     const wrap = el('div', {className: 'table-scroll'}, el('table', {className: 'stats-table'}, head, body));
-    wrap.add = list => body.append(...list.map(row => el('tr', {}, columns.map(([, cell, kind, key]) =>
-      el('td', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`}, cell(row))))));
+    wrap.add = list => body.append(...list.map(row => {
+      const line = el('tr', {className: open ? 'stats-open' : ''}, columns.map(([, cell, kind, key]) =>
+        el('td', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`}, cell(row))));
+      if (open) line.addEventListener('click', event => {
+        if (!event.target.closest('a') && !String(getSelection())) location.assign(address(open(row)));
+      });
+      return line;
+    }));
     wrap.blank = count => {
       for (let i = 0; i < count; i++) body.append(el('tr', {}, columns.map(([, , kind, , empty]) => el('td', {className: kind || ''}, empty ? empty() : BLANK))));
     };
@@ -153,7 +164,7 @@
   // A list that grows by `before=` pages: its table and the button under it.
   // `next` follows every full page, so the last one may come back empty:
   // nothing is added and the button goes.
-  function paged(columns, load, empty) {
+  function paged(columns, load, empty, open) {
     const box = el('div', {className: 'stats-paged'});
     const more = el('button', {type: 'button', className: 'quiet', hidden: true}, TEXT.older);
     let next = null, shown = 0, placeholder = table(columns, null);
@@ -168,7 +179,7 @@
         return;
       }
       if (placeholder) {
-        const real = table(columns, []);
+        const real = table(columns, [], PAGE, '', open);
         placeholder.replaceWith(real);
         placeholder = null;
         box.table = real;
@@ -218,6 +229,8 @@
       el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons), list(TEXT.armour, data && data.armour))];
   }
   const matchLink = row => link({match: row.id}, `${row.id}`);
+  // Where a click on a match's row goes.
+  const openMatch = row => ({match: row.id});
   // The two teams' points; a free-for-all has none.
   const points = row => row.winner === 'free_for_all' ? '—' : row.team_points.map(n).join(' : ');
   // Two lines a match: the time under the day, the mode under the map.
@@ -247,7 +260,8 @@
     const v = key => totals ? n(totals[key]) : null;
     return [[TEXT.matches, v('matches')], [TEXT.wins, v('wins')], [TEXT.losses, v('losses')],
       [TEXT.winRate, totals ? (totals.matches ? rate(totals.win_rate) : '—') : null],
-      [TEXT.scoreAvg, totals ? (totals.matches ? n(totals.score_avg) : '—') : null]];
+      [TEXT.scoreAvg, totals ? (totals.matches ? n(totals.score_avg) : '—') : null],
+      [TEXT.hours, totals ? hours.format(totals.played_s / 3600) : null]];
   }
 
   async function playerView(name) {
@@ -272,7 +286,7 @@
       api('player/equipment', {id: card.player.id, limit: FAVOURITES}).catch(() => null)]);
     root.replaceChildren(head(card, days ? days.days : []), ...favourites(equipment || {weapons: [], armour: []}),
       el('h2', {className: 'stats-heading'}, TEXT.matches),
-      paged(columns, before => api('player/matches', {id: card.player.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches));
+      paged(columns, before => api('player/matches', {id: card.player.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
   }
 
   async function matchView(id) {
@@ -329,13 +343,13 @@
     heading(`[${data.clan.tag}] ${data.clan.name}`, TEXT.clan, TEXT.clan);
     root.replaceChildren(head(data), el('h2', {className: 'stats-heading'}, TEXT.members), table(memberColumns, data.members),
       el('h2', {className: 'stats-heading'}, TEXT.matches),
-      paged(matchColumns, before => api('matches', {clan: data.clan.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches));
+      paged(matchColumns, before => api('matches', {clan: data.clan.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
   }
 
   // The search: a plain form, so it works as the address does.
   function finder() {
     const field = (label, name, props = {}) => el('label', {}, label, el('input', {name, autocomplete: 'off', ...props}));
-    const form = el('form', {className: 'catalogue-tools stats-find', action: '/wiki/stats', method: 'get'},
+    const form = el('form', {className: 'catalogue-tools stats-find', action: '/stats', method: 'get'},
       field(TEXT.playerName, 'player', {type: 'search'}), field(TEXT.clanTag, 'clan', {type: 'search'}),
       field(TEXT.matchNumber, 'match', {type: 'number', min: 1}),
       el('input', {type: 'hidden', name: 'lang', value: lang}), el('button', {type: 'submit'}, TEXT.find));
@@ -386,13 +400,13 @@
         button.setAttribute('aria-pressed', String(value === key));
         button.addEventListener('click', () => { key = value; draw(); });
         return button;
-      }), key === 'accuracy' ? el('small', {className: 'stats-note'}, TEXT.accuracyNote) : null);
+      }), ...(key === 'accuracy' ? [el('small', {className: 'stats-note'}, TEXT.accuracyNote)] : []));
       const url = new URL(location.href);
       url.searchParams.set('board', board);
       if (key) url.searchParams.set('by', key); else url.searchParams.delete('by');
       history.replaceState(null, '', url);
       keepLanguage();
-      if (board === 'latest') return body.replaceChildren(paged(latestColumns, before => api('matches', {limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches));
+      if (board === 'latest') return body.replaceChildren(paged(latestColumns, before => api('matches', {limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
       const [path, params, columns, list, size] = {
         players: ['top', {by: key, limit: TOP}, playerColumns, data => data.players, TOP],
         clans: ['clans', {by: key, limit: TOP}, clanColumns, data => data.clans, 20],
@@ -411,7 +425,7 @@
       if (drawing !== shown) return;
       rows.forEach((row, i) => { row.rank = i; });
       body.rows = rows.length || 1;
-      body.replaceChildren(rows.length ? table(ranked(columns), rows, 0, sorted) : notice(TEXT.nobody));
+      body.replaceChildren(rows.length ? table(ranked(columns), rows, 0, sorted, board === 'best' ? row => ({match: row.match}) : null) : notice(TEXT.nobody));
     }
     for (const value of Object.keys(BOARDS)) {
       const button = el('button', {type: 'button'}, TEXT[value]);

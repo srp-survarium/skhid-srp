@@ -1181,7 +1181,6 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/maps",
         "/wiki/skills",
         "/wiki/quests",
-        "/wiki/stats",
     ] {
         for lang in [Lang::En, Lang::Uk] {
             let mut request = get(path);
@@ -1209,7 +1208,6 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         "/wiki/maps",
         "/wiki/skills",
         "/wiki/quests",
-        "/wiki/stats",
     ] {
         assert!(
             index.contains(&format!("<a class=wiki-link href=\"{section}?lang=en\">")),
@@ -1220,6 +1218,32 @@ fn wiki_routes_use_the_sites_navigation_and_language() {
         world.web.route(&get("/wiki/unknown"), "t").status,
         "404 Not Found"
     );
+}
+
+/// The stats are a tab of their own beside the wiki, on every page of the
+/// 0.26g site: a frame for their script, which may ask the site for JSON.
+#[test]
+fn the_stats_page_is_a_tab_of_its_own() {
+    let world = world();
+    for lang in [Lang::En, Lang::Uk] {
+        let mut request = get("/stats");
+        request.lang = lang;
+        let page = world.web.route(&request, "t");
+        assert_eq!(page.status, "200 OK");
+        let code = lang.code();
+        assert!(page.body.contains(&format!("<html lang=\"{code}\">")));
+        assert!(page.body.contains(&format!("href=\"/stats?lang={code}\" aria-current=page")));
+        assert!(!page.body.contains(&format!("href=\"/wiki?lang={code}\" aria-current=page")));
+        assert!(page.body.contains("<div id=stats>"));
+        let script = page.body.split_once("<script src=\"").unwrap().1;
+        let script = script.split_once("?v=").unwrap().0;
+        assert!(crate::history::file(script).is_some_and(|(_, bytes)| !bytes.is_empty()));
+    }
+    for path in ["/", "/wiki", "/wiki/weapons"] {
+        assert!(world.web.route(&get(path), "t").body.contains("href=\"/stats?lang=en\">Stats</a>"), "{path}");
+    }
+    assert!(!world.web.route(&get("/wiki"), "t").body.contains("wiki-link href=\"/stats"));
+    assert!(crate::history::POLICY.contains("connect-src 'self'"));
 }
 
 #[test]
@@ -1284,7 +1308,7 @@ fn serve_wiki_preview() {
     let _ = std::fs::remove_dir_all(&dir);
     let world = world_with(crate::history::tests::preview(&dir, crate::unix_now()));
     let listener = std::net::TcpListener::bind("127.0.0.1:24583").unwrap();
-    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki");
+    eprintln!("Wiki preview: http://127.0.0.1:24583/wiki, stats: http://127.0.0.1:24583/stats");
     for stream in listener.incoming() {
         world.web.serve(stream.unwrap());
     }

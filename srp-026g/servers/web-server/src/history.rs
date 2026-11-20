@@ -1,7 +1,8 @@
-//! The site's stats API, `/api/history/...` (`docs/notes/match_history.md`
-//! has every endpoint and its shape): public matches, players, top lists
-//! and clans from the match history srp keeps
-//! ([`session::v026g::persist::history`]). A request is parsed once into an
+//! The site's stats: their page (`/stats`, a tab of its own beside the wiki:
+//! a frame its script fills when it is viewed) and the API the script asks,
+//! `/api/history/...` (`docs/notes/match_history.md` has every endpoint and
+//! its shape): public matches, players, top lists and clans from the match
+//! history srp keeps ([`session::v026g::persist::history`]). A request is parsed once into an
 //! [`Endpoint`]; every answer is one indexed query of at most
 //! [`MatchHistory::MAX_ROWS`] rows (a clan card's members: up to
 //! `clans::MAX_MEMBERS`; `player/days`: up to `MAX_DAYS` days).
@@ -15,10 +16,55 @@ use session::v026g::persist::history::{
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, MapId};
 
-use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers};
+use crate::{ContentType, Game, Lang, Response, decode, launcher, modifiers, wiki};
 
 /// Where the API is.
 pub(crate) const PREFIX: &str = "/api/history/";
+/// The stats page.
+pub(crate) const PATH: &str = "/stats";
+/// The page's policy: the wiki's (`damage::POLICY`), and its script may ask
+/// the site for the history's JSON.
+pub(crate) const POLICY: &str = "default-src 'none'; style-src 'unsafe-inline'; \
+    script-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'";
+const SCRIPT: &[u8] = include_bytes!("../stats/history.js");
+const SCRIPT_PATH: &str = "/stats/history.js";
+const STYLE: &str = include_str!("../stats/style.css");
+
+/// The page's script's address with its version, so it can be kept for good.
+fn script_url() -> &'static str {
+    static URL: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    URL.get_or_init(|| {
+        let digest: String = openssl::sha::sha256(SCRIPT)[..6]
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        format!("{SCRIPT_PATH}?v={digest}")
+    })
+}
+
+pub(crate) fn file(path: &str) -> Option<(&'static str, &'static [u8])> {
+    (path == SCRIPT_PATH).then_some(("text/javascript; charset=utf-8", SCRIPT))
+}
+
+/// The page's frame under `header`, in the wiki's look. Its script fills it,
+/// as the address says: a player (`?player=<name>`), a match
+/// (`?match=<number>`), a clan (`?clan=<tag>`), else the leaderboards.
+pub(crate) fn page(lang: Lang, header: &str) -> Response {
+    let stats = lang.tr("Stats", "Статистика");
+    let body = format!(
+        "<style>{STYLE}</style>\
+         <p class=breadcrumb><a href=\"{PATH}?lang={code}\">{stats}</a><span id=stats-crumb></span></p>\
+         <div class=wiki-heading><div><p class=eyebrow id=stats-eyebrow>{eyebrow}</p>\
+         <h1 id=stats-title>{stats}</h1></div></div>\
+         <div id=stats><noscript><p class=wiki-intro>{noscript}</p></noscript></div>\
+         <script src=\"{}\"></script>",
+        script_url(),
+        code = lang.code(),
+        eyebrow = lang.tr("Public matches", "Публічні матчі"),
+        noscript = lang.tr("The stats need JavaScript.", "Статистиці потрібен JavaScript."),
+    );
+    wiki::framed(lang, &stats, &lang.tr("Skhid", "Схід"), header, &body)
+}
 
 /// A page's length when the request names none.
 const PAGE: usize = 15;
@@ -586,6 +632,7 @@ fn totals(totals: &Totals) -> Value {
         "kd": kd(totals.kills, totals.deaths),
         "win_rate": per_match(totals.wins, 3),
         "score_avg": per_match(totals.score, 1),
+        "played_s": totals.played_ms / 1000,
     });
     extend(&mut value, counters(&totals.counters));
     value
@@ -649,6 +696,7 @@ fn line_fields(line: &PlayerLine) -> Value {
         "kills": line.kills,
         "deaths": line.deaths,
         "kd": kd(line.kills, line.deaths),
+        "played_s": line.played_ms / 1000,
     });
     extend(&mut value, counters(&line.counters));
     value

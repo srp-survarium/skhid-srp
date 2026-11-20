@@ -167,29 +167,3 @@ differs, faction (`factions_dict`), and the modifiers page's "Can roll" /
 `equipment.js` (copied by `build.py`) filters by slot and faction (both kept
 in the address: `?slot=helmet&faction=3`), level and name, sorts, and groups
 by set (a faction's tier: `<family>_<slot>_<tier>` configs) or slot.
-
-## Stats
-
-`/wiki/stats` is a frame the web server gives (`servers/web-server/src/wiki.rs`,
-its policy lets the script ask the site for JSON) and `history.js` (copied by
-`build.py`) fills from the match history's JSON (`/api/history/...`,
-`docs/notes/match_history.md`) when it is viewed. The address says what it
-shows: `?player=<name>`, `?match=<number>`, `?clan=<tag>`, else the
-leaderboards (`?board=players|clans|best|latest&by=<key>`). Each view is
-drawn once empty in its final shape, then with its data, so nothing moves
-while it loads; match lists grow by "Older matches" (`before=`). The page is
-`aria-busy` while an answer is on its way.
-
-A match line shows the weapons of the kits it used (each kit in full, with the
-kit's own kills and accuracy, on hover). A free-for-all is one list by place.
-
-`check_history.mjs` exercises it in an isolated Firefox, as
-`check_browser.mjs` does, over the site's own endpoints: the preview
-(`serve_wiki_preview`, port 24583) keeps a made-up history
-(`history::tests::preview` in the web server), and the script serves it again
-on port 24584 with each answer 300 ms late. Screenshots go to
-`/tmp/wiki-stats-review`.
-
-```
-node scripts/wiki/check_history.mjs http://127.0.0.1:24583 9457
-```
