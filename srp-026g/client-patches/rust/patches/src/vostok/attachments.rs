@@ -632,14 +632,25 @@ pub fn leave(ctx: &Context<'_>, at: Leaving) {
             Leaving::Hidden => raw::site::attachments_hidden::weapon(ctx),
         };
         let Some(weapon) = weapon else { return };
-        FITTED.with(ctx.thread(), |fitted| {
-            let Some(Fit::Held { parts, .. }) = fitted.find(WeaponId(weapon.address())) else { return };
-            let Some(scene) = weapon.world().and_then(|world| Scene::of_world(world)) else { return };
-            for part in parts.all() {
-                scene.remove(part.model.get());
-            }
-        });
+        let Some(scene) = weapon.world().and_then(|world| Scene::of_world(world)) else { return };
+        out_of_scene(ctx.thread(), weapon, &scene);
     }
+}
+
+/// `weapon`'s parts out of `scene`. Artefact carry's too: it takes a
+/// carrier's gun's models out and skips the gun's draw, which is what keeps
+/// the parts with the gun; the next draw of the gun puts them back.
+///
+/// # Safety
+/// `weapon` is a live client weapon and `scene` its world's.
+pub(super) unsafe fn out_of_scene(thread: &Thread, weapon: raw::Weapon, scene: &Scene) {
+    FITTED.with(thread, |fitted| {
+        let Some(Fit::Held { parts, .. }) = fitted.find(WeaponId(weapon.address())) else { return };
+        for part in parts.all() {
+            // SAFETY: the part's model is held by this place; the scene the caller's.
+            unsafe { scene.remove(part.model.get()) };
+        }
+    });
 }
 
 /// Which of the left hand's locators a record or a finger set is for.
