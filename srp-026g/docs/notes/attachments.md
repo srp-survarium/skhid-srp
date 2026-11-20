@@ -194,7 +194,7 @@ from the rear sight; a rail optic bringing the dovetail rail and not moving when
 forend with a rail of its own; the Victory Day AK-74M taking the AK-74M's fits with its own brake's
 model; the P90's shared carrier and its refused pair; a choke, a grip as a scope and a gun's own
 brake refused. The eye against the engine's two formulas. The format: the checked-in table
-(`tests/sample-v1.srpm`) is what the cases encode to and parses; every prefix and every single
+(`tests/sample-v2.srpm`) is what the cases encode to and parses; every prefix and every single
 changed byte of it is refused or parsed without a panic; nineteen broken rules each refused by name.
 
 ### The table
@@ -204,8 +204,16 @@ feature, which parses what it wrote) and read by the game and the servers (`Tabl
 layout is `table.rs`'s header comment: `SRPM`, a version, fourteen sections of fixed-size records.
 A gun: its dict id, its model's bone count and aim bone, its slots (a bone and an offset each), its
 aimed idle pose for the bones they hang on, its own parts, its carriers (the slot they bring, each
-with the slot it goes in), its fits, and the gun whose fits it takes (a premium or camouflage item's
-base gun). A module: dict id, role, model, alternative and aimed model, its attaches, a grip's hand.
+with the slot it goes in), its fits, the gun whose fits it takes (a premium or camouflage item's
+base gun), and its bare body's model. A module: dict id, role, model, alternative and aimed model,
+its attaches, a grip's hand.
+
+The format's versions (a table of another version is refused whole):
+
+| Version | Change |
+|---|---|
+| 1 | the first layout (`feat/attachments-core`); never built into a pack |
+| 2 | a gun record ends with a text, its bare body's model (34 bytes, was 28) |
 
 Every locator of the table is written for one rule: a model drawn at a frame F has its locator L at
 half turn x L x F, the engine's own rule for a gun's locators (`calculate_locator`). The porter
@@ -215,6 +223,40 @@ point on 0.69d's placement convention lands there, and in `Placement::child` alo
 A weapon's config names what it is and has, four integers under `data`: `srp_gun` (the gun's dict
 id) and `srp_scope`, `srp_muzzle`, `srp_grip` (a fitted module's dict id; absent or 0 for none). The
 guns' rows and the fitted items' modifications that set them are content.
+
+### What the core needs of the content
+
+The content side (the porter's `port-modules` and the remodel, sub-branch `feat/attachments-content`)
+and the client's runtime meet in these, and nowhere else:
+
+1. **The table** at `resources/gameplay/weapon_modules.srpm` in the pack (a file of the game data
+   as it is, asked for as raw data) and in the server game data: `weapon_modules::encode`'s bytes,
+   version 2.
+2. **A gun record for every weapon item** that takes anything, premium and camouflage items too
+   (their own record, `fits-of` their base gun). `bones` is the bone count of the item's model.
+3. **Two bodies a gun.** The weapon config's `object/model` stays the whole body. The table's
+   `bare` text is the bare body's path in the same form (a skeleton model's request path, what
+   `object/model` holds). The bare body has the whole body's skeleton, bone for bone, and its
+   locators (`barrel_point`, `scope_point`, `aim`, the hand and finger locators): the game reads
+   them from whichever body it draws.
+4. **A part's model** (`Module::model`, its alternative shape) is a static model's request path
+   (what a scope item's `idle_model` holds), its origin the frame of the slot it goes in. A scope's
+   idle and aimed models stay in its item's config (`rifle_scope`), one pair an optic, with the same
+   origin; the native scope object draws them.
+5. **Four integers under `data` of the weapon's config** as the weapon cook sees it (after the
+   item's modifications): `srp_gun` on every gun of the table, and `srp_scope`, `srp_muzzle`,
+   `srp_grip` set by the fitted item's modification to its dict id. `addons/rifle_scope_dict_id`
+   stays what names the scope item to the game.
+6. **The shot effect** is content: a device's modification sets `particles/shoot`. The client does
+   not read the table's effect.
+7. **First, one gun**: a table and a quick pack with the AK-74M alone (its bare body, its own
+   brake, forend and sights as parts, one brake, one flash hider, one grip with its tactical
+   forend, one scope with its rail), to run the core in a game before the rest is built.
+
+What the client does with them: `resolve` at the weapon cook (once for the requests, once after the
+model is loaded); the bare body asked for in place of `object/model`; each part's model asked for
+in the cook's own query and drawn at its placement; the barrel, scope and aim records and the left
+hand written.
 
 ### The client's runtime (patch 161, `rust/patches/src/attachments.rs`)
 

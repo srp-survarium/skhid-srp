@@ -6,8 +6,9 @@
 //! "SRPM"  u16 version  14 x u32 count   then the sections, in this order,
 //! each `count` records of a fixed size (little-endian):
 //!
-//! guns       28  dict u16, bones u16, aim bone u16, fits-of gun u16,
-//!                spans: slots, poses, stock, carriers, fits
+//! guns       34  dict u16, bones u16, aim bone u16, fits-of gun u16,
+//!                spans: slots, poses, stock, carriers, fits,
+//!                text: the bare body's model
 //! gun slots  51  slot u8, bone u16, offset 12 x f32
 //! poses      50  bone u16, the bone's matrix in the gun's aimed idle pose
 //! stock       3  slot u8, module u16
@@ -39,7 +40,8 @@ use crate::slot::SlotId;
 use crate::{BoneIndex, DictId, Kind, Point, Role, resolve};
 
 pub const MAGIC: [u8; 4] = *b"SRPM";
-pub const VERSION: u16 = 1;
+/// 2: a gun names its bare body's model.
+pub const VERSION: u16 = 2;
 /// A gun's own parts that are modules, at most.
 pub const MAX_STOCK: usize = 8;
 /// The carriers one fit brings, at most (a suppressor's clamp is one; no
@@ -48,7 +50,7 @@ pub const MAX_CHAIN: usize = 3;
 /// A grip's hand locators: fifteen fingers, then the hand.
 pub const HAND_LOCATORS: usize = 16;
 
-pub(crate) const GUN: usize = 28;
+pub(crate) const GUN: usize = 34;
 pub(crate) const GUN_SLOT: usize = 51;
 pub(crate) const POSE: usize = 50;
 pub(crate) const STOCK: usize = 3;
@@ -79,7 +81,7 @@ pub enum Malformed {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GunFault {
     /// The record itself: a dict id of 0, no bones, an aim bone or a base
-    /// gun that is not there, a span outside its section.
+    /// gun that is not there, a span outside its section, no bare body.
     Record,
     /// Two guns of one dict id.
     DictTwice,
@@ -292,6 +294,7 @@ impl<'a> Table<'a> {
             stock: self.stock.span(r.span()?)?,
             carriers: self.carriers.span(r.span()?)?,
             fits: self.fits.span(r.span()?)?,
+            bare: self.text(r.text()?)??,
         };
         (aim_bone < bones && usize::from(fits_of) < self.guns.len()).then_some(gun)
     }
@@ -517,6 +520,7 @@ pub struct Gun<'t> {
     stock: Section<'t, STOCK>,
     carriers: Section<'t, CARRIER>,
     fits: Section<'t, FIT>,
+    bare: &'t CStr,
 }
 
 impl<'t> Gun<'t> {
@@ -529,6 +533,13 @@ impl<'t> Gun<'t> {
     /// below it.
     pub fn bones(&self) -> u16 {
         self.bones
+    }
+
+    /// Its bare body's model, drawn with the parts once anything is fitted
+    /// (a skeleton model on the bones of the gun's own, [`Gun::bones`] of
+    /// them): the gun without the parts a module can displace.
+    pub fn bare(&self) -> &'t CStr {
+        self.bare
     }
 
     /// The bone its model's own `aim` locator hangs on.
