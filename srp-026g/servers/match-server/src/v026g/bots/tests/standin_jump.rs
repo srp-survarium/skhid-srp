@@ -388,6 +388,25 @@ pub(crate) fn walk_off_stats() -> Vec<u64> {
     WALK_OFFS.iter().map(|c| c.load(std::sync::atomic::Ordering::Relaxed)).collect()
 }
 
+/// [stand-in fidelity] The stand-in's falls that came down on the client's walker ground where the grid had no floor of that height
+/// under the body ([`fly`]): how many, and the metres the ground stood over the grid's floor there in all (hundredths; the grid's
+/// floor under, or the fall's height where it had none).
+pub(crate) mod walker_landings {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    static COUNTS: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    pub(crate) fn landed(over_m: f32) {
+        COUNTS[0].fetch_add(1, Relaxed);
+        COUNTS[1].fetch_add((over_m.max(0.0) * 100.0) as u64, Relaxed);
+    }
+
+    /// (landings, metres over the grid's floor in hundredths) so far.
+    pub(crate) fn counts() -> [u64; 2] {
+        std::array::from_fn(|i| COUNTS[i].load(Relaxed))
+    }
+}
+
 /// A walk off an edge starts its fall ([`stand_in_walk_off`]).
 pub(crate) fn walk_off_started() {
     WALK_OFFS[0].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -1065,6 +1084,32 @@ pub(crate) fn fly(
             air_move(walls, grid.body().radius, body.feet, to, y)
         };
         let at = Vec3::new(x, body.feet.y, z);
+        // [stand-in fidelity] The client's fall comes down on its walker's ground (`step_down` 0x7E1B0 on the walker mesh), not on
+        // the grid's floors only: a falling body whose fall this tick reaches the walker's walkable ground under it stands there,
+        // where the grid may have no floor of that height (the suite's S007/1: off a rail's top at 22.1 m the stand-in fell on
+        // through the walker's ground at 21.49 m under (-32.47, -7.51), the grid having none there, and on 5 m down; the walker's
+        // ground per the capture's collision world, `ground_probe_v1.py`).
+        // Only where the grid's floors would not have it down this tick: the stand-in's landings on them stay as they were.
+        let grid_down = air_floor(grid, at, body.feet.y + 0.05).is_some_and(|(_, feet)| feet.y >= y);
+        if !grid_down
+            && let Some(ground) = grid.walker_ground_below(at, body.feet.y + 0.05, body.feet.y + 0.05 - y)
+            && ground >= y
+        {
+            let feet = Vec3::new(x, ground, z);
+            let floor = air_floor(grid, at, ground + 0.05);
+            walker_landings::landed(ground - floor.map_or(y, |(_, f)| f.y));
+            if controller_jumps::log() {
+                eprintln!(
+                    "stand-in fall: came down on the walker's ground at ({:.2}, {:.2}, {:.2}), {:.2} m over the grid's floor under it",
+                    feet.x,
+                    feet.y,
+                    feet.z,
+                    floor.map_or(f32::NAN, |(_, f)| ground - f.y)
+                );
+            }
+            let n = floor.map(|(n, _)| n).or_else(|| grid.locate(feet, 1.5)).unwrap_or(node);
+            return landed(body, &f, n, feet, Some(v));
+        }
         match air_floor(grid, at, body.feet.y + 0.05) {
             Some((n, feet)) if feet.y >= y => {
                 if f.carry != [0.0, 0.0] {
