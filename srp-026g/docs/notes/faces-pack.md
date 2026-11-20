@@ -1,12 +1,11 @@
 # The faces pack (face choice: the content)
 
 The content half of the face choice: the faces players choose from, how they sit
-under the game's helmets, masks and collars, the picker's icons and the list the
-game reads. The plumbing (the account's face, the exe's cook, the lobby picker) is
-its own work (`face-choice.md`); this note is what the pack gives it and what the
-cook reads of it. The port is resource-porter's `faces_026`,
-`face_shape` and `face_fit` (branch `feat/faces-pack`, `docs/faces-026.md` there);
-the pack is `faces@5`.
+under the game's helmets, masks and collars, and the list the game reads. The
+plumbing (the account's face, the exe's cook, the lobby picker) is its own work
+(`face-choice.md`); this note is what the pack gives it and what the cook reads of
+it. The port is resource-porter's `faces_026`, `face_shape` and `face_fit` (branch
+`feat/faces-pack`, `docs/faces-026.md` there); the pack is `faces@6`.
 
 ## What the game reads
 
@@ -17,17 +16,16 @@ with the cook and the server):
 heads[i].data         {base_model, part_name, additional_models}   the bare face, its hair or scalp an additional model
 heads[i].data_helmet  {base_model, part_name, additional_models}   worn under a helmet without a mask
 heads[i].data_mask    {base_model, part_name, additional_models}   worn under a mask (a helmet over it or not)
-heads[i].icon         [row, col]                                   the picker's icon, LobbyMenu_EquipmentIcons
 ```
 
 - A missing `data_helmet` or `data_mask` is the bare face, as in 0.69d0.
 - `heads[0]` is today's head (`character/human/base/base_character_head`,
   `black_market_01_head_s`). `body_parts.head` is unchanged.
-- `heads[i].icon` is an addition to the spec's format: cell `[i + 1, 16]`
-  of the equipment atlas (column 16: free in what players have on 2026-11-18:
-  `vostok-port pack check` passes over the stock db and patches 12 .. 64, and no
-  other pack of `release/content.tsv` whose folder is at hand draws into it; the
-  pack's compose stops on a taken cell).
+- No icon: the lobby's faces' window shows the movie's own portraits of the faces
+  (`face-choice.md`, Lobby). `faces@1` to `@5` named a cell of the equipment atlas,
+  `heads[i].icon` = `[i + 1, 16]`, and drew a 171x83 render into it, which the window
+  showed three times its size on a 2560x1440 screen (the owner, 2026-11-20: "face
+  preprenders are low quality"); `faces@6` draws none and names none.
 - The server reads the count of `heads` from its game data.
 
 | i | face | from |
@@ -329,7 +327,7 @@ What is checked, and how:
 - **By the build** (every time): each face's vertices that follow the Head against the donor's, bit
   for bit; the gate over every worn set and pose; the bundle's models (`validate_overlay_on`).
 - **By `vostok-port pack check`**: the pack with the packs it requires.
-- **By `tools/check build-content`**: the manifest with `faces@4` composes over what players have.
+- **By `tools/check build-content`**: the manifest with `faces@6` composes over what players have.
 - **In the game** (the lobby captures above): the ten faces bare and under the masks above, over
   `scavenger_torso_1`, standing straight; the masks' models for faces drawn by patch 123.
   Not in the game: a match, the idles, other torsos, the helmets (not changed).
@@ -337,9 +335,9 @@ What is checked, and how:
 
 ## Release
 
-- One `pack` row in `release/content.tsv`, `faces@4`, built as resource-porter's
+- One `pack` row in `release/content.tsv`, `faces@6`, built as resource-porter's
   `docs/faces-026.md` says over the stock db and the patches of `release/patches.tsv` (12 .. 65
-  on 2026-11-19). The release PC keeps it in `$SKHID_PACKS_DIR/faces-4`.
+  on 2026-11-20). The release PC keeps it in `$SKHID_PACKS_DIR/faces-6`.
 - It ships with the server and the exe of the face choice (patch 123 with its `data_head_<face>`
   lookup), the server first (the spec). Players' clients without the exe's cook ignore `heads`
   and `data_head_<i>` and draw today's head and the game's items.
