@@ -145,7 +145,7 @@ marked [pick] is a worker's choice the owner may change.
   `SrpFace<i>`), as the lobby window's cards are the movie's pictures of the lobbies: the lobby's
   own character with that face in the Basement, bare (`scavenger_torso_1`), a three-quarter view
   (the camera 20 degrees to his left, level, 2 m, 17.7 degrees of view), a crop of a 2560x1440
-  game capture (`private/local-clients-faces-capture`, 2.7 capture pixels a picture pixel) at
+  game capture (`private/local-clients-faces-capture`, 2.6 capture pixels a picture pixel) at
   twice the card's size, 280x360: a 3840x2160 screen draws the card at that size. It is shown at
   its own pixels, scaled to the card and smoothed (`RoomsLook.card`; the lobby window's pictures
   too), never copied to a card-sized bitmap first. A face without a picture: its number. The
