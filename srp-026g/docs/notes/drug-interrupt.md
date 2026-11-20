@@ -5,8 +5,10 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
 
 - **A drug** is an item the game makes a `survarium::medkit` (its vtable 0xA1C79C), wherever its
   options file lies: the medkit (use 2 s, active 3 s), bandages (1 s, 1 s), antitoxin (1 s,
-  10 s), painkiller (1 s, 10 s). One heals when its `data/influences` names a pool (count above
-  0); the patch checks those two, never a folder. After the press it is in its use time
+  15 s), painkiller (1 s, 10 s). One heals when its `data/influences` names a pool (count above
+  0); it is an antitoxin when, of those records, the ones that heal (an amount above 0) heal the
+  `infection` pool and nothing else (`vostok::drug::Effect`); the patch checks those, never a
+  folder. After the press it is in its use time
   (`activation_delay_sec`, nothing yet), then its active time (`activity_time_sec`, healing each
   tick).
 - **Hit in the use time:** the healing never starts. Hand and leg injuries stay (they go at the
@@ -24,10 +26,20 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
   health is a hit. A player's own bullets do not hit him: a bullet never hits its
   `m_ignorable_object`, a player (try_pierce 0x32D9DD), LIKELY its shooter. The suicide key's
   hit is ranged too, and kills.
-- **Only a drug that heals.** The painkiller heals nothing (its only effect, for its 10 s, is 10 %
+- **Only a drug that heals the body.** The painkiller heals nothing (its only effect, for its 10 s, is 10 %
   less pain from bullets and traps), so a bullet does not stop it (the owner, 2026-10-31: the painkiller is
-  not stopped). The antitoxin heals the infection pool:
-  stopped, and its toxic protection ends with it.
+  not stopped).
+- **Not the antitoxin** (the owner, 2026-11-20, playing revision 68: "antitoxin shouldn't stop when
+  you are hit", "it should last 15 seconds"). Until then a bullet stopped it as any drug that heals:
+  set_active(0) cleared its use flag (+2B0h), and with that one flag went its infection cure, its
+  toxic protection and what the medical tree gives "while an antitoxin is active" (Sharp Eye,
+  Concentration: `medical::Player::antitoxin` reads the same flag). Stock 0.26g never stops a drug
+  at a hit (set_active's three callers: the press 0x33D736, the tick for a dead holder 0x33D7C3
+  and for a spent active time 0x33DA3E), and no config field asks for it: it was this patch alone.
+  Now a bullet leaves an antitoxin in use, in its use time and its active time, so it lasts its
+  whole 15 s (`medicines.tsv`: `data/activity_time_sec` 10 -> 15; its total, 50 % of the infection
+  pool, as before, so a third slower) unless its holder dies. The science medkit heals the body and
+  the infection pool: a medkit, stopped.
 - **Every drug in use** of the hit player is stopped (a medkit and bandages both, if both run).
 - **Red for a second** (the owner, 2026-10-31: "it can show red for a second"): the hit player's
   quick slot of a stopped drug shows its icon red for one second of game time, then as the game
@@ -48,7 +60,8 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
 - Hit type 0 (`ranged`, `survarium::hit_type` 0x304370: ranged, blunt, slash, explosive, toxic,
   radiation, fire, shock) only.
 - Each of the victim's 23 inventory slots holding a drug (vtable 0xA1C79C) in use (+2B0h) with
-  influences (+288h, the pools it heals) gets `medkit::set_active(0, drug, the hit's time)`
+  influences (+288h, the pools it heals; +280h the records, which say an antitoxin, left alone)
+  gets `medkit::set_active(0, drug, the hit's time)`
   (0x33D390, `engine_medkit_set_active`): the game's own end of a drug, the one medkit::tick
   calls when the active time is spent or the holder died. It clears the use, unlinks the drug
   from the world's tick list, ends its drug_activity modifier only if the active time began, tells
@@ -58,8 +71,9 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
   use flag again under it: two bullets of two tasks that hit one holder in one tick stop the drug
   once (set_active(0) twice would unlink its tick and drug_activity nodes again).
 - Check: `client-patches/check_drug_interrupt_026g.py` (Unicorn: the hook in the patched exe,
-  the game's own set_active(0) in the use time, the active time and between them, and two
-  bullet tasks on one holder: set_active once).
+  an antitoxin left in use in its use time and its active time beside a medkit and a science
+  medkit stopped, the game's own set_active(0) in the use time, the active time and between
+  them, and two bullet tasks on one holder: set_active once).
 
 ## The red second (display only)
 
