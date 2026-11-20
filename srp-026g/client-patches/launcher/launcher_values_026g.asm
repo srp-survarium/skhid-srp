@@ -1404,6 +1404,7 @@ VIEWS                   equ 6
 RELAY_LANGUAGES         equ 5
 SW_HIDE                 equ 0
 SW_SHOWNA               equ 8
+TTM_ACTIVATE            equ 0x401
 TTM_SETDELAYTIME        equ 0x403
 TTM_SETMAXTIPWIDTH      equ 0x418
 TTM_ADDTOOLW            equ 0x432
@@ -1456,7 +1457,9 @@ relay_made:
 ; here. A menu of the three, auto, on and off, the chosen one checked, under
 ; the button, as the language's (`pick_language`); a pick is 22h, 23h or 24h
 ; to the updater, which answers with the new view. Nothing while the row is
-; hidden or no updater is connected.
+; hidden or no updater is connected. The tooltip is off while the menu is
+; open: the pointer rests on the button, and the tooltip came up over the
+; menu (seen in the launcher, 2026-11-20).
 RELAY_CREATE            equ 0           ; locals: CreatePopupMenu
 RELAY_APPEND            equ 4           ; AppendMenuW
 RELAY_TRACK             equ 8           ; TrackPopupMenu
@@ -1529,6 +1532,8 @@ relay_click:
         inc     esi
         cmp     esi, RELAY_ROWS
         jb      .row
+        xor     ecx, ecx
+        call    relay_tip_active
         lea     eax, [esp + RELAY_BUTTON]
         push    eax
         push    dword [ebp + FORM_RELAY_BOX + 4]
@@ -1544,6 +1549,8 @@ relay_click:
         mov     esi, eax                ; 0, or the row + 1
         push    dword [esp + RELAY_MENU]
         call    [esp + 4 + RELAY_DESTROY]
+        mov     ecx, 1
+        call    relay_tip_active
         test    esi, esi
         jz      .done
         add     esi, ROUTE_CHOSEN - 1
@@ -1553,6 +1560,25 @@ relay_click:
 .done:  add     esp, RELAY_LOCALS
         popad
         ret
+
+; ecx = 1 or 0: the row's tooltip, if it is made, on or off (TTM_ACTIVATE;
+; off hides it at once). ebx = DELTA; eax, ecx, edx changed.
+relay_tip_active:
+        push    ecx
+        lea     edx, [ebx + send_name]
+        call    user32_proc
+        pop     ecx
+        test    eax, eax
+        jz      .done
+        mov     edx, [ebx + RELAY_TIP]
+        test    edx, edx
+        jz      .done
+        push    0
+        push    ecx
+        push    TTM_ACTIVATE
+        push    edx
+        call    eax                     ; SendMessageW
+.done:  ret
 
 ; In place of load_string's call for the status line of the launcher's
 ; states 6 and 7 (refresh_status 0x1687C; cdecl: the id, the buffer, its

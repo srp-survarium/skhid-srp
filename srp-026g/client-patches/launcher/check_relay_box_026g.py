@@ -31,8 +31,9 @@ Checks:
 - a click (the button's window procedure, WM_LBUTTONDOWN): a menu of the
   three in the launcher's language, the chosen one checked (auto for 1..4),
   under the button; a pick is 22h, 23h or 24h to the updater
-  (send_simple_message), no pick nothing; no menu while no updater is
-  connected or no view came;
+  (send_simple_message), no pick nothing; the tooltip off (TTM_ACTIVATE)
+  while the menu is open; no menu while no updater is connected or no view
+  came;
 - the status line of the launcher's states 6 and 7 (refresh_status's
   load_string call, 0x1687C to 0x16881): "Server maintenance..." (0B2h)
   while the updater counts the seconds to its next try (message 13h's byte,
@@ -317,6 +318,10 @@ def check(data, delta):
         menus = [e for e in one.log if e[0] == 'menu']
         sent = [e for e in one.log if e[0] == 'pipe']
         if connected == 3 and view:
+            # The tooltip is off while the menu is open, on again after.
+            tip = one.word(TIP + delta)
+            around = [e for e in one.log if e[0] == 'menu' or e[:3] == ('send', tip, 0x401)]
+            assert [e[3] if e[0] == 'send' else 'menu' for e in around] == [0, 'menu', 1], around
             chosen = {5: 1, 6: 2}.get(view, 0)
             rows = [(8 if row == chosen else 0, row + 1, text) for row, text in enumerate(ROWS[BY_INDEX[index]])]
             assert menus == [('menu', rows)], menus
