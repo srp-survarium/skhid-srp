@@ -3812,7 +3812,7 @@ pub(super) mod tests {
     /// [press forecast] [`press_forecast`] plays the reckoning's own steps ([`Role::Press`]): for every press of the gap (0-19
     /// ground ticks of forward before it), where it ends is, to the bit, where the reckoning ([`Role::Reckoning`]) puts the body
     /// playing the same ticks (the ground ticks, the press, forward through the flight, the stay steps with the keys let go); a
-    /// flight that ended in the air is followed down by its controller, no landing and not over the reckoning's floor. Its steps are on
+    /// flight that ended in the air is followed down by its controller, not over the reckoning's floor (a landing only on it). Its steps are on
     /// its own clock ([`kept_clock::Of::Press`]).
     #[test]
     fn a_press_forecast_is_the_reckonings_own_steps() {
@@ -3836,7 +3836,7 @@ pub(super) mod tests {
                 n += 1;
             }
             // A flight that ended in the air: the forecast follows its controller down ([`PRESS_FALL_STEPS`]), the reckoning falls by
-            // its own rule onto the grid's floor; the forecast's end is no landing and not over that floor.
+            // its own rule onto the grid's floor; the forecast's end is not over that floor, and a landing only on it.
             let fell_on = matches!(r.fall, Fall::Falling { .. });
             if r.arc.is_none() {
                 for _ in 0..mapdata::controller::jump::STAY_STEPS {
@@ -3845,9 +3845,12 @@ pub(super) mod tests {
             }
             if fell_on {
                 fell += 1;
-                assert!(!matches!(outcome, PressOutcome::Lands { .. }), "press {press_in}: fell on, no landing ({outcome:?})");
-                // Not over the reckoning's floor: on it, or (no walker ground under it, the fixture's pit) still falling.
+                // Not over the reckoning's floor: on it, or (no walker ground under it, the fixture's pit) still falling; a landing
+                // only where the reckoning came down on the same floor.
                 assert!(end.y < r.feet.y + 0.05, "press {press_in}: not over the reckoning's floor ({outcome:?}, {:?})", r.feet);
+                if matches!(outcome, PressOutcome::Lands { .. }) {
+                    assert!((end.y - r.feet.y).abs() < 0.05, "press {press_in}: a landing on the reckoning's floor ({outcome:?}, {:?})", r.feet);
+                }
             } else {
                 assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
             }
