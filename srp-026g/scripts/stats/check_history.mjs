@@ -174,6 +174,16 @@ try {
   assert.deepEqual(await cells('.stats-board .stats-table tbody td:first-child'), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
   assert.ok((await kills()).every((v, i, a) => !i || a[i - 1] >= v), 'the order goes on');
   await screenshot('boards-players-more');
+  // A sort keeps the pages open: the ten, by rating now.
+  await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Rating').click()");
+  await settled();
+  assert.equal(await count('.stats-board .stats-table tbody tr'), 10, 'as many players as before the sort');
+  assert.deepEqual(await cells('.stats-board .stats-table tbody td:first-child'), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-board .stats-table tbody tr')].map(r => Number(r.children[2].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'by rating over both pages');
+  assert.equal(await text('.stats-board > button'), 'More players');
+  await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Kills').click()");
+  await settled();
+  assert.equal(await count('.stats-board .stats-table tbody tr'), 10);
   await evaluate("document.querySelector('.stats-board > button').click()");
   await settled();
   assert.equal(answered.top.after, 10);

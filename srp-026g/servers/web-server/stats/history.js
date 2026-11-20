@@ -567,6 +567,9 @@
     let key = BOARDS[board].includes(asked('by')) ? asked('by') : BOARDS[board][0];
     // Smallest first: a second click on the sorted heading, and back.
     let up = asked('order') === 'asc' && (board === 'players' || board === 'clans');
+    // How many pages of the players are open ("More players"): a sort
+    // shows as many again, another board starts over.
+    let pages = 1;
     const tabs = el('div', {className: 'slot-filter', role: 'group', ariaLabel: TEXT.stats});
     const keys = el('div', {className: 'slot-filter stats-keys', role: 'group'});
     const note = el('small', {className: 'stats-note'});
@@ -618,11 +621,15 @@
       }[board];
       const sorted = board === 'best' ? '' : key;
       const sort = board === 'best' ? null : {up, ask: value => { up = value === key && !up; key = value; draw(); }};
-      body.replaceChildren(table(ranked(columns), null, Math.min(size, body.rows || size), sorted, null, sort));
-      let rows, data;
+      body.replaceChildren(table(ranked(columns), null, pages > 1 ? body.rows : Math.min(size, body.rows || size), sorted, null, sort));
+      const rows = [];
+      let data;
       try {
-        data = await api(path, params);
-        rows = data ? list(data) : [];
+        for (let page = 0; page < pages; page++) {
+          data = await api(path, page ? {...params, after: rows.length} : params);
+          rows.push(...(data ? list(data) : []));
+          if (drawing !== shown || !data || !data.more) break;
+        }
       } catch (error) {
         if (drawing === shown) body.replaceChildren(notice(String(error)));
         return;
@@ -646,10 +653,12 @@
           return more.replaceWith(notice(String(error)));
         }
         if (drawing !== shown) return;
+        pages += 1;
         const added = next ? next.players : [];
         added.forEach((row, i) => { row.rank = rows.length + i; });
         rows.push(...added);
         drawn.add(added);
+        body.rows = rows.length;
         if (next && next.more) more.disabled = false; else more.remove();
       });
       body.append(more);
@@ -657,7 +666,7 @@
     for (const value of Object.keys(BOARDS)) {
       const button = el('button', {type: 'button'}, TEXT[value]);
       button.dataset.board = value;
-      button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; up = false; draw(); });
+      button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; up = false; pages = 1; draw(); });
       tabs.append(button);
     }
     tabs.append(note);
