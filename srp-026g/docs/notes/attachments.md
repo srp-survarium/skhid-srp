@@ -418,11 +418,19 @@ Done, 2026-11-20:
   `tests/sample-v2.loadouts.tsv` by the crate's test. Its objects are made up and its table is the
   crate's sample: it proves the patch's own code beside the game's, not the content.
 
+- **One game has run it, in the lobby** (a headless client, the content side's AK-74M quick pack and
+  a local edit that sets `data/srp_gun` 3 and `data/srp_muzzle` 2635): the game's log has the
+  table's line ("the modules table, bytes 24803") and none of a part not asked for, not loaded or
+  a model with fewer bones, and the lobby's character holds the AK-74M as its bare body with the
+  stock forend and the Zenit DTK-3 drawn on it, the device's shape the content side's own render
+  of that fit. The table was there for that weapon's cook, the first of the run.
+
 Not done:
 
-1. **No game has run it**, and no real table or model has met it.
-2. The order "the table before any weapon" is LIKELY until a game's log shows the table's line
-   before the first weapon's cook.
+1. **Seen in one view only.** No picture yet with nothing fitted beside it, and none of the first
+   view (idle, aimed) or the third: the test session did not get into a match (its Play button
+   never took the click; not understood yet, and nothing in the game's log names this patch).
+2. The order "the table before any weapon" held in that one run; it stays LIKELY as a rule.
 3. **A dropped gun and a dead body's gun.** `weapon::draw` is one path for the first view, the
    third view and the lobby (stage 0), and artefact carry takes a gun's parts out with the gun.
    srp's own lying guns are drawn by `vostok::pickup::place_lying`, which places the body in its
