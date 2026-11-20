@@ -629,8 +629,8 @@ fn press_onto(
 /// across the way (the link's own press, and [slow walk press] a sprint link's walking press alike). A standing press needs the body brought to rest inside its window before the press, which the neighbourhood does not
 /// price: the client lets a body go on for a step and the stop blend after its keys are let go (0.61 m at the walk,
 /// `docs/notes/walk_blend.md`), so on a narrow top it slides off or out of the window, and at the final build's loop spots
-/// bodies waited at the press point and never pressed (`LOOPS.md` cause 1). Players climb these links on the move: 3 of 3
-/// human crossings with a press had move keys held through the press (routes, crossings_v2: the recordings' humans only).
+/// bodies waited at the press point and never pressed (`LOOPS.md` cause 1). Players climb these links on the move: 16 of 17
+/// live crossings with a press had move keys held through the press.
 fn best_scored(scored: &[(Kind, f32, u8, u16)], of: impl Fn(Kind) -> bool) -> Option<(Kind, f32, u8, u16)> {
     let priced = |bits: u16| gap::Mask::of_bits(bits).map_or(0, gap::Mask::priced);
     let wide = |bits: u16| gap::Mask::of_bits(bits).is_some_and(|m| m.count() > 0 && !m.knife_edge());
