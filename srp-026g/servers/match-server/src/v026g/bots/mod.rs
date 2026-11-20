@@ -2646,15 +2646,19 @@ impl Bots {
         // time a step took.
         let (steps, ns) = body::kept_clock::take(body::kept_clock::Of::Reckoning);
         let (forecast_steps, forecast_ns) = body::kept_clock::take(body::kept_clock::Of::Forecast);
+        // [press forecast] Its ground chains and flights (`body::press_forecast`), last on the line so the parts before keep their place.
+        let (press_steps, press_ns) = body::kept_clock::take(body::kept_clock::Of::Press);
         let (left, ground, held) = body::kept_edges::take();
         lines.push(format!(
-            "{}kept controller steps since the last match end (every match on this server): the reckoning's {steps}, {} ns a step, {:.1} ms in all; the lip guard forecast's {forecast_steps}, {} ns a step, {:.1} ms in all; the reckoning's off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}",
+            "{}kept controller steps since the last match end (every match on this server): the reckoning's {steps}, {} ns a step, {:.1} ms in all; the lip guard forecast's {forecast_steps}, {} ns a step, {:.1} ms in all; the reckoning's off the ground {}: left the floor {left}, the walker's ground under the feet {ground}, no floor under them {held}; the press forecast's {press_steps}, {} ns a step, {:.1} ms in all",
             nav_log::PREFIX,
             ns.checked_div(steps).unwrap_or(0),
             ns as f64 / 1e6,
             forecast_ns.checked_div(forecast_steps).unwrap_or(0),
             forecast_ns as f64 / 1e6,
-            left + ground + held
+            left + ground + held,
+            press_ns.checked_div(press_steps).unwrap_or(0),
+            press_ns as f64 / 1e6
         ));
         // [A388 step 3] The reckoning's jump presses by what flew them, and how the client's flights ended.
         let [short, sprint, not_forward, landed, falling] = body::flown_jumps::take();
