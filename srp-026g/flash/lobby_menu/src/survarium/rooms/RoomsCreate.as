@@ -563,19 +563,17 @@ package survarium.rooms
 
         private function onCreate(e:Event):void
         {
-            // One at a time: its PIN, pool and create are still on their way.
-            if (win._steps.length > 0)
+            // One at a time: a join's PIN and join are still on their way, or
+            // this create (the button greyed until its answer).
+            if (win._steps.length > 0 || win._busyAt != 0)
                 return;
-            win.busy(e);
             var typedPin:String = _makePin != null ? _makePin.text : "";
-            if (typedPin.length != RoomsWire.PIN_DIGITS)
+            if (!/^[0-9]{4}$/.test(typedPin))
             {
                 win.pinRefused();
                 return;
             }
             win._code = RoomCode.NONE;
-            win._steps = [];
-            // The pool in pieces of BITS_PER_CHUNK entries, each in by its bit.
             var picked:Array = [];
             for (var i:int = 0; i < win._pool.length; i++)
             {
@@ -583,21 +581,19 @@ package survarium.rooms
                 if (chosen(p))
                     picked.push(p.index);
             }
-            var any:Boolean = picked.length > 0;
-            win._steps = RoomsWire.poolSteps(picked, win._pool.length);
-            win._steps.push(_bots ? RoomsWire.CREATE_BOTS : RoomsWire.CREATE + RoomsWire.CREATE_PIN);
-            win._steps.unshift(RoomsWire.PIN + int(typedPin));
-            if (!any)
+            if (picked.length == 0)
             {
-                win._steps = [];
                 win.render();
                 return;
             }
+            win.busy(e);
             // The server keeps no settings of a room with bots (its pool is
             // the bots' maps only): the window's start stays as it was.
             _making = _bots ? null : kept(typedPin);
             win._fastUntil = getTimer() + 5000;
-            win.next();
+            // One request with all of it, answered with the state; given up
+            // after 6 s with no answer (RoomsWindow.onTimer, `_busyAt`).
+            RoomsWire.sendCreate(RoomsWire.createText(typedPin, _bots, picked));
         }
     }
 }

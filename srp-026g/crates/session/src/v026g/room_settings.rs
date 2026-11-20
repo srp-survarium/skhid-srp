@@ -206,7 +206,6 @@ fn nearest_wait(wait: u8) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use survarium::v026g::lobby::rooms::{ROOM_CREATE_BASE, RoomSpec, create_start};
 
     fn entry(map_id: u16, level: u8, weather: u8, mode: u8, extra: bool) -> PoolEntry {
         PoolEntry {
@@ -399,7 +398,8 @@ mod tests {
     /// player's form is them), so nothing changes when the form is in. It
     /// asks for the form as the lobby comes up (`RoomsWindow`), not as the
     /// window opens (the owner's of 2026-10-25: no settings applied after
-    /// the window is drawn). Its one create code is the defaults' with a PIN.
+    /// the window is drawn). Its create is one request, which keeps the defaults (no settings of
+    /// its own in a private room's window).
     #[test]
     fn the_movie_opens_with_the_same_defaults_and_has_the_form_before() {
         let create =
@@ -428,17 +428,11 @@ mod tests {
         // The window asks; New room never does.
         assert!(window.contains("ask(RoomsWire.SETTINGS, 1);"));
         assert!(!create.contains("RoomsWire.SETTINGS"));
-        let wire = include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsWire.as");
-        let d = rules().default;
-        let pin = RoomSpec {
-            size: d.size,
-            max_level: d.max_level,
-            wait: d.wait,
-            pin: true,
-            min_side: d.min_side,
-        };
-        let code = create_start(pin) - ROOM_CREATE_BASE;
-        assert!(wire.contains(&format!("const CREATE_PIN:int = {code};")), "{code}");
+        let on_create = function(create, "private function onCreate(");
+        assert!(
+            on_create.contains("RoomsWire.sendCreate(RoomsWire.createText(typedPin, _bots, picked));"),
+            "{on_create}"
+        );
     }
 
     /// The body of the ActionScript function whose declaration starts with

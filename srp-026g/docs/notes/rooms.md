@@ -34,6 +34,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   PIN and a chosen map/mode pool. No team-size, minimum, max-level or countdown
   controls. The server refuses a public CREATE request (code 16), including from
   older movies, without changing the player's current room or queue.
+  - **One request** (the owner's of 2026-11-20: "a single very fast request"): Create sends
+    the PIN, With bots and the pool's entries at once (the game's player search carries the
+    text, `lobby.md` §2.16.3) and the room comes with its answer, about half a second later
+    (the game's lobby tick, then the round trip); 4 to 8 s before, a request a step.
   - **The STALKER maps last** (the owner's of 2026-11-15: "also when creating private
     rooms, stalker maps should be at the bottom of the list"): the window lists the maps in
     the order of the server's pool (`Core::room_entries`, the match pool then the

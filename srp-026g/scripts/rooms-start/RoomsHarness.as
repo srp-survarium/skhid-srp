@@ -144,37 +144,39 @@ package
          finish(failures.length == 0 ? "pass" : "fail: " + failures.join("; "));
       }
 
-      // A pool of 256 entries at most (every playable map: 167 in the live data with the
-      // free-for-alls): the create's bits requests of a 200-entry pool, every third entry out, one
-      // a chunk of 16 (13), each read back entry by entry as the form's rows are read; and the
-      // window told the 200 entries, a room's vote drawn with them.
+      // A pool of 256 entries at most (every playable map: 219 in the live data): a create's one
+      // text (RoomsWire.createText, the server's RoomCreate) of a 219-entry pool, every third entry
+      // out, read back entry by entry as the server reads it (its test has the same text: "S1C;B0042;6b",
+      // 55 hex digits); and the window told 200 entries, a room's vote drawn with them.
       private function checkBigPool() : void
       {
          var Wire:Object = loader.contentLoaderInfo.applicationDomain.getDefinition("survarium.rooms.RoomsWire");
-         var count:int = 200;
+         var count:int = 219;
          var picked:Array = [];
          var i:int;
          for(i = 0; i < count; i++)
             if(i % 3 != 0)
                picked.push(i);
-         var steps:Array = Wire.poolSteps(picked, count);
-         var bits:Array = [];
+         var text:String = Wire.createText("0042", true, picked);
          var bad:Array = [];
-         for(var c:int = 0; c < steps.length; c++)
+         var head:String = "S1C;B0042;";
+         if(text.indexOf(head) != 0 || text.length != head.length + 55 || text.indexOf("S1C;B0042;6b") != 0)
+            bad.push("text " + text.substr(0, 20) + "... of " + text.length);
+         var pool:String = text.substr(head.length);
+         for(i = 0; i < Wire.POOL_BITS; i++)
          {
-            var offset:int = int(steps[c]) - int(Wire.BITS);
-            if(int(offset / int(Wire.CHUNK_STEP)) != c)
-               bad.push("chunk " + c + " sent as " + int(offset / int(Wire.CHUNK_STEP)));
-            bits.push(offset % int(Wire.CHUNK_STEP));
-         }
-         for(i = 0; i < count; i++)
-            if(Wire.bitIn(bits, i) != (i % 3 != 0))
+            var k:int = i >> 2;
+            var nibble:int = k < pool.length ? parseInt(pool.charAt(k), 16) : 0;
+            if(((nibble >> (i & 3)) & 1) != (i < count && i % 3 != 0 ? 1 : 0))
                bad.push("entry " + i);
-         if(Wire.POOL_BITS < 167 || steps.length != 13 || bad.length != 0)
-            failures.push("a 200-entry pool: " + steps.length + " requests, " + Wire.POOL_BITS + " bits, wrong: "
-               + bad.slice(0, 5).join(", "));
-         trace("ROOMS a 200-entry pool: " + steps.length + " bits requests of " + Wire.BITS_PER_CHUNK
-            + ", every entry read back: " + (bad.length == 0 ? "yes" : "no"));
+         }
+         if(Wire.createText("1234", false, [0]) != "S1C;P1234;1")
+            bad.push("one entry: " + Wire.createText("1234", false, [0]));
+         if(Wire.POOL_BITS < count || bad.length != 0)
+            failures.push("a 219-entry pool's create: " + Wire.POOL_BITS + " bits, wrong: " + bad.slice(0, 5).join(", "));
+         trace("ROOMS a 219-entry pool: one create request of " + text.length + " characters, every entry read back: "
+            + (bad.length == 0 ? "yes" : "no"));
+         count = 200;
          var rows:Array = ["S1;M;" + count + ";0"];
          for(i = 0; i < count; i++)
             rows.push(i + ";" + (61 + i % 30) + ";" + (1 + i % 8) + ";" + (1 + i % 3) + ";" + [2, 3, 4, 5, 6, 8][i % 6] + ";0");
