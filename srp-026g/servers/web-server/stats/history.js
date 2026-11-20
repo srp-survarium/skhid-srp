@@ -20,7 +20,7 @@
       overall: 'Overall', inMatches: 'In matches', last30: 'Last 30 days', ended: 'Ended', duration: 'Duration',
       map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
       win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', hours: 'Hours played',
-      replay: 'Replay', replayAsk: 'Get the replay', replayPreparing: 'Preparing…', replayFile: 'Download',
+      replay: 'Replay', replayPreparing: 'Preparing…', replayFile: 'Download',
       replayNo: {incompatible: 'Recorded by an older game version', busy: 'Busy, try again in a minute', other: 'No replay'},
       today: 'Daily leaders', allTime: 'All time', shots: 'Shots fired',
       accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
@@ -40,7 +40,7 @@
       overall: 'Загалом', inMatches: 'У матчах', last30: 'Останні 30 днів', ended: 'Завершено', duration: 'Тривалість',
       map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
       win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', hours: 'Годин у грі',
-      replay: 'Повтор', replayAsk: 'Отримати повтор', replayPreparing: 'Готуємо…', replayFile: 'Завантажити',
+      replay: 'Повтор', replayPreparing: 'Готуємо…', replayFile: 'Завантажити',
       replayNo: {incompatible: 'Записано старішою версією гри', busy: 'Зайнято, спробуйте за хвилину', other: 'Повтору немає'},
       today: 'Лідери дня', allTime: 'За весь час', shots: 'Постріли',
       accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
@@ -252,13 +252,9 @@
     : name(row.map);
   // A map's picture as the rooms draw it, beside its name and mode; an
   // empty frame of its size while loading, and for a map without one.
-  // `large`: at the picture's own size, on the match's page.
-  const mapPicture = (row, large = false) => {
-    const className = `stats-map${large ? ' stats-map-large' : ''}`;
-    return row && row.map_icon
-      ? el('img', {className, src: row.map_icon, alt: '', width: large ? 128 : 64, height: large ? 72 : 36, loading: 'lazy'})
-      : el('span', {className});
-  };
+  const mapPicture = row => row && row.map_icon
+    ? el('img', {className: 'stats-map', src: row.map_icon, alt: '', width: 64, height: 36, loading: 'lazy'})
+    : el('span', {className: 'stats-map'});
   const mapCell = row => el('span', {className: 'stats-map-cell'}, mapPicture(row),
     el('span', {}, row ? [mapLink(row), el('small', {className: 'stats-under'}, name(row.mode))] : twoLines()));
   // Where a click on a match's row goes, and on a player's.
@@ -321,13 +317,14 @@
       paged(columns, before => api('player/matches', {id: card.player.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
   }
 
-  // A match's replay (replay): asked for with its button, asked again every
-  // two seconds while it is being made, then its file to download (the
-  // game's updater opens it). The button stays out of a match without one.
-  const megabytes = new Intl.NumberFormat(lang, {maximumFractionDigits: 1});
+  // A match's replay (replay): one Download. Pressed, the replay is asked
+  // for, asked again every two seconds while it is being made (said in
+  // its place), and its file then downloads by itself (the game's updater
+  // opens it); Download stays, the file's own link now. It stays out of a
+  // match without a replay.
   function replayCell(id) {
     const cell = el('span', {className: 'stats-replay'});
-    const button = el('button', {type: 'button', className: 'quiet'}, TEXT.replayAsk);
+    const button = el('button', {type: 'button', className: 'quiet'}, TEXT.replayFile);
     const say = text => cell.replaceChildren(text);
     button.addEventListener('click', async () => {
       // 90 asks: three minutes, as long as the game itself waits.
@@ -340,8 +337,9 @@
         }
         if (!answer) return say(TEXT.replayNo.other);
         if (answer.status === 'ready') {
-          return cell.replaceChildren(el('a', {href: answer.url, download: ''},
-            `${TEXT.replayFile} · ${megabytes.format(answer.size / 1048576)} MB`));
+          const file = el('a', {href: answer.url, download: ''}, TEXT.replayFile);
+          cell.replaceChildren(file);
+          return file.click();
         }
         if (answer.status !== 'preparing') return say(TEXT.replayNo[answer.status] || TEXT.replayNo.other);
         say(answer.place > 1 ? `${TEXT.replayPreparing} (${n(answer.place)})` : TEXT.replayPreparing);
@@ -375,11 +373,12 @@
           return [el('h2', {className: `stats-heading stats-team stats-team${team}`}, title), table(columns, rows, 6, '', openPlayer)];
         });
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
-        [TEXT.map, el('span', {className: 'stats-map-cell'}, mapPicture(m, true), m ? mapLink(m) : BLANK)],
+        [TEXT.map, el('span', {className: 'stats-map-cell'}, m ? mapLink(m) : BLANK, mapPicture(m))],
         [TEXT.mode, m ? name(m.mode) : null]]],
       [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : m.team_points.map(n).join(' : ')) : null],
         [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null],
-        ...(data && data.replay ? [[TEXT.replay, replayCell(m.id)]] : [])]]), ...teams.flat()];
+        // Always there, so that nothing moves when the answer comes; a match without one has none.
+        [TEXT.replay, m ? (data.replay ? replayCell(m.id) : '—') : null]]]), ...teams.flat()];
     };
     root.replaceChildren(...view(null));
     const data = /^\d+$/.test(id) ? await api('match', {id}) : null;

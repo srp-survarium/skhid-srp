@@ -22,8 +22,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   and accuracy, on hover). A free-for-all is one list by place. A click anywhere on a row
   opens what the row is of: the match, the player or the clan; a favourite weapon or armour
   piece, its card in the wiki. A map's name leads to the map in the wiki's Maps page. A match's
-  two teams are in the Maps page's colours. A match with a replay has a button for it: asked for,
-  it is prepared, then offered as a file.
+  two teams are in the Maps page's colours. A match with a replay has one Download: pressed, the
+  replay is prepared if it has to be, and its file then downloads by itself.
 - `scripts/stats/check_history.mjs` exercises it in an isolated Firefox over the site's own
   endpoints: the preview (`cargo test -p web-server serve_wiki_preview -- --ignored --nocapture`,
   port 24583) keeps a made-up history (`history::tests::preview`); the script serves it again on
