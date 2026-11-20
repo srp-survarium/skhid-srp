@@ -14,8 +14,8 @@ use updater_logic::problem::{Fault, Miss, Stage};
 use updater_logic::route::Choice;
 use updater_logic::url::{self, MAX_REDIRECTS, Url};
 use windows_sys::Win32::Networking::WinHttp::{
-    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_ACCESS_TYPE_NAMED_PROXY, WINHTTP_OPTION_PROXY,
-    WINHTTP_PROXY_INFO, WINHTTP_DISABLE_COOKIES, WINHTTP_FLAG_BYPASS_PROXY_CACHE,
+    WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_ACCESS_TYPE_NAMED_PROXY,
+    WINHTTP_DISABLE_COOKIES, WINHTTP_FLAG_BYPASS_PROXY_CACHE,
     WINHTTP_FLAG_SECURE, WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_2, WINHTTP_FLAG_SECURE_PROTOCOL_TLS1_3,
     WINHTTP_OPTION_DISABLE_FEATURE, WINHTTP_OPTION_REDIRECT_POLICY,
     WINHTTP_OPTION_REDIRECT_POLICY_NEVER, WINHTTP_OPTION_SECURE_PROTOCOLS,
@@ -98,12 +98,9 @@ pub fn reach(url: &Url, via: Via) -> Option<Reach> {
         Via::Direct => None,
         Via::Relay => Some(relay_proxy(url)?),
     };
-    let Ok(session) = open_session() else {
+    let Ok(session) = open_session(Patience::Question) else {
         return Some(Reach::Silent);
     };
-    unsafe {
-        WinHttpSetTimeouts(session.0, 5_000, 5_000, 5_000, 5_000);
-    }
     let mut path = String::from(&*url.prefix);
     path.push_str("/api/stats");
     Some(match ask_via(&session, url, &path, 0, proxy.as_deref()) {
@@ -236,7 +233,7 @@ pub fn get_stream(
     sink: &mut dyn FnMut(&[u8]) -> Result<(), HttpError>,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
 ) -> Result<(), HttpError> {
-    let session = open_session()?;
+    let session = open_session(Patience::Download)?;
     let mut full_path = String::from(&*url.prefix);
     full_path.push_str(path);
     let answer = ask(&session, url, &full_path, 0)?;
@@ -276,7 +273,7 @@ pub fn get_file(
     sink: &mut Sink,
     progress: &mut dyn FnMut(u64, Option<u64>) -> bool,
 ) -> Result<(), HttpError> {
-    let session = open_session()?;
+    let session = open_session(Patience::Download)?;
     let mut url = url.clone();
     let mut redirects = 0;
     let answer = loop {
@@ -340,23 +337,61 @@ pub fn get_file(
     receive(&answer.request, at, limit, slow, sink, progress)
 }
 
+/// How long a step of a request may take: name lookup, connect, send,
+/// receive, in milliseconds.
+#[derive(Clone, Copy)]
+enum Patience {
+    Download,
+    /// A question after a failure (`reach`): a few seconds.
+    Question,
+}
+
+impl Patience {
+    fn timeouts(self) -> [i32; 4] {
+        match self {
+            Self::Download => [10_000, 10_000, 30_000, 30_000],
+            Self::Question => [5_000; 4],
+        }
+    }
+}
+
 /// The WinHTTP session of one download: no step waits longer than its
 /// timeouts; TLS 1.2 and newer.
-fn open_session() -> Result<Internet, HttpError> {
+struct Session {
+    handle: Internet,
+    patience: Patience,
+}
+
+fn open_session(patience: Patience) -> Result<Session, HttpError> {
+    Ok(Session {
+        handle: open_handle(patience, None)?,
+        patience,
+    })
+}
+
+/// `proxy`: the relay's CONNECT service (`host:port`), every request of the
+/// session through it. The session's own proxy and not a request's option
+/// (`WINHTTP_OPTION_PROXY`): Wine 11 takes that option and ignores it, so a
+/// request "through the relay" went directly there.
+fn open_handle(patience: Patience, proxy: Option<&str>) -> Result<Internet, HttpError> {
     let agent = wide("SkhidUpdater/1");
+    let proxy = proxy.map(wide);
     let session = unsafe {
         WinHttpOpen(
             agent.as_ptr(),
-            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-            null(),
+            match proxy {
+                Some(_) => WINHTTP_ACCESS_TYPE_NAMED_PROXY,
+                None => WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+            },
+            proxy.as_ref().map_or(null(), |name| name.as_ptr()),
             null(),
             0,
         )
     };
     let session = handle(session, "start")?;
+    let [resolve, connect, send, receive] = patience.timeouts();
     unsafe {
-        // Name lookup, connect, send, receive: no step waits longer.
-        WinHttpSetTimeouts(session.0, 10_000, 10_000, 30_000, 30_000);
+        WinHttpSetTimeouts(session.0, resolve, connect, send, receive);
     }
     // TLS 1.2 and newer; a Windows that does not know 1.3 takes 1.2 alone,
     // and one that refuses both keeps its own default.
@@ -378,13 +413,15 @@ fn open_session() -> Result<Internet, HttpError> {
 struct Answer {
     request: Internet,
     status: u32,
-    // After `request`: a request is closed before its connection.
+    // After `request`: a request is closed before its connection, and that
+    // before the session made for it (the relay's).
     _connection: Internet,
+    _relayed: Option<Internet>,
 }
 
 /// GET `full_path` of `url`'s host, from byte `from` on when it is not 0
 /// (`Range`): the answer's status and headers.
-fn ask(session: &Internet, url: &Url, full_path: &str, from: u64) -> Result<Answer, HttpError> {
+fn ask(session: &Session, url: &Url, full_path: &str, from: u64) -> Result<Answer, HttpError> {
     // Only this installation's HTTPS site can use the fixed-origin CONNECT
     // service. TLS still authenticates the original hostname end to end.
     // The player's route says which way: the relay or direct alone, or
@@ -418,9 +455,12 @@ fn ask(session: &Internet, url: &Url, full_path: &str, from: u64) -> Result<Answ
     }
 }
 
-fn ask_via(session: &Internet, url: &Url, full_path: &str, from: u64, proxy: Option<&str>) -> Result<Answer, HttpError> {
+fn ask_via(session: &Session, url: &Url, full_path: &str, from: u64, proxy: Option<&str>) -> Result<Answer, HttpError> {
+    // Through the relay: a session of its own, as patient as the caller's.
+    let relayed = proxy.map(|proxy| open_handle(session.patience, Some(proxy))).transpose()?;
+    let through = relayed.as_ref().unwrap_or(&session.handle);
     let connection = handle(
-        unsafe { WinHttpConnect(session.0, wide(&url.host).as_ptr(), url.port, 0) },
+        unsafe { WinHttpConnect(through.0, wide(&url.host).as_ptr(), url.port, 0) },
         "connect",
     )?;
     let flags = WINHTTP_FLAG_BYPASS_PROXY_CACHE | if url.secure { WINHTTP_FLAG_SECURE } else { 0 };
@@ -438,20 +478,6 @@ fn ask_via(session: &Internet, url: &Url, full_path: &str, from: u64, proxy: Opt
         },
         "request",
     )?;
-    if let Some(proxy) = proxy {
-        let mut name = wide(proxy);
-        let mut info = WINHTTP_PROXY_INFO {
-            dwAccessType: WINHTTP_ACCESS_TYPE_NAMED_PROXY,
-            lpszProxy: name.as_mut_ptr(),
-            lpszProxyBypass: null_mut(),
-        };
-        // The option copies the strings. No certificate flags are changed.
-        if unsafe { WinHttpSetOption(request.0, WINHTTP_OPTION_PROXY,
-            (&mut info as *mut WINHTTP_PROXY_INFO).cast(),
-            core::mem::size_of::<WINHTTP_PROXY_INFO>() as u32) } == 0 {
-            return Err(HttpError::Network("relay proxy", last_error()));
-        }
-    }
     // WinHTTP follows no redirect itself (`get_file` follows a patch's,
     // checking each address), and no cookie is kept or sent.
     if !set_option(
@@ -486,6 +512,7 @@ fn ask_via(session: &Internet, url: &Url, full_path: &str, from: u64, proxy: Opt
         request,
         status,
         _connection: connection,
+        _relayed: relayed,
     })
 }
 

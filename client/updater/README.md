@@ -302,6 +302,16 @@ runs the update again by it. Ticked for the relay, "(auto)" in Automatic.
 One function, `route::Shown::on`, takes what the box shows and what
 happened (a click, a probe's end, a block found) to what it shows next,
 the choice to save and whether to probe.
+
+A request through the relay is one of a WinHTTP session opened with the
+relay's CONNECT service as its proxy (`WINHTTP_ACCESS_TYPE_NAMED_PROXY`),
+not a request with the proxy as its option (`WINHTTP_OPTION_PROXY`): Wine 11
+takes that option and ignores it, so under Wine every such request went
+directly (seen 2026-11-20: with the relay chosen and the direct way closed,
+no CONNECT reached the relay). Through a proxy Wine also asks with the whole
+address in the request line (`GET https://skhid.link:443/api/...`), inside
+the tunnel too; Caddy takes it and asks srp for the path alone
+(`tools/check relay-site`).
 Without `updater_skhid.relay` nothing is sent and the box stays hidden.
 
 ## The player's boxes

@@ -30,6 +30,8 @@ A failed route never switches a running match: launch again to choose anew.
 The updater's HTTPS requests to the configured login hostname on port 443 also
 fall back (Automatic), on network errors only, to the relay's port 8080 CONNECT
 service; with the relay chosen they go through it only, with direct never.
+Under Wine a request through it has the whole address in its request line
+(`GET https://skhid.link:443/...`), which Caddy answers as the path alone.
 It permits only `skhid.link:443` (or the configured `--https-origin`). TLS stays
 end to end, with normal hostname/certificate verification. Other download hosts
 retain their existing mirror behavior. This is not a general HTTP proxy and does
