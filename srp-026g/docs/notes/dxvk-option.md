@@ -127,6 +127,86 @@ window keeping its size.
   not at all; one left out for want of room, none ever with these five, is counted on the line). Nothing changes in a running
   game; DirectX 11 runs ignore the five.
 
+## Performance: what DXVK is given, and why
+
+Read 2026-11-09 for the FPS reports (a player's logs: RTX 5070 Ti, NVIDIA 617.42, Windows, a 300 Hz
+monitor, `dxvk.latencySleep` and `dxvk.hideIntegratedGraphics`; another player: GTX 1050, "DXVK
+20-30 fps, DirectX 11 80-90"), from DXVK 3.1.1's source and the exe. Nothing measured: no Windows PC,
+and the local GPU was taken by the FPS lane's runs. DXVK is given the five options above and
+nothing else; every other setting is DXVK 3.1.1's default, each for the reason below.
+
+- **Frame latency is already 1.** The game's swap chain has one buffer (`initialize_swap_chain`'s
+  desc, BufferCount 1 at 0x3CF57E), and DXVK caps the frame latency at the buffer count
+  (`D3D11SwapChain::GetActualFrameLatency`: the device's maximum frame latency, 3 by default, then
+  `min(.., BufferCount)`). So under DXVK each Present waits until the frame before it is presented
+  (with vsync, until it is on screen: the presenter's `vkWaitForPresentKHR` for FIFO), the CPU never
+  more than one frame ahead; Windows' own DXGI lets it queue three. Input lag under DXVK is low
+  without any option.
+- **Reduce input lag** (`dxvk.latencySleep`) stays an option, off by default. In a 32-bit process
+  DXVK does not use NVIDIA's `VK_NV_low_latency2` (`dxvk.disableNvLowLatency2` Auto; the report's log:
+  "Latency control enabled, using built-in algorithm"). The built-in algorithm
+  (`dxvk_latency_builtin.cpp` `sleepBuiltin`) waits each frame for the previous Present to be
+  processed, then sleeps so the next frame's GPU work starts just in time. DXVK assumes the game reads
+  input after Present returns; this engine reads it on its logic thread, which runs up to one frame
+  ahead of the render (0.10b `engine_world_logic.cpp`: the logic waits while its frame id is past
+  the renderer's + 1), so the gain over latency 1 is small and unmeasured, and the cost is frame
+  rate and pacing (dxvk.conf: "may reduce performance or lead to less consistent frame pacing"). With
+  it on, a Present with a sync interval (vsync, or a scene that asks for it: below) at a window sets
+  DXVK's own limiter to that monitor's refresh rate (`DxgiSwapChain::UpdateTargetFrameRate`): the
+  report's "Built-in frame rate limiter enabled ..." and "Detected frame rate (~353) higher than
+  selected refresh rate of ~300 Hz. Engaging frame rate limiter." are that, not a fault.
+- **Present mode:** `dxvk.tearFree` Auto. Without a sync interval DXVK presents IMMEDIATE (tearing,
+  the lowest latency), with one FIFO (`Presenter::pickPresentMode`); the swap chain is made with both
+  as dynamic modes (the log's "Present mode: VK_PRESENT_MODE_FIFO_KHR (dynamic: yes)", so FIFO there
+  does not say vsync was on). The Tear-free option (True) picks MAILBOX without a sync interval.
+  `dxgi.syncInterval` is not set: the game's Vsync checkbox decides.
+- **Frame rate limit Off** is DXVK's 0, its own limiter only in the cases above. -1 would turn those
+  off too, and with them the refresh rate the latency sleep aims at; not used.
+- **Pipelines:** `dxvk.enableGraphicsPipelineLibrary` Auto, used wherever the driver has
+  `graphicsPipelineLibrary` and independent interpolation (`DxvkDevice::canUseGraphicsPipelineLibrary`;
+  the report's log: "Graphics pipeline libraries supported"). Shaders are then compiled when the game
+  creates them, a draw links its pipeline from them at once, and the optimized pipeline is built in
+  the background. False would bring compile stalls back at first draws; True adds nothing.
+- **Compiler threads:** `dxvk.numCompilerThreads` 0: one per CPU thread, at most 8 in a 32-bit
+  process, at the lowest thread priority (`DxvkPipelineWorkers`; the log: 8). Unchanged.
+- **The shader cache:** DXVK 3.1.1 keeps no pipeline state cache. Its `<hash>.dxvk.bin` and `.lut` in
+  `%LOCALAPPDATA%\dxvk` hold its translated shaders, named by the 64-bit FNV-1a of the exe's name with
+  the slash before it (`DxvkShaderCache::getDefaultFilePaths`: the second `find_last_of` starts at
+  the slash it found, so the folder is left out): `\survarium_skhid.exe` is `2e2077e43dd237bb`, the
+  report's file ("Cache: 960 shaders"). It outlives our updates (the exe's name stays) and is rebuilt
+  for another DXVK version (its header has DXVK's version). The pipelines' own compiles are the
+  driver's, in its cache. A cache shipped with the game would save only the translation of a shader
+  the first time a PC meets it, would need a folder DXVK may write (`DXVK_SHADER_CACHE_PATH`; the game
+  can be under Program Files) and would go stale with DXVK's version: none is shipped.
+
+**DirectX 11 stays the default.** The RTX 5070 Ti ran about 350 fps under DXVK, so DXVK has no
+general slow path in this game. A GTX 1050 three times slower under DXVK is that PC's; what its DXVK
+logs (`survarium_skhid_d3d11.log`, `_dxgi.log` beside the exe) would tell, none received yet:
+
+- the GPU DXVK took (`Found device`, `Creating device`): the exe takes DXVK when any device has
+  Vulkan 1.4, and DXVK leaves out a device under 1.4, so a dedicated GPU without 1.4 beside an
+  integrated one with it runs on the integrated one;
+- video memory: a GTX 1050 has 2 GB; DXVK puts what does not fit into system memory (the log's
+  heaps, the overlay's "memory" item), where Windows' DirectX 11 driver pages it in and out;
+- the CPU: DXVK adds its own threads (command stream, submission, presenter, compiler threads), on a
+  four-thread CPU against the game's render, logic and task threads.
+
+**DirectX 11's own settings** (exe 0.26g):
+
+- `r_vsync` off by default (`options::set_default_values`, 0x3CD74A). Present's sync interval is
+  `r_vsync` or its caller's flag: `renderer::render` passes the scene's (a flag of the scene's
+  creation, `scene::scene` 0x14FA65) unless the debug variable `r_force_no_vsync` (0x1F1D967) is
+  set; `is_ready_for_render` passes 0.
+- `r_max_fps` 10000 by default (0xA7A824): `renderer::render` sleeps whole milliseconds when a frame
+  took less than 1/r_max_fps (0x13DF5C): no limit in effect.
+- `r_instancing` off by default (0x3CD804), and no code reads it past the options' pointer
+  (0x2260498): not a lever.
+- The swap chain: one buffer, DISCARD (bit-block transfer), windowed, fullscreen by
+  SetFullscreenState. Windowed on Windows 10 the desktop compositor copies each frame; Windows 11
+  turns such swap chains into flip model itself ("Optimizations for windowed games"). A flip-model
+  swap chain of our own (FLIP_DISCARD, two buffers, tearing allowed) would be an exe change tested on
+  Windows, and would raise DXVK's frame latency to 2: not done.
+
 ## The files
 
 - The Skhid ZIP ships DXVK 3.1.1's 32-bit DLLs in `game\binaries\x86\dxvk\`, ordinary overlay
