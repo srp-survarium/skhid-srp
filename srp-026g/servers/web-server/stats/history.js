@@ -304,7 +304,7 @@
     const columns = [...MATCH_COLUMNS, [TEXT.weapons, row => kitWeapons(row), 'l kits'], [TEXT.result, result, 'l'], [TEXT.place, row => n(row.place)],
       [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)], [TEXT.headshotRate, headshotRate],
-      [TEXT.captures, row => n(row.captures)], [TEXT.rating, row => n(row.rating)]];
+      [TEXT.rating, row => n(row.rating)]];
     root.replaceChildren(head(null, null), ...favourites(null), el('h2', {className: 'stats-heading'}, TEXT.matches), table(columns, null));
     // A player without a public match is not found, as an unknown name.
     const card = await api('player', {name});
@@ -403,13 +403,13 @@
         return box;
       }))];
   }
+  // Everything added up: its heading, then one row in the tables' look.
   function allTime(data) {
-    const v = key => data ? n(data[key]) : null;
-    const box = panels([TEXT.allTime, [[TEXT.players, v('players')], [TEXT.matches, v('matches')], [TEXT.kills, v('kills')],
-      [TEXT.assists, v('assists')], [TEXT.shots, v('shots')], [TEXT.accuracy, data ? aim(data) : null],
-      [TEXT.hours, data ? hours.format(data.played_s / 3600) : null]]]);
+    const box = table([[TEXT.players, row => n(row.players)], [TEXT.matches, row => n(row.matches)], [TEXT.kills, row => n(row.kills)],
+      [TEXT.assists, row => n(row.assists)], [TEXT.shots, row => n(row.shots)], [TEXT.accuracy, aim],
+      [TEXT.hours, row => hours.format(row.played_s / 3600)]], data && [data], 1);
     box.classList.add('stats-all');
-    return box;
+    return [el('h2', {className: 'stats-heading'}, TEXT.allTime), box];
   }
 
   function boardsView() {
@@ -480,10 +480,10 @@
       button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; draw(); });
       tabs.append(button);
     }
-    const today = el('div', {}, leaders(null)), all = el('div', {}, allTime(null));
+    const today = el('div', {}, leaders(null)), all = el('div', {}, ...allTime(null));
     root.replaceChildren(finder(), today, all, tabs, keys, body);
     api('today', {}).then(data => today.replaceChildren(...leaders(data || {leaders: {}})), () => today.replaceChildren());
-    api('totals', {}).then(data => data ? all.replaceChildren(allTime(data)) : all.replaceChildren(), () => all.replaceChildren());
+    api('totals', {}).then(data => data ? all.replaceChildren(...allTime(data)) : all.replaceChildren(), () => all.replaceChildren());
     draw();
   }
 

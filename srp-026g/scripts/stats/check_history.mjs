@@ -137,8 +137,9 @@ try {
   assert.deepEqual(await cells('.stats-leaders .table-scroll:first-child tbody td:nth-child(3)'),
     [...answered.today.leaders.kills.map(row => String(row.value)), ...Array(5 - answered.today.leaders.kills.length).fill('\u00a0')]);
   assert.equal(answered.today.leaders.kills.length, 5);
-  assert.equal(await panel('Matches'), String(answered.totals.matches));
-  assert.equal(await panel('Players'), String(answered.totals.players));
+  assert.deepEqual((await cells('.stats-all thead th')).slice(0, 3), ['Players', 'Matches', 'Kills']);
+  assert.deepEqual((await cells('.stats-all tbody td')).slice(0, 2), [String(answered.totals.players), String(answered.totals.matches)]);
+  assert.equal(await evaluate("document.querySelector('.stats-all').previousElementSibling.textContent"), 'All time', 'its heading over it, as the leaders\' is');
   await screenshot('boards-accuracy');
   await evaluate("document.querySelector('[data-board=clans]').click()");
   await settled();
