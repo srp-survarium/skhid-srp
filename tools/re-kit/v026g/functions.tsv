@@ -2465,3 +2465,8 @@ va	status	ref_021d	name
 0x00070e30	verified		vostok::math::random32::random_f
 0x0028bee0	reviewed		survarium::lobby_menu::find_players
 0x0026b660	reviewed		survarium::messaging_client::find_players
+0x000dde70	reviewed	0x000ac765	vostok::command_line::key::is_set
+0x001ae390	reviewed	0x0010affb	vostok::render::stage_apply_distortion::is_effects_ready
+0x001ae500	reviewed	0x00123a52	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>
+0x001ae5f0	reviewed	0x00123ad4	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>
+0x001bd6a0	reviewed	0x0012fc3d	vostok::render::stage::is_enabled
