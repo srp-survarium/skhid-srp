@@ -6472,3 +6472,6 @@ va	name	location	role	basis
 0x002ee650	survarium::artefact_core_cook::on_config_loaded	stack+4	the query result (the item config; queries data/effect, class 6Dh)	observed
 0x002ee7c0	survarium::artefact_core_cook::on_effect_loaded	ECX	the cook	observed
 0x002ee7c0	survarium::artefact_core_cook::on_effect_loaded	stack+4	the query result (the game effect emitter)	observed
+0x002e5040	survarium::damage_model::tick	stack+4	the damage model ([player+2E0h], from base_player::tick 0x2DAAF3 while [player+33Ch] is set); every pool of its list at +110h, the "pain" pool included, goes to body_part::regenerate 0x32A4B0	observed
+0x002e5040	survarium::damage_model::tick	stack+8	elapsed ms, passed on as 0x32A4B0 stack+4	observed
+0x002e5040	survarium::damage_model::tick	ESI	now ms, passed on as 0x32A4B0 stack+8 and stored at +328h	observed
