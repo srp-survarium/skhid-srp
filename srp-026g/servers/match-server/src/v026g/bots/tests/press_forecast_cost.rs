@@ -88,4 +88,35 @@ fn press_forecast_cost_on_a_real_map() {
             step_ns.checked_div(steps).unwrap_or(0)
         );
     }
+    // The reckoning's own steps of the same ticks (`BodyTrack::decided`): the ground ticks, the press, forward through 19
+    // flight ticks, 7 let go; its clock (`kept_clock::Of::Reckoning`) against the press clock's ns a step on this map.
+    let _ = kept_clock::take(kept_clock::Of::Reckoning);
+    let last = at.time;
+    for round in 0..2 {
+        for _ in 0..20 {
+            for k in 0..12u32 {
+                let mut t = track.clone();
+                let mut time = last;
+                let mut tick = |keys: u32| {
+                    time += 50;
+                    t.decided(time, keys, (0.0, 0.0), 0.0, &kin, Some(grid));
+                };
+                for _ in 0..k {
+                    tick(key::FORWARD);
+                }
+                tick(key::FORWARD | key::JUMP);
+                for _ in 0..19 {
+                    tick(key::FORWARD);
+                }
+                for _ in 0..7 {
+                    tick(0);
+                }
+            }
+        }
+        let (steps, step_ns) = kept_clock::take(kept_clock::Of::Reckoning);
+        eprintln!(
+            "PRESS REAL RECKONING round {round}: {steps} controller steps, {} ns a step (the reckoning's clock, same ticks)",
+            step_ns.checked_div(steps).unwrap_or(0)
+        );
+    }
 }
