@@ -77,6 +77,8 @@ try {
   const panel = label => evaluate(`[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === ${JSON.stringify(label)})?.nextSibling.textContent ?? null`);
   const columns = async () => (await evaluate("[...document.querySelectorAll('.stats-table thead th')].map(th => th.textContent).join('\\n')")).split('\n');
   const top = selector => evaluate(`Math.round(document.querySelectorAll('.stats-heading')[${selector}].getBoundingClientRect().top)`);
+  // Where a player's lists begin: the buttons over them.
+  const listsTop = () => evaluate("Math.round(document.querySelector('.stats-tabs').getBoundingClientRect().top)");
   // Accuracy as the page shows it: whole percents, none without a shot.
   const aim = (counts, lang = 'en') => counts.shots ? new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 0}).format(counts.accuracy) : '—';
   const cells = async selector => JSON.parse(await evaluate(`JSON.stringify([...document.querySelectorAll(${JSON.stringify(selector)})].map(e => e.textContent))`));
@@ -201,9 +203,9 @@ try {
   await navigate('/stats?player=Sheep&lang=en', 'interactive');
   assert.equal(await count('.stats-panels dd'), 25, 'the panels are drawn before their data');
   assert.equal(await count('.stats-favourites .stats-table tbody tr'), 10, 'five empty rows of each favourite');
-  const loading = [await top(0), await top(1)];
+  const loading = [await top(0), await listsTop()];
   await settled();
-  assert.deepEqual([await top(0), await top(1)], loading, 'no layout jump');
+  assert.deepEqual([await top(0), await listsTop()], loading, 'no layout jump');
   assert.equal(await text('#stats-title'), 'Sheep');
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Clan').nextSibling.textContent"), '[SKH]');
   assert.equal(await count('.stats-paged .stats-table tbody tr'), 15);
@@ -261,6 +263,46 @@ try {
   assert.equal(await count('.stats-paged .stats-table'), 1, 'no second table');
   assert.equal(await count('.stats-empty'), 0, 'no notice under the rows');
   assert.equal(await evaluate("document.querySelector('.stats-paged button').hidden"), true, 'no button left');
+
+  // A player's weapons: its other list, what its games counted of each, most kills first.
+  await navigate('/stats?player=Sheep&lang=en');
+  assert.deepEqual(await cells('.stats-tabs button'), ['Matches', 'Weapons']);
+  assert.equal(await text('.stats-tabs button[aria-pressed=true]'), 'Matches');
+  await evaluate("[...document.querySelectorAll('.stats-tabs button')].find(b => b.textContent === 'Weapons').click()");
+  await settled();
+  assert.equal(await text('.stats-tabs button[aria-pressed=true]'), 'Weapons');
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('tab')"), 'weapons');
+  assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('tab=weapons'), 'the language link keeps the list');
+  assert.equal(await count('.stats-paged'), 0, 'the matches gone');
+  const guns = answered['player/weapons'].weapons;
+  assert.ok(guns.length >= 2 && guns.every((gun, i) => !i || guns[i - 1].kills >= gun.kills), 'most kills first');
+  assert.deepEqual(await cells('.stats-weapons thead th'),
+    ['Weapon', 'Kills', 'K/D', 'HS %', 'Accuracy', 'Avg distance', 'Through walls', 'Ricochets', 'Hours played']);
+  assert.equal(await text('.stats-weapons thead th.sorted'), 'Kills');
+  assert.deepEqual(await cells('.stats-weapons tbody td.l'), guns.map(gun => gun.name ?? '—'));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(2)'), guns.map(gun => String(gun.kills)));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(3)'), guns.map(gun => gun.kd.toFixed(2)), 'by the deaths with it in the hands');
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(5)'), guns.map(gun => aim(gun)));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(6)'), guns.map(gun => gun.kill_distance_m === null ? '—' : `${Math.round(gun.kill_distance_m)} m`));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(7)'), guns.map(gun => String(gun.wall_kills)));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(8)'), guns.map(gun => String(gun.ricochet_kills)));
+  assert.deepEqual(await cells('.stats-weapons tbody td:nth-child(9)'), guns.map(gun => (gun.held_s / 3600).toFixed(1)));
+  assert.ok(guns.some(gun => gun.name === null), 'a weapon gone from the game data');
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('.stats-weapons a')].map(a => a.pathname + a.hash).join()"),
+    guns.filter(gun => gun.key).map(gun => `/wiki/weapons#wpn_${gun.key}`).join(), 'each leads to its card in the wiki');
+  assert.equal(await fits(), true, 'the weapons fit the width');
+  await screenshot('player-weapons');
+  // The address opens the list; five empty rows while it loads.
+  await navigate('/stats?player=Sheep&tab=weapons&lang=en', 'interactive');
+  assert.equal(await count('.stats-weapons tbody tr'), 5);
+  await settled();
+  assert.equal(await count('.stats-weapons tbody tr'), guns.length);
+  await evaluate("document.querySelector('.stats-weapons tbody tr td:nth-child(2)').click()");
+  await new Promise(resolve => setTimeout(resolve, 800));
+  assert.equal(await evaluate('location.pathname + location.hash'), `/wiki/weapons#wpn_${guns[0].key}`, 'a click anywhere on its row too');
+  // Yasen's games counted none.
+  await navigate('/stats?player=Yasen&tab=weapons&lang=en');
+  assert.equal(await text('.stats-weapons .stats-empty'), 'No weapons counted yet.');
 
   // A player without a public match is the same as an unknown one.
   await navigate('/stats?player=Nova&lang=en');
@@ -360,12 +402,17 @@ try {
   await navigate('/stats?player=Sheep&lang=uk');
   assert.equal(await evaluate('document.documentElement.lang'), 'uk');
   assert.equal(await text('.stats-heading'), 'Улюблене спорядження');
-  assert.equal((await cells('.stats-heading'))[1], 'Матчі');
+  assert.deepEqual(await cells('.stats-tabs button'), ['Матчі', 'Зброя']);
   assert.notEqual(await panel('Артефакти'), null);
   assert.equal(await panel('Точність'), aim(answered.player.totals, 'uk'));
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.stats-favourites')).gridTemplateColumns.split(' ').length"), 1, 'the favourites stacked');
   assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('player=Sheep'));
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile page fits');
+  await navigate('/stats?player=Sheep&tab=weapons&lang=uk');
+  assert.deepEqual(await cells('.stats-weapons thead th'),
+    ['Зброя', 'Вбивства', 'В/С', 'У голову %', 'Точність', 'Сер. відстань', 'Крізь стіни', 'Рикошетом', 'Годин у грі']);
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'the weapons fit a phone');
+  await screenshot('player-weapons-uk-phone');
   await screenshot('player-mobile-uk');
   await navigate(`/stats?match=${newest}&lang=uk`);
   assert.equal(await count('.stats-kit.stats-under'), 12);

@@ -15,7 +15,7 @@ use session::v026g::replays::{Replays, Status};
 use session::v026g::persist::history::{
     ClanKey, ClanLine, Counters, Gear, ItemTotals, KitCounts, KitLine, MatchHistory, MatchInfo,
     MatchSummary,
-    Named, Outcome, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey, Winner,
+    Named, Outcome, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey, WeaponTotals, Winner,
 };
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps;
@@ -152,6 +152,7 @@ enum Endpoint {
     PlayerMatches { account_id: u32, page: Page },
     PlayerDays { account_id: u32, days: u64 },
     PlayerEquipment { account_id: u32, limit: usize },
+    PlayerWeapons { account_id: u32, limit: usize },
     Matches { page: Page, clan: Option<u32> },
     Match(u64),
     Replay(u64),
@@ -311,6 +312,10 @@ impl Endpoint {
                 account_id: query.required("id")?,
                 limit: query.limit(FAVOURITES)?,
             },
+            "player/weapons" => Self::PlayerWeapons {
+                account_id: query.required("id")?,
+                limit: query.limit(MatchHistory::MAX_ROWS)?,
+            },
             "matches" => Self::Matches {
                 page: query.page()?,
                 clan: query.number("clan")?,
@@ -431,6 +436,14 @@ fn answer(
                 "weapons": list(&favourites.weapons),
                 "armour": list(&favourites.armour),
             })
+        }
+        Endpoint::PlayerWeapons { account_id, limit } => {
+            let weapons: Vec<Value> = history
+                .player_weapons(*account_id, *limit)?
+                .iter()
+                .map(|totals| weapon(totals, lang))
+                .collect();
+            json!({ "weapons": weapons })
         }
         Endpoint::PlayerDays { account_id, days } => {
             let today = now - now % DAY;
@@ -681,6 +694,38 @@ fn item_ref(dict_id: u16, lang: Lang) -> Value {
         "key": item.map(|item| item.name.as_str()),
         "name": item.map(|_| modifiers::item_name(lang, dict_id)),
     })
+}
+
+/// A weapon of a player's counted public matches, as the games counted it
+/// (exe patch 165): the item, the matches it was counted in, and what was
+/// done with it. `deaths` are the player's with it in the hands (`kd` is by
+/// them); `damage` is in enemies' whole pain pools; `kill_distance_m` is the
+/// kills' average (`null` without a kill).
+fn weapon(totals: &WeaponTotals, lang: Lang) -> Value {
+    let counts = &totals.counts;
+    let metres = |decimetres: u64, kills: u64| round(decimetres as f64 / 10.0 / kills as f64, 1);
+    let mut value = item_ref(totals.dict_id, lang);
+    extend(
+        &mut value,
+        json!({
+            "matches": totals.matches,
+            "kills": counts.kills,
+            "deaths": counts.deaths,
+            "kd": kd(counts.kills, counts.deaths),
+            "headshots": counts.headshots,
+            "wall_kills": counts.wall_kills,
+            "ricochet_kills": counts.ricochet_kills,
+            "shots": counts.shots,
+            "hits": counts.hits,
+            "accuracy": accuracy(counts.shots, counts.hits),
+            "damage": round(counts.damage as f64 / 10_000.0, 1),
+            "kill_distance_m": (counts.kills > 0)
+                .then(|| metres(counts.kill_distance_dm, counts.kills)),
+            "longest_kill_m": metres(counts.longest_kill_dm, 1),
+            "held_s": counts.held_ms / 1000,
+        }),
+    );
+    value
 }
 
 /// The kits a player used in a match: each its place, its counters, and

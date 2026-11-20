@@ -4092,6 +4092,66 @@ fn the_history_keeps_the_kits_with_a_counter_and_their_shots() {
 }
 
 #[test]
+fn the_history_keeps_what_the_games_counted_by_weapon() {
+    use survarium::v026g::match_msgs::snapshot::WeaponCounts;
+    let counted = vec![
+        WeaponCounts {
+            deaths: 1,
+            held_ms: 2_000,
+            ..WeaponCounts::default()
+        },
+        WeaponCounts {
+            dict_id: 155,
+            kills: 3,
+            headshots: 1,
+            wall_kills: 1,
+            ricochet_kills: 2,
+            deaths: 2,
+            shots: 100,
+            hits: 30,
+            damage: 31_000,
+            kill_distance_dm: 900,
+            longest_kill_dm: 450,
+            held_ms: 61_250,
+        },
+    ];
+    for trusted_by in [2, 0] {
+        let mut players = alice_and_bob();
+        players[0].weapons = counted.clone();
+        let store = accounts(&players);
+        let results = Results::new();
+        let mut result = result(players);
+        result.trusted_by = trusted_by;
+        results.settle(&result, &store, &terms(), &mut Rng::new(1));
+        let record = &history_of(&results)[0];
+        let alice = &record.players[0].weapons;
+        if trusted_by == 0 {
+            assert!(alice.is_empty(), "no trusted result: none of its numbers");
+            continue;
+        }
+        assert_eq!(alice.keys().copied().collect::<Vec<_>>(), [0, 155]);
+        assert_eq!(
+            alice[&155],
+            history::WeaponCounts {
+                kills: 3,
+                headshots: 1,
+                wall_kills: 1,
+                ricochet_kills: 2,
+                deaths: 2,
+                shots: 100,
+                hits: 30,
+                damage: 31_000,
+                kill_distance_dm: 900,
+                longest_kill_dm: 450,
+                held_ms: 61_250,
+            }
+        );
+        assert_eq!((alice[&0].deaths, alice[&0].held_ms), (1, 2_000));
+        assert!(record.players[1].weapons.is_empty());
+    }
+}
+
+#[test]
 fn a_research_match_keeps_captures_not_batteries() {
     let mut players = alice_and_bob();
     players[0].statistics = Some(counters_of(

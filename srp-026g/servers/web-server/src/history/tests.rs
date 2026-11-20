@@ -2,6 +2,7 @@
 //! endpoint's shape (`docs/notes/match_history.md`), what is never served,
 //! and the refusals.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -10,7 +11,7 @@ use session::v026g::account::Account;
 use session::v026g::clans::{Clan, Member, Rank, status};
 use session::v026g::persist::history::{
     Counters, Eligibility, GearSlot, KitItem, MatchInfo, MatchKind, MatchRecord, PlayerLine,
-    Outcome, PlayerRecord, Presence, Winner,
+    Outcome, PlayerRecord, Presence, WeaponCounts, Winner,
 };
 use session::v026g::replays::{ReplayId, Replays};
 use session::v026g::{GameAccounts, GameRepository, SqliteGameRepository};
@@ -118,6 +119,36 @@ fn kit(place: u8, held: &[(usize, &str)]) -> KitLine {
     }
 }
 
+/// What Alice's games counted of the AK in a match, and under no weapon.
+fn weapons() -> BTreeMap<u16, WeaponCounts> {
+    BTreeMap::from([
+        (
+            0,
+            WeaponCounts {
+                deaths: 1,
+                held_ms: 20_000,
+                ..WeaponCounts::default()
+            },
+        ),
+        (
+            dict_id("ak_74u"),
+            WeaponCounts {
+                kills: 14,
+                headshots: 3,
+                wall_kills: 2,
+                ricochet_kills: 1,
+                deaths: 5,
+                shots: 400,
+                hits: 100,
+                damage: 420_000,
+                kill_distance_dm: 4_380,
+                longest_kill_dm: 845,
+                held_ms: 700_000,
+            },
+        ),
+    ])
+}
+
 fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
     MatchRecord {
         replay_id: ReplayId::new(
@@ -143,6 +174,7 @@ fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
                     0,
                     &[(0, "bm_helmet_1"), (2, "bm_torso_4"), (7, "ak_74u")],
                 )],
+                weapons: weapons(),
             },
             PlayerRecord {
                 account_id: bob,
@@ -159,6 +191,7 @@ fn record(kind: MatchKind, ended_at: u64, alice: u32, bob: u32) -> MatchRecord {
                     ..line(1, 100, 6, 14)
                 },
                 kits: vec![kit(1, &[(7, "uzi")])],
+                weapons: BTreeMap::new(),
             },
         ],
     }
@@ -537,6 +570,57 @@ fn a_players_equipment_is_its_most_used_items() {
 }
 
 #[test]
+fn a_players_weapons_are_what_its_games_counted() {
+    let world = world("weapons");
+    let body = world.ok(&format!("/api/history/player/weapons?id={}", world.alice));
+    assert_eq!(keys(&body), ["weapons"]);
+    let weapons = body["weapons"].as_array().unwrap();
+    // The gun; not what was counted under no weapon.
+    assert_eq!(weapons.len(), 1);
+    assert_eq!(
+        keys(&weapons[0]),
+        [
+            "accuracy",
+            "damage",
+            "deaths",
+            "headshots",
+            "held_s",
+            "hits",
+            "id",
+            "kd",
+            "key",
+            "kill_distance_m",
+            "kills",
+            "longest_kill_m",
+            "matches",
+            "name",
+            "ricochet_kills",
+            "shots",
+            "wall_kills",
+        ]
+    );
+    // Its three public matches added up: the private one and the bots'
+    // are not.
+    assert_eq!(
+        weapons[0],
+        json!({
+            "id": dict_id("ak_74u"), "key": "ak_74u", "name": weapons[0]["name"],
+            "matches": 3, "kills": 42, "deaths": 15, "kd": 2.8, "headshots": 9,
+            "wall_kills": 6, "ricochet_kills": 3, "shots": 1200, "hits": 300, "accuracy": 0.25,
+            "damage": 126.0, "kill_distance_m": 31.3, "longest_kill_m": 84.5, "held_s": 2100,
+        })
+    );
+    // Bob's games counted none.
+    let bob = world.ok(&format!("/api/history/player/weapons?id={}", world.bob));
+    assert_eq!(bob, json!({ "weapons": [] }));
+    assert_eq!(
+        world.get("/api/history/player/weapons?id=1&limit=51").0,
+        "400 Bad Request"
+    );
+    assert_eq!(world.get("/api/history/player/weapons").0, "400 Bad Request");
+}
+
+#[test]
 fn a_players_days_add_up_by_day() {
     let world = world("days");
     let body = world.ok(&format!("/api/history/player/days?id={}", world.alice));
@@ -802,7 +886,8 @@ fn an_unknown_endpoint_is_not_found_and_no_database_no_history() {
 /// under `dir`: twelve players and Nova, who never played, two clans (RAD's
 /// commander is Nova), and 23 public matches ending at `now`, written as srp
 /// writes them: one a free-for-all, one a draw, one too short to count;
-/// Yasen in the newest 15 only, with too few shots for the accuracy list;
+/// Yasen in the newest 15 only, with too few shots for the accuracy list
+/// and no weapons counted;
 /// Dub leaves every fifth; one weapon is gone from the game data.
 pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
     const NAMES: [&str; 13] = [
@@ -948,6 +1033,31 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
                         }],
                     });
                 }
+                // As the games would count it: a kit's gun has the kit's
+                // kills and shots, and the rest follows from them.
+                let mut weapons: BTreeMap<u16, WeaponCounts> = BTreeMap::new();
+                // Yasen's games counted none.
+                let counted = if k == 11 { &[][..] } else { &kits[..] };
+                for (nth, line) in counted.iter().enumerate() {
+                    let Some(gun) = line.items.iter().find(|item| item.slot.number() == 7) else {
+                        continue;
+                    };
+                    let counts = &line.counts;
+                    let longest = if counts.kills == 0 { 0 } else { 150 + random(900) };
+                    let nearer = counts.kills.saturating_sub(1) * (longest / 3);
+                    let of_gun = weapons.entry(gun.dict_id).or_default();
+                    of_gun.kills += counts.kills;
+                    of_gun.headshots += counts.headshots;
+                    of_gun.wall_kills += counts.kills / 6;
+                    of_gun.ricochet_kills += counts.kills / 9;
+                    of_gun.deaths += if nth == 0 { deaths - deaths / 3 } else { deaths / 3 };
+                    of_gun.shots += counts.shots;
+                    of_gun.hits += counts.hits;
+                    of_gun.damage += counts.hits * 2_300;
+                    of_gun.kill_distance_dm += longest + nearer;
+                    of_gun.longest_kill_dm = of_gun.longest_kill_dm.max(longest);
+                    of_gun.held_ms += 300_000 + 1_000 * random(300);
+                }
                 PlayerRecord {
                     account_id: FIRST + k,
                     clan_id: clan_of(k),
@@ -979,6 +1089,7 @@ pub(crate) fn preview(dir: &std::path::Path, now: u64) -> GameAccounts {
                         played_ms: if k == 10 && i % 5 == 0 { 300_000 } else { 780_000 },
                     },
                     kits,
+                    weapons,
                 }
             })
             .collect();

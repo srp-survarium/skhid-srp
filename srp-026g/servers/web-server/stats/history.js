@@ -1,7 +1,8 @@
 // The stats page (servers/web-server/src/history.rs): public matches from the
 // match history's JSON (/api/history/..., docs/notes/match_history.md), asked
-// for as the page is viewed. The address says what it shows: ?player=<name>,
-// ?match=<number>, ?clan=<tag>, else the leaderboards (?board=, ?by=).
+// for as the page is viewed. The address says what it shows: ?player=<name>
+// (its matches, or with ?tab=weapons its weapons), ?match=<number>,
+// ?clan=<tag>, else the leaderboards (?board=, ?by=).
 // Each view is drawn once empty, in its final shape, then with its data, so
 // nothing moves while it loads; long lists grow by "Older matches".
 (() => {
@@ -25,6 +26,7 @@
       today: 'Daily leaders', allTime: 'All time', shots: 'Shots fired',
       accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
       accuracyNote: '1000+ shots', averageNote: '20+ matches', headshotRate: 'HS %',
+      avgDistance: 'Avg distance', wallKills: 'Through walls', ricochetKills: 'Ricochets', noWeapons: 'No weapons counted yet.',
       noMatches: 'No public matches yet.', noPlayer: 'No player with public matches named “{}”.', noClan: 'No clan tagged [{}].',
       noMatch: 'No public match {}.', noHistory: 'This server keeps no match history.',
       failed: 'Could not load the stats. Reload the page.', nobody: 'Nobody yet.',
@@ -45,6 +47,7 @@
       today: 'Лідери дня', allTime: 'За весь час', shots: 'Постріли',
       accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
       accuracyNote: '1000+ пострілів', averageNote: '20+ матчів', headshotRate: 'У голову %',
+      avgDistance: 'Сер. відстань', wallKills: 'Крізь стіни', ricochetKills: 'Рикошетом', noWeapons: 'Зброю ще не пораховано.',
       noMatches: 'Публічних матчів ще немає.', noPlayer: 'Гравця з публічними матчами на ім’я «{}» немає.', noClan: 'Клану [{}] немає.',
       noMatch: 'Публічного матчу {} немає.', noHistory: 'Цей сервер не зберігає історію матчів.',
       failed: 'Не вдалося завантажити статистику. Оновіть сторінку.', nobody: 'Поки нікого.',
@@ -69,6 +72,7 @@
   const hours = new Intl.NumberFormat(lang, {minimumFractionDigits: 1, maximumFractionDigits: 1});
   // Accuracy in whole percents: shots count pellets and kits, not aimed bullets.
   const whole = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 0});
+  const metres = new Intl.NumberFormat(lang, {style: 'unit', unit: 'meter', maximumFractionDigits: 0});
   const dates = new Intl.DateTimeFormat(lang, {dateStyle: 'medium', timeStyle: 'short'});
   const day = new Intl.DateTimeFormat(lang, {dateStyle: 'medium'});
   const dayThisYear = new Intl.DateTimeFormat(lang, {month: 'short', day: 'numeric'});
@@ -231,10 +235,11 @@
   // A player's most used weapons and armour (player/equipment), FAVOURITES
   // rows each, empty ones too, so its height is the same loading or not.
   const FAVOURITES = 5;
+  // An item's place in the wiki: a weapon's card, an armour piece's; none
+  // for one the game data no longer has.
+  const wiki = (page, anchor) => item => item.key ? `/wiki/${page}?${new URLSearchParams({lang})}#${anchor}${item.key}` : null;
+  const wikiWeapon = wiki('weapons', 'wpn_');
   function favourites(data) {
-    // An item's place in the wiki: a weapon's card, an armour piece's; none
-    // for one the game data no longer has.
-    const wiki = (page, anchor) => item => item.key ? `/wiki/${page}?${new URLSearchParams({lang})}#${anchor}${item.key}` : null;
     const list = (label, items, where) => {
       const box = table([[label, item => where(item) ? el('a', {href: where(item)}, name(item.name)) : name(item.name), 'l'],
         [TEXT.matches, item => n(item.matches)]], items, FAVOURITES, '', where);
@@ -242,7 +247,24 @@
       return box;
     };
     return [el('h2', {className: 'stats-heading'}, TEXT.favourites),
-      el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons, wiki('weapons', 'wpn_')), list(TEXT.armour, data && data.armour, wiki('equipment', '')))];
+      el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons, wikiWeapon), list(TEXT.armour, data && data.armour, wiki('equipment', '')))];
+  }
+  // A player's weapons (player/weapons): what its games counted of each in
+  // its counted matches, most kills first; K/D by the deaths with it in the
+  // hands. WEAPONS empty rows while loading, and without an `id` yet.
+  const WEAPONS = 5;
+  function weaponList(id) {
+    const columns = [[TEXT.weapon, item => wikiWeapon(item) ? el('a', {href: wikiWeapon(item)}, name(item.name)) : name(item.name), 'l'],
+      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd)], [TEXT.headshotRate, headshotRate],
+      [TEXT.accuracy, aim], [TEXT.avgDistance, item => item.kill_distance_m === null ? '—' : metres.format(item.kill_distance_m)],
+      [TEXT.wallKills, item => n(item.wall_kills)], [TEXT.ricochetKills, item => n(item.ricochet_kills)],
+      [TEXT.hours, item => hours.format(item.held_s / 3600)]];
+    const box = el('div', {className: 'stats-weapons'}, table(columns, null, WEAPONS, 'kills'));
+    if (id !== null) api('player/weapons', {id, limit: TOP}).then(data => {
+      const rows = data ? data.weapons : [];
+      box.replaceChildren(rows.length ? table(columns, rows, 0, 'kills', wikiWeapon) : notice(TEXT.noWeapons));
+    }, error => box.replaceChildren(notice(String(error))));
+    return box;
   }
   const matchLink = row => link({match: row.id}, `${row.id}`);
   // A map's name, leading to it in the wiki's Maps page in the match's mode;
@@ -307,16 +329,37 @@
       [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)], [TEXT.headshotRate, headshotRate],
       [TEXT.rating, row => n(row.rating)]];
-    root.replaceChildren(head(null, null), ...favourites(null), el('h2', {className: 'stats-heading'}, TEXT.matches), table(columns, null));
+    // Its matches or its weapons, as ?tab= says; empty until the player's
+    // id is known.
+    let tab = asked('tab') === 'weapons' ? 'weapons' : 'matches', id = null;
+    const tabs = el('div', {className: 'slot-filter stats-tabs', role: 'group'});
+    const body = el('div');
+    function show() {
+      for (const button of tabs.children) button.setAttribute('aria-pressed', String(button.dataset.tab === tab));
+      const url = new URL(location.href);
+      if (tab === 'weapons') url.searchParams.set('tab', tab); else url.searchParams.delete('tab');
+      history.replaceState(null, '', url);
+      keepLanguage();
+      body.replaceChildren(tab === 'weapons' ? weaponList(id) : id === null ? table(columns, null)
+        : paged(columns, before => api('player/matches', {id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
+    }
+    for (const [value, label] of [['matches', TEXT.matches], ['weapons', TEXT.weapons]]) {
+      const button = el('button', {type: 'button'}, label);
+      button.dataset.tab = value;
+      button.addEventListener('click', () => { tab = value; show(); });
+      tabs.append(button);
+    }
+    root.replaceChildren(head(null, null), ...favourites(null), tabs, body);
+    show();
     // A player without a public match is not found, as an unknown name.
     const card = await api('player', {name});
     if (!card) return root.replaceChildren(notice(say(TEXT.noPlayer, name)), finder());
     heading(card.player.name, TEXT.player, TEXT.player);
     const [days, equipment] = await Promise.all([api('player/days', {id: card.player.id, days: 30}).catch(() => null),
       api('player/equipment', {id: card.player.id, limit: FAVOURITES}).catch(() => null)]);
-    root.replaceChildren(head(card, days ? days.days : []), ...favourites(equipment || {weapons: [], armour: []}),
-      el('h2', {className: 'stats-heading'}, TEXT.matches),
-      paged(columns, before => api('player/matches', {id: card.player.id, limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
+    id = card.player.id;
+    root.replaceChildren(head(card, days ? days.days : []), ...favourites(equipment || {weapons: [], armour: []}), tabs, body);
+    show();
   }
 
   // A match's replay (replay): one Download. Pressed, the replay is asked

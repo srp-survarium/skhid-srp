@@ -5,6 +5,9 @@
 .stats-keys { min-height:34px }
 .stats-panels { grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); border:1px solid var(--rule); background:var(--panel); margin-top:20px }
 .stats-heading { margin:26px 0 10px; font-size:1.1rem }
+/* A player's lists (matches, weapons): the buttons where a heading would be. */
+.stats-tabs { margin:26px 0 10px }
+.stats-weapons .stats-table td.l { width:100% }
 .stats-table { border-collapse:collapse; width:100%; font:.82rem var(--data); background:var(--panel); border:1px solid var(--rule) }
 .stats-table th,.stats-table td { padding:6px; border-bottom:1px solid var(--rule); text-align:right; white-space:nowrap; vertical-align:middle }
 .stats-table thead th { font:700 .7rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3) }

@@ -10,7 +10,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - `/stats` is a tab of the site's own, beside Home and Wiki (the owner, 2026-11-20: "stats are
   not part of wiki"), in the wiki's look: a frame the web server gives, which
   `servers/web-server/stats/history.js` fills from the API when it is viewed.
-- The address says what it shows: `?player=<name>`, `?match=<number>`, `?clan=<tag>`, else the
+- The address says what it shows: `?player=<name>` (its matches, or with `&tab=weapons` its
+  weapons), `?match=<number>`, `?clan=<tag>`, else the
   leaderboards (`?board=players|clans|best|latest&by=<key>`), under the day's leaders (five
   lists of five: kills, assists, score, wins, hours) and the all-time totals. Each view is drawn once empty in
   its final shape, then with its data, so nothing moves while it loads; match lists grow by
@@ -18,6 +19,10 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
   headshots as their share of the kills (HS %); no batteries or artefacts (a profile's own panel
   has them).
+- A player's Weapons list has a row a weapon its games counted (below): kills, K/D (by the
+  deaths with it in the hands), HS %, accuracy, the kills' average distance, kills through
+  cover and by a ricochet, hours in the hands; most kills first. A row leads to the weapon's
+  card in the wiki.
 - A match line shows the weapons of the kits it used (each kit in full, with the kit's own kills
   and accuracy, on hover). A free-for-all is one list by place. A click anywhere on a row
   opens what the row is of: the match, the player or the clan; a favourite weapon or armour
@@ -103,8 +108,21 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   `armour`, by its slot). No kills or shots by item: the game counts those by kit, and a kit's
   numbers given to each of its items would read as the item's own. In a twist's match (Racket,
   Saloon) the kits were not the accounts' own: a kit is kept with its counters and no items.
+- `g26_match_weapons` (migration 20): one row a weapon a player's games counted something of in
+  the match (exe patch 165, `kill_weapon.md`; the match result's `PlayerResult::weapons`, from
+  the trusted snapshot), by items_dict id: kills, and of them those by a headshot, by a bullet
+  that had pierced something (`wall_kills`) and by one that had bounced (`ricochet_kills`);
+  deaths with it in the hands; shots and hits (a pellet each); `damage` (the pain its hits took
+  off enemies, in ten-thousandths of a pain pool); the kills' distances added up and the longest
+  (decimetres); `held_ms`, the time it was in the hands of the player alive. Dict id 0 is what
+  the games counted under no weapon (a hit with no bullet, a death or the time with nothing of
+  the inventory in the hands): kept, never served. A match of before the patch, or one with no
+  trusted snapshot, has no rows. Unlike a kit's items, a twist's match has them: they are the
+  weapons that were used.
+- `g26_player_weapons`: those rows of the counted public matches added up by player and weapon,
+  with the matches that had a row of it; the longest kill is the longest of them.
 - Not kept, as survarium.pro had them: artefact kills (0.26g has none), clan rating (clans have
-  none), skills, kills by weapon (the game never says which, `kill_weapon.md`).
+  none), skills.
 - What happened inside a match (kills in time order) and the game's own lists (Watch, Replays)
   are #1537's, on top of this.
 
@@ -198,6 +216,24 @@ both lists empty, as an unknown one.
 ```json
 {"weapons":[{"id":155,"name":"AK-74M","matches":40}],
  "armour":[{"id":301,"name":"Helmet","matches":52}]}
+```
+
+### `GET /api/history/player/weapons?id=<id>&limit=<n>`
+
+What a player did with each weapon in its counted public matches, as its games counted it
+(`g26_player_weapons`): the weapons it fired or killed with (a grenade or a trap that killed is
+one), most kills first (ties: more shots, then the lower id), at most `limit` (1..50, default
+50). `id`, `key` and `name` are the item's, as in `player/equipment`. `deaths` are the player's
+with it in the hands, and `kd` is by them; `damage` is in enemies' whole pain pools;
+`kill_distance_m` is the kills' average (`null` without a kill), `longest_kill_m` the longest;
+`held_s` the time in the hands. An account whose games counted none has an empty list, as an
+unknown one.
+
+```json
+{"weapons":[{"id":155,"key":"ak_74m","name":"AK-74M","matches":40,"kills":310,"deaths":190,
+             "kd":1.63,"headshots":62,"wall_kills":14,"ricochet_kills":2,"shots":9800,"hits":2900,
+             "accuracy":0.296,"damage":402.5,"kill_distance_m":31.3,"longest_kill_m":84.5,
+             "held_s":21400}]}
 ```
 
 ### `GET /api/history/player/days?id=<id>&days=<n>`
