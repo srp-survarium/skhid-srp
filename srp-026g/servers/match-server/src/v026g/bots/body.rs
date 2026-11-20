@@ -3811,14 +3811,16 @@ pub(super) mod tests {
 
     /// [press forecast] [`press_forecast`] plays the reckoning's own steps ([`Role::Press`]): for every press of the gap (0-19
     /// ground ticks of forward before it), where it ends is, to the bit, where the reckoning ([`Role::Reckoning`]) puts the body
-    /// playing the same ticks (the ground ticks, the press, forward through the flight, the stay steps with the keys let go). Its
-    /// steps are on its own clock ([`kept_clock::Of::Press`]).
+    /// playing the same ticks (the ground ticks, the press, forward through the flight, the stay steps with the keys let go); a
+    /// flight that ended in the air is followed down by its controller, on the reckoning's floor and no landing. Its steps are on
+    /// its own clock ([`kept_clock::Of::Press`]).
     #[test]
     fn a_press_forecast_is_the_reckonings_own_steps() {
         let (grid, kin, at) = press_gap();
         let world = PressWorld { kin: &kin, level: 1.0, grid: &grid };
         let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
         let step = |at: Estimate, keys: u32| advance(at, tick(&at, keys), &kin, 1.0, Some(&grid), None, Role::Reckoning, false);
+        let mut fell = 0;
         for press_in in 0..20 {
             let outcome = press_forecast(&at, &gap_plan(key::FORWARD, press_in), &world);
             let end = end_of(outcome).unwrap_or_else(|| panic!("press {press_in}: no flight"));
@@ -3833,13 +3835,24 @@ pub(super) mod tests {
                 r = step(r, key::FORWARD);
                 n += 1;
             }
+            // A flight that ended in the air: the forecast follows its controller down ([`PRESS_FALL_STEPS`]), the reckoning falls by
+            // its own rule; both come down on the same floor and neither is a landing.
+            let fell_on = matches!(r.fall, Fall::Falling { .. });
             if r.arc.is_none() {
                 for _ in 0..mapdata::controller::jump::STAY_STEPS {
                     r = step(r, 0);
                 }
             }
-            assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
+            if fell_on {
+                fell += 1;
+                assert!(!matches!(outcome, PressOutcome::Lands { .. }), "press {press_in}: fell on, no landing ({outcome:?})");
+                assert!((end.y - r.feet.y).abs() < 0.05, "press {press_in}: the same floor as the reckoning's ({outcome:?}, {:?})", r.feet);
+                assert!(end.distance_xz(r.feet) < 0.3, "press {press_in}: near the reckoning's rest ({outcome:?}, {:?})", r.feet);
+            } else {
+                assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
+            }
         }
+        eprintln!("presses that fell on: {fell} of 20");
         let (steps, _) = kept_clock::take(kept_clock::Of::Press);
         assert!(steps > 0, "on the press clock");
     }
