@@ -433,6 +433,53 @@ fn one_carrier_serves_two_kinds_and_a_taken_slot_is_refused() {
     assert_eq!(refusal(&table, FN_P90, both), Refusal::Taken(S::M12x1lMuzzle));
 }
 
+/// A gun whose suppressor is built in (the design's decision 3; 0.69d0's
+/// OTs-14 chain `ots144a_groza_lock_suppressor > barrel_bracket_01_picatinnyrail`,
+/// fits69.tsv): the suppressor is the gun's own part in its muzzle slot and
+/// brings the bracket's slot, the bracket is the grip's carrier. The table
+/// as it is says it: a grip goes on through the bracket, the suppressor
+/// stays, and with no muzzle fit nothing takes its place.
+#[test]
+fn a_grip_hangs_on_a_built_in_suppressor_through_its_bracket() {
+    let mut source = source();
+    let (suppressor, bracket) = (source.modules.len(), source.modules.len() + 1);
+    source.modules.push(module(
+        1601,
+        Role::Stock,
+        "weapons/modules/suppressors/ots144a_groza_lock_suppressor",
+        vec![AttachSource {
+            adds: vec![(S::OnbarrelTacticalPicatinnyrail, locator(60))],
+            fire_point: Some(locator(61)),
+            ..AttachSource::new(S::GrozaLockMuzzle)
+        }],
+    ));
+    source.modules.push(module(
+        1602,
+        Role::Carrier,
+        "weapons/modules/picatinnyrails/barrel_bracket_01_picatinnyrail",
+        vec![AttachSource { adds: vec![(S::PicatinnyGrip, locator(62))], ..AttachSource::new(S::OnbarrelTacticalPicatinnyrail) }],
+    ));
+    const OTS14: u16 = 900;
+    source.guns.push(GunSource {
+        stock: vec![(S::GrozaLockMuzzle, suppressor)],
+        carriers: vec![(S::PicatinnyGrip, vec![(bracket, S::OnbarrelTacticalPicatinnyrail)])],
+        fits: vec![MIKI],
+        ..gun(OTS14, &[(S::GrozaLockMuzzle, 63)])
+    });
+    let bytes = encode(&source).unwrap();
+    let table = Table::parse(&bytes).unwrap();
+    with(&table, OTS14, Wanted { grip: dict(MIKI), ..Wanted::default() }, |bare| {
+        assert_eq!(models(&bare), ["ots144a_groza_lock_suppressor", "barrel_bracket_01_picatinnyrail", "fabdefence_miki_foregrip"]);
+        let on_suppressor = on_offset(locator(63)).child(&locator(60));
+        let grip = bare.parts().nth(2).unwrap();
+        assert_eq!(grip.at, on_suppressor.child(&locator(62)));
+        // the fire point stays the suppressor's
+        assert_eq!(bare.fire_point, Some(on_offset(locator(63)).child(&locator(61))));
+        assert!(bare.left_hand.is_some());
+    });
+    assert_eq!(refusal(&table, OTS14, Wanted { muzzle: dict(DTK3), ..Wanted::default() }), Refusal::NoFit(Kind::Muzzle));
+}
+
 /// The bones of a frame: the root where `root` puts it, `offset` moved by
 /// `kick` from its idle pose.
 fn bones(root: &Affine, kick: &Affine) -> impl Fn(BoneIndex) -> Affine + use<> {

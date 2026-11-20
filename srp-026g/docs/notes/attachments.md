@@ -229,9 +229,11 @@ guns' rows and the fitted items' modifications that set them are content.
 The content side (the porter's `port-modules` and the remodel, sub-branch `feat/attachments-content`)
 and the client's runtime meet in these, and nowhere else:
 
-1. **The table** at `resources/gameplay/weapon_modules.srpm` in the pack (a file of the game data
-   as it is, asked for as raw data) and in the server game data: `weapon_modules::encode`'s bytes,
-   version 2.
+1. **The table**: the archive's file `gameplay/weapon_modules.srpm` in the pack and in the server
+   game data, `weapon_modules::encode`'s bytes, version 2. The game asks for it as
+   `resources/gameplay/weapon_modules.srpm` (raw data): `resources/` is the request's prefix, as for
+   the dictionary itself (asked for as `resources/gameplay/db_static_dictionaries`, 0xA0E8CC; the
+   archive's `gameplay/db_static_dictionaries`).
 2. **A gun record for every weapon item** that takes anything, premium and camouflage items too
    (their own record, `fits-of` their base gun). `bones` is the bone count of the item's model.
 3. **Two bodies a gun.** The weapon config's `object/model` stays the whole body. The table's
@@ -252,6 +254,40 @@ and the client's runtime meet in these, and nowhere else:
 7. **First, one gun**: a table and a quick pack with the AK-74M alone (its bare body, its own
    brake, forend and sights as parts, one brake, one flash hider, one grip with its tactical
    forend, one scope with its rail), to run the core in a game before the rest is built.
+
+**Agreed with the content side, 2026-11-20** (its conventions; nothing in the crate or the client
+changes for them):
+
+- The bare body's path is `<object/model>_bare` by the porter's rule
+  (`weapons/remodel_069/<item>/<item>_bare`). The table still names it: the client has no rule of
+  its own.
+- A gun's slot is 0.69d0's locator as it is. A module's own slot, eye and fire-point locators are
+  plain in its model's space and written as half turn x L, so `Placement::child` gives 0.69d0's
+  place (seen on the Midwest forend). A grip's hand locators are in a gun rig's convention and
+  written L x half turn, so the wrist is L x the grip's offset and the fingers are plain
+  finger x parent^-1. LIKELY until the renders show it.
+- A stock part's or a carrier's row carries 0.69d0's own dict id; only a fit's row carries ours.
+  Nothing looks a stock part or a carrier up by its dict id (`Gun::fit` reads the gun's fits
+  alone), so the two ranges may overlap.
+- A rail mount's own `aim` is not written: an optic's eye and a stock part's are.
+- **A gun's built-in suppressor needs no new rule.** It is the gun's own part in its muzzle slot
+  (a stock row whose attach adds the bracket's slot), and the bracket is the grip's carrier in
+  that slot. `resolve` seats a carrier on a slot a stock part brings, and with no muzzle fit
+  nothing takes the suppressor's place
+  (`a_grip_hangs_on_a_built_in_suppressor_through_its_bracket`, 0.69d0's OTs-14 chain). So the
+  eleven suppressor-clamp grip fits are rows, not refusals.
+- **A gun with a default optic.** The game draws that optic itself (the scope item
+  `addons/rifle_scope_dict_id` names) at the body's `scope_point`, with nothing fitted and with
+  only a device or a grip fitted alike, since no scope's frame is written then. So it is not a
+  stock part of the table (it would be drawn twice), both bodies keep `scope_point` and `aim` for
+  it, and the gun's sights, where they are parts, have the folded shape as their main one. How a
+  fitted scope takes its place is the scopes lane's.
+- **The first AK-74M run needs no device items.** A local edit that sets `data/srp_gun` and
+  `data/srp_muzzle` or `data/srp_grip` on the gun's config is all the client reads for a device or
+  a grip (with the fit's row in the table under that dict id). A scope needs one thing more: the
+  scope item `addons/rifle_scope_dict_id` names must have its idle and aimed models with the
+  optic's slot as their origin (a new pair of models, or a local edit that points an existing
+  scope item at them), and `data/srp_scope` its dict id.
 
 What the client does with them: `resolve` at the weapon cook (once for the requests, once after the
 model is loaded); the bare body asked for in place of `object/model`; each part's model asked for

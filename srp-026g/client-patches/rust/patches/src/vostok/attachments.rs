@@ -58,7 +58,9 @@ use super::world::{floats, read, write_floats};
 use super::{Lock, Thread};
 use crate::raw;
 
-/// The modules table's file in the game data.
+/// The modules table's file as the game asks for it: the archive's
+/// `gameplay/weapon_modules.srpm` under the requests' `resources/`, as the
+/// dictionary's own configs (0xA0E8CC).
 pub const TABLE: &CStr = c"resources/gameplay/weapon_modules.srpm";
 /// resources::raw_data_class: a file's bytes as they are (the game's own
 /// startup.cfg, game::query_base_resources 0x1EC182).
