@@ -406,13 +406,29 @@
   const sidePoints = m => [el('span', {className: 'stats-side stats-team0'}, n(m.team_points[0])), ' : ',
     el('span', {className: 'stats-side stats-team1'}, n(m.team_points[1]))];
 
+  // A list that is whole in the page (`rows`; null while loading) and
+  // sorts there: by the column whose heading was clicked, the largest
+  // first, the smallest on a second click. A column's sixth piece is the
+  // number it sorts by; `key` and `up`: how the list comes.
+  function sortable(columns, rows, placeholder, open, key, up) {
+    const box = el('div');
+    const draw = () => {
+      const by = columns.find(column => column[3] === key)[5];
+      const sorted = rows && [...rows].sort((a, b) => (up ? 1 : -1) * (by(a) - by(b)));
+      box.replaceChildren(table(columns, sorted, placeholder, key, open,
+        {up, ask: asked => { up = asked === key && !up; key = asked; draw(); }}));
+    };
+    draw();
+    return box;
+  }
   async function matchView(id) {
     heading(`${TEXT.match} ${id}`, TEXT.match, `${TEXT.match} ${id}`);
-    const columns = [[TEXT.place, row => n(row.place)], [TEXT.player, playerKit, 'l', '', twoLines],
-      [TEXT.level, row => n(row.level)], [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)],
-      [TEXT.deaths, row => n(row.deaths)], [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)],
-      [TEXT.headshotRate, headshotRate], [TEXT.grenadeKills, row => n(row.grenade_kills)],
-      [TEXT.meleeKills, row => n(row.melee_kills)], [TEXT.captures, row => n(row.captures)], [TEXT.rating, row => n(row.rating)]];
+    const of = (label, key, cell = row => n(row[key]), value = row => row[key]) => [label, cell, '', key, null, value];
+    const columns = [of(TEXT.place, 'place'), [TEXT.player, playerKit, 'l', '', twoLines],
+      of(TEXT.score, 'score'), of(TEXT.kills, 'kills'), of(TEXT.deaths, 'deaths'), of(TEXT.kd, 'kd', row => kd(row.kd)),
+      of(TEXT.accuracy, 'accuracy', aim, row => row.shots ? row.accuracy : -1), of(TEXT.assists, 'assists'),
+      of(TEXT.headshotRate, 'headshots', headshotRate, row => row.kills ? row.headshots / row.kills : -1),
+      of(TEXT.grenadeKills, 'grenade_kills'), of(TEXT.meleeKills, 'melee_kills'), of(TEXT.rating, 'rating')];
     const view = data => {
       const m = data && data.match;
       // A free-for-all: everyone its own side, one list by place.
@@ -421,11 +437,11 @@
         : free ? data.players.filter(row => row.outcome === 'won').map(row => row.player.name).join(', ') || '—'
         : m.winner === null ? '—' : el('span', {className: `stats-side stats-team${m.winner}`}, `${TEXT.team} ${m.winner + 1} ${TEXT.won}`);
       const teams = free
-        ? [[el('h2', {className: 'stats-heading'}, TEXT.players), table(columns, [...data.players].sort((a, b) => a.place - b.place), 0, '', openPlayer)]]
+        ? [[el('h2', {className: 'stats-heading'}, TEXT.players), sortable(columns, data.players, 0, openPlayer, 'place', true)]]
         : [0, 1].map(team => {
           const rows = data ? data.players.filter(row => row.team === team) : null;
           const title = `${TEXT.team} ${team + 1}${m ? ` · ${n(m.team_points[team])}` : ''}${m && m.winner === team ? ` · ${TEXT.win}` : ''}`;
-          return [el('h2', {className: `stats-heading stats-team stats-team${team}`}, title), table(columns, rows, 6, '', openPlayer)];
+          return [el('h2', {className: `stats-heading stats-team stats-team${team}`}, title), sortable(columns, rows, 6, openPlayer, 'place', true)];
         });
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
         [TEXT.map, el('span', {className: 'stats-map-cell'}, m ? mapLink(m) : BLANK, mapPicture(m))],

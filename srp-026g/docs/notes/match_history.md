@@ -20,9 +20,11 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   heading (the owner, 2026-11-20), largest first, and smallest first on a second click
   (`&order=asc`); the players' list has no Level.
 - A player's page says the account's id first in Overall (the owner, 2026-11-20), then its
-  earlier names (the owner, 2026-11-20: "we also need name history"): the last ten it left, the
+  earlier names (the owner, 2026-11-20: "we also need name history"): those it left (fifty at most), the
   last left first, each with its day on a hover; `?player=` finds a player by a name it left
   while nobody has that name now.
+- A match's teams (a free-for-all's one list) come by place and sort in the page by a click on
+  a heading, each team alone; they have no Level and no Captures (the owner, 2026-11-20).
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
   headshots as their share of the kills (HS %); no batteries or artefacts (a profile's own panel
   has them).
@@ -192,8 +194,8 @@ Common objects:
 ### `GET /api/history/player?name=<name>` or `?id=<id>`
 
 A player's card. `name` is the in-game name, exact (Latin letters in any case), or, with no
-player of that name now, one a player left (the last to leave it). `names`: the last ten names
-it left, the last left first, each with `until` (UTC seconds). `404` for an
+player of that name now, one a player left (the last to leave it). `names`: the names
+it left (fifty at most), the last left first, each with `until` (UTC seconds). `404` for an
 account without a public match, as for no account.
 
 ```json
