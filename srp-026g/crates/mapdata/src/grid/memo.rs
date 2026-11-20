@@ -174,6 +174,151 @@ impl MemoInput for StableId {
     }
 }
 
+/// [incremental grids] Every field of the body, by name: written as a pattern with no `..`, so a field added to [`Body`] does
+/// not compile until it is in the memo's keys (the grid key, [`crate::grid_key_with_links`], covers the switches and the values
+/// it was made for; a memo key covers them all, the game data's [`Body::fastest_walk_cap`] too).
+impl MemoInput for super::Body {
+    fn feed(&self, digest: &mut Digest128) {
+        let super::Body {
+            step,
+            stand_height,
+            crouch_height,
+            radius,
+            min_ground_normal_y,
+            max_drop,
+            max_jump,
+            drop_flight_mps,
+            erosion,
+            walk_off_lips,
+            landing_carry,
+            keep_last_resorts,
+            crouch_only_floors,
+            capsule_steps,
+            drop_room,
+            slip_landings,
+            run_ups_after_erosion,
+            steep_walk_base,
+            pocket_exits_walled,
+            press_window,
+            exits_in_reach,
+            gap_no_vaults,
+            ramp_faces,
+            client_controller,
+            drop_room_walk_faces,
+            narrow_doors,
+            drop_check,
+            walk_ceiling_stalls,
+            rim_jumps,
+            fastest_walk_cap,
+            wall_held_tops,
+            drop_lands,
+            gap_flights,
+            rest_floors,
+            held_floors,
+            walk_face_stands,
+            wall_give_back,
+            exe_collision,
+            walk_start_clear,
+            crack_bridges,
+            start_witness,
+            give_back_in_cell,
+            fall_stops_on_solids,
+            walk_every_link,
+            jump_air_steps,
+        } = *self;
+        digest.str(b"step");
+        step.feed(digest);
+        digest.str(b"stand_height");
+        stand_height.feed(digest);
+        digest.str(b"crouch_height");
+        crouch_height.feed(digest);
+        digest.str(b"radius");
+        radius.feed(digest);
+        digest.str(b"min_ground_normal_y");
+        min_ground_normal_y.feed(digest);
+        digest.str(b"max_drop");
+        max_drop.feed(digest);
+        digest.str(b"max_jump");
+        max_jump.feed(digest);
+        digest.str(b"drop_flight_mps");
+        drop_flight_mps.feed(digest);
+        digest.str(b"erosion");
+        digest.str(format!("{erosion:?}").as_bytes());
+        digest.str(b"walk_off_lips");
+        walk_off_lips.feed(digest);
+        digest.str(b"landing_carry");
+        landing_carry.feed(digest);
+        digest.str(b"keep_last_resorts");
+        keep_last_resorts.feed(digest);
+        digest.str(b"crouch_only_floors");
+        crouch_only_floors.feed(digest);
+        digest.str(b"capsule_steps");
+        capsule_steps.feed(digest);
+        digest.str(b"drop_room");
+        drop_room.feed(digest);
+        digest.str(b"slip_landings");
+        slip_landings.feed(digest);
+        digest.str(b"run_ups_after_erosion");
+        run_ups_after_erosion.feed(digest);
+        digest.str(b"steep_walk_base");
+        steep_walk_base.feed(digest);
+        digest.str(b"pocket_exits_walled");
+        pocket_exits_walled.feed(digest);
+        digest.str(b"press_window");
+        press_window.feed(digest);
+        digest.str(b"exits_in_reach");
+        exits_in_reach.feed(digest);
+        digest.str(b"gap_no_vaults");
+        gap_no_vaults.feed(digest);
+        digest.str(b"ramp_faces");
+        ramp_faces.feed(digest);
+        digest.str(b"client_controller");
+        client_controller.feed(digest);
+        digest.str(b"drop_room_walk_faces");
+        drop_room_walk_faces.feed(digest);
+        digest.str(b"narrow_doors");
+        narrow_doors.feed(digest);
+        digest.str(b"drop_check");
+        drop_check.feed(digest);
+        digest.str(b"walk_ceiling_stalls");
+        walk_ceiling_stalls.feed(digest);
+        digest.str(b"rim_jumps");
+        rim_jumps.feed(digest);
+        digest.str(b"fastest_walk_cap");
+        fastest_walk_cap.feed(digest);
+        digest.str(b"wall_held_tops");
+        wall_held_tops.feed(digest);
+        digest.str(b"drop_lands");
+        drop_lands.feed(digest);
+        digest.str(b"gap_flights");
+        gap_flights.feed(digest);
+        digest.str(b"rest_floors");
+        rest_floors.feed(digest);
+        digest.str(b"held_floors");
+        held_floors.feed(digest);
+        digest.str(b"walk_face_stands");
+        walk_face_stands.feed(digest);
+        digest.str(b"wall_give_back");
+        wall_give_back.feed(digest);
+        digest.str(b"exe_collision");
+        exe_collision.feed(digest);
+        digest.str(b"walk_start_clear");
+        walk_start_clear.feed(digest);
+        digest.str(b"crack_bridges");
+        crack_bridges.feed(digest);
+        digest.str(b"start_witness");
+        start_witness.feed(digest);
+        digest.str(b"give_back_in_cell");
+        give_back_in_cell.feed(digest);
+        digest.str(b"fall_stops_on_solids");
+        fall_stops_on_solids.feed(digest);
+        digest.str(b"walk_every_link");
+        walk_every_link.feed(digest);
+        digest.str(b"jump_air_steps");
+        jump_air_steps.feed(digest);
+    }
+}
+
 /// A site's context: what its jobs read besides their item, each field hashed whole into every key of the site. Made by
 /// [`memo_ctx!`] (which lists every field in the digest), so a field added later is in the key with no line to forget.
 pub trait MemoCtx: Sync {

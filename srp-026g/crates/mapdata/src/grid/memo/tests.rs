@@ -236,3 +236,20 @@ fn a_context_field_is_in_the_key() {
     assert_ne!(digest(&a), digest(&b));
     assert_eq!(digest(&a), digest(&Ctx { step: 1, floors: 2 }));
 }
+
+#[test]
+fn every_body_field_is_in_a_memo_key() {
+    let digest = |b: &crate::Body| {
+        let mut d = Digest128::default();
+        b.feed(&mut d);
+        d.finish()
+    };
+    let base = crate::Body::default();
+    let mut cap = base;
+    cap.fastest_walk_cap *= 1.1;
+    assert_ne!(digest(&base), digest(&cap), "the game data's fastest walk cap");
+    let mut steps = base;
+    steps.jump_air_steps = !steps.jump_air_steps;
+    assert_ne!(digest(&base), digest(&steps));
+    assert_eq!(digest(&base), digest(&crate::Body::default()));
+}
