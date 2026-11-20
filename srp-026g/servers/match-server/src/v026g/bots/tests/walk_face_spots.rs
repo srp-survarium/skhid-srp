@@ -4,7 +4,7 @@
 //! rises over the sprint jump's reach) and reaches it. On the stand-in over the real mapdata, the client's own steps.
 //!
 //! ```text
-//! SRP_MAPDATA_DIR=<dir> [SRP_BENCH_GRID_CACHE=<dir>] cargo test -p match-server --release walk_face_spots -- --ignored --nocapture
+//! SRP_MAPDATA_DIR=<dir> SRP_GAME_DATA=<server-game-data.db> [SRP_BENCH_GRID_CACHE=<dir>] cargo test -p match-server --release walk_face_spots -- --ignored --nocapture
 //! ```
 
 use super::*;
@@ -83,9 +83,9 @@ fn run(world: &Arc<World>, start: Vec3, goal: Vec3, until: u32) -> (Option<u32>,
 /// The box top's way to the pillar's top: no link of the grid from the box top's floors rises over [`RISE_MAX_M`], the
 /// planned route has none, and a bot reaches the pillar's top within the route's walk and [`MARGIN_S`].
 #[test]
-#[ignore = "a per-spot test on the real mapdata; needs SRP_MAPDATA_DIR"]
+#[ignore = "a per-spot test on the real mapdata; needs SRP_MAPDATA_DIR and SRP_GAME_DATA"]
 fn a_bot_on_vector_laboratorys_box_top_reaches_the_pillar_top_with_no_link_up_its_side() {
-    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
