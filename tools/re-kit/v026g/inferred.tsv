@@ -3528,6 +3528,7 @@ va	status	ref_021d	name
 0x0030f5a0	inferred-medium		survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme
 0x00311070	inferred-medium		survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme
 0x003cfaf0	inferred-medium		vostok::render::res_render_output::fullscreen_output
+0x00395af0	inferred-medium		vostok::animation::animation_player::capture_state
 0x001fb660	inferred-medium		survarium::game_world::process_world_events
 0x001fb6c0	inferred-medium		survarium::game_world::process_kill_cross_events
 0x00233770	inferred-medium		survarium::game_world_ui::on_kill_cross_event
