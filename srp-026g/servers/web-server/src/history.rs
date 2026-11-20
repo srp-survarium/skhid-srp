@@ -74,6 +74,7 @@ fn page_text(lang: Lang) -> Value {
         ("day", lang.t("Day")),
         // A sign, no word.
         ("rank", "#".to_owned()),
+        ("id", lang.t("ID")),
         ("level", lang.t("Level")),
         ("experience", lang.t("Experience")),
         ("rating", lang.t("Rating")),
@@ -111,6 +112,7 @@ fn page_text(lang: Lang) -> Value {
         ("left", lang.t("Left")),
         ("won", lang.t("won")),
         ("older", lang.t("Older matches")),
+        ("morePlayers", lang.t("More players")),
         ("hours", lang.t("Hours played")),
         ("replay", lang.t("Replay")),
         ("replayPreparing", lang.t("Preparing…")),
@@ -125,7 +127,7 @@ fn page_text(lang: Lang) -> Value {
         ("kit", lang.t("Kit")),
         ("favourites", lang.t("Favourite equipment")),
         ("accuracyNote", lang.t("1000+ shots")),
-        ("averageNote", lang.t("20+ matches")),
+        ("averageNote", lang.t("5+ matches")),
         ("headshotRate", lang.t("HS %")),
         ("avgDistance", lang.t("Avg distance")),
         ("wallKills", lang.t("Through walls")),
@@ -204,7 +206,7 @@ const LEADERS: [(&str, Leading); 5] = [
     ("wins", |totals| totals.wins),
     ("played_s", |totals| totals.played_ms / 1000),
 ];
-/// How many players a leaders' list names.
+/// How many players a leaders' list names when the request names no limit.
 const LEADERS_EACH: usize = 5;
 const DAY: u64 = 86_400;
 const HOUR: u64 = 3_600;
@@ -272,10 +274,11 @@ enum Endpoint {
     Top {
         by: PlayerRanking,
         order: Order,
+        after: usize,
         limit: usize,
     },
     Best(Period),
-    Today,
+    Today { limit: usize },
     AllTime,
     Clans {
         by: TotalsKey,
@@ -497,6 +500,11 @@ impl Endpoint {
                     }
                 },
                 order: query.order()?,
+                after: match query.number::<usize>("after")? {
+                    None => 0,
+                    Some(after) if after <= MatchHistory::MAX_AFTER => after,
+                    Some(_) => return Err(Refusal::BadRequest),
+                },
                 limit: query.limit(MatchHistory::MAX_ROWS)?,
             },
             "best" => Self::Best(match query.text("period") {
@@ -504,7 +512,9 @@ impl Endpoint {
                 Some("hour") => Period::Hour,
                 Some(_) => return Err(Refusal::BadRequest),
             }),
-            "today" => Self::Today,
+            "today" => Self::Today {
+                limit: query.limit(LEADERS_EACH)?,
+            },
             "totals" => Self::AllTime,
             "clans" => Self::Clans {
                 by: match query.text("by") {
@@ -684,9 +694,15 @@ fn answer(
             }
             value
         }
-        Endpoint::Top { by, order, limit } => {
-            let players: Vec<Value> = history
-                .top(*by, *order, *limit, &|account_id| !banned(account_id))?
+        Endpoint::Top {
+            by,
+            order,
+            after,
+            limit,
+        } => {
+            let page = history.top(*by, *order, *after, *limit, &|account_id| !banned(account_id))?;
+            let players: Vec<Value> = page
+                .players
                 .iter()
                 .map(|top| {
                     json!({
@@ -697,7 +713,13 @@ fn answer(
                     })
                 })
                 .collect();
-            json!({ "by": ranking_name(*by), "order": order_name(*order), "players": players })
+            json!({
+                "by": ranking_name(*by),
+                "order": order_name(*order),
+                "after": after,
+                "more": page.more,
+                "players": players,
+            })
         }
         Endpoint::Best(period) => {
             let rows: Vec<Value> = history
@@ -721,7 +743,7 @@ fn answer(
                 .collect();
             json!({ "period": period.name(), "rows": rows })
         }
-        Endpoint::Today => {
+        Endpoint::Today { limit } => {
             let today = now - now % DAY;
             let all = history.totals_since(today, &|account_id| !banned(account_id))?;
             let mut leaders = serde_json::Map::new();
@@ -733,7 +755,7 @@ fn answer(
                 });
                 let rows: Vec<Value> = ranked
                     .iter()
-                    .take(LEADERS_EACH)
+                    .take(*limit)
                     .map(|(player, totals)| json!({ "player": named(player), "value": of(totals) }))
                     .collect();
                 leaders.insert(name.to_owned(), Value::Array(rows));

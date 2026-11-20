@@ -716,6 +716,17 @@ fn the_top_lists_leave_out_the_banned() {
     assert_eq!(players[0]["player"]["name"], "Alice");
     assert_eq!(world.ok("/api/history/top")["by"], "rating");
     assert_eq!(by_kills["order"], "desc");
+    assert_eq!((&by_kills["after"], &by_kills["more"]), (&json!(0), &json!(false)));
+    // A page at a time: the next one after the players already seen.
+    let first = world.ok("/api/history/top?by=kills&limit=1");
+    assert_eq!(first["more"], true);
+    let second = world.ok("/api/history/top?by=kills&limit=1&after=1");
+    assert_eq!((&second["after"], &second["more"]), (&json!(1), &json!(false)));
+    assert_eq!(second["players"], json!([players[1]]));
+    assert_eq!(
+        world.get("/api/history/top?after=10001").0,
+        "400 Bad Request"
+    );
     // From the other end.
     let fewest = world.ok("/api/history/top?by=kills&order=asc");
     assert_eq!(fewest["order"], "asc");
@@ -776,6 +787,11 @@ fn the_days_leaders_and_the_all_time_totals() {
     assert_eq!(keys(&kills[0]), ["player", "value"]);
     assert_eq!((&kills[0]["player"]["name"], &kills[0]["value"]), (&json!("Alice"), &json!(28)));
     assert_eq!(kills[1]["value"], 12);
+    // As many of each list as asked, five without a word.
+    let first = world.ok("/api/history/today?limit=1");
+    assert_eq!(first["leaders"]["kills"], json!([kills[0]]));
+    assert_eq!(world.ok("/api/history/today?limit=50")["leaders"], today["leaders"]);
+    assert_eq!(world.get("/api/history/today?limit=51").0, "400 Bad Request");
     // Bob won nothing today: not on that list.
     assert_eq!(today["leaders"]["wins"].as_array().unwrap().len(), 1);
     world.store.ban_account(

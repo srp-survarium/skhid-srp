@@ -276,6 +276,7 @@ no: it sees the change at its next sign-in	ні: побачить зміну п�
 User name	Ім'я для входу	sign-in
 Character	Персонаж
 Account id	Id акаунта
+ID	ID
 In the game now	Зараз у грі
 Earlier moderation of this account	Попередня модерація цього акаунта
 not shown ({error})	не показано ({error})
@@ -434,6 +435,7 @@ Loss	Поразка
 Draw	Нічия
 Left	Вийшов
 won	перемогла
+More players	Більше гравців
 Older matches	Старіші матчі
 Hours played	Годин у грі
 Replay	Повтор
@@ -450,7 +452,7 @@ Weapon	Зброя
 Kit	Комплект
 Favourite equipment	Улюблене спорядження
 1000+ shots	1000+ пострілів
-20+ matches	20+ матчів
+5+ matches	5+ матчів
 HS %	У голову %
 Avg distance	Сер. відстань
 Through walls	Крізь стіни

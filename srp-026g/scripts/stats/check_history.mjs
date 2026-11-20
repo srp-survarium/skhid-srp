@@ -16,12 +16,17 @@ await fs.mkdir(output, {recursive: true});
 const asked = [];
 // The last answer of each endpoint, by its path under /api/history/.
 const answered = {};
+// When set, the top list's pages are cut to this many: the preview's twelve
+// players then have more than one.
+let pageOf = 0;
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, base);
   if (url.pathname.startsWith('/api/history/')) {
     asked.push(url.pathname + url.search);
     const path = url.pathname.slice('/api/history/'.length);
-    const upstream = await fetch(preview + request.url);
+    const asking = new URL(preview + request.url);
+    if (pageOf && path === 'top') asking.searchParams.set('limit', pageOf);
+    const upstream = await fetch(asking);
     const [status, body] = [upstream.status, await upstream.json()];
     answered[path] = body;
     await new Promise(resolve => setTimeout(resolve, 300));
@@ -134,10 +139,9 @@ try {
     await settled();
     assert.equal(answered.top.by, by);
     assert.equal(await text('.stats-board .stats-table thead th.sorted'), label);
-    assert.equal(await text('.slot-filter .stats-note'), '20+ matches');
+    assert.equal(await text('.slot-filter .stats-note'), '5+ matches');
     const values = answered.top.players.map(value);
     assert.ok(values.length > 1 && values.every((v, i) => !i || values[i - 1] >= v - 0.006), `${by}: ${values.join()}`);
-    assert.ok(!answered.top.players.some(row => row.player.name === 'Yasen'), 'under 20 matches: not listed');
   }
   await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Kills').click()");
   await settled();
@@ -145,9 +149,9 @@ try {
   await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Avg score').click()");
   await settled();
   assert.equal(answered.top.by, 'score_avg');
-  assert.equal(await text('.slot-filter .stats-note'), '20+ matches');
+  assert.equal(await text('.slot-filter .stats-note'), '5+ matches');
   assert.equal(await count('.stats-board .stats-table tbody tr'), answered.top.players.length);
-  assert.ok(answered.top.players.length > 0 && !answered.top.players.some(row => row.player.name === 'Yasen'), 'under 20 matches: not listed');
+  assert.ok(answered.top.players.length > 0);
   assert.deepEqual(await cells('.stats-board .stats-table tbody td.sorted'), answered.top.players.map(row => String(row.totals.score_avg)));
   await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Accuracy').click()");
   await settled();
@@ -158,12 +162,61 @@ try {
   assert.ok(!answered.top.players.some(row => row.player.name === 'Yasen'), 'under 1000 shots: not listed');
   assert.deepEqual(await cells('.stats-board .stats-table tbody td.sorted'), answered.top.players.map(row => aim(row.totals)));
   assert.equal(await fits(), true, 'the board fits the width');
+  // The players go on past a page: here pages of five, the twelve in three.
+  pageOf = 5;
+  await navigate('/stats?by=kills');
+  const kills = () => evaluate("[...document.querySelectorAll('.stats-board .stats-table tbody tr')].map(r => Number(r.children[6].textContent.replace(/\\D/g, '')))");
+  assert.equal(await count('.stats-board .stats-table tbody tr'), 5);
+  assert.equal(await text('.stats-board > button'), 'More players');
+  await evaluate("document.querySelector('.stats-board > button').click()");
+  await settled();
+  assert.equal(answered.top.after, 5);
+  assert.deepEqual(await cells('.stats-board .stats-table tbody td:first-child'), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+  assert.ok((await kills()).every((v, i, a) => !i || a[i - 1] >= v), 'the order goes on');
+  await screenshot('boards-players-more');
+  // A sort keeps the pages open: the ten, by rating now.
+  await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Rating').click()");
+  await settled();
+  assert.equal(await count('.stats-board .stats-table tbody tr'), 10, 'as many players as before the sort');
+  assert.deepEqual(await cells('.stats-board .stats-table tbody td:first-child'), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-board .stats-table tbody tr')].map(r => Number(r.children[2].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'by rating over both pages');
+  assert.equal(await text('.stats-board > button'), 'More players');
+  await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Kills').click()");
+  await settled();
+  assert.equal(await count('.stats-board .stats-table tbody tr'), 10);
+  await evaluate("document.querySelector('.stats-board > button').click()");
+  await settled();
+  assert.equal(answered.top.after, 10);
+  assert.equal(await count('.stats-board .stats-table tbody tr'), 12);
+  assert.ok((await kills()).every((v, i, a) => !i || a[i - 1] >= v));
+  assert.equal(await count('.stats-board > button'), 0, 'nothing follows the last page');
+  pageOf = 0;
+  await navigate('/stats');
+  assert.equal(await count('.stats-board > button'), 0, 'twelve players: one page');
   // Over the boards: the day's leaders, five lists of five, and everything added up.
   assert.equal(await count('.stats-leaders .stats-table'), 5);
   assert.equal(await count('.stats-leaders .stats-table tbody tr'), 25, 'five rows each, empty ones too');
   assert.deepEqual(await cells('.stats-leaders .table-scroll:first-child tbody td:nth-child(3)'),
     [...answered.today.leaders.kills.map(row => String(row.value)), ...Array(5 - answered.today.leaders.kills.length).fill('\u00a0')]);
   assert.equal(answered.today.leaders.kills.length, 5);
+  // They open up: twenty or fifty each, all as long as the longest.
+  assert.deepEqual(await cells('.stats-sizes button'), ['5', '20', '50']);
+  assert.equal(await text('.stats-sizes button[aria-pressed=true]'), '5');
+  await evaluate("[...document.querySelectorAll('.stats-sizes button')].find(b => b.textContent === '20').click()");
+  await settled();
+  const longest = Math.max(...Object.values(answered.today.leaders).map(rows => rows.length));
+  assert.ok(longest > 5 && longest <= 20, `${longest} of twenty`);
+  assert.equal(await count('.stats-leaders .stats-table tbody tr'), 5 * longest, 'every list as long as the longest');
+  assert.deepEqual((await cells('.stats-leaders .table-scroll:first-child tbody td:nth-child(3)')).slice(0, answered.today.leaders.kills.length),
+    answered.today.leaders.kills.map(row => String(row.value)));
+  assert.equal(await text('.stats-sizes button[aria-pressed=true]'), '20');
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('leaders')"), '20');
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=uk]').href")).includes('leaders=20'), 'the language link keeps it');
+  await screenshot('boards-leaders-20');
+  await evaluate("[...document.querySelectorAll('.stats-sizes button')].find(b => b.textContent === '5').click()");
+  await settled();
+  assert.equal(await count('.stats-leaders .stats-table tbody tr'), 25);
+  assert.equal(await evaluate("new URLSearchParams(location.search).has('leaders')"), false);
   assert.deepEqual((await cells('.stats-all thead th')).slice(0, 3), ['Players', 'Matches', 'Kills']);
   assert.deepEqual((await cells('.stats-all tbody td')).slice(0, 2), [String(answered.totals.players), String(answered.totals.matches)]);
   assert.equal(await evaluate("document.querySelector('.stats-all').previousElementSibling.textContent"), 'All time', 'its heading over it, as the leaders\' is');
@@ -226,7 +279,7 @@ try {
 
   // A player: nothing moves while it loads; 15 matches, then 8 older.
   await navigate('/stats?player=Sheep&lang=en', 'interactive');
-  assert.equal(await count('.stats-panels dd'), 25, 'the panels are drawn before their data');
+  assert.equal(await count('.stats-panels dd'), 26, 'the panels are drawn before their data');
   assert.equal(await count('.stats-favourites .stats-table tbody tr'), 10, 'five empty rows of each favourite');
   const loading = [await top(0), await listsTop()];
   await settled();
@@ -234,6 +287,7 @@ try {
   assert.equal(await text('#stats-title'), 'Sheep');
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-panels dt')].find(e => e.textContent === 'Clan').nextSibling.textContent"), '[SKH]');
   assert.equal(await count('.stats-paged .stats-table tbody tr'), 15);
+  assert.equal(await panel('ID'), String(answered.player.player.id), 'the account\'s id');
   assert.equal(await panel('Artefacts'), String(answered.player.totals.artefacts), 'the artefacts taken');
   assert.equal(await panel('Hours played'), (answered.player.totals.played_s / 3600).toFixed(1));
   assert.equal(await panel('Accuracy'), aim(answered.player.totals), 'accuracy in whole percents');
@@ -386,10 +440,25 @@ try {
   assert.equal(await count('.stats-table'), 2);
   assert.equal(await count('.stats-table tbody tr'), 12);
   assert.match(await text('.stats-heading'), /^Team 1 · \d/);
-  assert.ok((await columns()).includes('HS %'));
-  assert.ok((await columns()).includes('Accuracy'));
+  const matchColumns = await columns();
+  assert.ok(matchColumns.includes('HS %'));
+  assert.ok(matchColumns.includes('Accuracy'));
   assert.deepEqual(await cells('.stats-kit.stats-under'), answered.match.players.map(weapons), 'weapons under each name');
-  assert.deepEqual(await cells('.stats-table tbody td:nth-child(8)'), answered.match.players.map(row => aim(row)));
+  assert.deepEqual(await cells('.stats-table tbody td:nth-child(7)'), answered.match.players.map(row => aim(row)));
+  assert.ok(!['Level', 'Captures'].some(label => matchColumns.includes(label)), matchColumns.join());
+  // A team sorts by a click on a heading, alone: the most kills first, then the fewest; the other team stays by place.
+  const team = nth => evaluate(`JSON.stringify([...document.querySelectorAll('.stats-table')[${nth}].querySelectorAll('tbody tr')].map(r => [1, 4].map(i => Number(r.children[i - 1].textContent))))`).then(JSON.parse);
+  assert.deepEqual((await team(0)).map(([place]) => place), [1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(await cells('.stats-table thead th.sorted'), ['Place', 'Place']);
+  const byKills = "[...document.querySelectorAll('.stats-table')[0].querySelectorAll('thead th button')].find(b => b.textContent === 'Kills').click()";
+  await evaluate(byKills);
+  assert.ok((await team(0)).every(([, kills], i, rows) => !i || rows[i - 1][1] >= kills), 'the most kills first');
+  assert.deepEqual(await cells('.stats-table thead th.sorted'), ['Kills', 'Place']);
+  assert.deepEqual((await team(1)).map(([place]) => place), [1, 2, 3, 4, 5, 6], 'the other team as it was');
+  await evaluate(byKills);
+  assert.ok((await team(0)).every(([, kills], i, rows) => !i || rows[i - 1][1] <= kills), 'then the fewest');
+  assert.equal(await count('.stats-table tbody tr'), 12);
+  await navigate(`/stats?match=${newest}&lang=en`);
   assert.equal(await fits(), true, 'the teams fit the width');
   await screenshot('match');
   // The teams in the Maps page's colours; the map leads to it there, in the match's mode.

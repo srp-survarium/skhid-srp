@@ -166,6 +166,8 @@ const MIGRATIONS: &[&str] = &[
     faces::MIGRATION,
     // 20: what a player did with each weapon (`history`).
     history::WEAPONS_MIGRATION,
+    // 21: the average score list from five matches (`history`).
+    history::SCORE_AVG_BOUND_MIGRATION,
 ];
 
 /// The child tables of an account, children of children first.

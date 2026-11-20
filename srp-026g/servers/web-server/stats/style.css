@@ -24,7 +24,7 @@
 .stats-table .stats-open { cursor:pointer }
 .stats-table a { text-decoration:none }
 .stats-table a:hover { text-decoration:underline }
-.stats-paged button { margin-top:12px }
+.stats-paged button,.stats-board>button { margin-top:12px }
 .stats-empty { margin:20px 0 0; padding:18px; border:1px solid var(--rule); background:var(--panel); color:var(--ink-2) }
 .stats-note { margin:-4px 0 10px; color:var(--ink-3); font-size:.8rem }
 .slot-filter .stats-note { align-self:center; margin:0 0 0 4px }
@@ -49,6 +49,10 @@
 .stats-team0 { --team:var(--team0) }
 .stats-team1 { --team:var(--team1) }
 /* The day's leaders: five short lists side by side, as many as fit. */
+/* A heading with its choice at the other end of its line. */
+.stats-heading-row { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:26px 0 10px }
+.stats-heading-row .stats-heading,.stats-heading-row .slot-filter { margin:0 }
+.stats-sizes button { padding:4px 10px }
 .stats-leaders { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px }
 .stats-leaders .stats-table td.l { width:100%; max-width:0; overflow:hidden; text-overflow:ellipsis }
 /* Everything added up: one row, each number as wide as the next. */

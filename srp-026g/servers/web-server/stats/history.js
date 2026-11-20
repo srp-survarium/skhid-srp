@@ -321,7 +321,7 @@
   async function playerView(name) {
     heading(name, TEXT.player, TEXT.player);
     const head = (card, days) => panels(
-      [TEXT.overall, [[TEXT.level, card ? n(card.level) : null], [TEXT.experience, card ? n(card.experience) : null],
+      [TEXT.overall, [[TEXT.id, card ? String(card.player.id) : null], [TEXT.level, card ? n(card.level) : null], [TEXT.experience, card ? n(card.experience) : null],
         [TEXT.rating, card ? n(card.rating) : null],
         [TEXT.clan, card ? (card.player.clan ? link({clan: card.player.clan.tag}, `[${card.player.clan.tag}]`) : '—') : null], ...record(card && card.totals)]],
       [TEXT.inMatches, combat(card && card.totals)],
@@ -402,13 +402,29 @@
   const sidePoints = m => [el('span', {className: 'stats-side stats-team0'}, n(m.team_points[0])), ' : ',
     el('span', {className: 'stats-side stats-team1'}, n(m.team_points[1]))];
 
+  // A list that is whole in the page (`rows`; null while loading) and
+  // sorts there: by the column whose heading was clicked, the largest
+  // first, the smallest on a second click. A column's sixth piece is the
+  // number it sorts by; `key` and `up`: how the list comes.
+  function sortable(columns, rows, placeholder, open, key, up) {
+    const box = el('div');
+    const draw = () => {
+      const by = columns.find(column => column[3] === key)[5];
+      const sorted = rows && [...rows].sort((a, b) => (up ? 1 : -1) * (by(a) - by(b)));
+      box.replaceChildren(table(columns, sorted, placeholder, key, open,
+        {up, ask: asked => { up = asked === key && !up; key = asked; draw(); }}));
+    };
+    draw();
+    return box;
+  }
   async function matchView(id) {
     heading(`${TEXT.match} ${id}`, TEXT.match, `${TEXT.match} ${id}`);
-    const columns = [[TEXT.place, row => n(row.place)], [TEXT.player, playerKit, 'l', '', twoLines],
-      [TEXT.level, row => n(row.level)], [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)],
-      [TEXT.deaths, row => n(row.deaths)], [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)],
-      [TEXT.headshotRate, headshotRate], [TEXT.grenadeKills, row => n(row.grenade_kills)],
-      [TEXT.meleeKills, row => n(row.melee_kills)], [TEXT.captures, row => n(row.captures)], [TEXT.rating, row => n(row.rating)]];
+    const of = (label, key, cell = row => n(row[key]), value = row => row[key]) => [label, cell, '', key, null, value];
+    const columns = [of(TEXT.place, 'place'), [TEXT.player, playerKit, 'l', '', twoLines],
+      of(TEXT.score, 'score'), of(TEXT.kills, 'kills'), of(TEXT.deaths, 'deaths'), of(TEXT.kd, 'kd', row => kd(row.kd)),
+      of(TEXT.accuracy, 'accuracy', aim, row => row.shots ? row.accuracy : -1), of(TEXT.assists, 'assists'),
+      of(TEXT.headshotRate, 'headshots', headshotRate, row => row.kills ? row.headshots / row.kills : -1),
+      of(TEXT.grenadeKills, 'grenade_kills'), of(TEXT.meleeKills, 'melee_kills'), of(TEXT.rating, 'rating')];
     const view = data => {
       const m = data && data.match;
       // A free-for-all: everyone its own side, one list by place.
@@ -417,11 +433,11 @@
         : free ? data.players.filter(row => row.outcome === 'won').map(row => row.player.name).join(', ') || '—'
         : m.winner === null ? '—' : el('span', {className: `stats-side stats-team${m.winner}`}, `${TEXT.team} ${m.winner + 1} ${TEXT.won}`);
       const teams = free
-        ? [[el('h2', {className: 'stats-heading'}, TEXT.players), table(columns, [...data.players].sort((a, b) => a.place - b.place), 0, '', openPlayer)]]
+        ? [[el('h2', {className: 'stats-heading'}, TEXT.players), sortable(columns, data.players, 0, openPlayer, 'place', true)]]
         : [0, 1].map(team => {
           const rows = data ? data.players.filter(row => row.team === team) : null;
           const title = `${TEXT.team} ${team + 1}${m ? ` · ${n(m.team_points[team])}` : ''}${m && m.winner === team ? ` · ${TEXT.win}` : ''}`;
-          return [el('h2', {className: `stats-heading stats-team stats-team${team}`}, title), table(columns, rows, 6, '', openPlayer)];
+          return [el('h2', {className: `stats-heading stats-team stats-team${team}`}, title), sortable(columns, rows, 6, openPlayer, 'place', true)];
         });
       return [panels([TEXT.match, [[TEXT.ended, m ? when(m.ended_at) : null], [TEXT.duration, m ? duration(m.duration_s) : null],
         [TEXT.map, el('span', {className: 'stats-map-cell'}, m ? mapLink(m) : BLANK, mapPicture(m))],
@@ -475,19 +491,50 @@
   }
 
   // The landing's own (today, totals): the day's leaders, five short lists
-  // (the day is UTC's), and everything counted added up.
+  // (the day is UTC's), and everything counted added up. The lists open
+  // up: five each, twenty or fifty (`?leaders=`), all as long as the
+  // longest, five rows at least. Gone when the day cannot be read.
   const LEADERS = [['kills', 'kills'], ['assists', 'assists'], ['score', 'score'], ['wins', 'wins'], ['played_s', 'hours']];
-  const LEADERS_EACH = 5;
-  function leaders(data) {
+  const LEADER_SIZES = [5, 20, 50];
+  function leaders() {
     const value = (key, amount) => key === 'played_s' ? hours.format(amount / 3600) : n(amount);
-    return [el('h2', {className: 'stats-heading'}, TEXT.today),
-      el('div', {className: 'stats-leaders'}, LEADERS.map(([key, label]) => {
-        const rows = data && (data.leaders[key] || []).map((row, rank) => ({...row, rank}));
-        const box = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
-          [TEXT[label], row => value(key, row.value)]], rows, LEADERS_EACH, '', openPlayer);
-        if (rows) box.blank(LEADERS_EACH - rows.length);
-        return box;
-      }))];
+    let size = LEADER_SIZES.includes(Number(asked('leaders'))) ? Number(asked('leaders')) : LEADER_SIZES[0], asking = 0;
+    const sizes = el('div', {className: 'slot-filter stats-sizes', role: 'group', ariaLabel: TEXT.today});
+    const lists = el('div', {className: 'stats-leaders'});
+    const box = el('div', {}, el('div', {className: 'stats-heading-row'}, el('h2', {className: 'stats-heading'}, TEXT.today), sizes), lists);
+    const draw = data => {
+      const of = key => data && (data.leaders[key] || []).map((row, rank) => ({...row, rank}));
+      const longest = Math.max(LEADER_SIZES[0], ...LEADERS.map(([key]) => (of(key) || []).length));
+      lists.replaceChildren(...LEADERS.map(([key, label]) => {
+        const rows = of(key);
+        const list = table([[TEXT.rank, row => n(row.rank + 1)], [TEXT.player, row => playerLink(row.player), 'l'],
+          [TEXT[label], row => value(key, row.value)]], rows, longest, '', openPlayer);
+        if (rows) list.blank(longest - rows.length);
+        return list;
+      }));
+    };
+    // A list asked anew stays until the new one is here.
+    function load() {
+      const mine = ++asking;
+      for (const button of sizes.children) button.setAttribute('aria-pressed', String(Number(button.dataset.size) === size));
+      api('today', {limit: size}).then(data => { if (mine === asking) draw(data || {leaders: {}}); }, () => { if (mine === asking) box.replaceChildren(); });
+    }
+    for (const each of LEADER_SIZES) {
+      const button = el('button', {type: 'button'}, n(each));
+      button.dataset.size = each;
+      button.addEventListener('click', () => {
+        size = each;
+        const url = new URL(location.href);
+        if (size === LEADER_SIZES[0]) url.searchParams.delete('leaders'); else url.searchParams.set('leaders', size);
+        history.replaceState(null, '', url);
+        keepLanguage();
+        load();
+      });
+      sizes.append(button);
+    }
+    draw(null);
+    load();
+    return box;
   }
   // Everything added up: its heading, then one row in the tables' look.
   function allTime(data) {
@@ -504,6 +551,9 @@
     let key = BOARDS[board].includes(asked('by')) ? asked('by') : BOARDS[board][0];
     // Smallest first: a second click on the sorted heading, and back.
     let up = asked('order') === 'asc' && (board === 'players' || board === 'clans');
+    // How many pages of the players are open ("More players"): a sort
+    // shows as many again, another board starts over.
+    let pages = 1;
     const tabs = el('div', {className: 'slot-filter', role: 'group', ariaLabel: TEXT.stats});
     const keys = el('div', {className: 'slot-filter stats-keys', role: 'group'});
     const note = el('small', {className: 'stats-note'});
@@ -555,11 +605,15 @@
       }[board];
       const sorted = board === 'best' ? '' : key;
       const sort = board === 'best' ? null : {up, ask: value => { up = value === key && !up; key = value; draw(); }};
-      body.replaceChildren(table(ranked(columns), null, Math.min(size, body.rows || size), sorted, null, sort));
-      let rows;
+      body.replaceChildren(table(ranked(columns), null, pages > 1 ? body.rows : Math.min(size, body.rows || size), sorted, null, sort));
+      const rows = [];
+      let data;
       try {
-        const data = await api(path, params);
-        rows = data ? list(data) : [];
+        for (let page = 0; page < pages; page++) {
+          data = await api(path, page ? {...params, after: rows.length} : params);
+          rows.push(...(data ? list(data) : []));
+          if (drawing !== shown || !data || !data.more) break;
+        }
       } catch (error) {
         if (drawing === shown) body.replaceChildren(notice(String(error)));
         return;
@@ -570,17 +624,38 @@
       // An empty list that sorts keeps its headings: the way to another.
       const drawn = table(ranked(columns), rows, 0, sorted, {players: openPlayer, clans: row => ({clan: row.tag}), best: row => ({match: row.match})}[board], sort);
       body.replaceChildren(...(rows.length ? [drawn] : sort ? [drawn, notice(TEXT.nobody)] : [notice(TEXT.nobody)]));
+      // The players go on past their first page: the next one under the
+      // list, in the same order, while one follows.
+      if (board !== 'players' || !data || !data.more) return;
+      const more = el('button', {type: 'button', className: 'quiet'}, TEXT.morePlayers);
+      more.addEventListener('click', async () => {
+        more.disabled = true;
+        let next;
+        try {
+          next = await api(path, {...params, after: rows.length});
+        } catch (error) {
+          return more.replaceWith(notice(String(error)));
+        }
+        if (drawing !== shown) return;
+        pages += 1;
+        const added = next ? next.players : [];
+        added.forEach((row, i) => { row.rank = rows.length + i; });
+        rows.push(...added);
+        drawn.add(added);
+        body.rows = rows.length;
+        if (next && next.more) more.disabled = false; else more.remove();
+      });
+      body.append(more);
     }
     for (const value of Object.keys(BOARDS)) {
       const button = el('button', {type: 'button'}, TEXT[value]);
       button.dataset.board = value;
-      button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; up = false; draw(); });
+      button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; up = false; pages = 1; draw(); });
       tabs.append(button);
     }
     tabs.append(note);
-    const today = el('div', {}, leaders(null)), all = el('div', {}, ...allTime(null));
+    const today = leaders(), all = el('div', {}, ...allTime(null));
     root.replaceChildren(finder(), today, all, tabs, keys, body);
-    api('today', {}).then(data => today.replaceChildren(...leaders(data || {leaders: {}})), () => today.replaceChildren());
     api('totals', {}).then(data => data ? all.replaceChildren(...allTime(data)) : all.replaceChildren(), () => all.replaceChildren());
     draw();
   }
