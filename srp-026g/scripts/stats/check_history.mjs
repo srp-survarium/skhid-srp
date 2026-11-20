@@ -306,8 +306,31 @@ try {
   assert.ok(guns.some(gun => gun.name === null), 'a weapon gone from the game data');
   assert.deepEqual(await evaluate("[...document.querySelectorAll('.stats-weapons a')].map(a => a.pathname + a.hash).join()"),
     guns.filter(gun => gun.key).map(gun => `/wiki/weapons#wpn_${gun.key}`).join(), 'each leads to its card in the wiki');
+  assert.equal(await count('.stats-weapons tbody .stats-item'), guns.length, 'an icon or its empty frame a weapon');
+  assert.equal(await count('.stats-weapons tbody img.stats-item'), guns.filter(gun => gun.icon).length);
+  assert.ok(guns.some(gun => gun.icon));
   assert.equal(await fits(), true, 'the weapons fit the width');
   await screenshot('player-weapons');
+  // A click on a heading sorts by its column, the largest first.
+  for (const [label, by, value] of [['K/D', 'kd', gun => gun.kd], ['HS %', 'headshot_rate', gun => gun.kills ? gun.headshots / gun.kills : -1],
+    ['Accuracy', 'accuracy', gun => gun.shots ? gun.hits / gun.shots : -1], ['Avg distance', 'kill_distance', gun => gun.kill_distance_m ?? -1],
+    ['Through walls', 'wall_kills', gun => gun.wall_kills], ['Ricochets', 'ricochet_kills', gun => gun.ricochet_kills],
+    ['Hours played', 'held', gun => gun.held_s], ['Kills', 'kills', gun => gun.kills]]) {
+    await evaluate(`[...document.querySelectorAll('.stats-weapons thead th button')].find(b => b.textContent === '${label}').click()`);
+    await settled();
+    const sorted = answered['player/weapons'];
+    assert.equal(sorted.by, by);
+    assert.equal(await text('.stats-weapons thead th.sorted'), label);
+    assert.equal(await evaluate("new URLSearchParams(location.search).get('by')"), by);
+    const values = sorted.weapons.map(value);
+    assert.ok(values.length === guns.length && values.every((v, i) => !i || values[i - 1] >= v - 0.06), `${by}: ${values.join()}`);
+    assert.deepEqual(await cells('.stats-weapons tbody td.l'), sorted.weapons.map(gun => gun.name ?? '—'));
+  }
+  assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('by=kills'), 'the language link keeps the order');
+  await evaluate("[...document.querySelectorAll('.stats-tabs button')].find(b => b.textContent === 'Matches').click()");
+  await settled();
+  assert.equal(await evaluate('location.search'), '?player=Sheep&lang=en', 'the matches: neither the list nor its order in the address');
+  assert.ok(!(await evaluate("document.querySelector('a.lang').href")).includes('tab='), 'nor in the language link');
   // The address opens the list; five empty rows while it loads.
   await navigate('/stats?player=Sheep&tab=weapons&lang=en', 'interactive');
   assert.equal(await count('.stats-weapons tbody tr'), 5);

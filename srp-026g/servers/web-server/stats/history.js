@@ -265,20 +265,39 @@
       el('div', {className: 'stats-favourites'}, list(TEXT.weapon, data && data.weapons, wikiWeapon), list(TEXT.armour, data && data.armour, wiki('equipment', '')))];
   }
   // A player's weapons (player/weapons): what its games counted of each in
-  // its counted matches, most kills first; K/D by the deaths with it in the
-  // hands. WEAPONS empty rows while loading, and without an `id` yet.
+  // its counted matches, sorted by the column whose heading was clicked
+  // (`?by=`; most kills first at first); K/D by the deaths with it in the
+  // hands. WEAPONS empty rows while loading, and without an `id` yet; a
+  // list sorted anew stays until the new one is here.
   const WEAPONS = 5;
+  const WEAPON_KEYS = ['kills', 'kd', 'headshot_rate', 'accuracy', 'kill_distance', 'wall_kills', 'ricochet_kills', 'held'];
   function weaponList(id) {
-    const columns = [[TEXT.weapon, item => wikiWeapon(item) ? el('a', {href: wikiWeapon(item)}, name(item.name)) : name(item.name), 'l'],
-      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd)], [TEXT.headshotRate, headshotRate],
-      [TEXT.accuracy, aim], [TEXT.avgDistance, item => item.kill_distance_m === null ? '—' : metres.format(item.kill_distance_m)],
-      [TEXT.wallKills, item => n(item.wall_kills)], [TEXT.ricochetKills, item => n(item.ricochet_kills)],
-      [TEXT.hours, item => hours.format(item.held_s / 3600)]];
-    const box = el('div', {className: 'stats-weapons'}, table(columns, null, WEAPONS, 'kills'));
-    if (id !== null) api('player/weapons', {id, limit: TOP}).then(data => {
-      const rows = data ? data.weapons : [];
-      box.replaceChildren(rows.length ? table(columns, rows, 0, 'kills', wikiWeapon) : notice(TEXT.noWeapons));
-    }, error => box.replaceChildren(notice(String(error))));
+    const columns = [[TEXT.weapon, item => itemCell(item, wikiWeapon(item)), 'l', '', () => itemCell(null)],
+      [TEXT.kills, item => n(item.kills), '', 'kills'], [TEXT.kd, item => kd(item.kd), '', 'kd'], [TEXT.headshotRate, headshotRate, '', 'headshot_rate'],
+      [TEXT.accuracy, aim, '', 'accuracy'],
+      [TEXT.avgDistance, item => item.kill_distance_m === null ? '—' : metres.format(item.kill_distance_m), '', 'kill_distance'],
+      [TEXT.wallKills, item => n(item.wall_kills), '', 'wall_kills'], [TEXT.ricochetKills, item => n(item.ricochet_kills), '', 'ricochet_kills'],
+      [TEXT.hours, item => hours.format(item.held_s / 3600), '', 'held']];
+    let by = WEAPON_KEYS.includes(asked('by')) ? asked('by') : WEAPON_KEYS[0], asking = 0;
+    const box = el('div', {className: 'stats-weapons'});
+    const sort = key => {
+      by = key;
+      const url = new URL(location.href);
+      url.searchParams.set('by', by);
+      history.replaceState(null, '', url);
+      keepLanguage();
+      load();
+    };
+    function load() {
+      const mine = ++asking;
+      if (!box.firstChild || id === null) box.replaceChildren(table(columns, null, WEAPONS, by, null, sort));
+      if (id !== null) api('player/weapons', {id, by, limit: TOP}).then(data => {
+        if (mine !== asking) return;
+        const rows = data ? data.weapons : [];
+        box.replaceChildren(rows.length ? table(columns, rows, 0, by, wikiWeapon, sort) : notice(TEXT.noWeapons));
+      }, error => { if (mine === asking) box.replaceChildren(notice(String(error))); });
+    }
+    load();
     return box;
   }
   const matchLink = row => link({match: row.id}, `${row.id}`);
@@ -352,7 +371,8 @@
     function show() {
       for (const button of tabs.children) button.setAttribute('aria-pressed', String(button.dataset.tab === tab));
       const url = new URL(location.href);
-      if (tab === 'weapons') url.searchParams.set('tab', tab); else url.searchParams.delete('tab');
+      if (tab === 'weapons') url.searchParams.set('tab', tab);
+      else for (const gone of ['tab', 'by']) url.searchParams.delete(gone);
       history.replaceState(null, '', url);
       keepLanguage();
       body.replaceChildren(tab === 'weapons' ? weaponList(id) : id === null ? table(columns, null)
@@ -599,8 +619,8 @@
   function keepLanguage() {
     const language = document.querySelector('a.lang');
     if (!language) return;
-    const other = new URL(language.href);
-    for (const [name, value] of new URLSearchParams(location.search)) if (name !== 'lang') other.searchParams.set(name, value);
+    const other = new URL(location.href);
+    other.searchParams.set('lang', new URL(language.href).searchParams.get('lang'));
     language.href = other;
   }
   keepLanguage();

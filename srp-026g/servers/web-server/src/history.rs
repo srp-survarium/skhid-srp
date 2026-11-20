@@ -15,7 +15,8 @@ use session::v026g::replays::{Replays, Status};
 use session::v026g::persist::history::{
     ClanKey, ClanLine, Counters, Gear, ItemTotals, KitCounts, KitLine, MatchHistory, MatchInfo,
     MatchSummary,
-    Named, Outcome, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey, WeaponTotals, Winner,
+    Named, Outcome, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey, WeaponRanking,
+    WeaponTotals, Winner,
 };
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps;
@@ -152,7 +153,11 @@ enum Endpoint {
     PlayerMatches { account_id: u32, page: Page },
     PlayerDays { account_id: u32, days: u64 },
     PlayerEquipment { account_id: u32, limit: usize },
-    PlayerWeapons { account_id: u32, limit: usize },
+    PlayerWeapons {
+        account_id: u32,
+        by: WeaponRanking,
+        limit: usize,
+    },
     Matches { page: Page, clan: Option<u32> },
     Match(u64),
     Replay(u64),
@@ -274,6 +279,18 @@ fn totals_key_name(key: TotalsKey) -> &'static str {
     }
 }
 
+/// What a player's weapons sort by, as `by` names it.
+const WEAPON_RANKINGS: [(&str, WeaponRanking); 8] = [
+    ("kills", WeaponRanking::Kills),
+    ("kd", WeaponRanking::Kd),
+    ("headshot_rate", WeaponRanking::HeadshotRate),
+    ("accuracy", WeaponRanking::Accuracy),
+    ("kill_distance", WeaponRanking::KillDistance),
+    ("wall_kills", WeaponRanking::WallKills),
+    ("ricochet_kills", WeaponRanking::RicochetKills),
+    ("held", WeaponRanking::Held),
+];
+
 fn ranking_name(by: PlayerRanking) -> &'static str {
     match by {
         PlayerRanking::Rating => "rating",
@@ -317,6 +334,14 @@ impl Endpoint {
             },
             "player/weapons" => Self::PlayerWeapons {
                 account_id: query.required("id")?,
+                by: match query.text("by") {
+                    None => WeaponRanking::Kills,
+                    Some(text) => WEAPON_RANKINGS
+                        .iter()
+                        .find(|(name, _)| *name == text)
+                        .ok_or(Refusal::BadRequest)?
+                        .1,
+                },
                 limit: query.limit(MatchHistory::MAX_ROWS)?,
             },
             "matches" => Self::Matches {
@@ -443,13 +468,21 @@ fn answer(
                 "armour": list(&favourites.armour),
             })
         }
-        Endpoint::PlayerWeapons { account_id, limit } => {
+        Endpoint::PlayerWeapons {
+            account_id,
+            by,
+            limit,
+        } => {
             let weapons: Vec<Value> = history
-                .player_weapons(*account_id, *limit)?
+                .player_weapons(*account_id, *by, *limit)?
                 .iter()
                 .map(|totals| weapon(totals, lang))
                 .collect();
-            json!({ "weapons": weapons })
+            let by = WEAPON_RANKINGS
+                .iter()
+                .find(|(_, ranking)| ranking == by)
+                .map(|(name, _)| *name);
+            json!({ "by": by, "weapons": weapons })
         }
         Endpoint::PlayerDays { account_id, days } => {
             let today = now - now % DAY;

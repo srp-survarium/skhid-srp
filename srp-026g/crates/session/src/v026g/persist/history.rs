@@ -606,6 +606,39 @@ impl WeaponCounts {
     }
 }
 
+/// What a player's weapons sort by, the largest first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WeaponRanking {
+    Kills,
+    /// Kills by the deaths with it in the hands.
+    Kd,
+    /// Headshots by kills, hits by shots, the kills' average distance: a
+    /// weapon without a kill (a shot) comes last.
+    HeadshotRate,
+    Accuracy,
+    KillDistance,
+    WallKills,
+    RicochetKills,
+    Held,
+}
+
+impl WeaponRanking {
+    /// The number it sorts by, of `g26_player_weapons`; NULL (the last)
+    /// where nothing divides.
+    fn order(self) -> &'static str {
+        match self {
+            Self::Kills => "kills",
+            Self::Kd => "CAST(kills AS REAL) / max(deaths, 1)",
+            Self::HeadshotRate => "CAST(headshots AS REAL) / nullif(kills, 0)",
+            Self::Accuracy => "CAST(hits AS REAL) / nullif(shots, 0)",
+            Self::KillDistance => "CAST(kill_distance_dm AS REAL) / nullif(kills, 0)",
+            Self::WallKills => "wall_kills",
+            Self::RicochetKills => "ricochet_kills",
+            Self::Held => "held_ms",
+        }
+    }
+}
+
 /// A weapon of a player's counted public matches added up.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct WeaponTotals {
@@ -1557,18 +1590,21 @@ impl MatchHistory {
     }
 
     /// The weapons the account fired or killed with in its counted public
-    /// matches, most kills first, at most `limit`. Not what the games
-    /// counted under no weapon (dict id 0), nor an item only held.
+    /// matches, the largest `by` first (then most kills), at most `limit`.
+    /// Not what the games counted under no weapon (dict id 0), nor an item
+    /// only held.
     pub fn player_weapons(
         &self,
         account_id: u32,
+        by: WeaponRanking,
         limit: usize,
     ) -> Result<Vec<WeaponTotals>, PersistError> {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(&format!(
             "SELECT dict_id, matches, {WEAPON} FROM g26_player_weapons
              WHERE account_id = ?1 AND dict_id != 0 AND (kills > 0 OR shots > 0)
-             ORDER BY kills DESC, shots DESC, dict_id LIMIT ?2"
+             ORDER BY {} DESC, kills DESC, shots DESC, dict_id LIMIT ?2",
+            by.order()
         ))?;
         let weapons = statement
             .query_map(params![account_id, bounded(limit)], |row| {
@@ -2228,7 +2264,7 @@ mod tests {
             2
         );
         assert_eq!(history.favourites(10, 10).unwrap().weapons.len(), 2);
-        assert_eq!(history.player_weapons(10, 10).unwrap().len(), 2);
+        assert_eq!(history.player_weapons(10, WeaponRanking::Kills, 10).unwrap().len(), 2);
     }
 
     #[test]
@@ -2267,7 +2303,7 @@ mod tests {
         }
         let first = weapons(10, 80);
         assert_eq!(
-            history.player_weapons(10, 10).unwrap(),
+            history.player_weapons(10, WeaponRanking::Kills, 10).unwrap(),
             [
                 WeaponTotals {
                     dict_id: AK,
@@ -2301,8 +2337,58 @@ mod tests {
                 },
             ]
         );
-        assert_eq!(history.player_weapons(10, 1).unwrap().len(), 1);
-        assert!(history.player_weapons(99, 10).unwrap().is_empty());
+        assert_eq!(
+            history
+                .player_weapons(10, WeaponRanking::Kills, 1)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            history
+                .player_weapons(99, WeaponRanking::Kills, 10)
+                .unwrap()
+                .is_empty()
+        );
+        // By any of its numbers, the largest first.
+        let number = |by: WeaponRanking, counts: &WeaponCounts| -> f64 {
+            let ratio = |of: u64, by: u64| {
+                if by == 0 {
+                    -1.0
+                } else {
+                    of as f64 / by as f64
+                }
+            };
+            match by {
+                WeaponRanking::Kills => counts.kills as f64,
+                WeaponRanking::Kd => ratio(counts.kills, counts.deaths.max(1)),
+                WeaponRanking::HeadshotRate => ratio(counts.headshots, counts.kills),
+                WeaponRanking::Accuracy => ratio(counts.hits, counts.shots),
+                WeaponRanking::KillDistance => ratio(counts.kill_distance_dm, counts.kills),
+                WeaponRanking::WallKills => counts.wall_kills as f64,
+                WeaponRanking::RicochetKills => counts.ricochet_kills as f64,
+                WeaponRanking::Held => counts.held_ms as f64,
+            }
+        };
+        for by in [
+            WeaponRanking::Kills,
+            WeaponRanking::Kd,
+            WeaponRanking::HeadshotRate,
+            WeaponRanking::Accuracy,
+            WeaponRanking::KillDistance,
+            WeaponRanking::WallKills,
+            WeaponRanking::RicochetKills,
+            WeaponRanking::Held,
+        ] {
+            let listed = history.player_weapons(10, by, 10).unwrap();
+            assert_eq!(listed.len(), 3, "{by:?}");
+            assert!(
+                listed
+                    .windows(2)
+                    .all(|pair| number(by, &pair[0].counts) >= number(by, &pair[1].counts)),
+                "{by:?}: {listed:?}"
+            );
+        }
         let rows = |table: &str, account_id: u32| -> i64 {
             history
                 .reader()

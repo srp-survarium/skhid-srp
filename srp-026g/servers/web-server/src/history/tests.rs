@@ -573,7 +573,7 @@ fn a_players_equipment_is_its_most_used_items() {
 fn a_players_weapons_are_what_its_games_counted() {
     let world = world("weapons");
     let body = world.ok(&format!("/api/history/player/weapons?id={}", world.alice));
-    assert_eq!(keys(&body), ["weapons"]);
+    assert_eq!(keys(&body), ["by", "weapons"]);
     let weapons = body["weapons"].as_array().unwrap();
     // The gun; not what was counted under no weapon.
     assert_eq!(weapons.len(), 1);
@@ -586,6 +586,7 @@ fn a_players_weapons_are_what_its_games_counted() {
             "headshots",
             "held_s",
             "hits",
+            "icon",
             "id",
             "kd",
             "key",
@@ -605,14 +606,35 @@ fn a_players_weapons_are_what_its_games_counted() {
         weapons[0],
         json!({
             "id": dict_id("ak_74u"), "key": "ak_74u", "name": weapons[0]["name"],
-            "matches": 3, "kills": 42, "deaths": 15, "kd": 2.8, "headshots": 9,
+            "icon": weapons[0]["icon"], "matches": 3, "kills": 42, "deaths": 15, "kd": 2.8, "headshots": 9,
             "wall_kills": 6, "ricochet_kills": 3, "shots": 1200, "hits": 300, "accuracy": 0.25,
             "damage": 126.0, "kill_distance_m": 31.3, "longest_kill_m": 84.5, "held_s": 2100,
         })
     );
     // Bob's games counted none.
     let bob = world.ok(&format!("/api/history/player/weapons?id={}", world.bob));
-    assert_eq!(bob, json!({ "weapons": [] }));
+    assert_eq!(bob, json!({ "by": "kills", "weapons": [] }));
+    for by in [
+        "kills",
+        "kd",
+        "headshot_rate",
+        "accuracy",
+        "kill_distance",
+        "wall_kills",
+        "ricochet_kills",
+        "held",
+    ] {
+        let sorted = world.ok(&format!(
+            "/api/history/player/weapons?id={}&by={by}",
+            world.alice
+        ));
+        assert_eq!(sorted["by"], by);
+        assert_eq!(sorted["weapons"].as_array().unwrap().len(), weapons.len());
+    }
+    assert_eq!(
+        world.get("/api/history/player/weapons?id=1&by=damage").0,
+        "400 Bad Request"
+    );
     assert_eq!(
         world.get("/api/history/player/weapons?id=1&limit=51").0,
         "400 Bad Request"
