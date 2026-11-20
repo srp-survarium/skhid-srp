@@ -2463,3 +2463,5 @@ va	status	ref_021d	name
 0x0015fe20	verified		vostok::render::grass_world::set_wind_parameters
 0x001cbb70	verified	0x0013afad	vostok::render::pack_direction
 0x00070e30	verified		vostok::math::random32::random_f
+0x0028bee0	reviewed		survarium::lobby_menu::find_players
+0x0026b660	reviewed		survarium::messaging_client::find_players
