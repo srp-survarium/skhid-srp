@@ -14,6 +14,7 @@
 #      against 0.69d0 is in <work folder>/bundle/modules-069d.json, and a failure is printed;
 #   3. vostok-port pack from-bundle against the same files.
 # With 0.69d0 items named: those guns alone (a quick pack for a local test; its id says so).
+# $SKHID_RENDERS: a folder for the pictures of the check (review.py makes the pages of them).
 # <survey vostok-port>: one that reads 0.69d0's compressed volumes and .split lists.
 # Needs cargo (nix-shell -p cargo rustc gcc zlib) and magick (the porter's texture encoder).
 set -euo pipefail
@@ -47,7 +48,8 @@ if [[ ! -f $work/donor.db ]]; then
 fi
 "$port" port-modules --id "$id" --donor-spec "$here/../remodel-069/remodel-069d.json" \
     --items "$here/../remodel-069/items.tsv" --ids "$here/ids.tsv" "${only[@]}" --donor "$work/donor.db" \
-    --target-db "$SKHID_STOCK_DB" "${layers[@]}" --output "$work/bundle" | tee "$work/port-modules.log"
+    --target-db "$SKHID_STOCK_DB" "${layers[@]}" ${SKHID_RENDERS:+--renders "$SKHID_RENDERS"} --output "$work/bundle" \
+    | tee "$work/port-modules.log"
 "$port" pack from-bundle --base-db "$SKHID_STOCK_DB" "${bases[@]}" --bundle "$work/bundle" \
     --output "$pack" --id "$id" --version "$version" >/dev/null
 echo "$id@$version: $(sha256sum "$pack/pack.json" | cut -d' ' -f1)"
