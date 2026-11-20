@@ -114,6 +114,15 @@ receiving game itself (patch 87), with the same code (`srp-validate`'s typed vie
   behind that owner instead of exposing competing ways to bypass it. Verify initialization,
   transitions and teardown as well as the settled state; Rust's type safety alone cannot enforce
   the lifecycle rules of an external engine.
+- Keep a clear safe/unsafe boundary. `unsafe` lives only in the layer that touches raw memory and
+  the engine (in the client patches, the generated `raw` layer and the `vostok` wrappers); logic
+  modules are `#![forbid(unsafe_code)]`. Each `unsafe` block is small, does one operation and says
+  in a `// SAFETY:` comment what makes it sound; the safe function around it upholds that for every
+  input, so no safe caller can cause undefined behaviour. Never widen `unsafe` to make code compile,
+  and never hand raw pointers or addresses out through a safe API.
+- Work holistically. Before changing code, follow the whole path it sits on: its callers, threads,
+  memory, lifecycle and what the player sees. Judge a change by how the whole system behaves
+  (measured in the game where it matters), not by its own diff passing its checks.
 - For Rust changes, test and lint affected crates under `nix develop` (`tools/check` runs the
   `cargo:<crate>` checks of every crate your change reaches); use workspace Clippy only when
   shared APIs, configuration or dependencies affect multiple crates.
