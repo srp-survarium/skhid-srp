@@ -9,7 +9,8 @@
 //! The quests ([`crate::quests`]) come from the server's game data and pay rules.
 
 use crate::{
-    ContentType, Lang, Response, damage, equipment, escape, maps, modifiers, quests, skills,
+    ContentType, Lang, Response, Written, damage, equipment, escape, maps, modifiers, quests,
+    skills,
 };
 
 pub(crate) const PATH: &str = "/wiki";
@@ -62,15 +63,15 @@ pub(crate) fn page(
     now: &skills::Now,
 ) -> Response {
     let (title, body) = if path == WEAPONS {
-        let body = match lang {
-            Lang::En => include_str!("../wiki/weapons.en.html"),
-            Lang::Uk => include_str!("../wiki/weapons.uk.html"),
+        let body = match lang.written() {
+            Written::En => include_str!("../wiki/weapons.en.html"),
+            Written::Uk => include_str!("../wiki/weapons.uk.html"),
         };
         (lang.tr("Weapons", "Зброя"), body.to_owned())
     } else if path == SIMULATORS {
-        let body = match lang {
-            Lang::En => include_str!("../wiki/simulators.en.html"),
-            Lang::Uk => include_str!("../wiki/simulators.uk.html"),
+        let body = match lang.written() {
+            Written::En => include_str!("../wiki/simulators.en.html"),
+            Written::Uk => include_str!("../wiki/simulators.uk.html"),
         };
         (lang.tr("Simulators", "Симулятори"), body.to_owned())
     } else if path == skills::PATH {

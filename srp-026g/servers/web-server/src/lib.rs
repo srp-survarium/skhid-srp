@@ -77,6 +77,7 @@ use std::time::{Duration, Instant};
 use session::utc::{clock as clock_utc, date as date_utc};
 use session::v026g::replays::{Refused, Replays};
 use session::{Ban, LockExt, Net, SessionStore};
+use survarium::v026g::localization::Language;
 
 /// What the home page tells a new player, fixed at start-up.
 struct Connect {
@@ -134,42 +135,136 @@ const TOKEN_LOCKOUT: Duration = Duration::from_secs(60);
 const POLICY: &str =
     "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; form-action 'self'";
 
-/// The page's languages: Ukrainian and English only.
+/// The page's languages: the game's eleven, in its order. A page is asked
+/// for in one of them and names the game's things in it
+/// ([`Lang::game`]); the site's own words are written in English and
+/// Ukrainian ([`Lang::written`]).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Lang {
+    En,
+    Uk,
+    Ru,
+    De,
+    Pl,
+    Sr,
+    Cs,
+    Hu,
+    Fi,
+    Be,
+    Hr,
+}
+
+/// A language the site's own words are written in.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Written {
     En,
     Uk,
 }
 
 impl Lang {
-    /// `?lang=` or the form's `lang`, else the browser's `Accept-Language`
-    /// (Ukrainian when it comes first), else English. (`ua` is what the
-    /// game's launcher calls Ukrainian in the addresses it opens.)
+    const ALL: [Self; 11] = [
+        Self::En,
+        Self::Uk,
+        Self::Ru,
+        Self::De,
+        Self::Pl,
+        Self::Sr,
+        Self::Cs,
+        Self::Hu,
+        Self::Fi,
+        Self::Be,
+        Self::Hr,
+    ];
+
+    /// `?lang=` or the form's `lang`, else the first of the browser's
+    /// `Accept-Language` the site has (as the browser orders them), else
+    /// English.
     fn pick(chosen: &str, accept: &str) -> Self {
-        match chosen {
-            "uk" | "ua" => return Self::Uk,
-            "en" => return Self::En,
-            _ => {}
-        }
-        let first = accept.split(',').next().unwrap_or("").trim().to_lowercase();
-        if first.starts_with("uk") {
-            Self::Uk
-        } else {
-            Self::En
-        }
+        Self::of_code(chosen)
+            .or_else(|| {
+                accept
+                    .split(',')
+                    .filter_map(|tag| tag.split(';').next())
+                    .find_map(|tag| Self::of_code(tag.trim().split('-').next().unwrap_or("")))
+            })
+            .unwrap_or(Self::En)
     }
 
+    /// The language of a code, in any case. (`ua` is what the game's
+    /// launcher calls Ukrainian in the addresses it opens.)
+    fn of_code(code: &str) -> Option<Self> {
+        let code = code.to_ascii_lowercase();
+        if code == "ua" {
+            return Some(Self::Uk);
+        }
+        Self::ALL.into_iter().find(|lang| lang.code() == code)
+    }
+
+    /// Its code: the page's `lang`, and `?lang=`.
     fn code(self) -> &'static str {
         match self {
             Self::En => "en",
             Self::Uk => "uk",
+            Self::Ru => "ru",
+            Self::De => "de",
+            Self::Pl => "pl",
+            Self::Sr => "sr",
+            Self::Cs => "cs",
+            Self::Hu => "hu",
+            Self::Fi => "fi",
+            Self::Be => "be",
+            Self::Hr => "hr",
+        }
+    }
+
+    /// Its name in itself, as the game's settings and launcher name it.
+    fn native(self) -> &'static str {
+        match self {
+            Self::En => "English",
+            Self::Uk => "Українська",
+            Self::Ru => "Русский",
+            Self::De => "Deutsch",
+            Self::Pl => "Polski",
+            Self::Sr => "Srpski",
+            Self::Cs => "Čeština",
+            Self::Hu => "Magyar",
+            Self::Fi => "Suomi",
+            Self::Be => "Беларуская",
+            Self::Hr => "Hrvatski",
+        }
+    }
+
+    /// The game's language of it: whose names of maps, modes and items the
+    /// page shows.
+    fn game(self) -> Language {
+        match self {
+            Self::En => Language::English,
+            Self::Uk => Language::Ukrainian,
+            Self::Ru => Language::Russian,
+            Self::De => Language::German,
+            Self::Pl => Language::Polish,
+            Self::Sr => Language::Serbian,
+            Self::Cs => Language::Czech,
+            Self::Hu => Language::Hungarian,
+            Self::Fi => Language::Finnish,
+            Self::Be => Language::Belarusian,
+            Self::Hr => Language::Croatian,
+        }
+    }
+
+    /// The language its page's own words are in: Ukrainian for Ukrainian,
+    /// English for every other.
+    fn written(self) -> Written {
+        match self {
+            Self::Uk => Written::Uk,
+            _ => Written::En,
         }
     }
 
     fn tr(self, en: &str, uk: &str) -> String {
-        match self {
-            Self::En => en.to_owned(),
-            Self::Uk => uk.to_owned(),
+        match self.written() {
+            Written::En => en.to_owned(),
+            Written::Uk => uk.to_owned(),
         }
     }
 }
@@ -1658,11 +1753,11 @@ fn other_server_link(lang: Lang, version: &str, url: Option<&str>) -> String {
 
 /// The page's title: a test server says so (`SRP_TEST_SERVER`).
 fn page_title(lang: Lang, version: &str, test: bool) -> String {
-    match (test, lang) {
-        (false, Lang::En) => format!("Skhid · Survarium {version} community server"),
-        (false, Lang::Uk) => format!("Схід · ком'юніті сервер Survarium {version}"),
-        (true, Lang::En) => format!("Skhid · Survarium {version} TEST server"),
-        (true, Lang::Uk) => format!("Схід · ТЕСТОВИЙ сервер Survarium {version}"),
+    match (test, lang.written()) {
+        (false, Written::En) => format!("Skhid · Survarium {version} community server"),
+        (false, Written::Uk) => format!("Схід · ком'юніті сервер Survarium {version}"),
+        (true, Written::En) => format!("Skhid · Survarium {version} TEST server"),
+        (true, Written::Uk) => format!("Схід · ТЕСТОВИЙ сервер Survarium {version}"),
     }
 }
 
@@ -1670,11 +1765,11 @@ fn page_title(lang: Lang, version: &str, test: bool) -> String {
 /// owner, 2026-11-20: the name, the version and "unofficial" there are
 /// unnecessary; the footer says the last).
 fn page_tag(lang: Lang, test: bool) -> &'static str {
-    match (test, lang) {
-        (false, Lang::En) => "COMMUNITY SERVER FOR SURVARIUM",
-        (false, Lang::Uk) => "КОМ'ЮНІТІ СЕРВЕР SURVARIUM",
-        (true, Lang::En) => "TEST SERVER FOR SURVARIUM",
-        (true, Lang::Uk) => "ТЕСТОВИЙ СЕРВЕР SURVARIUM",
+    match (test, lang.written()) {
+        (false, Written::En) => "COMMUNITY SERVER FOR SURVARIUM",
+        (false, Written::Uk) => "КОМ'ЮНІТІ СЕРВЕР SURVARIUM",
+        (true, Written::En) => "TEST SERVER FOR SURVARIUM",
+        (true, Written::Uk) => "ТЕСТОВИЙ СЕРВЕР SURVARIUM",
     }
 }
 
@@ -1776,10 +1871,24 @@ fn site_header(
     current: &str,
 ) -> (String, String) {
     let code = lang.code();
-    let (other, other_name) = match lang {
-        Lang::En => ("uk", "Українська"),
-        Lang::Uk => ("en", "English"),
-    };
+    // The languages: the one shown, and under it the others, each the same
+    // address in it. No script: a page's own may keep the rest of the address
+    // (`.lang a`).
+    let others: String = Lang::ALL
+        .into_iter()
+        .filter(|other| *other != lang)
+        .map(|other| {
+            format!(
+                "<a href=\"?lang={0}\" lang={0} hreflang={0}>{1}</a>",
+                other.code(),
+                other.native()
+            )
+        })
+        .collect();
+    let languages = format!(
+        "<details class=lang><summary>{}</summary><div>{others}</div></details>",
+        lang.native()
+    );
     let other_version = if v026g { "0.21d" } else { "0.26g" };
     // A test server names the other server in its notice, as the players'.
     let (other_link, badge, test_notice) = if test {
@@ -1816,7 +1925,7 @@ fn site_header(
     let header = format!(
         "<header><a class=brand href=\"/?lang={code}\">СХІД</a>{badge}\
          <span class=tag>{}</span>\
-         <nav>{home_link}{wiki_link}{other_link}</nav> <a class=lang href=\"?lang={other}\">{other_name}</a></header>",
+         <nav>{home_link}{wiki_link}{other_link}</nav> {languages}</header>",
         page_tag(lang, test),
     );
     (header, test_notice)
@@ -1878,7 +1987,7 @@ header{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1.4rem;padding:.
 .brand{font:700 1.5rem var(--display);letter-spacing:.24em;color:var(--accent);text-decoration:none}.tag{font:.72rem var(--data);color:var(--ink-3);flex:1;min-width:12rem}\
 nav{display:flex;flex-wrap:wrap;align-items:center;row-gap:.3rem}nav a{font:700 .85rem var(--display);text-transform:uppercase;letter-spacing:.1em;color:var(--ink-2);text-decoration:none;padding:0 .8rem;line-height:1.1}\
 nav a+a{border-left:2px solid var(--ink-3)}nav a:first-child{padding-left:0}nav a:hover{color:var(--ink)}nav a[aria-current]{color:var(--accent)}\
-.lang{font:.8rem var(--body);color:var(--ink-2);text-decoration:none;border:1px solid var(--rule);background:var(--bg);padding:.15rem .7rem;border-radius:999px}.lang:hover{border-color:var(--ink-3);color:var(--ink)}\
+.lang{position:relative;font:.8rem var(--body)}.lang summary{list-style:none;cursor:pointer;color:var(--ink-2);border:1px solid var(--rule);background:var(--bg);padding:.15rem .7rem;border-radius:999px}.lang summary::-webkit-details-marker{display:none}.lang summary:hover,.lang[open] summary{border-color:var(--ink-3);color:var(--ink)}.lang div{position:absolute;right:0;top:calc(100% + 4px);z-index:20;display:grid;min-width:9.5rem;background:var(--bg);border:1px solid var(--ink-3);padding:.25rem 0}.lang div a{color:var(--ink-2);text-decoration:none;padding:.3rem .8rem}.lang div a:hover{color:var(--ink);background:var(--rule)}\
 main{max-width:46rem;margin:22px auto;padding:0 16px;display:grid;gap:22px}a{color:var(--accent)}\
 h1,h2,h3{font-family:var(--display);font-weight:700;margin:0;text-transform:uppercase;letter-spacing:.06em;color:var(--ink)}h1{font-size:1.35rem}h2{font-size:1.15rem}\
 .card{background:var(--panel);border:1px solid var(--rule);padding:16px;display:grid;gap:12px;align-content:start;min-width:0}\
@@ -3126,12 +3235,28 @@ mod tests {
     }
 
     #[test]
-    fn the_language_is_ukrainian_or_english_only() {
+    fn the_language_is_one_of_the_games_eleven() {
         assert_eq!(Lang::pick("uk", "en"), Lang::Uk);
+        assert_eq!(Lang::pick("ua", "en"), Lang::Uk, "the launcher's code");
         assert_eq!(Lang::pick("en", "uk"), Lang::En);
-        assert_eq!(Lang::pick("de", "uk-UA,uk;q=0.9"), Lang::Uk);
-        assert_eq!(Lang::pick("", "ru-RU,ru"), Lang::En);
+        assert_eq!(Lang::pick("de", "uk-UA,uk;q=0.9"), Lang::De);
+        assert_eq!(Lang::pick("", "ru-RU,ru"), Lang::Ru);
+        // The first the site has, as the browser orders them; none: English.
+        assert_eq!(Lang::pick("", "fr-FR,fr;q=0.9,pl;q=0.8,en;q=0.7"), Lang::Pl);
+        assert_eq!(Lang::pick("xx", "ja,zh"), Lang::En);
         assert_eq!(Lang::pick("", ""), Lang::En);
+        for lang in Lang::ALL {
+            assert_eq!(Lang::of_code(lang.code()), Some(lang));
+            assert_eq!(lang.game() as usize, Lang::ALL.iter().position(|l| *l == lang).unwrap());
+            // The site's own words: Ukrainian's alone are Ukrainian.
+            assert_eq!(lang.written() == Written::Uk, lang == Lang::Uk);
+        }
+        // The header offers every other language, each by its own name.
+        let (header, _) = site_header(Lang::Pl, true, false, None, "/");
+        assert!(header.contains("<summary>Polski</summary>"));
+        assert!(header.contains("<a href=\"?lang=ru\" lang=ru hreflang=ru>Русский</a>"));
+        assert_eq!(header.matches("hreflang=").count(), 10);
+        assert!(!header.contains("hreflang=pl"));
     }
 
     #[test]

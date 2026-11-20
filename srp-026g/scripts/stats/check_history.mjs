@@ -109,7 +109,7 @@ try {
   assert.equal(await text('.stats-board .stats-table thead th.sorted'), 'Kills');
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-board .stats-table tbody tr')].map(r => Number(r.children[7].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'sorted by kills');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('by')"), 'kills');
-  assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('by=kills'), 'the language link keeps the board');
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=uk]').href")).includes('by=kills'), 'the language link keeps the board');
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-keys button')].map(b => b.textContent).join()"), 'Rating,Matches,Wins,Kills,Avg score,Accuracy');
   const board = await cells('.stats-board thead th');
   assert.ok(board.includes('HS %') && board.includes('Avg score'));
@@ -355,6 +355,20 @@ try {
     assert.equal(await fits(), true, `${path} fits the width in Ukrainian`);
   }
 
+  // Another of the game's languages: the game's names in it, the page's own words in English; the
+  // header names it and offers the ten others, each keeping what is shown.
+  await send('browsingContext.setViewport', {context, viewport: {width: 1440, height: 1000}, devicePixelRatio: 1});
+  await navigate('/stats?board=latest&lang=ru');
+  assert.equal(await evaluate('document.documentElement.lang'), 'ru');
+  assert.equal(await text('.lang summary'), 'Русский');
+  assert.equal(await count('.lang a'), 10);
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=pl]').href")).includes('board=latest'));
+  assert.equal(await text('.stats-heading'), 'Daily leaders');
+  assert.ok(asked.some(path => path.startsWith('/api/history/matches') && path.includes('lang=ru')), 'the names are asked for in it');
+  assert.equal(await evaluate("document.querySelector('.stats-board .stats-map-cell a:not(.stats-map-link)').textContent"), answered.matches.matches[0].map);
+  await evaluate("document.querySelector('.lang summary').click()");
+  await screenshot('language-picker');
+
   // Ukrainian, and a phone's width.
   await send('browsingContext.setViewport', {context, viewport: {width: 390, height: 844}, devicePixelRatio: 1});
   await navigate('/stats?player=Sheep&lang=uk');
@@ -364,7 +378,7 @@ try {
   assert.notEqual(await panel('Артефакти'), null);
   assert.equal(await panel('Точність'), aim(answered.player.totals, 'uk'));
   assert.equal(await evaluate("getComputedStyle(document.querySelector('.stats-favourites')).gridTemplateColumns.split(' ').length"), 1, 'the favourites stacked');
-  assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('player=Sheep'));
+  assert.ok((await evaluate("document.querySelector('.lang a[hreflang=en]').href")).includes('player=Sheep'));
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'), true, 'mobile page fits');
   await screenshot('player-mobile-uk');
   await navigate(`/stats?match=${newest}&lang=uk`);

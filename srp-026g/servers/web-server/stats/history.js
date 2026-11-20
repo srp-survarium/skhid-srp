@@ -7,7 +7,10 @@
 (() => {
   const root = document.getElementById('stats');
   if (!root) return;
-  const lang = document.documentElement.lang === 'uk' ? 'uk' : 'en';
+  // The page's language: its links' and the names the API gives (the game's eleven). The page's
+  // own words (TEXT) are written in two: Ukrainian for Ukrainian, English for every other.
+  const lang = document.documentElement.lang || 'en';
+  const written = lang === 'uk' ? 'uk' : 'en';
   const TEXT = {
     en: {
       stats: 'Stats', player: 'Player', clan: 'Clan', match: 'Match', matches: 'Matches', find: 'Find',
@@ -49,7 +52,7 @@
       noMatch: 'Публічного матчу {} немає.', noHistory: 'Цей сервер не зберігає історію матчів.',
       failed: 'Не вдалося завантажити статистику. Оновіть сторінку.', nobody: 'Поки нікого.',
     },
-  }[lang];
+  }[written];
   const PAGE = 15, TOP = 50;
   // An empty cell's text, so it has a line's height.
   const BLANK = '\u00a0';
@@ -63,16 +66,16 @@
     accuracy: 'accuracy', day: 'day', hour: 'hour'};
   // What a list by a key leaves out, said beside the keys.
   const KEY_NOTE = {accuracy: 'accuracyNote', score_avg: 'averageNote'};
-  const numbers = new Intl.NumberFormat(lang, {maximumFractionDigits: 2});
-  const pair = new Intl.NumberFormat(lang, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-  const percent = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 1});
-  const hours = new Intl.NumberFormat(lang, {minimumFractionDigits: 1, maximumFractionDigits: 1});
+  const numbers = new Intl.NumberFormat(written, {maximumFractionDigits: 2});
+  const pair = new Intl.NumberFormat(written, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const percent = new Intl.NumberFormat(written, {style: 'percent', maximumFractionDigits: 1});
+  const hours = new Intl.NumberFormat(written, {minimumFractionDigits: 1, maximumFractionDigits: 1});
   // Accuracy in whole percents: shots count pellets and kits, not aimed bullets.
-  const whole = new Intl.NumberFormat(lang, {style: 'percent', maximumFractionDigits: 0});
-  const dates = new Intl.DateTimeFormat(lang, {dateStyle: 'medium', timeStyle: 'short'});
-  const day = new Intl.DateTimeFormat(lang, {dateStyle: 'medium'});
-  const dayThisYear = new Intl.DateTimeFormat(lang, {month: 'short', day: 'numeric'});
-  const time = new Intl.DateTimeFormat(lang, {timeStyle: 'short'});
+  const whole = new Intl.NumberFormat(written, {style: 'percent', maximumFractionDigits: 0});
+  const dates = new Intl.DateTimeFormat(written, {dateStyle: 'medium', timeStyle: 'short'});
+  const day = new Intl.DateTimeFormat(written, {dateStyle: 'medium'});
+  const dayThisYear = new Intl.DateTimeFormat(written, {month: 'short', day: 'numeric'});
+  const time = new Intl.DateTimeFormat(written, {timeStyle: 'short'});
   const query = new URLSearchParams(location.search);
   const asked = name => (query.get(name) || '').trim();
 
@@ -528,13 +531,13 @@
     draw();
   }
 
-  // The language link keeps what is shown.
+  // Each of the header's languages keeps what is shown.
   function keepLanguage() {
-    const language = document.querySelector('a.lang');
-    if (!language) return;
-    const other = new URL(language.href);
-    for (const [name, value] of new URLSearchParams(location.search)) if (name !== 'lang') other.searchParams.set(name, value);
-    language.href = other;
+    for (const language of document.querySelectorAll('.lang a')) {
+      const other = new URL(language.href);
+      for (const [name, value] of new URLSearchParams(location.search)) if (name !== 'lang') other.searchParams.set(name, value);
+      language.href = other;
+    }
   }
   keepLanguage();
   const view = asked('player') ? playerView(asked('player'))

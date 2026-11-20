@@ -78,11 +78,23 @@ pub const UNSAVED_OBJECTS: [&str; 17] = [
     "volume_fog",
     "wire_set",
 ];
-/// The game's texts in the languages of srp's web page (its names of the
-/// maps and modes), read whole.
-pub const LOCALIZATIONS: [&str; 2] = [
+/// The game's texts in the languages of srp's web page, which are the
+/// game's own eleven (its names of the maps, modes and items), read whole;
+/// in the order of the game's language list (`localization_026g.py`
+/// `LANGUAGES`). Data made before a language was listed has no file of it:
+/// its texts are then the English ones.
+pub const LOCALIZATIONS: [&str; 11] = [
     "localization/english/localization",
     "localization/ukrainian/localization",
+    "localization/russian/localization",
+    "localization/german/localization",
+    "localization/polish/localization",
+    "localization/serbian/localization",
+    "localization/czech/localization",
+    "localization/hungarian/localization",
+    "localization/finnish/localization",
+    "localization/belarusian/localization",
+    "localization/croatian/localization",
 ];
 /// What the data was made of ([`Provenance`]).
 pub const PROVENANCE: &str = "srp/provenance";

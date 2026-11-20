@@ -19,7 +19,7 @@ use session::v026g::SkillTakers;
 use session::v026g::account::{MAX_LEVEL, level_start};
 use session::v026g::rewards::PerMatch;
 
-use crate::Lang;
+use crate::{Lang, Written};
 
 /// The page's address.
 pub(crate) const PATH: &str = "/wiki/skills";
@@ -70,9 +70,9 @@ pub(crate) struct Now {
 /// The page's body in `lang`, for the wiki's page, with what it shows of
 /// the server `now`.
 pub(crate) fn body(lang: Lang, now: &Now) -> String {
-    let built = match lang {
-        Lang::En => include_str!("../skills/skills.en.html"),
-        Lang::Uk => include_str!("../skills/skills.uk.html"),
+    let built = match lang.written() {
+        Written::En => include_str!("../skills/skills.en.html"),
+        Written::Uk => include_str!("../skills/skills.uk.html"),
     };
     let at = built
         .find(PLANNER)
@@ -112,9 +112,9 @@ fn with_takers(lang: Lang, trees: &str, takers: &SkillTakers) -> String {
 /// `n` with its thousands apart, as `lang` writes them.
 fn thousands(lang: Lang, n: u32) -> String {
     let digits = n.to_string();
-    let gap = match lang {
-        Lang::En => ",",
-        Lang::Uk => "\u{a0}",
+    let gap = match lang.written() {
+        Written::En => ",",
+        Written::Uk => "\u{a0}",
     };
     let mut out = String::new();
     for (i, digit) in digits.chars().enumerate() {
@@ -132,9 +132,9 @@ fn hours(lang: Lang, experience: u32, per_match: PerMatch) -> String {
     let tenths = (u64::from(experience) * u64::from(per_match.seconds.get()) * 10)
         .div_ceil(u64::from(per_match.experience.get()) * 3600);
     if tenths < 100 {
-        let point = match lang {
-            Lang::En => '.',
-            Lang::Uk => ',',
+        let point = match lang.written() {
+            Written::En => '.',
+            Written::Uk => ',',
         };
         format!("{}{point}{}", tenths / 10, tenths % 10)
     } else {
@@ -167,9 +167,9 @@ const STEP: u32 = 250_000;
 fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
     let (first, step) = (cost(1), cost(2) - cost(1));
     // The formulas' names: a level's own experience, and the total to it.
-    let (exp, total) = match lang {
-        Lang::En => ("Exp", "Total"),
-        Lang::Uk => ("Досвід", "Усього"),
+    let (exp, total) = match lang.written() {
+        Written::En => ("Exp", "Total"),
+        Written::Uk => ("Досвід", "Усього"),
     };
     let lines = level_start(MAX_LEVEL).div_ceil(STEP);
     let y_max = f64::from(lines * STEP);
@@ -180,9 +180,9 @@ fn levels(lang: Lang, per_match: Option<PerMatch>) -> String {
         t if t >= 1_000_000 => format!("{}M", f64::from(t) / 1e6),
         t => format!("{}k", t / 1000),
     };
-    let rule = match lang {
-        Lang::En => "Experience gives levels, and every level gives one skill point.",
-        Lang::Uk => "Досвід дає рівні, а кожен рівень — одне очко навичок.",
+    let rule = match lang.written() {
+        Written::En => "Experience gives levels, and every level gives one skill point.",
+        Written::Uk => "Досвід дає рівні, а кожен рівень — одне очко навичок.",
     };
     // For the skills' planner (skills.js): the formula, the last level and what a match is now.
     let play = per_match.map_or(String::new(), |per_match| {

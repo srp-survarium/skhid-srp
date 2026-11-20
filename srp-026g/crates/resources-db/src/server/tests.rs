@@ -114,7 +114,8 @@ fn game(folder: &Folder) -> (PathBuf, PathBuf, PathBuf) {
             ("projects/level_01/day/client_project", &project(3).0),
             ("projects/level_01/day/level.bin", b"not read"),
             ("localization/english/localization", b"english"),
-            ("localization/german/localization", b"not read"),
+            // Of a language, its texts alone are read.
+            ("localization/german/eula", b"not read"),
             ("textures/a.dds", b"not read"),
         ]),
     );

@@ -293,10 +293,7 @@ pub(crate) fn chosen(query: &str) -> Option<u16> {
 }
 
 pub(crate) fn language(lang: Lang) -> Language {
-    match lang {
-        Lang::En => Language::English,
-        Lang::Uk => Language::Ukrainian,
-    }
+    lang.game()
 }
 
 /// The game's text of `key`, else the key.
