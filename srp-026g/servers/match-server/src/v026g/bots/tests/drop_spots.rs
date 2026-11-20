@@ -232,9 +232,11 @@ fn drop_spots() {
 
 /// [drop give-ups] The other way of the strip's walk-offs: a lip the exe keeps a body on stays ground in the stand-in (a check on
 /// any change of the stand-in's walk off a top; a landing rule that let the strip's turn down did let these fall). A body walks straight along the level_02
-/// edge strip's rim (+z, forward held, yaw 0) from z 37.10 for 24 ticks at x 11.20 .. 10.95; the exe keeps it on ground every tick at
-/// every x (`strip_rim_exe_v1` on the game's objects, 2026-11-19: 0 air ticks, lowest y 19.28 .. 18.93, the rim sloping down), and
-/// so must the stand-in: never down to the 16.4 m floor under the strip.
+/// edge strip's rim (+z, forward held, yaw 0) from z 37.10 for 24 ticks at x 11.20 .. 10.95. Along the strip (z to 38.97) the exe
+/// keeps it on ground every tick at every x (`strip_rim_exe_v3` on the game's objects, rig_real_v3, 2026-11-20), and so must the
+/// stand-in: never down to the 16.4 m floor under the strip. Past the strip's end the exe at x 11.05 is in the air from tick 16
+/// (z 39.45, y 18.80 at tick 24) and on the floor at tick 31 (`strip_rim_exe_v3b`); the stand-in keeps it on the top there, a gap of
+/// the stand-in's rim this test does not assert.
 #[test]
 #[ignore = "needs SRP_MAPDATA_DIR"]
 fn strip_rim_walks_stay_on_the_top() {
