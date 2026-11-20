@@ -29,7 +29,8 @@ research-mode@3. The owner's rules:
   two beside them. Preserve a point's facing when it was moved without turning it.
 - These replace the earlier proposal beside the ground-floor doors. The walking distance to
   the battery container is 44–65 m for team1 and 68–74 m for team2.
-- Remove the old outdoor spawn-protection zones; keep each point's own 6-second invulnerability.
+- Remove the old outdoor spawn-protection zones; keep each point's original invulnerability:
+  6 seconds in batteries, batteries with chargers and Research; 3 seconds in Team Deathmatch.
 - Do not include the accidental prop moves from the editor.
 
 ## London's own textures (pack london-textures)
