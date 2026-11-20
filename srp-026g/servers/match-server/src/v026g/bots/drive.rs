@@ -3484,7 +3484,9 @@ fn guard_keys(bot: &mut Bot, decision: &mut Decision, me: &PlaceView, tactics: &
         LipGuard::Clear | LipGuard::Safe => None,
     };
     if let Some((verdict, to)) = changed {
-        let edge = super::nav_log::EdgeWord::at(&tactics.world.grid, me.feet, None);
+        // The kept controller the guard's forecast was given (`bot.reckoned_kept`): the note said "no kept controller" on every
+        // line (591 braked and 783 swapped lines of the live log) because it was handed none.
+        let edge = super::nav_log::EdgeWord::at(&tactics.world.grid, me.feet, bot.reckoned_kept.as_ref().map(|kept| kept.airborne()));
         let speed = me.velocity[0].hypot(me.velocity[1]);
         bot.nav_log.push(super::nav_log::Kind::Guard, time, super::nav_log::guard_line(verdict, me.feet, decision.keys, to, speed, edge));
     }

@@ -29,7 +29,9 @@
 //!   A's side of the spot (nearer A than the goal) the planner has a route from, by any way (`via` any-way). The spot passes
 //!   when every start reaches the goal with 0 errors.
 //! - `spot_suite_run`: `SRP_SPOT_SUITE_STARTS=<starts tsv>`, `SRP_SPOT_SUITE_OUT=<results tsv>`, optional
-//!   `SRP_SPOT_SUITE_ONLY=S001,S017`, `SRP_SPOT_SUITE_THREADS=<n>` (default 2), `SRP_SPOT_SUITE_SECONDS` (default 60),
+//!   `SRP_SPOT_SUITE_ONLY=S001,S017`, `SRP_SPOT_SUITE_THREADS=<n>` (default 2; each start runs on a thread of its own, so no
+//!   per-thread cache of the planner carries from one start to the next and the rows do not depend on the threads' timing),
+//!   `SRP_SPOT_SUITE_SECONDS` (default 60),
 //!   `SRP_SPOT_SUITE_NOTES=<notes tsv>` (default the results' path with `.notes.tsv` appended), `SRP_SPOT_SUITE_TRACE` (any
 //!   value: the per-tick trace below). One line a start: whether the bot reached G, passed P, and its ERRORS, read from its
 //!   own notes:
@@ -59,7 +61,9 @@
 //! TRACE (`SRP_SPOT_SUITE_TRACE`, for a replay of a start on the game's rig): `<SRP_SPOT_SUITE_OUT>.trace.tsv`, one row per
 //! stand-in tick of each start from its first tick to its end: `spot`, `start`, `ms`, the body's feet after the tick (map frame),
 //! its held `keys` (hex), `jump_press` (1 on the tick a flight starts), `in_flight`, `on_ground` (no flight, the kept controller
-//! not airborne), `sprint`, `crouch` (the keys). Unset, nothing of it is made.
+//! not airborne), `sprint`, `crouch` (the keys), and the walk the client makes of the tick's keys: `walk_x`, `walk_z` (m over
+//! the tick, map frame: the blended local velocity at the client's step cap turned by the moving yaw, what the game's own
+//! controller gets as its walk), `yaw` (the body's), `sprint_state` (the client's). Unset, nothing of it is made.
 //!
 //! STANDIN-FIDELITY (a tag on a failing start, the start still fails): fix-move found the stand-in body wrong at some drops and
 //! rims (a sloped rim kept as one flat lip cell, a fixed velocity through the fall where the game's keys keep steering, a snap
@@ -1077,7 +1081,7 @@ impl TickTrace {
         let f = body.feet;
         let _ = writeln!(
             self.rows,
-            "{}\t{tick}\t{:.4}\t{:.4}\t{:.4}\t{:x}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{tick}\t{:.4}\t{:.4}\t{:.4}\t{:x}\t{}\t{}\t{}\t{}\t{}\t{:.5}\t{:.5}\t{:.4}\t{}",
             self.head,
             f.x,
             f.y,
@@ -1087,7 +1091,11 @@ impl TickTrace {
             u8::from(flying),
             u8::from(on_ground),
             u8::from(body.keys & key::SPRINT != 0),
-            u8::from(body.keys & key::CROUCH != 0)
+            u8::from(body.keys & key::CROUCH != 0),
+            body.client_walk.0[0],
+            body.client_walk.0[1],
+            body.yaw,
+            u8::from(body.client_walk.1)
         );
     }
 }
@@ -1271,7 +1279,7 @@ fn spot_suite_run() {
     let trace_out = std::env::var_os("SRP_SPOT_SUITE_TRACE").map(|_| {
         let path = format!("{out_path}.trace.tsv");
         let mut file = std::fs::File::create(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
-        writeln!(file, "spot\tstart\tms\tfeet_x\tfeet_y\tfeet_z\tkeys\tjump_press\tin_flight\ton_ground\tsprint\tcrouch").unwrap();
+        writeln!(file, "spot\tstart\tms\tfeet_x\tfeet_y\tfeet_z\tkeys\tjump_press\tin_flight\ton_ground\tsprint\tcrouch\twalk_x\twalk_z\tyaw\tsprint_state").unwrap();
         Mutex::new(file)
     });
     for project in projects {
@@ -1297,7 +1305,13 @@ fn spot_suite_run() {
                             let a = v3(row, "ax", "ay", "az").unwrap_or(p);
                             let leg = Leg { start: s, goal: g, a, p };
                             let mut trace = trace_out.as_ref().map(|_| TickTrace { head: format!("{}\t{}", row["spot"], row["start"]), rows: String::new() });
-                            let o = walk(&world, &project, &leg, limit_ms, i as u32, trace.as_mut());
+                            // Each start on a thread of its own: the planner keeps per-thread caches whose filling decides what a
+                            // poll's budget walks (mapdata's PULL_WALKS: a cached pull-walk answer is free, a new one spends
+                            // the poll's walk ticks), so on a shared worker a start's routes would depend on the starts that
+                            // ran there before it, and the run's rows on the workers' timing.
+                            let o = std::thread::scope(|own| {
+                                own.spawn(|| walk(&world, &project, &leg, limit_ms, i as u32, trace.as_mut())).join().expect("a start's walk")
+                            });
                             if let (Some(file), Some(trace)) = (trace_out.as_ref(), trace) {
                                 file.lock().unwrap().write_all(trace.rows.as_bytes()).unwrap();
                             }

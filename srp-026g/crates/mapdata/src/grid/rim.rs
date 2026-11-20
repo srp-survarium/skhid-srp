@@ -1338,6 +1338,9 @@ mod tests {
         let start = [Vec3::new(1.0, 0.0, 3.0)];
         let (grid, stats) = WalkGrid::build_kept_with_links(&tris, [-2.0, 0.0, 12.0, 6.0], 0.25, b, &start, &start, OffMeshLinks::Gaps);
         assert!(stats.wall_given_back > 0 && grid.riser_count() > 0, "given back {}, risers {}", stats.wall_given_back, grid.riser_count());
+        // The build's log: the risers' table moved with the floors and names links only.
+        let risers = stats.give_back_tables.risers;
+        assert!(risers.entries > 0 && risers.moved > 0 && risers.not_links == 0, "{:?}", stats.give_back_tables);
         for &(a, c, _) in &grid.riser {
             let rise = grid.height[c as usize] - grid.height[a as usize];
             assert!(rise >= b.walked_step() - 1e-3, "riser {:?} -> {:?} rises {rise}", grid.position(a), grid.position(c));

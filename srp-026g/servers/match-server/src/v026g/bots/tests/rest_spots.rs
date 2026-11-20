@@ -32,10 +32,23 @@ struct Crossing {
     rest_ms: u32,
     /// The feet at the first press.
     pressed_at: Option<Vec3>,
-    /// Every press: the feet and the body's speed over the stand-in's last step (a game tick), m/s.
-    presses_at: Vec<(Vec3, f32)>,
+    /// Every press.
+    presses_at: Vec<Press>,
+    /// The bot's notes (ms, text), printed with `SRP_REST_TRAIL=1`.
+    notes: Vec<(u32, String)>,
     /// The feet at every press, and every 500 ms (`SRP_REST_TRAIL=1` prints them).
     trail: Vec<(u32, Vec3, bool)>,
+}
+
+/// A press of the jump key on the way.
+#[derive(Debug)]
+struct Press {
+    feet: Vec3,
+    /// The body's speed over the stand-in's last step (a game tick), m/s.
+    speed: f32,
+    /// The motor's route jump it pressed, its take-off and landing (`Motor::route_press`; None: another jump, the stuck watch's,
+    /// an escape's).
+    link: Option<(Vec3, Vec3)>,
 }
 
 /// A bot on the stand-in walks to `goal` from `start` for at most `until` ms (as `drop_spots`' walk).
@@ -87,7 +100,8 @@ fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: V
                 out.presses += 1;
                 out.pressed_at.get_or_insert(game.bodies[0].feet);
                 let feet = game.bodies[0].feet;
-                out.presses_at.push((feet, feet.distance_xz(step_before) / (TICK_MS as f32 / 1000.0)));
+                let motor = bots.bots[0].as_ref().and_then(|bot| bot.motor.route_press()).map(|press| (press.take_off, press.landing));
+                out.presses_at.push(Press { feet, speed: feet.distance_xz(step_before) / (TICK_MS as f32 / 1000.0), link: motor });
                 out.trail.push((clock, game.bodies[0].feet, true));
             }
             let r = made.input.rotation;
@@ -96,6 +110,7 @@ fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: V
             game.inputs[made.place].push_back((made.time, made.input.actions, turn, None, gun));
         }
         bots.nav_notes(0, &mut notes);
+        out.notes.extend(notes.iter().map(|note| (note.time, note.text.clone())));
         let feet = game.bodies[0].feet;
         if clock % 500 == 0 {
             out.trail.push((clock, feet, false));
@@ -213,22 +228,34 @@ fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
             for (t, p, press) in &c.trail {
                 eprintln!("REST   {t} ms ({:.2}, {:.2}, {:.2}){}", p.x, p.y, p.z, if *press { " PRESS" } else { "" });
             }
+            for (t, text) in &c.notes {
+                eprintln!("REST   note {t} ms: {text}");
+            }
         }
         landed += usize::from(c.landed.is_some());
         let mut at_link = false;
-        for &(p, speed) in &c.presses_at {
+        for &Press { feet: p, speed, link } in &c.presses_at {
+            // The motor's press of this link (its take-off and landing within 0.3 m of the link's).
+            let motor = link.is_some_and(|(from, to)| (from - a).length() <= 0.3 && (to - b).length() <= 0.3);
             let (dx, dz) = (a.x - p.x, a.z - p.z);
             let behind = dx * way.0 + dz * way.1;
             if p.distance_xz(a) > 1.0 || (p.y - a.y).abs() > 0.6 {
                 continue;
             }
-            at_link = true;
+            at_link |= motor;
             let to_right = -(dx * right.0 + dz * right.1);
-            eprintln!("REST   press at the link {behind:.3} m behind, {to_right:+.3} m to the right, {speed:.2} m/s");
-            // The press of a flown stand press: from rest (under 0.3 m/s over the last step) and within the stored lead window,
-            // the motor's lead gate's 0.2 m on its earlier side (`lead_off`, F3).
+            eprintln!(
+                "REST   press at the link {behind:.3} m behind, {to_right:+.3} m to the right, {speed:.2} m/s, {}",
+                match link {
+                    _ if motor => "the motor's press of the link".to_string(),
+                    Some((from, to)) => format!("the motor's press of another link ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2})", from.x, from.y, from.z, to.x, to.y, to.z),
+                    None => "not the motor's (another jump)".to_string(),
+                }
+            );
+            // The motor's press of a flown stand press: from rest (under 0.3 m/s over the last step) and within the stored lead
+            // window, the motor's lead gate's 0.2 m on its earlier side (`lead_off`, F3). Another jump there is reported.
             let in_leads = behind >= lead_window.0 - 0.2 - 0.01 && behind <= lead_window.1 + 0.01;
-            if speed >= 0.3 || !in_leads {
+            if motor && (speed >= 0.3 || !in_leads) {
                 off_rule.push((start, behind, to_right, speed));
             }
         }
