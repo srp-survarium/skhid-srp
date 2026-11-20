@@ -129,11 +129,10 @@ package survarium.face
          }
          // The player went on from srp's last word: that pick stays shown.
          var picked:Boolean = this._count > 0 && this._shown != this._face;
+         // Any word of srp's ends the choice asked: its own answer, or the account, which comes
+         // after a choice too. A choice whose answer was lost is then asked again (askNext).
          var asked:int = this._asked;
-         if(done == CHOSEN || done == REFUSED)
-         {
-            this._asked = -1;
-         }
+         this._asked = -1;
          this._count = Math.min(count,FACES_MAX);
          this._face = face;
          if(!picked || this._shown >= this._count || done == REFUSED && this._shown == asked)
