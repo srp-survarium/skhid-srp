@@ -1,0 +1,12 @@
+# The Shooting Range, the STK2 Bar's shooting gallery (pack lobby-stk2-range@1, projects/lobby_scene/stk2_range): where things are, in the lobby's
+# world (metres, y up; the default camera looks along +z). Made by resource-porter's build-stk2-lobby-026
+# (ports/stk2-range-lobby-to-026g.json), which bakes the STK2 scene into this frame.
+# yaw: the lobby camera's yaw (+B8h) that looks at the spot from the room; - when not a view.
+# One row a line, tabs between: <key> <x> <y> <z> <yaw> <what>
+character	0.000	0.000	0.000	-	the lobby character's spot (the exe's: the origin, facing -z), on the shooters' plank floor, the squad's backs to the sandbag wall and firing counter (+z); STK2 (82.000, -3.109, 0.200)
+camera_default_eye	0.000	1.200	-1.960	0	the stock camera at its start, before the shooters' back wall, looking downrange over the squad
+weapon	-1.400	1.319	2.260	0	srp_lobby.weapon: 0.41 m above the firing counter (top y 0.91) behind the character's left, seen downrange with the lanes and targets beyond; STK2 (84.260, -1.790, 1.600)
+artefact	-2.400	0.909	2.260	-	on the firing counter, beyond the weapon
+counter	-0.550	0.909	2.175	-	the firing counter on its sandbag wall behind the squad (STK2 x 83.6..84.75, z -3.3..4.8; lobby z 1.60..2.75)
+targets	0.600	1.109	18.800	-	the targets and the bottle shelf at the lanes' end, 18.8 m behind the squad
+stairs	4.100	0.000	-1.100	-	the foot of the stairs up to the Bar, off to the squad's right; a dim warm fill there
