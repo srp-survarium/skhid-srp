@@ -6307,6 +6307,17 @@ names' push and erase, the pools' add and release, gather and process_streaming)
 gather's push, the destructor's site and process_streaming's batch in both exes. Nothing a match
 computes.
 
+Run in the memory test's rig (2026-11-20, one headless client under Wine/DXVK, 19 bots, map 61, a
+cold `streamed_textures`): with the 340 all-different items main's exe asserts at the names 3 s
+after Play; this patch loads (the names to 2305, the 64x64 DXT1 pool moved) and plays 15 minutes
+clean, twice. With 185 items the names reach 1792 and the scene streams 1792 at the load. A test
+build that moves every list at half its room ran each move in a game and played 15 minutes, the
+scene streaming past 2048 (2305) with 185 items. Not run in a game: a scene's rooms given back (the
+rig's matches do not end), a batch cut to 1024. With 185 items main's exe and this patch both stop
+in some runs 4 to 6 minutes in on another limit, the managed arena's "10 sec passed and no
+deallocation", for a baked texture (`user_data/streamed_textures/…_s1f.dds`) asked with a negative
+size while the arena is a quarter full.
+
 ## The ported 0.21 maps render the 0.21 way (patch 130, unreleased)
 
 The owner (2026-11-09): exact 0.21 rain on the ported 0.21 maps (Vostok Radar Station v0.21,
