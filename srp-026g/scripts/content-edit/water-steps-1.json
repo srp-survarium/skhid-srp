@@ -3412,7 +3412,131 @@
       "expected_files": 1
     },
     {
+      "files": "projects/v011w_level_04_evn/evening_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v011w_level_04_rain/rain_2/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
       "files": "projects/v011e_level_04/day_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v011w_level_04_evn/evening_4/client_project",
+      "list": "collision_objects",
+      "after": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "like": {
+        "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"
+      },
+      "values": {
+        "lib_name": "resources/models/srp/water/v011e_level_04.model/collision",
+        "cgroup": 4096,
+        "cmask": 4096,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "expected_files": 1
+    },
+    {
+      "files": "projects/v011w_level_04_rain/rain_4/client_project",
       "list": "collision_objects",
       "after": {
         "lib_name": "resources/models/ported/v011e/test/mattest_cube01.model/collision#[41.28][3.48][27.43]"

@@ -27,3 +27,5 @@ v010b_soc_ug_depository	6			3000
 v010b_soc_ug_station	6			3000		
 v011w_level_03_evn	6					
 v011w_level_03_rain	6					
+v011w_level_04_evn	6			3000	6	80
+v011w_level_04_rain	6			3000	6	80

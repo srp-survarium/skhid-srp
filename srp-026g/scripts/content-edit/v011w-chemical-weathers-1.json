@@ -1,0 +1,1697 @@
+{
+ "_about": "Chemical Plant v0.11's evening and rain, made by srp-026g/scripts/v011-weather/make_chemical_weathers.py (read it for the why). 0.11 shipped Chemical Plant as day only; each weather is a copy of the day project as players have it, its environment object set to Vostok v0.11's same weather (pack v011e-radar-weather@6, 0.11e's own evening and rain), the profile exe patch 162 draws a 0.11 weather by (srp_renderer_v011w, Vostok's own of that weather, from v011w-renderer-1.json), and a mode config a copy of the day's naming its project. The probes keep the day project's textures.<weather> cubemaps (native Chemical Plant's evening and rain). Above modes.tsv, which gives the configs their weather; the maps_dict rows are v011w-chemical-weathers-maps-1.json, last.",
+ "copy": [
+  {
+   "files": "projects/v011e_level_04/day_2/client_project",
+   "from": "projects/v011e_level_04/day_2/",
+   "to": "projects/v011w_level_04_evn/evening_2/"
+  },
+  {
+   "files": "gameplay/game_modes/v011e_level_04_day_2.options",
+   "from": "gameplay/game_modes/v011e_level_04_day_2.options",
+   "to": "gameplay/game_modes/v011w_level_04_evn_2.options"
+  },
+  {
+   "files": "projects/v011e_level_04/day_2/client_project",
+   "from": "projects/v011e_level_04/day_2/",
+   "to": "projects/v011w_level_04_rain/rain_2/"
+  },
+  {
+   "files": "gameplay/game_modes/v011e_level_04_day_2.options",
+   "from": "gameplay/game_modes/v011e_level_04_day_2.options",
+   "to": "gameplay/game_modes/v011w_level_04_rain_2.options"
+  },
+  {
+   "files": "projects/v011e_level_04/day_4/client_project",
+   "from": "projects/v011e_level_04/day_4/",
+   "to": "projects/v011w_level_04_evn/evening_4/"
+  },
+  {
+   "files": "gameplay/game_modes/v011e_level_04_day_4.options",
+   "from": "gameplay/game_modes/v011e_level_04_day_4.options",
+   "to": "gameplay/game_modes/v011w_level_04_evn_4.options"
+  },
+  {
+   "files": "projects/v011e_level_04/day_4/client_project",
+   "from": "projects/v011e_level_04/day_4/",
+   "to": "projects/v011w_level_04_rain/rain_4/"
+  },
+  {
+   "files": "gameplay/game_modes/v011e_level_04_day_4.options",
+   "from": "gameplay/game_modes/v011e_level_04_day_4.options",
+   "to": "gameplay/game_modes/v011w_level_04_rain_4.options"
+  },
+  {
+   "files": "projects/v011e_level_04/vegetation/*",
+   "from": "projects/v011e_level_04/vegetation/",
+   "to": "projects/v011w_level_04_evn/vegetation/"
+  },
+  {
+   "files": "projects/v011e_level_04/vegetation/*",
+   "from": "projects/v011e_level_04/vegetation/",
+   "to": "projects/v011w_level_04_rain/vegetation/"
+  }
+ ],
+ "set": [
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/ao_radius",
+   "from": 1.2999999523162842,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/atmosphere_miePi_multiplier",
+   "from": 10.0,
+   "to": 2.0
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/atmosphere_mieSun_multiplier",
+   "from": 1,
+   "to": 20
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/atmosphere_rayleighPi_multiplier",
+   "from": 1,
+   "to": 1.5,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/atmosphere_rayleighSun_multiplier",
+   "from": 1,
+   "to": 1.7999999523162842,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/bloom_ratio",
+   "from": 0.20000000298023224,
+   "to": 0.30000001192092896
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/blueshift",
+   "from": 50,
+   "to": 60
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/cloud_distance",
+   "from": 330.2900085449219,
+   "to": 389.0299987792969
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/environment_probes_diffuse_intensity_multiplier",
+   "from": 1,
+   "to": 3
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/god_rays_attenuation",
+   "from": 2.0,
+   "to": 2.200000047683716
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/god_rays_intensity",
+   "from": 0.20000000298023224,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/image_grain_intensity",
+   "from": 0.08,
+   "to": 0.09000000357627869
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/lens_flares_multiplier",
+   "from": 0.7400000095367432,
+   "to": 0.5
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/mie_fog_base_height",
+   "from": 0,
+   "to": 75
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/mie_fog_bias",
+   "from": 0,
+   "to": 0.25,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/mie_fog_far_distance",
+   "from": 0,
+   "to": 200
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/rayleigh_fog_far_distance",
+   "from": 400,
+   "to": 200
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sharpen_amount",
+   "from": 1.2999999523162842,
+   "to": 1.399999976158142
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sky_clouds_rotation",
+   "from": 0.0,
+   "to": 167.4072
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sky_clouds_skylight",
+   "from": 1.4600000381469727,
+   "to": 2.9000000953674316
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sky_clouds_sunlight",
+   "from": 0.9399999976158142,
+   "to": 1.4600000381469727
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sun_angle",
+   "from": 41.47604751586914,
+   "to": 17.516515731811523
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sun_intensity",
+   "from": 1.5099999904632568,
+   "to": 0.75
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sun_position_azimut",
+   "from": 243.82815551757812,
+   "to": 74.86
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sun_shadow_filter_radius",
+   "from": 0,
+   "to": 2
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sun_size",
+   "from": 0.75,
+   "to": 1.1100000143051147
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/ao_radius",
+   "from": 1.2999999523162842,
+   "to": 1.5
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/ao_saturation",
+   "from": 1.2999999523162842,
+   "to": 1.5
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/atmosphere_miePi_multiplier",
+   "from": 10.0,
+   "to": 200
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/atmosphere_mieSun_multiplier",
+   "from": 1,
+   "to": 1000
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/atmosphere_rayleighSun_multiplier",
+   "from": 1,
+   "to": 0.20000000298023224,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/bloom_ratio",
+   "from": 0.20000000298023224,
+   "to": 0.10000000149011612
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/blueshift",
+   "from": 50,
+   "to": 25
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/bokeh_density",
+   "from": 1,
+   "to": 1.5,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/cloud_distance",
+   "from": 330.2900085449219,
+   "to": 174.3800048828125
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/dof_focus_distance",
+   "from": 100,
+   "to": 50
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/dof_focus_region",
+   "from": 50,
+   "to": 30
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/environment_probes_diffuse_intensity_multiplier",
+   "from": 1,
+   "to": 2.8,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/environment_probes_specular_intensity_multiplier",
+   "from": 1,
+   "to": 4
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/god_rays_attenuation",
+   "from": 2.0,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/god_rays_color_blend_power",
+   "from": 0.5,
+   "to": 1
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/lens_flares_multiplier",
+   "from": 0.7400000095367432,
+   "to": 2
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/mie_fog_base_height",
+   "from": 0,
+   "to": 100
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/mie_fog_bias",
+   "from": 0,
+   "to": 0.3499999940395355,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/mie_fog_far_distance",
+   "from": 0,
+   "to": 200
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/rayleigh_fog_far_distance",
+   "from": 400,
+   "to": 300
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sharpen_amount",
+   "from": 1.2999999523162842,
+   "to": 1.25
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sky_clouds_blend_mode",
+   "from": 1,
+   "to": 0
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sky_clouds_fog_power",
+   "from": 10,
+   "to": 2
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sky_clouds_fog_up_limit",
+   "from": 0.15000000596046448,
+   "to": 0.5
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sky_clouds_rotation",
+   "from": 0.0,
+   "to": 180.0
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sun_angle",
+   "from": 41.47604751586914,
+   "to": 38.007713317871094
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sun_intensity",
+   "from": 1.5099999904632568,
+   "to": 0.07000000029802322
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sun_moon_billboard_color_intensity",
+   "from": 1,
+   "to": 5
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sun_position_azimut",
+   "from": 243.82815551757812,
+   "to": 219.68202209472656
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sun_shadow_filter_radius",
+   "from": 0,
+   "to": 5.360000133514404,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sun_size",
+   "from": 0.75,
+   "to": 0.550000011920929
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/ao_radius",
+   "from": 1.2999999523162842,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/atmosphere_miePi_multiplier",
+   "from": 10.0,
+   "to": 2.0
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/atmosphere_mieSun_multiplier",
+   "from": 1,
+   "to": 20
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/atmosphere_rayleighPi_multiplier",
+   "from": 1,
+   "to": 1.5,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/atmosphere_rayleighSun_multiplier",
+   "from": 1,
+   "to": 1.7999999523162842,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/bloom_ratio",
+   "from": 0.20000000298023224,
+   "to": 0.30000001192092896
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/blueshift",
+   "from": 50,
+   "to": 60
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/cloud_distance",
+   "from": 330.2900085449219,
+   "to": 389.0299987792969
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/environment_probes_diffuse_intensity_multiplier",
+   "from": 1,
+   "to": 3
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/god_rays_attenuation",
+   "from": 2.0,
+   "to": 2.200000047683716
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/god_rays_intensity",
+   "from": 0.20000000298023224,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/image_grain_intensity",
+   "from": 0.08,
+   "to": 0.09000000357627869
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/lens_flares_multiplier",
+   "from": 0.7400000095367432,
+   "to": 0.5
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/mie_fog_base_height",
+   "from": 0,
+   "to": 75
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/mie_fog_bias",
+   "from": 0,
+   "to": 0.25,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/mie_fog_far_distance",
+   "from": 0,
+   "to": 200
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/rayleigh_fog_far_distance",
+   "from": 400,
+   "to": 200
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sharpen_amount",
+   "from": 1.2999999523162842,
+   "to": 1.399999976158142
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sky_clouds_rotation",
+   "from": 0.0,
+   "to": 167.4072
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sky_clouds_skylight",
+   "from": 1.4600000381469727,
+   "to": 2.9000000953674316
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sky_clouds_sunlight",
+   "from": 0.9399999976158142,
+   "to": 1.4600000381469727
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sun_angle",
+   "from": 41.47604751586914,
+   "to": 17.516515731811523
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sun_intensity",
+   "from": 1.5099999904632568,
+   "to": 0.75
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sun_position_azimut",
+   "from": 243.82815551757812,
+   "to": 74.86
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sun_shadow_filter_radius",
+   "from": 0,
+   "to": 2
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sun_size",
+   "from": 0.75,
+   "to": 1.1100000143051147
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/ao_radius",
+   "from": 1.2999999523162842,
+   "to": 1.5
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/ao_saturation",
+   "from": 1.2999999523162842,
+   "to": 1.5
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/atmosphere_miePi_multiplier",
+   "from": 10.0,
+   "to": 200
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/atmosphere_mieSun_multiplier",
+   "from": 1,
+   "to": 1000
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/atmosphere_rayleighSun_multiplier",
+   "from": 1,
+   "to": 0.20000000298023224,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/bloom_ratio",
+   "from": 0.20000000298023224,
+   "to": 0.10000000149011612
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/blueshift",
+   "from": 50,
+   "to": 25
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/bokeh_density",
+   "from": 1,
+   "to": 1.5,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/cloud_distance",
+   "from": 330.2900085449219,
+   "to": 174.3800048828125
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/dof_focus_distance",
+   "from": 100,
+   "to": 50
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/dof_focus_region",
+   "from": 50,
+   "to": 30
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/environment_probes_diffuse_intensity_multiplier",
+   "from": 1,
+   "to": 2.8,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/environment_probes_specular_intensity_multiplier",
+   "from": 1,
+   "to": 4
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/god_rays_attenuation",
+   "from": 2.0,
+   "to": 1.0
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/god_rays_color_blend_power",
+   "from": 0.5,
+   "to": 1
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/lens_flares_multiplier",
+   "from": 0.7400000095367432,
+   "to": 2
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/mie_fog_base_height",
+   "from": 0,
+   "to": 100
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/mie_fog_bias",
+   "from": 0,
+   "to": 0.3499999940395355,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/mie_fog_far_distance",
+   "from": 0,
+   "to": 200
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/rayleigh_fog_far_distance",
+   "from": 400,
+   "to": 300
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sharpen_amount",
+   "from": 1.2999999523162842,
+   "to": 1.25
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sky_clouds_blend_mode",
+   "from": 1,
+   "to": 0
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sky_clouds_fog_power",
+   "from": 10,
+   "to": 2
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sky_clouds_fog_up_limit",
+   "from": 0.15000000596046448,
+   "to": 0.5
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sky_clouds_rotation",
+   "from": 0.0,
+   "to": 180.0
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sun_angle",
+   "from": 41.47604751586914,
+   "to": 38.007713317871094
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sun_intensity",
+   "from": 1.5099999904632568,
+   "to": 0.07000000029802322
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sun_moon_billboard_color_intensity",
+   "from": 1,
+   "to": 5
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sun_position_azimut",
+   "from": 243.82815551757812,
+   "to": 219.68202209472656
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sun_shadow_filter_radius",
+   "from": 0,
+   "to": 5.360000133514404,
+   "as_float": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sun_size",
+   "from": 0.75,
+   "to": 0.550000011920929
+  }
+ ],
+ "set_vector": [
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/bloom_color",
+   "from": [
+    0.8503349423408508,
+    0.7297400832176208,
+    1.0,
+    1.0
+   ],
+   "to": [
+    0.9035454392433167,
+    0.8503349423408508,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/god_rays_color_1",
+   "from": [
+    1.0,
+    0.4886101484298706,
+    0.3671102821826935,
+    1.0
+   ],
+   "to": [
+    1.0,
+    0.39794543385505676,
+    0.0,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/god_rays_color_2",
+   "from": [
+    1.0,
+    0.8288034200668335,
+    0.5873432755470276,
+    1.0
+   ],
+   "to": [
+    1.0,
+    0.5942181944847107,
+    0.0,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sky_clouds_color",
+   "from": [
+    1.6246165037155151,
+    1.5841833353042603,
+    1.4763720035552979,
+    1.0
+   ],
+   "to": [
+    1.4589438438415527,
+    1.159122347831726,
+    0.875969648361206,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "path": "client_objects[98]/properties/sun_color",
+   "from": [
+    1.0,
+    0.8080000281333923,
+    0.675000011920929,
+    1.0
+   ],
+   "to": [
+    0.9729999899864197,
+    0.5730000138282776,
+    0.32199999690055847,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/bloom_color",
+   "from": [
+    0.8503349423408508,
+    0.7297400832176208,
+    1.0,
+    1.0
+   ],
+   "to": [
+    0.9035454392433167,
+    0.8503349423408508,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/god_rays_color_1",
+   "from": [
+    1.0,
+    0.4886101484298706,
+    0.3671102821826935,
+    1.0
+   ],
+   "to": [
+    1.0,
+    0.7888996005058289,
+    0.38664188981056213,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/god_rays_color_2",
+   "from": [
+    1.0,
+    0.8288034200668335,
+    0.5873432755470276,
+    1.0
+   ],
+   "to": [
+    1.0,
+    0.6333658695220947,
+    0.29919683933258057,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sky_clouds_color",
+   "from": [
+    1.6246165037155151,
+    1.5841833353042603,
+    1.4763720035552979,
+    1.0
+   ],
+   "to": [
+    5.780250072479248,
+    5.780250072479248,
+    5.780250072479248,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/sun_color",
+   "from": [
+    1.0,
+    0.8080000281333923,
+    0.675000011920929,
+    1.0
+   ],
+   "to": [
+    0.9729999899864197,
+    0.9729999899864197,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/bloom_color",
+   "from": [
+    0.8503349423408508,
+    0.7297400832176208,
+    1.0,
+    1.0
+   ],
+   "to": [
+    0.9035454392433167,
+    0.8503349423408508,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/god_rays_color_1",
+   "from": [
+    1.0,
+    0.4886101484298706,
+    0.3671102821826935,
+    1.0
+   ],
+   "to": [
+    1.0,
+    0.39794543385505676,
+    0.0,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/god_rays_color_2",
+   "from": [
+    1.0,
+    0.8288034200668335,
+    0.5873432755470276,
+    1.0
+   ],
+   "to": [
+    1.0,
+    0.5942181944847107,
+    0.0,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sky_clouds_color",
+   "from": [
+    1.6246165037155151,
+    1.5841833353042603,
+    1.4763720035552979,
+    1.0
+   ],
+   "to": [
+    1.4589438438415527,
+    1.159122347831726,
+    0.875969648361206,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "path": "client_objects[96]/properties/sun_color",
+   "from": [
+    1.0,
+    0.8080000281333923,
+    0.675000011920929,
+    1.0
+   ],
+   "to": [
+    0.9729999899864197,
+    0.5730000138282776,
+    0.32199999690055847,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/bloom_color",
+   "from": [
+    0.8503349423408508,
+    0.7297400832176208,
+    1.0,
+    1.0
+   ],
+   "to": [
+    0.9035454392433167,
+    0.8503349423408508,
+    1.0,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/god_rays_color_1",
+   "from": [
+    1.0,
+    0.4886101484298706,
+    0.3671102821826935,
+    1.0
+   ],
+   "to": [
+    1.0,
+    0.7888996005058289,
+    0.38664188981056213,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/god_rays_color_2",
+   "from": [
+    1.0,
+    0.8288034200668335,
+    0.5873432755470276,
+    1.0
+   ],
+   "to": [
+    1.0,
+    0.6333658695220947,
+    0.29919683933258057,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sky_clouds_color",
+   "from": [
+    1.6246165037155151,
+    1.5841833353042603,
+    1.4763720035552979,
+    1.0
+   ],
+   "to": [
+    5.780250072479248,
+    5.780250072479248,
+    5.780250072479248,
+    1.0
+   ]
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/sun_color",
+   "from": [
+    1.0,
+    0.8080000281333923,
+    0.675000011920929,
+    1.0
+   ],
+   "to": [
+    0.9729999899864197,
+    0.9729999899864197,
+    1.0,
+    1.0
+   ]
+  }
+ ],
+ "set_bool": [
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "path": "client_objects[98]/properties/use_rain",
+   "from": false,
+   "to": true
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "path": "client_objects[96]/properties/use_rain",
+   "from": false,
+   "to": true
+  }
+ ],
+ "set_entry": [
+  {
+   "file": "projects/v011w_level_04_evn/evening_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "environment"
+   },
+   "from": {
+    "layer": "day",
+    "properties/color_grading_texture": "ported/v011e/color_grading/nt",
+    "properties/lens_flares_mask_texture": "ported/v011e/engine/lensdirt_dust",
+    "properties/sky_clouds_texture": "ported/v011e/sky/evening",
+    "properties/stratosphere_texture": "ported/v011e/sky/evening"
+   },
+   "to": {
+    "layer": "evening",
+    "properties/color_grading_texture": "ported/v011w/color_grading/evn",
+    "properties/lens_flares_mask_texture": "ported/v011w/engine/lensdirt_dust",
+    "properties/sky_clouds_texture": "ported/v011w/sky/evening",
+    "properties/stratosphere_texture": "ported/v011w/sky/evening"
+   }
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "environment"
+   },
+   "from": {
+    "layer": "day",
+    "properties/color_grading_texture": "ported/v011e/color_grading/nt",
+    "properties/lens_flares_mask_texture": "ported/v011e/engine/lensdirt_dust",
+    "properties/sky_clouds_texture": "ported/v011e/sky/evening",
+    "properties/stratosphere_texture": "ported/v011e/sky/evening"
+   },
+   "to": {
+    "layer": "rain",
+    "properties/color_grading_texture": "ported/v011w/color_grading/color_grading_rdn",
+    "properties/lens_flares_mask_texture": "ported/v011w/engine/lensdirt_rain",
+    "properties/sky_clouds_texture": "ported/v011w/sky/cgskies_cloud",
+    "properties/stratosphere_texture": "ported/v011w/sky/cgskies_cloud"
+   }
+  },
+  {
+   "file": "projects/v011w_level_04_evn/evening_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "environment"
+   },
+   "from": {
+    "layer": "day",
+    "properties/color_grading_texture": "ported/v011e/color_grading/nt",
+    "properties/lens_flares_mask_texture": "ported/v011e/engine/lensdirt_dust",
+    "properties/sky_clouds_texture": "ported/v011e/sky/evening",
+    "properties/stratosphere_texture": "ported/v011e/sky/evening"
+   },
+   "to": {
+    "layer": "evening",
+    "properties/color_grading_texture": "ported/v011w/color_grading/evn",
+    "properties/lens_flares_mask_texture": "ported/v011w/engine/lensdirt_dust",
+    "properties/sky_clouds_texture": "ported/v011w/sky/evening",
+    "properties/stratosphere_texture": "ported/v011w/sky/evening"
+   }
+  },
+  {
+   "file": "projects/v011w_level_04_rain/rain_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "environment"
+   },
+   "from": {
+    "layer": "day",
+    "properties/color_grading_texture": "ported/v011e/color_grading/nt",
+    "properties/lens_flares_mask_texture": "ported/v011e/engine/lensdirt_dust",
+    "properties/sky_clouds_texture": "ported/v011e/sky/evening",
+    "properties/stratosphere_texture": "ported/v011e/sky/evening"
+   },
+   "to": {
+    "layer": "rain",
+    "properties/color_grading_texture": "ported/v011w/color_grading/color_grading_rdn",
+    "properties/lens_flares_mask_texture": "ported/v011w/engine/lensdirt_rain",
+    "properties/sky_clouds_texture": "ported/v011w/sky/cgskies_cloud",
+    "properties/stratosphere_texture": "ported/v011w/sky/cgskies_cloud"
+   }
+  }
+ ],
+ "replace_string": [
+  {
+   "files": "gameplay/game_modes/v011w_level_04_evn_2.options",
+   "from": "v011e_level_04/day_2",
+   "to": "v011w_level_04_evn/evening_2"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_04_evn_2.options",
+   "from": "v011e_level_04_2",
+   "to": "v011w_level_04_evn_2"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_04_rain_2.options",
+   "from": "v011e_level_04/day_2",
+   "to": "v011w_level_04_rain/rain_2"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_04_rain_2.options",
+   "from": "v011e_level_04_2",
+   "to": "v011w_level_04_rain_2"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_04_evn_4.options",
+   "from": "v011e_level_04/day_4",
+   "to": "v011w_level_04_evn/evening_4"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_04_evn_4.options",
+   "from": "v011e_level_04_4",
+   "to": "v011w_level_04_evn_4"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_04_rain_4.options",
+   "from": "v011e_level_04/day_4",
+   "to": "v011w_level_04_rain/rain_4"
+  },
+  {
+   "files": "gameplay/game_modes/v011w_level_04_rain_4.options",
+   "from": "v011e_level_04_4",
+   "to": "v011w_level_04_rain_4"
+  }
+ ],
+ "remove_key": [
+  {
+   "files": "projects/v011w_level_04_evn/evening_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/mie_fog_sun_color_falloff"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_evn/evening_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/radial_blur_amount"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_evn/evening_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/radial_blur_power"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_evn/evening_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/use_aberration"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/mie_fog_sun_color_falloff"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/radial_blur_amount"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/radial_blur_intensity"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/radial_blur_power"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/sky_clouds_normal_texture"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/sky_clouds_skylight"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/sky_clouds_sunlight"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_2/client_project",
+   "keys": [
+    "client_objects[98]/properties/use_aberration"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_evn/evening_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/mie_fog_sun_color_falloff"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_evn/evening_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/radial_blur_amount"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_evn/evening_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/radial_blur_power"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_evn/evening_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/use_aberration"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/mie_fog_sun_color_falloff"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/radial_blur_amount"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/radial_blur_intensity"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/radial_blur_power"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/sky_clouds_normal_texture"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/sky_clouds_skylight"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/sky_clouds_sunlight"
+   ]
+  },
+  {
+   "files": "projects/v011w_level_04_rain/rain_4/client_project",
+   "keys": [
+    "client_objects[96]/properties/use_aberration"
+   ]
+  }
+ ],
+ "add_value": [
+  {
+   "files": [
+    "projects/v011w_level_04_evn/evening_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "sky_clouds_fog_color",
+   "value": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "channel_blur_power",
+   "value": 1
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "rain_color",
+   "value": [
+    0.6380000114440918,
+    0.6579999923706055,
+    0.6690000295639038,
+    0.11400000005960464
+   ]
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "rain_density",
+   "value": 1
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "rain_radius_scale",
+   "value": 1.100000023841858
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "rain_random_base_offset",
+   "value": 0.07999999821186066
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "rain_speed",
+   "value": 1.090000033378601
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "rain_surface_intensity",
+   "value": 0.38999998569488525
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "rain_u_scale",
+   "value": 1
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "rain_v_scale",
+   "value": 1.9299999475479126
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "client_objects[98]/properties",
+   "key": "sky_clouds_fog_color",
+   "value": [
+    0.26499998569488525,
+    0.26499998569488525,
+    0.26499998569488525,
+    1.0
+   ]
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_2/client_project"
+   ],
+   "table": "",
+   "key": "srp_renderer_v011w",
+   "value": {
+    "inscatter_distance": 300,
+    "skylight_light": [
+     0.320029,
+     0.393267,
+     0.5
+    ],
+    "skylight_lower": 0,
+    "skylight_upper": 5,
+    "skylight_power": 0.1,
+    "environment_skycolor_x": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_minus_x": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_z": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_minus_z": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_up": [
+     1,
+     1,
+     1
+    ],
+    "environment_skycolor_down": [
+     1,
+     1,
+     1
+    ],
+    "sun_tint": [
+     0,
+     0,
+     0
+    ],
+    "clouds_color": [
+     47.4551,
+     47.4551,
+     47.4551
+    ],
+    "clouds_u_tile": 1,
+    "clouds_fog_power": 2,
+    "clouds_fog_up_limit": 0.5
+   }
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_evn/evening_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "sky_clouds_fog_color",
+   "value": [
+    0.0,
+    0.0,
+    0.0,
+    1.0
+   ]
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "channel_blur_power",
+   "value": 1
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "rain_color",
+   "value": [
+    0.6380000114440918,
+    0.6579999923706055,
+    0.6690000295639038,
+    0.11400000005960464
+   ]
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "rain_density",
+   "value": 1
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "rain_radius_scale",
+   "value": 1.100000023841858
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "rain_random_base_offset",
+   "value": 0.07999999821186066
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "rain_speed",
+   "value": 1.090000033378601
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "rain_surface_intensity",
+   "value": 0.38999998569488525
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "rain_u_scale",
+   "value": 1
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "rain_v_scale",
+   "value": 1.9299999475479126
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "client_objects[96]/properties",
+   "key": "sky_clouds_fog_color",
+   "value": [
+    0.26499998569488525,
+    0.26499998569488525,
+    0.26499998569488525,
+    1.0
+   ]
+  },
+  {
+   "files": [
+    "projects/v011w_level_04_rain/rain_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_renderer_v011w",
+   "value": {
+    "inscatter_distance": 300,
+    "skylight_light": [
+     0.320029,
+     0.393267,
+     0.5
+    ],
+    "skylight_lower": 0,
+    "skylight_upper": 5,
+    "skylight_power": 0.1,
+    "environment_skycolor_x": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_minus_x": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_z": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_minus_z": [
+     0.509804,
+     0.529412,
+     0.564706
+    ],
+    "environment_skycolor_up": [
+     1,
+     1,
+     1
+    ],
+    "environment_skycolor_down": [
+     1,
+     1,
+     1
+    ],
+    "sun_tint": [
+     0,
+     0,
+     0
+    ],
+    "clouds_color": [
+     47.4551,
+     47.4551,
+     47.4551
+    ],
+    "clouds_u_tile": 1,
+    "clouds_fog_power": 2,
+    "clouds_fog_up_limit": 0.5
+   }
+  }
+ ]
+}
