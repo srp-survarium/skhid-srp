@@ -303,6 +303,7 @@ mod tests {
             kits,
             items,
             squad: 0,
+            face: crate::v026g::faces::Face::DEFAULT,
         }
     }
 

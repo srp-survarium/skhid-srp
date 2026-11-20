@@ -4,6 +4,7 @@ package survarium.rooms
     import flash.display.BitmapData;
     import flash.display.DisplayObject;
     import flash.display.DisplayObjectContainer;
+    import flash.display.PixelSnapping;
     import flash.display.Shape;
     import flash.display.Sprite;
     import flash.events.Event;
@@ -520,8 +521,20 @@ package survarium.rooms
             return new Bitmap(small);
         }
 
+        // A card window's picture (a lobby's, a face's), made at the card's
+        // shape with more pixels than the card has (twice: a 4K screen draws
+        // the lobby twice its size), shown over w x h at its own pixels,
+        // smoothed: as sharp as the screen draws it.
+        public static function card(picture:BitmapData, w:int, h:int):Bitmap
+        {
+            var shown:Bitmap = new Bitmap(picture, PixelSnapping.NEVER, true);
+            shown.width = w;
+            shown.height = h;
+            return shown;
+        }
+
         // A picture scaled to cover w x h, centred, the rest cut (a vote
-        // card's map, a lobby window's card); `big` is disposed.
+        // card's map); `big` is disposed.
         public static function cover(big:BitmapData, w:int, h:int):BitmapData
         {
             var small:BitmapData = new BitmapData(w, h, false, 0x05080B);

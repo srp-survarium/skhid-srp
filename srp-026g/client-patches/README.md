@@ -166,6 +166,8 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/forest_glow.rs`, `src/forest_glow.toml`, `src/vostok/effect.rs`, `check_forest_glow_026g.py` | Patch 111: Forest Protection's grey glow on the arms while it protects a player (inside a damage zone, a rank of modifier 41 in its kit), seen by everyone; and the leg quarters, each passive artefact copy counting for a player (own and Resonance's shared, at most 4 a kind) lighting a quarter of its legs in its kind's colour, shown only by a game whose local player's current kit has Artifact Sight (513, modifier 40 bit 12) or that has no local player (pack artefact-glow@13); a place's third-person presenter given back to its current kit's object (the stock game left it on another kit's after a respawn, so other games showed none of that player's effects); played from the player's simulation tick with its own calculator, which ends each when the game no longer shows it; its check runs the tick, the effects' query and callback, the clock and the cook in the built exe (needs Unicorn) |
 | `rust/patches/src/controller_position.rs`, `src/controller_position.toml`, `src/vostok/controller.rs`, `check_controller_position_026g.py` | Patch 118: a character controller's step never leaves its position non-finite: at player_step's epilogue (0x7C7D7) a position with an infinity or a NaN goes back to m_last_pos, where the step began; one lohook; a simulation change (`../docs/notes/client_patch.md` section 3.71) |
 | `rust/patches/src/unplayed_match.rs`, `src/unplayed_match.toml`, `src/vostok/match_close.rs`, `check_unplayed_match_026g.py` | Patch 120: a match its game never played (the time rule's state 0: the handshake, a level loading, a level loaded before its first world) closes too, kicked, timed out, cut off or given its farewell: five lohooks (connect_to_match's connect, the logoff, close_current_match's guard, on_project_loaded's abort test, on_match_ready's end); its check runs each from the game's code on a made-up network client, the original beside (needs Unicorn; `../docs/notes/client_patch.md` section 3.74) |
+| `rust/patches/src/faces.rs`, `src/faces.toml`, `src/vostok/skin_cook.rs`, `check_faces_026g.py` | Patch 123: every player drawn with srp's face of the account (`../docs/notes/face-choice.md`): the faces srp gives: the account's and its squad's by name (0x87's and 0x88's byte), a match's or replay's by place (its options' entry 5) until its scene is left; the character cook's head made from `body_parts.heads[face]`, its mask or helmet variant by the kit's models, its hair, `f<face>_` in the skin's name; a worn helmet's or mask's `data_head_<face>` entry when its config has one; a late joiner's face from srp's block after its proposal's profile; eight lohooks; its check runs each site, the head beside the original's (needs Unicorn; `../docs/notes/client_patch.md` section 3.87) |
+| `rust/patches/src/geometry_share.rs`, `src/geometry_share.toml`, `src/vostok/memory.rs`, `check_geometry_share_026g.py` | Patch 164: a pooled vertex or index buffer with the same bytes, stride and pool as a live one (8 KiB or more) takes that one's range of the render's geometry pool, not a copy: each character skin makes every part's mesh again (skeleton_combined_model_cook), so two skins with a part in common held it twice, and faces make more skins (`../docs/notes/client_patch.md` section 3.88). Three lohooks: hw_buffer_pool::allocate's start (bytes a kept range holds: that range, `ret 14h` with 1), untyped_buffer's pooled path (its new range kept, SipHash-2-4 twice over its bytes), hw_buffer_pool::deallocate's start (a range another buffer holds stays); a table of 2048 ranges under a lock. The memory profile tells the pools and the sharing (`pool` lines). Drawn the same; nothing a match computes; `check_geometry_share_026g.py` runs the three sites over a made-up pool in both exes (Unicorn) |
 | `check_kick_lobby_026g.py` | Patch 119 (`KICK_TO_LOBBY` in `patch_026g.py`): a game the match server kicks (0xFD) goes back to the lobby as one whose link was lost does: close_current_match's jump table sends reason 4 to reason 1's `31` and world end; its check runs on_match_disconnected in both exes for every reason and state (needs Unicorn; `../docs/notes/client_patch.md` section 3.72) |
 | `rust/patches/src/memory_report.rs`, `src/memory_report.toml`, `src/vostok/memory.rs` | Patch 126: the game tells the match server how much memory it has left: each registered arena's size, use and largest free block, the address space and the video budget, when a match connection's first world is in and when the match closes on it; to `srp_patches.log` too, and in the generic client-report carrier (`srp_validate::report`); two lohooks on sites patch 97 has (`../docs/notes/memory-report.md`, `../docs/notes/client_patch.md` section 3.76) |
 | `check_memory_defaults_026g.py` | Patch 37 (`MEMORY_DEFAULTS`), patch 124 (`ARENA_DEFAULTS`), patch 128 (`THREAD_STACKS`) and patch 129 (`MT_ARENA` in `patch_026g.py`): the resource floor (768 MiB), the resources helper (32 MiB) and render (320 MiB) arenas' defaults, a command-line value still taking over, an engine thread's stack (2 MiB), the multithreaded arena's floor (1024 MiB, with or without its key) and allocate_arenas' stack term; its check runs the native option reads, the registrations' sizes, threading::spawn to CreateThread and the stack term's sum in both exes (needs Unicorn; `../docs/notes/client_patch.md` sections 3.75, 3.77 and 3.78) |
@@ -6262,3 +6264,51 @@ of them on the project sites the lamps share): `wet_surface.compiled`, `wet_surf
 with `check_rain_v021d_026g.py` (with the 0.21d exe, 0.21d's own drop parameters bit for bit) and the
 patch crate's tests. Not run in a game. It needs the content pack's files and keys in the same
 release.
+
+## Face choice (patch 123, unreleased)
+
+0.26g draws every character with one head, `gameplay/bodyparts/default`'s `body_parts.head`. With
+srp's faces (`../docs/notes/face-choice.md`) the data lists `body_parts.heads`, each face with a
+`data`, `data_helmet` and `data_mask` model, and srp gives each account a face.
+
+**The patch** (`faces`, Rust, eight lohooks; `../docs/notes/client_patch.md` section 3.87):
+
+- what srp says of the faces is kept a table per thing: the account's own (srp's byte after `0x87`)
+  and its squad members' (after `0x88`, the one told longest ago making room) by name, and each
+  place's of the match or replay shown (srp's block entry 5 after the options; no entry, every face
+  0) from its options' read until its scene is left (game_world::on_deactivate). A profile that is
+  a place of those options is drawn by them; any other, the lobby's own and squad characters, by
+  the lobby's. A late joiner's place gets its face from srp's block after its proposal's profile
+  (`SRPX 05 01 <face>`), read at the dispatch after patch 114's check and then taken off the
+  message for the late join's code;
+- profile_skin_visual_cook's head (0x205662, only reached when no item's `remove_head_model` took it)
+  is the face's: its mask variant under a mask, else its helmet variant under a helmet, else its
+  `data`; a missing variant its `data`; a face the data lacks face 0; its `additional_models` (hair)
+  records of the head; the skin's name gets `f<face>_` for a face but 0, so two players in the same
+  gear with other faces are other skins. Without `heads` the native head, as today;
+- a worn helmet's or mask's entry (0x204B36, where the cook has chosen the key it reads the item's
+  models from) is the face's own, `data_head_<face>`, when the item's config has it (0.69d0's
+  `models.head_<n>`), else its `data` as today; the face the head's, and `f<face>_` in the skin's
+  name for it too (once).
+
+The lobby's characters, a match's and a replay's players alike. Nothing a match computes. Checked
+with `check_faces_026g.py` (Unicorn) and the patch crate's tests. Not run in a game.
+
+## The render's geometry pools (patch 164, unreleased)
+
+The render keeps every static vertex and index buffer in two pools of D3D11 buffers it makes at its
+start: vertices 22 chunks of 4 MiB, indices 20 of 1 MiB (video memory, taken from the texture
+pool's budget). A buffer the pool has no room for is its own D3D11 buffer, logged "No enough memory
+in vertices pool": drawn the same, one driver allocation a buffer
+(`../docs/notes/client_patch.md` section 3.88).
+
+Each character skin makes every part's mesh again (skeleton_combined_model_cook), so two skins with
+the same torso hold two copies of it. Faces make more skins (two players in the same gear with other
+faces are two), and in a 10 v 10 with faces the vertex pool was full at the match's load.
+
+**The patch** (`geometry_share`, Rust, three lohooks): a pooled buffer of 8 KiB or more with the same
+bytes, stride and pool as a live one takes that one's range; a range stays in its chunk while a
+buffer holds it. A table of 2048 ranges in the arena (96 KiB); the pools' sizes are the game's.
+Nothing a match computes. The memory profile (patch 127) tells both pools and the sharing in each
+snapshot. Checked with `check_geometry_share_026g.py` (Unicorn) and the patch crate's tests; run in
+the faces memory test (section 3.88).

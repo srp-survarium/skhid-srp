@@ -98,6 +98,7 @@ mod away;
 mod clans;
 mod core;
 mod dispatch;
+mod faces;
 mod gear;
 mod items;
 mod patch_check;

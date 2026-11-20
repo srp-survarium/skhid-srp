@@ -380,7 +380,7 @@ void __attribute__((thiscall)) engine_collision_remove(struct static_collision *
 /* 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0 */
 void engine_effects_stop(struct game_effect_list *effects);
 
-/* 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
+/* 0x2de090 survarium::game_effect_player::add: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20 */
 void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener);
 
 /* 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0 */

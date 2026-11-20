@@ -1230,6 +1230,37 @@ vostok::render::texture_registry_node	right	0xC	ptr<vostok::render::texture_regi
 vostok::render::texture_registry_node	name	0x10	ptr<u8>	the key's characters, NUL-terminated (a buffer string's begin; get_texture_video_memory_size's strstr 0x3BE295)
 vostok::render::texture_registry_node	texture	0x124	ptr<vostok::render::res_texture>	the value, the registered texture (0x3BE2AA)
 vostok::render::res_texture	memory	0x30	u32	m_mem_usage: the texture's video memory, bytes (get_texture_video_memory_size 0x3BE2B0 sums it)
+vostok::render::resource_manager	unpooled_vertex_bytes	0x881A0	u32	the bytes of the vertex buffers that are their own D3D11 buffer, not a range of the vertex pool: the dynamic ones, and those the pool had no room for (untyped_buffer::untyped_buffer adds the size at 0x3D14E7, its release 0x3D16D8 takes it off)
+vostok::render::resource_manager	unpooled_index_bytes	0x881A4	u32	the same of the index buffers (0x3D14D2, 0x3D16CD)
+vostok::render::resource_manager	index_pool	0x881A8	ptr<vostok::render::hw_buffer_pool>	the index pool (resource_pools +8h, 0x1CFC0B4: renderer_cook::create_resource copies it at 0x1167AE; made by resource_pools::allocate_geometry_pool 0x11AA10); 0 before it, and untyped_buffer then makes every buffer its own
+vostok::render::resource_manager	vertex_pool	0x881AC	ptr<vostok::render::hw_buffer_pool>	the vertex pool (resource_pools +4h, 0x1CFC0B0: 0x1167B4; 0x11AA10)
+vostok::render::hw_buffer_pool	chunks	0x0	ptr<vostok::render::hw_buffer_pool_chunk_slot>	its chunks' buffer_vector, the begin: its own room at +0Ch (hw_buffer_pool::hw_buffer_pool 0x3D40D8; allocate walks it, 0x3D43ED)
+vostok::render::hw_buffer_pool	chunks_end	0x4	ptr<vostok::render::hw_buffer_pool_chunk_slot>	the end (0x3D43E8); the pool makes all its chunks in its constructor (0x3D4240..0x3D428C) and never another
+vostok::render::hw_buffer_pool	chunk_room	0xC	obj<vostok::render::hw_buffer_pool_chunk_slot>	the vector's room, 800h chunks (capacity end at +200Ch, 0x3D40DE)
+vostok::render::hw_buffer_pool	size	0x2090	size	a pool's bytes (allocate_geometry_pool's malloc, 0x11AA29), from the render arena
+vostok::render::hw_buffer_pool_chunk_slot	chunk	0x0	ptr<vostok::render::hw_buffer_pool_chunk>	a chunk (0x3D4256..0x3D4280)
+vostok::render::hw_buffer_pool_chunk_slot	size	0x4	size	one pointer
+vostok::render::hw_buffer_pool_chunk	ranges	0x0	ptr<vostok::render::hw_buffer_pool_range>	its taken ranges' buffer_vector, the begin: its own room at +0Ch (hw_buffer_pool_chunk's constructor 0x3D3C7A); kept sorted by first (gather_free_ranges 0x3D3F37)
+vostok::render::hw_buffer_pool_chunk	ranges_end	0x4	ptr<vostok::render::hw_buffer_pool_range>	the end; allocate_range's commit pushes onto it with no room test (0x3D3E43): a chunk with 1000h ranges stops the game at buffer_vector's assertion (int3 0x3D465D)
+vostok::render::hw_buffer_pool_chunk	range_room	0xC	obj<vostok::render::hw_buffer_pool_range>	the vector's room, 1000h ranges (capacity end at +C00Ch, 0x3D3C82)
+vostok::render::hw_buffer_pool_chunk	bytes	0xC020	u32	the chunk's D3D11 buffer's bytes (the constructor 0x3D3C91; allocate_geometry_pool sums them, 0x11AA96)
+vostok::render::hw_buffer_pool_chunk	size	0xC028	size	a chunk's bytes (malloc 0x3D4251), from the render arena
+vostok::render::hw_buffer_pool_range	first	0x4	u32	its first byte in the chunk, a multiple of the buffer's stride (allocate_range's commit 0x3D3E3D)
+vostok::render::hw_buffer_pool_range	last	0x8	u32	its last byte, the range's size less 1 (0x3D3E40; 0x3D43A0 counts last - first + 1)
+vostok::render::hw_buffer_pool_range	size	0xC	size	{chunk, first, last} (the vectors step 0Ch, 0x3D43C6)
+vostok::render::hw_buffer_pool_range	chunk	0x0	ptr<vostok::render::hw_buffer_pool_chunk>	the chunk it is of (allocate_range's commit 0x3D3E3A)
+vostok::render::hw_buffer_pool_range	chunk_address	0x0	u32	the same word as an address: patch 164 writes a range it gives again with it
+vostok::render::hw_buffer_pool_chunk	pool	0xC010	ptr<vostok::render::hw_buffer_pool>	the pool it is of (its constructor 0x3D3CAE)
+vostok::render::pool_allocate_frame	pool	0x4	ptr<vostok::render::hw_buffer_pool>	hw_buffer_pool::allocate's (0x3D43E0, ret 14h) first argument, by the site's ESP at its start: the pool (untyped_buffer::untyped_buffer's calls 0x3D116F, 0x3D12FD)
+vostok::render::pool_allocate_frame	range	0x8	ptr<vostok::render::hw_buffer_pool_range>	the range it fills when it returns 1 (the buffer's +4h)
+vostok::render::pool_allocate_frame	data	0xC	ptr<u8>	the buffer's bytes, copied into the range (allocate_range's memcpy 0x3D3E7E)
+vostok::render::pool_allocate_frame	bytes	0x10	u32	their count
+vostok::render::pool_allocate_frame	stride	0x14	u32	the buffer's stride: a range starts at a multiple of it (allocate_range's div 0x3D3DA7)
+vostok::render::untyped_buffer	references	0x0	u32	its reference count: its owners add one when create_buffer gives it (inc dword [eax], 0x1CD477) and take it off, 0x3D1680 when it reaches 0 (0x16EC82)
+vostok::render::untyped_buffer	range	0x4	obj<vostok::render::hw_buffer_pool_range>	its range of a pool's chunk when pooled, zeros otherwise (the constructor 0x3D1106..0x3D1110; 0x3D1680 gives it back)
+vostok::render::untyped_buffer	bytes	0x14	u32	its bytes (the constructor 0x3D1115)
+vostok::render::untyped_buffer	stride	0x18	u32	its stride (0x3D111F)
+vostok::render::untyped_buffer_frame	data	0x10	ptr<u8>	untyped_buffer::untyped_buffer's bytes to fill it with, by its EBP (0x3D1168)
 openssl::ssl_call_frame	ssl	0x8	ptr<openssl::ssl>	SSL_connect's, SSL_read's and SSL_write's first argument by EBP, after their prologue (push ebp / mov ebp,esp): the SSL of the login client's stream (asio's engine, SSL_new at 0x37BCE2: one for the game's whole run)
 openssl::ssl_call_frame	bytes	0xC	ptr<u8>	SSL_read's room and SSL_write's bytes (EBP+0Ch)
 openssl::ssl_call_frame	length	0x10	u32	their length (EBP+10h; asio's do_read 0x37FAB0 and do_write 0x37FAE0 cap it at 7FFFFFFFh)
@@ -1434,3 +1465,22 @@ vostok::render::water_compile_frame	config	0xC	ptr<vostok::engine_cfg>	effect_fs
 vostok::render::god_rays_entry_frame	stage	0x4	ptr<vostok::render::stage_atmosphere>	the god-rays pass's (0x1A5520) one argument at its entry, the stage_atmosphere it draws for (pushed at 0x1A5133)
 vostok::render::stage_atmosphere	context	0x4	ptr<vostok::render::renderer_context>	the renderer context (the god-rays pass 0x1A5528: its +4170h scene view)
 vostok::render::stage_atmosphere	mode	0xAC	u32	the constructor's second argument: 0 the sky stage, 1 the geometry stage (execute 0x1A50C9 fills the geometry's scattering target only in mode 1; 0x1A42B7 updates the scattering lookup only in mode 0)
+survarium::player_profile	name	0x8	u8	the player's name, 64 bytes with its zero (the account body's first string, deserialize_static 0x1F1070; a match place's too, match_place +8h): patch 123's key of a face
+survarium::lobby_client	own_profile	0x1E6344	obj<survarium::player_profile>	the account's profile, 0x87's account body (process_own_account 0x270277: deserialize_static's EDI)
+survarium::skin_cook_frame	cook_data	0x1C	ptr<vostok::render::skeleton_combined_cook_data>	profile_skin_visual_cook::on_configs_loaded's new combined cook data by its body's ESP (stored 0x2045B4; read at the head 0x205659 and at 0x205703)
+survarium::skin_cook_frame	body_parts	0xA8	obj<vostok::engine_cfg>	its copy of gameplay/bodyparts/default's body_parts node (24 bytes copied 0x2046E2..0x20472C; the head read from it at 0x205662)
+survarium::skin_cook_frame	skin_name	0x348	obj<vostok::buffer_string>	the combined skin's name {begin, end, capacity end} over [esp+354h]..[esp+458h] (made 0x204646..0x20465D; per slot its dict id `%d_` 0x2051AC, `0_` none 0x204A7A; queried by its begin at 0x205766)
+survarium::skin_cook_frame	item	0x10	ptr<vostok::binary_config>	the worn item's config, its kit slot's (taken at 0x204ACD..0x204B02 from the cook's configs, [ebp+8] + 50h + n x 2E0h, +0DCh; held +0D0h): its root read at 0x204B3A for the entry `data` (or the torso's and the pants' data_<model_type>)
+survarium::skin_cook_frame	slot	0x60	u32	the profile slot of the slot table's entry being made (0xA79870's first column, 0x204A4A/0x204A60): 0 helmet, 1 mask, 2 torso, 4 pants (keyed by model_type at 0x204B1D), 5 gloves and 6 boots (their model_type kept at 0x20546D)
+survarium::skin_cook_args	profile	0x10	ptr<survarium::player_profile>	on_configs_loaded's profile by EBP (its entry ESP+12; [ebp+10h] at 0x20457B, 0x205196): the lobby's account or character profile, or a match place (match_options + place x 45FCh)
+vostok::render::skeleton_combined_cook_data	parts	0x234	obj<vostok::render::skeleton_combined_part>	its 20 part records (constructed by 0x127CB0); record 0 the head's (0x205669)
+vostok::render::skeleton_combined_cook_data	part_count	0xF324	u8	the records in use: 1 at 0x204735 (record 0 kept for the head), one more per model (0x2054C3, 0x205607); not checked against the 20
+vostok::render::skeleton_combined_part	size	0xC0C	size	a part record (0x127CB0; on_configs_loaded's n x 0C0Ch at 0x204A2F)
+vostok::render::skeleton_combined_part	base_model	0x0	obj<vostok::buffer_string>	the model's path (assigned 0x2056C4 for the head, 0x20541F for an item's)
+vostok::render::skeleton_combined_part	part_name	0x114	obj<vostok::buffer_string>	the model's part (assigned 0x2056E1, 0x20543C)
+vostok::render::skeleton_combined_part	material	0x228	obj<vostok::buffer_string>	the item's optional `material` (0x205468, an additional model's 0x2055FE)
+vostok::render::skeleton_combined_part	tag	0xC08	u32	what the part is: 0 the head (0x2056E6), 1 + the slot table's index (0xA79870: gloves, torso, boots, pants, helmet, mask, back) for an item's model and its additional models (0x204A44, 0x205540); player::set_head_visibility 0x1F37A0 hides 0, 5, 6, 7 in first person
+survarium::items_dictionary	entry_count	0x134	u32	the entries' count (item_by_id 0x1F00AB: the search's end is entries + count x 3A0h; late_join_validate_026g.c's item() bounds its search by it)
+survarium::item_entry	size	0x3A0	size	an entry of the items dictionary (item_by_id 0x1F00B1: imul eax,eax,3A0h)
+survarium::lobby_client	game	0x1E56C0	ptr<survarium::game>	the game (the 0x87 dispatch 0x274B85: [lc+1E56C0h]+5390h is the lobby menu on_client_status_received 0x21D720 is called on; the 0x88 handler 0x274C01)
+survarium::game	lobby_menu	0x5390	ptr<survarium::lobby_menu>	the lobby menu (the 0x87 dispatch 0x274B8C: on_client_status_received 0x21D720 on it; switch_to_level_loading 0x27BE95)
