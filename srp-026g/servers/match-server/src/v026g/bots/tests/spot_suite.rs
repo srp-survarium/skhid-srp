@@ -59,7 +59,9 @@
 //! TRACE (`SRP_SPOT_SUITE_TRACE`, for a replay of a start on the game's rig): `<SRP_SPOT_SUITE_OUT>.trace.tsv`, one row per
 //! stand-in tick of each start from its first tick to its end: `spot`, `start`, `ms`, the body's feet after the tick (map frame),
 //! its held `keys` (hex), `jump_press` (1 on the tick a flight starts), `in_flight`, `on_ground` (no flight, the kept controller
-//! not airborne), `sprint`, `crouch` (the keys). Unset, nothing of it is made.
+//! not airborne), `sprint`, `crouch` (the keys), and the walk the client makes of the tick's keys: `walk_x`, `walk_z` (m over
+//! the tick, map frame: the blended local velocity at the client's step cap turned by the moving yaw, what the game's own
+//! controller gets as its walk), `yaw` (the body's), `sprint_state` (the client's). Unset, nothing of it is made.
 //!
 //! STANDIN-FIDELITY (a tag on a failing start, the start still fails): fix-move found the stand-in body wrong at some drops and
 //! rims (a sloped rim kept as one flat lip cell, a fixed velocity through the fall where the game's keys keep steering, a snap
@@ -1077,7 +1079,7 @@ impl TickTrace {
         let f = body.feet;
         let _ = writeln!(
             self.rows,
-            "{}\t{tick}\t{:.4}\t{:.4}\t{:.4}\t{:x}\t{}\t{}\t{}\t{}\t{}",
+            "{}\t{tick}\t{:.4}\t{:.4}\t{:.4}\t{:x}\t{}\t{}\t{}\t{}\t{}\t{:.5}\t{:.5}\t{:.4}\t{}",
             self.head,
             f.x,
             f.y,
@@ -1087,7 +1089,11 @@ impl TickTrace {
             u8::from(flying),
             u8::from(on_ground),
             u8::from(body.keys & key::SPRINT != 0),
-            u8::from(body.keys & key::CROUCH != 0)
+            u8::from(body.keys & key::CROUCH != 0),
+            body.client_walk.0[0],
+            body.client_walk.0[1],
+            body.yaw,
+            u8::from(body.client_walk.1)
         );
     }
 }
@@ -1271,7 +1277,7 @@ fn spot_suite_run() {
     let trace_out = std::env::var_os("SRP_SPOT_SUITE_TRACE").map(|_| {
         let path = format!("{out_path}.trace.tsv");
         let mut file = std::fs::File::create(&path).unwrap_or_else(|e| panic!("{path}: {e}"));
-        writeln!(file, "spot\tstart\tms\tfeet_x\tfeet_y\tfeet_z\tkeys\tjump_press\tin_flight\ton_ground\tsprint\tcrouch").unwrap();
+        writeln!(file, "spot\tstart\tms\tfeet_x\tfeet_y\tfeet_z\tkeys\tjump_press\tin_flight\ton_ground\tsprint\tcrouch\twalk_x\twalk_z\tyaw\tsprint_state").unwrap();
         Mutex::new(file)
     });
     for project in projects {
