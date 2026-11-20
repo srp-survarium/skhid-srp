@@ -1347,13 +1347,15 @@ impl Game {
                 // [A364] The press tick's last move (player +0x334): the short jump's carry.
                 speed,
                 // [stand-in jump] The client's own flight from where the press tick's walk left the body (the reckoning's press, after
-                // that tick's step): its kept controller, the press's keys and last move.
+                // that tick's step): its kept controller, the press's keys, and the last move that walk made (player +0x334 when the
+                // jump starts: `body.step_m` is the press tick's step here, where `speed` is the step before it; the reckoning's
+                // `FlownJump::pressed` reads the press tick's step too).
                 flown: super::standin_jump::controller_flight(
                     &self.world.grid,
                     body.kept,
                     body.feet,
                     keys,
-                    speed,
+                    body.step_m / TICK_S,
                     if body.carrying.is_some() { 0.95 } else { 1.0 } * body.speed_level,
                     may_sprint,
                 ),
