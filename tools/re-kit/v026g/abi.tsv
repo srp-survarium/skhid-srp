@@ -2724,3 +2724,14 @@ va	name	source	ret_cleanup	result
 0x003185f0	survarium::serialize_local_fixed_time	manual	0
 0x00318620	survarium::serialize_local_time	manual	0
 0x00318690	survarium::deserialize_local_time	manual	0	EAX: time in ms
+0x0023c050	survarium::game_world_ui::set_player_icon_position	manual	4	
+0x002dda80	survarium::game_effect_player::resolve_link	manual	8	
+0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	manual	4	
+0x002ac290	survarium::particle_game_effect_presenter::play_effect	manual	8	
+0x002ac310	survarium::particle_game_effect_presenter::update_effect	manual	8	
+0x002ac360	survarium::particle_game_effect_presenter::clear	manual	0	
+0x002ac870	survarium::particle_game_effect_presenter::deserialize	manual	12	
+0x0029a0f0	survarium::particle_game_effect_emitter::particle_game_effect_emitter	manual	32	EAX: ESI
+0x002ae1e0	survarium::particle_game_effect::particle_game_effect	manual	28	EAX: ESI
+0x002ee650	survarium::artefact_core_cook::on_config_loaded	manual	4	
+0x002ee7c0	survarium::artefact_core_cook::on_effect_loaded	manual	16	
