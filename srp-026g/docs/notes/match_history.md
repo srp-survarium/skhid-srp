@@ -14,7 +14,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   leaderboards (`?board=players|clans|best|latest&by=<key>`), under the day's leaders (five
   lists of five: kills, assists, score, wins, hours) and the all-time totals. Each view is drawn once empty in
   its final shape, then with its data, so nothing moves while it loads; match lists grow by
-  "Older matches" (`before=`).
+  "Older matches" (`before=`). A list of players or clans sorts by a click on a column's
+  heading (the owner, 2026-11-20), largest first; the players' list has no Level.
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
   headshots as their share of the kills (HS %); no batteries or artefacts (a profile's own panel
   has them).
@@ -263,8 +264,9 @@ kept of the ask: the page asks again every two seconds while the answer is `prep
 
 ### `GET /api/history/top?by=<key>&limit=<n>`
 
-The top players by their totals. `by`: `rating`, `matches`, `wins`, `kills`, `score_avg`,
-`accuracy` (default `rating`); `limit` 1..50 (default 50). `score_avg` lists only the players
+The top players by their totals. `by`: `rating`, `matches`, `wins`, `win_rate`, `kills`, `kd`,
+`score_avg`, `headshot_rate`, `accuracy` (default `rating`); `limit` 1..50 (default 50). The
+ratios `score_avg`, `win_rate`, `kd` and `headshot_rate` list only the players
 with at least 20 counted matches (`SCORE_AVG_MIN_MATCHES`). Players with
 a counted public match only. `accuracy` lists only the players with at least 1000 shots in their counted public
 matches (`ACCURACY_MIN_SHOTS`; a few lucky shots do not top it), best first; ties by account.

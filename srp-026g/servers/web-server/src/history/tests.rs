@@ -605,6 +605,11 @@ fn the_top_lists_leave_out_the_banned() {
     let by_average = world.ok("/api/history/top?by=score_avg");
     assert_eq!(by_average["by"], "score_avg");
     assert!(by_average["players"].as_array().unwrap().is_empty());
+    for key in ["win_rate", "kd", "headshot_rate"] {
+        let by_ratio = world.ok(&format!("/api/history/top?by={key}"));
+        assert_eq!(by_ratio["by"], key);
+        assert!(by_ratio["players"].as_array().unwrap().is_empty());
+    }
     assert_eq!(world.get("/api/history/top?by=artefacts").0, "400 Bad Request");
     let accurate = world.ok("/api/history/top?by=accuracy");
     assert_eq!(accurate["by"], "accuracy");

@@ -586,6 +586,11 @@ pub enum PlayerRanking {
     Accuracy,
     /// Score a match, of the players with [`SCORE_AVG_MIN_MATCHES`] or more.
     ScoreAvg,
+    /// Wins by matches, kills by deaths and headshots by kills, of the same
+    /// players.
+    WinRate,
+    Kd,
+    HeadshotRate,
 }
 
 /// A registered clan, as a player's tag links it.
@@ -1669,8 +1674,15 @@ fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
 /// [`MatchHistory::top`]'s query by `by`. Accuracy and the average score
 /// read their partial indexes (`g26_player_totals_accuracy`,
 /// `g26_player_totals_score_avg`): the expressions and the bounds are the
-/// migration's, word for word.
+/// migration's, word for word. The other ratios sort the players with
+/// their matches: a few thousand rows at most.
 fn top_query(by: PlayerRanking) -> String {
+    let ratio = |of: &str| {
+        (
+            format!("WHERE t.matches >= {SCORE_AVG_MIN_MATCHES}"),
+            format!("{of} DESC, t.account_id"),
+        )
+    };
     let (filter, order) = match by {
         PlayerRanking::Rating => (
             "WHERE t.matches > 0".to_owned(),
@@ -1688,6 +1700,9 @@ fn top_query(by: PlayerRanking) -> String {
             format!("WHERE t.matches >= {SCORE_AVG_MIN_MATCHES}"),
             "CAST(t.score AS REAL) / t.matches DESC, t.account_id".to_owned(),
         ),
+        PlayerRanking::WinRate => ratio("CAST(t.wins AS REAL) / t.matches"),
+        PlayerRanking::Kd => ratio("CAST(t.kills AS REAL) / max(t.deaths, 1)"),
+        PlayerRanking::HeadshotRate => ratio("CAST(t.headshots AS REAL) / max(t.kills, 1)"),
     };
     format!(
         "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
@@ -2726,5 +2741,20 @@ mod tests {
         assert!(top(&history).is_empty(), "one match short");
         repository.record_match(&record(PUBLIC, 9_000)).unwrap();
         assert_eq!(top(&history), ["Alice", "Bob"]);
+        // The other ratios list the same players, the better first.
+        for by in [
+            PlayerRanking::WinRate,
+            PlayerRanking::Kd,
+            PlayerRanking::HeadshotRate,
+        ] {
+            let listed = history.top(by, 10, &|_| true).unwrap();
+            assert_eq!(listed.len(), 2, "{by:?}");
+            let of = |totals: &Totals| match by {
+                PlayerRanking::WinRate => totals.wins as f64 / totals.matches as f64,
+                PlayerRanking::Kd => totals.kills as f64 / totals.deaths.max(1) as f64,
+                _ => totals.counters.headshots as f64 / totals.kills.max(1) as f64,
+            };
+            assert!(of(&listed[0].totals) >= of(&listed[1].totals), "{by:?}");
+        }
     }
 }

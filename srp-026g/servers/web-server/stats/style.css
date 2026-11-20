@@ -2,7 +2,7 @@
 #stats { min-width:0 }
 .stats-find { grid-template-columns:2fr 1fr 1fr auto; align-items:end; margin-top:20px }
 .stats-find button { margin:0; padding:10px 22px }
-.stats-keys { min-height:34px }
+.stats-keys[hidden] { display:none }
 .stats-panels { grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); border:1px solid var(--rule); background:var(--panel); margin-top:20px }
 .stats-heading { margin:26px 0 10px; font-size:1.1rem }
 .stats-table { border-collapse:collapse; width:100%; font:.82rem var(--data); background:var(--panel); border:1px solid var(--rule) }
@@ -10,6 +10,12 @@
 .stats-table thead th { font:700 .7rem var(--display); text-transform:uppercase; letter-spacing:.04em; color:var(--ink-3) }
 .stats-table .l { text-align:left; font-family:var(--body) }
 .stats-table .sorted { color:var(--accent) }
+/* A heading that sorts: the heading's own look, the sorted one marked. */
+.stats-table th button { all:unset; cursor:pointer }
+.stats-table th button:hover { color:var(--ink) }
+.stats-table th button:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+.stats-table th.sorted button { color:inherit }
+.stats-table th.sorted button::after { content:' \25BE' }
 .stats-table tbody tr:hover { background:color-mix(in srgb,var(--accent) 4%,transparent) }
 .stats-table .stats-open { cursor:pointer }
 .stats-table a { text-decoration:none }
@@ -17,7 +23,7 @@
 .stats-paged button { margin-top:12px }
 .stats-empty { margin:20px 0 0; padding:18px; border:1px solid var(--rule); background:var(--panel); color:var(--ink-2) }
 .stats-note { margin:-4px 0 10px; color:var(--ink-3); font-size:.8rem }
-.stats-keys .stats-note { align-self:center; margin:0 0 0 4px }
+.slot-filter .stats-note { align-self:center; margin:0 0 0 4px }
 .stats-kit { display:block; overflow:hidden; text-overflow:ellipsis; color:var(--ink-2) }
 /* The weapons column takes the width the others leave, cut short if need be. */
 .stats-table .kits { width:100%; max-width:0 }
