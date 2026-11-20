@@ -977,7 +977,4 @@ void engine_pin_resource(struct pinned_resource *pinned, struct managed_resource
 /* 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0 */
 void engine_unpin_resource(struct pinned_resource *pinned);
 
-/* 0x243bc0 survarium::weapon::calculate_locator: locator ESP+4, world ESP+8, bones ESP+12, extra ESP+16, output EDI; pops 16 */
-void engine_calculate_locator(const struct weapon_locator *locator, const float *world, const float *bones, const float *extra, float *output);
-
 #endif

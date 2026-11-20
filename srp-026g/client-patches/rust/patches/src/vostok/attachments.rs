@@ -606,7 +606,7 @@ pub fn draw(ctx: &Context<'_>) {
                     instance.movable().write(movable);
                 }
                 let mut at = [0.0f32; 16];
-                raw::engine_calculate_locator(Some(part.at.handle()), frame.world(), frame.bones(), IDENTITY.as_ptr(), at.as_mut_ptr());
+                raw::engine_weapon_locator(at.as_mut_ptr(), Some(part.at.handle()), frame.world(), frame.bones(), IDENTITY.as_ptr());
                 scene.present(model, &at);
             }
         });

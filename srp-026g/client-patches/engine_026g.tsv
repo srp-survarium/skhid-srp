@@ -309,4 +309,3 @@ engine_set_texture	0x3d98b0	ESP+4:receiver ESP+8:binding ESP+12:path ESP+16:opti
 engine_fingers_set_weapon_model	0x390620	ESP+4:corrector ESP+8:instance ESP+12:view	void engine_fingers_set_weapon_model(struct fingers_corrector *corrector, unsigned int instance, unsigned int first_view)	stdcall	corrector: FingerCorrector, instance: u32, first_view: u32 ->
 engine_pin_resource	0x3dd990	EAX:pinned ESP+4:resource	void engine_pin_resource(struct pinned_resource *pinned, struct managed_resource *resource)	thunk	
 engine_unpin_resource	0x3c1020	ECX:pinned	void engine_unpin_resource(struct pinned_resource *pinned)	thunk	
-engine_calculate_locator	0x243bc0	ESP+4:locator ESP+8:world ESP+12:bones ESP+16:extra EDI:output_matrix	void engine_calculate_locator(const struct weapon_locator *locator, const float *world, const float *bones, const float *extra, float *output)	thunk	

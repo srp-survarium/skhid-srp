@@ -278,7 +278,6 @@ global engine_set_texture
 global engine_fingers_set_weapon_model
 global engine_pin_resource
 global engine_unpin_resource
-global engine_calculate_locator
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -3231,25 +3230,6 @@ engine_unpin_resource:
     push edi
     mov ecx, [esp + 20]   ; pinned
     call 0x3c1020
-    pop edi
-    pop esi
-    pop ebx
-    pop ebp
-    ret
-
-    align 16, db 0xCC
-engine_calculate_locator:
-    ; 0x243bc0 survarium::weapon::calculate_locator: locator ESP+4, world ESP+8, bones ESP+12, extra ESP+16, output EDI; pops 16
-    push ebp
-    push ebx
-    push esi
-    push edi
-    push dword [esp + 32]   ; extra -> 16
-    push dword [esp + 32]   ; bones -> 12
-    push dword [esp + 32]   ; world -> 8
-    push dword [esp + 32]   ; locator -> 4
-    mov edi, [esp + 52]   ; output
-    call 0x243bc0
     pop edi
     pop esi
     pop ebx
