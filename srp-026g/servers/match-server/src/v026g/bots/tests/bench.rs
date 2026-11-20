@@ -2706,7 +2706,11 @@ pub(crate) fn real_bot_cost() {
             let held = crate::v026g::bots::reflex::burst_rays::counts();
             eprintln!("burst rays so far: held ticks view ray {}, aim ray {}", held[0], held[1]);
             // [loops] Waits at a route jump's press point that spent a try.
-            eprintln!("press waits so far: tries spent {}", crate::v026g::bots::motor::press_waits::count());
+            eprintln!(
+                "press waits so far: tries spent {}, ticks held still with the walk held at a link {}",
+                crate::v026g::bots::motor::press_waits::count(),
+                crate::v026g::bots::motor::press_waits::blocked_count()
+            );
             // [drop give-ups] Ticks the lip guard left to the route's own walk-off.
             eprintln!("walk-off guard so far: ticks left to the route's walk-off {}", crate::v026g::bots::drive::walk_off_guards::count());
             // [A416] The view schedule.

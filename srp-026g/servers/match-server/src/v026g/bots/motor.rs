@@ -3296,7 +3296,48 @@ impl Motor {
     /// ([`Pose::no_jump`]: no press, so no try is spent on a jump the game
     /// would not take). Each press counts a try; the next waits for the
     /// run-up.
+    ///
+    /// [stuck watch] The motor owns a body lining up for a route jump (the stuck watch is paused then, `Motor::lining_up`), so
+    /// every hold there has the try's own deadline: a tick that presses nothing with the walk held and the body still
+    /// ([`STILL_MS`]) runs the try's wait as the press point's does ([`Self::hold_tick`]): pushing into a wall on the way to the
+    /// take-off, under a take-off out of reach, against another body. After [`PRESS_WAIT_S`] the try is spent, and after
+    /// [`JUMP_TRIES`] the link fails ([`JumpEnd::Failed`]), shut to the body's searches and told to the match
+    /// (`Stuck::failed_jump`).
     fn jump_key(&mut self, ahead: &Ahead, still: f32, pose: &Pose, aimed: bool) -> u32 {
+        let keys = self.press_key(ahead, still, pose, aimed);
+        if keys & key::JUMP == 0
+            && self.walking
+            && pose.speed < STILL_MS
+            && let Some(mut jump) = self.jump_try
+            && jump.pressed.is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S))
+        {
+            self.hold_tick(&mut jump);
+            press_waits::blocked();
+        }
+        keys
+    }
+
+    /// [loops] A tick of the try's wait ([`PressWait`]): from its first tick at this try; once it has lasted [`PRESS_WAIT_S`]
+    /// the try is spent as a back-off spends it, so the link fails after [`JUMP_TRIES`].
+    fn hold_tick(&mut self, jump: &mut JumpTry) {
+        let wait = match jump.wait {
+            Some(wait) if wait.tries == jump.tries => wait,
+            _ => PressWait { since: self.clock, tries: jump.tries },
+        };
+        if self.since(wait.since) >= PRESS_WAIT_S {
+            jump.tries += 1;
+            jump.back = true;
+            jump.wait = None;
+            self.links.backed_off();
+            press_waits::spent();
+        } else {
+            jump.wait = Some(wait);
+        }
+        self.keep_try(*jump);
+    }
+
+    /// [`Self::jump_key`]'s press: the gates in their order.
+    fn press_key(&mut self, ahead: &Ahead, still: f32, pose: &Pose, aimed: bool) -> u32 {
         let Some(mut jump) = self.jump_try else {
             return 0;
         };
@@ -3396,20 +3437,7 @@ impl Motor {
             // with the take-off within the feet's reach: a body a floor under it is held and walks the route's legs up, and
             // only [`Feel::press_in_reach`] gives that up (the reach test is its own).
             if near && rested && ahead.at_press_point() && !ahead.out_of_reach(most) {
-                let wait = match jump.wait {
-                    Some(wait) if wait.tries == jump.tries => wait,
-                    _ => PressWait { since: self.clock, tries: jump.tries },
-                };
-                if self.since(wait.since) >= PRESS_WAIT_S {
-                    jump.tries += 1;
-                    jump.back = true;
-                    jump.wait = None;
-                    self.links.backed_off();
-                    press_waits::spent();
-                } else {
-                    jump.wait = Some(wait);
-                }
-                self.keep_try(jump);
+                self.hold_tick(&mut jump);
             }
             #[cfg(test)]
             self.bench_hold(PressHeld::NotDue(if !ahead.lined {
@@ -4599,14 +4627,26 @@ pub mod press_waits {
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static SPENT: AtomicU64 = AtomicU64::new(0);
+    static BLOCKED: AtomicU64 = AtomicU64::new(0);
 
     pub fn spent() {
         SPENT.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// [stuck watch] A tick at a route jump that pressed nothing with the walk held and the body still: its wait runs
+    /// (`Motor::jump_key`).
+    pub fn blocked() {
+        BLOCKED.fetch_add(1, Ordering::Relaxed);
+    }
+
     /// The tries spent by a wait.
     pub fn count() -> u64 {
         SPENT.load(Ordering::Relaxed)
+    }
+
+    /// The ticks a wait ran for a body held still with its walk held ([`blocked`]).
+    pub fn blocked_count() -> u64 {
+        BLOCKED.load(Ordering::Relaxed)
     }
 }
 
@@ -7254,6 +7294,50 @@ mod tests {
         let mut failed = None;
         for tick in 0..per_wait * (JUMP_TRIES as usize + 1) {
             let (keys, walked) = gap_tick(&mut motor, &mut route, -0.6, 2.0, None);
+            assert_eq!(keys & key::JUMP, 0, "tick {tick}: no press");
+            if walked != Walked::OnTheWay {
+                failed = Some(walked);
+                break;
+            }
+        }
+        assert!(matches!(failed, Some(Walked::JumpFailed(_))), "{failed:?}");
+        assert!(press_waits::count() >= spent + u64::from(JUMP_TRIES), "each wait spent a try");
+    }
+
+    /// [stuck watch] A body lining up for a route jump that is held still with its walk held, short of the press point (a wall,
+    /// another body, a take-off out of reach), has the try's deadline: each [`PRESS_WAIT_S`] spends a try, none before it, and
+    /// after [`JUMP_TRIES`] the link fails ([`Walked::JumpFailed`]), as the stuck watch it is no longer left to would not make
+    /// it. A body that walks on there (2 m/s) spends nothing.
+    #[test]
+    fn a_body_held_still_at_a_link_with_its_walk_held_spends_its_tries_and_the_link_fails() {
+        let walking = Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.6), walk: WalkPress::Cap, share: mapdata::Share::FULL, aim: PressAim::STRAIGHT, way: None });
+        let fresh = || {
+            let mut rng = Rng::new(5);
+            Motor::new(Feel { sway: 0.0, ..Feel::default() }, &mut rng)
+        };
+        let per_wait = (PRESS_WAIT_S / TICK_S).ceil() as usize;
+        // Walking on 1.5 m before the take-off: lined up, no wait.
+        let (mut motor, mut route) = (fresh(), gap_route(walking));
+        let (spent, held) = (press_waits::count(), press_waits::blocked_count());
+        for tick in 0..per_wait * 2 {
+            let (keys, walked) = gap_tick(&mut motor, &mut route, -1.5, 2.0, None);
+            assert_eq!(walked, Walked::OnTheWay, "tick {tick}");
+            assert_eq!(keys & key::JUMP, 0, "tick {tick}");
+        }
+        assert!(motor.lining_up(), "the motor owns the body there");
+        assert_eq!(press_waits::count(), spent, "walking on: no try spent");
+        // Held still there with the walk held: no try before PRESS_WAIT_S, then a try a wait, then the link fails.
+        let (mut motor, mut route) = (fresh(), gap_route(walking));
+        for tick in 0..per_wait - 2 {
+            let (keys, walked) = gap_tick(&mut motor, &mut route, -1.5, 0.0, None);
+            assert_ne!(keys & key::FORWARD, 0, "tick {tick}: the walk held: {keys:#x}");
+            assert_eq!(walked, Walked::OnTheWay, "tick {tick}");
+        }
+        assert!(press_waits::blocked_count() > held, "the wait runs for the held body");
+        assert_eq!(press_waits::count(), spent, "no try spent before {PRESS_WAIT_S} s");
+        let mut failed = None;
+        for tick in 0..per_wait * (JUMP_TRIES as usize + 1) {
+            let (keys, walked) = gap_tick(&mut motor, &mut route, -1.5, 0.0, None);
             assert_eq!(keys & key::JUMP, 0, "tick {tick}: no press");
             if walked != Walked::OnTheWay {
                 failed = Some(walked);

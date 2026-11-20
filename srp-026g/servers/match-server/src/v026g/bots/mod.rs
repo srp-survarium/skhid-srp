@@ -2312,7 +2312,11 @@ impl Bots {
         // stuck, and no watch counts the stand (the walk watch, the progress watch).
         let leg_held = bot.hurt.leg_damage.at(time) == legs::LegGate::Stand;
         // [A1b] A body let go at a walk-off's release stands still on purpose until it is down: not stuck.
-        if trying || leg_held || bot.motor.letting_go() {
+        // [stuck watch] Nor one the motor lines up for a route jump (`Motor::lining_up`): it rests, turns and waits there on
+        // purpose, and every hold there has the try's own deadline (`Motor::jump_key`), whose failed link is shut and told to the
+        // match (`Stuck::failed_jump`). The watch's back-off dropped the route there and the planner handed back the same link
+        // (the spot suite on b7463d977: 96 spots' first error a stuck back-off, 117 starts stuck at press-wait places).
+        if trying || leg_held || bot.motor.letting_go() || bot.motor.lining_up() {
             bot.stuck.reset();
         } else if ends_check {
             #[cfg(test)]
