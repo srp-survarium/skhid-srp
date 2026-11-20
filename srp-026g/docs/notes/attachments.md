@@ -305,6 +305,20 @@ changes for them):
   optic's slot as their origin (a new pair of models, or a local edit that points an existing
   scope item at them), and `data/srp_scope` its dict id.
 
+**The first real table through the client's code** (the content side's AK-74M quick pack,
+24,803 bytes, version 2; Unicorn, the game's own cook beside patch 161, 2026-11-20):
+
+- It parses in the arena. For a brake (2635), a flash hider (2631), a grip (2661), the PSO-1
+  (2101), the Aimpoint (2110) and three together, the cook asks for `ak_74m_bare` in place of the
+  model and for the right parts; every path it asks for is a model of the pack.
+- The barrel's record moves only with a device (to z -0.6533 for the DTK-3, -0.7032 for the flash
+  hider, on the `offset` bone); the scope's and the aim's only with an optic.
+- **For the content side to look at:** the PSO-1's eye stands 11.6 mm to the side of its own
+  frame (the aim record's x +0.0116 against the scope record's x -0.0003, both in the gun's
+  terms), where the Aimpoint's is on its frame's axis (-0.0003 and -0.0003). It may be 0.69d0's own
+  (the PSO-1 sits off the bore on its side rail); a mirrored x would look the same in these
+  numbers. The first aimed picture in a game will show which.
+
 What the client does with them: `resolve` at the weapon cook (once for the requests, once after the
 model is loaded); the bare body asked for in place of `object/model`; each part's model asked for
 in the cook's own query and drawn at its placement; the barrel, scope and aim records and the left
