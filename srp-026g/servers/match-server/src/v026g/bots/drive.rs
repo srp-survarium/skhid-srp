@@ -646,6 +646,8 @@ fn drive_tick_inner(
         held_short_m: bot.held_short_m,
         walk_cap: bot.walk_cap,
         footing: bot.footing,
+        known_at: me.known_at,
+        seen_at: me.seen_at,
     };
     if bot
         .jump_watch
