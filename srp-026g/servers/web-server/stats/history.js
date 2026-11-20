@@ -133,16 +133,19 @@
   // column's `empty` gives its empty cell the shape of a full one). With
   // `open` (where a row leads: the stats' own parameters, or an address;
   // null for nowhere), a click anywhere on a row goes there, but on a link
-  // of its own or while text is selected. With `sort`, the heading of a
-  // column with a key is a button that asks for the list by it.
+  // of its own or while text is selected. With `sort` ({ask, up}), the
+  // heading of a column with a key is a button that asks for the list by
+  // it (`ask(key)`); `up`: the sorted one is smallest first.
   function table(columns, rows, placeholder = PAGE, sorted = '', open = null, sort = null) {
     const body = el('tbody');
     const head = el('thead', {}, el('tr', {}, columns.map(([label, , kind, key]) => {
       const th = el('th', {className: `${kind || ''}${key && key === sorted ? ' sorted' : ''}`, scope: 'col'}, label);
-      if (key && key === sorted) th.setAttribute('aria-sort', 'descending');
+      const up = Boolean(sort && sort.up);
+      if (key && key === sorted) th.setAttribute('aria-sort', up ? 'ascending' : 'descending');
+      if (key && key === sorted && up) th.classList.add('up');
       if (sort && key) {
         const button = el('button', {type: 'button'}, label);
-        button.addEventListener('click', () => sort(key));
+        button.addEventListener('click', () => sort.ask(key));
         th.replaceChildren(button);
       }
       return th;
@@ -535,6 +538,8 @@
     heading(TEXT.stats, document.getElementById('stats-eyebrow').textContent, '');
     let board = BOARDS[asked('board')] ? asked('board') : 'players';
     let key = BOARDS[board].includes(asked('by')) ? asked('by') : BOARDS[board][0];
+    // Smallest first: a second click on the sorted heading, and back.
+    let up = asked('order') === 'asc' && (board === 'players' || board === 'clans');
     const tabs = el('div', {className: 'slot-filter', role: 'group', ariaLabel: TEXT.stats});
     const keys = el('div', {className: 'slot-filter stats-keys', role: 'group'});
     const note = el('small', {className: 'stats-note'});
@@ -575,16 +580,17 @@
       const url = new URL(location.href);
       url.searchParams.set('board', board);
       if (key) url.searchParams.set('by', key); else url.searchParams.delete('by');
+      if (up) url.searchParams.set('order', 'asc'); else url.searchParams.delete('order');
       history.replaceState(null, '', url);
       keepLanguage();
       if (board === 'latest') return body.replaceChildren(paged(latestColumns, before => api('matches', {limit: PAGE, ...(before ? {before} : {})}), TEXT.noMatches, openMatch));
       const [path, params, columns, list, size] = {
-        players: ['top', {by: key, limit: TOP}, playerColumns, data => data.players, TOP],
-        clans: ['clans', {by: key, limit: TOP}, clanColumns, data => data.clans, 20],
+        players: ['top', {by: key, limit: TOP, ...(up ? {order: 'asc'} : {})}, playerColumns, data => data.players, TOP],
+        clans: ['clans', {by: key, limit: TOP, ...(up ? {order: 'asc'} : {})}, clanColumns, data => data.clans, 20],
         best: ['best', {period: key}, bestColumns, data => data.rows, 20],
       }[board];
       const sorted = board === 'best' ? '' : key;
-      const sort = board === 'best' ? null : value => { key = value; draw(); };
+      const sort = board === 'best' ? null : {up, ask: value => { up = value === key && !up; key = value; draw(); }};
       body.replaceChildren(table(ranked(columns), null, Math.min(size, body.rows || size), sorted, null, sort));
       let rows;
       try {
@@ -604,7 +610,7 @@
     for (const value of Object.keys(BOARDS)) {
       const button = el('button', {type: 'button'}, TEXT[value]);
       button.dataset.board = value;
-      button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; draw(); });
+      button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; up = false; draw(); });
       tabs.append(button);
     }
     tabs.append(note);

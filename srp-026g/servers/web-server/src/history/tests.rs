@@ -707,6 +707,16 @@ fn the_top_lists_leave_out_the_banned() {
     assert_eq!(keys(&players[0]), ["level", "player", "rating", "totals"]);
     assert_eq!(players[0]["player"]["name"], "Alice");
     assert_eq!(world.ok("/api/history/top")["by"], "rating");
+    assert_eq!(by_kills["order"], "desc");
+    // From the other end.
+    let fewest = world.ok("/api/history/top?by=kills&order=asc");
+    assert_eq!(fewest["order"], "asc");
+    assert_eq!(fewest["players"][0]["player"]["name"], "Bob");
+    assert_eq!(
+        world.get("/api/history/top?by=kills&order=up").0,
+        "400 Bad Request"
+    );
+    assert_eq!(world.ok("/api/history/clans?order=asc")["order"], "asc");
     // Too few matches yet for the average score's list.
     let by_average = world.ok("/api/history/top?by=score_avg");
     assert_eq!(by_average["by"], "score_avg");
