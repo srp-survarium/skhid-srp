@@ -871,6 +871,36 @@ fn build(
                             stats.drops_reaim_pairs,
                             stats.gaps
                         );
+                        // [edge walk-offs] A log's only: the walk-offs off edges no Drop link leads off (`Body::edge_walk_offs`):
+                        // the ways walked, the links made, the ways refused by reason and folded; and at debug each link made, so a
+                        // link a bot fails in a match (its take-off and landing) is traced to this pass and its key script.
+                        let e = stats.edge_walk_offs;
+                        log::info!(
+                            "Bot map {} edge walk-offs: {} ways walked off; made {} walk-offs and {} pressed; refused {} (no way down stands) and {} (rests out of the harmless fall); folded {} (linked already) and {} (one link a pair)",
+                            path.display(),
+                            e.walked,
+                            e.walk_offs,
+                            e.pressed,
+                            e.cut,
+                            e.out_of_fall,
+                            e.linked,
+                            e.same_pair
+                        );
+                        if log::log_enabled!(log::Level::Debug) {
+                            for l in &stats.edge_walk_off_links {
+                                log::debug!(
+                                    "Bot map {} edge walk-off ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2}) {:?}",
+                                    path.display(),
+                                    l.from.x,
+                                    l.from.y,
+                                    l.from.z,
+                                    l.to.x,
+                                    l.to.y,
+                                    l.to.z,
+                                    l.press
+                                );
+                            }
+                        }
                         // [item 2] Each held floor's drop a steep landing closes for a full pool: its take-off, the point the
                         // walk aimed at and its landing (what re-walks it from data), and its landings' speeds, all of them and
                         // on walkable ground alone. A log's only.

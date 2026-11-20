@@ -483,10 +483,24 @@ pub struct EdgeWalkOffs {
     /// release, the crouched walk-off, a jump off the edge).
     pub walk_offs: usize,
     pub pressed: usize,
-    /// Walked off and resting on no floor of the grid lower than the take-off within the harmless fall: no link.
-    pub none: usize,
-    /// Onto a landing the take-off links to already, or one more way onto a landing another way of the take-off made: one link.
-    pub folded: usize,
+    /// Refused: no way down the client's body was walked (the walk, the release, the crouched walk-off, the jumps off the edge)
+    /// comes to stand on a floor ([`WalkGrid::drop_verdict`]'s cut).
+    pub cut: usize,
+    /// Refused: the body rests on a floor, but on the take-off or one lower by under a step or more than the harmless fall.
+    pub out_of_fall: usize,
+    /// Folded: onto a landing the take-off links to already (no link added).
+    pub linked: usize,
+    /// Folded: one more way onto a landing another way of the take-off made (one link, [`WalkGrid::reaim_drops`]'s rule).
+    pub same_pair: usize,
+}
+
+/// [edge walk-offs] One link [`WalkGrid::edge_walk_offs`] made, for the build's log (debug): where it takes off and lands, and
+/// the key script, so a link a bot fails in a match is traced to this pass.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EdgeWalkOffLink {
+    pub from: Vec3,
+    pub to: Vec3,
+    pub press: Takeoff,
 }
 
 /// [A389] What [`WalkGrid::landing_drops`] did ([`super::BuildStats`]).
@@ -719,7 +733,8 @@ impl WalkGrid {
     /// script that made it ([`Takeoff::WalkOff`] for the walk, held). None where the take-off links to that landing already;
     /// two ways onto one landing make one link, a pressed one over the walk-off (its landing is flown with its neighbours, the
     /// walk-off's is not) and of two pressed the higher share, as [`Self::reaim_drops`] folds them.
-    pub(super) fn edge_walk_offs(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3]) -> EdgeWalkOffs {
+    /// Returns its counts and the links it made ([`EdgeWalkOffLink`]).
+    pub(super) fn edge_walk_offs(&self, wide: &mut Wide, world: &Collision, seeds: &[Vec3], spawns: &[Vec3]) -> (EdgeWalkOffs, Vec<EdgeWalkOffLink>) {
         use super::gap::{Aim, OffLink};
         let reached = self.reached_floors(wide, seeds, spawns);
         let (step, deepest) = (self.body.step, self.body.max_drop);
@@ -761,7 +776,7 @@ impl WalkGrid {
         }
         let mut stats = EdgeWalkOffs { walked: todo.len(), ..EdgeWalkOffs::default() };
         if todo.is_empty() {
-            return stats;
+            return (stats, Vec::new());
         }
         let s = self.body.controller().1;
         let start = self.body.walk_start();
@@ -778,23 +793,23 @@ impl WalkGrid {
                 Verdict::Taught(g) => (g, Takeoff::WalkOff, Share::UNFLOWN, Some(GridWay::of_dir(d))),
                 Verdict::Pressed(g, press, share) => (g, press, share, Some(GridWay::of_dir(d))),
                 Verdict::Cut => {
-                    stats.none += 1;
+                    stats.cut += 1;
                     continue;
                 }
             };
             let fall = self.height[a as usize] - self.height[to as usize];
             if to == a || fall < step || fall > deepest {
-                stats.none += 1;
+                stats.out_of_fall += 1;
                 continue;
             }
             if wide.out(a as usize).any(|x| x == to) {
-                stats.folded += 1;
+                stats.linked += 1;
                 continue;
             }
             let link = OffLink { from: a, to, kind: LinkKind::GapDrop, press, share, walk: None, aim: Aim::STRAIGHT, way };
             match index.get(&(a, to)) {
                 Some(&i) => {
-                    stats.folded += 1;
+                    stats.same_pair += 1;
                     let kept = added[i];
                     if pressed(press) && (!pressed(kept.press) || share.rank() > kept.share.rank()) {
                         added[i] = link;
@@ -808,11 +823,12 @@ impl WalkGrid {
         }
         stats.walk_offs = added.iter().filter(|l| !pressed(l.press)).count();
         stats.pressed = added.len() - stats.walk_offs;
+        let made = added.iter().map(|l| EdgeWalkOffLink { from: self.position(l.from), to: self.position(l.to), press: l.press }).collect();
         if !added.is_empty() {
             wide.off.extend(added);
             wide.off.sort_by_key(|l| (l.from, l.to));
         }
-        stats
+        (stats, made)
     }
 
     /// [A377] Whether a Drop link's take-off at `from` is a lip by where the client's body stops, its landing `to` being under
@@ -1522,6 +1538,9 @@ mod tests {
                     }
                     assert!(downs.iter().any(|l| l.press == Takeoff::WalkOff), "{case}");
                     assert_eq!(stats.edge_walk_offs.walk_offs + stats.edge_walk_offs.pressed, downs.len(), "{case}");
+                    // The build's log names each link made, where it takes off and lands.
+                    assert_eq!(stats.edge_walk_off_links.len(), downs.len(), "{case}");
+                    assert!(stats.edge_walk_off_links.iter().all(|m| downs.iter().any(|l| (grid.position(l.from) - m.from).length() < 1e-3 && (grid.position(l.to) - m.to).length() < 1e-3)), "{case}");
                 } else {
                     assert!(ground.is_none(), "the ground is not reached: {case}");
                     assert!(downs.is_empty(), "{case}: {downs:?}");

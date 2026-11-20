@@ -1625,6 +1625,8 @@ pub struct BuildStats {
     pub drops_reaimed: usize,
     /// [edge walk-offs] The walk-offs off edges no Drop link leads off ([`Body::edge_walk_offs`]).
     pub edge_walk_offs: drop_check::EdgeWalkOffs,
+    /// … and each link it made, for the build's log (debug).
+    pub edge_walk_off_links: Vec<drop_check::EdgeWalkOffLink>,
     /// Of them, those onto a (take-off, landing) pair already re-aimed in the pass, folded into its one link, and which was kept.
     pub drops_reaim_pairs: drop_check::ReaimPairs,
     /// [A389] The Drop links walked by the client's body ([`Body::drop_lands`]), re-aimed by a way down other than the walk at
@@ -2014,7 +2016,7 @@ impl WalkGrid {
                 stats.drops_walked = walked;
                 (stats.drops_reaimed, stats.drops_reaim_pairs) = grid.reaim_drops(&mut wide, &reaim);
                 if body.edge_walk_offs {
-                    stats.edge_walk_offs = grid.edge_walk_offs(&mut wide, world, seeds, spawns);
+                    (stats.edge_walk_offs, stats.edge_walk_off_links) = grid.edge_walk_offs(&mut wide, world, seeds, spawns);
                 }
                 wide.lips = lips;
                 cut
