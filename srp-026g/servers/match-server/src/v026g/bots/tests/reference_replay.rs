@@ -127,7 +127,7 @@ struct WorldF {
 fn reference_replay() {
     let var = |name: &str| std::env::var(name).ok().filter(|v| !v.is_empty());
     let (Some(worlds), Some(inputs), Some(project), Some(dir)) =
-        (var("SRP_A304_WORLDS"), var("SRP_A304_INPUTS"), var("SRP_A304_MAP"), var("SRP_MAPDATA_DIR"))
+        (var("SRP_A304_WORLDS"), var("SRP_A304_INPUTS"), var("SRP_A304_MAP"), super::real_maps::dir())
     else {
         eprintln!("skipping: SRP_A304_WORLDS, SRP_A304_INPUTS, SRP_A304_MAP and SRP_MAPDATA_DIR are needed");
         return;

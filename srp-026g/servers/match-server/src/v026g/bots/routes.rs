@@ -515,7 +515,7 @@ mod tests {
     /// A real map's world as a match has it (private files; `project` is `level_01/day_2`): the grid of the default
     /// tuning (its body, off-mesh links and extras, as the server's map store and the bench build theirs), so the checks
     /// below walk the grid the bots walk.
-    fn match_world(dir: &OsStr, project: &str) -> mapdata::World {
+    fn match_world(dir: &Path, project: &str) -> mapdata::World {
         let tuning = crate::v026g::bots::tuning::Tuning::default();
         let path = Path::new(dir).join(mapdata::format::file_name(project));
         let map = mapdata::MapData::read(&path).unwrap_or_else(|error| panic!("{error:?}"));
@@ -539,7 +539,7 @@ mod tests {
     fn how_walkable_the_real_routes_are() {
         use crate::v026g::bots::tactics::Tactics;
         let (Some(dir), Some(path)) = (
-            std::env::var_os("SRP_MAPDATA_DIR"),
+            crate::v026g::bots::tests::real_maps::dir(),
             std::env::var_os("SRP_BOT_ROUTES"),
         ) else {
             panic!("set SRP_MAPDATA_DIR and SRP_BOT_ROUTES");
@@ -694,7 +694,7 @@ mod tests {
         use crate::v026g::bots::anomalies::Anomalies;
         use crate::v026g::bots::tactics::Tactics;
         let (Some(dir), Some(path)) = (
-            std::env::var_os("SRP_MAPDATA_DIR"),
+            crate::v026g::bots::tests::real_maps::dir(),
             std::env::var_os("SRP_BOT_ROUTES"),
         ) else {
             panic!("set SRP_MAPDATA_DIR and SRP_BOT_ROUTES");
@@ -855,7 +855,7 @@ mod tests {
             surface: mapdata::RayTree,
             from: [mapdata::DistanceMap; 2],
         }
-        let (Some(dir), Some(path)) = (std::env::var_os("SRP_MAPDATA_DIR"), std::env::var_os("SRP_POSITIONS")) else {
+        let (Some(dir), Some(path)) = (crate::v026g::bots::tests::real_maps::dir(), std::env::var_os("SRP_POSITIONS")) else {
             panic!("set SRP_MAPDATA_DIR and SRP_POSITIONS");
         };
         let text = std::fs::read_to_string(&path).unwrap();
@@ -1093,7 +1093,7 @@ mod tests {
     #[ignore = "needs the private map files, route table and human samples"]
     fn route_points_stand_where_the_players_stood() {
         let (Some(dir), Some(path), Some(human)) = (
-            std::env::var_os("SRP_MAPDATA_DIR"),
+            crate::v026g::bots::tests::real_maps::dir(),
             std::env::var_os("SRP_BOT_ROUTES"),
             std::env::var_os("SRP_ROUTES_HUMAN_DIR"),
         ) else {
@@ -1169,7 +1169,7 @@ mod tests {
     fn the_real_routes_land_on_the_real_maps_and_leave_from_their_own_side() {
         use crate::v026g::bots::tactics::Tactics;
         let (Some(dir), Some(table)) = (
-            std::env::var_os("SRP_MAPDATA_DIR"),
+            crate::v026g::bots::tests::real_maps::dir(),
             std::env::var_os("SRP_BOT_ROUTES"),
         ) else {
             panic!("set SRP_MAPDATA_DIR and SRP_BOT_ROUTES");

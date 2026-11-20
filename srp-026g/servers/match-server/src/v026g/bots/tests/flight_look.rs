@@ -14,7 +14,7 @@ use super::*;
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR, SRP_FLIGHT_DUMP and SRP_FLIGHT_PROJECTS"]
 fn flight_dump() {
     let (Some(dir), Some(out), Ok(projects)) = (
-        std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from),
+        super::real_maps::dir(),
         std::env::var_os("SRP_FLIGHT_DUMP").map(std::path::PathBuf::from),
         std::env::var("SRP_FLIGHT_PROJECTS"),
     ) else {
@@ -39,7 +39,7 @@ const LOOK_STEP_M: f32 = 0.25;
 #[test]
 #[ignore = "a measurement; needs SRP_MAPDATA_DIR and SRP_FLIGHT_LOOK"]
 fn flight_look() {
-    let (Some(dir), Some(look)) = (std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from), std::env::var("SRP_FLIGHT_LOOK").ok()) else {
+    let (Some(dir), Some(look)) = (super::real_maps::dir(), std::env::var("SRP_FLIGHT_LOOK").ok()) else {
         eprintln!("skipping: SRP_MAPDATA_DIR or SRP_FLIGHT_LOOK is not set");
         return;
     };

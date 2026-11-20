@@ -165,7 +165,7 @@ fn run(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, until: u3
 #[test]
 #[ignore = "needs SRP_MAPDATA_DIR"]
 fn drop_spots() {
-    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
@@ -240,7 +240,7 @@ fn drop_spots() {
 #[test]
 #[ignore = "needs SRP_MAPDATA_DIR"]
 fn strip_rim_walks_stay_on_the_top() {
-    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };

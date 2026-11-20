@@ -1526,7 +1526,7 @@ mod tests {
     #[test]
     #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
     fn real_sight_cost() {
-        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        let Some(dir) = crate::v026g::bots::tests::real_maps::dir() else {
             eprintln!("skipping: SRP_MAPDATA_DIR is not set");
             return;
         };

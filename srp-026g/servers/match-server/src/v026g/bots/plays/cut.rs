@@ -640,7 +640,7 @@ mod tests {
         use super::super::super::routes::RouteTable;
         use survarium::v026g::maps::RuleMode;
         let (Some(dir), Some(table)) = (
-            std::env::var_os("SRP_MAPDATA_DIR"),
+            crate::v026g::bots::tests::real_maps::dir(),
             std::env::var_os("SRP_BOT_ROUTES"),
         ) else {
             panic!("set SRP_MAPDATA_DIR and SRP_BOT_ROUTES");

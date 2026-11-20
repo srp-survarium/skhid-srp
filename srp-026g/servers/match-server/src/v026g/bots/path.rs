@@ -2553,7 +2553,7 @@ mod tests {
     #[ignore = "needs a map's data (SRP_LOWPULL_MAP, SRP_MAPDATA_DIR)"]
     fn pulled_legs_under_low_ceilings_on_a_real_map() {
         let var = |name: &str| std::env::var(name).ok().filter(|v| !v.is_empty());
-        let (Some(project), Some(dir)) = (var("SRP_LOWPULL_MAP"), var("SRP_MAPDATA_DIR")) else {
+        let (Some(project), Some(dir)) = (var("SRP_LOWPULL_MAP"), crate::v026g::bots::tests::real_maps::dir()) else {
             eprintln!("skipping: SRP_LOWPULL_MAP and SRP_MAPDATA_DIR are needed");
             return;
         };
@@ -2965,7 +2965,7 @@ mod tests {
     #[test]
     #[ignore = "a measurement; needs SRP_MAPDATA_DIR"]
     fn real_straight_lines() {
-        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        let Some(dir) = crate::v026g::bots::tests::real_maps::dir() else {
             eprintln!("skipping: SRP_MAPDATA_DIR is not set");
             return;
         };
@@ -3260,7 +3260,7 @@ mod tests {
     fn real_search_budget() {
         use crate::v026g::bots::rng::Rng;
         use mapdata::Search;
-        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        let Some(dir) = crate::v026g::bots::tests::real_maps::dir() else {
             eprintln!("skipping: SRP_MAPDATA_DIR is not set");
             return;
         };
@@ -3326,7 +3326,7 @@ mod tests {
         use crate::v026g::bots::rng::Rng;
         use mapdata::Search;
         use mapdata::regions::Stage;
-        let Some(dir) = std::env::var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+        let Some(dir) = crate::v026g::bots::tests::real_maps::dir() else {
             eprintln!("skipping: SRP_MAPDATA_DIR is not set");
             return;
         };
