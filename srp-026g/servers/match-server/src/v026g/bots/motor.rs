@@ -5376,7 +5376,7 @@ pub mod press_casts {
         WatchedNotUp,
         /// … its rest farther than `CAST_OFF_M` from the forecast's.
         OffForecast,
-        /// A walk-in learned with no run (every candidate flown): later tries skip it.
+        /// A walk-in learned with no run (its coarse pass flown in time): later tries skip it.
         LearnedNoRun,
         /// A rest that got up, learned for the link.
         LearnedRest,
