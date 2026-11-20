@@ -1,0 +1,16 @@
+# projected-look[turn]: fitted on 622 recorded matches, scored on 283 others (docs/notes/prediction_fit.md).
+# Realistic delay: look error 3.23 -> 2.67 deg, position 1.42 -> 1.37 cm (mean), against hold-last.
+# Keys: the newest input node's mask carried on unchanged (what the game does).
+# Look: one projected input at the newest node's tick + 50 ms, made again every
+# frame and taken out before each confirmed move: yaw turn = the node's yaw turn
+# x yaw_gain / 64, pitch likewise. A bucket holds from <= x < to;
+# turn = |yaw turn| + |pitch turn| of the node (radians). No projection while now is in
+# the node's own tick, nor for a node 24 ticks (1.2 s) old or more.
+turn_from_rad	turn_to_rad	yaw_gain	pitch_gain
+0	0.0001	0	0
+0.0001	0.003	0	0
+0.003	0.008	32	51
+0.008	0.02	48	61
+0.02	0.05	54	54
+0.05	0.12	58	54
+0.12	-	48	48

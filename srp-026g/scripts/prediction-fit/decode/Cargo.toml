@@ -1,0 +1,14 @@
+[package]
+name = "prediction-decode"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+serde_json = { workspace = true }
+
+match-server = { path = "../../../servers/match-server" }
+survarium = { workspace = true }
+udp-transport = { workspace = true }
+
+[lints]
+workspace = true
