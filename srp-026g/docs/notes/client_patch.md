@@ -2582,8 +2582,13 @@ NASM or NASM_DIR name others than `cc`, `ld` and `nasm`); NASM other than
 in a code block only); a relocation other than R_386_32 and R_386_PC32 (GOT,
 PLT, 16- or 8-bit addresses: the code is not position-independent and the
 exe is never rebased); a symbol no source defines or one defined twice (ld);
-a block with nothing in it; an arena past `ARENA_LIMIT` (0x180000, a
-deliberate cap against a runaway state array).
+a block with nothing in it; an arena past `ARENA_LIMIT` (0x300000, a
+deliberate cap against a runaway state array; our own number, raised on
+purpose: 0x100000 until patch 121, 0x180000 until patch 161, which left it
+at 96.5 %. `.srpx` is the image's last section, so nothing in the file's
+layout bounds it; a larger arena costs its own bytes of the address space at
+the image's end, which the engine's arenas and the video driver would
+otherwise find free).
 
 **NASM 2.16, not 3.** NASM 3.01 (nixpkgs' now) assembles `jmp near label`
 to a label as a two-byte short jump (`EB`): the five-byte entry tables of

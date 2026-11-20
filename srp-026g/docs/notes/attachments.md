@@ -352,6 +352,13 @@ models of their own: asked for by the weapon cook's own query, and put in the sc
 - **A written bone is bounded by the game's own model**: where the records are written, the
   model's bone count (its skeleton render model's inverse binds) must be the table's gun's or more;
   else the weapon is forgotten with a line.
+- **The arena's size and its limit.** Patch 161 adds 49,152 bytes to the arena (1,517,148 in
+  all), which was 96.5 % of `ARENA_LIMIT` (0x180000), with the three lanes still to come. The limit
+  is our own number, a stop for a runaway block: `.srpx` is the image's last section, nothing
+  follows it in the file's layout, the link and the self-test take their bound from the constant,
+  and nothing outside the build knows it. It is 0x300000 from this branch on. What a larger arena
+  really costs is its own bytes of the game's address space at the image's end (the engine's
+  arenas and the video driver take theirs from what is free there): 49 KB for this patch.
 - **The table's way in.** One file of the game data, `resources/gameplay/weapon_modules.srpm`, asked
   for as raw data (class 3: PROVEN, the game's own `startup.cfg` at `game::query_base_resources`
   0x1EC182 and the collision cook's three files at 0x828FB). It rides the items dictionary cook's
@@ -385,27 +392,35 @@ models of their own: asked for by the weapon cook's own query, and put in the sc
   set, which gets the same values.
 - **The eye and the fingers are two switches**: "The two switches" below.
 
-### What is not done
+### What is done, and what is not
 
-1. **The arena's link.** `arena_026g.lock.json` is not written again (`python link_026g.py
-   --write`): nothing that builds the exe passes on this branch yet, and nothing of patch 161 has
-   run anywhere but the crates' own tests.
-2. **`check_attachments_026g.py` is written and has not run** (a Unicorn check builds the arena
-   first). Its cases: the table's way in; the cook's requests; the callback's records and fingers;
-   the parts in the scene; the left hand; the shells; the release; a weapon without any of it in
-   the build and the original. What it compares with is the weapon-modules crate's own `resolve`,
-   pinned in `tests/sample-v2.loadouts.tsv` by the crate's test.
-3. **No game has run it.** The order "the table before any weapon" is LIKELY until a game's log
-   shows the table's line before the first weapon's cook.
-4. **Other renderers of a weapon.** `weapon::draw` is one path for the first view, the third view
-   and the lobby (stage 0). Not read yet: a dropped gun's and a ragdoll's gun's drawing (srp's
-   pickup copies), and artefact carry, which takes a carrier's gun's three models out of the scene
-   by name and does not know the parts.
-5. **The lookup by address** scans the registry at each weapon's draw; to be measured in a match
+Done, 2026-11-20:
+
+- **The arena is linked with patch 161** (`arena_026g.lock.json`).
+- **`check_attachments_026g.py` passes** (`tools/check attachments`; 39 cases in the build and
+  the original): the table's way in; the cook's requests; the callback's records and fingers; the
+  parts in the scene; the left hand; the shells; the release; a weapon without any of it. What it
+  compares with is the weapon-modules crate's own `resolve`, pinned in
+  `tests/sample-v2.loadouts.tsv` by the crate's test. Its objects are made up and its table is the
+  crate's sample: it proves the patch's own code beside the game's, not the content.
+
+Not done:
+
+1. **No game has run it**, and no real table or model has met it.
+2. The order "the table before any weapon" is LIKELY until a game's log shows the table's line
+   before the first weapon's cook.
+3. **A dropped gun and a dead body's gun.** `weapon::draw` is one path for the first view, the
+   third view and the lobby (stage 0), and artefact carry takes a gun's parts out with the gun.
+   srp's own lying guns are drawn by `vostok::pickup::place_lying`, which places the body in its
+   bind pose and the scope at the scope's record, and not the parts: a fitted gun on the ground
+   shows its bare body. The parts' frames there are their records through the same bind pose; the
+   registry needs the game's thread, which `gun_cook`'s one transition of a lying gun does not
+   carry yet.
+4. **The lookup by address** scans the registry at each weapon's draw; to be measured in a match
    before it is called done.
-6. The six guns whose left hand does not rest on the idle locator need their clip event before a
+5. The six guns whose left hand does not rest on the idle locator need their clip event before a
    grip moves the hand (stage 0).
-7. The servers on `resolve` (fit checks, the shop) and the Attachments window's muzzle and grip
+6. The servers on `resolve` (fit checks, the shop) and the Attachments window's muzzle and grip
    slots.
 
 ## The two switches

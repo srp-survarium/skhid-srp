@@ -2967,6 +2967,9 @@ for _va, _what in ((0xED30F, "sin x"), (0xED31F, "cos x"), (0xED32F, "sin y"), (
 INSTALLS[0x742A5] = (CALLEE, "quaternion::quaternion(axis, angle)'s sin: animation_math (Rust `call` hook)", None, None)
 INSTALLS[0x742B5] = (CALLEE, "quaternion::quaternion(axis, angle)'s cos: animation_math (Rust `call` hook)", None, None)
 INSTALLS[0x743B2] = (CALLEE, "get_axis_and_angle's atan2: animation_math (Rust `call` hook)", None, None)
+INSTALLS[0x298664] = (CALLEE, "correct_fingers' set_weapon_model 0x390620 (stdcall, the corrector, the instance, the "
+                              "view; `ret 0Ch`) at a change of view: attachments (Rust `call` hook), the function, "
+                              "then a grip's finger sets", None, None)
 INSTALLS[0x3B3340] = (ENTRY, "time_channel::domain: animation_math_domain, the same search without a division "
                              "per step", None, None)
 
@@ -3204,7 +3207,12 @@ ARENA_CHARACTERISTICS = 0xE0000060              # code, initialized data, execut
 ARENA_VA = 0xA42D000                            # weapon_camo_va + .srpw's three pages
 # The most the arena may take: a block of a runaway size (a state array, a
 # table) stops the link instead of growing the image. Raise it on purpose.
-ARENA_LIMIT = 0x180000                          # 0x100000 until patch 121 took the arena past it
+# It is our own number: `.srpx` is the image's last section, nothing follows
+# it in the file's layout, and only its sizes and SizeOfImage grow with it.
+# What a larger arena costs is its own bytes of the game's address space, at
+# the image's end, where the engine's arenas and the video driver take theirs
+# from what is free (memory-report.md).
+ARENA_LIMIT = 0x300000                          # 0x100000 until patch 121, 0x180000 until patch 161
 ArenaBlock = linker.ArenaBlock
 
 ARENA = (

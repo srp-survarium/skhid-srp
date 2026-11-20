@@ -74,6 +74,9 @@ SKELETON_INSTANCE, GAME_ALLOCATOR = 0x9F0F24, 0x1F1D9C4
 T_INT, T_TABLE, T_STRING = 1, 3, 5
 BARREL, SCOPE, AIM, FRAME, HAND_RECORDS, FINGER_SETS = 0x6E0, 0x744, 0x7A8, 0x660, 0x1A20, 0x20F0
 
+ENDS = (DICT_QUERY_END, DICT_CONFIGS_END, COOK_WEAPON, ASKED_END, READY_END, LOADED_END, DRAW_END, CULLED_END,
+        HIDDEN_END, HANDS_END, FINGERS_VIEW_END, SHELLS_END, RELEASE_END)
+
 STACK, STOP, HEAP = 0x21000000, 0x21100000, 0x30000000
 RENDERER = 0x31000000
 REGS = {"eax": UC_X86_REG_EAX, "ecx": UC_X86_REG_ECX, "edx": UC_X86_REG_EDX, "ebx": UC_X86_REG_EBX,
@@ -177,7 +180,9 @@ class Run:
         self.rendered, self.destroyed, self.freed, self.fingers_filled = [], [], [], 0
         for at in (CHILD, HAS, RELEASE_PTR, DESTROY, ADD, REMOVE, UPDATE, MALLOC, FREE, SET_WEAPON_MODEL):
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=at, end=at)
-        emu.hook_add(UC_HOOK_CODE, self.stop)
+        # a run stops at the end it names: a hook an end, none on every instruction
+        for at in ENDS:
+            emu.hook_add(UC_HOOK_CODE, self.stop, begin=at, end=at)
         self.ends = ()
         # the game's allocator's slot: any address, the stubs do the work
         self.u32(GAME_ALLOCATOR, self.block(0x40))
@@ -262,9 +267,8 @@ class Run:
             self.destroyed.append(emu.reg_read(UC_X86_REG_ECX))
         elif address == MALLOC:                     # ESI the allocator, EAX the size, one stack argument
             value, pops = self.block(emu.reg_read(UC_X86_REG_EAX)), 4
-        elif address == FREE:                       # ECX the allocator, EAX the memory, one stack argument
+        elif address == FREE:                       # ECX the allocator, EAX the memory; its caller pops
             self.freed.append(emu.reg_read(UC_X86_REG_EAX))
-            pops = 4
         elif address == SET_WEAPON_MODEL:           # stdcall: the corrector, &instance, first view
             corrector = self.u32(sp + 4)
             for n in range(4):
@@ -306,7 +310,7 @@ class Run:
         if sp is not None:
             self.emu.reg_write(UC_X86_REG_ESP, sp)
         self.ends = tuple(ends)
-        self.emu.emu_start(start, STOP, count=4_000_000)
+        self.emu.emu_start(start, STOP, count=400_000_000)
         self.ends = ()
         return self.emu.reg_read(UC_X86_REG_EIP)
 
