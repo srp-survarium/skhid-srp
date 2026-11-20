@@ -7,12 +7,7 @@
    },
    "separable": [],
    "bake": [],
-   "model_path": "weapons/remodel_069/a9_91/a9_91",
-   "offset": [
-    0.0088,
-    -0.0207,
-    -0.0004
-   ]
+   "model_path": "weapons/remodel_069/a9_91/a9_91"
   },
   "a545": {
    "rig": {
@@ -152,6 +147,16 @@
    ],
    "model_path": "weapons/remodel_069/akmn_premium_2/akmn_premium_2"
   },
+  "akmsu": {
+   "rig": {
+    "live": "models/weapons/assault/akmsu/akmsu.skinned_model"
+   },
+   "separable": [
+    "akmsu_m24x15_muzzlebrake"
+   ],
+   "bake": [],
+   "model_path": "weapons/remodel_069/akmsu/akmsu"
+  },
   "aps": {
    "rig": {
     "live": "models/weapons/aps/aps.skinned_model"
@@ -176,12 +181,7 @@
    },
    "separable": [],
    "bake": [],
-   "model_path": "weapons/remodel_069/benelli_m4/benelli_m4",
-   "offset": [
-    0.0,
-    -0.0243,
-    -0.0214
-   ]
+   "model_path": "weapons/remodel_069/benelli_m4/benelli_m4"
   },
   "beretta93r": {
    "rig": {
@@ -206,6 +206,16 @@
    "separable": [],
    "bake": [],
    "model_path": "weapons/remodel_069/cz_75/cz_75"
+  },
+  "famas": {
+   "rig": {
+    "live": "models/weapons/assault/famas/famas.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "famas_default_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/famas/famas"
   },
   "fn_fnc": {
    "rig": {
@@ -254,8 +264,17 @@
    "bake": [
     "fort401_i05x28_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/fort_401/fort_401",
-   "optic_model_path": "weapons/remodel_069/fort_401/fort_401_optic"
+   "model_path": "weapons/remodel_069/fort_401/fort_401"
+  },
+  "g3a3": {
+   "rig": {
+    "live": "models/weapons/dmr/g3a3/g3a3.skinned_model"
+   },
+   "separable": [],
+   "bake": [
+    "g3a3_default_muzzlebrake"
+   ],
+   "model_path": "weapons/remodel_069/g3a3/g3a3"
   },
   "glock_17": {
    "rig": {
@@ -353,6 +372,14 @@
    "model_path": "weapons/remodel_069/kriss_vector/kriss_vector",
    "optic": true
   },
+  "ks_23": {
+   "rig": {
+    "live": "models/weapons/shotguns/ks_23/ks_23.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/ks_23/ks_23"
+  },
   "l85a2": {
    "rig": {
     "live": "models/weapons/assault/enfield_l85a2/enfield_l85a2.skinned_model"
@@ -361,8 +388,7 @@
    "bake": [
     "enfieldl85a2_i05x28_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/l85a2/l85a2",
-   "optic_model_path": "weapons/remodel_069/l85a2/l85a2_optic"
+   "model_path": "weapons/remodel_069/l85a2/l85a2"
   },
   "m4a1": {
    "rig": {
@@ -372,8 +398,7 @@
    "bake": [
     "m4a1_i05x28_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/m4a1/m4a1",
-   "optic_model_path": "weapons/remodel_069/m4a1/m4a1_optic"
+   "model_path": "weapons/remodel_069/m4a1/m4a1"
   },
   "magnum": {
    "rig": {
@@ -382,6 +407,14 @@
    "separable": [],
    "bake": [],
    "model_path": "weapons/remodel_069/magnum/magnum"
+  },
+  "mauser": {
+   "rig": {
+    "live": "models/weapons/pistols/mauser_m712/mauser.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/mauser/mauser"
   },
   "mosin_nagant": {
    "rig": {
@@ -433,12 +466,7 @@
    },
    "separable": [],
    "bake": [],
-   "model_path": "weapons/remodel_069/mp_153/mp_153",
-   "offset": [
-    0.0,
-    -0.0222,
-    -0.0012
-   ]
+   "model_path": "weapons/remodel_069/mp_153/mp_153"
   },
   "msbs_carbine": {
    "rig": {
@@ -513,6 +541,14 @@
    "separable": [],
    "bake": [],
    "model_path": "weapons/remodel_069/ppsh/ppsh"
+  },
+  "ppsh_drum": {
+   "rig": {
+    "live": "models/weapons/smg/ppsh/ppsh.skinned_model"
+   },
+   "separable": [],
+   "bake": [],
+   "model_path": "weapons/remodel_069/ppsh_drum/ppsh_drum"
   },
   "rem_700": {
    "rig": {
@@ -595,8 +631,7 @@
    "bake": [
     "scarh_i05x28_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/scar_h/scar_h",
-   "optic_model_path": "weapons/remodel_069/scar_h/scar_h_optic"
+   "model_path": "weapons/remodel_069/scar_h/scar_h"
   },
   "sks": {
    "rig": {
@@ -653,12 +688,7 @@
    },
    "separable": [],
    "bake": [],
-   "model_path": "weapons/remodel_069/spas_12/spas_12",
-   "offset": [
-    0.0,
-    -0.0203,
-    -0.0044
-   ]
+   "model_path": "weapons/remodel_069/spas_12/spas_12"
   },
   "sr2m": {
    "rig": {
@@ -724,8 +754,7 @@
    },
    "separable": [],
    "bake": [],
-   "model_path": "weapons/remodel_069/svu_a/svu_a",
-   "optic_model_path": "weapons/remodel_069/svu_a/svu_a_optic"
+   "model_path": "weapons/remodel_069/svu_a/svu_a"
   },
   "toz_122": {
    "rig": {
@@ -741,12 +770,7 @@
    },
    "separable": [],
    "bake": [],
-   "model_path": "weapons/remodel_069/toz_34/toz_34",
-   "offset": [
-    0.0,
-    -0.0022,
-    -0.0008
-   ]
+   "model_path": "weapons/remodel_069/toz_34/toz_34"
   },
   "toz_66": {
    "rig": {
@@ -779,11 +803,6 @@
    "separable": [],
    "bake": [],
    "model_path": "weapons/remodel_069/uzi/uzi",
-   "offset": [
-    0.0,
-    -0.0176,
-    -0.0184
-   ],
    "aim_069": true
   },
   "uzi_premium": {
@@ -796,11 +815,6 @@
    ],
    "bake": [],
    "model_path": "weapons/remodel_069/uzi_premium/uzi_premium",
-   "offset": [
-    0.0,
-    -0.0176,
-    -0.0184
-   ],
    "aim_069": true
   },
   "uzi_premium_2": {
@@ -813,11 +827,6 @@
    ],
    "bake": [],
    "model_path": "weapons/remodel_069/uzi_premium_2/uzi_premium_2",
-   "offset": [
-    0.0,
-    -0.0176,
-    -0.0184
-   ],
    "aim_069": true
   },
   "val": {
@@ -846,8 +855,7 @@
    "bake": [
     "vepr_m24x15_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/vepr/vepr",
-   "optic_model_path": "weapons/remodel_069/vepr/vepr_optic"
+   "model_path": "weapons/remodel_069/vepr/vepr"
   },
   "vepr_12": {
    "rig": {
@@ -885,8 +893,7 @@
    "bake": [
     "vepr_m24x15_camo_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/vepr_premium/vepr_premium",
-   "optic_model_path": "weapons/remodel_069/vepr_premium/vepr_premium_optic"
+   "model_path": "weapons/remodel_069/vepr_premium/vepr_premium"
   },
   "vhs_2": {
    "rig": {
@@ -896,8 +903,7 @@
    "bake": [
     "vhs2_i05x28_muzzlebrake"
    ],
-   "model_path": "weapons/remodel_069/vhs_2/vhs_2",
-   "optic_model_path": "weapons/remodel_069/vhs_2/vhs_2_optic"
+   "model_path": "weapons/remodel_069/vhs_2/vhs_2"
   },
   "vityaz": {
    "rig": {
