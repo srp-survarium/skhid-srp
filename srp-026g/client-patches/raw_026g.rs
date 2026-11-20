@@ -23061,6 +23061,33 @@ impl Scene {
     pub unsafe fn set_streamable_end(self, value: Option<StreamableTexture>) {
         unsafe { self.0.byte_add(0x12615c).cast::<Option<StreamableTexture>>().write_volatile(value) }
     }
+
+    /// +0x126158 (obj<vostok::fixed_vector>): the streamable textures, 2048 of 148h (the constructor 0x14F586..0x14F59D: begin = end = +126164h, capacity end +1CA164h); gather_streamable_textures 0x154FA0 pushes at 0x155217 (push_back 0x155F60, its int3 0x155FC2 when full); process_streaming's sweep 0x1548F4 erases the loaded ones nothing draws
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn streaming_textures(self) -> FixedVector {
+        FixedVector(unsafe { self.0.byte_add(0x126158) })
+    }
+
+    /// +0x1ca164 (obj<vostok::fixed_vector>): the textures asked for at other mips, 1024 of 118h (the constructor 0x14F5A3..0x14F5BA); process_streaming pushes one a candidate at 0x15457F (push_back 0x1560A0, int3 0x156102 when full), and asks only while it is empty (0x1540E3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn requested_textures(self) -> FixedVector {
+        FixedVector(unsafe { self.0.byte_add(0x1ca164) })
+    }
+
+    /// +0x98054c (obj<vostok::fixed_vector>): the async worker's candidates, 2048 of 64h, one a streamable texture by its index (the constructor 0x14F862..0x14F876); update_wanted_mips 0x1C2120 pushes one for every streamable texture (push_back 0x1C25E0, int3 0x1C2642 when full)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn potential_requests(self) -> FixedVector {
+        FixedVector(unsafe { self.0.byte_add(0x98054c) })
+    }
 }
 
 /// A vostok::render::streamable_texture (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -23412,6 +23439,15 @@ impl ResourceManager {
     #[inline(always)]
     pub unsafe fn textures(self) -> TextureRegistryNode {
         TextureRegistryNode(unsafe { self.0.byte_add(0x8809c) })
+    }
+
+    /// +0x1c (obj<vostok::fixed_vector>): the names of the textures its effects asked for, one each while the texture is registered: a fixed_vector<fixed_string<260>, 2048> (the constructor 0x3BBAE8..0x3BBAF6: begin = end = +28h, capacity end +88028h); remove_texture_predicate 0x3DF780 pushes a new name (push_back 0x1326F0, its int3 0x132755 when full), release 0x3BEE00 erases a texture's (0x3C3E60)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn texture_names(self) -> FixedVector {
+        FixedVector(unsafe { self.0.byte_add(0x1c) })
     }
 }
 
@@ -26792,6 +26828,358 @@ impl StageAtmosphere {
     }
 }
 
+/// A vostok::fixed_vector (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FixedVector(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FixedVector {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<u8>): the first entry (buffer_vector: begin, end, capacity end, the room after them)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn begin(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): the first entry (buffer_vector: begin, end, capacity end, the room after them)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_begin(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<u8>): one past the last entry (a push_back adds the entry's size)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn end(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<u8>): one past the last entry (a push_back adds the entry's size)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_end(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<u8>): the room's end (a push_back compares end with it and asserts when they are equal)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn capacity(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<u8>): the room's end (a push_back compares end with it and asserts when they are equal)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_capacity(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0xc (obj<vostok::fixed_vector_items>): its own room, right after the three pointers (each constructor points begin there)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn items(self) -> FixedVectorItems {
+        FixedVectorItems(unsafe { self.0.byte_add(0xc) })
+    }
+}
+
+/// A vostok::render::texture_name (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TextureName(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TextureName {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// 0x110 bytes: a fixed_string<260>: begin, end and capacity end pointing into its own 104h bytes at +0Ch (push_back 0x1326F0 builds one, erase 0x3C3E60 moves them)
+    pub const SIZE: usize = 0x110;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::texture_names (0x110 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct TextureNameStorage([u8; 0x110]);
+
+#[allow(dead_code)]
+impl TextureNameStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x110])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> TextureName {
+        TextureName(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<TextureName> {
+        (!rooms.is_empty()).then(|| TextureName(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::requested_texture (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RequestedTexture(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl RequestedTexture {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// 0x118 bytes: a requested_streamable_texture: a fixed_string<260> (its pointers into its own room at +0Ch), the texture, its mips
+    pub const SIZE: usize = 0x118;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::requested_textures (0x118 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct RequestedTextureStorage([u8; 0x118]);
+
+#[allow(dead_code)]
+impl RequestedTextureStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x118])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> RequestedTexture {
+        RequestedTexture(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<RequestedTexture> {
+        (!rooms.is_empty()).then(|| RequestedTexture(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::potential_request (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PotentialRequest(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PotentialRequest {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// 0x64 bytes: the async worker's candidate (update_wanted_mips 0x1C2379): the streamable texture's index, mips and distances, plain values
+    pub const SIZE: usize = 0x64;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::potential_requests (0x64 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct PotentialRequestStorage([u8; 0x64]);
+
+#[allow(dead_code)]
+impl PotentialRequestStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x64])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> PotentialRequest {
+        PotentialRequest(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<PotentialRequest> {
+        (!rooms.is_empty()).then(|| PotentialRequest(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::render::texture_pool (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TexturePool(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TexturePool {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<u8>): its name, a fixed_string<64> ("64x64 dxt1"; the constructor 0x3D2F90 points it at +0Ch): begin, a C string
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn name(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<u8>): its name, a fixed_string<64> ("64x64 dxt1"; the constructor 0x3D2F90 points it at +0Ch): begin, a C string
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_name(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x0).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x64 (obj<vostok::fixed_vector>): its textures, 1024 of 1Ch (the constructor 0x3D2FBD..0x3D2FD5: begin = end = +70h, capacity end +7070h); add_texture 0x3D3010 makes one more when none is free and pushes it (push_back 0x3D35B0 at 0x3D31A4, its int3 0x3D360D when full); get 0x3D3220 and try_release 0x3D3550 find a slot by walking them, nothing keeps a slot's address past its call
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn slots(self) -> FixedVector {
+        FixedVector(unsafe { self.0.byte_add(0x64) })
+    }
+}
+
+/// A vostok::render::texture_pool_slot (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TexturePoolSlot(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl TexturePoolSlot {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// 0x1c bytes: a pool's texture: the res_texture and its name it holds now, its texture and two views (each a COM pointer), in use, a mark; plain values (push_back 0x3D35B0 copies one)
+    pub const SIZE: usize = 0x1c;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::render::texture_pool_slots (0x1c bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct TexturePoolSlotStorage([u8; 0x1c]);
+
+#[allow(dead_code)]
+impl TexturePoolSlotStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x1c])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> TexturePoolSlot {
+        TexturePoolSlot(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<TexturePoolSlot> {
+        (!rooms.is_empty()).then(|| TexturePoolSlot(NonNull::from(rooms).cast()))
+    }
+}
+
 /// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -27130,6 +27518,21 @@ pub struct SwapChain(NonNull<c_void>);
 
 #[allow(dead_code)]
 impl SwapChain {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+}
+
+/// A vostok::fixed_vector_items (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FixedVectorItems(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FixedVectorItems {
     /// Its address as a value (an id, a compare): never read through.
     #[inline(always)]
     pub fn address(self) -> u32 {
@@ -32529,6 +32932,90 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn frame(machine: &impl Machine) -> Option<GodRaysEntryFrame> {
             NonNull::new(machine.site_esp() as usize as *mut c_void).map(GodRaysEntryFrame)
+        }
+    }
+
+    /// texture_lists.name_push (0x3df7d1): remove_texture_predicate 0x3DF780 for a name the resource manager does not hold, before its push_back 0x1326F0 at 0x3DF7D6 (push ebx / lea eax,[esp+14h]): EBX the manager's names (+1Ch), full when end equals capacity end
+    pub mod texture_lists_name_push {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::fixed_vector (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn names(machine: &impl Machine) -> Option<FixedVector> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(FixedVector)
+        }
+    }
+
+    /// texture_lists.streaming_push (0x155205): gather_streamable_textures 0x154FA0 for a texture the scene does not stream yet, before its push_back 0x155F60 at 0x155217 (lea eax,[ebx+126158h]); the async worker is done (0x1551E4..0x155200 waited for it): EBX the scene
+    pub mod texture_lists_streaming_push {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::render::scene (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn scene(machine: &impl Machine) -> Option<Scene> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Scene)
+        }
+    }
+
+    /// texture_lists.scene_lists_destroyed (0x14fde6): scene::~scene 0x14FAC0 once its streaming lists are emptied (the candidates' end 0x14FC56, the requests 0x14FDC0, the streamable textures 0x14FDD9; mov edx,[ebp+120148h]), nothing of it reads them after: EBP the scene
+    pub mod texture_lists_scene_lists_destroyed {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBP: a vostok::render::scene (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn scene(machine: &impl Machine) -> Option<Scene> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(Scene)
+        }
+    }
+
+    /// texture_lists.pool_slot_push (0x3d319d): texture_pool::add_texture 0x3D3010 before it pushes the texture it made (add esi,64h / lea edi,[esp+18h]; push_back 0x3D35B0 at 0x3D31A4): ESI the pool (mov esi,[esp+64h], add_texture's first argument)
+    pub mod texture_lists_pool_slot_push {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::render::texture_pool (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn pool(machine: &impl Machine) -> Option<TexturePool> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(TexturePool)
+        }
+    }
+
+    /// texture_lists.request_batch (0x15440a): process_streaming 0x154020 once it has kept the candidates whose mips change (remove_if 0x156320, erase 0x1562A0) and before it counts them (mov ecx,[esi+4] / sub ecx,[esi]): it asks one request a candidate (push_back 0x1560A0 at 0x15457F into the requests, empty here: 0x1540E3) after making room on its stack for all of them (0x154441..0x15445D, 144h a candidate, and 8 more at 0x1547C5); ESI the scene's candidates, EDI the scene
+    pub mod texture_lists_request_batch {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a vostok::fixed_vector (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn candidates(machine: &impl Machine) -> Option<FixedVector> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(FixedVector)
+        }
+
+        /// EDI: a vostok::render::scene (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn scene(machine: &impl Machine) -> Option<Scene> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Scene)
         }
     }
 }

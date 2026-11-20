@@ -906,7 +906,6 @@ va	status	ref_021d	name
 0x001539d0	inferred-high		vostok::memory::doug_lea_allocator::free_impl
 0x00153b50	inferred-medium	0x000f5a6d	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf1<void,vostok::render::moved_object_predicate_helper,vostok::collision::object const &>,boost::_bi::list2<boost::_bi::value<vostok::render::moved_object_predicate_helper *>,boost::arg<1> > > >::manager
 0x00153ea0	inferred-medium	0x00130690	vostok::render::remove_texture_predicate::operator()
-0x00155f60	inferred-medium	0x001319cf	vostok::buffer_vector<vostok::render::streamable_texture_info>::push_back
 0x00156120	inferred-medium	0x00131adf	vostok::buffer_vector<vostok::render::streaming_ready_texture>::push_back
 0x00156220	inferred-medium	0x00131b50	vostok::buffer_vector<void const *>::push_back
 0x00156370	inferred-medium	0x00131c1f	vostok::memory::new_array_helper<vostok::render::texture_query_struct>::call<vostok::memory::doug_lea_allocator>
@@ -1003,7 +1002,6 @@ va	status	ref_021d	name
 0x001c1580	inferred-medium	0x001348d6	vostok::render::shadow_batched_geometry::add_vertex
 0x001c15e0	inferred-medium	0x0013491e	vostok::render::shadow_batched_geometry::build
 0x001c1940	inferred-medium	0x00134baf	vostok::buffer_vector<`vostok::render::shadow_batched_geometry::build'::`2'::surface_set>::push_back
-0x001c25e0	inferred-medium	0x00135495	vostok::buffer_vector<vostok::render::potential_request>::push_back
 0x001c2a60	inferred-medium	0x00135793	boost::detail::function::functor_manager<boost::_bi::bind_t<void,boost::_mfi::mf0<void,vostok::render::texture_streaming_async_worker>,boost::_bi::list1<boost::_bi::value<vostok::render::texture_streaming_async_worker *> > > >::manager
 0x001c4b80	inferred-medium	0x001369da	vostok::math::is_point_inside_cuboid
 0x001c8040	inferred-medium	0x0013959b	vostok::buffer_vector<vostok::math::float4>::push_back
@@ -3527,3 +3525,5 @@ va	status	ref_021d	name
 0x00133f50	inferred-medium		vostok::render::stage_rain::rain_rotation_basis
 0x0030f5a0	inferred-medium		survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme
 0x00311070	inferred-medium		survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme
+0x001560a0	inferred-high		vostok::buffer_vector<vostok::render::requested_streamable_texture>::push_back
+0x003d2f90	inferred-high		vostok::render::texture_pool::texture_pool

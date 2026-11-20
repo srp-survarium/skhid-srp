@@ -1,0 +1,24 @@
+# Room for twice as many textures in the resource manager's names and a scene's streaming lists,
+# taken when the game's is full (README "The render's texture lists").
+name = "texture_lists"
+patch = 163
+
+[[hook]]
+site = "texture_lists.name_push"
+handler = "on_name_push"
+
+[[hook]]
+site = "texture_lists.streaming_push"
+handler = "on_streaming_push"
+
+[[hook]]
+site = "texture_lists.scene_lists_destroyed"
+handler = "on_scene_lists_destroyed"
+
+[[hook]]
+site = "texture_lists.pool_slot_push"
+handler = "on_pool_slot_push"
+
+[[hook]]
+site = "texture_lists.request_batch"
+handler = "on_request_batch"

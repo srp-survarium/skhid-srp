@@ -6397,3 +6397,12 @@ va	name	location	role	basis
 0x0028bee0	survarium::lobby_menu::find_players	entry ESP+4	Flash callback params; +8 points to the first value: the search text (its string at [+8], or [[+8]] for a managed one, by bit 6 of +4)	observed
 0x0026b660	survarium::messaging_client::find_players	entry ESP+4	client whose [+4] is the lobby client (link at +8, connection at +1E55C8h)	observed
 0x0026b660	survarium::messaging_client::find_players	entry ESP+8	NUL-terminated search text	observed
+0x001326f0	vostok::buffer_vector<vostok::fixed_string<260> >::push_back	EAX	the source string (buffer_string: begin, end)	observed
+0x001326f0	vostok::buffer_vector<vostok::fixed_string<260> >::push_back	entry ESP+4	the vector (begin, end, capacity end)	observed
+0x00155f60	vostok::buffer_vector<vostok::render::streamable_texture_info>::push_back	EDI	the source entry (148h)	observed
+0x00155f60	vostok::buffer_vector<vostok::render::streamable_texture_info>::push_back	entry ESP+4	the vector (scene+126158h)	observed
+0x003df780	vostok::render::remove_texture_predicate::operator()	EAX	the texture_query_desc (228h; its name pointer at +110h)	observed
+0x003e12a0	stlp_std::priv::__find_if<vostok::render::effect_compiler::texture_query_desc *,vostok::render::remove_texture_predicate>	EAX	first	observed
+0x003e12a0	stlp_std::priv::__find_if<vostok::render::effect_compiler::texture_query_desc *,vostok::render::remove_texture_predicate>	entry ESP+4	last	observed
+0x003d35b0	vostok::buffer_vector<vostok::render::texture_pool_slot>::push_back	ESI	the vector (the pool +64h)	observed
+0x003d35b0	vostok::buffer_vector<vostok::render::texture_pool_slot>::push_back	EDI	the source slot (1Ch)	observed
