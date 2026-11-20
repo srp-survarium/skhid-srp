@@ -373,7 +373,7 @@ pub(super) fn drive_tick(
     tuning: &Tuning,
     time: u32,
     searching: &mut Searching,
-    press_token: &mut body::PressToken,
+    press: &mut body::PressMatch,
 ) -> Decision {
     // [A364 P10] The bar is spent only in the sprint state: its own reload refuses it (`can_sprint`).
     let reloading = bot.reflex.reload_note().is_some_and(|reload| reload.at <= time && time < reload.until);
@@ -383,7 +383,7 @@ pub(super) fn drive_tick(
     bot.motor.carrying = tuning.feel.carry_jumps && bot.carry.holds(time);
     // [S6] The closed drops of this bot's searches only.
     drop(mapdata::take_falls_closed());
-    let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching, press_token);
+    let mut decision = drive_tick_inner(bot, me, view, tactics, tuning, time, searching, press);
     log_falls_closed(bot, &tactics.world.grid, time);
     // The motor turned the view's elevation; the input carries the game's pitch unit (`pitch.rs`).
     decision.turn.1 = Pitch::view(me.pitch, bot.reflex.kick_before()).turn_for(tuning.kin.pitch_scale, decision.turn.1);
@@ -526,11 +526,11 @@ pub(super) fn crouch_climb_watch(bot: &mut Bot, me: &PlaceView, keys: u32, time:
 }
 
 /// [press forecast] The motor's body model for a route jump's press (`motor::PressFlyer`): the bot's reckoned body, the grid with
-/// the client's walker, and the poll's one forecast (`body::PressToken`).
+/// the client's walker, and the match's (`body::PressMatch`): the poll's one forecast and the links learned.
 struct PressFlyer<'a> {
     body: Option<body::Estimate>,
     world: Option<body::PressWorld<'a>>,
-    token: &'a mut body::PressToken,
+    press: &'a mut body::PressMatch,
 }
 
 impl motor::PressFlyer for PressFlyer<'_> {
@@ -544,12 +544,20 @@ impl motor::PressFlyer for PressFlyer<'_> {
 
     fn chain(&mut self, from: &body::Estimate, keys: u32, ticks: u32) -> Option<Vec<body::Estimate>> {
         let world = self.world?;
-        self.token.take().then(|| body::press_chain(from, keys, ticks, &world))
+        self.press.token.take().then(|| body::press_chain(from, keys, ticks, &world))
+    }
+
+    fn learned(&self, take_off: mapdata::Vec3, landing: mapdata::Vec3, cap: f32) -> body::LinkLearned {
+        self.press.learned.get(take_off, landing, cap)
+    }
+
+    fn learn(&mut self, take_off: mapdata::Vec3, landing: mapdata::Vec3, cap: f32, learn: &mut dyn FnMut(&mut body::LinkLearned)) {
+        self.press.learned.learn(take_off, landing, cap, learn);
     }
 
     fn fly(&mut self, from: &body::Estimate, plan: &body::PressPlan) -> Option<body::PressOutcome> {
         let world = self.world?;
-        self.token.take().then(|| body::press_forecast(from, plan, &world))
+        self.press.token.take().then(|| body::press_forecast(from, plan, &world))
     }
 }
 
@@ -562,7 +570,7 @@ fn drive_tick_inner(
     tuning: &Tuning,
     time: u32,
     searching: &mut Searching,
-    press_token: &mut body::PressToken,
+    press: &mut body::PressMatch,
 ) -> Decision {
     // [recoil] The weapon's update first, as the client's; the view is the
     // base pitch and the kick the last tick left (the reflex takes back
@@ -2105,7 +2113,7 @@ fn drive_tick_inner(
                             level,
                             grid: &tactics.world.grid,
                         }),
-                        token: press_token,
+                        press,
                     };
                     let (decision, walked) = match aim {
                         Some(aim) => {

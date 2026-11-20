@@ -47,6 +47,7 @@ fn press_forecast_crossings_on_map_91() {
     let (mut pressed, mut landed, mut not_forecast) = (0, 0, Vec::new());
     let (mut all_ms, mut all_steps, mut crossings) = (0.0f64, 0u64, 0u32);
     let (mut all_flights, mut all_chains, mut all_ns) = (0u64, 0u64, 0u64);
+    let (mut clean, mut retry): (Vec<(u64, u64, f64)>, Vec<(u64, u64, f64)>) = (Vec::new(), Vec::new());
     let n_starts = starts.len();
     for start in starts {
         let c = cross(&world, start, a, b, goal, 40_000, tuning.clone());
@@ -56,6 +57,12 @@ fn press_forecast_crossings_on_map_91() {
         all_ms += ms;
         all_steps += steps;
         all_flights += flights;
+        let spent = c.notes.iter().any(|(_, text)| text.contains("press forecast: try") && text.contains(" spent"));
+        if c.presses == 1 && !spent {
+            clean.push((steps, flights, ms));
+        } else {
+            retry.push((steps, flights, ms));
+        }
         all_chains += chains;
         all_ns += ns;
         crossings += 1;
@@ -99,6 +106,19 @@ fn press_forecast_crossings_on_map_91() {
         if at_link > made {
             not_forecast.push((start, at_link, made));
         }
+    }
+    // Clean crossings (one press, no try spent) and the ones with retries, apart: their forecast steps and flights.
+    for (name, list) in [("clean", &clean), ("retry", &retry)] {
+        let n = list.len().max(1) as f64;
+        let (steps, flights, ms) = list.iter().fold((0u64, 0u64, 0.0f64), |acc, &(s, f, m)| (acc.0 + s, acc.1 + f, acc.2 + m));
+        eprintln!(
+            "PRESS SPOT {name} crossings {}: {:.0} steps, {:.1} flights, {:.2} ms a crossing here; {:.3} % of the live core a match at {CROSSINGS_A_MATCH} crossings",
+            list.len(),
+            steps as f64 / n,
+            flights as f64 / n,
+            ms / n,
+            ms / n * CROSSINGS_A_MATCH * LIVE_SCALE / 600_000.0 * 100.0
+        );
     }
     let per_crossing = all_ms / f64::from(crossings.max(1));
     let share = per_crossing * CROSSINGS_A_MATCH / MATCH_BOT_MS * 100.0;

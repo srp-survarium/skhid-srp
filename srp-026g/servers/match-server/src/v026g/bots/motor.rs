@@ -39,7 +39,7 @@ use std::f32::consts::PI;
 use mapdata::Vec3;
 use mapdata::grid::{SPRINT_JUMP_LOW_M, STANDING_JUMP_M};
 
-use super::body::{Estimate, PressOutcome};
+use super::body::{Estimate, LinkLearned, PressOutcome, WalkIn};
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
 use super::press_plan::{Ask, Choice, MIN_RUN, Plan, same_body};
@@ -1147,6 +1147,10 @@ pub trait PressFlyer {
     fn chain(&mut self, from: &Estimate, keys: u32, ticks: u32) -> Option<Vec<Estimate>>;
     /// The press `plan` from `from` (`body::press_forecast`); none when the poll's forecast is taken.
     fn fly(&mut self, from: &Estimate, plan: &super::body::PressPlan) -> Option<PressOutcome>;
+    /// What the match learned of the link from `take_off` to `landing` at the walk cap `cap` m/s (`body::PressLearned`).
+    fn learned(&self, take_off: Vec3, landing: Vec3, cap: f32) -> LinkLearned;
+    /// Learns of it.
+    fn learn(&mut self, take_off: Vec3, landing: Vec3, cap: f32, learn: &mut dyn FnMut(&mut LinkLearned));
 }
 
 /// [press forecast] What a forecast press does with this tick's keys ([`Motor::cast_tick`]).
@@ -1259,14 +1263,20 @@ struct CastWatch {
     landing: Vec3,
     /// Where the forecast had the body rest.
     forecast: Option<Vec3>,
+    /// A press from rest: its rest's lead (m before the take-off), learned for the link once the press gets up.
+    rest_lead: Option<f32>,
+    /// The walk cap the link is learned at.
+    cap: f32,
     /// The press's part of the line.
     text: String,
 }
 
-/// [press forecast] A press is followed this long for its line, s: past the flight's landing step (19 steps at most) and the stay
-/// steps (7) the forecast played (1.3 s), and a world's fix after them (the reckoned body is the motor's only view of the body,
-/// and a jump's landing is reckoned again from the next world: the map 91 test's worlds come every 1 s, 0.3 s late).
+/// [press forecast] A press is judged by its landing: up on the link's landing on the ground ([`is_up`]), or not up this long after
+/// it, s: past the flight's landing step (19 steps at most) and the stay steps (7) the forecast played (1.3 s), and a world's fix
+/// after them (the reckoned body is the motor's only view of the body: the map 91 test's worlds come every 1 s, 0.3 s late).
 const CAST_WATCH_S: f32 = 2.5;
+/// [press forecast] A learned rest's lead within this of a rest that did not get up is dropped, m.
+const SAME_LEAD_M: f32 = 0.1;
 /// [press forecast] A body farther than this from the forecast's rest, flat, m, is counted ([`press_casts::Slot::OffForecast`]).
 const CAST_OFF_M: f32 = 0.1;
 
@@ -2386,7 +2396,8 @@ impl Motor {
         flyer: Option<&mut dyn PressFlyer>,
     ) -> (Decision, Walked) {
         self.next_tick();
-        self.cast_watch_tick(pose);
+        let mut flyer = flyer;
+        self.cast_watch_tick(pose, flyer.as_deref_mut());
         self.cast_keys = None;
         self.look = None;
         self.lane_use = super::apart::LaneUse::Idle;
@@ -3721,11 +3732,28 @@ impl Motor {
         let speed = body.velocity[0].hypot(body.velocity[1]);
         // The body must come to rest short of the zone's near end from here on (design §3.4 step 1).
         let bail = before <= link.zone.0 + let_go_travel_m(speed) + speed * TICK_S;
+        // [press forecast] What the match learned of the link (design §9.5): a walk-in with no run, or a rest that got up, skips
+        // the walk-in; the body comes to rest at the learned rest, or at the bail-out, and asks from there.
+        let learned = flyer.learned(link.take_off, link.landing, link.cap);
+        let skip_walk_in = learned.walk_in == WalkIn::NoRun || learned.rest_lead.is_some();
         let state = std::mem::replace(&mut cast.state, CastState::Approach);
         let (state, keys) = match state {
             CastState::Approach if !link.on_line => (CastState::Approach, CastKeys::Approach),
             CastState::Approach if !at_lock || !link.may_press => {
                 (CastState::Approach, if at_lock && bail { CastKeys::Stand } else { CastKeys::Line })
+            }
+            CastState::Approach if skip_walk_in => {
+                let stop = learned.rest_lead.map_or(bail, |lead| before <= lead + let_go_travel_m(speed));
+                if stop {
+                    press_casts::count(press_casts::Slot::LearnedSkip);
+                    cast.note(&format!(
+                        "walk-in skipped ({}), stopping at {before:.2} m out",
+                        learned.rest_lead.map_or(String::from("no run here this match"), |lead| format!("a rest at {lead:.2} m got up this match"))
+                    ));
+                    (CastState::Stopping, CastKeys::Stand)
+                } else {
+                    (CastState::Approach, CastKeys::Line)
+                }
             }
             CastState::Approach if wrap(yaw_of(link.way) - pose.yaw).abs() > LOCK_YAW_RAD => {
                 if bail { (CastState::Stopping, CastKeys::Stand) } else { (CastState::Approach, CastKeys::Line) }
@@ -3844,7 +3872,9 @@ impl Motor {
                     link.landing.y,
                     link.landing.z
                 );
-                if let Some(old) = self.cast_watch.replace(CastWatch { at: self.clock, take_off: link.take_off, landing: link.landing, forecast, text }) {
+                let rest_lead = rest.then(|| link.before(plan.at(0).feet));
+                let watch = CastWatch { at: self.clock, take_off: link.take_off, landing: link.landing, forecast, rest_lead, cap: link.cap, text };
+                if let Some(old) = self.cast_watch.replace(watch) {
                     self.cast_line = Some(format!("{}; not followed to its rest", old.text));
                 }
                 (CastState::Approach, CastKeys::Press)
@@ -3859,6 +3889,10 @@ impl Motor {
             Choice::Pending => (CastState::Planned(plan), CastKeys::Walk),
             Choice::NoLanding { flown, unflown, longest } => {
                 press_casts::count(press_casts::Slot::NoLanding);
+                if !rest && unflown == 0 {
+                    press_casts::count(press_casts::Slot::LearnedNoRun);
+                    flyer.learn(link.take_off, link.landing, link.cap, &mut |learned| learned.walk_in = WalkIn::NoRun);
+                }
                 if (1..MIN_RUN).contains(&longest) {
                     press_casts::count(press_casts::Slot::Narrow);
                 }
@@ -3929,16 +3963,31 @@ impl Motor {
 
     /// [press forecast] A forecast press followed to [`CAST_WATCH_S`] after it: its line, with whether the body is up and how far
     /// it is from the forecast's rest (the reckoned body, the world's fixes in it).
-    fn cast_watch_tick(&mut self, pose: &Pose) {
+    fn cast_watch_tick(&mut self, pose: &Pose, flyer: Option<&mut dyn PressFlyer>) {
         let Some(watch) = self.cast_watch.as_ref() else {
             return;
         };
         let after = self.since(watch.at);
-        if after < CAST_WATCH_S {
+        // Judged by the landing: up on the link's landing on the ground, or not up in time.
+        let up = pose.footing == Footing::Ground && is_up(pose.feet, watch.take_off, watch.landing);
+        if !up && after < CAST_WATCH_S {
             return;
         }
-        let up = is_up(pose.feet, watch.take_off, watch.landing);
+        let Some(watch) = self.cast_watch.take() else {
+            return;
+        };
         press_casts::count(if up { press_casts::Slot::WatchedUp } else { press_casts::Slot::WatchedNotUp });
+        // A rest that got up is the link's learned rest; one that did not is dropped from it (design §9.5).
+        if let (Some(flyer), Some(lead)) = (flyer, watch.rest_lead) {
+            if up {
+                press_casts::count(press_casts::Slot::LearnedRest);
+                flyer.learn(watch.take_off, watch.landing, watch.cap, &mut |learned| learned.rest_lead = Some(lead));
+            } else {
+                flyer.learn(watch.take_off, watch.landing, watch.cap, &mut |learned| {
+                    learned.rest_lead = learned.rest_lead.filter(|old| (old - lead).abs() > SAME_LEAD_M);
+                });
+            }
+        }
         let off = watch.forecast.map_or(String::from(", no forecast rest"), |rest| {
             let flat = rest.distance_xz(pose.feet);
             if flat > CAST_OFF_M {
@@ -3947,14 +3996,13 @@ impl Motor {
             format!(", {flat:.2} m flat and {:+.2} m in height off the forecast rest ({:.2}, {:.2}, {:.2})", pose.feet.y - rest.y, rest.x, rest.y, rest.z)
         });
         self.cast_line = Some(format!(
-            "{}; {after:.2} s after: {} at ({:.2}, {:.2}, {:.2}){off}",
+            "{}; {} {after:.2} s after at ({:.2}, {:.2}, {:.2}){off}",
             watch.text,
-            if up { "up" } else { "not up" },
+            if up { "landed up" } else { "not up" },
             pose.feet.x,
             pose.feet.y,
             pose.feet.z
         ));
-        self.cast_watch = None;
     }
 
     /// [`Self::jump_key`]'s press: the gates in their order.
@@ -5313,9 +5361,15 @@ pub mod press_casts {
         WatchedNotUp,
         /// … its rest farther than `CAST_OFF_M` from the forecast's.
         OffForecast,
+        /// A walk-in learned with no run (every candidate flown): later tries skip it.
+        LearnedNoRun,
+        /// A rest that got up, learned for the link.
+        LearnedRest,
+        /// A walk-in skipped for what the match learned.
+        LearnedSkip,
     }
 
-    pub const SLOTS: [Slot; 15] = [
+    pub const SLOTS: [Slot; 18] = [
         Slot::Planned,
         Slot::NoZone,
         Slot::Flights,
@@ -5331,9 +5385,12 @@ pub mod press_casts {
         Slot::WatchedUp,
         Slot::WatchedNotUp,
         Slot::OffForecast,
+        Slot::LearnedNoRun,
+        Slot::LearnedRest,
+        Slot::LearnedSkip,
     ];
 
-    static COUNTS: [AtomicU64; 15] = [const { AtomicU64::new(0) }; 15];
+    static COUNTS: [AtomicU64; 18] = [const { AtomicU64::new(0) }; 18];
 
     /// Since the last match end ([`take_match`]): the chains and the flights.
     static MATCH: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
@@ -8987,6 +9044,7 @@ mod tests {
         poll: u32,
         chains: u32,
         flights: u32,
+        learned: super::super::body::PressLearned,
     }
 
     fn stub_step(at: &Estimate, keys: u32, turn: f32) -> Estimate {
@@ -9011,7 +9069,7 @@ mod tests {
             let yaw = yaw_of([1.0, 0.0]);
             let [fx, fz] = super::super::kin::forward(yaw);
             let body = Estimate { velocity: [fx * speed, fz * speed], keys: if speed > 0.0 { key::FORWARD } else { 0 }, ..Estimate::at_rest(Vec3::new(x, 0.0, 0.0), yaw) };
-            Self { body, lands, free: true, busy: |_| false, poll: 0, chains: 0, flights: 0 }
+            Self { body, lands, free: true, busy: |_| false, poll: 0, chains: 0, flights: 0, learned: Default::default() }
         }
 
         fn take(&mut self) -> bool {
@@ -9039,6 +9097,14 @@ mod tests {
                 out.push(next);
             }
             Some(out)
+        }
+
+        fn learned(&self, take_off: Vec3, landing: Vec3, cap: f32) -> LinkLearned {
+            self.learned.get(take_off, landing, cap)
+        }
+
+        fn learn(&mut self, take_off: Vec3, landing: Vec3, cap: f32, learn: &mut dyn FnMut(&mut LinkLearned)) {
+            self.learned.learn(take_off, landing, cap, learn);
         }
 
         fn fly(&mut self, from: &Estimate, _plan: &super::super::body::PressPlan) -> Option<PressOutcome> {
@@ -9138,6 +9204,30 @@ mod tests {
         assert!((speed - 3.5 / 6.0).abs() < 1e-3 && (-2.0..=-0.4).contains(&feet.x), "pressed at {feet:?} {speed}");
         let line = motor.cast_watch.as_ref().map(|watch| watch.text.clone()).unwrap_or_default();
         assert!(line.contains("press forecast: try 1 pressed from rest at plan tick 1") && line.contains("walk-in: no run of 3 landing ticks"), "{line}");
+    }
+
+    /// [press forecast] A walk-in that found no run (every candidate flown) is learned for the match: the next bot at the link (a
+    /// fresh motor, the same match's store) skips the walk-in, stops and presses from its rest, with fewer flights.
+    #[test]
+    fn a_walk_in_with_no_run_is_skipped_on_the_next_crossing() {
+        let slow = |at: &Estimate| at.velocity[0].hypot(at.velocity[1]) < 1.2 && (-2.0..=-0.4).contains(&at.feet.x);
+        let mut stub = Stub::new(-4.4, 3.5, slow);
+        let mut route = cast_route();
+        let (pressed, ends) = cast_walk(&mut cast_motor(true), &mut route, &mut stub, 80, None);
+        assert!(pressed.is_some(), "{ends:?}");
+        let (take_off, landing) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(3.0, -1.7, 0.0));
+        assert_eq!(stub.learned.get(take_off, landing, 3.5).walk_in, WalkIn::NoRun);
+        let first = stub.flights + stub.chains;
+        let learned = std::mem::take(&mut stub.learned);
+        let mut stub = Stub::new(-4.4, 3.5, slow);
+        stub.learned = learned;
+        let mut motor = cast_motor(true);
+        let mut route = cast_route();
+        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 80, None);
+        assert!(pressed.is_some(), "{ends:?}");
+        let line = motor.cast_watch.as_ref().map(|watch| watch.text.clone()).unwrap_or_default();
+        assert!(line.contains("walk-in skipped (no run here this match)") && !line.contains("walk-in: no run"), "{line}");
+        assert!(stub.flights + stub.chains < first, "{} against {first}", stub.flights + stub.chains);
     }
 
     /// [press forecast] No press from anywhere lands: each try is spent (backed off to the run-up, walked in again) and after

@@ -766,6 +766,49 @@ impl PressToken {
     }
 }
 
+/// [press forecast] What a match has learned of a pressed link at a walk cap (`motor::PressFlyer::learned`, design §9.5).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct LinkLearned {
+    pub walk_in: WalkIn,
+    /// The lead (m before the take-off along the press's line) of the last press from rest that got up: rested at first.
+    pub rest_lead: Option<f32>,
+}
+
+/// [press forecast] What a walk-in at the cap found at a link ([`LinkLearned`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WalkIn {
+    #[default]
+    Unknown,
+    /// Every candidate flown and no run of landing ticks: later tries go straight to the rest ask.
+    NoRun,
+}
+
+/// [press forecast] The match's learned links ([`LinkLearned`]), keyed by the link's ends and the walk cap (cm, cm/s).
+#[derive(Clone, Debug, Default)]
+pub struct PressLearned(std::collections::HashMap<([i32; 3], [i32; 3], i32), LinkLearned>);
+
+impl PressLearned {
+    fn key(take_off: Vec3, landing: Vec3, cap: f32) -> ([i32; 3], [i32; 3], i32) {
+        let cm = |v: f32| (v * 100.0).round() as i32;
+        ([cm(take_off.x), cm(take_off.y), cm(take_off.z)], [cm(landing.x), cm(landing.y), cm(landing.z)], cm(cap))
+    }
+
+    pub fn get(&self, take_off: Vec3, landing: Vec3, cap: f32) -> LinkLearned {
+        self.0.get(&Self::key(take_off, landing, cap)).copied().unwrap_or_default()
+    }
+
+    pub fn learn(&mut self, take_off: Vec3, landing: Vec3, cap: f32, learn: &mut dyn FnMut(&mut LinkLearned)) {
+        learn(self.0.entry(Self::key(take_off, landing, cap)).or_default());
+    }
+}
+
+/// [press forecast] The match's press forecast state: the poll's one forecast and the links learned.
+#[derive(Clone, Debug, Default)]
+pub struct PressMatch {
+    pub token: PressToken,
+    pub learned: PressLearned,
+}
+
 /// [press forecast] The steps of the client's flight a forecast plays at most: the sprint jump's landing step (n = 18,
 /// `SPRINT_LANDING_N`, `mapdata/controller/jump.rs`; the short jump's is 16) and the step it starts on.
 const PRESS_FLIGHT_STEPS: u32 = 19;
