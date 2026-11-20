@@ -239,6 +239,26 @@ pub(super) const SCORE_AVG_BOUND_MIGRATION: &str = "
         WHERE matches >= 5;
     ";
 
+/// The schema step that keeps the names an account leaves: a row each time
+/// its name changes, whoever changed it (a trigger of `g26_accounts`: no
+/// writer can forget it). The names of before the step are not known.
+pub(super) const NAMES_MIGRATION: &str = "
+    CREATE TABLE g26_account_names (
+        account_id INTEGER NOT NULL,
+        name       TEXT NOT NULL,
+        -- When the account took another (UTC seconds).
+        until      INTEGER NOT NULL,
+        PRIMARY KEY (account_id, until, name)
+    ) WITHOUT ROWID;
+    CREATE INDEX g26_account_names_by_name ON g26_account_names (name COLLATE NOCASE, until);
+    CREATE TRIGGER g26_account_names_keep AFTER UPDATE OF name ON g26_accounts
+    WHEN OLD.name <> NEW.name
+    BEGIN
+        INSERT OR IGNORE INTO g26_account_names (account_id, name, until)
+        VALUES (OLD.account_id, OLD.name, CAST(strftime('%s', 'now') AS INTEGER));
+    END;
+    ";
+
 /// Who could join a match.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatchKind {
@@ -799,6 +819,13 @@ pub struct Named {
     pub account_id: u32,
     pub name: String,
     pub clan: Option<ClanRef>,
+}
+
+/// A name an account had, and when it took another.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FormerName {
+    pub name: String,
+    pub until: u64,
 }
 
 /// A player's card: who it is now and its totals.
@@ -1364,6 +1391,11 @@ fn bad(what: &str, text: &str) -> rusqlite::Error {
     )
 }
 
+/// A name of `g26_account_names n` the site may say: none an administrator
+/// took from the account.
+const SAID: &str = "NOT EXISTS (SELECT 1 FROM g26_admin_actions x
+     WHERE x.account_id = n.account_id AND x.kind = 'nickname' AND x.before = n.name)";
+
 fn u64_at(row: &Row, index: usize) -> rusqlite::Result<u64> {
     Ok(row.get::<_, Option<i64>>(index)?.unwrap_or(0).max(0) as u64)
 }
@@ -1523,10 +1555,11 @@ impl MatchHistory {
 
     /// The account with this in-game name (Latin letters in any case), of
     /// those with a public match: a name is most often still the login, so
-    /// no other account is ever found.
+    /// no other account is ever found. With no account of the name now,
+    /// the one that left it last ([`Self::former_names`]).
     pub fn account_by_name(&self, name: &str) -> Result<Option<u32>, PersistError> {
-        Ok(self
-            .reader()
+        let connection = self.reader();
+        let now = connection
             .query_row(
                 "SELECT a.account_id FROM g26_accounts a
                  JOIN g26_player_totals t ON t.account_id = a.account_id
@@ -1535,7 +1568,49 @@ impl MatchHistory {
                 [name],
                 |row| row.get(0),
             )
+            .optional()?;
+        if now.is_some() {
+            return Ok(now);
+        }
+        Ok(connection
+            .query_row(
+                &format!(
+                    "SELECT n.account_id FROM g26_account_names n
+                     JOIN g26_player_totals t ON t.account_id = n.account_id
+                     WHERE n.name = ?1 COLLATE NOCASE AND {SAID}
+                     ORDER BY n.until DESC, n.account_id LIMIT 1"
+                ),
+                [name],
+                |row| row.get(0),
+            )
             .optional()?)
+    }
+
+    /// The names the account left that the site may say, the last left
+    /// first, at most `limit`: not one an administrator took from it (the
+    /// audit trail's `nickname` rows), which was taken for a reason, nor
+    /// the one it has again now.
+    pub fn former_names(
+        &self,
+        account_id: u32,
+        limit: usize,
+    ) -> Result<Vec<FormerName>, PersistError> {
+        let connection = self.reader();
+        let mut statement = connection.prepare_cached(&format!(
+            "SELECT n.name, MAX(n.until) FROM g26_account_names n
+             WHERE n.account_id = ?1 AND {SAID}
+                 AND n.name <> (SELECT a.name FROM g26_accounts a WHERE a.account_id = ?1)
+             GROUP BY n.name ORDER BY MAX(n.until) DESC, n.name LIMIT ?2"
+        ))?;
+        let names = statement
+            .query_map(params![account_id, bounded(limit)], |row| {
+                Ok(FormerName {
+                    name: row.get(0)?,
+                    until: u64_at(row, 1)?,
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(names)
     }
 
     /// The account's card; `None` for no account or one without a public
@@ -2075,6 +2150,7 @@ mod tests {
     use crate::persist::DB_FILE;
     use crate::v026g::account::Account;
     use crate::v026g::clans::{Clan, Member};
+    use crate::v026g::moderation::AdminAction;
     use survarium::v026g::maps::GameMode;
 
     struct TempDir(std::path::PathBuf);
@@ -3270,6 +3346,75 @@ mod tests {
             // Only the ties are sorted further, by account.
             assert!(!plan.contains("USE TEMP B-TREE FOR ORDER BY"), "{plan}");
         }
+    }
+
+    #[test]
+    fn the_names_an_account_leaves_are_kept() {
+        let dir = TempDir::new("names");
+        let (mut repository, history) = repository(&dir);
+        repository.record_match(&record(PUBLIC, 1_000)).unwrap();
+        let names = |history: &MatchHistory| -> Vec<String> {
+            history
+                .former_names(10, 10)
+                .unwrap()
+                .into_iter()
+                .map(|former| former.name)
+                .collect()
+        };
+        // Saved as it is: no name left.
+        repository.save(10, &Account::new("Alice")).unwrap();
+        assert!(names(&history).is_empty());
+        repository.save(10, &Account::new("Alisa")).unwrap();
+        let left = history.former_names(10, 10).unwrap();
+        assert_eq!(names(&history), ["Alice"]);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        assert!(left[0].until <= now && left[0].until + 60 > now, "{left:?}");
+        // Found by the name it left, while nobody has it now.
+        assert_eq!(history.account_by_name("alice").unwrap(), Some(10));
+        assert_eq!(history.account_by_name("Alisa").unwrap(), Some(10));
+        repository.save(11, &Account::new("Alice")).unwrap();
+        assert_eq!(history.account_by_name("Alice").unwrap(), Some(11));
+        assert_eq!(names(&history), ["Alice"]);
+        assert_eq!(
+            history.former_names(11, 10).unwrap()[0].name,
+            "Bob",
+            "each account its own"
+        );
+        // A name an administrator took from it is not said, nor found by.
+        let mut renamed = Account::new("Alina");
+        renamed.rating = 150;
+        repository
+            .save_admin(
+                10,
+                Some(&renamed),
+                &[AdminAction {
+                    at: now,
+                    admin: "127.0.0.1".to_owned(),
+                    account_id: 10,
+                    account: "Alina".to_owned(),
+                    kind: "nickname".to_owned(),
+                    change: "nickname changed".to_owned(),
+                    reason: "test".to_owned(),
+                    before: "Alisa".to_owned(),
+                    after: "Alina".to_owned(),
+                }],
+            )
+            .unwrap();
+        assert_eq!(names(&history), ["Alice"]);
+        assert_eq!(history.account_by_name("Alisa").unwrap(), None);
+        assert_eq!(history.former_names(99, 10).unwrap(), []);
+        // A name taken again is the name now, not one left.
+        repository.save(11, &Account::new("Bob")).unwrap();
+        let left: Vec<String> = history
+            .former_names(11, 10)
+            .unwrap()
+            .into_iter()
+            .map(|former| former.name)
+            .collect();
+        assert_eq!(left, ["Alice"]);
     }
 
     #[test]

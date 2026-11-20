@@ -318,10 +318,26 @@
       [TEXT.hours, totals ? hours.format(totals.played_s / 3600) : null]];
   }
 
+  // The names a player left, the last left first, each saying until when
+  // on a hover: the last FORMER_SHOWN, the rest behind a button that says
+  // how many they are.
+  const FORMER_SHOWN = 5;
+  function formerNames(names) {
+    if (!names.length) return '—';
+    const said = list => list.flatMap((former, i) => [i ? ', ' : '',
+      el('span', {title: say(TEXT.until, day.format(new Date(former.until * 1000)))}, former.name)]);
+    const box = el('span', {className: 'stats-names'}, said(names.slice(0, FORMER_SHOWN)));
+    if (names.length > FORMER_SHOWN) {
+      const rest = el('button', {type: 'button', className: 'quiet', ariaLabel: TEXT.formerNames}, `+${n(names.length - FORMER_SHOWN)}`);
+      rest.addEventListener('click', () => box.replaceChildren(...said(names)));
+      box.append(' ', rest);
+    }
+    return box;
+  }
   async function playerView(name) {
     heading(name, TEXT.player, TEXT.player);
     const head = (card, days) => panels(
-      [TEXT.overall, [[TEXT.id, card ? String(card.player.id) : null], [TEXT.level, card ? n(card.level) : null], [TEXT.experience, card ? n(card.experience) : null],
+      [TEXT.overall, [[TEXT.id, card ? String(card.player.id) : null], [TEXT.formerNames, card ? formerNames(card.names) : null], [TEXT.level, card ? n(card.level) : null], [TEXT.experience, card ? n(card.experience) : null],
         [TEXT.rating, card ? n(card.rating) : null],
         [TEXT.clan, card ? (card.player.clan ? link({clan: card.player.clan.tag}, `[${card.player.clan.tag}]`) : '—') : null], ...record(card && card.totals)]],
       [TEXT.inMatches, combat(card && card.totals)],
