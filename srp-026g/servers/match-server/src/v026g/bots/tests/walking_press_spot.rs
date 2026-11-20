@@ -48,17 +48,6 @@ struct Run {
     sprint_keys_hit: u32,
 }
 
-/// The server's game data, loaded once from `SRP_GAME_DATA` (required: the grid body's fastest walk cap comes from the bots'
-/// kits in it, so a grid built without it is not the server's).
-fn game_data() {
-    static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(|| {
-        assert!(bench_settings().var_os("SRP_GAME_DATA").is_some_and(|p| !p.is_empty()), "set SRP_GAME_DATA to the server's file");
-        let data = survarium::v026g::game_data::init().unwrap_or_else(|cause| panic!("SRP_GAME_DATA: {cause}"));
-        eprintln!("game data: {}", data.origin);
-    });
-}
-
 /// A bot sent from `start` to `goal`, hit every tick once within [`HIT_M`] of `take_off`.
 fn run(world: &Arc<World>, start: Vec3, take_off: Vec3, goal: Vec3, until: u32) -> Run {
     let tuning = Tuning::default();
@@ -135,11 +124,10 @@ fn run(world: &Arc<World>, start: Vec3, take_off: Vec3, goal: Vec3, until: u32) 
 #[test]
 #[ignore = "a per-spot test on the real mapdata; needs SRP_MAPDATA_DIR"]
 fn a_bot_refused_the_sprint_at_schools_gap_takes_it_by_its_slow_walking_press() {
-    let Some(dir) = bench_settings().var_os("SRP_MAPDATA_DIR").map(std::path::PathBuf::from) else {
+    let Some(dir) = super::real_maps::dir() else {
         eprintln!("skipping: SRP_MAPDATA_DIR is not set");
         return;
     };
-    game_data();
     let t = Tuning::default();
     let bytes = std::fs::read(dir.join(mapdata::format::file_name(PROJECT))).unwrap();
     let map_file = {
