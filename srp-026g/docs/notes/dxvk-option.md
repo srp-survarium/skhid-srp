@@ -127,6 +127,86 @@ window keeping its size.
   not at all; one left out for want of room, none ever with these five, is counted on the line). Nothing changes in a running
   game; DirectX 11 runs ignore the five.
 
+## Performance: what DXVK is given, and why
+
+Read 2026-11-09 for the FPS reports (a player's logs: RTX 5070 Ti, NVIDIA 617.42, Windows, a 300 Hz
+monitor, `dxvk.latencySleep` and `dxvk.hideIntegratedGraphics`; another player: GTX 1050, "DXVK
+20-30 fps, DirectX 11 80-90"), from DXVK 3.1.1's source and the exe. Nothing measured: no Windows PC,
+and the local GPU was taken by the FPS lane's runs. DXVK is given the five options above and
+nothing else; every other setting is DXVK 3.1.1's default, each for the reason below.
+
+- **Frame latency is already 1.** The game's swap chain has one buffer (`initialize_swap_chain`'s
+  desc, BufferCount 1 at 0x3CF57E), and DXVK caps the frame latency at the buffer count
+  (`D3D11SwapChain::GetActualFrameLatency`: the device's maximum frame latency, 3 by default, then
+  `min(.., BufferCount)`). So under DXVK each Present waits until the frame before it is presented
+  (with vsync, until it is on screen: the presenter's `vkWaitForPresentKHR` for FIFO), the CPU never
+  more than one frame ahead; Windows' own DXGI lets it queue three. Input lag under DXVK is low
+  without any option.
+- **Reduce input lag** (`dxvk.latencySleep`) stays an option, off by default. In a 32-bit process
+  DXVK does not use NVIDIA's `VK_NV_low_latency2` (`dxvk.disableNvLowLatency2` Auto; the report's log:
+  "Latency control enabled, using built-in algorithm"). The built-in algorithm
+  (`dxvk_latency_builtin.cpp` `sleepBuiltin`) waits each frame for the previous Present to be
+  processed, then sleeps so the next frame's GPU work starts just in time. DXVK assumes the game reads
+  input after Present returns; this engine reads it on its logic thread, which runs up to one frame
+  ahead of the render (0.10b `engine_world_logic.cpp`: the logic waits while its frame id is past
+  the renderer's + 1), so the gain over latency 1 is small and unmeasured, and the cost is frame
+  rate and pacing (dxvk.conf: "may reduce performance or lead to less consistent frame pacing"). With
+  it on, a Present with a sync interval (vsync, or a scene that asks for it: below) at a window sets
+  DXVK's own limiter to that monitor's refresh rate (`DxgiSwapChain::UpdateTargetFrameRate`): the
+  report's "Built-in frame rate limiter enabled ..." and "Detected frame rate (~353) higher than
+  selected refresh rate of ~300 Hz. Engaging frame rate limiter." are that, not a fault.
+- **Present mode:** `dxvk.tearFree` Auto. Without a sync interval DXVK presents IMMEDIATE (tearing,
+  the lowest latency), with one FIFO (`Presenter::pickPresentMode`); the swap chain is made with both
+  as dynamic modes (the log's "Present mode: VK_PRESENT_MODE_FIFO_KHR (dynamic: yes)", so FIFO there
+  does not say vsync was on). The Tear-free option (True) picks MAILBOX without a sync interval.
+  `dxgi.syncInterval` is not set: the game's Vsync checkbox decides.
+- **Frame rate limit Off** is DXVK's 0, its own limiter only in the cases above. -1 would turn those
+  off too, and with them the refresh rate the latency sleep aims at; not used.
+- **Pipelines:** `dxvk.enableGraphicsPipelineLibrary` Auto, used wherever the driver has
+  `graphicsPipelineLibrary` and independent interpolation (`DxvkDevice::canUseGraphicsPipelineLibrary`;
+  the report's log: "Graphics pipeline libraries supported"). Shaders are then compiled when the game
+  creates them, a draw links its pipeline from them at once, and the optimized pipeline is built in
+  the background. False would bring compile stalls back at first draws; True adds nothing.
+- **Compiler threads:** `dxvk.numCompilerThreads` 0: one per CPU thread, at most 8 in a 32-bit
+  process, at the lowest thread priority (`DxvkPipelineWorkers`; the log: 8). Unchanged.
+- **The shader cache:** DXVK 3.1.1 keeps no pipeline state cache. Its `<hash>.dxvk.bin` and `.lut` in
+  `%LOCALAPPDATA%\dxvk` hold its translated shaders, named by the 64-bit FNV-1a of the exe's name with
+  the slash before it (`DxvkShaderCache::getDefaultFilePaths`: the second `find_last_of` starts at
+  the slash it found, so the folder is left out): `\survarium_skhid.exe` is `2e2077e43dd237bb`, the
+  report's file ("Cache: 960 shaders"). It outlives our updates (the exe's name stays) and is rebuilt
+  for another DXVK version (its header has DXVK's version). The pipelines' own compiles are the
+  driver's, in its cache. A cache shipped with the game would save only the translation of a shader
+  the first time a PC meets it, would need a folder DXVK may write (`DXVK_SHADER_CACHE_PATH`; the game
+  can be under Program Files) and would go stale with DXVK's version: none is shipped.
+
+**DirectX 11 stays the default.** The RTX 5070 Ti ran about 350 fps under DXVK, so DXVK has no
+general slow path in this game. A GTX 1050 three times slower under DXVK is that PC's; what its DXVK
+logs (`survarium_skhid_d3d11.log`, `_dxgi.log` beside the exe) would tell, none received yet:
+
+- the GPU DXVK took (`Found device`, `Creating device`): the exe takes DXVK when any device has
+  Vulkan 1.4, and DXVK leaves out a device under 1.4, so a dedicated GPU without 1.4 beside an
+  integrated one with it runs on the integrated one;
+- video memory: a GTX 1050 has 2 GB; DXVK puts what does not fit into system memory (the log's
+  heaps, the overlay's "memory" item), where Windows' DirectX 11 driver pages it in and out;
+- the CPU: DXVK adds its own threads (command stream, submission, presenter, compiler threads), on a
+  four-thread CPU against the game's render, logic and task threads.
+
+**DirectX 11's own settings** (exe 0.26g):
+
+- `r_vsync` off by default (`options::set_default_values`, 0x3CD74A). Present's sync interval is
+  `r_vsync` or its caller's flag: `renderer::render` passes the scene's (a flag of the scene's
+  creation, `scene::scene` 0x14FA65) unless the debug variable `r_force_no_vsync` (0x1F1D967) is
+  set; `is_ready_for_render` passes 0.
+- `r_max_fps` 10000 by default (0xA7A824): `renderer::render` sleeps whole milliseconds when a frame
+  took less than 1/r_max_fps (0x13DF5C): no limit in effect.
+- `r_instancing` off by default (0x3CD804), and no code reads it past the options' pointer
+  (0x2260498): not a lever.
+- The swap chain: one buffer, DISCARD (bit-block transfer), windowed, fullscreen by
+  SetFullscreenState. Windowed on Windows 10 the desktop compositor copies each frame; Windows 11
+  turns such swap chains into flip model itself ("Optimizations for windowed games"). A flip-model
+  swap chain of our own (FLIP_DISCARD, two buffers, tearing allowed) would be an exe change tested on
+  Windows, and would raise DXVK's frame latency to 2: not done.
+
 ## The files
 
 - The Skhid ZIP ships DXVK 3.1.1's 32-bit DLLs in `game\binaries\x86\dxvk\`, ordinary overlay
@@ -147,12 +227,12 @@ window keeping its size.
   static 64 KiB buffer; its first `srp_dxvk` line.
 - One state and one transition (`Renderer`, `step` in `hud_options.rs`):
   - DirectX 11 picked, or a file of `dxvk\` missing: Windows' own Direct3D; a marker left goes.
-  - Vulkan/DXVK picked, all five there, no marker: `dxvk.pending` written first, then the Vulkan
+  - Vulkan/DXVK picked, the four it loads there (not d3d8: below), no marker: `dxvk.pending` written first, then the Vulkan
     look: vulkan-1.dll loaded, an instance made, the devices' `apiVersion` read (the CPU's not
     counted), the instance destroyed, the DLL let go. A device of 1.4 or later: `DXVK_CONFIG` set
     from the Vulkan options (above), then DXVK's DLLs loaded by their full paths, dxgi, d3d11,
-    d3d10core, d3d9, d3d8 (each one's imports by name are of
-    those before it), never let go; one that fails stops the loads, logged, and the marker covers
+    d3d10core, d3d9 (each one's imports by name are of those before it), never let go; not
+    d3d8.dll, which is shipped but which the game never imports (1.6 MiB of address space); one that fails stops the loads, logged, and the marker covers
     a crash. As each loads, the game's delayed import of its name (dxgi, d3d11, d3d9) is bound to
     it: its module slot (`survarium::image` `dxgi_module`, `d3d11_module`, `d3d9_module`) holds
     the DLL, and `__delayLoadHelper2` (0xE48E0) loads nothing for a slot already set (below).
@@ -275,11 +355,104 @@ size; Settings to windowed writes the caption back itself (set_size). This holds
 DXVK (Wine too), not only AMD's. The renderer's state is a `Lock` now, by way of defence: no second
 thread reading it is shown (the start, the login screen and every Present are the main thread's).
 
+## The address space (SRP-3)
+
+**The reports** (2026-11-08/09, rev53 and rev54; RX 7800 XT twice, RX 6900 XT; AMD's Windows Vulkan driver 2.0.353 to
+2.0.416): with Vulkan on, crashes at every lobby reconnect at `d3d11.dll+0x74E17` (DXVK's, a read of 0x20), in
+`amdvlk32.dll`, and in the game's own code. The game is 32-bit: 4 GiB of address space, and DXVK on AMD fills it.
+
+- **What crashes** (PROVEN: DXVK 3.1.1's binary and source, reproduced). `0x74E17` is `DxvkBuffer::DxvkBuffer`
+  (`dxvk_buffer.cpp:34`, `assignStorage(allocateStorage())`), reached from `CreateTexture2D` making a texture with CPU
+  access its mapped buffer: `DxvkMemoryAllocator::createBufferResource` logs "Memory allocation failed" and answers
+  null when no memory can be had, and the constructor reads through it. A 32-bit program filling its address space and
+  then making 4 MiB staging textures (a test program, not in the repo) crashes at the same
+  instruction with the same read, under DXVK on an AMD iGPU and on an RTX alike; Windows' own D3D11 refuses the texture
+  instead. The live game on a PC of an RTX 5090 and an enabled Radeon iGPU, Vulkan on: 4073 MiB used 14 s after its
+  start, then that crash, half a second after `atmosphere recalculated (... window_resized:true)` as in the report.
+- **Where it goes** (measured, a device made and presented once, nothing else): Windows' D3D11 317 MiB on the RTX, 363
+  on the AMD iGPU; DXVK 600 on the RTX, 811 to 921 on the AMD iGPU. On AMD the first Present alone takes about 213
+  MiB: AMD's Vulkan driver presents through DXGI and loads its own D3D12 driver for it (`amdxc32.dll`, 69 MiB, and the
+  D3D12 runtime). And the Vulkan loader loads every driver it knows, so a PC of two vendors' GPUs maps both (on
+  riad5's, two AMD driver packages: 94 and 85 MiB). The players' minidumps: 451 to 606 MiB of modules with DXVK, 321
+  to 330 without; BigRUS's two rev53 crashes peaked at 4062 and 4073 MiB of virtual size.
+
+**What the start does now** (patch 83, `hud_options.rs` `look_for_dxvk`):
+
+- **One vendor's drivers.** The Vulkan look asks the loader for one vendor's drivers at a time
+  (`VK_LOADER_DRIVERS_SELECT`, a glob of their manifests' names: `amd*`, `nv*`, `igvk*`), AMD's, NVIDIA's, Intel's,
+  until one has a discrete GPU that DXVK takes (`renderer.rs` `dxvk_pick`: DXVK 3.1.1's choice, discrete first, then
+  integrated, at least Vulkan 1.4, the player's `DXVK_FILTER_DEVICE_NAME` honoured); the variable stays set to that
+  vendor's, so DXVK's instance loads those alone. A look that finds another vendor's device means the loader took no
+  such variable (it ignores it in an elevated process): then every driver, as before. A player's own
+  `VK_LOADER_DRIVERS_SELECT` or `_DISABLE` is kept. `srp_patches.log`: `dxvk: Vulkan drivers: "nv*" only
+  (VK_LOADER_DRIVERS_SELECT), DXVK's GPU NVIDIA GeForce RTX 5090`, or `all (...)` with why. Measured at the user's own
+  level on that PC: AMD's D3D12 driver no longer loads with DXVK on the RTX, and the start that crashed signed in
+  (peak 3621 MiB); the excluded vendor's main driver DLL is still mapped by the loader (85 MiB for AMD's), not its
+  dependencies.
+- **No descriptor heap on AMD.** When DXVK's GPU is AMD's, `DXVK_CONFIG` gets `dxvk.enableDescriptorHeap = False`, as
+  DXVK decides by itself after 3.1.1 (doitsujin/dxvk 076922bd2, its #5837: DXVK 3 crashed at start on an RX 7900 XTX
+  with it). Logged on its own line (`DXVK_CONFIG adds ...`); DXVK's log says `Binding model: Legacy`.
+- **AMD's look first.** NVIDIA's driver (`nvoglv32.dll` and `nvgpucomp32.dll`, 111 MiB) stays mapped after its look's
+  instance is destroyed and the loader let go; AMD's goes (measured with a test program and in the game's DLL load
+  trace: NVIDIA's two load at the first look and stay to the end). With NVIDIA's look first, DXVK on a Radeon beside an
+  RTX kept NVIDIA's 111 MiB for nothing. AMD's look comes first now: an RTX beside a Radeon iGPU costs AMD's look only,
+  a Radeon dGPU stops the look before NVIDIA's driver is ever loaded, and an Optimus laptop (Intel iGPU, RTX) stops at
+  the RTX before Intel's. Two discrete GPUs of AMD and NVIDIA: AMD's.
+- **A vendor without a driver has no say** (review of #1596). A look whose glob matches no driver makes no instance
+  (`VK_ERROR_INCOMPATIBLE_DRIVER`: the real loader leaves lavapipe's manifest out too), and only the looks that made
+  one are compared: on a PC without NVIDIA's drivers (an RX alone, an Intel iGPU with a Radeon) AMD's look decides.
+  Before the fix the comparison read the empty slot of NVIDIA's failed look, and such a PC loaded every driver.
+- **The other vendors' layers off.** A driver manifest can declare an implicit layer in the same DLL: AMD's
+  `VK_LAYER_AMD_switchable_graphics` (in `amdvlk32.dll`), NVIDIA's `VK_LAYER_NV_optimus` and `VK_LAYER_NV_present` (in
+  `nvoglv32.dll`). The loader loads implicit layers whatever drivers `VK_LOADER_DRIVERS_SELECT` (or `VK_DRIVER_FILES`)
+  lets it take, so the driver filter left AMD's 85 MiB DLL mapped beside an RTX. Each vendor's look, and DXVK's
+  instance after, has the other vendors' layers turned off by their manifests' own switches
+  (`DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1`, `DISABLE_LAYER_NV_OPTIMUS_1`, `DISABLE_LAYER_NV_PRESENT_1` = 1), so the
+  look sees what DXVK will; a switch the player set is kept. Measured with the loader's own log, unelevated, RTX 5090
+  and Radeon iGPU: `nv*` alone maps `amdvlk32.dll` 85 MiB, with AMD's switch nothing of AMD's; `amd*` alone maps
+  `nvoglv32.dll` 25 MiB, with NVIDIA's two switches nothing of NVIDIA's. Elevated, the loader ignores both (every
+  driver loads anyway, as before). `srp_patches.log`: `dxvk: other vendors' Vulkan layers off: ...`.
+- **One driver of DXVK's GPU** (`one_driver`). One player's AMD PC mapped two AMD Vulkan drivers, 32.0.21045
+  (`u0204589.inf`, 85 MiB) and 32.0.32015 (`amdvlk.inf`, 93 MiB), both of the same RX: both manifests match `amd*`,
+  and the loader (1.4.350 there) keeps both drivers (it drops a second layer of the same name, and a registry-key
+  driver whose manifest's name it has already, not a second driver package). When the winning vendor's look lists
+  DXVK's GPU more than once, the manifests beside each driver DLL its instance loaded (`K32EnumProcessModules`, a DLL
+  exporting `vk_icdNegotiateLoaderICDInterfaceVersion`; `FindFirstFileA` `*.json` in its folder) are tried one by one
+  alone (`VK_DRIVER_FILES`, the glob deleted); the first that gives the GPU exactly as DXVK picked it (its driver
+  version: the driver DXVK uses now) is kept, with every vendor's layers off (the loader keeps one of two same-named
+  layers, which may be in the other driver's DLL), after a last look with exactly that must give DXVK the same GPU.
+  The same is done when the GPU is listed once but the look's instance loaded two or more of the vendor's drivers: a
+  stale package (an old `amdvlk.inf` beside Adrenalin's driver, SRP-3) whose driver finds no device still stays
+  mapped, about 100 MiB of a 32-bit game's address space, while an instance lives.
+  The drivers of a look are the DLLs that came with its instance (the process's modules noted right before
+  `vkCreateInstance`, the new ones after): a driver an earlier vendor's look left mapped (NVIDIA's stays) is
+  neither counted nor its folder read.
+  Anything less certain leaves the glob and the layers as they were and says why: a manifest that gives the GPU twice
+  (two such GPUs, or an elevated game where the loader ignores `VK_DRIVER_FILES`), no manifest that gives it alone, a
+  last look that does not. A player's own `VK_DRIVER_FILES` or `VK_ICD_FILENAMES` is kept like their
+  `VK_LOADER_DRIVERS_SELECT` (every driver they allow looked at). `srp_patches.log`: `dxvk: DXVK's GPU has 2 drivers:
+  <manifest> only (VK_DRIVER_FILES), its layers off` (`dxvk: 2 Vulkan drivers of DXVK's GPU's vendor loaded, one gives
+  it: ...` for a stale one), or `..., all kept (<why>)`.
+- **The video-memory probe's DirectDraw object** (with either renderer, `on_ddraw_probed`). The engine's VRAM check
+  (`get_local_video_memory_size` 0x106300, through 0x1060F0, to `GetVideoMemoryViaDirectDraw` 0x105DB0, the DirectX
+  SDK sample's) makes a DirectDraw object and releases only the IDirectDraw7 it asks it for. DirectDrawCreate loads
+  the GPU's own Direct3D driver, and the leaked object keeps it mapped for the whole game, also under DXVK, which never
+  draws with it: an image-load trace of the game's start shows `ddraw.dll`, then `nvd3dum.dll`. The object is now
+  released at 0x105E8E, before the probe releases its IDirectDraw7 and lets ddraw.dll go (after that FreeLibrary the
+  object's code is unmapped); the probe's number is the same. `srp_patches.log`: `video memory: the DirectDraw object
+  of the engine's probe released, references left 0`. Measured at the login screen on an RTX 5090: DirectX 11 3017 ->
+  2964 MiB used, DXVK 3366 -> 3293 MiB, `nvd3dum.dll` (43 MiB) gone from both. On AMD the driver is `amdxn32.dll`,
+  34 to 35 MiB in every player's dump, DXVK and DirectX 11 alike (not measured on AMD here: the Radeon iGPU of the
+  test PC drives no display, and DirectDraw takes the display's GPU).
+
+**What stays:** a PC of one AMD GPU gains nothing from the drivers' limit, only the probe's driver (about 35
+MiB), and AMD's presentation through D3D12 is AMD's. The game peaks near 3.9 GB on DirectX 11 already (the arenas reserved at its start); patches 124 and 129
+(rev54) reserve more. DXVK on such a PC can still run out: no setting is switched for the player after a crash (no
+fallback that would hide which renderer failed).
+
 ## Known limits
 
 - A start that fails with DXVK costs one start; the next is DirectX 11 again by itself.
-- DXVK's DLLs import the Universal C Runtime (`api-ms-win-crt-*`): Windows 10 and 11 have it, a
-  Windows 7 or 8.1 without its update fails at the start with DXVK (and then falls back, above).
 - The Vulkan look runs in the game's process: a Vulkan layer that hangs there hangs the start
   (one that crashes leaves the marker).
 - Antivirus: DXVK's 3.1.1 release notes say some antivirus programs flag its 32-bit builds. A

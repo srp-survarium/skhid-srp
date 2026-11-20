@@ -1,0 +1,12 @@
+# The rifle scopes this pack adds (the owner, 2026-10-26: "let's do those 8"; the CompM4 at x2 is an edit list's)
+# dict id	name	0.69d0 module	kind	fov_factor (1 / zoom)	price	icon row	icon col	donor zoom
+#   kind: C a collimator (the weapon stays shown when aiming; a red dot baked in its aimed model), S a scope
+#   price: silver, seller 0 at no rank [the coordinator's pick, in line with the scopes sold: the owner's to change]
+#   icon: its cell of the lobby's consumables atlas (LobbyMenu_AmmoIcons), column 4's free cells
+2113	shop_scope_ncstar_4	collimators/ncstar_4_collimator	C	0.8	7000	13	4	1.2
+2114	shop_scope_eotech_xps2	collimators/eotech_xps2_collimator	C	0.8	9000	14	4	1.2
+2115	shop_scope_belomo_pk01	collimators/belomo_pk01_collimator	C	0.5	10000	15	4	2
+2116	shop_scope_hensoldt_rsas	collimators/hensoldt_rsas_collimator	C	0.5	10000	16	4	2
+2117	shop_scope_aperture	scopes/aperture_scope	S	0.3333	11000	17	4	3/6
+2118	shop_scope_acog_ta01	scopes/acog_ta01_4x32_scope	S	0.25	14000	18	4	4/8
+2119	shop_scope_leupold_3_7	scopes/leupold_3_7x4x8_scope	S	0.1667	17000	19	4	4/8

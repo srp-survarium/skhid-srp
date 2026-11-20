@@ -35,6 +35,7 @@ pub mod bonus;
 pub mod bot_kits;
 pub mod bots;
 pub mod clans;
+pub mod comments;
 pub mod extras;
 pub mod items_rules;
 pub mod known;

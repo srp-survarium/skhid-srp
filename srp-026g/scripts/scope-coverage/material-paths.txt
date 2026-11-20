@@ -1,0 +1,11 @@
+material_instances/weapons/attach/handguard/handguard_groza.material
+material_instances/weapons/attach/handguard/handguard_valmet_old.material
+material_instances/weapons/attach/picatini_rails/picatini_lastochka.material
+material_instances/weapons/attach/picatini_rails/picatini_medium.material
+material_instances/weapons/attach/picatini_rails/picatini_on_barel_vss.material
+material_instances/weapons/attach/picatini_rails/picatini_pecheneg.material
+material_instances/weapons/attach/picatini_rails/picatini_pistol.material
+material_instances/weapons/attach/picatini_rails/picatini_rpd_01.material
+material_instances/weapons/attach/picatini_rails/picatini_small.material
+material_instances/weapons/modules/picatinnyrails/aks74u_zenit_b18_picatinnyrail.material
+material_instances/weapons/modules/picatinnyrails/winchester_1894_picatinnyrail.material

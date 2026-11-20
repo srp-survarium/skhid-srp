@@ -152,8 +152,8 @@ package survarium.controls
       private var _vtMessage:MessageBase;
       
       protected var _factionData:Object;
-      
-      protected var firstScale:int = 0;
+
+      private var _band:DisplayObject;
 
       // The game's own label of Play while it is the rooms' Leave, and ours.
       private var _roomsPlayLabel:String;
@@ -314,16 +314,11 @@ package survarium.controls
       
       public function set player_level(value:uint) : void
       {
-         if(value != TOP_RANK_LEVEL)
-         {
-            this.panel_player.top_rank_icon.visible = false;
-            this.panel_player.txLevel.text = value.toString();
-         }
-         else
-         {
-            this.panel_player.top_rank_icon.visible = true;
-            this.panel_player.txLevel.text = "";
-         }
+         // one badge at a time: the icon at the top rank, the ring with the number below it
+         var topRank:Boolean = value == TOP_RANK_LEVEL;
+         this.panel_player.top_rank_icon.visible = topRank;
+         this.panel_player.txLevel.visible = !topRank;
+         this.panel_player.txLevel.text = topRank ? "" : value.toString();
       }
       
       public function set progress_hint(value:String) : void
@@ -489,9 +484,18 @@ package survarium.controls
          LocalizationData.addButton(this.playBtn,"Play");
          panel_games_block = this.mid_back.getChildByName("panel_games_block") as MovieClip;
          panel_players_block = this.mid_back.getChildByName("panel_players_block") as MovieClip;
+         // mid_back's third child is the band behind the bar (a 1920 wide picture, unnamed)
+         var i:int = 0;
+         while(i < this.mid_back.numChildren)
+         {
+            if(this.mid_back.getChildAt(i) != panel_games_block && this.mid_back.getChildAt(i) != panel_players_block)
+            {
+               _band = this.mid_back.getChildAt(i);
+            }
+            i++;
+         }
          constraints.addElement("btn_settings",this.btn_settings,Constraints.RIGHT);
          constraints.addElement("btn_off",this.btn_off,Constraints.RIGHT);
-         constraints.addElement("mid_back",this.mid_back,Constraints.CENTER_H);
          constraints.addElement("panel_info_blog",this.panel_info_blog,Constraints.LEFT);
          constraints.addElement("panel_player",this.panel_player,Constraints.LEFT);
          constraints.addElement("panel_time_block",this.panel_time_block,Constraints.RIGHT);
@@ -637,40 +641,27 @@ package survarium.controls
          }
       }
       
+      // The top bar spans the lobby's width (MainScene.stageWidth, in the lobby's units: 1920 below
+      // an aspect of 1.85, wider above) at its own scale 1: the constraints move its parts to their
+      // edges or the middle, none is stretched. (Stretching the panel to that width and scaling its
+      // parts back assumed the panel's bounds stay those of its symbol; they do not, so on a wide
+      // screen everything ended short of the right edge, and Play, not constrained, was stretched
+      // over the Clan tab.)
       override protected function draw() : void
       {
-         var scale:Number = 1;
-         var upscale:Number = 0;
-         var newWidth:int;
-         var originHeight:Number;
-         newWidth = MainScene.stageWidth;
-         originHeight = _height / scaleY;
-         trace("SP::updateSize",newWidth,upscale,"|",height,_height,originHeight);
          if(isInvalid(InvalidationType.SETTINGS))
          {
-            setActualSize(newWidth / scale,originHeight);
-            setSize(newWidth / scale,originHeight);
+            setActualScale(1,1);
             if((constraints))
             {
-               constraints.update(newWidth / (scale - upscale),originHeight);
+               constraints.update(MainScene.stageWidth,_originalHeight);
             }
-            if(this.firstScale < 2)
-            {
-            }
+            // the band behind the bar covers the lobby's whole width
+            this._band.width = MainScene.stageWidth;
             this.reflowPlayers();
          }
-         var stScale:Number = 1;
-         if(MainScene.stageWidth / MainScene.stageHeight < 1.85)
-         {
-            setActualScale(stScale - upscale,stScale - upscale);
-         }
-         trace("SP::",this.centerContainerTop,this.play_container,this.matchSettings);
          this.play_container.x = this.centerContainerTop.x;
          this.matchSettings.x = int(this.play_container.x + 8);
-         firstScale += 1;
-         if((this.labelInfo))
-         {
-         }
          dispatchEvent(new Event(LAID_OUT));
       }
       

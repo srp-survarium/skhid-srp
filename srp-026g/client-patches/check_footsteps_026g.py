@@ -33,12 +33,13 @@ import patch_026g as base
 HANDLER = 0x2A6470
 FOOT_STEP, RUSTLES = 0x2A6520, (0x2A6580, 0x2A6630, 0x2A66C0)
 THREAD_SLOT = 0x870118
+ENVIRONMENT_SLOT = 0x8701B4                         # GetEnvironmentVariableA (the step log switch)
 
 DATA = 0x30000000
 EFFECT, EFFECT2, PLAYER, CORE, EVENT, OTHER = (DATA + 0x1000 * i for i in range(6))
 CORE_SIZE = 0x20000
 STUBS = DATA + 0x30000
-THREAD, RETURN = STUBS, STUBS + 0x20
+THREAD, RETURN, ENVIRONMENT = STUBS, STUBS + 0x20, STUBS + 0x40
 STACK = 0x21000000
 KEPT = {UC_X86_REG_EBX: 0x0B0B0B0B, UC_X86_REG_ESI: 0x05050505, UC_X86_REG_EDI: 0x0E0E0E0E,
         UC_X86_REG_EBP: 0x0019FF00}
@@ -56,6 +57,8 @@ class Run:
         emu.mem_write(DATA, bytes(0x40000))
         emu.mem_write(THREAD, bytes.fromhex("b801000000c3"))     # GetCurrentThreadId: mov eax,1 / ret
         self.word(THREAD_SLOT, THREAD)
+        emu.mem_write(ENVIRONMENT, bytes.fromhex("31c0c20c00"))  # GetEnvironmentVariableA: unset (xor eax,eax / ret 0Ch)
+        self.word(ENVIRONMENT_SLOT, ENVIRONMENT)
         for effect in (EFFECT, EFFECT2):
             self.word(effect + 0x3C, PLAYER)
             emu.mem_write(effect + 0x44, b"\x01")

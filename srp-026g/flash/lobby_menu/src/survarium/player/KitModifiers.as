@@ -14,8 +14,8 @@ package survarium.player
 
       // The medical skills' ranks a medicine card needs (docs/notes/medical-skills.md): from the
       // packed float 43 Potent Painkiller (bits 0..2) and Fast Bandaging (3..5); from float 45 Numb
-      // Legs (0..1), Take Cover (2..3), Unflinching (4..6) and Concentration (7..9), at most one of
-      // the last two.
+      // Legs (0..1), Take Cover (2..3, no longer in the tree), Unflinching (4..6), Concentration
+      // (7..9), Second Wind (10..11) and Sharp Eye (12..13).
       private var _painkillerRank:int;
 
       private var _bandagingRank:int;
@@ -28,35 +28,44 @@ package survarium.player
 
       private var _concentrationRank:int;
 
+      private var _sharpEyeRank:int;
+
+      // Resistance's rank (skill 502), bits 0..2 of the packed float 40
+      // (docs/notes/artefact-skills.md, Transport).
+      private var _resistanceRank:int;
+
       public function KitModifiers(values:Array)
       {
          _values = values;
+         // As the exe's artefact Skills::parse: float 40 an exact integer below 2^14, Resistance
+         // (bits 0..2) at most 5 and Keeper's draw (9..11) at most 6, otherwise no artefact skill.
+         var artefact:Object = packed(values[PlayerModifier.ARTEFACT_RANKS],14);
+         if(artefact != null && (int(artefact) & 7) <= 5 && (int(artefact) >> 9 & 7) <= 6) _resistanceRank = int(artefact) & 7;
          // As the exe's medical_skills: float 43 an exact integer below 2^24 and float 45 one below
-         // 2^10, each rank field at most its skill's ranks and not both of Unflinching and
-         // Concentration, otherwise no medical skill at all.
+         // 2^14, each rank field at most its skill's ranks, otherwise no medical skill at all.
          var medical:Object = packed(values[PlayerModifier.MEDICAL_RANKS],24);
-         var comboField:Object = packed(values[PlayerModifier.COMBO_RANKS],10);
+         var comboField:Object = packed(values[PlayerModifier.COMBO_RANKS],14);
          if(medical == null || comboField == null) return;
          var bits:int = int(medical);
          var combo:int = int(comboField);
          // [first bit, width, most ranks]: Potent Painkiller, Fast Bandaging, Metabolism, Medical
          // Training, Adrenalin, Strong Bones, Brothers in Arms; then Numb Legs, Take Cover, Unflinching,
-         // Concentration.
-         for each(var field:Array in [[0,3,3],[3,3,2],[6,3,5],[9,3,3],[12,3,3],[17,3,5],[21,3,2]])
+         // Concentration, Second Wind, Sharp Eye.
+         for each(var field:Array in [[0,3,3],[3,3,2],[6,3,4],[9,3,3],[12,3,3],[17,3,5],[21,3,1]])
          {
             if((bits >> field[0] & (1 << field[1]) - 1) > field[2]) return;
          }
-         for each(field in [[0,2,2],[2,2,2],[4,3,4],[7,3,4]])
+         for each(field in [[0,2,2],[2,2,2],[4,3,4],[7,3,3],[10,2,3],[12,2,3]])
          {
             if((combo >> field[0] & (1 << field[1]) - 1) > field[2]) return;
          }
-         if((combo >> 4 & 7) != 0 && (combo >> 7 & 7) != 0) return;
          _painkillerRank = bits & 7;
          _bandagingRank = bits >> 3 & 7;
          _numbLegsRank = combo & 3;
          _takeCoverRank = combo >> 2 & 3;
          _unflinchingRank = combo >> 4 & 7;
          _concentrationRank = combo >> 7 & 7;
+         _sharpEyeRank = combo >> 12 & 3;
       }
 
       // A packed float: an exact integer of `width` bits, else null.
@@ -111,6 +120,16 @@ package survarium.player
       public function get concentrationRank() : int
       {
          return _concentrationRank;
+      }
+
+      public function get sharpEyeRank() : int
+      {
+         return _sharpEyeRank;
+      }
+
+      public function get resistanceRank() : int
+      {
+         return _resistanceRank;
       }
    }
 }

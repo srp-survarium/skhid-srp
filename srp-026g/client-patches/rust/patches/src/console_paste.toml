@@ -1,0 +1,10 @@
+# Patch 157: Ctrl+V (and Shift+Insert, the same binding) pastes the
+# clipboard's first line into the console's line (console_paste.rs;
+# docs/notes/console-paste.md). Only the decisions: the site and the handler.
+name = "console_paste"
+patch = 157
+
+# ui_text_edit::paste_from_clipboard's start: the engine's stub, replaced
+[[hook]]
+site = "console_paste.paste"
+handler = "on_paste"

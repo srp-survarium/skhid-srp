@@ -60,9 +60,13 @@ impl Pay {
 /// "Enemies killed": a kill (PROVEN by SHOT2: 19 kills are 475 / 57 / 19
 /// before the multipliers).
 pub const KILL: Pay = Pay::new(25.0, 3.0, 1.0);
+/// What a kill pays in srp's matches (the owner, 2026-11-13: "we can even
+/// increase x2 kills", and its experience "double too"): twice [`KILL`]'s
+/// silver and experience, its reputation the original's.
+pub const SRP_KILL: Pay = Pay::new(2.0 * KILL.money, 2.0 * KILL.experience, KILL.reputation);
 /// A lesser kind of kill, cause unknown: SHOT1's 17 kills (375 / 41 / 17
 /// before the multipliers) are exactly 7 kills of [`KILL`] and 10 of
-/// this. Not used: every kill pays [`KILL`] until the cause is known.
+/// this. Not used: every kill pays alike until the cause is known.
 #[allow(dead_code)]
 pub const LESSER_KILL: Pay = Pay::new(20.0, 2.0, 1.0);
 /// "Help ally": an assist (PROVEN by both screens). A cure and a rescue of
@@ -116,6 +120,15 @@ pub const ACTIVITY_NOT_WON: f64 = 0.5;
 pub const FLOOR_OF_MEDIAN: f64 = 0.8;
 /// The least score that takes the floor: an idle player gets none.
 pub const FLOOR_MIN_SCORE: u32 = 30;
+
+/// The silver every player who stays to the end of a paid match gets on top
+/// of its rows (the owner, 2026-11-13: "just everyone get 30k", "no need to
+/// worry about late joiners"): flat, at every match level, won or not,
+/// however late it came, in every mode. No rate, no level, no share of a
+/// match against bots and no Blackout factor touches it; the floor and the
+/// items' bonus do not count it. A player who left, a room with a PIN and
+/// a test bot get none.
+pub const FINISH_SILVER: u32 = 30_000;
 
 /// A multiplier of `match_levels_dict` as the decimal the data means: the
 /// file's f32 for 1.05 is a hair under it, and 20 × 1.05 must be 21.

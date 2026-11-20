@@ -14,6 +14,13 @@ use srp_validate::world::{Artefact, Chamber, GunState};
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
 
+/// The most default modifications an item may have. The client keeps them in a `buffer_vector<u32>`
+/// of eight inside the item (the item's constructor 0x2CB310: begin item+0x240, capacity +0x20 bytes,
+/// at item+0x234..0x23C); `items_dictionary_cook::on_subresources_loaded` (0x2C97F2) pushes each
+/// one, and a ninth stops the game at start ("buffer overflow", `buffer_vector<unsigned int>::push_back`).
+/// Seen 2026-11-14 with the Duty and Freedom exoskeleton torsos at nine.
+pub const MOST_DEFAULT_MODIFICATIONS: usize = 8;
+
 /// One item's parameters.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ItemParams {
@@ -55,7 +62,7 @@ pub struct ItemParams {
     pub pocket_share: PocketShare,
     /// Cosmetics: the modification that puts it on an item.
     pub modification: u32,
-    /// The modifications the item always has.
+    /// The modifications the item always has: [`MOST_DEFAULT_MODIFICATIONS`] at most.
     pub default_modifications: &'static [u32],
     /// The profile slots it covers when worn (`data.additional_model_slots`,
     /// [`model_slot`]): a kit that wears it has nothing in them. A helmet
@@ -70,6 +77,11 @@ pub struct ItemParams {
     /// A weapon's state machine ([`GunStates`]); `None` for an item with
     /// no `states`.
     pub gun: Option<GunStates>,
+    /// The sound the other players hear its shot by: the first of
+    /// `states.fire.sounds.third_view` (a `[time, sound]` pair each); `None`
+    /// for an item that does not fire. A silenced gun's is the AS Val's
+    /// muffled shot ([`super::racket`]).
+    pub shot_heard: Option<&'static str>,
 }
 
 /// A weapon's state machine as its cook makes it (0x30B9A0 into
@@ -487,6 +499,7 @@ impl ItemParams {
             pocket_share: PocketShare::from_config(p)?,
             class: ItemClass::from_config(config)?,
             gun: GunStates::from_config(config)?,
+            shot_heard: shot_heard(config)?,
             modification: int(p, "modification")?,
             default_modifications: leak(default_modifications),
             covered_slots: leak(covered_slots_of(config)?),
@@ -506,6 +519,26 @@ impl ItemParams {
                 )),
             },
         })
+    }
+}
+
+/// The first sound of a config's `states.fire.sounds.third_view`, if it has
+/// one ([`ItemParams::shot_heard`]).
+fn shot_heard(config: &ConfigValue) -> Result<Option<&'static str>, ConfigError> {
+    let Some(heard) = ["states", "fire", "sounds", "third_view"]
+        .into_iter()
+        .try_fold(config, |value, key| value.get(key))
+    else {
+        return Ok(None);
+    };
+    let Some(first) = heard.children().first().copied() else {
+        return Ok(None);
+    };
+    match first.children().get(1).and_then(|sound| sound.as_str()) {
+        Some(sound) => Ok(Some(Box::leak(sound.to_owned().into_boxed_str()))),
+        None => Err(ConfigError(
+            "`states.fire.sounds.third_view[0]` is no `[time, sound]` pair".into(),
+        )),
     }
 }
 
@@ -615,7 +648,11 @@ mod tests {
             }
             assert!(params.item_level <= 16, "{}", item.name);
             assert!(params.faction <= 4, "{}", item.name);
-            assert!(params.default_modifications.len() <= 8, "{}", item.name);
+            assert!(
+                params.default_modifications.len() <= MOST_DEFAULT_MODIFICATIONS,
+                "{}",
+                item.name
+            );
         }
         assert!(item_params(73).is_none());
     }

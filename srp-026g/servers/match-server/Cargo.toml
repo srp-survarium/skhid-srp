@@ -8,6 +8,8 @@ workspace = true
 
 [dependencies]
 crc32fast = { workspace = true }
+# The voice wire's channel byte, as the games' DLL has it (`v026g::voice`).
+voice-abi = { path = "../../crates/voice-abi" }
 log = { workspace = true }
 serde = { workspace = true }
 # The maps the server's bots path on (`v026g::bots::maps`).
@@ -34,3 +36,6 @@ libc = { workspace = true }
 [dev-dependencies]
 # Sessions without a sign-in, for the tests (`SessionStore::create_session`).
 session = { workspace = true, features = ["test-support"] }
+
+# Exercise the shipped codec/jitter implementation through the real voice relay.
+skhid-voice = { path = "../../client-voice" }

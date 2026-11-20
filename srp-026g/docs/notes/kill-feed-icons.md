@@ -129,3 +129,22 @@ the hud movie's `survarium/controls/CombatLogItem.as` and `flash/hud/bitmaps/`; 
   taller than the other icons. With a weapon row the card's icon column is that wide; the other
   icons stay centred in it, every text after it. The generator trims a transparent margin (the
   hud's images have none today: their alpha reaches every edge).
+
+## A battery strike (exe patch 143, 2026-11-15)
+
+- **The owner:** "whether we can add killfeed battery icon" (`battery-hit.md`).
+- Icon 200, past every weapon's: the exe sends it for a kill by a battery strike
+  (`kill_feed.weapon_icon`); `CombatLogItem` shows it as `CombatLogBatteryIcon` (not a
+  `CombatLogWeapon<n>`: no weapon has it, so the lobby's index leaves it out), drawn by
+  `scripts/kill-feed-icons/make_battery_icon.py`, drawn as the weapon icons are (white, details cut
+  out, a black shadow at 40 % one pixel right and two down): the battery's own mesh
+  (`electrobox_s`) in three-quarter view (turned 135 degrees, 30 above, 22 px high), its faces
+  parted by cut lines, the handles ringed by one, its two cell wells' openings cut out (the hud's
+  battery rows' glyph: a box with two cells), then the gun-stock icon's (48) impact burst, as a
+  melee hit. 47 x 24. The owner: on the glyph doubled, "not in the style"; of the second round's
+  candidates, "three-quoter is good, we can add strike too"; of the third's, "I like yaw 135, 30
+  down, 22px the most".
+- **The website's maps** (the owner: "we can use the same icon on website (without strike)", "for
+  showing battery locations"): the same battery, no burst, as a vector SVG (`marker`, traced at
+  16x: a dark silhouette, the white faces over it), the Maps tab's battery spawn marker; its build
+  (`scripts/maps-tab/build.py`) draws it from the released game's mesh.

@@ -19,7 +19,7 @@ package survarium.controls
 
       // The label as long as its text, on one line, in every state: the symbol's fixed width cut
       // longer ones ("Automatikus vásá…"). Each state's frame may hold a text field of its own, so it
-      // is sized again at every state change. For a box whose row has room to its right (Autobuy, the
+      // is sized again at every state change. For a box whose row has room to its right (the
       // shop's "Hide owned").
       public function fitLabel() : void
       {

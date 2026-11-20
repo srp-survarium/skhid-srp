@@ -28,7 +28,14 @@ and doug_lea_allocator::malloc_impl over them) are made in both:
    analyze.py reads it: the arena's heap use as the walk finds it, its holes,
    each call site's live bytes as the heap's chunks say (malloc_impl's
    caller, not malloc_impl; a reallocation's caller; nothing of
-   mspace_realloc's own moves), the bytes asked, the address space's regions.
+   mspace_realloc's own moves), the bytes asked, the address space's regions;
+6. the owners dlmalloc's blocks do not name: a block Scaleform took (the
+   game's own tails run from mspace_malloc's return through pt3malloc,
+   mt_allocator's malloc_impl, Scaleform's malloc 0x1C3E0 and
+   xrSysAllocMalloc::Alloc 0x2AE470 to Alloc's caller: the site is that
+   caller); a managed arena's nodes summed by their resources' class, its
+   free nodes its holes, and nothing but `torn` of one whose nodes do not
+   tile it; Scaleform's heaps from the global heap's slot down, by name.
 """
 import importlib.util
 import struct
@@ -47,7 +54,12 @@ CREATE_MSPACE, MALLOC_IMPL = 0x101280, 0xE4F90
 ARENAS_READY, OUT_OF_MEMORY, OUT_OF_MEMORY_ON = 0xE12BF, 0xE4D70, 0xE4D76
 ALLOCATE_REGION_RETURN = 0x13BF5        # engine_world's constructor after its call of allocate_region
 USER_DATA_DIRECTORY = 0x18BD0
-ARENA_LIST_SLOT, DOUG_LEA_VTABLE = 0xA808FC, 0x9E68DC
+ARENA_LIST_SLOT, DOUG_LEA_VTABLE, MANAGED_VTABLE = 0xA808FC, 0x9E68DC, 0x9E602C
+# Scaleform's block: mspace_malloc's return into pt3malloc, its own into mt_allocator's malloc_impl, that one's
+# into Scaleform's malloc, and that one's into xrSysAllocMalloc::Alloc; ptmalloc3's main arena (no chunk owner written)
+PT_MALLOC_RETURN, MT_MALLOC_IMPL_RETURN, SCALEFORM_MALLOC_RETURN, SCALEFORM_ALLOC_RETURN = 0x106F70, 0x1C6B9, 0x1C409, 0x2AE481
+PT_MAIN_ARENA = 0x1BFAC90
+SCALEFORM_GLOBAL_HEAP = 0xAF30E0
 IMPORTS = {0x8701B4: ("GetEnvironmentVariableA", 3), 0x87015C: ("VirtualAlloc", 4),
            0x870118: ("GetCurrentThreadId", 0), 0x870090: ("GetTickCount", 0),
            0x8701B8: ("GetCurrentProcessId", 0), 0x870048: ("CreateFileA", 7), 0x870108: ("WriteFile", 5),
@@ -61,10 +73,13 @@ ON_DEMAND = {0x101330: 5, 0x1005A0: 5, 0x1015E0: 6, 0x10700A: 6, 0x106DAC: 6, OU
 KERNEL32, USER32 = 0x7B000000, 0x7B100000
 
 DATA = 0x30000000
-ALLOCATOR, LIST, RECORD, STRINGS, STUBS = (DATA + 0x1000 * i for i in range(5))
-RETURN, CALLER_A, CALLER_B, CALLER_C = STUBS, STUBS + 0x10, STUBS + 0x20, STUBS + 0x30
+ALLOCATOR, LIST, RECORD, STRINGS, STUBS, MANAGED_ALLOCATOR, OTHER_ALLOCATOR = (DATA + 0x1000 * i for i in range(7))
+RETURN, CALLER_A, CALLER_B, CALLER_C, CALLER_D = STUBS, STUBS + 0x10, STUBS + 0x20, STUBS + 0x30, STUBS + 0x40
 IMPORT_STUBS = STUBS + 0x100
 HEAP, HEAP_SIZE = 0x40000000, 0x100000
+# a managed arena (its nodes), and an arena of no known kind: the managed resources and Scaleform's heaps in it
+MANAGED, MANAGED_SIZE = 0x42000000, 0x10000
+OTHER, OTHER_SIZE = 0x43000000, 0x10000
 ROOM, ROOM_SIZE = 0x50000000, 0x2000000
 STACK = 0x21000000
 KEPT = {UC_X86_REG_EBX: 0x0B0B0B0B, UC_X86_REG_EDI: 0x0E0E0E0E, UC_X86_REG_EBP: 0x0019FF00,
@@ -74,7 +89,9 @@ REGS = (UC_X86_REG_EAX, UC_X86_REG_EBX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC_X86_R
 FLAGS = 0x8D5                                    # CF PF AF ZF SF OF
 # the address space VirtualQuery tells: (base, size, state, protect, type)
 SPACE = [(0, HEAP, 0x10000, 1, 0), (HEAP, HEAP_SIZE, 0x1000, 4, 0x20000),
-         (HEAP + HEAP_SIZE, ROOM - HEAP - HEAP_SIZE, 0x10000, 1, 0), (ROOM, ROOM_SIZE, 0x1000, 4, 0x20000),
+         (HEAP + HEAP_SIZE, MANAGED - HEAP - HEAP_SIZE, 0x10000, 1, 0), (MANAGED, MANAGED_SIZE, 0x1000, 4, 0x20000),
+         (MANAGED + MANAGED_SIZE, OTHER - MANAGED - MANAGED_SIZE, 0x10000, 1, 0), (OTHER, OTHER_SIZE, 0x1000, 4, 0x20000),
+         (OTHER + OTHER_SIZE, ROOM - OTHER - OTHER_SIZE, 0x10000, 1, 0), (ROOM, ROOM_SIZE, 0x1000, 4, 0x20000),
          (ROOM + ROOM_SIZE, 0x7FFF0000 - ROOM - ROOM_SIZE, 0x10000, 1, 0)]
 
 
@@ -96,6 +113,8 @@ class Run:
             emu.mem_write(start, bytes(data[raw:raw + min(rsize, vsize or rsize)]))
         emu.mem_map(DATA, 0x10000, UC_PROT_ALL)
         emu.mem_map(HEAP, HEAP_SIZE, UC_PROT_ALL)
+        emu.mem_map(MANAGED, MANAGED_SIZE, UC_PROT_ALL)
+        emu.mem_map(OTHER, OTHER_SIZE, UC_PROT_ALL)
         emu.mem_map(ROOM, ROOM_SIZE, UC_PROT_ALL)
         emu.mem_map(STACK, 0x10000, UC_PROT_ALL)
         self.stubs = {}
@@ -111,7 +130,7 @@ class Run:
             emu.hook_add(UC_HOOK_CODE, self.stub, begin=at, end=at)
         self.protects, self.flushes, self.scroll, self.tick = [], [], False, 123456
         self.freed, self.rooms_left = [], None      # VirtualFree's; how many VirtualAllocs succeed (None: all)
-        for stop in (RETURN, CALLER_A, CALLER_B, CALLER_C, OUT_OF_MEMORY_ON, ALLOCATE_REGION_RETURN):
+        for stop in (RETURN, CALLER_A, CALLER_B, CALLER_C, CALLER_D, OUT_OF_MEMORY_ON, ALLOCATE_REGION_RETURN):
             emu.hook_add(UC_HOOK_CODE, self.done, begin=stop, end=stop)
         emu.hook_add(UC_HOOK_CODE, self.user_data, begin=USER_DATA_DIRECTORY, end=USER_DATA_DIRECTORY)
         self.room = ROOM
@@ -130,9 +149,53 @@ class Run:
         self.mspace = self.call(CREATE_MSPACE, [HEAP, HEAP_SIZE, 0, OUT_OF_MEMORY, ALLOCATOR])[0]
         assert HEAP < self.mspace < HEAP + 0x100, hex(self.mspace)
         self.word(ALLOCATOR + 0x14, self.mspace)
+        emu.mem_write(STRINGS + 0x200, b"test managed\0")
+        emu.mem_write(STRINGS + 0x300, b"test other\0")
         self.word(ARENA_LIST_SLOT, LIST)
-        emu.mem_write(LIST, struct.pack("<3I", RECORD, RECORD + 0x18, RECORD + 0x18))
-        emu.mem_write(RECORD, struct.pack("<6I", ALLOCATOR, 0, HEAP_SIZE, 0, HEAP, STRINGS))
+        emu.mem_write(LIST, struct.pack("<3I", RECORD, RECORD + 3 * 0x18, RECORD + 3 * 0x18))
+        emu.mem_write(RECORD, struct.pack("<6I", ALLOCATOR, 0, HEAP_SIZE, 0, HEAP, STRINGS)
+                      + struct.pack("<6I", MANAGED_ALLOCATOR, 0, MANAGED_SIZE, 0, MANAGED, STRINGS + 0x200)
+                      + struct.pack("<6I", OTHER_ALLOCATOR, 0, OTHER_SIZE, 0, OTHER, STRINGS + 0x300))
+        self.word(MANAGED_ALLOCATOR, MANAGED_VTABLE)
+        self.managed_nodes(MANAGED_NODES)
+
+    def managed_nodes(self, nodes):
+        """The managed arena's nodes, (bytes, class id; None a free node, 0 one
+        with no owner), tiling it from its start; each owned one's resource
+        (F0h bytes, its class at +84h, the node's owner its +D0h) in the other
+        arena. The allocator's own figures with them."""
+        at, free = MANAGED, 0
+        for index, (length, class_id) in enumerate(nodes):
+            resource = OTHER + 0x100 * index
+            self.word(resource + 0x84, class_id or 0)
+            last = index == len(nodes) - 1
+            self.emu.mem_write(at, struct.pack("<2I", resource + 0xD0 if class_id else 0, 0 if last else at + length))
+            self.word(at + 0x28, length)
+            self.emu.mem_write(at + 0x30, bytes([class_id is None]))
+            free += length if class_id is None else 0
+            at += length
+        assert at == MANAGED + MANAGED_SIZE
+        self.emu.mem_write(MANAGED_ALLOCATOR + 0x28, struct.pack("<3I", free, MANAGED, MANAGED_SIZE))
+
+    def scaleform_heaps(self, heaps):
+        """Scaleform's heaps, (depth, flags, footprint, used, name) a parent
+        before its children, each 200h bytes of the other arena as
+        RootMH::CreateHeap lays one out (its engine at +70h, its name at
+        +11Ch); the first the global heap's."""
+        at = [OTHER + 0x4000 + 0x200 * index for index in range(len(heaps))]
+        for index, (depth, flags, footprint, used, name) in enumerate(heaps):
+            heap = at[index]
+            self.word(heap + 0x1C, flags)
+            self.word(heap + 0x40, heap + 0x11C)
+            self.word(heap + 0x68, heap + 0x70)
+            self.emu.mem_write(heap + 0x70 + 0x98, struct.pack("<2I", footprint, used))
+            self.emu.mem_write(heap + 0x11C, name.encode() + b"\0")
+            later = [(j, heaps[j][0]) for j in range(index + 1, len(heaps))]
+            children = [j for n, (j, d) in enumerate(later) if d == depth + 1 and all(e > depth for _, e in later[:n])]
+            self.word(heap + 0x48, at[children[0]] if children else heap + 0x40)
+            for child, after in zip(children, children[1:] + [None]):
+                self.word(at[child] + 8, at[after] if after is not None else heap + 0x40)
+        self.word(SCALEFORM_GLOBAL_HEAP, at[0])
 
     def word(self, at, value):
         self.emu.mem_write(at, struct.pack("<I", value & 0xFFFFFFFF))
@@ -285,6 +348,40 @@ class Run:
     def malloc_impl(self, n, caller=CALLER_A):
         return self.call(MALLOC_IMPL, [0], {UC_X86_REG_ESI: ALLOCATOR, UC_X86_REG_EAX: n}, caller)
 
+    def scaleform_malloc(self, n, align=0x10, caller=CALLER_D):
+        """mspace_malloc as Scaleform reaches it, the stack the game's own
+        frames at that call: pt3malloc's (0x106EF0: its two pushes, its 0Ch
+        of locals, the arena's lock among them), mt_allocator's malloc_impl's
+        (0x1C6A0: its 8 bytes), Scaleform's malloc's (0x1C3E0: the allocator,
+        EDI, ESI) and xrSysAllocMalloc::Alloc's (0x2AE470: the bytes, ESI, then
+        its own return and two arguments). Each one's own tail runs after
+        mspace_malloc returns, down to Alloc's caller: the memory Alloc gives."""
+        sp = STACK + 0x8000
+        lock = STACK + 0x100
+        self.emu.mem_write(OTHER_ALLOCATOR, bytes(0x20))            # the allocator malloc_impl is given: no tracking (+10h)
+        frames = [PT_MALLOC_RETURN, n + align,                      # mspace_malloc's return, its bytes
+                  0x0E0E0E0E, 0x05050505, 0, lock, 0,               # pt3malloc: EDI, ESI, its locals (+0Ch the lock)
+                  MT_MALLOC_IMPL_RETURN, 0, 0,                      # malloc_impl: its two locals
+                  SCALEFORM_MALLOC_RETURN, OTHER_ALLOCATOR, 0x0E0E0E0E, align,     # Scaleform's malloc: EDI, ESI (Alloc's align)
+                  SCALEFORM_ALLOC_RETURN, n + align, 0x05050505,    # Alloc: the bytes pushed, its ESI
+                  caller, n, align]
+        self.emu.mem_write(sp, struct.pack(f"<{len(frames)}I", *frames))
+        for reg, value in {**KEPT, UC_X86_REG_ESI: PT_MAIN_ARENA, UC_X86_REG_EAX: self.mspace}.items():
+            self.emu.reg_write(reg, value)
+        self.emu.reg_write(UC_X86_REG_ESP, sp)
+        self.emu.reg_write(UC_X86_REG_EFLAGS, 0x202)
+        self.emu.emu_start(MSPACE_MALLOC, 0, count=5_000_000)
+        assert self.emu.reg_read(UC_X86_REG_EIP) == caller, hex(self.emu.reg_read(UC_X86_REG_EIP))
+        assert self.emu.reg_read(UC_X86_REG_ESP) == sp + 4 * len(frames), "each frame popped as the game lays it"
+        memory = self.emu.reg_read(UC_X86_REG_EAX)
+        return memory - self.read(memory - 4)                       # Alloc's own shift to its alignment undone
+
+
+# the managed arena's nodes (bytes, class; None free, 0 no owner), and Scaleform's heaps (depth, flags, footprint, used, name)
+MANAGED_NODES = [(0x1000, 107), (0x800, None), (0x2000, 3), (0x400, 107), (0x100, 0), (0xC300, None)]
+SCALEFORM_HEAPS = [(0, 0, 0x5000, 0x4000, "Global"), (1, 0, 0x200000, 0x180000, 'MovieData "lobby.swf"'),
+                   (2, 0, 0x3000, 0x1000, 'MovieView "lobby.swf"'), (1, 0x1000, 0x800, 0x100, "Debug"),
+                   (1, 0, 0x10000, 0x9000, 'MovieDef  "hud.swf"')]
 
 # (what, arguments): each result's memory named by the step's index
 STEPS = [("malloc", 0x40), ("malloc", 0x3000), ("malloc_impl", 0x200), ("malloc", 0x18), ("free", 1),
@@ -389,13 +486,22 @@ def main():
 
     profile = "C:\\Users\\test\\Documents\\Survarium\\srp_memory_profile.txt"
     assert profile not in on.files, "no snapshot without a moment"
+    scaleform = on.scaleform_malloc(0x60)
+    assert HEAP < scaleform < HEAP + HEAP_SIZE and on.chunk(scaleform) >= 0x70, hex(scaleform)
+    # the first snapshot's: no Scaleform heap yet, and a managed arena whose second node says more than is left
+    on.word(MANAGED + MANAGED_NODES[0][0] + 0x28, MANAGED_SIZE)
     on.scroll = True
     pressed = [on.malloc(0x20, CALLER_B)[0] for _ in range(2)]
     on.scroll = False
     text = bytes(on.written[on.files[profile]]).decode()
     keyed = analyzer().parse(text)[0].snapshots
     assert [s.moment for s in keyed] == ["key"] and keyed[0].complete, text[:300]
-    print("ok Scroll Lock down at a gate's poll: one snapshot (not one a poll while it stays down)")
+    assert keyed[0].arenas[1].managed_torn and not keyed[0].arenas[1].managed and not keyed[0].arenas[1].holes
+    assert not keyed[0].scaleform and not keyed[0].scaleform_torn
+    print("ok Scroll Lock down at a gate's poll: one snapshot (not one a poll while it stays down); a managed arena "
+          "whose nodes do not tile it is told torn, no sums; no Scaleform heap, none told")
+    on.managed_nodes(MANAGED_NODES)
+    on.scaleform_heaps(SCALEFORM_HEAPS)
 
     # what the heap holds: each live block's chunk, by who asked
     sites = {}
@@ -404,6 +510,7 @@ def main():
         caller = {"malloc": CALLER_B, "realloc": CALLER_C, "malloc_impl": CALLER_A}[what]
         sites.setdefault(caller, []).append(on.chunk(memory))
     sites[CALLER_B] += [on.chunk(memory) for memory in pressed]
+    sites[CALLER_D] = [on.chunk(scaleform)]
     asked = 0x200000
     sp = STACK + 0x8000
     on.emu.mem_write(sp, struct.pack("<2I", CALLER_A, 0))
@@ -424,12 +531,22 @@ def main():
     assert (arena.name, arena.start, arena.size, arena.usage) == ("test heap", HEAP, HEAP_SIZE, "heap"), arena
     in_use = sum(sum(chunks) for chunks in sites.values())
     assert arena.used == in_use, (arena.used, in_use)
-    assert arena.tracked.live == in_use and arena.tracked.blocks == len(live) + len(pressed), arena.tracked
+    assert arena.tracked.live == in_use and arena.tracked.blocks == len(live) + len(pressed) + 1, arena.tracked
     told = {address: c.live for address, c in arena.sites}
     assert told == {caller: sum(chunks) for caller, chunks in sites.items()}, (told, sites)
     assert all(not (base.IMAGE_BASE <= address < 0x1000000) for address in told), "no allocator's own address"
     assert arena.holes and max(arena.holes) == arena.largest_free.bit_length() - 1, (arena.holes, arena.largest_free)
     assert len(snapshot.regions) == len(SPACE) and snapshot.free == sum(r[1] for r in SPACE if r[2] == 0x10000)
+    managed = snapshot.arenas[1]
+    assert (managed.name, managed.usage, managed.used) == ("test managed", "counted", MANAGED_SIZE - 0xCB00), managed
+    assert managed.managed == {107: (2, 0x1400), 3: (1, 0x2000), "unowned": (1, 0x100)} and not managed.managed_torn
+    assert managed.holes == {11: (1, 0x800), 15: (1, 0xC300)}, managed.holes
+    assert snapshot.scaleform == SCALEFORM_HEAPS and not snapshot.scaleform_torn, snapshot.scaleform
+    assert not snapshot.arenas[2].managed and snapshot.arenas[2].usage == "unknown"
+    print(f"ok the owners: Scaleform's block is its Alloc's caller's (the game's four tails run from mspace_malloc's "
+          f"return); the managed arena's {sum(n for n, _ in managed.managed.values())} allocated nodes by class "
+          f"({len(managed.managed)} sums) and its free ones as holes; Scaleform's {len(snapshot.scaleform)} heaps by "
+          "name, a parent before its children")
     print(f"ok out of memory: the snapshot written before the game's own end ({len(text)} bytes): "
           f"{len(told)} sites, each its caller's live chunks (malloc_impl's caller, a reallocation's), the heap's "
           f"use {in_use} bytes as its walk finds it, {sum(c for c, _ in arena.holes.values())} holes, the "

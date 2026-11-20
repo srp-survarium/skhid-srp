@@ -1,0 +1,14 @@
+[
+  {
+    "file": "textures/ported/v011e/vehicle/common/vehicles.dds",
+    "sha256": "19a746085b1f0774925df68b75b46c035fcfc8180adccbd68b1af97b71eecc39"
+  },
+  {
+    "file": "textures/ported/v011e/vehicle/common/vehicles_nmap.dds",
+    "sha256": "c2cb9687875afd5d1404ef0955b9a1cc0dbf55a869a6d4fd84b38ad8264cb25c"
+  },
+  {
+    "file": "textures/ported/v011e/vehicle/common/vehicles_fmap.dds",
+    "sha256": "09e126fcf5d6ec7ceeb0a0e238901a6f403ef0bef75d493fd12555ca230ad61a"
+  }
+]

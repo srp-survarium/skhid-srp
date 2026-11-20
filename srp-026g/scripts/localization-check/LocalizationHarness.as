@@ -62,6 +62,7 @@ package
                     require(words.levelName(13) == text.st_srp_map_vostok_v011, "ported map name " + language);
                     require(words.weatherName(4) == text.st_srp_weather_night, "weather " + language);
                     require(words.modeName(5) == text.st_srp_mode_research, "research mode " + language);
+                    require(words.modeName(8) == text.st_srp_mode_free_for_all, "free for all mode " + language);
                     require(words.codeText(3) == text.st_srp_rooms_code_3 && words.codeText(0) == "", "room code " + language);
                     require(words.joinWhyText(7) == text.st_srp_rooms_join_why_7, "join reason " + language);
                     require(words.joinWhyText(8) == text.st_srp_rooms_join_why_8, "no-world join reason " + language);

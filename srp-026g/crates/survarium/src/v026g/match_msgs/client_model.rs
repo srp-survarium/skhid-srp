@@ -628,7 +628,7 @@ mod tests {
             players: (0..players)
                 .map(|index| player(&format!("p{index}"), (index % 2) as u8))
                 .collect(),
-            map: crate::v026g::maps::MatchMap::of(61).unwrap(),
+            map: crate::v026g::maps::MatchMap::of(crate::v026g::maps::MapId::new(61)).unwrap(),
             match_id: 7,
             match_level: 0,
             score_weights: SCORE_WEIGHTS,

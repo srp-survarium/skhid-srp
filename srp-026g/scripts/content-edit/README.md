@@ -401,7 +401,8 @@ batteries, batteries with chargers, Team Deathmatch and Research). Each of the s
 loses its core, artefact container, damage zone and the two collision geometries: 35 entries per
 project. The damage zones own their idle sound and particles. The decorative rock piles stay.
 The battery modes also lose the two old outdoor spawn-protection zones and their boxes; each
-spawn point keeps its own 6 seconds of invulnerability.
+spawn point keeps its original invulnerability: 6 seconds in batteries, batteries with chargers
+and Research, and 3 seconds in Team Deathmatch.
 
 The 20 spawn points come from the owner's map-editor placement. `set_entry` changes only their
 positions and rotations, retaining their names, order, teams and other properties. All four
@@ -431,6 +432,27 @@ same content by `release/build-site`.
 `feat/dynamic-anomalies` (not shipped) removes the same seven anomalies for timed ones, and
 PR #369's `sponge/spots.tsv` selects their containers. Both must drop their London entries
 before they can ship on top of this list.
+
+## rifle-scopes-1.json (2026-10-26)
+
+Made by `../rifle-scopes/make_pack.py` with the pack rifle-scopes (`fit.tsv` there); make it again,
+not this file.
+
+| change | why |
+|---|---|
+| 184 `items_compatibility` rows of `gameplay/db_static_dictionaries` (`compatibility_<scope><weapon>`), a weapon and a new scope it fits | the lobby movie's scope pairs (greys the scopes that do not fit, lists a scope's weapons); the server takes the pairs from the variants' `srp_scope_fit` (`../../docs/notes/weapon_scopes.md`, section 6) |
+| `data/fov_factor` 0.8 -> 0.5 in the Aimpoint CompM4's item and its 25 variants (its name with x2 is in `../../client-patches/localization/*.tsv`) | the owner (2026-10-26): the CompM4 at x2, as 0.46c2 and 0.69d0 have it (the coordinator's pick: the item itself, so its owners get x2) |
+
+## scope-fits-1.json (2026-11-01)
+
+Made by `../scope-fits/make_pack.py` with the pack scope-fits (`fit.tsv` there); make it again, not
+this file. It names the release-41 guns' configs, so it comes after the weapons-031, weapons-046 and
+weapons-069 packs.
+
+| change | why |
+|---|---|
+| `addons { mount: 1 }` in each release-41 gun that takes a scope and has no `addons` | a variant's type-3 modifier adds the scope only to a table with a child (`../../docs/notes/weapon_scopes.md`, section 2) |
+| an `items_compatibility` row for each gun and scope it fits (`compatibility_<scope><gun>`) | the lobby movie's scope pairs; the server takes the pairs from the variants' `srp_scope_fit` (section 7) |
 
 ## weapon-camo-031-1.json (2026-11-01)
 

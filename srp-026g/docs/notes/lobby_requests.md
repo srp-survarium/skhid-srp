@@ -96,7 +96,7 @@ The "0.21d" column gives the 0.21d message and the PDB symbol of its sender. Sta
 | `49 02` | u32 profile_id (profiles[idx].+0x1E6A98) | 0x26FC90 | `profile_changed` 0x2A6010, tutorial 0x2A45D0 | none | `29 04`, `set_active_profile` 0x19D467 | = (new id) | PROVEN |
 | `49 03` | string nickname | 0x2730E0 | `request_nickname_validation` 0x2A5D30 | none | none | NEW | PROVEN |
 | `49 04` | string nickname (63 max), u32 a1 | 0x274310 | `change_player_nickname` 0x2A5F00 | none | none | NEW | PROVEN layout. a1 LIKELY the rename-ticket item id (see ack ev 4) |
-| `49 05` | string nickname (63 max), u8 a1, u8 a2 | 0x274470 | `comment_about_user` 0x28CBE0 | none | none | NEW | PROVEN layout, meaning GUESS (player report/praise) |
+| `49 05` | string nickname (63 max), u8 kind, u8 reason | 0x274470 | `comment_about_user` 0x28CBE0 | none | none | NEW | PROVEN layout; Flash `CommentKind`, `ClaimReason`, `Compliment` establish report/praise and reasons; [storage](player-comments.md) |
 | `49 24` | u8 `00` | 0x274510 | `video_tutorial_hide_clicked` 0x28CDF0 | none | none | NEW | PROVEN |
 | `4A 01` | (nothing): destroy | 0x274580 | `disband_squad` 0x2A5CE0, tutorial 0x2A4D40 | order == -1 | `2A 01`, `destroy_squad` 0x19ECA1 | = | PROVEN |
 | `4A 02` | string name: add | 0x2745D0 | the messaging "membership accepted" path 0x26B940 @0x26BD8C | G55C8 and order == -1 | `2A 02`, `add_squad_member` 0x19ED0A | = | PROVEN |
@@ -235,6 +235,7 @@ Dispatch:
 | 02 active profile | u32 profile_id | -> +0x1EA964; finds its index -> +0x1EA976; UI 0x222330. **NEW: 0.21d had no answer** (spec R8). This ack does not call `profile_changed`, so it does not loop. [I] |
 | 03 nickname check | string name, bool ok; if !ok: u8 reason 0..5 = `st_short_clan_string`, `st_few_alpha_clan_string`, `st_already_exist_clan_string`, `st_space_symbol_clan_string`, `st_wrong_symbol_clan_string`, `st_string_pattern_error` | 0x228EF0 |
 | 04 rename done | u32 ticket_item_id (0 = none) | The ticket's count -= 1, erased at 0. |
+| 05 comment stored | none read | No client state change; SRP acknowledges only after storing the comment. |
 | 06 | none read | +0x1EC99D = 1 (clan name reserved) |
 | 08 / 09 clan name / abbreviation check | string, bool ok; if !ok: u8 reason 0..4 (same strings without the pattern error) | Kept only when the string equals the last request (+0x1E5660 / +0x1E56A0). |
 | 0B | string name | system message `st_clan_invite_1 %s st_clan_invite_2` |
@@ -336,7 +337,7 @@ Layout: `u8 op`, `u8` (skipped, unused), then `string text`. The string goes int
 ## 8. Open questions
 1. What `0x32 00 bb` asks for, and what the second byte of `0x80` means (0x26FA00 not traced). The candidate reply is 0x87.
 2. ~~The meaning of `30` and of `49 20` / `49 21`.~~ Settled (`social.md` section 8): +0x1E56BD is "I command the team", +0x1E56BE the player's own ready state; on `83 30` the client sends the opposite of it.
-3. Field meanings for `46 01` (a0, a1, a2), `46 03`, `46 05` (a), `46 09`, `47 02` (x), `47 05` (a0..a4), `47 06`, `48 01`, `49 05`, `49 0C`.
+3. Field meanings for `46 01` (a0, a1, a2), `46 03`, `46 05` (a), `46 09`, `47 02` (x), `47 05` (a0..a4), `47 06`, `48 01`, `49 0C`. `49 05` settled from Flash: see [player-comments.md](player-comments.md).
 4. ~~`49 16`: the wire form of the daily message.~~ Settled: `u16 count` + UTF-16LE units (0x26E210).
 5. `43` -> `99` and `37` -> `8C` replies are inferred from triggers only.
 6. Whether the server is expected to answer `46 00` (moves) with anything besides pushes. 0x275520 has no ev 0 handler, as in 0.21d.

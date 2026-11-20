@@ -543,11 +543,18 @@ package survarium.chat
          this.text_inpput.textField.setSelection(this.text_inpput.textField.text.length,this.text_inpput.textField.text.length);
       }
       
+      // A window hidden since the focus was asked for takes none: focused,
+      // it would select its tab again and so be shown (handleFocusIn), as a
+      // second press of its bottom tab hid it (LobbyChat.onTabIndexClick).
       protected function onRenderFocus(event:Event) : void
       {
+         this.text_inpput.removeEventListener(Event.RENDER,this.onRenderFocus);
+         if(!visible)
+         {
+            return;
+         }
          stage.focus = this.text_inpput.textField;
          this.text_inpput.text = "";
-         this.text_inpput.removeEventListener(Event.RENDER,this.onRenderFocus);
       }
       
       protected function onRender(event:Event) : void

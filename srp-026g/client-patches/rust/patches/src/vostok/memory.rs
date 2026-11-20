@@ -12,7 +12,10 @@
 //! [`process`] and [`arenas`] are the reader, for any caller on the game's
 //! thread; [`snapshot`] is the report's. Patch 127's profiler reads the
 //! same arenas with where they lie and their heaps' free blocks
-//! ([`placed`]), and the address space region by region ([`regions_map`]).
+//! ([`placed`]), and the address space region by region ([`regions_map`]);
+//! and what dlmalloc's blocks do not tell: the managed arena's nodes with
+//! their resources' classes ([`Placed::managed_nodes`]) and Scaleform's
+//! heaps by name ([`scaleform_heaps`]).
 //!
 //! Nothing is called in the engine: its own size queries walk a heap
 //! another thread may be using with no lock (internal_mallinfo 0xFF200),
@@ -238,6 +241,205 @@ impl Placed<'_> {
 /// Each arena of the engine's list, in its order, with where it lies.
 pub fn placed(_: &Thread) -> impl Iterator<Item = Placed<'_>> + '_ {
     records().map(|record| Placed { record, thread: core::marker::PhantomData })
+}
+
+/// The arenas whose bytes are all committed and readable: where a pointer
+/// the game keeps (a node's owner, a Scaleform heap) can be read whatever
+/// another thread is doing to the object it names.
+struct Readable {
+    ranges: [(usize, usize); MAX_ARENAS],
+}
+
+impl Readable {
+    fn arenas() -> Readable {
+        let mut ranges = [(0, 0); MAX_ARENAS];
+        for (slot, record) in ranges.iter_mut().zip(records()) {
+            if record.start != 0 && all_readable(record.start, record.end) {
+                *slot = (record.start, record.end);
+            }
+        }
+        Readable { ranges }
+    }
+
+    /// The bytes from `address` to the end of the arena it lies in (0: in none).
+    fn span(&self, address: usize) -> usize {
+        self.ranges.iter().find(|&&(start, end)| start <= address && address < end).map_or(0, |&(_, end)| end - address)
+    }
+
+    fn holds<T>(&self, place: *const T) -> bool {
+        self.span(place as usize) >= core::mem::size_of::<T>()
+    }
+}
+
+/// A resource's class id (`resources::class_id_enum`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ResourceClass(pub u32);
+
+/// A node of a managed arena, its bytes the node's whole (its head too).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ManagedNode {
+    Free { bytes: u32 },
+    /// An allocated one and its resource's class; None when it has no
+    /// owner (yet), or one that cannot be read.
+    Held { bytes: u32, class: Option<ResourceClass> },
+}
+
+/// How a walk of the game's own lists ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Walk {
+    /// Nothing of the kind to walk (not a managed arena; no Scaleform heap yet).
+    Absent,
+    /// To its end: everything was told.
+    Whole,
+    /// It stopped at a word that did not fit (another thread was changing
+    /// the list, or it is not what the walk takes it for): what was told
+    /// until then is a part.
+    Torn,
+}
+
+/// Nodes of a managed arena walked at most (a node is 34h bytes or more).
+const MAX_MANAGED_NODES: usize = 1 << 22;
+
+impl Placed<'_> {
+    /// A managed arena's nodes, each told to `node` in the arena's order
+    /// (patch 127: what the resources (managed) allocator holds, by class).
+    /// Nothing of the engine is called and no lock taken: each node is read
+    /// inside the arena, checked to tile it, and an owner only inside an
+    /// arena that is readable.
+    pub fn managed_nodes(&self, mut node: impl FnMut(ManagedNode)) -> Walk {
+        // SAFETY: an allocator the engine registered, alive while the game
+        // runs (usage_with); its vtable tells its fields are a managed
+        // allocator's. Every node is read only inside [start, end), bytes
+        // checked readable first, and stays there (the arena is never
+        // given back); the words are volatile reads, another thread's
+        // writes at worst a stale or torn value, which the checks refuse.
+        unsafe {
+            let Some(allocator) = self.record.record.allocator() else { return Walk::Absent };
+            if read(allocator.vtable()) != raw::image::MANAGED_VTABLE {
+                return Walk::Absent;
+            }
+            let Some(first) = allocator.managed_arena() else { return Walk::Torn };
+            let start = first.address() as usize;
+            let end = start.saturating_add(read(allocator.managed_total()) as usize);
+            if start < self.record.start || end > self.record.end || !all_readable(start, end) {
+                return Walk::Torn;
+            }
+            let readable = Readable::arenas();
+            let mut at = first;
+            for _ in 0..MAX_MANAGED_NODES {
+                let address = at.address() as usize;
+                if address < start || address.saturating_add(raw::ManagedNode::SIZE) > end {
+                    return Walk::Torn;
+                }
+                let bytes = read(at.bytes());
+                let after = address.saturating_add(bytes as usize);
+                if (bytes as usize) < raw::ManagedNode::SIZE || after > end {
+                    return Walk::Torn;
+                }
+                match read(at.kind()) {
+                    0 => {
+                        // the owner itself inside a readable arena before its resource's word is looked for
+                        let owner = at.owner().filter(|owner| readable.span(owner.address() as usize) > 0);
+                        let class = owner.map(|owner| owner.class_id()).filter(|&place| readable.holds(place));
+                        node(ManagedNode::Held { bytes, class: class.map(|place| ResourceClass(read(place))) });
+                    }
+                    1 => node(ManagedNode::Free { bytes }),
+                    _ => return Walk::Torn,
+                }
+                match at.next() {
+                    None => return if after == end { Walk::Whole } else { Walk::Torn },
+                    Some(next) if next.address() as usize == after => at = next,
+                    Some(_) => return Walk::Torn,
+                }
+            }
+            Walk::Torn
+        }
+    }
+}
+
+/// A heap of Scaleform's (the Flash UI's memory: every block of it is the
+/// "global multithreaded" arena's, taken through xrSysAllocMalloc).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ScaleformHeap<'a> {
+    /// 0 the global heap, 1 its children (a movie's data, definition, view), and so on.
+    pub depth: u8,
+    /// Its name as Scaleform keeps it, cut at [`HEAP_NAME`] bytes.
+    pub name: &'a [u8],
+    /// Its `HeapDesc` flags (1000h: a debug heap).
+    pub flags: u32,
+    /// The bytes it holds of the system allocator, its children's not counted.
+    pub footprint: u32,
+    /// The bytes of them in use.
+    pub used: u32,
+}
+
+/// A heap's name's bytes told at most.
+pub const HEAP_NAME: usize = 96;
+/// Heaps told at most, and how deep under the global heap.
+const MAX_HEAPS: usize = 1024;
+const MAX_HEAP_DEPTH: usize = 6;
+
+/// Scaleform's heaps from its global heap down, a parent before its
+/// children, each told to `heap` (patch 127). No lock of Scaleform's is
+/// taken and nothing of it called: a heap is read only where an arena is
+/// readable (Scaleform makes each heap, its engine and its name in one
+/// block of the multithreaded arena), so a heap freed under the walk is
+/// stale words at worst.
+pub fn scaleform_heaps(_: &Thread, mut heap: impl FnMut(ScaleformHeap<'_>)) -> Walk {
+    #[derive(Clone, Copy)]
+    struct Level {
+        at: Option<raw::MemoryHeap>,
+        /// Where this level's list ends: its parent's list's root as a heap.
+        end: u32,
+    }
+    // SAFETY: the slot is the image's. Every heap is read only after its
+    // bytes are checked to lie in a readable arena, its engine's words and
+    // its name's bytes the same; volatile reads of words another thread may write.
+    unsafe {
+        let Some(global) = raw::image::global_heap().heap() else { return Walk::Absent };
+        let readable = Readable::arenas();
+        let mut levels = [Level { at: None, end: 0 }; MAX_HEAP_DEPTH];
+        levels[0].at = Some(global);
+        let mut depth = 0usize;
+        for _ in 0..MAX_HEAPS * 2 {
+            let level = levels[depth];
+            let Some(at) = level.at.filter(|at| at.address() != level.end) else {
+                if depth == 0 {
+                    return Walk::Whole;
+                }
+                depth -= 1;
+                continue;
+            };
+            if readable.span(at.address() as usize) < raw::MemoryHeap::SIZE {
+                return Walk::Torn;
+            }
+            let Some(engine) = at.engine() else { return Walk::Torn };
+            let (footprint, used) = (engine.footprint(), engine.used());
+            if !readable.holds(footprint) || !readable.holds(used) {
+                return Walk::Torn;
+            }
+            let mut name = [0u8; HEAP_NAME];
+            let text = at.name();
+            let room = readable.span(text as usize).min(HEAP_NAME);
+            let mut length = 0;
+            while length < room {
+                let byte = text.add(length).read_volatile();
+                if byte == 0 {
+                    break;
+                }
+                name[length] = byte;
+                length += 1;
+            }
+            heap(ScaleformHeap { depth: depth as u8, name: &name[..length], flags: read(at.flags()), footprint: read(footprint), used: read(used) });
+            // the global heap has no siblings; a child's next is its parent's next child
+            levels[depth].at = if depth == 0 { None } else { at.next() };
+            if depth + 1 < MAX_HEAP_DEPTH {
+                depth += 1;
+                levels[depth] = Level { at: at.first_child(), end: at.children_end().address() };
+            }
+        }
+        Walk::Torn
+    }
 }
 
 /// A region of the address space, as `VirtualQuery` tells it.
