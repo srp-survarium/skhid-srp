@@ -290,7 +290,7 @@ fn the_exchange_page_says_there_is_no_gold() {
             "{code}"
         );
         assert!(answer.body.contains(text), "{code}: {}", answer.body);
-        assert!(answer.body.contains("SURVARIUM 0.26G") && !answer.body.contains("<form"));
+        assert!(answer.body.contains("href=\"/wiki?lang=") && !answer.body.contains("<form"));
     }
     // Without a code: the page's own language.
     let mut browser = get("/exchange");
@@ -604,7 +604,7 @@ fn the_pages_are_the_026g_ones() {
     }
     let missing = world.web.route(&get("/nothing"), "t");
     assert_eq!(missing.status, "404 Not Found");
-    assert!(missing.body.contains("0.26G"));
+    assert!(missing.body.contains("Survarium 0.26g community server</title>"));
     let mut elsewhere = get("/hidden");
     elsewhere.client = "203.0.113.5".parse().ok();
     assert_eq!(world.web.route(&elsewhere, "t").status, "404 Not Found");

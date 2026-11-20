@@ -19,7 +19,7 @@
       meleeKills: 'Melee kills', batteries: 'Batteries', captures: 'Captures', artefacts: 'Artefacts', members: 'Members', commander: 'Commander',
       overall: 'Overall', inMatches: 'In matches', last30: 'Last 30 days', ended: 'Ended', duration: 'Duration',
       map: 'Map', mode: 'Mode', result: 'Result', place: 'Place', team: 'Team', points: 'Points',
-      win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', inTotals: 'In totals', yes: 'Yes', no: 'No', hours: 'Hours played',
+      win: 'Win', loss: 'Loss', draw: 'Draw', left: 'Left', won: 'won', older: 'Older matches', hours: 'Hours played',
       today: 'Daily leaders', allTime: 'All time', shots: 'Shots fired',
       accuracy: 'Accuracy', weapons: 'Weapons', weapon: 'Weapon', armour: 'Armour', kit: 'Kit', favourites: 'Favourite equipment',
       accuracyNote: '1000+ shots', averageNote: '20+ matches', headshotRate: 'HS %',
@@ -37,7 +37,7 @@
       meleeKills: 'Врукопаш', batteries: 'Батареї', captures: 'Захоплення', artefacts: 'Артефакти', members: 'Учасники', commander: 'Командир',
       overall: 'Загалом', inMatches: 'У матчах', last30: 'Останні 30 днів', ended: 'Завершено', duration: 'Тривалість',
       map: 'Мапа', mode: 'Режим', result: 'Результат', place: 'Місце', team: 'Команда', points: 'Бали',
-      win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', inTotals: 'У підсумках', yes: 'Так', no: 'Ні', hours: 'Годин у грі',
+      win: 'Перемога', loss: 'Поразка', draw: 'Нічия', left: 'Вийшов', won: 'перемогла', older: 'Старіші матчі', hours: 'Годин у грі',
       today: 'Лідери дня', allTime: 'За весь час', shots: 'Постріли',
       accuracy: 'Точність', weapons: 'Зброя', weapon: 'Зброя', armour: 'Броня', kit: 'Комплект', favourites: 'Улюблене спорядження',
       accuracyNote: '1000+ пострілів', averageNote: '20+ матчів', headshotRate: 'У голову %',
@@ -304,7 +304,7 @@
     const columns = [...MATCH_COLUMNS, [TEXT.weapons, row => kitWeapons(row), 'l kits'], [TEXT.result, result, 'l'], [TEXT.place, row => n(row.place)],
       [TEXT.score, row => n(row.score)], [TEXT.kills, row => n(row.kills)], [TEXT.deaths, row => n(row.deaths)],
       [TEXT.kd, row => kd(row.kd)], [TEXT.accuracy, aim], [TEXT.assists, row => n(row.assists)], [TEXT.headshotRate, headshotRate],
-      [TEXT.captures, row => n(row.captures)], [TEXT.rating, row => n(row.rating)]];
+      [TEXT.rating, row => n(row.rating)]];
     root.replaceChildren(head(null, null), ...favourites(null), el('h2', {className: 'stats-heading'}, TEXT.matches), table(columns, null));
     // A player without a public match is not found, as an unknown name.
     const card = await api('player', {name});
@@ -342,8 +342,7 @@
         [TEXT.map, el('span', {className: 'stats-map-cell'}, mapPicture(m, true), m ? mapLink(m) : BLANK)],
         [TEXT.mode, m ? name(m.mode) : null]]],
       [TEXT.result, [[TEXT.result, winner], [TEXT.points, m ? (free ? '—' : m.team_points.map(n).join(' : ')) : null],
-        [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null],
-        [TEXT.inTotals, m ? (m.eligibility === 'counted' ? TEXT.yes : TEXT.no) : null]]]), ...teams.flat()];
+        [TEXT.level, m ? n(m.level) : null], [TEXT.players, m ? n(m.players) : null]]]), ...teams.flat()];
     };
     root.replaceChildren(...view(null));
     const data = /^\d+$/.test(id) ? await api('match', {id}) : null;
@@ -403,13 +402,13 @@
         return box;
       }))];
   }
+  // Everything added up: its heading, then one row in the tables' look.
   function allTime(data) {
-    const v = key => data ? n(data[key]) : null;
-    const box = panels([TEXT.allTime, [[TEXT.players, v('players')], [TEXT.matches, v('matches')], [TEXT.kills, v('kills')],
-      [TEXT.assists, v('assists')], [TEXT.shots, v('shots')], [TEXT.accuracy, data ? aim(data) : null],
-      [TEXT.hours, data ? hours.format(data.played_s / 3600) : null]]]);
+    const box = table([[TEXT.players, row => n(row.players)], [TEXT.matches, row => n(row.matches)], [TEXT.kills, row => n(row.kills)],
+      [TEXT.assists, row => n(row.assists)], [TEXT.shots, row => n(row.shots)], [TEXT.accuracy, aim],
+      [TEXT.hours, row => hours.format(row.played_s / 3600)]], data && [data], 1);
     box.classList.add('stats-all');
-    return box;
+    return [el('h2', {className: 'stats-heading'}, TEXT.allTime), box];
   }
 
   function boardsView() {
@@ -480,10 +479,10 @@
       button.addEventListener('click', () => { board = value; key = BOARDS[board][0] || ''; draw(); });
       tabs.append(button);
     }
-    const today = el('div', {}, leaders(null)), all = el('div', {}, allTime(null));
+    const today = el('div', {}, leaders(null)), all = el('div', {}, ...allTime(null));
     root.replaceChildren(finder(), today, all, tabs, keys, body);
     api('today', {}).then(data => today.replaceChildren(...leaders(data || {leaders: {}})), () => today.replaceChildren());
-    api('totals', {}).then(data => data ? all.replaceChildren(allTime(data)) : all.replaceChildren(), () => all.replaceChildren());
+    api('totals', {}).then(data => data ? all.replaceChildren(...allTime(data)) : all.replaceChildren(), () => all.replaceChildren());
     draw();
   }
 

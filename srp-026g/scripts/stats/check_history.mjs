@@ -137,8 +137,9 @@ try {
   assert.deepEqual(await cells('.stats-leaders .table-scroll:first-child tbody td:nth-child(3)'),
     [...answered.today.leaders.kills.map(row => String(row.value)), ...Array(5 - answered.today.leaders.kills.length).fill('\u00a0')]);
   assert.equal(answered.today.leaders.kills.length, 5);
-  assert.equal(await panel('Matches'), String(answered.totals.matches));
-  assert.equal(await panel('Players'), String(answered.totals.players));
+  assert.deepEqual((await cells('.stats-all thead th')).slice(0, 3), ['Players', 'Matches', 'Kills']);
+  assert.deepEqual((await cells('.stats-all tbody td')).slice(0, 2), [String(answered.totals.players), String(answered.totals.matches)]);
+  assert.equal(await evaluate("document.querySelector('.stats-all').previousElementSibling.textContent"), 'All time', 'its heading over it, as the leaders\' is');
   await screenshot('boards-accuracy');
   await evaluate("document.querySelector('[data-board=clans]').click()");
   await settled();
@@ -286,7 +287,6 @@ try {
   assert.deepEqual(await cells('.stats-table tbody td:nth-child(8)'), answered.match.players.map(row => aim(row)));
   assert.equal(await fits(), true, 'the teams fit the width');
   await screenshot('match');
-  assert.equal(await panel('In totals'), 'Yes');
   // The teams in the Maps page's colours; the map leads to it there, in the match's mode.
   assert.deepEqual(JSON.parse(await evaluate("JSON.stringify([...document.querySelectorAll('.stats-team')].map(h => getComputedStyle(h).borderLeftColor))")),
     ['rgb(59, 130, 246)', 'rgb(229, 72, 77)']);
@@ -299,7 +299,7 @@ try {
   await navigate(`/stats?match=${newest}&lang=en`);
   await navigate('/stats?match=99&lang=en');
   assert.equal(await text('.stats-empty'), 'No public match 99.');
-  // A free-for-all: one list by place, its winners named. A match too short: not in the totals.
+  // A free-for-all: one list by place, its winners named.
   await navigate('/stats?match=3&lang=en');
   assert.equal(await count('.stats-table'), 1);
   assert.equal(await count('.stats-table tbody tr'), answered.match.players.length);
@@ -307,8 +307,6 @@ try {
   assert.equal(await panel('Result'), answered.match.players.filter(row => row.outcome === 'won').map(row => row.player.name).join(', '));
   assert.equal(await panel('Points'), '—');
   await screenshot('match-free-for-all');
-  await navigate('/stats?match=7&lang=en');
-  assert.equal(await panel('In totals'), 'No');
   // One who left a match its team won lost it.
   await navigate('/stats?player=Dub&lang=en');
   assert.ok((await cells('.stats-paged tbody td:nth-child(6)')).includes('Loss · Left'));
