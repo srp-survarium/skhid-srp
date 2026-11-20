@@ -286,6 +286,121 @@ a lobby project must give, the lobby window and the upgrade view are the lobby s
   0.26's), the shadow proxies (`shadow_proxy_geom`: 0.26 has none), the fridge's sound, 0.69d
   metalness and detail maps, exposure, white balance and tone curve.
 
+## Room weather: camp_069_rain and camp_069_night (pack lobby-camp-069@19)
+
+The owner (2026-11-02): "room should actually be secretely 3 rooms, sometimes it should be rainy
+outside and we can use rain from other maps and clouds"; the third a night ("the game doesn't have
+night version at all"). Which one is shown is the exe's (another change); the pack gives the scenes.
+
+- **@19** is @18 with two more projects: `lobby_scene/camp_069` is @18's byte for byte (so are all
+  of @18's 1315 files), `lobby_scene/camp_069_rain` and `lobby_scene/camp_069_night` share its
+  models, materials, textures and probe cubemaps. 27 files are new: the two projects, two grading
+  tables, the night's lit-window texture, its material and two block copies, two imported sounds.
+  The variants are the manifest's; the round that set them (the owner's "lit from the top" on the
+  first one) placed the light where a path-traced model of the room has it (below).
+- **How:** resource-porter's lobby `variants` (its `docs/survarium-069d-to-026.md`): each variant
+  is made from the lobby's built project, so its room, camera walls, weapon spot and camera track
+  are the lobby's, and it changes the environment, lights, probe levels, particles, sounds, a
+  grading table, lit facade windows, and (the night) the characters' facing. Not edit lists: a variant is a new
+  project and new files (sounds, textures, model copies), which only a pack ships; an edit list
+  would copy the project and address its objects by index.
+- **What 0.26g has for weather** (the stock db and the live patches): the environment's own rain
+  (`use_rain`, `rain_*`: drops drawn round the camera, kept out from under roofs by a rain shadow
+  map; `rain_surface_intensity` wets what it falls on), used by levels 01-07's `rain_*` projects;
+  rain streams `particles/fx/environment/rain`, `rain_small`, `rain_small_long`, `rain_mini`
+  (level 03's rain, from roof edges); skies `sky/overcast`, `overcast2`, `cgskies_cloud`; the
+  grading `color_grading/rain_2`; the engine's `rain_drop`, `rain_stream`, `lensdirt_rain`.
+  Sounds: no rain loop at all. Level 04's rain has `scapes/level_04/rain/3d_water_drops` (drips)
+  and `metal_construction_env`; level 08's pre-rain `weather/atmospheres/pre_rain_*` (wind);
+  every rain map `scapes/weather/thunder_line` and `scapes/creatures/cold_wind`. 0.69d (the
+  room's own build) has `weather/rain/rain_pour` (its `rain_pour_indoor` is the same audio at
+  `volume_k` 0.3), `rain_roof_metal`, `rain_tent`. For a night: level 08 has `night_2/3` game
+  modes but no night project; textures `sky/sky_stars_s`, `sky/moon_full`, the material
+  `sky/sky_night`. The only wolves are `scapes/creatures/wolves` (Rudnya, level 01, its day and
+  rain projects, about 200 m out; no Vostok map in 0.26g has a wolf sound).
+- **Rain** (`camp_069_rain`):
+  - the environment's rain at level 02 rain's values but denser (`rain_density` 4, drops' alpha
+    0.6), wind 0.81, no sun (intensity 0, no sun shadows: no sun patch on the floor or ceiling),
+    level 02 rain's overcast sky (`sky/overcast` clouds, `sky/cgskies_cloud`, its sky fog and
+    atmosphere), a grey haze (mie fog 0.55 grey, 10..700 m); eleven `fx/environment/rain` streams
+    falling past the back and left windows from above them;
+  - the light comes in at the windows, from above them, as an overcast sky's does. Measured one
+    source at a time in a game (the owner on the round before: "lit from above", the ceiling the
+    brightest surface; `private/renders/room-weather/rain-sources_*.png`; the stock view's ceiling
+    band, sRGB luminance): all 141; the room probes off 141; the fills off 141; the chandelier off
+    86; the windows' lights alone 85 (the room lit, the walls 74, the character 70). The
+    chandelier (by day 0.5 within 2 m, and its two 0.4 ambient spheres) lit the ceiling; the probes
+    (x0.7) and the fills changed it little. Now: the day's window key (shadowed, under the window
+    top: window-shaped patches up the ceiling) out; the fills (the window side's sphere, the floor
+    and wall fills) out; the chandelier dim (0.25 within 2 m, its spheres out: a gloomy day); a cool
+    grey light just outside each window above the ceiling's height (back 4.2 within 7.5 m, left 2.6
+    within 6.5 m), no shadow: the ceiling and the window wall face away from it, the floor and the
+    far walls take it, brightest at the windows; a short soft fill on the character's front
+    (0.9 within 2.6 m, as the window's light off the floor); the room's probes x0.3. A grading
+    table of its own: saturation 0.75, gamma 1.12, a little darker and cooler;
+  - sound: the 0.69d `rain_pour` (imported, `volume_k` 1.0, `mid_range`: 0.75 of it 2 m from a
+    source, 0.3 at 8 m) 1.2 m outside the back and the left windows, and level 04's drips on the
+    back window's sill. Heard in a game (a private PulseAudio null sink, the game's own mix): the
+    rain sits about 10 dB under the lobby's ambience bed and is all of the sound above 1 kHz
+    (2..5 kHz -39 dBFS against the day's -59). `lp_filter_k` (tried at 0.3) changed nothing
+    measurable, so the rain is not muffled; 0.69d's own "indoor" rain is the same audio, quieter.
+    Picking another lobby stops it at once (the Basement: 2..10 kHz back to the day's level within
+    the 5 s window), and it starts again with the Room: the emitters are the project's.
+  - measured on the stock view, the game's own frames (mean of sRGB luminance, 0..255): the ceiling
+    band 70 (day 135), the left wall with the window 83 (64), the right wall facing it 144 (139),
+    the floor 73 (59); the character's torso 63.5 (day 73.5: a gloomy day, the gear reads), the
+    scene's darkest tenth 27.7 (22.1).
+  - **Eye adaptation** does not flatten it much. In 0.10b's source (`complex_post_process_blend.ps`)
+    the exposure is `2^(0.2 log2(key / average))`: a fifth of a full correction (a scene 4 times
+    darker shows only 1.32 times brighter); 0.26g's compiled shader has the same 0.2 (its key and
+    clamps come in as constants). The flat look was the light. A project's environment has no
+    exposure limit to set (only `eye_adaptation_speed`, how fast it moves); the grading table is
+    the per-project control, applied after it.
+- **Night** (`camp_069_night`):
+  - the room as by day, the characters turned to face the chandelier and the lobby camera starting
+    on its side (the owner: "night should start with camera moved to face characters"): the
+    project's `srp_lobby.facing` = pi, which the exe is to read (feat/room-weather, #1060): it turns
+    the three characters about the origin (their spots and facings) and the camera's start yaw by
+    it. Until it does, the night shows them facing away from the lamp. The captures of the night
+    are of the turned-room build (resource-porter's `turned`, kept as the fallback: the room half a
+    turn about the characters, everything placed turning with it, the grass layers left out), which
+    puts characters, lamp and camera in the same places relative to each other;
+  - the light is the room's own: the chandelier's two bulbs 2.2 within 5 m (by day 0.5 within 2),
+    the work-table lamps 0.3; the day's fills (the window side's sphere, the floor fills, the
+    wall's) out; the room's probes x0.1 (their cubemaps are the day's: a sky-lit fill from above);
+    faint cool moonlight through the back window (the day's window key at 0.6); outside, the
+    outdoor probe x0.03 and its ambient lights 0.05. A grading table of its own (gamma 1.45,
+    gain 0.82..0.9, cool shadows): 0.26g's eye adaptation brings a lamp-lit room back to a day's
+    brightness, the table takes it down again after it;
+  - the sky: the sun as a weak cool moon (0.25), the stars (`sky/sky_stars_s` as stratosphere),
+    dark clouds and fog; `sun_moon_texture` `sky/moon_full` is set but no moon disc was seen from
+    the lobby's views;
+  - two lit windows in the apartment blocks, warm and dim (the owner: "maybe only 1 or 2 are
+    bright"): resource-porter's `lit_windows` gives one instance of `level/02/bg_house_2` a copy
+    whose window quads near a point draw a material emitting the glass of the atlas's window panes.
+    One is seen through the left window from the orbit; the other is in line with the back window
+    from the night's start eye, but from there the rag on the curtain rod and the character cover
+    that window, and the strip left open shows a wall between windows (checked by ray casts in a
+    Blender model of the scene): no lit window shows from the start view itself;
+  - wolves: 0.26g's `scapes/creatures/wolves` (imported, `volume_k` 0.6) 55 m out past the back
+    window and 20 m down. The sound is a 221 s scape: 100 s of silence, a howl, 70 s, a howl, 50 s
+    of silence, looped; so the first howl comes 100 s after the lobby's sound starts (never at the
+    sign-in), then 70 and 151 s apart. Found in a game's recording at 176 s and 246 s (cross-
+    correlated with the file), about 10 dB under the source (its howls -26 dBFS: about -36 dBFS in
+    the mix, under the ambience bed);
+  - measured on the start view (turned-room build): the character's torso 43.9 (day 71.9), the
+    scene 59.1 (78.2), its darkest tenth 10.3 (21.5): dim, the face and the gear still read.
+- **Checks:** the three projects loaded in a game (a test patch with the variant in the Room's
+  slot; `private/renders/room-weather/`); `vostok-port pack check` and `release/build-content`.
+  A sound collection's `object_sound` needs `resource_id` 258 (256, a single sound's, crashed the
+  game as the project loaded).
+- **Light references:** the room path-traced in Blender (resource-porter's lobby-bake helpers;
+  `private/renders/room-weather/blender/`): day (sun and sky through the windows), rain (an overcast
+  sky through the windows), night (the chandelier's bulbs, a faint night sky), a grey stand-in for
+  the character. Rain there is window-led (bright at the windows, the window wall and ceiling dark,
+  falling off into the room); the chandelier alone lights the whole room at night, brightest on
+  the ceiling round it and on the character's front from the turned eye.
+
 ## What softens a shadow in 0.26g
 
 Read 2026-10-31 in the stock point-light shader (`shaders/sm_4_0/point_light_accumulator.ps`,
