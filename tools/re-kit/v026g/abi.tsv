@@ -2709,6 +2709,7 @@ va	name	source	ret_cleanup	result
 0x00311070	survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme	manual	12	EAX: the lexeme out-param (stack+4); the clip speed it hands on is +14Ch through 0x2D5AE0 index 13 (0x3110D5)
 0x0028bee0	survarium::lobby_menu::find_players	manual	4	AL: 1 (callback handled); the text of 3 bytes or more goes to 0x26B660 as it is (no cut, no check of its bytes), a shorter one nowhere
 0x0026b660	survarium::messaging_client::find_players	manual	8	none: writes 4E 06 {u8 strlen & FFh, the bytes} on the lobby link (0x37A0E0 begin, 0x379640 queue: it leaves on the link's next 500 ms tick); nothing unless the link is connected (state 0 or 4)
+0x003cfaf0	vostok::render::res_render_output::fullscreen_output	manual	0	EAX the IDXGIOutput that SetFullscreenState gets (show 0x3CF62B, apply_fullscreen_state 0x3CFDF6, goto_fullscreen 0x3CFE5F): the render device's outputs (+184h..+188h of [0x2260478]) at r_monitor_index (render options +D0h); 0 when windowed (+EDh) or the index is past the list
 0x0023c050	survarium::game_world_ui::set_player_icon_position	manual	4	
 0x002dda80	survarium::game_effect_player::resolve_link	manual	8	
 0x002e5cf0	survarium::game_effect_ptr_wrapper::deserialize	manual	4	

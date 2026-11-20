@@ -6397,6 +6397,7 @@ va	name	location	role	basis
 0x0028bee0	survarium::lobby_menu::find_players	entry ESP+4	Flash callback params; +8 points to the first value: the search text (its string at [+8], or [[+8]] for a managed one, by bit 6 of +4)	observed
 0x0026b660	survarium::messaging_client::find_players	entry ESP+4	client whose [+4] is the lobby client (link at +8, connection at +1E55C8h)	observed
 0x0026b660	survarium::messaging_client::find_players	entry ESP+8	NUL-terminated search text	observed
+0x003cfaf0	vostok::render::res_render_output::fullscreen_output	ECX	render-output receiver (+EDh windowed)	observed
 0x0023c050	survarium::game_world_ui::set_player_icon_position	entry ESP+4	the game_world_ui (icon record at +18h * id + 374h: x, y, scale; dirty bit 1 at +389h)	observed
 0x0023c050	survarium::game_world_ui::set_player_icon_position	AL	the icon id	observed
 0x0023c050	survarium::game_world_ui::set_player_icon_position	EDX	float[3]: x, y (pixels), scale	observed

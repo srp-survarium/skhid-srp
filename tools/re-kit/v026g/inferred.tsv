@@ -3527,6 +3527,7 @@ va	status	ref_021d	name
 0x00133f50	inferred-medium		vostok::render::stage_rain::rain_rotation_basis
 0x0030f5a0	inferred-medium		survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme
 0x00311070	inferred-medium		survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme
+0x003cfaf0	inferred-medium		vostok::render::res_render_output::fullscreen_output
 0x0023c050	inferred-medium		survarium::game_world_ui::set_player_icon_position
 0x00313350	inferred-medium		survarium::artefact_base::play_active_effect
 0x00313470	inferred-medium	0x001f50cb	survarium::artefact_base::added_to_inventory
