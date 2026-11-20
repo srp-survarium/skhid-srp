@@ -77,6 +77,7 @@
     "lip_look_ahead_m": 0.0,
     "max_turn_speed_top": 5.0,
     "precise_tops": false,
+    "press_forecast": false,
     "sprint_by": "facing",
     "sprint_gaps": false,
     "sprint_through": false,

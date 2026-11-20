@@ -378,10 +378,13 @@ pub enum Kind {
     /// [fix-lip] The lip guard's word near a take-off of the route's own jump or drop links: braked, swapped or left to the link,
     /// and why (`drive.rs` `guard_keys`, [`take_off_line`]).
     TakeOff,
+    /// [press forecast] A route jump's try under the press forecast: its press (followed to its rest) or the try spent, with every
+    /// plan's verdicts (`motor.rs` `Motor::take_cast_line`). Not capped: one line a try, and a link has three.
+    Press,
 }
 
 /// How many kinds of line there are ([`Kind`]).
-const KINDS: usize = 16;
+const KINDS: usize = 17;
 
 /// [owner-5] At most this many lines of a kind per bot per match (the first ones; the rest are counted into the last): the
 /// owner-5 kinds fire on events that can repeat all match (a battery refused at every poll, a role offered and refused
@@ -404,8 +407,15 @@ impl NavLog {
     /// A line of `kind` at `time`: kept for the next poll, or held back (counted) within [`EVERY_MS`] of the last one. The
     /// owner-5 kinds also stop at [`MAX_PER_KIND`] a match.
     pub fn push(&mut self, kind: Kind, time: u32, text: String) {
-        let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift);
+        let capped = !matches!(kind, Kind::Jump | Kind::Fall | Kind::Drift | Kind::Press);
         if capped && self.written[kind as usize] >= MAX_PER_KIND {
+            return;
+        }
+        // [press forecast] A try's lines (spent, pressed, landed) can come within the limit of each other; each is the try's own,
+        // and a link has three tries: none is held.
+        if kind == Kind::Press {
+            self.written[kind as usize] += 1;
+            self.pending.push((time, text));
             return;
         }
         let slot = &mut self.last[kind as usize];

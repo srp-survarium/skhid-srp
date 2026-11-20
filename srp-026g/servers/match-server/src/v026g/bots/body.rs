@@ -581,6 +581,32 @@ impl Estimate {
             step_creep: Creep::Unknown,
         }
     }
+
+    /// TEST ONLY: a body standing at `feet` facing `yaw`, no keys, on no known floor.
+    #[cfg(test)]
+    pub(crate) fn at_rest(feet: Vec3, yaw: f32) -> Self {
+        Self {
+            time: 0,
+            feet,
+            velocity: [0.0, 0.0],
+            blend: Blend::at([0.0, 0.0]),
+            yaw: wrap(yaw),
+            pitch: 0.0,
+            kick: 0.0,
+            keys: 0,
+            node: None,
+            air_until: 0,
+            air_cap: f32::INFINITY,
+            arc: None,
+            scale: PitchScale::Radian,
+            fall: Fall::Ground,
+            step: None,
+            grid_extra: GridExtra::default(),
+            kept: None,
+            creep: Creep::Unknown,
+            step_creep: Creep::Unknown,
+        }
+    }
 }
 
 /// What the stop check [`stays_up`] plays the body over: its movement model and speed level, the grid, the
@@ -714,9 +740,82 @@ pub enum PressOutcome {
     NoFlight,
 }
 
+/// [press forecast] The match's forecasts of one poll: one chain or one flight ([`press_chain`], [`press_forecast`]) a poll for all
+/// its bots, so the worst poll pays for one (design §5.4). The poll is set before each bot's drive ([`Self::begin`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PressToken {
+    /// The poll now (the match clock's ms).
+    poll: u32,
+    /// The poll the last forecast was taken in.
+    taken: Option<u32>,
+}
+
+impl PressToken {
+    /// The poll of the match clock `poll` is under way.
+    pub fn begin(&mut self, poll: u32) {
+        self.poll = poll;
+    }
+
+    /// Takes this poll's forecast: false when one was taken in it already.
+    pub fn take(&mut self) -> bool {
+        if self.taken == Some(self.poll) {
+            return false;
+        }
+        self.taken = Some(self.poll);
+        true
+    }
+}
+
+/// [press forecast] What a match has learned of a pressed link at a walk cap (`motor::PressFlyer::learned`, design §9.5).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct LinkLearned {
+    pub walk_in: WalkIn,
+    /// The lead (m before the take-off along the press's line) of the last press from rest that got up: rested at first.
+    pub rest_lead: Option<f32>,
+}
+
+/// [press forecast] What a walk-in at the cap found at a link ([`LinkLearned`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WalkIn {
+    #[default]
+    Unknown,
+    /// Every candidate flown and no run of landing ticks: later tries go straight to the rest ask.
+    NoRun,
+}
+
+/// [press forecast] The match's learned links ([`LinkLearned`]), keyed by the link's ends and the walk cap (cm, cm/s).
+#[derive(Clone, Debug, Default)]
+pub struct PressLearned(std::collections::HashMap<([i32; 3], [i32; 3], i32), LinkLearned>);
+
+impl PressLearned {
+    fn key(take_off: Vec3, landing: Vec3, cap: f32) -> ([i32; 3], [i32; 3], i32) {
+        let cm = |v: f32| (v * 100.0).round() as i32;
+        ([cm(take_off.x), cm(take_off.y), cm(take_off.z)], [cm(landing.x), cm(landing.y), cm(landing.z)], cm(cap))
+    }
+
+    pub fn get(&self, take_off: Vec3, landing: Vec3, cap: f32) -> LinkLearned {
+        self.0.get(&Self::key(take_off, landing, cap)).copied().unwrap_or_default()
+    }
+
+    pub fn learn(&mut self, take_off: Vec3, landing: Vec3, cap: f32, learn: &mut dyn FnMut(&mut LinkLearned)) {
+        learn(self.0.entry(Self::key(take_off, landing, cap)).or_default());
+    }
+}
+
+/// [press forecast] The match's press forecast state: the poll's one forecast and the links learned.
+#[derive(Clone, Debug, Default)]
+pub struct PressMatch {
+    pub token: PressToken,
+    pub learned: PressLearned,
+}
+
+/// [press forecast] The steps a flight that ended in the air is followed down by its controller at most ([`press_forecast`]): 1 s,
+/// a fall of 4.9 m from rest at the client's gravity (0.49 m/s a step).
+const PRESS_FALL_STEPS: u32 = 20;
+
 /// [press forecast] The steps of the client's flight a forecast plays at most: the sprint jump's landing step (n = 18,
 /// `SPRINT_LANDING_N`, `mapdata/controller/jump.rs`; the short jump's is 16) and the step it starts on.
-const PRESS_FLIGHT_STEPS: u32 = 19;
+pub(crate) const PRESS_FLIGHT_STEPS: u32 = 19;
 
 /// [press forecast] The body `at` playing `keys` (constant, no turn) for `ticks` ticks, by the reckoning's own steps ([`Role::Press`]):
 /// each tick's state, `at` first. The ground chain a press's candidates are flown from.
@@ -754,6 +853,37 @@ pub fn press_forecast(at: &Estimate, plan: &PressPlan, world: &PressWorld) -> Pr
     }
     if at.arc.is_some() {
         return PressOutcome::NotDown { at: at.feet };
+    }
+    // A flight that ended in the air (falling on): its controller falls on, no key, until it is on the ground, and the rest is
+    // played from there. The grid's floor under the feet is not the client's where its controller has no ground (the suite's
+    // S417: a gap's grid floor past its real edge, the exe fell 5.5 m; S109: a step's face, back to the start floor).
+    if let (Fall::Falling { .. }, Some(mut kept)) = (at.fall, at.kept) {
+        let start = kept.controller.feet();
+        let input = TickInput { walk: Vec3::ZERO, air_control: Vec3::ZERO, crouch: crouch_input(0, false), sprinting: false };
+        let mut down = false;
+        for _ in 0..PRESS_FALL_STEPS {
+            let started = std::time::Instant::now();
+            let notes = grid.kept_tick(&mut kept.controller, input);
+            kept_clock::add(kept_clock::Of::Press, started.elapsed().as_nanos() as u64);
+            let Some(notes) = notes else {
+                return PressOutcome::NoFlight;
+            };
+            if !notes.airborne {
+                down = true;
+                break;
+            }
+        }
+        let feet = at.feet + (kept.controller.feet() - start);
+        if !down {
+            return PressOutcome::NotDown { at: feet };
+        }
+        kept.feet = feet;
+        kept.airborne = false;
+        at.feet = feet;
+        at.node = grid.locate(feet, LOCATE_M).or(at.node);
+        at.fall = Fall::Ground;
+        at.velocity = [0.0, 0.0];
+        at.kept = Some(kept);
     }
     let stay = match plan.after {
         AfterLanding::Hold => 0,
@@ -1930,7 +2060,9 @@ fn advance(
                         at.feet = feet;
                         at.node = floor;
                         at.fall = Fall::Falling { speed: (-vertical).max(0.0) };
-                        at.kept = None;
+                        // [press forecast] The press forecast follows the controller down ([`press_forecast`]); the reckoning
+                        // falls by its own rule.
+                        at.kept = (role == Role::Press).then_some(after);
                     }
                 }
             }
@@ -3664,16 +3796,31 @@ pub(super) mod tests {
         }
     }
 
+    /// [press forecast] The match's one forecast a poll: taken once in a poll, free again in the next.
+    #[test]
+    fn the_press_token_gives_one_forecast_a_poll() {
+        let mut token = PressToken::default();
+        token.begin(50);
+        assert!(token.take());
+        assert!(!token.take(), "the second forecast of the poll");
+        token.begin(50);
+        assert!(!token.take(), "the same poll begun again by the next bot");
+        token.begin(100);
+        assert!(token.take(), "the next poll");
+    }
+
     /// [press forecast] [`press_forecast`] plays the reckoning's own steps ([`Role::Press`]): for every press of the gap (0-19
     /// ground ticks of forward before it), where it ends is, to the bit, where the reckoning ([`Role::Reckoning`]) puts the body
-    /// playing the same ticks (the ground ticks, the press, forward through the flight, the stay steps with the keys let go). Its
-    /// steps are on its own clock ([`kept_clock::Of::Press`]).
+    /// playing the same ticks (the ground ticks, the press, forward through the flight, the stay steps with the keys let go); a
+    /// flight that ended in the air is followed down by its controller, not over the reckoning's floor (a landing only on it). Its steps are on
+    /// its own clock ([`kept_clock::Of::Press`]).
     #[test]
     fn a_press_forecast_is_the_reckonings_own_steps() {
         let (grid, kin, at) = press_gap();
         let world = PressWorld { kin: &kin, level: 1.0, grid: &grid };
         let tick = |at: &Estimate, keys: u32| Tick { time: at.time + TICK_MS, keys, turn: (0.0, 0.0), kick: 0.0, jump: JumpGate::Open, legs_broken: false };
         let step = |at: Estimate, keys: u32| advance(at, tick(&at, keys), &kin, 1.0, Some(&grid), None, Role::Reckoning, false);
+        let mut fell = 0;
         for press_in in 0..20 {
             let outcome = press_forecast(&at, &gap_plan(key::FORWARD, press_in), &world);
             let end = end_of(outcome).unwrap_or_else(|| panic!("press {press_in}: no flight"));
@@ -3688,13 +3835,27 @@ pub(super) mod tests {
                 r = step(r, key::FORWARD);
                 n += 1;
             }
+            // A flight that ended in the air: the forecast follows its controller down ([`PRESS_FALL_STEPS`]), the reckoning falls by
+            // its own rule onto the grid's floor; the forecast's end is not over that floor, and a landing only on it.
+            let fell_on = matches!(r.fall, Fall::Falling { .. });
             if r.arc.is_none() {
                 for _ in 0..mapdata::controller::jump::STAY_STEPS {
                     r = step(r, 0);
                 }
             }
-            assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
+            if fell_on {
+                fell += 1;
+                // Not over the reckoning's floor: on it, or (no walker ground under it, the fixture's pit) still falling; a landing
+                // only where the reckoning came down on the same floor.
+                assert!(end.y < r.feet.y + 0.05, "press {press_in}: not over the reckoning's floor ({outcome:?}, {:?})", r.feet);
+                if matches!(outcome, PressOutcome::Lands { .. }) {
+                    assert!((end.y - r.feet.y).abs() < 0.05, "press {press_in}: a landing on the reckoning's floor ({outcome:?}, {:?})", r.feet);
+                }
+            } else {
+                assert_eq!(end, r.feet, "press {press_in}: the forecast ends where the reckoning does ({outcome:?})");
+            }
         }
+        eprintln!("presses that fell on: {fell} of 20");
         let (steps, _) = kept_clock::take(kept_clock::Of::Press);
         assert!(steps > 0, "on the press clock");
     }

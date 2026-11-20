@@ -39,8 +39,10 @@ use std::f32::consts::PI;
 use mapdata::Vec3;
 use mapdata::grid::{SPRINT_JUMP_LOW_M, STANDING_JUMP_M};
 
+use super::body::{Estimate, LinkLearned, PressOutcome, WalkIn};
 use super::encode::Decision;
 use super::kin::{TICK_S, wrap, yaw_of};
+use super::press_plan::{Ask, Choice, MIN_RUN, Plan, same_body};
 use super::link_time;
 use super::path::{AfterLanding, DropTruth, GapPress, Leap, PressAim, Route, RouteHeight, SprintPress, WalkPress};
 use super::rng::Rng;
@@ -280,6 +282,15 @@ pub struct Feel {
     /// [fix-move, owner-16 row 29] How a plain jump link (`Leap::Ledge`, no press stored) up to the standing jump's top
     /// ([`STANDING_JUMP_M`]) is pressed ([`LedgePress`]). Stand (KEPT_RIGHT): the walking press there is proven to miss in the exe.
     pub ledge_press: LedgePress,
+    /// [press forecast] A gap or rim link walked at the cap (`Leap::Gap`) and the plain ledge pressed from a stand are pressed when
+    /// the body model's forecast of the press lands (`body::press_forecast`, the reckoning's own steps of the client's walk and
+    /// flight; design `DESIGN-press-by-prediction` §2-§3): the line moved to the middle of the stored side window, locked facing
+    /// its way, the ticks before the take-off flown one a poll, the middle of the longest run of landing ticks pressed; with no
+    /// landing tick the body stops and asks from its rest (the slow press, 0-5 steps), and a try is spent when that finds none.
+    /// The motor's own press gates (the flown window, the lead, the walk-up from a rest box) are not asked then. Off: as before.
+    /// Each try writes one nav line (`Motor::take_cast_line`): every plan's candidates and verdicts, the press or the reason
+    /// none was made, and 2.5 s after a press where the body is against the forecast's rest.
+    pub press_forecast: bool,
     /// [A198] At the take-off's place (along the jump's way) under its floor and out of reach of any jump its approach makes, the
     /// jump is given up and the route planned again. Off (A262: given up 17 -> 104 with the stand-in's air control). The hold of
     /// such a press, and following the route up to the take-off instead of lining up under it, are always on (`under_reach`:
@@ -445,6 +456,7 @@ impl Default for Feel {
             carry_jumps: true,
             walk_jump_reach: true,
             ledge_press: LedgePress::Stand,
+            press_forecast: true,
             press_in_reach: false,
             sprint_turns: None,
         }
@@ -988,6 +1000,16 @@ pub struct Motor {
     walk_off_line: Option<String>,
     /// [item 10] The log line of the last held sprint's walk that ended ([`Self::take_held_line`]).
     held_line: Option<String>,
+    /// [press forecast] The forecast press of the route jump under way ([`Feel::press_forecast`]).
+    cast: Option<PressCast>,
+    /// [press forecast] The log line of its last press or spent try ([`Self::take_cast_line`]).
+    cast_line: Option<String>,
+    /// [press forecast] The last forecast press, followed for its line ([`Self::cast_watch_tick`]).
+    cast_watch: Option<CastWatch>,
+    /// [press forecast] This tick the last forecast press is in its flight ([`Self::press_flight`]).
+    in_press_flight: bool,
+    /// [press forecast] This tick's keys by the forecast press, if it decided them ([`Self::press_stops`]).
+    cast_keys: Option<CastKeys>,
     /// The sway's phase and the time, seconds, for it.
     phase: f32,
     t: f32,
@@ -1114,6 +1136,225 @@ struct PressWait {
     since: u32,
     tries: u32,
 }
+
+/// [press forecast] What the motor asks of the body model at a route jump ([`Feel::press_forecast`]): the caller builds it each tick
+/// (`drive.rs`: the reckoned body, the grid's client walker, the match's forecast of the poll, `body::PressToken`).
+pub trait PressFlyer {
+    /// Whether it can forecast at all (a reckoned body, a grid with the client's walker): with none the motor presses as before.
+    fn ready(&self) -> bool;
+    /// The body as reckoned before this tick's decision.
+    fn body(&self) -> Option<Estimate>;
+    /// `keys` held with no turn for `ticks` ticks from `from` (`body::press_chain`), `from` first; none when the poll's forecast
+    /// is taken.
+    fn chain(&mut self, from: &Estimate, keys: u32, ticks: u32) -> Option<Vec<Estimate>>;
+    /// The press `plan` from `from` (`body::press_forecast`); none when the poll's forecast is taken.
+    fn fly(&mut self, from: &Estimate, plan: &super::body::PressPlan) -> Option<PressOutcome>;
+    /// What the match learned of the link from `take_off` to `landing` at the walk cap `cap` m/s (`body::PressLearned`).
+    fn learned(&self, take_off: Vec3, landing: Vec3, cap: f32) -> LinkLearned;
+    /// Learns of it.
+    fn learn(&mut self, take_off: Vec3, landing: Vec3, cap: f32, learn: &mut dyn FnMut(&mut LinkLearned));
+}
+
+/// [press forecast] What a forecast press does with this tick's keys ([`Motor::cast_tick`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CastKeys {
+    /// Not on the jump's line: walked to it as before (the run-up point, the route).
+    Approach,
+    /// On the line, not locked: walked along it, turning to its way.
+    Line,
+    /// Locked on a plan: forward alone, no turn (the chain's own keys).
+    Walk,
+    /// The plan's press: forward and jump, no turn.
+    Press,
+    /// No key, turning to the line's way: coming to rest (the bail-out, design §3.4).
+    Stand,
+    /// No key and no turn: at rest, facing the way, while its rest is asked (the ask's chain starts from this very body).
+    Hold,
+}
+
+/// [press forecast] Why a forecast press did not press ([`Motor::cast_tick`]), for the nav line and the counts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CastWhy {
+    /// No run of [`MIN_RUN`] landing ticks in the moving pass: `flown` flights, `unflown` candidates passed unflown, `longest` the
+    /// longest run of landing ticks.
+    NoTickLands { flown: u32, unflown: u32, longest: u32 },
+    /// At the bail-out point with flights still to fly.
+    NotFlownInTime,
+    /// The body was not where the plan's chain put it (a world's fix, a push, a hit, another module's keys).
+    Moved,
+    /// No run of [`MIN_RUN`] landing steps from this rest: `flown` flights, `longest` the longest run.
+    NoPressFromRest { flown: u32, longest: u32 },
+    /// At rest where the rest was asked already.
+    RestAgain,
+    /// No press [`PLAN_DEADLINE_S`] after the body first reached the lock.
+    Deadline,
+}
+
+impl CastWhy {
+    /// For the nav line.
+    fn text(self) -> String {
+        match self {
+            CastWhy::NoTickLands { flown, unflown, longest } => {
+                format!("no run of {MIN_RUN} landing ticks (longest {longest}; {flown} flown, {unflown} not flown in time)")
+            }
+            CastWhy::NotFlownInTime => "not flown in time".to_owned(),
+            CastWhy::Moved => "body moved (fix / push)".to_owned(),
+            CastWhy::NoPressFromRest { flown, longest } => format!("no press from rest (longest run {longest}; {flown} flown)"),
+            CastWhy::RestAgain => "at a rest asked before".to_owned(),
+            CastWhy::Deadline => format!("no press {PLAN_DEADLINE_S} s after the lock"),
+        }
+    }
+}
+
+/// [press forecast] Where a forecast press of the route jump under way is ([`Motor::cast_tick`]).
+#[derive(Clone, Debug)]
+enum CastState {
+    /// Walking in, no plan.
+    Approach,
+    /// A plan live: a moving pass's, or a rest's whose walk-up started.
+    Planned(Plan),
+    /// No press from the moving pass: no key until the body is at rest.
+    Stopping,
+    /// At rest: its steps flown ([`Ask::Rest`]), no key meanwhile.
+    Asking(Plan),
+}
+
+/// [press forecast] The forecast press of one link: its try, since when the body is at it, its state, and the rests asked.
+#[derive(Clone, Debug)]
+struct PressCast {
+    take_off: Vec3,
+    landing: Vec3,
+    /// The try it is at ([`JumpTry::tries`]); a new try starts it again.
+    tries: u32,
+    /// The motor's tick the body first reached the lock in this try ([`PLAN_DEADLINE_S`]).
+    since: Option<u32>,
+    state: CastState,
+    /// The moving pass's last reason for no press, for the line of the try spent after it.
+    why: Option<CastWhy>,
+    /// The rests asked at this link (a rest asked is not asked again: [`CastWhy::RestAgain`]).
+    rests: Vec<Vec3>,
+    /// This try's plans so far, for its nav line ([`Self::note`]).
+    notes: String,
+}
+
+impl PressCast {
+    /// The longest a try's notes grow, chars; past it the rest is cut ([`Self::note`]).
+    const NOTES_MAX: usize = 900;
+
+    /// A plan's word for this try's line.
+    fn note(&mut self, text: &str) {
+        if self.notes.len() >= Self::NOTES_MAX {
+            if !self.notes.ends_with(" ...") {
+                self.notes.push_str(" ...");
+            }
+            return;
+        }
+        if !self.notes.is_empty() {
+            self.notes.push_str("; ");
+        }
+        self.notes.push_str(text);
+    }
+}
+
+/// [press forecast] A forecast press made, followed for its nav line until [`CAST_WATCH_S`] after it ([`Motor::cast_watch_tick`]).
+#[derive(Clone, Debug)]
+struct CastWatch {
+    /// The motor's tick of the press.
+    at: u32,
+    take_off: Vec3,
+    landing: Vec3,
+    /// Where the forecast had the body rest.
+    forecast: Option<Vec3>,
+    /// A press from rest: its rest's lead (m before the take-off), learned for the link once the press gets up.
+    rest_lead: Option<f32>,
+    /// The walk cap the link is learned at.
+    cap: f32,
+    /// The press's part of the line.
+    text: String,
+}
+
+/// [press forecast] A press is judged by its landing: up on the link's landing on the ground ([`is_up`]), or not up this long after
+/// it, s: past the flight's landing step (19 steps at most) and the stay steps (7) the forecast played (1.3 s), and a world's fix
+/// after them (the reckoned body is the motor's only view of the body: the map 91 test's worlds come every 1 s, 0.3 s late).
+const CAST_WATCH_S: f32 = 2.5;
+/// [press forecast] A learned rest's lead within this of a rest that did not get up is dropped, m.
+const SAME_LEAD_M: f32 = 0.1;
+/// [press forecast] A body farther than this from the forecast's rest, flat, m, is counted ([`press_casts::Slot::OffForecast`]).
+const CAST_OFF_M: f32 = 0.1;
+
+/// [press forecast] A forecast press's link as this tick sees it ([`Motor::cast_tick`]).
+#[derive(Clone, Copy, Debug)]
+struct CastLink {
+    take_off: Vec3,
+    landing: Vec3,
+    /// The press's line: its origin (the stored side window's middle) and way.
+    line_from: Vec3,
+    way: [f32; 2],
+    /// The press zone, m before the take-off along the line: (near, far).
+    zone: (f32, f32),
+    /// The lock is from this far before the take-off on ([`LOCK_TICKS`] at the cap before the zone).
+    lock_from: f32,
+    /// The walk cap, m/s.
+    cap: f32,
+    /// On the line's band ([`LINED_SIDE_M`]) and not under the take-off's floor.
+    on_line: bool,
+    /// How far the feet are off the press's line to either side, m.
+    side: f32,
+    /// The feet within [`FLOWN_RUN_UP_HEIGHT_M`] of the take-off's height.
+    level: bool,
+    /// The last press still in the air ([`CARRY_S`]).
+    in_the_air: bool,
+    /// The client's jump would go now: legs, the bar, not carrying a jump, the last press landed.
+    may_press: bool,
+    /// What the keys do after the landing step: let go where the landing is held ([`Ahead::let_go`]).
+    after: super::body::AfterLanding,
+}
+
+impl CastLink {
+    /// How far `p` is before the take-off along the line, m.
+    fn before(&self, p: Vec3) -> f32 {
+        -((p.x - self.line_from.x) * self.way[0] + (p.z - self.line_from.z) * self.way[1])
+    }
+
+    /// The press of a candidate: forward, pressed on its tick.
+    fn press(&self) -> super::body::PressPlan {
+        super::body::PressPlan { walk: key::FORWARD, press_in: 0, take_off: self.take_off, landing: self.landing, after: self.after }
+    }
+
+    /// The ticks a moving chain from `before` m out plays: to the zone's near end at the cap, and the 6-step blend's more for a
+    /// body still speeding up, at most [`CHAIN_TICKS_MAX`].
+    fn chain_ticks(&self, before: f32) -> u32 {
+        let ticks = ((before - self.zone.0).max(0.0) / (self.cap * TICK_S).max(1e-3)).ceil() as u32;
+        (ticks + LOCK_TICKS).min(CHAIN_TICKS_MAX)
+    }
+}
+
+/// [press forecast] The ticks of travel at the cap before the press zone at which the body locks on the line (design §3.2).
+const LOCK_TICKS: u32 = 6;
+/// [press forecast] The zone's far end is the stored lead's far end + the cap x this (the four ground steps before the jump's
+/// take-off step, exe §4) + [`ZONE_FAR_EXTRA_M`]; its near end the lead's near end - [`ZONE_NEAR_SLACK_M`]. A search bound: a
+/// landing press outside it is only missed.
+const ZONE_LAG_S: f32 = 0.2;
+const ZONE_FAR_EXTRA_M: f32 = 0.3;
+const ZONE_NEAR_SLACK_M: f32 = 0.2;
+/// [press forecast] The run-up of a forecast press: this far behind the lock, so a body from rest there is at the cap by it (the
+/// 6-step blend at the walk cap, `let_go_travel_m(3.5)` 0.61 m).
+const CAST_RUN_UP_M: f32 = 0.65;
+/// [press forecast] Facing the line's way within this, rad, the body locks and turns no more (the plan's chain has no turn).
+const LOCK_YAW_RAD: f32 = 0.01;
+/// [press forecast] Within this of the press's line to either side, m, the body locks; farther off it the walk steers onto it.
+const LOCK_SIDE_M: f32 = 0.03;
+/// [press forecast] The walk onto the press's line aims this far ahead along it, m (a 0.2 m offset closes in about 0.3 s at the cap).
+const LINE_CONVERGE_M: f32 = 1.0;
+/// [press forecast] A body off the line before the lock aims at least this many times its distance off it ahead along it (the
+/// pursuit's look-ahead): it meets the line at under 27 degrees (atan 1/2), so its turn at the cap is made before it crosses.
+const CAST_PURSUIT_SIDES: f32 = 2.0;
+/// [press forecast] The most ticks a moving plan's chain plays.
+const CHAIN_TICKS_MAX: u32 = 24;
+/// [press forecast] A plan not pressed this long after the body first reached the lock spends the try, s (design §3.4 step 5).
+const PLAN_DEADLINE_S: f32 = 2.0;
+/// [press forecast] A rest within this of one asked, m, is that rest again.
+const SAME_REST_M: f32 = 0.05;
 
 /// [spot suite] TEST ONLY: what held a route jump's press at the last tick [`Motor::jump_key`] did not press (the first of its
 /// tests that refused, in its order), for the suite's notes ([`Motor::bench_link_text`]). Decides nothing.
@@ -1414,6 +1655,8 @@ struct Ahead {
     run_up: f32,
     /// From the take-off to the landing, flat, metres.
     span: f32,
+    /// [press forecast] This tick's keys as the forecast press has them ([`Motor::cast_tick`]); none: pressed as before.
+    cast: Option<CastKeys>,
 }
 
 impl Ahead {
@@ -1737,6 +1980,11 @@ impl Motor {
             walk_off: super::walk_off::WalkOff::Idle,
             walk_off_line: None,
             held_line: None,
+            cast: None,
+            cast_line: None,
+            cast_watch: None,
+            in_press_flight: false,
+            cast_keys: None,
             phase: rng.range(0.0, 2.0 * PI),
             t: 0.0,
             look: None,
@@ -1855,6 +2103,12 @@ impl Motor {
         self.lining = Lining::Walk;
     }
 
+    /// [press forecast] Tests: a forecast press in its flight ([`Self::press_flight`]).
+    #[cfg(test)]
+    pub(crate) fn test_press_flight(&mut self) {
+        self.in_press_flight = true;
+    }
+
     /// [spot suite] TEST ONLY: this tick's route jump went unpressed for `held` ([`Self::bench_link_text`]).
     #[cfg(test)]
     fn bench_hold(&mut self, held: PressHeld) {
@@ -1918,6 +2172,8 @@ impl Motor {
         self.jump = None;
         self.pressed = None;
         self.lining = Lining::No;
+        // [press forecast] Set again by a walk's `cast_watch_tick`; a tick with no walk has no forecast flight to leave.
+        self.in_press_flight = false;
         self.aimed_walk = false;
         self.jump_line = None;
     }
@@ -2146,7 +2402,23 @@ impl Motor {
         clear: impl Fn(Vec3) -> bool,
         lane: Option<LaneAim<'_>>,
     ) -> (Decision, Walked) {
+        self.walk_with(route, pose, off_m, clear, lane, None)
+    }
+
+    /// [`Self::walk_in_lane`] with the body model to ask when to press a route jump ([`Feel::press_forecast`], [`PressFlyer`]).
+    pub fn walk_with(
+        &mut self,
+        route: &mut Route,
+        pose: &Pose,
+        off_m: f32,
+        clear: impl Fn(Vec3) -> bool,
+        lane: Option<LaneAim<'_>>,
+        flyer: Option<&mut dyn PressFlyer>,
+    ) -> (Decision, Walked) {
         self.next_tick();
+        let mut flyer = flyer;
+        self.cast_watch_tick(pose, flyer.as_deref_mut());
+        self.cast_keys = None;
         self.look = None;
         self.lane_use = super::apart::LaneUse::Idle;
         self.under_jump(route, pose.feet);
@@ -2191,7 +2463,7 @@ impl Motor {
         if off > off_m {
             return (Decision::default(), Walked::Off(off));
         }
-        let jump = self.jump_ahead(route, pose, s, &clear);
+        let jump = self.jump_ahead(route, pose, s, &clear, flyer);
         self.jump_line = jump.filter(|jump| jump.lined).map(|jump| jump.before);
         let target = match jump {
             Some(jump) => jump.aim,
@@ -2229,6 +2501,14 @@ impl Motor {
             pose.yaw
         } else {
             yaw_of([dx, dz]) + sway
+        };
+        // [press forecast] Turning to the line's way, then held: a locked plan's chain has no turn.
+        let heading = match jump.and_then(|jump| jump.cast.map(|cast| (cast, jump.way))) {
+            Some((CastKeys::Walk | CastKeys::Press | CastKeys::Hold, _)) => pose.yaw,
+            // On the line (within [`LOCK_SIDE_M`]) the view turns to its way for the lock; off it the walk steers onto it (the aim).
+            Some((CastKeys::Line, way)) if jump.is_some_and(|jump| jump.side <= LOCK_SIDE_M) => yaw_of(way),
+            Some((CastKeys::Stand, way)) => yaw_of(way),
+            _ => heading,
         };
         let turn = self.turn_toward(pose, heading, 0.0);
         let relative = wrap(heading - (pose.yaw + turn.0));
@@ -2313,6 +2593,18 @@ impl Motor {
                 None => {}
             }
             keys |= self.jump_key(&jump, still, pose, false);
+            // [press forecast] A forecast press's keys are its plan's: forward alone (and the press), or none while it stops.
+            match jump.cast {
+                Some(CastKeys::Walk | CastKeys::Press) => {
+                    self.sprinting = false;
+                    keys = key::FORWARD | (keys & key::JUMP);
+                }
+                Some(CastKeys::Stand | CastKeys::Hold) => {
+                    self.sprinting = false;
+                    keys = 0;
+                }
+                Some(CastKeys::Approach | CastKeys::Line) | None => {}
+            }
         }
         keys = self.stay_keys(pose, keys);
         keys = self.walk_off_keys(route, pose, s, keys);
@@ -2589,7 +2881,7 @@ impl Motor {
             let turn = self.aim_toward(pose, aim.0, aim.1);
             return (Decision { keys: 0, turn }, Walked::Off(off));
         }
-        let jump = self.jump_ahead(route, pose, s, &clear);
+        let jump = self.jump_ahead(route, pose, s, &clear, None);
         self.jump_line = jump.filter(|jump| jump.lined).map(|jump| jump.before);
         // On a jump's line the view turns to the jump's way: a jump goes
         // the way the body faces and its keys push (the jump branch of the
@@ -2822,6 +3114,7 @@ impl Motor {
         pose: &Pose,
         s: f32,
         clear: &impl Fn(Vec3) -> bool,
+        flyer: Option<&mut dyn PressFlyer>,
     ) -> Option<Ahead> {
         let Some((k, before_route)) = route.next_jump(s) else {
             self.links.lost(link_time::Lost::NoJump);
@@ -2867,7 +3160,11 @@ impl Motor {
         } else {
             leap
         };
-        if before_route > if sprint || lift_open { SPRINT_LINE_UP_FROM_M } else { LINE_UP_FROM_M } {
+        // [press forecast] A gap or rim link walked at the cap (and the plain ledge from a stand) is pressed by the body model's
+        // forecast ([`Feel::press_forecast`]); lined up from as far as a sprint jump, so its lock is [`LOCK_TICKS`] before the zone
+        // and its run-up behind that.
+        let flyer = flyer.filter(|flyer| self.feel.press_forecast && flyer.ready() && matches!(leap, Leap::Gap(_)) && !sprint);
+        if before_route > if sprint || lift_open || flyer.is_some() { SPRINT_LINE_UP_FROM_M } else { LINE_UP_FROM_M } {
             self.links.lost(link_time::Lost::Far);
             return None;
         }
@@ -2930,6 +3227,7 @@ impl Motor {
                 least_m: 0.0,
                 run_up: 0.0,
                 span: take_off.distance_xz(landing),
+                cast: None,
             });
         }
         // The tries at this jump, kept over a route planned again to it.
@@ -3008,6 +3306,7 @@ impl Motor {
                 least_m: 0.0,
                 run_up: 0.0,
                 span: take_off.distance_xz(landing),
+                cast: None,
             });
         }
         let lead_m = route.ledge_lead(k).unwrap_or(0.0);
@@ -3015,6 +3314,19 @@ impl Motor {
         // along its heading ([`aimed_line`]); every point the lining, the press and its window measure from is on it. The link's
         // own take-off stays the jump's (is it up, its tries, its log).
         let (line_from, way) = aimed_line(take_off, way, leap);
+        // [press forecast] The forecast plans a walk on the take-off's floor: a body off its height (under a take-off on a riser,
+        // the suite's S276: 0.91 m) is the old path's (its line, run-up, gates and press at the face) until it is up there; one in
+        // the air is the forecast's (its own press, followed to its rest).
+        let level = (take_off.y - feet.y).abs() <= FLOWN_RUN_UP_HEIGHT_M;
+        let forecast_here = flyer.is_some() && (level || in_the_air);
+        // [press forecast] Its line moved sideways to the middle of the stored side window (design §3.1).
+        let line_from = match (forecast_here, leap.window()) {
+            (true, Some(window)) => {
+                let shift = (window.side_m.1 - window.side_m.0) / 2.0;
+                Vec3::new(line_from.x + way[1] * shift, line_from.y, line_from.z - way[0] * shift)
+            }
+            _ => line_from,
+        };
         let at = |m: f32| Vec3::new(line_from.x - way[0] * m, line_from.y, line_from.z - way[1] * m);
         // Feet on a floor under the take-off, out of reach of the jump this approach makes: not lined up and not pressed;
         // the walk follows the route up to the take-off. The lining's run-up point and its line are at the take-off's height,
@@ -3125,6 +3437,25 @@ impl Motor {
                 if clear(at(m)) { m } else { press.lead.metres() }
             }
         };
+        // [press forecast] The zone and the lock (design §2.4, §3.2): from the stored lead window, at the walk cap; the run-up
+        // behind the lock where it is clear, so a body from rest there walks in at the cap.
+        let cast_zone = forecast_here.then(|| {
+            let lead = match leap {
+                Leap::Gap(press) => press.lead.metres(),
+                _ => 0.0,
+            };
+            let (least, most) = leap.window().map_or((lead, lead), |window| window.lead_m);
+            let cap = pose.walk_cap.ms();
+            let zone = ((least - ZONE_NEAR_SLACK_M).max(0.0), most + cap * ZONE_LAG_S + ZONE_FAR_EXTRA_M);
+            (zone, zone.1 + LOCK_TICKS as f32 * cap * TICK_S, cap)
+        });
+        let run_up = match cast_zone {
+            Some((_, lock_from, _)) => {
+                let m = (lock_from + CAST_RUN_UP_M).min(SPRINT_LINE_UP_FROM_M - AT_RUN_UP_M - LINED_BEHIND_M);
+                if clear(at(m)) { m } else { run_up }
+            }
+            None => run_up,
+        };
         let (dx, dz) = (feet.x - line_from.x, feet.z - line_from.z);
         let along = dx * way[0] + dz * way[1];
         let side = (dx * way[1] - dz * way[0]).abs();
@@ -3191,7 +3522,7 @@ impl Motor {
         let moving = pose.velocity[0].hypot(pose.velocity[1]).max(1e-6);
         let rest = Vec3::new(feet.x + pose.velocity[0] / moving * travel, feet.y, feet.z + pose.velocity[1] / moving * travel);
         let stops_near = slow && jump.walk_up == WalkUp::ToRest && !in_the_air && pose.speed >= STILL_MS && rest_near_at(rest);
-        if stops_near && !rest_near {
+        if stops_near && !rest_near && flyer.is_none() {
             slow_rests::let_go_early();
         }
         let stand = (at_rest_point || stops_near) && jump.walk_up == WalkUp::ToRest;
@@ -3199,13 +3530,58 @@ impl Motor {
         // on within a step of the landing's height.
         let let_go = matches!(leap, Leap::Gap(_) | Leap::SprintGap(_))
             && points.get(k + 1).is_none_or(|next| next.jump.is_some() || (next.at.y - landing.y).abs() > mapdata::Body::client().step);
+        // [press forecast] This tick's keys by the forecast ([`Self::cast_tick`]); the slow press's rest box and walk-up are not used.
+        let cast = match (flyer, cast_zone) {
+            (Some(flyer), Some((zone, lock_from, cap))) => {
+                let link = CastLink {
+                    take_off,
+                    landing,
+                    line_from,
+                    way,
+                    zone,
+                    lock_from,
+                    cap,
+                    on_line,
+                    side,
+                    level,
+                    in_the_air,
+                    may_press: !pose.no_jump && !self.carrying && jump.pressed.is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S)),
+                    after: if let_go { super::body::AfterLanding::Hold } else { super::body::AfterLanding::WalkOn },
+                };
+                Some(self.cast_tick(&mut jump, &link, pose, flyer))
+            }
+            _ => {
+                self.cast = None;
+                None
+            }
+        };
+        self.cast_keys = cast;
+        let stand = match cast {
+            Some(cast) => matches!(cast, CastKeys::Stand | CastKeys::Hold),
+            None => stand,
+        };
         // A sprint gap link is lined up only over its last metres: the run before it follows the route and may turn onto
         // the jump's way (the run along a rail, the jump across it).
         // A lift that has reached its face is on the jump's line until it is up: the climb carries the body past the
         // take-off, which is no reason to turn it back to the run-up.
         let climbing = lifting && matches!(jump.lift, LiftTry::Lifting { at_face: Some(_) });
-        let lined = in_the_air || climbing || (on_line && !jump.back && (!slow || jump.walk_up == WalkUp::Walking));
-        let aim = if lined {
+        let lined = in_the_air
+            || climbing
+            || match cast {
+                Some(cast) => cast != CastKeys::Approach && on_line && !jump.back,
+                None => on_line && !jump.back && (!slow || jump.walk_up == WalkUp::Walking),
+            };
+        let aim = if lined && matches!(cast, Some(CastKeys::Walk | CastKeys::Press)) {
+            // [press forecast] Locked: along the way from where the feet are (the plan's chain runs parallel to the line).
+            let past = 3.0f32.max(take_off.distance_xz(landing) + 1.0);
+            Vec3::new(feet.x + way[0] * past, landing.y, feet.z + way[1] * past)
+        } else if lined && cast == Some(CastKeys::Line) {
+            // [press forecast] Onto the press's line (the side window's middle) before the lock: a point on it [`LINE_CONVERGE_M`]
+            // ahead of the feet's own place along it. Map 91: bodies locked at their side came to rest 0.12-0.21 m to the left,
+            // where the exe's presses come down short (#2277) and the forecast said so; no press was found from those rests.
+            let m = along + LINE_CONVERGE_M;
+            Vec3::new(line_from.x + way[0] * m, landing.y, line_from.z + way[1] * m)
+        } else if lined {
             // Along the jump's way, past the landing (a gap link's lands
             // up to 2 m on).
             let past = 3.0f32.max(take_off.distance_xz(landing) + 1.0);
@@ -3214,6 +3590,17 @@ impl Motor {
                 landing.y,
                 line_from.z + way[1] * past,
             )
+        } else if let Some(m) = cast_zone
+            .filter(|_| cast.is_some() && !jump.back && !under)
+            .map(|(_, lock_from, _)| lock_from)
+            .filter(|&lock_from| along <= -lock_from && along >= -(run_up + LINED_BEHIND_M))
+            .map(|lock_from| (along + LINE_CONVERGE_M.max(CAST_PURSUIT_SIDES * side)).min(-lock_from))
+        {
+            // [press forecast] Off the line between the run-up and the lock: onto the line ahead (pure pursuit), at most to the
+            // lock. Aimed back at the run-up point, a body that came onto the line across it at the cap overshot past
+            // [`LINED_SIDE_M`], turned back to the run-up, crossed again, and so on until the try's wait spent its tries (the
+            // suite's S089 and S276: 14 s each, a run-up point 3.1-3.2 m out reached at 90 degrees to the line).
+            Vec3::new(line_from.x + way[0] * m, landing.y, line_from.z + way[1] * m)
         } else if !under && clear(at(run_up)) {
             at(run_up)
         } else if let Some(rest) = (!under && slow && jump.walk_up == WalkUp::ToRest)
@@ -3284,6 +3671,7 @@ impl Motor {
             least_m: route.ledge_least(k).unwrap_or(0.0),
             run_up,
             span: take_off.distance_xz(landing),
+            cast,
         })
     }
 
@@ -3305,14 +3693,39 @@ impl Motor {
     /// (`Stuck::failed_jump`).
     fn jump_key(&mut self, ahead: &Ahead, still: f32, pose: &Pose, aimed: bool) -> u32 {
         let keys = self.press_key(ahead, still, pose, aimed);
+        // [press forecast] The forecast's own deadline covers a body at its lock; one walked to the line by the approach (not
+        // locked: off the line, under the take-off's height) keeps the try's wait, as before.
         if keys & key::JUMP == 0
+            && ahead.cast.is_none_or(|cast| matches!(cast, CastKeys::Approach | CastKeys::Line))
             && self.walking
             && pose.speed < STILL_MS
             && let Some(mut jump) = self.jump_try
             && jump.pressed.is_none_or(|at| self.since(at) >= JUMP_AGAIN_S.max(CARRY_S))
         {
+            let tries = jump.tries;
             self.hold_tick(&mut jump);
             press_waits::blocked();
+            // [press forecast] A forecast try the wait spent before its lock writes its line too (the forecast's own spends do).
+            if jump.tries != tries
+                && let Some(cast) = self.cast.as_ref().filter(|cast| matches!(cast.state, CastState::Approach))
+            {
+                self.cast_line = Some(format!(
+                    "{}press forecast: try {} spent by the try's wait (still {PRESS_WAIT_S:.1} s, not locked) at ({:.2}, {:.2}, {:.2}){}{}; take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2})",
+                    super::nav_log::PREFIX,
+                    jump.tries,
+                    pose.feet.x,
+                    pose.feet.y,
+                    pose.feet.z,
+                    if cast.notes.is_empty() { "" } else { "; plans: " },
+                    cast.notes,
+                    cast.take_off.x,
+                    cast.take_off.y,
+                    cast.take_off.z,
+                    cast.landing.x,
+                    cast.landing.y,
+                    cast.landing.z
+                ));
+            }
         }
         keys
     }
@@ -3336,6 +3749,344 @@ impl Motor {
         self.keep_try(*jump);
     }
 
+    /// [press forecast] This tick of the forecast press of `link` ([`Feel::press_forecast`], design §2-§3): its keys. The state is the
+    /// link's ([`PressCast`]), started again at each try; `jump`'s tries are spent here when the forecast finds no press.
+    fn cast_tick(&mut self, jump: &mut JumpTry, link: &CastLink, pose: &Pose, flyer: &mut dyn PressFlyer) -> CastKeys {
+        let Some(body) = flyer.body() else {
+            return CastKeys::Approach;
+        };
+        let same_link = |cast: &PressCast| (cast.take_off - link.take_off).length() < 0.3 && (cast.landing - link.landing).length() < 0.3;
+        let mut cast = match self.cast.take() {
+            Some(cast) if same_link(&cast) => cast,
+            _ => PressCast {
+                take_off: link.take_off,
+                landing: link.landing,
+                tries: jump.tries,
+                since: None,
+                state: CastState::Approach,
+                why: None,
+                rests: Vec::new(),
+                notes: String::new(),
+            },
+        };
+        if cast.tries != jump.tries {
+            cast.tries = jump.tries;
+            cast.since = None;
+            cast.state = CastState::Approach;
+            cast.why = None;
+            cast.notes.clear();
+        }
+        let keys = self.cast_step(&mut cast, jump, link, pose, &body, flyer);
+        self.cast = Some(cast);
+        keys
+    }
+
+    /// [`Self::cast_tick`]'s transition: from the cast's state and this tick's body, its next state and the keys.
+    fn cast_step(&mut self, cast: &mut PressCast, jump: &mut JumpTry, link: &CastLink, pose: &Pose, body: &Estimate, flyer: &mut dyn PressFlyer) -> CastKeys {
+        if jump.back || link.in_the_air {
+            cast.state = CastState::Approach;
+            return if jump.back { CastKeys::Approach } else { CastKeys::Line };
+        }
+        let before = link.before(body.feet);
+        let at_lock = link.on_line && link.level && before <= link.lock_from;
+        if at_lock && cast.since.is_none() {
+            cast.since = Some(self.clock);
+        }
+        if cast.since.is_some_and(|since| self.since(since) > PLAN_DEADLINE_S) {
+            self.cast_spend(cast, jump, link, body, CastWhy::Deadline);
+            return CastKeys::Approach;
+        }
+        let speed = body.velocity[0].hypot(body.velocity[1]);
+        // The body must come to rest short of the zone's near end from here on (design §3.4 step 1).
+        let bail = before <= link.zone.0 + let_go_travel_m(speed) + speed * TICK_S;
+        // [press forecast] What the match learned of the link (design §9.5): a walk-in with no run, or a rest that got up, skips
+        // the walk-in; the body comes to rest at the learned rest, or at the bail-out, and asks from there.
+        let learned = flyer.learned(link.take_off, link.landing, link.cap);
+        let skip_walk_in = learned.walk_in == WalkIn::NoRun || learned.rest_lead.is_some();
+        let state = std::mem::replace(&mut cast.state, CastState::Approach);
+        let (state, keys) = match state {
+            CastState::Approach if !link.on_line => (CastState::Approach, CastKeys::Approach),
+            CastState::Approach if !at_lock || !link.may_press => {
+                (CastState::Approach, if at_lock && bail { CastKeys::Stand } else { CastKeys::Line })
+            }
+            CastState::Approach if skip_walk_in => {
+                let stop = learned.rest_lead.map_or(bail, |lead| before <= lead + let_go_travel_m(speed));
+                if stop {
+                    press_casts::count(press_casts::Slot::LearnedSkip);
+                    cast.note(&format!(
+                        "walk-in skipped ({}), stopping at {before:.2} m out",
+                        learned.rest_lead.map_or(String::from("no run here this match"), |lead| format!("a rest at {lead:.2} m got up this match"))
+                    ));
+                    (CastState::Stopping, CastKeys::Stand)
+                } else {
+                    (CastState::Approach, CastKeys::Line)
+                }
+            }
+            CastState::Approach if link.side > LOCK_SIDE_M || wrap(yaw_of(link.way) - pose.yaw).abs() > LOCK_YAW_RAD => {
+                if bail { (CastState::Stopping, CastKeys::Stand) } else { (CastState::Approach, CastKeys::Line) }
+            }
+            CastState::Approach => match flyer.chain(body, key::FORWARD, link.chain_ticks(before)) {
+                None if bail => (CastState::Stopping, CastKeys::Stand),
+                None => (CastState::Approach, CastKeys::Line),
+                Some(chain) => match Plan::new(self.clock, Ask::Moving { zone: link.zone }, press_casts::chained_with(chain), |p| link.before(p)) {
+                    Some(plan) => {
+                        press_casts::count(press_casts::Slot::Planned);
+                        self.cast_planned(cast, link, body, plan, flyer, bail)
+                    }
+                    None => {
+                        press_casts::count(press_casts::Slot::NoZone);
+                        cast.note(&format!("walk-in: no tick in the zone from {before:.2} m out at {speed:.2} m/s"));
+                        if bail { (CastState::Stopping, CastKeys::Stand) } else { (CastState::Approach, CastKeys::Line) }
+                    }
+                },
+            },
+            CastState::Planned(plan) => self.cast_planned(cast, link, body, plan, flyer, bail),
+            // At rest: the stop blend's last step leaves no speed (a body still creeping would leave the chain's first place).
+            CastState::Stopping if speed > super::press_plan::SAME_VELOCITY_MS => (CastState::Stopping, CastKeys::Stand),
+            CastState::Stopping if cast.rests.iter().any(|rest| rest.distance_xz(body.feet) < SAME_REST_M) => {
+                self.cast_spend(cast, jump, link, body, CastWhy::RestAgain);
+                (CastState::Approach, CastKeys::Approach)
+            }
+            // At rest: turned to the way first, so the walk-up goes along the line (the ask flies the body as it faces).
+            CastState::Stopping if wrap(yaw_of(link.way) - pose.yaw).abs() > LOCK_YAW_RAD => (CastState::Stopping, CastKeys::Stand),
+            CastState::Stopping => match flyer.chain(body, key::FORWARD, super::press_plan::REST_STEPS_MAX) {
+                None => (CastState::Stopping, CastKeys::Stand),
+                Some(chain) => match Plan::new(self.clock, Ask::Rest, chain, |p| link.before(p)) {
+                    Some(plan) => {
+                        press_casts::count(press_casts::Slot::RestAsk);
+                        press_casts::chained();
+                        (CastState::Asking(plan), CastKeys::Hold)
+                    }
+                    None => (CastState::Stopping, CastKeys::Stand),
+                },
+            },
+            CastState::Asking(mut plan) => {
+                if !same_body(body, plan.at(0)) {
+                    press_casts::count(press_casts::Slot::Moved);
+                    cast.note(&format!("rest moved off ({:.2}, {:.2}): asked again", plan.at(0).feet.x, plan.at(0).feet.z));
+                    (CastState::Stopping, CastKeys::Stand)
+                } else {
+                    self.cast_fly(&mut plan, link, flyer);
+                    match plan.decide(self.clock) {
+                        Choice::Pending => (CastState::Asking(plan), CastKeys::Hold),
+                        Choice::Press { .. } => {
+                            cast.note(&format!("rest at ({:.2}, {:.2}, {:.2}), {:.2} m out: steps {}", body.feet.x, body.feet.y, body.feet.z, before, plan.text()));
+                            plan.start(self.clock);
+                            self.cast_planned(cast, link, body, plan, flyer, bail)
+                        }
+                        Choice::NoLanding { flown, longest, .. } => {
+                            if (1..MIN_RUN).contains(&longest) {
+                                press_casts::count(press_casts::Slot::Narrow);
+                            }
+                            cast.note(&format!("rest at ({:.2}, {:.2}, {:.2}), {:.2} m out: steps {}", body.feet.x, body.feet.y, body.feet.z, before, plan.text()));
+                            cast.rests.push(body.feet);
+                            self.cast_spend(cast, jump, link, body, CastWhy::NoPressFromRest { flown, longest });
+                            (CastState::Approach, CastKeys::Approach)
+                        }
+                    }
+                }
+            }
+        };
+        cast.state = state;
+        keys
+    }
+
+    /// [press forecast] A live plan's tick: the body where its chain put it, the next flight flown, and the press rule's word.
+    fn cast_planned(&mut self, cast: &mut PressCast, link: &CastLink, body: &Estimate, mut plan: Plan, flyer: &mut dyn PressFlyer, bail: bool) -> (CastState, CastKeys) {
+        let rest = plan.ask() == Ask::Rest;
+        if plan.expected(self.clock).is_none_or(|expected| !same_body(body, expected)) {
+            press_casts::count(press_casts::Slot::Moved);
+            cast.note(&format!(
+                "{}: body off the chain at plan tick {} ({:.2} m out) {}",
+                if rest { "rest walk-up" } else { "walk-in" },
+                self.clock.wrapping_sub(plan.lock()),
+                link.before(body.feet),
+                plan.text()
+            ));
+            cast.why = Some(CastWhy::Moved);
+            return if rest || bail { (CastState::Stopping, CastKeys::Stand) } else { (CastState::Approach, CastKeys::Line) };
+        }
+        self.cast_fly(&mut plan, link, flyer);
+        let tick = self.clock.wrapping_sub(plan.lock());
+        match plan.decide(self.clock) {
+            Choice::Press { j, run } if j == tick => {
+                if !link.may_press {
+                    return (CastState::Stopping, CastKeys::Stand);
+                }
+                press_casts::count(press_casts::Slot::Pressed);
+                let forecast = match plan.outcome(j) {
+                    Some(PressOutcome::Lands { rest }) => Some(rest),
+                    _ => None,
+                };
+                let notes = std::mem::take(&mut cast.notes);
+                let text = format!(
+                    "{}press forecast: try {} pressed{} at plan tick {j} (a run of {run}, {} flown, {}) from ({:.2}, {:.2}, {:.2}) at {:.2} m/s, {:.2} m before the take-off{}{notes}; take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2})",
+                    super::nav_log::PREFIX,
+                    cast.tries + 1,
+                    if rest { " from rest" } else { "" },
+                    plan.flown(),
+                    plan.text(),
+                    body.feet.x,
+                    body.feet.y,
+                    body.feet.z,
+                    body.velocity[0].hypot(body.velocity[1]),
+                    link.before(body.feet),
+                    if notes.is_empty() { "" } else { "; before it: " },
+                    link.take_off.x,
+                    link.take_off.y,
+                    link.take_off.z,
+                    link.landing.x,
+                    link.landing.y,
+                    link.landing.z
+                );
+                let rest_lead = rest.then(|| link.before(plan.at(0).feet));
+                let watch = CastWatch { at: self.clock, take_off: link.take_off, landing: link.landing, forecast, rest_lead, cap: link.cap, text };
+                if let Some(old) = self.cast_watch.replace(watch) {
+                    self.cast_line = Some(format!("{}; not followed to its rest", old.text));
+                }
+                (CastState::Approach, CastKeys::Press)
+            }
+            Choice::Press { .. } => (CastState::Planned(plan), CastKeys::Walk),
+            Choice::Pending if bail && !rest => {
+                press_casts::count(press_casts::Slot::NotFlownInTime);
+                cast.note(&format!("walk-in: not flown in time at {:.2} m out {}", link.before(body.feet), plan.text()));
+                cast.why = Some(CastWhy::NotFlownInTime);
+                (CastState::Stopping, CastKeys::Stand)
+            }
+            Choice::Pending => (CastState::Planned(plan), CastKeys::Walk),
+            Choice::NoLanding { flown, unflown, longest } => {
+                press_casts::count(press_casts::Slot::NoLanding);
+                if !rest && plan.coarse_in_time() {
+                    press_casts::count(press_casts::Slot::LearnedNoRun);
+                    flyer.learn(link.take_off, link.landing, link.cap, &mut |learned| learned.walk_in = WalkIn::NoRun);
+                }
+                if (1..MIN_RUN).contains(&longest) {
+                    press_casts::count(press_casts::Slot::Narrow);
+                }
+                cast.note(&format!("walk-in: no run of {MIN_RUN} landing ticks (longest {longest}) {}", plan.text()));
+                cast.why = Some(CastWhy::NoTickLands { flown, unflown, longest });
+                (CastState::Stopping, CastKeys::Stand)
+            }
+        }
+    }
+
+    /// [press forecast] The plan's next flight, when the poll's forecast is free.
+    fn cast_fly(&mut self, plan: &mut Plan, link: &CastLink, flyer: &mut dyn PressFlyer) {
+        if let Some(j) = plan.next_flight(self.clock)
+            && let Some(outcome) = flyer.fly(plan.at(j), &link.press())
+        {
+            press_casts::count(press_casts::Slot::Flights);
+            press_casts::flown();
+            plan.record(j, outcome);
+        }
+    }
+
+    /// [press forecast] The try spent for `why`: backed off to the run-up, and the nav line written.
+    fn cast_spend(&mut self, cast: &mut PressCast, jump: &mut JumpTry, link: &CastLink, body: &Estimate, why: CastWhy) {
+        jump.tries += 1;
+        jump.back = true;
+        self.links.backed_off();
+        press_casts::count(match why {
+            CastWhy::Deadline => press_casts::Slot::SpentDeadline,
+            CastWhy::RestAgain => press_casts::Slot::SpentRestAgain,
+            _ => press_casts::Slot::SpentNoPress,
+        });
+        self.cast_line = Some(format!(
+            "{}press forecast: try {} spent: {}{} at ({:.2}, {:.2}, {:.2}), {:.2} m before the take-off{}{}; take-off ({:.2}, {:.2}, {:.2}) landing ({:.2}, {:.2}, {:.2})",
+            super::nav_log::PREFIX,
+            jump.tries,
+            why.text(),
+            cast.why.map_or(String::new(), |before| format!(" after {}", before.text())),
+            body.feet.x,
+            body.feet.y,
+            body.feet.z,
+            link.before(body.feet),
+            if cast.notes.is_empty() { "" } else { "; plans: " },
+            cast.notes,
+            link.take_off.x,
+            link.take_off.y,
+            link.take_off.z,
+            link.landing.x,
+            link.landing.y,
+            link.landing.z
+        ));
+        cast.since = None;
+        cast.why = None;
+        cast.notes.clear();
+        cast.state = CastState::Approach;
+    }
+
+    /// [press forecast] Whether the last forecast press is in its flight this tick: from the press to the body's first step on the
+    /// ground after the take-off, at most the forecast's flight. The lip guard leaves it (`drive::guard_keys`): the forecast flew it
+    /// to its landing, and a brake in the air turns the air control back. A route jump's carry (`jump_carry`) lasts the short
+    /// clip's air time only; a rest press up a metre is still in the air after it (the suite's S057/2: 0.75 s after the press,
+    /// braked back and right, pulled back to the top's edge and walked off).
+    pub fn press_flight(&self) -> bool {
+        self.in_press_flight
+    }
+
+    /// [press forecast] Whether the forecast press stops the body this tick (no key, coming to rest: no press from this walk-in, the
+    /// jump blocked at its tick): it coasts on up to [`let_go_travel_m`], so the lip guard judges it as any body (`drive::guard_keys`).
+    /// A body walking a plan's chain or held at rest for its ask is not stopping.
+    pub fn press_stops(&self) -> bool {
+        self.cast_keys == Some(CastKeys::Stand)
+    }
+
+    /// [press forecast] The log line of the last forecast press or spent try, for the driver.
+    pub fn take_cast_line(&mut self) -> Option<String> {
+        self.cast_line.take()
+    }
+
+    /// [press forecast] A forecast press followed to [`CAST_WATCH_S`] after it: its line, with whether the body is up and how far
+    /// it is from the forecast's rest (the reckoned body, the world's fixes in it).
+    fn cast_watch_tick<'f>(&mut self, pose: &Pose, flyer: Option<&mut (dyn PressFlyer + 'f)>) {
+        let Some(watch) = self.cast_watch.as_ref() else {
+            self.in_press_flight = false;
+            return;
+        };
+        let after = self.since(watch.at);
+        // In its flight: from the press to its first step on the ground after the take-off's (the press tick's and the next may
+        // still be on the ground), at most the forecast's own flight ([`super::body::PRESS_FLIGHT_STEPS`] and the press's step).
+        let ticks = self.clock.wrapping_sub(watch.at);
+        self.in_press_flight =
+            ticks <= super::body::PRESS_FLIGHT_STEPS + 1 && !(ticks >= 2 && pose.footing == Footing::Ground);
+        // Judged by the landing: up on the link's landing on the ground, or not up in time.
+        let up = pose.footing == Footing::Ground && is_up(pose.feet, watch.take_off, watch.landing);
+        if !up && after < CAST_WATCH_S {
+            return;
+        }
+        let Some(watch) = self.cast_watch.take() else {
+            return;
+        };
+        press_casts::count(if up { press_casts::Slot::WatchedUp } else { press_casts::Slot::WatchedNotUp });
+        // A rest that got up is the link's learned rest; one that did not is dropped from it (design §9.5).
+        if let (Some(flyer), Some(lead)) = (flyer, watch.rest_lead) {
+            if up {
+                press_casts::count(press_casts::Slot::LearnedRest);
+                flyer.learn(watch.take_off, watch.landing, watch.cap, &mut |learned| learned.rest_lead = Some(lead));
+            } else {
+                flyer.learn(watch.take_off, watch.landing, watch.cap, &mut |learned| {
+                    learned.rest_lead = learned.rest_lead.filter(|old| (old - lead).abs() > SAME_LEAD_M);
+                });
+            }
+        }
+        let off = watch.forecast.map_or(String::from(", no forecast rest"), |rest| {
+            let flat = rest.distance_xz(pose.feet);
+            if flat > CAST_OFF_M {
+                press_casts::count(press_casts::Slot::OffForecast);
+            }
+            format!(", {flat:.2} m flat and {:+.2} m in height off the forecast rest ({:.2}, {:.2}, {:.2})", pose.feet.y - rest.y, rest.x, rest.y, rest.z)
+        });
+        self.cast_line = Some(format!(
+            "{}; {} {after:.2} s after at ({:.2}, {:.2}, {:.2}){off}",
+            watch.text,
+            if up { "landed up" } else { "not up" },
+            pose.feet.x,
+            pose.feet.y,
+            pose.feet.z
+        ));
+    }
+
     /// [`Self::jump_key`]'s press: the gates in their order.
     fn press_key(&mut self, ahead: &Ahead, still: f32, pose: &Pose, aimed: bool) -> u32 {
         let Some(mut jump) = self.jump_try else {
@@ -3344,6 +4095,12 @@ impl Motor {
         if pose.no_jump || self.carrying {
             #[cfg(test)]
             self.bench_hold(if pose.no_jump { PressHeld::NoJump } else { PressHeld::Carrying });
+            return 0;
+        }
+        // [press forecast] The forecast decided this tick ([`Self::cast_tick`]): pressed on its plan's tick and on no other, and
+        // none of the gates below (the due test, the flown window, the reach) is asked of it.
+        let forecast = ahead.cast.is_some();
+        if forecast && ahead.cast != Some(CastKeys::Press) {
             return 0;
         }
         // The sprint lift is no press: the sprint into the face carries the body up.
@@ -3356,7 +4113,7 @@ impl Motor {
         // another floor, so the jump is given up and the route planned again ([`Feel::press_in_reach`]).
         let landed = jump.pressed.is_none_or(|at| self.since(at) >= CARRY_S);
         let most = if ahead.approach.sprints() { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M };
-        if self.feel.press_in_reach && landed && ahead.before <= 0.0 && ahead.out_of_reach(most) {
+        if !forecast && self.feel.press_in_reach && landed && ahead.before <= 0.0 && ahead.out_of_reach(most) {
             jump.tries = JUMP_TRIES;
             self.keep_try(jump);
             low_presses::gave_up();
@@ -3431,7 +4188,7 @@ impl Motor {
         // [A386] A flown press faces its way within the flight's tested turn ([`FlownWindow::TURN_RAD`]); a body still turning
         // waits for it.
         let facing = ahead.press_facing();
-        if !(ahead.lined && ahead.going && self.walking && still <= facing && near && rested) {
+        if !forecast && !(ahead.lined && ahead.going && self.walking && still <= facing && near && rested) {
             // [loops] At the press point and not pressing: the wait's clock, from its first tick at this try; once it has
             // lasted [`PRESS_WAIT_S`] the try is spent as a back-off spends it, so the link fails after [`JUMP_TRIES`]. Only
             // with the take-off within the feet's reach: a body a floor under it is held and walks the route's legs up, and
@@ -3457,7 +4214,7 @@ impl Motor {
         }
         // [A386] A gap or rim link is pressed only as the grid flew it ([`flown_press_off`]): else no press, a back-off for another
         // run-up (the try spent, so it is no loop).
-        if let Some(off) = flown_press_off(ahead, pose, along) {
+        if let Some(off) = flown_press_off(ahead, pose, along).filter(|_| !forecast) {
             jump.tries += 1;
             jump.back = true;
             self.keep_try(jump);
@@ -3509,7 +4266,7 @@ impl Motor {
         // The landing out of reach of the jump this press makes, from where the feet are: no press while the walk goes on
         // up to the take-off. Only the give-up under it stays behind [`Feel::press_in_reach`] (A262: OFF).
         let reach = if sprinted && block.is_none() { SPRINT_JUMP_LOW_M } else { STANDING_JUMP_M };
-        if ahead.out_of_reach(reach) {
+        if !forecast && ahead.out_of_reach(reach) {
             low_presses::held();
             #[cfg(test)]
             self.bench_hold(PressHeld::OutOfReach);
@@ -3537,7 +4294,7 @@ impl Motor {
         // the landing's proof, and the model's carry is not.
         let flown = matches!(ahead.leap, Leap::Gap(GapPress { share, .. }) if share.flown().is_some());
         // [fix-move] Nor for a plain ledge pressed from a stand: the exe lands that press (owner-16 10b class (b/c)).
-        if self.feel.walk_jump_reach && short_clip && !matches!(ahead.approach, Approach::SprintGap | Approach::Stand) && !flown {
+        if !forecast && self.feel.walk_jump_reach && short_clip && !matches!(ahead.approach, Approach::SprintGap | Approach::Stand) && !flown {
             // [A364] The carry counts the body's last move whatever its heading (player +0x334); the jump goes the way it faces.
             let speed = pose.velocity[0].hypot(pose.velocity[1]);
             if walk_jump_lands(speed, ahead.before.max(0.0), ahead.span, ahead.rise) {
@@ -4647,6 +5404,106 @@ pub mod press_waits {
     /// The ticks a wait ran for a body held still with its walk held ([`blocked`]).
     pub fn blocked_count() -> u64 {
         BLOCKED.load(Ordering::Relaxed)
+    }
+}
+
+/// [press forecast] The forecast presses' events ([`Feel::press_forecast`], `Motor::cast_tick`): decide nothing.
+pub mod press_casts {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Slot {
+        /// A moving plan made (a chain flown).
+        Planned,
+        /// A chain whose feet never enter the zone.
+        NoZone,
+        /// A candidate's flight.
+        Flights,
+        /// A press on the plan's tick.
+        Pressed,
+        /// A pass (walk-in or rest) whose longest run of landing ticks was one or two: no press ([`super::super::press_plan::MIN_RUN`]).
+        Narrow,
+        /// A moving pass with no landing tick.
+        NoLanding,
+        /// At the bail-out with flights to fly.
+        NotFlownInTime,
+        /// The body off the chain's place: planned again.
+        Moved,
+        /// A rest asked.
+        RestAsk,
+        /// A try spent: no press from the moving pass nor the rest.
+        SpentNoPress,
+        /// A try spent: at rest where the rest was asked.
+        SpentRestAgain,
+        /// A try spent: the deadline.
+        SpentDeadline,
+        /// A press followed to its rest: up on the landing.
+        WatchedUp,
+        /// … not up.
+        WatchedNotUp,
+        /// … its rest farther than `CAST_OFF_M` from the forecast's.
+        OffForecast,
+        /// A walk-in learned with no run (its coarse pass flown in time): later tries skip it.
+        LearnedNoRun,
+        /// A rest that got up, learned for the link.
+        LearnedRest,
+        /// A walk-in skipped for what the match learned.
+        LearnedSkip,
+    }
+
+    pub const SLOTS: [Slot; 18] = [
+        Slot::Planned,
+        Slot::NoZone,
+        Slot::Flights,
+        Slot::Pressed,
+        Slot::Narrow,
+        Slot::NoLanding,
+        Slot::NotFlownInTime,
+        Slot::Moved,
+        Slot::RestAsk,
+        Slot::SpentNoPress,
+        Slot::SpentRestAgain,
+        Slot::SpentDeadline,
+        Slot::WatchedUp,
+        Slot::WatchedNotUp,
+        Slot::OffForecast,
+        Slot::LearnedNoRun,
+        Slot::LearnedRest,
+        Slot::LearnedSkip,
+    ];
+
+    static COUNTS: [AtomicU64; 18] = [const { AtomicU64::new(0) }; 18];
+
+    /// Since the last match end ([`take_match`]): the chains and the flights.
+    static MATCH: [AtomicU64; 2] = [const { AtomicU64::new(0) }; 2];
+
+    /// A chain played (a plan made or a rest asked).
+    pub fn chained() {
+        MATCH[0].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// [`chained`], passing the chain through.
+    pub fn chained_with<T>(chain: T) -> T {
+        chained();
+        chain
+    }
+
+    /// A flight flown.
+    pub fn flown() {
+        MATCH[1].fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// The chains and the flights since the last call (the match-end CPU line).
+    pub fn take_match() -> (u64, u64) {
+        (MATCH[0].swap(0, Ordering::Relaxed), MATCH[1].swap(0, Ordering::Relaxed))
+    }
+
+    pub fn count(slot: Slot) {
+        COUNTS[slot as usize].fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn get(slot: Slot) -> u64 {
+        COUNTS[slot as usize].load(Ordering::Relaxed)
     }
 }
 
@@ -7099,6 +7956,7 @@ mod tests {
             least_m: 0.0,
             run_up: 0.4,
             span: 0.5,
+            cast: None,
         };
         let pose = Pose::default();
         // A standing jump flown 0.4 m before the take-off: from rest at 0.25 to 0.55 it is in the window ...
@@ -7143,6 +8001,7 @@ mod tests {
             least_m: 0.0,
             run_up: 0.2,
             span: 0.5,
+            cast: None,
         };
         let slow = |k: u8, share: mapdata::Share| {
             Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.1), walk: WalkPress::Slow(k), share, aim: PressAim::STRAIGHT, way: None })
@@ -7490,7 +8349,7 @@ mod tests {
         let mut ahead_of = |motor: &mut Motor, feet: Vec3| {
             let pose = Pose { feet, yaw: 0.0, pitch: 0.0, speed: 0.0, ..Default::default() };
             let (s, _) = route.progress(feet);
-            motor.jump_ahead(&route, &pose, s, &clear).expect("the jump is ahead")
+            motor.jump_ahead(&route, &pose, s, &clear, None).expect("the jump is ahead")
         };
         // At the steps' foot, 0.6 m before the take-off on the ground and 1.5 m under it.
         let under = ahead_of(&mut motor, Vec3::new(0.65, 0.0, 0.0));
@@ -7530,6 +8389,7 @@ mod tests {
             least_m: 0.0,
             run_up: 0.0,
             span: 0.5,
+            cast: None,
         };
         // Vostok Radar Station (8.41, 2.86, -16.51), up 0.95 m: walking jumps pressed 0.08-0.40 m under the take-off.
         for under in [0.08, 0.18, 0.30, 0.40] {
@@ -7573,6 +8433,7 @@ mod tests {
             least_m: 0.0,
             run_up: 0.4,
             span: 1.7,
+            cast: None,
         };
         let stand = ahead(gap(WalkPress::Slow(0)), 0.31, 0.11);
         assert!(stand.leap.flown());
@@ -8251,5 +9112,244 @@ mod tests {
             let jumps = reckoned(&mut motor, &mut route, lip, caught(0.0), 100, aiming);
             assert_eq!(jumps, [0, 60], "after a planned jump, aiming {aiming}");
         }
+    }
+
+    /// [press forecast] A stub of the body model ([`PressFlyer`]): a body walking with the client's blend at the walk cap (k / 6 of
+    /// it on its k-th step of forward, down by a sixth a step when let go), along its yaw after the tick's turn; a press from a
+    /// body lands when `lands` says so. One chain or flight a poll while `free` (the match's token), and none on the polls `busy`
+    /// names; the chains and flights counted.
+    struct Stub<F: Fn(&Estimate) -> bool> {
+        body: Estimate,
+        lands: F,
+        free: bool,
+        busy: fn(u32) -> bool,
+        poll: u32,
+        chains: u32,
+        flights: u32,
+        learned: super::super::body::PressLearned,
+    }
+
+    fn stub_step(at: &Estimate, keys: u32, turn: f32) -> Estimate {
+        let yaw = wrap(at.yaw + turn);
+        let cap = mapdata::controller::jump::WALK_CAP_MS;
+        let speed = at.velocity[0].hypot(at.velocity[1]);
+        let speed = if keys & key::FORWARD != 0 { (speed + cap / 6.0).min(cap) } else { (speed - cap / 6.0).max(0.0) };
+        let [fx, fz] = super::super::kin::forward(yaw);
+        let velocity = [fx * speed, fz * speed];
+        Estimate {
+            time: at.time + 50,
+            feet: at.feet + Vec3::new(velocity[0] * TICK_S, 0.0, velocity[1] * TICK_S),
+            velocity,
+            yaw,
+            keys,
+            ..*at
+        }
+    }
+
+    impl<F: Fn(&Estimate) -> bool> Stub<F> {
+        fn new(x: f32, speed: f32, lands: F) -> Self {
+            let yaw = yaw_of([1.0, 0.0]);
+            let [fx, fz] = super::super::kin::forward(yaw);
+            let body = Estimate { velocity: [fx * speed, fz * speed], keys: if speed > 0.0 { key::FORWARD } else { 0 }, ..Estimate::at_rest(Vec3::new(x, 0.0, 0.0), yaw) };
+            Self { body, lands, free: true, busy: |_| false, poll: 0, chains: 0, flights: 0, learned: Default::default() }
+        }
+
+        fn take(&mut self) -> bool {
+            std::mem::take(&mut self.free)
+        }
+    }
+
+    impl<F: Fn(&Estimate) -> bool> PressFlyer for Stub<F> {
+        fn ready(&self) -> bool {
+            true
+        }
+
+        fn body(&self) -> Option<Estimate> {
+            Some(self.body)
+        }
+
+        fn chain(&mut self, from: &Estimate, keys: u32, ticks: u32) -> Option<Vec<Estimate>> {
+            if !self.take() {
+                return None;
+            }
+            self.chains += 1;
+            let mut out = vec![*from];
+            for _ in 0..ticks {
+                let next = stub_step(out.last().unwrap(), keys, 0.0);
+                out.push(next);
+            }
+            Some(out)
+        }
+
+        fn learned(&self, take_off: Vec3, landing: Vec3, cap: f32) -> LinkLearned {
+            self.learned.get(take_off, landing, cap)
+        }
+
+        fn learn(&mut self, take_off: Vec3, landing: Vec3, cap: f32, learn: &mut dyn FnMut(&mut LinkLearned)) {
+            self.learned.learn(take_off, landing, cap, learn);
+        }
+
+        fn fly(&mut self, from: &Estimate, _plan: &super::super::body::PressPlan) -> Option<PressOutcome> {
+            if !self.take() {
+                return None;
+            }
+            self.flights += 1;
+            Some(if (self.lands)(from) {
+                PressOutcome::Lands { rest: Vec3::new(3.5, -1.7, 0.0) }
+            } else {
+                PressOutcome::Short { rest: Vec3::new(1.0, -1.7, 0.0) }
+            })
+        }
+    }
+
+    /// [press forecast] A gap link 0.6 m lead, no stored window (the zone 0.4-1.6 m before the take-off, the lock from 2.65 m).
+    fn cast_route() -> Route {
+        gap_route(Leap::Gap(GapPress { lead: mapdata::PressLead::from_metres(0.6), walk: WalkPress::Cap, share: mapdata::Share::UNFLOWN, aim: PressAim::STRAIGHT, way: None }))
+    }
+
+    fn cast_motor(on: bool) -> Motor {
+        let mut rng = Rng::new(3);
+        let mut motor = Motor::new(Feel { sway: 0.0, press_forecast: on, ..Feel::default() }, &mut rng);
+        motor.walking = true;
+        motor
+    }
+
+    /// [press forecast] Walks the motor on `route` with the stub's body for at most `ticks` ticks: the press's body (feet, speed),
+    /// if any, and the walk's ends. `push` moves the body on the tick it names.
+    fn cast_walk<F: Fn(&Estimate) -> bool>(motor: &mut Motor, route: &mut Route, stub: &mut Stub<F>, ticks: u32, push: Option<(u32, Vec3)>) -> (Option<(Vec3, f32)>, Vec<Walked>) {
+        let mut ends = Vec::new();
+        for tick in 0..ticks {
+            stub.poll = tick;
+            stub.free = !(stub.busy)(tick);
+            if let Some((at, by)) = push
+                && at == tick
+            {
+                stub.body.feet = stub.body.feet + by;
+            }
+            let b = stub.body;
+            let speed = b.velocity[0].hypot(b.velocity[1]);
+            let pose = Pose { feet: b.feet, yaw: b.yaw, speed, velocity: b.velocity, ..Default::default() };
+            let (decision, walked) = motor.walk_with(route, &pose, 5.0, |_| true, None, Some(stub));
+            if walked != Walked::OnTheWay {
+                ends.push(walked);
+            }
+            if decision.keys & key::JUMP != 0 {
+                return (Some((b.feet, speed)), ends);
+            }
+            stub.body = stub_step(&stub.body, decision.keys & key::FORWARD, decision.turn.0);
+        }
+        (None, ends)
+    }
+
+    /// [press forecast] A body walking in at the cap is pressed on the middle tick of the forecast's run of landing ticks (x -1.25 to
+    /// -0.725: ticks at -1.25, -1.075, -0.9, -0.725 from x -4.4; the middle, the earlier of two, -1.075), at the cap, one chain or
+    /// flight a poll.
+    #[test]
+    fn a_forecast_press_is_made_on_the_middle_of_the_landing_ticks() {
+        let mut motor = cast_motor(true);
+        let mut route = cast_route();
+        let mut stub = Stub::new(-4.4, 3.5, |at: &Estimate| (-1.3..=-0.7).contains(&at.feet.x));
+        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 60, None);
+        let (feet, speed) = pressed.unwrap_or_else(|| panic!("no press: {ends:?}"));
+        assert!((feet.x + 1.075).abs() < 0.01 && (speed - 3.5).abs() < 1e-3, "pressed at {feet:?} {speed}");
+        assert!(stub.chains >= 1 && stub.flights >= 4, "{} {}", stub.chains, stub.flights);
+        let line = motor.cast_watch.as_ref().map(|watch| watch.text.clone()).unwrap_or_default();
+        assert!(line.contains("press forecast: try 1 pressed at plan tick") && line.contains("LLLL"), "{line}");
+    }
+
+    /// [press forecast] With the poll's forecast taken by another bot on every other poll, the flights come late: a candidate
+    /// passed unflown is a miss, so the press is never made off the landing ticks (here none is made on the walk-in; the tries
+    /// end in a press from rest in them or the link failing).
+    #[test]
+    fn late_flights_never_press_off_the_landing_ticks() {
+        let mut motor = cast_motor(true);
+        let mut route = cast_route();
+        let mut stub = Stub::new(-4.4, 3.5, |at: &Estimate| (-1.3..=-0.7).contains(&at.feet.x));
+        stub.busy = |tick| tick % 2 == 1;
+        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 600, None);
+        match pressed {
+            Some((feet, _)) => assert!((-1.3..=-0.7).contains(&feet.x), "pressed at {feet:?}"),
+            None => assert!(matches!(ends.first(), Some(Walked::JumpFailed(_))), "{ends:?}"),
+        }
+    }
+
+    /// [press forecast] No tick of the walk-in lands (only a press at under 0.6 m/s does): the body stops (no key), at rest asks its
+    /// steps, and presses from the rest (step 0: it and step 1 land).
+    #[test]
+    fn a_forecast_with_no_landing_tick_stops_and_presses_from_its_rest() {
+        let mut motor = cast_motor(true);
+        let mut route = cast_route();
+        let slow = |at: &Estimate| at.velocity[0].hypot(at.velocity[1]) < 1.2 && (-2.0..=-0.4).contains(&at.feet.x);
+        let mut stub = Stub::new(-4.4, 3.5, slow);
+        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 80, None);
+        let (feet, speed) = pressed.unwrap_or_else(|| panic!("no press: {ends:?}"));
+        assert!((speed - 3.5 / 6.0).abs() < 1e-3 && (-2.0..=-0.4).contains(&feet.x), "pressed at {feet:?} {speed}");
+        let line = motor.cast_watch.as_ref().map(|watch| watch.text.clone()).unwrap_or_default();
+        assert!(line.contains("press forecast: try 1 pressed from rest at plan tick 1") && line.contains("walk-in: no run of 3 landing ticks"), "{line}");
+    }
+
+    /// [press forecast] A walk-in that found no run (every candidate flown) is learned for the match: the next bot at the link (a
+    /// fresh motor, the same match's store) skips the walk-in, stops and presses from its rest, with fewer flights.
+    #[test]
+    fn a_walk_in_with_no_run_is_skipped_on_the_next_crossing() {
+        let slow = |at: &Estimate| at.velocity[0].hypot(at.velocity[1]) < 1.2 && (-2.0..=-0.4).contains(&at.feet.x);
+        let mut stub = Stub::new(-4.4, 3.5, slow);
+        let mut route = cast_route();
+        let (pressed, ends) = cast_walk(&mut cast_motor(true), &mut route, &mut stub, 80, None);
+        assert!(pressed.is_some(), "{ends:?}");
+        let (take_off, landing) = (Vec3::new(0.0, 0.0, 0.0), Vec3::new(3.0, -1.7, 0.0));
+        assert_eq!(stub.learned.get(take_off, landing, 3.5).walk_in, WalkIn::NoRun);
+        let first = stub.flights + stub.chains;
+        let learned = std::mem::take(&mut stub.learned);
+        let mut stub = Stub::new(-4.4, 3.5, slow);
+        stub.learned = learned;
+        let mut motor = cast_motor(true);
+        let mut route = cast_route();
+        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 80, None);
+        assert!(pressed.is_some(), "{ends:?}");
+        let line = motor.cast_watch.as_ref().map(|watch| watch.text.clone()).unwrap_or_default();
+        assert!(line.contains("walk-in skipped (no run here this match)") && !line.contains("walk-in: no run"), "{line}");
+        assert!(stub.flights + stub.chains < first, "{} against {first}", stub.flights + stub.chains);
+    }
+
+    /// [press forecast] No press from anywhere lands: each try is spent (backed off to the run-up, walked in again) and after
+    /// [`JUMP_TRIES`] the link fails, no press made.
+    #[test]
+    fn a_forecast_that_never_lands_spends_its_tries_and_the_link_fails() {
+        let mut motor = cast_motor(true);
+        let mut route = cast_route();
+        let mut stub = Stub::new(-4.4, 3.5, |_: &Estimate| false);
+        let spent = press_casts::get(press_casts::Slot::SpentNoPress) + press_casts::get(press_casts::Slot::SpentRestAgain) + press_casts::get(press_casts::Slot::SpentDeadline);
+        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 600, None);
+        assert_eq!(pressed, None);
+        assert!(matches!(ends.first(), Some(Walked::JumpFailed(_))), "{ends:?}");
+        let now = press_casts::get(press_casts::Slot::SpentNoPress) + press_casts::get(press_casts::Slot::SpentRestAgain) + press_casts::get(press_casts::Slot::SpentDeadline);
+        assert!(now - spent >= u64::from(JUMP_TRIES), "{}", now - spent);
+    }
+
+    /// [press forecast] A body pushed off the chain's place (2 cm sideways after the lock, inside [`LOCK_SIDE_M`]) is planned again from where it is, and
+    /// still pressed in the landing ticks.
+    #[test]
+    fn a_pushed_body_is_planned_again() {
+        let mut motor = cast_motor(true);
+        let mut route = cast_route();
+        let mut stub = Stub::new(-4.4, 3.5, |at: &Estimate| (-1.3..=-0.7).contains(&at.feet.x));
+        let moved = press_casts::get(press_casts::Slot::Moved);
+        let (pressed, ends) = cast_walk(&mut motor, &mut route, &mut stub, 60, Some((12, Vec3::new(0.0, 0.0, 0.02))));
+        let (feet, _) = pressed.unwrap_or_else(|| panic!("no press: {ends:?}"));
+        assert!((-1.3..=-0.7).contains(&feet.x), "pressed at {feet:?}");
+        assert!(press_casts::get(press_casts::Slot::Moved) > moved, "planned again");
+        assert!(stub.chains >= 2, "{}", stub.chains);
+    }
+
+    /// [press forecast] With the switch off no forecast is asked: the press is the motor's own as before.
+    #[test]
+    fn with_the_switch_off_no_forecast_is_asked() {
+        let mut motor = cast_motor(false);
+        let mut route = cast_route();
+        let mut stub = Stub::new(-4.4, 3.5, |_: &Estimate| true);
+        let _ = cast_walk(&mut motor, &mut route, &mut stub, 60, None);
+        assert_eq!((stub.chains, stub.flights), (0, 0));
+        assert_eq!(motor.take_cast_line(), None);
     }
 }
