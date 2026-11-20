@@ -156,6 +156,7 @@ enum Endpoint {
     PlayerWeapons {
         account_id: u32,
         by: WeaponRanking,
+        order: Order,
         limit: usize,
     },
     Matches { page: Page, clan: Option<u32> },
@@ -367,6 +368,7 @@ impl Endpoint {
                         .ok_or(Refusal::BadRequest)?
                         .1,
                 },
+                order: query.order()?,
                 limit: query.limit(MatchHistory::MAX_ROWS)?,
             },
             "matches" => Self::Matches {
@@ -498,10 +500,11 @@ fn answer(
         Endpoint::PlayerWeapons {
             account_id,
             by,
+            order,
             limit,
         } => {
             let weapons: Vec<Value> = history
-                .player_weapons(*account_id, *by, *limit)?
+                .player_weapons(*account_id, *by, *order, *limit)?
                 .iter()
                 .map(|totals| weapon(totals, lang))
                 .collect();
@@ -509,7 +512,7 @@ fn answer(
                 .iter()
                 .find(|(_, ranking)| ranking == by)
                 .map(|(name, _)| *name);
-            json!({ "by": by, "weapons": weapons })
+            json!({ "by": by, "order": order_name(*order), "weapons": weapons })
         }
         Endpoint::PlayerDays { account_id, days } => {
             let today = now - now % DAY;

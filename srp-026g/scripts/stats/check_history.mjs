@@ -339,6 +339,18 @@ try {
     assert.deepEqual(await cells('.stats-weapons tbody td.l'), sorted.weapons.map(gun => gun.name ?? '—'));
   }
   assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('by=kills'), 'the language link keeps the order');
+  // A second click on the sorted heading: the fewest first; a third, back.
+  await evaluate("[...document.querySelectorAll('.stats-weapons thead th button')].find(b => b.textContent === 'Kills').click()");
+  await settled();
+  const fewest = answered['player/weapons'];
+  assert.equal(fewest.order, 'asc');
+  assert.ok(fewest.weapons.every((gun, i) => !i || fewest.weapons[i - 1].kills <= gun.kills), 'the fewest kills first');
+  assert.deepEqual(await cells('.stats-weapons tbody td.l'), fewest.weapons.map(gun => gun.name ?? '—'));
+  assert.equal(await evaluate("document.querySelector('.stats-weapons thead th.sorted').getAttribute('aria-sort')"), 'ascending');
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('order')"), 'asc');
+  await evaluate("[...document.querySelectorAll('.stats-weapons thead th button')].find(b => b.textContent === 'Kills').click()");
+  await settled();
+  assert.equal(answered['player/weapons'].order, 'desc');
   await evaluate("[...document.querySelectorAll('.stats-tabs button')].find(b => b.textContent === 'Matches').click()");
   await settled();
   assert.equal(await evaluate('location.search'), '?player=Sheep&lang=en', 'the matches: neither the list nor its order in the address');

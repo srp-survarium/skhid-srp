@@ -573,7 +573,7 @@ fn a_players_equipment_is_its_most_used_items() {
 fn a_players_weapons_are_what_its_games_counted() {
     let world = world("weapons");
     let body = world.ok(&format!("/api/history/player/weapons?id={}", world.alice));
-    assert_eq!(keys(&body), ["by", "weapons"]);
+    assert_eq!(keys(&body), ["by", "order", "weapons"]);
     let weapons = body["weapons"].as_array().unwrap();
     // The gun; not what was counted under no weapon.
     assert_eq!(weapons.len(), 1);
@@ -613,7 +613,10 @@ fn a_players_weapons_are_what_its_games_counted() {
     );
     // Bob's games counted none.
     let bob = world.ok(&format!("/api/history/player/weapons?id={}", world.bob));
-    assert_eq!(bob, json!({ "by": "kills", "weapons": [] }));
+    assert_eq!(
+        bob,
+        json!({ "by": "kills", "order": "desc", "weapons": [] })
+    );
     for by in [
         "kills",
         "kd",
@@ -629,6 +632,11 @@ fn a_players_weapons_are_what_its_games_counted() {
             world.alice
         ));
         assert_eq!(sorted["by"], by);
+        let turned = world.ok(&format!(
+            "/api/history/player/weapons?id={}&by={by}&order=asc",
+            world.alice
+        ));
+        assert_eq!(turned["order"], "asc");
         assert_eq!(sorted["weapons"].as_array().unwrap().len(), weapons.len());
     }
     assert_eq!(

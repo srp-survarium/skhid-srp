@@ -281,23 +281,26 @@
       [TEXT.avgDistance, item => item.kill_distance_m === null ? '—' : metres.format(item.kill_distance_m), '', 'kill_distance'],
       [TEXT.wallKills, item => n(item.wall_kills), '', 'wall_kills'], [TEXT.ricochetKills, item => n(item.ricochet_kills), '', 'ricochet_kills'],
       [TEXT.hours, item => hours.format(item.held_s / 3600), '', 'held']];
-    let by = WEAPON_KEYS.includes(asked('by')) ? asked('by') : WEAPON_KEYS[0], asking = 0;
+    let by = WEAPON_KEYS.includes(asked('by')) ? asked('by') : WEAPON_KEYS[0], up = asked('order') === 'asc', asking = 0;
     const box = el('div', {className: 'stats-weapons'});
-    const sort = key => {
+    // A second click on the sorted heading: the smallest first, and back.
+    const sort = () => ({up, ask: key => {
+      up = key === by && !up;
       by = key;
       const url = new URL(location.href);
       url.searchParams.set('by', by);
+      if (up) url.searchParams.set('order', 'asc'); else url.searchParams.delete('order');
       history.replaceState(null, '', url);
       keepLanguage();
       load();
-    };
+    }});
     function load() {
       const mine = ++asking;
-      if (!box.firstChild || id === null) box.replaceChildren(table(columns, null, WEAPONS, by, null, sort));
-      if (id !== null) api('player/weapons', {id, by, limit: TOP}).then(data => {
+      if (!box.firstChild || id === null) box.replaceChildren(table(columns, null, WEAPONS, by, null, sort()));
+      if (id !== null) api('player/weapons', {id, by, limit: TOP, ...(up ? {order: 'asc'} : {})}).then(data => {
         if (mine !== asking) return;
         const rows = data ? data.weapons : [];
-        box.replaceChildren(rows.length ? table(columns, rows, 0, by, wikiWeapon, sort) : notice(TEXT.noWeapons));
+        box.replaceChildren(rows.length ? table(columns, rows, 0, by, wikiWeapon, sort()) : notice(TEXT.noWeapons));
       }, error => { if (mine === asking) box.replaceChildren(notice(String(error))); });
     }
     load();
@@ -375,7 +378,7 @@
       for (const button of tabs.children) button.setAttribute('aria-pressed', String(button.dataset.tab === tab));
       const url = new URL(location.href);
       if (tab === 'weapons') url.searchParams.set('tab', tab);
-      else for (const gone of ['tab', 'by']) url.searchParams.delete(gone);
+      else for (const gone of ['tab', 'by', 'order']) url.searchParams.delete(gone);
       history.replaceState(null, '', url);
       keepLanguage();
       body.replaceChildren(tab === 'weapons' ? weaponList(id) : id === null ? table(columns, null)

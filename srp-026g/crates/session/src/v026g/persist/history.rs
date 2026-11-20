@@ -623,7 +623,7 @@ pub enum WeaponRanking {
 }
 
 impl WeaponRanking {
-    /// The number it sorts by, of `g26_player_weapons`; NULL (the last)
+    /// The number it sorts by, of `g26_player_weapons`; NULL (the smallest)
     /// where nothing divides.
     fn order(self) -> &'static str {
         match self {
@@ -1608,21 +1608,23 @@ impl MatchHistory {
     }
 
     /// The weapons the account fired or killed with in its counted public
-    /// matches, the largest `by` first (then most kills), at most `limit`.
+    /// matches, by `by` in `order` (then most kills), at most `limit`.
     /// Not what the games counted under no weapon (dict id 0), nor an item
     /// only held.
     pub fn player_weapons(
         &self,
         account_id: u32,
         by: WeaponRanking,
+        order: Order,
         limit: usize,
     ) -> Result<Vec<WeaponTotals>, PersistError> {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(&format!(
             "SELECT dict_id, matches, {WEAPON} FROM g26_player_weapons
              WHERE account_id = ?1 AND dict_id != 0 AND (kills > 0 OR shots > 0)
-             ORDER BY {} DESC, kills DESC, shots DESC, dict_id LIMIT ?2",
-            by.order()
+             ORDER BY {} {}, kills DESC, shots DESC, dict_id LIMIT ?2",
+            by.order(),
+            order.sql()
         ))?;
         let weapons = statement
             .query_map(params![account_id, bounded(limit)], |row| {
@@ -2295,7 +2297,7 @@ mod tests {
             2
         );
         assert_eq!(history.favourites(10, 10).unwrap().weapons.len(), 2);
-        assert_eq!(history.player_weapons(10, WeaponRanking::Kills, 10).unwrap().len(), 2);
+        assert_eq!(history.player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap().len(), 2);
     }
 
     #[test]
@@ -2334,7 +2336,7 @@ mod tests {
         }
         let first = weapons(10, 80);
         assert_eq!(
-            history.player_weapons(10, WeaponRanking::Kills, 10).unwrap(),
+            history.player_weapons(10, WeaponRanking::Kills, Order::Descending, 10).unwrap(),
             [
                 WeaponTotals {
                     dict_id: AK,
@@ -2370,14 +2372,14 @@ mod tests {
         );
         assert_eq!(
             history
-                .player_weapons(10, WeaponRanking::Kills, 1)
+                .player_weapons(10, WeaponRanking::Kills, Order::Descending, 1)
                 .unwrap()
                 .len(),
             1
         );
         assert!(
             history
-                .player_weapons(99, WeaponRanking::Kills, 10)
+                .player_weapons(99, WeaponRanking::Kills, Order::Descending, 10)
                 .unwrap()
                 .is_empty()
         );
@@ -2411,7 +2413,19 @@ mod tests {
             WeaponRanking::RicochetKills,
             WeaponRanking::Held,
         ] {
-            let listed = history.player_weapons(10, by, 10).unwrap();
+            let listed = history
+                .player_weapons(10, by, Order::Descending, 10)
+                .unwrap();
+            let turned = history
+                .player_weapons(10, by, Order::Ascending, 10)
+                .unwrap();
+            assert_eq!(turned.len(), listed.len());
+            assert!(
+                turned
+                    .windows(2)
+                    .all(|pair| number(by, &pair[0].counts) <= number(by, &pair[1].counts)),
+                "{by:?} from the other end: {turned:?}"
+            );
             assert_eq!(listed.len(), 3, "{by:?}");
             assert!(
                 listed
