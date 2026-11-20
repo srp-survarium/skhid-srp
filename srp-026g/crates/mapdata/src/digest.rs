@@ -65,6 +65,76 @@ impl Digest {
     }
 }
 
+/// [incremental grids] A 128-bit digest: two [`Digest`] lanes of other seeds over a byte stream, eight bytes a word whatever the
+/// writes' sizes, the count of bytes last.
+#[derive(Clone)]
+pub struct Digest128 {
+    lanes: [Digest; 2],
+    word: [u8; 8],
+    filled: usize,
+    count: u64,
+}
+
+impl Default for Digest128 {
+    fn default() -> Self {
+        Self {
+            lanes: [Digest::seeded(0x5352_5047_5249_4431), Digest::seeded(0x5352_5047_5249_4432)],
+            word: [0; 8],
+            filled: 0,
+            count: 0,
+        }
+    }
+}
+
+impl Digest128 {
+    pub fn bytes(&mut self, bytes: &[u8]) {
+        self.count += bytes.len() as u64;
+        for &byte in bytes {
+            self.word[self.filled] = byte;
+            self.filled += 1;
+            if self.filled == 8 {
+                self.push(u64::from_le_bytes(self.word));
+                self.filled = 0;
+            }
+        }
+    }
+
+    fn push(&mut self, word: u64) {
+        self.lanes[0].u64(word);
+        // The second lane's words turned, so the lanes are not one function of the stream twice.
+        self.lanes[1].u64(word.rotate_left(29) ^ 0xa5a5_a5a5_a5a5_a5a5);
+    }
+
+    /// A word as its eight bytes.
+    pub fn u64(&mut self, value: u64) {
+        self.bytes(&value.to_le_bytes());
+    }
+
+    pub fn u32(&mut self, value: u32) {
+        self.bytes(&value.to_le_bytes());
+    }
+
+    pub fn u128(&mut self, value: u128) {
+        self.bytes(&value.to_le_bytes());
+    }
+
+    /// A string or bytes after their length: two end where they did.
+    pub fn str(&mut self, value: &[u8]) {
+        self.u64(value.len() as u64);
+        self.bytes(value);
+    }
+
+    pub fn finish(mut self) -> u128 {
+        if self.filled > 0 {
+            self.word[self.filled..].fill(0);
+            self.push(u64::from_le_bytes(self.word));
+        }
+        let count = self.count;
+        self.push(count);
+        (u128::from(self.lanes[0].finish()) << 64) | u128::from(self.lanes[1].finish())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
