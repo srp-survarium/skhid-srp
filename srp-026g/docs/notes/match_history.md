@@ -22,7 +22,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   has them).
 - A player's Weapons list has a row a weapon its games counted (below): kills, K/D (by the
   deaths with it in the hands), HS %, accuracy, the kills' average distance, kills through
-  cover and by a ricochet, hours in the hands; most kills first. A row leads to the weapon's
+  cover and by a ricochet, hours in the hands; most kills first, and by any column on a click on its heading (`&by=`), each
+  with its icon. A row leads to the weapon's
   card in the wiki.
 - A match line shows the weapons of the kits it used (each kit in full, with the kit's own kills
   and accuracy, on hover). A free-for-all is one list by place. A click anywhere on a row
@@ -221,19 +222,21 @@ both lists empty, as an unknown one.
  "armour":[{"id":301,"name":"Helmet","matches":52}]}
 ```
 
-### `GET /api/history/player/weapons?id=<id>&limit=<n>`
+### `GET /api/history/player/weapons?id=<id>&by=<key>&limit=<n>`
 
 What a player did with each weapon in its counted public matches, as its games counted it
 (`g26_player_weapons`): the weapons it fired or killed with (a grenade or a trap that killed is
-one), most kills first (ties: more shots, then the lower id), at most `limit` (1..50, default
-50). `id`, `key` and `name` are the item's, as in `player/equipment`. `deaths` are the player's
+one), the largest `by` first (ties: more kills, more shots, then the lower id), at most `limit`
+(1..50, default 50). `by`: `kills` (the default), `kd`, `headshot_rate`, `accuracy`,
+`kill_distance` (the average), `wall_kills`, `ricochet_kills`, `held`; a weapon without a kill
+(a shot) is last by a ratio of them. `id`, `key`, `name` and `icon` are the item's, as in `player/equipment`. `deaths` are the player's
 with it in the hands, and `kd` is by them; `damage` is in enemies' whole pain pools;
 `kill_distance_m` is the kills' average (`null` without a kill), `longest_kill_m` the longest;
 `held_s` the time in the hands. An account whose games counted none has an empty list, as an
 unknown one.
 
 ```json
-{"weapons":[{"id":155,"key":"ak_74m","name":"AK-74M","matches":40,"kills":310,"deaths":190,
+{"by":"kills","weapons":[{"id":155,"key":"ak_74m","name":"AK-74M","matches":40,"kills":310,"deaths":190,
              "kd":1.63,"headshots":62,"wall_kills":14,"ricochet_kills":2,"shots":9800,"hits":2900,
              "accuracy":0.296,"damage":402.5,"kill_distance_m":31.3,"longest_kill_m":84.5,
              "held_s":21400}]}
