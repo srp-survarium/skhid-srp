@@ -93,6 +93,7 @@ mod pocket_runs;
 mod press_reach;
 mod reference_replay;
 mod refused_sprint;
+mod roof_spot;
 mod settings;
 mod sight;
 mod soak;
