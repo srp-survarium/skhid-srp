@@ -29,6 +29,8 @@ struct Crossing {
     rest_ms: u32,
     /// The feet at the first press.
     pressed_at: Option<Vec3>,
+    /// The feet at every press, and every 500 ms (`SRP_REST_TRAIL=1` prints them).
+    trail: Vec<(u32, Vec3, bool)>,
 }
 
 /// A bot on the stand-in walks to `goal` from `start` for at most `until` ms (as `drop_spots`' walk).
@@ -77,6 +79,7 @@ fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: V
             if made.input.actions & key::JUMP != 0 {
                 out.presses += 1;
                 out.pressed_at.get_or_insert(game.bodies[0].feet);
+                out.trail.push((clock, game.bodies[0].feet, true));
             }
             let r = made.input.rotation;
             let turn = (half_value(u16::from_le_bytes([r[0], r[1]])), half_value(u16::from_le_bytes([r[2], r[3]])));
@@ -85,6 +88,9 @@ fn cross(world: &Arc<World>, start: Vec3, take_off: Vec3, landing: Vec3, goal: V
         }
         bots.nav_notes(0, &mut notes);
         let feet = game.bodies[0].feet;
+        if clock % 500 == 0 {
+            out.trail.push((clock, feet, false));
+        }
         if clock % TICK_MS == 0 {
             let speed = feet.distance_xz(last) / (TICK_MS as f32 / 1000.0);
             last = feet;
@@ -185,6 +191,16 @@ fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
             "REST from ({:.2}, {:.2}, {:.2}) ({:.1} m): landed {:?} ms, presses {}, first press at {:?}, rest {} ms near the take-off",
             start.x, start.y, start.z, start.distance_xz(a), c.landed, c.presses, c.pressed_at, c.rest_ms
         );
+        if bench_settings().var_os("SRP_REST_TRAIL").is_some() {
+            if let Some(route) = grid.locate(start, 1.0).and_then(|n| path::plan(grid, n, goal_node)) {
+                for w in route.points().iter().filter(|w| w.jump.is_some()) {
+                    eprintln!("REST   route jump to ({:.2}, {:.2}, {:.2}) {:?}", w.at.x, w.at.y, w.at.z, w.jump);
+                }
+            }
+            for (t, p, press) in &c.trail {
+                eprintln!("REST   {t} ms ({:.2}, {:.2}, {:.2}){}", p.x, p.y, p.z, if *press { " PRESS" } else { "" });
+            }
+        }
         if c.landed.is_none() {
             missed.push(start);
         }
