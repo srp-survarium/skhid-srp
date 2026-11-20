@@ -21,11 +21,9 @@ const PROJECT: &str = "level_02/day_2";
 const RISER: (Vec3, Vec3) = (Vec3::new(36.70, 21.48, 113.97), Vec3::new(36.45, 21.76, 113.97));
 /// The beam's top the players' way west goes over (the press onto it, or the riser up it where the grid names one).
 const BEAM: Vec3 = Vec3::new(36.45, 22.45, 112.97);
-/// The west roof's floor the bots' drop leaves from (its Drop to [`LANDING`]).
-const WEST: Vec3 = Vec3::new(35.95, 21.76, 113.72);
-/// The drop's landing under the west roof: the goal of the match's given-up leg. Not [`WEST`] itself: a goal on a lip floor is
-/// moved off it to the nearest floor that is none (`path::off_lip`, walked over the Walk links up to 1.5 m), and from [`WEST`]
-/// that is the riser's foot, 0.79 m off across the beam on the east roof.
+/// The drop's landing under the west roof: the goal of the match's given-up leg. Not the west roof's floor the drop leaves from,
+/// (35.95, 21.76, 113.72): a goal on a lip floor is moved off it to the nearest floor that is none (`path::off_lip`, walked over
+/// the Walk links up to 1.5 m), and from there that is the riser's foot, 0.79 m off across the beam on the east roof.
 const LANDING: Vec3 = Vec3::new(35.45, 17.02, 114.22);
 /// The starts on the east roof: the match's given-up leg's start (`DIAG drop given up`, take-off (37.13, 21.23, 112.92)), and
 /// two floors beside the riser's foot.
