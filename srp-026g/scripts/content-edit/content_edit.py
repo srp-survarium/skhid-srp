@@ -1315,7 +1315,11 @@ STATS = {
             'resources': 'mode/parameters/resources_count',
             'restore_mul': 'mode/parameters/restore_multiplier',
             'loading_screen': 'mode/ui/loading_screen_id', 'icon': 'mode/ui/icon',
+            # srp's key: the build lists show the map under, where its project's prefix does not say it
+            # (v032, v042: the two Londons; survarium maps::Build)
+            'build': 'mode/srp_build',
         },
+        'add': {'build'},
         'match': {'match_s', 'countdown_s', 'respawn_s', 'wait_s', 'wait_players', 'tickets', 'spawn_points', 'batteries',
                   'battery_spawn_s', 'battery_spawn_var_s', 'capture_award', 'capture_reach',
                   'capture_half_height', 'resources', 'restore_mul'},

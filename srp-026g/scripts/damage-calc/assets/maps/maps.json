@@ -43956,7 +43956,7 @@
    "play_area_px": null
   },
   "level_09": {
-   "name": "London",
+   "name": "London (v0.32)",
    "name_key": "st_level_09_name",
    "origin": "skhid patch: London, patch 14, geometry from the 0.26g db with the released patches over it",
    "image": "level_09.webp",
