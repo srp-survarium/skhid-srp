@@ -226,7 +226,7 @@ fn a_slow_press_with_no_grid_floor_at_its_rest_is_made() {
         let mut at_link = false;
         for &(p, speed, link) in &c.presses_at {
             // The motor's press of this link (its take-off and landing within 0.3 m of the link's).
-            let motor = link.is_some_and(|(from, to)| from.distance(a) <= 0.3 && to.distance(b) <= 0.3);
+            let motor = link.is_some_and(|(from, to)| (from - a).length() <= 0.3 && (to - b).length() <= 0.3);
             let (dx, dz) = (a.x - p.x, a.z - p.z);
             let behind = dx * way.0 + dz * way.1;
             if p.distance_xz(a) > 1.0 || (p.y - a.y).abs() > 0.6 {
