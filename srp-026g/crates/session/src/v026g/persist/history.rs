@@ -576,6 +576,24 @@ impl TotalsKey {
     }
 }
 
+/// Which end of a sorted list comes first.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Order {
+    /// The largest.
+    #[default]
+    Descending,
+    Ascending,
+}
+
+impl Order {
+    fn sql(self) -> &'static str {
+        match self {
+            Self::Descending => "DESC",
+            Self::Ascending => "ASC",
+        }
+    }
+}
+
 /// What the players' top list sorts by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PlayerRanking {
@@ -1460,17 +1478,18 @@ impl MatchHistory {
         Ok(Some((summary, rows.collect::<Result<_, _>>()?)))
     }
 
-    /// The top `limit` players by `by`, of those with a counted public
+    /// The first `limit` players by `by` in `order`, of those with a counted public
     /// match and that `keep` keeps (it is asked of each in order until enough,
     /// of the first [`MatchHistory::MAX_READ`]).
     pub fn top(
         &self,
         by: PlayerRanking,
+        order: Order,
         limit: usize,
         keep: &dyn Fn(u32) -> bool,
     ) -> Result<Vec<TopPlayer>, PersistError> {
         let connection = self.reader();
-        let mut statement = connection.prepare_cached(&top_query(by))?;
+        let mut statement = connection.prepare_cached(&top_query(by, order))?;
         let mut rows = statement.query([MatchHistory::MAX_READ as i64])?;
         let mut top = Vec::new();
         while top.len() < bounded(limit) as usize
@@ -1584,7 +1603,12 @@ impl MatchHistory {
     }
 
     /// The top `limit` registered clans by `by`.
-    pub fn clans(&self, by: TotalsKey, limit: usize) -> Result<Vec<ClanLine>, PersistError> {
+    pub fn clans(
+        &self,
+        by: TotalsKey,
+        order: Order,
+        limit: usize,
+    ) -> Result<Vec<ClanLine>, PersistError> {
         let connection = self.reader();
         let mut statement = connection.prepare_cached(&format!(
             "SELECT c.clan_id, c.name, c.tag, c.experience,
@@ -1593,8 +1617,9 @@ impl MatchHistory {
                  {TOTALS}
              FROM g26_clan_totals t JOIN g26_clans c ON c.clan_id = t.clan_id
              WHERE c.registered != 0
-             ORDER BY t.{} DESC, t.clan_id LIMIT ?1",
-            by.column()
+             ORDER BY t.{} {}, t.clan_id LIMIT ?1",
+            by.column(),
+            order.sql()
         ))?;
         let rows = statement.query_map([bounded(limit)], clan_line)?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -1676,40 +1701,46 @@ fn clan_line(row: &Row) -> rusqlite::Result<ClanLine> {
 /// `g26_player_totals_score_avg`): the expressions and the bounds are the
 /// migration's, word for word. The other ratios sort the players with
 /// their matches: a few thousand rows at most.
-fn top_query(by: PlayerRanking) -> String {
-    let ratio = |of: &str| {
-        (
-            format!("WHERE t.matches >= {SCORE_AVG_MIN_MATCHES}"),
-            format!("{of} DESC, t.account_id"),
-        )
-    };
-    let (filter, order) = match by {
-        PlayerRanking::Rating => (
-            "WHERE t.matches > 0".to_owned(),
-            "a.rating DESC, a.account_id".to_owned(),
-        ),
-        PlayerRanking::Totals(key) => (
-            "WHERE t.matches > 0".to_owned(),
-            format!("t.{} DESC, t.account_id", key.column()),
-        ),
+fn top_query(by: PlayerRanking, order: Order) -> String {
+    let averaged = format!("WHERE t.matches >= {SCORE_AVG_MIN_MATCHES}");
+    let played = "WHERE t.matches > 0".to_owned();
+    // What is left out, the number sorted by, and what parts equal ones.
+    let (filter, number, tie) = match by {
+        PlayerRanking::Rating => (played, "a.rating".to_owned(), "a.account_id"),
+        PlayerRanking::Totals(key) => (played, format!("t.{}", key.column()), "t.account_id"),
         PlayerRanking::Accuracy => (
             format!("WHERE t.shots >= {ACCURACY_MIN_SHOTS}"),
-            "CAST(t.hits AS REAL) / t.shots DESC, t.account_id".to_owned(),
+            "CAST(t.hits AS REAL) / t.shots".to_owned(),
+            "t.account_id",
         ),
         PlayerRanking::ScoreAvg => (
-            format!("WHERE t.matches >= {SCORE_AVG_MIN_MATCHES}"),
-            "CAST(t.score AS REAL) / t.matches DESC, t.account_id".to_owned(),
+            averaged,
+            "CAST(t.score AS REAL) / t.matches".to_owned(),
+            "t.account_id",
         ),
-        PlayerRanking::WinRate => ratio("CAST(t.wins AS REAL) / t.matches"),
-        PlayerRanking::Kd => ratio("CAST(t.kills AS REAL) / max(t.deaths, 1)"),
-        PlayerRanking::HeadshotRate => ratio("CAST(t.headshots AS REAL) / max(t.kills, 1)"),
+        PlayerRanking::WinRate => (
+            averaged,
+            "CAST(t.wins AS REAL) / t.matches".to_owned(),
+            "t.account_id",
+        ),
+        PlayerRanking::Kd => (
+            averaged,
+            "CAST(t.kills AS REAL) / max(t.deaths, 1)".to_owned(),
+            "t.account_id",
+        ),
+        PlayerRanking::HeadshotRate => (
+            averaged,
+            "CAST(t.headshots AS REAL) / max(t.kills, 1)".to_owned(),
+            "t.account_id",
+        ),
     };
     format!(
         "SELECT {NAMED}, a.exp_total, a.rating, {TOTALS}
          FROM g26_player_totals t JOIN g26_accounts a ON a.account_id = t.account_id
          {CLAN_JOIN}
          {filter}
-         ORDER BY {order} LIMIT ?1"
+         ORDER BY {number} {}, {tie} LIMIT ?1",
+        order.sql()
     )
 }
 
@@ -1983,19 +2014,19 @@ mod tests {
         let everything = |_| true;
         assert!(
             history
-                .top(PlayerRanking::Totals(TotalsKey::Kills), 10, &everything)
+                .top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 10, &everything)
                 .unwrap()
                 .is_empty()
         );
         assert!(
             history
-                .top(PlayerRanking::Rating, 10, &everything)
+                .top(PlayerRanking::Rating, Order::Descending, 10, &everything)
                 .unwrap()
                 .is_empty()
         );
         assert!(history.best(0, 10, &everything).unwrap().is_empty());
         assert!(history.player_days(10, 0).unwrap().is_empty());
-        assert!(history.clans(TotalsKey::Matches, 10).unwrap().is_empty());
+        assert!(history.clans(TotalsKey::Matches, Order::Descending, 10).unwrap().is_empty());
         assert_eq!(history.favourites(10, 10).unwrap(), Favourites::default());
         // The next one counts.
         repository.record_match(&record(PUBLIC, 200)).unwrap();
@@ -2088,7 +2119,7 @@ mod tests {
             top.into_iter().map(|top| top.player.name).collect()
         };
         let by_score = PlayerRanking::Totals(TotalsKey::Kills);
-        let top = |limit| names(history.top(by_score, limit, &keep).unwrap());
+        let top = |limit| names(history.top(by_score, Order::Descending, limit, &keep).unwrap());
         assert_eq!(top(10), ["Alice", "Bob"]);
         assert_eq!(top(1), ["Alice"]);
         let best: Vec<String> = history
@@ -2100,7 +2131,7 @@ mod tests {
         assert_eq!(best, ["Alice", "Bob"]);
         // Unfiltered, the banned fill the list.
         assert_eq!(
-            history.top(by_score, 100, &|_| true).unwrap().len(),
+            history.top(by_score, Order::Descending, 100, &|_| true).unwrap().len(),
             MatchHistory::MAX_ROWS
         );
     }
@@ -2122,7 +2153,7 @@ mod tests {
         }
         let top = |history: &MatchHistory| -> Vec<String> {
             history
-                .top(PlayerRanking::Accuracy, 10, &|_| true)
+                .top(PlayerRanking::Accuracy, Order::Descending, 10, &|_| true)
                 .unwrap()
                 .into_iter()
                 .map(|top| top.player.name)
@@ -2132,7 +2163,7 @@ mod tests {
         repository.record_match(&played).unwrap();
         repository.record_match(&played).unwrap();
         assert_eq!(top(&history), ["Alice", "Bob"]);
-        let accurate = history.top(PlayerRanking::Accuracy, 1, &|id| id != 10)
+        let accurate = history.top(PlayerRanking::Accuracy, Order::Descending, 1, &|id| id != 10)
             .unwrap();
         assert_eq!(accurate[0].player.name, "Bob");
         assert_eq!(accurate[0].totals.matches, 10, "a match is kept once");
@@ -2350,20 +2381,20 @@ mod tests {
         let dir = TempDir::new("top");
         let (mut repository, history) = repository(&dir);
         repository.record_match(&record(PUBLIC, 100)).unwrap();
-        let by_kills = history.top(PlayerRanking::Totals(TotalsKey::Kills), 10, &|_| true)
+        let by_kills = history.top(PlayerRanking::Totals(TotalsKey::Kills), Order::Descending, 10, &|_| true)
             .unwrap();
         let names: Vec<&str> = by_kills
             .iter()
             .map(|top| top.player.name.as_str())
             .collect();
         assert_eq!(names, ["Alice", "Bob"]);
-        let by_rating = history.top(PlayerRanking::Rating, 10, &|id| id != 10)
+        let by_rating = history.top(PlayerRanking::Rating, Order::Descending, 10, &|id| id != 10)
             .unwrap();
         assert_eq!(by_rating.len(), 1);
         assert_eq!(by_rating[0].player.name, "Bob");
         assert_eq!(
             history
-                .top(PlayerRanking::Rating, 1, &|_| true)
+                .top(PlayerRanking::Rating, Order::Descending, 1, &|_| true)
                 .unwrap()
                 .len(),
             1
@@ -2386,7 +2417,7 @@ mod tests {
         repository
             .record_match(&record(MatchKind::Private, 200))
             .unwrap();
-        let clans = history.clans(TotalsKey::Matches, 10).unwrap();
+        let clans = history.clans(TotalsKey::Matches, Order::Descending, 10).unwrap();
         assert_eq!(clans.len(), 1);
         assert_eq!(
             (clans[0].tag.as_str(), clans[0].level, clans[0].members),
@@ -2556,7 +2587,7 @@ mod tests {
         );
         // The list of clans and the clan's matches agree with the card.
         assert_eq!(
-            history.clans(TotalsKey::Matches, 10).unwrap()[0].totals,
+            history.clans(TotalsKey::Matches, Order::Descending, 10).unwrap()[0].totals,
             totals
         );
         let listed = history.matches(None, 50, Some(7)).unwrap();
@@ -2716,7 +2747,7 @@ mod tests {
             (PlayerRanking::Accuracy, "g26_player_totals_accuracy"),
             (PlayerRanking::ScoreAvg, "g26_player_totals_score_avg"),
         ] {
-            let plan = plan_of(&dir, &top_query(by), [10]);
+            let plan = plan_of(&dir, &top_query(by, Order::Descending), [10]);
             assert!(plan.contains(&format!("SCAN t USING INDEX {index}")), "{plan}");
             // Only the ties are sorted further, by account.
             assert!(!plan.contains("USE TEMP B-TREE FOR ORDER BY"), "{plan}");
@@ -2729,7 +2760,7 @@ mod tests {
         let (mut repository, history) = repository(&dir);
         let top = |history: &MatchHistory| -> Vec<String> {
             history
-                .top(PlayerRanking::ScoreAvg, 10, &|_| true)
+                .top(PlayerRanking::ScoreAvg, Order::Descending, 10, &|_| true)
                 .unwrap()
                 .into_iter()
                 .map(|top| top.player.name)
@@ -2747,8 +2778,14 @@ mod tests {
             PlayerRanking::Kd,
             PlayerRanking::HeadshotRate,
         ] {
-            let listed = history.top(by, 10, &|_| true).unwrap();
+            let listed = history.top(by, Order::Descending, 10, &|_| true).unwrap();
             assert_eq!(listed.len(), 2, "{by:?}");
+            let names = |listed: &[TopPlayer]| -> Vec<String> {
+                listed.iter().map(|top| top.player.name.clone()).collect()
+            };
+            let mut turned = history.top(by, Order::Ascending, 10, &|_| true).unwrap();
+            turned.reverse();
+            assert_eq!(names(&turned), names(&listed), "{by:?} from the other end");
             let of = |totals: &Totals| match by {
                 PlayerRanking::WinRate => totals.wins as f64 / totals.matches as f64,
                 PlayerRanking::Kd => totals.kills as f64 / totals.deaths.max(1) as f64,

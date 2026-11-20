@@ -15,7 +15,8 @@ What survarium.pro showed of players, matches and clans, kept by srp itself and 
   lists of five: kills, assists, score, wins, hours) and the all-time totals. Each view is drawn once empty in
   its final shape, then with its data, so nothing moves while it loads; match lists grow by
   "Older matches" (`before=`). A list of players or clans sorts by a click on a column's
-  heading (the owner, 2026-11-20), largest first; the players' list has no Level.
+  heading (the owner, 2026-11-20), largest first, and smallest first on a second click
+  (`&order=asc`); the players' list has no Level.
 - The tables keep to few numbers (the owner, 2026-11-20): the average score, never the total;
   headshots as their share of the kills (HS %); no batteries or artefacts (a profile's own panel
   has them).
@@ -264,17 +265,18 @@ kept of the ask: the page asks again every two seconds while the answer is `prep
 - An address may ask 40 times a minute; past that, `429 {"error":"too many"}`.
 - `404` for an unknown or non-public match.
 
-### `GET /api/history/top?by=<key>&limit=<n>`
+### `GET /api/history/top?by=<key>&order=<desc|asc>&limit=<n>`
 
 The top players by their totals. `by`: `rating`, `matches`, `wins`, `win_rate`, `kills`, `kd`,
-`score_avg`, `headshot_rate`, `accuracy` (default `rating`); `limit` 1..50 (default 50). The
+`score_avg`, `headshot_rate`, `accuracy` (default `rating`); `order`: `desc` (the largest first,
+the default) or `asc`, here and in `clans`; `limit` 1..50 (default 50). The
 ratios `score_avg`, `win_rate`, `kd` and `headshot_rate` list only the players
 with at least 20 counted matches (`SCORE_AVG_MIN_MATCHES`). Players with
 a counted public match only. `accuracy` lists only the players with at least 1000 shots in their counted public
 matches (`ACCURACY_MIN_SHOTS`; a few lucky shots do not top it), best first; ties by account.
 
 ```json
-{"by":"kills",
+{"by":"kills","order":"desc",
  "players":[{"player":{"id":1042,"name":"Sheep","clan":{"id":7,"tag":"SKH"}},"level":34,
              "rating":1180,"totals":{"matches":120,"wins":64,"losses":52,"kills":900,"deaths":700,
              "assists":210,"score":30500,"headshots":180,"grenade_kills":12,"melee_kills":3,
@@ -315,7 +317,7 @@ players' totals together.
  "accuracy":0.26,"played_s":41000000}
 ```
 
-### `GET /api/history/clans?by=<key>&limit=<n>`
+### `GET /api/history/clans?by=<key>&order=<desc|asc>&limit=<n>`
 
 Registered clans by their totals. `by`: `matches`, `wins`, `kills` (default `matches`); `limit`
 1..50 (default 50).

@@ -15,7 +15,7 @@ use session::v026g::replays::{Replays, Status};
 use session::v026g::persist::history::{
     ClanKey, ClanLine, Counters, Gear, ItemTotals, KitCounts, KitLine, MatchHistory, MatchInfo,
     MatchSummary,
-    Named, Outcome, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey, Winner,
+    Named, Order, Outcome, PlayerLine, PlayerRanking, Presence, Totals, TotalsKey, Winner,
 };
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps;
@@ -155,11 +155,19 @@ enum Endpoint {
     Matches { page: Page, clan: Option<u32> },
     Match(u64),
     Replay(u64),
-    Top { by: PlayerRanking, limit: usize },
+    Top {
+        by: PlayerRanking,
+        order: Order,
+        limit: usize,
+    },
     Best(Period),
     Today,
     AllTime,
-    Clans { by: TotalsKey, limit: usize },
+    Clans {
+        by: TotalsKey,
+        order: Order,
+        limit: usize,
+    },
     Clan(ClanName),
 }
 
@@ -248,6 +256,15 @@ impl Query {
         }
     }
 
+    /// `order`: `desc` (the largest first, the default) or `asc`.
+    fn order(&self) -> Result<Order, Refusal> {
+        match self.text("order") {
+            None | Some("desc") => Ok(Order::Descending),
+            Some("asc") => Ok(Order::Ascending),
+            Some(_) => Err(Refusal::BadRequest),
+        }
+    }
+
     fn page(&self) -> Result<Page, Refusal> {
         Ok(Page {
             before: self.number("before")?,
@@ -270,6 +287,14 @@ fn totals_key_name(key: TotalsKey) -> &'static str {
         TotalsKey::Matches => "matches",
         TotalsKey::Wins => "wins",
         TotalsKey::Kills => "kills",
+    }
+}
+
+/// Which end of a list comes first, as `order` names it.
+fn order_name(order: Order) -> &'static str {
+    match order {
+        Order::Descending => "desc",
+        Order::Ascending => "asc",
     }
 }
 
@@ -332,6 +357,7 @@ impl Endpoint {
                         PlayerRanking::Totals(totals_key(text).ok_or(Refusal::BadRequest)?)
                     }
                 },
+                order: query.order()?,
                 limit: query.limit(MatchHistory::MAX_ROWS)?,
             },
             "best" => Self::Best(match query.text("period") {
@@ -346,6 +372,7 @@ impl Endpoint {
                     None => TotalsKey::Matches,
                     Some(text) => totals_key(text).ok_or(Refusal::BadRequest)?,
                 },
+                order: query.order()?,
                 limit: query.limit(MatchHistory::MAX_ROWS)?,
             },
             "clan" => match (query.number("id")?, query.text("tag")) {
@@ -501,9 +528,9 @@ fn answer(
             }
             value
         }
-        Endpoint::Top { by, limit } => {
+        Endpoint::Top { by, order, limit } => {
             let players: Vec<Value> = history
-                .top(*by, *limit, &|account_id| !banned(account_id))?
+                .top(*by, *order, *limit, &|account_id| !banned(account_id))?
                 .iter()
                 .map(|top| {
                     json!({
@@ -514,7 +541,7 @@ fn answer(
                     })
                 })
                 .collect();
-            json!({ "by": ranking_name(*by), "players": players })
+            json!({ "by": ranking_name(*by), "order": order_name(*order), "players": players })
         }
         Endpoint::Best(period) => {
             let rows: Vec<Value> = history
@@ -571,9 +598,13 @@ fn answer(
                 "played_s": all.totals.played_ms / 1000,
             })
         }
-        Endpoint::Clans { by, limit } => {
-            let clans: Vec<Value> = history.clans(*by, *limit)?.iter().map(clan_line).collect();
-            json!({ "by": totals_key_name(*by), "clans": clans })
+        Endpoint::Clans { by, order, limit } => {
+            let clans: Vec<Value> = history
+                .clans(*by, *order, *limit)?
+                .iter()
+                .map(clan_line)
+                .collect();
+            json!({ "by": totals_key_name(*by), "order": order_name(*order), "clans": clans })
         }
         Endpoint::Clan(name) => {
             let key = match name {

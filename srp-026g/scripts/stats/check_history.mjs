@@ -111,6 +111,18 @@ try {
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-board .stats-table tbody tr')].map(r => Number(r.children[6].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] >= v)"), true, 'sorted by kills');
   assert.equal(await evaluate("new URLSearchParams(location.search).get('by')"), 'kills');
   assert.ok((await evaluate("document.querySelector('a.lang').href")).includes('by=kills'), 'the language link keeps the board');
+  // A second click on the sorted heading: the fewest first; a third, back.
+  await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Kills').click()");
+  await settled();
+  assert.equal(answered.top.order, 'asc');
+  assert.equal(await evaluate("document.querySelector('.stats-board thead th.sorted').getAttribute('aria-sort')"), 'ascending');
+  assert.equal(await evaluate("new URLSearchParams(location.search).get('order')"), 'asc');
+  assert.equal(await evaluate("[...document.querySelectorAll('.stats-board .stats-table tbody tr')].map(r => Number(r.children[6].textContent.replace(/\\D/g, ''))).every((v, i, a) => !i || a[i - 1] <= v)"), true, 'the fewest kills first');
+  await screenshot('boards-players-fewest');
+  await evaluate("[...document.querySelectorAll('.stats-board thead th button')].find(b => b.textContent === 'Kills').click()");
+  await settled();
+  assert.equal(answered.top.order, 'desc');
+  assert.equal(await evaluate("new URLSearchParams(location.search).has('order')"), false);
   assert.equal(await evaluate("[...document.querySelectorAll('.stats-board thead th button')].map(b => b.textContent).join()"), 'Rating,Matches,Wins,Win rate,Kills,K/D,Avg score,HS %,Accuracy');
   const board = await cells('.stats-board thead th');
   assert.ok(!['Level', 'Score', 'Headshots', 'Batteries', 'Artefacts'].some(label => board.includes(label)), board.join());
