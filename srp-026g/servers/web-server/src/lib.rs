@@ -8,6 +8,8 @@
 //! - `/launcher/…` and `/api/client-files` (the 0.26g page only) are for the
 //!   patched game launcher and its updater ([`launcher`]): the page it shows
 //!   in its window, and which archive `/download` hands out now.
+//! - `/torrent` and `/Skhid-get.bat` (the 0.26g page only): the download
+//!   file's torrent and the bootstrap script, when there are ([`torrent`]).
 //! - `/patches` (the 0.26g page only) is the list of `resources.db`'s patches
 //!   the updater keeps in the game folder: those the server's game data was
 //!   made of ([`patches`]).
@@ -51,8 +53,10 @@ mod modifiers;
 mod password_reset;
 mod patches;
 mod quests;
+mod rename;
 mod skills;
 mod stats;
+mod torrent;
 mod v026g;
 mod wiki;
 
@@ -662,6 +666,27 @@ impl Web {
             self.download(&mut stream, &request, file);
             return;
         }
+        if let Some(game) = &self.game
+            && request.path == torrent::PATH
+            && matches!(request.method.as_str(), "GET" | "HEAD")
+            && let Some(found) = available_download().and_then(|file| torrent::in_zip(file))
+        {
+            torrent::send(
+                &mut stream,
+                request.method == "HEAD",
+                &found,
+                game.min_patch_revision,
+            );
+            return;
+        }
+        if self.game.is_some()
+            && request.path == torrent::BOOTSTRAP_PATH
+            && matches!(request.method.as_str(), "GET" | "HEAD")
+            && let Some(script) = torrent::BOOTSTRAP
+        {
+            torrent::send_bootstrap(&mut stream, request.method == "HEAD", script);
+            return;
+        }
         if let Some(file) = resource_request(
             self.game.is_some(),
             &request,
@@ -712,6 +737,7 @@ impl Web {
                 request.path.as_str(),
                 wiki::PATH
                     | wiki::WEAPONS
+                    | wiki::SIMULATORS
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
                     | skills::PATH
@@ -985,6 +1011,7 @@ impl Web {
                     maps::PATH => return maps_page(request.lang),
                     path @ (wiki::PATH
                     | wiki::WEAPONS
+                    | wiki::SIMULATORS
                     | wiki::MODIFIERS
                     | wiki::EQUIPMENT
                     | skills::PATH
@@ -1069,7 +1096,7 @@ impl Web {
         let g26 = self.game.is_some();
         let tab = match request.field("tab") {
             tab @ ("money" | "ban" | "unban" | "bans" | "maint" | "signups" | "password") => tab,
-            tab @ ("account" | "item" | "items" | "text" | "mute") if g26 => tab,
+            tab @ ("account" | "item" | "items" | "text" | "mute" | "rename") if g26 => tab,
             _ => "money",
         };
         let refused = |message: String| {
@@ -1116,6 +1143,7 @@ impl Web {
             "item" => self.admin_item_026g(request, peer),
             "text" => self.admin_text_026g(request, peer),
             "mute" => self.admin_chat_mute(request, peer),
+            "rename" => self.admin_rename(request, peer),
             _ if g26 => {
                 let (message, view) = self.admin_moderate_money(request, peer);
                 money = view;
@@ -1805,7 +1833,7 @@ label.check{display:flex;gap:.5rem;align-items:center;font:inherit;font-size:.85
 .tabs>label{display:inline-block;margin:0 .25rem 0 0;padding:.45rem .9rem;border:1px solid var(--rule);border-bottom:0;border-radius:2px 2px 0 0;cursor:pointer;color:var(--ink-2);background:var(--bg)}\
 .tabs>input:checked+label{color:var(--accent-ink);background:var(--accent);border-color:var(--accent)}.tabs>input:focus-visible+label{outline:2px solid var(--accent)}\
 .panel{display:none;border:1px solid var(--rule);border-top:2px solid var(--accent);padding:.2rem 1rem 1rem;background:var(--panel)}\
-#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items,#tab-mute:checked~.p-mute{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
+#tab-money:checked~.p-money,#tab-ban:checked~.p-ban,#tab-unban:checked~.p-unban,#tab-bans:checked~.p-bans,#tab-maint:checked~.p-maint,#tab-signups:checked~.p-signups,#tab-account:checked~.p-account,#tab-item:checked~.p-item,#tab-text:checked~.p-text,#tab-password:checked~.p-password,#tab-items:checked~.p-items,#tab-mute:checked~.p-mute,#tab-rename:checked~.p-rename{display:block}.scroll{overflow-x:auto}.p-items td input{width:auto}.p-items td input.units{width:6.5rem;padding:.2rem .3rem}\
 button.quiet{background:0;color:var(--accent);border:1px solid var(--accent)}button.quiet:hover{background:color-mix(in srgb,var(--accent) 12%,transparent)}\
 table{width:100%;border-collapse:collapse;font-size:.85rem}th,td{text-align:left;padding:.35rem .4rem;border-bottom:1px solid var(--rule);vertical-align:top;word-break:break-word}\
 th{font:700 .72rem var(--display);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}\
@@ -1918,6 +1946,35 @@ fn home(lang: Lang, stats: Stats) -> String {
             escape(&hash.to_ascii_lowercase()[32..])
         ),
         None => String::new(),
+    };
+    // 0.26g: the whole game folder by BitTorrent too, when the ZIP holds a
+    // torrent.
+    let torrent = available_download()
+        .filter(|_| v026g)
+        .and_then(|file| torrent::in_zip(file))
+        .map_or_else(String::new, |torrent| {
+            format!(
+                "<small>{} <a href=\"{}\">.torrent</a> &middot; <a href=\"{}\">magnet</a></small>",
+                lang.tr(
+                    "Or the whole game by BitTorrent:",
+                    "Або всю гру через BitTorrent:"
+                ),
+                torrent::PATH,
+                escape(&torrent.magnet())
+            )
+        });
+    // 0.26g: the script that gets it all without this site, when there is one.
+    let bootstrap = if v026g && torrent::BOOTSTRAP.is_some() {
+        format!(
+            "<small>{} <a href=\"{}\">Skhid-get.bat</a></small>",
+            lang.tr(
+                "Without this site, by BitTorrent:",
+                "Без цього сайту, через BitTorrent:"
+            ),
+            torrent::BOOTSTRAP_PATH
+        )
+    } else {
+        String::new()
     };
     // 0.26g: the game itself comes from elsewhere (step one); this server
     // hands out only the files that go over it. A download whose launcher
@@ -2038,7 +2095,7 @@ fn home(lang: Lang, stats: Stats) -> String {
         String::new()
     };
     format!(
-        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
+        "<section class=card><h1>{}</h1><p>{}</p><p>{}</p><p class=note><b>{}</b> {}</p>{stats}</section> <section class=card><h2>{}</h2><ol> {original}<li>{}<div class=dl>{download}{hash}{torrent}{bootstrap}</div></li> <li>{start}</li> <li>{}</li></ol></section>{faq}",
         lang.tr("Skhid", "Схід"),
         lang.tr(
             &format!("Skhid (Ukrainian for \u{201c}east\u{201d}) is a small community server that lets the Survarium {version} client sign in, trade, form squads and play matches again."),
@@ -2226,12 +2283,13 @@ fn admin_extras_026g(
     tab: &dyn Fn(&str, String) -> String,
 ) -> (String, String) {
     let tabs = format!(
-        "{}{}{}{}{}",
+        "{}{}{}{}{}{}",
         tab("account", lang.tr("Account", "Акаунт")),
         tab("item", lang.tr("Give item", "Видати предмет")),
         tab("items", lang.tr("Take items", "Забрати предмети")),
         tab("text", lang.tr("Text", "Текст")),
         tab("mute", lang.tr("Mute chat", "Вимкнути чат")),
+        tab("rename", lang.tr("Rename", "Перейменувати")),
     );
     let standing = match &view.admin_text {
         Some((first, second)) => format!(
@@ -2299,7 +2357,7 @@ fn admin_extras_026g(
         moderation::items_panel(lang, view),
         moderation::mute_panel(lang),
     );
-    (tabs, panels)
+    (tabs, panels + &rename::panel(lang))
 }
 
 /// What is planned, as a line for the admin and the home page.

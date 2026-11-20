@@ -60,7 +60,7 @@ package survarium.messages
          this.rewardsList.selectedIndex = _data.current_day - 1;
          this.textFieldLabel.styleSheet = MainScene.textStyleSheet;
          this.textFieldDescr.styleSheet = MainScene.textStyleSheet;
-         this.textFieldLabel.text = LocalizationData.getName("daily_bonus_label") + ", " + Util.styledChar(PlayerInfo.nickname,"beige_bright") + "!";
+         this.textFieldLabel.text = LocalizationData.getName("daily_bonus_label") + ", " + Util.styledChar(Util.escapeHtml(PlayerInfo.nickname),"beige_bright") + "!";
          this.textFieldDescr.text = LocalizationData.getName("daily_bonus_description");
          this.closeUpRight();
       }

@@ -191,6 +191,11 @@ impl<'a> Connection<'a> {
                 .all(|(bytes, len)| self.carry(bytes.get(..len).unwrap_or_default()))
     }
 
+    /// One bounded executable-transfer carrier, with the usual pool reserve.
+    pub(crate) fn executable(&self, carrier: srp_validate::executable::Carrier<'_>) -> bool {
+        self.live() && self.room_for(1) && carrier.encode().is_some_and(|(bytes, len)| self.carry(&bytes[..len]))
+    }
+
     /// The pool has room for `packets` more 0xE0 carriers and the sixteen
     /// entries late join's prepared send keeps free. Asked before begin,
     /// which asserts on an exhausted pool.

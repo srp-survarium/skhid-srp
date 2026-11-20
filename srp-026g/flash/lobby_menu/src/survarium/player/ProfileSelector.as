@@ -73,7 +73,7 @@ package survarium.player
          while(i < this._profiles.length)
          {
             this._profiles[i].index = i;
-            profileName = "«" + this._profiles[i].name + "»";
+            profileName = "«" + Util.escapeHtml(this._profiles[i].name) + "»";
             this._profiles[i].levelLabel = this._profiles[i].state == ProfileState.INCOMPLETE ? "" : LocalizationData.getName("clan_players_level_label") + " " + int(this._profiles[i].level).toString();
             this._profiles[i].label = profileName;
             if(this._profiles[i].state == ProfileState.INCOMPLETE && this._profiles[i].hint_text)

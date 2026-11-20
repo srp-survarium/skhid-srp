@@ -215,12 +215,29 @@ What the receiving game checks before it loads a world it was sent (0xE8):
 - **[C4] the same world check** (patch 87), with the context the game has: the map's rules, the
   batteries, the respawn points. It has no profiles, kits or map object list, so it reads the frame
   and every section but cannot read inventories and objects against the match.
-- **[C5] the game's own guards** (patch 115): at the three native readers that would index with a
+- **[C5] the game's own guards** (patch 115): at the native readers that would index with a
   value from the world (a weapon's state machine, an anomaly's state, an artefact's id), an index
-  outside its table takes the reader's own "none" path instead.
+  outside its table takes the reader's own "none" path instead; a dead selector's death animation
+  past its set's lists is read as the first (the lists' lengths are content, so no check before
+  can know them); a double-barrel's or pistol's fire animation past the state's two is stored as
+  the first; a throw's grenade past its set's grenades, or a set that is not a grenade set, is
+  not ready and is not thrown (the set's size is content too), and every other reader of the
+  throw's set, and of the selected grenade slot, takes an item that is not a grenade set as no
+  set; an animation a weapon state waits
+  for past the state's own animation handles never ends. Real worlds carry such indices (the
+  show state's 63, 205, 220...: LIKELY never set), and the native compare then reads what lies
+  after the object, different in every game, so "no match" is what they already get.
 
 A refused world is not loaded: the game tells the server (a "Rejected" receipt) and gets a fresh
 one (patch 97), without leaving the match.
+
+**Replays.** A replay's key frames are worlds too, and the game loads them on its seek path with
+none of C3-C5 (patch 87 hooks the match's world loads only). So the server records each world it
+takes as the match's (the initial world, or an upload past S5-S7): its time and SHA-256. The
+replay converter (`sur_convert`) makes key frames of those uploads only; in a recording from
+before those records, of the uploads that pass S6 against the recording's own roster. An upload
+the live server ignored or refused never becomes a key frame, and a recording with none left
+is no replay.
 
 ## 6. What a world contains, and how each part is read
 
@@ -257,7 +274,9 @@ parses, each field is turned into its type, and the world is refused if a field 
 
 Then rules that need the match are checked over the parsed values: an item's owner must be a kit
 of the match that has a player, a user of an object must be a place of the roster, an artefact's
-id must be one of the map's.
+id must be one of the map's, a throw's grenade slot and the inventory's selected grenade slot
+must hold a grenade set of the player's kit (the game takes that item as a grenade set with no
+type test).
 
 The parts, and what they hold:
 
@@ -279,7 +298,10 @@ The parts, and what they hold:
 - **Statistics, rules**: the scores, the batteries and their carriers, the time limit and the
   mode's rule; each field in its domain.
 - **Game objects**: the grenades and traps of every place's kits, then the map's damage zones,
-  resupply zones and anomalies with their artefacts, in the map's order.
+  resupply zones and anomalies with their artefacts, in the map's order. A held artefact's
+  inventory slot must be an artefact slot (13 to 18), none of its kit's pockets and no other held
+  artefact's, and its amount 1 to its item's uses: the game removes it from that slot, with no
+  bound or null check, when its last activation ends.
 - **Effects**: the effects playing, in the one form a game writes (an emitter by index, never by
   address).
 
@@ -343,12 +365,20 @@ server builds every message, but some of their text was typed by a player:
 The game copies each string into a fixed buffer without checking its length, so the server cuts
 every one to its buffer before it sends it.
 
+A name may hold any character but a control one (`<`, `'`, `:` too), and the movies show some
+player text as HTML: the lobby's and the match's chats (the sender's name, its clan tag, the line,
+and a line without a sender, which carries names: a room's "joined", the clan's lines), the
+referral notice's name, a kit's name on the profile tabs (another player's too, in their profile)
+and the daily reward's greeting. Each movie escapes such text (`survarium.Util.escapeHtml`: `&`,
+`<`, `>`, `"`, `'`) wherever it meets HTML, so it is shown as typed and never read as markup. The lobby
+chat's name link carries a number, not the name: the chat keeps the 2048 senders who spoke last by number
+(`Chat.linked`), and a click reads the name back (`LobbyChat.clickLinkHandler`); a number let go names
+nobody. The game's `escape` and `encodeURIComponent` do not round-trip every name (an emoji,
+`é`). `scripts/chat-names/check.sh` checks the two
+chats in Ruffle.
+
 ## 9. What is not checked yet
 
-- **Player text inside the interface.** The chat movie escapes `<` in a chat line, but it puts
-  the sender's name into its HTML as it is. A name with markup in it would be read as markup by
-  the other players' chat. Whether that can do more than spoil the formatting has not been
-  reviewed.
 - **The match messages are not typed views yet.** Inputs, relays and kit choices are checked by
   the older byte-level code (`srp_validate::messages`). The checks are complete, but they are
   not yet parsed into types the way the world is.

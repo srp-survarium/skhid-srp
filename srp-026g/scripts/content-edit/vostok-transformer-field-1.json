@@ -1,0 +1,129 @@
+{
+  "_about": "The inherited 0.21d transformer damage box covered two transformers while particles and activation flashes covered all three. Extend only its eastern edge to enclose the third transformer with the same 2.754 m edge margin as the western one. Keep west, north, south, top and bottom unchanged; every linked effect zone and the lethal damage zone share this shape. Both v0.21d and v0.11e, both base modes; Research inherits it after this edit. Owner playtest, 2026-11-12.",
+  "set_entry": [
+    {
+      "file": "projects/v021d_level_03/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "anomaly/electro/electric_hit_shape"
+      },
+      "from": {
+        "meshes[0]/position": [
+          -6.676000118255615,
+          3.0380001068115234,
+          -0.15399999916553497
+        ],
+        "meshes[0]/scale": [
+          7.241000175476074,
+          2.9749999046325684,
+          8.142000198364258
+        ]
+      },
+      "to": {
+        "meshes[0]/position": [
+          -2.131,
+          3.0380001068115234,
+          -0.15399999916553497
+        ],
+        "meshes[0]/scale": [
+          11.786,
+          2.9749999046325684,
+          8.142000198364258
+        ]
+      }
+    },
+    {
+      "file": "projects/v021d_level_03/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "anomaly/electro/electric_hit_shape"
+      },
+      "from": {
+        "meshes[0]/position": [
+          -6.676000118255615,
+          3.0380001068115234,
+          -0.15399999916553497
+        ],
+        "meshes[0]/scale": [
+          7.241000175476074,
+          2.9749999046325684,
+          8.142000198364258
+        ]
+      },
+      "to": {
+        "meshes[0]/position": [
+          -2.131,
+          3.0380001068115234,
+          -0.15399999916553497
+        ],
+        "meshes[0]/scale": [
+          11.786,
+          2.9749999046325684,
+          8.142000198364258
+        ]
+      }
+    },
+    {
+      "file": "projects/v011e_level_03/day_2/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "anomaly/electro/electric_hit_shape"
+      },
+      "from": {
+        "meshes[0]/position": [
+          -6.676000118255615,
+          3.0380001068115234,
+          -0.15399999916553497
+        ],
+        "meshes[0]/scale": [
+          7.241000175476074,
+          2.9749999046325684,
+          8.142000198364258
+        ]
+      },
+      "to": {
+        "meshes[0]/position": [
+          -2.131,
+          3.0380001068115234,
+          -0.15399999916553497
+        ],
+        "meshes[0]/scale": [
+          11.786,
+          2.9749999046325684,
+          8.142000198364258
+        ]
+      }
+    },
+    {
+      "file": "projects/v011e_level_03/day_4/client_project",
+      "list": "client_objects",
+      "where": {
+        "full_name": "anomaly/electro/electric_hit_shape"
+      },
+      "from": {
+        "meshes[0]/position": [
+          -6.676000118255615,
+          3.0380001068115234,
+          -0.15399999916553497
+        ],
+        "meshes[0]/scale": [
+          7.241000175476074,
+          2.9749999046325684,
+          8.142000198364258
+        ]
+      },
+      "to": {
+        "meshes[0]/position": [
+          -2.131,
+          3.0380001068115234,
+          -0.15399999916553497
+        ],
+        "meshes[0]/scale": [
+          11.786,
+          2.9749999046325684,
+          8.142000198364258
+        ]
+      }
+    }
+  ]
+}

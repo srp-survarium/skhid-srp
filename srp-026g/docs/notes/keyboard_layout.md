@@ -41,6 +41,62 @@
 - **Checked:** `check_keyboard_layout_026g.py` (both exes, Unicorn).
   **Not run in a game.**
 
+# The console types the keyboard layout's text (patch 107)
+
+- **The owner's report (2026-11-17):** in the `~` console the layout is not
+  followed; players switch it in the chat first, and even then the console
+  is inconsistent; on the owner's setup (Wine 11.8, Wayland driver) every
+  key types `c`.
+- **The engine.** The console's input is a `ui_text_edit`. Each key it types
+  is an `insert_char_action` (`create_char_action` 0x34A4C0, made in
+  `init_internals` 0x34A5E0 with a fixed character and its Shift one).
+  `insert_char_action::execute` (0x34B4D0) never asks for the layout's text:
+  - digits, the numeric keypad, Space: the fixed character;
+  - letters and the punctuation keys (made "named"): the first letter of the
+    key's DirectInput name (`get_dik_name` 0x3B9C00, `wcstombs_s` in the
+    user's locale), lowercased, when that locale calls it a letter, else the
+    fixed character.
+  - Windows, Russian locale: Cyrillic letters, lowercase only, whatever was
+    switched; another locale: Latin.
+  - Wine's Wayland driver: the name is the key's keysym in its layout
+    (`Cyrillic_tse`, `Cyrillic_a`, ...): `c` for every letter key of a
+    Cyrillic layout.
+  - The chat instead asks the keyboard's `translate_text` (0x3B92D0) for the
+    key's text (`swf_input_translator::process_keyboard`, 0x1FDDE1), in the
+    layout patch 107 follows.
+  - The window procedure drops a layout request (Alt+Shift, Win+Space) unless
+    a text input has the keyboard (`game+586Ch`: the login, the lobby, the
+    chat); the console is not one. On Windows a switch in the console never
+    happens.
+- **The patch** (in `keyboard_layout`, four more lohooks):
+  - `console.char_typed` (0x34B4DA, the start of execute): the action's key
+    through its input world's keyboard's `translate_text`, the same call as
+    the chat's, with patch 107's layout. A character the console font has is
+    typed (its 256 glyphs are Windows-1251: ASCII, Russian, Ukrainian and
+    Belarusian letters, №; not Ґ ґ). The text edit keeps any byte: its
+    insert (0x348000) stores it as given, the font's glyph lookup (0x346200)
+    reads it unsigned; nothing limits it to ASCII. A paste should take the
+    same characters (`vostok::console::ConsoleChar::of`). Anything else (no character, a dead
+    key, a control character, another script, a keyboard that is not the
+    platform one): the game's own path, as before.
+  - `console.opened` (0x1C77E) and `console.closed` (0x1C7D3), in
+    `game_console::on_activate` and `on_deactivate`: one atomic, the console
+    shown.
+  - `window.lang_focus` (0x18365, the window procedure's call of the
+    text-input check for a request): while the console is shown the request
+    goes to DefWindowProc, as in the chat.
+- **What changes:**
+  - Windows: Alt+Shift switches the layout in the console; the console types
+    the layout's text, Shift and Caps Lock included.
+  - Wine, Wayland: the console types the layout's text; no more `c`.
+  - Wine, X11: the text follows the X layout's group, as the chat's.
+  - Text only: no row in `simulation_changes.tsv`.
+- **Checked:** `check_keyboard_layout_026g.py` (both exes, Unicorn): execute
+  for W, the name stubbed as Wine's Wayland driver gives it (the original
+  types `c` in every layout, the patched exe W, then `ц`); a request passed
+  while the console is shown, dropped once it is hidden. **Not run in a
+  game.**
+
 # The desktop's moved keys are moved in the game (patch 110)
 
 - **The owner's report (2026-11-05, niri, `caps:swapescape`):** since

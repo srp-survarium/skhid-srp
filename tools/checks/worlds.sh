@@ -117,7 +117,19 @@ drift() {
 chunks() { # <exe> <chunk>...
     local exe=$1 chunk run line failed=0 total=0 pids=()
     shift
+    # The first native run builds the arena/sysroot caches in this checkout.
+    # Those builders share .building directories: starting every chunk cold
+    # at once makes their compilers remove one another's temporary objects.
+    # Run the first actual chunk once, then reuse its caches in parallel.
+    chunk=$1
+    (cd "$ROOT/srp-026g/client-patches" && python3 -u check_world_check_026g.py "$exe" --drift "$chunk") \
+        >"${chunk%/*}/run.${chunk##*.}" 2>&1 || {
+        tail -n 15 "${chunk%/*}/run.${chunk##*.}"
+        die "the first drift chunk failed; parallel chunks were not started"
+    }
+    local first=$chunk
     for chunk in "$@"; do
+        [[ $chunk != "$first" ]] || continue
         (cd "$ROOT/srp-026g/client-patches" && exec python3 -u check_world_check_026g.py "$exe" --drift "$chunk") \
             >"${chunk%/*}/run.${chunk##*.}" 2>&1 &
         pids+=($!)

@@ -4,7 +4,7 @@
 # whichever folder it is built in (../check-reproducible.sh). The tests'
 # stand-in program builds on its own.
 [workspace]
-members = ["exe", "logic"]
+members = ["exe", "logic", "route"]
 exclude = ["tests/fake_exe"]
 resolver = "3"
 

@@ -8,9 +8,9 @@ package {
   // Our trees' skills and each's embedded artwork (bitmaps/<class>.png; medical-skills and
   // artefact-skills icons-069.tsv).
   private static const ARTWORK:Object = {301:"MedicalSkill069301",302:"MedicalSkill069302",303:"MedicalSkill069301",
-   311:"MedicalSkill069311",312:"MedicalSkill069312",313:"MedicalSkill069313",321:"MedicalSkill069321",
-   322:"MedicalSkill069322",323:"MedicalSkill069323",331:"MedicalSkill069331",332:"MedicalSkill069332",
-   333:"MedicalSkill069333",341:"MedicalSkill069341",342:"MedicalSkill069342",
+   311:"MedicalSkill069311",312:"MedicalSkill069312",314:"MedicalSkill069322",321:"MedicalSkill069321",
+   322:"MedicalSkill069322",323:"MedicalSkill069301",324:"MedicalSkill069322",331:"MedicalSkill069331",332:"MedicalSkill069332",
+   333:"MedicalSkill069322",341:"MedicalSkill069341",342:"MedicalSkill069342",
    501:"ArtefactSkill069501",502:"ArtefactSkill069502",512:"ArtefactSkill069512",513:"ArtefactSkill069513",
    521:"ArtefactSkill069521",522:"ArtefactSkill069522",523:"ArtefactSkill069523",531:"ArtefactSkill069531",532:"ArtefactSkill069532",
    533:"ArtefactSkill069533",541:"ArtefactSkill069541",542:"ArtefactSkill069542"};
@@ -84,11 +84,12 @@ package {
    check(Info.pocketUnits(10,size.HALF)==4,"medicine bonus");
    check(Info.pocketUnits(10,size.WHOLE)==1,"booster stays one");
    check(Info.pocketUnits(11,size.HALF)==3,"nonmedicine unchanged");
-   var held:Object=new Data();held.dictId=67;held.value=3;
+   // A put fills the pocket (one-pocket-a-type.md): all it holds of the item, at most the units owned.
    var item:Object=new Data();item.dictId=67;item.category=10;item.quickSlotItemSize=size.HALF;
-   check(Doll.pocketUnits(held,item)==4,"drag adds fourth medicine");
-   held.value=4;check(Doll.pocketUnits(held,item)==4,"drag capacity limit");
-   item.dictId=68;check(Doll.pocketUnits(held,item)==1,"different medicine starts at one");
+   item.value=10;check(Doll.pocketUnits(item)==4,"a put fills the pocket with the fourth medicine");
+   item.value=2;check(Doll.pocketUnits(item)==2,"a put takes no more than is owned");
+   item.quickSlotItemSize=size.WHOLE;item.value=10;check(Doll.pocketUnits(item)==1,"a put of a whole-pocket item is one");
+   item.quickSlotItemSize=size.HALF;
    Info.medicalSkills([]);
    check(Info.pocketUnits(10,size.HALF)==3,"reset removes bonus");
    for each(var capacity:int in [4,5,6,20]) {
@@ -101,8 +102,7 @@ package {
     check(Info.pocketUnits(10,size.WHOLE)==1,"booster stays one " + capacity);
     check(Info.pocketUnits(11,size.WHOLE)==1,"whole nonmedicine keeps one " + capacity);
     check(Info.pocketUnits(10,size.HALF,capacity)==5,"dialog override capped " + capacity);
-    held.value=5;item.dictId=held.dictId;
-    check(Doll.pocketUnits(held,item)==5,"cannot drag sixth medicine " + capacity);
+    item.value=20;check(Doll.pocketUnits(item)==5,"a put never takes a sixth medicine " + capacity);
    }
   }
   // English text of a key, as the edit list adds it (the stock keys the exe reads are given here).
@@ -158,8 +158,10 @@ package {
     values.push({id:v.id,value:0});
    }
    check(skills[341]==null,"Medic left the medical tree");
-   var layout:Object={301:[2,1,3,0],302:[3,1,2,0],311:[1,2,5,3],313:[3,2,2,3],312:[4,2,3,3],
-    342:[1,3,2,10],303:[2,3,2,10],321:[4,3,3,10],332:[2,4,5,15],323:[3,4,4,15],333:[4,4,4,15],331:[2,5,1,20],322:[3,5,1,20]};
+   check(skills[313]==null,"Take Cover left the medical tree");
+   // Rows II-IV: painkiller skills in column 1, antitoxin skills in column 4; rows at 0/3/7/12/17.
+   var layout:Object={342:[2,1,1,0],302:[3,1,2,0],301:[1,2,3,3],311:[2,2,4,3],312:[3,2,3,3],314:[4,2,3,3],
+    303:[1,3,2,7],321:[2,3,3,7],324:[4,3,3,7],323:[1,4,4,12],332:[2,4,5,12],333:[4,4,3,12],331:[2,5,1,17],322:[3,5,1,17]};
    var total:int=0;
    for(var id:String in layout) {
     var want:Array=layout[id];var have:Object=skills[id];
@@ -167,12 +169,20 @@ package {
      && have.preconditions.branch_points==want[3],"layout "+id);
     if(have) total+=have.levels_amount;
    }
-   check(total==37,"37 ranks, 32 points with two exclusive pairs");
+   check(total==38,"38 ranks, 37 points with one exclusive pair");
+   check(described(skills[314].ui,3)[3].indexOf("<green> +15%</green>")>=0,"Sharp Eye maximum");
+   check(described(skills[311].ui,4)[4].indexOf("<green> +4 s</green>")>=0,"Metabolism maximum: "+described(skills[311].ui,4)[4]);
+   check(described(skills[324].ui,3)[3].indexOf("<green> +40 points</green>")>=0,"Second Wind maximum: "+described(skills[324].ui,3)[3]);
+   check(described(skills[333].ui,3)[1].indexOf("<green>+5%</green>")>=0 && described(skills[333].ui,3)[3].indexOf("<green> +20%</green>")>=0,"Concentration +10/+15/+20: "+described(skills[333].ui,3).join(" | "));
    for each(var line:String in described(skills[301].ui,3)) {
     check(line.indexOf("<green>")>=0 && /%.*s<\/green>/.test(line.split("\n")[0]),"Potent Painkiller green percent and seconds: "+line);
    }
    check(described(skills[301].ui,3)[3].indexOf("<green> +3% / +4.5 s</green>")>=0,"Potent Painkiller maximum");
    check(described(skills[301].ui,3)[1].indexOf("Current value: +1% / +1.5 s")>=0,"Potent Painkiller current value");
+   // Brothers in Arms, one rank with a value: its text before the point and with it.
+   var brothers:Array=described(skills[342].ui,1);
+   check(brothers.length==2 && brothers[0].indexOf("<green> +50%</green>\nCurrent value: 0%")>=0 && brothers[1].indexOf("<green> +50%</green>")>=0
+    && brothers[1].indexOf("Current value")<0,"Brothers in Arms texts: "+brothers.join(" | "));
 
    var Window:Class=domain.getDefinition("SrvCharWindow") as Class;
    var Renderer:Class=domain.getDefinition("SrvSkillRendererCh") as Class;
@@ -186,7 +196,7 @@ package {
    stage_="medical tab";win.skillsTabPage.selectedIndex=2;
    stage_="checks";var shown:Object=renderers(win,Renderer);
    check(shown[341]==null,"no Medic in the menu");
-   var step:Point=new Point(shown[302].x-shown[301].x,shown[311].y-shown[301].y);
+   var step:Point=new Point(shown[302].x-shown[342].x,shown[301].y-shown[342].y);
    check(step.x>0 && step.y>0,"renderer steps");
    for(id in layout) check(shown[id]!=null && shown[id].x==step.x*(layout[id][0]-1) && shown[id].y==step.y*(layout[id][1]-1),"menu position "+id);
    for(id in layout) check(pips(shown[id])==layout[id][2],"rank pips "+id+" "+pips(shown[id]));
@@ -205,44 +215,43 @@ package {
    }
    check(win.progressIndicator.maximum==26,"indicator maximum "+win.progressIndicator.maximum);
    bar(1,"medical at 0");
-   check(take(301,2)==2,"Potent Painkiller 2");
+   // Brothers in Arms is a tier-1 skill of one rank: its point counts for tier 2.
+   check(take(342,2)==1,"Brothers in Arms at 0 points, stops at 1");
+   check(shown[342].data.description_2_string==shown[342].data.description_2[1],"Brothers in Arms tooltip at its rank");
+   check(take(301,1)==0,"Potent Painkiller (row 2) refused at 1 point");
+   check(take(302,1)==1,"Fast Bandaging 1");
    bar(1+5*2/3,"medical at 2, below tier 2's mark");
-   check(take(311,1)==0,"tier 2 refused at 2 points");
-   check(take(301,2)==3,"Potent Painkiller stops at 3");
+   check(take(314,1)==0,"tier 2 refused at 2 points");
+   check(take(302,2)==2,"Fast Bandaging stops at 2");
    bar(6,"medical tier 2 mark at 3");
-   check(take(311,1)==1,"tier 2 opens at 3");
-   check(take(302,3)==2,"Fast Bandaging stops at 2");
+   check(take(301,4)==3,"tier 2 opens at 3; Potent Painkiller stops at 3");
    check(shown[301].data.description_2_string==shown[301].data.description_2[3],"Potent Painkiller tooltip at maximum");
    check(String(shown[301].data.description_2_string).indexOf("+3% / +4.5 s")>=0,"Potent Painkiller tooltip text");
    check(take(303,1)==0,"tier 3 refused at 6 points");
-   check(take(311,4)==5,"Metabolism 5: 10 points");
-   bar(11,"medical tier 3 mark at 10");
-   check(take(303,3)==2,"tier 3 at 10; Numb Legs stops at 2");
-   check(take(321,1)==1 && take(342,1)==1,"tier 3 at 10");
-   click(321,true);click(342,true);
-   check(shown[321].data.newValue==0 && shown[342].data.newValue==0,"tier 3 points taken back");
-   check(take(313,3)==2,"Take Cover stops at 2: 14 points");
-   bar(15,"medical at 14");
-   check(take(323,1)==0,"tier 4 refused at 14 points");
-   check(take(312,4)==3,"Medical Training stops at 3");
-   click(312,true);click(312,true);
-   check(shown[312].data.newValue==1,"Medical Training back to 1: 15 points");
-   bar(16,"medical tier 4 mark at 15");
-   check(take(323,5)==4,"tier 4 at 15; Unflinching stops at 4");
-   check(take(333,1)==0,"Concentration refused beside Unflinching");
-   for(var back:int=0;back<4;back++) click(323,true);
-   check(shown[323].data.newValue==0,"Unflinching taken back");
-   check(take(333,5)==4,"Concentration at 15, stops at 4");
-   check(take(323,1)==0,"Unflinching refused beside Concentration");
-   check(take(331,1)==0 && take(322,1)==0,"tier 5 refused at 19 points");
-   check(take(332,1)==1,"20 points");
-   bar(21,"medical tier 5 mark at 20");
-   check(take(331,2)==1,"Supply Pocket at 20, one rank");
+   check(take(311,1)==1,"Metabolism 1: 7 points");
+   bar(11,"medical tier 3 mark at 7");
+   check(take(303,3)==2,"tier 3 at 7; Numb Legs stops at 2");
+   check(take(321,1)==1,"tier 3 at 7");
+   click(321,true);
+   check(shown[321].data.newValue==0,"tier 3 point taken back");
+   check(take(323,1)==0,"tier 4 refused at 9 points");
+   check(take(324,2)==2,"Second Wind 2: 11 points");
+   bar(15,"medical at 11");
+   check(take(323,1)==0,"tier 4 refused at 11 points");
+   check(take(324,2)==3,"Second Wind stops at 3: 12 points");
+   bar(16,"medical tier 4 mark at 12");
+   check(take(323,5)==4,"tier 4 at 12; Unflinching stops at 4: 16 points");
+   check(take(331,1)==0 && take(322,1)==0,"tier 5 refused at 16 points");
+   check(take(333,4)==3,"Concentration beside Unflinching, stops at 3: 19 points");
+   bar(21,"medical tier 5 mark at 17");
+   check(take(314,4)==3,"Sharp Eye stops at 3");
+   check(take(311,4)==4,"Metabolism stops at 4");
+   check(take(331,2)==1,"Supply Pocket at 17, one rank");
    bar(26,"medical full with the last tier taken");
    check(take(322,1)==0,"Additional Medicine refused beside Supply Pocket");
    click(331,true);
    check(shown[331].data.newValue==0,"Supply Pocket taken back");
-   check(take(322,2)==1,"Additional Medicine at 20, one rank");
+   check(take(322,2)==1,"Additional Medicine at 17, one rank");
    check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
    // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 25 ranks in all; one
    // either/or pair, Resonance or Cascade in row V (Keeper and Forest Protection go together in

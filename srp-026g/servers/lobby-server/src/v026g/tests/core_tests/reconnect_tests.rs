@@ -39,7 +39,7 @@ impl World {
         client.decoded.clear();
         client.ids.clear();
         client.sign_in_as_held(session_id);
-        self.clients[index] = (format!("127.0.0.1:{port}").parse().unwrap(), client);
+        self.clients[index] = (udp_transport::relay::Peer::direct(format!("127.0.0.1:{port}").parse().unwrap()), client);
         self.settle();
     }
 

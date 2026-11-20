@@ -1,10 +1,10 @@
 //! A 0.26g account as the lobby serves it (`docs/notes/lobby.md`
 //! §2.5..§2.14): one account with up to three kits that share its level,
-//! experience, skills and autobuy, one inventory they all equip from,
+//! experience and skills, one inventory they all equip from,
 //! money, reputations and the faction whose quests it takes.
 //!
 //! Against 0.21d (`survarium::v021d::account`): a kit ("profile" to the
-//! client) holds only its slots; level, experience, skills and autobuy
+//! client) holds only its slots; level, experience and skills
 //! moved to the account. A slot names an item of the inventory by its
 //! instance id and how many of it the kit takes; the item itself (its
 //! condition or count, modifications, upgrades) is kept once.
@@ -13,7 +13,7 @@ use survarium::v021d;
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::golden;
 use survarium::v026g::item_params;
-use survarium::v026g::loadouts::{self, KitLayout, Loadout, POCKET_SLOTS};
+use survarium::v026g::loadouts::{self, AMMO_SLOTS, KitLayout, Loadout, POCKET_SLOTS};
 use survarium::v026g::lobby::{FULL_CONDITION, limits};
 use survarium::v026g::quests::FACTIONS;
 use survarium::v026g::skills::{self, SkillsTree};
@@ -158,7 +158,6 @@ pub struct Account {
     pub kits: Vec<Kit>,
     /// The id of the kit it plays.
     pub active_kit: u32,
-    pub autobuy: bool,
     /// Everything it owns, the equipped items included.
     pub inventory: Vec<Item>,
     /// The id the next new item instance gets.
@@ -217,17 +216,17 @@ pub fn doubled_pockets(
     doubled
 }
 
-/// [`KitLayout::kept`] put into a kit's or a preset's `slots`: `held` is
-/// each slot's dict id and units (`None` for an empty one, or one whose
-/// item is not known, which stays as it is), `layout` the kit's, `units` a
-/// slot's units.
+/// What a layout keeps ([`KitLayout::kept`], [`KitLayout::followed`]) put
+/// into a kit's or a preset's `slots`: `held` is each slot's dict id and
+/// units (`None` for an empty one, or one whose item is not known, which
+/// stays as it is), `kept` what the layout keeps of them, `units` a slot's
+/// units.
 fn keep_into<S>(
     slots: &mut [Option<S>; KIT_SLOTS],
     held: &[Option<(u16, u32)>; KIT_SLOTS],
-    layout: &KitLayout,
+    kept: [Option<(u16, u32)>; KIT_SLOTS],
     units: fn(&mut S) -> &mut u32,
 ) {
-    let kept = layout.kept(held);
     for ((slot, held), kept) in slots.iter_mut().zip(held).zip(kept) {
         if held.is_none() {
             continue;
@@ -302,9 +301,6 @@ impl Account {
             level_stats: Default::default(),
             kits: (1..=KITS as u32).map(Kit::empty).collect(),
             active_kit: 1,
-            // On for a new account (the owner's of 2026-10-23); the player
-            // may turn it off.
-            autobuy: true,
             inventory: Vec::new(),
             next_item_id: 1,
             quests: Vec::new(),
@@ -349,8 +345,10 @@ impl Account {
             .find(|item| item.dict_id == dict_id)
         {
             Some(owned) => {
-                owned.condition_or_stack = owned.condition_or_stack.saturating_add(units);
-                owned.item_id
+                let (item_id, before) = (owned.item_id, owned.condition_or_stack);
+                owned.condition_or_stack = before.saturating_add(units);
+                self.stack_grew(item_id, before);
+                item_id
             }
             None => self.add_item(dict_id, units),
         }
@@ -657,23 +655,23 @@ impl Account {
 
     /// The account's skills become `skills` (of `tree`). The kits carry the
     /// skills' modifiers, so each gets a new revision, and every kit and
-    /// preset is held to its layout with them ([`KitLayout::kept`]): the
+    /// preset is held to its layout with them ([`KitLayout::followed`]): the
     /// pocket Deep Pockets or Supply Pocket opened, Additional Medicine's
     /// extra medicine, a second weapon beside Deep Pockets or Supply Pocket,
     /// a second double-handed one without Terminator. A slot names units of
-    /// the inventory's stack, so nothing leaves the inventory.
+    /// the inventory's stack, so nothing leaves the inventory. A full pocket
+    /// stays full: a skill that makes it larger fills it, as far as the
+    /// units owned go.
     pub fn change_skills(&mut self, skills: Vec<(u16, u8)>, tree: &SkillsTree) {
+        let before = tree.modifiers(&self.skills);
         let modifiers = tree.modifiers(&skills);
         self.skills = skills;
         for index in 0..self.kits.len() {
-            let held = self.kits[index].slots.map(|slot| {
-                let held = slot?;
-                Some((self.item(held.item_id)?.dict_id, held.count))
-            });
-            let worn = self.kits[index].slots.iter().flatten().map(|held| held.item_id);
-            let layout = self.layout_of(worn, &modifiers);
+            let found = self.kits[index].slots;
+            let mut slots = found;
+            self.follow_layout(&found, &before, &mut slots, &modifiers);
             let kit = &mut self.kits[index];
-            keep_into(&mut kit.slots, &held, &layout, |held| &mut held.count);
+            kit.slots = slots;
             kit.revision = kit.revision.wrapping_add(1);
         }
         let mut presets = self.presets;
@@ -683,9 +681,11 @@ impl Account {
             .flat_map(|preset| &mut preset.kits)
         {
             let held = kit.map(|slot| slot.map(|saved| (saved.dict_id, saved.count)));
-            let worn = kit.iter().flatten().map(|saved| saved.item_id);
-            let layout = self.layout_of(worn, &modifiers);
-            keep_into(kit, &held, &layout, |saved| &mut saved.count);
+            let worn = || kit.iter().flatten().map(|saved| saved.item_id);
+            let layout = self.layout_of(worn(), &modifiers);
+            // A preset is put on with at most the units owned (`fill_kit`).
+            let kept = layout.followed(&self.layout_of(worn(), &before), &held);
+            keep_into(kit, &held, kept, |saved| &mut saved.count);
         }
         self.presets = presets;
     }
@@ -695,13 +695,128 @@ impl Account {
     /// ends in it ([`Self::sync_kits`], `rules::relocate`), so a request can
     /// not put back what the layout took off, nor fill more than it opens.
     pub fn keep_to_layout(&self, slots: &mut [Option<KitSlot>; KIT_SLOTS]) {
+        let found = *slots;
+        self.keep_to_layout_after(&found, slots);
+    }
+
+    /// [`Self::keep_to_layout`] at the end of a request that found the kit
+    /// as `before`: a full pocket stays full. A pocket the request left as
+    /// it was, holding all the kit's gear let it hold, holds all the gear
+    /// the request leaves does (a vest with larger pockets put on), as far
+    /// as the units owned go. A pocket the request itself set keeps what it
+    /// asked for.
+    pub fn keep_to_layout_after(
+        &self,
+        before: &[Option<KitSlot>; KIT_SLOTS],
+        slots: &mut [Option<KitSlot>; KIT_SLOTS],
+    ) {
+        let modifiers = SkillsTree::shared().modifiers(&self.skills);
+        self.follow_layout(before, &modifiers, slots, &modifiers);
+    }
+
+    /// `slots` held to the layout of their own gear with `modifiers`, the
+    /// kit having been `before` with the skills' modifiers `modifiers_before`
+    /// ([`KitLayout::followed`] for the slots that are as they were,
+    /// [`KitLayout::kept`] for the others), a pocket's or an ammunition
+    /// slot's units never over those owned.
+    fn follow_layout(
+        &self,
+        before: &[Option<KitSlot>; KIT_SLOTS],
+        modifiers_before: &[f32; skills::MODIFIERS],
+        slots: &mut [Option<KitSlot>; KIT_SLOTS],
+        modifiers: &[f32; skills::MODIFIERS],
+    ) {
+        let worn = |slots: &[Option<KitSlot>; KIT_SLOTS]| {
+            slots
+                .iter()
+                .flatten()
+                .map(|held| held.item_id)
+                .collect::<Vec<_>>()
+        };
         let held = slots.map(|slot| {
             let held = slot?;
             Some((self.item(held.item_id)?.dict_id, held.count))
         });
-        let modifiers = SkillsTree::shared().modifiers(&self.skills);
-        let layout = self.layout_of(slots.iter().flatten().map(|held| held.item_id), &modifiers);
-        keep_into(slots, &held, &layout, |held| &mut held.count);
+        let layout = self.layout_of(worn(slots), modifiers);
+        let kept = layout.kept(&held);
+        let followed = layout.followed(&self.layout_of(worn(before), modifiers_before), &held);
+        // The ammunition shares the kit's bags: it follows as one, when the
+        // request set none of it.
+        let ammo = |slot: usize| AMMO_SLOTS.contains(&(slot as u8));
+        let same = |slot: usize| before[slot] == slots[slot];
+        let ammo_same = AMMO_SLOTS.iter().all(|&slot| same(usize::from(slot)))
+            && !self.shared_stack_over(slots, &followed);
+        let kept = std::array::from_fn(|slot| {
+            if (ammo(slot) && ammo_same) || (!ammo(slot) && same(slot)) {
+                followed[slot]
+            } else {
+                kept[slot]
+            }
+        });
+        keep_into(slots, &held, kept, |held| &mut held.count);
+        for stack in POCKET_SLOTS.into_iter().chain(AMMO_SLOTS).map(usize::from) {
+            let Some(held) = slots[stack].as_mut() else {
+                continue;
+            };
+            if let Some(owned) = self.item(held.item_id) {
+                held.count = held.count.min(owned.condition_or_stack);
+            }
+        }
+    }
+
+    /// Whether `counts` gives the ammunition slots that name one stack more
+    /// rounds together than the stack holds. Each slot alone is held to the
+    /// stack; two of one stack are not raised past it (nothing is bought, and
+    /// a match hands out each slot's count).
+    fn shared_stack_over(
+        &self,
+        slots: &[Option<KitSlot>; KIT_SLOTS],
+        counts: &[Option<(u16, u32)>; KIT_SLOTS],
+    ) -> bool {
+        let ammo = || AMMO_SLOTS.into_iter().map(usize::from);
+        ammo().any(|slot| {
+            let Some(held) = slots[slot] else {
+                return false;
+            };
+            let sharing = || {
+                ammo()
+                    .filter(|&each| slots[each].is_some_and(|other| other.item_id == held.item_id))
+            };
+            let rounds: u64 = sharing()
+                .filter_map(|each| counts[each])
+                .map(|(_, rounds)| u64::from(rounds))
+                .sum();
+            sharing().count() > 1
+                && self
+                    .item(held.item_id)
+                    .is_some_and(|owned| rounds > u64::from(owned.condition_or_stack))
+        })
+    }
+
+    /// The stack `item_id` grew from `before` units (bought, won): a pocket
+    /// that carried all of them carries the new ones too, as far as its
+    /// kit's layout lets it. A kit that changed gets a new revision.
+    pub fn stack_grew(&mut self, item_id: u32, before: u32) {
+        let Some(owned) = self.item(item_id).map(|item| item.condition_or_stack) else {
+            return;
+        };
+        for index in 0..self.kits.len() {
+            let mut slots = self.kits[index].slots;
+            for pocket in POCKET_SLOTS.map(usize::from) {
+                if let Some(held) = slots[pocket].as_mut()
+                    && held.item_id == item_id
+                    && held.count == before
+                {
+                    held.count = owned;
+                }
+            }
+            self.keep_to_layout(&mut slots);
+            let kit = &mut self.kits[index];
+            if kit.slots != slots {
+                kit.slots = slots;
+                kit.revision = kit.revision.wrapping_add(1);
+            }
+        }
     }
 
     /// The layout of a kit wearing the owned items of `item_ids`, with the
@@ -1219,12 +1334,12 @@ mod tests {
         use survarium::v026g::skills::Skill;
         type Row = (u16, u8, u32, u8, u8, &'static [u16]);
         #[rustfmt::skip]
-        let rows: [Row; 13] = [
-            (301, 3, 0, 2, 1, &[]), (302, 2, 0, 3, 1, &[]), (303, 2, 10, 2, 3, &[]),
-            (311, 5, 3, 1, 2, &[]), (312, 3, 3, 4, 2, &[]), (313, 2, 3, 3, 2, &[]),
-            (321, 3, 10, 4, 3, &[]), (322, 1, 20, 3, 5, &[331]), (323, 4, 15, 3, 4, &[333]),
-            (331, 1, 20, 2, 5, &[322]), (332, 5, 15, 2, 4, &[]), (333, 4, 15, 4, 4, &[323]),
-            (342, 2, 10, 1, 3, &[]),
+        let rows: [Row; 14] = [
+            (301, 3, 3, 1, 2, &[]), (302, 2, 0, 3, 1, &[]), (303, 2, 7, 1, 3, &[]),
+            (311, 4, 3, 2, 2, &[]), (312, 3, 3, 3, 2, &[]), (314, 3, 3, 4, 2, &[]),
+            (321, 3, 7, 2, 3, &[]), (322, 1, 17, 3, 5, &[331]), (323, 4, 12, 1, 4, &[]),
+            (324, 3, 7, 4, 3, &[]), (331, 1, 17, 2, 5, &[322]), (332, 5, 12, 2, 4, &[]),
+            (333, 3, 12, 4, 4, &[]), (342, 1, 0, 2, 1, &[]),
         ];
         let skills = rows
             .iter()
@@ -1244,8 +1359,9 @@ mod tests {
         SkillsTree { skills }
     }
 
-    /// Saved medical skills of the old tree (five-rank Fast Bandaging and
-    /// Brothers in Arms, Medic, both tier-5 unlocks): the points taken back
+    /// Saved medical skills of the old trees (five-rank Fast Bandaging,
+    /// Metabolism and Brothers in Arms, Medic, Take Cover, both tier-5
+    /// unlocks): the points taken back
     /// are the account's to spend again, and its kits are sent again.
     #[test]
     fn a_changed_tree_refunds_saved_skills() {
@@ -1266,6 +1382,7 @@ mod tests {
             (302, 5),
             (311, 5),
             (312, 5),
+            (313, 2),
             (321, 5),
             (322, 1),
             (331, 1),
@@ -1274,22 +1391,22 @@ mod tests {
             (342, 5),
         ];
         let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
-        assert_eq!(spent(&account), 38);
+        assert_eq!(spent(&account), 40);
         assert!(account.settle_skills(&tree));
         assert_eq!(
             account.skills,
             [
                 (301, 3),
                 (302, 2),
-                (311, 5),
+                (311, 4),
                 (312, 3),
                 (321, 3),
                 (331, 1),
                 (332, 5),
-                (342, 2)
+                (342, 1)
             ]
         );
-        assert_eq!(spent(&account), 24);
+        assert_eq!(spent(&account), 22);
         assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
         assert!(
             account
@@ -1300,76 +1417,5 @@ mod tests {
         );
         // Settled once, the set stays as it is.
         assert!(!account.settle_skills(&tree));
-    }
-
-    /// Unflinching and Concentration exclude each other: a set holding both
-    /// (none was ever saved; the pair is new) gives Unflinching's four
-    /// points back, keeps Concentration, and sends the kits again.
-    #[test]
-    fn unflinching_beside_concentration_is_refunded() {
-        let tree = medical_tree();
-        let mut account = Account::new("Alice");
-        account.add_experience(50_000_000);
-        account.skills = vec![
-            (301, 3),
-            (302, 2),
-            (311, 5),
-            (312, 3),
-            (313, 2),
-            (303, 2),
-            (321, 3),
-            (342, 2),
-            (323, 4),
-            (333, 4),
-        ];
-        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
-        assert!(account.settle_skills(&tree));
-        assert!(!account.skills.iter().any(|&(id, _)| id == 323));
-        assert!(account.skills.contains(&(333, 4)));
-        assert_eq!(account.skills.iter().map(|&(_, n)| u32::from(n)).sum::<u32>(), 26);
-        assert_eq!(tree.validate(account.level(), &account.skills), Ok(()));
-        assert!(
-            account
-                .kits
-                .iter()
-                .zip(&revisions)
-                .all(|(kit, &before)| kit.revision != before)
-        );
-        assert!(!account.settle_skills(&tree));
-    }
-
-    /// A full build saved before Numb Legs moved from row 1 to row 3 (and
-    /// Unflinching went from two ranks to four): the ids are the same and
-    /// rows 1 and 2 hold Numb Legs' ten points, so nothing is taken back and
-    /// the kits are not sent again.
-    #[test]
-    fn numb_legs_saved_in_row_one_stays_after_the_move() {
-        let tree = medical_tree();
-        let mut account = Account::new("Alice");
-        account.add_experience(50_000_000);
-        account.skills = vec![
-            (303, 2),
-            (301, 3),
-            (302, 2),
-            (311, 5),
-            (313, 2),
-            (312, 3),
-            (321, 3),
-            (342, 2),
-            (323, 2),
-            (332, 5),
-            (331, 1),
-        ];
-        let saved = account.skills.clone();
-        let revisions: Vec<u32> = account.kits.iter().map(|kit| kit.revision).collect();
-        assert!(!account.settle_skills(&tree));
-        assert_eq!(account.skills, saved);
-        assert!(
-            account
-                .kits
-                .iter()
-                .zip(&revisions)
-                .all(|(kit, &before)| kit.revision == before)
-        );
     }
 }

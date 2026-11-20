@@ -1,0 +1,41 @@
+{
+  "_about": "Create the Vostok v0.11 Research config from native Vostok before modes.tsv and music apply. Map 249 is registered by the late v011e-vostok-modes-1.json edit, after existing dictionary additions.",
+  "copy": [
+    {
+      "files": "gameplay/game_modes/level_03_day_5.options",
+      "from": "gameplay/game_modes/level_03_day_5",
+      "to": "gameplay/game_modes/v011e_level_03_day_5"
+    }
+  ],
+  "replace_string": [
+    {
+      "files": "gameplay/game_modes/v011e_level_03_day_5.options",
+      "from": "level_03_day_5",
+      "to": "v011e_level_03_day_5"
+    },
+    {
+      "files": "gameplay/game_modes/v011e_level_03_day_5.options",
+      "from": "level_03/day_5",
+      "to": "v011e_level_03/day_5"
+    },
+    {
+      "files": "gameplay/game_modes/v011e_level_03_day_5.options",
+      "from": "st_level_03_name",
+      "to": "st_level_13_name"
+    }
+  ],
+  "set": [
+    {
+      "file": "gameplay/game_modes/v011e_level_03_day_5.options",
+      "path": "mode/match_making_params/map_id",
+      "from": 3,
+      "to": 13
+    },
+    {
+      "file": "gameplay/game_modes/v011e_level_03_day_5.options",
+      "path": "mode/ui/loading_screen_id",
+      "from": 2,
+      "to": 29
+    }
+  ]
+}

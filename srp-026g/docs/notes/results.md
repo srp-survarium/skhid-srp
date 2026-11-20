@@ -319,13 +319,14 @@ Code: `crates/session/src/v026g/pay.rs` (every number, each with its tag) and `r
 
 | Row | Plain amount | Tag |
 |---|---|---|
-| Enemies killed | 25 silver, 3 experience, 1 reputation a kill | PROVEN for SHOT2's kind of kill. SHOT1's 17 kills are 375 / 41 / 17 before the multiplier: exactly 7 kills of 25 / 3 and 10 of 20 / 2. So there is a lesser kind of kill, **cause unknown**; srp pays every kill 25 / 3 / 1 (`pay::LESSER_KILL` is kept, unused) |
+| Enemies killed | 25 silver, 3 experience, 1 reputation a kill (srp pays twice the silver and the experience, 50 / 6 / 1, since 2026-11-13: §17) | PROVEN for SHOT2's kind of kill. SHOT1's 17 kills are 375 / 41 / 17 before the multiplier: exactly 7 kills of 25 / 3 and 10 of 20 / 2. So there is a lesser kind of kill, **cause unknown**; srp pays every kill alike (`pay::LESSER_KILL` is kept, unused) |
 | Help ally | 10 / 1 / 1 an assist | PROVEN (both screens). A teammate cured or rescued is in the same row of `victory_screen.options` and is paid the same: LIKELY |
 | Match Activity Rewards | fixed part 82.73 / 122.69 / 2.46 for a won match played to the end, and 7.038 / 0.615 / 0.077 for each point of other score | GUESS: the line through the two screens (SHOT1: 315 / 143 / 5 at other score 33; SHOT2: 498 / 159 / 6.5..7 at 59). Both are wins, so the split of the fixed part is unknown |
 
 - **Other score** = the score of the events of the row itself (every event that is no kill and no help; `event_categories` value 2), with the weights the match was played with. For a player whose helps are all assists that is "score − 10 a kill − 5 an assist", which is how both screens were read.
 - **A match not won** (lost, drawn, or with no known result) and played to the end pays half of the fixed part and the same for each point; **a player who left early** gets nothing of the fixed part. The owner's choice (2026-10-12), until a lost match's screen is seen.
-- **Rates** (srp's): the rows' silver × the percent of the match's level (`pay::MONEY_RATES`, the owner's choice of 2026-10-14: 150 to level 5, ten more a level, 220 from level 12; 120 at every level from 2026-10-13, 80 before; `SRP_MONEY_RATE` sets one percent for every level); their experience × `SRP_EXPERIENCE_RATE` (default 2 since 2026-10-14; 1, the original's pace, before); their reputation × `SRP_REPUTATION_RATE` percent (default 120). §13.
+- **Rates** (srp's): the rows' silver × the percent of the match's level (`pay::MONEY_RATES`: 225 to level 5, fifteen more a level, 330 from level 12, since 2026-11-09, when premium's half went into them; the owner's 150 to 220 of 2026-10-14 before; 120 at every level from 2026-10-13, 80 before; `SRP_MONEY_RATE` sets one percent for every level); their experience × `SRP_EXPERIENCE_RATE` (default 3 since 2026-11-09; 2 from 2026-10-14; 1, the original's pace, before); their reputation × `SRP_REPUTATION_RATE` percent (default 180 since 2026-11-09; 120 before). §13, `premium.md`.
+- **30,000 silver for staying to the end** (since 2026-11-13, §17), flat, on top of the rows.
 - **Daily bonus** = the rows' experience and reputation once more, no silver; **premium** = half of the rows, of all three, not of the daily bonus; total = rows + daily + premium (PROVEN: SHOT1's 188 + 188 + 94 = 470, 26 + 26 + 13 = 65; SHOT2's 379 + 189 = 568).
 - **The money total is net of expenses in the client** (PROVEN, `VictoryScreen.updateMoney`): it adds the autobuy and repair lists of the inventory push (0x89) to the sum of the rows, quests and bonus blocks. 0x97 carries the gross rows; SHOT2's 9784 = 10707 + 5353 − 6276.
 - **The "x18" of SHOT1** against 17 kills on its scoreboard: the row's events are 0 (kill) and 4 (team kill), so the 18th is LIKELY a team kill, which paid nothing. It does not explain the lesser kind of kill (ten of them). srp's amount counts kills only [choice].
@@ -464,3 +465,44 @@ capped base rewards; a sole human already earns their own median and gets no flo
 of match level 7, item levels 5 to 8 (10 / 50 / 30 / 10 %). PvP drops roll at the match's own level.
 A drop card used on a PvE match's results screen rolls at the same level (`pvb::drop_level`, the
 report's `vs_bots`; a report kept before it has none and is read as PvP).
+
+## 17. 30,000 for staying to the end, and kills twice (the owner's, 2026-11-13)
+
+"Give to the current base, no need to worry about late joiners. Just everyone get 30k and
+everything else follows current rules (we can even increase x2 kills there)"; and a kill's
+experience "double too".
+
+- **30,000 silver** (`pay::FINISH_SILVER`, `Terms::finish_silver`) to every player who stayed to
+  the end of a match that pays: flat, at every match level, won or lost, however late it came, in
+  every mode (Player vs Bots and Blackout too). No rate, level, `SRP_PVB_PAY` share or Blackout
+  factor touches it; the floor (§14) is still of the rows alone, and the premium items' bonus does
+  not count it. It is in the main kit's activity cell ("Match Activity Rewards"), as the floor is,
+  so the screen's silver total has it. None for a player who left, a room with a PIN, a match
+  never played or a test bot; a match with no trusted snapshot pays it, as it pays the fixed part.
+- **A kill pays twice the original's silver and experience** (`pay::SRP_KILL`, 50 / 6 / 1 before
+  the rates; `Terms::kill`): in every mode where a kill pays, so every mode. The factors follow as
+  before: a Blackout kill is four times the original's (its points factor 2), a Player vs Bots kill
+  the original's (its half share), both at their levels' multipliers. The reputation of a kill, the
+  score, the kill cap's counts (`kill_cap.md`), quests and rating are unchanged. The doubled
+  experience feeds the levels (and their silver) and the day's doubled victories, and the site's
+  levels card follows by itself: it is the mean of the kept reports (`Results::per_match`).
+- The tests' terms are the original's (`pay::KILL`, no flat silver);
+  `a_finisher_gets_thirty_thousand_and_twice_a_kill_and_one_who_left_does_not` checks srp's.
+- Not a simulation change: settlement only.
+
+Measured on the 94 paid matches of the last two kept-report copies (2026-11-11 and 2026-11-13,
+revisions 55 to 56; 689 finishers), recomputed with this rule (the floor recomputed from the
+reports' cells, so roughly):
+
+| mode | finishers | silver avg before | after | p10 after | lowest after | experience avg before | after |
+|---|---|---|---|---|---|---|---|
+| batteries | 129 | 21,494 | 59,103 | 34,247 | 31,296 | 930 | 1,076 |
+| Blackout | 81 | 90,353 | 129,827 | 52,229 | 31,468 | 2,900 | 3,094 |
+| chargers | 169 | 18,892 | 55,383 | 36,279 | 30,734 | 901 | 1,036 |
+| TDM | 140 | 14,381 | 53,882 | 39,773 | 31,296 | 931 | 1,117 |
+| Research | 139 | 19,023 | 54,231 | 32,735 | 30,734 | 1,038 | 1,158 |
+| Player vs Bots, batteries | 16 | 13,689 | 49,218 | 41,410 | 39,878 | 724 | 929 |
+| Player vs Bots, TDM | 15 | 13,675 | 55,165 | 46,907 | 38,920 | 899 | 1,322 |
+| all | 689 | 26,656 | 64,146 | 35,669 | 30,734 | 1,171 | 1,330 |
+
+A minute played pays 5,782 in a match against players and 3,638 against bots (2,436 and 956 before).

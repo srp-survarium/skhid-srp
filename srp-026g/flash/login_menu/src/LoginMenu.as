@@ -63,6 +63,8 @@ package
       
       protected var _superWidth:uint = 1920;
       
+      private var _back:Bitmap;
+      
       public function LoginMenu()
       {
          super();
@@ -134,8 +136,8 @@ package
          this.loadingIndicator.gotoAndStop(1);
          var backContainer:MovieClip = new MovieClip();
          addChild(backContainer);
-         var back:Bitmap = new Bitmap(new LoginBackground());
-         backContainer.addChild(back);
+         _back = new Bitmap(new LoginBackground());
+         backContainer.addChild(this._back);
          exit_btn = new ButtonCloseWindow2();
          // a click on it leaves the focus on the form: Enter signs in after its dialog is cancelled (Esc is its
          // key; Enter on a focused close button would open the dialog again)
@@ -301,6 +303,12 @@ package
          Message.setScaleFactor(scaleFactor);
          scaleX = scaleFactor;
          scaleY = scaleFactor;
+         // The picture covers the screen: it is 2090 x 1080 and the screen 1080 units high, so past
+         // an aspect of 1.94 it ended short of the right edge and the panel stood half over black.
+         // There it grows as a whole from its top left corner (the faces are at the top).
+         var cover:Number = Math.max(1,stage.stageWidth / scaleFactor / this._back.bitmapData.width,stage.stageHeight / scaleFactor / this._back.bitmapData.height);
+         this._back.smoothing = cover > 1;
+         this._back.scaleX = this._back.scaleY = cover;
          this._layout.setScaleFactor(scaleFactor);
          this._layout.reflow();
          this.panelContainer.x = int(this.panelContainer.x);

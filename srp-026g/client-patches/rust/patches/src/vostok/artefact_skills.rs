@@ -3,10 +3,11 @@
 //! what a recipient's living teammates' artefacts give it where the effect is used, from the
 //! world as the game has it at that moment; nothing kept.
 use super::{
-    Context, Reg, Thread,
-    medical::{OwnedPlayer, Player, kit_modifiers, name_equal},
+    Context, Lock, Reg, Thread,
+    medical::{Player, kit_modifiers, name_equal},
     types::{GameTime, Place, Tick},
 };
+use srp_validate::Places as Reached;
 use crate::{
     artefact_skills::{
         Copies, HitKind, Kind, LifeboneRegeneration, MOVEMENT_LIST, OnyxProtection, Phase, Regeneration, Room, SPRING_LISTS,
@@ -118,18 +119,21 @@ fn own(player: raw::Player, kind: Kind) -> impl Iterator<Item = Own> {
         .map(|(nth, copy)| Own { copy, counts: Room::counts_own(nth) })
 }
 
+/// The player whose inventory holds `artefact`; none for one in no inventory.
+fn holder(artefact: raw::Artefact) -> Option<raw::Player> {
+    // SAFETY: a live artefact's inventory and its holder, whose interface is its base_player's
+    // (+108h).
+    unsafe { artefact.item().inventory().and_then(|inventory| inventory.holder()).map(|holder| holder.player()) }
+}
+
 /// Whether `artefact` is one of its holder's own copies past the 4 of its kind that count: it
 /// then gives nothing, its passive nor its active. The holder is its inventory's (an Onyx's protector and a
 /// Lifebone's regeneration subscriber are in their holder's parts only while it carries them);
 /// an artefact in no inventory, or in no passive nor active, counts as the game has it.
 fn uncounted(artefact: raw::Artefact) -> bool {
-    // SAFETY: a protector's or a subscriber's live artefact, its inventory and holder.
-    let holder = unsafe { artefact.item().inventory().and_then(|inventory| inventory.holder()) };
-    let (Some(holder), Some(kind)) = (holder, kind_of(artefact)) else {
+    let (Some(player), Some(kind)) = (holder(artefact), kind_of(artefact)) else {
         return false;
     };
-    // SAFETY: the holder interface is its base_player's (+108h).
-    let player = unsafe { holder.player() };
     own(player, kind).any(|own| own.copy.at == artefact && !own.counts)
 }
 
@@ -172,33 +176,52 @@ fn active_onyx(player: raw::Player) -> bool {
     carried(player).any(|copy| copy.kind == Kind::Onyx && copy.state == State::Active)
 }
 
-/// Onyx II: the landing of a player with the skill and an active Onyx does no damage.
+/// Onyx II: the landing of a player does no damage while an Onyx of a holder with the skill is
+/// active for it: one of its own, or one a teammate's Cascade gives it (the carrier's skill goes
+/// with the copy, as Spring II's reload nodes do).
 pub fn lands_unhurt(ctx: &Context<'_>) -> bool {
     // SAFETY: the landing's ECX is its live player.
     let Some(player) = (unsafe { raw::site::artefact_landing::player(ctx) }) else {
         return false;
     };
-    skills(player).onyx() && active_onyx(player)
+    if skills(player).onyx() && active_onyx(player) {
+        return true;
+    }
+    // SAFETY: the live player's world core (0 when it has none).
+    let roster = Roster::of(ctx.thread(), unsafe { player.world_core() });
+    let (_, actives) = shared(roster, Player::new(ctx.thread(), player), Kind::Onyx);
+    actives.iter().any(|onyx| holder(onyx).is_some_and(|carrier| skills(carrier).onyx()))
 }
 
-/// Larkspur II: a Larkspur's actual activation (never a restore) fills its holder's stamina.
+/// Larkspur II: a Larkspur's actual activation (never a restore) fills its holder's stamina, and
+/// that of each teammate the activation reached (Cascade's, Medic's share just before this: the
+/// places it healed).
 pub fn larkspur(ctx: &Context<'_>) {
     use raw::site::medical_artefact as site;
-    // SAFETY: the actual activation owns this item, its inventory and holder; the holder's
-    // stamina is embedded in it.
-    unsafe {
+    // SAFETY: the actual activation owns this item.
+    let artefact = unsafe {
         let Some(item) = site::item(ctx) else {
             return;
         };
-        if !item.vtable().is_some_and(|table| *table.enable_active() == raw::image::LIFEBONE_ACTIVE) {
-            return;
-        }
-        let Some(holder) = item.item().inventory().and_then(|inventory| inventory.holder()) else {
-            return;
-        };
-        let player = holder.player();
-        if skills(player).larkspur() {
-            let stamina = player.stamina();
+        item.item().artefact()
+    };
+    if kind_of(artefact) != Some(Kind::Lifebone) {
+        return;
+    }
+    let Some(player) = holder(artefact).filter(|&player| skills(player).larkspur()) else {
+        return;
+    };
+    let reached = reached(ctx.thread(), artefact);
+    // SAFETY: the live holder's world core (0 when it has none).
+    let roster = Roster::of(ctx.thread(), unsafe { player.world_core() });
+    let teammates = roster.iter().map(Player::get).filter(|&teammate| {
+        // SAFETY: a roster player's own place.
+        srp_validate::Place::new(unsafe { *teammate.place() }).is_some_and(|place| reached.contains(place))
+    });
+    for filled in core::iter::once(player).chain(teammates) {
+        // SAFETY: a live player's embedded stamina.
+        unsafe {
+            let stamina = filled.stamina();
             *stamina.current() = *stamina.maximum();
         }
     }
@@ -226,19 +249,50 @@ pub fn spring_reload(ctx: &Context<'_>) {
 /// The places a world has at most (core_active_player refuses past its places' vector).
 const PLACES: u8 = 20;
 
-/// A world's active roster, one reference held on each player for the hook.
+/// A world's places as core_active_player (0x2D0AB0) reads them: the places' vector and the bit of
+/// each place in the world.
+#[derive(Clone, Copy)]
+struct Places {
+    first: raw::CorePlace,
+    count: usize,
+    active: u32,
+}
+
+/// A world's active roster: the players core_active_player gives, read where they lie and
+/// borrowed for the hook. The aura is read at every modifier getter's call, so it takes no
+/// reference (core_active_player adds one, and its release is an atomic each): the hook runs no
+/// game code, so no player it reads is released while it runs.
+#[derive(Clone, Copy)]
 struct Roster<'t> {
-    players: [Option<OwnedPlayer<'t>>; PLACES as usize],
+    thread: &'t Thread,
+    /// None without a world core (a lobby's player).
+    places: Option<Places>,
 }
 
 impl<'t> Roster<'t> {
     fn of(thread: &'t Thread, core: Option<raw::CoreWorld>) -> Self {
-        Self { players: core::array::from_fn(|place| Player::in_core(thread, core, place as u8)) }
+        // SAFETY: a live world core's places vector and the bits of its places in the world.
+        let places = core.and_then(|core| unsafe {
+            let (first, end) = (core.places()?, core.places_end()?);
+            Some(Places { first, count: end.index_from(first)?, active: *core.active_places() })
+        });
+        Self { thread, places }
     }
 
-    /// Its players in place order.
-    fn iter(&self) -> impl Iterator<Item = Player<'t>> + '_ {
-        self.players.iter().flatten().map(OwnedPlayer::get)
+    /// Its players in place order, each as core_active_player gives the place's (places 0..20 as
+    /// the roster asked them one by one): none past the places' vector, for a place not in the
+    /// world (its bit clear: a departed one), or without a player of its kit.
+    fn iter(self) -> impl Iterator<Item = Player<'t>> {
+        let (first, count, active) = self.places.map_or((None, 0, 0), |places| (Some(places.first), places.count, places.active));
+        (0..count.min(usize::from(PLACES))).filter(move |&place| active & (1 << place) != 0).filter_map(move |place| {
+            // SAFETY: a place below the vector's end: its kit and that kit's player, the array
+            // core_active_player indexes by it.
+            let at = unsafe {
+                let entry = first?.at(place);
+                entry.kits().at(usize::from(*entry.kit())).player()?
+            };
+            Some(Player::new(self.thread, at))
+        })
     }
 }
 
@@ -274,40 +328,141 @@ impl Shared {
         }
     }
 
+    /// Whether it still takes a copy.
+    fn open(&self) -> bool {
+        self.room.open()
+    }
+
     fn iter(&self) -> impl Iterator<Item = raw::Artefact> + '_ {
         self.copies.iter().flatten().copied()
     }
 }
 
-/// What `recipient` gets of `kind` from its teammates: their copies' passives (Resonance, 9 m)
-/// and actives (Cascade, 6 m). A carrier is another living player of its team in the roster
-/// whose skill reaches it; the copies come in place order, each carrier's that count for it
-/// ([`own`]) in container order, as many of each phase as the recipient's room after its own
-/// copies of the kind that count (passives and actives alike: 4 less them). A dead recipient
-/// gets none.
-fn shared(roster: &Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Shared) {
-    if !recipient.active() {
-        let none = Shared::new(Room::NONE);
-        return (none, none);
+/// A copy of a world, by its registry id (an id is another copy in another match's world).
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct CopyKey {
+    world: u32,
+    item: u32,
+}
+
+/// The places one activation of a copy reached.
+#[derive(Clone, Copy)]
+struct Activation {
+    key: CopyKey,
+    reached: Reached,
+}
+
+/// Each copy's last activation, by its registry id (`artefact.id`, below 255): the places of the
+/// teammates Cascade gave its active to (the owner, 2026-11-11: "they should get full effect"),
+/// read only while the copy is active (state 4). Every activation of a kind the tree shares sets
+/// it (none reached without Cascade); a world's save writes it with each active copy and its load
+/// reads it back (`artefact.save`, `artefact.load`), so a rollback and a late joiner have the
+/// activation's own.
+static ACTIVATIONS: Lock<[Option<Activation>; 255]> = Lock::new([None; 255]);
+
+/// `artefact`'s registry slot and key; none without an id or a world.
+fn copy_key(artefact: raw::Artefact) -> Option<(usize, CopyKey)> {
+    // SAFETY: a live artefact's own id and its registered world.
+    unsafe {
+        let id = *artefact.id();
+        let world = artefact.item().world()?;
+        (id != u8::MAX).then_some((usize::from(id), CopyKey { world: world.address(), item: artefact.address() }))
     }
+}
+
+fn set_reached(thread: &Thread, artefact: raw::Artefact, reached: Option<Reached>) {
+    let Some((slot, key)) = copy_key(artefact) else {
+        return;
+    };
+    ACTIVATIONS.with(thread, |all| all[slot] = reached.map(|reached| Activation { key, reached }));
+}
+
+/// The places `artefact`'s activation reached (none for a copy no activation of this world set).
+fn reached(thread: &Thread, artefact: raw::Artefact) -> Reached {
+    let Some((slot, key)) = copy_key(artefact) else {
+        return Reached::EMPTY;
+    };
+    ACTIVATIONS.with(thread, |all| all[slot].filter(|activation| activation.key == key).map_or(Reached::EMPTY, |a| a.reached))
+}
+
+/// A copy at its activation (Medic's path, `medical::share_active`): the places its active is
+/// given to until it ends.
+pub(super) fn activate(thread: &Thread, artefact: raw::Artefact, reached: Reached) {
+    set_reached(thread, artefact, Some(reached));
+}
+
+/// The bytes an active copy saves (artefact_base::serialize after its cooldown, 0x313735): the
+/// places its activation reached, a u32 of their bits ([`Reached`]); none in another state.
+pub fn save(ctx: &Context<'_>) {
+    use raw::site::carry_ground_save as site;
+    // SAFETY: artefact_base::serialize's live artefact and writer.
+    let (Some(item), Some(writer)) = (unsafe { site::item(ctx) }, unsafe { site::writer(ctx) }) else {
+        return;
+    };
+    // SAFETY: the artefact's own state.
+    if State::parse(unsafe { *item.state() }) == State::Active {
+        super::carry_runtime::write_bytes(writer, &reached(ctx.thread(), item).bits().to_le_bytes());
+    }
+}
+
+/// As [`save`] at artefact_base::deserialize (0x3137EC, its state just read): an active copy's
+/// places read back; another state has none.
+pub fn load(ctx: &Context<'_>) {
+    use raw::site::carry_ground_load as site;
+    // SAFETY: artefact_base::deserialize's live artefact.
+    let Some(item) = (unsafe { site::item(ctx) }) else {
+        return;
+    };
+    // SAFETY: the state deserialize just read.
+    let reached = if State::parse(unsafe { *item.state() }) == State::Active {
+        // SAFETY: artefact_base::deserialize's live reader.
+        let bytes = unsafe { site::reader(ctx) }.and_then(super::carry_runtime::read_bytes::<4>);
+        // The world check (patch 87) refused a world with a place past the 20 before its load.
+        Some(bytes.and_then(|bytes| Reached::new(u32::from_le_bytes(bytes))).unwrap_or(Reached::EMPTY))
+    } else {
+        None
+    };
+    set_reached(ctx.thread(), item, reached);
+}
+
+/// What `recipient` gets of `kind` from its teammates: their copies' passives (Resonance, within
+/// 9 m now) and actives (Cascade: each active copy whose activation reached it, within 6 m then,
+/// to the active's end). A carrier is another living player of its team in the roster; the copies
+/// come in place order, each carrier's that count for it ([`own`]) in container order, as many of
+/// each phase as the recipient's room after its own copies of the kind that count (passives and
+/// actives alike: 4 less them). A dead recipient gets none.
+///
+/// Read at every getter's call, so it stops as soon as the rest cannot change it: with no room
+/// left (4 own copies), at a carrier without the skills (before its distance), and once both
+/// rooms are full.
+fn shared(roster: Roster<'_>, recipient: Player<'_>, kind: Kind) -> (Shared, Shared) {
+    let none = Shared::new(Room::NONE);
+    // SAFETY: the live recipient's own place.
+    let place = srp_validate::Place::new(unsafe { *recipient.get().place() });
+    let Some(place) = place.filter(|_| recipient.active()) else {
+        return (none, none);
+    };
     let counted = own(recipient.get(), kind).filter(|own| own.counts).count();
     let (mut passives, mut actives) = (Shared::new(Room::after(counted)), Shared::new(Room::after(counted)));
+    let ally = recipient.allies();
     for carrier in roster.iter() {
-        if !carrier.active() || !carrier.ally(recipient) {
+        if !passives.open() && !actives.open() {
+            break;
+        }
+        if !carrier.active() || !ally(carrier) {
             continue;
         }
         let skills = skills(carrier.get());
-        let distance = carrier.distance_squared(recipient);
-        let reaches = |phase| skills.reach(phase).is_some_and(|reach| distance <= reach);
-        let (passive, active) = (reaches(Phase::Passive), reaches(Phase::Active));
-        if !passive && !active {
+        let (resonance, cascade) = (skills.reach(Phase::Passive), skills.reach(Phase::Active).is_some());
+        if resonance.is_none() && !cascade {
             continue;
         }
+        let passive = resonance.is_some_and(|reach| carrier.distance_squared(recipient) <= reach);
         for copy in own(carrier.get(), kind).filter(|own| own.counts).map(|own| own.copy) {
             if passive && kind.gives(Phase::Passive, copy.state) {
                 passives.offer(copy.at);
             }
-            if active && kind.gives(Phase::Active, copy.state) {
+            if cascade && kind.gives(Phase::Active, copy.state) && reached(roster.thread, copy.at).contains(place) {
                 actives.offer(copy.at);
             }
         }
@@ -330,7 +485,7 @@ impl super::world::Player<'_> {
         };
         Copies::of(|kind| {
             let own = own(self.this, kind).filter(|own| own.counts && kind.gives(Phase::Passive, own.copy.state)).count();
-            let (passives, _) = shared(&roster, recipient, kind);
+            let (passives, _) = shared(roster, recipient, kind);
             (own, passives.iter().count())
         })
     }
@@ -378,6 +533,7 @@ struct LeftOut {
 impl LeftOut {
     /// None when every own Spring of `player` counts.
     fn of(player: raw::Player) -> Option<Self> {
+        own(player, Kind::Spring).find(|own| !own.counts)?;
         let mut springs = [None; CONTAINERS];
         let uncounted = own(player, Kind::Spring).filter(|own| !own.counts).map(|own| spring_phase_nodes(own.copy.at));
         for (slot, nodes) in springs.iter_mut().zip(uncounted) {
@@ -453,7 +609,7 @@ pub fn own_modifiers(ctx: &mut Context<'_>) -> bool {
 fn shared_springs(thread: &Thread, modifiers: raw::PlayerParamsModifiersContainer, index: u32) -> Option<f32> {
     let roster = Roster::of(thread, Some(match_core()?));
     let recipient = roster.iter().find(|player| kit_modifiers(player.get()) == Some(modifiers))?;
-    let (passives, actives) = shared(&roster, recipient, Kind::Spring);
+    let (passives, actives) = shared(roster, recipient, Kind::Spring);
     let passive = passives.iter().fold(0.0, |sum, spring| sum + spring_nodes(spring, Phase::Passive, index));
     Some(actives.iter().fold(passive, |sum, spring| sum + spring_nodes(spring, Phase::Active, index)))
 }
@@ -581,7 +737,7 @@ pub fn shared_protection(ctx: &mut Context<'_>) {
             return;
         };
         let roster = Roster::of(ctx.thread(), recipient.world_core());
-        let (passives, actives) = shared(&roster, Player::new(ctx.thread(), recipient), Kind::Onyx);
+        let (passives, actives) = shared(roster, Player::new(ctx.thread(), recipient), Kind::Onyx);
         let (kind, part) = (*hit.kind(), pool.name() as *const u8);
         let own_active = active_onyx(recipient);
         let protections = passives
@@ -641,7 +797,7 @@ pub fn shared_regeneration(ctx: &mut Context<'_>) {
             return;
         };
         let roster = Roster::of(ctx.thread(), recipient.world_core());
-        let (passives, _) = shared(&roster, Player::new(ctx.thread(), recipient), Kind::Lifebone);
+        let (passives, _) = shared(roster, Player::new(ctx.thread(), recipient), Kind::Lifebone);
         let part = pool.name() as *const u8;
         let mut tick = None;
         for record in passives.iter().filter_map(|lifebone| lifebone_regeneration(lifebone, part)) {

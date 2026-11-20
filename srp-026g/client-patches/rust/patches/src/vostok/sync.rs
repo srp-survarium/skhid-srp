@@ -2,7 +2,9 @@
 //! threads: mt_draw's tasks (one a player, at once with `mt_player_draw`)
 //! and the bullet manager's (256 bullets a task). A [`GameCell`] holds a
 //! hook's state on the one thread; a [`Lock`] holds it across threads, one
-//! user at a time, while a [`Thread`] proves we are inside a hook.
+//! user at a time, while a [`Thread`] proves we are inside a hook. A value
+//! only the thread that made it may touch (the engine's references, the
+//! immediate context's work) sits in a lock as a [`ThreadBound`].
 //!
 //! A lock taken again on the thread that holds it is a bug of ours (a hook
 //! reached from inside another's locked section): it panics, loudly, never
@@ -12,6 +14,7 @@
 
 use super::hook::Thread;
 use core::cell::UnsafeCell;
+use core::mem::ManuallyDrop;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 /// A value behind a spin lock, reached only from inside a hook.
@@ -48,6 +51,80 @@ impl<T> Lock<T> {
         let out = f(unsafe { &mut *self.value.get() });
         drop(unlock);
         out
+    }
+}
+
+/// A thread's id (GetCurrentThreadId): whose a [`ThreadBound`] value is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ThreadId(u32);
+
+impl ThreadId {
+    /// The hook's thread.
+    pub fn current(_: &Thread) -> ThreadId {
+        ThreadId(thread_id())
+    }
+
+    /// The id, for a log line.
+    pub fn id(self) -> u32 {
+        self.0
+    }
+}
+
+/// A value only the thread that made it may touch (it holds the engine's
+/// references, or work of the immediate context, which are that thread's),
+/// kept in state a [`Lock`] shares between threads. Every way to the value
+/// checks the calling thread: on another it is not there, and dropped on
+/// another it is leaked, never touched. So the value need not be `Send`,
+/// and no safe code can use it off its thread.
+pub struct ThreadBound<T> {
+    owner: ThreadId,
+    value: ManuallyDrop<T>,
+}
+
+// SAFETY: another thread can only move a ThreadBound's bytes, read its
+// owner or drop it: get, get_mut and into_inner give the value to its owner
+// thread alone, and drop leaks it elsewhere. Windows gives each live thread
+// its own id (the game's threads live until the process ends).
+unsafe impl<T> Send for ThreadBound<T> {}
+
+impl<T> ThreadBound<T> {
+    /// `value`, the hook's thread's.
+    pub fn new(thread: &Thread, value: T) -> ThreadBound<T> {
+        ThreadBound { owner: ThreadId::current(thread), value: ManuallyDrop::new(value) }
+    }
+
+    /// The thread whose value it is.
+    pub fn owner(&self) -> ThreadId {
+        self.owner
+    }
+
+    /// The value, on its own thread.
+    pub fn get(&self, thread: &Thread) -> Option<&T> {
+        (ThreadId::current(thread) == self.owner).then_some(&*self.value)
+    }
+
+    /// The value, on its own thread.
+    pub fn get_mut(&mut self, thread: &Thread) -> Option<&mut T> {
+        (ThreadId::current(thread) == self.owner).then_some(&mut *self.value)
+    }
+
+    /// The value out, on its own thread; elsewhere it stays bound.
+    pub fn into_inner(self, thread: &Thread) -> Result<T, ThreadBound<T>> {
+        if ThreadId::current(thread) != self.owner {
+            return Err(self);
+        }
+        let mut this = ManuallyDrop::new(self);
+        // SAFETY: `this` is never dropped, so the value is taken once.
+        Ok(unsafe { ManuallyDrop::take(&mut this.value) })
+    }
+}
+
+impl<T> Drop for ThreadBound<T> {
+    fn drop(&mut self) {
+        if thread_id() == self.owner.0 {
+            // SAFETY: dropped once, here; nothing reads it after.
+            unsafe { ManuallyDrop::drop(&mut self.value) }
+        }
     }
 }
 
@@ -186,4 +263,31 @@ mod tests {
         assert_eq!(value.with(&thread, |n| *n), 8000);
     }
 
+    #[test]
+    fn a_bound_value_is_its_threads_alone() {
+        use std::sync::{Arc, atomic::AtomicUsize};
+        struct Counted(Arc<AtomicUsize>);
+        impl Drop for Counted {
+            fn drop(&mut self) { self.0.fetch_add(1, Ordering::Relaxed); }
+        }
+        let drops = Arc::new(AtomicUsize::new(0));
+        // SAFETY: this host thread models its own native hook.
+        let thread = unsafe { Thread::new() };
+        let mine = ThreadBound::new(&thread, Counted(drops.clone()));
+        let away = ThreadBound::new(&thread, Counted(drops.clone()));
+        let owner = mine.owner();
+        let back = std::thread::spawn(move || {
+            // SAFETY: as above, on the other thread.
+            let other = unsafe { Thread::new() };
+            let mut mine = mine;
+            assert!(mine.get(&other).is_none() && mine.get_mut(&other).is_none());
+            assert_ne!(ThreadId::current(&other), owner);
+            drop(away);
+            mine.into_inner(&other).err().unwrap()
+        }).join().unwrap();
+        assert_eq!(drops.load(Ordering::Relaxed), 0, "dropped on another thread: leaked, never touched");
+        assert!(back.get(&thread).is_some());
+        drop(back.into_inner(&thread).ok().unwrap());
+        assert_eq!(drops.load(Ordering::Relaxed), 1);
+    }
 }

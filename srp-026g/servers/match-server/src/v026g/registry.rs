@@ -8,13 +8,17 @@
 //! it depends on no lobby code.
 
 use std::collections::{HashMap, HashSet};
+use std::net::IpAddr;
+
+use udp_transport::relay::{Peer, Route};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
 use survarium::v026g::keeper;
+use survarium::v026g::twist::{Armed, Played};
 use survarium::v026g::dictionary::Dictionary;
-use survarium::v026g::maps::{self, GameMode, MatchMap};
+use survarium::v026g::maps::{self, GameMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
 use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
@@ -74,9 +78,9 @@ pub struct MatchPlayer {
 /// A match the lobby formed.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchSetup {
-    /// The map, the mode and its timings
-    /// (`survarium::v026g::maps`).
-    pub map: MatchMap,
+    /// The map, the mode and its timings (`survarium::v026g::maps`), and
+    /// a free-for-all's twist (`survarium::v026g::twist`).
+    pub played: Played,
     /// Logged by the client only.
     pub match_level: u16,
     /// The players who will really come: the roster's size is the N of the
@@ -130,7 +134,7 @@ pub enum CreateError {
     Roster(usize),
     /// Not a map and mode the client can play; with the server's bots in
     /// the match, not one they play (modes 2 to 4).
-    Map(u8),
+    Map(maps::MapId),
     /// Two places have the same session.
     DuplicateSession(u32),
     /// A session still has a place in a match that is not over.
@@ -187,8 +191,8 @@ pub(crate) struct Place {
 #[derive(Clone)]
 pub(crate) struct Formed {
     pub match_id: u32,
-    /// The map and the mode.
-    pub played: MatchMap,
+    /// The map, the mode and a free-for-all's twist.
+    pub played: Played,
     pub match_level: u16,
     pub places: Vec<Place>,
     /// The profiles the clients were given, by place: what a snapshot's
@@ -267,7 +271,7 @@ pub struct LiveMatch {
     /// for the players' eyes.
     pub match_id: u32,
     /// The `maps_dict` id: the map and the mode.
-    pub map_id: u8,
+    pub map_id: maps::MapId,
     pub phase: LivePhase,
     /// Each team's players who have not left: before the countdown the
     /// ones still to come count too.
@@ -293,6 +297,74 @@ struct Inner {
     /// A growing roster's admission as the match last said it.
     admitting: HashMap<u32, Admitting>,
     live: HashMap<u32, Live>,
+    /// Where each place's game connected to the match from (its latest
+    /// 0xD8): what the voice relay checks a talker's datagrams against
+    /// (`super::voice`).
+    connections: HashMap<(u32, u8), Connection>,
+}
+
+/// Whose radio a seat talks and listens on: two seats of a match hear each
+/// other's radio when theirs is the same.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RadioChannel {
+    /// Its team's (every mode with teams; the owner, 2026-11-16: "radio is
+    /// team only").
+    Team(u8),
+    /// The whole match's: a free-for-all, whose places are each a side of
+    /// their own ("or in ffa for everyone").
+    Match,
+}
+
+impl RadioChannel {
+    /// The radio of a place of `team` in a match of `mode`: the one place
+    /// the relay's radio routing is decided.
+    pub fn of(mode: GameMode, team: u8) -> RadioChannel {
+        if mode == GameMode::FreeForAll {
+            RadioChannel::Match
+        } else {
+            RadioChannel::Team(team)
+        }
+    }
+}
+
+/// A session's place as the voice relay needs it (`super::voice`). Its
+/// 10 m voice reaches the whole match, whatever its team (each game plays
+/// it only near the speaker); its radio only the seats of its
+/// [`RadioChannel`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VoiceSeat {
+    pub match_id: u32,
+    /// The roster place: the speaker's slot on the voice wire.
+    pub place: u8,
+    pub radio: RadioChannel,
+    /// The place's match connection; `None` before its 0xD8.
+    pub connection: Option<Connection>,
+}
+
+/// Where a place's game connected to its match from: the client's IP and the
+/// route its datagrams came by. Its voice is taken only by that route and
+/// from that IP's network ([`Connection::admits`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Connection {
+    ip: IpAddr,
+    route: Route,
+}
+
+impl Connection {
+    pub fn of(peer: Peer) -> Self {
+        Self {
+            ip: peer.ip().to_canonical(),
+            route: peer.route(),
+        }
+    }
+
+    /// Whether a voice datagram from `peer` may be this connection's game's:
+    /// by the same route, and from the same network
+    /// ([`super::voice::same_network`]). A datagram by another route is
+    /// another peer's, whatever address it names.
+    pub fn admits(self, peer: Peer) -> bool {
+        self.route == peer.route() && super::voice::same_network(self.ip, peer.ip())
+    }
 }
 
 /// A growing roster's admission as the match loop last said it
@@ -404,11 +476,15 @@ impl MatchRegistry {
         if setup.players.is_empty() || setup.players.len() > MAX_PLAYERS {
             return Err(CreateError::Roster(setup.players.len()));
         }
-        let played = setup.map;
+        let played = setup.played;
         let map = played.map();
         // The server's bots play modes 2 to 4 (`bots`): none in Research.
         if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(map.id));
+        }
+        let mut setup = setup;
+        for (place, player) in setup.players.iter_mut().enumerate() {
+            own_side(map, place, &mut player.profile);
         }
         let mut inner = self.inner();
         for (place, player) in setup.players.iter().enumerate() {
@@ -469,11 +545,12 @@ impl MatchRegistry {
                 .into_iter()
                 .map(|player| {
                     let mut profile = player.profile;
+                    played.arm(&mut profile);
                     keeper::give(&mut profile, keeper);
                     profile
                 })
                 .collect(),
-            map: played,
+            map: played.match_map(),
             match_id: static_id(match_id),
             match_level: setup.match_level,
             score_weights,
@@ -524,7 +601,7 @@ impl MatchRegistry {
             "Match {match_id:#x} made: map {} ({}, mode {}), {} players{}{}{}",
             map.id,
             map.name,
-            map.mode.lobby_number(),
+            played.lobby_number(),
             options.players.len(),
             if setup.vs_bots {
                 ", one player against the server's bots"
@@ -581,7 +658,7 @@ impl MatchRegistry {
         if !formed.growing_roster {
             return Err(JoinError::Unavailable);
         }
-        if players.len() > MAX_PLAYERS - formed.places.len() {
+        if players.len() > MAX_PLAYERS.saturating_sub(formed.places.len()) {
             return Err(JoinError::Full);
         }
         let Some(admitting) = inner
@@ -622,15 +699,20 @@ impl MatchRegistry {
         };
         let mut next = (**formed).clone();
         let first = next.places.len();
+        let mut players = players;
+        for (offset, player) in players.iter_mut().enumerate() {
+            own_side(next.played.map(), first + offset, &mut player.profile);
+        }
         next.profiles.extend(players.iter().map(|player| {
             let mut profile = player.profile.clone();
+            next.played.arm(&mut profile);
             gift(&mut profile, next.keeper);
             profile
         }));
         next.info = StaticInfo::new(
             &MatchOptions {
                 players: next.profiles.clone(),
-                map: next.played,
+                map: next.played.match_map(),
                 match_id: static_id(match_id),
                 match_level: next.match_level,
                 score_weights: next.score_weights,
@@ -713,6 +795,51 @@ impl MatchRegistry {
     /// The place a session has in a match that is not over.
     pub fn seat(&self, session_id: u32) -> Option<Seat> {
         self.inner().seats.get(&session_id).copied()
+    }
+
+    /// The place's game connected to its match from `peer` (its 0xD8).
+    pub(crate) fn set_connection(&self, seat: Seat, peer: Peer) {
+        let mut inner = self.inner();
+        if inner.matches.contains_key(&seat.match_id) {
+            inner
+                .connections
+                .insert((seat.match_id, seat.place), Connection::of(peer));
+        }
+    }
+
+    /// The places of a match that a game plays (not a bot's), of every
+    /// team: each place and its account, for the voice relay's ROSTER.
+    pub fn voice_roster(&self, match_id: u32) -> Vec<(u8, u32)> {
+        let inner = self.inner();
+        let Some(formed) = inner.matches.get(&match_id) else {
+            return Vec::new();
+        };
+        formed
+            .places
+            .iter()
+            .enumerate()
+            .filter(|(_, place)| !place.bot && !place.driven)
+            .map(|(index, place)| (index as u8, place.account_id))
+            .collect()
+    }
+
+    /// The seat of a session with its radio (by the match's mode) and its
+    /// match connection's IP, for the voice relay. `None` for a
+    /// session with no place, and for a bot's place (no game talks for it).
+    pub fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat> {
+        let inner = self.inner();
+        let seat = *inner.seats.get(&session_id)?;
+        let formed = inner.matches.get(&seat.match_id)?;
+        let place = formed.places.get(usize::from(seat.place))?;
+        if place.bot || place.driven {
+            return None;
+        }
+        Some(VoiceSeat {
+            match_id: seat.match_id,
+            place: seat.place,
+            radio: RadioChannel::of(formed.played.mode(), place.team),
+            connection: inner.connections.get(&(seat.match_id, seat.place)).copied(),
+        })
     }
 
     /// Gives up a session's place (the player will not come, or left for
@@ -864,6 +991,7 @@ impl MatchRegistry {
         inner.admitting.remove(&match_id);
         inner.live.remove(&match_id);
         inner.seats.retain(|_, seat| seat.match_id != match_id);
+        inner.connections.retain(|(id, _), _| *id != match_id);
         inner.matches.remove(&match_id)
     }
 }
@@ -906,6 +1034,16 @@ pub enum MatchEnd {
     /// room's minimum can play it ([`MatchSetup::room_minimum`]). Nothing
     /// of it counts, and its room makes another.
     NotMade,
+}
+
+/// A free-for-all's place plays on a side of its own and in no squad
+/// (`maps::free_for_all_team`); in any other mode the lobby's team and squad
+/// stand.
+fn own_side(map: &maps::MapMode, place: usize, profile: &mut MatchProfile) {
+    if map.mode == GameMode::FreeForAll {
+        profile.team = maps::free_for_all_team(place);
+        profile.squad = 0;
+    }
 }
 
 /// The standing value for "no team": a draw.
@@ -967,9 +1105,11 @@ pub struct PlayerResult {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchResult {
     pub match_id: u32,
-    pub map_id: u8,
+    pub map_id: maps::MapId,
     /// [`Formed::played`]'s: Blackout's scores pay twice.
     pub mode: GameMode,
+    /// [`Formed::played`]'s twist: the kits it armed.
+    pub twist: Option<Armed>,
     pub match_level: u16,
     pub end: MatchEnd,
     /// 0 or 1, [`DRAW`], or `None` when no trusted snapshot gave a
@@ -1010,6 +1150,22 @@ pub struct MatchResult {
 /// to another thread: a `std::sync::mpsc::Sender<MatchResult>` is a sink.
 pub trait ResultsSink: Send {
     fn match_ended(&mut self, result: MatchResult);
+
+    /// A player was removed from a match in play for being idle (anti-AFK,
+    /// `docs/notes/anti-afk.md`): srp has the lobby say so in the match's
+    /// chat and the general chat. Called once a removal, on the match
+    /// server's thread. A sink of results alone takes no notice.
+    fn idle_removed(&mut self, _removed: IdleRemoved) {}
+}
+
+/// A player the anti-AFK rule removed from a match in play.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct IdleRemoved {
+    /// The match's id ([`MatchTicket::match_id`]).
+    pub match_id: u32,
+    pub account_id: u32,
+    /// Its character's name, as the match shows it.
+    pub name: String,
 }
 
 impl ResultsSink for std::sync::mpsc::Sender<MatchResult> {

@@ -476,10 +476,6 @@ pub mod request {
         (0x48, vec![1, branch, payment])
     }
 
-    pub fn autobuy(on: bool) -> (u8, Vec<u8>) {
-        (0x49, vec![1, u8::from(on)])
-    }
-
     pub fn active_kit(kit_id: u32) -> (u8, Vec<u8>) {
         let mut body = vec![2];
         body.extend(kit_id.to_le_bytes());

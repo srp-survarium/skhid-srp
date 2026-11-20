@@ -148,6 +148,8 @@ def list_keys(edit_lists):
     out = {}
     for edits in edit_lists:
         for e in edits.get('append_entry', []):
+            if e['unique_key'] is None:
+                continue        # a list known by its index (the game's own reads), as unedited lists are
             for file in e.get('files', [e.get('file')]):
                 lists = out.setdefault(file, {})
                 path, key = '/' + e['list'], e['unique_key']

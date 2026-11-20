@@ -1,0 +1,53 @@
+# Patch 121: the camouflage/decal bake does not wait for the GPU. Only the
+# decisions: which sites, and the handlers. The sites (their VAs, spans,
+# exits and what their registers hold) are sites_026g.tsv's; the GPU work,
+# the frames and the save are vostok::bake_gpu's; the pending bakes are
+# bake_async.rs.
+name = "bake_async"
+patch = 121
+
+# process_compression with the bake's target: the bake handed to the GPU
+[[hook]]
+site = "bake.issue"
+handler = "on_issue"
+
+# process_compression called again for a bake the GPU has done: its tail
+[[hook]]
+site = "bake.resume"
+handler = "on_resume"
+
+# the tail's save descriptor: it takes the bake's DDS (MT memory), no copy
+[[hook]]
+site = "bake.save"
+handler = "on_save"
+
+# the tail's free of the DDS to the render allocator: not for that DDS
+[[hook]]
+site = "bake.free"
+handler = "on_free"
+
+# compress_mip, a level copied to its staging: kept, not mapped
+[[hook]]
+site = "compress_mip.readback"
+handler = "on_readback"
+
+# each resources dispatch: the bakes the GPU has done finished, the
+# postponed queries made again
+[[hook]]
+site = "resources.dispatched"
+handler = "on_dispatched"
+
+# engine_world::tick: a new frame, a new budget for finishing bakes
+[[hook]]
+site = "engine.tick"
+handler = "on_frame"
+
+# game::exit's start: every pending bake finished
+[[hook]]
+site = "game.exit_start"
+handler = "on_exit"
+
+# a save descriptor destroyed: a bake's DDS it owned is freed
+[[hook]]
+site = "save.freed"
+handler = "on_save_freed"

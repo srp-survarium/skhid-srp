@@ -11,6 +11,9 @@
 //!   each holding a reference of its own and letting it go when dropped;
 //! - [`SoundTick`]: the sound thread's tick (`sound_world.tick`), where the
 //!   bus is kept active and its volume set;
+//! - [`GeneralPass`]: the tick's general pass (`sound_world.general`), where
+//!   every active scene gets its factor: the Game slider's (patch 144) for
+//!   every scene but the bus;
 //! - [`TrackPath`]: a track's resource path, read once from the mode's
 //!   `ui.loading_music` (`level_loading.ui`) or made from a patch's name.
 
@@ -221,6 +224,61 @@ impl<'t> SoundTick<'t> {
             *scene.volume() = volume.get();
             *scene.fade_in_time() = u32::MAX;
             *scene.fade_state() = FADING_IN;
+        }
+    }
+}
+
+/// The sound thread's tick at its general pass, after the active scenes
+/// ticked (`sound_world.general`): where each active scene gets its factor
+/// of General (+2E8h), which the engine's process_fade, and this pass on a
+/// change, multiply its volume by for its submix. [`GeneralPass::mix`] is
+/// the pass in the engine's place: the factor's one writer once a scene is
+/// active (add_scene_to_active gives it General's alone, which the pass
+/// corrects in the same tick).
+pub struct GeneralPass<'t> {
+    world: raw::SoundWorld,
+    /// s_general_volume's value truncated, as the engine compares it (AL).
+    general: u8,
+    thread: PhantomData<&'t Thread>,
+}
+
+impl<'t> GeneralPass<'t> {
+    pub fn at(ctx: &'t Context<'_>) -> Option<GeneralPass<'t>> {
+        // SAFETY: the site's EDI is the ticking sound world, EAX General
+        // truncated (cvttss2si), on the sound thread.
+        unsafe {
+            let world = raw::site::sound_world_general::world(ctx)?;
+            let general = raw::site::sound_world_general::general(ctx) as u8;
+            Some(GeneralPass { world, general, thread: PhantomData })
+        }
+    }
+
+    /// Gives every active scene General x 0.01 (the engine's own factor,
+    /// 0x59B11) times its share: the music's bus all of it, every other
+    /// scene (the game's: its shots, steps, effects and interface sounds)
+    /// `game`. A scene whose factor changes gets its submix's volume at
+    /// once, its fade's volume times the factor, as the engine's pass does.
+    pub fn mix(self, music: Option<BusScene>, game: Volume) {
+        let general = f32::from(self.general) * 0.01;
+        // SAFETY: on the sound thread, after the scenes' ticks: the active
+        // list is the engine's, walked and written only on this thread (its
+        // orders come before), each scene alive while in it. The submix (an
+        // XAudio2 voice, patch 100's proxy) is set as the engine's pass sets
+        // it (SetVolume, operation set 0: at once), on the same thread.
+        unsafe {
+            *self.world.general() = self.general;
+            let mut next = self.world.first_active();
+            while let Some(scene) = next {
+                let share = if music.is_some_and(|bus| bus.0 == scene) { Volume::FULL } else { game };
+                let factor = general * share.get();
+                if (*scene.general()).to_bits() != factor.to_bits() {
+                    *scene.general() = factor;
+                    if let Some(submix) = scene.submix() {
+                        raw::engine_voice_set_volume(Some(submix), *scene.volume() * factor, 0);
+                    }
+                }
+                next = scene.next_active();
+            }
         }
     }
 }

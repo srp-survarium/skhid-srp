@@ -2,10 +2,11 @@
 //! for the paused hook; a core lookup owns one reference until its guard drops.
 use super::{Context, Reg, Thread, drug::DrugsInUse};
 use crate::{
-    medical_skills::{Painkiller, Regeneration, Skills, Stance},
+    medical_skills::{Antitoxin, Painkiller, Regeneration, Skills, Stance},
     raw,
 };
 use super::effect::OwnedEffect;
+use srp_validate::Places;
 use core::{
     ffi::CStr,
     sync::atomic::{AtomicU32, Ordering},
@@ -49,6 +50,14 @@ impl<'t> Player<'t> {
         };
         if active { Painkiller::Active } else { Painkiller::Inactive }
     }
+    /// Any antitoxin of its inventory in use, by the same flag.
+    fn antitoxin(self) -> Antitoxin {
+        // SAFETY: as painkiller; a drug in use owns its healing records.
+        let active = unsafe {
+            DrugsInUse::of(self.thread, self.at).any(|drug| antitoxin(drug.medkit()))
+        };
+        if active { Antitoxin::Active } else { Antitoxin::Inactive }
+    }
     /// The controller's effective crouch (+201h): it stays set under a low
     /// ceiling after the crouch key is released (0x337830).
     fn stance(self) -> Stance {
@@ -70,7 +79,12 @@ impl<'t> Player<'t> {
         unsafe { Some(*self.at.profile()?.team()) }
     }
     pub(super) fn ally(self, other: Self) -> bool {
-        self.at != other.at && matches!(self.team(), Some(0 | 1)) && self.team() == other.team()
+        self.allies()(other)
+    }
+    /// [`ally`](Self::ally) of this player, its team read once: the test of a whole roster.
+    pub(super) fn allies(self) -> impl Fn(Self) -> bool {
+        let team = self.team().filter(|team| matches!(team, 0 | 1));
+        move |other| team.is_some() && self.at != other.at && other.team() == team
     }
     pub(super) fn active(self) -> bool {
         // The core lookup already checked the synchronized active roster.
@@ -169,6 +183,26 @@ unsafe fn painkiller(item: raw::Medkit) -> bool {
         };
         (0..usize::from(*item.protection_count()))
             .any(|i| name_equal(first.at(i).name(), c"pain".as_ptr().cast()))
+    }
+}
+/// An antitoxin: of its data/influences, those that heal (an amount above 0)
+/// heal the infection pool and nothing else. Its config keeps the medkit
+/// template's seven records at 0; the science medkit heals infection and the
+/// body too: a medkit.
+unsafe fn antitoxin(item: raw::Medkit) -> bool {
+    // SAFETY: item owns its declared array of healing records, each with its
+    // pool's name inline.
+    unsafe {
+        let Some(first) = item.heals() else {
+            return false;
+        };
+        let infection = c"infection".as_ptr().cast();
+        let mut healing = (0..usize::from(*item.influences()))
+            .map(|i| first.at(i))
+            .filter(|record| *record.amount() > 0.0)
+            .map(|record| name_equal(record.name(), infection))
+            .peekable();
+        healing.peek().is_some() && healing.all(|infection| infection)
     }
 }
 /// # Safety
@@ -278,24 +312,94 @@ pub fn stopping(ctx: &mut Context<'_>) {
         *frame.sum() = player.skills().stopping_power(*frame.sum(), player.painkiller());
     }
 }
-/// Concentration at breath_vibration_calculator::tick, after apply_modifier
-/// of breath_vibration (61): XMM0 the dispersion that drives the aim's sway,
-/// the tick's argument the dispersion before the modifier.
-pub fn sway(ctx: &mut Context<'_>) {
-    use raw::site::medical_sway as site;
-    // SAFETY: the aimed weapon's breath calculator and its holder are live for
-    // its tick; EBP is the tick's frame, its first argument unchanged.
+/// Modifier 13 `reload_speed`, which every reload state's clip speed takes.
+const RELOAD_SPEED: u32 = 13;
+
+/// Concentration at a reload state's get_weapon_lexeme, after apply_modifier
+/// of reload_speed (13): XMM0 the clip's speed, B x max(0, 1 + S13).
+///
+/// # Safety
+/// `state` is the site's reload state (EDI), live for the call.
+unsafe fn reload_at(ctx: &mut Context<'_>, state: Option<raw::ReloadState>) {
+    // SAFETY: the state's weapon and its user, the player whose kit the
+    // native just read ([[EDI+120h]+8]), are live for the reload.
     let value = unsafe {
-        let (Some(calculator), Some(frame)) = (site::calculator(ctx), site::frame(ctx)) else {
-            return;
-        };
-        let Some(at) = calculator.player() else {
+        let Some(at) = state.and_then(|state| state.weapon()).and_then(|weapon| weapon.user()) else {
             return;
         };
         let player = Player::new(ctx.thread(), at);
-        player.skills().sway(ctx.xmm_f32(0), *frame.dispersion(), player.painkiller())
+        let Some(modifiers) = player.modifiers() else {
+            return;
+        };
+        let factor = raw::engine_apply_modifier(Some(modifiers), RELOAD_SPEED, 1.0, 1.0);
+        player.skills().reload_speed(ctx.xmm_f32(0), factor, player.antitoxin())
     };
     ctx.set_xmm_f32(0, value);
+}
+pub fn reload(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { reload_at(ctx, raw::site::medical_reload::state(ctx)) }
+}
+pub fn reload_double(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { reload_at(ctx, raw::site::medical_reload_double::state(ctx)) }
+}
+pub fn reload_pistol(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { reload_at(ctx, raw::site::medical_reload_pistol::state(ctx)) }
+}
+pub fn reload_shotgun(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { reload_at(ctx, raw::site::medical_reload_shotgun::state(ctx)) }
+}
+/// Modifier 49 `aim_time`, which the sight's raising and lowering take.
+const AIM_TIME: u32 = 49;
+
+/// Sharp Eye at weapon_core::instant_aim_start / _end, after apply_modifier
+/// of aim_time (49): XMM0 the sight's time, +5F8h x max(0, 1 + S49).
+///
+/// # Safety
+/// `weapon` is the site's weapon (EDI), live for the call.
+unsafe fn aim_at(ctx: &mut Context<'_>, weapon: Option<raw::Weapon>) {
+    // SAFETY: the weapon's user, whose kit the native just read ([EDI+8]).
+    let value = unsafe {
+        let Some(at) = weapon.and_then(|weapon| weapon.user()) else {
+            return;
+        };
+        let player = Player::new(ctx.thread(), at);
+        let Some(modifiers) = player.modifiers() else {
+            return;
+        };
+        let factor = raw::engine_apply_modifier(Some(modifiers), AIM_TIME, 1.0, 1.0);
+        player.skills().aim_time(ctx.xmm_f32(0), factor, player.antitoxin())
+    };
+    ctx.set_xmm_f32(0, value);
+}
+pub fn aim_start(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { aim_at(ctx, raw::site::medical_aim_start::weapon(ctx)) }
+}
+pub fn aim_end(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { aim_at(ctx, raw::site::medical_aim_end::weapon(ctx)) }
+}
+/// Second Wind at medkit::tick's first tick of the active time (its use
+/// delay over, remove_affects just called): an antitoxin's holder gets its
+/// energy. Once a use: the native's test (remaining == the whole active time).
+pub fn drug_begin(ctx: &mut Context<'_>) {
+    use raw::site::medical_drug_begin as site;
+    // SAFETY: medkit::tick's drug (EDI) and its holder (EBP) are live for the
+    // tick; the stamina is embedded in the player.
+    unsafe {
+        let (Some(item), Some(at)) = (site::item(ctx), site::player(ctx)) else {
+            return;
+        };
+        if !antitoxin(item) {
+            return;
+        }
+        let stamina = at.stamina();
+        *stamina.current() = Player::new(ctx.thread(), at).skills().second_wind(*stamina.current(), *stamina.maximum());
+    }
 }
 pub fn initialize(ctx: &mut Context<'_>) {
     // SAFETY: constructor bound the complete model, before first reset/load.
@@ -348,6 +452,12 @@ pub fn regenerate(ctx: &mut Context<'_>) {
         let (Some(pool), Some(frame)) = (site::pool(ctx), site::frame(ctx)) else {
             return;
         };
+        // A pool that does not regenerate keeps its delay and limit: its
+        // owner's modifiers are not read (most parts, every tick).
+        let rate = *frame.rate();
+        if !Regeneration::regenerates(rate) {
+            return;
+        }
         let Some(at) = pool.model().and_then(|m| m.owner()) else {
             return;
         };
@@ -360,7 +470,7 @@ pub fn regenerate(ctx: &mut Context<'_>) {
             raw::engine_apply_modifier(modifiers, REGENERATION_LIMIT, 1.0, 1.0) - 1.0,
         )
         .unwrap_or_default();
-        let (delay, limit) = regeneration.apply(*frame.rate(), delay, *frame.limit());
+        let (delay, limit) = regeneration.apply(rate, delay, *frame.limit());
         *frame.limit() = limit;
         delay
     };
@@ -471,9 +581,10 @@ pub fn protect(ctx: &mut Context<'_>) {
 /// becomes active and its holder has the share (Medic's bit, which skill 542 sets), each living
 /// teammate within Cascade's reach plays the kind's own activation glow for the active's length (as
 /// its holder does: Spring blue, Lifebone green, Onyx orange), and a Lifebone's also does to it what
-/// its active does to its holder (the configured affects removed, body, head and pain full). What a
-/// Spring's or an Onyx's active gives is read where it is used (patch 109's aura); this is its
-/// activation's part.
+/// its active does to its holder (the configured affects removed, every body part full). The
+/// places reached are the copy's for its whole active (patch 109's aura gives a Spring's and an
+/// Onyx's active to them where it is used, wherever they go, `artefact_skills::activate`); an
+/// activation without the share reaches none.
 pub fn share_active(ctx: &mut Context<'_>) {
     use raw::site::medical_artefact as site;
     // SAFETY: the actual activation owns this item and its inventory holder.
@@ -482,41 +593,38 @@ pub fn share_active(ctx: &mut Context<'_>) {
         let Some(item) = site::item(ctx) else {
             return;
         };
-        let Some(holder) = item.item().inventory().and_then(|v| v.holder()) else {
+        let artefact = item.item().artefact();
+        let Some((kind, length_ms)) = super::artefact_skills::activated(artefact) else {
             return;
         };
-        let at = holder.player();
-        let Some((kind, length_ms)) = super::artefact_skills::activated(item.item().artefact()) else {
-            return;
-        };
-        let source = Player::new(ctx.thread(), at);
-        if !source.skills().is_medic() {
-            return;
-        }
-        let time = ctx.reg(super::Reg::Edi);
-        let reach = crate::artefact_skills::CASCADE_REACH * crate::artefact_skills::CASCADE_REACH;
-        for place in 0..20 {
-            let Some(target) = source.at_place(ctx.thread(), place) else {
-                continue;
-            };
-            if !target.0.active()
-                || !source.ally(target.0)
-                || source.distance_squared(target.0) > reach
-            {
-                continue;
-            }
-            if kind == crate::artefact_skills::Kind::Lifebone {
-                heal_as_lifebone(item, target.0, time);
-            }
-            if let Some(resource) = item.active_resource() {
-                OwnedEffect::emit(ctx.thread(), resource, Some(length_ms))
-                    .play_timed(ctx.thread(), target.0.at, time);
+        let source = item.item().inventory().and_then(|v| v.holder()).map(|holder| Player::new(ctx.thread(), holder.player()));
+        let mut reached = Places::EMPTY;
+        if let Some(source) = source.filter(|source| source.skills().is_medic()) {
+            let time = ctx.reg(super::Reg::Edi);
+            let reach = crate::artefact_skills::CASCADE_REACH * crate::artefact_skills::CASCADE_REACH;
+            for place in 0..20 {
+                let Some(target) = source.at_place(ctx.thread(), place) else {
+                    continue;
+                };
+                if !target.0.active() || !source.ally(target.0) || source.distance_squared(target.0) > reach {
+                    continue;
+                }
+                reached = Places::new(reached.bits() | 1 << place).unwrap_or(reached);
+                if kind == crate::artefact_skills::Kind::Lifebone {
+                    heal_as_lifebone(item, target.0, time);
+                }
+                if let Some(resource) = item.active_resource() {
+                    OwnedEffect::emit(ctx.thread(), resource, Some(length_ms)).play_timed(ctx.thread(), target.0.at, time);
+                }
             }
         }
+        super::artefact_skills::activate(ctx.thread(), artefact, reached);
     }
 }
 
-/// A Lifebone's active on `target`: its configured affects removed, body, head and pain full.
+/// A Lifebone's active on `target`: its configured affects removed and every body part full, as
+/// patch 54 fills its holder's (artefacts_026g.asm `heals`; the limbs too since the owner's
+/// 2026-11-14 report), each to its own maximum. `infection` is not a body part and is left.
 ///
 /// # Safety
 /// `item` is the activating Lifebone (its removed-affect records its own), `target` a live player
@@ -535,7 +643,7 @@ unsafe fn heal_as_lifebone(item: raw::MedicalArtefact, target: Player<'_>, time:
                 }
             }
         }
-        for name in [c"body", c"head", c"pain"] {
+        for name in [c"body", c"head", c"pain", c"left_hand", c"right_hand", c"left_leg", c"right_leg"] {
             if let Some(pool) = target.pool(name) {
                 raw::engine_increase_health(Some(pool), time, *pool.maximum());
             }

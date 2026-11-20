@@ -1,13 +1,21 @@
-//! The row an account has in `g26_extras`: the daily bonus
-//! ([`crate::v026g::extras`]). Its `auto_repair` column (the stock
+//! The row an account has in `g26_extras`: the daily bonus and the shop's
+//! "Hide owned" box ([`crate::v026g::extras`]). Its `auto_repair` column (the stock
 //! auto-repair box) and `tutorial_flags` stay, unused: srp has no repair
 //! (the owner, 2026-11-08) and no tutorial (2026-10-19); a new row takes
 //! their default, 0.
 
 use rusqlite::{Connection, OptionalExtension, params};
+use survarium::v026g::lobby::shop_filter::OwnedItems;
 
 use crate::persist::PersistError;
 use crate::v026g::extras::{DailyBonus, Extras};
+
+/// The schema step that adds the shop's "Hide owned" box
+/// (`OwnedItems::code`; any other number is unticked): every account of
+/// before unticked, as its box was at every start.
+pub(super) const SHOP_OWNED_MIGRATION: &str = "
+    ALTER TABLE g26_extras ADD COLUMN shop_owned INTEGER NOT NULL DEFAULT 0;
+    ";
 
 /// The schema step that adds the table. An account of before keeps its
 /// place in the tutorial: a nickname, the step it reported, and whether it
@@ -40,7 +48,7 @@ pub(super) fn load(connection: &Connection, account_id: u32) -> Result<Extras, P
     let extras = connection
         .query_row(
             "SELECT bonus_day, bonus_last_day, bonus_wins,
-                    bonus_completed, bonus_shown_day
+                    bonus_completed, bonus_shown_day, shop_owned
              FROM g26_extras WHERE account_id = ?1",
             [account_id],
             |row| {
@@ -52,6 +60,7 @@ pub(super) fn load(connection: &Connection, account_id: u32) -> Result<Extras, P
                         completed: row.get(3)?,
                         shown_day: row.get::<_, i64>(4)?.max(0) as u64,
                     },
+                    shop_owned: OwnedItems::of_code(row.get(5)?),
                 })
             },
         )
@@ -71,13 +80,14 @@ pub(super) fn save(
     connection.execute(
         "INSERT INTO g26_extras (
             account_id, bonus_day, bonus_last_day, bonus_wins,
-            bonus_completed, bonus_shown_day
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            bonus_completed, bonus_shown_day, shop_owned
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(account_id) DO UPDATE SET
             bonus_day = excluded.bonus_day, bonus_last_day = excluded.bonus_last_day,
             bonus_wins = excluded.bonus_wins,
             bonus_completed = excluded.bonus_completed,
-            bonus_shown_day = excluded.bonus_shown_day",
+            bonus_shown_day = excluded.bonus_shown_day,
+            shop_owned = excluded.shop_owned",
         params![
             account_id,
             extras.bonus.day,
@@ -85,6 +95,7 @@ pub(super) fn save(
             extras.bonus.packed_wins(),
             extras.bonus.completed,
             day(extras.bonus.shown_day),
+            extras.shop_owned.code(),
         ],
     )?;
     Ok(())
@@ -123,15 +134,18 @@ mod tests {
                 completed: false,
                 shown_day: 20_371,
             },
+            shop_owned: OwnedItems::Hidden,
         };
         repository.save(7, &account).unwrap();
         // A plain account beside it: a new account's row.
         repository.save(8, &Account::new("Bob")).unwrap();
         let loaded = repository.load_all().unwrap();
         assert_eq!(loaded[0], (7, account.clone()));
+        assert_eq!(loaded[1].1.extras.shop_owned, OwnedItems::Shown);
         // A change is written over the row.
         account.extras.bonus.completed = true;
         account.extras.bonus.day = 7;
+        account.extras.shop_owned = OwnedItems::Shown;
         repository.save(7, &account).unwrap();
         assert_eq!(repository.load_all().unwrap()[0].1, account);
         drop(repository);
@@ -188,7 +202,6 @@ mod tests {
             (alice.name.as_str(), alice.generic_money),
             ("Alice", 777)
         );
-        assert!(alice.autobuy);
         // The tutorial's flags the step wrote are not read any more (no tutorial).
         // Nothing else of the new state: no bonus yet.
         for (_, account) in &loaded {

@@ -18,16 +18,48 @@
 //! starts as the login's part before an `@`. A rename changes the name
 //! only: the sign-in is not touched. [choice] A new name must be shown by
 //! no other account and be no other account's login (so nobody can pose as
-//! the owner of a login); the check for that is the lobby's, which has the
-//! store. The price is `SRP_RENAME_COST` silver, by default 25,000 (what
+//! the owner of a login). The shared store serializes registration and
+//! renaming, rechecking availability before charging. The price is
+//! `SRP_RENAME_COST` silver, by default 25,000 (what
 //! the rename voucher cost: its 250 gold in silver).
 
 use super::account::{Account, cap_name};
 use super::premium::Settings;
 
+/// A nickname that fits the client's buffers and contains no blank/control characters.
+pub struct Nickname(String);
+
+impl Nickname {
+    pub fn parse(name: &str) -> Result<Self, survarium::v026g::lobby::NameRefusal> {
+        use survarium::v026g::lobby::{NameRefusal, limits};
+        if name.chars().count() < 3 {
+            return Err(NameRefusal::Short);
+        }
+        if name.chars().any(char::is_whitespace) {
+            return Err(NameRefusal::Space);
+        }
+        if name
+            .chars()
+            .any(|c| c.is_control() || c == char::REPLACEMENT_CHARACTER)
+        {
+            return Err(NameRefusal::WrongSymbol);
+        }
+        if name.len() > limits::NAME {
+            return Err(NameRefusal::Pattern);
+        }
+        Ok(Self(name.to_owned()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
 /// Why a rename is refused once the name itself is good.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RenameError {
+    Taken,
+    NoAccount,
     NotEnoughMoney,
 }
 
@@ -35,6 +67,7 @@ impl RenameError {
     /// The game's own text for the refusal.
     pub fn text_key(&self) -> &'static str {
         match self {
+            Self::Taken | Self::NoAccount => "st_change_name_error",
             Self::NotEnoughMoney => "st_not_enougth_money",
         }
     }
@@ -43,7 +76,11 @@ impl RenameError {
 /// `49 04`: pay for the rename in silver and take the name (cut to what the
 /// client's buffers hold). Returns the silver paid. The caller has checked
 /// the name.
-pub fn rename(account: &mut Account, settings: &Settings, name: &str) -> Result<u32, RenameError> {
+pub(crate) fn rename(
+    account: &mut Account,
+    settings: &Settings,
+    name: &str,
+) -> Result<u32, RenameError> {
     if account.generic_money < settings.rename_cost {
         return Err(RenameError::NotEnoughMoney);
     }
@@ -55,6 +92,21 @@ pub fn rename(account: &mut Account, settings: &Settings, name: &str) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nickname_parsing_preserves_the_wire_validation_rules() {
+        use survarium::v026g::lobby::NameRefusal;
+        for (name, refusal) in [
+            ("ab", NameRefusal::Short),
+            ("a b", NameRefusal::Space),
+            ("ab\u{0001}", NameRefusal::WrongSymbol),
+            ("ab\u{fffd}", NameRefusal::WrongSymbol),
+        ] {
+            assert_eq!(Nickname::parse(name).err(), Some(refusal));
+        }
+        assert_eq!(Nickname::parse(&"я".repeat(32)).err(), Some(NameRefusal::Pattern));
+        assert_eq!(Nickname::parse("Сталкер").unwrap().as_str(), "Сталкер");
+    }
 
     #[test]
     fn a_rename_is_paid_in_silver() {
