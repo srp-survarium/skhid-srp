@@ -9,6 +9,48 @@ release that made it what it is now.
 
 ---
 
+## 20 Nov, 16:57 — TODO: the owner's words (update required)
+
+<!-- Revision 68 (026g-rev68), released 2026-11-20 16:57 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2258 Medical tree: the antitoxin's skills (Sharp Eye, Second Wind, Concentration)
+- TODO: #2259 Rooms: maps by build (0.26, 0.11, 0.21, 0.69, STALKER)
+- TODO: #2264 London evening's vine bushes: their dried-leaves material set, as 0.31a2
+- TODO: #2269 London rain's sand over stones blended as 0.31a2 (sand_base_alpha_vc)
+- TODO: #2263 Rooms: the create window starts with the last room's PIN typed
+- TODO: #2272 Rooms: a private room is made by one request
+- TODO: #2262 Rooms: a leave that ends the match still takes its member out of the room
+- TODO: #2090 Lamps: a lit alarm lamp's red ambient light goes out with it
+- TODO: #2092 Lamps: lit kerosene lamps break, their flame goes out
+- TODO: #2094 London's campfires burn
+- TODO: #2097 London's and Vector's lighting: three environment probe fixes
+- TODO: #2270 re-kit: decal priority sort; 0.31a2's decal stage matches
+- TODO: #2275 Lamps: kerosene lamps break on every map (Fort and Chemical Plant v0.21)
+- TODO: #1588 Notes: DXVK's performance settings and why each stays at its default
+- TODO: #549 Docs: distinguish London spawn-protection times by mode
+- TODO: #1581 Add the Rust client transition plan and work log
+- TODO: #1583 Notes: fullscreen refresh rate and DXVK's fullscreen exits
+- TODO: #1112 Notes: the scopes work's handoff (paused 2026-11-02)
+- TODO: #1274 docs: 0.69 pixel-correct shooting and backport assessment
+- TODO: #1578 Notes: the OLTA resolve runs; why the Radar glass bricks show rows
+- TODO: #468 docs: retail 0.69d0 netcode, prediction and hit feedback
+- TODO: #472 docs: porting 0.69's netcode to 0.26g and srp (feasibility, phases, tick length)
+- TODO: #467 Notes: retail Research markers and the stock artefact glow (folds #378, #379)
+- TODO: #1835 Patch 146 notes: the partial sort and push_heap copies; one re-kit name for 0x1603B0
+- TODO: #2072 re-kit: grass_cook::on_layers_loaded and its stack per grass instance
+- TODO: #355 re-kit: pain regenerates through damage_model::tick (item regeneration bonus applies)
+- TODO: #2298 Match history in srp.db, its API and the Stats tab (/stats)
+- TODO: #2290 Updater and launcher: the relay route (auto / on / off), and why the server is not reached
+- TODO: #2299 Stats: the day's leaders and the all-time totals
+- TODO: #1544 Face choice: each account's face, chosen in the lobby, drawn by every game
+- TODO: #2300 Stats: a match's map with the rooms' own picture of it
+- TODO: #2301 Sign-in screen: no VPN advice when the server can't be reached
+- TODO: #2303 Face choice: a stray file removed, a lost choice asked again
+- TODO: #2302 Stats: all time as the other tables, fewer lines; the header's short tagline
+- TODO: #2304 Stats: a match's replay from its page
+- TODO: #2305 Stats: a map's picture leads to the map, as its name does
+- TODO: #2306 Relay: the site's name on the relay is playskhid.link
+
 ## 19 Nov, 14:50 — TODO: the owner's words (update required)
 
 <!-- Revision 67 (026g-rev67), released 2026-11-19 14:50 UTC. To be worded for players; what it shipped: -->
