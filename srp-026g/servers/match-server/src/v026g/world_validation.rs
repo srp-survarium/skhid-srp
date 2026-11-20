@@ -95,6 +95,13 @@ pub(super) fn unread_kits(profiles: &[MatchProfile], from: usize) -> Option<Stri
         .find_map(|(place, profile)| place_kits(place, profile, dictionary).err())
 }
 
+/// The items dictionary's dict ids, rising (its items are by id): what a
+/// weapon counted in a world's statistics is one of.
+fn dict_ids() -> &'static [u16] {
+    static IDS: std::sync::OnceLock<Vec<u16>> = std::sync::OnceLock::new();
+    IDS.get_or_init(|| Dictionary::shared().items.iter().map(|item| item.dict_id).collect())
+}
+
 fn place_kits(
     place: usize,
     profile: &MatchProfile,
@@ -170,6 +177,7 @@ pub fn check(body: &[u8], time: u32, places: usize, roster: Roster) -> Result<()
             artefacts: None,
             objects: Some(&objects),
             inventory: inventory.as_ref(),
+            dict_ids: Some(dict_ids()),
         };
         match world::validate(body, &context) {
             Ok(()) => return Ok(()),

@@ -458,6 +458,7 @@ impl World {
                 statistics: Some(PlayerStatistics::default()),
                 pay_statistics: None,
                 supplies: None,
+                weapons: Vec::new(),
             }],
         };
         let terms = Terms::at(session::v026g::quests::now());

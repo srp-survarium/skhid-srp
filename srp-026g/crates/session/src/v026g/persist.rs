@@ -164,7 +164,9 @@ const MIGRATIONS: &[&str] = &[
     history::MIGRATION,
     // 19: the face an account chose (`faces`).
     faces::MIGRATION,
-    // 20: the average score list from five matches (`history`).
+    // 20: what a player did with each weapon (`history`).
+    history::WEAPONS_MIGRATION,
+    // 21: the average score list from five matches (`history`).
     history::SCORE_AVG_BOUND_MIGRATION,
 ];
 

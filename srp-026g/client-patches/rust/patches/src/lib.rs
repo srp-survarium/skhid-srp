@@ -58,6 +58,7 @@ pub mod camera_sweep;
 pub mod lamps;
 pub mod artefact_score;
 pub mod battery_progress;
+pub mod weapon_stats;
 
 pub mod hud_options;
 // patch 147: every run's logs in files of their own

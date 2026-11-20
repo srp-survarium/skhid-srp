@@ -3176,6 +3176,61 @@ hooks in the patched exe on made-up objects (a relay paid at its own team's
 delivery, steps dropped at the other team's), and the game's own serialize and
 deserialize of two records with the hooks inside.
 
+### Per-weapon counts (patch 165)
+
+`weapon_stats` (Rust, `vostok::weapon_stats`; the table's type and wire form are
+`srp_validate::world::PlaceWeapons`, `crates/srp-validate/src/world/weapons.rs`) counts per place
+and weapon what the statistics count per place and kit, and four things they do not; the research
+and every site's proof are in `kill_weapon.md` (sections 2 to 4). Its state is one table of the
+shared statistics counted (keyed by their address): 20 places of at most 16 entries, in rising dict
+id, "no weapon known" (dict id 0) first; a weapon past a place's fifteenth is counted as that.
+
+- `weapon_stats.killed` 0x26DA00 (the handler's on_player_killed, vtable 0xA0755C slot +0, 9 bytes;
+  ECX the handler, the site's ESP its 17 arguments): a death for the victim's place and the item in
+  its hands, always, as event 2 (0x2F4F4E, 0x2F4FA4); a kill for the killer's place and the damage
+  source's dict id (+10h) when the killer is a place, not the victim, of the other team, as event 0
+  (0x2F5028..0x2F5084), a headshot with it (+38h, event 15), the distance between the two positions
+  the call carries (+18h, +28h; none for the zeros of a killer with no player), and what the killing
+  bullet (+44h) keeps: through cover when its `m_change_trajectory_count` (+84h) is over its
+  `m_ricochet_count` (+88h), by a ricochet when that is not 0 (patch 67's reading; not for the
+  stock, +3Ch).
+- `weapon_stats.hit` 0x2DA10C (generate_hit_event before the handler's on_player_damaged, 6
+  bytes; ESI the victim, EDI the attacker's player or 0, EBP the bullet or 0, EBX the victim's
+  place): for an attacker that is a place of another team than the victim's, the pain (the frame's
+  +30h, what the damage record adds) for the bullet's weapon (`[[bullet+0Ch]+25Ch]`, none without a
+  bullet), and a hit when the statistics count one (the flag +38h, no stock hit +34h: 0x2F5493).
+- `weapon_stats.fired` 0x2D7843 (on_fire before on_player_weapon_firing, 9 bytes; ESI the player
+  + 110h): the bullets (the site's ESP+14h, a word as the statistics add it) for the item in the
+  shooter's hands.
+- `battery.carrier_tick` 0x2DAAD3 (base_player::tick, the site of patches 92, 109 and 111; order
+  5): a live player's (+33Ch) tick, 50 ms, for the item in its hands.
+- The item in a player's hands: its held object (+128h) when one of its inventory's 23 slots holds
+  it (a slot holds the object + 10h), by that item's dictionary entry (+25Ch, its +0 the dict id).
+  The held object is only compared: a battery, which no slot has, is no weapon known.
+- `weapon_stats.made` 0x2F4BC1 and `weapon_stats.reset` 0x2F4C31 (the shared statistics'
+  constructor and their reset between matches, `mov [edi+31C0h],ebx` in both, 6 bytes; EDI the
+  statistics): the table begins, empty, where the records are zero.
+- `weapon_stats.save` 0x2F5BD0 (serialize's epilogue, 5 bytes; ESI the statistics, EDI the writer)
+  appends the block with `buffer_writer::w` (0x7AC10, `engine_append_packet_bytes`) while the
+  statistics are counted; `weapon_stats.load` 0x2F5C83 (deserialize with its tail read, 7 bytes; EDI
+  the reader, whose bytes are the statistics section alone, 0x2D2AEE) takes what follows the tail:
+  a block that reads is the table; none, or one that does not read, leaves the statistics uncounted
+  and the game writing none until their next reset.
+
+The block (after the 11-byte tail; `snapshot_rules.md` 3.5): `u8 version 1`, `u16` the bytes after
+it, then for each of the 20 places `u8 n` and n entries of 30 bytes. 23 bytes with no entry, 9623
+at the most (20 places of 16 weapons), some 2.5 KB with five weapons a place: a world of 11 to 14
+KB of its 0xF000 (61440) byte buffer becomes 14 to 17 KB, and the largest world seen (0x818A, the
+10v10 of section 3.66) 43 KB with every table full.
+
+Simulation: nothing a match plays out changes (no `simulation_changes.tsv` row); the world's
+bytes and hash do, so every game of a match must run it. `check_weapon_stats_026g.py` runs the
+game's own on_fire and generate_hit_event whole, generate_killed_event's handler call from its own
+frame, base_player::tick's site, the statistics' constructor, reset, serialize and deserialize in
+both exes (every register and byte of the game's the original's; the table after the tail; each
+place's weapons adding up to its record; a rollback, a second game and a world without the table).
+**Not run:** a game.
+
 ### Free for all (patch 142)
 
 `free_for_all` (Rust, `vostok::respawn`, `vostok::ui`) lets a player have a team of his own (srp's
