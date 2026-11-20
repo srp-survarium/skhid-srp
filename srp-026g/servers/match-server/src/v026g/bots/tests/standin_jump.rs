@@ -132,6 +132,68 @@ pub(crate) fn stand_in_client_jump() -> bool {
     *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_JUMP").map_or(true, |v| v != "old"))
 }
 
+/// [stand-in jump] Whether the stand-in flies a forward jump by the client's own flight (`SRP_BENCH_STAND_IN_JUMP`: `controller`, the
+/// default; `client` the clip's root as before, `old` the clip chased): `body::FlownJump` from the body's kept controller, the very
+/// flight the reckoning and the press forecast play (`mapdata::controller::jump::Flying`, `WalkGrid::kept_fly_step`; A388: the
+/// port's flight is the exe's on 91 of 91 rig flights). A press with a side or back key keeps the clip, as the reckoning's does.
+pub(crate) fn stand_in_controller_jump() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| bench_settings().var("SRP_BENCH_STAND_IN_JUMP").map_or(true, |v| v != "client" && v != "old"))
+}
+
+/// [stand-in jump] The client's own flight of a press ([`stand_in_controller_jump`]): the reckoning's press (`body::FlownJump::pressed`)
+/// from the body's kept controller at `feet`, its keys `keys` (sprint taken off where the body may not sprint), its last move
+/// `speed` m/s and its speed level `level`; none with the switch off and for a side or back press (counted, [`controller_jumps`]).
+pub(crate) fn controller_flight(
+    grid: &mapdata::WalkGrid,
+    kept: Option<crate::v026g::bots::body::KeptBody>,
+    feet: Vec3,
+    keys: u32,
+    speed: f32,
+    level: f32,
+    may_sprint: bool,
+) -> Option<crate::v026g::bots::body::FlownJump> {
+    if !stand_in_controller_jump() {
+        return None;
+    }
+    let keys = if may_sprint { keys } else { keys & !key::SPRINT };
+    let flight = crate::v026g::bots::body::FlownJump::pressed(grid, kept, feet, keys, speed, level, crate::v026g::bots::body::kept_clock::Of::StandIn);
+    controller_jumps::count(if flight.is_some() { controller_jumps::Kind::Flown } else { controller_jumps::Kind::Clip });
+    flight
+}
+
+/// [stand-in jump] The stand-in's jumps by their flight ([`stand_in_controller_jump`]): flown by the client's flight, kept on the clip
+/// (a side or back press), and how the flights ended: on the ground, falling on. With `SRP_BENCH_STAND_IN_JUMP_LOG` set each flight's
+/// end is printed (`stand-in jump: ...`).
+pub(crate) mod controller_jumps {
+    use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
+    #[derive(Clone, Copy)]
+    pub(crate) enum Kind {
+        Flown,
+        Clip,
+        Landed,
+        Fell,
+    }
+
+    static COUNTS: [AtomicU64; 4] = [const { AtomicU64::new(0) }; 4];
+
+    pub(crate) fn count(kind: Kind) {
+        COUNTS[kind as usize].fetch_add(1, Relaxed);
+    }
+
+    /// (flown, kept on the clip, landed, fell on) so far.
+    pub(crate) fn counts() -> [u64; 4] {
+        std::array::from_fn(|i| COUNTS[i].load(Relaxed))
+    }
+
+    /// Whether each flight's end is printed (`SRP_BENCH_STAND_IN_JUMP_LOG`).
+    pub(crate) fn log() -> bool {
+        static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *ON.get_or_init(|| std::env::var_os("SRP_BENCH_STAND_IN_JUMP_LOG").is_some())
+    }
+}
+
 /// [T3] The client's clip for a press ([`stand_in_client_jump`]): `jump_arc::Clip::of` by the keys and the body's speed (a body that
 /// may not sprint takes the short jump), none with the old flight.
 pub(crate) fn client_clip(keys: u32, speed: f32, may_sprint: bool) -> Option<crate::v026g::bots::jump_arc::Clip> {
@@ -768,6 +830,9 @@ pub(crate) struct Flight {
     /// [A364] The body's last horizontal move at the press, m/s (the game's player +0x334): a short client jump travels its direction
     /// clip x `jump_arc::Clip::carry` of it.
     pub(crate) speed: f32,
+    /// [stand-in jump] The client's own flight from the kept controller ([`stand_in_controller_jump`]): it moves the body, not the
+    /// clip; none: the clip's flight (a side or back press, or the switch off).
+    pub(crate) flown: Option<crate::v026g::bots::body::FlownJump>,
 }
 
 impl Flight {
@@ -909,6 +974,7 @@ pub(crate) fn fly(
     body: &mut Body,
     place: Place,
     tick: u32,
+    heading: f32,
 ) -> Option<Landing> {
     let mut f = body.flight?;
     let Some(node) = body.node else {
@@ -935,6 +1001,53 @@ pub(crate) fn fly(
             fall_v,
         })
     };
+    // [stand-in jump] The client's own flight ([`stand_in_controller_jump`]): its step from the walk's heading `heading` (the input
+    // before the tick's, as the stand-in's walk) with the air control of the tick's own keys, as the reckoning steps it; at its
+    // landing step the controller is the body's kept one, on the ground, or falling on from there by the stand-in's fall.
+    if let Some(mut flown) = f.flown {
+        use crate::v026g::bots::body::FlownStep;
+        let Some(step) = flown.step(grid, heading, body.keys, body.yaw) else {
+            body.flight = None;
+            return None;
+        };
+        match step {
+            FlownStep::Air(feet) => {
+                body.feet = feet;
+                f.flown = Some(flown);
+                body.flight = Some(f);
+                return None;
+            }
+            FlownStep::Last { feet, landed: on_ground, after, vertical } => {
+                let under = grid.locate(feet, 1.5).unwrap_or(node);
+                if controller_jumps::log() {
+                    eprintln!(
+                        "stand-in jump: place {place} pressed {} ms ago from ({:.2}, {:.2}, {:.2}) at {:.2} m/s: {} at ({:.2}, {:.2}, {:.2}), vertical {vertical:.2} m/s",
+                        tick.saturating_sub(f.at),
+                        f.from.x,
+                        f.from.y,
+                        f.from.z,
+                        f.speed,
+                        if on_ground { "landed" } else { "falls on" },
+                        feet.x,
+                        feet.y,
+                        feet.z
+                    );
+                }
+                if on_ground {
+                    controller_jumps::count(controller_jumps::Kind::Landed);
+                    body.kept = Some(after);
+                    return landed(body, &f, under, feet, None);
+                }
+                controller_jumps::count(controller_jumps::Kind::Fell);
+                body.feet = feet;
+                body.kept = None;
+                f.flown = None;
+                f.fall = Some((-vertical).max(0.0));
+                body.flight = Some(f);
+                return None;
+            }
+        }
+    }
     if let Some(v) = f.fall {
         // [A318] The client's fall ([`stand_in_slow_fall`]): the slow start, then the speed at the tick's start; else as before.
         let (v, down) = if stand_in_slow_fall() {
@@ -1186,12 +1299,14 @@ pub(crate) fn honest_jump_in(
         carry: [0.0; 2],
         arc: client_clip(keys, speed, true),
         speed,
+        flown: None,
     });
     let mut top = 0.0f32;
     for k in 1..=80 {
         let (mut ticks, mut held) = (0, 0);
         let wall = wall.map(|sections| JumpWall { sections, hold: true, ticks: &mut ticks, held: &mut held });
-        let landing = fly(grid, walls, wall, &mut body, 0, start + k * TICK_MS);
+        let heading = body.yaw;
+        let landing = fly(grid, walls, wall, &mut body, 0, start + k * TICK_MS, heading);
         top = top.max(body.feet.y - base);
         if let Some(landing) = landing {
             assert_eq!(landing.to, body.feet);
@@ -1502,8 +1617,10 @@ fn a_walk_off_falls_on_at_its_walk_speed() {
             carry,
             arc: None,
             speed: 0.0,
+            flown: None,
         });
-        (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS)).map(|landing| landing.to)
+        let heading = body.yaw;
+        (1..=100).find_map(|k| fly(&grid, &walls, None, &mut body, 0, 1_000 + k * TICK_MS, heading)).map(|landing| landing.to)
     };
     let carried = fall([-3.5, 0.0]).expect("it comes down");
     assert!((carried.y - 0.9).abs() < 0.05 && carried.x < 8.6, "kept its walk: on the walkway: {carried:?}");
