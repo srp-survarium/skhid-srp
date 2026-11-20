@@ -1316,7 +1316,7 @@ engine_effects_stop:
 
     align 16, db 0xCC
 engine_effect_play:
-    ; 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
+    ; 0x2de090 survarium::game_effect_player::add: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
     push ebp
     push ebx
     push esi

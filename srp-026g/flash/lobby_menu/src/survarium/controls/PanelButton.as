@@ -1,4 +1,4 @@
-package survarium.lobbypick
+package survarium.controls
 {
    import flash.display.MovieClip;
    import flash.text.TextField;
@@ -7,14 +7,15 @@ package survarium.lobbypick
    import flash.utils.getDefinitionByName;
    import survarium.buttons.ButtonClick;
 
-   // The lobby button (the player panel's, in the premium button's place; docs/notes/lobby-scenes.md):
-   // the panel's money-box frame without anything of a money box. A code-made button (no timeline,
+   // A button of the player panel's row (the Lobby button, in the premium button's place,
+   // docs/notes/lobby-scenes.md; the Face button left of it, face-choice.md): the panel's
+   // money-box frame without anything of a money box. A code-made button (no timeline,
    // so no state frame places a coin, an amount or a hint again): its back is the money boxes' own
    // piece for the state (btnBackUp, btnBackHover, btnBackDown, btnBackDisabled, the pieces
    // SrvButtonTop's frames place), stretched to the box; its label the top menu's look (Calibri
    // bold, its colour, upper case), a little larger than the amounts, centred both ways by its
-   // measured size. No tooltip and no data: it only opens the lobby window (ButtonEvent.CLICK).
-   public class LobbyButton extends ButtonClick
+   // measured size. No tooltip and no data: its owner acts on its ButtonEvent.CLICK.
+   public class PanelButton extends ButtonClick
    {
       private static const LABEL_SIZE:int = 16;
       private static const LABEL_COLOUR:uint = 0x9BADC1;
@@ -33,13 +34,13 @@ package survarium.lobbypick
       private var _shown:String;
       private var _caption:TextField;
 
-      public function LobbyButton(w:Number, h:Number)
+      public function PanelButton(w:Number, h:Number)
       {
          super();
          this._w = w;
          this._h = h;
          this._caption = new TextField();
-         this._caption.name = "lobbyLabel";
+         this._caption.name = "panelLabel";
          this._caption.defaultTextFormat = new TextFormat("Calibri",LABEL_SIZE,LABEL_COLOUR,true);
          this._caption.embedFonts = true;
          this._caption.selectable = false;
@@ -69,7 +70,7 @@ package survarium.lobbypick
          return this._shown;
       }
 
-      // The box's size (the premium button's), which the back pieces are stretched to.
+      // The box's size (the Lobby button's: the premium button's), which the back pieces are stretched to.
       public function get boxWidth() : Number
       {
          return this._w;

@@ -2472,6 +2472,8 @@ va	name	source	ret_cleanup	result
 0x003cfe80	vostok::render::res_render_output::minimize	manual	0	
 0x001ed430	survarium::game::on_fullscreen_alttab	manual	0	
 0x001ed450	survarium::game::on_alttab	manual	0	
+0x00129bb0	vostok::buffer_string::assign_config_text	manual	0	void; keeps EAX, ECX and ESI (push ecx / pop ecx, push esi / pop esi), EDX not; writes [EAX]'s text from its start: copies [ECX]'s C string while end < capacity, then the zero at end (a full one's zero at its capacity)
+0x00204500	survarium::profile_skin_visual_cook::model_folder	manual	0	EAX: ESI, a buffer_string over its 104h bytes holding the folder of [EAX]'s path (up to its last '/'), its +110h byte '/'
 0x003c5510	stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >	manual	0	EAX: the first element equal to *EDI, or ESI (last) when none is (four-way unrolled, as stlport __find)
 0x002acc20	vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::push_back	manual	4	none; asserts "buffer overflow" (the int3 0x2ACC7F, branch 0x2ACC2B) when end == capacity end: m_effects never grows (six inline in a presenter, its constructors 0x297570 / 0x2971C0)
 0x002010e0	survarium::game_options::process_key_input	manual	4	AL: 1 the key wait ends here (Esc, DIK 1, at once 0x2010F2; a key without a conflict, given by assign_binding 0x201384), the caller then calls finish_binding or its copy; 0 it goes on (a key with no name, 0x20110F) or a conflict's message ended it (root.show_reassign_message, +10h shown, +3Ch 48h: 0x20133D..0x20134F)
@@ -2706,6 +2708,10 @@ va	name	source	ret_cleanup	result
 0x001ae110	vostok::render::effect_manager::create_effect<vostok::render::effect_rain>	manual	0	none: the effect lands in *EDI, now (force_sync) or when its async query completes
 0x0015fe20	vostok::render::grass_world::set_wind_parameters	manual	4	none
 0x00070e30	vostok::math::random32::random_f	manual	8	ST0: a float from min to max
+0x0011aa10	vostok::render::resource_pools::allocate_geometry_pool [descriptive]	manual	4	EDX:EAX: the two pools' chunk bytes summed (resource_pools::initialize logs it as "geometry pool size" and takes it from the texture pool's budget)
+0x003d40d0	vostok::render::hw_buffer_pool::hw_buffer_pool [descriptive]	manual	12	EAX: the receiver (EDI)
+0x003d3c70	vostok::render::hw_buffer_pool_chunk::hw_buffer_pool_chunk [descriptive]	manual	4	EAX: the receiver (ESI)
+0x003d43a0	vostok::render::hw_buffer_pool::used_memory [descriptive]	manual	0	EAX: the bytes of every chunk's taken ranges (last - first + 1 each; untyped_buffer's "No enough memory" line prints it as the first figure)
 0x0030f5a0	survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme	manual	12	EAX: the lexeme out-param (stack+4); the clip speed it hands 0x31EBD0 is +138h through 0x2D5AE0 index 13 (0x30F61D), as weapon_core_reload_state's
 0x00311070	survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme	manual	12	EAX: the lexeme out-param (stack+4); the clip speed it hands on is +14Ch through 0x2D5AE0 index 13 (0x3110D5)
 0x0028bee0	survarium::lobby_menu::find_players	manual	4	AL: 1 (callback handled); the text of 3 bytes or more goes to 0x26B660 as it is (no cut, no check of its bytes), a shorter one nowhere
