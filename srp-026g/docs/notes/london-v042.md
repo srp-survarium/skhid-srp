@@ -77,3 +77,17 @@ One pass over the donor's projects, by rule (the pack's `report.json` has every 
   #2334.
 
 ## Checked
+
+- Loaded headless on patch 169's exe (#2340) with `forward-effects@1` and this pack, no sound device
+  (`work-london-032-042/rig/load.sh`): `day_4`, `rain_4` and `evening_4` exit 0, 28 views each, no
+  "cannot find shader" assert. The other six projects: see the PR.
+- Compared with 0.44a5 itself at the same 28 views in each weather (`private/renders/london-v042/`,
+  `rain/`, `evening/`): the owner's ten FFA picks, his London points of 2026-11-19, and the map's own
+  fires, sand vortices and sky (eyes found on the port's collision). Day: 1.0 to 4.5/255 at most views;
+  the effect views up to 16.4 (moving particles, and the grass below). Rain: the port darker,
+  most visibly the glass towers' reflections. Evening: 1.0 to 8.3 but for those towers (37).
+- The grass is there (0.44a5's layers) but darker than 0.44a5's: 0.44a5 lights foliage through with
+  a direct translucency term of the environment (`direct_translucency_color`, `_intensity`,
+  `sun_dir_vs_normal_factor`; London's day 0.57 / 0.56 / 0.40 at 1.2), which 0.26g's executable has
+  no setting for. Drawing it so needs a client patch, as the forward effects did.
+- Not yet: breakable lamps (the lamp generator does not know `ported/v044a` fixtures), a game window.
