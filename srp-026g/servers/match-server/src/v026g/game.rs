@@ -137,6 +137,9 @@ mod live;
 mod start;
 use late_join::{Admission, LoadingProfile};
 
+/// Freeze Tag's match ends this long after the snapshot of its final win at most.
+const FREEZE_TAG_END_DELAY_MS: u32 = 2_000;
+
 /// A tick is final this long after it: the server's event horizon.
 const HORIZON_MS: u32 = 250;
 /// Inputs further ahead than this are dropped (the client moves them back).
@@ -4418,7 +4421,13 @@ impl Game {
         if over && self.mode_end_at.is_none() {
             // The rule's own end is at most the delay after the tick that
             // reached the goal, which is this snapshot's or an earlier one.
-            let delayed = snapshot.time + self.settings.timing.end_delay_ms;
+            // Freeze Tag's last freeze is seen a moment, not the end delay's 3 s (the owner,
+            // 2026-11-22: "after a second or two").
+            let delay = match self.game_mode() {
+                RuleMode::FreezeTag => self.settings.timing.end_delay_ms.min(FREEZE_TAG_END_DELAY_MS),
+                _ => self.settings.timing.end_delay_ms,
+            };
+            let delayed = snapshot.time + delay;
             let at = research_end.or(hunt_end).map_or(delayed, |end| end.min(delayed));
             log::info!(
                 "Match {:#x}: the mode's rule has its end at {} ms (standing {standing:?}); the \

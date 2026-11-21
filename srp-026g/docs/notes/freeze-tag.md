@@ -28,6 +28,11 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   rule's and do not count it.
 - Freezing the entire opposing team awards one round. Simultaneous wipes
   award neither team a point and replay the round.
+- The final win ends the match: no pause, no countdown and no respawn after
+  it, and the match server ends it 2 s after the snapshot that has it
+  (`FREEZE_TAG_END_DELAY_MS`, the other modes' end delay is 3 s), so the last
+  freeze is seen before the results (the owner, 2026-11-22: "after a second
+  or two").
 - The existing match time limit still applies. If it expires before either
   team reaches five wins, the unfinished series is a draw.
 - Between rounds all players wait 5 seconds, held in place. Then every
