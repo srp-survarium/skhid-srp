@@ -47,6 +47,7 @@ package
    import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
    import survarium.modes.FfaProgress;
+   import survarium.constants.UiSound;
    import survarium.modes.ModeNotice;
    import survarium.modes.ModeIntroText;
    import flash.utils.getTimer;
@@ -144,14 +145,16 @@ package
       private function refresh_context() : void
       {
          if(!this.contextInfo) return;
-         var offer:Boolean = this._artefactOfferKey.length != 0;
-         this.contextInfo.visible = offer ? !this._chatTyping && !this._profilePanel.visible : this._nativeContext.visible;
+         var freeze:Boolean = this._gameType == 12 && this._freezeContext != null;
+         var context:Object = freeze ? this._freezeContext : this._nativeContext;
+         var offer:Boolean = !freeze && this._artefactOfferKey.length != 0;
+         this.contextInfo.visible = (offer || freeze) ? !this._chatTyping && !this._profilePanel.visible : context.visible;
          if(!this.contextInfo.visible) return;
-         var value:int = offer ? 0 : this._nativeContext.value;
+         var value:int = offer ? 0 : context.value;
          var frame:int = value == 0 ? 1 : 2;
          if(this.contextInfo.currentFrame != frame) this.contextInfo.gotoAndStop(frame);
          if(offer) this.contextInfo.contextText.text = LocalizationData.format(this._artefactOfferKey, this._artefactOfferValue);
-         else this.contextInfo.contextText.text = this._nativeContext.text;
+         else this.contextInfo.contextText.text = context.text;
          if(value != 0)
          {
             this.contextInfo.progress_indicator.width = this.contextInfo.contextText.textWidth + 10;
@@ -597,6 +600,8 @@ package
 
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
+      private var _freezeContext:Object = null;
+      private var _freezeWasFrozen:Boolean = false;
       private var _pregameText:String = "";
 
       // Each frame the mode notice shows (its countdown, then its reading time): its end, and its place
@@ -1754,6 +1759,9 @@ package
             this._researchCountdowns = null;
          }
          _gameType = type;
+         this._freezeContext = null;
+         this._freezeWasFrozen = false;
+         this.refresh_context();
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
          this.researchUnits.removeEventListener(Event.ENTER_FRAME,this.onResearchFrame);
          this.player_list.players.ranked = type == this.GAME_MODE_FREE_FOR_ALL;
@@ -1765,6 +1773,14 @@ package
             // Reuse the timer's frame, hiding every team counter.
             this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
             this._ffaProgress.show(this.progress_indicator);
+            return;
+         }
+         if(type == 12)
+         {
+            this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
+            this.progress_indicator.team_1_score.maximum = 3;
+            this.progress_indicator.team_2_score.maximum = 3;
+            this.set_game_progress(0,0);
             return;
          }
          if(type == this.GAME_MODE_RESEARCH)
@@ -1788,9 +1804,38 @@ package
          this.progress_indicator.gotoAndStop(this._gameType + 1);
       }
 
-      // Free for all (the exe, at each change and once after set_game_type): the kills of the game's
-      // own player, or of the one it watches; the most kills anyone has; the kills that win.
-      // Retained for native callback compatibility; FFA shows those kills in the player list.
+      // Freeze Tag uses the stock team score bars and collection/thaw widget.
+      public function freeze_tag_score(own:uint, other:uint) : void
+      {
+         if(this._gameType != 12) this.set_game_type(12);
+         this.progress_indicator.team_1_score.maximum = 3;
+         this.progress_indicator.team_2_score.maximum = 3;
+         this.set_game_progress(own,other);
+      }
+
+      // Status: 0 playing; 1/2/3 match win/loss/draw; 4/5/6 round win/loss/draw.
+      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint) : void
+      {
+         // The last freeze also ends a round; it still gets the freeze cue.
+         var isFrozen:Boolean = frozen != 0;
+         if(isFrozen && !this._freezeWasFrozen)
+            ExternalInterface.call("sound_play",UiSound.DAMAGE_NOT_PIERCED);
+         this._freezeWasFrozen = isFrozen;
+         var text:String;
+         if(status >= 1 && status <= 3)
+            text = LocalizationData.getName(status == 1 ? "st_freeze_win" : status == 2 ? "st_freeze_lose" : "st_freeze_draw");
+         else if(status >= 4)
+            text = LocalizationData.format(status == 4 ? "st_freeze_round_win" : status == 5 ? "st_freeze_round_lose" : "st_freeze_round_draw", String(Math.ceil(remaining / 1000)));
+         else if(isFrozen)
+            text = LocalizationData.format("st_freeze_frozen", String(Math.floor(progress / 30)));
+         else
+            text = LocalizationData.getName(progress > 0 ? "st_freeze_thawing" : "st_freeze_help");
+         // Let native pickup/use prompts own the widget during ordinary play.
+         this._freezeContext = isFrozen || progress > 0 || status != 0
+            ? {text:text,value:status == 0 ? Math.floor(progress / 30) : 0,visible:true} : null;
+         this.refresh_context();
+      }
+
       public function set_ffa_progress(own:int, top:int, target:int) : void
       {
          this._ffaProgress.tell(own,top,target);
@@ -1813,7 +1858,7 @@ package
       private function matchTime() : Object
       {
          if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH
-            || this._gameType == this.GAME_MODE_FREE_FOR_ALL)
+            || this._gameType == this.GAME_MODE_FREE_FOR_ALL || this._gameType == 12)
          {
             return this.progress_indicator.match_time_2_tdm;
          }
@@ -2032,7 +2077,7 @@ package
       public function set_game_progress(team1:uint, team2:uint) : void
       {
          trace("set_game_progress::",team1,team2);
-         if(this._gameType == this.GAME_MODE_RESEARCH && this.progress_indicator.team_1_score)
+         if((this._gameType == this.GAME_MODE_RESEARCH || this._gameType == 12) && this.progress_indicator.team_1_score)
          {
             this.progress_indicator.team1Progress.visible = this.progress_indicator.team_1_score.visible = true;
             this.progress_indicator.team2Progress.visible = this.progress_indicator.team_2_score.visible = true;

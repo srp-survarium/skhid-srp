@@ -1224,6 +1224,17 @@ st_freedom_026_head_desc	A Szabadság exoskeletonjának zárt sisakja, beépíte
 st_freedom_026_helmet_name	Szabadság-exoskeletonsisak
 st_freedom_026_suit_desc	Kísérleti katonai exoskeleton a Szabadság színeire festve. Ára és tervezési hibái miatt nem került sorozatgyártásba, de föld alatti műhelyekben még készülnek kisebb sorozatok. Beépített artefaktumtárolóval.
 st_freedom_026_suit_name	Szabadság-exoskeleton
+st_freeze_draw	Döntetlen
+st_freeze_frozen	Megfagytál. Várj egy csapattársra. Kiolvasztás: %1$s%
+st_freeze_help	Fagyaszd meg az összes ellenfelet. Az első 3 kört megnyerő csapat győz. Állj 3 másodpercig egy fagyott csapattárs 3 méteres körzetében a kiolvasztásához.
+st_freeze_lose	Vereség — az ellenfél három kört nyert.
+st_freeze_marker	Megfagyott
+st_freeze_round_draw	Döntetlen. Újrakezdés: %1$s mp.
+st_freeze_round_lose	Elvesztett kör. Következő: %1$s mp.
+st_freeze_round_win	Megnyert kör. Következő: %1$s mp.
+st_freeze_standing	Harcban: saját csapat %1$s — ellenfelek %2$s
+st_freeze_thawing	Csapattárs kiolvasztása…
+st_freeze_win	Győzelem — három megnyert kör.
 st_friend_options_label	Barátbeállítások
 st_friend_search_hint	A kereséshez nyomj Entert
 st_friend_state_away	Távol
@@ -1529,6 +1540,8 @@ st_mode_05_description	Foglaljátok el a mobil kutatóegységeket. Minden elfogl
 st_mode_05_name	Kutatás
 st_mode_08_description	Mindenki magáért harcol. A meccs véget ér, amikor valaki eléri a szükséges ölésszámot, vagy lejár az idő. Az a harcos nyer, akinek a legtöbb ölése van.
 st_mode_08_name	Mindenki mindenki ellen
+st_mode_12_description	Fagyaszd meg az összes ellenfelet. Az első 3 kört megnyerő csapat győz. Állj 3 másodpercig egy fagyott csapattárs 3 méteres körzetében a kiolvasztásához.
+st_mode_12_name	Fagyasztó fogó
 st_modification_screen_edit_decal_hint	A matrica méretéhez és helyéhez kattints a rekeszére
 st_modification_screen_hint	Húzd az álcázást vagy matricát a leltárból a tárgy módosítási rekeszébe
 st_modified	Módosítva

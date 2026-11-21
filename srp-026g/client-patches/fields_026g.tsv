@@ -1388,3 +1388,16 @@ vostok::ui::ui_text_edit	caret	0x2A6	u16	the caret, a byte index into the line (
 vostok::ui::ui_text_edit	selection_start	0x2A8	u16	the selection's first byte; with selection_end the caret when nothing is selected (set_caret_position 0x348928); the delete of the selection 0x3486A0 removes [start, end)
 vostok::ui::ui_text_edit	selection_end	0x2AA	u16	the selection's end (select all 0x347FC0: 0 to the length)
 vostok::ui::ui_text_edit_text	edit	-4	obj<vostok::ui::ui_text_edit>	the text edit it is the +4 of (set_text 0x3479D0 calls its set_caret_position through [esi-4], 0x347A87)
+survarium::freeze_tick_frame	time	0x4	u32	base_player::tick entry argument, simulation milliseconds (0x2DAA6C after four pushes)
+survarium::freeze_rule_frame	elapsed	0x8	u32	player_respawn_rule_base::tick first argument, delta milliseconds
+survarium::freeze_rule_frame	time	0xC	u32	player_respawn_rule_base::tick second argument, simulation milliseconds (0x3169A2)
+survarium::player	pending_death	0x33D	u8	lethal hit latched by hit_impl; base_player::tick 2DAA88 invokes on_player_death before clearing it
+survarium::player	input_rotation	0x32C	u32	packed half2 input delta, cleared by spawn 2DAC8D
+survarium::player_respawn_rule_base	core	0x134	ptr<survarium::core_world>	respawn tick 31689F reads the owning world
+survarium::player_respawn_rule_base	times	0x138	u32	twenty scheduled respawn times; u32::MAX means unscheduled; tick 3168B4 compares against its time
+survarium::base_game_statistics_handler	team_zero_points	0x31D4	u16	team score, tdm rule writes at 316257; Research uses the same field
+survarium::base_game_statistics_handler	team_one_points	0x31D6	u16	second team score, tdm rule 316257
+survarium::base_game_statistics_handler	winner	0x31E4	u8	winning team 0 or 1, 2 for no winner; tdm rule and Research publish here
+survarium::game_world	player_input	0x4D58	ptr<survarium::player_input_handler>	the camera/input handler, switch_to_warmup_camera 1F8190 and switch_to_player_camera 1F8200
+survarium::player_input_handler	turn	0x338	u32	packed half-float yaw/pitch input; process_warmup_mode 242211/242238 consumes it and 24229D clears it
+survarium::player_input_handler	wheel	0x348	f32	the mouse wheel's distance change, process_warmup_mode 242201 adds it to the native orbit distance

@@ -329,6 +329,7 @@ impl Sim {
             gather,
             tdm,
             research,
+            freeze_tag: None,
             free_for_all: (self.game_mode() == RuleMode::FreeForAll)
                 .then_some(srp_validate::world::SpawnHistory::EMPTY),
             kills_deaths,

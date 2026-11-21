@@ -60,16 +60,19 @@ pub enum RuleMode {
     /// respawn points (content edit ffa-1) the free-for-all exe patch spawns
     /// each player at.
     FreeForAll = 8,
+    /// Team Freeze Tag; state follows the native respawn rule.
+    FreezeTag = 12,
 }
 
 impl RuleMode {
     /// The modes a match can be.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Batteries,
         Self::TimedBatteries,
         Self::TeamDeathmatch,
         Self::Research,
         Self::FreeForAll,
+        Self::FreezeTag,
     ];
 
     /// The mode of a config's `mode.mode`, if srp plays it.
@@ -98,7 +101,7 @@ impl RuleMode {
             Self::TimedBatteries => &[93, 91, 89, 94],
             Self::TeamDeathmatch => &[93, 91, 90, 94],
             Self::Research => &[93, 91, 480, 94],
-            Self::FreeForAll => &[93, 91, 94],
+            Self::FreeForAll | Self::FreezeTag => &[93, 91, 94],
         }
     }
 
@@ -137,6 +140,7 @@ pub enum GameMode {
     TeamDeathmatch,
     Research,
     FreeForAll,
+    FreezeTag,
     /// "Protective device: blackout" (`docs/notes/blackout.md`): the rules
     /// of [`BLACKOUT_RULES`], the static info's Blackout entry (exe patch
     /// 65) and its own pay.
@@ -172,6 +176,7 @@ impl GameMode {
             Self::TeamDeathmatch => RuleMode::TeamDeathmatch,
             Self::Research => RuleMode::Research,
             Self::FreeForAll => RuleMode::FreeForAll,
+            Self::FreezeTag => RuleMode::FreezeTag,
             Self::Blackout => BLACKOUT_RULES,
         }
     }
@@ -192,12 +197,13 @@ impl GameMode {
     }
 
     /// Every mode.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Batteries,
         Self::TimedBatteries,
         Self::TeamDeathmatch,
         Self::Research,
         Self::FreeForAll,
+        Self::FreezeTag,
         Self::Blackout,
     ];
 }
@@ -211,6 +217,7 @@ impl From<RuleMode> for GameMode {
             RuleMode::TeamDeathmatch => Self::TeamDeathmatch,
             RuleMode::Research => Self::Research,
             RuleMode::FreeForAll => Self::FreeForAll,
+            RuleMode::FreezeTag => Self::FreezeTag,
         }
     }
 }
@@ -1051,7 +1058,7 @@ mod tests {
                 RuleMode::TimedBatteries => (&[93, 91, 89, 94], 0),
                 RuleMode::TeamDeathmatch => (&[93, 91, 90, 94], 2),
                 RuleMode::FreeForAll => (&[93, 91, 94], 2),
-                RuleMode::Research => panic!("the test data has no Research"),
+                RuleMode::Research | RuleMode::FreezeTag => panic!("the test data has no Research or Freeze Tag"),
             };
             assert_eq!(map.rules, rules, "{}", map.id);
             assert_eq!(map.icon, icon, "{}", map.id);
@@ -1235,6 +1242,24 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(message.contains("no respawn points"), "{message}");
+    }
+
+    #[test]
+    fn freeze_tag_uses_two_team_spawns_without_tickets_or_ffa_twists() {
+        let added = fixtures::AddedMap {
+            mode: RuleMode::FreezeTag.number(),
+            ..fixtures::AddedMap::level_12_tdm()
+        };
+        let table = fixtures::table_of(&fixtures::with_map(&added)).unwrap();
+        let map = table.iter().find(|map| map.id == added.id).unwrap();
+        assert!(map.is_playable());
+        assert_eq!(map.mode, GameMode::FreezeTag);
+        assert_eq!(map.rules, [93, 91, 94]);
+        assert_eq!(map.respawn_points, added.respawn_points);
+        assert_eq!(GameMode::FreezeTag.lobby_number(), 12);
+        for twist in [9, 10, 11] {
+            assert_eq!(GameMode::of_lobby_number(twist), None);
+        }
     }
 
     #[test]

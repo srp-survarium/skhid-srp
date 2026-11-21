@@ -22,6 +22,7 @@ package survarium.constants
       // Free for all: everyone for themselves, most kills wins (docs/notes/ffa.md); 7 is kept for
       // another mode
       public static const FREE_FOR_ALL:int = 8;
+      public static const FREEZE_TAG:int = 12;
       
       public function GameMode()
       {

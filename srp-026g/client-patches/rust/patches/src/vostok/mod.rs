@@ -30,6 +30,7 @@ pub mod bullet;
 pub mod explosion;
 pub mod files;
 pub mod footstep;
+pub mod freeze;
 pub mod camera;
 pub mod carry_runtime;
 pub mod carry_ground;

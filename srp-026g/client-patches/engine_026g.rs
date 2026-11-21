@@ -333,6 +333,12 @@ unsafe extern "C" {
     pub fn engine_draw_triangles(renderer: *mut c_void, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
     /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
     pub fn engine_text_edit_delete_selection(edit: *mut c_void);
+    /// 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4
+    pub fn engine_freeze_reset_health(receiver: *mut c_void, time: u32);
+    /// 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0
+    pub fn engine_switch_to_warmup_camera(world: *mut c_void);
+    /// 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
+    pub fn engine_switch_to_player_camera(world: *mut c_void, first_person: u8);
 }
 
 #[allow(dead_code)]

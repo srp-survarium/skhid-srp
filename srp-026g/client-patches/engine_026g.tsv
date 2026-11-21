@@ -301,3 +301,6 @@ engine_close_clipboard	0xaefed4	-	unsigned int engine_close_clipboard(void)	impo
 engine_global_lock	0x870078	-	void *engine_global_lock(void *memory)	import
 engine_global_unlock	0x87007c	-	unsigned int engine_global_unlock(void *memory)	import
 engine_global_size	-	-	unsigned int engine_global_size(void *memory)	dynamic
+engine_freeze_reset_health	0x2e5290	EDI:receiver ESP+4:time	void engine_freeze_reset_health(struct medical_damage *receiver, unsigned int time)	thunk
+engine_switch_to_warmup_camera	0x1f8190	EDX:world	void engine_switch_to_warmup_camera(struct game_world *world)	thunk
+engine_switch_to_player_camera	0x1f8200	EAX:world ESP+4:first_person	void engine_switch_to_player_camera(struct game_world *world, unsigned char first_person)	thunk

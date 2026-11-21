@@ -80,6 +80,7 @@ struct match_options;
 struct match_options_holder;
 struct match_packet;
 struct material_pair;
+struct medical_damage;
 struct medical_effect_resource;
 struct medical_pool;
 struct medical_pools;
@@ -946,5 +947,14 @@ extern void * (__attribute__((stdcall)) *const engine_global_lock)(void * memory
 
 /* the IAT slot 0x87007c (an import, stdcall) */
 extern unsigned int (__attribute__((stdcall)) *const engine_global_unlock)(void * memory);
+
+/* 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4 */
+void engine_freeze_reset_health(struct medical_damage *receiver, unsigned int time);
+
+/* 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0 */
+void engine_switch_to_warmup_camera(struct game_world *world);
+
+/* 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4 */
+void engine_switch_to_player_camera(struct game_world *world, unsigned char first_person);
 
 #endif

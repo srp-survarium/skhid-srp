@@ -1668,6 +1668,21 @@ pub extern "C" fn hook_free_for_all_on_static_info(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
@@ -1743,6 +1758,21 @@ pub extern "C" fn hook_free_for_all_on_replay_options(frame: &mut Frame) -> u32 
     }
 }
 
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_replay_options(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_update_icons` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
@@ -1782,6 +1812,21 @@ pub extern "C" fn hook_free_for_all_on_update_icons(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::free_for_all::on_update_icons(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_hud` (0x23aa10, game_world_ui::update_player_icons' start, every frame of a match ([esp+4] the ui)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_hud(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_hud` calls this, from the game's jump at 0x23aa10,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_hud(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -2958,6 +3003,21 @@ pub extern "C" fn hook_free_for_all_on_spawns_save(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_save` (0x316fb8, player_respawn_rule_core::serialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / pop ecx, then ret 4; reached only by the fall-through at 0x316FB6): EBX the writer (its argument, 0x316F12)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_save` calls this, from the game's jump at 0x316fb8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- free_for_all (patch 142) ----
 
 /// The entry `free_for_all_on_spawns_load` (0x317038, player_respawn_rule_core::deserialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / ret 8; reached only by the fall-through at 0x317036): ESI the reader (its argument, 0x316FC7)) calls this with the saved machine.
@@ -2967,6 +3027,21 @@ pub extern "C" fn hook_free_for_all_on_spawns_load(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::free_for_all::on_spawns_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_load` (0x317038, player_respawn_rule_core::deserialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / ret 8; reached only by the fall-through at 0x317036): ESI the reader (its argument, 0x316FC7)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_load` calls this, from the game's jump at 0x317038,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_load(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3062,6 +3137,136 @@ pub extern "C" fn hook_free_for_all_on_protection_read(frame: &mut Frame) -> u32
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::free_for_all::on_protection_read(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- ragdoll (patch 76) ----
+
+/// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_step(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_step` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_step(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lamps (patch 81) ----
+
+/// The entry `lamps_on_present` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_present(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_present` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_present(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- replay_keys (patch 140) ----
+
+/// The entry `replay_keys_on_move` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_keys_on_move(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_keys_on_move` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_keys::on_move(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- voice (patch 66) ----
+
+/// The entry `voice_on_frame` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_on_frame` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_camera` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_camera(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_camera` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_camera(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_tick` (0x316826, respawn tick after kit-change trampoline/prologue; before vectors (push ebx; push esi; mov ebx,ecx; push edi)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_tick` calls this, from the game's jump at 0x316826,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- freeze_tag (patch 160) ----
+
+/// The named exits of freeze_tag::on_player_tick (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FreezeTagOnPlayerTickExit { Frozen }
+/// The entry `freeze_tag_on_player_tick` (0x2daa60, base_player::tick before deferred death: push ecx/ebx/ebp; mov ebx,ecx. Frozen exits through ret 4 without entering the prologue) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_player_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_player_tick` calls this, from the game's jump at 0x2daa60,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_player_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- freeze_tag (patch 160) ----
+
+/// The named exits of freeze_tag::on_input (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FreezeTagOnInputExit { Frozen }
+/// The entry `freeze_tag_on_input` (0x2d86ee, set_input after full prologue, before alive check; frozen goes to native common epilogue) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_input(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_input` calls this, from the game's jump at 0x2d86ee,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_input(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -3637,66 +3842,6 @@ pub extern "C" fn hook_lamps_on_destroy(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::lamps::on_destroy(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- ragdoll (patch 76) ----
-
-/// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_ragdoll_on_step(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_step` calls this, from the game's jump at 0x1f7c3c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::ragdoll::on_step(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- lamps (patch 81) ----
-
-/// The entry `lamps_on_present` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_lamps_on_present(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `lamps_on_present` calls this, from the game's jump at 0x1f7c3c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::lamps::on_present(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- replay_keys (patch 140) ----
-
-/// The entry `replay_keys_on_move` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_replay_keys_on_move(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `replay_keys_on_move` calls this, from the game's jump at 0x1f7c3c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::replay_keys::on_move(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- voice (patch 66) ----
-
-/// The entry `voice_on_frame` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_voice_on_frame(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `voice_on_frame` calls this, from the game's jump at 0x1f7c3c,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::voice::on_frame(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -5921,6 +6066,8 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_free_for_all_on_static_info(frame);
     if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_static_info(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5936,6 +6083,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     if flow != 0 { return flow; }
     let flow = hook_free_for_all_on_replay_options(frame);
     if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_replay_options(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5946,6 +6095,8 @@ pub extern "C" fn hook_blackout_on_update_icons_chain(frame: &mut Frame) -> u32 
     let flow = hook_hud_options_on_update_icons(frame);
     if flow != 0 { return flow; }
     let flow = hook_free_for_all_on_update_icons(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_hud(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -6044,6 +6195,24 @@ pub extern "C" fn hook_medical_skills_on_effect_clock_chain(frame: &mut Frame) -
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_spawns_save_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_free_for_all_on_spawns_save(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_save(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_free_for_all_on_spawns_load_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_free_for_all_on_spawns_load(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_load(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_cursor_on_match_start_chain(frame: &mut Frame) -> u32 {
     let flow = hook_hud_cursor_on_match_start(frame);
     if flow != 0 { return flow; }
@@ -6057,6 +6226,21 @@ pub extern "C" fn hook_music_on_announced_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_announced(frame);
     if flow != 0 { return flow; }
     let flow = hook_free_for_all_on_welcome(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_ragdoll_on_step(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_lamps_on_present(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_replay_keys_on_move(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_voice_on_frame(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_camera(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -6135,19 +6319,6 @@ pub extern "C" fn hook_key_remap_on_events_chain(frame: &mut Frame) -> u32 {
     let flow = hook_key_remap_on_events(frame);
     if flow != 0 { return flow; }
     let flow = hook_screenshot_on_keys(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_ragdoll_on_step(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_lamps_on_present(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_replay_keys_on_move(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_voice_on_frame(frame);
     if flow != 0 { return flow; }
     0
 }

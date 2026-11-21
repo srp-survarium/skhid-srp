@@ -93,6 +93,15 @@ package player_icons_fla
          }
       }
 
+      public function freeze_tag_label(text:String) : void
+      {
+         this.iconControl.freezeLabel = text;
+      }
+      public function freeze_tag_markers(mask:uint) : void
+      {
+         this.iconControl.freezeMarkers(mask);
+      }
+
       public function create_player_icon(id:uint, kind:uint = 0, baseScale:Number = 1) : void
       {
          this.iconControl.create_player_icon(id,kind,baseScale);

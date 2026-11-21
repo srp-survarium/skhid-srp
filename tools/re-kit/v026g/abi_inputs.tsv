@@ -2249,9 +2249,9 @@ va	name	location	role	basis
 0x001f7660	survarium::game_world::get_player	ECX	the bullet manager's engine: the game world's interface (complete world+0ECh; this-50h read, 0x1F7660)	observed
 0x001f7660	survarium::game_world::get_player	stack+4	the place (passed on to the client's get_player, 0x1F7673)	observed
 0x001f77e0	survarium::game_world::tick	byte [ESP+0Fh] at 0x1F7C3C	the join after game_world_core::move (0x1F7C37; je targets 0x1F7C24, 0x1F7C2D): the simulation stepped, before the place loop; EBX the game world, [ESP+1Ch] not yet the match options (0x1F79C6 set it); no relocation in 0x1F7C3C..0x1F7C40	observed
-0x001f8190	survarium::game_world::switch_to_warmup_camera	EDX	game-world receiver	inferred
+0x001f8190	survarium::game_world::switch_to_warmup_camera	EDX	game-world receiver: input +4D58h; sets mode 3 at input+358h and the dirty byte +35Ch, attaches input+4 through camera_director::switch_to_camera at 1F81DA; ret	observed
 0x001f8200	survarium::game_world::switch_to_player_camera	EAX	game-world receiver: input +4D58h; camera interface input+4 passed at 1F824B..1F8254	observed
-0x001f8200	survarium::game_world::switch_to_player_camera	stack+4	mode-selector Boolean: true mode 0, false mode 2 at input+358h	observed
+0x001f8200	survarium::game_world::switch_to_player_camera	stack+4	first_person, a mode-selector Boolean: true mode 0, false mode 2 at input+358h; ret 4 at 1F826D	observed
 0x001f8270	survarium::game_world::switch_to_free_fly_camera	stack+4	game-world receiver	inferred
 0x001f8360	survarium::game_world::switch_to_spectator_camera	EDX	game world: input +4D58h set to mode 4; camera interface input+4 (attached spectator)	observed
 0x001f83d0	survarium::game_world::set_game_project	EAX	project resource pointer reference	inferred
@@ -2917,8 +2917,8 @@ va	name	location	role	basis
 0x002e4f60	survarium::damage_model::~damage_model	stack+4	receiver	inferred
 0x002e5080	survarium::damage_model::hit_body_part	EDI	damage model receiver	inferred
 0x002e5080	survarium::damage_model::hit_body_part	ESI	hit_info record	inferred
-0x002e5290	survarium::damage_model::reset	EDI	receiver	inferred
-0x002e5290	survarium::damage_model::reset	stack+4	current time	inferred
+0x002e5290	survarium::damage_model::reset	EDI	receiver	observed
+0x002e5290	survarium::damage_model::reset	stack+4	current time	observed
 0x002e5370	survarium::damage_model::on_broken_limb_affect	ECX	receiver	inferred
 0x002e5370	survarium::damage_model::on_broken_limb_affect	stack+8	affect enum	inferred
 0x002e5370	survarium::damage_model::on_broken_limb_affect	stack+12	event enum	inferred
@@ -6351,3 +6351,7 @@ va	name	location	role	basis
 0x003486a0	vostok::ui::ui_text_edit's delete of the selection	ESI	the text edit (kept): its selection [+2A8h, +2AAh) deleted; a typed character's binding (0x34B5D5) calls it before the insert (0x348000)	observed
 0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	ECX	the binding (+8 its key, +0Ch its kind, 0 any; +10h its modifiers; +14h the object, +18h the method)	observed
 0x0034b4c0	vostok::ui::ui_text_edit method key binding's execute	entry ESP+4	the key's kind (1 down, 2 up; unused): the keyboard action pushes it (0x348A75)	observed
+0x002364c0	survarium::game_world_ui::set_game_progress	stack+4	UI receiver passed on to its HUD movie (236596 reads after 44h of locals and saves)	observed
+0x002364c0	survarium::game_world_ui::set_game_progress	stack+8	team 0 points (u16), loaded to BP at 2364CE	observed
+0x002364c0	survarium::game_world_ui::set_game_progress	stack+12	team 1 points (u16), loaded to DX at 2364C0	observed
+0x002364c0	survarium::game_world_ui::set_game_progress	stack+16	viewed team, loaded to EBX at 2364C9; 236523..23656D swaps points so the own team is first in root.set_game_progress	observed

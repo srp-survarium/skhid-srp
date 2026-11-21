@@ -339,6 +339,12 @@ unsafe extern "C" {
     pub fn engine_draw_triangles(renderer: Option<SystemRenderer>, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
     /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
     pub fn engine_text_edit_delete_selection(edit: Option<UiTextEdit>);
+    /// 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4
+    pub fn engine_freeze_reset_health(receiver: Option<MedicalDamage>, time: u32);
+    /// 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0
+    pub fn engine_switch_to_warmup_camera(world: Option<GameWorld>);
+    /// 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
+    pub fn engine_switch_to_player_camera(world: Option<GameWorld>, first_person: u8);
 }
 
 #[allow(dead_code)]
@@ -1030,6 +1036,24 @@ impl PlayerInputHandler {
     pub unsafe fn view(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x48).cast::<f32>().as_ptr() }
     }
+
+    /// +0x338 (u32): packed half-float yaw/pitch input; process_warmup_mode 242211/242238 consumes it and 24229D clears it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn turn(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x338).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x348 (f32): the mouse wheel's distance change, process_warmup_mode 242201 adds it to the native orbit distance
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn wheel(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x348).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::game_world (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -1152,6 +1176,24 @@ impl GameWorld {
     #[inline(always)]
     pub unsafe fn set_sound_scene(self, value: Option<SoundScene>) {
         unsafe { self.0.byte_add(0x94).cast::<Option<SoundScene>>().write_volatile(value) }
+    }
+
+    /// +0x4d58 (ptr<survarium::player_input_handler>): the camera/input handler, switch_to_warmup_camera 1F8190 and switch_to_player_camera 1F8200
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn player_input(self) -> Option<PlayerInputHandler> {
+        unsafe { self.0.byte_add(0x4d58).cast::<Option<PlayerInputHandler>>().read_volatile() }
+    }
+
+    /// +0x4d58 (ptr<survarium::player_input_handler>): the camera/input handler, switch_to_warmup_camera 1F8190 and switch_to_player_camera 1F8200
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_player_input(self, value: Option<PlayerInputHandler>) {
+        unsafe { self.0.byte_add(0x4d58).cast::<Option<PlayerInputHandler>>().write_volatile(value) }
     }
 }
 
@@ -2004,6 +2046,24 @@ impl Player {
     #[inline(always)]
     pub unsafe fn run_material_third(self) -> *mut u16 {
         unsafe { self.0.byte_add(0xf2ce).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x33d (u8): lethal hit latched by hit_impl; base_player::tick 2DAA88 invokes on_player_death before clearing it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn pending_death(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x33d).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x32c (u32): packed half2 input delta, cleared by spawn 2DAC8D
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn input_rotation(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x32c).cast::<u32>().as_ptr() }
     }
 }
 
@@ -8537,6 +8597,33 @@ impl BaseGameStatisticsHandler {
     #[inline(always)]
     pub unsafe fn shared(self) -> SharedStatistics {
         SharedStatistics(unsafe { self.0.byte_add(0x8) })
+    }
+
+    /// +0x31d4 (u16): team score, tdm rule writes at 316257; Research uses the same field
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_zero_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x31d4).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x31d6 (u16): second team score, tdm rule 316257
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn team_one_points(self) -> *mut u16 {
+        unsafe { self.0.byte_add(0x31d6).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x31e4 (u8): winning team 0 or 1, 2 for no winner; tdm rule and Research publish here
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn winner(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x31e4).cast::<u8>().as_ptr() }
     }
 }
 
@@ -23544,6 +23631,33 @@ impl PlayerRespawnRuleBase {
     pub unsafe fn team_2_count(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x19c).cast::<u32>().as_ptr() }
     }
+
+    /// +0x134 (ptr<survarium::core_world>): respawn tick 31689F reads the owning world
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn core(self) -> Option<CoreWorld> {
+        unsafe { self.0.byte_add(0x134).cast::<Option<CoreWorld>>().read_volatile() }
+    }
+
+    /// +0x134 (ptr<survarium::core_world>): respawn tick 31689F reads the owning world
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_core(self, value: Option<CoreWorld>) {
+        unsafe { self.0.byte_add(0x134).cast::<Option<CoreWorld>>().write_volatile(value) }
+    }
+
+    /// +0x138 (u32): twenty scheduled respawn times; u32::MAX means unscheduled; tick 3168B4 compares against its time
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn times(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x138).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::respawn_point_core (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -25773,6 +25887,63 @@ impl UiTextEditText {
     #[inline(always)]
     pub unsafe fn edit(self) -> UiTextEdit {
         UiTextEdit(unsafe { self.0.byte_sub(0x4) })
+    }
+}
+
+/// A survarium::freeze_tick_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FreezeTickFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FreezeTickFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (u32): base_player::tick entry argument, simulation milliseconds (0x2DAA6C after four pushes)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x4).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::freeze_rule_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FreezeRuleFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FreezeRuleFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (u32): player_respawn_rule_base::tick first argument, delta milliseconds
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn elapsed(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// +0xc (u32): player_respawn_rule_base::tick second argument, simulation milliseconds (0x3169A2)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn time(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
     }
 }
 
@@ -31139,6 +31310,69 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn edit(machine: &impl Machine) -> Option<UiTextEdit> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(UiTextEdit)
+        }
+    }
+
+    /// freeze.player_tick (0x2daa60): base_player::tick before deferred death: push ecx/ebx/ebp; mov ebx,ecx. Frozen exits through ret 4 without entering the prologue
+    pub mod freeze_player_tick {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Player)
+        }
+
+        /// the site's ESP: a survarium::freeze_tick_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<FreezeTickFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(FreezeTickFrame)
+        }
+    }
+
+    /// freeze.rule_tick (0x316826): respawn tick after kit-change trampoline/prologue; before vectors (push ebx; push esi; mov ebx,ecx; push edi)
+    pub mod freeze_rule_tick {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ECX: a survarium::player_respawn_rule_base (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn rule(machine: &impl Machine) -> Option<PlayerRespawnRuleBase> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(PlayerRespawnRuleBase)
+        }
+
+        /// EBP: a survarium::freeze_rule_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<FreezeRuleFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(FreezeRuleFrame)
+        }
+    }
+
+    /// freeze.input (0x2d86ee): set_input after full prologue, before alive check; frozen goes to native common epilogue
+    pub mod freeze_input {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::player (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn player(machine: &impl Machine) -> Option<Player> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Player)
         }
     }
 }

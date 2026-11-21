@@ -1224,6 +1224,17 @@ st_freedom_026_head_desc	Zaptiveni šlem egzoskeleta Slobode sa ugrađenim respi
 st_freedom_026_helmet_name	Šlem egzoskeleta Slobode
 st_freedom_026_suit_desc	Eksperimentalni vojni egzoskelet prefarban u boje Slobode. Zbog cene i konstrukcionih mana nije masovno proizvođen; male serije još izlaze iz tajnih radionica. Ima ugrađen kontejner za artefakte.
 st_freedom_026_suit_name	Egzoskelet Slobode
+st_freeze_draw	Nerešeno
+st_freeze_frozen	Zamrznut si. Sačekaj saigrača. Odmrzavanje: %1$s%
+st_freeze_help	Zamrzni sve protivnike. Pobeđuje prvi tim koji dobije 3 runde. Stoj 3 sekunde na najviše 3 m od zamrznutog saigrača da ga odmrzneš.
+st_freeze_lose	Poraz — protivnici su dobili tri runde.
+st_freeze_marker	Zamrznut
+st_freeze_round_draw	Nerešeno. Nova runda za %1$s s.
+st_freeze_round_lose	Runda izgubljena. Sledeća za %1$s s.
+st_freeze_round_win	Runda dobijena. Sledeća za %1$s s.
+st_freeze_standing	U borbi: vaš tim %1$s — protivnici %2$s
+st_freeze_thawing	Odmrzavanje saigrača…
+st_freeze_win	Pobeda — tri dobijene runde.
 st_friend_options_label	Opcije prijatelja
 st_friend_search_hint	Pritisnite Enter za pretragu
 st_friend_state_away	Odsutan
@@ -1529,6 +1540,8 @@ st_mode_05_description	Zauzmite pokretne istraživačke uređaje. Svaki uređaj 
 st_mode_05_name	Istraživanje
 st_mode_08_description	Svako se bori za sebe. Meč se završava kada neko dostigne potreban broj ubistava ili kada istekne vreme. Pobeđuje borac sa najviše ubistava.
 st_mode_08_name	Svako protiv svakoga
+st_mode_12_description	Zamrzni sve protivnike. Pobeđuje prvi tim koji dobije 3 runde. Stoj 3 sekunde na najviše 3 m od zamrznutog saigrača da ga odmrzneš.
+st_mode_12_name	Zamrzavanje
 st_modification_screen_edit_decal_hint	Kliknite na mesto oznake da promenite njenu veličinu i položaj.
 st_modification_screen_hint	Prevucite kamuflažu ili oznaku iz inventara na mesto za izmenu predmeta.
 st_modified	Izmenjeno

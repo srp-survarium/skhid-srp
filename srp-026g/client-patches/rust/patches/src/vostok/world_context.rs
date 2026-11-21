@@ -4,7 +4,7 @@ use crate::raw;
 use crate::world_check::{Match, Rule};
 use srp_validate::mode;
 
-pub(super) fn from_client(client: raw::NetworkClient) -> Option<Match> {
+pub(super) fn from_client(client: raw::NetworkClient, freeze_tag: bool) -> Option<Match> {
     // SAFETY: WorldLoad owns this synchronous load boundary. The match core
     // and its rule vector remain alive and unmodified until it returns.
     unsafe {
@@ -35,7 +35,7 @@ pub(super) fn from_client(client: raw::NetworkClient) -> Option<Match> {
                 _ => Rule::Other,
             };
         }
-        Match::of(rules.into_iter().take(count))
+        Match::of(rules.into_iter().take(count).chain(freeze_tag.then_some(Rule::Mode { game_mode: mode::FREEZE_TAG, batteries: 0 })))
     }
 }
 

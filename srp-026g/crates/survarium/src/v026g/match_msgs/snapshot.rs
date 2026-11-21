@@ -27,6 +27,7 @@
 //! respawn flags. Every world of real 0.26g matches the server saved
 //! (33,106, 2026-10-12..14) walks into its six sections.
 
+use srp_validate::world::freeze::FreezeTag;
 use std::collections::HashMap;
 
 use super::super::maps::RuleMode;
@@ -1269,6 +1270,7 @@ pub struct Rules {
     /// Mode 8: the 40 bytes before the kd stats, exe patch 142's spawn
     /// history.
     pub free_for_all: Option<SpawnHistory>,
+    pub freeze_tag: Option<FreezeTag>,
     /// One for each roster place.
     pub kills_deaths: Vec<KillsDeaths>,
     /// The blackboard's `team_1_respawn`, `team_2_respawn`: whether each
@@ -1351,6 +1353,9 @@ impl Rules {
             Some((at, rule)) => (Some(at), Some(rule)),
             None => (None, None),
         };
+        let freeze_tag = (game_mode == RuleMode::FreezeTag)
+            .then(|| middle.len().checked_sub(FreezeTag::LEN)).flatten()
+            .and_then(|at| FreezeTag::read(&middle[at..]));
         let free_for_all = (game_mode == RuleMode::FreeForAll)
             .then(|| middle.len().checked_sub(SpawnHistory::LEN))
             .flatten()
@@ -1362,6 +1367,7 @@ impl Rules {
             // Where a mode rule of a size known from the end starts.
             let fixed_at = match game_mode {
                 RuleMode::TeamDeathmatch => Some(middle.len().checked_sub(Tdm::LEN)),
+                RuleMode::FreezeTag => Some(middle.len().checked_sub(FreezeTag::LEN)),
                 RuleMode::Research => Some(research_at),
                 // No mode rule: the respawn rule ends where the spawn
                 // history begins.
@@ -1394,6 +1400,7 @@ impl Rules {
             tdm,
             research,
             free_for_all,
+            freeze_tag,
             kills_deaths,
             team_respawn,
         })
@@ -1415,6 +1422,7 @@ impl Rules {
         if let Some(research) = &self.research {
             research.write(&mut mode_rule);
         }
+        if let Some(freeze) = &self.freeze_tag { mode_rule.extend(freeze.bytes()); }
         if let Some(spawns) = &self.free_for_all {
             mode_rule.extend(spawns.bytes());
         }
@@ -1476,6 +1484,10 @@ impl Decoded<'_> {
     pub fn standing(&self, game_mode: RuleMode, teams: &[u8]) -> Option<Standing> {
         // A free-for-all has no teams' standing: its players rank by the kd
         // rule's kills.
+        if game_mode == RuleMode::FreezeTag {
+            let rule = self.rules.as_ref()?.freeze_tag.as_ref()?;
+            return Some(Standing { points: rule.points(), winner: rule.winner().map_or(2, |team| team.index() as u8) });
+        }
         if game_mode == RuleMode::FreeForAll {
             return None;
         }
@@ -2490,6 +2502,7 @@ mod tests {
             tdm: None,
             research: None,
             free_for_all: None,
+            freeze_tag: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         };
@@ -2517,6 +2530,7 @@ mod tests {
             tdm: None,
             research: None,
             free_for_all: Some(history),
+            freeze_tag: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         };
@@ -2544,6 +2558,28 @@ mod tests {
         let rules = Rules::decode(&bytes, 50, 2, RuleMode::Batteries, 10).unwrap();
         assert_eq!(rules.timelimit.start, None);
         assert_eq!(rules.timelimit.time_limit_at(900_000), None);
+    }
+
+    #[test]
+    fn freeze_tag_round_state_follows_respawn_and_precedes_kill_counters() {
+        use srp_validate::Team;
+        use srp_validate::world::freeze::{Body, Condition, Phase, PLAYERS};
+        let mut freeze = FreezeTag::EMPTY;
+        let mut bodies = [Body::Absent; PLAYERS];
+        bodies[0] = Body::Present { team: Team::First, position: [0.0; 3], condition: Condition::Fighting };
+        bodies[1] = Body::Present { team: Team::Second, position: [10.0; 3], condition: Condition::Lethal };
+        freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        assert!(matches!(freeze.phase(), Phase::Between { .. }));
+        let rules = Rules {
+            timelimit: Timelimit::read(&TIMELIMIT).unwrap(),
+            respawn: Some(Respawn { times: vec![], seed: 7, points: vec![[0, 0]; 22] }),
+            gather: None, tdm: None, research: None, free_for_all: None,
+            freeze_tag: Some(freeze),
+            kills_deaths: vec![KillsDeaths::default(); 2], team_respawn: [true, true],
+        };
+        let bytes = rules.to_bytes();
+        assert_eq!(bytes.len(), 13 + 8 + 44 + FreezeTag::LEN + 10 + 2);
+        assert_eq!(Rules::decode(&bytes, TIME, 2, RuleMode::FreezeTag, 0), Some(rules));
     }
 
     #[test]
@@ -2732,6 +2768,7 @@ mod tests {
             tdm: None,
             research: None,
             free_for_all: None,
+            freeze_tag: None,
             kills_deaths: vec![KillsDeaths::default(); 2],
             team_respawn: [true, true],
         }

@@ -582,6 +582,7 @@ pub const SRPX_BLACKOUT: u8 = 2;
 /// the kills that win (`kills_to_win`), a u16, never 0. The client's
 /// free-for-all patch shows it on the hud.
 pub const SRPX_FREE_FOR_ALL: u8 = 3;
+pub const SRPX_FREEZE_TAG: u8 = 4;
 
 /// Why options cannot go to a client, or why bytes are no options.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -899,6 +900,7 @@ pub fn options_bytes(
     out.extend(squads);
     match SrpBlock::of(options.map) {
         SrpBlock::Plain => {}
+        SrpBlock::FreezeTag => { out.extend(SRPX_MAGIC); out.extend([SRPX_FREEZE_TAG, 1, 1]); }
         SrpBlock::Blackout => {
             out.extend(SRPX_MAGIC);
             out.extend([SRPX_BLACKOUT, 1, 1]);
@@ -1186,6 +1188,7 @@ fn read_srp_block(reader: &mut Reader) -> Result<SrpBlock, StaticInfoError> {
         .map_err(|_| StaticInfoError::SrpBlock)?;
     let block = match (tag, entry) {
         (SRPX_BLACKOUT, [1]) => SrpBlock::Blackout,
+        (SRPX_FREEZE_TAG, [1]) => SrpBlock::FreezeTag,
         (SRPX_FREE_FOR_ALL, &[low, high]) if (low, high) != (0, 0) => SrpBlock::FreeForAll {
             kills_to_win: u16::from_le_bytes([low, high]),
         },
@@ -1201,6 +1204,7 @@ fn read_srp_block(reader: &mut Reader) -> Result<SrpBlock, StaticInfoError> {
 /// entry of the map's mode.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SrpBlock {
+    FreezeTag,
     /// No block.
     Plain,
     /// [`SRPX_BLACKOUT`].
@@ -1214,6 +1218,7 @@ impl SrpBlock {
     fn of(map: maps::MatchMap) -> Self {
         match map.mode() {
             maps::GameMode::Blackout => Self::Blackout,
+            maps::GameMode::FreezeTag => Self::FreezeTag,
             maps::GameMode::FreeForAll => Self::FreeForAll {
                 kills_to_win: u16::try_from(map.map().kills_to_win).unwrap_or(u16::MAX),
             },
@@ -1334,6 +1339,14 @@ mod tests {
             .find(|map| map.mode == maps::GameMode::Blackout)
             .and_then(|map| maps::MatchMap::of(map.id))
             .expect("a Blackout map")
+    }
+
+    #[test]
+    fn freeze_tag_options_have_a_versioned_mode_entry() {
+        assert_eq!(read_srp_block(&mut Reader { bytes: b"SRPX\x04\x01\x01" }), Ok(SrpBlock::FreezeTag));
+        for bytes in [b"SRPX\x04\x01\x00".as_slice(), b"SRPX\x04\x01", b"SRPX\x04\x02\x01\x01"] {
+            assert_eq!(read_srp_block(&mut Reader { bytes }), Err(StaticInfoError::SrpBlock));
+        }
     }
 
     #[test]

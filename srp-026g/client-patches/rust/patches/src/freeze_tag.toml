@@ -1,0 +1,38 @@
+name = "freeze_tag"
+patch = 160
+
+[[hook]]
+site = "game_world.after_move"
+handler = "on_camera"
+order = 4
+
+[[hook]]
+site = "static_info.options_read"
+handler = "on_static_info"
+order = 5
+[[hook]]
+site = "replay.options_read"
+handler = "on_replay_options"
+order = 5
+[[hook]]
+site = "freeze.rule_tick"
+handler = "on_tick"
+[[hook]]
+site = "freeze.player_tick"
+handler = "on_player_tick"
+[[hook]]
+site = "freeze.input"
+handler = "on_input"
+[[hook]]
+site = "respawn.save"
+handler = "on_save"
+order = 1
+[[hook]]
+site = "respawn.load"
+handler = "on_load"
+order = 1
+
+[[hook]]
+site = "player_icons.update_start"
+handler = "on_hud"
+order = 4

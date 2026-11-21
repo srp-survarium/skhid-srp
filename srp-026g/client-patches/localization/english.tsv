@@ -1224,6 +1224,17 @@ st_freedom_026_head_desc	The sealed helmet of the Freedom exoskeleton, with a bu
 st_freedom_026_helmet_name	Freedom exoskeleton helmet
 st_freedom_026_suit_desc	An experimental military exoskeleton repainted in Freedom colours. Never mass-produced due to its cost and design flaws; small batches still leave underground workshops. Comes with a built-in artifact container.
 st_freedom_026_suit_name	Freedom exoskeleton
+st_freeze_draw	Draw
+st_freeze_frozen	Frozen. Wait for a teammate. Thaw: %1$s%
+st_freeze_help	Freeze every opponent. First team to win 3 rounds wins. Stand within 3 m of a frozen teammate for 3 seconds to thaw them.
+st_freeze_lose	Defeat — opponents won three rounds.
+st_freeze_marker	Frozen
+st_freeze_round_draw	Round drawn. Restarting in %1$s s.
+st_freeze_round_lose	Round lost. Next round in %1$s s.
+st_freeze_round_win	Round won. Next round in %1$s s.
+st_freeze_standing	Fighting: your team %1$s — opponents %2$s
+st_freeze_thawing	Thawing teammate…
+st_freeze_win	Victory — three rounds won.
 st_friend_options_label	Friend options
 st_friend_search_hint	Press "Enter" to search
 st_friend_state_away	Away
@@ -1529,6 +1540,8 @@ st_mode_05_description	Your task is to seize control of mobile research units. E
 st_mode_05_name	Research
 st_mode_08_description	Every soldier fights for himself. The match ends when someone reaches the kill target or the time runs out. The soldier with the most kills wins.
 st_mode_08_name	Free for all
+st_mode_12_description	Freeze every opponent. First team to win 3 rounds wins. Stand within 3 m of a frozen teammate for 3 seconds to thaw them.
+st_mode_12_name	Freeze Tag
 st_modification_screen_edit_decal_hint	To change the size and position of a decal, click on its slot
 st_modification_screen_hint	Drag camouflage or decal from your inventory into the item modification slot
 st_modified	Modified

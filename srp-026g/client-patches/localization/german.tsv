@@ -1224,6 +1224,17 @@ st_freedom_026_head_desc	Der versiegelte Helm des Freiheit-Exoskeletts, mit eing
 st_freedom_026_helmet_name	Freiheit-Exoskeletthelm
 st_freedom_026_suit_desc	Ein experimentelles militärisches Exoskelett in den Farben der Freiheit. Wegen der Kosten und der Konstruktionsmängel ging es nie in Serie; kleine Stückzahlen verlassen noch immer Untergrundwerkstätten. Mit eingebautem Artefaktbehälter.
 st_freedom_026_suit_name	Freiheit-Exoskelett
+st_freeze_draw	Unentschieden
+st_freeze_frozen	Eingefroren. Warte auf dein Team. Auftauen: %1$s%
+st_freeze_help	Friere alle Gegner ein. Das erste Team mit 3 Rundensiegen gewinnt. Bleibe 3 Sekunden innerhalb von 3 m eines eingefrorenen Teammitglieds, um es aufzutauen.
+st_freeze_lose	Niederlage — Gegner haben drei Runden gewonnen.
+st_freeze_marker	Eingefroren
+st_freeze_round_draw	Unentschieden. Neustart in %1$s s.
+st_freeze_round_lose	Runde verloren. Nächste Runde in %1$s s.
+st_freeze_round_win	Runde gewonnen. Nächste Runde in %1$s s.
+st_freeze_standing	Im Kampf: dein Team %1$s — Gegner %2$s
+st_freeze_thawing	Teammitglied wird aufgetaut…
+st_freeze_win	Sieg — drei Runden gewonnen.
 st_friend_options_label	Freundesoptionen
 st_friend_search_hint	Drücken Sie "Enter" um zu suchen
 st_friend_state_away	Weg
@@ -1529,6 +1540,8 @@ st_mode_05_description	Ihre Aufgabe - die Kontrolle über die mobilen Forschungs
 st_mode_05_name	Forschung
 st_mode_08_description	Jeder kämpft für sich allein. Das Match endet, wenn jemand die nötige Zahl an Abschüssen erreicht oder die Zeit abläuft. Es gewinnt der Kämpfer mit den meisten Abschüssen.
 st_mode_08_name	Jeder gegen jeden
+st_mode_12_description	Friere alle Gegner ein. Das erste Team mit 3 Rundensiegen gewinnt. Bleibe 3 Sekunden innerhalb von 3 m eines eingefrorenen Teammitglieds, um es aufzutauen.
+st_mode_12_name	Fang den Frost
 st_modification_screen_edit_decal_hint	Um die Größe und Lage der Litze zu verändern, klicken Sie auf ihren Schlitz
 st_modification_screen_hint	Verlegen Sie die Tarnung oder die Litze aus Ihrem Inventar in entsprechende Zelle der Modifikation des Gegenstandes
 st_modified	Modifiziert

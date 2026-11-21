@@ -112,6 +112,15 @@ impl<'t> GameWorldUi<'t> {
         Place::new(u32::from(unsafe { read(self.this.viewed_place()) }))
     }
 
+    /// Freeze Tag's rescue reach, from the HUD's current player to a
+    /// frozen teammate. The same static-world query the rule uses.
+    pub fn freeze_reachable(&self, from: srp_validate::Place, target: srp_validate::Place) -> bool {
+        // SAFETY: the UI's owning match remains live for its update hook.
+        // The hud outlives the match world (the results), and nothing is in reach then.
+        let core = unsafe { self.this.world().and_then(|w| w.pvp_match()).map(|m| m.core()) };
+        core.is_some_and(|core| super::freeze::clear(core, from, target))
+    }
+
     /// The exact deadline against the completed simulation clock. The
     /// displayed whole seconds may already be zero while play continues.
     pub fn clock(&self) -> Option<super::MatchClock> {

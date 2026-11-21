@@ -4739,7 +4739,7 @@ free_for_all_on_select_replay:
 
 ; 0x316fb8 player_respawn_rule_core::serialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / pop ecx, then ret 4; reached only by the fall-through at 0x316FB6): EBX the writer (its argument, 0x316F12): lohook -> free_for_all_on_spawns_save
 global free_for_all_on_spawns_save
-extern hook_free_for_all_on_spawns_save
+extern hook_free_for_all_on_spawns_save_chain
 free_for_all_on_spawns_save:
     lea esp, [esp - 4]
     pushfd
@@ -4757,7 +4757,7 @@ free_for_all_on_spawns_save:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_free_for_all_on_spawns_save
+    call hook_free_for_all_on_spawns_save_chain
     mov edx, free_for_all_on_spawns_save_replay
     cmp eax, 0
     je free_for_all_on_spawns_save_go
@@ -4778,7 +4778,7 @@ free_for_all_on_spawns_save_replay:
 
 ; 0x317038 player_respawn_rule_core::deserialize's end, after its three groups' points (pop edi / pop esi / pop ebp / pop ebx / ret 8; reached only by the fall-through at 0x317036): ESI the reader (its argument, 0x316FC7): lohook -> free_for_all_on_spawns_load
 global free_for_all_on_spawns_load
-extern hook_free_for_all_on_spawns_load
+extern hook_free_for_all_on_spawns_load_chain
 free_for_all_on_spawns_load:
     lea esp, [esp - 4]
     pushfd
@@ -4796,7 +4796,7 @@ free_for_all_on_spawns_load:
     mov eax, esp
     sub esp, 12
     push eax
-    call hook_free_for_all_on_spawns_load
+    call hook_free_for_all_on_spawns_load_chain
     mov edx, free_for_all_on_spawns_load_replay
     cmp eax, 0
     je free_for_all_on_spawns_load_go
@@ -4973,6 +4973,168 @@ free_for_all_on_protection_read_go:
 free_for_all_on_protection_read_replay:
     db 0x8b, 0x10, 0x69, 0xd2, 0xe8, 0x03, 0x00, 0x00
     jmp 0x2f4630
+
+; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
+global ragdoll_on_step
+extern hook_ragdoll_on_step_chain
+ragdoll_on_step:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_step_chain
+    mov edx, ragdoll_on_step_replay
+    cmp eax, 0
+    je ragdoll_on_step_go
+    mov edx, 0x1f7c41
+    cmp eax, 1
+    je ragdoll_on_step_go
+    ud2
+ragdoll_on_step_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_step_replay:
+    db 0x80, 0x7c, 0x24, 0x0f, 0x00
+    jmp 0x1f7c41
+
+; 0x316826 respawn tick after kit-change trampoline/prologue; before vectors (push ebx; push esi; mov ebx,ecx; push edi): lohook -> freeze_tag_on_tick
+global freeze_tag_on_tick
+extern hook_freeze_tag_on_tick
+freeze_tag_on_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_freeze_tag_on_tick
+    mov edx, freeze_tag_on_tick_replay
+    cmp eax, 0
+    je freeze_tag_on_tick_go
+    mov edx, 0x31682b
+    cmp eax, 1
+    je freeze_tag_on_tick_go
+    ud2
+freeze_tag_on_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+freeze_tag_on_tick_replay:
+    db 0x53, 0x56, 0x8b, 0xd9, 0x57
+    jmp 0x31682b
+
+; 0x2daa60 base_player::tick before deferred death: push ecx/ebx/ebp; mov ebx,ecx. Frozen exits through ret 4 without entering the prologue: lohook -> freeze_tag_on_player_tick
+global freeze_tag_on_player_tick
+extern hook_freeze_tag_on_player_tick
+freeze_tag_on_player_tick:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_freeze_tag_on_player_tick
+    mov edx, freeze_tag_on_player_tick_replay
+    cmp eax, 0
+    je freeze_tag_on_player_tick_go
+    mov edx, 0x2daa65
+    cmp eax, 1
+    je freeze_tag_on_player_tick_go
+    mov edx, 0x2dab69
+    cmp eax, 2
+    je freeze_tag_on_player_tick_go
+    ud2
+freeze_tag_on_player_tick_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+freeze_tag_on_player_tick_replay:
+    db 0x51, 0x53, 0x55, 0x8b, 0xd9
+    jmp 0x2daa65
+
+; 0x2d86ee set_input after full prologue, before alive check; frozen goes to native common epilogue: lohook -> freeze_tag_on_input
+global freeze_tag_on_input
+extern hook_freeze_tag_on_input
+freeze_tag_on_input:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_freeze_tag_on_input
+    mov edx, freeze_tag_on_input_replay
+    cmp eax, 0
+    je freeze_tag_on_input_go
+    mov edx, 0x2d86f5
+    cmp eax, 1
+    je freeze_tag_on_input_go
+    mov edx, 0x2d8a06
+    cmp eax, 2
+    je freeze_tag_on_input_go
+    ud2
+freeze_tag_on_input_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+freeze_tag_on_input_replay:
+    db 0x80, 0xbf, 0x3c, 0x03, 0x00, 0x00, 0x00
+    jmp 0x2d86f5
 
 ; 0x59adf sound_world::tick's general pass, after the active scenes ticked (cmp byte [edi+48F0h],al; the je skips the pass when General is as last applied): the sound thread, EDI the world, EAX s_general_volume's value truncated (cvttss2si [0A7AF90h], 0 to 100); done 0x59B4B, past the pass (ESI 0 there as here: the scenes' walk ended): lohook -> game_volume_on_general
 global game_volume_on_general
@@ -5930,45 +6092,6 @@ lamps_on_destroy_go:
 lamps_on_destroy_replay:
     db 0x56, 0x8b, 0xf1, 0x83, 0xbe, 0xe8, 0x01, 0x00, 0x00, 0x00
     jmp 0x28533a
-
-; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
-global ragdoll_on_step
-extern hook_ragdoll_on_step_chain
-ragdoll_on_step:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_ragdoll_on_step_chain
-    mov edx, ragdoll_on_step_replay
-    cmp eax, 0
-    je ragdoll_on_step_go
-    mov edx, 0x1f7c41
-    cmp eax, 1
-    je ragdoll_on_step_go
-    ud2
-ragdoll_on_step_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-ragdoll_on_step_replay:
-    db 0x80, 0x7c, 0x24, 0x0f, 0x00
-    jmp 0x1f7c41
 
 ; 0x32d627 check_collision after the bullet's ray_test (movq of its result; EAX the result, EDI the bullet): lohook -> subtick_hits_on_ray
 global subtick_hits_on_ray

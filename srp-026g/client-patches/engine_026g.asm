@@ -270,6 +270,9 @@ global engine_get_clipboard_data
 global engine_close_clipboard
 global engine_global_lock
 global engine_global_unlock
+global engine_freeze_reset_health
+global engine_switch_to_warmup_camera
+global engine_switch_to_player_camera
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -3185,6 +3188,53 @@ engine_text_edit_delete_selection:
     push edi
     mov esi, [esp + 20]   ; edit
     call 0x3486a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_freeze_reset_health:
+    ; 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; time -> 4
+    mov edi, [esp + 24]   ; receiver
+    call 0x2e5290
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_switch_to_warmup_camera:
+    ; 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov edx, [esp + 20]   ; world
+    call 0x1f8190
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_switch_to_player_camera:
+    ; 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; first_person -> 4
+    mov eax, [esp + 24]   ; world
+    call 0x1f8200
     pop edi
     pop esi
     pop ebx

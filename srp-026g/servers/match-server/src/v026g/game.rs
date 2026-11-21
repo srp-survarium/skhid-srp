@@ -4386,6 +4386,7 @@ impl Game {
                         )
                     }),
                 RuleMode::Research => research_end.is_some(),
+                RuleMode::FreezeTag => decoded.rules.as_ref().and_then(|read| read.freeze_tag).is_some_and(|rule| rule.complete()),
                 RuleMode::FreeForAll => decoded.rules.as_ref().is_some_and(|read| {
                     rules::ffa_finished(
                         read.kills_deaths.iter().map(|record| record.kills),

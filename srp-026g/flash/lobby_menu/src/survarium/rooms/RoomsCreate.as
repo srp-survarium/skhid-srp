@@ -25,7 +25,7 @@ package survarium.rooms
         // The protective device's three kinds together (the owner, 2026-10-26), then team deathmatch,
         // Research and free for all.
         private static const MODE_ORDER:Array = [GameMode.GATHER_VICTORY_ITEMS, GameMode.VICTORY_ITEMS_SPAWN, GameMode.BLACKOUT,
-            GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH, GameMode.FREE_FOR_ALL];
+            GameMode.TEAM_DEATHMATCH, GameMode.RESEARCH, GameMode.FREEZE_TAG, GameMode.FREE_FOR_ALL];
         private static const TRACK_X:Number = 14;
 
         private var win:RoomsWindow;

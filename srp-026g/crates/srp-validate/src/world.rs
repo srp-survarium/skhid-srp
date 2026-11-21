@@ -2,6 +2,7 @@
 mod bullets;
 mod effects;
 mod frame;
+pub mod freeze;
 mod objects;
 pub use bullets::{Bullet, BulletFault, Bullets, Lamps, WeaponSlot, bullets};
 pub use effects::{

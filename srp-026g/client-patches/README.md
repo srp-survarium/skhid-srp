@@ -6128,3 +6128,19 @@ drawn the game's log file (`<application>_<user>.log`) through the engine's scro
 and move the view's pad; the console still takes every key and wheel turn before the game's handlers.
 Nothing a match computes changes. `check_console_scroll_026g.py` (`tools/check console-scroll`) runs
 the three functions on the game's own scroll view in both exes. Not run in a game.
+
+## Freeze Tag (patch 160, unreleased)
+
+Two teams, best of five: first to three round wins. A lethal hit freezes the
+player in place, skipping normal death/ragdoll teardown. A living teammate
+within 3 metres and across a clear line of sight thaws them after 3 continuous
+seconds. A team wipe scores a round; after a five-second pause the native team
+spawn path resets the players. No artifact rescue in this first version.
+
+Mode 12, initially on Rudnya day (`freeze-tag-1.json`). The stock team score
+bars, collection progress widget and blocked-hit sound provide the feedback.
+The shared world parser owns the versioned round state, including scores,
+frozen places and progress. See [the rules and native lifecycle](../docs/notes/freeze-tag.md).
+`tools/check freeze-native` exercises the installed hooks, HUD calls and
+rollback. Frozen players reuse the native pre-match orbit and wheel zoom;
+thaw restores their previous camera. An actual local match remains pending.

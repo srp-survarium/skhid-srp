@@ -109,13 +109,16 @@ pub fn with_map(map: &AddedMap) -> GameData {
     let stock = game_data::shared();
 
     let mut config = stock_config(match RuleMode::of_config(map.mode) {
-        Some(RuleMode::Research) => RuleMode::TeamDeathmatch,
+        Some(RuleMode::Research | RuleMode::FreezeTag) => RuleMode::TeamDeathmatch,
         Some(other) => other,
         None => RuleMode::Batteries,
     });
     let root = entry(&mut config, "mode");
     *entry(root, "name") = ConfigValue::String(map.config.trim_end_matches(".options").into());
     *entry(root, "mode") = ConfigValue::Integer(map.mode.into());
+    if map.mode == RuleMode::FreezeTag.number() {
+        *entry(root, "rules") = ConfigValue::Indexed([93, 91, 94].into_iter().map(ConfigValue::Integer).collect());
+    }
     if map.mode == RuleMode::Research.number() {
         *entry(root, "rules") = ConfigValue::Indexed(
             [93, 91, 480, 94]

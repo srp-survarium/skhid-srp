@@ -934,6 +934,7 @@ const FREE_FLOATS: usize = 16 + 16 + 3 + 3 + 1;
 /// The mode's own rule, between the respawn rule and the kd stats.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModeRule {
+    FreezeTag(super::freeze::FreezeTag),
     /// Modes 2 and 3.
     Gather(Gather),
     /// Mode 4.
@@ -1024,6 +1025,14 @@ impl<'a> Rules<'a> {
             rest.is_empty().then_some(Respawn { points, ..respawn })
         };
         let (respawn, mode_rule) = match context.game_mode {
+            mode::FREEZE_TAG => match middle.len().checked_sub(super::freeze::FreezeTag::LEN) {
+                Some(at) => (
+                    respawn_to(at),
+                    middle.get(at..).and_then(super::freeze::FreezeTag::read)
+                        .filter(|rule| rule.fits(places)).map(ModeRule::FreezeTag),
+                ),
+                None => (None, None),
+            },
             mode::TEAM_DEATHMATCH => match middle.len().checked_sub(TDM) {
                 Some(at) => (
                     respawn_to(at),
@@ -1084,6 +1093,7 @@ impl<'a> Rules<'a> {
                 mode::TEAM_DEATHMATCH => Reason::NoTdmRule,
                 mode::RESEARCH => Reason::NoResearchRule,
                 mode::FREE_FOR_ALL => Reason::NoSpawnHistory,
+                mode::FREEZE_TAG => Reason::NoFreezeTagRule,
                 _ => Reason::NoGatherRule,
             })
         })?;
@@ -1178,6 +1188,7 @@ pub fn rules(section: &Section, context: &Context) -> Result<(), Refusal> {
         return refuse(Reason::RespawnTimePast { place, places });
     }
     match read.mode_rule() {
+        ModeRule::FreezeTag(_) => Ok(()),
         ModeRule::Tdm(tdm) => {
             if tdm.alive_players().past(places).is_some()
                 || tdm.active_players().past(places).is_some()
@@ -1425,6 +1436,30 @@ mod tests {
             ..context(mode::FREE_FOR_ALL, Some(3))
         };
         assert_eq!(rules(&section, &teams), Ok(()));
+    }
+
+    #[test]
+    fn freeze_tag_rounds_are_parsed_in_the_native_rule_envelope() {
+        use super::super::freeze::{Body, Condition, FreezeTag, PLAYERS};
+        use crate::Team;
+        let mut freeze = FreezeTag::EMPTY;
+        let mut bodies = [Body::Absent; PLAYERS];
+        bodies[0] = Body::Present { team: Team::First, position: [0.0; 3], condition: Condition::Fighting };
+        bodies[1] = Body::Present { team: Team::Second, position: [10.0; 3], condition: Condition::Lethal };
+        freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        let block = freeze.bytes();
+        assert_eq!(check(&block, mode::FREEZE_TAG, Some(3)), Ok(()));
+        let bytes = bytes(&block);
+        let read = Rules::read(&Section { at: 0, bytes: &bytes }, &context(mode::FREEZE_TAG, Some(3))).unwrap();
+        assert_eq!(read.mode_rule(), &ModeRule::FreezeTag(freeze));
+        let mut broken = block;
+        broken[2] = 4; // More round wins than a best-of-five permits.
+        assert_eq!(reason(check(&broken, mode::FREEZE_TAG, Some(3))), Some(Reason::NoFreezeTagRule));
+        // A third participant outside this match's two-place roster.
+        bodies[2] = bodies[0];
+        freeze = FreezeTag::EMPTY;
+        freeze.step(&bodies, &[[false; PLAYERS]; PLAYERS], 50);
+        assert_eq!(reason(check(&freeze.bytes(), mode::FREEZE_TAG, Some(3))), Some(Reason::NoFreezeTagRule));
     }
 
     #[test]

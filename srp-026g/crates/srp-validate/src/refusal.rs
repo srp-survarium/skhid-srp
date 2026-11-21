@@ -224,6 +224,7 @@ pub enum Reason {
     /// A free-for-all's rules without exe patch 142's spawn history, or
     /// with one that does not read.
     NoSpawnHistory,
+    NoFreezeTagRule,
     /// A place's last spawn names a point past the map's team-2 group.
     SpawnPointPast {
         place: usize,
@@ -646,6 +647,7 @@ impl fmt::Display for Reason {
             Reason::NoGatherRule => f.write_str("no gather rule"),
             Reason::NoResearchRule => f.write_str("no research rule"),
             Reason::NoSpawnHistory => f.write_str("no free-for-all spawn history"),
+            Reason::NoFreezeTagRule => f.write_str("invalid Freeze Tag state"),
             Reason::SpawnPointPast {
                 place,
                 point,

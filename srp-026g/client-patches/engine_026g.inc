@@ -905,3 +905,12 @@ extern engine_global_lock
 ; the IAT slot 0x87007c (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
 extern engine_global_unlock
+; void engine_freeze_reset_health(struct medical_damage *receiver, unsigned int time)
+; 0x2e5290 survarium::damage_model::reset: receiver EDI, time ESP+4; pops 4
+extern engine_freeze_reset_health
+; void engine_switch_to_warmup_camera(struct game_world *world)
+; 0x1f8190 survarium::game_world::switch_to_warmup_camera: world EDX; pops 0
+extern engine_switch_to_warmup_camera
+; void engine_switch_to_player_camera(struct game_world *world, unsigned char first_person)
+; 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
+extern engine_switch_to_player_camera
