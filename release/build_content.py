@@ -828,6 +828,62 @@ def keeper_check(rows, base_files, world):
     print(f'keeper: every one of {len(projects)} map project(s) has its pool')
 
 
+# What fill_items_dictionary_impl (0x286410) reads of every dictionary item whose config has ui_desc,
+# at the client's start (the lobby movie's items): each by binary_config_value::operator[]
+# (0xF6B10), which finds a key by its CRC and compares the name it lands on without checking that
+# it landed inside the table. A key the table lacks reads past it: an access violation at 0xF6BC2
+# in every client, fitted or not (a muzzle device item without props_list, 2026-11-21).
+CARD_KEYS = ('ui_desc/text_descriptions/name', 'ui_desc/text_descriptions/description', 'ui_desc/icon',
+             'ui_desc/props_list')
+
+
+def item_card_problems(path, buf):
+    """The CARD_KEYS a dictionary item's config with a ui_desc lacks."""
+    ce = own_content_edit()
+
+    def has(key):
+        try:
+            ce.find(buf, key)
+        except KeyError:
+            return False
+        return True
+
+    if not has('ui_desc'):
+        return []
+    return [f'{path}: has ui_desc and no {key}' for key in CARD_KEYS if not has(key)]
+
+
+def item_card_check(base, base_files, game, world, cache):
+    """Every config the items dictionary names, as players will have it, has each of CARD_KEYS when
+    it has ui_desc (item_card_problems). Cached as walker_check is."""
+    ce = own_content_edit()
+    dictionary = bytearray(world.bytes[ce.DICTIONARY] if ce.DICTIONARY in world.bytes
+                           else game.get(base, [ce.DICTIONARY])[ce.DICTIONARY])
+    known = set(base_files) | set(world.bytes)
+    configs = sorted({ce.value_of(dictionary, ce.find(dictionary, f'items_dict[{i}]/cfg_name'))
+                      for i, _ in enumerate(ce.children(dictionary, ce.find(dictionary, 'items_dict')))})
+    missing = [f'{p}: named by the items dictionary and in no file' for p in configs if p not in known]
+    configs = [p for p in configs if p in known]
+    key = Cache.key('the card keys of items', files_digest([Path(__file__)]), sys.version)
+    earlier = (cache.get(key) or ({}, {}))[1]
+    key_of = {p: f'{world.sha256(p)} {p}' if p in world.bytes else f'{base_files[p]} {p}' for p in configs}
+    todo = [p for p in configs if key_of[p] not in earlier]
+    files = game.get(base, [p for p in todo if p not in world.bytes])
+    files.update({p: world.bytes[p] for p in todo if p in world.bytes})
+    found = {key_of[p]: item_card_problems(p, bytearray(files[p])) for p in todo}
+    each = {key_of[p]: found.get(key_of[p], earlier.get(key_of[p])) for p in configs}
+    if found:
+        cache.put(key, {}, each)
+    problems = missing + [problem for p in configs for problem in each[key_of[p]]]
+    if problems:
+        print()
+        for problem in problems:
+            print(f'CARD: {problem}')
+        raise Problem(f'{len(problems)} item config(s) without what every client reads of an item at its '
+                      'start (an access violation in every client): no patch made')
+    print(f'item cards: each of {len(configs)} item config(s) with a ui_desc has {", ".join(CARD_KEYS)}')
+
+
 GRASS_MAX = 120_000
 
 
@@ -1008,6 +1064,8 @@ def main():
             keeper_check(rows, base_files, world)
         with timed('the grass'):
             grass_check(base, base_files, game, world)
+        with timed('the item cards'):
+            item_card_check(base, base_files, game, world, cache)
         with timed('the clothing fit'):
             clothing_check(base, base_files, game, world)
 
