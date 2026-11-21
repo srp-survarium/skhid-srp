@@ -201,8 +201,20 @@ asynchronous, the cost is the GPU work the game waited for.
   bake's per-save MT is the same as stock's, so the difference is how many saves wait at once. At most
   64 bakes' saves, 128 MB, are pending (`save.freed` 0x10A050 takes each off when its descriptor
   goes); past either, a bake's texture is made and used but not saved, its DDS freed at once, and a
-  line goes out ("used, not saved: N saves not written yet hold M MB of MT"). It is baked again next
-  game.
+  line goes out ("used, not saved: N saves not written yet hold M MB of MT").
+- **A bake not saved is not listed** (2026-11-20). The tail lists every bake it completes
+  (push_back 0x12F3F2), saved or not, and a listed texture is never baked: translate_query asks for
+  its file (0x12D58B), and when the file cannot be read on_baked_texture_loaded fails the query and
+  leaves the record (0x12DB66; only a file with another CRC is erased and baked again, 0x131C9C). So
+  a bake that was used and not saved was asked for from the folder at every later query of its
+  path, for the rest of the game: "cook of 'user_data/streamed_textures/<name>.dds' [class 5]
+  failed", its type queries' "cook of '' [class 107] failed" and the model's "[class 108] failed",
+  and the item drawn without that texture on every model made after the first (a respawn, a kit
+  change, the dropped gun's copy). The owner's game of 2026-11-20 (revision 68, a late join into a
+  16-player match: 115 bakes at once, "56 saves not written yet hold 127 MB"): 210 such misses of
+  three textures in 13 minutes. Now the record of a bake with no save goes right after the tail
+  lists it (`bake.free`), with its bytes; the next query of its path finds none and bakes it, and
+  saves it if the saves have room by then.
 - The managed resources: a bake on the GPU holds its model instance and its levels' stagings (up to
   5.6 MB) until it completes; at most 8 bakes. Level 0 and the mips are let go at the issue, the bake
   targets by on_textures_loaded as stock, and the textures made are the game's. So the patch keeps no

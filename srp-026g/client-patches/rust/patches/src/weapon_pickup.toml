@@ -81,3 +81,9 @@ handler = "on_load_quiet"
 [[hook]]
 site = "bullet.load_ordinal"
 handler = "on_load_ordinal"
+
+# a record whose shooter has no gun in its slot (a bullet in flight when a
+# swap moved its gun) is passed over, no bullet made
+[[hook]]
+site = "bullets.load_record"
+handler = "on_load_record"

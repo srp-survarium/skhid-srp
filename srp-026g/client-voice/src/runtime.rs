@@ -1,35 +1,38 @@
 //! Session lifecycle and the Windows voice worker. The game never shares
 //! codec or WinMM memory with the worker; its controls and status are atomic,
 //! how each place is heard one value under a lock.
+use voice_abi::Channel;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TalkState {
     Idle,
-    Talking { since: u32 },
+    Talking { since: u32, channel: Channel },
     WaitingForRelease,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TalkAction {
     None,
-    Start,
+    Start(Channel),
     Stop,
     Cap,
 }
 impl TalkState {
-    fn update(&mut self, now: u32, pressed: bool, mic_on: bool) -> TalkAction {
-        match *self {
-            Self::Idle if pressed && mic_on => {
-                *self = Self::Talking { since: now };
-                TalkAction::Start
+    /// `held`: the push-to-talk key held now. An utterance is of the key it
+    /// began with: another key held in its place ends it, and starts its own.
+    fn update(&mut self, now: u32, held: Option<Channel>, mic_on: bool) -> TalkAction {
+        match (*self, held) {
+            (Self::Idle, Some(channel)) if mic_on => {
+                *self = Self::Talking { since: now, channel };
+                TalkAction::Start(channel)
             }
-            Self::Talking { .. } if !pressed || !mic_on => {
+            (Self::Talking { channel, .. }, held) if held != Some(channel) || !mic_on => {
                 *self = Self::Idle;
                 TalkAction::Stop
             }
-            Self::Talking { since } if now.wrapping_sub(since) >= 30_000 => {
+            (Self::Talking { since, .. }, _) if now.wrapping_sub(since) >= 30_000 => {
                 *self = Self::WaitingForRelease;
                 TalkAction::Cap
             }
-            Self::WaitingForRelease if !pressed => {
+            (Self::WaitingForRelease, None) => {
                 *self = Self::Idle;
                 TalkAction::None
             }
@@ -166,14 +169,14 @@ mod platform {
     use super::{DropLog, TalkAction, TalkState, host_arg};
     use crate::{
         Core, Encoder, FRAME, Heard, Hearing, Preprocessor, SLOTS, Sender,
-        mic_test::{Ask, Devices, Door, Event, Shown, Sliders, Test},
+        mic_test::{Ask, Devices, Door, Event, Shown, Test},
         microphone::{self, Device},
         radio::unit,
-        receiver::centred,
+        receiver::Master,
         windows::{self, Input, Output},
         wire::{self, Message},
     };
-    use voice_abi::{Microphone, MicrophoneId};
+    use voice_abi::{Channel, Microphone, MicrophoneId};
     use std::{
         ffi::c_char,
         io,
@@ -187,6 +190,7 @@ mod platform {
     };
     use windows_sys::Win32::System::{
         Diagnostics::Debug::OutputDebugStringA,
+        Threading::{GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_HIGHEST},
         LibraryLoader::{
             GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, GET_MODULE_HANDLE_EX_FLAG_PIN,
             GetModuleHandleExA,
@@ -194,10 +198,10 @@ mod platform {
     };
 
     struct Controls {
-        ptt: AtomicBool,
+        /// The push-to-talk key held: `sv_ptt`'s word.
+        ptt: AtomicI32,
         mic: AtomicBool,
         volume: AtomicU32,
-        sensitivity: AtomicU32,
         /// How each slot is heard: a slot's whole state in one `sv_hear`.
         hearing: Mutex<Hearing>,
         muted: AtomicU32,
@@ -207,10 +211,9 @@ mod platform {
         microphone: Mutex<Option<MicrophoneId>>,
     }
     static CONTROL: Controls = Controls {
-        ptt: AtomicBool::new(false),
+        ptt: AtomicI32::new(0),
         mic: AtomicBool::new(true),
         volume: AtomicU32::new(1.0_f32.to_bits()),
-        sensitivity: AtomicU32::new(0.5_f32.to_bits()),
         hearing: Mutex::new(Hearing::UNITY),
         muted: AtomicU32::new(0),
         hello: AtomicBool::new(false),
@@ -281,6 +284,15 @@ mod platform {
     // listeners already closed. Only the one active worker increments this.
     static NEXT_UTTERANCE: AtomicU32 = AtomicU32::new(1);
 
+    /// The calling worker above the game's own threads: it captures and
+    /// plays 20 ms at a time, and a game that takes every core must not hold
+    /// it up past its devices' queues (a few ms of work each pass).
+    fn raise_priority() {
+        // SAFETY: the calling thread's own pseudo-handle.
+        unsafe {
+            SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+        }
+    }
     fn say(message: &str) {
         let text = format!("skhid_voice: {message}\n\0");
         // SAFETY: text is NUL-terminated and lives for the synchronous call.
@@ -294,7 +306,7 @@ mod platform {
         }
     }
     fn stop_locked(state: &mut Lifecycle) {
-        CONTROL.ptt.store(false, SeqCst);
+        CONTROL.ptt.store(0, SeqCst);
         let previous = std::mem::replace(state, Lifecycle::Stopped);
         match previous {
             Lifecycle::Running(Session { status, worker, .. })
@@ -340,8 +352,8 @@ mod platform {
         // The door is not held while the test opens or closes a device.
         let asked = status.door().take();
         match asked {
-            Some(Ask::Press(sliders)) => {
-                test.apply(Event::Press { sliders, talking }, now, &mut devices);
+            Some(Ask::Press(volume)) => {
+                test.apply(Event::Press { volume, talking }, now, &mut devices);
             }
             Some(Ask::Stop) => {
                 test.apply(Event::Stop, now, &mut devices);
@@ -354,8 +366,10 @@ mod platform {
     /// devices and the test, no socket and nothing of the relay. It leaves
     /// when the test is over, closing its devices on its own thread.
     fn run_test(status: Arc<Status>) {
+        raise_priority();
         let clock = Instant::now();
         let mut test = Test::Idle;
+        let mut master = Master::new();
         // None: the press finds no playback device, and the button says so.
         let mut output = Output::open().ok();
         while !status.stop.load(SeqCst) {
@@ -365,7 +379,7 @@ mod platform {
                 let mut devices = Winmm { playback: true };
                 let play = || {
                     let own = test.apply(Event::Play, now, &mut devices);
-                    centred(&own.unwrap_or([0.; FRAME]))
+                    master.centred(&own.unwrap_or([0.; FRAME]))
                 };
                 if device.pump(play).is_err() {
                     output = None;
@@ -390,6 +404,7 @@ mod platform {
         mut encoder: Encoder,
         mut preprocessor: Preprocessor,
     ) {
+        raise_priority();
         let clock = Instant::now();
         let mut sender = Sender::new(session, NEXT_UTTERANCE.load(SeqCst) as u16);
         let mut talk = TalkState::Idle;
@@ -522,24 +537,24 @@ mod platform {
                     count += 1;
                 }
             }
-            status.heard.store(core.talking(now), SeqCst);
+            status.heard.store(core.talking(&hearing, now), SeqCst);
 
-            let pressed = CONTROL.ptt.load(SeqCst);
-            test_pass(&mut test, &status, now, output.is_some(), pressed);
-            let action = talk.update(now, pressed, CONTROL.mic.load(SeqCst));
-            if action == TalkAction::Start {
+            let held = Channel::of_ptt(CONTROL.ptt.load(SeqCst));
+            test_pass(&mut test, &status, now, output.is_some(), held.is_some());
+            let action = talk.update(now, held, CONTROL.mic.load(SeqCst));
+            if matches!(action, TalkAction::Start(_)) {
                 // Talking wins: the test ends, and its capture device is
                 // closed before the transmission opens its own.
                 let playback = output.is_some();
                 test.apply(Event::Talk, now, &mut Winmm { playback });
             }
             match action {
-                TalkAction::Start => match Input::open(microphone_device()) {
+                TalkAction::Start(channel) => match Input::open(microphone_device()) {
                     Ok(device) => {
                         input = Some(device);
                         status.transmitting.store(true, SeqCst);
                         ending = None;
-                        send(&socket, &sender.start(now));
+                        send(&socket, &sender.start(now, channel));
                         NEXT_UTTERANCE.fetch_add(1, SeqCst);
                     }
                     Err(_) => {
@@ -563,9 +578,8 @@ mod platform {
                 TalkAction::None => (),
             }
             if let Some(device) = &mut input {
-                let sensitivity = f32::from_bits(CONTROL.sensitivity.load(SeqCst));
                 let result = device.pump(|mut pcm| {
-                    preprocessor.run(&mut pcm, sensitivity);
+                    preprocessor.run(&mut pcm);
                     if let Ok(frame) = encoder.encode(&pcm)
                         && let Some(bytes) = sender.frame(&frame)
                     {
@@ -702,33 +716,32 @@ mod platform {
     pub extern "C" fn sv_stop() {
         stop_locked(&mut SESSION.lock().unwrap_or_else(|error| error.into_inner()));
     }
+    /// The push-to-talk key held now (`voice_abi::Ptt`): 0 none, else a
+    /// channel's word.
     #[unsafe(no_mangle)]
-    pub extern "C" fn sv_ptt(down: i32) {
-        CONTROL.ptt.store(down != 0, SeqCst);
+    pub extern "C" fn sv_ptt(held: i32) {
+        CONTROL.ptt.store(held, SeqCst);
     }
     #[unsafe(no_mangle)]
-    pub extern "C" fn sv_settings(volume: f32, mic_on: i32, sensitivity: f32) {
+    pub extern "C" fn sv_settings(volume: f32, mic_on: i32) {
         let level = unit(volume);
         let previous = f32::from_bits(CONTROL.volume.swap(level.to_bits(), SeqCst));
-        CONTROL
-            .sensitivity
-            .store(unit(sensitivity).to_bits(), SeqCst);
         CONTROL.mic.store(mic_on != 0, SeqCst);
         if (previous > 0.0) != (level > 0.0) {
             CONTROL.hello.store(true, SeqCst);
         }
     }
-    /// How the slot is heard from now on (`voice_abi::Hear`): its plain
-    /// voice's gain in each ear and whether its radio is on. A slot past the
-    /// 20 changes nothing.
+    /// How the slot is heard from now on (`voice_abi::Hear`): its 10 m
+    /// voice's gain in each ear, how muffled it is, and whether its radio
+    /// is heard. A slot past the 20 changes nothing.
     #[unsafe(no_mangle)]
-    pub extern "C" fn sv_hear(slot: i32, left: f32, right: f32, radio: i32) {
+    pub extern "C" fn sv_hear(slot: i32, left: f32, right: f32, muffle: f32, radio: i32) {
         if let Ok(slot) = usize::try_from(slot) {
             CONTROL
                 .hearing
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
-                .set(slot, Heard::of_call(left, right, radio));
+                .set(slot, Heard::of_call(left, right, muffle, radio));
         }
     }
     #[unsafe(no_mangle)]
@@ -813,6 +826,8 @@ mod platform {
             default
         }
     }
+    /// The slots heard talking now, on whichever channel, and this game's
+    /// own while its microphone is sent (bit 31 before the relay gave it one).
     #[unsafe(no_mangle)]
     pub extern "C" fn sv_talking() -> u32 {
         read_status(0, |status| {
@@ -821,7 +836,7 @@ mod platform {
             } else {
                 0
             };
-            if CONTROL.ptt.load(SeqCst)
+            if CONTROL.ptt.load(SeqCst) != 0
                 && CONTROL.mic.load(SeqCst)
                 && status.transmitting.load(SeqCst)
             {
@@ -849,11 +864,11 @@ mod platform {
         })
     }
     /// The options' "Test microphone" button, with the "Voice chat" volume
-    /// and the "Microphone sensitivity" as their sliders stand (each 0..1).
+    /// as its slider stands (0..1).
     /// The test is the worker's: a match's, or with no match one of its own.
     #[unsafe(no_mangle)]
-    pub extern "C" fn sv_test_press(volume: f32, sensitivity: f32) {
-        let ask = Ask::Press(Sliders::new(volume, sensitivity));
+    pub extern "C" fn sv_test_press(volume: f32) {
+        let ask = Ask::Press(unit(volume));
         let mut state = SESSION.lock().unwrap_or_else(|error| error.into_inner());
         let taken = match &*state {
             Lifecycle::Running(Session { status, .. }) | Lifecycle::Testing { status, .. } => {
@@ -922,30 +937,39 @@ mod tests {
         ready[2] = true;
         assert_eq!(order.next_ready(4, |index| ready[index]), Some(2));
     }
+    const RADIO: Option<Channel> = Some(Channel::Radio);
+    const START: TalkAction = TalkAction::Start(Channel::Radio);
     #[test]
     fn thirty_seconds_requires_release_even_when_mic_is_toggled() {
         let mut state = TalkState::Idle;
-        assert_eq!(state.update(7, true, true), TalkAction::Start);
-        assert_eq!(state.update(30_006, true, true), TalkAction::None);
-        assert_eq!(state.update(30_007, true, true), TalkAction::Cap);
-        assert_eq!(state.update(30_008, true, false), TalkAction::None);
-        assert_eq!(state.update(30_009, true, true), TalkAction::None);
-        assert_eq!(state.update(30_010, false, true), TalkAction::None);
-        assert_eq!(state.update(30_011, true, true), TalkAction::Start);
+        assert_eq!(state.update(7, RADIO, true), START);
+        assert_eq!(state.update(30_006, RADIO, true), TalkAction::None);
+        assert_eq!(state.update(30_007, RADIO, true), TalkAction::Cap);
+        assert_eq!(state.update(30_008, RADIO, false), TalkAction::None);
+        assert_eq!(state.update(30_009, RADIO, true), TalkAction::None);
+        assert_eq!(state.update(30_010, None, true), TalkAction::None);
+        assert_eq!(state.update(30_011, RADIO, true), START);
     }
     #[test]
     fn disabling_microphone_ends_current_utterance() {
         let mut state = TalkState::Idle;
-        assert_eq!(state.update(0, true, false), TalkAction::None);
-        assert_eq!(state.update(1, true, true), TalkAction::Start);
-        assert_eq!(state.update(2, true, false), TalkAction::Stop);
-        assert_eq!(state.update(3, false, true), TalkAction::None);
+        assert_eq!(state.update(0, RADIO, false), TalkAction::None);
+        assert_eq!(state.update(1, RADIO, true), START);
+        assert_eq!(state.update(2, RADIO, false), TalkAction::Stop);
+        assert_eq!(state.update(3, None, true), TalkAction::None);
+    }
+    #[test]
+    fn an_utterance_is_of_the_key_it_began_with() {
+        let mut state = TalkState::Idle;
+        assert_eq!(state.update(0, Some(Channel::Near), true), TalkAction::Start(Channel::Near));
+        assert_eq!(state.update(1, RADIO, true), TalkAction::Stop);
+        assert_eq!(state.update(2, RADIO, true), START);
     }
     #[test]
     fn talk_limit_survives_millisecond_wrap() {
         let mut state = TalkState::Idle;
-        assert_eq!(state.update(u32::MAX - 5, true, true), TalkAction::Start);
-        assert_eq!(state.update(29_993, true, true), TalkAction::None);
-        assert_eq!(state.update(29_994, true, true), TalkAction::Cap);
+        assert_eq!(state.update(u32::MAX - 5, RADIO, true), START);
+        assert_eq!(state.update(29_993, RADIO, true), TalkAction::None);
+        assert_eq!(state.update(29_994, RADIO, true), TalkAction::Cap);
     }
 }

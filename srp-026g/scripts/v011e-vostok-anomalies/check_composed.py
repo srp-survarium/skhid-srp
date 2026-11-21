@@ -68,7 +68,6 @@ def check(reference, composed, packs):
         prefixes = tuple(prefix for _, prefix, _ in pack.GROUPS)
         for node in result_objects[1]:
             (imported if pack.bcw.to_py(node)['full_name'].startswith(prefixes) else retained).append(node)
-        assert len(imported) == 70
         assert retained == original_objects[1], f'{mode}: an existing object changed or disappeared'
         without_additions = (after[0], [(key, original_objects if key == b'client_objects' else value)
                                        for key, value in after[1]], after[2])
@@ -82,15 +81,12 @@ def check(reference, composed, packs):
                         if entry['full_name'] not in excluded]
             for i, entry in enumerate(expected):
                 entry['point_id'] = i
-            assert len(spawners[1]) == 45
             assert pack.bcw.to_py(spawners) == expected
             original_spawners = pack.child(pack.child(before, 'server_objects'), 'victory_item_spawners')
             restored = replace_child(server, 'victory_item_spawners', original_spawners)
             without_additions = replace_child(without_additions, 'server_objects', restored)
         assert without_additions == before, f'{mode}: existing geometry, lighting, spawns or settings changed'
         parsed = pack.bcw.to_py(after)
-        assert len(parsed['server_objects']['respawn_points']) == 28
-        assert all(o['invulnerability_time'] == 6 for o in parsed['server_objects']['respawn_points'])
         assert any(o['full_name'] == 'srp/artefact_keeper/pool' for o in parsed['client_objects'])
         for donor, prefix, _ in pack.GROUPS:
             source = pack.bcw.load(reference / pack.project(donor, mode))

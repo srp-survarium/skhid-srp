@@ -4,6 +4,7 @@
 //! refuses, each with its code.
 
 use session::v026g::account::KitSlot;
+use survarium::v026g::maps::MapId;
 use session::v026g::{matchmaking, quests};
 use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::{PVB_CHOOSE_BASE, PVB_STATUS_START, pvb_choice_start};
@@ -79,15 +80,15 @@ fn status(world: &mut World, index: usize) -> (String, Vec<String>) {
 
 /// The player chooses `size` on `map_id`: the row's name, at the start
 /// asked.
-fn choose(world: &mut World, index: usize, size: u8, map_id: u8) -> String {
-    let start = pvb_choice_start(size, map_id);
+fn choose(world: &mut World, index: usize, size: u8, map_id: MapId) -> String {
+    let start = pvb_choice_start(size, map_id).expect("a bot map's choice");
     let (name, place) = one_row(world, index, start);
     assert_eq!(place, start);
     name
 }
 
 /// The player chooses and presses Play: the match it was sent to.
-fn play_vs_bots(world: &mut World, index: usize, size: u8, map_id: u8) -> (u32, u8) {
+fn play_vs_bots(world: &mut World, index: usize, size: u8, map_id: MapId) -> (u32, u8) {
     assert_eq!(
         choose(world, index, size, map_id),
         format!("B2;ok;{size};{map_id}")
@@ -112,21 +113,19 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
     let (header, maps) = status(&mut world, alice);
     assert_eq!(header, "B1;0;5;5;6.8.10;8;61;0;5");
     // The owner's maps, each free for five matches; no free-for-all.
-    let listed: Vec<u8> = maps
+    let listed: Vec<MapId> = maps
         .iter()
         .map(|row| row.split(';').next().unwrap().parse().unwrap())
         .collect();
     assert_eq!(listed, MAPS);
-    assert_eq!(maps[0], "61;1;2;5");
-    assert_eq!(maps[8], "117;1;4;5");
 
-    let (ticket, team) = play_vs_bots(&mut world, alice, 8, 61);
+    let (ticket, team) = play_vs_bots(&mut world, alice, 8, MapId::new(61));
     assert_eq!(team, 0);
     let made = world.host.made.locked();
     let (id, setup) = made.last().unwrap();
     assert_eq!(*id, ticket);
     assert!(setup.vs_bots);
-    assert_eq!(setup.played.map().id, 61);
+    assert_eq!(setup.played.map().id, MapId::new(61));
     assert_eq!(setup.players.len(), 16);
     assert_eq!(setup.players[0].account_id, world.ids[alice].0);
     assert!(!setup.players[0].driven);
@@ -154,7 +153,7 @@ fn gear_5_gets_an_8_v_8_with_15_bots_on_the_map_chosen() {
         .find(|running| running.ticket.match_id == ticket)
         .unwrap();
     assert!(running.server_bots && running.fixed_teams);
-    assert_eq!(running.map.map().id, 61);
+    assert_eq!(running.map.map().id, MapId::new(61));
     // The play counts towards no map rotation, and no room has the player.
     assert!(world.account(alice).map_plays.is_empty());
     assert!(world.core.rooms.of(world.ids[alice].0).is_none());
@@ -176,7 +175,7 @@ fn every_size_has_its_bots_on_both_sides() {
         .enumerate()
     {
         let player = world.connect(&format!("P{n}"));
-        let (ticket, _) = play_vs_bots(&mut world, player, size, 117);
+        let (ticket, _) = play_vs_bots(&mut world, player, size, MapId::new(117));
         let made = world.host.made.locked();
         let (_, setup) = made.iter().find(|(id, _)| *id == ticket).unwrap();
         assert_eq!(setup.players.len(), 2 * usize::from(size));
@@ -188,7 +187,7 @@ fn every_size_has_its_bots_on_both_sides() {
                 .count()
         };
         assert_eq!((side(0), side(1)), (usize::from(size), usize::from(size)));
-        assert_eq!(setup.played.map().id, 117);
+        assert_eq!(setup.played.map().id, MapId::new(117));
     }
 }
 
@@ -216,7 +215,7 @@ fn gear_6_is_refused_with_code_1_and_its_level() {
     assert_eq!(header, "B1;1;6;5;6.8.10;8;61;0;5");
     // The owner's 16 maps.
     assert_eq!(maps.len(), MAPS.len());
-    assert_eq!(choose(&mut world, bob, 8, 61), "B2;no;1;6;5;0;5");
+    assert_eq!(choose(&mut world, bob, 8, MapId::new(61)), "B2;no;1;6;5;0;5");
     assert!(world.core.pvb_holds.is_empty());
     world.ask(bob, request::play(1));
     assert!(world.core.rooms.of(world.ids[bob].0).is_some());
@@ -233,12 +232,12 @@ fn every_refusal_says_its_code() {
     let bob = world.connect("Bob");
     form_squad(&mut world, alice, bob);
     assert!(status(&mut world, alice).0.starts_with("B1;2;0;5;"));
-    assert_eq!(choose(&mut world, alice, 8, 61), "B2;no;2;0;5;0;5");
+    assert_eq!(choose(&mut world, alice, 8, MapId::new(61)), "B2;no;2;0;5;0;5");
 
     let carol = world.connect("Carol");
     for (size, map_id) in [(8, 181), (8, 62), (7, 61), (12, 61)] {
         assert_eq!(
-            choose(&mut world, carol, size, map_id),
+            choose(&mut world, carol, size, MapId::new(map_id)),
             "B2;no;10;0;5;0;5",
             "{size} on {map_id}"
         );
@@ -251,9 +250,9 @@ fn every_refusal_says_its_code() {
     let (header, maps) = status(&mut world, dave);
     assert_eq!(header, "B1;6;0;5;6.8.10;8;61;0;5");
     assert!(maps.iter().all(|row| row.ends_with(";0")));
-    assert_eq!(choose(&mut world, dave, 8, 61), "B2;no;6;0;5;0;5");
+    assert_eq!(choose(&mut world, dave, 8, MapId::new(61)), "B2;no;6;0;5;0;5");
     // A start past the choices is no choice of these.
-    assert_eq!(pvb_choice_start(255, 255), PVB_CHOOSE_BASE + 255_255);
+    assert_eq!(pvb_choice_start(255, MapId::new(255)), Some(PVB_CHOOSE_BASE + 255_255));
 }
 
 /// Five matches against bots run: the sixth is refused with code 7, the
@@ -270,14 +269,14 @@ fn the_sixth_bot_match_is_refused_with_code_7() {
     let (header, maps) = status(&mut world, sixth);
     assert_eq!(header, "B1;7;0;5;6.8.10;8;61;5;5");
     assert!(maps.iter().all(|row| row.ends_with(";0")), "{maps:?}");
-    assert_eq!(choose(&mut world, sixth, 6, 61), "B2;no;7;0;5;5;5");
+    assert_eq!(choose(&mut world, sixth, 6, MapId::new(61)), "B2;no;7;0;5;5;5");
     assert_eq!(world.host.made.locked().len(), 5);
 
     // A choice held counts too: with four running, one held leaves none.
     world.host.open.locked().remove(&tickets[0]);
     world.advance(Duration::from_secs(2));
     let seventh = world.connect("Seventh");
-    assert_eq!(choose(&mut world, seventh, 6, 61), "B2;ok;6;61");
+    assert_eq!(choose(&mut world, seventh, 6, MapId::new(61)), "B2;ok;6;61");
     assert!(
         status(&mut world, sixth)
             .0
@@ -285,8 +284,8 @@ fn the_sixth_bot_match_is_refused_with_code_7() {
     );
     // Its choice given up (a choice not granted replaces it), the sixth
     // gets in.
-    assert!(choose(&mut world, seventh, 7, 61).starts_with("B2;no;10;"));
-    play_vs_bots(&mut world, sixth, 6, 61);
+    assert!(choose(&mut world, seventh, 7, MapId::new(61)).starts_with("B2;no;10;"));
+    play_vs_bots(&mut world, sixth, 6, MapId::new(61));
 }
 
 /// A Play whose choice ran out within 30 s is refused and goes into no
@@ -296,7 +295,7 @@ fn a_play_after_its_choice_ran_out_goes_into_no_room() {
     let mut world = world_with(5);
     let alice = world.connect("Alice");
     let account = world.ids[alice].0;
-    assert_eq!(choose(&mut world, alice, 8, 61), "B2;ok;8;61");
+    assert_eq!(choose(&mut world, alice, 8, MapId::new(61)), "B2;ok;8;61");
     world.advance(pvb::HOLD + Duration::from_secs(1));
     world.take(alice);
     world.ask(alice, request::play(1));
@@ -317,7 +316,7 @@ fn a_play_after_its_choice_ran_out_goes_into_no_room() {
 fn a_running_bot_match_takes_no_late_joiner() {
     let mut world = world_with(5);
     let alice = world.connect("Alice");
-    let (ticket, _) = play_vs_bots(&mut world, alice, 6, 61);
+    let (ticket, _) = play_vs_bots(&mut world, alice, 6, MapId::new(61));
     // The match server would admit.
     world.host.admitting.locked().insert(ticket);
     let bob = world.connect("Bob");
@@ -336,7 +335,7 @@ fn a_running_bot_match_takes_no_late_joiner() {
 fn a_bot_match_is_settled_as_one() {
     let mut world = world_with(5);
     let alice = world.connect("Alice");
-    let (ticket, _) = play_vs_bots(&mut world, alice, 6, 61);
+    let (ticket, _) = play_vs_bots(&mut world, alice, 6, MapId::new(61));
     world.end_match(ticket, 0);
     let report = world.results.find(ticket).expect("settled");
     assert_eq!(report.players.len(), 12);
@@ -412,7 +411,7 @@ fn a_level_15_player_plays_level_15_bots_in_the_top_players_kits() {
     let (header, _) = status(&mut world, alice);
     assert!(header.starts_with("B1;0;15;15;"), "{header}");
 
-    let (ticket, _) = play_vs_bots(&mut world, alice, 6, 117);
+    let (ticket, _) = play_vs_bots(&mut world, alice, 6, MapId::new(117));
     let made = world.host.made.locked();
     let (_, setup) = made.iter().find(|(id, _)| *id == ticket).unwrap();
     let bots: Vec<_> = setup
@@ -482,4 +481,39 @@ fn a_level_15_player_plays_level_15_bots_in_the_top_players_kits() {
             .iter()
             .all(|&each| each == session::v026g::level_stats::BOT_STRENGTH)
     );
+}
+
+/// The faces of a match against bots (`face-choice.md`): the player's is
+/// the account's, each bot's the draw of the second the match is made and
+/// the bot's number in it (`Faces::bot_face`).
+#[test]
+fn the_bots_of_a_match_are_made_with_their_drawn_faces() {
+    use survarium::v026g::faces::Faces;
+    let faces = Faces::shared();
+    let mut world = world_with(5);
+    let alice = world.connect("Alice");
+    with_gear(&mut world, alice, 5);
+    world.change(alice, |account| {
+        account.choose_face(faces.face(1).unwrap());
+    });
+    let before = quests::now();
+    play_vs_bots(&mut world, alice, 8, MapId::new(61));
+    let after = quests::now();
+    let made = world.host.made.locked();
+    let (_, setup) = made.last().unwrap();
+    assert_eq!(setup.players[0].profile.face, faces.face(1).unwrap());
+    let drawn: Vec<_> = setup.players[1..]
+        .iter()
+        .map(|bot| bot.profile.face)
+        .collect();
+    assert_eq!(drawn.len(), 15);
+    assert!(
+        (before..=after).any(|unix| drawn
+            .iter()
+            .enumerate()
+            .all(|(n, &face)| face == faces.bot_face(unix, n + 1))),
+        "{drawn:?}"
+    );
+    // Fifteen bots over the test data's three faces: not one face for all.
+    assert!(drawn.iter().any(|&face| face != drawn[0]), "{drawn:?}");
 }

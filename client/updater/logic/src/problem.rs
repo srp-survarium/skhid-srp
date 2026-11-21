@@ -10,12 +10,15 @@
 //!
 //! A failure of every address of something ([`Failed`]) becomes its problem
 //! in [`Problem::of`]: an address that answered with no usable file is a
-//! failed download; none that answered is no connection, or, when a site
-//! that is always up answers ([`Probe`]), a server this network blocks.
+//! failed download; none that answered, or the site saying the game server
+//! behind it is down, is told by what answers now (`crate::diagnosis`): no
+//! internet, the server offline or restarting, this network blocking it, the
+//! relay down, or a firewall.
 
 use alloc::format;
 use alloc::string::String;
 
+use crate::diagnosis::Diagnosis;
 use crate::file_error::Exclusion;
 use crate::network::{self, Failure};
 
@@ -86,6 +89,9 @@ impl Miss {
 pub enum Failed {
     /// No address answered.
     Unreached { what: Where, failure: Failure },
+    /// The site answered that the game server behind it is down (HTTP 502,
+    /// 503, 504 from its proxy: a release or a restart).
+    Behind { what: Where },
     /// An address answered, with no usable file (the first that did: how);
     /// `addresses`: how many there were.
     Download {
@@ -120,15 +126,6 @@ impl Failed {
     }
 }
 
-/// What a site that is always up did when asked, after nothing of ours
-/// answered: answered (this PC is online, so this network blocks ours), or
-/// not (a firewall, or no connection).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Probe {
-    Answered,
-    Silent,
-}
-
 /// Why an antivirus is named: the file it took is blocked now (PLAY stays
 /// off), or was gone at the start and has been put back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,31 +151,39 @@ pub enum Problem {
         fault: Fault,
         addresses: usize,
     },
-    /// Nothing answered, and neither did a site that is always up.
-    NoConnection { what: Where, failure: Failure },
-    /// Nothing of ours answered, but a site that is always up did.
-    Blocked { what: Where, failure: Failure },
+    /// Nothing answered (`failure`: how; `None`: the site said the game
+    /// server is down), told by what answers now.
+    Unreached {
+        what: Where,
+        failure: Option<Failure>,
+        diagnosis: Diagnosis,
+    },
 }
 
 impl Problem {
-    /// The problem of a failure; `probe` is asked only when nothing
-    /// answered, and once.
-    pub fn of(failed: Failed, probe: impl FnOnce() -> Probe) -> Self {
-        match failed {
+    /// The problem of a failure; `diagnose` is asked only when nothing
+    /// answered, and once. `None`: it answers now (try again, no box).
+    pub fn of(failed: Failed, diagnose: impl FnOnce() -> Option<Diagnosis>) -> Option<Self> {
+        let (what, failure) = match failed {
             Failed::Download {
                 file,
                 fault,
                 addresses,
-            } => Self::Download {
-                file,
-                fault,
-                addresses,
-            },
-            Failed::Unreached { what, failure } => match probe() {
-                Probe::Answered => Self::Blocked { what, failure },
-                Probe::Silent => Self::NoConnection { what, failure },
-            },
-        }
+            } => {
+                return Some(Self::Download {
+                    file,
+                    fault,
+                    addresses,
+                });
+            }
+            Failed::Unreached { what, failure } => (what, Some(failure)),
+            Failed::Behind { what } => (what, None),
+        };
+        diagnose().map(|diagnosis| Self::Unreached {
+            what,
+            failure,
+            diagnosis,
+        })
     }
 
     /// The box's caption: the title's beginning, in English always.
@@ -191,24 +196,15 @@ impl Problem {
         match (language, self) {
             (1, Self::Antivirus { .. }) => "Файлы игры удалены антивирусом",
             (1, Self::Download { .. }) => "Загрузка не удалась",
-            (1, Self::NoConnection { .. }) => "Нет соединения",
-            (1, Self::Blocked { .. }) => "Заблокировано в этой сети",
             (2, Self::Antivirus { .. }) => "Файли гри видалено антивірусом",
             (2, Self::Download { .. }) => "Завантаження не вдалося",
-            (2, Self::NoConnection { .. }) => "Немає з'єднання",
-            (2, Self::Blocked { .. }) => "Заблоковано в цій мережі",
             (3, Self::Antivirus { .. }) => "Spieldateien vom Virenschutz entfernt",
             (3, Self::Download { .. }) => "Download fehlgeschlagen",
-            (3, Self::NoConnection { .. }) => "Keine Verbindung",
-            (3, Self::Blocked { .. }) => "In diesem Netzwerk gesperrt",
             (4, Self::Antivirus { .. }) => "Pliki gry usunięte przez antywirusa",
             (4, Self::Download { .. }) => "Pobieranie nie powiodło się",
-            (4, Self::NoConnection { .. }) => "Brak połączenia",
-            (4, Self::Blocked { .. }) => "Zablokowane w tej sieci",
             (_, Self::Antivirus { .. }) => "Game files removed by antivirus",
             (_, Self::Download { .. }) => "Download failed",
-            (_, Self::NoConnection { .. }) => "No connection",
-            (_, Self::Blocked { .. }) => "Blocked on this network",
+            (_, Self::Unreached { diagnosis, .. }) => diagnosis.title(language),
         }
     }
 
@@ -229,9 +225,7 @@ impl Problem {
                 };
                 format!("{file}, {}{every}", fault_words(language, *fault))
             }
-            Self::NoConnection { what, failure } | Self::Blocked { what, failure } => {
-                unreached(language, what, *failure)
-            }
+            Self::Unreached { what, failure, .. } => unreached(language, what, *failure),
         };
         format!("{}: {what}", self.kind(language))
     }
@@ -259,7 +253,7 @@ impl Problem {
                 "{title}\n{}\n{}\n{log}",
                 removal_words(language, *removal),
                 match exclusion {
-                    Exclusion::Programs => defender(language, folder),
+                    Exclusion::Programs | Exclusion::Torrent => defender(language, folder),
                     Exclusion::Game => allow(language, folder),
                 }
             ),
@@ -268,40 +262,9 @@ impl Problem {
                 ..
             } => format!("{title}\n{}\n{log}", clock(language)),
             Self::Download { .. } => format!("{title}\n{}\n{log}", download(language)),
-            Self::NoConnection { .. } => format!(
-                "{title}\n{}\n{}\n{log}",
-                match language {
-                    1 => "Другие сайты тоже не отвечают: брандмауэр блокирует игру, или компьютер не в сети.",
-                    2 => "Інші сайти теж не відповідають: брандмауер блокує гру, або комп'ютер не в мережі.",
-                    3 => "Auch andere Seiten antworten nicht: eine Firewall blockiert das Spiel, oder dieser PC ist offline.",
-                    4 => "Inne strony też nie odpowiadają: zapora blokuje grę albo komputer jest offline.",
-                    _ => "No other site answered either: a firewall blocks the game, or this PC is offline.",
-                },
-                match language {
-                    1 => "Запустите Skhid-network-setup.cmd (рядом со Skhid.bat), чтобы разрешить игру в брандмауэре, затем попробуйте снова.",
-                    2 => "Запустіть Skhid-network-setup.cmd (поруч зі Skhid.bat), щоб дозволити гру в брандмауері, потім спробуйте знову.",
-                    3 => "Starte Skhid-network-setup.cmd (neben Skhid.bat), um das Spiel in der Firewall zu erlauben, und versuche es dann erneut.",
-                    4 => "Uruchom Skhid-network-setup.cmd (obok Skhid.bat), aby zezwolić na grę w zaporze, następnie spróbuj ponownie.",
-                    _ => "Run Skhid-network-setup.cmd (beside Skhid.bat) to allow the game in the firewall, then try again.",
-                }
-            ),
-            Self::Blocked { .. } => format!(
-                "{title}\n{}\n{}\n{log}",
-                match language {
-                    1 => "Другие сайты отвечают: его блокирует эта сеть (интернет-провайдер или включённый VPN).",
-                    2 => "Інші сайти відповідають: його блокує ця мережа (інтернет-провайдер або увімкнений VPN).",
-                    3 => "Andere Seiten antworten: dieses Netzwerk sperrt ihn (der Internetanbieter oder das aktive VPN).",
-                    4 => "Inne strony odpowiadają: blokuje go ta sieć (dostawca internetu lub włączony VPN).",
-                    _ => "Other sites answer: this network blocks it (the internet provider, or the VPN in use).",
-                },
-                match language {
-                    1 => "Включите VPN и добавьте в его раздельное туннелирование launcher_skhid.exe, survarium_skhid.exe и updater_skhid.exe, или выключите VPN (см. VPN.txt). Затем попробуйте снова.",
-                    2 => "Увімкніть VPN і додайте до його роздільного тунелювання launcher_skhid.exe, survarium_skhid.exe і updater_skhid.exe, або вимкніть VPN (див. VPN.txt). Потім спробуйте знову.",
-                    3 => "Nutze ein VPN mit launcher_skhid.exe, survarium_skhid.exe und updater_skhid.exe im Split-Tunneling, oder schalte das VPN aus (siehe VPN.txt). Versuche es dann erneut.",
-                    4 => "Użyj VPN z launcher_skhid.exe, survarium_skhid.exe i updater_skhid.exe w tunelowaniu dzielonym albo wyłącz VPN (zob. VPN.txt). Następnie spróbuj ponownie.",
-                    _ => "Use a VPN with launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe in its split tunnelling, or turn the VPN off (see VPN.txt). Then try again.",
-                }
-            ),
+            Self::Unreached { diagnosis, .. } => {
+                format!("{title}\n{}\n{log}", diagnosis.advice(language))
+            }
         }
     }
 }
@@ -390,8 +353,18 @@ fn how(language: u32, failure: Failure) -> &'static str {
     }
 }
 
-/// What did not answer, and how.
-fn unreached(language: u32, what: &Where, failure: Failure) -> String {
+/// What did not answer, and how (`None`: the site said the game server is
+/// down).
+fn unreached(language: u32, what: &Where, failure: Option<Failure>) -> String {
+    let Some(failure) = failure else {
+        return match (language, what) {
+            (1, Where::Server(host) | Where::File(host)) => format!("{host}: игровой сервер не отвечает"),
+            (2, Where::Server(host) | Where::File(host)) => format!("{host}: ігровий сервер не відповідає"),
+            (3, Where::Server(host) | Where::File(host)) => format!("{host}: der Spielserver antwortet nicht"),
+            (4, Where::Server(host) | Where::File(host)) => format!("{host}: serwer gry nie odpowiada"),
+            (_, Where::Server(host) | Where::File(host)) => format!("{host}: the game server does not answer"),
+        };
+    };
     let how = how(language, failure);
     match (language, what) {
         (1, Where::Server(host)) => format!("{host} не отвечает ({how})"),
@@ -505,8 +478,17 @@ mod tests {
         Fault::Insecure,
         Fault::Other,
     ];
-    const LOG: &str = "E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log";
+    const DIAGNOSES: [Diagnosis; 6] = [
+        Diagnosis::NoInternet,
+        Diagnosis::ServerDown,
+        Diagnosis::Restarting,
+        Diagnosis::Blocked,
+        Diagnosis::RelayDown,
+        Diagnosis::Unclear,
+    ];
+    const LOG: &str = "E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log";
     const FOLDER: &str = "E:\\S\\game\\binaries\\x86";
+    const TORRENT: &str = "E:\\S\\game\\torrent";
     const GAME: &str = "E:\\S\\game";
 
     fn server() -> Where {
@@ -519,6 +501,7 @@ mod tests {
             file: file.into(),
             folder: match exclusion {
                 Exclusion::Programs => FOLDER,
+                Exclusion::Torrent => TORRENT,
                 Exclusion::Game => GAME,
             }
             .into(),
@@ -533,6 +516,7 @@ mod tests {
         for removal in [Removal::Blocked, Removal::PutBack] {
             all.push(antivirus("survarium_skhid.exe", removal));
         }
+        all.push(antivirus("game/torrent/bootstrap/updater_skhid.exe", Removal::Blocked));
         all.push(antivirus("resources.db.patch_44", Removal::Blocked));
         for fault in FAULTS {
             for addresses in [1, 3] {
@@ -543,13 +527,15 @@ mod tests {
                 });
             }
         }
-        for failure in FAILURES {
+        for failure in FAILURES.map(Some).into_iter().chain([None]) {
             for what in [server(), Where::File("resources.db.patch_44".into())] {
-                all.push(Problem::NoConnection {
-                    what: what.clone(),
-                    failure,
-                });
-                all.push(Problem::Blocked { what, failure });
+                for diagnosis in DIAGNOSES {
+                    all.push(Problem::Unreached {
+                        what: what.clone(),
+                        failure,
+                        diagnosis,
+                    });
+                }
             }
         }
         all
@@ -600,7 +586,7 @@ mod tests {
         ];
         let failed = Failed::of_file("survarium-026g.7z", &stalled).unwrap();
         assert_eq!(
-            Problem::of(failed, || panic!("probed")).title(None),
+            Problem::of(failed, || panic!("probed")).expect("a download").title(None),
             "Download failed: survarium-026g.7z, cut short at every address"
         );
     }
@@ -646,24 +632,27 @@ mod tests {
     }
 
     #[test]
-    fn nothing_answered_is_blocked_when_another_site_answers_else_no_connection() {
+    fn nothing_answered_is_told_by_its_diagnosis_and_none_when_it_answers_now() {
         let failed = Failed::Unreached {
             what: server(),
             failure: Failure::Timeout,
         };
         assert_eq!(
-            Problem::of(failed.clone(), || Probe::Answered),
-            Problem::Blocked {
+            Problem::of(failed.clone(), || Some(Diagnosis::Blocked)),
+            Some(Problem::Unreached {
                 what: server(),
-                failure: Failure::Timeout
-            }
+                failure: Some(Failure::Timeout),
+                diagnosis: Diagnosis::Blocked,
+            })
         );
+        assert_eq!(Problem::of(failed, || None), None);
         assert_eq!(
-            Problem::of(failed, || Probe::Silent),
-            Problem::NoConnection {
+            Problem::of(Failed::Behind { what: server() }, || Some(Diagnosis::Restarting)),
+            Some(Problem::Unreached {
                 what: server(),
-                failure: Failure::Timeout
-            }
+                failure: None,
+                diagnosis: Diagnosis::Restarting,
+            })
         );
         // A download that failed is not probed.
         let download = Failed::Download {
@@ -673,39 +662,51 @@ mod tests {
         };
         assert_eq!(
             Problem::of(download, || panic!("probed")),
-            Problem::Download {
+            Some(Problem::Download {
                 file: "skhid.link/download".into(),
                 fault: Fault::CutShort,
                 addresses: 1,
-            }
+            })
         );
     }
 
     #[test]
     fn the_english_boxes() {
-        let blocked = Problem::Blocked {
+        let blocked = Problem::Unreached {
             what: server(),
-            failure: Failure::Timeout,
+            failure: Some(Failure::Timeout),
+            diagnosis: Diagnosis::Blocked,
         };
         assert_eq!(blocked.caption(), "Skhid: Blocked on this network");
         assert_eq!(
             blocked.message(None, LOG),
             "Blocked on this network: skhid.link did not answer (timed out)\n\
-             Other sites answer: this network blocks it (the internet provider, or the VPN in use).\n\
-             Use a VPN with launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe in its \
-             split tunnelling, or turn the VPN off (see VPN.txt). Then try again.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
+             Your provider blocks the server, but the relay answers: \"Relay\" is now on auto (at \
+             the launcher's bottom left). Try again.\n\
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
-            Problem::NoConnection {
+            Problem::Unreached {
                 what: Where::File("resources.db.patch_44".into()),
-                failure: Failure::Refused,
+                failure: Some(Failure::Refused),
+                diagnosis: Diagnosis::Unclear,
             }
             .message(Some(0), LOG),
             "No connection: no address of resources.db.patch_44 answered (connection refused)\n\
-             No other site answered either: a firewall blocks the game, or this PC is offline.\n\
-             Run Skhid-network-setup.cmd (beside Skhid.bat) to allow the game in the firewall, then try again.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
+             The server does not answer here: a firewall may block the game. Run \
+             Skhid-network-setup.cmd (beside Skhid.bat), then try again.\n\
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
+        );
+        assert_eq!(
+            Problem::Unreached {
+                what: server(),
+                failure: None,
+                diagnosis: Diagnosis::ServerDown,
+            }
+            .message(None, LOG),
+            "The server is offline: skhid.link: the game server does not answer\n\
+             It does not answer, directly or through the relay. Try again later.\n\
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::Download {
@@ -717,7 +718,7 @@ mod tests {
             "Download failed: resources.db.patch_44, damaged at every address\n\
              Start Skhid.bat again: it tries every address again, and the game's download goes on \
              from where it stopped.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::Download {
@@ -729,7 +730,7 @@ mod tests {
             "Download failed: skhid.link, no secure connection\n\
              Check this PC's date, time and time zone, and that no program (an antivirus's web \
              shield, a proxy) intercepts HTTPS; then start Skhid.bat again.\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             antivirus("survarium_skhid.exe", Removal::Blocked).message(None, LOG),
@@ -738,7 +739,7 @@ mod tests {
              stays off until it is let through.\n\
              Run Skhid-defender-setup.cmd (beside Skhid.bat); with another antivirus, exclude this \
              folder: E:\\S\\game\\binaries\\x86\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         // A patch is in the game folder, which Skhid-defender-setup.cmd does
         // not exclude: Windows Security's own way, for that folder.
@@ -750,7 +751,7 @@ mod tests {
              Windows Security > Protection history > this item > Allow on device; then add this \
              folder as an exclusion (Virus & threat protection > Manage settings > Exclusions), in \
              any other antivirus too: E:\\S\\game\n\
-             Log: E:\\S\\game\\binaries\\x86\\updater_skhid.2026-11-15_14-03-07.log"
+             Log: E:\\S\\game\\logs\\updater_skhid.2026-11-15_14-03-07.log"
         );
         assert_eq!(
             Problem::Download {
@@ -778,6 +779,10 @@ mod tests {
                     ..
                 } => &["Skhid-defender-setup.cmd", FOLDER],
                 Problem::Antivirus {
+                    exclusion: Exclusion::Torrent,
+                    ..
+                } => &["Skhid-defender-setup.cmd", TORRENT],
+                Problem::Antivirus {
                     exclusion: Exclusion::Game,
                     ..
                 } => &[" > ", GAME],
@@ -786,8 +791,11 @@ mod tests {
                     ..
                 } => &["HTTPS", "Skhid.bat"],
                 Problem::Download { .. } => &["Skhid.bat"],
-                Problem::NoConnection { .. } => &["Skhid-network-setup.cmd"],
-                Problem::Blocked { .. } => &["VPN.txt"],
+                Problem::Unreached {
+                    diagnosis: Diagnosis::Unclear,
+                    ..
+                } => &["Skhid-network-setup.cmd"],
+                Problem::Unreached { .. } => &[],
             };
             for language in 0..5 {
                 let text = problem.message(Some(language), LOG);
@@ -795,10 +803,9 @@ mod tests {
                 let lines: Vec<&str> = text.lines().collect();
                 // The title, what happened (but for a download), what to
                 // run, the log.
-                let count = if let Problem::Download { .. } = problem {
-                    3
-                } else {
-                    4
+                let count = match problem {
+                    Problem::Download { .. } | Problem::Unreached { .. } => 3,
+                    Problem::Antivirus { .. } => 4,
                 };
                 assert_eq!(lines.len(), count, "{text}");
                 assert_eq!(lines[0], problem.title(Some(language)));
@@ -822,7 +829,7 @@ mod tests {
                 // The object of the title: the file or the host.
                 let object = match problem {
                     Problem::Antivirus { file, .. } | Problem::Download { file, .. } => file,
-                    Problem::NoConnection { what, .. } | Problem::Blocked { what, .. } => {
+                    Problem::Unreached { what, .. } => {
                         match what {
                             Where::Server(host) => host,
                             Where::File(file) => file,
@@ -834,12 +841,8 @@ mod tests {
                 for word in ["Russia", "Росси", "Росії", "Russland", "Rosji"] {
                     assert!(!text.contains(word), "{language}: {text}");
                 }
-                if let Problem::Blocked { .. } = problem {
-                    for name in ["launcher_skhid.exe", "survarium_skhid.exe", "updater_skhid.exe"]
-                    {
-                        assert!(text.contains(name), "{language}: {name}");
-                    }
-                }
+                // A VPN is never the advice: the relay is.
+                assert!(!text.contains("VPN"), "{language}: {text}");
             }
             // The caption is the English beginning, in every language.
             assert_eq!(
@@ -859,12 +862,12 @@ mod tests {
             // is the object.
             assert_eq!(titles.len(), all.len() - 1, "{language}");
         }
-        // The four beginnings differ from each other in every language.
+        // The eight beginnings differ from each other in every language.
         for language in 0..5 {
             let mut kinds: Vec<&str> = all.iter().map(|problem| problem.kind(language)).collect();
             kinds.sort();
             kinds.dedup();
-            assert_eq!(kinds.len(), 4, "{kinds:?}");
+            assert_eq!(kinds.len(), 8, "{kinds:?}");
         }
     }
 }

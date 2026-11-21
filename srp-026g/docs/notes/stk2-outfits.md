@@ -61,8 +61,9 @@ code names none of them (sold as the knit cap, below).
   changes (no `simulation_changes.tsv` row).
 - **Levels (the owner, 2026-10-31):** the Novice's set 4, the bandit's and the loner's 6.
 - Each item's config is a stock piece's of its slot (card, sounds, rollable modifications)
-  with its own numbers (Stats, below), model, icon, texts and faction (none); camouflage
-  and decals off (the donor textures have no masks); no item takes another slot.
+  with its own numbers (Stats, below), model, icon, texts and faction (none); no
+  camouflage (the donor textures have no masks); decals as stock jackets and trousers since
+  2026-11-20 (Decals, below); no item takes another slot.
 
 ## Stats (the owner's, 2026-10-31)
 
@@ -345,3 +346,69 @@ poses; they do not substitute for an in-game lobby/match fitting pass.
 `stk2-novice@14` removes the generated cowl and throat bridge that caused the
 stripe below the hood. It retains the STK2 donor's original open neckline and
 head/mask fitting. Other equipment meshes and item parameters are unchanged.
+
+## Decals (2026-11-20)
+
+The owner: "allow to put decals on stk2 equipment that we added too"; then "decals can only be
+put on armor and pants, not balaclavas".
+
+- **What a stock piece has** (stock `resources.db`, the exe; `client_patch.md` 3.44, `items.md`):
+  - all 24 vests and all 23 pairs of trousers have `parameters/decal_available` true and an empty
+    `data/decals` table; no helmet, mask, backpack, glove or boot config has either key;
+  - the flag gives the item its two decal slots: the lobby's upgrade window shows them for it
+    (`UpgradeWindow.as`, `decalAvailable`), srp lets a decal into slots 0 and 1 of such an item
+    (`modifications::cosmetic_slots`). Both read the item's config; neither has a list of items;
+  - a decal's modification appends its texture and place to `data/decals` of the item wearing it;
+    a config without the table drops it. The character's cook bakes whatever the table holds
+    (0x204E54; it does not read the flag);
+  - there are no fixed places, no anchors on a model and no mask: the player clicks where the decal
+    goes (a box projected along the surface's normal, size and turn by the wheel); one never
+    placed is on the chest (record value 0). The bake paints the piece's first surface
+    (`part_name`) in that surface's UV space; `additional_models` (a vest's fur, straps) take
+    none (0x2054C9). The `_aoac` mask is the camouflage's alone.
+- **What the STK2 torso and legs items lacked:**
+  - those two keys. Their ports wrote `decal_available` false and took `data/decals` out ("the
+    donor textures have no masks": true of the camouflage, not needed for a decal);
+  - a model file name of their own. The game keeps each baked texture in
+    `streamed_textures/<each decal's texture and place><the model's file name><d, n, f or s>.dds`
+    (`4_4205_7-8172320283889761536torso_s3d.dds`), the model's name without its folder, and
+    keeps the files from game to game (`baked-textures.md`). Every stock vest and trousers model
+    has a file name no other has; of the 324 the live game's vests and trousers use, the only
+    shared ones were the outfits' (`torso`, `legs` and their `_s2`, `_s3`, in three folders) and
+    the two exoskeleton bodies' (`duty_03_torso_s1`, in two). Seen in the first test game
+    (2026-11-20): the Novice's jacket, built after the bandit's with the same two decals, wore the
+    bandit's baked leather.
+- **The items:** the four jackets and three pairs of trousers of the outfits (1822, 1864, 1868,
+  1873; 1865, 1870, 1874) and the two exoskeleton bodies (1805, 1807), which are torso items.
+  Every STK2 item of another slot stays without, as stock ones: the hood, the knit cap, the exo
+  helmets, both balaclavas, the backpack, gloves and boots.
+- **The rule is the porter's** (`src/decals_026.rs`): a ported piece takes decals when the stock
+  pieces of its slot do, on its first surface, and the build stops unless that surface is the
+  garment (the piece's largest), its UVs are inside the map and at most 5 % of its texels are
+  painted from two places (a decal on such a texel shows at both), and unless the piece's models
+  have file names no other model of the game has. The outfits' builder, the exoskeleton sets'
+  and the masks' and helmets' all call it.
+- **The outfits' packs** (`stk2-bandit@16`, `stk2-novice@16`, `stk2-loner@15`), rebuilt as
+  resource-porter's `docs/stk2-outfits-026.md` says, on the stock db and patches 12 to 39 (the
+  outfits' ids are taken from patch 40 on). The seven items' configs have the two keys, and
+  their models are named after their outfits (`ported/stk2_bandit_026/stk2_bandit_026_torso`,
+  `..._torso_s2`, `..._legs_s3`, ...): the same files at new paths, byte for byte but each
+  model's `render/export_properties`, which names its own path (the old ones stay in players'
+  archives, unused). Every other file, the icons included, is the live pack's (`@14`, `@14`,
+  `@13`).
+- **The exoskeleton bodies' pack** (`exo-decals@1`, `scripts/exo-decals/make_pack.py`): the two
+  keys in both configs, and the Freedom body's model (Duty's mesh in other textures) again as
+  `ported/freedom_026/freedom_exo_torso_s1`, its ten released files byte for byte, with the
+  Freedom config pointed at it. Duty keeps `duty_03_torso_s1`.
+- **Nothing in srp, the movies or the exe.** No simulation change (cosmetics; a match's bake is
+  each game's own), no `simulation_changes.tsv` row.
+- **Limits, as stock:**
+  - a decal goes on the garment's own surface. Where the click lands on an additional model
+    (the bandit's shoulder straps, sleeve pocket and bare forearms, the Novice's belt kit, the
+    loner's pouches, an exoskeleton's frame, back unit and chest disc), that model stays as it is
+    and the decal shows around it, as around a stock vest's straps;
+  - the exoskeleton bodies take the trousers' slot, and their legs are an additional model: a
+    body has its two decals on the torso and none on the legs;
+  - the Novice's jeans' grown waist repeats the denim below it (4 % of the map's texels): a decal
+    put at the very waistline, under a jacket's hem, shows mirrored above it;
+  - no camouflage: its bake needs the `_aoac` mask beside the diffuse map.

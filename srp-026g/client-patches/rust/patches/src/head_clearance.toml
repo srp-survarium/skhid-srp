@@ -1,0 +1,11 @@
+# Patch 158: the first-person eye stays out of the level's surfaces
+# (head_clearance.rs; docs/notes/head-clearance.md). Only the decisions:
+# the site and the handler, after the ragdoll's eye.
+name = "head_clearance"
+patch = 158
+
+# update_camera's join: EAX the eye transform the view gets
+[[hook]]
+site = "camera.eye"
+handler = "on_eye"
+order = 2

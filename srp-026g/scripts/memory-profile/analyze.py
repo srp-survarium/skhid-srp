@@ -79,6 +79,7 @@ class Snapshot:
     regions: list = field(default_factory=list)     # (base, size, state, protect, kind, allocation)
     scaleform: list = field(default_factory=list)   # Scaleform's heaps, a parent before its children: (depth, flags, footprint, used, name)
     scaleform_torn: bool = False                    # the heaps' walk stopped early: the list is a part
+    pools: dict = field(default_factory=dict)       # "vertices"/"indices" -> (chunks, bytes, used, ranges, most ranges, unpooled), or "absent"/"torn"; "shared" -> (ranges, sharers, saved, peak saved, refused)
     complete: bool = False
 
 
@@ -122,6 +123,8 @@ def parse(text):
             continue
         elif tag == "process":
             snapshot.free, snapshot.largest_free, snapshot.video = number(rest[1]), number(rest[3]), number(rest[5])
+        elif tag == "pool":
+            snapshot.pools[rest[0]] = tuple(number(w) for w in rest[1:]) if len(rest) > 2 else rest[1]
         elif tag == "blocks":
             snapshot.blocks, snapshot.sites_count = number(rest[0]), number(rest[2])
         elif tag == "arena":
@@ -272,6 +275,17 @@ def print_snapshot(snapshot, run, names, top, only):
               f"{size(snapshot.detail.get('asked'))}")
     print(f"  address space: free {size(snapshot.free)}, largest free region {size(snapshot.largest_free)}; "
           f"video budget {size(snapshot.video)}")
+    for name, pool in snapshot.pools.items():
+        if isinstance(pool, str):
+            print(f"  {name} pool: {pool}")
+        elif name == "shared":
+            ranges, sharers, saved, peak, refused = pool
+            print(f"  shared ranges (patch 164): {ranges} kept, {sharers} more buffers in them, {size(saved)} not "
+                  f"copied (peak {size(peak)}), {refused} not kept (the table full)")
+        else:
+            chunks, bytes_, used, ranges, most, unpooled = pool
+            print(f"  {name} pool: {size(used)} of {size(bytes_)} in {chunks} chunks, {ranges} buffers "
+                  f"(a chunk's most {most} of 4096); outside it {size(unpooled)}")
     print(f"  tracked blocks {snapshot.blocks} of {run.slots[0] * 7 // 8 if run.slots else '?'}, "
           f"sites {snapshot.sites_count} of {run.slots[1] * 7 // 8 if run.slots else '?'}")
     held, free = budget(snapshot, run.rooms)

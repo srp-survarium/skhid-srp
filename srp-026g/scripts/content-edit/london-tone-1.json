@@ -1,0 +1,70 @@
+{
+ "_about": "London (level_09) day drawn with its own build's tone curve: three-maps-021-lighting@9 runs 0.26g's tone map with 0.31a2's exposure key (6.0 for 4.5) where the scene's mie_fog_base_height is London's marker, 32909 for the day (the evening's 32929 and the rain's 32919 come with pack london-weathers@4; the rain also gets London's 0.7 rain-shelter factor). Every native shader reads that field only as min(1, exp((base - eye_y) * falloff)), which is 1 for an eye below the base, as London's authored 60 gives for its cameras (they stay below 50 m): the fog does not change. Every day project: day_2, day_3, day_4, day_5 and Free for All's day_8.",
+ "set_entry": [
+  {
+   "file": "projects/level_09/day_2/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "environment"
+   },
+   "from": {
+    "properties/mie_fog_base_height": 60
+   },
+   "to": {
+    "properties/mie_fog_base_height": 32909
+   }
+  },
+  {
+   "file": "projects/level_09/day_3/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "environment"
+   },
+   "from": {
+    "properties/mie_fog_base_height": 60
+   },
+   "to": {
+    "properties/mie_fog_base_height": 32909
+   }
+  },
+  {
+   "file": "projects/level_09/day_4/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "environment"
+   },
+   "from": {
+    "properties/mie_fog_base_height": 60
+   },
+   "to": {
+    "properties/mie_fog_base_height": 32909
+   }
+  },
+  {
+   "file": "projects/level_09/day_5/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "environment"
+   },
+   "from": {
+    "properties/mie_fog_base_height": 60
+   },
+   "to": {
+    "properties/mie_fog_base_height": 32909
+   }
+  },
+  {
+   "file": "projects/level_09/day_8/client_project",
+   "list": "client_objects",
+   "where": {
+    "game_object_type": "environment"
+   },
+   "from": {
+    "properties/mie_fog_base_height": 60
+   },
+   "to": {
+    "properties/mie_fog_base_height": 32909
+   }
+  }
+ ]
+}

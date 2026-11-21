@@ -1,0 +1,77 @@
+{
+ "_about": "The keys exe patch 130 (v021d_render) reads to draw the ported 0.21 maps the 0.21 way (docs/notes/client_patch.md 3.82; the files it draws with: pack v021d-renderer). srp_renderer_v021d true at the root of each of the 34 client projects of v021d_level_01, 02, 03, 05 and 06 (day, rain, evening): on that project's scene the wet pass draws with 0.21d's wet_surface_v021d.ps at any shading quality, the rain drops take 0.21d's scales and drop texture, and the god rays are drawn once a frame (0.26g draws them for the sky's stage too: the blown-out low sun). srp_grass_v021d in material/g_stage/effect of the five grass materials their vegetation layers' models use: 0.21d's grass vertex shaders (its sway). srp_water_v021d in material/forward/effect of the six ported water materials: 0.21d's wave normals. Native materials and projects have none of the keys.",
+ "add_value": [
+  {
+   "files": [
+    "projects/v021d_level_01/day_2/client_project",
+    "projects/v021d_level_01/day_4/client_project",
+    "projects/v021d_level_01/evening_2/client_project",
+    "projects/v021d_level_01/evening_4/client_project",
+    "projects/v021d_level_01/rain_2/client_project",
+    "projects/v021d_level_01/rain_4/client_project",
+    "projects/v021d_level_02/day_2/client_project",
+    "projects/v021d_level_02/day_4/client_project",
+    "projects/v021d_level_02/day_8/client_project",
+    "projects/v021d_level_02/evening_2/client_project",
+    "projects/v021d_level_02/evening_4/client_project",
+    "projects/v021d_level_02/rain_2/client_project",
+    "projects/v021d_level_02/rain_4/client_project",
+    "projects/v021d_level_03/day_2/client_project",
+    "projects/v021d_level_03/day_4/client_project",
+    "projects/v021d_level_03/day_8/client_project",
+    "projects/v021d_level_03/evening_2/client_project",
+    "projects/v021d_level_03/evening_4/client_project",
+    "projects/v021d_level_03/rain_2/client_project",
+    "projects/v021d_level_03/rain_4/client_project",
+    "projects/v021d_level_05/day_2/client_project",
+    "projects/v021d_level_05/day_4/client_project",
+    "projects/v021d_level_05/day_8/client_project",
+    "projects/v021d_level_05/evening_2/client_project",
+    "projects/v021d_level_05/evening_4/client_project",
+    "projects/v021d_level_05/rain_2/client_project",
+    "projects/v021d_level_05/rain_4/client_project",
+    "projects/v021d_level_06/day_2/client_project",
+    "projects/v021d_level_06/day_4/client_project",
+    "projects/v021d_level_06/day_8/client_project",
+    "projects/v021d_level_06/evening_2/client_project",
+    "projects/v021d_level_06/evening_4/client_project",
+    "projects/v021d_level_06/rain_2/client_project",
+    "projects/v021d_level_06/rain_4/client_project"
+   ],
+   "table": "",
+   "key": "srp_renderer_v021d",
+   "value": true
+  },
+  {
+   "files": [
+    "material_instances/ported/v021d/flora/grass_l01_alt_v2.material",
+    "material_instances/ported/v021d/flora/grass_l01_alt_v2_opaque.material",
+    "material_instances/ported/v021d/flora/grass_l02.material",
+    "material_instances/ported/v021d/flora/grass_l03_alt.material",
+    "material_instances/ported/v021d/flora/grass_l05.material"
+   ],
+   "table": "material/g_stage/effect",
+   "key": "srp_grass_v021d",
+   "value": {
+    "value": true,
+    "is_model_parameter": false
+   }
+  },
+  {
+   "files": [
+    "material_instances/ported/v021d/water/water_green_shit.material",
+    "material_instances/ported/v021d/water/water_l03_green.material",
+    "material_instances/ported/v021d/water/water_l05_geyser.material",
+    "material_instances/ported/v021d/water/water_l06_boloto.material",
+    "material_instances/ported/v021d/water/water_l1_poison.material",
+    "material_instances/ported/v021d/water/water_terrain_06.material"
+   ],
+   "table": "material/forward/effect",
+   "key": "srp_water_v021d",
+   "value": {
+    "value": true,
+    "is_model_parameter": false
+   }
+  }
+ ]
+}

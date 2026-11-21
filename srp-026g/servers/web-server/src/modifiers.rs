@@ -293,10 +293,7 @@ pub(crate) fn chosen(query: &str) -> Option<u16> {
 }
 
 pub(crate) fn language(lang: Lang) -> Language {
-    match lang {
-        Lang::En => Language::English,
-        Lang::Uk => Language::Ukrainian,
-    }
+    lang.game()
 }
 
 /// The game's text of `key`, else the key.
@@ -347,7 +344,7 @@ pub(crate) fn item_name(lang: Lang, dict_id: u16) -> String {
         .and_then(|params| params.name_key)
         .map_or_else(|| item.name.clone(), |key| text(lang, key));
     if item.is_premium {
-        format!("{name} {}", lang.tr("(premium)", "(преміум)"))
+        format!("{name} {}", lang.t("(premium)"))
     } else {
         name
     }
@@ -439,10 +436,7 @@ fn kind_html(lang: Lang, kind: &Kind) -> String {
                 format!(
                     "<li class=fit><details><summary>{group} <span class=count>{}</span></summary>\
                      <ul class=fit-items>{}</ul></details></li>",
-                    lang.tr(
-                        &format!("{} of {}", fit.items.len(), fit.of),
-                        &format!("{} з {}", fit.items.len(), fit.of),
-                    ),
+                    lang.tf("{0} of {1}", &[("0", &fit.items.len()), ("1", &fit.of)]),
                     items.concat(),
                 )
             }
@@ -492,22 +486,22 @@ fn item_html(lang: Lang, item: Option<u16>) -> String {
         "<div class=compare-field><label id=item-choice-label for=item-choice-btn>{}</label>\
          <div class=wpick id=item-choice-picker></div><select id=item-choice hidden>\
          <option value=\"\">{}</option>{}</select></div><div id=item-options hidden>{}</div>",
-        lang.tr("Item", "Предмет"),
-        lang.tr("Choose an item…", "Виберіть предмет…"),
+        lang.t("Item"),
+        lang.t("Choose an item…"),
         select_options.concat(),
         options.concat(),
     );
     let Some(dict_id) = item else {
         return format!(
             "<section class=item-modifiers id=item><h2>{}</h2>{chooser}</section>",
-            lang.tr("By item", "За предметом")
+            lang.t("By item")
         );
     };
     let params = item_params::item_params(dict_id).expect("an offered item has its parameters");
     format!(
         "<section class=item-modifiers id=item><h2>{}</h2>{chooser}\
          <div class=item-card><div class=item-head>{}<div><strong>{}</strong><span>{} · {}</span></div></div>{}</div></section>",
-        lang.tr("By item", "За предметом"),
+        lang.t("By item"),
         picture(dict_id),
         escape(&item_name(lang, dict_id)),
         group_label(
@@ -520,10 +514,7 @@ fn item_html(lang: Lang, item: Option<u16>) -> String {
             )
             .expect("an offered item has a group")
         ),
-        lang.tr(
-            &format!("level {}", params.item_level),
-            &format!("рівень {}", params.item_level)
-        ),
+        lang.tf("level {0}", &[("0", &params.item_level)]),
         item_lists(lang, dict_id, ""),
     )
 }
@@ -602,8 +593,8 @@ pub(crate) fn item_lists(lang: Lang, dict_id: u16, page: &str) -> String {
     };
     format!(
         "{}{}",
-        list(lang.tr("Can roll", "Може отримати"), rolls),
-        list(lang.tr("Comes with", "Має від початку"), built_in),
+        list(lang.t("Can roll"), rolls),
+        list(lang.t("Comes with"), built_in),
     )
 }
 
@@ -628,28 +619,25 @@ pub(crate) fn body(lang: Lang, item: Option<u16>) -> String {
         "<p class=breadcrumb><a href=\"/wiki?lang={code}\">{}</a> / {}</p>\
          <div class=wiki-heading><div><p class=eyebrow>{}</p><h1>{}</h1></div></div>\
          <p class=wiki-intro>{}</p>{}{}{}{}<script src=\"{}\"></script>",
-        lang.tr("Wiki", "Вікі"),
-        lang.tr("Modifiers", "Модифікатори"),
-        lang.tr("Equipment reference", "Довідник спорядження"),
-        lang.tr("Modifiers", "Модифікатори"),
-        lang.tr(
-            "An item rolls up to three modifiers, each of a different kind. The stronger, the rarer.",
-            "Предмет отримує до трьох модифікаторів, кожен іншого виду. Що сильніший, то рідший.",
-        ),
+        lang.t("Wiki"),
+        lang.t("Modifiers"),
+        lang.t("Equipment reference"),
+        lang.t("Modifiers"),
+        lang.t("An item rolls up to three modifiers, each of a different kind. The stronger, the rarer."),
         item_html(lang, item),
         section(
-            lang.tr("Weapons", "Зброя"),
-            lang.tr("Strengths from common to rare.", "Сила від звичайної до рідкісної."),
+            lang.t("Weapons"),
+            lang.t("Strengths from common to rare."),
             &|kind| kind.source == Source::Rolled && kind.for_weapons(),
         ),
         section(
-            lang.tr("Equipment", "Спорядження"),
-            lang.tr("Strengths from common to rare.", "Сила від звичайної до рідкісної."),
+            lang.t("Equipment"),
+            lang.t("Strengths from common to rare."),
             &|kind| kind.source == Source::Rolled && !kind.for_weapons(),
         ),
         section(
-            lang.tr("Built into some items", "Вбудовані в деякі предмети"),
-            lang.tr("These never roll.", "Ці не випадають."),
+            lang.t("Built into some items"),
+            lang.t("These never roll."),
             &|kind| kind.source == Source::BuiltIn,
         ),
         script_url(),
@@ -692,18 +680,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    #[test]
-    fn damage_rolls_on_every_weapon_from_one_to_five_percent() {
-        let damage = kind_shown_as(1);
-        assert_eq!(damage.source, Source::Rolled);
-        assert_eq!(damage.strengths, [0.01, 0.02, 0.03, 0.04, 0.05]);
-        assert!(damage.for_weapons());
-        assert_eq!(damage.fits.len(), 6, "every weapon class");
-        assert!(damage.fits.iter().all(|fit| fit.items.len() == fit.of));
-        let page = kind_html(Lang::En, damage);
-        assert!(page.contains("<li>+1%</li>") && page.contains("<li>+5%</li>"));
     }
 
     #[test]

@@ -161,6 +161,13 @@ impl<'a> Reader<'a> {
     fn rest(&self) -> usize {
         self.bytes.len() - self.at
     }
+
+    /// Every byte not read yet.
+    fn take_rest(&mut self) -> &'a [u8] {
+        let rest = &self.bytes[self.at..];
+        self.at = self.bytes.len();
+        rest
+    }
 }
 
 /// A body split into its parts.
@@ -584,8 +591,9 @@ impl VictoryItemStatus {
     }
 }
 
-/// The statistics' last 11 bytes (0x2F5B08..0x2F5BCB): the standing. They
-/// end the section whatever the roster and the mode are.
+/// The statistics' 11 bytes after the records (0x2F5B08..0x2F5BCB): the
+/// standing. They end the section of a game that counts no weapons
+/// ([`Statistics::weapons`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct StatisticsTail {
     /// `m_team_points`: modes 2 and 3, the batteries in each team's
@@ -610,14 +618,6 @@ pub struct StatisticsTail {
 impl StatisticsTail {
     pub const LEN: usize = 11;
 
-    /// The tail of a statistics section, without reading what is before
-    /// it. `None`: the section is shorter (empty: the client had no
-    /// statistics object).
-    pub fn of(statistics: &[u8]) -> Option<Self> {
-        let at = statistics.len().checked_sub(Self::LEN)?;
-        Self::read(&mut Reader::new(&statistics[at..]))
-    }
-
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
             team_points: [reader.u16()?, reader.u16()?],
@@ -636,6 +636,83 @@ impl StatisticsTail {
     }
 }
 
+/// What a place did with one weapon in a match, as the games count it (exe
+/// patch 165, `weapon_stats`; kill_weapon.md section 4): an entry of the
+/// block after the statistics' tail, whose one definition is
+/// `srp_validate::world::WeaponCounts`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct WeaponCounts {
+    /// The weapon's id in the items dictionary (a kill's may be a grenade's
+    /// or a trap's). 0: no weapon known (a hit with no bullet, a death with
+    /// nothing in the hands), and what a place's weapons past its fifteenth
+    /// are counted as.
+    pub dict_id: u16,
+    /// Enemies killed with it: over the place's weapons, its event 0.
+    pub kills: u16,
+    /// Of the kills, those by a headshot: event 15.
+    pub headshots: u16,
+    /// Of the kills, those whose bullet had pierced something (a wall, a
+    /// prop, another player) before it killed.
+    pub wall_kills: u16,
+    /// Of the kills, those whose bullet had bounced before it killed.
+    pub ricochet_kills: u16,
+    /// The place's deaths with it in the hands: event 2.
+    pub deaths: u16,
+    /// Bullets fired with it, a pellet each: event 22.
+    pub shots: u16,
+    /// Its bullets' hits on an enemy, a pellet each: event 23.
+    pub hits: u16,
+    /// The pain its hits took off enemies, in ten-thousandths of a pain
+    /// pool (10000: one whole pool).
+    pub damage: u32,
+    /// The killer-to-victim distances of its kills added up, in
+    /// decimetres: over `kills`, the average.
+    pub kill_distance_dm: u32,
+    /// Its longest kill, in decimetres.
+    pub longest_kill_dm: u16,
+    /// How long it was in the place's hands while the place was alive, in
+    /// ms (whole simulation ticks of 50). Under `dict_id` 0: the time alive
+    /// with none of its inventory's items in the hands (a battery).
+    pub held_ms: u32,
+}
+
+impl WeaponCounts {
+    fn of(counts: &srp_validate::world::WeaponCounts) -> Self {
+        Self {
+            dict_id: counts.dict_id(),
+            kills: counts.kills(),
+            headshots: counts.headshots(),
+            wall_kills: counts.wall_kills(),
+            ricochet_kills: counts.ricochet_kills(),
+            deaths: counts.deaths(),
+            shots: counts.shots(),
+            hits: counts.hits(),
+            damage: counts.damage(),
+            kill_distance_dm: counts.kill_distance(),
+            longest_kill_dm: counts.longest_kill(),
+            held_ms: counts.held_ms(),
+        }
+    }
+
+    fn write(&self, out: &mut Vec<u8>) {
+        let counts = [
+            self.kills,
+            self.headshots,
+            self.wall_kills,
+            self.ricochet_kills,
+            self.deaths,
+            self.shots,
+            self.hits,
+        ];
+        out.extend(self.dict_id.to_le_bytes());
+        out.extend(counts.iter().flat_map(|count| count.to_le_bytes()));
+        out.extend(self.damage.to_le_bytes());
+        out.extend(self.kill_distance_dm.to_le_bytes());
+        out.extend(self.longest_kill_dm.to_le_bytes());
+        out.extend(self.held_ms.to_le_bytes());
+    }
+}
+
 /// The statistics section (`shared_statistics::serialize` 0x2F5AC0).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Statistics {
@@ -644,6 +721,9 @@ pub struct Statistics {
     /// One for each battery; none in mode 4.
     pub victory_items: Vec<VictoryItemStatus>,
     pub tail: StatisticsTail,
+    /// By roster place, its weapons in rising dict id (exe patch 165).
+    /// `None`: the world's game counts none.
+    pub weapons: Option<Vec<Vec<WeaponCounts>>>,
 }
 
 impl Statistics {
@@ -654,7 +734,7 @@ impl Statistics {
             return None;
         }
         let mut reader = Reader::new(bytes);
-        let statistics = Self {
+        Some(Self {
             players: (0..players)
                 .map(|_| PlayerStatistics::read(&mut reader))
                 .collect::<Option<_>>()?,
@@ -662,8 +742,16 @@ impl Statistics {
                 .map(|_| VictoryItemStatus::read(&mut reader, players))
                 .collect::<Option<_>>()?,
             tail: StatisticsTail::read(&mut reader)?,
-        };
-        (reader.rest() == 0).then_some(statistics)
+            // To the section's exact end, by the block's own length.
+            weapons: srp_validate::world::Weapons::read(reader.take_rest(), players)
+                .ok()?
+                .map(|weapons| {
+                    weapons
+                        .places()
+                        .map(|place| place.counts().iter().map(WeaponCounts::of).collect())
+                        .collect()
+                }),
+        })
     }
 
     /// The section's bytes, as the client writes them: a player's event
@@ -677,6 +765,18 @@ impl Statistics {
             status.write(&mut out);
         }
         self.tail.write(&mut out);
+        if let Some(weapons) = &self.weapons {
+            let mut places = Vec::new();
+            for place in weapons {
+                places.push(place.len() as u8);
+                for counts in place {
+                    counts.write(&mut places);
+                }
+            }
+            out.push(srp_validate::world::weapon_block::VERSION);
+            out.extend((places.len() as u16).to_le_bytes());
+            out.extend(places);
+        }
         out
     }
 }
@@ -1812,6 +1912,7 @@ mod tests {
             players: vec![first_kit, second_kit, every_kit],
             victory_items: Vec::new(),
             tail: tail(),
+            weapons: None,
         };
         let bytes = statistics.encode();
         assert_eq!(Statistics::decode(&bytes, 3, 0), Some(statistics));
@@ -1906,13 +2007,57 @@ mod tests {
     }
 
     #[test]
-    fn the_tail_is_read_without_the_rest() {
-        let mut bytes = vec![0xEE; 100];
-        bytes.extend(TAIL);
-        assert_eq!(StatisticsTail::of(&bytes), Some(tail()));
-        assert_eq!(StatisticsTail::of(&TAIL), Some(tail()));
-        assert_eq!(StatisticsTail::of(&TAIL[1..]), None);
-        assert_eq!(StatisticsTail::of(&[]), None);
+    fn the_weapons_follow_the_tail() {
+        let mut shooter = PlayerStatistics::default();
+        shooter.events[event::KILL] = [2, 0, 1];
+        shooter.events[event::HEADSHOT_KILL][0] = 1;
+        shooter.events[event::BULLET_FIRE] = [30, 0, 8];
+        shooter.events[event::BULLET_HIT][0] = 9;
+        let mut victim = PlayerStatistics::default();
+        victim.events[event::DEATH][1] = 3;
+        let rifle = WeaponCounts {
+            dict_id: 21,
+            kills: 2,
+            headshots: 1,
+            wall_kills: 1,
+            ricochet_kills: 2,
+            shots: 30,
+            hits: 9,
+            damage: 23_456,
+            kill_distance_dm: 700,
+            longest_kill_dm: 450,
+            held_ms: 61_250,
+            ..WeaponCounts::default()
+        };
+        let shotgun = WeaponCounts { dict_id: 300, kills: 1, shots: 8, ..WeaponCounts::default() };
+        let statistics = Statistics {
+            players: vec![shooter, victim],
+            victory_items: Vec::new(),
+            tail: tail(),
+            weapons: Some(vec![
+                vec![rifle, shotgun],
+                vec![
+                    WeaponCounts { deaths: 1, ..WeaponCounts::default() },
+                    WeaponCounts { dict_id: 21, deaths: 2, ..WeaponCounts::default() },
+                ],
+            ]),
+        };
+        let bytes = statistics.encode();
+        assert_eq!(Statistics::decode(&bytes, 2, 0).as_ref(), Some(&statistics));
+        // The same check the match server and the games make of it.
+        let check = |bytes: &[u8]| {
+            srp_validate::world::Statistics::read(&srp_validate::world::Section { at: 0, bytes }, 2, 0).map(|_| ())
+        };
+        assert_eq!(check(&bytes), Ok(()));
+        // A world of a game that counts none ends with the tail.
+        let without = Statistics { weapons: None, ..statistics.clone() };
+        assert_eq!(without.encode().len(), bytes.len() - 3 - 2 - 4 * 30);
+        assert_eq!(Statistics::decode(&without.encode(), 2, 0), Some(without));
+        // A sum that is not the record's, and a block cut short: neither reads.
+        let mut wrong = statistics.clone();
+        wrong.weapons.as_mut().unwrap()[0][1].kills = 2;
+        assert!(check(&wrong.encode()).is_err());
+        assert_eq!(Statistics::decode(&bytes[..bytes.len() - 1], 2, 0), None);
     }
 
     /// The timelimit rule at 539 650 ms (snapshot_rules.md §2.2): in

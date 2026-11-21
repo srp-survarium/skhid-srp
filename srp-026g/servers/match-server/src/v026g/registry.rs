@@ -9,17 +9,20 @@
 
 use std::collections::{HashMap, HashSet};
 use std::net::IpAddr;
+
+use udp_transport::relay::{Peer, Route};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
+use session::v026g::replays::ReplayId;
 use survarium::v026g::keeper;
 use survarium::v026g::twist::{Armed, Played};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, GameMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
-use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
+use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing, WeaponCounts};
 use survarium::v026g::match_msgs::static_info::score_weights as static_info_weights;
 use survarium::v026g::match_msgs::static_info::{
     MatchOptions, MatchProfile, SCORE_EVENTS, StaticInfo, StaticInfoError,
@@ -132,7 +135,7 @@ pub enum CreateError {
     Roster(usize),
     /// Not a map and mode the client can play; with the server's bots in
     /// the match, not one they play (modes 2 to 4).
-    Map(u8),
+    Map(maps::MapId),
     /// Two places have the same session.
     DuplicateSession(u32),
     /// A session still has a place in a match that is not over.
@@ -199,6 +202,9 @@ pub(crate) struct Formed {
     pub score_weights: [f32; SCORE_EVENTS],
     pub info: StaticInfo,
     pub formed_at: Instant,
+    /// The match for good: its id with when it was made, its recording's
+    /// name and the history's key.
+    pub replay_id: ReplayId,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
     /// Every connecting client must advertise the matching capability.
     pub growing_roster: bool,
@@ -269,7 +275,7 @@ pub struct LiveMatch {
     /// for the players' eyes.
     pub match_id: u32,
     /// The `maps_dict` id: the map and the mode.
-    pub map_id: u8,
+    pub map_id: maps::MapId,
     pub phase: LivePhase,
     /// Each team's players who have not left: before the countdown the
     /// ones still to come count too.
@@ -295,22 +301,74 @@ struct Inner {
     /// A growing roster's admission as the match last said it.
     admitting: HashMap<u32, Admitting>,
     live: HashMap<u32, Live>,
-    /// The IP each place's game connected to the match from (its latest
+    /// Where each place's game connected to the match from (its latest
     /// 0xD8): what the voice relay checks a talker's datagrams against
     /// (`super::voice`).
-    connections: HashMap<(u32, u8), IpAddr>,
+    connections: HashMap<(u32, u8), Connection>,
+}
+
+/// Whose radio a seat talks and listens on: two seats of a match hear each
+/// other's radio when theirs is the same.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RadioChannel {
+    /// Its team's (every mode with teams; the owner, 2026-11-16: "radio is
+    /// team only").
+    Team(u8),
+    /// The whole match's: a free-for-all, whose places are each a side of
+    /// their own ("or in ffa for everyone").
+    Match,
+}
+
+impl RadioChannel {
+    /// The radio of a place of `team` in a match of `mode`: the one place
+    /// the relay's radio routing is decided.
+    pub fn of(mode: GameMode, team: u8) -> RadioChannel {
+        if mode == GameMode::FreeForAll {
+            RadioChannel::Match
+        } else {
+            RadioChannel::Team(team)
+        }
+    }
 }
 
 /// A session's place as the voice relay needs it (`super::voice`). Its
-/// voice reaches the whole match, whatever its team: each game decides how
-/// it hears a speaker (the owner, 2026-11-14).
+/// 10 m voice reaches the whole match, whatever its team (each game plays
+/// it only near the speaker); its radio only the seats of its
+/// [`RadioChannel`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VoiceSeat {
     pub match_id: u32,
     /// The roster place: the speaker's slot on the voice wire.
     pub place: u8,
-    /// The IP of the place's match connection; `None` before its 0xD8.
-    pub ip: Option<IpAddr>,
+    pub radio: RadioChannel,
+    /// The place's match connection; `None` before its 0xD8.
+    pub connection: Option<Connection>,
+}
+
+/// Where a place's game connected to its match from: the client's IP and the
+/// route its datagrams came by. Its voice is taken only by that route and
+/// from that IP's network ([`Connection::admits`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Connection {
+    ip: IpAddr,
+    route: Route,
+}
+
+impl Connection {
+    pub fn of(peer: Peer) -> Self {
+        Self {
+            ip: peer.ip().to_canonical(),
+            route: peer.route(),
+        }
+    }
+
+    /// Whether a voice datagram from `peer` may be this connection's game's:
+    /// by the same route, and from the same network
+    /// ([`super::voice::same_network`]). A datagram by another route is
+    /// another peer's, whatever address it names.
+    pub fn admits(self, peer: Peer) -> bool {
+        self.route == peer.route() && super::voice::same_network(self.ip, peer.ip())
+    }
 }
 
 /// A growing roster's admission as the match loop last said it
@@ -527,6 +585,7 @@ impl MatchRegistry {
                 score_weights,
                 info,
                 formed_at: now,
+                replay_id: ReplayId::new(match_id, std::time::SystemTime::now()),
                 growing_roster,
                 initial_players: options.players.len(),
                 vs_bots: setup.vs_bots,
@@ -743,13 +802,13 @@ impl MatchRegistry {
         self.inner().seats.get(&session_id).copied()
     }
 
-    /// The place's game connected to its match from `ip` (its 0xD8).
-    pub(crate) fn set_connection(&self, seat: Seat, ip: IpAddr) {
+    /// The place's game connected to its match from `peer` (its 0xD8).
+    pub(crate) fn set_connection(&self, seat: Seat, peer: Peer) {
         let mut inner = self.inner();
         if inner.matches.contains_key(&seat.match_id) {
             inner
                 .connections
-                .insert((seat.match_id, seat.place), ip.to_canonical());
+                .insert((seat.match_id, seat.place), Connection::of(peer));
         }
     }
 
@@ -769,8 +828,8 @@ impl MatchRegistry {
             .collect()
     }
 
-    /// The seat of a session with its match connection's IP, for the
-    /// voice relay. `None` for a
+    /// The seat of a session with its radio (by the match's mode) and its
+    /// match connection's IP, for the voice relay. `None` for a
     /// session with no place, and for a bot's place (no game talks for it).
     pub fn voice_seat(&self, session_id: u32) -> Option<VoiceSeat> {
         let inner = self.inner();
@@ -783,7 +842,8 @@ impl MatchRegistry {
         Some(VoiceSeat {
             match_id: seat.match_id,
             place: seat.place,
-            ip: inner.connections.get(&(seat.match_id, seat.place)).copied(),
+            radio: RadioChannel::of(formed.played.mode(), place.team),
+            connection: inner.connections.get(&(seat.match_id, seat.place)).copied(),
         })
     }
 
@@ -1043,6 +1103,11 @@ pub struct PlayerResult {
     /// (`survarium::v026g::match_msgs::players`). `None`: no trusted
     /// snapshot, the player was not in it, or its block did not read.
     pub supplies: Option<Supplies>,
+    /// What it did with each weapon, as the games counted it in the last
+    /// trusted snapshot (exe patch 165; `snapshot::WeaponCounts`): an entry
+    /// a dict id, rising, `dict_id` 0 no weapon known. Empty: no snapshot
+    /// was trusted, or its games count none.
+    pub weapons: Vec<WeaponCounts>,
 }
 
 /// How a match ended, for the results screen and the rewards. Every match
@@ -1050,7 +1115,9 @@ pub struct PlayerResult {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchResult {
     pub match_id: u32,
-    pub map_id: u8,
+    /// [`Formed::replay_id`]: the same match.
+    pub replay_id: ReplayId,
+    pub map_id: maps::MapId,
     /// [`Formed::played`]'s: Blackout's scores pay twice.
     pub mode: GameMode,
     /// [`Formed::played`]'s twist: the kits it armed.

@@ -277,10 +277,11 @@ class GateTest(wine.WineTest):
         launched = Launched(self)
         launched.wait_for_state(LATEST)
         launched.close()
-        # The server down at the start: PLAY with what was checked, as
-        # before; no "maintenance" while it stays down.
-        self.site.manifest_status = 502
-        self.site.patch_list_status = 502
+        # The server failing at the start (not its proxy's 502, a restart:
+        # the next test): PLAY with what was checked, as before; no
+        # "maintenance" while it stays so.
+        self.site.manifest_status = 500
+        self.site.patch_list_status = 500
         launched = Launched(self)
         launched.wait_for_state(LATEST, 180)
         self.assertTrue(any("No update check" in text for text in launched.texts()), launched.texts())
@@ -292,6 +293,36 @@ class GateTest(wine.WineTest):
         self.site.manifest_status = 200
         self.site.patch_list_status = 200
         self.assert_restarted(launched)
+
+    def test_a_server_that_restarts_at_the_start_is_waited_for_and_play_comes_on_when_it_answers(self):
+        self.release(26, 26, least=26)
+        launched = Launched(self)
+        launched.wait_for_state(LATEST)
+        launched.close()
+        # srp26 stopped (a release): Caddy answers 502 for the site, its
+        # /api/stats too. No box and no PLAY: "Server maintenance...", the
+        # launcher's line counting the seconds to each next try (message 13).
+        self.site.manifest_status = 502
+        self.site.patch_list_status = 502
+        launched = Launched(self)
+        launched.wait_for_state(MAINTENANCE, 180)
+
+        def counts():
+            return [frame[1] for frame in launched.said() if frame[0] == 0x13]
+        launched.wait_for(lambda: len(counts()) >= 11, 60, "two rounds of the count")
+        self.assertEqual(counts()[:11], [5, 4, 3, 2, 1] * 2 + [5])
+        self.assertNotIn(LATEST, launched.states())
+        self.assertEqual(launched.texts(), [])
+        self.assertIn("diagnosis Some(Restarting)", self.log())
+        # Back: the count ends, the update runs and PLAY comes on, in the
+        # same launcher.
+        self.site.manifest_status = 200
+        self.site.patch_list_status = 200
+        launched.wait_for_state(LATEST, 120)
+        self.assertEqual(counts()[-1], 0)
+        self.assertIn("the server answers: the update runs again", self.log())
+        self.assertIsNone(self.restarted())
+        self.assertIsNone(launched.process.poll())
 
     # --- the updater replaced by `check` ---------------------------------
 

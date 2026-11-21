@@ -25,6 +25,10 @@ impl Match {
             score_weights: options.score_weights,
             info,
             formed_at: std::time::Instant::now(),
+            replay_id: session::v026g::replays::ReplayId::new(
+                options.match_id,
+                std::time::SystemTime::now(),
+            ),
             growing_roster: false,
             initial_players,
             vs_bots: false,

@@ -55,7 +55,11 @@ it prevents the native client's normal UI action handlers from being installed.
 
 The managed server binds only to `127.0.0.1`. Its accounts live in
 `private/local-clients/data`; logs and copied Wine prefixes live in
-`private/local-clients/runtime`. Default ports are login TCP 1234, lobby UDP
+`private/local-clients/runtime`. The games' own run logs (the engine's
+`Survarium_<user>.<stamp>.log` and the patches' `srp_patches.<stamp>.log`, every
+client's) are in the game folder's `logs/` (`srp-026g/docs/notes/run-logs.md`;
+exes before it: the engine's in each prefix's Documents/Survarium, the patches'
+in `binaries/x86`). Default ports are login TCP 1234, lobby UDP
 1235, match UDP 1236, web TCP 8088. Occupied ports cause startup to fail without
 stopping another server. You can change the four ports together in the JSON.
 The server binary is used as configured; `restart` does not build new code.

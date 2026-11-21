@@ -159,11 +159,11 @@ def main():
     name = game.put_text("s_ingame_volume")
     node = game.call(music.FIND, {UC_X86_REG_ESI: name})[UC_X86_REG_EAX]
     value = game.read(node + 0x40) if node else 0
-    check(node and node == head and game.read(node) == music.CC_FLOAT_VTABLE
+    check(node and node == game.read(head + 0x0C) and game.read(node) == music.CC_FLOAT_VTABLE
           and game.text(game.read(node + 0x10)) == "s_ingame_volume" and game.read(node + 0x14) == 2
           and game.read(node + 0x1C, 2)[1] == 1 and (game.float(node + 0x44), game.float(node + 0x48)) == (0.0, 100.0)
           and game.float(value) == 100.0,
-          "configs.start: s_ingame_volume registered, the chain's last, found by the console's lookup (0xEB7C0, "
+          "configs.start: s_ingame_volume registered, the chain's last but patch 156's `collision`, found by the console's lookup (0xEB7C0, "
           "the Settings' Game option's): a cc_float, saved (user.cfg), kind 2, 0 to 100, 100 at first")
     hook("configs")
     check(game.read(music.LIST_HEAD) == head, "configs.start again: registered once")

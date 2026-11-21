@@ -17,7 +17,7 @@ fn free_for_all() -> &'static maps::MapMode {
     maps::find(1, maps::weather::DAY, GameMode::FreeForAll).expect("level_01's free-for-all")
 }
 
-fn map_id() -> u8 {
+fn map_id() -> MapId {
     free_for_all().id
 }
 
@@ -31,7 +31,7 @@ fn srp_entry() -> Vec<u8> {
 
 /// The lobby's seating of a match: its places on two sides, places 0 and 2
 /// a squad, the places of `driven` the server's own bots.
-fn seated(players: usize, map_id: u8, driven: &[usize]) -> MatchSetup {
+fn seated(players: usize, map_id: MapId, driven: &[usize]) -> MatchSetup {
     let mut made = setup(players, map_id);
     for place in [0, 2] {
         made.players[place].profile.squad = 1;

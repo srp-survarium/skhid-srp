@@ -67,7 +67,15 @@ its row of `release/content.tsv`. The list must stay the last that edits
 ## Four more maps: stalker-maps-2 (the owner, 2026-11-14)
 
 "Port four STALKER multiplayer maps", Free for All only, Clear Sky's versions:
-pack `stalker-maps-2@2` and content edit `ffa-stalker-2.json`. Built after the
+pack `stalker-maps-2@2` and content edit `ffa-stalker-2.json`. **Fire Station
+alone ships** (the owner, 2026-11-16: "let's merge only single map for now
+which is fire station"): Dark Valley, Vehicle Station and Sports Center are
+held, in the porter (`maps.json` `hold`: not built into the pack) and here
+(no dictionary rows, project copies, Keeper pools, loading pictures, HUD
+minimaps or site maps; their FFA points stay in `ffa-spawns-2.tsv`, held by
+`make_ffa_edits.py`'s `HELD_2`, their names in the localization and their
+ids theirs). To offer one: its rows back as Fire Station has them. The
+numbers below are the four maps' build. Built after the
 released `stalker-maps@6`, which they do not change: `release/build-content 60`
 (a quick build, `/mnt/hdd/Projects/stalker-maps-026/content-maps2-d`) makes
 4,855 new files, the four maps' (their namespaces `ported/cs/<map>`,
@@ -106,10 +114,10 @@ that would differ stops the build), so it needs that pack beside it.
   to without a ladder: 15+15, 14+14, 32+32, 10+10) and `modes.tsv` /
   `maps.tsv` rows stay. They have no ammo stashes: Team Deathmatch on them
   needs them first.
-- The pack's four dictionary rows come before `blackout-mode-1`,
+- Fire Station's dictionary row comes before `blackout-mode-1`,
   `v011e-vostok-modes-1`, `ffa-1` and `ffa-ported-1`, whose append counts
-  shift by 4 (as `stalker-maps@6`'s six did); `artefact-keeper-1` gives the
-  four TDM projects their Keeper pool (Free for All's copies take it);
+  shift by 1 (as `stalker-maps@6`'s six did by 6); `artefact-keeper-1` gives
+  its TDM project its Keeper pool (Free for All's copy takes it);
   `simulation_changes.tsv` has the `next` row.
 - Grass: X-Ray's detail objects at the level's density (0.3 m) on Dark
   Valley (142,346 placed), Vehicle Station (71,179) and Fire Station
@@ -141,24 +149,35 @@ walker collision.
 - **Dark Valley:** ladders clmbl#0 and #1 (9.1 → 13.0) were the only ways
   onto the main block's roof (11.93, 688 m²). Now from each wing's roof
   (9.05): planks from a slab of the roof edge fallen onto the wing (0.53 m
-  up) to the top of the main block's parapet (12.91; 31.5°), a plank deck on
-  it, and planks down onto the roof (28.2°), with rubble and broken slabs
-  round them in Experimental Pool's cave-in style. They are 3.5 m north of
-  the ladders, which stay: over the parapet south of z −220 a pipe runs
-  1.1 m up. Both ladder tops are walked; the roof has no dead end.
+  up) to the top of the main block's parapet (12.91; 31.5°), a step of 1 m
+  down onto the roof and up again (since `stalker-maps-2@4`; the owner,
+  2026-11-16: "there is no need for horizontal and roof planks", "only the
+  outside one is important": the plank deck on the parapet and the planks
+  down onto the roof are gone), with rubble and broken slabs round them in
+  Experimental Pool's cave-in style. They are 3.5 m north of the ladders,
+  which stay: over the parapet south of z −220 a pipe runs 1.1 m up. Both
+  ladder tops are walked; the roof has no dead end (`check_reach.py`: the
+  same walked floors, spawns and dead ends with and without the deck).
 - **Sports Center:** the earlier package's routes (`soc-cs-dm-to-026g.json`,
   map 200) as they were: plank ramps out of the basin, up to the galleries
   (`stand_ramp`, 39.4°) and over the steep steel stairs, crates and planks up
   through the widened third-floor hatches (the ladders there cut away). All
   eight ladder tops are walked: the upper level (2,824 m² on the source) is
-  played.
+  played. Since `stalker-maps-2@4` the hatches' sides are closed: a cut
+  through something solid gets caps on the box's faces (the porter's
+  `cuts.rs`, every cut of every map; drawn and in the collision). Before,
+  the 0.7 m slab was open at its cut sides and the rooms beside the shafts
+  showed through them (the owner, 2026-11-16, "holes in textures").
 - **Fire Station:** the earlier package's west roof ramp (34°) and the planks
   over clmbl#0 reach the main building's roof (743 m²); clmbl#3's top is
   walked too. The slabs over the rungs of clmbl#2, #7 and #9 stay; the
   tower, the 97 m² roof and the two ~100 m² roofs stay out of reach.
 - **Vehicle Station:** its four ladder areas (79-333 m²) stay out of reach;
   no spawn stands on them (one the spawn rule kept on clmbl#4's roof is left
-  out, below).
+  out, below). Its puddles (Clear Sky `effects\wallmarkmult`, 6 patches)
+  are decals since `stalker-maps-2@4`, lifted 3 cm like every decal: as an
+  additive effect on the ground they flickered in stripes (the owner,
+  2026-11-16).
 
 Dead ends left (`check_reach.py`, none made by the added ways up unless
 said): Dark Valley's south hall under the main block (188 m² at y 1.05),
@@ -186,6 +205,8 @@ areas the minimaps' frames) made twice as many by the spawn rule
 47 (its point 14 stood on the roof only clmbl#4 reaches and is left out,
 `EXCLUDED_2`). Run on that build, `to_cover --times 1` keeps all 191 as
 they are, and the released Free for All maps test passes on its server data.
+Fire Station's 48 are replaced by the owner's 42 picks (`ffa-fire-station-picks-1`,
+`ffa.md`).
 
 ```sh
 stalker-ffa-points <layers> --project v010b_cs_mp_<map>/day_4 ... --plots P > planned.tsv
@@ -202,7 +223,7 @@ appended (the manifest's state before the list).
 
 - What the six maps' later lists gave the played three (stock day grain, the
   0.11e sun, `ao_saturation` 1, matte grass, the bushes' rustle) the four
-  have from the port since `stalker-maps-2@3` ("One pipeline", below).
+  have from the port since `stalker-maps-2@4` ("One pipeline", below).
 - Loading pictures: frames of the game, headless at 2560 x 1440, highest
   settings, hfov 100 (Dark Valley `sw-high` (200, 28, -262) yaw 55.2 pitch
   -15.7; Vehicle Station `e-high` (196, 18, -27) -90 / -20.7; Fire Station
@@ -293,7 +314,7 @@ builds it).
 "All of that should have the same single default pipeline", "a generic single
 pass for all maps": the look fixes of #1793, the bushes of #1798, the terrain
 relief fix and a grass size rule are what the port gives every map it builds,
-and no step names a map. `stalker-maps@7` and `stalker-maps-2@3` are built so
+and no step names a map. `stalker-maps@7` and `stalker-maps-2@4` are built so
 (resource-porter `content/stalker-look-defaults`); the edit lists
 `stalker-maps-sun-1`, `stalker-grass-matte-1`, `stalker-maps-ao-1`,
 `stalker-bushes-1`, the pack `stalker-bushes@2` and its script are gone, and
@@ -317,7 +338,7 @@ and no step names a map. `stalker-maps@7` and `stalker-maps-2@3` are built so
   (instance g of n stays when g x 120,000 / n steps). `release/build-content`
   checks every map players will have, whatever made it (a pack, a base row:
   the v0.11e, 0.21d and 0.69d ports too), and stops at one over 120,000.
-  With `stalker-maps@7` and `stalker-maps-2@3`
+  With `stalker-maps@7` and `stalker-maps-2@4`
   (`tools/playable-map-pack/grass_counts.py` over the stock db, patches 12-60
   and the new patch): Experimental Pool, Dark Valley and Fire Station 120,000
   (125,844, 142,346 and 384,112 placed), level_03 90,879, v021d level_03
@@ -360,7 +381,7 @@ The environments of the maps ported from v0.10b and v0.11e (these six, Vostok
 v0.11, Chemical Plant v0.11) keep their source build's post-process values,
 which 0.26g draws its own way. Three edit lists set seven of them, in every
 mode's copy of the projects they name. Since `stalker-maps@7` and
-`stalker-maps-2@3` the port makes these values for every map it builds and the
+`stalker-maps-2@4` the port makes these values for every map it builds and the
 lists are gone but for the v0.11e maps' grain ("One pipeline", below); the
 table is what they did:
 
@@ -467,7 +488,7 @@ Training Camp's meadow.
 through a bush of a ported map was silent. Pack `stalker-bushes@2` and
 `content-edit/stalker-bushes-1.json` gave Experimental Pool, Military Warehouses
 and Training Camp the foliage step of stock's bushes; since `stalker-maps@7` and
-`stalker-maps-2@3` the port gives every map its bushes, the same bytes for
+`stalker-maps-2@4` the port gives every map its bushes, the same bytes for
 these three ("One pipeline", below). Built and read back
 (below); **not heard in the game yet**.
 
@@ -619,7 +640,7 @@ filter from elsewhere would not be in it; none was found.
   them one, on the Fort's and Vector's bushes too.
 - Bot map data and the site's renders do not read it.
 
-Made by the port since `stalker-maps@7` / `stalker-maps-2@3` ("One pipeline",
+Made by the port since `stalker-maps@7` / `stalker-maps-2@4` ("One pipeline",
 below): resource-porter `tools/stalker-tdm/bushes.py`, which `build-pack.sh` runs
 on every map it imports, is `scripts/stalker-bushes/make_pack.py` (gone) moved
 there, reading the imported map instead of a released pack.

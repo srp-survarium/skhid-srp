@@ -25,7 +25,8 @@ pub use inventory::{
 };
 mod player_tail;
 pub use player_tail::{
-    ArtefactSlots, BatteryAnimation, BatteryMotion, BatteryState, CarriedBattery, Head, HitEffect,
+    ArtefactSlots, BatteryAnimation, BatteryMotion, BatteryState, BatteryStrike, CarriedBattery,
+    Head, HitEffect,
     HitEmitter, MAX_HIT_EFFECTS, MAX_PLAYER_EFFECTS,
     InventoryHeader, PlayerState, Stamina, player_head, player_tail,
 };
@@ -38,6 +39,7 @@ pub use weapon::{
 };
 mod rules;
 mod statistics;
+mod weapons;
 use crate::{KITS, Part, Reason, Refusal, mode};
 pub use frame::{Block, Frame, PLAYER_STATE_CAP, Section, frame};
 pub use rules::{
@@ -49,6 +51,12 @@ pub use statistics::{
     BatteryStatus, ByPlace, EVENTS, Events, LastTaker, OwnerTeam, PlayerStatistics, Statistics, Tail,
     Winner, statistics,
 };
+pub use weapons::{Decimetres, DictId, Killing, PlaceWeapons, TICK_MS, Totals, WEAPONS, WeaponCounts, Weapons};
+/// The weapons block alone: what a game writes ([`weapons::encode`]) and
+/// loads after the statistics' tail.
+pub mod weapon_block {
+    pub use super::weapons::{Fault, MAX_BLOCK, VERSION, encode};
+}
 
 /// Native weapon and ammo slot ordering.
 pub const PLAYER_FIELDS_AT: usize = 2 + weapon_pickup::Record::BYTES;
@@ -96,6 +104,10 @@ pub struct Context<'a> {
     /// it a player's state is read to its exact end ([`Inventory`]);
     /// without it the walk stops at the inventory header.
     pub inventory: Option<&'a Inventory<'a>>,
+    /// The items dictionary's dict ids, rising, when known: what a weapon
+    /// counted in the statistics (exe patch 165) is one of. A game counts
+    /// under its own items' ids and reads them nowhere: it leaves it `None`.
+    pub dict_ids: Option<&'a [u16]>,
 }
 
 /// What a world's player block is checked against.

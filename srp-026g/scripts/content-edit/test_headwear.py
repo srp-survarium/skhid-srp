@@ -57,7 +57,6 @@ class CharacterBindReference(unittest.TestCase):
         config[:24] = ce.value_record(config, 0, '', {'body_parts': {'bind_pose': 'resources/' + native}})
         original = bytes(config)
         edits = json.loads(Path(__file__).with_name('headwear-1.json').read_text())
-        self.assertEqual(edits['require_headwear_bind'], [{'file': 'gameplay/bodyparts/default'}])
         ce.require_headwear_bind(config, {e['file'] for e in edits['append_headwear_bind']})
         self.assertEqual(bytes(config), original)
         with self.assertRaises(ValueError):

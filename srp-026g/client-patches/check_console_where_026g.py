@@ -283,8 +283,8 @@ def main():
     old.start()
     new.start()
     ours = new.commands().get("where")
-    check("where" not in old.commands() and ours == new.read(language.LIST_HEAD),
-           "configs.start: `where` at the head of the console's list; the original has none")
+    check("where" not in old.commands() and ours is not None,
+           "configs.start: `where` in the console's list (later patches' commands before it); the original has none")
     vtable = new.read(ours)
     slots = [new.read(vtable - 4 + 4 * i) for i in range(VTABLE_SLOTS + 1)]
     stock = [new.read(CC_DELEGATE_VTABLE - 4 + 4 * i) for i in range(VTABLE_SLOTS + 1)]

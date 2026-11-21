@@ -3,9 +3,12 @@
 //! write/delete sharing denied; and the exe of a process whose window is over
 //! the game's ([`super::modules`]), only hashed: no way from that file to
 //! [`Client`], so nothing of it but its size and SHA-256 leaves the PC. Both
-//! are opened read-only. No remote path, DLL path, directory walk or
-//! process-memory read enters this API.
+//! are opened read-only. No remote path, DLL path or directory walk enters
+//! this API. After the executable, each code allocation of the game's own
+//! process that is no module ([`super::modules::Blocks`]) is offered and,
+//! when the server asks, sent: one at a time.
 use super::{Context, Lock, Thread, ThreadBound};
+use super::modules::{Block, Blocks};
 use super::packet_recovery::Connection;
 use crate::{raw, executable_report::{Client, Source}};
 use core::{ffi::c_void, ptr::{NonNull, null_mut}};
@@ -84,21 +87,62 @@ impl Drop for Executable {
         unsafe { (raw::engine_close_handle)(self.file); }
     }
 }
-struct Active { key: (usize, u32), client: ThreadBound<Client<Executable>> }
+/// What one match connection sends: the executable, then each code block.
+enum Uploads {
+    Executable(Client<Executable>, Blocks),
+    Code(Client<Block>, Blocks),
+    Done,
+}
+impl Uploads {
+    fn start(blocks: Blocks) -> Uploads {
+        match Executable::open() {
+            Some(file) => Uploads::Executable(Client::new(file), blocks),
+            None => Uploads::next(blocks),
+        }
+    }
+    fn next(mut blocks: Blocks) -> Uploads {
+        match blocks.next() {
+            Some(block) => Uploads::Code(Client::code(block), blocks),
+            None => Uploads::Done,
+        }
+    }
+    fn tick(self, now: u32, match_id: u32, send: impl FnMut(srp_validate::executable::Carrier<'_>) -> bool) -> Uploads {
+        match self {
+            Uploads::Executable(mut client, blocks) => {
+                client.tick(now, match_id, send);
+                if client.done() { Uploads::next(blocks) } else { Uploads::Executable(client, blocks) }
+            }
+            Uploads::Code(mut client, blocks) => {
+                client.tick(now, match_id, send);
+                if client.done() { Uploads::next(blocks) } else { Uploads::Code(client, blocks) }
+            }
+            Uploads::Done => Uploads::Done,
+        }
+    }
+    fn reply(&mut self, reply: Reply) {
+        match self {
+            Uploads::Executable(client, _) => client.reply(reply),
+            Uploads::Code(client, _) => client.reply(reply),
+            Uploads::Done => {}
+        }
+    }
+}
+struct Active { key: (usize, u32), uploads: ThreadBound<Uploads> }
 static ACTIVE: Lock<Option<Active>> = Lock::new(None);
 pub fn loaded(ctx: &Context<'_>) {
     let Some(connection) = Connection::at_loaded(ctx) else { return };
     ACTIVE.with(ctx.thread(), |active| {
         if active.as_ref().is_some_and(|a| a.key == connection.key()) { return; }
-        *active = Executable::open().map(|file| Active { key: connection.key(), client: ThreadBound::new(ctx.thread(), Client::new(file)) });
+        *active = Some(Active { key: connection.key(), uploads: ThreadBound::new(ctx.thread(), Uploads::start(Blocks::now())) });
     });
 }
 pub fn frame(ctx: &Context<'_>) {
     let Some(connection) = Connection::at_game_tick(ctx) else { return };
     ACTIVE.with(ctx.thread(), |active| {
         if let Some(active) = active.as_mut().filter(|a| a.key == connection.key())
-            && let Some(client) = active.client.get_mut(ctx.thread()) {
-            client.tick(super::files::tick_count(), connection.match_id(), |carrier| connection.executable(carrier));
+            && let Some(uploads) = active.uploads.get_mut(ctx.thread()) {
+            let now = super::files::tick_count();
+            *uploads = core::mem::replace(uploads, Uploads::Done).tick(now, connection.match_id(), |carrier| connection.executable(carrier));
         }
     });
 }
@@ -112,6 +156,6 @@ pub fn reply(thread: &Thread, key: (usize, u32), reply: Reply) {
     if reply.match_id != key.1 { return; }
     ACTIVE.with(thread, |active| {
         if let Some(active) = active.as_mut().filter(|a| a.key == key)
-            && let Some(client) = active.client.get_mut(thread) { client.reply(reply); }
+            && let Some(uploads) = active.uploads.get_mut(thread) { uploads.reply(reply); }
     });
 }

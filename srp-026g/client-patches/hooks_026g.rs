@@ -6,6 +6,21 @@
 // site's arguments. The shim builds the typed arguments and calls the
 // patch's function (rust_patches.md).
 
+// ---- aim_pose (patch 172) ----
+
+/// The entry `aim_pose_on_aim_alignment` (0x295aa5, process_hands_ik (0x2959D0; mt_draw's bone pass, the held item's controller) in the first person with the aim's progress above 0, before its call of calculate_aim_alignment (0x295AAD): mov eax,[esp+1Ch] / lea esi,[esp+24h]; ECX the item's bones' matrices (its [ebp+10h], loaded at 0x295A9C), the site's ESP+1Ch the weapon (the EAX the replayed mov loads)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_aim_pose_on_aim_alignment(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `aim_pose_on_aim_alignment` calls this, from the game's jump at 0x295aa5,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::aim_pose::on_aim_alignment(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- animation_id_log (patch 95) ----
 
 /// The entry `animation_id_log_on_id_missing` (0x2d65ee, the animations registry's lookup (0x2D6590, called only by base_player::animation_id_resolver 0x2D7C26) found no entry for the pair and is about to return 0FFFFh (pop edi / pop esi / mov eax,0FFFFh; reached by the three misses at 0x2D65D3, 0x2D65DA, 0x2D65E2): EDI the pair asked for, ESP+10h the registry, EBP the resolver's frame) calls this with the saved machine.
@@ -574,6 +589,36 @@ pub extern "C" fn hook_artefact_carry_on_key(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- artefact_courier (patch 109) ----
+
+/// The entry `artefact_courier_on_spawn_kits` (0x316dda, the respawn rule's spawn 0x316DA0 before it makes the chosen kit current (mov dl,[eax+0Dh] / mov cl,[ecx+115h], then mov [eax+0Ch],dl at 0x316DE3): BL the place, EAX its entry of the core's places, +0Ch still the kit it was in, +0Dh the kit it spawns in) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_courier_on_spawn_kits(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_courier_on_spawn_kits` calls this, from the game's jump at 0x316dda,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_courier::on_spawn_kits(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- artefact_courier (patch 109) ----
+
+/// The entry `artefact_courier_on_spawned` (0x316eab, the respawn rule's spawn 0x316DA0 at its end (the five pops before ret 0Ch), after the new kit's player was initialised (vtable+1Ch: its inventory set up from the profile, its containers' range set) and put into the world (vtable+20h): BL the place, ESI its new current kit's player) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_courier_on_spawned(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_courier_on_spawned` calls this, from the game's jump at 0x316eab,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_courier::on_spawned(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- artefact_keeper (patch 109) ----
 
 /// The entry `artefact_keeper_on_register` (0x31b8e0, generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty)) calls this with the saved machine.
@@ -643,6 +688,21 @@ pub extern "C" fn hook_artefact_keeper_on_tick(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::artefact_keeper::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_tick` calls this, from the game's jump at 0x2daad3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_tick(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1367,6 +1427,187 @@ pub extern "C" fn hook_ban_time_on_status(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- battery_hit (patch 143) ----
+
+/// The entry `battery_hit_on_logic` (0x2fa7e9, victory_item_core_cook::on_animations_loaded (0x2FA400, the client's and the core's batteries alike) once initialize_logic (0x2FA7E4) made the take, carry and put states: ESI the battery, ESP+28h the put state's six clips (the callback's own array, released after); replayed: mov ecx,[esp+20h] / mov eax,[ecx]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_logic(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_logic` calls this, from the game's jump at 0x2fa7e9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_logic(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The convention of engine_fsm_always (0x372420), a callback's: a marker for
+/// the callback entries made in it (no function of the game is called through it).
+pub struct OrigFsmAlways;
+
+/// The entry `battery_hit_on_wants_swing` (a callback in engine_fsm_always's convention, the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> swing's predicate)
+/// calls this with its 1 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `battery_hit_on_wants_swing`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_battery_hit_on_wants_swing(a0: Option<raw::PredicateBuffer>) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_wants_swing` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let buffer = unsafe { PredicateBuffer::from_raw(&thread, a0) };
+    u32::from(crate::battery_hit::on_wants_swing(buffer))
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The entry `battery_hit_on_state_left` (0x38caa0, fsm::tick 0x38CA20 leaving its current state through a transition it took (a predicate true, 0x38CA81; tried only once the state is ready, its vtable +18h), before that state's finalize (call [vtbl+0Ch] at 0x38CAA5): ECX the state left, of any machine (a battery's when its vtable is a battery state's); the only way a battery's machine leaves a state in the simulation (victory_item_core::deactivate 0x300F40 finalizes without a transition, game_world_core::deserialize 0x2D2770 reaches it through base_player::remove 0x2DA790); replayed: mov eax,[ecx] / mov edx,[eax+0Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_state_left(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_state_left` calls this, from the game's jump at 0x38caa0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_state_left(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The values of `user` (EAX) the entry `battery_hit_on_stance_user` calls its handler for
+/// (`only`): crate::battery_hit::NONE; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static battery_hit_on_stance_user_only: Only = Only::of(&crate::battery_hit::NONE);
+
+/// The entry `battery_hit_on_stance_user` (0x2e43a3, weapon_core::player_stance 0x2E43A0 (the gun's vtable +7Ch; the bullet's constructor 0x32BADE, base_player hit events for no bullet 0x2D9FB2) once it read its user (mov eax,[ecx+8]), before that user's alive byte: ECX the gun, EAX the user (0 for a deactivated gun, which natively never shoots); replayed: mov al,[eax+33Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_stance_user(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_stance_user` calls this, from the game's jump at 0x2e43a3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_stance_user(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The values of `posture` (EAX) the entry `battery_hit_on_stance_posture` calls its handler for
+/// (`only`): crate::battery_hit::NONE; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static battery_hit_on_stance_posture_only: Only = Only::of(&crate::battery_hit::NONE);
+
+/// The entry `battery_hit_on_stance_posture` (0x2e43b9, weapon_core::player_stance once it read its clip set's posture (mov eax,[ecx+278h] / mov eax,[eax+20h]), before the posture's kind: ECX the gun, EAX the posture (0 for a deactivated gun's); replayed: cmp dword [eax+20h],1 / sete dl) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_stance_posture(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_stance_posture` calls this, from the game's jump at 0x2e43b9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_stance_posture(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The values of `user` (EAX) the entry `battery_hit_on_melee_damage_user` calls its handler for
+/// (`only`): crate::battery_hit::NONE; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static battery_hit_on_melee_damage_user_only: Only = Only::of(&crate::battery_hit::NONE);
+
+/// The entry `battery_hit_on_melee_damage_user` (0x2e1d00, the melee data's damage 0x2E1CF0 (the bullet's constructor 0x32BB38, update_bullet_position 0x32F09A each step), melee branch, once it read the gun's user (mov eax,[ecx+8]), before the user's kit: ECX the gun, EAX the user (0 for a deactivated gun); replayed: movzx ecx,byte [eax+115h]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_melee_damage_user(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_melee_damage_user` calls this, from the game's jump at 0x2e1d00,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_melee_damage_user(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The values of `user` (EAX) the entry `battery_hit_on_melee_falloff_user` calls its handler for
+/// (`only`): crate::battery_hit::NONE; for any other it replays the site's bytes.
+#[unsafe(no_mangle)]
+#[allow(non_upper_case_globals)]
+pub static battery_hit_on_melee_falloff_user_only: Only = Only::of(&crate::battery_hit::NONE);
+
+/// The entry `battery_hit_on_melee_falloff_user` (0x2e1c99, the melee data's minimum damage 0x2E1C80 (update_bullet_position 0x32F0B6 each step, the pierce 0x32DA5A, the ricochet 0x32E35C), melee branch, once it read the gun's user (mov eax,[ecx+8]), before the user's kit: ECX the gun, EAX the user (0 for a deactivated gun); replayed: movzx ecx,byte [eax+115h]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_melee_falloff_user(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_melee_falloff_user` calls this, from the game's jump at 0x2e1c99,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_melee_falloff_user(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// engine_take_deactivatable (0x397c20), as the vtable hook at 0xa1bfa4 wraps it.
+pub struct OrigTakeDeactivatable;
+
+impl OrigTakeDeactivatable {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, state: &mut BatteryState) -> bool {
+        // SAFETY: engine_take_deactivatable at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_take_deactivatable(Some(state.raw())) != 0 }
+    }
+}
+
+/// The entry `battery_hit_on_deactivatable` (0xa1bfa4, the take state's vtable slot 8 (+20h, 0xA1BF84): may the battery be put away now (victory_item_core::is_ready_to_be_deactivated 0x301270 asks the current state; the item switch 0x2D76A0 calls that), thiscall; the take's answers no (0x397C20), the carry's whether its user is dead (0x338E90)) calls this with
+/// engine_take_deactivatable's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `battery_hit_on_deactivatable`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_battery_hit_on_deactivatable(a0: Option<raw::BatteryState>) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_deactivatable` calls this, from the game's call at
+    // 0xa1bfa4, on the game's thread; a0.. are engine_take_deactivatable's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut state) = (unsafe { BatteryState::from_raw(&thread, a0) }) else {
+        // a null BatteryState never happens at this site; take the unpatched path.
+        return u32::from(unsafe { raw::engine_take_deactivatable(a0) } != 0);
+    };
+    let orig = OrigTakeDeactivatable;
+    u32::from(crate::battery_hit::on_deactivatable(&orig, &mut state))
+}
+
+// ---- battery_hit (patch 143) ----
+
+/// The entry `battery_hit_on_kill_feed_icon` (0x2da3cb, generate_killed_event 0x2DA170 about to write the kill event's killer and weapon icon (mov [eax+1],cl / mov [eax+2],dl; EAX the event node, EDX the icon: the bullet's data +50h, else the damage source's +224h, 0x2DA35A..0x2DA382; EBP the bullet or 0); the hud's handler 0x23B5F0 reads +2 for on_player_killed's object_icon; replayed: mov [eax+1],cl / mov [eax+2],dl) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_battery_hit_on_kill_feed_icon(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `battery_hit_on_kill_feed_icon` calls this, from the game's jump at 0x2da3cb,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::battery_hit::on_kill_feed_icon(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- battery_progress (patch 92) ----
 
 /// The entry `battery_progress_on_match_start` (0x334999, victory_item_event_manager::start_match once both containers' positions are kept, before the batteries' nearest positions (mov eax,[esi+0A38h]): ESI the manager, +0A38h its rule just set) calls this with the saved machine.
@@ -1427,6 +1668,21 @@ pub extern "C" fn hook_battery_progress_on_load(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- map_id (patch 154) ----
+
+/// The entry `map_id_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_map_id_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `map_id_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::map_id::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- blackout (patch 65) ----
 
 /// The entry `blackout_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
@@ -1481,6 +1737,36 @@ pub extern "C" fn hook_free_for_all_on_static_info(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::free_for_all::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_static_info` (0x27b92d, process_static_match_info after its match_options::deserialize (0x27B928): esi the options, the reader at [ebp-2Ch]) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_static_info(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_static_info` calls this, from the game's jump at 0x27b92d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_static_info(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- map_id (patch 154) ----
+
+/// The entry `map_id_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_map_id_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `map_id_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::map_id::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1556,6 +1842,21 @@ pub extern "C" fn hook_free_for_all_on_replay_options(frame: &mut Frame) -> u32 
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::free_for_all::on_replay_options(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_replay_options` (0x1f0971, a replay's chunk 1 after its match_options::deserialize (0x1F096C): the options at [esp+40h], the reader at esp+14h) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_replay_options(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_replay_options` calls this, from the game's jump at 0x1f0971,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_replay_options(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -1802,6 +2103,21 @@ pub extern "C" fn hook_game_volume_on_configs(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- collision_view (patch 156) ----
+
+/// The entry `collision_view_on_configs` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_collision_view_on_configs(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `collision_view_on_configs` calls this, from the game's jump at 0x1ea210,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::collision_view::on_configs(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)) calls this with the saved machine.
@@ -1817,7 +2133,37 @@ pub extern "C" fn hook_console_where_on_viewed(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- console_where (patch 133) ----
+// ---- collision_view (patch 156) ----
+
+/// The entry `collision_view_on_viewed` (0x1f3650, update_camera after the view's update (0x1F364B: update_inverted_view 0x2422B0, patch 46's death_view in our exe) wrote the handler's view (+48h), at mov edx,[ebx+0F478h]: EBX the camera's player ([ebx+0F470h] its handler; update_camera returned at 0x1F3497 for any other player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_collision_view_on_viewed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `collision_view_on_viewed` calls this, from the game's jump at 0x1f3650,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::collision_view::on_viewed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- collision_view (patch 156) ----
+
+/// The entry `collision_view_on_debug_lines` (0x13d9c1, renderer::render 0x13D010 at its depth-tested debug lines (taken while the cc_bool 0xA71DB7, on by default, is set; 0x13D97E), right after the scene's on_draw_scene(true) (boost function 0x205E0 at 0x13D9BC) and before the scene's own queued lines go to system_renderer::draw_lines with technique 0 (0x13DA08): mov edi,[esp+1Ch] / mov edx,[edi+6334C4h]; the render thread, the depth target and the view the scene's, so a draw_aabb there is drawn as the game's own debug lines) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_collision_view_on_debug_lines(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `collision_view_on_debug_lines` calls this, from the game's jump at 0x13d9c1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::collision_view::on_debug_lines(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- collision_view (patch 156) ----
 
 /// engine_cc_delegate_execute (0xec830), as the vtable hook at 0x9e7c10 wraps it.
 pub struct OrigCcDelegateExecute;
@@ -1830,6 +2176,127 @@ impl OrigCcDelegateExecute {
         unsafe { raw::engine_cc_delegate_execute(Some(command.raw()), arguments.raw()) }
     }
 }
+
+/// The entry `collision_view_on_execute` (0x9e7c10, cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found) calls this with
+/// engine_cc_delegate_execute's 2 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `collision_view_on_execute`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_collision_view_on_execute(a0: Option<raw::CcDelegate>, a1: *const u8) -> u32 {
+    // SAFETY: only the entry `collision_view_on_execute` calls this, from the game's call at
+    // 0x9e7c10, on the game's thread; a0.. are engine_cc_delegate_execute's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut command) = (unsafe { ConsoleCommand::from_raw(&thread, a0) }) else {
+        // a null ConsoleCommand never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_cc_delegate_execute(a0, a1) }; 0 };
+    };
+    let arguments = unsafe { ConsoleArguments::from_raw(&thread, a1) };
+    let orig = OrigCcDelegateExecute;
+    { crate::collision_view::on_execute(&orig, &mut command, &arguments); 0 }
+}
+
+// ---- collision_view (patch 156) ----
+
+/// engine_triangle_process (0xc5600), as the vtable hook at 0x9e4f94 wraps it.
+pub struct OrigTriangleProcess;
+
+impl OrigTriangleProcess {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, callback: &mut TriangleSink, triangle: &Triangle, part: u32, index: u32) {
+        // SAFETY: engine_triangle_process at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_triangle_process(Some(callback.raw()), triangle.raw(), part, index) }
+    }
+}
+
+/// The entry `collision_view_on_triangle` (0x9e4f94, btConvexTriangleCallback's vtable slot 1 (+4): processTriangle(triangle, part, index), thiscall, ret 0Ch; btBvhTriangleMeshShape::processAllTriangles 0xA8660's node callback (processNode 0xA86A0, at 0xA8969) calls it for each triangle the BVH finds in the box) calls this with
+/// engine_triangle_process's 4 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `collision_view_on_triangle`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_collision_view_on_triangle(a0: Option<raw::TriangleCallback>, a1: *const f32, a2: u32, a3: u32) -> u32 {
+    // SAFETY: only the entry `collision_view_on_triangle` calls this, from the game's call at
+    // 0x9e4f94, on the game's thread; a0.. are engine_triangle_process's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut callback) = (unsafe { TriangleSink::from_raw(&thread, a0) }) else {
+        // a null TriangleSink never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_triangle_process(a0, a1, a2, a3) }; 0 };
+    };
+    let triangle = unsafe { Triangle::from_raw(&thread, a1) };
+    let part = a2;
+    let index = a3;
+    let orig = OrigTriangleProcess;
+    { crate::collision_view::on_triangle(&orig, &mut callback, &triangle, part, index); 0 }
+}
+
+// ---- console_paste (patch 157) ----
+
+/// The named exits of console_paste::on_paste (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ConsolePasteOnPasteExit { Pasted }
+/// The entry `console_paste_on_paste` (0x3482c0, ui_text_edit::paste_from_clipboard's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,28h), the engine's stub that logs "not implemented": ECX the text edit (thiscall, no argument; Ctrl+V's and Shift+Insert's key binding, init_internals 0x34AA5C, calls it through 0x34B4C0, on the game's thread); pasted is its `ret` (0x34838F), the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_paste_on_paste(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_paste_on_paste` calls this, from the game's jump at 0x3482c0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_paste::on_paste(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- console_scroll (patch 159) ----
+
+/// The entry `console_scroll_on_key` (0x1eaa0, console_impl::on_keyboard_action's start (push ebp / mov ebp,esp / and esp,-8 / sub esp,14h; called only by game_console's input handler slot 0, 0x1C7F0): ECX the console, EAX the key's kind (1 down, 2 up, 3 held), ESP+4 the input world, +8 the key (DirectInput); every key of the open console (input priority 5, before the game world's 7 and the player's 10), which it takes on every path (AL 1), on the game's thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_scroll_on_key(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_scroll_on_key` calls this, from the game's jump at 0x1eaa0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_scroll::on_key(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- console_scroll (patch 159) ----
+
+/// The entry `console_scroll_on_wheel` (0x1c810, game_console::on_mouse_move's start (its input handler's slot 3, vtable 0x9DC030 +0Ch; mov ecx,[ecx-254h], the console's dialog): ECX the console's input handler (the console's +268h), ESP+4 the input world, +8 x, +0Ch y, +10h z (the wheel); every mouse move of the open console, which it takes (AL 1), on the game's thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_scroll_on_wheel(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_scroll_on_wheel` calls this, from the game's jump at 0x1c810,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_scroll::on_wheel(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- console_scroll (patch 159) ----
+
+/// The entry `console_scroll_on_activate` (0x1c760, game_console::on_activate's start (push esi / mov esi,ecx / mov ecx,[esi+1Ch]; vtable 0x9DC030 +24h through 0x1C840): ECX the console, about to be shown (its text edit focused, +264h set, its input handler added to the input world), on the game's thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_scroll_on_activate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `console_scroll_on_activate` calls this, from the game's jump at 0x1c760,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::console_scroll::on_activate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- console_where (patch 133) ----
 
 /// The entry `console_where_on_execute` (0x9e7c10, cc_delegate's vtable slot 1 (+4): execute(arguments), thiscall; console_commands::execute 0xEB980 calls it at 0xEBB98 for the command its lookup (0xEB7C0) found) calls this with
 /// engine_cc_delegate_execute's 2 arguments, typed by its row (the `raw` layer's).
@@ -2430,6 +2897,141 @@ pub extern "C" fn hook_executable_report_on_close(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- faces (patch 123) ----
+
+/// The named exits of faces::on_head (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FacesOnHeadExit { Made }
+/// The entry `faces_on_head` (0x205662, profile_skin_visual_cook::on_configs_loaded's default head, reached only when no item's remove_head_model took record 0 (the je at 0x205653), past its relocated `mov edi,9FD770h` ("head"): lea eax,[esp+0A8h] (the body_parts copy, before add esi,234h, record 0); 0x205659..0x2056E6 assign body_parts/head/data's base_model and part_name to record 0 and tag it 0; made is the join after it (0x2056F0), where every record is made and the skin's name is queried (patch 123)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_head(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_head` calls this, from the game's jump at 0x205662,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_head(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_own_account` (0x27030b, process_own_account (0x270260, the 0x87 handler) after its last field, exp_next_level (mov esi,ebx / mov [ebx+1EA96Ch],ecx, before the items' copy 0x270320): EBX the lobby client, its account profile at +1E6344h; ESI the message's reader, its cursor past the field: srp's face byte there (patch 123)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_own_account(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_own_account` calls this, from the game's jump at 0x27030b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_own_account(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_squad_member` (0x274c01, the 0x88 handler (squad member account, 0x274BCE) after its revision (mov edx,[ebx+1E56C0h], before on_squad_member_profile_arrived 0x222FE0 copies the profile to the member's lobby character): ESI the message's reader past the revision, srp's face byte there; EDI the member's profile, read by deserialize_static 0x1F1070 (patch 123)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_squad_member(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_squad_member` calls this, from the game's jump at 0x274c01,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_squad_member(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- voice (patch 66) ----
+
+/// The entry `voice_on_deactivate` (0x1f9520, game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_deactivate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_on_deactivate` calls this, from the game's jump at 0x1f9520,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::on_deactivate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_world_left` (0x1f9520, game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_world_left(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_world_left` calls this, from the game's jump at 0x1f9520,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_world_left(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- message_check (patch 114) ----
+
+/// The named exits of message_check::on_message (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MessageCheckOnMessageExit { Refused }
+/// The entry `message_check_on_message` (0x27a31f, on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_message_check_on_message(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `message_check_on_message` calls this, from the game's jump at 0x27a31f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::message_check::on_message(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The named exits of faces::on_match_message (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FacesOnMatchMessageExit { Refused }
+/// The entry `faces_on_match_message` (0x27a31f, on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_match_message(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_match_message` calls this, from the game's jump at 0x27a31f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_match_message(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- faces (patch 123) ----
+
+/// The entry `faces_on_item_data` (0x204b36, profile_skin_visual_cook::on_configs_loaded's worn item, its entry's key chosen (the join of 0x204B26/0x204B2F): EDI the key ("data" 0x9FD6C4, or the torso's and pants' data_<model_type>), the item's config at [esp+10h], its profile slot at [esp+60h]; mov esi,[esp+10h] / mov eax,[esi+108h], then cfg_child (0x204B40) of the root by EDI, the 24-byte node copied to [esp+20h], which the records' base_model, part_name, material, remove_head_model, model_type and additional_models are read from (0x2051C0..0x20561C) (patch 123: a helmet's or mask's data_head_<face>)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_faces_on_item_data(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `faces_on_item_data` calls this, from the game's jump at 0x204b36,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::faces::on_item_data(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- footsteps (patch 101) ----
 
 /// The named exits of footsteps::on_step_guard (the order the shim's Flow code
@@ -2538,6 +3140,81 @@ pub extern "C" fn hook_forest_glow_on_clock(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- forward_effects (patch 169) ----
+
+/// The entry `forward_effects_on_forward_begin` (0x1d910d, effect_fstage_default_materials::compile (0x1D8F40, forward_default) among the pushes for its compile_begin (0x1CD0B0, called at 0x1D9126): setne cl / push edi / shl cl,6 (no address under them; the pushes of the two family names have base relocations); the options, the config tree and the configuration pushed (ESP+0 the configuration, the compile's [esp+50h]; +4 the material's config tree, EBX), the configuration's bytes but 7 final (byte 7 read at 0x1D9109, written at 0x1D9122); compile_begin writes the configuration's bytes 3 and 6 only (0x1CD0CD, 0x1CD12E), then copies it for begin_pass (0x1CD19A)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forward_effects_on_forward_begin(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forward_effects_on_forward_begin` calls this, from the game's jump at 0x1d910d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forward_effects::on_forward_begin(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forward_effects (patch 169) ----
+
+/// The entry `forward_effects_on_particle_lighting_begin` (0x1db34b, effect_offscreen_particle_lighting_materials::compile (0x1DB170, particle_lighting) among the pushes for its compile_begin (0x1CD0B0, called at 0x1DB35B): lea eax,[esp+48h] / push eax / push ebx (the pushes of the family names after them have base relocations); the options and the config tree pushed (ESP+0 the tree, ESI), the configuration (the compile's [esp+40h], ESP+48h here) final, its last write 0x1DB347) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forward_effects_on_particle_lighting_begin(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forward_effects_on_particle_lighting_begin` calls this, from the game's jump at 0x1db34b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forward_effects::on_particle_lighting_begin(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forward_effects (patch 169) ----
+
+/// The entry `forward_effects_on_tile_uv` (0x1d964d, effect_fstage_default_materials::compile at solid_color_specular's set_constant<float4> (push edi / lea ecx,[esp+68h], the call 0x1A8900 at 0x1D9652), before the block that sends constant_tile_uv (0x1D9657: set_constant<float2> 0x1D9740 at 0x1D96EE or 0x1D9716): EBX the material's config tree, EDI the compiler. A set_constant keeps a name's first value (0x1D97C0..0x1D97CB, 0x1A8988..0x1A8993: the binding vector is searched by the interned name, 0x3C3DD0 comparing +8, and a binding added only when none has it), so a constant set here stands and the block's later set of the name adds nothing) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forward_effects_on_tile_uv(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forward_effects_on_tile_uv` calls this, from the game's jump at 0x1d964d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forward_effects::on_tile_uv(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forward_effects (patch 169) ----
+
+/// The entry `forward_effects_on_stage_lights_constructed` (0x19015d, stage_lights::stage_lights (0x18EE40) after its last constant host's registration (m_shadow3's, whose name holder it lets go by 0x190158): mov eax,10h, the one byte both of the release's branches (0x19014A, 0x190155) land on; EBX the stage. Its registrations: probe_parameters0..3 +0DCh..+0E8h, world_to_outer_probe +0ECh, probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h, m_shadow0..3 +100h..+10Ch (shared_string::create 0xE0B50, the holder's assign 0x11170, register_constant_host 0x3C8BC0 with the backend [2260490h], which returns the host already made for a name)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forward_effects_on_stage_lights_constructed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forward_effects_on_stage_lights_constructed` calls this, from the game's jump at 0x19015d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forward_effects::on_stage_lights_constructed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forward_effects (patch 169) ----
+
+/// The entry `forward_effects_on_particle_probe` (0x19834b, stage_lights::accumulate_particle_lighting (0x1961B0) where its two ways meet after the probe's constants (probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h): mov ecx,[esi+4] / mov eax,[ecx+4170h] (the way that sets them with the vertex setter 0x14AE60 jumps here from 0x197C8C, the pixel one, set_ps_constant 0x132A90, falls through from 0x198346); ESI the stage, EBX the backend, [EBP-24h] the batch's probe or 0, the pass's program bound (0x19838E sets constants after it)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forward_effects_on_particle_probe(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forward_effects_on_particle_probe` calls this, from the game's jump at 0x19834b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forward_effects::on_particle_probe(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
     }
 }
 
@@ -2741,6 +3418,61 @@ pub extern "C" fn hook_game_volume_on_general(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- geometry_share (patch 164) ----
+
+/// The named exits of geometry_share::on_allocate (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum GeometryShareOnAllocateExit { Shared }
+/// The entry `geometry_share_on_allocate` (0x3d43e0, hw_buffer_pool::allocate's start (sub esp,10h / push ebx / mov ebx,[esp+18h]): the site's ESP+4 the pool, +8 the range it fills, +0Ch the bytes, +10h their count, +14h the stride; shared is its `ret 14h`, AL its result) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_geometry_share_on_allocate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `geometry_share_on_allocate` calls this, from the game's jump at 0x3d43e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::geometry_share::on_allocate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- geometry_share (patch 164) ----
+
+/// The entry `geometry_share_on_pooled` (0x3d1178, untyped_buffer::untyped_buffer with its range of a pool taken, both pools' calls joined (mov ecx,[esi] / mov eax,[ecx+0C00Ch]): EDI the buffer (its +4h the range, +14h its bytes, +18h its stride), EBP its frame (+10h the bytes it was filled with)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_geometry_share_on_pooled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `geometry_share_on_pooled` calls this, from the game's jump at 0x3d1178,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::geometry_share::on_pooled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- geometry_share (patch 164) ----
+
+/// The named exits of geometry_share::on_deallocate (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum GeometryShareOnDeallocateExit { Kept }
+/// The entry `geometry_share_on_deallocate` (0x3d4510, hw_buffer_pool::deallocate's start (sub esp,14h / mov ecx,[eax+8]): EAX the range a buffer gives back (0x3D1680, when its references reach 0); kept is its bare ret, the range left in its chunk) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_geometry_share_on_deallocate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `geometry_share_on_deallocate` calls this, from the game's jump at 0x3d4510,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::geometry_share::on_deallocate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- hand_kill (patch 108) ----
 
 /// The entry `hand_kill_on_hit` (0x2e50c7, EDI damage model ESI hit_info; invulnerability applied) calls this with the saved machine.
@@ -2768,6 +3500,86 @@ pub extern "C" fn hook_medical_skills_on_hit(frame: &mut Frame) -> u32 {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- ragdoll (patch 76) ----
+
+/// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_eye(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_eye` calls this, from the game's jump at 0x1f3643,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_eye(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- head_clearance (patch 158) ----
+
+/// The entry `head_clearance_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_head_clearance_on_eye(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `head_clearance_on_eye` calls this, from the game's jump at 0x1f3643,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::head_clearance::on_eye(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hit_marker_walls (patch 167) ----
+
+/// The entry `hit_marker_walls_on_pierced` (0x32d88a, check_collision once try_pierce (0x32D881) let the bullet through (mov ebp,2; AL 0 jumps past it to 0x32D891): EDI the bullet, its +4Ch the struck triangle's material (0x32D87B), ESI the hit receiver the ray met (a player's body, a trap, a lamp) or 0: the level's collision (a static surface, a prop with no receiver), whose back faces never come here (0x32D72F)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hit_marker_walls_on_pierced(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hit_marker_walls_on_pierced` calls this, from the game's jump at 0x32d88a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hit_marker_walls::on_pierced(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hit_marker_walls (patch 167) ----
+
+/// The entry `hit_marker_walls_on_hit` (0x1f3d76, player::generate_hit_event (0x1F3C70, the slot hit_impl calls at 0x2D9ED1) at a bullet hit's last store into the shooter's inflicted_damage_collector (movss [esi+8],xmm0, the fraction clamped to 0..1; both of the clamp's ways come here, 0x1F3D71): ESI the collector, its victim (+0, 0x1F3D62) and time (+4, 0x1F3D5F) this hit's; EBP the bullet, never 0 here (0x1F3CAA leaves without one); the site's ESP the frame (the shooter's place)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hit_marker_walls_on_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hit_marker_walls_on_hit` calls this, from the game's jump at 0x1f3d76,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hit_marker_walls::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- hit_marker_walls (patch 167) ----
+
+/// The named exits of hit_marker_walls::on_draw (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum HitMarkerWallsOnDrawExit { Quiet }
+/// The entry `hit_marker_walls_on_draw` (0x238272, game_world_ui::draw_damage_collector (0x238230; its one caller player::st_draw, 0x247467, gives it the drawn player's collector) once it found the collector's victim or fraction changed and took them into its copy (+34Ch, +354h; 0x23825D..0x23826C), before the fraction's 0 test (movss xmm0,[esi+8]): ESI the collector, EDI the ui; quiet is its epilogue (0x2383A4), where a 0 fraction goes, past root.crosshair_enemy_hit(fraction, 200, false) (0x23838C)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_hit_marker_walls_on_draw(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `hit_marker_walls_on_draw` calls this, from the game's jump at 0x238272,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::hit_marker_walls::on_draw(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -2910,6 +3722,21 @@ pub extern "C" fn hook_module_report_on_present(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::module_report::on_present(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- screenshot (patch 152) ----
+
+/// The entry `screenshot_on_present` (0x3cf8ff, res_render_output::present right before the game's IDXGISwapChain::Present (mov esi,[esi+0CCh], the swap chain; then its vtable +20h, the sync interval in EAX, flags 0): ESI the render output. Every Present of the game's swap chain is here (present 0x3CF7F0, called from 0x117EDF, 0x13CA02, 0x13CB73, 0x13DD46), after its GetFullscreenState and ShowWindow) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_present(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `screenshot_on_present` calls this, from the game's jump at 0x3cf8ff,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::screenshot::on_present(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3076,6 +3903,21 @@ pub extern "C" fn hook_key_remap_on_events(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- screenshot (patch 152) ----
+
+/// The entry `screenshot_on_keys` (0x3b914b, keyboard::execute (0x3B8D20) after GetDeviceData filled the event buffer (every successful read joins at 0x3B9147: mov eax,[esp+14h] the count; here mov [edi+404h],eax): EDI the platform keyboard, its events at +408h, EAX their count (at most 40h); before the loop that sets each key's state and the Shift/Ctrl/Alt flags from them (0x3B9159) and process (0x3B9AF0), which hands them to the handlers) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_keys(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `screenshot_on_keys` calls this, from the game's jump at 0x3b914b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::screenshot::on_keys(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- keyboard_layout (patch 107) ----
 
 /// The entry `keyboard_layout_on_request` (0x1835f, message_processor's WM_INPUTLANGCHANGEREQUEST (50h) case (the je at 0x181F4), before the game's text-focus check (mov ecx,[edx+2D0h] after mov edx,[1F1D310h]; survarium::game slot 44h, 0x1EE7C0, false drops the request at 0x18272): the site's ESP+1Ch the requested HKL) calls this with the saved machine.
@@ -3121,6 +3963,76 @@ pub extern "C" fn hook_keyboard_layout_on_text(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- keyboard_layout (patch 107) ----
+
+/// The named exits of keyboard_layout::on_request_focus (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KeyboardLayoutOnRequestFocusExit { Focused }
+/// The entry `keyboard_layout_on_request_focus` (0x18365, message_processor's WM_INPUTLANGCHANGEREQUEST case at its call of the game's text-focus check (mov eax,[ecx] / mov edx,[eax+44h] / call edx; ECX the game, survarium::game slot 44h 0x1EE7C0, after window.lang_request); focused 0x18374, where a focused request goes to DefWindowProc (pop edi/esi/ebx, jmp [DefWindowProcA]), the stack as at the site; a false check drops it at 0x18272) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_request_focus(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_request_focus` calls this, from the game's jump at 0x18365,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_request_focus(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_console_opened` (0x1c77e, game_console::on_activate (0x1C760, vtable 0x9DC020 slot 4) marking the console shown (mov byte [esi+264h],1), after it focused the text edit; the logic thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_opened(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_opened` calls this, from the game's jump at 0x1c77e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_opened(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The entry `keyboard_layout_on_console_closed` (0x1c7d3, game_console::on_deactivate (0x1C7A0, slot 8) marking it hidden (mov byte [esi+264h],0), after it unfocused the text edit and the tips; the logic thread) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_closed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_closed` calls this, from the game's jump at 0x1c7d3,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_closed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- keyboard_layout (patch 107) ----
+
+/// The named exits of keyboard_layout::on_console_char (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum KeyboardLayoutOnConsoleCharExit { Typed }
+/// The entry `keyboard_layout_on_console_char` (0x34b4da, insert_char_action::execute (0x34B4D0, vtable 0xA1DEBC slot 4: a ui_text_edit's key that types a character, the console's letters, digits and punctuation, made by create_char_action 0x34A4C0) after mov edi,ecx, before its Shift test (mov eax,[edi+4] / test byte [eax+2ACh],30h): EDI the action; the character it types is [esp+8], its own (+19h, Shift +1Ah) or, for a key made named (+18h), the first letter of the key's DirectInput name (get_dik_name through the input world's keyboard, 0x34B533..0x34B5CE); typed 0x34B5D2, where it deletes the selection (0x3486A0) and inserts [esp+8] (0x348000), EDI the action, the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_keyboard_layout_on_console_char(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `keyboard_layout_on_console_char` calls this, from the game's jump at 0x34b4da,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::keyboard_layout::on_console_char(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_bind` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
@@ -3130,6 +4042,21 @@ pub extern "C" fn hook_lamps_on_bind(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::lamps::on_bind(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The entry `v021d_render_on_project_insert` (0x285750, before insert_static, ECX project and ESP+4 physics) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_project_insert(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_project_insert` calls this, from the game's jump at 0x285750,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_project_insert(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3151,6 +4078,21 @@ pub extern "C" fn hook_lamps_on_remove(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- v021d_render (patch 130) ----
+
+/// The entry `v021d_render_on_project_removed` (0x285614, remove_static epilogue, after native object removals) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_project_removed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_project_removed` calls this, from the game's jump at 0x285614,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_project_removed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- lamps (patch 81) ----
 
 /// The entry `lamps_on_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
@@ -3160,6 +4102,21 @@ pub extern "C" fn hook_lamps_on_destroy(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::lamps::on_destroy(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The entry `v021d_render_on_project_destroy` (0x285330, destructor before any member is released) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_project_destroy(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_project_destroy` calls this, from the game's jump at 0x285330,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_project_destroy(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3439,6 +4396,134 @@ pub unsafe extern "C" fn hook_lamps_on_light_remove(a0: Option<raw::ObjectLight>
 
 // ---- lamps (patch 81) ----
 
+/// engine_ambient_light_insert (0x290930), as the vtable hook at 0xa0ac6c wraps it.
+pub struct OrigAmbientLightInsert;
+
+impl OrigAmbientLightInsert {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, light: &mut ObjectAmbientLight) {
+        // SAFETY: engine_ambient_light_insert at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_ambient_light_insert(Some(light.raw())) }
+    }
+}
+
+/// The entry `lamps_on_ambient_light_insert` (0xa0ac6c, object_ambient_light insert slot 8) calls this with
+/// engine_ambient_light_insert's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_ambient_light_insert`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_ambient_light_insert(a0: Option<raw::ObjectAmbientLight>) -> u32 {
+    // SAFETY: only the entry `lamps_on_ambient_light_insert` calls this, from the game's call at
+    // 0xa0ac6c, on the game's thread; a0.. are engine_ambient_light_insert's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut light) = (unsafe { ObjectAmbientLight::from_raw(&thread, a0) }) else {
+        // a null ObjectAmbientLight never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_ambient_light_insert(a0) }; 0 };
+    };
+    let orig = OrigAmbientLightInsert;
+    { crate::lamps::on_ambient_light_insert(&orig, &mut light); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
+/// engine_ambient_light_remove (0x290ae0), as the vtable hook at 0xa0ac70 wraps it.
+pub struct OrigAmbientLightRemove;
+
+impl OrigAmbientLightRemove {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, light: &mut ObjectAmbientLight) {
+        // SAFETY: engine_ambient_light_remove at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_ambient_light_remove(Some(light.raw())) }
+    }
+}
+
+/// The entry `lamps_on_ambient_light_remove` (0xa0ac70, object_ambient_light remove slot 9) calls this with
+/// engine_ambient_light_remove's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_ambient_light_remove`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_ambient_light_remove(a0: Option<raw::ObjectAmbientLight>) -> u32 {
+    // SAFETY: only the entry `lamps_on_ambient_light_remove` calls this, from the game's call at
+    // 0xa0ac70, on the game's thread; a0.. are engine_ambient_light_remove's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut light) = (unsafe { ObjectAmbientLight::from_raw(&thread, a0) }) else {
+        // a null ObjectAmbientLight never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_ambient_light_remove(a0) }; 0 };
+    };
+    let orig = OrigAmbientLightRemove;
+    { crate::lamps::on_ambient_light_remove(&orig, &mut light); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
+/// engine_particle_insert (0x292cc0), as the vtable hook at 0xa0afcc wraps it.
+pub struct OrigParticleInsert;
+
+impl OrigParticleInsert {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, particle: &mut ObjectParticleVisual) {
+        // SAFETY: engine_particle_insert at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_particle_insert(Some(particle.raw())) }
+    }
+}
+
+/// The entry `lamps_on_particle_insert` (0xa0afcc, object_particle_visual insert slot 8) calls this with
+/// engine_particle_insert's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_particle_insert`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_particle_insert(a0: Option<raw::ObjectParticleVisual>) -> u32 {
+    // SAFETY: only the entry `lamps_on_particle_insert` calls this, from the game's call at
+    // 0xa0afcc, on the game's thread; a0.. are engine_particle_insert's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut particle) = (unsafe { ObjectParticleVisual::from_raw(&thread, a0) }) else {
+        // a null ObjectParticleVisual never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_particle_insert(a0) }; 0 };
+    };
+    let orig = OrigParticleInsert;
+    { crate::lamps::on_particle_insert(&orig, &mut particle); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
+/// engine_particle_remove (0x292dc0), as the vtable hook at 0xa0afd0 wraps it.
+pub struct OrigParticleRemove;
+
+impl OrigParticleRemove {
+    /// The game's own function, with these typed arguments.
+    pub fn call(&self, particle: &mut ObjectParticleVisual) {
+        // SAFETY: engine_particle_remove at its own site; the arguments are the hook's,
+        // typed by the row (engine_026g.tsv).
+        unsafe { raw::engine_particle_remove(Some(particle.raw())) }
+    }
+}
+
+/// The entry `lamps_on_particle_remove` (0xa0afd0, object_particle_visual remove slot 9) calls this with
+/// engine_particle_remove's 1 arguments, typed by its row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `lamps_on_particle_remove`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_lamps_on_particle_remove(a0: Option<raw::ObjectParticleVisual>) -> u32 {
+    // SAFETY: only the entry `lamps_on_particle_remove` calls this, from the game's call at
+    // 0xa0afd0, on the game's thread; a0.. are engine_particle_remove's arguments.
+    let thread = unsafe { Thread::new() };
+    let Some(mut particle) = (unsafe { ObjectParticleVisual::from_raw(&thread, a0) }) else {
+        // a null ObjectParticleVisual never happens at this site; take the unpatched path.
+        return { unsafe { raw::engine_particle_remove(a0) }; 0 };
+    };
+    let orig = OrigParticleRemove;
+    { crate::lamps::on_particle_remove(&orig, &mut particle); 0 }
+}
+
+// ---- lamps (patch 81) ----
+
 /// The named exits of lamps::on_decal_enter (the order the shim's Flow code
 /// follows, 2 upward).
 #[repr(u32)]
@@ -3672,6 +4757,41 @@ pub extern "C" fn hook_lobby_scene_on_game_closing(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- lobby_seeding (patch 150) ----
+
+/// The entry `lobby_seeding_on_accept` (0x373cd9, start_seeding_impl's lea eax,[ebp-4B8h] (the game's wide pipe name, swprintf'd at 0x373CC6) before its call of win_utils::pipe::accept (0x373230 at 0x373CDF: ECX the pipe, EAX the wide name, [ESP] &error_code); a Skip with EAX set gives accept another name, read only by its CreateNamedPipeW (0x373262) (patch 150)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_seeding_on_accept(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_seeding_on_accept` calls this, from the game's jump at 0x373cd9,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_seeding::on_accept(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lobby_seeding (patch 150) ----
+
+/// The named exits of lobby_seeding::on_updater (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum LobbySeedingOnUpdaterExit { Started }
+/// The entry `lobby_seeding_on_updater` (0x373d2d, start_seeding_impl after the pipe's accept and its message handler bound (0x373CE4..0x373D20, the temporary function destroyed), before the service's start (OpenSCManagerA 0x373D5B .. StartServiceW 0x373F4A): add esp,4 / mov edi,eax after the product name's call 0x373D28; started is the epilogue 0x37400E (patch 150)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lobby_seeding_on_updater(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lobby_seeding_on_updater` calls this, from the game's jump at 0x373d2d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lobby_seeding::on_updater(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- map_names (patch 82) ----
 
 /// The entry `map_names_on_key` (0x25cd1c, game_world::on_keyboard_action with the input world's keyboard (its vtable+24h 0x79E40: [input_world+24h]), before it asks the keyboard for Tab (mov edx,[eax] / mov ecx,eax / mov eax,[edx]; push 0Fh at 0x25CD22): EAX the keyboard, EDI the game world's input handler (the hud at +4); every key the game world is given, a held one every tick) calls this with the saved machine.
@@ -3889,13 +5009,103 @@ pub extern "C" fn hook_medical_skills_on_stopping(frame: &mut Frame) -> u32 {
 
 // ---- medical_skills (patch 94) ----
 
-/// The entry `medical_skills_on_sway` (0x31d727, breath_vibration_calculator::tick after apply_modifier of breath_vibration (61) at 0x31D722, before it stores the result (mov eax,[ebp+0Ch] / fild dword [ebp+0Ch], then movss [esp+10h],xmm0 at 0x31D72D): XMM0 the dispersion that drives the aimed weapon's sway, B x max(0, 1 + S61); EDI the calculator (weapon+288h), EBP the tick's frame) calls this with the saved machine.
+/// The entry `medical_skills_on_reload` (0x30e25f, weapon_core_reload_state::get_weapon_lexeme after apply_modifier of reload_speed (13) at 0x30E25A (push 1 / push -1 / push 1, then movss [esp+20h],xmm0 at 0x30E26A): XMM0 the hands clip's speed, +138h x max(0, 1 + S13); EDI the state, [[EDI+120h]+8] the player whose kit it read) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_sway(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_sway` calls this, from the game's jump at 0x31d727,
+pub extern "C" fn hook_medical_skills_on_reload(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_reload` calls this, from the game's jump at 0x30e25f,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_sway(&mut ctx) {
+    match crate::medical_skills::on_reload(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_reload_double` (0x30f622, double_barreled_weapon_core_reload_state::get_weapon_lexeme (0x30F5A0) after apply_modifier of reload_speed (13) at 0x30F61D (mov edx,[esp+14h] / push 1, then movss [esp+20h],xmm0): XMM0 the clip's speed, +138h x max(0, 1 + S13); EDI the state) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_reload_double(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_reload_double` calls this, from the game's jump at 0x30f622,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_reload_double(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_reload_pistol` (0x30ff0c, pistol_weapon_core_reload_state::get_weapon_lexeme (0x30FE90, state 314) after apply_modifier of reload_speed (13) at 0x30FF07 (push 1 / push -1 / push 1, then movss [esp+20h],xmm0): XMM0 the clip's speed, +138h x max(0, 1 + S13); EDI the state) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_reload_pistol(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_reload_pistol` calls this, from the game's jump at 0x30ff0c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_reload_pistol(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_reload_shotgun` (0x3110da, the shotgun reload substate's get_weapon_lexeme (0x311070) after apply_modifier of reload_speed (13) at 0x3110D5 (mov ecx,[edi+154h], then movss [esp+20h],xmm0 at 0x3110F0): XMM0 the clip's speed, +14Ch x max(0, 1 + S13); EDI the state) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_reload_shotgun(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_reload_shotgun` calls this, from the game's jump at 0x3110da,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_reload_shotgun(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_aim_start` (0x2e1b9f, weapon_core::instant_aim_start after apply_modifier of aim_time (49) at 0x2E1B9A (movss xmm2,[edi+604h], then XMM0 stored at +608h, 0x2E1BD2): XMM0 the sight's raising time, +5F8h x max(0, 1 + S49); EDI the weapon, [EDI+8] the player whose kit it read) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_aim_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_aim_start` calls this, from the game's jump at 0x2e1b9f,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_aim_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_aim_end` (0x2e1c40, weapon_core::instant_aim_end after apply_modifier of aim_time (49) at 0x2E1C3B (movss xmm2,[edi+604h], then XMM0 stored at +608h, 0x2E1C6E): XMM0 the sight's lowering time, +5F8h x max(0, 1 + S49); EDI the weapon) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_aim_end(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_aim_end` calls this, from the game's jump at 0x2e1c40,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_aim_end(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_drug_begin` (0x33d872, medkit::tick on the first tick of the active time (remaining == the whole active time, 0x33D860), after remove_affects (0x33D86D), before the drug_activity link (movzx edx,byte [ebp+115h]): EDI the drug, EBP its holder) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_drug_begin(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_drug_begin` calls this, from the game's jump at 0x33d872,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_drug_begin(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3959,26 +5169,6 @@ pub extern "C" fn hook_memory_profile_on_out_of_memory(frame: &mut Frame) -> u32
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- message_check (patch 114) ----
-
-/// The named exits of message_check::on_message (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum MessageCheckOnMessageExit { Refused }
-/// The entry `message_check_on_message` (0x27a31f, on_match_packet_received before storing the normalized id and subtracting E3h; EAX the id, reader cursor after it; refused is the epilogue) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_message_check_on_message(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `message_check_on_message` calls this, from the game's jump at 0x27a31f,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::message_check::on_message(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
     }
 }
 
@@ -4104,6 +5294,91 @@ pub unsafe extern "C" fn hook_music_on_query_done(a0: Option<raw::QueriesResult>
     { crate::music::on_query_done(result, tag); 0 }
 }
 
+// ---- particle_room (patch 122) ----
+
+/// The entry `particle_room_on_first_person_made` (0x1f6884, game_world::game_world 0x1F67B0 after its first-person presenter's constructor 0x2971C0 at 0x1F686A (mov [ebp+4D38h],eax / mov [ebp+4D3Ch],ebx; the first site after it without a relocation under it, EAX no longer the presenter): EBP the game world, its first-person presenter at +1D98h (the EDI given at 0x1F6857), its particle list inline (six entries); game_world is the static at 0xA96860, so the address is the same at every construction) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_room_on_first_person_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_room_on_first_person_made` calls this, from the game's jump at 0x1f6884,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_room::on_first_person_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- particle_room (patch 122) ----
+
+/// The entry `particle_room_on_third_person_made` (0x1f6b14, game_world::game_world 0x1F67B0's loop over the twenty places' holders, after each third-person presenter's constructor 0x297570 at 0x1F6B0F (add eax,220h / sub esi,edi): EAX the presenter (holder +8h, the game world's +22BCh + place x 220h; the constructor keeps EAX), its particle list inline (six entries)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_room_on_third_person_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_room_on_third_person_made` calls this, from the game's jump at 0x1f6b14,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_room::on_third_person_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- particle_room (patch 122) ----
+
+/// The entry `particle_room_on_read_room` (0x2ac8a6, particle_game_effect_presenter::deserialize 0x2AC870 once its local list is set up and the presenter stored (mov [esp+4Ch],edx / mov [esp+58h],eax): EAX the local's capacity end (ESP+0ECh, six entries inline from ESP+5Ch) the second instruction stores; the saved entries are pushed into it (0x2AC9B8) and it is swapped into the presenter at 0x2ACC00) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_room_on_read_room(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_room_on_read_room` calls this, from the game's jump at 0x2ac8a6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_room::on_read_room(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- particle_room (patch 122) ----
+
+/// The named exits of particle_room::on_swap (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ParticleRoomOnSwapExit { Returned }
+/// The entry `particle_room_on_swap` (0x2acd00, the particle lists' swap 0x2ACD00 (sub esp,0A4h), whose one caller is deserialize 0x2AC870 at 0x2ACC00: EDI the presenter's list, ESI the local read; it copies EDI's entries into a stack room of six (ESP+10h..+0A0h) and assigns with 0x2AD360, which checks no capacity; returned is its ret (at the site ESP is the return address)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_room_on_swap(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_room_on_swap` calls this, from the game's jump at 0x2acd00,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_room::on_swap(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- particle_room (patch 122) ----
+
+/// The named exits of particle_room::on_start (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ParticleRoomOnStartExit { Full }
+/// The entry `particle_room_on_start` (0x2ac686, particle_game_effect_presenter::on_event 0x2AC400, a play (event kind 0) before its entry is made (mov eax,ecx / lea ecx,[esp+30h]; the entry's constructor 0x2AC1F0 at 0x2AC68C and push_back 0x2ACC20 at 0x2AC695 follow, and push_back asserts on a full list): EBX the presenter; full is its return (pop edi / pop esi / pop ebx; mov esp,ebp; pop ebp; ret 8), nothing pushed since the prologue) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_particle_room_on_start(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `particle_room_on_start` calls this, from the game's jump at 0x2ac686,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::particle_room::on_start(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The named exits of ragdoll::on_cull (the order the shim's Flow code
@@ -4133,21 +5408,6 @@ pub extern "C" fn hook_ragdoll_on_bones(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::ragdoll::on_bones(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- ragdoll (patch 76) ----
-
-/// The entry `ragdoll_on_eye` (0x1f3643, update_camera's join, EAX the eye transform the view gets (mov ecx,[ebx+0F470h]; EBX the player)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_ragdoll_on_eye(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `ragdoll_on_eye` calls this, from the game's jump at 0x1f3643,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::ragdoll::on_eye(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4434,6 +5694,21 @@ pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> 
     }
 }
 
+// ---- screenshot (patch 152) ----
+
+/// The entry `screenshot_on_interface` (0x13ced0, renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_interface(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `screenshot_on_interface` calls this, from the game's jump at 0x13ced0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::screenshot::on_interface(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- sign_in_cipher (patch 139) ----
 
 /// The entry `sign_in_cipher_on_begin` (0x380504, on_user_name_answer_received (0x380340) for the answer 0Bh, the user name taken (mov ecx,[ebp+8] / sub esp,30h, past the jne at 0x380502): before it starts the stream's handshake (0x38B840), once a sign-in) calls this with the saved machine.
@@ -4538,6 +5813,86 @@ pub extern "C" fn hook_sound_voices_on_voice_made(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::sound_voices::on_voice_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The named exits of step_ground::on_ground (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum StepGroundOnGroundExit { Material }
+/// The entry `step_ground_on_ground` (0x248b5a, step_manager::on_step after its ground ray (mov ecx,[esp+4Ch] / test ecx,ecx: the ray result's object; the je at 0x248B60 is a miss's silent return): ESI the manager, ESP its frame (the ray's direction, origin and result), EBP its arguments (the foot material, the view flag); material is past the hit object's get_triangle_material (0x248B77: mov ecx,[esi+4] / movzx edi,ax), EAX the ground material, the stack as at the site) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_ground(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_ground` calls this, from the game's jump at 0x248b5a,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_ground(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_first` (0x846a1, character_step_down_sweep_test_callback::addSingleResult (0x84420) taking a hit as its first (fld dword [ebx+30h] / mov eax,[esp+0Ch]; both of its ways in, 0x845ED and 0x84695, reach here; the stores of the fraction, normal, object and point follow): EBX the hit, ESI the callback) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_first(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_first` calls this, from the game's jump at 0x846a1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_first(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_second` (0x845a8, the same taking a hit as its second (mov byte [esi+0C4h],1; its fraction and point stored after): EBX the hit, ESI the callback) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_second(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_second` calls this, from the game's jump at 0x845a8,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_second(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_result` (0x852ef, the step-down sweep 0x84FE0 after its sweep, before it caches the result (lea eax,[esp+40h] / lea ecx,[esp+20h]; both ways, a hit 0x852AD and none 0x852E2, join here): ESI the controller's sweep helper (+210h), ESP+80h the callback; BL the hit) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_result(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_result` calls this, from the game's jump at 0x852ef,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_result(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- step_ground (patch 153) ----
+
+/// The entry `step_ground_on_sweep_cached` (0x85083, the same answered from its cache (mov al,[eax+24h] / pop edi / pop esi): ESI the helper, EAX the cached entry (+24h its hit)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_step_ground_on_sweep_cached(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `step_ground_on_sweep_cached` calls this, from the game's jump at 0x85083,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::step_ground::on_sweep_cached(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -4678,6 +6033,56 @@ pub extern "C" fn hook_texture_streaming_on_texture_memory(frame: &mut Frame) ->
     }
 }
 
+// ---- tick_parts (patch 168) ----
+
+/// The entry `tick_parts_on_idle_walk` (0x7c823, bullet_character_controller::can_skeep_player_step (0x7C7E0) after it stored the walk asked, squared, at [esp+0Ch] (mov eax,[esp+0Ch] / and eax,7FFFFFFFh, then the compare with 1e-5 at 0x7C830): EDX the controller, EBP its frame) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_tick_parts_on_idle_walk(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `tick_parts_on_idle_walk` calls this, from the game's jump at 0x7c823,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::tick_parts::on_idle_walk(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- tick_parts (patch 168) ----
+
+/// The entry `tick_parts_on_speed_measured` (0x2d9541, base_player::assign_physics_transform (0x2D93A0) storing m_linear_horizontal_speed, the step's horizontal move over its ms (fld dword [esp+0Ch] / fstp dword [ebx+334h]): skipped, the value stays as it was) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_tick_parts_on_speed_measured(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `tick_parts_on_speed_measured` calls this, from the game's jump at 0x2d9541,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::tick_parts::on_speed_measured(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- trap_stock_hit (patch 151) ----
+
+/// The named exits of trap_stock_hit::on_hit (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum TrapStockHitOnHitExit { Defuse }
+/// The entry `trap_stock_hit_on_hit` (0x305540, booby_trap_core::hit with a hit type, its entry (mov eax,[ecx+194h]; then the set defuse_by_hit against the hit type, 0x30554C): ECX the trap, ESP the return address and the ten arguments; defuse is where a hit of the trap own type goes on (cmp byte [ecx+220h],0: ECX alone is read)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_trap_stock_hit_on_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `trap_stock_hit_on_hit` calls this, from the game's jump at 0x305540,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::trap_stock_hit::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- unplayed_match (patch 120) ----
 
 /// The entry `unplayed_match_on_connect` (0x21c07c, network_client::connect_to_match (0x21BEB0) once it connects (past its return for the link's own session, 0x21BED5; the disconnect and connected callbacks given): mov dword [ebx+1F1C64h],0, the handshake's phase back to 0; EBX the network client (patch 120)) calls this with the saved machine.
@@ -4783,6 +6188,211 @@ pub extern "C" fn hook_use_scan_on_detect(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- v021d_render (patch 130) ----
+
+/// The named exits of v021d_render::on_wet_surface_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V021DRenderOnWetSurfaceCompiledExit { Begin, Cached }
+/// The entry `v021d_render_on_wet_surface_compiled` (0x1ce5be, effect_wet_surface::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), its three techniques ended; EBX the compiler, ESP as after the prologue's pushes; begin and cached are technique 0's start after them (0x1CE116's jne: begin_technique when the compiler is not caching, its skip when it is), which need EBX and EBP alone) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_wet_surface_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_wet_surface_compiled` calls this, from the game's jump at 0x1ce5be,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_wet_surface_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The entry `v021d_render_on_wet_surface_pass` (0x1ce16c, effect_wet_surface::compile, technique 0 (wet), its begin_pass's arguments being pushed (push esi / movq [eax+8],xmm0 / push ebx; then mov eax,9F71C8h and the call 0x3D9F60 at 0x1CE178): ESP the PS name's slot (wet_surface 0x9F71C8, pushed at 0x1CE142), EAX the shader configuration's (its first 8 bytes written); EBX the compiler; no base relocation in the span) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_wet_surface_pass(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_wet_surface_pass` calls this, from the game's jump at 0x1ce16c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_wet_surface_pass(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The named exits of v021d_render::on_rain_compiled (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V021DRenderOnRainCompiledExit { Technique }
+/// The entry `v021d_render_on_rain_compiled` (0x1d3e30, effect_rain::compile's epilogue (pop edi / pop esi / pop ebx / mov esp,ebp / pop ebp, then ret 0Ch), technique 1 ended; technique is technique 1's start (cmp byte [ebx+61F4Ch],0 / jne), which needs EBX, EBP and ESI = 0 (its stores at 0x1D3D34 and 0x1D3D44..0x1D3D5A)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_rain_compiled(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_rain_compiled` calls this, from the game's jump at 0x1d3e30,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_rain_compiled(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The named exits of v021d_render::on_rain_drop_texture (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V021DRenderOnRainDropTextureExit { Bound }
+/// The entry `v021d_render_on_rain_drop_texture` (0x1d3dc7, effect_rain::compile, technique 1 (the sprite drops), before the pushes of its set_texture (0x3D98B0, at 0x1D3DDE) of t_rain_drop (fld1 / push 1 / push ecx; then fstp [esp], push esi, push -1, push esi, push engine/rain_drop 0x9F78D8, push t_rain_drop 0x9F78EC, push ebx): nothing of it on the stack yet; EBX the compiler, ESI 0; bound is after the call (0x1D3DE3), the stack as here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_rain_drop_texture(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_rain_drop_texture` calls this, from the game's jump at 0x1d3dc7,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_rain_drop_texture(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The named exits of v021d_render::on_wet_gate (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V021DRenderOnWetGateExit { Wet }
+/// The entry `v021d_render_on_wet_gate` (0x17cb1b, stage_pre_rain::execute after render_rain_shadow_map, the shading-quality gate of its copy and wet passes (cmp dword [eax+0E8h],0, EAX the render options [2260498h]; the je 0x17CC39 after it takes the flags); wet is the r_rain_render_wet_surface_effect test after it (0x17CB28); ESI the stage) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_wet_gate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_wet_gate` calls this, from the game's jump at 0x17cb1b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_wet_gate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The named exits of v021d_render::on_wet_apply (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V021DRenderOnWetApplyExit { Apply }
+/// The entry `v021d_render_on_wet_apply` (0x17cb90, stage_pre_rain::execute's wet pass: mov eax,[esi+18h] / xor ecx,ecx before res_effect::apply 0x11C1B0 (EAX the effect, ECX the technique) at 0x17CB95, the copy's fill done; ESI the stage) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_wet_apply(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_wet_apply` calls this, from the game's jump at 0x17cb90,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_wet_apply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The entry `v021d_render_on_drop_scales` (0x1adf7d, stage_rain::execute before it copies rain_u_scale * 0.05 and rain_v_scale * 0.4 ([esp+40h], [esp+44h]) into rain_drops_parameters1.zw (movss xmm0,[esp+40h]); EBP the stage) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_drop_scales(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_drop_scales` calls this, from the game's jump at 0x1adf7d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_drop_scales(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The named exits of v021d_render::on_drops_apply (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V021DRenderOnDropsApplyExit { Apply }
+/// The entry `v021d_render_on_drops_apply` (0x1adfa4, stage_rain::execute's layer loop (the jb at 0x1AE0BD comes back here): mov eax,[ebp+34h] / mov ecx,1 before res_effect::apply 0x11C1B0 at 0x1ADFAC; EBP the stage) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_drops_apply(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_drops_apply` calls this, from the game's jump at 0x1adfa4,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_drops_apply(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The entry `v021d_render_on_material_pass` (0x1cd1b6, effect_material_base::compile_begin's one begin_pass (0x1CD1BC): mov eax,[esp+2Ch] (the VS family name) / push esi / push ebp; EBX the shader configuration (its vertex input type in byte 6), [esp+3Ch] the merged config tree; every material effect's every pass, cache and build compiles alike) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_material_pass(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_material_pass` calls this, from the game's jump at 0x1cd1b6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_material_pass(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The named exits of v021d_render::on_water_texture (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V021DRenderOnWaterTextureExit { Bound }
+/// The entry `v021d_render_on_water_texture` (0x1e603c, effect_fstage_simpe_water_materials::compile (the forward_water and forward_water_local_reflections passes, the loop at 0x1E6015), after compile_begin's return, before the pushes of its set_texture (0x3D98B0, at 0x1E6053) of t_normal_map (fld1 / push 1 / push ecx; then fstp [esp], push esi, push -1, push esi, push engine/water_waves2 0x9F9FA4, push t_normal_map 0x9F3204, push ebx): EBX the compiler, [ebp+0Ch] the material's config tree; bound is after the call (0x1E6058), the stack as here) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_water_texture(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_water_texture` calls this, from the game's jump at 0x1e603c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_water_texture(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- v021d_render (patch 130) ----
+
+/// The named exits of v021d_render::on_god_rays (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum V021DRenderOnGodRaysExit { Skipped }
+/// The entry `v021d_render_on_god_rays` (0x1a5520, stage_atmosphere's god-rays pass (0x1A5520, stdcall, ESP+4 the stage, ret 4), its entry (sub esp,14h / push ebx / mov ebx,[esp+1Ch]); its one caller is stage_atmosphere::execute's end (push ebp / call at 0x1A5133), for both the sky stage (stage+ACh 0) and the geometry stage (1), so 0.26 draws the rays twice a frame where 0.21 draws them once; skipped is its ret 4 (0x1A575C), the stack as at the entry) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v021d_render_on_god_rays(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v021d_render_on_god_rays` calls this, from the game's jump at 0x1a5520,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v021d_render::on_god_rays(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- voice (patch 66) ----
 
 /// The entry `voice_on_connect` (0x27a1b0, match_client::connect's start (push ebx / push ebp / push esi / mov esi,ecx): ECX the match client, the site's ESP+4 the host, +8 the port, +0Ch the session (a replay's connect is another function, 0x122350)) calls this with the saved machine.
@@ -4807,21 +6417,6 @@ pub extern "C" fn hook_voice_on_finish(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::voice::on_finish(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- voice (patch 66) ----
-
-/// The entry `voice_on_deactivate` (0x1f9520, game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_voice_on_deactivate(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `voice_on_deactivate` calls this, from the game's jump at 0x1f9520,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::voice::on_deactivate(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -5173,6 +6768,131 @@ pub extern "C" fn hook_weapon_pickup_on_load_ordinal(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- weapon_pickup (patch 85) ----
+
+/// The named exits of weapon_pickup::on_load_record (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum WeaponPickupOnLoadRecordExit { Skip }
+/// The entry `weapon_pickup_on_load_record` (0x321ca0, bullet_manager::deserialize's loop over the records (mov esi,[edi+80h], before the bullet's allocation and its constructor 0x32BBC0): EDI the manager, EBX the section's reader at the record; skip 0x321CFC is the loop's count (sub ebp,1 / jne), no bullet made) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_pickup_on_load_record(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_pickup_on_load_record` calls this, from the game's jump at 0x321ca0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_pickup::on_load_record(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_killed` (0x26da00, base_game_statistics_handler::on_player_killed's start (push esi / mov esi,ecx / mov eax,[esi+3238h]; vtable 0xA0755C slot +0, called only by generate_killed_event 0x2DA46C): ECX the handler, the site's ESP its 17 arguments, before shared_statistics::on_player_killed 0x2F4EB0 counts the kill) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_killed(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_killed` calls this, from the game's jump at 0x26da00,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_killed(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_hit` (0x2da10c, generate_hit_event 0x2D9F40 after the damage record's add (0x2DA10A), before the handler's on_player_damaged (slot +4, the only call, 0x2DA164; mov ecx,[esi+120h]): ESI the victim, EDI the attacker's player or 0, EBP the bullet or 0, EBX the victim's place, the site's ESP the frame; every path of the function comes here (0x2DA043, 0x2DA0C4, 0x2DA0ED)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_hit(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_hit` calls this, from the game's jump at 0x2da10c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_hit(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_fired` (0x2d7843, base_player::on_fire 0x2D7800 after its fire listeners, before the handler's on_player_weapon_firing (slot +8, the only call, 0x2D78A5; mov ecx,[esi+10h] / mov ebx,[ecx+18FA8h]): ESI the player + 110h, the site's ESP+14h the bullets fired) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_fired(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_fired` calls this, from the game's jump at 0x2d7843,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_fired(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_save` (0x2f5bd0, shared_statistics::serialize 0x2F5AC0 after its tail's last write (m_active_in_match_players_mask, 0x2F5BCB), at its epilogue (pop edi / pop ebx / mov esp,ebp / pop ebp): ESI the statistics, EDI the writer) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_save(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_save` calls this, from the game's jump at 0x2f5bd0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_save(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_load` (0x2f5c83, shared_statistics::deserialize 0x2F5BE0 with its tail read, the reader's cursor past it (pop edi / mov [esi+31C4h],ecx; ECX the mask read): ESI the statistics, EDI the reader, whose bytes are the world's statistics section alone (world apply 0x2D2AEE..0x2D2B09)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_load(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_load` calls this, from the game's jump at 0x2f5c83,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_load(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_reset` (0x2f4c31, the shared statistics' reset between matches (0x2F4C20, called by the handler's clear 0x26D880 alone), which zeroes every place's events (0x2F4C7E..0x2F4CD6): mov [edi+31C0h],ebx; EDI the statistics) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_reset(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_reset` calls this, from the game's jump at 0x2f4c31,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_reset(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- weapon_stats (patch 165) ----
+
+/// The entry `weapon_stats_on_made` (0x2f4bc1, the shared statistics' constructor (0x2F4B40, called by the handler's 0x26D75B alone) with its 20 records made, their events 0: mov [edi+31C0h],ebx; EDI the statistics) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_weapon_stats_on_made(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `weapon_stats_on_made` calls this, from the game's jump at 0x2f4bc1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::weapon_stats::on_made(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- world_check (patch 87) ----
 
 /// The named exits of world_check::on_unpacked (the order the shim's Flow code
@@ -5241,6 +6961,8 @@ pub extern "C" fn hook_battery_progress_on_carrier_tick_chain(frame: &mut Frame)
     if flow != 0 { return flow; }
     let flow = hook_artefact_keeper_on_tick(frame);
     if flow != 0 { return flow; }
+    let flow = hook_weapon_stats_on_tick(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5280,7 +7002,9 @@ pub extern "C" fn hook_packet_recovery_on_loaded_chain(frame: &mut Frame) -> u32
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
+pub extern "C" fn hook_map_id_on_static_info_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_map_id_on_static_info(frame);
+    if flow != 0 { return flow; }
     let flow = hook_blackout_on_static_info(frame);
     if flow != 0 { return flow; }
     let flow = hook_tab_cursor_on_static_info(frame);
@@ -5289,11 +7013,15 @@ pub extern "C" fn hook_blackout_on_static_info_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_free_for_all_on_static_info(frame);
     if flow != 0 { return flow; }
+    let flow = hook_faces_on_static_info(frame);
+    if flow != 0 { return flow; }
     0
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u32 {
+pub extern "C" fn hook_map_id_on_replay_options_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_map_id_on_replay_options(frame);
+    if flow != 0 { return flow; }
     let flow = hook_blackout_on_replay_options(frame);
     if flow != 0 { return flow; }
     let flow = hook_tab_cursor_on_replay_options(frame);
@@ -5303,6 +7031,8 @@ pub extern "C" fn hook_blackout_on_replay_options_chain(frame: &mut Frame) -> u3
     let flow = hook_music_on_replay(frame);
     if flow != 0 { return flow; }
     let flow = hook_free_for_all_on_replay_options(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_faces_on_replay_options(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -5347,6 +7077,17 @@ pub extern "C" fn hook_language_on_configs_start_chain(frame: &mut Frame) -> u32
     if flow != 0 { return flow; }
     let flow = hook_game_volume_on_configs(frame);
     if flow != 0 { return flow; }
+    let flow = hook_collision_view_on_configs(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_console_where_on_viewed_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_console_where_on_viewed(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_collision_view_on_viewed(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5378,6 +7119,24 @@ pub extern "C" fn hook_memory_report_on_close_chain(frame: &mut Frame) -> u32 {
     let flow = hook_memory_profile_on_close(frame);
     if flow != 0 { return flow; }
     let flow = hook_executable_report_on_close(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_deactivate_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_voice_on_deactivate(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_faces_on_world_left(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_message_check_on_message_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_message_check_on_message(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_faces_on_match_message(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -5428,6 +7187,15 @@ pub extern "C" fn hook_hand_kill_on_hit_chain(frame: &mut Frame) -> u32 {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_eye_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_ragdoll_on_eye(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_head_clearance_on_eye(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn hook_hud_cursor_on_menu_close_chain(frame: &mut Frame) -> u32 {
     let flow = hook_hud_cursor_on_menu_close(frame);
     if flow != 0 { return flow; }
@@ -5451,6 +7219,8 @@ pub extern "C" fn hook_hud_options_on_present_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_module_report_on_present(frame);
     if flow != 0 { return flow; }
+    let flow = hook_screenshot_on_present(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -5472,6 +7242,42 @@ pub extern "C" fn hook_music_on_login_chain(frame: &mut Frame) -> u32 {
     let flow = hook_music_on_login(frame);
     if flow != 0 { return flow; }
     let flow = hook_hud_options_on_login(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_key_remap_on_events_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_key_remap_on_events(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_screenshot_on_keys(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_bind_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lamps_on_bind(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_v021d_render_on_project_insert(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_remove_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lamps_on_remove(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_v021d_render_on_project_removed(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_destroy_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_lamps_on_destroy(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_v021d_render_on_project_destroy(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -5527,6 +7333,15 @@ pub extern "C" fn hook_tab_cursor_on_hud_call_chain(frame: &mut Frame) -> u32 {
     let flow = hook_voice_on_hud_call(frame);
     if flow != 0 { return flow; }
     0
+}
+
+unsafe extern "C" { fn battery_hit_on_wants_swing(); }
+/// The entry `battery_hit_on_wants_swing`, in engine_fsm_always's convention (the cdecl bool f() of a battery state machine's function-pointer predicate (functor vtable 0xA13CAC: its invoker 0x303450 jumps to the buffer's first word, the buffer's address on the stack; fsm::tick 0x38CA7A): its convention, for carry -> swing's predicate): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn battery_hit_on_wants_swing_entry() -> super::hook::CallbackEntry<OrigFsmAlways> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_fsm_always, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(battery_hit_on_wants_swing as *const () as *const c_void) }
 }
 
 unsafe extern "C" { fn forest_glow_on_loaded(); }
@@ -5587,6 +7402,24 @@ pub fn memory_profile_on_demand() -> [super::hook::OnDemand; 6] {
     ]
 }
 
+unsafe extern "C" { static battery_hit_swing_vtable: [u32; 13]; }
+pub fn battery_hit_swing_vtable_handle() -> super::project::NativeVtable<raw::TakeStateMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(battery_hit_swing_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static collision_view_methods_vtable: [u32; 8]; }
+pub fn collision_view_methods_vtable_handle() -> super::project::NativeVtable<raw::CcDelegateMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(collision_view_methods_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static collision_view_triangles_vtable: [u32; 3]; }
+pub fn collision_view_triangles_vtable_handle() -> super::project::NativeVtable<raw::TriangleCallbackMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(collision_view_triangles_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
 unsafe extern "C" { static console_where_methods_vtable: [u32; 8]; }
 pub fn console_where_methods_vtable_handle() -> super::project::NativeVtable<raw::CcDelegateMethods> {
     // SAFETY: the generated immutable table lives for the executable's lifetime.
@@ -5603,4 +7436,16 @@ unsafe extern "C" { static lamps_light_vtable: [u32; 11]; }
 pub fn lamps_light_vtable_handle() -> super::project::NativeVtable<raw::ObjectLightMethods> {
     // SAFETY: the generated immutable table lives for the executable's lifetime.
     unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_light_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static lamps_ambient_light_vtable: [u32; 11]; }
+pub fn lamps_ambient_light_vtable_handle() -> super::project::NativeVtable<raw::ObjectAmbientLightMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_ambient_light_vtable).cast::<u32>().add(1) as usize as u32) }
+}
+
+unsafe extern "C" { static lamps_particle_vtable: [u32; 11]; }
+pub fn lamps_particle_vtable_handle() -> super::project::NativeVtable<raw::ObjectParticleVisualMethods> {
+    // SAFETY: the generated immutable table lives for the executable's lifetime.
+    unsafe { super::project::NativeVtable::from_address(core::ptr::addr_of!(lamps_particle_vtable).cast::<u32>().add(1) as usize as u32) }
 }

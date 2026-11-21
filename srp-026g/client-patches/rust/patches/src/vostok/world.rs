@@ -13,7 +13,13 @@ use core::marker::PhantomData;
 use core::sync::atomic::{AtomicU32, Ordering};
 
 use super::context::Context;
+use ::ragdoll::math::Pose;
+
+use super::geometry::{Aabb, WorldPoint};
+use super::shape::Shape;
+use super::step::GroundMaterial;
 use super::hook::Thread;
+use super::options::MapId;
 use super::ui::{Movie, movie_of};
 use crate::raw;
 
@@ -287,16 +293,42 @@ impl<'t> NetworkClient<'t> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Held {
     Nothing,
-    /// A battery (a victory_item): no gun drops from a carrier's hands.
+    /// A battery ([`held_battery`]): no gun drops from a carrier's hands.
     Battery,
     /// A weapon or another item.
     Item,
+}
+
+/// The vtables of a battery: the client cook's victory_item
+/// (victory_item_cook::create_resource 0x231B50 constructs it, 0x2463E0) and
+/// the core cook's victory_item_core (its create 0x2F9FA0 -> 0x2F9F40, the
+/// core's constructor 0x3000A0).
+const BATTERIES: [u32; 2] = [raw::image::VICTORY_ITEM_VTABLE, raw::image::VICTORY_ITEM_CORE_VTABLE];
+
+/// The battery `player` holds (+128h), none when it holds anything else or
+/// nothing: the one test of "holds a battery".
+///
+/// # Safety
+/// `player` is alive, on this thread.
+pub(in crate::vostok) unsafe fn held_battery(player: raw::Player) -> Option<raw::VictoryItemCore> {
+    unsafe {
+        let item = player.held_item()?;
+        BATTERIES.contains(&read(item.vtable())).then(|| item.battery())
+    }
 }
 
 /// A player as a value kept between hooks: its address, compared, never
 /// read through.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlayerId(u32);
+
+#[cfg(test)]
+impl PlayerId {
+    /// A made-up player's, for a patch's host tests.
+    pub fn for_test(address: u32) -> PlayerId {
+        PlayerId(address)
+    }
+}
 
 /// An inventory item (or an active object, a weapon) as a value kept between
 /// hooks: its address, compared, never read through. Made only from its
@@ -372,7 +404,8 @@ impl ModifierIndex {
     /// apply_modifier or apply_modifiers call names it) and nothing sets it
     /// but skill 205's 0; additive (0x927E08's list). srp's: the Force
     /// Protein's built-in modification 1330 gives 15: its carrier's
-    /// gun-stock kills push the ragdoll 1 + 15 times (shot::knocked_back).
+    /// gun-stock kills push the ragdoll 1 + 15 times, its battery strikes
+    /// 1 + 15 + 7.5 (shot::knocked_back).
     pub const MELEE_KNOCKBACK: ModifierIndex = ModifierIndex(29);
 }
 
@@ -474,10 +507,12 @@ impl<'t> Player<'t> {
     pub fn held(&self) -> Held {
         // SAFETY: as inserted; the held item is alive as long.
         unsafe {
-            match self.this.held_item() {
-                None => Held::Nothing,
-                Some(item) if read(item.vtable()) == raw::image::VICTORY_ITEM_VTABLE => Held::Battery,
-                Some(_) => Held::Item,
+            if held_battery(self.this).is_some() {
+                Held::Battery
+            } else if self.this.held_item().is_some() {
+                Held::Item
+            } else {
+                Held::Nothing
             }
         }
     }
@@ -640,7 +675,12 @@ pub struct RayHit {
     pub normal: [f32; 3],
 }
 
-impl PhysicsWorld<'_> {
+impl<'t> PhysicsWorld<'t> {
+    /// The world as a value (another match's world is another).
+    pub fn id(&self) -> super::project::PhysicsId {
+        super::project::PhysicsId::of(self.this)
+    }
+
     /// bullet_physics_world::ray_test from `origin` along the unit
     /// `direction`, `length` long, with the filter `group`/`mask` (an object
     /// is tried when its mask has a bit of the group and its group a bit of
@@ -658,6 +698,118 @@ impl PhysicsWorld<'_> {
             Some(RayHit { point: floats(result.point()), normal: floats(result.normal()) })
         }
     }
+
+    /// A ray against the level's collision that bullets hit (`SHOT_GROUP`,
+    /// `SHOT_MASK`): its first hit on a triangle whose game material is not
+    /// one `passed` lets the ray through (a bush's leaves). After such a hit
+    /// the ray goes on from `PAST_LEAF` behind it, through at most
+    /// `MOST_LEAVES` of them (then nothing is met).
+    pub fn shot_ray_test_past(&self, origin: [f32; 3], direction: [f32; 3], length: f32,
+                              passed: impl Fn(GroundMaterial) -> bool)
+                              -> Option<RayHit> {
+        let _ = self.thread;
+        let mut gone = 0.0;
+        for _ in 0..MOST_LEAVES {
+            let rest = length - gone;
+            if rest <= 0.0 {
+                break;
+            }
+            let from = [0, 1, 2].map(|i| origin[i] + direction[i] * gone);
+            let mut room = raw::RayResultStorage::zeroed();
+            let result = room.handle();
+            // SAFETY: as ray_test; the object hit is alive in the world. Its
+            // triangle's material is read as on_step reads its ground's
+            // (0x248B6A) and a bullet its hit's (0x32D837), whose rays meet
+            // every object this filter can: the projects' 8/16 and 10/20,
+            // a trap's body 808h/10h, a battery 0A18h/418h. Another filter
+            // could meet a ghost object, whose vtable has no such slot.
+            unsafe {
+                raw::engine_ray_test(Some(self.this), Some(result), from.as_ptr(), direction.as_ptr(), rest, SHOT_GROUP,
+                                     SHOT_MASK, core::ptr::null(), 0);
+                let object = result.object()?;
+                let material =
+                    raw::engine_triangle_material(Some(object), read(result.part()), u32::from(read(result.part_kind())));
+                if !passed(GroundMaterial::of(material)) {
+                    return Some(RayHit { point: floats(result.point()), normal: floats(result.normal()) });
+                }
+                gone += read(result.fraction()) * rest + PAST_LEAF;
+            }
+        }
+        None
+    }
+
+    /// Each object of the world (m_collisionObjects, in its order) that is
+    /// in its broadphase: its filter group, whether it is static, the box
+    /// the broadphase holds for it (the game's frame), its pose and shape
+    /// (Bullet's frame). Read only, on the
+    /// thread that steps the world, outside its step (camera.viewed is in
+    /// mt_draw, after the simulation's move): nothing adds or removes an
+    /// object meanwhile.
+    pub fn for_each_object(&self, mut visit: impl FnMut(CollisionObject<'t>)) {
+        // SAFETY: the physics world and its Bullet world are alive for the
+        // hook; m_collisionObjects holds object_count live objects, each
+        // proxy (when not 0) theirs, its two float4s written by setAabb.
+        unsafe {
+            let Some(world) = self.this.collision_world() else { return };
+            let Some(first) = world.objects() else { return };
+            for i in 0..read(world.object_count()) as usize {
+                let Some(object) = first.at(i).object() else { continue };
+                let Some(proxy) = object.broadphase() else { continue };
+                let ([x0, y0, z0], [x1, y1, z1]): ([f32; 3], [f32; 3]) =
+                    (floats(proxy.aabb_min()), floats(proxy.aabb_max()));
+                let low = WorldPoint::parse([x0, y0, -z1]);
+                let high = WorldPoint::parse([x1, y1, -z0]);
+                let Some(aabb) = low.zip(high).and_then(|(low, high)| Aabb::parse(low, high)) else { continue };
+                let motion = if read(object.flags()) & STATIC_OBJECT != 0 { Motion::Static } else { Motion::Moving };
+                visit(CollisionObject { group: read(proxy.group()), motion, aabb, object, thread: self.thread });
+            }
+        }
+    }
+}
+
+/// The level's collision that bullets hit (cgroup 8 / cmask 16), which
+/// follows the drawn surfaces (lobby_camera::process_collision 0x2844E4).
+const SHOT_GROUP: u32 = 0x10;
+const SHOT_MASK: u32 = 0x08;
+/// The most leaves [`PhysicsWorld::shot_ray_test_past`] goes through, and
+/// how far behind one its ray goes on (m): past the leaf itself, short of
+/// a surface the leaf lies on.
+const MOST_LEAVES: usize = 16;
+const PAST_LEAF: f32 = 0.001;
+
+/// m_collisionFlags' CF_STATIC_OBJECT.
+const STATIC_OBJECT: u32 = 1;
+
+/// Whether a collision object can move: Bullet's static flag.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Motion {
+    Static,
+    Moving,
+}
+
+/// An object of the physics world as its broadphase holds it.
+#[derive(Clone, Copy)]
+pub struct CollisionObject<'t> {
+    /// Its filter group (the bits a filter's mask meets).
+    pub group: u16,
+    pub motion: Motion,
+    /// Its box in the game's frame (Bullet's with z negated).
+    pub aabb: Aabb,
+    object: raw::BtCollisionObject,
+    thread: &'t Thread,
+}
+
+impl<'t> CollisionObject<'t> {
+    /// Where its shape is: m_worldTransform, Bullet's frame.
+    pub fn pose(&self) -> Pose {
+        // SAFETY: the object, alive for the hook (for_each_object's).
+        unsafe { super::shape::pose(self.object.transform()) }
+    }
+
+    pub fn shape(&self) -> Option<Shape<'t>> {
+        // SAFETY: as pose; its shape lives as long.
+        unsafe { Some(Shape::of(self.object.shape()?, self.thread)) }
+    }
 }
 
 impl BodyId {
@@ -674,8 +826,9 @@ impl BodyId {
 pub struct LoadedMap {
     name: [u8; LoadedMap::MOST],
     len: u8,
-    /// The maps_dict id (match_options +577B4h), when the client has options.
-    pub id: Option<u8>,
+    /// The maps_dict id (match_options +577B8h, patch 154's), when the
+    /// client has options.
+    pub id: Option<MapId>,
 }
 
 impl LoadedMap {
@@ -688,7 +841,7 @@ impl LoadedMap {
     }
 
     /// A map of this name and id (tests, and what `loaded_map` builds).
-    pub fn new(name: &[u8], id: Option<u8>) -> LoadedMap {
+    pub fn new(name: &[u8], id: Option<MapId>) -> LoadedMap {
         let mut out = LoadedMap { name: [0; LoadedMap::MOST], len: 0, id };
         for (slot, &byte) in out.name.iter_mut().zip(name) {
             *slot = if byte.is_ascii_graphic() { byte } else { b'?' };
@@ -718,7 +871,83 @@ pub fn loaded_map(_: &Thread) -> Option<LoadedMap> {
         let id = game
             .network_client()
             .and_then(|client| raw::engine_match_options(Some(client)))
-            .map(|options| read(options.map()));
+            .map(|options| super::options::map_id_of(options));
         Some(LoadedMap::new(name, id))
+    }
+}
+
+/// Whether an anomaly's damage zone is on: its collision sensor in the
+/// physics world (generic_anomaly_core::activate_damage_zone 0x31B9A0 puts
+/// it in, deactivate_damage_zone 0x31B9F0 takes it out).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ZoneState {
+    Active,
+    Off,
+}
+
+/// One of the loaded project's damage zones.
+#[derive(Clone, Copy)]
+pub struct DamageZone<'t> {
+    this: raw::DamageZone,
+    thread: &'t Thread,
+}
+
+impl<'t> DamageZone<'t> {
+    pub fn state(&self) -> ZoneState {
+        // SAFETY: the zone, alive with its project (the hook's).
+        if unsafe { read(self.this.active()) } != 0 { ZoneState::Active } else { ZoneState::Off }
+    }
+
+    /// Each of its geometries' shapes where its ghost stands (in the world or
+    /// not), Bullet's frame.
+    pub fn for_each_shape(&self, mut visit: impl FnMut(Pose, Shape<'t>)) {
+        // SAFETY: the zone's geometries, their ghosts and Bullet objects,
+        // made with the project and kept until it is let go.
+        unsafe {
+            let Some(first) = self.this.geometries() else { return };
+            for i in 0..read(self.this.geometry_count()) as usize {
+                let Some(object) = first.at(i).geometry().and_then(|g| g.ghost()).and_then(|g| g.object()) else {
+                    continue;
+                };
+                if let Some(shape) = object.shape() {
+                    visit(super::shape::pose(object.transform()), Shape::of(shape, self.thread));
+                }
+            }
+        }
+    }
+}
+
+/// Each damage zone of the project the engine world's game has loaded, none
+/// in the lobby (no match in its world). Read on the thread that steps the
+/// world, outside its step (as for_each_object).
+pub fn for_each_damage_zone<'t>(thread: &'t Thread, mut visit: impl FnMut(DamageZone<'t>)) {
+    // SAFETY: as loaded_map: the engine world's game and its world; the
+    // project it holds a reference to and its zones' vector, each zone held.
+    unsafe {
+        let Some(game) = raw::image::engine_world().world().and_then(|w| w.game()) else { return };
+        let world = game.world();
+        if world.pvp_match().is_none() {
+            return;
+        }
+        let Some(project) = world.project() else { return };
+        let (Some(first), Some(end)) = (project.damage_zones(), project.damage_zones_end()) else { return };
+        let Some(count) = end.index_from(first) else { return };
+        for i in 0..count {
+            if let Some(this) = first.at(i).zone() {
+                visit(DamageZone { this, thread });
+            }
+        }
+    }
+}
+
+/// Whether the engine world's game shows a match's world: game_world's
+/// active byte, which the game's thread writes (base_game_scene::on_activate
+/// sets it, game_world::on_deactivate clears it at a match's end). One byte
+/// of objects the process keeps for its whole run, so any thread may ask.
+pub fn match_shown(_: &Thread) -> bool {
+    // SAFETY: the image's engine world slot, the engine world and its game,
+    // made once and kept while the game runs; the game world inside it.
+    unsafe {
+        raw::image::engine_world().world().and_then(|w| w.game()).is_some_and(|game| read(game.world().active()) != 0)
     }
 }

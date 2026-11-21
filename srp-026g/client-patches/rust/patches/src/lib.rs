@@ -58,8 +58,13 @@ pub mod camera_sweep;
 pub mod lamps;
 pub mod artefact_score;
 pub mod battery_progress;
+pub mod weapon_stats;
 
 pub mod hud_options;
+// patch 167: no white hit marker through walls
+pub mod hit_marker_walls;
+// patch 169: the forward effects draw as 0.44a5's
+pub mod forward_effects;
 // patch 147: every run's logs in files of their own
 pub mod run_logs;
 pub mod tab_cursor;
@@ -73,14 +78,18 @@ pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
 pub mod footsteps;
+// patch 153: a step on a walker-only floor finds its ground
+pub mod step_ground;
 
 pub mod weapon_pickup;
 
 pub mod medical_skills;
 pub mod artefact_skills;
 pub mod artefact_keeper;
+pub mod artefact_courier;
 
 pub mod hand_kill;
+pub mod trap_stock_hit;
 pub mod forest_glow;
 
 pub mod animation_id_log;
@@ -93,6 +102,7 @@ pub mod weapon_camo;
 pub mod key_remap;
 pub mod deserialize_guards;
 pub mod effect_presenters;
+pub mod particle_room;
 
 pub mod message_check;
 pub mod packet_recovery;
@@ -105,14 +115,35 @@ pub mod voice;
 pub mod ban_time;
 pub mod sign_in_cipher;
 pub mod controller_position;
+pub mod tick_parts;
 pub mod use_scan;
 pub mod unplayed_match;
 pub mod texture_streaming;
 pub mod animation_math;
 pub mod replay_keys;
+// patch 152: two keys save the game's picture as a PNG
+pub mod screenshot;
+pub mod map_id;
 pub mod replay_map;
 // patch 133: the console command `where`
 pub mod console_where;
+// patch 156: the console command `collision`
+pub mod collision_view;
+// patch 157: Ctrl+V pastes into the console's line
+pub mod console_paste;
+// patch 158: the first-person eye stays out of the level's surfaces
+pub mod head_clearance;
+// patch 172: the aimed view is aligned to the gun's idle pose
+pub mod aim_pose;
 
 pub mod replay_file;
 pub mod free_for_all;
+// patch 143: the battery carrier's hit
+pub mod battery_hit;
+// patch 150: the game shares by BitTorrent in the login screen and the lobby
+pub mod lobby_seeding;
+// patch 159: the console's output scrolls
+pub mod console_scroll;
+pub mod v021d_render;
+pub mod faces;
+pub mod geometry_share;

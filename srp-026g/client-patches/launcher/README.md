@@ -34,6 +34,7 @@ your own copy, and the patched exe is made from it.
 | `patch_launcher_026g.py` | Builds the patched launcher from the original. Python 3, nothing else |
 | `launcher_values_026g.asm`, `.bin` | The new code (304 bytes and three text slots): the values the launcher used to read from the installer's registry key, worked out from where the launcher is; and Enter pressing PLAY. Assembling the source again gives the same bytes |
 | `launcher_pages.py` | The ten small pages the launcher shows from its own folder while the server's page loads and when it cannot be loaded |
+| `check_*_026g.py` | Run the patched code under Unicorn: the registry reads (patch 4), the language (14), the install status (13), the "Allow torrent" box (15), the "Relay" row (16) |
 | `selftest_launcher_026g.py` | Builds it in memory and checks it: every changed byte is one named below, the PE is well formed, the hook and its way back, the addresses, the relocations, no old address left, the `.asm` gives the `.bin` |
 | `../make_client_026g.py` | Puts all of it into the players' ZIP (the default; `--no-launcher` leaves it out) |
 | `../../../client/updater/` | The updater: Rust source, its tests |
@@ -46,6 +47,8 @@ python patch_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe <out>/l
 python selftest_launcher_026g.py <game>/binaries/x86/survarium_launcher.exe --nasm=<nasm>
 python check_language_026g.py <game>/binaries/x86/survarium_launcher.exe   # the language code, under Unicorn
 python check_registry_026g.py <game>/binaries/x86/survarium_launcher.exe   # no registry call where the key was read, under Unicorn
+python check_torrent_box_026g.py <game>/binaries/x86/survarium_launcher.exe # the "Allow torrent" box (patch 15), under Unicorn
+python check_relay_box_026g.py <game>/binaries/x86/survarium_launcher.exe   # the "Relay" row (patch 16), under Unicorn
 ```
 
 After a change of the game's languages (`../localization_026g.py --write`
@@ -122,9 +125,13 @@ arguments and `-match_replay=<file>` (the game's own language)
 Gone from the window: the four social buttons, CREATE ACCOUNT (an account is
 made by the first sign-in), SHOP (silver and gold are exchanged in the
 lobby's exchange window since game update 11, and items bought in the
-lobby's shop), and the settings gear (its two options, "Allow torrent" and
-the torrent port, are of the old updater). PROJECT WEBSITE, in SHOP's old
-place at the right, opens `<site>/?lang=<code>` in the player's browser.
+lobby's shop). PROJECT WEBSITE, in SHOP's old place at the right, opens
+`<site>/?lang=<code>` in the player's browser. The settings gear (its
+"Allow torrent" and port) is gone too: "Allow torrent" is a box at the left
+of the bottom panel, where the social buttons were, kept in user.cfg as the
+language is (patch 15); the port is the updater's own
+(`../../docs/notes/torrent-downloads.md`). Under it, in a download with a
+relay, "Relay: auto / on / off" (patch 16).
 
 The launchers built before SHOP went open `<site>/exchange?lang=<code>`
 with it. That address stays: a short page there says, in the launcher's
@@ -394,7 +401,7 @@ for steps 8 to 10 and ends with its exit code. It does not watch.
 ## When something goes wrong
 
 Every failure is said in words, in a box titled "Skhid", and written
-to the run's `game\binaries\x86\updater_skhid.<date>.log`. Nothing is half installed: the
+to the run's `game\logs\updater_skhid.<date>.log`. Nothing is half installed: the
 ZIP's files go in all or none, and a patch file is a checked file or none.
 
 | What happened | What the player gets |
@@ -539,13 +546,15 @@ found: `../../docs/notes/launcher.md`.
 
 ### 8. The buttons that are gone
 
-- **Where:** the click handlers of SHOP, CREATE ACCOUNT, YouTube, Facebook,
-  Twitter and VK return at once (first byte → `C3` at 0x1BBEF, 0x1BC45,
-  0x1BD03, 0x1BD16, 0x1BD29, 0x1BD3C); their rectangles, and the settings
-  gear's, get a left edge of 30000 (0x45844, 0x45854, 0x458A4, 0x458B4,
-  0x458C4, 0x458D4, 0x45814), which is outside the window; PROJECT WEBSITE
-  moves from 478 to 750, SHOP's place (0x45864). Their addresses are
-  emptied.
+- **Where:** the click handlers of SHOP, CREATE ACCOUNT, Facebook and VK
+  return at once (first byte → `C3` at 0x1BBEF, 0x1BC45, 0x1BD16, 0x1BD3C;
+  YouTube's control is the "Allow torrent" box and Twitter's lies over its
+  text since patch 15); their rectangles get a left edge of 30000 (0x45844,
+  0x45854, 0x458B4, 0x458D4), which is outside the window, and so does the
+  settings gear's (0x45814: its one setting that applies, "Allow torrent",
+  is on the main window, patch 15; its port is the updater's); PROJECT
+  WEBSITE moves from 478 to 750, SHOP's place (0x45864). Their addresses
+  are emptied.
 - **Why SHOP:** it opened the site's silver and gold exchange, which is in
   the lobby now (`../README.md`, "Lobby exchange"). Until 2026-10-16 it
   stayed, at `<site>/exchange?lang=`, and PROJECT WEBSITE stood beside it
@@ -588,7 +597,7 @@ found: `../../docs/notes/launcher.md`.
 - The Authenticode signature is taken off: it cannot be right for a changed
   file, and the launcher never reads it (unlike the game exe). The `.skhid`
   section takes its place at the end of the file, the section table gets a
-  sixth entry, `SizeOfImage` grows by a page and the PE checksum is
+  sixth entry, `SizeOfImage` grows by its pages (two at most) and the PE checksum is
   recomputed.
 
 ### 13. Install-status transition crash
@@ -629,18 +638,20 @@ language the game has. `docs/notes/language-option.md` has the rule.
 
 - **One list.** `launcher_languages_026g.inc` is generated by
   `localization_026g.py --write` from its `LANGUAGES` (the game's own list:
-  resource name, own name, Windows primary language, two-letter code), as
+  resource name, own name, Windows locale rule, two-letter code), as
   the game's table is; `check_localization_026g.py` fails when it is stale.
-  The launcher's own string tables and pages stay its five (`LAUNCHER_UI`
+  Exact Croatian LANGIDs take precedence over the Serbian primary-id fallback,
+  as in the game. The launcher's own string tables and pages stay its five (`LAUNCHER_UI`
   there): another language shows them in English.
 - **The store.** `settings.language` is the index in that list. The start
   (`settings::reload_language` 0x1D852) reads the `localization` line of
-  `<Documents>\survarium\user.cfg` (SHGetFolderPathA(CSIDL_PERSONAL), as the
-  game finds its folder, client_patch.md); without a registered one, the
+  `<Documents>\survarium\user.cfg` (SHGetFolderPathW(CSIDL_PERSONAL), the
+  game's folder, client_patch.md; UTF-16 paths and the W file functions, so a
+  Documents folder outside the ANSI code page works); without a registered one, the
   Windows user locale's language (patch 79's rule), else English; it writes
   nothing. `settings::save_language` (0x1D8DA) writes that line: replaced
   where it is, added at the end when missing, the file (and its folder) made
-  when missing; written to `user.cfg.new`, then renamed over (MoveFileExA), so
+  when missing; written to `user.cfg.new`, then renamed over (MoveFileExW), so
   the game never finds it half written. A user.cfg it cannot read whole
   (64 KiB or more, or locked) is left alone.
 - **The menu.** The button's click (`language_menu::expand_button_click`
@@ -664,8 +675,180 @@ language the game has. `docs/notes/language-option.md` has the rule.
   the locale, English; nothing written), the save (replaced, added, made,
   through a new file; a file it cannot read whole left alone), the menu
   (every language by its own name, the current one checked, the pick handed
-  on), and every language's label, LANGID and page. Not yet run in a real
+  on), and every language's label, LANGID and page; each with a Documents
+  folder of ASCII and one of Cyrillic and Chinese. Not yet run in a real
   launcher window.
+
+### 15. "Allow torrent" on the main window, kept in user.cfg
+
+The owner (2026-11-15): BitTorrent is off by default; a player turns it on
+with an "Allow torrent" box right on the launcher's main screen ("no need
+for settings"), and it stays as they left it, kept as the language is.
+
+- **What it looks like:** the settings window's own box and text, at the
+  left of the bottom panel where the social buttons were: the box (PNG 347
+  unticked, 345 under the pointer, 346 pressed, 344 ticked, 20 by 20) at 28,
+  20 of the panel (32 before patch 16 put the relay row under it), in line
+  with the page's left column, the two boxes centred on the status line and
+  PLAY; "Allow torrent" (string 0xD3, the launcher's
+  language) 25 pixels right of it and 1 below its top, Calibri bold 18,
+  white, as the settings window has it beside its box (0x1C38E, 0x3A96C).
+  The widest text, Russian, ends at x 186, before the status line (x 200).
+  Previews: `private/renders/launcher-allow-torrent/` (not in git).
+- **Where:** YouTube's control (form+0x648) is the box: its three pictures
+  (0x1AAFC, 0x1AB0F, 0x1AB22) and Facebook's first (0x1AB35, the ticked
+  one; Facebook stays out of sight) are loaded from the settings window's
+  PNGs, its rectangle (0x458A4) moves to 28, 20 and its size initialisers
+  (0x3A715, 0x3A722) say 20. Twitter's control (form+0x698) makes the text
+  clickable: its rectangle (0x458C4) is 53, 20 to 187, 40, the text in every
+  language (Russian, the widest, is 134 pixels; its initialiser 0x3A746,
+  which could add at most 127, returns at once and right and bottom are
+  static), with the hand cursor as the box's; its click (0x1BD29) jumps to
+  YouTube's. Five sites call or jump to new code (`TORRENT_HOOKS`, entries
+  after the language's):
+  - 0x1AD78, the bottom panel's `image_window` (`panel_made`): the text is
+    painted into the panel's picture (form+0xEC, JPG 301) as the status
+    texts are, and the box's four pictures are made opaque over the
+    panel's picture where the box is (`bake_box`: a transparent control is
+    drawn over what its window last showed; only Windows composes the
+    launcher's windows, WS_EX_COMPOSITED, so under Wine an unticked box
+    kept the check of a ticked one); Twitter's three pictures become the
+    panel's picture where the text is, text included (`bake_label`);
+  - 0x1AEA3, Twitter's `transparent_control` (`label_made`): made as
+    before, then opaque (+24h: BitBlt, not AlphaBlend), so it shows exactly
+    the panel's pixels and no visible change (text drawn by GDI may leave
+    their alpha 0);
+  - 0x1AE1F, YouTube's `transparent_control` (`box_made`): ticked
+    (settings+0), its picture and the one under the pointer are the ticked
+    one;
+  - 0x1B4D9, `set_status_texts`' copy of the panel's picture from its
+    resource (`panel_restored`): the copy, then the text again (each status
+    change copies the picture anew);
+  - 0x1BD03, YouTube's click (`torrent_click`): user.cfg's line written
+    at once with the other value; only once it is written, settings+0 and
+    +1 toggled, the callback settings::save fires for a changed box
+    (`function0` at settings+0x28: 1A to the updater while the pipe is
+    connected, 0x172FA), the pictures as
+    `settings_window::show_torrent_checkbox` (0x1CE0E) shows them. A click
+    on the text comes here the same way.
+- **The store:** user.cfg (`<Documents>\survarium\user.cfg`, patch 14),
+  the game's own saved command `enable_torrent_seeding on` / `off` (exe
+  0x1EE580; the game keeps it when it rewrites the file), written as the
+  language is (one `save_setting` for both: the line replaced or added,
+  through `user.cfg.new` renamed over). The start (`reload_torrent`, from
+  `settings::reload_language` right after `settings::reload` at 0x14200):
+  ticked for `on`; no line, another value or no user.cfg: off. The
+  registry's `download_type` is neither read nor written any more
+  (settings::reload still reads it; its result is replaced at once).
+- **The one-time reset:** the original game saved its default,
+  `enable_torrent_seeding on`, in every player's user.cfg. Before the line
+  is read, a Windows user without `launcher_skhid.torrent_reset` beside
+  user.cfg gets that empty file made, then the line written `off`; from then
+  on the line is the player's alone. A user.cfg that cannot be written
+  takes the file away again (the next start tries again), and without the
+  file the box is off, whatever the line. The updater takes the line
+  only with that file there (`client/updater`, `win::launcher_torrent_allowed`).
+- **Why it is the one place:** every reader takes `settings+0`:
+  `start_updater`'s 4th argument (0x1580B: `torrent` or `direct`) and
+  `send_switch_download_type_message` (1A, 0x17367).
+- Checked: `check_torrent_box_026g.py` runs the five sites, the start
+  (0x141D9..0x1420C: settings::reload, then reload_language) and the
+  box's and the text's window procedure under Unicorn at two bases: the
+  start reads the line whatever `download_type` says; the text and the
+  opaque pictures; the box ticked or not; the text's control at its rect in
+  the panel, painting the panel's crop with BitBlt; five clicks, on the box
+  and on the text, each writing the line (others kept), firing the callback
+  once, no registry call, and a fresh start reading the box as it was left;
+  a click (box or text) whose line cannot be written changing nothing (box,
+  callback, file); the reset (`on` becomes `off` once, the file made; a
+  locked user.cfg makes no file; a tick after it stays across restarts).
+  `check_language_026g.py` still passes (the shared user.cfg code). Run in
+  the real launcher under Wine (headless, with a stand-in updater on its
+  pipe, 2026-11-15): the box drawn in all five languages, clicks writing
+  the line and sending `1A 00` / `1A 01`, a restart ticked, the legacy `on`
+  reset once with the file made. The clickable text is not yet run in a
+  real launcher. Not yet run on Windows.
+
+### 16. "Relay: auto / on / off" under "Allow torrent"
+
+The owner (2026-11-20): players see their route and pick it: automatic, the
+relay, or direct, and the choice stays. First it was a tick box that the
+updater ticked; the owner, the same day: a tick box has two states and this
+has three. So it is a row that says its state in words, with a menu of the
+three. The route is the updater's (`client/updater`, `updater_logic::route`,
+its README's "The route"): it keeps the choice, probes, and says what the row
+shows; the launcher only shows it and passes the pick on.
+
+- **What it looks like:** under "Allow torrent", a button with the settings
+  gear's pictures (the launcher's own art: PNG 308, under the pointer 309,
+  pressed 310; its settings gear left the top panel with patch 8) at 28, 46
+  of the panel, and beside it, at 53, 47, in the torrent box's font, the
+  state: "Relay: auto", "Relay: on", "Relay: off", and in auto what the
+  probe picked, "Relay: auto (on)" or "Relay: auto (off)". Five languages
+  ("Релей: авто (вкл)", "Релей: авто (увімк)", "Relay: auto (an)", "Relay:
+  auto (wł.)"; Ukrainian, the widest, about 140 pixels, ends before the
+  status line at x 200). Hidden until the updater says what it shows:
+  without `updater_skhid.relay`, or with an older updater, there is no row.
+  A tooltip (comctl32's, 30 s) says in a few lines what the relay is, the
+  three choices, and what the row is now (in auto, the route the probe
+  picked, or that it is checking).
+- **The views** (message `0A <view>` of the updater, its one byte
+  `updater_logic::route::Shown::byte`): 1 auto, probing; 2 auto, direct
+  ("auto (off)"); 3 auto, the relay ("auto (on)"); 4 auto, neither answered;
+  5 on; 6 off. The original launcher's dispatch ignored 0A..0D (their table
+  entries are the handlers' end, 0x16093): 0A's (0x160C2, a relocated dword)
+  is now `route_message`; any other byte is ignored, and an older launcher
+  ignores the message altogether.
+- **A click** on the gear opens a menu under it, as the language's is
+  (`pick_language`: CreatePopupMenu, TrackPopupMenu): "Auto: only when
+  blocked", "On: always through the relay", "Off: never", the chosen one
+  checked. A pick sends `22`, `23` or `24` (auto, on, off;
+  `send_simple_message` 0x1749F, while the pipe is connected); the updater
+  saves it, runs its update again by the new route and answers with the new
+  view. The launcher keeps nothing but the last view. The updater also
+  moves it by itself, to auto, when it finds the direct route blocked while
+  the relay answers, and says so in its box.
+- **A server that restarts** (the owner, the same day: "The server is
+  restarting", retried every few seconds with a count the player sees):
+  the updater says "Server maintenance..." (its state 16h: PLAY off) and
+  then, each second, message `13 <seconds>` to its next try, which the
+  original launcher keeps (launcher+0x2BA0) and paints the status line anew
+  for, showing nothing of it (its only reader is the text of updater state
+  23, which this updater never says). The status line's `load_string` call
+  for the launcher's states 6 and 7 (0x1687C) is `restart_text`: asked for
+  "Server maintenance..." (string 0xB2) while that byte is not 0, it gives
+  "The server is restarting. Next try in 5 s." with the byte, in the row's
+  five languages; `13 00` (the server answers, or the wait ends) and every
+  other string are `load_string`'s own. PLAY comes on with the updater's
+  "latest" as ever.
+- **Where:** VK's control (form+0x6C0) is the button: its three pictures
+  (0x1ABA7, 0x1ABBA, 0x1ABCD) are the gear's PNGs, made opaque over the
+  panel where the button is (`bake_relay_box`, as the torrent box's); its
+  rectangle (0x458D4) is 28, 46, its size initialisers (0x3A766, 0x3A773)
+  say 20. Its making (0x1AEE5, `relay_made`) shows or hides it as the last
+  view says, so a window made again in another language keeps it; its click
+  (0x1BD3C, `relay_click`) is the menu. The text is painted with the torrent
+  box's (`paint_label`); a new view calls `refresh_status` (0x16811), which
+  paints the panel anew.
+- **Its state:** the launcher (for the pipe), the view, the tooltip and the
+  button's window it is for: 16 bytes at 0x4A800, in `.data` past its last
+  variable; `.data`'s VirtualSize grows from 0x67FC to 0x6810, inside the
+  page the loader maps already. The new code is 3 pages now (its texts), 4
+  at most.
+- Checked: `check_relay_box_026g.py` runs message 0A from the dispatch to
+  the handlers' end (every view, and 0, 7, 255 ignored; the registers and
+  the stack as they were), the button's making (hidden, or shown, its three
+  pictures the gear's), the tooltip (made once, its text updated in place,
+  made again for a new button), the panel's text for every view in every
+  language, the click (the menu's three rows in each language, the chosen
+  one checked, its pick 22, 23 or 24; no menu while not connected or
+  hidden), and the status line (the count in each language,
+  1 to 255 seconds; no count and state 6's text passed on to
+  `load_string`), under Unicorn at two bases.
+  `check_torrent_box_026g.py` and `check_language_026g.py` still pass. The
+  tick box before it, the tooltip and the status line were run in a real
+  launcher window under Wine (2026-11-20, a headless display, the test
+  folder of the PR); the gear and its menu not yet.
 
 ## The pipe, in short
 
@@ -686,8 +869,11 @@ and that many bytes, the first being its type.
 | `02 01` | "Error" |
 | `05 <text>` | a message box with the text (at most 255 ASCII characters) |
 | `02 0F` and the pipe closed | the launcher closes |
+| `0A <view>` | the "Relay" row (patch 16): hidden until then |
+| `13 <seconds>` | after `02 16`: "The server is restarting. Next try in <seconds> s." (patch 16); `13 00`: "Server maintenance..." again |
 
-The launcher says `1B` (stop) when its window is closed. The updater stays
+The launcher says `1B` (stop) when its window is closed, `22`, `23` or `24`
+(auto, on, off) when a row of the "Relay" menu is picked. The updater stays
 connected after `02 0E` until then (a closed pipe would turn the line into
 "Error"), asking the server every 10 s; to have the launcher start anew it
 says `02 0F` and closes the pipe, then starts `launcher_skhid.exe`. Types 0, 24 and above 25 would crash the launcher (its table has no

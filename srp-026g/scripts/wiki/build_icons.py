@@ -27,6 +27,11 @@ release makes them again from its own patches. Writes <out>/ anew:
   `faction_id` of SrvQuestFactionTab's `icon` (ButtonQuestFaction sets its
   data's icon to faction_id; ButtonIconCenter: icon.gotoAndStop(icon)), in
   its colours;
+- maps/<level>_<weather>.webp: the picture the rooms draw a map with, small (128x72): the
+  library bitmap the lobby's table tables/survarium/rooms/MapRenders.tsv names for the level
+  (match_making_params.map_id) and weather (map_weather_id), by the rule of the rooms' own
+  RoomsLook.renderClass, which reads the same table; one for every level and weather that has a
+  picture, so the site's match lists and the rooms cannot part;
 - files.rs: those files, for the server's include (servers/web-server/src/icons.rs).
 
 The modification and filter icons are light glyphs with a dark drop shadow.
@@ -151,6 +156,57 @@ def quest_icons(swf_path, ffdec, tmp):
     return found
 
 
+# A map's picture in a match list: 16:9 as the rooms' cards, twice the 64x36 it is shown at.
+MAP_SIZE = (128, 72)
+# Levels are match_making_params.map_id, a byte's worth; none is above this.
+MAP_LEVELS = range(1, 128)
+
+
+def map_pictures(lobby, images):
+    """{(level, weather): picture} by the rooms' rule (RoomsLook.renderClass) over the lobby's
+    table MapRenders.tsv: ONE's picture whatever the weather; else LIKE's name, or `Level<level>`,
+    with the weather's word, its day one for a weather it has none of. `images`: FFDec's export of
+    the movie's bitmaps (`<character id>_<class name>.<type>`); a level with no picture is not
+    there."""
+    _, table = read_table(lobby / "tables" / "survarium" / "rooms" / "MapRenders.tsv")
+    lists = {}
+    for name, key, value in table:
+        lists.setdefault(name, {})[int(key)] = value
+    weathers, like, one = lists["WEATHERS"], lists.get("LIKE", {}), lists.get("ONE", {})
+    exported = {}
+    for path in images.iterdir():
+        match = re.fullmatch(r"\d+_(\w+)\.(?:png|jpg|jpeg)", path.name)
+        if match:
+            # The original movie's bitmaps are exported under their name twice (`Level1_day_Level1_day`).
+            name = match.group(1)
+            half = name[:len(name) // 2]
+            exported[half if name == f"{half}_{half}" else name] = path
+    found = {}
+    for level in MAP_LEVELS:
+        for weather, word in weathers.items():
+            if level in one:
+                names = [one[level]]
+            else:
+                base = like.get(level, f"Level{level}")
+                names = [f"{base}_{word}", f"{base}_day"]
+            picture = next((exported[name] for name in names if name in exported), None)
+            if picture is not None:
+                found[level, weather] = picture
+    missing = sorted(name for name in one.values() if name not in exported)
+    if missing:
+        raise SystemExit(f"MapRenders.tsv names pictures the movie has not: {', '.join(missing)}")
+    return found
+
+
+def covered(image, size):
+    """`image` scaled to cover `size` and cut to it about its centre, as the rooms' cards are
+    (RoomsLook.cover)."""
+    scale = max(size[0] / image.width, size[1] / image.height)
+    image = image.resize((max(size[0], round(image.width * scale)), max(size[1], round(image.height * scale))), Image.LANCZOS)
+    left, top = (image.width - size[0]) // 2, (image.height - size[1]) // 2
+    return image.crop((left, top, left + size[0], top + size[1]))
+
+
 def fitted(image, box, side):
     """`image` cut to `box` (its set's pictures' bounds, so they keep their sizes) and scaled
     into a `side` square, centred."""
@@ -225,14 +281,23 @@ def main():
                 else:
                     write(f"factions/{frame}.webp", webp(fitted(picture, box, side)))
 
+    small = {}
+    for (level, weather), picture in sorted(map_pictures(args.lobby, args.images).items()):
+        if picture not in small:
+            data = io.BytesIO()
+            covered(Image.open(picture).convert("RGB"), MAP_SIZE).save(data, "WEBP", quality=82, method=6)
+            small[picture] = data.getvalue()
+        write(f"maps/{level}_{weather}.webp", small[picture])
+
     (out / "files.rs").write_text(
         "// Built by srp-026g/scripts/wiki/build_icons.py; do not edit. The wiki's icons.\n"
         "files! {\n" + "".join(f'    "{path}" => "{kind}",\n' for path, kind in sorted(files.items())) + "}\n")
     total = sum((out / path).stat().st_size for path in files)
     counts = {kind: sum(path.startswith(kind + "/") for path in files)
-              for kind in ("items", "mods", "groups", "quests", "factions")}
+              for kind in ("items", "mods", "groups", "quests", "factions", "maps")}
     print(f"{out}: {counts['items']} items, {counts['mods']} modification, {counts['groups']} group, "
-          f"{counts['quests']} quest and {counts['factions']} faction icons, {total / 1024:.0f} KB")
+          f"{counts['quests']} quest and {counts['factions']} faction icons, {counts['maps']} map pictures, "
+          f"{total / 1024:.0f} KB")
 
 
 if __name__ == "__main__":

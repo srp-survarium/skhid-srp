@@ -1,42 +1,88 @@
 # Medical skill tree
 
 Source: `scripts/content-edit/medical-skills-1.json`, listed in `release/content.tsv`.
-The third skill tab has 31 points in a full build: thirteen skills, of which
-the two tier-5 unlocks exclude each other, and so do tier 4's Unflinching and
-Concentration. Thresholds count points in earlier tiers of this branch: 0, 3,
-10, 15 and 20. The 2026-11-05 retune and the 2026-11-06 changes below
-(Concentration among them) are implemented and tested locally; they have not
-been played or released.
+The third skill tab has 37 points in a full build: fourteen skills, of which
+the two tier-5 unlocks exclude each other. Thresholds count points in earlier
+tiers of this branch: 0, 3, 7, 12 and 17. In rows 2-4 the painkiller's skills
+are in column 1 and the antitoxin's in column 4. The 2026-11-19 changes below
+are implemented and checked locally; they have not been played or released.
 
 | Tier | Required points | ID | Skill | Per rank / unlock | Maximum |
 |---|---:|---:|---|---|---|
 | 1 | 0 | 342 | Brothers in Arms | Incoming allied damage -50% | One rank |
-| 1 | 0 | 301 | Potent Painkiller | Pain protection +1 point; duration +1.5 s | +3 points; +4.5 s |
 | 1 | 0 | 302 | Fast Bandaging | First-aid kit and bandage use time -5% | -10% |
-| 2 | 3 | 311 | Metabolism | Regeneration starts 0.5 s sooner | 2.5 s sooner |
-| 2 | 3 | 313 | Take Cover | First-aid kit and bandage healing +10% while crouched | +20% |
+| 2 | 3 | 301 | Potent Painkiller | Pain protection +1 point; duration +1.5 s | +3 points; +4.5 s |
+| 2 | 3 | 311 | Metabolism | Regeneration starts 1 s sooner | 4 s sooner |
 | 2 | 3 | 312 | Medical Training | First-aid kit and bandage healing +8% | +24% |
-| 3 | 10 | 303 | Numb Legs | Sprint stamina -20% while a painkiller is active | -40% |
-| 3 | 10 | 321 | Adrenalin | Movement +5% below 30 body health | +15% |
-| 4 | 15 | 332 | Strong Bones | Arm and leg maximum health +10% | +50% |
-| 4 | 15 | 323 | Unflinching | Bullets' slow -10% while a painkiller is active | -40% |
-| 4 | 15 | 333 | Concentration | Sight sway -5% while a painkiller is active | -20% |
-| 5 | 20 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
-| 5 | 20 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
+| 2 | 3 | 314 | Sharp Eye | Aim time -5/-10/-15% while an antitoxin is active | -15% |
+| 3 | 7 | 303 | Numb Legs | Sprint stamina -20% while a painkiller is active | -40% |
+| 3 | 7 | 321 | Adrenalin | Movement +5% below 30 body health | +15% |
+| 3 | 7 | 324 | Second Wind | +20/+30/+40 stamina as an antitoxin takes effect | +40 |
+| 4 | 12 | 323 | Unflinching | Bullets' slow -10% while a painkiller is active | -40% |
+| 4 | 12 | 332 | Strong Bones | Arm and leg maximum health +10% | +50% |
+| 4 | 12 | 333 | Concentration | Reload speed +10/+15/+20% while an antitoxin is active | +20% |
+| 5 | 17 | 331 | Supply Pocket | Secondary weapon replaced with supply pocket | One rank |
+| 5 | 17 | 322 | Additional Medicine | One extra medicine per medicine pocket | One rank |
 
 The four-column layout, from tier 1 down to tier 5 (`S` Supply Pocket and `M`
 Additional Medicine, one or the other):
 
 ```text
-| x x x - |    Brothers in Arms, Potent Painkiller, Fast Bandaging
-| x - x x |    Metabolism, Take Cover, Medical Training
-| - x - x |    Numb Legs, Adrenalin
-| - x U C |    Strong Bones, Unflinching XOR Concentration
+| - B F - |    Brothers in Arms, Fast Bandaging
+| P M T E |    Potent Painkiller, Metabolism, Medical Training, Sharp Eye
+| N A - W |    Numb Legs, Adrenalin, Second Wind
+| U S - C |    Unflinching, Strong Bones, Concentration
 | - S M - |    Supply Pocket XOR Additional Medicine
 ```
 
-Points held: tier 1 = 6, tiers 1-2 = 16, tiers 1-3 = 21, tiers 1-4 = 30 (with
-Unflinching or Concentration); a full build 31.
+Points held: tier 1 = 3 (exactly row 2's), tiers 1-2 = 16, tiers 1-3 = 24, tiers 1-4 = 36; a
+full build 37.
+
+## The antitoxin's skills and the 2026-11-19 retune (owner decisions)
+
+- New column 4 of rows 2-4, the antitoxin's, three ranks each (the owner's
+  values); painkiller skills in column 1 (Potent Painkiller moved to row 2
+  for it), and every painkiller skill shows the painkiller's icon, every
+  antitoxin skill the antitoxin's (Additional Medicine's, the owner: "we
+  already have it in Add. Medicine"). Row 1 is Brothers in Arms (column 2)
+  and Fast Bandaging: its 3 points open row 2; Metabolism row 2 column 2,
+  Medical Training column 3.
+- "An antitoxin" is a drug whose data/influences heal the infection pool and
+  nothing else (`drug::Effect::Antitoxin`; the science medkit heals infection and
+  the body: a medkit). "Active" is native set_active's flag, as for the
+  painkiller (its use delay included): from the press, the antitoxin's 1 s of
+  use and its 15 s of active time (the owner, 2026-11-20: "it should last 15
+  seconds"; 10 s before), whatever hits its holder (a bullet no longer stops
+  an antitoxin, drug-interrupt.md); his death ends it.
+- Sharp Eye (314, new, row 2): while an antitoxin is active, the sight's aim
+  time (modifier 49, as it comes up and as it goes down) takes -0.05/-0.10/
+  -0.15 added to the kit's sum: B x max(0, 1 + S - bonus). Icon: retail
+  0.69d0 `survival/11.png` (Additional Medicine's).
+- Second Wind (324, new, row 3): when an antitoxin's active time begins (its
+  use delay over, the first tick of medkit::tick's active time, right after
+  its remove_affects), its holder's stamina +20/+30/+40, never past its
+  maximum. Once a use.
+- Concentration (333, row 4, the name kept; the owner: "it is still
+  concentration"): its sight sway while a painkiller is active is gone; now
+  reload speed +0.10/+0.15/+0.20 added to modifier 13's sum while an
+  antitoxin is active, at every reload state (the clip speed B x (max(0, 1 +
+  S) + bonus)). Three ranks (was four); no longer exclusive with Unflinching.
+  Unflinching and Numb Legs show Potent Painkiller's ampoule (`survival/1.png`).
+- Take Cover (313) leaves the tree ("useless, we will rethink it"): its
+  native code and transport field stay, nothing sets them.
+- Metabolism: four ranks of 1 s (was five of 0.5 s), row 2.
+- Thresholds 0/3/7/12/17 (were 0/3/10/15/20; the owner: "the jump from lvl 2
+  to lvl 3 is too big").
+- Saved skills (`SkillsTree::settle`, no new rule): Take Cover's points come
+  back; Metabolism's fifth rank and Concentration's fourth come back; a
+  skill whose row the saved points no longer reach comes back, with the rows
+  it opened (Potent Painkiller in row 2 now needs 3 points in row 1). The
+  kits are sent again.
+- Held Alt, the antitoxin's card shows Concentration ("Reload speed") and
+  Sharp Eye ("Aim time") lines (srp's texts, st_srp_medicine_*);
+  Second Wind's is a flat amount and has none.
+- It changes what a match computes: words in `simulation_changes.tsv`'s
+  `next` row.
 
 ## Brothers in Arms in tier 1 (owner decision, 2026-11-14)
 
@@ -75,7 +121,9 @@ point to give +50".
 - It changes what a match computes (a teammate's hit at one rank): it has its
   `simulation_changes.tsv` row.
 
-## Concentration (owner decisions, 2026-11-06 and 2026-11-09)
+## Concentration until 2026-11-19 (owner decisions, 2026-11-06 and 2026-11-09)
+
+Replaced on 2026-11-19 (above): this is what it was.
 
 - New skill 333, tier 4 column 4, 4 ranks; Strong Bones column 2, Unflinching
   column 3. Unflinching and Concentration exclude each other (antiskills both
@@ -212,14 +260,16 @@ leaves the player with no medical skill at all.
   16 (Supply Pocket), 17 (Strong Bones, 0..5), 20 (Medic, retained: set by the artefact tree's Cascade) and
   21 (Brothers in Arms, three bits: 0..1 since 2026-11-14, 0..2 before). Ranked
   fields keep three bits; unlocks use one.
-- Slot 45 `can_defuse_traps`, 10 bits: Numb Legs at 0 (2 bits, 1.0 a rank,
-  0..2), Take Cover at 2 (2 bits, 4.0, 0..2), Unflinching at 4 (3 bits, 16.0,
-  0..4; two bits and 0..2 before 2026-11-06), Concentration at 7 (3 bits,
-  128.0, 0..4). A full set is 74 with Unflinching, 522 with Concentration.
-- The parser refuses fractional, nonfinite, negative or too-large values, any
-  rank past its skill's levels, and Unflinching beside Concentration (the
-  tree's exclusive pair: `Focus` holds one or neither). The lobby's
-  `KitModifiers.as` parses the same. Only the base profile value is decoded.
+- Slot 45 `can_defuse_traps`, 14 bits: Numb Legs at 0 (2 bits, 1.0 a rank,
+  0..2), Take Cover at 2 (2 bits, 4.0, 0..2; out of the tree since
+  2026-11-19), Unflinching at 4 (3 bits, 16.0, 0..4), Concentration at 7 (3
+  bits, 128.0, 0..3 since 2026-11-19, 0..4 before), Second Wind at 10 (2 bits,
+  1024.0, 0..3), Sharp Eye at 12 (2 bits, 4096.0, 0..3). The tree's full set
+  is 15810.
+- Metabolism's field (bit 6) takes 0..4 since 2026-11-19 (0..5 before).
+- The parser refuses fractional, nonfinite, negative or too-large values and
+  any rank past its skill's levels. The lobby's `KitModifiers.as` parses the
+  same. Only the base profile value is decoded.
 - Do not repurpose either slot for gear or a trap feature.
 - Slot 45 evidence (2026-11-05, the exact 0.26g exe): all 94 calls of the
   modifier getter 0x2D5AE0 and its rounding wrapper 0x2D5B80 resolve to an index
@@ -283,26 +333,33 @@ The source's normal activation and cooldown continue unchanged. Brothers in Arms
 uses the same core lookup and team rule, after spawn invulnerability and before
 native body-part damage processing. Environmental and self damage are unchanged.
 
-Concentration (`on_sway` in medical_skills.rs, `vostok::medical::sway`; the
-site `medical.sway`, sites_026g.tsv):
+The antitoxin's skills (2026-11-19; `medical_skills.rs` `reload_speed`,
+`aim_time`, `second_wind`; `vostok::medical::{reload, aim_start, aim_end,
+drug_begin}`; sites_026g.tsv `medical.reload*`, `medical.aim_*`,
+`medical.drug_begin`). Concentration's 2026-11-09 sway site (`medical.sway`,
+0x31D727) is gone with it.
 
-- breath_vibration_calculator::tick (0x31D6E0; the calculator at weapon+288h,
-  EDI) runs from weapon_core::tick (0x2E0A40) only while the weapon is aimed
-  (+5E8h), with the weapon's dispersion now as its first argument: the
-  dispersion calculator's m_weapon_dispersion (+418h) plus
-  m_character_dispersion (+404h), 0x2E0A23. At 0x31D722 it calls
-  apply_modifier with index 61 (`breath_vibration`) on the holder's kit
-  (calculator +3Ch, the player set by set_user 0x2E29F3): B x max(0, 1 + S).
-  That value feeds the breath state's tick (vtable +1Ch), the amplitude it
-  eases to (1 + params+18h x it, 0x31D898) and the phase's speed (params+1Ch
-  x it, 0x31D7E9): the sight's sway. It is the only read of modifier 61 in
-  the exe (the 93 apply_modifier calls' indices; 0x2D5B80's one call reads
-  29, apply_modifiers 0x2D5BC0's two {4, 20} (0x2DBC1D) and {24, 56} (0x331715)).
-- The site: 0x31D727, after that call, before `movss [esp+10h],xmm0`
-  (0x31D72D); the hook replays `mov eax,[ebp+0Ch]` / `fild dword [ebp+0Ch]`.
-  XMM0 becomes max(0, M - 0.05 x rank x B) = B x max(0, 1 + S - 0.05 x rank),
-  with B the tick's argument ([ebp+8], never written) and the painkiller test
-  of Numb Legs. A B or M not above 0 is left as it is.
+- Modifier 13 (`reload_speed`) has four reads, one in each reload state's
+  get_weapon_lexeme: 0x30E25A (weapon_core_reload_state), 0x30F61D (double
+  barrel), 0x30FF07 (pistol, state 314) and 0x3110D5 (the shotgun's
+  substate), each the clip speed (+138h, the shotgun's +14Ch) x max(0, 1 +
+  S13) with EDI the state, [[EDI+120h]+8] the player. The 93 apply_modifier
+  calls resolve to an index (ESI); no other is 13. A lohook after each call
+  (6 bytes replayed: push / mov edx,[esp+14h] / mov ecx,[edi+154h]) turns M =
+  B x f into M / f x (f + bonus), f the kit's max(0, 1 + S13) read again
+  through the getter.
+- Modifier 49 (`aim_time`) has two reads: weapon_core::instant_aim_start
+  (0x2E1B9A) and instant_aim_end (0x2E1C3B), +5F8h x max(0, 1 + S49) into
+  the sight's time (+608h). The lohooks at 0x2E1B9F / 0x2E1C40 (replaying
+  `movss xmm2,[edi+604h]`) make M / f x max(0, f - bonus).
+- Second Wind: medkit::tick (0x33D790) runs remove_affects (0x33D86D) and
+  links the drug_activity node once, on the tick whose remaining time is
+  the whole active time (0x33D860). The lohook at 0x33D872 (EDI the drug,
+  EBP its holder; `movzx edx,byte [ebp+115h]` replayed) gives an antitoxin's
+  holder its stamina (player+6C0h: +0 the most, +6Ch now).
+- The antitoxin test (`vostok::drug::effect`, patch 84's too) reads the drug's influences: +280h the records (14h
+  each, the pool's name inline at +0, the amount at +10h: a drug is one when, of its records, only infection's amount is above 0; the live config has that one record, a config made from the medkit template would keep its seven at 0), +288h their
+  count (medkit::tick's loop, 0x33D8F5 / 0x33DA1B).
 
 ## Effect ownership, capacity and duration
 
