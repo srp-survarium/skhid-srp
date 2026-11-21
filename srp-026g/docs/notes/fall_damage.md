@@ -289,7 +289,8 @@ from the 0.26g exe and measured in a game (`client_patch.md` section 3.91 has th
   - The jump after a short run-up (a walker still speeding up): with 166 alone it flew at 3.476 m/s
     under cuts against 3.157 uncut (the original 3.457, patch 166 under a burst 3.520); with 168 at
     3.157 cut and uncut (its fastest air step 3.158 in a part, 3.157 in a whole tick), and the jump
-    state read 2.589 m/s in every cycle, cut or not.
+    state read 2.588-2.589 m/s, cut or not, where with 166 alone it read a part's 2.59-3.02 under cuts
+    (the original 2.948).
   - Full-speed jumps (1.5 s run-ups: walk, sprint, both strafes, standing, forward with jump from
     rest): the jump state read 3.106 (forward) and 2.213 (strafe) cut and uncut; heights 0.96-1.00 m
     against 0.99 uncut where the ground was the same; the fastest air step of a sprint jump 5.866 m/s
@@ -301,7 +302,8 @@ from the 0.26g exe and measured in a game (`client_patch.md` section 3.91 has th
   - The original under cuts through a whole cycle never starts to move (0 m).
   - Distances over a script part vary from cycle to cycle with where the walker begins it (walls,
     slopes), uncut as cut, so the per-step figures above are the measure.
-- **Not changed (stated limits):** timings inside a cut tick still differ from a whole tick's by under
+- **Not changed (stated limits):** a jump pressed together with forward from rest rose 0.89 m in some
+  cut cycles against 0.99 uncut, with 166 alone as with 168 (never higher). Timings inside a cut tick still differ from a whole tick's by under
   one tick: a key acts in the last part of its tick (inputs govern the step that ends at their time,
   0x2D22BC) and state changes go one per step (`vostok::ai::fsm::tick` 0x38CA20). Ramps are sampled at
   part ends, as in the original: a start covers up to about 8 cm less, a stop as much more. A jump's
