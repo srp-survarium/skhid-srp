@@ -220,12 +220,13 @@ class Cache:
             raise Problem(f'{path} in the cache is not the file of that sha256 (deleted): run the build again')
         return data
 
-    def put(self, key, files, said):
+    def put(self, key, files, said, digests=None):
+        """Keeps what the step of that key made (`digests`: the files' sha256s, when known)."""
         if not self.root:
             return
         names = {}
         for path, data in files.items():
-            digest = sha256(data)
+            digest = digests[path] if digests else sha256(data)
             blob = self.blob_path(digest)
             if not (blob.is_file() and blob.stat().st_size == len(data)):
                 write_new(blob, data)
@@ -245,9 +246,10 @@ class Layers:
         self.key_of = {Path(a).name: Cache.key('file digests', reader, sha_of[Path(a).name]) for a in archives}
         self.known, self.new = {}, set()                    # archive name: {path: sha256}; names to save
 
-    def digests(self, paths):
-        """({path: sha256}, {path: bytes} of those read now) of files the archives give."""
-        out, todo = {}, []
+    def digests(self, paths, keep=True):
+        """({path: sha256}, {path: bytes} of those read now (none without `keep`)) of files the
+        archives give."""
+        out, todo, kept = {}, [], {}
         for path in paths:
             name = self.of[path]
             if name not in self.known:
@@ -256,11 +258,14 @@ class Layers:
                 out[path] = self.known[name][path]
             else:
                 todo.append(path)
-        got = self.game.get(self.archives, todo)
-        for path, data in got.items():
-            out[path] = self.known[self.of[path]][path] = sha256(data)
-            self.new.add(self.of[path])
-        return out, got
+        for at in range(0, len(todo), 2000):
+            got = self.game.get(self.archives, todo[at:at + 2000])
+            for path, data in got.items():
+                out[path] = self.known[self.of[path]][path] = sha256(data)
+                self.new.add(self.of[path])
+            if keep:
+                kept.update(got)
+        return out, kept
 
     def save(self):
         for name in sorted(self.new):
@@ -409,8 +414,8 @@ class World:
     def __len__(self):
         return len(self.digests)
 
-    def put(self, path, data, reason):
-        self._put(path, sha256(data), reason, data)
+    def put(self, path, data, reason, digest=None):
+        self._put(path, digest or sha256(data), reason, data)
 
     def put_cached(self, path, digest, reason):
         self._put(path, digest, reason, None)
@@ -569,9 +574,10 @@ def compose_packs(rows, base, base_shas, vostok, packs_dir, work, world, cache):
         if path in composed and composed.pop(path) != world.data(path):
             raise Problem(f'vostok-port changed {path}, which no operation of the packs names: '
                           'build_content.py (movies_packs_edit) does not know what reads it')
-    cache.put(key, composed, said)
+    digests = {path: sha256(data) for path, data in composed.items()}
+    cache.put(key, composed, said, digests)
     for path, data in composed.items():
-        world.put(path, data, reason)
+        world.put(path, data, reason, digests[path])
 
 
 def left_by_earlier_packs(rows, packs_dir, paths, base_files, live, game):
@@ -703,9 +709,10 @@ def apply_edits(rows, tree, base, work, world, cache):
         files = {file.relative_to(out).as_posix(): file.read_bytes()
                  for file in sorted(p for p in out.rglob('*') if p.is_file())}
         shutil.rmtree(work / 'edits' / name)
-        cache.put(key, files, said)
+        digests = {path: sha256(data) for path, data in files.items()}
+        cache.put(key, files, said, digests)
         for path, data in files.items():
-            world.put(path, data, f'edit {name}')
+            world.put(path, data, f'edit {name}', digests[path])
 
 
 def type_check(rows, tree, base, world, cache, whole):
@@ -763,8 +770,9 @@ def type_check(rows, tree, base, world, cache, whole):
     # bytes, where the base has it; None for a file no base archive has: a pack's new file), its
     # value types against them.
     files_key = Cache.key('the types of made files', sources)
-    earlier = {} if whole else (cache.get(files_key) or ({}, {}))[1]
-    previous_digest, _ = base.digests([p for p in world if p in base.of])
+    stored = (cache.get(files_key) or ({}, {}))[1]
+    earlier = {} if whole else stored
+    previous_digest, _ = base.digests([p for p in world if p in base.of], keep=False)
     key_of = {path: Cache.key(path, world.sha256(path), previous_digest.get(path), keys.get(path, {}), base_key)
               for path in world}
     todo = [p for p in sorted(world) if key_of[p] not in earlier]
@@ -779,7 +787,7 @@ def type_check(rows, tree, base, world, cache, whole):
             'types': ctc.violations(walk, previous.get(path), data, path, corp, TYPE_ALLOWLIST,
                                     keys.get(path, {}))}
     if found:
-        cache.put(files_key, {}, {key_of[p]: found.get(key_of[p]) or earlier[key_of[p]] for p in world})
+        cache.put(files_key, {}, stored | found)     # another tree's files kept for its next build
     each = [found.get(key_of[p]) or earlier[key_of[p]] for p in sorted(world)]
     # A file at a config path the reader refuses is a problem, never a file
     # the check skips (a table out of CRC order, a broken record): the made
