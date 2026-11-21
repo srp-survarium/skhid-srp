@@ -828,6 +828,57 @@ def keeper_check(rows, base_files, world):
     print(f'keeper: every one of {len(projects)} map project(s) has its pool')
 
 
+def walker_twin_problems(path, buf):
+    """A project's temporary collision objects with same_walker_collision whose `walker_<name>` the
+    project does not have: 0.26g's battery rule (0x3153B0) looks the twin up for each one a battery
+    place attaches (0x3156EC, 0x31595C) and uses it unchecked, so a missing one crashes the client
+    when the mode starts (London (v0.42)'s mode 3, 2026-11-21)."""
+    ce = own_content_edit()
+    try:
+        objects = ce.children(buf, ce.find(buf, 'temporary_collision_objects'))
+    except KeyError:
+        return []
+
+    def value(item, key):
+        try:
+            data, _, _, kind, count = ce.rec(buf, ce.find(buf, key, item))
+        except KeyError:
+            return None
+        return bytes(buf[data:data + count - 1]).decode('utf-8', 'replace') if kind == ce.T_STR else data != 0
+
+    entries = [(value(item, 'name'), value(item, 'same_walker_collision')) for item in objects]
+    names = {name for name, _ in entries}
+    return [f'{path}: {name} has same_walker_collision and the project no walker_{name}'
+            for name, twin in entries if twin is True and f'walker_{name}' not in names]
+
+
+def walker_check(base, base_files, game, world, cache):
+    """Every map project, as players will have it (made by a row or as the base has it), gives each
+    temporary collision object with same_walker_collision its `walker_<name>` twin
+    (walker_twin_problems). A project's problems are cached by its bytes (a made one) or its archive
+    (a base one) and the check's source."""
+    projects = sorted(p for p in set(base_files) | set(world.bytes)
+                      if p.startswith('projects/') and p.endswith('/client_project'))
+    key = Cache.key('the walker twins of projects', files_digest([Path(__file__)]), sys.version)
+    earlier = (cache.get(key) or ({}, {}))[1]
+    key_of = {p: f'{world.sha256(p)} {p}' if p in world.bytes else f'{base_files[p]} {p}' for p in projects}
+    todo = [p for p in projects if key_of[p] not in earlier]
+    files = game.get(base, [p for p in todo if p not in world.bytes])
+    files.update({p: world.bytes[p] for p in todo if p in world.bytes})
+    found = {key_of[p]: walker_twin_problems(p, bytearray(files[p])) for p in todo}
+    each = {key_of[p]: found.get(key_of[p], earlier.get(key_of[p])) for p in projects}
+    if found:
+        cache.put(key, {}, each)
+    problems = [problem for p in projects for problem in each[key_of[p]]]
+    if problems:
+        print()
+        for problem in problems:
+            print(f'WALKER: {problem}')
+        raise Problem(f'{len(problems)} collision object(s) with same_walker_collision and no walker twin '
+                      '(the battery rule would crash the client): no patch made')
+    print(f'walker twins: every same_walker_collision object of {len(projects)} project(s) has its twin')
+
+
 GRASS_MAX = 120_000
 
 
@@ -1008,6 +1059,8 @@ def main():
             keeper_check(rows, base_files, world)
         with timed('the grass'):
             grass_check(base, base_files, game, world)
+        with timed('the walker twins'):
+            walker_check(base, base_files, game, world, cache)
         with timed('the clothing fit'):
             clothing_check(base, base_files, game, world)
 
