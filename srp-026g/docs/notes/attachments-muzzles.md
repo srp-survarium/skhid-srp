@@ -170,27 +170,50 @@ the items table's rows, the `next` row.
 - The content side's record has every device's model and fire point on every gun that takes it
   within 0.5 mm of 0.69d0's (544 fits, 1,394 comparisons, the worst 0 mm). Computed there, not here.
 
-**Not seen in a game: anything.** No device item has been in a lobby or a match. So LIKELY, each
-until a game shows it:
+**Seen in a game, 2026-11-21** (a headless client on a local server, the lane's rig: the game at 30
+frames a second under a 60 a second recording, so each game frame is in two; first view only).
+On the core's c8b28fb43 (exe and server, table version 3, `weapon-modules-quick@32` of six guns)
+and before it on e17ace688 / 6a2623ff2 (version 2, the AK-74M):
 
-- that an item's modification reaches the weapon's config as the cook sees it (`data/srp_muzzle`
-  by a type 3 modifier, as a camouflage adds `data/camouflage`);
-- that the re-encoded particles load and look right with their rebuilt materials (brightness, the
-  fire materials without 0.46c2's angle attenuation, the small mips of the flash textures);
-- that the flash plays at the device's fire point;
-- that the lobby's card shows the name and description as written.
+| Gun, device | Effect | What the game showed |
+|---|---|---|
+| AK-74M, Zenit DTK-3 (2635) | `dtk1_2` | the device on the gun in the lobby; at the shot an orange jet out of the device's side and a plume above it, at the device; no crash at the first shot |
+| AK-74M, Dynacomp flash hider (2631) | `gas_small` | the long hider in the lobby and the first view; at the shot almost nothing (the muzzle's warm pixels +12 % over the frame before, the stock flash's +950 %) |
+| AK-74M, Zenit DTK-4 (2657) | `pp_suppr` | the closed can on the barrel; almost no flash |
+| AK-74M, nothing fitted | the gun's `ak_74` | a large bright fireball: much brighter than any device's effect |
+| Saiga-12, custom 01 choke (2640) | none: the gun's own | the gun's own orange flash at the end of the choke |
+| Saiga-12, custom 01 duckbill (2639) | `duckbill` | a flat pale fan out of the duckbill's mouth, sideways, then grey smoke |
+| Saiga-12, Red Heat ILGYNAGK01 (2627) | `dtk8` | a pale puff of smoke at the device, no bright flash |
+| AEK-919K, its own brake (2601) | `pp_arrest1` | an orange ball at the device for each round of the burst |
+| PM, the AEK-919K's brake (2601) | `pp_arrest1` | the device on the pistol; an orange glow at its end. A see-through copy of the slide and barrel beside them for about 0.1 s after each shot is the pistol's own: the PM with nothing fitted shows it too |
+| PM, Manticore Nightbrake (2625) | `gas_small` | the device on the pistol; no flash |
+| SVD, custom 01 clamp brake (2605) | `dtk9` | orange jets to the side at the device |
+| HK416, Diamondhead T-brake (2613) | `dtk4_6` | orange jets to both sides at the device |
+
+- The item's modification reaches the weapon's config as the cook sees it (`data/srp_muzzle`, the
+  device drawn); the kit's slot 4 record survives the account's load. The stats were not measured
+  in a game.
+- Every effect named here loads with its rebuilt materials, and no game crashed at a shot.
+- **The devices' flashes are far dimmer than the stock flash.** That they are dimmer is 0.46c2's
+  own effect (its light intensities 0.18 and 0.16 against the stock AK's 0.86); whether it is the
+  look wanted is the owner's to judge.
+- From behind, a flash a few centimetres short of the device's end looks the same as one at it.
+  The side view was tried with a teammate bot (`RIG_SIDE=1`, three driving bots, two against two):
+  on Mamayev Kurgan's woods the teammate was found by its marker and approached, but no frame showed
+  it firing in view. Not done.
+- The world check: a recording of a four-player match with the device fitted on every gun (118
+  worlds, map 132, revision 69), `srp-world-check` of the tree with the content's game data: all
+  passed. Not added to the world corpus (main's game data has no device items).
+
+**Still LIKELY, until a game shows it:** that the lobby's card shows the name and description as
+written; the shop and the Attachments window (the lead's) with these items.
 
 **Not done:**
 
-1. The first shot: the AK-74M with the Zenit DTK-3 (2635) through its kit's slot 4, the flash at the
-   device. Then the other effects on a sample of guns (`pp_arrest1` on a pistol-thread gun, `dtk9`
-   and `dtk4_6` on an M14x1 one, `dtk8`, `dtk11`, `dtk12` and `duckbill` on a shotgun), and a device
-   without an effect (a choke).
-2. A view from the side. The first view looks along the barrel from behind, where a flash 5 cm
-   short of the device's end looks the same as one at it. The test bot fires on its own with
-   `--drive`; a second bot on the player's team, or a second game, would give the side view.
-3. `release/build-content --full` with the pack, and `tools/check build-content`.
-4. A match's recording with a device fitted through the world check (the kit's record with a dict id
-   in slot 4 is patch 68's format; nothing new is written).
-5. The M30x1 devices fit the three guns that were at the old 16 KB config bound: fit them only with
+1. A view from the side (above).
+2. `release/build-content --full` with the pack (the lead's one full build), and `tools/check
+   build-content`.
+3. The other effects not yet shot: `dtk3_7`, `dtk5`, `dtk8`, `dtk11`, `dtk12`, `pp_suppr` (the
+   Zenit DTK-4) on a gun.
+4. The M30x1 devices fit the three guns that were at the old 16 KB config bound: fit them only with
    an exe that has patch 161's 64 KB arena (`attachments.md`).
