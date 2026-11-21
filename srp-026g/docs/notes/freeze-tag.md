@@ -63,7 +63,12 @@ three). No artifact rescue in this version (owner, 2026-11-17).
 
 The first authored map is Rudnya day, using its existing TDM project and
 team spawns. `freeze-tag-1.json` makes its config and fills unused map-dictionary
-slot 114. Mode 12 is separate from FFA variations 9–11 and from Artifact
+slot 114. Its `ui.icon` is 4: the loading screen's mode icon is Freeze Tag's own
+(the owner, 2026-11-21: "freeze tag has tdm icon"), the lobby movie's
+`SrvGameModeIcons` frame 5 (`GameModeIconFreezeTag`: a snowflake in the frozen
+name's ice blue on Artifact Hunt's round badge, frame 4), where it showed Team
+Deathmatch's skull; the loading screen is the only place the lobby draws a
+mode's icon. Mode 12 is separate from FFA variations 9–11 and from Artifact
 Hunt's 13. Native rules are 93, 91, 94: time, respawn, and kill counters; no
 TDM ticket rule. The options carry `SRPX`, tag 6 (4 is the wide map id, 5 the
 faces), length 1, version 1, among the block's other entries. Both client and
