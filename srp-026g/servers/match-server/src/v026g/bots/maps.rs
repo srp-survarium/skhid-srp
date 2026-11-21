@@ -886,6 +886,19 @@ fn build(
                                     to.z
                                 );
                             }
+                            // [deep walk-offs] And each deep landing kept beside a way within the harmless fall.
+                            for (from, to) in &stats.drops_past_harmless_also {
+                                log::debug!(
+                                    "Bot map {} drop past the harmless fall, kept beside a way within it: ({:.2}, {:.2}, {:.2}) -> ({:.2}, {:.2}, {:.2})",
+                                    path.display(),
+                                    from.x,
+                                    from.y,
+                                    from.z,
+                                    to.x,
+                                    to.y,
+                                    to.z
+                                );
+                            }
                         }
                         // [give-back ids] A log's only: per link table the passes before the wall give-back made (the walk check's
                         // marked and crouched walks, the risers' presses, the lips, the drops' landing speeds), its entries, how many

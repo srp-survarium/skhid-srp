@@ -1643,6 +1643,9 @@ pub struct BuildStats {
     /// [D2] The Drop links a walk overshot past the harmless fall that no way within it took down, re-aimed to the walk's deep
     /// landing (take-off, that landing), for the build's log (debug).
     pub drops_past_harmless_cut: Vec<(Vec3, Vec3)>,
+    /// [deep walk-offs] The deep landings kept beside a Drop link's way within the harmless fall, each an off-mesh GapDrop
+    /// walk-off (take-off, landing), for the build's log (debug).
+    pub drops_past_harmless_also: Vec<(Vec3, Vec3)>,
     /// Of them, those onto a (take-off, landing) pair already re-aimed in the pass, folded into its one link, and which was kept.
     pub drops_reaim_pairs: drop_check::ReaimPairs,
     /// [A389] The Drop links walked by the client's body ([`Body::drop_lands`]), re-aimed by a way down other than the walk at
@@ -2026,7 +2029,7 @@ impl WalkGrid {
         if body.drop_check {
             let failing = if body.drop_lands {
                 let world = world.expect("a world");
-                let (cut, reaim, lips, mut walked, deep_kept) = grid.landing_drops(&wide, world, seeds, spawns);
+                let (cut, reaim, lips, mut walked, deep_kept, deep_also) = grid.landing_drops(&wide, world, seeds, spawns);
                 stats.drops_past_harmless_cut = deep_kept;
                 let held;
                 (walked.walk_offs, walked.walk_offs_reaimed, walked.walk_offs_unlanded, walked.walk_offs_released, held) =
@@ -2034,6 +2037,8 @@ impl WalkGrid {
                 walked.releases_held_thin += held;
                 stats.drops_walked = walked;
                 (stats.drops_reaimed, stats.drops_reaim_pairs) = grid.reaim_drops(&mut wide, &reaim);
+                // [deep walk-offs] The deep landings a way within the harmless fall went before, kept beside it.
+                stats.drops_past_harmless_also = grid.keep_deep_landings(&mut wide, &deep_also);
                 wide.lips = lips;
                 cut
             } else {
