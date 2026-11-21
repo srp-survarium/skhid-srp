@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,6 +12,16 @@ class DaySourceTest(unittest.TestCase):
         shifted = source.shift_map_counts(original, -20)
         self.assertEqual(shifted, original.replace('157', '137'))
         self.assertEqual(source.shift_map_counts(shifted, 20), original)
+
+    def test_edit_rows_for_weather_projects_wait_for_the_packs(self):
+        day, rain = 'projects/v021d_level_04/day_2/client_project', 'projects/v021d_level_04/rain_2/client_project'
+        london = 'projects/level_09/rain_2/client_project'
+        text = ('{"add_value": [{"files": ["%s", "%s"], "key": "k"}, {"files": "%s", "key": "k"}, '
+                '{"files": "%s", "key": "k"}], "_about": "x"}\n' % (day, rain, rain, london))
+        self.assertEqual(json.loads(source.without_weather_projects(text)),
+                         {'add_value': [{'files': [day], 'key': 'k'}, {'files': london, 'key': 'k'}], '_about': 'x'})
+        untouched = '{"add_value": [{"files": "%s"}]}\n' % day
+        self.assertIs(source.without_weather_projects(untouched), untouched)
 
     def test_view_removes_only_new_weather_rows_and_keeps_sources(self):
         with tempfile.TemporaryDirectory() as tmp:

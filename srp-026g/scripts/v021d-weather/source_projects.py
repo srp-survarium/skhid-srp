@@ -27,6 +27,8 @@ def file_sha256(path):
 WEATHER_MODE = re.compile(r'v021d_level_0[1-6]_(rain|evn)_[24]\t')
 # The weather packs: the five maps' and Chemical Plant's, made from this export.
 WEATHER_PACK = re.compile(r'maps-021d-(chemical-)?weathers@')
+# Their projects: an edit list's rows for them apply over the packs, which the day source has not.
+WEATHER_PROJECT = re.compile(r'projects/v021d_level_0[1-6]/(rain|evening)_[24]/')
 
 
 def shift_map_counts(text, delta):
@@ -42,6 +44,29 @@ def shift_map_counts(text, delta):
     return changed
 
 
+def without_weather_projects(text):
+    """An edit list's text without its rows for the weather packs' projects (the same text if none)."""
+    edits = json.loads(text)
+    kept = {}
+    for op, rows in edits.items():
+        if not isinstance(rows, list):
+            kept[op] = rows
+            continue
+        kept[op] = []
+        for row in rows:
+            files = row.get('files') if isinstance(row, dict) else None
+            if isinstance(files, str):
+                files = None if WEATHER_PROJECT.match(files) else files
+            elif isinstance(files, list):
+                files = [f for f in files if not WEATHER_PROJECT.match(f)] or None
+            else:
+                kept[op].append(row)
+                continue
+            if files is not None:
+                kept[op].append(row | {'files': files})
+    return text if kept == edits else json.dumps(kept, indent=1, ensure_ascii=False) + '\n'
+
+
 def day_edit_tree(work, root=ROOT, weather_rows=0):
     """View the original edit sources without rows belonging to the excluded pack."""
     tree = work / 'day-source'
@@ -52,9 +77,11 @@ def day_edit_tree(work, root=ROOT, weather_rows=0):
         if source.name == 'modes.tsv':
             target.write_text(''.join(line for line in source.read_text().splitlines(keepends=True)
                                       if not WEATHER_MODE.match(line)))
-        elif weather_rows and source.suffix == '.json':
+        elif source.suffix == '.json':
             original = source.read_text()
-            changed = shift_map_counts(original, -weather_rows)
+            changed = without_weather_projects(original)
+            if weather_rows:
+                changed = shift_map_counts(changed, -weather_rows)
             if changed == original:
                 target.symlink_to(source)
             else:
