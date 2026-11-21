@@ -192,6 +192,13 @@ for _view, _kind in (("RuleQuery", "RuleQuery"), ("TickRule", "HuntRule"), ("Rul
         "binding": f"let {{n}} = unsafe {{{{ {_view}::from_raw(&thread, {{a}}) }}}};",
         "orig_type": f"&{_view}", "orig_raw": "{n}.raw()", "pass": "&{n}", "null": "{a}",
     }
+# Patch 161's refill of a weapon's finger corrector (vostok::attachments).
+TYPES["FingerCorrector"] = {
+    "raw": "Option<FingersCorrector>", "fallible": True,
+    "build": "FingerCorrector::from_raw(&thread, {a})",
+    "orig_type": "&mut FingerCorrector", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
 TYPES["PredicateBuffer"] = {
     "raw": "Option<PredicateBuffer>",
     "binding": "let {n} = unsafe {{ PredicateBuffer::from_raw(&thread, {a}) }};",

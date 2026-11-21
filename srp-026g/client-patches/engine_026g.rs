@@ -333,6 +333,10 @@ unsafe extern "C" {
     pub fn engine_draw_triangles(renderer: *mut c_void, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
     /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
     pub fn engine_text_edit_delete_selection(edit: *mut c_void);
+    /// 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4
+    pub fn engine_pin_resource(pinned: *mut c_void, resource: *mut c_void);
+    /// 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0
+    pub fn engine_unpin_resource(pinned: *mut c_void);
     /// 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0
     pub fn engine_shared_string_assign(holder: *mut *mut c_void, string: *mut c_void);
     /// 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX
@@ -373,6 +377,8 @@ unsafe extern "stdcall" {
     pub fn engine_fsm_append_transition(source: *mut c_void, destination: *mut c_void, predicate: *const c_void);
     /// 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
     pub fn engine_set_texture(compiler: *mut c_void, slot: *const u8, texture: *const u8, option: u32, request: u32, lower: u32, lower_float: f32, flag: u32);
+    /// 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly
+    pub fn engine_fingers_set_weapon_model(corrector: *mut c_void, instance: u32, first_view: u32);
     /// 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
     pub fn engine_shared_string_create(text: *const u8) -> *mut c_void;
     /// 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly

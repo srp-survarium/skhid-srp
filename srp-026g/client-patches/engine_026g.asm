@@ -275,6 +275,9 @@ global engine_close_clipboard
 global engine_global_lock
 global engine_global_unlock
 global engine_set_texture
+global engine_fingers_set_weapon_model
+global engine_pin_resource
+global engine_unpin_resource
 global engine_set_constant_float4
 global engine_shared_string_create
 global engine_shared_string_destroy
@@ -413,6 +416,7 @@ engine_close_clipboard equ 0xaefed4   ; the IAT slot 0xaefed4 (an import, stdcal
 engine_global_lock equ 0x870078   ; the IAT slot 0x870078 (an import, stdcall)
 engine_global_unlock equ 0x87007c   ; the IAT slot 0x87007c (an import, stdcall)
 engine_set_texture equ 0x3d98b0   ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
+engine_fingers_set_weapon_model equ 0x390620   ; 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly
 engine_set_constant_float4 equ 0x1a8900   ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
 engine_shared_string_create equ 0xe0b50   ; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
 engine_shared_string_destroy equ 0xe0ae0   ; 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
@@ -3242,6 +3246,37 @@ engine_text_edit_delete_selection:
     push edi
     mov esi, [esp + 20]   ; edit
     call 0x3486a0
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_pin_resource:
+    ; 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4
+    push ebp
+    push ebx
+    push esi
+    push edi
+    push dword [esp + 24]   ; resource -> 4
+    mov eax, [esp + 24]   ; pinned
+    call 0x3dd990
+    pop edi
+    pop esi
+    pop ebx
+    pop ebp
+    ret
+
+    align 16, db 0xCC
+engine_unpin_resource:
+    ; 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0
+    push ebp
+    push ebx
+    push esi
+    push edi
+    mov ecx, [esp + 20]   ; pinned
+    call 0x3c1020
     pop edi
     pop esi
     pop ebx

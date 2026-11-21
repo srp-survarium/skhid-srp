@@ -29,6 +29,9 @@ elevation grid for every map.
 | v010b_cs_mp_military_1 | Military Warehouses | 0.1843 | 43 (STALKER port, patch 57; Free for All) |
 | v010b_cs_training_camp | Training Camp | 0.1038 | 44 (STALKER port, patch 57; Free for All) |
 | v010b_cs_mp_firestation | Fire Station | 0.0952 | 39 (STALKER port, pack stalker-maps-2@2; Free for All) |
+| v010b_soc_ug_station | Station | 0.1811 | 31 (STALKER port, pack stalker-maps@7; Free for All since 2026-11-21) |
+| v032a_level_09 | London (v0.32) | 0.1823 | 181-183, 276-281 (0.32a4 port, pack london-v032@1, in place of level_09) |
+| v044a_level_09 | London (v0.42) | 0.1823 | 290-298 (0.44a5 port, pack london-v042@1) |
 
 All weathers and modes of a level share one image. The mode projects differ only
 in mode props such as battery racks, containers and charging stations; the
@@ -114,7 +117,8 @@ Results are stored in `maps.json -> maps.<key>.verification` and in `check_<key>
        mirrored, and 4-44 with a 5 m shift. (London, v011e_level_03 and
        v011e_level_04: 0 fail; controls 52/7/12 mirrored, 9/1/13 shifted.)
      - The STALKER ports (the respawn points of `day_8`: 48, 48 and 53): 0
-       fail; controls 14/11/9 mirrored, 12/12/5 shifted.
+       fail; controls 14/11/9 mirrored, 12/12/5 shifted. Station (120): 0 fail;
+       controls 11 mirrored, 3 shifted.
 2. **Native minimap alignment (`align_<key>`).** The developers' own minimap
    bitmaps were compared with the render's building mask while searching scale
    0.95-1.05 and shift ±8 m.
@@ -179,6 +183,13 @@ Always use `python3 -I`.
     ALL=$(grep -v '^#' <skhid-srp>/release/patches.tsv | cut -f1 | while read n; do printf ' --patch %s' <patches>/$n; done)
     for k in v010b_cs_mp_bath v010b_cs_mp_military_1 v010b_cs_training_camp; do python3 -I extract_level.py $DBGRAB $DB $k/day_8 $W/lv/$k $ALL; done
     # Fire Station (pack stalker-maps-2) the same way, their patch (not yet listed) after $ALL; their bitmaps are FFDec's names in that hud.swf
+    # Station the same way (a quick build of its branch as the patch after $ALL); make_json.py --only
+    # and play_area.py on it alone, merged into maps.json (its other maps' bitmaps have other FFDec ids in that hud.swf)
+    # London (v0.32) (pack london-v032@1): its pack's files over every listed patch; London's bitmap and frame
+    python3 -I extract_level.py $DBGRAB $DB v032a_level_09/day_2 $W/lv/v032a_level_09 <packs>/london-v032-1/files $ALL
+    # London (v0.42) (pack london-v042@1): its pack's files over every listed patch; its bitmap is the hud
+    # movie's source bitmaps/minimap_v044a_level_09.png (0.44a5's own) in London's frame
+    python3 -I extract_level.py $DBGRAB $DB v044a_level_09/day_2 $W/lv/v044a_level_09 <packs>/london-v042-1/files $ALL
     # (extract_level.py before 2026-10-19 lost every surface whose name ends in "_", e.g. level_08's moss
     # and ground cover, level_03's terrain_all; all 13 maps were re-rendered with the fix)
     # 4. render + shade + check + webp (~1 min per map)
@@ -202,4 +213,5 @@ The rasterizer was copied from the playable-map-pack's `render_minimap.py`.
   buildings are not in it. The STALKER ports have no terrain model: their grid
   is the top solid surface (no foliage), so a roof counts as ground there.
 - The ported maps that are not live (194-201) are not included, nor the STALKER
-  ports that are not played (Repair Depot, Station, Depository).
+  ports that are not played (Repair Depot, Depository) or held (Dark Valley,
+  Vehicle Station, Sports Center).

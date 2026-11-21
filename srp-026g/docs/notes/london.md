@@ -177,3 +177,30 @@ one of them, at (-46.9, 17.94, 64.94), stands 0.98 m from `respawn_point(6)`, an
 map leaves without a zone.
 
 Not played in a game.
+
+## Name and build (the owner, 2026-11-20)
+
+"Our london maps should have 0.31 in the name" and "be sorted properly too"; then, with London's history
+in hand (its statics are 0.29a3's, the vegetation and detail pass is 0.32's, the rework is 0.42's): "I
+think we want london 0.32 in the game and london 0.42 in the game". So this London is rebuilt from
+0.32a4 and named "London (v0.32)", and the reworked London (donor 0.44a5, the first archived build with
+the rework) is a second map, "London (v0.42)".
+
+London's two name keys, `st_level_09_name` (loading screen, HUD, site) and `st_srp_map_london` (the
+rooms' tiles and list), are each language's word for London with " (v0.32)", as the other ports' names
+carry their build. The name is true once the 0.32 content ships: the name and that content go to players
+in one release.
+
+Lists show maps by build: 0.26, 0.11, 0.21, 0.32, 0.42, 0.69, STALKER. A config says its build in
+`mode.srp_build`, srp's own key, written by `modes.tsv`'s `build` column: `v032` in the ten London
+configs (Blackout's and Free for All's copies take it with them), `v042` for the reworked London's.
+Without the key a map's build is its project's prefix (`v021d_level_03`), and a project with no build's
+prefix is 0.26g's. London needs the key because its projects keep the native name `level_09`; the
+reworked London needs it because its prefix is its donor's (0.44a5), not the build it is listed as. A
+prefix that reads as a build and is none of srp's, with no key, is refused, so a new port cannot fall
+among the 0.26 maps unnoticed. The server (`survarium::v026g::maps::Build::of`) and the Maps tab
+(`scripts/released-game/game_maps.py`) read it the same way. Until a release builds the content with the
+key, London sorts with the 0.26 maps.
+
+The reworked London is a map of its own: its own level, its own name keys (`st_level_<level>_name`, and
+one at its level in the lobby movie's `RoomsText`) and `v042` in the `build` cell of each of its rows.

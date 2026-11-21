@@ -33,7 +33,11 @@ Edits (edits.json):
                     each key path (`parameters/arp`) taken out of every matching file that has it: its
                     table's later records move down in place, the count drops by 1; a key no matching
                     file has is refused
-  "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended
+  "replace_string": [{"files", "from", "to"}]          every string value equal to `from`, appended: every
+                                                       key's (a gun's `skeleton` too, when it names the same
+                                                       path as its `model`); one key's is set_string
+  "set_string":     [{"file", "path", "from", "to"}]   the one text at `path`: `from` must be the live
+                                                       value (a stale base is refused), `to` appended
   "edit_text":      [{"file", "path", "from", "to"}]   in one text (UTF-8, as the localization tables
                                                        keep it), its one `from` becomes `to`
   "add_entry":      [{"files", "list", "after", "like", "values", "only_if", "expected_files"}]
@@ -373,6 +377,19 @@ def replace_string(buf, frm, to):
             REC.pack_into(buf, off, noff, i, c, t, len(to.encode()) + 1)
             n += 1
     return n
+
+
+def set_string(buf, path, frm, to):
+    """The text at `path`: `frm`, the live value (a stale base is refused), becomes `to`, appended.
+    Nothing else changes, other keys holding the same text neither."""
+    off = find(buf, path)
+    d, i, c, t, cnt = rec(buf, off)
+    if t != T_STR:
+        raise ValueError('%s is not a text' % path)
+    old = bytes(buf[d:d + cnt - 1]).decode()
+    if old != frm:
+        raise ValueError('%s is %r, not %r: the base is not the live data' % (path, old, frm))
+    REC.pack_into(buf, off, append(buf, to.encode() + b'\0'), i, c, t, len(to.encode()) + 1)
 
 
 def edit_text(buf, path, frm, to):
@@ -1327,7 +1344,11 @@ STATS = {
             'resources': 'mode/parameters/resources_count',
             'restore_mul': 'mode/parameters/restore_multiplier',
             'loading_screen': 'mode/ui/loading_screen_id', 'icon': 'mode/ui/icon',
+            # srp's key: the build lists show the map under, where its project's prefix does not say it
+            # (v032, v042: the two Londons; survarium maps::Build)
+            'build': 'mode/srp_build',
         },
+        'add': {'build'},
         'match': {'match_s', 'countdown_s', 'respawn_s', 'wait_s', 'wait_players', 'tickets', 'spawn_points', 'batteries',
                   'battery_spawn_s', 'battery_spawn_var_s', 'capture_award', 'capture_reach',
                   'capture_half_height', 'resources', 'restore_mul'},
@@ -2519,6 +2540,9 @@ def main():
                 grown[p][table] += 1
     for e in edits.get('edit_text', []):
         edit_text(buf(e['file']), e['path'], e['from'], e['to'])
+        allowed.setdefault(e['file'], set()).add('/' + e['path'])
+    for e in edits.get('set_string', []):
+        set_string(buf(e['file']), e['path'], e['from'], e['to'])
         allowed.setdefault(e['file'], set()).add('/' + e['path'])
     for e in edits.get('rename_key', []):
         n = 0

@@ -166,7 +166,7 @@ package survarium.item
          var isShopItem:Boolean = item.descriptor == ItemPlace.SHOP || item.descriptor == ItemPlace.BUNDLE;
          var isOwnedItem:Boolean = !isStack && !isShopItem;
          this.bundleBackground.visible = item.fromBundle;
-         this.textName.text = item.name;
+         this.textName.fittedText = item.name;
          if(Boolean(item.rank))
          {
             if(item.rank == ItemRank.ONE)

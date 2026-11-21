@@ -64,6 +64,24 @@ def value(data, path):
 
 
 class MapEditorEdits(unittest.TestCase):
+    def test_set_string_changes_one_key_not_its_twin(self):
+        # a gun whose skeleton names the same path as its model (the HK416's, 52 guns)
+        data = config({'object': {'model': 'weapons/hk416/hk416', 'skeleton': 'weapons/hk416/hk416'}})
+        ce.set_string(data, 'object/model', 'weapons/hk416/hk416', 'weapons/remodel_069/hk416/hk416')
+        self.assertEqual(value(data, 'object/model'), 'weapons/remodel_069/hk416/hk416')
+        self.assertEqual(value(data, 'object/skeleton'), 'weapons/hk416/hk416')
+        before = bytes(data)
+        with self.assertRaises(ValueError):
+            ce.set_string(data, 'object/skeleton', 'weapons/other', 'x')
+        self.assertEqual(data, before)
+
+    def test_the_remodel_list_sets_each_guns_model_alone(self):
+        # replace_string would also rename the skeleton of every gun that names it with its model's
+        # path, to an animation skeleton no pack makes (the game fails the cook and crashes)
+        edits = json.loads((Path(__file__).parent / 'remodel-069-1.json').read_text())
+        self.assertEqual(set(edits) - {'_about'}, {'set_string'})
+        self.assertEqual({row['path'] for row in edits['set_string']}, {'object/model'})
+
     def test_hud_string_rows_append_without_changing_neighbors(self):
         data = config({'hud_strings': [['existing', 'st_existing']], 'other': ['unchanged']})
         self.assertEqual(ce.append_rows(data, 'hud_strings', [['carry', 'st_carry']]), 1)

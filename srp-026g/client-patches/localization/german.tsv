@@ -155,6 +155,8 @@ st_ak74u_description	Die verkürzte Modifikation des Automaten AK74 unter der Mu
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	Die verkürzte Modifikation des Automaten AK74 unter der Munition 5.45N...39. Dank den Umfängen, wurde von den militärischen Landetruppen, das Innenministerium und den Schutzstrukturen breit verwendet. Unterstützt das einzelne und automatische Regime der Schießerei. Premium-Version mit einer besonderen Tarnlackierung.
 st_ak74u_premium_name	AKS-74U "der Korsar"
+st_ak_zenit_rk2_foregrip_desc	Rückstoß -4%. Zielzeit +1.5%.
+st_ak_zenit_rk2_foregrip_name	Zenit RK-2 Taktischer Griff
 st_akmn_description	Das automatische Gewehr Kalaschnikow modernisiert für die 7.62×39mm Patrone. Dank der mächtigen Patrone verliert die Aktualität auf die Zeit nicht. Unterstützt das einzelne und automatische Regime der Schießerei.
 st_akmn_name	AKM
 st_akmn_premium_2_description	Das automatische Gewehr Kalaschnikow modernisiert für die 7.62×39mm Patrone. Dank der mächtigen Patrone verliert die Aktualität auf die Zeit nicht. Unterstützt das einzelne und automatische Regime der Schießerei. Premium-Version mit einer besonderen Tarnlackierung.
@@ -1139,6 +1141,10 @@ st_exp_reward_match	Bekommende Erfahrung
 st_exp_reward_premium	Premium Bonus
 st_experience	Erfahrung
 st_experience_modifier	Bekommen Erfahrung
+st_fabdefence_miki_foregrip_desc	Rückstoß -4%.
+st_fabdefence_miki_foregrip_name	FAB-Defense MIKI Vordergriff
+st_fabdefence_ptk_foregrip_desc	Rückstoß -6%.
+st_fabdefence_ptk_foregrip_name	FAB-Defense PTK Vordergriff
 st_face_069d_balaclava_3_hole_desc	Eine gestrickte Sturmhaube mit Löchern für Augen und Mund. Sie wärmt und verbirgt das Gesicht.
 st_face_069d_balaclava_3_hole_name	3-Loch-Sturmhaube
 st_face_069d_balaclava_desc	Eine eng anliegende Armee-Sturmhaube mit einer Öffnung für die Augen, gemacht zum Tragen unter dem Helm.
@@ -1223,6 +1229,8 @@ st_fn_minimi_description	Belgisches leichtes Maschinengewehr, Munition: 5,56x45.
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgische Verteidigungswaffe (PDW), Munition: 5,7x28. Um 1990 von FN Herstal zusammen mit einer eigenen Patrone entwickelt; eine Bullpup-Waffe mit einem 50-Schuss-Magazin, das oben längs auf der Waffe liegt. Bei Spezialkräften und der Polizei vieler Länder im Einsatz. Einzel- und Dauerfeuer.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Rückstoß -6%.
+st_fort401_foregrip_name	Fort-401 Standard Vordergriff
 st_fort_17_description	Die ukrainische Selbstladende Pistole mit dem Kaliber 9N...18. Die Serienfertigung ist in 2004 gestartet worden. Wurde von den Truppen des Innenministeriums und einigen Sondereinheiten verwendet.
 st_fort_17_name	Fort 17
 st_fort_401_description	Ukrainisches leichtes Maschinengewehr, Munition: 7,62x51. Ein in Lizenz in Winnyzja gebautes Negev mit 100-Schuss-Kasten.
@@ -1246,6 +1254,8 @@ st_friendly_user_compliment	Freundlich
 st_friends_online	Freunde Online
 st_friends_signin_notification_option	Über das Freunde Erscheinen benachrichtigen
 st_fullscreen_option	Voll Bild Modus
+st_gandp_ris_foregrip_desc	Rückstoß -4%. Zielzeit +1.5%.
+st_gandp_ris_foregrip_name	G&P RIS Vordergriff
 st_general_volume_option	Allgemein
 st_generic_money_name	Rubeln
 st_geometry_quality_option	Geometrie Qualität
@@ -1292,6 +1302,8 @@ st_hud_tutorial_frame_6_text_1	In den Kampf!
 st_hud_tutorial_frame_6_text_2	Sie haben den grundlegenden Kurs\nder Kampfvorbereitung beendet. Viel Glück!
 st_hud_tutorial_frame_6_text_3	Ihre Belohnung:
 st_ignored	Spieler von Ignorliste anzeigen.
+st_imi_fsg2_foregrip_desc	Rückstoß -2%.
+st_imi_fsg2_foregrip_name	FSG2 Vordergriff
 st_in_develepoment_hint	In der Entwicklung
 st_ingame_volume_option	Spiel
 st_injury_penalty_description	Dispersionstrafe bei der Hände Verwundung:
@@ -1431,7 +1443,7 @@ st_level_05_name	Tarakanowski Fort
 st_level_06_name	Mamaew kurgan
 st_level_07_name	Labor Vektor
 st_level_08_name	Köln
-st_level_09_name	London
+st_level_09_name	London (v0.32)
 st_level_10_name	RS Vostok (v0.21)
 st_level_11_name	Mamaew kurgan (v0.21)
 st_level_12_name	Chemiebetrieb (v0.11)
@@ -1441,6 +1453,7 @@ st_level_25_name	Schule (v0.21)
 st_level_26_name	Tarakanowski Fort (v0.21)
 st_level_29_name	Rudnya (v0.21)
 st_level_31_name	Chemiebetrieb (v0.21)
+st_level_32_name	London (v0.42)
 st_lifebone_activation_hint	Lebensknochen ist aktiviert! Alle kritische Verlätzungen sind geheilt! Gesundheit wiederhergestellt!
 st_lifebone_pickup_hint	Artefakt Lebknochen. Erhöht die Regeneration.
 st_lightning_quality_option	Beleuchtung Qualität
@@ -1465,6 +1478,8 @@ st_m4a1_description	Amerikanischer Karabiner, Munition: 5,56x45. Eine verkürzte
 st_m4a1_name	M4A1
 st_magnum_description	Der Magnum Revolver des Kalibers .357. War in 1955 zum ersten Mal vorgestellt. Einige meinen, dass es einer der besten Vertreter der Klasse ist. Es unterscheidet sich durch den weichen Abstieg und hocher Genauigkeit.
 st_magnum_name	Colt Phyton
+st_magpul_afg1_foregrip_desc	Rückstoß -6%.
+st_magpul_afg1_foregrip_name	AFG-1 Vordergriff
 st_maintenance	Die technische Wartung des Server hat angefangen. Die Amwendung wird geschlossen.
 st_map	Karte
 st_map_hint_13_1	Finde das Artefakt „Schimmer des Waldes“
@@ -1492,6 +1507,8 @@ st_match_settings_checkbox_training_match	Übungskampf
 st_match_settings_checkbox_training_match_hint	Modus des Training Raums
 st_match_settings_clan_match	Clan Kampf
 st_match_time_is_up	Spiel Zeit ist vorbei
+st_mauser_m712_foregrip_desc	Rückstoß -6%.
+st_mauser_m712_foregrip_name	Mauser M.712 Griff
 st_max_carried_weight_description	Tragbarer Gewicht
 st_max_carried_weight_name	Strongman
 st_max_carried_weight_ultimate_description	Das Tragbarer Gewicht beeinflusst  nicht mehr die Bewegungs Geschwindigkeit, aber Sie können nicht sprintern.
@@ -1601,6 +1618,114 @@ st_multiplicative_stamina_spending_modifier	Energiekosten
 st_munition	Ausrüstung
 st_music_volume_option	Musik
 st_must_be_in_clan_team	Sie muessen in dem Klan Team sein
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	AEK-919K Mündungsbremse, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	Nur Optik.
+st_muzzle_akmsu_m24x15_muzzlebrake_name	AKMSU Mündungsfeuerdämpfer, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	Nur Optik.
+st_muzzle_aks74u_m24x15_muzzlebrake_name	AKS-74U Mündungsfeuerdämpfer, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Rapira Mündungsbremse, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	ROFH Mündungsfeuerdämpfer, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	ROFH Mündungsfeuerdämpfer, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Custom 01 Choke, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_01_duckbill_name	Custom 01 Duckbill, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 Mündungsbremse, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_custom_01_m22x075_choke_name	Custom 01 Choke, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 Mündungsbremse, M30x1
+st_muzzle_custom_02_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_02_duckbill_name	Custom 02 Duckbill, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_02_m14x1l_firearrestor_name	Custom 02 Mündungsfeuerdämpfer, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_02_m24x15_firearrestor_name	Custom 02 Mündungsfeuerdämpfer, M24x1.5
+st_muzzle_custom_03_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_03_duckbill_name	Custom 03 Duckbill, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Custom 03 Mündungsfeuerdämpfer, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Custom 04 Mündungsfeuerdämpfer, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Custom 04 Mündungsfeuerdämpfer, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Custom 04 Mündungsfeuerdämpfer, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Custom 01 Duckbill, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Custom 02 Duckbill, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Custom 01 Duckbill, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	T-Brake Mündungsbremse, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	T-Brake Mündungsbremse, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Defcon 1 Mündungsbremse, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 Mündungsbremse, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 Mündungsbremse, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru Mündungsbremse, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Kochevnik Mündungsbremse, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	KKM Mündungsbremse, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Dragon Mündungsbremse, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Dragon Mündungsbremse, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Dragon Mündungsbremse, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	NightBrake Mündungsfeuerdämpfer, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	NightBrake Mündungsfeuerdämpfer, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	NightBrake Mündungsfeuerdämpfer, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	NightBrake Mündungsfeuerdämpfer, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Polychoke Choke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Ilgynag K01 Mündungsbremse, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Krymsk-2 Mündungsfeuerdämpfer, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Shturm Mündungsbremse, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Shturm Mündungsbremse, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Remington Choke, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Remington Choke, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_remington_m22x075_choke_name	Remington Choke, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Dynacomp Mündungsfeuerdämpfer, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Sure-Hit Choke, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	TT-419 Mündungsfeuerdämpfer, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Antidote Mündungsfeuerdämpfer, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Zenit DTK-2 Mündungsbremse, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Zenit DTK-3 Mündungsbremse, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Zenit DTK-4 Mündungsbremse, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Zenit DTK-4 Mündungsbremse, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Zenit DTK-4 Mündungsfeuerdämpfer, M30x1
 st_my_place	Mein Rating
 st_neostead_description	Südafrikanische Vorderschaftrepetierflinte, Kaliber 12. In den 1990er Jahren von Tony Neophytou in Bullpup-Bauweise konstruiert; sie hat zwei Röhrenmagazine über dem Lauf, und zum Repetieren wird der Vorderschaft nach vorn geschoben. Fasst 12 Patronen. Nur Einzelfeuer.
 st_neostead_name	NeoStead 2000
@@ -1722,6 +1847,8 @@ st_picatinny_scope_medium_name	Optiken / Kollimatoren
 st_pickup_item	Heben ({USE})
 st_ping_postfix	ms.
 st_pkp_pecheneg_description	Russisches Universal-Maschinengewehr, Munition: 7,62x54R. Von ZNIITochMasch auf Grundlage des PKM entwickelt und 2001 eingeführt; der schwere Lauf mit Zwangsluftkühlung erlaubt lange Feuerstöße ohne Laufwechsel. Zuführung aus einem 100-Schuss-Gurt. Einzel- und Dauerfeuer.
+st_pkp_pecheneg_foregrip_desc	Rückstoß -6%.
+st_pkp_pecheneg_foregrip_name	PKP Standard Vordergriff
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Platz
 st_play_button	Spielen
@@ -2288,6 +2415,7 @@ st_srp_artefact_541_name	Resonanz
 st_srp_artefact_542_description	Aktivierte Artefakte wirken auch auf lebende Teamkameraden im Umkreis von 6 m. "Sie leuchten, du strahlst"
 st_srp_artefact_542_name	Kaskade
 st_srp_artefact_points	 Punkte
+st_srp_attach_unfit	Passt nicht zum Mündungsaufsatz oder Griff der Waffe.
 st_srp_attachments	Anbauteile
 st_srp_ban_reason_account_trading	Verkauf oder versuchter Verkauf eines Kontos.
 st_srp_ban_reason_administration	Entscheidung der Administration.
@@ -2562,6 +2690,7 @@ st_srp_equipment069_snow_20_torso_7_desc	Beschreibung noch nicht verfügbar.
 st_srp_equipment069_snow_20_torso_7_name	Schnee-20 Panzerweste
 st_srp_face	Gesicht
 st_srp_face_card	Gesicht %1$s
+st_srp_grip_slot	Griff
 st_srp_hide_quests_option	Aufgaben ausblenden
 st_srp_hide_scores_option	Spielerpunkte ausblenden
 st_srp_hit_markers_all	Alle Trefferanzeigen
@@ -2654,7 +2783,8 @@ st_srp_map_cs_mp_military_1	Military Warehouses
 st_srp_map_cs_mp_rembasa	Reparaturdepot
 st_srp_map_cs_mp_sport_center	Sportzentrum
 st_srp_map_cs_training_camp	Trainingslager
-st_srp_map_london	London
+st_srp_map_london	London (v0.32)
+st_srp_map_london_v042	London (v0.42)
 st_srp_map_mamayev_kurgan	Mamaew kurgan
 st_srp_map_mamayev_kurgan_v021	Mamaew kurgan (v0.21)
 st_srp_map_names_option	Namen auf Karte
@@ -2750,6 +2880,7 @@ st_srp_mode_research	Forschung
 st_srp_mode_team_deathmatch	Kommandokampf
 st_srp_mouse_lock_option	Vertikale Empfindlichkeit koppeln
 st_srp_mouse_vertical_option	Vertikale Empfindlichkeit
+st_srp_muzzle_slot	Mündungsaufsatz
 st_srp_optics	Optik
 st_srp_options_hud	HUD:
 st_srp_pierce_brick	Ziegel, Stahl
@@ -2913,7 +3044,7 @@ st_srp_rooms_voting	Kartenwahl
 st_srp_rooms_waiting	Warten auf Spieler
 st_srp_rooms_waiting_owner	Warten, bis der Ersteller startet.
 st_srp_rooms_waiting_short	Warten
-st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr aus Ihrem Inventar in die Modifikationszelle der Waffe
+st_srp_scope_screen_hint	Ziehen Sie ein Zielfernrohr, einen Mündungsaufsatz oder einen Griff aus Ihrem Inventar in seine Zelle
 st_srp_scope_slot	Optik
 st_srp_shop_not_owned	Besitz ausblenden
 st_srp_shop_not_owned_hint	Nur Gegenstände zeigen, die du nicht besitzt
@@ -3104,6 +3235,8 @@ st_toz66_description	Das Jagdgewehr mit abgesägtem Lauf und Doppelflinten für 
 st_toz66_name	TOZ-66
 st_trap_damage	Schaden der Falle
 st_treasure_map_advert	Verwenden Sie die Karte Caches, um mehr Gegenstände zu finden.
+st_troy_modular_foregrip_desc	Rückstoß -6%. Zielzeit +1.5%.
+st_troy_modular_foregrip_name	Troy Modular Vordergriff
 st_tt_description	Tuler Tokarews des Musters 1933 mit der Munition 7.62N...25 mm. Ist in 30er Jahren des zwanzigsten Jahrhundertes entwickelt und ist erste halbautomatische Pistole der armee- von UdSSR. Der Käfig enthält 8 Patronen.
 st_tt_name	TT-33
 st_turn_down_action	

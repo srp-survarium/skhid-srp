@@ -155,6 +155,8 @@ st_ak74u_description	Zkrácená verze AK74 na náboje 5.45x39. Díky rozměrům 
 st_ak74u_name	AKS-74U
 st_ak74u_premium_description	Zkrácená verze AK74 na náboje 5.45x39. Díky rozměrům ji hojně používali výsadkáři, ministerstvo vnitra a bezpečnostní složky. Střílí jednotlivě i dávkami. Prémiová verze se zvláštní kamufláží.
 st_ak74u_premium_name	AKS-74U Corsair
+st_ak_zenit_rk2_foregrip_desc	Zpětný ráz -4%. Doba míření +1.5%.
+st_ak_zenit_rk2_foregrip_name	Taktická rukojeť Zenit RK-2
 st_akmn_description	Útočná puška Kalašnikov upravená pro náboje 7.62x39 mm. Díky síle a spolehlivosti je užitečná i dnes. Střílí jednotlivě i automaticky.
 st_akmn_name	AKM
 st_akmn_premium_2_description	Útočná puška Kalašnikov upravená pro náboje 7.62x39 mm. Díky síle a spolehlivosti je užitečná i dnes. Střílí jednotlivě i automaticky. Prémiová verze se zvláštní kamufláží.
@@ -1139,6 +1141,10 @@ st_exp_reward_match	Získané zkušenosti
 st_exp_reward_premium	Prémiový bonus
 st_experience	Zkušenosti
 st_experience_modifier	Obdržené zkušenosti
+st_fabdefence_miki_foregrip_desc	Zpětný ráz -4%.
+st_fabdefence_miki_foregrip_name	Přední rukojeť FAB-Defense MIKI
+st_fabdefence_ptk_foregrip_desc	Zpětný ráz -6%.
+st_fabdefence_ptk_foregrip_name	Přední rukojeť FAB-Defense PTK
 st_face_069d_balaclava_3_hole_desc	Pletená kukla s otvory pro oči a ústa. Hřeje a skrývá obličej.
 st_face_069d_balaclava_3_hole_name	Kukla se třemi otvory
 st_face_069d_balaclava_desc	Přiléhavá vojenská kukla s jedním otvorem pro oči, určená pod přilbu.
@@ -1223,6 +1229,8 @@ st_fn_minimi_description	Belgický lehký kulomet na náboje 5.56x45. Družstvov
 st_fn_minimi_name	FN Minimi
 st_fn_p90_description	Belgická zbraň osobní obrany na náboje 5.7x28. FN Herstal ji kolem roku 1990 vyvinulo společně s vlastním nábojem. Bullpup se zásobníkem na 50 nábojů podél horní části. Používá ji policie a speciální síly mnoha zemí. Střílí jednotlivě i automaticky.
 st_fn_p90_name	FN P90
+st_fort401_foregrip_desc	Zpětný ráz -6%.
+st_fort401_foregrip_name	Standardní přední rukojeť Fort-401
 st_fort_17_description	Ukrajinská samonabíjecí pistole na náboje 9x18. Výroba začala v roce 2004. Používala ji vnitřní vojska a některé speciální jednotky. Zásobník na 12 nábojů. 
 st_fort_17_name	Fort 17
 st_fort_401_description	Ukrajinský lehký kulomet, náboj: 7,62x51. Licenční Negev z Vinnycji, plněný ze schránky na 100 nábojů.
@@ -1246,6 +1254,8 @@ st_friendly_user_compliment	Přátelský
 st_friends_online	Přátelé online
 st_friends_signin_notification_option	Upozornit na připojení přátel
 st_fullscreen_option	Celá obrazovka
+st_gandp_ris_foregrip_desc	Zpětný ráz -4%. Doba míření +1.5%.
+st_gandp_ris_foregrip_name	Přední rukojeť G&P RIS
 st_general_volume_option	Celková
 st_generic_money_name	Rubly
 st_geometry_quality_option	Kvalita geometrie
@@ -1292,6 +1302,8 @@ st_hud_tutorial_frame_6_text_1	Do boje!
 st_hud_tutorial_frame_6_text_2	Dokončil jsi základní bojový výcvik.\nHodně štěstí!
 st_hud_tutorial_frame_6_text_3	Tvoje odměna:
 st_ignored	Seznam blokovaných
+st_imi_fsg2_foregrip_desc	Zpětný ráz -2%.
+st_imi_fsg2_foregrip_name	Přední rukojeť FSG2
 st_in_develepoment_hint	Ve vývoji
 st_ingame_volume_option	Hra
 st_injury_penalty_description	Postih k rozptylu při zranění rukou:
@@ -1431,7 +1443,7 @@ st_level_05_name	Tarakanovská pevnost
 st_level_06_name	Mamajova mohyla
 st_level_07_name	Laboratoř Vektor
 st_level_08_name	Kolín nad Rýnem
-st_level_09_name	Londýn
+st_level_09_name	Londýn (v0.32)
 st_level_10_name	Radarová stanice Vostok (v0.21)
 st_level_11_name	Mamajova mohyla (v0.21)
 st_level_12_name	Chemička (v0.11)
@@ -1441,6 +1453,7 @@ st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovská pevnost (v0.21)
 st_level_29_name	Rudňa (v0.21)
 st_level_31_name	Chemička (v0.21)
+st_level_32_name	Londýn (v0.42)
 st_lifebone_activation_hint	Ostrožka aktivována! Všechna těžká zranění vyléčena! Zdraví obnoveno!
 st_lifebone_pickup_hint	Artefakt Ostrožka. Zrychluje obnovu zdraví. 
 st_lightning_quality_option	Kvalita osvětlení
@@ -1465,6 +1478,8 @@ st_m4a1_description	Americká karabina na náboje 5.56x45. Kratší a lehčí va
 st_m4a1_name	M4A1
 st_magnum_description	Šestiranný revolver ráže .357 Magnum, uvedený v roce 1955. Podle některých patří k nejlepším ve své třídě. Vyniká hladkým chodem spouště a vysokou přesností.
 st_magnum_name	Colt Python
+st_magpul_afg1_foregrip_desc	Zpětný ráz -6%.
+st_magpul_afg1_foregrip_name	Přední rukojeť AFG-1
 st_maintenance	Probíhá údržba serverů. Aplikace se zavře.
 st_map	Mapa
 st_map_hint_13_1	Najdi artefakt "Záře Lesa"
@@ -1492,6 +1507,8 @@ st_match_settings_checkbox_training_match	Tréninkový zápas
 st_match_settings_checkbox_training_match_hint	Režim tréninkové místnosti
 st_match_settings_clan_match	Klanový zápas
 st_match_time_is_up	Čas zápasu vypršel!
+st_mauser_m712_foregrip_desc	Zpětný ráz -6%.
+st_mauser_m712_foregrip_name	Rukojeť Mauser M.712
 st_max_carried_weight_description	Nosnost:
 st_max_carried_weight_name	Silák
 st_max_carried_weight_ultimate_description	Nesená hmotnost už nesnižuje rychlost pohybu, ale nemůžeš sprintovat.
@@ -1601,6 +1618,114 @@ st_multiplicative_stamina_spending_modifier	Spotřeba výdrže
 st_munition	Výstroj
 st_music_volume_option	Hudba
 st_must_be_in_clan_team	Musíš být v klanovém týmu.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	Úsťová brzda AEK-919K, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	Jen vzhled.
+st_muzzle_akmsu_m24x15_muzzlebrake_name	Tlumič plamene AKMSU, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	Jen vzhled.
+st_muzzle_aks74u_m24x15_muzzlebrake_name	Tlumič plamene AKS-74U, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Úsťová brzda Rapira, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Tlumič plamene ROFH, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Tlumič plamene ROFH, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Zahrdlení Custom 01, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Rozptyl -15 %.
+st_muzzle_custom_01_duckbill_name	Kachní zobák Custom 01, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Úsťová brzda Custom 01, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
+st_muzzle_custom_01_m22x075_choke_name	Zahrdlení Custom 01, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Úsťová brzda Custom 01, M30x1
+st_muzzle_custom_02_duckbill_description	Rozptyl -15 %.
+st_muzzle_custom_02_duckbill_name	Kachní zobák Custom 02, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_02_m14x1l_firearrestor_name	Tlumič plamene Custom 02, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_02_m24x15_firearrestor_name	Tlumič plamene Custom 02, M24x1.5
+st_muzzle_custom_03_duckbill_description	Rozptyl -15 %.
+st_muzzle_custom_03_duckbill_name	Kachní zobák Custom 03, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Tlumič plamene Custom 03, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Tlumič plamene Custom 04, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Tlumič plamene Custom 04, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Tlumič plamene Custom 04, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Rozptyl -15 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Kachní zobák Custom 01, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Rozptyl -15 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Kachní zobák Custom 02, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Rozptyl -15 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Kachní zobák Custom 01, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Úsťová brzda T-Brake, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Úsťová brzda T-Brake, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Úsťová brzda Defcon 1, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Úsťová brzda Defcon 1, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Úsťová brzda Defcon 1, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Rozptyl -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Úsťová brzda Guns.ru, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Rozptyl -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Úsťová brzda Kochevnik, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	Úsťová brzda KKM, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Úsťová brzda Dragon, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Úsťová brzda Dragon, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Úsťová brzda Dragon, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Tlumič plamene NightBrake, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Tlumič plamene NightBrake, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Tlumič plamene NightBrake, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Tlumič plamene NightBrake, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Zahrdlení Polychoke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Rozptyl -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Úsťová brzda Ilgynag K01, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Tlumič plamene Krymsk-2, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Úsťová brzda Shturm, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Úsťová brzda Shturm, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Zahrdlení Remington, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Zahrdlení Remington, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
+st_muzzle_remington_m22x075_choke_name	Zahrdlení Remington, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Tlumič plamene Dynacomp, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Zahrdlení Sure-Hit, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Tlumič plamene TT-419, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Tlumič plamene Antidote, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Úsťová brzda Zenit DTK-2, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Úsťová brzda Zenit DTK-3, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Úsťová brzda Zenit DTK-4, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Úsťová brzda Zenit DTK-4, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Tlumič plamene Zenit DTK-4, M30x1
 st_my_place	Moje umístění
 st_neostead_description	Jihoafrická opakovací brokovnice ráže 12. Tony Neophytou ji v 90. letech navrhl jako bullpup. Dva trubicové zásobníky nad hlavní, přebíjení posunutím předpažbí dopředu. Kapacita 12 nábojů. Pouze jednotlivé rány.
 st_neostead_name	NeoStead 2000
@@ -1722,6 +1847,8 @@ st_picatinny_scope_medium_name	Optika / kolimátory
 st_pickup_item	Zvednout ({USE})
 st_ping_postfix	ms
 st_pkp_pecheneg_description	Ruský univerzální kulomet na náboje 7.62x54R. Vyvinutý v CNIITOČMAŠ na základě PKM, zavedený v roce 2001. Těžká hlaveň s nuceným vzduchovým chlazením dovoluje dlouhé dávky bez výměny hlavně. Pás na 100 nábojů. Jednotlivá i automatická střelba.
+st_pkp_pecheneg_foregrip_desc	Zpětný ráz -6%.
+st_pkp_pecheneg_foregrip_name	Standardní přední rukojeť PKP
 st_pkp_pecheneg_name	PKP "Pecheneg"
 st_place	Místo
 st_play_button	Hrát
@@ -2288,6 +2415,7 @@ st_srp_artefact_541_name	Rezonance
 st_srp_artefact_542_description	Aktivované artefakty působí i na živé spoluhráče do 6 m. "Oni září, ty zazáříš"
 st_srp_artefact_542_name	Kaskáda
 st_srp_artefact_points	 bodů
+st_srp_attach_unfit	Nejde dohromady s úsťovým zařízením nebo rukojetí zbraně.
 st_srp_attachments	Příslušenství
 st_srp_ban_reason_account_trading	Prodej nebo pokus o prodej účtu.
 st_srp_ban_reason_administration	Rozhodnutí administrátorů.
@@ -2562,6 +2690,7 @@ st_srp_equipment069_snow_20_torso_7_desc	Popis zatím není k dispozici.
 st_srp_equipment069_snow_20_torso_7_name	Neprůstřelná vesta „Sníh-20“
 st_srp_face	Obličej
 st_srp_face_card	Obličej %1$s
+st_srp_grip_slot	Rukojeť
 st_srp_hide_quests_option	Skrýt úkoly
 st_srp_hide_scores_option	Skrýt skóre hráčů
 st_srp_hit_markers_all	Ukazatele zásahů
@@ -2654,7 +2783,8 @@ st_srp_map_cs_mp_military_1	Military Warehouses
 st_srp_map_cs_mp_rembasa	Repair Depot
 st_srp_map_cs_mp_sport_center	Sports Center
 st_srp_map_cs_training_camp	Training Camp
-st_srp_map_london	Londýn
+st_srp_map_london	Londýn (v0.32)
+st_srp_map_london_v042	Londýn (v0.42)
 st_srp_map_mamayev_kurgan	Mamajova mohyla
 st_srp_map_mamayev_kurgan_v021	Mamajova mohyla (v0.21)
 st_srp_map_names_option	Jména na mapě
@@ -2750,6 +2880,7 @@ st_srp_mode_research	Výzkum
 st_srp_mode_team_deathmatch	Týmový deathmatch
 st_srp_mouse_lock_option	Zamknout svislou citlivost
 st_srp_mouse_vertical_option	Svislá citlivost
+st_srp_muzzle_slot	Úsťové zařízení
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
 st_srp_pierce_brick	Cihla, ocel
@@ -2913,7 +3044,7 @@ st_srp_rooms_voting	Hlasování
 st_srp_rooms_waiting	Čekání na hráče
 st_srp_rooms_waiting_owner	Čekání na spuštění tvůrcem místnosti.
 st_srp_rooms_waiting_short	Čekání
-st_srp_scope_screen_hint	Přetáhni optiku z inventáře do slotu úprav zbraně
+st_srp_scope_screen_hint	Přetáhni optiku, úsťové zařízení nebo rukojeť z inventáře do jejich slotu
 st_srp_scope_slot	Optika
 st_srp_shop_not_owned	Skrýt vlastněné
 st_srp_shop_not_owned_hint	Zobrazit jen předměty, které nevlastníš
@@ -3104,6 +3235,8 @@ st_toz66_description	Upilovaná lovecká dvouhlavňovka na náboje 12x70. Dvě t
 st_toz66_name	TOZ-66
 st_trap_damage	Poškození pastí
 st_treasure_map_advert	Použij mapu skrýše a najdi další předměty.
+st_troy_modular_foregrip_desc	Zpětný ráz -6%. Doba míření +1.5%.
+st_troy_modular_foregrip_name	Přední rukojeť Troy Modular
 st_tt_description	Tulský Tokarev, zavedený v roce 1933, používá náboje 7.62x25 mm. Navržený ve 30. letech jako první sovětská samonabíjecí vojenská pistole. Zásobník na 8 nábojů.
 st_tt_name	TT-33
 st_turn_down_action	

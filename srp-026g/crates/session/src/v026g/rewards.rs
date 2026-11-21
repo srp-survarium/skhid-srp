@@ -694,21 +694,28 @@ fn report_key(match_id: u32) -> String {
 }
 
 /// Takes off the upgrade records of a kept report's items that the game data
-/// no longer has (a dict id of no item) or no longer fits (a scope variant
-/// that is not made for its item any more, `survarium::v026g::scopes`): a
-/// release that withdraws a scope pair leaves old results screens behind.
-/// Returns how many were taken off.
+/// no longer has (a dict id of no item) or no longer fits: a record of the
+/// scopes' category must hold a scope its item takes by the modules table
+/// (`survarium::v026g::scopes`). A release that withdraws a scope pair
+/// leaves old results screens behind, and a screen kept from before the
+/// scopes moved onto the table holds a retired variant's dict id, which no
+/// item takes (a report keeps no inventory to name its scope by). Returns
+/// how many were taken off.
 pub(crate) fn drop_stale_upgrades(report: &mut MatchReport) -> usize {
+    use survarium::v026g::scopes::SCOPE_CATEGORY;
+    use survarium::v026g::weapon_modules::{Kind, Modules};
     let dictionary = Dictionary::shared();
-    let scopes = survarium::v026g::scopes::ScopeFits::shared();
+    let modules = Modules::shared();
     let mut taken = 0;
     let mut clean = |item: &mut lobby::ItemDescr| {
         let host = item.dict_id;
         let before = item.upgrades.len();
         item.upgrades.retain(|record| {
             u16::try_from(record.a).ok().is_some_and(|dict_id| {
-                dictionary.item(dict_id).is_some()
-                    && (!scopes.is_variant(dict_id) || scopes.fits(host, dict_id))
+                dictionary.item(dict_id).is_some_and(|upgrade| {
+                    upgrade.category != SCOPE_CATEGORY
+                        || modules.kind(host, dict_id) == Some(Kind::Scope)
+                })
             })
         });
         taken += before - item.upgrades.len();

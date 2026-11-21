@@ -202,6 +202,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_world_roundtrip_026g.py`, `worlds_026g/` | A resync always converges: a late joiner and a resynced game load each recorded world (`worlds_026g/`, 8 dumps of rev41's match 0x1c0ebd31; or any `SRP_SNAPSHOT_DIR` dumps) and save it at once, through every patch hook inside the world's load and save (the 0xE8 preparation, patch 85's record, patch 78's carry); each must write back the bytes it read. Every patch site in a `::serialize` or `::deserialize` function is run there or named with its own check (`../docs/notes/client_patch.md`, "World round trip"; needs Unicorn) |
 | `rust/patches/src/animation_id_log.rs`, `src/animation_id_log.toml`, `src/vostok/animation_id.rs`, `check_animation_id_log_026g.py` | Patch 95: a diagnostic (`../docs/notes/animation-ids.md`): an animation pair the registry has no id for (the lookup 0x2D6590 returns 0FFFFh, the rev47 crashes at 0x1F18C8) is logged to srp_patches.log once, with the clips' names, the registry's size and who asked; one lohook (`sites_026g.tsv` `animations.id_missing`); its check runs the lookup in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
+| `rust/patches/src/breath_hit.rs`, `src/breath_hit.toml`, `src/vostok/breath.rs`, `check_breath_hit_026g.py` | Patch 177: a hit that takes health breaks the victim's breath hold (`../docs/notes/breath-hit.md`): one lohook sharing `sites_026g.tsv` `player.hit_applied` with patch 84 (order 1), which spends the held gun's breath reserve while the gun is holding; the game's own machine goes to short breathing at the gun's next tick. Its check runs the hook and that machine in the patched exe (needs Unicorn) |
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/trap_stock_hit.rs`, `src/trap_stock_hit.toml`, `src/vostok/trap.rs`, `check_trap_stock_hit_026g.py` | Patch 151: a gun-stock hit disarms a trap (`../docs/notes/trap-stock-hit.md`): one lohook at `booby_trap_core::hit`'s entry (`trap.hit`); its check runs the hit in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
@@ -6383,9 +6384,32 @@ buffer holds it. A table of 2048 ranges in the arena (96 KiB); the pools' sizes 
 Nothing a match computes. The memory profile (patch 127) tells both pools and the sharing in each
 snapshot. Checked with `check_geometry_share_026g.py` (Unicorn) and the patch crate's tests; run in
 the faces memory test (section 3.88).
+## A weapon's fitted modules: scope frame, eye, left hand, shells (patch 161, unreleased)
 
+The client's side of the attachment system (`../docs/notes/attachments.md`, "Stage 2"): a weapon
+config names its gun and what is fitted to it (`data/srp_gun`, `srp_scope`, `srp_muzzle`,
+`srp_grip`), the `weapon-modules` crate's `resolve` says where everything stands, and the patch
+writes the game's own records after the game filled them: the scope's and the eye's locator records
+after `load_weapon` (0x24B0E1), the left hand's records after `weapon::activate` filled them
+(0x244649), its finger sets there and at each change of view (0x298664); the shell effect keeps the
+frame the scope had (0x2443EE). `rust/patches/src/attachments.rs` over `vostok::attachments`.
+
+The table (`resources/gameplay/weapon_modules.srpm`) comes in with the items dictionary's configs
+(0x2C8963, 0x2C8AA0); the weapon cook asks for the bare body and each part's model (0x24AAB4,
+0x24AC30, 0x24ACF0) and `weapon::draw` puts the parts in the scene (0x245017; out at 0x245353,
+0x244017, 0x24B190). A weapon's scope item is the one `data/srp_scope` names, in place of
+`addons/rifle_scope_dict_id` (the cook 0x24AA15, its callback 0x24AD13). A gun that lies alone
+(a dropped one, a dead body's) gets its parts with its body. The site table and the reasons are
+in the note, "The client's runtime".
+
+With it, two numbers of `configs::create_binary_config_buffer` (0x358AA8, 0x358ABC;
+`ITEM_CONFIG_ARENAS`): the stack arena an upgraded item's config is rebuilt in is 64 KB, not 16.
+Its allocator has no bound, each fitted module adds an entry to the gun's config, and six guns'
+configs were within 5 entries of what 16 KB holds.
+
+Linked (`arena_026g.lock.json`); `check_attachments_026g.py` (`tools/check attachments`) runs
+every site in the build and the original. Nothing a match computes changes by the patch alone.
 ## A part of a tick moves a body at rest (patch 166, unreleased)
-
 The world steps to the time of each precise input inside a tick, and the character controller ran its
 step for a part of a tick only when the body had moved in its step before: a body at rest took none of
 its player's keys until a whole tick. In a fight, or through a burst of precise inputs, players stood
@@ -6394,6 +6418,8 @@ still with their keys held, in every game alike. `STEP_PARTS` (0x7B76B, one bran
 dt / 0.05 of the tick's step and returns at once for one with nothing to do, so a part moves a body by
 its own share and nobody goes faster. A simulation change. The rule and the numbers:
 `docs/notes/fall_damage.md`, "A part of a tick moves a body at rest"; the code: `client_patch.md`
+section 3.89. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check step-parts`). Not run in
+a game.
 section 3.89. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check step-parts`), and in a
 game on revision 68 (a scripted walker, ticks cut and uncut: the figures are on PR #2325).
 
@@ -6425,7 +6451,6 @@ Whole ticks are the original's bit for bit. A simulation change. The rule and th
 `client_patch.md` section 3.93. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check
 step-parts`) and in a game (revision 68 with patches 166 and 168, a scripted walker, cut against uncut).
 ## The forward effects of 0.44a5 (patch 169, unreleased)
-
 The transparent effects of the ported Londons (0.32a4's and 0.44a5's: blowing sand, fires, the sky's
 clouds) draw as their donors draw them, not as blank quads (the owner, 2026-11-21: "we do proper
 conversion completely"). 0.44a5's forward_default and particle_lighting compiles read three switches
@@ -6556,3 +6581,13 @@ replay's class (its vtable, `REPLAY_CLIENT_VTABLE`, told once by `vostok::world:
 no connection. The two other readers of that holder, the local player's place (voice, the world
 check's breadcrumb) and a place's name (the lobby), read the options through the client's own
 virtual (`engine_match_options`, a live and a replay client alike) instead.
+
+## A hit breaks the breath hold (patch 177, unreleased)
+
+A hit that takes health, of any type and by anyone, ends the victim's breath hold (the owner,
+2026-11-21: "when player gets hit they lose their breath holding"; `../docs/notes/breath-hit.md`). The
+Rust `breath_hit` hook shares patch 84's site in `base_player::hit_impl` (`player.hit_applied`,
+0x2D9CB1, after patch 84). When the victim's held gun's breath machine is holding, the hook spends its
+reserve. The gun's next tick then goes to short breathing through the game's own transition, as running
+out of breath does, except that the stamina is kept. A simulation change. Checked with
+`check_breath_hit_026g.py` (Unicorn; `tools/check breath-hit`). Not run in a game.

@@ -44,7 +44,7 @@ pub fn item_descr(item: &Item) -> ItemDescr {
 }
 
 /// An item's upgrades as the client is sent them. A record whose dict id
-/// the data lacks (a withdrawn scope variant) would have the client build
+/// the data lacks (a withdrawn item's) would have the client build
 /// the item with a modification it does not have; the load takes such
 /// records off, this is the last guard. A weapon's (up to six, in logical
 /// slots) go packed into at most three: the decals, then the weapon kit
