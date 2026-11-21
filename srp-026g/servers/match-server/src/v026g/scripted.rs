@@ -24,6 +24,7 @@ use survarium::v026g::match_msgs::rules::{
 use survarium::v026g::match_msgs::snapshot::{
     self, Battery, Container, Gather, KillsDeaths, PlayerStatistics, Research, ResearchUnit,
     Respawn, Rules, Sections, Statistics, StatisticsTail, Tdm, Timed, Timelimit, VictoryItemStatus,
+    WeaponCounts,
 };
 use survarium::v026g::match_msgs::{
     PlayerInput, ServerMessage, TICK_MS, WireTime, id, tick_byte, upload,
@@ -43,7 +44,7 @@ pub const INITIAL_MS: u32 = 50;
 pub struct Sim {
     pub players: usize,
     pub snapshot_players: usize,
-    pub map_id: u8,
+    pub map_id: maps::MapId,
     /// The timelimit rule as the last snapshot gave it, or as the match
     /// was made ready.
     base: TimelimitRule,
@@ -64,6 +65,9 @@ pub struct Sim {
     pub kd_from: Option<(u32, Vec<KillsDeaths>)>,
     /// Each from its tick on: a place's count of an event, in kit 0.
     pub events_from: Vec<(u32, usize, usize, u16)>,
+    /// From a tick on the game counts per weapon too (exe patch 165):
+    /// each place's weapons, after the statistics' tail.
+    pub weapons_from: Option<(u32, Vec<Vec<WeaponCounts>>)>,
     /// From a tick on the world differs from the others' by this byte.
     pub salt_from: Option<(u32, u8)>,
     /// Extra bytes in every world (a bigger upload): valid bullet records,
@@ -99,7 +103,7 @@ pub struct Sim {
 }
 
 impl Sim {
-    pub fn new(players: usize, map_id: u8) -> Self {
+    pub fn new(players: usize, map_id: maps::MapId) -> Self {
         let map = maps::map_mode(map_id).expect("a map of the tests");
         let mut base = TimelimitRule::new(TimelimitParams::of(map, players as u8));
         base.on_match_ready(INITIAL_MS);
@@ -114,6 +118,7 @@ impl Sim {
             tdm_from: None,
             team_respawn_from: None,
             kills_from: None,
+            weapons_from: None,
             kd_from: None,
             events_from: Vec::new(),
             salt_from: None,
@@ -252,6 +257,11 @@ impl Sim {
                 winner_team: 2,
                 active_players_mask: rule.mask,
             },
+            weapons: self
+                .weapons_from
+                .as_ref()
+                .filter(|(from, _)| since(*from))
+                .map(|(_, weapons)| weapons.clone()),
         }
         .encode();
         // Modes 2 and 3: each team's points are batteries in its container
@@ -642,7 +652,7 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(session: u32, patched: bool, players: usize, map_id: u8) -> Self {
+    pub fn new(session: u32, patched: bool, players: usize, map_id: maps::MapId) -> Self {
         Self {
             session,
             model: ClientModel::new(patched),
@@ -720,7 +730,7 @@ impl Client {
         client
     }
 
-    pub fn growing(session: u32, players: usize, map_id: u8) -> Self {
+    pub fn growing(session: u32, players: usize, map_id: maps::MapId) -> Self {
         let mut client = Self::new(session, true, players, map_id);
         client.model.growing_roster = true;
         client.sim.snapshot_players = 20;

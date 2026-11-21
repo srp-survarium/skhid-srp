@@ -9,6 +9,99 @@ release that made it what it is now.
 
 ---
 
+## 20 Nov, 16:57 — TODO: the owner's words (update required)
+
+<!-- Revision 68 (026g-rev68), released 2026-11-20 16:57 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2258 Medical tree: the antitoxin's skills (Sharp Eye, Second Wind, Concentration)
+- TODO: #2259 Rooms: maps by build (0.26, 0.11, 0.21, 0.69, STALKER)
+- TODO: #2264 London evening's vine bushes: their dried-leaves material set, as 0.31a2
+- TODO: #2269 London rain's sand over stones blended as 0.31a2 (sand_base_alpha_vc)
+- TODO: #2263 Rooms: the create window starts with the last room's PIN typed
+- TODO: #2272 Rooms: a private room is made by one request
+- TODO: #2262 Rooms: a leave that ends the match still takes its member out of the room
+- TODO: #2090 Lamps: a lit alarm lamp's red ambient light goes out with it
+- TODO: #2092 Lamps: lit kerosene lamps break, their flame goes out
+- TODO: #2094 London's campfires burn
+- TODO: #2097 London's and Vector's lighting: three environment probe fixes
+- TODO: #2270 re-kit: decal priority sort; 0.31a2's decal stage matches
+- TODO: #2275 Lamps: kerosene lamps break on every map (Fort and Chemical Plant v0.21)
+- TODO: #1588 Notes: DXVK's performance settings and why each stays at its default
+- TODO: #549 Docs: distinguish London spawn-protection times by mode
+- TODO: #1581 Add the Rust client transition plan and work log
+- TODO: #1583 Notes: fullscreen refresh rate and DXVK's fullscreen exits
+- TODO: #1112 Notes: the scopes work's handoff (paused 2026-11-02)
+- TODO: #1274 docs: 0.69 pixel-correct shooting and backport assessment
+- TODO: #1578 Notes: the OLTA resolve runs; why the Radar glass bricks show rows
+- TODO: #468 docs: retail 0.69d0 netcode, prediction and hit feedback
+- TODO: #472 docs: porting 0.69's netcode to 0.26g and srp (feasibility, phases, tick length)
+- TODO: #467 Notes: retail Research markers and the stock artefact glow (folds #378, #379)
+- TODO: #1835 Patch 146 notes: the partial sort and push_heap copies; one re-kit name for 0x1603B0
+- TODO: #2072 re-kit: grass_cook::on_layers_loaded and its stack per grass instance
+- TODO: #355 re-kit: pain regenerates through damage_model::tick (item regeneration bonus applies)
+- TODO: #2298 Match history in srp.db, its API and the Stats tab (/stats)
+- TODO: #2290 Updater and launcher: the relay route (auto / on / off), and why the server is not reached
+- TODO: #2299 Stats: the day's leaders and the all-time totals
+- TODO: #1544 Face choice: each account's face, chosen in the lobby, drawn by every game
+- TODO: #2300 Stats: a match's map with the rooms' own picture of it
+- TODO: #2301 Sign-in screen: no VPN advice when the server can't be reached
+- TODO: #2303 Face choice: a stray file removed, a lost choice asked again
+- TODO: #2302 Stats: all time as the other tables, fewer lines; the header's short tagline
+- TODO: #2304 Stats: a match's replay from its page
+- TODO: #2305 Stats: a map's picture leads to the map, as its name does
+- TODO: #2306 Relay: the site's name on the relay is playskhid.link
+
+## 19 Nov, 14:50 — TODO: the owner's words (update required)
+
+<!-- Revision 67 (026g-rev67), released 2026-11-19 14:50 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2178 Chemical Plant v0.21: day, rain and evening
+- TODO: #2213 London in rain and evening: maps 276-281 (pack london-weathers@3)
+- TODO: #2224 London's probes as 0.31a2: reflection-only windows, specular 1.2, box projection per probe, authored shapes
+- TODO: #2235 London's cupboards wood-brown, as in 0.31a2 (pack london-textures@1)
+- TODO: #2236 London drawn with its own build's tone curve (three-maps-021-lighting@9)
+- TODO: #2210 Relay: peers are identified by address and route
+- TODO: #2253 Content: Flag of Kosovo and Coat of arms of Kosovo decals
+
+## 18 Nov, 19:54 — TODO: the owner's words (update required)
+
+<!-- Revision 66 (026g-rev66), released 2026-11-18 19:54 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2159 Record revision 64 test patch baseline
+- TODO: #2162 Publish torrent downloader with tracker and peer diagnostics
+- TODO: #2163 Add automatic regional relay fallback with native UDP forwarding
+- TODO: #2164 Relay: a probe, a reset sign-in or an idle client no longer takes the service down
+- TODO: #2165 Patch 150: the game shares by BitTorrent in matches too
+- TODO: #2166 Black Market Medkit: heals in 1 s (2 s to activate as before)
+- TODO: #2167 Patch 58: kit keys pick nothing for 1 s after the kits appear
+- TODO: #2168 Chemical Plant v0.11: a picture of its own
+- TODO: #2170 The five 0.21 maps in day, rain and evening, drawn the 0.21 way
+- TODO: #2171 Patch 158: the eye's ray goes through leaves
+- TODO: #2169 Relay: the site under the relay's own name (playskhid.link)
+- TODO: #1543 Patch 122: room for 32 particle effects in each presenter, no entry past a full list (crash at 0x2ACC7F)
+- TODO: #2172 Patch 158, reviewed: the leaves' ray keeps its own filter; a surface under a leaf is met
+- TODO: #2174 simulation_changes.tsv: one next row for the two pending changes
+
+## 17 Nov, 16:28 — TODO: the owner's words (update required)
+
+<!-- Revision 64 (026g-rev64), released 2026-11-17 16:28 UTC. To be worded for players; what it shipped: -->
+
+- TODO: #2142 AKMSU optics stay on the gun: weapons-069@19, scope-fits@13
+- TODO: #2143 Patch 157: Ctrl+V pastes into the console's line
+- TODO: #2145 Patch 156: collision fill (translucent surfaces) and room for 131072 lines
+- TODO: #2144 Patch 125: the game sends its code blocks that are no module
+- TODO: #2150 Updater: with torrent on, don't wait on an unreachable site; HTTPS whenever it answers
+- TODO: #2151 Vostok v0.21: no sky seam where the mountains meet the terrain
+- TODO: #2146 Patch 107: the console types the keyboard layout's text, as the chat
+- TODO: #2148 Patch 158: the first-person eye stays out of the level's surfaces
+- TODO: #2152 Wiki: Simulators section (recoil and spread by aim, stance, skills, gloves, arms)
+- TODO: #2149 Patch 159: the console's output scrolls
+- TODO: #2153 Patch 85: a bullet record whose shooter has no gun in its slot is not made
+- TODO: #2141 Run logs in game\logs; the old ones deleted
+- TODO: #2154 Add Croatian game localization
+- TODO: #2157 Port three 0.21 maps and preserve original lighting across five day maps
+- TODO: #2158 Use the patch server by default for releases
+
 ## 17 Nov, 00:33 — TODO: the owner's words (update required)
 
 <!-- Revision 63 (026g-rev63), released 2026-11-17 00:33 UTC. To be worded for players; what it shipped: -->

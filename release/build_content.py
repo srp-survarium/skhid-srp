@@ -56,8 +56,56 @@ LOBBY = 'lobby_menu'
 # type is not one 0.26g uses at that structural path, with the reason it is
 # right: {(game path, structural path): reason}. It never lets a key that
 # exists change its type (a number between int and float only where the base
-# configs have both there: content_type_check.number_either). Empty: today's content needs none.
-TYPE_ALLOWLIST = {}
+# configs have both there: content_type_check.number_either).
+# Rudnya v0.21 (pack maps-021d-rudnya): numbers 0.21d authored as floats where 0.26g's own projects
+# happen to have whole numbers.
+TYPE_ALLOWLIST = {
+    **{(f'projects/v021d_level_01/day_{mode}/client_project',
+        '/client_objects[environment]/properties/sky_clouds_color_multiplier'):
+       "0.21d's 1.28 in its day environment (a 0.21d key 0.26g does not read; its environment loader "
+       'load_environment_properties_impl 0x34E1E0 reads a float as it is and an int through cvtsi2ss)'
+       for mode in (2, 4)},
+    **{(f'projects/v021d_level_01/day_{mode}/client_project', '/client_objects[damage_zone]/max_armor_piercing'):
+       "0.21d's 0.02 on the swamp anomaly's fourth sensor: a fraction the hit takes with max_hit "
+       '(damage_zone_core::hit_objects 0x319AF0, +1C4h beside the float +1C0h), as srp reads it '
+       "(mapdata's f32_or); 0.26g's own zones have a whole 0 there"
+       for mode in (2, 4)},
+    # London's evening (pack london-weathers): 0.31a2's stratosphere turns at 0.62, a fraction where
+    # 0.26g's corpus has whole numbers; the reader takes either (stratosphere 0x34E84F).
+    **{(f'projects/level_09/evening_{mode}/client_project',
+        '/client_objects[environment]/properties/stratosphere_rotation_speed'):
+       "0.31a2's London evening 0.62; load_environment_properties_impl 0x34E1E0 reads float/int "
+       "numerically (stratosphere 0x34E84F)"
+       for mode in (2, 3, 4)},
+    # Original 0.21 weather scalar representations, scoped to the exact
+    # projects/keys that differ from the 0.26 corpus. The native reader tests
+    # binary-config type 2 then uses movss; otherwise it uses cvtsi2ss. Keep
+    # fractional donor values instead of rounding them to the corpus's ints.
+    **{(f'projects/v021d_level_{level}/{weather}_{mode}/client_project',
+        f'/client_objects[environment]/properties/{key}'):
+       "Original 0.21d weather scalar; load_environment_properties_impl 0x34E1E0 "
+       "reads float/int numerically (stratosphere 0x34E84F, cloud fog 0x34EA16, "
+       "Mie height 0x34ED27, rain scale 0x34F0BB, wind 0x34F1F0, vignette 0x34F2DA); "
+       "legacy sky_clouds_color_multiplier and mie_fog_falloff are not read by 0.26g"
+       for level, weather, keys in (
+           ('01', 'evening', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'stratosphere_rotation', 'vignette_effect_power')),
+           ('01', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('02', 'evening', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('02', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation', 'wind_strength')),
+           ('03', 'evening', ('mie_fog_base_height', 'mie_fog_falloff', 'stratosphere_rotation')),
+           ('03', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('04', 'evening', ('mie_fog_base_height', 'stratosphere_rotation')),
+           ('04', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('05', 'evening', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'sky_clouds_fog_power', 'stratosphere_rotation', 'vignette_effect_power')),
+           ('05', 'rain', ('mie_fog_base_height', 'rain_u_scale', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+           ('06', 'evening', ('mie_fog_base_height', 'stratosphere_rotation')),
+           ('06', 'rain', ('mie_fog_base_height', 'sky_clouds_color_multiplier', 'stratosphere_rotation')),
+       ) for mode in (2, 4) for key in keys},
+    **{(f'projects/v021d_level_01/{weather}_{mode}/client_project', '/client_objects[damage_zone]/max_armor_piercing'):
+       "Same authored Rudnya day swamp sensor's 0.02; damage_zone_core::hit_objects 0x319AF0 "
+       "reads float +1C4h beside max_hit +1C0h (mapdata f32_or), retained in both original weathers"
+       for weather in ('rain', 'evening') for mode in (2, 4)},
+}
 
 SIMULATION_CHANGES = 'srp-026g/crates/session/src/v026g/simulation_changes.tsv'
 
@@ -278,9 +326,12 @@ class Game:
         """{path: (status, archive or '')}: same, differs, new."""
         text = run([self.binary, 'compare'] + self.layers(archives) + ['--dir', folder], 'srp-game-data compare')
         out = {}
+        # `new <path>` or `<same|differs> <path> <archive>`: a path may hold spaces (0.21d's
+        # `render/material #825364/` folders), an archive name none.
         for line in text.splitlines():
-            status, path, *name = line.split(' ')
-            out[path] = (status, name[0] if name else '')
+            status, rest = line.split(' ', 1)
+            path, name = (rest, '') if status == 'new' else rest.rsplit(' ', 1)
+            out[path] = (status, name)
         return out
 
 

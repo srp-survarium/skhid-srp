@@ -96,7 +96,7 @@
 //! [`RELAY_USEFUL_MS`]).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::net::SocketAddr;
+use udp_transport::relay;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -691,7 +691,7 @@ use refused_worlds::{Judged, Refusers, Removal, Round, UploadStanding, Verdict};
 use world_receipts::{Received, WorldReceipts};
 
 struct Peer {
-    addr: SocketAddr,
+    addr: relay::Peer,
     session_id: u32,
     transport: Transport,
     stage: Stage,
@@ -1145,7 +1145,12 @@ impl Game {
             "late_inputs": format!("{:?}", self.settings.late_inputs),
             "places": self.places_note(0),
         });
-        self.recording = Some(recorder.open(self.id, self.formed.vs_bots, header, now));
+        self.recording = Some(recorder.open(
+            &self.formed.replay_id,
+            self.formed.vs_bots,
+            header,
+            now,
+        ));
     }
 
     /// The places from `from` on, for a recording.
@@ -1327,7 +1332,7 @@ impl Game {
     }
 
     /// The roster place of the client at `addr`.
-    pub fn peer_index(&self, addr: SocketAddr) -> Option<usize> {
+    pub fn peer_index(&self, addr: relay::Peer) -> Option<usize> {
         self.peers
             .iter()
             .position(|peer| peer.as_ref().is_some_and(|peer| peer.addr == addr))
@@ -1360,7 +1365,7 @@ impl Game {
     pub fn attach(
         &mut self,
         index: usize,
-        addr: SocketAddr,
+        addr: relay::Peer,
         session_id: u32,
         revision: u8,
         mut transport: Transport,
@@ -5402,11 +5407,16 @@ impl Game {
                     longest_killstreak: self.best_streaks[index],
                     kit_changes: self.kit_changes[index],
                     supplies: state.and_then(|state| state.supplies.get(index).cloned().flatten()),
+                    weapons: statistics
+                        .and_then(|statistics| statistics.weapons.as_ref()?.get(index))
+                        .cloned()
+                        .unwrap_or_default(),
                 }
             })
             .collect();
         MatchResult {
             match_id: self.id,
+            replay_id: self.formed.replay_id.clone(),
             map_id: self.formed.played.map().id,
             mode: self.formed.played.mode(),
             twist: self.formed.played.armed(),
@@ -5490,7 +5500,7 @@ impl Game {
     }
 
     /// Advance the match, and return the datagrams to send.
-    pub fn poll(&mut self, now: Instant) -> Vec<(SocketAddr, Vec<u8>)> {
+    pub fn poll(&mut self, now: Instant) -> Vec<(relay::Peer, Vec<u8>)> {
         for peer in self.peers.iter_mut().flatten() {
             if peer.stage == Stage::Gone { peer.executable.cancel(); peer.code.cancel(); } else { peer.executable.expire(now); peer.code.expire(now); }
         }

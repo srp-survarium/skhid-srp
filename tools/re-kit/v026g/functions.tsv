@@ -328,6 +328,7 @@ va	status	ref_021d	name
 0x00126670	reviewed	0x000de127	vostok::render::skeleton_model_instance_cook::on_skeleton_loaded
 0x00126750	reviewed	0x000de1b0	vostok::render::skeleton_model_instance_cook::on_render_model_loaded
 0x00126af0	reviewed	0x000de239	vostok::render::skeleton_model_instance_cook::on_all_subresources_ready
+0x0012a820	reviewed	0x000e04de	vostok::render::grass_cook::on_layers_loaded
 0x00135900	reviewed	0x000e4d3b	vostok::render::material_effects_instance_cook::on_material_ready
 0x00135af0	reviewed	0x000e4e54	vostok::render::material_effects_instance_cook::translate_query
 0x00135c20	reviewed	0x000e4ef6	vostok::render::material_effects_instance_cook::query_effects
@@ -400,7 +401,7 @@ va	status	ref_021d	name
 0x0014deb0	reviewed	0x000f2199	vostok::render::decal_instance::draw
 0x0014ef90	reviewed	0x000f2ac6	vostok::render::scene::particle_engine::create_render_emitter_instance
 0x0014f000	reviewed	0x000f2b1d	vostok::render::scene::particle_engine::destroy
-0x0014f080	reviewed	0x000f2b53	vostok::render::scene::particle_engine::get_scene
+0x0014f080	verified	0x000f2b53	vostok::render::scene::particle_engine::get_scene
 0x0014f200	reviewed	0x000f2c90	vostok::render::scene::particle_engine::add_light
 0x0014f260	reviewed	0x000f2ce0	vostok::render::scene::particle_engine::update_light
 0x0014f3a0	reviewed	0x000f2da6	vostok::render::scene::particle_engine::remove_light
@@ -644,6 +645,7 @@ va	status	ref_021d	name
 0x001a3690	reviewed	0x00120122	vostok::render::stage_atmosphere::fill_surfaces
 0x001a39d0	reviewed	0x00120336	vostok::render::stage_atmosphere::stage_atmosphere
 0x001a4200	reviewed	0x00120709	vostok::render::stage_atmosphere::execute
+0x001a5520	observed		vostok::render::stage_atmosphere::god_rays_pass
 0x001a6ee0	reviewed	0x0011ec51	vostok::render::effect_debug_modify_gbuffer::compile
 0x001a7280	reviewed	0x0011ee27	vostok::render::stage_composition::stage_composition
 0x001a78d0	reviewed	0x0011f135	vostok::render::stage_composition::gather_subsurface_scattering_models
@@ -1958,6 +1960,10 @@ va	status	ref_021d	name
 0x002855b0	verified		survarium::simple_game_project::remove_static
 0x00285fa0	verified		survarium::render_visual::insert
 0x00285fe0	verified		survarium::render_visual::remove
+0x00290930	verified	0x001a7008	survarium::object_ambient_light::insert
+0x00290ae0	verified		survarium::object_ambient_light::remove
+0x00292cc0	verified		survarium::object_particle_visual::insert
+0x00292dc0	verified		survarium::object_particle_visual::remove
 0x00291720	verified		survarium::object_light::load
 0x00291790	verified		survarium::object_light::insert
 0x002917d0	verified		survarium::object_light::remove
@@ -2045,7 +2051,7 @@ va	status	ref_021d	name
 0x00118540	reviewed	0x000d5f76	vostok::render::engine::world::remove_model
 0x001bd7f0	verified	0x0012fccf	vostok::render::fill_light
 0x001c9e40	observed		vostok::render::light::set_color_and_intensity
-0x0034e020	observed		vostok::render::environment_sun_direction
+0x0034e020	verified	0x0021570f	vostok::render::environment_sun_direction
 0x001a8900	observed		vostok::render::effect_compiler::set_constant_float4
 0x003e2ea0	observed		vostok::render::state_descriptor::set_alpha_blend
 0x001acb30	observed		vostok::render::reflection_surface_rejected
@@ -2264,6 +2270,8 @@ va	status	ref_021d	name
 0x00103140	observed		vostok::resources::resources_manager::on_created_resource
 0x00109bd0	observed	0x000cbaaa	vostok::resources::query_result::finish_translated_query
 0x003c5510	reviewed		stlp_std::find<vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base>*,vostok::resources::resource_ptr<survarium::flash_movie_resource,vostok::resources::unmanaged_intrusive_base> >
+0x002acc20	observed		vostok::buffer_vector<survarium::particle_game_effect_presenter::effect_data>::push_back
+0x002ac720	observed		survarium::particle_game_effect_presenter::serialize
 0x00200f50	reviewed	0x0015f1b6	survarium::game_options::activate
 0x002010e0	reviewed	0x0015f2d4	survarium::game_options::process_key_input
 0x002015a0	reviewed	0x0015f5e9	survarium::game_options::finish_binding
@@ -2360,7 +2368,7 @@ va	status	ref_021d	name
 0x0005e150	reviewed		vostok::sound::panning_lut::panning_lut
 0x0005e050	reviewed	0x000438d2	vostok::sound::pos_to_angle
 0x00064f00	observed		vostok::buffer_vector<unsigned int>::push_back
-0x001603b0	reviewed		vostok::render::grass_world::process_culling's patch order (patch+50h, then squared distance of patch+4084h to the camera)
+0x001603b0	reviewed		vostok::render::grass_world::process_culling's patch order
 0x001610b0	reviewed		stlp_std::sort<vostok::render::grass_patch **> (grass_world::process_culling's)
 0x00161e50	reviewed		stlp_std::priv::__linear_insert<vostok::render::grass_patch **>
 0x00162060	reviewed		stlp_std::priv::__unguarded_linear_insert<vostok::render::grass_patch **>
@@ -2445,3 +2453,24 @@ va	status	ref_021d	name
 0x0034a450	reviewed		vostok::ui::ui_text_edit's make of a key binding to one of its methods
 0x0034b430	reviewed		vostok::ui::ui_text_edit key binding's test of the key's kind and modifiers
 0x0034b4c0	reviewed		vostok::ui::ui_text_edit method key binding's execute
+0x00181660	verified	0x0010efaa	vostok::render::stage_ambient_lighting::render_ambient_light_list
+0x001858e0	verified		vostok::render::stage_ambient_lighting::select_ambient_lights_by_intensity
+0x0034d9a0	verified	0x00215157	vostok::render::environment_properties::environment_properties
+0x002aa870	observed		vostok::buffer_vector<survarium::sound_game_effect_presenter::effect_data>::push_back
+0x0034e1e0	observed	0x002157f7	vostok::render::load_environment_properties_impl<vostok::configs::binary_config_value const >
+0x0017cc90	verified		vostok::render::effect_manager::create_effect<vostok::render::effect_wet_surface>
+0x001ae110	verified		vostok::render::effect_manager::create_effect<vostok::render::effect_rain>
+0x001d3730	verified	0x0013fc08	vostok::render::particle_rain_drops_geometry::particle_rain_drops_geometry
+0x0015fe20	verified		vostok::render::grass_world::set_wind_parameters
+0x001cbb70	verified	0x0013afad	vostok::render::pack_direction
+0x00070e30	verified		vostok::math::random32::random_f
+0x0028bee0	reviewed		survarium::lobby_menu::find_players
+0x0026b660	reviewed		survarium::messaging_client::find_players
+0x000dde70	reviewed	0x000ac765	vostok::command_line::key::is_set
+0x001ae390	reviewed	0x0010affb	vostok::render::stage_apply_distortion::is_effects_ready
+0x001ae500	reviewed	0x00123a52	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>
+0x001ae5f0	reviewed	0x00123ad4	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>
+0x001bd6a0	reviewed	0x0012fc3d	vostok::render::stage::is_enabled
+0x001f3c70	reviewed	0x00157ab8	survarium::player::generate_hit_event
+0x00238230	reviewed	0x0018257b	survarium::game_world_ui::draw_damage_collector
+0x00246f10	observed		survarium::player::tick

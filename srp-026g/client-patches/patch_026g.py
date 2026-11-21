@@ -561,6 +561,15 @@ Patches:
   min(player_step's dt, 0.05), not x 0.05 at every step, so a tick the
   world steps in parts (each precise input) adds one tick of speed in all;
   whole ticks bit for bit as before. A simulation change;
+- a part of a tick moves a body as a whole tick does (patch 166, with the
+  late join; docs/notes/fall_damage.md "A part of a tick moves a body at
+  rest"): bullet_character_controller::updateAction (0x7B730) ran
+  player_step for a step shorter than a tick only when the body had moved
+  in its step before, so a body at rest took no walk, strafe, jump or
+  crouch of its player in a tick the world steps in parts; STEP_PARTS
+  (0x7B76B, one branch) runs player_step for every step, and its own test
+  (can_skeep_player_step 0x7C7E0) leaves a body with nothing to do where it
+  is. A simulation change;
 - a thrown grenade stays above the ground (patch 105, with the late join;
   docs/notes/grenade_ccd.md): grenade_core::load's continuous collision
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
@@ -643,6 +652,27 @@ Patches:
   walk (no engine call), to srp_patches.log and in 0xE0 carriers
   (srp_validate::report); the server only logs them. Nothing a match
   computes;
+- the ported 0.21 maps render the 0.21 way (patch 130, the Rust patch
+  v021d_render; docs/notes/client_patch.md section 3.82): effect_wet_surface
+  and effect_rain compile 0.21 twins of their techniques after their own
+  (0x1CE5BE, 0x1D3E30: the wet pass with wet_surface_v021d.ps, the drops
+  with ported/v021d/engine/rain_drop); on the scene of a project whose
+  config says srp_renderer_v021d, stage_pre_rain's wet pass runs at any
+  shading quality (0x17CB1B) with technique 3 (0x17CB90), stage_rain's drops
+  with technique 2 (0x1ADFA4) and 0.21d's half-float
+  rain_drops_parameters1.zw (0x1ADF7D); compile_begin gives a grassmesh pass
+  of a material with srp_grass_v021d its 0.21 vertex shader family
+  (0x1CD1B6), the forward water of one with srp_water_v021d 0.21's wave
+  normals (0x1E603C). Nothing a match computes;
+- every player drawn with srp's face of the account (patch 123, faces;
+  docs/notes/client_patch.md section 3.87): the faces srp gives, the
+  account's and its squad's by name (0x87's and 0x88's byte), a match's or
+  replay's by place (the options' entry 5) until its scene is left
+  (0x1F9520); profile_skin_visual_cook's
+  head (0x205662) made from body_parts.heads[face], its mask or helmet
+  variant by the kit's models, its hair, `f<face>_` in the skin's name;
+  a worn helmet's or mask's entry its config's data_head_<face> when it
+  has one (0x204B36). Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
@@ -860,7 +890,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 63
+REVISION = 68
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1662,6 +1692,25 @@ FALL_GRAVITY = (
                    "f30f11586c" "f30f114874" "eb10" "8b4d00" "f30f105908" "f30f5d18" "eb9c" "cccc")),
 )
 
+# A part of a tick moves a body at rest (patch 166, ../docs/notes/fall_damage.md
+# "A part of a tick moves a body at rest"). updateAction 0x7B730 calls
+# player_step 0x7BDA0 when the step's dt is the tick (+2C704h, 0x7B760:
+# `jnp 0x7B7A9`), and for any other dt only when the body's position (+0B0h)
+# is not m_last_pos (+50h, which player_step sets to the position at its
+# start, 0x7BE7C: the body moved in its step before); else it goes to
+# 0x7B7BA, which zeroes the movement asked for this step (+20h..+3Ch, the
+# desired walk and air control vectors) as after every step. So in a tick the
+# world steps in parts (each precise input, tick_events 0x2D21E0) a body at
+# rest was not stepped at all: its player's keys did nothing until a tick
+# that was whole. player_step itself moves a body by dt / 0.05 of the tick's
+# step (0x7C13B, 0x7C603, 0x7C734) and returns at once for one with nothing
+# to do (can_skeep_player_step 0x7C7E0 at 0x7C1AE: no walk vector, no
+# velocity, no slide, not jumping, no push). STEP_PARTS makes the branch a
+# `jmp`: every step runs player_step. The compare of the position against
+# m_last_pos (0x7B76D..0x7B7A7) is no longer reached. No base relocation
+# under the site; the branch's target is the original's.
+STEP_PARTS = (0x7B76B, bytes.fromhex("7b3c"), bytes.fromhex("eb3c"))
+
 # A thrown grenade stays above the ground (patch 105, ../docs/notes/grenade_ccd.md).
 # grenade_core::load 0x303890 gives the grenade (RGD-5 and RDG-M) a capsule of
 # radius 0.05 m (0x3038DB) and continuous collision: motion threshold 0.03 m
@@ -2420,12 +2469,12 @@ ARTEFACTS_SIZES = (
 # world's tick (0x3B7BD0) calls for every handler after it polled the devices
 # and before they hand out the keys: match_keys_poll sets the kits' screen's
 # state from the hud's cursor and GetTickCount (CLOSED; OPENING from the
-# first poll the kits are up at, with its time; OPEN from the first poll 300
-# ms, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
+# first poll the kits are up at, with its time; OPEN from the first poll 1
+# s, KIT_KEYS_DELAY, after it), and a key picks a kit only in OPEN: a key
 # that went down in the frame the kits came, in play, is handed out in their
-# first tick and picks nothing, nor does one pressed in their first 300 ms
+# first tick and picks nothing, nor does one pressed in their first second
 # (the owner, 2026-10-25: "I press 3 mid-fight to heal with the medkit, I
-# die, and I swap to my 3rd kit"; then: ignore them for 300 ms).
+# die, and I swap to my 3rd kit"; then: ignore them for 300 ms; 1 s since 2026-11-18).
 MATCH_KEYS_HOOKS = (
     (0x25CD41, bytes.fromhex("837d1001" "0f85c2010000"), "match_keys_keyboard", 0xE9),   # on_keyboard_action: the kind
     (0x1F6845, bytes.fromhex("e8c6cf0300"), "match_keys_hud", 0xE8),          # the hud's constructor call
@@ -2614,8 +2663,12 @@ BAKE_CACHE_KEEP = (0x1EC832, bytes.fromhex("e869c5ffff"), bytes.fromhex("0f1f440
 # on (the launcher's box writes its line). Its initial value, the byte in
 # .data, 1 in the original, is 0: a user.cfg without the line leaves it off.
 # The Rust patch lobby_seeding (sites_026g.tsv seeding.*) names the pipe and
-# starts the updater.
+# starts the updater. The sharing goes on in a match (the owner, 2026-11-18):
+# game::switch_to_game_world's jz over its "in a match" byte
+# (torrent_client+1Ch := 1, 0x1ED193) and its stop_seeding (0x1ED1A5), taken
+# only by a replay, is a jmp (MATCH_SEEDING_KEEP).
 LOBBY_SEEDING_DEFAULT = (0xA712B6, b"\x01", b"\x00")
+MATCH_SEEDING_KEEP = (0x1ED184, bytes.fromhex("7424"), bytes.fromhex("eb24"))
 
 # The grass sort's one order of distance (patch 146, README; client_patch.md
 # "The grass sort's distance"). grass_world::process_culling (0x160470) sorts
@@ -2629,6 +2682,23 @@ LOBBY_SEEDING_DEFAULT = (0xA712B6, b"\x01", b"\x00")
 # match's first seconds). Swapping the two adds makes every copy one function
 # of the patch. No relocation is under the site; 0x1603B0 has no other caller.
 GRASS_SORT_ORDER = (0x160430, bytes.fromhex("f30f58f2" "f30f58f0"), bytes.fromhex("f30f58f0" "f30f58f2"))
+
+# A maps_dict id over a byte (patch 154, README "Map ids over a byte";
+# client_patch.md, the same). match_options::deserialize (0x1F0E70) stores the
+# map as one byte at +577B4h (0x1F0EAD), and these six read it as one:
+# initialize_match's game type 0x234CFD, query_players 0x27AFA7,
+# process_static_match_info's log 0x27BC26 and its level loading 0x27BE8B,
+# refresh_quest_ui_data 0x2A3603 and game_world_core's constructor 0x2D01F3
+# (each `movzx r32, byte [r+577B4h]`; nothing else names the field but the
+# store). Each reads the dword +577B8h instead (`mov r32, [r+577B8h]`, a nop
+# after it: the same modrm, the same length), the game's "match maker id",
+# logged only (0x27BB57) and written by nothing else, which map_id.rs fills at
+# the options' read with the whole id. No relocation is under the sites.
+MAP_ID_READERS = tuple(
+    (va, bytes.fromhex("0fb6") + bytes([modrm]) + bytes.fromhex("b4770500"),
+     bytes.fromhex("8b") + bytes([modrm]) + bytes.fromhex("b877050090"))
+    for va, modrm in ((0x234CFD, 0xB8), (0x27AFA7, 0xBE), (0x27BC26, 0x8E),
+                      (0x27BE8B, 0x96), (0x2A3603, 0xB8), (0x2D01F3, 0xB8)))
 
 # An empty shot is not logged (patch 148, README; docs/notes/fire-queue-assert.md).
 # weapon_core_fire_state_base::on_shot_event (0x30EBF0) fires nothing for a
@@ -2832,6 +2902,14 @@ INSTALLS = {
     0x23814F: (INLINE, "on_player_killed's `mov edx,[esp+30h] / mov ecx,[esp+2Ch]` before mastery_icon: row, "
                        "which sets penetration_icon, ricochet_icon and pain_icon and does the two moves", None, None),
 }
+# Original ambient/particle-light semantics for the five ported 0.21 day maps.
+AMBIENT_021_HOOKS = (
+    (0x290A3F, bytes.fromhex("8a836d010000"), "ambient_021_insert_hook", 0xE9),
+    (0x14F305, bytes.fromhex("f30f104564"), "particle_021_intensity_hook", 0xE9),
+)
+INSTALLS[0x290A3F] = (JUMP, "0.21 day-map ambient intensity uses original multiplicative semantics; preserve machine and replay mov al,[ebx+16Dh]", None, None)
+INSTALLS[0x14F305] = (JUMP, "load authored particle intensity; skip native x3 only in the actual render scene of a 0.21 day-map world", None, None)
+
 # Explain weight in the lobby; presentation only, no simulation changes.
 WEIGHT_UI_HOOKS = (
     (0x22110F, bytes.fromhex("8b8608010000"), "weight_ui_config", 0xE9),
@@ -3191,6 +3269,7 @@ ARENA = (
     ArenaBlock("module_watch.data", "data", 0x10, ("module_watch_026g.asm",)),
     ArenaBlock("detail.code", "code", 0x1000, ("detail_026g.asm",)),
     ArenaBlock("detail.data", "data", 0x10, ("detail_026g.asm",)),
+    ArenaBlock("ambient_021.code", "code", 0x10, ("ambient_021_026g.asm", "ambient_021_026g.c")),
 )
 
 
@@ -3854,6 +3933,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in FALL_GRAVITY:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        patch(data, *STEP_PARTS)
+        sites.append((STEP_PARTS[0], STEP_PARTS[0] + len(STEP_PARTS[1])))
         # An address of .rdata for another: its relocation stays.
         patch(data, *GRENADE_CCD)
         for site in MOUSE_BUTTONS:
@@ -4254,7 +4335,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
             if linked is not None:
                 patch(data, *REPLAY_OPEN_RESULT)
                 for va, expected, symbol, opcode in RESEARCH_HOOKS + ARTEFACTS_HOOKS + MATCH_KEYS_HOOKS + HIDE_UI_HOOKS \
-                        + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + BULLET_BOUNDS_HOOKS \
+                        + KILL_FEED_HOOKS + WEIGHT_UI_HOOKS + AMBIENT_021_HOOKS + BULLET_BOUNDS_HOOKS \
                         + MATCH_STAT_MAP_HOOKS + AUDIO_DEVICE_HOOKS + WORLD_SECTIONS_HOOKS + DETAIL_HOOKS + rust_hooks(original):
                     patch(data, va, expected, hook_bytes(arena_target(linked, symbol), va, expected, 0, opcode))
                     if neutralize_relocs(data, [(va, va + len(expected))]):
@@ -4277,7 +4358,12 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                 patch(data, *KILL_FEED_ARGUMENT)
                 patch(data, *BAKE_CACHE_KEEP)
                 patch_section_value(data, *LOBBY_SEEDING_DEFAULT)
+                patch(data, *MATCH_SEEDING_KEEP)
                 patch(data, *GRASS_SORT_ORDER)
+                for change in MAP_ID_READERS:
+                    patch(data, *change)
+                if neutralize_relocs(data, [(va, va + len(old)) for va, old, _ in MAP_ID_READERS]):
+                    sys.exit("a base relocation under a reader of the options' map")
                 patch(data, *EMPTY_SHOT_QUIET)
                 patch(data, *EXPAND_TEXT_UNBOUND)
                 for change in BATTERY_COOK_REQUESTS:
@@ -4359,6 +4445,7 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
                      "an option hides the other players' chat lines in a match, "
                      "F9 (hide_interface) hides the interface in a match and in the lobby, "
                      "F11 and F12 save a screenshot, with the interface and without it, "
+                     "a map id over a byte loaded whole (srp's block's tag 4), "
                      "the kill feed tells a kill through a wall, by a ricochet and by pain, "
                      "baked camouflage textures kept from game to game and made once while asked for again, "
                      "a Blackout match has no interface but its Tab view and the players' markers on Tab, "

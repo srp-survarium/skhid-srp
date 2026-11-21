@@ -23,7 +23,8 @@
 ; hands out every key that went down in the frame before them, in play.
 ; And a player still pressing 3 to heal in the moment after the death, before
 ; seeing it, presses on the kits: the owner (2026-10-25) wants the keys
-; ignored for KIT_KEYS_DELAY (300 ms) after the kits appear too.
+; ignored for KIT_KEYS_DELAY after the kits appear too (300 ms then; 1 s
+; since 2026-11-18: a key pressed by accident still changed the kit).
 ; kit_keys, set at slot +14h of the game world's handler (match_keys_poll,
 ; after the poll, before the keys are handed out) from the hud's cursor
 ; (the kits, below) and GetTickCount, is one of three states; OPENING
@@ -102,7 +103,7 @@ section .text
 %define CLOSED 0                   ; kit_keys: the kits not shown at the last poll
 %define OPENING 1                  ; shown, for less than KIT_KEYS_DELAY since kit_keys_since
 %define OPEN 2                     ; shown, for KIT_KEYS_DELAY or more
-%define KIT_KEYS_DELAY 300         ; ms the kit keys pick nothing after the kits appear
+%define KIT_KEYS_DELAY 1000        ; ms the kit keys pick nothing after the kits appear
 %define GET_TICK_COUNT 0x870090    ; GetTickCount's import (stdcall, ms, wraps)
 
 ; Slot +14h of the game world's handler (0x9FC59C; thiscall: ecx = the

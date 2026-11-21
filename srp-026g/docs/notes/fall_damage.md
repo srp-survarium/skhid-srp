@@ -187,3 +187,55 @@ Read from the 0.26g exe; client_patch.md section 3.56 has the addresses.
   block grows from 67 to 71 bytes and srp's readers of the player blocks
   (`match_msgs/motion.rs`) change with it. Only if low falls still hurt with
   patch 72.
+
+## A part of a tick moves a body at rest (patch 166)
+
+The owner (2026-11-20, a 16-player match of revision 68): "there are lots of freezes there", "it was
+happening for everyone". The frames did not stall and the match server saw no late game: players
+stood still with their keys held, through bursts of fire. Read from the
+0.26g exe; `client_patch.md` section 3.89 has the addresses.
+
+- **The cause (PROVEN, stock):** the world steps to the time of each precise input inside a tick
+  ("Split ticks" above), and `bullet_character_controller::updateAction` (0x7B730) ran `player_step`
+  for a step shorter than a tick only when the body had moved in its step before (its position against
+  `m_last_pos`, which `player_step` sets at its start). Either way it then zeroes the movement asked
+  for the step (the desired walk and air control vectors). So in a tick stepped in parts a body at rest
+  took nothing from its player: no walk, no strafe, no jump, no crouch or standing up, until a tick
+  that was whole. A body already moving went on, until a part moved it by nothing (a wall, a stop,
+  a part too short to walk); then it waited the same way. Every game computes the same, so nothing
+  desynced and no input came late: everyone saw the same players stuck, themselves too.
+- **How it showed:** with few precise inputs a tick in ten is cut and a start is a tick late at
+  most. In a fight, or through a burst of precise inputs, few ticks are whole. The match's recording:
+  through its bursts of precise inputs 2 % of the ticks were whole (91 % in the rest of the match),
+  and in the worlds uploaded then 64 % of the walking players' samples (forward held, not crouched,
+  not aiming) had no speed, against 2 % outside (sprinting: 16 % against 0.3 %).
+- **`player_step` already does a part right (PROVEN):** it takes the step's dt, makes the tick's whole
+  step from the walk asked for (walk / dt is the speed; x 0.05 the tick's move; under 3 m/s a longer
+  probe scaled back) and moves the body dt / 0.05 of it (0x7C13B, 0x7C603, 0x7C734); and it returns at
+  once for a body with nothing to do (`can_skeep_player_step` 0x7C7E0: no walk vector, no velocity,
+  no slide, not jumping, no push). The game asks for a displacement of the step's own time, at most
+  the player's speed x that time (`base_player::set_physics_controller_walk_vector` 0x2D9060). So a
+  body moves a part's share in a part, and a tick's worth in a tick however it is cut. updateAction's
+  shortcut for a part asked only whether the body had moved, not whether it was asked to.
+- **The rule (patch 166):** every step runs `player_step`, a part as a whole tick (one branch,
+  `STEP_PARTS` 0x7B76B). A body asked to move in a part of a tick moves by that part's share. A
+  simulation change.
+- **Nobody moves faster (checked, `check_step_parts_026g.py`, Unicorn, the game's own updateAction
+  and player_step on open ground, 5 s each):** whole ticks are the original's bit for bit; a body
+  already moving is the original's bit for bit however its ticks are cut; a body from rest, with one
+  cut a tick, a burst's cuts or 50 cuts a second, is where whole ticks put it to a float's rounding
+  (under 0.5 mm in 5 s walking at 3.74 m/s, sprinting at 5.28, slow at 1.4, strafing): the same
+  distance, the same speed from the first tick. It is never ahead: a part asked for under 3.2 mm
+  (`player_step`'s least walk, 1e-5 m2: 1 or 2 ms at 1.4 m/s) is not made, as in the original, so
+  cuts can only lose distance (46 mm in 5 s, 0.7 %, at 1.4 m/s under a burst's cuts; the original
+  stopped there until a whole tick). A body asked nothing is not stepped and not changed.
+- **What else a cut tick skipped, and now runs:** all of it was `player_step`'s for a body at rest:
+  the walk and the strafe, the jump's start, the crouch and the standing up (its capsule,
+  `setup_crouch_state` at `player_step`'s start), the air control, and a slide that begins. Nothing
+  else in the simulation tests a step's length against the tick: this compare (0x7B760) is the only
+  one of a dt with the tick constant, and no code of the game's simulation or the physics branches on
+  a step of exactly 50 ms.
+- **Unchanged:** how the world cuts its ticks (and what a cut tick costs every game's simulation);
+  `player_step` itself, so what a moving body did in a part before it does now: its steps up and
+  down are the tick's, shared by dt, the slide's acceleration is a tick's at each part (steep slopes
+  only), the landing is taken where a part lands.

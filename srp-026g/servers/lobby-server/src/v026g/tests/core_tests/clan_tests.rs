@@ -1422,7 +1422,7 @@ fn a_clan_match_never_draws_a_free_for_all() {
     use crate::v026g::Settings;
     use survarium::v026g::maps::{self, GameMode};
 
-    let of = |mode| -> Vec<u8> { maps::playable_in(mode).map(|map| map.id).collect() };
+    let of = |mode| -> Vec<maps::MapId> { maps::playable_in(mode).map(|map| map.id).collect() };
     let free_for_alls = of(GameMode::FreeForAll);
     // The test data's: one for each Team Deathmatch map.
     assert_eq!(free_for_alls.len(), 24);
@@ -1433,7 +1433,7 @@ fn a_clan_match_never_draws_a_free_for_all() {
     );
     let others = [free_for_alls, of(GameMode::Blackout)].concat();
     for (pool, only) in [
-        ([others.clone(), vec![117]].concat(), Some(117)),
+        ([others.clone(), vec![maps::MapId::new(117)]].concat(), Some(maps::MapId::new(117))),
         (others.clone(), None),
     ] {
         let mut settings = Settings::local("127.0.0.1:0");

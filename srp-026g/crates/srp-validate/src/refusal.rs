@@ -523,7 +523,7 @@ pub enum Reason {
         roster: u8,
     },
     OptionsMap {
-        map: u8,
+        map: u16,
     },
     OptionsTeam {
         place: usize,

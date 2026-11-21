@@ -95,6 +95,8 @@ better names too"). Exe patch 83
   `../images/kill-marker-only.png`; the list
   `../images/hit-marker-list.png`).
 - **Hidden hit markers:** none.
+- **Through a wall** (exe patch 167, `hit-marker-walls.md`): with All a hit through a surface
+  other than leaves shows nothing and a kill there what Kill marker only shows.
 - A marker on screen when the choice changes is cleared.
 - Unchanged: the marks of where the player is hit from, the kill feed, every sound.
 - The marker is the hud movie's: the exe only invokes `root.crosshair_enemy_hit` (at 0x238387 in

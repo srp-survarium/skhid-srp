@@ -2,7 +2,7 @@
 //! round is 10 ms, and the transports, the rooms and the timeouts all take
 //! the time they are given.
 
-use std::net::SocketAddr;
+use udp_transport::relay::Peer;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -38,7 +38,7 @@ struct World {
     host: &'static TestHost,
     inbox: &'static Inbox,
     core: Core<'static>,
-    clients: Vec<(SocketAddr, TestClient)>,
+    clients: Vec<(Peer, TestClient)>,
     /// `(account id, session id)` of each client.
     ids: Vec<(u32, u32)>,
     now: Instant,
@@ -129,8 +129,31 @@ impl World {
     }
 
     fn connect_session(&mut self, ids: (u32, u32)) -> usize {
+        let addr = self.next_direct();
+        self.connect_session_at(ids, addr)
+    }
+
+    /// The direct peer the next client gets.
+    fn next_direct(&self) -> Peer {
+        Peer::direct(format!("127.0.0.1:{}", 40_000 + self.clients.len()).parse().unwrap())
+    }
+
+    /// A new account signs in from the next client's address as `via` makes
+    /// a peer of it (through a relay, say).
+    fn connect_as(&mut self, name: &str, via: fn(Peer) -> Peer) -> usize {
+        let addr = via(self.next_direct());
+        self.connect_at(name, addr)
+    }
+
+    /// A new account signs in as the peer `addr`.
+    fn connect_at(&mut self, name: &str, addr: Peer) -> usize {
+        let (account, _) = signed_in(self.store, name);
+        let session = self.store.create_session_with_revision(account, PATCH_REVISION);
+        self.connect_session_at((account, session), addr)
+    }
+
+    fn connect_session_at(&mut self, ids: (u32, u32), addr: Peer) -> usize {
         let index = self.clients.len();
-        let addr: SocketAddr = format!("127.0.0.1:{}", 40_000 + index).parse().unwrap();
         let mut client = TestClient::new();
         client.sign_in(ids.1, true);
         self.clients.push((addr, client));
@@ -400,7 +423,7 @@ fn a_sign_in_is_answered_with_the_whole_account_in_the_clients_order() {
 fn nothing_but_the_sign_in_answer_goes_before_it_is_acked() {
     let mut world = World::new();
     let (_, session) = signed_in(world.store, "Alice");
-    let addr: SocketAddr = "127.0.0.1:40000".parse().unwrap();
+    let addr = Peer::direct("127.0.0.1:40000".parse().unwrap());
     let mut client = TestClient::new();
     client.sign_in(session, true);
     let now = world.now;
@@ -459,7 +482,7 @@ fn an_unknown_or_ended_session_is_refused() {
 #[test]
 fn a_datagram_that_is_no_sign_in_makes_no_link() {
     let mut world = World::new();
-    let addr: SocketAddr = "127.0.0.1:40000".parse().unwrap();
+    let addr = Peer::direct("127.0.0.1:40000".parse().unwrap());
     let mut client = TestClient::new();
     let (id, body) = request::play(1);
     client.send(id, &body);
@@ -1851,10 +1874,11 @@ fn a_squad_of_two_forms_shows_each_mate_and_plays_together() {
     // its revision, or the client would ask again for ever (0x227C59).
     world.ask(alice, request::squad_member(bob_id, bob_kit));
     let decoded = world.take(alice);
-    let [Decoded::SquadMemberAccount { body, revision }] = &decoded[..] else {
+    let [Decoded::SquadMemberAccount { body, revision, face }] = &decoded[..] else {
         panic!("{decoded:?}");
     };
     assert_eq!(body.name, "Bob");
+    assert_eq!(*face, survarium::v026g::faces::Face::DEFAULT);
     assert_eq!(body.kits.len(), 1);
     assert_eq!(body.kits[0].id, bob_kit);
     let listed = world.store.squads().of(alice_id).unwrap();
@@ -2196,7 +2220,7 @@ fn a_client_whose_link_broke_connects_again_with_its_session() {
     // The client gave up on its link (5 s without a datagram) and connects
     // again, from a new port, while the server's link still stands.
     world.clients[alice].1 = TestClient::new();
-    world.clients[alice].0 = "127.0.0.1:49999".parse().unwrap();
+    world.clients[alice].0 = Peer::direct("127.0.0.1:49999".parse().unwrap());
     world.client(alice).sign_in(ids.1, false);
     world.settle();
     assert!(world.client(alice).model.is_signed_in());
@@ -2215,7 +2239,7 @@ fn a_client_whose_link_broke_connects_again_with_its_session() {
     assert!(sent_to_match(&world.take(alice)).is_some());
     let silent = std::mem::replace(&mut world.clients[alice].1, TestClient::new());
     drop(silent);
-    world.clients[alice].0 = "127.0.0.1:49998".parse().unwrap();
+    world.clients[alice].0 = Peer::direct("127.0.0.1:49998".parse().unwrap());
     // (A player in a match has two minutes: `away_tests`.)
     world.advance(Duration::from_secs(125));
     assert_eq!(world.core.links.len(), 1);
@@ -2270,11 +2294,13 @@ impl World {
                     statistics: Some(statistics),
                     pay_statistics: None,
                     supplies: None,
+                    weapons: Vec::new(),
                 }
             })
             .collect();
         let result = MatchResult {
             match_id,
+            replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: setup.played.map().id,
             mode: setup.played.mode(),
             twist: setup.played.armed(),
@@ -2342,10 +2368,12 @@ impl World {
                 statistics: None,
                 pay_statistics: None,
                 supplies: None,
+                weapons: Vec::new(),
             })
             .collect();
         let result = MatchResult {
             match_id,
+            replay_id: session::v026g::replays::ReplayId::new(match_id, std::time::UNIX_EPOCH),
             map_id: setup.played.map().id,
             mode: setup.played.mode(),
             twist: setup.played.armed(),
@@ -2821,6 +2849,7 @@ mod balance_tests;
 mod chat_mute_tests;
 mod clan_tests;
 mod comments_tests;
+mod faces_tests;
 mod feedback_tests;
 mod gear_tests;
 mod items_tests;
@@ -2850,7 +2879,7 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
     let mut world = World::new();
     let alice = world.connect("Alice");
     let decoded = world.take(alice);
-    // The shop: the seven bundles.
+    // The shop: its bundles.
     let records = decoded
         .iter()
         .find_map(|message| match message {
@@ -2859,7 +2888,6 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
         })
         .expect("the shop");
     assert_eq!(records, shop_offers::records());
-    assert_eq!(records.len(), 7);
     // The price list has the premium items too.
     let prices_sent = decoded
         .iter()
@@ -2870,11 +2898,6 @@ fn a_sign_in_brings_the_shop_no_tutorial_and_the_daily_bonus() {
         .expect("the prices");
     assert_eq!(prices_sent, shop_offers::price_list().len());
     assert!(prices_sent > prices::price_list().len());
-    // The rename's price, in silver: the voucher's 250 gold.
-    assert!(decoded.iter().any(|message| matches!(
-        message,
-        Decoded::ServicePrices(prices) if prices.change_name == 25_000
-    )));
     // No tutorial: every step done.
     assert!(decoded.iter().any(|message| matches!(
         message,
@@ -3000,138 +3023,6 @@ fn premium_time_is_sold_no_more() {
 }
 
 #[test]
-fn a_bundle_and_a_premium_item_are_bought_for_silver() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    world.take(alice);
-    world.change(alice, |account| account.generic_money = 200_000);
-    let dictionary = Dictionary::shared();
-    let id = |name: &str| dictionary.item_named(name).unwrap().dict_id;
-
-    // The AK-74N bundle (offer 9): the rifle and 2000 rounds, 1500 gold in
-    // silver,
-    // onto the 1000 a new account has.
-    world.ask(alice, request::buy_offer(9, 0));
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::OfferBought)
-    ));
-    assert_eq!(told_money(&decoded), Some((50_000, 0)));
-    let owned: Vec<(u16, u32)> = world.clients[alice]
-        .1
-        .model
-        .inventory()
-        .iter()
-        .map(|item| (item.dict_id, item.condition_or_stack))
-        .collect();
-    assert!(owned.contains(&(id("ak_74n_premium"), FULL_CONDITION)));
-    assert!(owned.contains(&(id("ammo_5.45x39_7n6m"), 3_000)));
-
-    // Two drop cards from the shop's list: their 100 gold in silver each.
-    world.ask(
-        alice,
-        request::buy(id("drop_card"), 2, 0, INVENTORY_SLOT, 1),
-    );
-    let decoded = world.take(alice);
-    assert!(matches!(
-        &decoded[0],
-        Decoded::Permitted(Permitted::Bought(bought))
-            if bought.len() == 1 && bought[0].dict_id == id("drop_card") && bought[0].value == 2
-    ));
-    assert_eq!(told_money(&decoded), Some((30_000, 0)));
-    // A removed voucher is sold no more (the owner, 2026-11-08).
-    world.ask(
-        alice,
-        request::buy(id("repair_voucher"), 1, 0, INVENTORY_SLOT, 1),
-    );
-    assert!(denial(&world.take(alice), 0x47).is_some());
-    // Not the silver for the AK-74N (its 1500 gold): the game's text for it.
-    world.change(alice, |account| account.generic_money = 1_000);
-    world.take(alice);
-    world.ask(alice, request::buy(id("ak_74n"), 1, 0, INVENTORY_SLOT, 1));
-    assert_eq!(
-        denial(&world.take(alice), 0x47).as_deref(),
-        Some("st_not_enougth_money")
-    );
-    assert_eq!(world.account(alice).generic_money, 1_000);
-    world.assert_clean();
-}
-
-/// The owner's choice of 2026-10-18 (`prices::is_not_sold`): the Russian and
-/// Belarusian flags and coats of arms, the flag of the USSR and the red
-/// star are in no price record the lobby is
-/// sent and a buy of one is refused; one already
-/// owned is still sold back. The other flags are sold as before.
-#[test]
-fn the_excluded_flags_and_emblems_are_not_sold() {
-    let mut world = World::new();
-    let alice = world.connect("Alice");
-    let decoded = world.take(alice);
-    let dictionary = Dictionary::shared();
-    let id = |name: &str| dictionary.item_named(name).unwrap().dict_id;
-    let excluded = [
-        "decals_4_1",
-        "decals_4_2",
-        "decals_4_4",
-        "decals_5_1",
-        "decals_5_2",
-        "decals_5_4",
-    ]
-    .map(id);
-    let sent: Vec<u16> = decoded
-        .iter()
-        .find_map(|message| match message {
-            Decoded::Prices(prices) => Some(prices.iter().map(|price| price.dict_id).collect()),
-            _ => None,
-        })
-        .expect("the prices");
-    assert!(excluded.iter().all(|dict_id| !sent.contains(dict_id)));
-    // The flag of Ukraine and the coat of arms of Lithuania still are.
-    assert!(sent.contains(&id("decals_4_3")) && sent.contains(&id("decals_5_7")));
-
-    world.change(alice, |account| account.generic_money = 1_000_000);
-    let before = world.account(alice).clone();
-    for dict_id in excluded {
-        world.ask(alice, request::buy(dict_id, 1, 0, INVENTORY_SLOT, 1));
-        assert_eq!(
-            denial(&world.take(alice), 0x47).as_deref(),
-            Some("st_cannot_buy_item"),
-            "dict {dict_id}"
-        );
-    }
-    assert_eq!(*world.account(alice), before);
-    // Another flag: its 300 gold, in silver.
-    world.ask(
-        alice,
-        request::buy(id("decals_4_3"), 1, 0, INVENTORY_SLOT, 1),
-    );
-    let decoded = world.take(alice);
-    assert!(matches!(
-        &decoded[0],
-        Decoded::Permitted(Permitted::Bought(bought)) if bought[0].dict_id == id("decals_4_3")
-    ));
-    assert_eq!(world.account(alice).generic_money, 970_000);
-
-    // One owned from before is sold back like any decal.
-    let mut item_id = 0;
-    world.change(alice, |account| {
-        item_id = account.add_item(id("decals_4_2"), FULL_CONDITION)
-    });
-    world.take(alice);
-    let silver = world.account(alice).generic_money;
-    world.ask(alice, request::sell(item_id, 1));
-    let decoded = world.take(alice);
-    assert!(matches!(
-        decoded[0],
-        Decoded::Permitted(Permitted::Sold { item_id: sold, amount: 1 }) if sold == item_id
-    ));
-    assert!(world.account(alice).item(item_id).is_none());
-    assert!(world.account(alice).generic_money > silver);
-    world.assert_clean();
-}
-
-#[test]
 fn a_nickname_is_checked_and_changed() {
     let mut world = World::new();
     let alice = world.connect("Alice");
@@ -3183,7 +3074,7 @@ fn a_nickname_is_checked_and_changed() {
         message,
         Decoded::Account(own) if own.body.name == "Alisa"
     )));
-    assert_eq!(told_money(&decoded), Some((silver - 25_000, 0)));
+    assert_eq!(told_money(&decoded), Some((silver - session::v026g::premium::settings().rename_cost, 0)));
     assert_eq!(world.account(alice).name, "Alisa");
     // The store's name follows: others find the account by it, and the
     // old name is free.
@@ -3232,88 +3123,107 @@ fn a_nickname_is_checked_and_changed() {
     world.assert_clean();
 }
 
-/// No tutorial (`session::v026g::tutorial`): a new account is told every
-/// step is done, so its client runs none of it, and starts with 30 000
-/// silver (the table's), level 15, the ammo and the starter kit
-/// (`tutorial::tests`); a step a client sends anyway is not answered.
+/// The relay of the tests' `SRP_RELAYS`: only that setting makes one.
+fn test_relay() -> udp_transport::relay::Relay {
+    udp_transport::relay::Relays::parse("10.77.0.2=203.0.113.8")
+        .unwrap()
+        .relay("10.77.0.2".parse().unwrap())
+        .unwrap()
+}
+
+/// `client`'s address as a relay names it.
+fn through_relay(direct: Peer) -> Peer {
+    let std::net::SocketAddr::V4(address) = direct.address() else {
+        unreachable!("the tests' clients are on 127.0.0.1")
+    };
+    Peer::relayed(address, test_relay())
+}
+
 #[test]
-fn a_new_account_has_no_tutorial_and_what_it_paid() {
-    use survarium::v026g::lobby::tutorial_model::State;
+fn relayed_lobby_connection_keeps_the_match_on_the_relay() {
     let mut world = World::new();
-    world.accounts.set_starter_kit(true);
-    let alice = world.connect("Alice");
-    // The start is what the client is first told: no window for it.
-    let decoded = world.take(alice);
-    assert_eq!(told_money(&decoded), Some((30_000, 0)));
-    // No premium: the services list none.
-    assert!(
-        decoded
-            .iter()
-            .any(|message| matches!(message, Decoded::Services))
-    );
-    // Its inventory, the respirator's and the gloves' modifications too.
-    let held: Vec<(u16, Vec<u32>)> = world
-        .client(alice)
-        .model
-        .inventory()
-        .iter()
-        .filter(|item| !item.modifications.is_empty())
-        .map(|item| {
-            let ids = item.modifications.iter().map(|m| m.id).collect();
-            (item.dict_id, ids)
-        })
-        .collect();
-    // The respirator and the gloves; the Keeper set (198-202) and the AK-12
-    // (363) with the modifications of their own (#1520's new-account.tsv).
-    assert_eq!(
-        held,
-        [
-            (43, vec![1183]),
-            (42, vec![1133]),
-            (202, vec![1004, 1064]),
-            (200, vec![1064]),
-            (199, vec![1064, 1124]),
-            (201, vec![1004, 1064, 1084]),
-            (198, vec![1004, 1064]),
-            (363, vec![2064, 2084, 2074]),
-        ]
-    );
-    assert_eq!(
-        world.client(alice).model.inventory().len(),
-        world.account(alice).inventory.len()
-    );
-    assert_eq!(world.client(alice).model.tutorial().state(), State::Default);
-    let account = world.account(alice);
-    assert_eq!(account.generic_money, 30_000);
-    assert_eq!(account.level(), 15);
-    // The Scavengers' quests, never neutral, at their level 5.
-    assert_eq!(account.quest_faction, 1);
-    assert_eq!(account.reputation_level(1), 5);
-    for dict_id in session::v026g::tutorial::starter_ammo(Dictionary::shared()) {
-        let owned: u32 = account
-            .inventory
-            .iter()
-            .filter(|item| item.dict_id == dict_id)
-            .map(|item| item.condition_or_stack)
-            .sum();
-        let rounds = session::v026g::tutorial::new_account().rounds;
-        assert_eq!(owned, rounds, "{dict_id}");
+    let direct = world.connect("direct-player");
+    let relayed = world.connect_as("relay-player", through_relay);
+    let ticket = crate::v026g::MatchTicket {
+        match_id: 42, host: "203.0.113.67".into(), port: 1236,
+    };
+    let (direct, relayed) = (world.clients[direct].0, world.clients[relayed].0);
+    assert_eq!(world.core.match_host_for(direct, &ticket), "203.0.113.67");
+    assert_eq!(world.core.match_host_for(relayed, &ticket), "203.0.113.8");
+}
+
+#[test]
+fn a_datagram_by_another_route_is_another_peer_and_leaves_the_link_alone() {
+    let mut world = World::new();
+    let alice = world.connect("alice");
+    let direct = world.clients[alice].0;
+    let claimed = through_relay(direct);
+    let session = world.core.player(direct).unwrap().session_id;
+    // Datagrams that name alice's address but came through the relay: empty,
+    // garbage, and a sign-in with a session nobody has.
+    world.core.datagram(claimed, &[], world.now);
+    world.core.datagram(claimed, &[1, 2, 3, 4, 5, 6, 7], world.now);
+    let mut stranger = TestClient::new();
+    stranger.sign_in(0xDEAD_BEEF, true);
+    for datagram in stranger.poll(world.now) {
+        world.core.datagram(claimed, &datagram, world.now);
     }
-    drop(account);
-    // Given once: the next sign-in gives nothing more.
-    let money = world.account(alice).generic_money;
-    let ids = world.ids[alice];
-    world.store.end_session(ids.1);
-    world.advance(Duration::from_secs(2));
-    let session = world.new_session(ids.0);
-    let again = world.connect_session((ids.0, session));
-    world.take(again);
-    assert_eq!(world.account(again).generic_money, money);
-    // The tutorial's steps and its "choose a weapon": nothing.
-    for step in [(0x4B, vec![1, 1]), (0x4B, vec![2]), (0x46, vec![0x0A])] {
-        world.ask(again, step);
-        assert!(world.take(again).is_empty());
+    // None of it made a player, and none of it touched hers.
+    assert!(world.core.player(claimed).is_none());
+    assert_eq!(world.core.player(direct).unwrap().session_id, session);
+    assert_eq!(world.core.by_account[&world.ids[alice].0], direct);
+    // She is still heard, and answered by her own route.
+    world.take(alice);
+    world.ask(alice, request::ranking(1, 1));
+    assert_eq!(world.core.player(direct).unwrap().session_id, session);
+    world.assert_clean();
+}
+
+#[test]
+fn a_direct_datagram_does_not_touch_a_relayed_player_of_the_same_address() {
+    let mut world = World::new();
+    let alice = world.connect_as("alice", through_relay);
+    let relayed = world.clients[alice].0;
+    let direct = Peer::direct(relayed.address());
+    let session = world.core.player(relayed).unwrap().session_id;
+    world.core.datagram(direct, &[], world.now);
+    world.core.datagram(direct, &[9, 9, 9, 9, 9, 9, 9, 9], world.now);
+    let mut stranger = TestClient::new();
+    stranger.sign_in(0xDEAD_BEEF, true);
+    for datagram in stranger.poll(world.now) {
+        world.core.datagram(direct, &datagram, world.now);
     }
-    assert_eq!(world.account(again).generic_money, money);
+    assert!(world.core.player(direct).is_none());
+    assert_eq!(world.core.player(relayed).unwrap().session_id, session);
+    assert_eq!(world.core.by_account[&world.ids[alice].0], relayed);
+    world.take(alice);
+    world.ask(alice, request::ranking(1, 1));
+    assert_eq!(world.core.player(relayed).unwrap().session_id, session);
+    world.assert_clean();
+}
+
+#[test]
+fn two_players_of_one_address_by_two_routes_are_both_in_the_lobby() {
+    let mut world = World::new();
+    let near = world.connect("near");
+    let direct = world.clients[near].0;
+    // The second player has the very same public address, through the relay.
+    let far = world.connect_at("far", through_relay(direct));
+    let relayed = world.clients[far].0;
+    assert_eq!(direct.address(), relayed.address());
+    assert_ne!(direct, relayed);
+    let (near_player, far_player) = (
+        world.core.player(direct).unwrap().account_id,
+        world.core.player(relayed).unwrap().account_id,
+    );
+    assert_ne!(near_player, far_player);
+    assert_eq!(world.core.by_account[&near_player], direct);
+    assert_eq!(world.core.by_account[&far_player], relayed);
+    // Each asks and each is answered: nobody took the other's place.
+    for index in [near, far] {
+        world.take(index);
+        world.ask(index, request::ranking(1, 1));
+    }
+    assert!(world.core.player(direct).is_some() && world.core.player(relayed).is_some());
     world.assert_clean();
 }

@@ -132,9 +132,10 @@ one.
 | `updater_skhid.exe check quiet` | a script | No box either. Exit code 0: done or nothing to do; 1: failed (the reason is in the log) |
 | `updater_skhid.exe check ... torrent` / `direct` | `Skhid-get.bat` (`check torrent`), the tests (`direct`) | `check` takes torrent as the word says, else as the launcher keeps its "Allow torrent": user.cfg's `enable_torrent_seeding on` (`<Documents>\survarium\user.cfg`, as the language), taken only once the launcher's one-time reset is done (`launcher_skhid.torrent_reset` beside user.cfg, launcher patch 15); else off |
 | `updater_skhid.exe ready` (`quiet`: no box) | `play_skhid.bat`, `play_skhid.sh` before they start the game | Reads only: no lock, no server, nothing written but the log. Exit code 1 (and a box that says to start the launcher) when the last patch step did not end `ready` (a new overlay since, too), or the patch files are not now what its list says (one missing, damaged, or one more; looked at with the quick check); else 0 |
+| `updater_skhid.exe play [<game options>]` (`quiet`: no box; `wait`: stays until the game ends, exit code 1 when it ended with an error) | the launcher's PLAY and the play scripts (`wait quiet`), in a download with `updater_skhid.relay` | Starts the game on the player's route ("The route" below): the relay, unprobed; direct, probed; Automatic: the server itself when it answers, else the relay (`srp-026g/deploy/relay/README.md`). A route that does not answer is told apart in a box with Retry (no internet, the server offline, the relay down); blocked here while the relay answers, the launcher's row turns to auto and Retry goes through the relay (`quiet`: at once); a server that restarts is probed every 5 s while its box counts the seconds, and the game starts by itself once it answers. With `-server=` or `-match_replay=` among the options, or no `updater_skhid.relay`, the game is started as given. Exit code 1 when the route does not answer or the patches are not ready |
 | `updater_skhid.exe replay <id> <token> <sha256> <size>` | the patched game (patch revision 14) | "Watch replay": fetches one replay and starts a second game that plays it (below). A problem is a message box |
 | `updater_skhid.exe replay <id> <token> <sha256> <size> quiet` | the tests | The same with no window at all: the problem is in the log and the exit code (1) |
-| `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: on its login screen and in its lobby | Shares the folder's revision torrent until the game closes its pipe (a match, the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `updater_skhid.seed-logs\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
+| `"<exe>" seed \\.\pipe\skhid_seed-<pid>` | the patched game, started by the launcher with "Allow torrent" on: from its login screen on, matches too | Shares the folder's revision torrent until the game closes its pipe (the game's end); answers the game's stats switch. No window, no box, no lock, nothing fetched or installed; its own run logs, in `updater_skhid.seed-logs\` ("BitTorrent" below). Anything after `seed` but the game's pipe: exit code 1 |
 
 Exit codes: 0, 1 (failed), 2 (the launcher's pipe could not be opened), 3
 (an internal error; logged).
@@ -265,6 +266,56 @@ place, read it (225 again). The updater took a file it could not read for
 one that was the same, said "up to date" and turned PLAY on, and the
 launcher crashed at PLAY a minute later.
 
+## The route
+
+In a download with a relay (`updater_skhid.relay`), the player's route is
+one of three (`logic/src/route.rs`, `exe/src/route.rs`, the one owner):
+
+- **Automatic**: PLAY probes the server's own login and lobby/match ports
+  and starts the game there when they answer, else through the relay; the
+  updater's HTTPS asks the site directly, then through the relay's CONNECT
+  service (the way that answered last first).
+- **Relay**: PLAY starts the game through the relay, unprobed; HTTPS goes
+  through the relay only.
+- **Direct**: never the relay. PLAY probes (a direct route that does not
+  answer is told why).
+
+Found blocked (the direct route does not answer, the relay does:
+"Blocked on this network"), the choice moves to Automatic by itself,
+saved: the launcher's row reads "Relay: auto (on)" from then on, as the
+message says, and the player's to change.
+
+It is kept in `<Documents>\survarium\launcher_skhid.route` (one word:
+`automatic`, `relay`, `direct`; the Windows user's, as user.cfg). Before
+the player has chosen, the updater decides once by the Windows region
+(`GetUserGeoID(GEOCLASS_NATION)`, not the language: Russian speakers
+elsewhere are not blocked): Russia (203) Automatic, any other Direct, and
+saves it at once, so that from then on it is the player's. Under Wine the
+region is the prefix's (`HKCU\Control Panel\International\Geo`), the United
+States unless set: Direct.
+
+The launcher shows it in its "Relay" row (launcher patch 16): "Relay: auto",
+"on" or "off", and in auto what the probe picked, "auto (on)" or "auto
+(off)"; three states in words, not a tick box, which has two. The updater
+sends `0A <view>` at its start (Automatic: "probing", then what the probe
+found, in a thread of its own); a click on the row's gear opens a menu of
+the three, and on its pick (`22`, `23`, `24`: auto, on, off) the updater
+saves the choice, says the new view and runs the update again by it. One
+function, `route::Shown::on`, takes what the row shows and what happened (a
+pick, a probe's end, a block found) to what it shows next, the choice to
+save and whether to probe.
+
+A request through the relay is one of a WinHTTP session opened with the
+relay's CONNECT service as its proxy (`WINHTTP_ACCESS_TYPE_NAMED_PROXY`),
+not a request with the proxy as its option (`WINHTTP_OPTION_PROXY`): Wine 11
+takes that option and ignores it, so under Wine every such request went
+directly (seen 2026-11-20: with the relay chosen and the direct way closed,
+no CONNECT reached the relay). Through a proxy Wine also asks with the whole
+address in the request line (`GET https://skhid.link:443/api/...`), inside
+the tunnel too; Caddy takes it and asks srp for the path alone
+(`tools/check relay-site`).
+Without `updater_skhid.relay` nothing is sent and the box stays hidden.
+
 ## The player's boxes
 
 The problems players meet most each have a box of the updater's own
@@ -280,20 +331,54 @@ caption is `Skhid: <the fixed words>` in English always.
 |---|---|---|
 | `Game files removed by antivirus: <file>` | Windows Security's 225/226 on a Skhid file; a file just written that is gone or denied when read back, or gone once in place; a program file gone at the start (put back, OK box) | `Skhid-defender-setup.cmd` (or exclude the folder named); for a patch of resources.db, in `game`, which the script does not exclude: Windows Security > Protection history > Allow on device, and that folder as an exclusion |
 | `Download failed: <file>, <damaged / cut short / too slow / a web page instead of the file / refused (HTTP n) / no secure connection / not usable>[ at every address]` | every address of a patch, of the game's archive (`survarium-026g.7z`) or of the Skhid files (`<host>/download`) failed, one of them with an answer (the first that answered says how). An address that broke off while its file came answered: cut short, never "no connection". No secure connection (TLS, a certificate: also the update server, as `<host>`) | `Skhid.bat` again; for no secure connection, this PC's date, time and time zone, and no program intercepting HTTPS |
-| `No connection: <host> did not answer (<how>)`, `No connection: no address of <file> answered (<how>)` | nothing answered before its answer's headers (WinHTTP's 12007 name not found, 12029 connection refused, 12002 timed out, 12030 connection cut off: `logic/src/network.rs`), and neither did Windows' own test site | `Skhid-network-setup.cmd` |
-| `Blocked on this network: <host> did not answer (<how>)`, `... no address of <file> answered (<how>)` | the same, but Windows' own test site answered | a VPN with the game's three programs in its split tunnelling, or none (`VPN.txt`) |
+| `No internet connection: ...`, `The server is offline: ...`, `The server is restarting: ...`, `Blocked on this network: ...`, `The relay does not answer: ...`, `No connection: ...`, each `<host> did not answer (<how>)` or `no address of <file> answered (<how>)` (or `<host>: the game server does not answer` for a 502, 503 or 504 of the site's proxy) | nothing answered before its answer's headers (WinHTTP's 12007 name not found, 12029 connection refused, 12002 timed out, 12030 connection cut off: `logic/src/network.rs`), or the site said the game server behind it is down; then told apart by what answers now (`logic/src/diagnosis.rs`, below) | what helps, and only that: nothing to run for no internet, a server offline or restarting; the launcher's "Relay" row for blocked here or the relay down; `Skhid-network-setup.cmd` for no connection |
 
-No connection or blocked: after nothing answered, and only then, the updater
-asks `http://www.msftconnecttest.com/connecttest.txt` once (5 s at most each
-step), the address Windows' network icon asks: any answer is a PC that is
-online, so this network (the provider, or a VPN in use) blocks ours. A
-server that is down for everyone looks the same from here as one that is
-blocked.
+Nothing answered: the updater asks the server's site (`/api/stats`, 5 s at
+most each step) directly and, with a relay, through it (its CONNECT service),
+and, only when neither answers, whether this PC is online: not when
+Windows says it is not (Network List Manager's `GetConnectivity`, the
+network icon's own test), nor when the site's name is not found by DNS;
+where Windows cannot say, as Wine may not, the name alone tells. One
+function, `diagnosis::diagnose`, takes the player's route (the one the
+update went by; direct without a relay) and what answered each way. With
+Automatic either way does, so a relay that answers now is no failure (the
+update is tried again) and the row is never told to change:
+
+| Directly | Through the relay | Told |
+|---|---|---|
+| the site, its proxy saying the game server is down (502, 503, 504) | anything | The server is restarting: back in a minute. Waited for, below |
+| nothing | the site | Blocked on this network: "Relay" is now on auto (the row turns itself, "The route"); Retry goes through the relay |
+| nothing | nothing; PC online | The server is offline: try again later |
+| nothing | nothing (or no relay); PC offline | No internet connection: check your network |
+| nothing | no relay; PC online | No connection: a firewall may block the game (`Skhid-network-setup.cmd`) |
+| the site (the relay was the route) | nothing | The relay does not answer: set "Relay" to auto or off |
+
+PLAY's probe (the game's login and lobby/match ports) goes through the same
+function, a site that answers but game ports that do not counting as "the
+site only": blocked when the relay's ports answer, else no connection.
+
+A server that restarts (a release stops it for a minute; its site's proxy
+answers 502 meanwhile) is waited for, and the wait is the player's to end:
+
+- the launcher's updater: no box. "Server maintenance..." (PLAY off), and
+  the launcher's line reads "The server is restarting. Next try in 5 s.",
+  counting (message `13 <seconds>` each second, launcher patch 16; `13 00`
+  ends the count). Every 5 s the site is asked (`/api/stats`); once it
+  answers the update runs again and PLAY comes on. Closing the launcher
+  ends it.
+- PLAY, and the updater by hand: the box, with Retry and Cancel, and a last
+  line "Next try in 5 s." that counts. Every 5 s the route is probed (by
+  hand: the site asked), and once it answers the box presses its own Retry:
+  the game starts (the update runs). Cancel ends it. `quiet`: no wait,
+  exit code 1.
+
+Nothing says when the server will be back: the site's proxy answers a bare
+502, and the server's own announcement (the admin page's maintenance) is
+the minutes until it stops, shown in the game.
 
 ```text
 Blocked on this network: skhid.link did not answer (timed out)
-Other sites answer: this network blocks it (the internet provider, or the VPN in use).
-Use a VPN with launcher_skhid.exe, survarium_skhid.exe and updater_skhid.exe in its split tunnelling, or turn the VPN off (see VPN.txt). Then try again.
+Your provider blocks the server, but the relay answers: "Relay" is now on auto (at the launcher's bottom left). Try again.
 Log: E:\Survarium_SkhidSRP_0_26\game\logs\updater_skhid.2026-11-15_14-03-07.log
 ```
 
@@ -302,17 +387,20 @@ update check, after the usual tries, with Retry and Cancel, as a stop
 above. Retry runs the update again from the start; Cancel ends the run as
 it came out (an error with PLAY off, or PLAY with what is installed), and
 the launcher is not told the English words again: the log has them ("No
-update check: skhid.link didn't answer. A firewall or this network may
-block it: see Skhid-network-setup.cmd and VPN.txt. ...", and "every address
-failed: ..." with the probe's answer). `check quiet` shows no box and asks
-no other site.
+update check: skhid.link didn't answer. It may be restarting or offline, or
+a firewall or this network may block it. ...", "every address failed: ...",
+what answered each way and the diagnosis). `check quiet` shows no box and
+asks nothing more.
 
 **Why.** On 2026-10-25 players whose provider blocks the server saw
 "skhid.link did not answer in time. Check the internet connection and try
 again.", in English under a Russian launcher, and found the way out (the
 three programs in their VPN's split tunnelling) on Discord. On 2026-11-02
 the owner asked for a box per problem of the site's list, clear enough for
-a player to match.
+a player to match. On 2026-11-20 the owner: the VPN advice was given while
+the server was down, the right only sometimes; the boxes now tell the
+server down, restarting, no internet and a block apart, and a block's way out
+is the relay.
 
 ## Watch replay
 
@@ -561,7 +649,7 @@ and in `seed`.
 **Sharing from the game** (`exe/src/seed.rs`, `logic/src/seed.rs`; the spec's
 "Sharing from the game"): the patched game, while its own
 `enable_torrent_seeding` ("Allow torrent", user.cfg's line) is on, makes the pipe
-`\\.\pipe\skhid_seed-<its process id>` on its login screen and in its lobby
+`\\.\pipe\skhid_seed-<its process id>` on its login screen (kept through the lobby and matches)
 and starts `updater_skhid.exe seed <that pipe>` beside itself, with no
 window. The updater opens the pipe and reads "Allow torrent" as the
 launcher's updater does (`win::launcher_torrent_allowed`: user.cfg's line
@@ -571,8 +659,7 @@ still has the original game's default `on`). Then it shares the folder's
 torrent as the launcher's updater does while it watches (`torrent::share_while`, its one
 call into the engine: the trusted torrent's files the folder has, the
 bootstrap's, the DHT item; nothing fetched), on the port the updaters keep
-(`game\torrent\port`; a free one, then kept, when none is), and ends when the pipe closes: the game entering a match,
-or ending. It takes no lock and shows no box; its run logs go in `game\logs\seed\` (a seed runs at every lobby: beside the others it would push them out). A port that
+(`game\torrent\port`; a free one, then kept, when none is), and ends when the pipe closes: the game ending, or the setting turned off. It takes no lock and shows no box; its run logs go in `game\logs\seed\` (a seed runs at every game start: beside the others it would push them out). A port that
 is held (another updater shares on it, or is closing) is tried for 10 s,
 then the run ends, logged. On the pipe (the launcher's framing) the game
 says its upload limit (`1E`: ignored, the cap holds) and its stats switch

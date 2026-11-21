@@ -17,6 +17,10 @@ elevation grid for every map.
 | level_08 | Cologne | 0.1198 | 103-106, 109, 110, 138-140 |
 | v021d_level_03 | Vostok Radar Station (v0.21) | 0.1302 | 166, 152 (ported, live since revision 20) |
 | v021d_level_06 | Mamayev Kurgan (v0.21) | 0.1302 | 175, 153 (ported, live since revision 20) |
+| v021d_level_01 | Rudnya (v0.21) | 0.1693 | 260, 261 (ported, pack maps-021d-rudnya@4) |
+| v021d_level_02 | School (v0.21) | 0.1432 | 174, 176 (ported, pack maps-021d-school-fort@4) |
+| v021d_level_05 | Tarakanovsky Fort (v0.21) | 0.1172 | 177, 178 (ported, pack maps-021d-school-fort@4) |
+| v021d_level_04 | Chemical Plant (v0.21) | 0.1497 | 266, 267 (ported, pack maps-021d-chemical@1) |
 | level_09 | London | 0.1823 | 181-183 (skhid patch 14) |
 | v011e_level_03 | Vostok Radar Station (v0.11) | 0.1302 | 208, 209 (ported, patch 22) |
 | v011e_level_04 | Chemical Plant (v0.11) | 0.1823 | 206, 207 (ported, patch 22) |
@@ -76,6 +80,14 @@ click position back to the 1536 px image first.
   layout. Their geometry comes from the content pack
   `/mnt/hdd/Projects/release-20/packs/maps-021d-7/files`, with the 0.26g db
   supplying the rest.
+- School and Tarakanovsky Fort v0.21 (pack maps-021d-school-fort@4) use project_name `level_02` /
+  `level_05`: native School's and the Fort's HUD frames and bitmaps, their renders in the same frames.
+  School's bitmap and frame are 0.21d's byte for byte. The Fort's bitmap was redrawn for 0.26 with its
+  frame (posX -10 in 0.21d's hud.swf, -1.096 in 0.26g's); under their own frames both bitmaps show the
+  same world (best correlation at a 0 m shift), and the importer places the 0.21d Fort exactly where
+  0.26's is (layout offset 0), so the native frame fits the port. align_check: the native bitmap on the
+  port's render fits at 0.5 m (0.21d's bitmap in the native frame at the search's -8 m edge, its own
+  frame's -8.9 m).
 - The STALKER ports played in Free for All (pack stalker-maps@6, patch 57) have
   their own minimaps and frames in hud.swf, by project_name (`cs_mp_bath`,
   `cs_mp_military_1`, `cs_training_camp`). They have no day_2: their renders are
@@ -147,6 +159,14 @@ Always use `python3 -I`.
     for l in 01 02 03 04 05 06 07 08; do python3 -I extract_level.py $DBGRAB $DB level_$l/day_2 $W/lv/level_$l; done
     PACK=/mnt/hdd/Projects/release-20/packs/maps-021d-7/files
     for l in 03 06; do python3 -I extract_level.py $DBGRAB $DB v021d_level_$l/day_2 $W/lv/v021d_level_$l $PACK; done
+    # Rudnya v0.21: the composed content patch includes its School/Fort dependency and the live shared files.
+    # Native Rudnya's frame (project_name level_01; layout offset 0). $CONTENT_PATCH comes from release/build-content.
+    python3 -I extract_level.py $DBGRAB $DB v021d_level_01/day_2 $W/lv/v021d_level_01 $ALL --patch "$CONTENT_PATCH"
+    # School and Tarakanovsky Fort v0.21 (pack maps-021d-school-fort@4): the pack, and the live patches for the
+    # ported/v021d files it shares with patch 20
+    for l in 02 05; do python3 -I extract_level.py $DBGRAB $DB v021d_level_$l/day_2 $W/lv/v021d_level_$l <packs>/maps-021d-school-fort-4/files $ALL; done
+    # Chemical Plant v0.21 (pack maps-021d-chemical@1) the same way: native Chemical Plant's frame (project_name level_04)
+    python3 -I extract_level.py $DBGRAB $DB v021d_level_04/day_2 $W/lv/v021d_level_04 <packs>/maps-021d-chemical-1/files $ALL
     # the maps a released patch added (London: patch 14; the 0.11e ports: patch 22) are read with the
     # released patches mounted over the db, as the game does (the highest patch with a file wins)
     PATCHES=$(for n in 12 14 17 19 20 21 22; do printf ' --patch %s' <patches>/resources.db.patch_$n; done)

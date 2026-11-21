@@ -12,7 +12,7 @@ import check_blackout_026g as blackout
 import check_hide_ui_026g as hide
 import check_kit_change_026g as kits
 
-FREEZE = blackout.empty_options(blackout.srpx((4, b"\x01")))
+FREEZE = blackout.empty_options(blackout.srpx((6, b"\x01")))
 PLAIN = blackout.empty_options(b"")
 LENGTH = 67
 STATS = ffa.DATA + 0x60000

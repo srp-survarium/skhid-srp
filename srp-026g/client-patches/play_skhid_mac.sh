@@ -295,6 +295,13 @@ Details: the newest game/logs/updater_skhid.<date>.log"
     echo "Starting Survarium. Log: $log"
     args=(-minimum_resources_memory_size=768)
     [[ -z "$server" ]] || args+=("-server=$server")
+    if [[ -f updater_skhid.relay ]]; then
+        # `wait`: the updater stays until the game ends, with its exit status.
+        "$WINE" updater_skhid.exe play wait quiet "${args[@]}" >>"$log" 2>&1 \
+            || die "Cannot reach the game server, or the game exited with an error.
+See $log and the newest game/logs/updater_skhid.<date>.log"
+        return
+    fi
     "$WINE" "$exe" "${args[@]}" >>"$log" 2>&1 || die "Game exited with an error. See $log"
 }
 

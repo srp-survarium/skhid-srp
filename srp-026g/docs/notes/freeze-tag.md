@@ -29,7 +29,7 @@ The first authored map is Rudnya day, using its existing TDM project and
 team spawns. `freeze-tag-1.json` makes its config and fills unused map-dictionary
 slot 114. Mode 12 is separate from FFA variations 9–11. Native rules are
 93, 91, 94: time, respawn, and kill counters; no TDM ticket rule. The options
-carry `SRPX`, tag 4, length 1, version 1. Both client and server understand it.
+carry `SRPX`, tag 6 (4 is the wide map id, 5 the faces), length 1, version 1. Both client and server understand it.
 
 ## State and native lifecycle
 

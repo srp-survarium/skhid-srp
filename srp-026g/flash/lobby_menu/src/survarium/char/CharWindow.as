@@ -335,7 +335,7 @@ package survarium.char
       // Where branchPoints fall on the progress indicator, whose rows are POINTS_PER_LEVEL apart:
       // a row's mark is reached at the branch points the tree gives that row, and between two rows
       // the bar moves evenly (stock rows ask 0/5/10/15/20, drawn as the points themselves; the
-      // medical tree's 0/3/10/15/20 mark its second row at 3)
+      // medical tree's 0/3/7/12/17 mark its rows at those points)
       private function indicatorPoints(branchPoints:uint) : Number
       {
          var thresholds:Array = [];
@@ -381,7 +381,7 @@ package survarium.char
          var value:uint = 0;
          var points:uint = 0;
          var lastUnlocked:Boolean = false;
-         // the branch points of the branch's last tier: 20 in the stock, medical and artefact trees
+         // the branch points of the branch's last tier: 20 in the stock and artefact trees, 17 in the medical
          // (medical-skills.md, artefact-skills.md); the bar fills when it is taken
          var lastTier:uint = 0;
          for each(var tierData:Object in _currentSkills)

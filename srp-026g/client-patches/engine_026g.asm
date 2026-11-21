@@ -90,6 +90,10 @@ global engine_visual_insert
 global engine_visual_remove
 global engine_light_insert
 global engine_light_remove
+global engine_ambient_light_insert
+global engine_ambient_light_remove
+global engine_particle_insert
+global engine_particle_remove
 global engine_inventory_remove
 global engine_inventory_take_artefact
 global engine_quick_inventory_slot
@@ -270,6 +274,7 @@ global engine_get_clipboard_data
 global engine_close_clipboard
 global engine_global_lock
 global engine_global_unlock
+global engine_set_texture
 global engine_freeze_reset_health
 global engine_switch_to_warmup_camera
 global engine_switch_to_player_camera
@@ -299,6 +304,10 @@ engine_visual_insert equ 0x285fa0   ; 0x285fa0 survarium::render_visual::insert:
 engine_visual_remove equ 0x285fe0   ; 0x285fe0 survarium::render_visual::remove: visual ECX, scene ESP+4; pops 4; thiscall, called directly
 engine_light_insert equ 0x291790   ; 0x291790 survarium::object_light::insert: light ECX; pops 0; thiscall, called directly
 engine_light_remove equ 0x2917d0   ; 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
+engine_ambient_light_insert equ 0x290930   ; 0x290930 survarium::object_ambient_light::insert: light ECX; pops 0; thiscall, called directly
+engine_ambient_light_remove equ 0x290ae0   ; 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly
+engine_particle_insert equ 0x292cc0   ; 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly
+engine_particle_remove equ 0x292dc0   ; 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
 engine_read_file equ 0x870064   ; the IAT slot 0x870064 (an import, stdcall)
 engine_play_voice equ 0x5aba0   ; 0x5aba0 vostok::sound::sound_instance_proxy_internal::play: proxy ECX, mode ESP+4, producer ESP+8, receiver ESP+12; pops 12; thiscall, called directly
 engine_free_voice equ 0x5b390   ; 0x5b390 vostok::sound::sound_instance_proxy_internal::free_object: proxy ECX; pops 0; thiscall, called directly
@@ -378,6 +387,7 @@ engine_get_clipboard_data equ 0xaefed8   ; the IAT slot 0xaefed8 (an import, std
 engine_close_clipboard equ 0xaefed4   ; the IAT slot 0xaefed4 (an import, stdcall)
 engine_global_lock equ 0x870078   ; the IAT slot 0x870078 (an import, stdcall)
 engine_global_unlock equ 0x87007c   ; the IAT slot 0x87007c (an import, stdcall)
+engine_set_texture equ 0x3d98b0   ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX
@@ -1309,7 +1319,7 @@ engine_effects_stop:
 
     align 16, db 0xCC
 engine_effect_play:
-    ; 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
+    ; 0x2de090 survarium::game_effect_player::add: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
     push ebp
     push ebx
     push esi

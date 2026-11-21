@@ -2,6 +2,7 @@
 //! room it made by hand ([`crate::v026g::room_settings`]).
 
 use rusqlite::{Connection, OptionalExtension, params};
+use survarium::v026g::lobby::rooms::PIN_MAX;
 
 use super::bad_row;
 use crate::persist::PersistError;
@@ -23,6 +24,19 @@ pub(super) const MIGRATION: &str = "
         modes_off  TEXT NOT NULL
     );
     ";
+
+/// The schema step that adds the room's PIN (NULL: none, as every row of
+/// before has).
+pub(super) const PIN_MIGRATION: &str = "
+    ALTER TABLE g26_room_settings ADD COLUMN pin INTEGER;
+    ";
+
+fn parse_pin(account_id: u32, pin: Option<u16>) -> Result<Option<u16>, PersistError> {
+    match pin {
+        Some(pin) if pin > PIN_MAX => Err(bad_row(account_id, "room PIN", &pin.to_string())),
+        pin => Ok(pin),
+    }
+}
 
 fn tiles_text(tiles: &[Tile]) -> String {
     tiles
@@ -70,7 +84,7 @@ pub(super) fn load(
     account_id: u32,
 ) -> Result<Option<RoomSettings>, PersistError> {
     let mut statement = connection.prepare_cached(
-        "SELECT size, min_side, max_level, wait, tiles_off, tiles_on, modes_off
+        "SELECT size, min_side, max_level, wait, tiles_off, tiles_on, modes_off, pin
          FROM g26_room_settings WHERE account_id = ?1",
     )?;
     let row = statement
@@ -83,10 +97,11 @@ pub(super) fn load(
                 row.get::<_, String>(4)?,
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
+                row.get::<_, Option<u16>>(7)?,
             ))
         })
         .optional()?;
-    let Some((size, min_side, max_level, wait, tiles_off, tiles_on, modes_off)) = row else {
+    let Some((size, min_side, max_level, wait, tiles_off, tiles_on, modes_off, pin)) = row else {
         return Ok(None);
     };
     Ok(Some(RoomSettings {
@@ -97,6 +112,7 @@ pub(super) fn load(
         tiles_off: parse_tiles(account_id, &tiles_off)?,
         tiles_on: parse_tiles(account_id, &tiles_on)?,
         modes_off: parse_modes(account_id, &modes_off)?,
+        pin: parse_pin(account_id, pin)?,
     }))
 }
 
@@ -115,13 +131,13 @@ pub(super) fn save(
     };
     connection.execute(
         "INSERT INTO g26_room_settings
-            (account_id, size, min_side, max_level, wait, tiles_off, tiles_on, modes_off)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            (account_id, size, min_side, max_level, wait, tiles_off, tiles_on, modes_off, pin)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
          ON CONFLICT(account_id) DO UPDATE SET
             size = excluded.size, min_side = excluded.min_side,
             max_level = excluded.max_level, wait = excluded.wait,
             tiles_off = excluded.tiles_off, tiles_on = excluded.tiles_on,
-            modes_off = excluded.modes_off",
+            modes_off = excluded.modes_off, pin = excluded.pin",
         params![
             account_id,
             settings.size,
@@ -131,6 +147,7 @@ pub(super) fn save(
             tiles_text(&settings.tiles_off),
             tiles_text(&settings.tiles_on),
             modes_text(&settings.modes_off),
+            settings.pin,
         ],
     )?;
     Ok(())
@@ -165,6 +182,7 @@ mod tests {
             tiles_off: vec![(1, 1), (6, 5)],
             tiles_on: Vec::new(),
             modes_off: vec![2, 3],
+            pin: Some(1234),
         }
     }
 
@@ -189,6 +207,8 @@ mod tests {
             tiles_off: Vec::new(),
             tiles_on: vec![(13, 1)],
             modes_off: Vec::new(),
+            // A room without a PIN: none kept.
+            pin: None,
             ..settings()
         };
         kept.room_settings = Some(next.clone());
@@ -204,42 +224,40 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// The tables as the steps before `step` left them, with an account (5).
+    fn tables_before(path: &std::path::Path, step: &str) -> Connection {
+        let connection = Connection::open(path).unwrap();
+        connection
+            .execute_batch("CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);")
+            .unwrap();
+        let before = MIGRATIONS.iter().position(|each| *each == step).unwrap();
+        for step in &MIGRATIONS[..before] {
+            connection.execute_batch(step).unwrap();
+        }
+        connection
+            .execute(
+                "INSERT INTO g26_meta (key, value) VALUES ('schema', ?1)",
+                [before as i64],
+            )
+            .unwrap();
+        connection
+            .execute_batch(
+                "INSERT INTO g26_accounts (
+                    account_id, name, clan_tag, generic_money, premium_money,
+                    premium_until, exp_total, quest_faction, rating, rating_before,
+                    active_kit, autobuy, next_item_id, next_quest_instance,
+                    tutorial_step, tutorial_done
+                 ) VALUES (5, 'Carol', '', 4321, 5, 0, 900, 2, 118, 100, 1, 0, 3, 1, 0, 1);",
+            )
+            .unwrap();
+        connection
+    }
+
     #[test]
     fn the_accounts_of_before_the_step_have_none() {
         let dir = temp_dir("upgrade");
         let path = dir.join(DB_FILE);
-        {
-            // The tables as the step before left them, with an account.
-            let connection = Connection::open(&path).unwrap();
-            connection
-                .execute_batch(
-                    "CREATE TABLE g26_meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);",
-                )
-                .unwrap();
-            let before = MIGRATIONS
-                .iter()
-                .position(|step| *step == MIGRATION)
-                .unwrap();
-            for step in &MIGRATIONS[..before] {
-                connection.execute_batch(step).unwrap();
-            }
-            connection
-                .execute(
-                    "INSERT INTO g26_meta (key, value) VALUES ('schema', ?1)",
-                    [before as i64],
-                )
-                .unwrap();
-            connection
-                .execute_batch(
-                    "INSERT INTO g26_accounts (
-                        account_id, name, clan_tag, generic_money, premium_money,
-                        premium_until, exp_total, quest_faction, rating, rating_before,
-                        active_kit, autobuy, next_item_id, next_quest_instance,
-                        tutorial_step, tutorial_done
-                     ) VALUES (5, 'Carol', '', 4321, 5, 0, 900, 2, 118, 100, 1, 0, 3, 1, 0, 1);",
-                )
-                .unwrap();
-        }
+        drop(tables_before(&path, MIGRATION));
         let mut repository = SqliteGameRepository::open(&path).unwrap();
         assert_eq!(repository.version().unwrap(), MIGRATIONS.len() as i64);
         let (id, mut account) = repository.load_all().unwrap().into_iter().next().unwrap();
@@ -258,6 +276,36 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Settings kept before the PIN was: they come back without one (the
+    /// window's field empty), and the next room's PIN is kept.
+    #[test]
+    fn the_settings_of_before_the_pin_step_have_no_pin() {
+        let dir = temp_dir("pin-upgrade");
+        let path = dir.join(DB_FILE);
+        tables_before(&path, PIN_MIGRATION)
+            .execute_batch(
+                "INSERT INTO g26_room_settings
+                    (account_id, size, min_side, max_level, wait, tiles_off, tiles_on, modes_off)
+                 VALUES (5, 10, 3, 12, 60, '1:1,6:5', '', '2,3');",
+            )
+            .unwrap();
+        let mut repository = SqliteGameRepository::open(&path).unwrap();
+        let (id, mut account) = repository.load_all().unwrap().into_iter().next().unwrap();
+        let before = RoomSettings {
+            pin: None,
+            ..settings()
+        };
+        assert_eq!(account.room_settings.as_ref(), Some(&before));
+        account.room_settings = Some(settings());
+        repository.save(id, &account).unwrap();
+        assert_eq!(
+            repository.load_all().unwrap()[0].1.room_settings,
+            Some(settings())
+        );
+        drop(repository);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn a_broken_row_is_said_not_taken() {
         assert!(parse_tiles(1, "1:2,x").is_err());
@@ -265,5 +313,8 @@ mod tests {
         assert!(parse_modes(1, "2,300").is_err());
         assert_eq!(parse_tiles(1, "").unwrap(), []);
         assert_eq!(parse_tiles(1, "3:5,10:1").unwrap(), [(3, 5), (10, 1)]);
+        assert!(parse_pin(1, Some(10_000)).is_err());
+        assert_eq!(parse_pin(1, Some(0)).unwrap(), Some(0));
+        assert_eq!(parse_pin(1, None).unwrap(), None);
     }
 }

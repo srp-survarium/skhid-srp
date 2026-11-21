@@ -16,6 +16,7 @@ fn context(places: usize, game_mode: u8, batteries: usize) -> Context<'static> {
         artefacts: None,
         objects: None,
         inventory: None,
+        dict_ids: None,
     }
 }
 
@@ -48,6 +49,7 @@ fn current_statistics_include_battery_progress_and_sparse_held_steps() {
                     batteries
                 ],
                 tail: native::StatisticsTail::default(),
+                weapons: None,
             };
             let bytes = stats.encode();
             assert_eq!(

@@ -2,6 +2,7 @@
 #![forbid(unsafe_code)]
 use crate::vostok::{self, Context, Flow, GameCell, NoExit, OptionsRead};
 use crate::vostok::{FreezeTagOnInputExit, FreezeTagOnPlayerTickExit};
+use crate::vostok::parse::Reader;
 use srp_validate::Place;
 use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd};
 
@@ -16,12 +17,26 @@ static CAMERA: GameCell<vostok::freeze::Camera> = GameCell::new(vostok::freeze::
 // this mode. Ordinary matches that never displayed them make no extra calls.
 static MARKERS: GameCell<Option<usize>> = GameCell::new(None);
 
+/// srp's block after the options names a Freeze Tag match: tag 6, one byte 1,
+/// among its other entries (an entry of another tag is stepped over, a cut one
+/// ends the block).
+fn freeze_tag_in(mut rest: Reader<'_>) -> bool {
+    if rest.array::<4>() != Some(*b"SRPX") {
+        return false;
+    }
+    let mut on = false;
+    while let (Some(tag), Some(len)) = (rest.u8(), rest.u8()) {
+        let Some(entry) = rest.take(usize::from(len)) else { break };
+        on |= tag == TAG_FREEZE_TAG && entry == [1];
+    }
+    on
+}
+/// The Freeze Tag entry's tag (static_info.rs `SRPX_FREEZE_TAG`).
+const TAG_FREEZE_TAG: u8 = 6;
+
 fn options(ctx: &Context<'_>, options: Option<OptionsRead<'_>>) {
     CAMERA.set(ctx.thread(), vostok::freeze::Camera::Native);
-    let on = options.is_some_and(|options| {
-        let mut r = options.rest();
-        r.array::<4>() == Some(*b"SRPX") && r.array::<3>() == Some([4, 1, 1])
-    });
+    let on = options.is_some_and(|options| freeze_tag_in(options.rest()));
     MATCH.set(
         ctx.thread(),
         if on {
@@ -244,4 +259,19 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
         }
     }
     Flow::Continue
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_mode_entry_among_the_others() {
+        let on = |bytes: &[u8]| freeze_tag_in(Reader::new(bytes));
+        assert!(on(b"SRPX\x06\x01\x01"));
+        assert!(on(b"SRPX\x04\x02\x2c\x01\x06\x01\x01\x05\x01\x02"));
+        for off in [&b""[..], b"SRPX", b"SRPX\x06\x01\x00", b"SRPX\x06\x01", b"SRPX\x04\x01\x01", b"SRPX\x02\x01\x01"] {
+            assert!(!on(off), "{off:?}");
+        }
+    }
 }

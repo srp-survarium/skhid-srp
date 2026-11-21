@@ -34,6 +34,10 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
   PIN and a chosen map/mode pool. No team-size, minimum, max-level or countdown
   controls. The server refuses a public CREATE request (code 16), including from
   older movies, without changing the player's current room or queue.
+  - **One request** (the owner's of 2026-11-20: "a single very fast request"): Create sends
+    the PIN, With bots and the pool's entries at once (the game's player search carries the
+    text, `lobby.md` §2.16.3) and the room comes with its answer, about half a second later
+    (the game's lobby tick, then the round trip); 4 to 8 s before, a request a step.
   - **The STALKER maps last** (the owner's of 2026-11-15: "also when creating private
     rooms, stalker maps should be at the bottom of the list"): the window lists the maps in
     the order of the server's pool (`Core::room_entries`, the match pool then the
@@ -44,8 +48,9 @@ parts in the game's classes (`TopMenu`'s tab, `StatusPanel`'s Play, `LobbyMenu`'
     levels, specific maps and game modes is for it to persist next time"): a room made by
     hand is its maker's next create window, kept with the account in srp.db (restarts,
     reinstalls, other PCs): team size, players to start, max level, time to start, the
-    map/weather tiles and the modes. Not the PIN: typed each time (the owner may change
-    that). A room Play made keeps nothing. Nothing kept: the defaults (8 v 8, from 1 v 1,
+    map/weather tiles, the modes and the PIN, pretyped in its field (the owner's of
+    2026-11-19; settings kept before then have none: the field empty). A room Play made
+    keeps nothing. Nothing kept: the defaults (8 v 8, from 1 v 1,
     any max level, 30 s, every mode, the pool without the experimental maps).
   - Fitted when asked: a map or mode no longer offered is dropped; one added later is in
     (an experimental one out); the max level never below the maker's gear; other values

@@ -1290,6 +1290,7 @@ mod tests {
             artefacts: None,
             objects: None,
             inventory: None,
+            dict_ids: None,
         }
     }
 

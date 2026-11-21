@@ -9,11 +9,11 @@ order = 4
 [[hook]]
 site = "static_info.options_read"
 handler = "on_static_info"
-order = 5
+order = 6
 [[hook]]
 site = "replay.options_read"
 handler = "on_replay_options"
-order = 5
+order = 6
 [[hook]]
 site = "freeze.rule_tick"
 handler = "on_tick"

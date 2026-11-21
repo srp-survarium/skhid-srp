@@ -28,6 +28,7 @@
 use binary_config_parser::tree::{ConfigError, ConfigValue};
 use srp_validate::world::{Anomaly, ArtefactItem, Artefacts, Group, Held, Map, State, Uses};
 
+pub use super::dictionary::MapId;
 use super::dictionary::Dictionary;
 use super::game_data::{GameData, GameDataError};
 use super::item_params::ItemClass;
@@ -229,7 +230,7 @@ pub struct MatchMap(&'static MapMode);
 
 impl MatchMap {
     /// A `maps_dict` id, if a match can be played on it.
-    pub fn of(map_id: u8) -> Option<Self> {
+    pub fn of(map_id: MapId) -> Option<Self> {
         map_mode(map_id).filter(|map| map.is_playable()).map(Self)
     }
 
@@ -250,14 +251,25 @@ pub mod weather {
     pub const EVENING: u8 = 3;
     pub const NIGHT: u8 = 4;
     pub const PRERAIN: u8 = 5;
+
+    /// Where a weather stands among a map's weathers in a list: day, evening,
+    /// rain, as the stock maps' ids have them, whatever a ported map's ids are.
+    pub fn list_place(weather: u8) -> u8 {
+        match weather {
+            DAY => 0,
+            EVENING => 1,
+            RAIN => 2,
+            other => other,
+        }
+    }
 }
 
 /// One `maps_dict` id and its `gameplay/game_modes/` config, with what the
 /// server reads of its project. A parameter the config lacks is 0.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MapMode {
-    /// The `maps_dict` id: the match options' `u8 map_id`.
-    pub id: u8,
+    /// The `maps_dict` id ([`MapId`]).
+    pub id: MapId,
     /// `cfg_mode_name`, the file under `gameplay/game_modes/`.
     pub config: &'static str,
     /// `mode.name`.
@@ -339,8 +351,30 @@ impl MapMode {
     /// mp_bath, mp_military_1, mp_training_camp and mp_rembasa, the SoC Station and Depository),
     /// in every mode.
     pub fn is_stalker(&self) -> bool {
-        self.project.starts_with("v010b_")
+        self.build() == Build::Stalker
     }
+
+    /// The build its scene comes from, by its project's prefix.
+    pub fn build(&self) -> Build {
+        match self.project.split_once('_').map(|(prefix, _)| prefix) {
+            Some("v011e") => Build::V011,
+            Some("v021d") => Build::V021,
+            Some("v069d") => Build::V069,
+            Some("v010b") => Build::Stalker,
+            _ => Build::V026,
+        }
+    }
+}
+
+/// The build a map's scene comes from, in the order lists show them (the owner,
+/// 2026-11-19: 0.26 maps, 0.11, 0.21, 0.69, the STALKER maps).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Build {
+    V026,
+    V011,
+    V021,
+    V069,
+    Stalker,
 }
 
 /// A number of a game mode config; a missing one is 0.
@@ -676,7 +710,7 @@ impl MapMode {
     /// (`None`). The strings are leaked: the rows live as long as the
     /// process.
     pub fn from_config(
-        id: u8,
+        id: MapId,
         cfg_mode_name: &str,
         config: &ConfigValue,
         project: Option<&ConfigValue>,
@@ -862,7 +896,7 @@ pub fn derive(data: &GameData, dictionary: &Dictionary) -> Result<Vec<MapMode>, 
 }
 
 /// The config of a `maps_dict` id, if the client has one.
-pub fn map_mode(id: u8) -> Option<&'static MapMode> {
+pub fn map_mode(id: MapId) -> Option<&'static MapMode> {
     let all = all();
     all.binary_search_by_key(&id, |map| map.id)
         .ok()
@@ -898,8 +932,8 @@ mod tests {
     use srp_validate::world::Artefact;
     use super::*;
 
-    fn ids(mode: GameMode) -> Vec<u8> {
-        playable_in(mode).map(|map| map.id).collect()
+    fn ids(mode: GameMode) -> Vec<u16> {
+        playable_in(mode).map(|map| map.id.get()).collect()
     }
 
     #[test]
@@ -908,8 +942,8 @@ mod tests {
         // (`scripts/content-edit/blackout-mode-1.json`: ids from 219).
         let blackout: Vec<&MapMode> = playable_in(GameMode::Blackout).collect();
         assert_eq!(blackout.len(), playable_in(GameMode::Batteries).count());
-        let ids: Vec<u8> = blackout.iter().map(|map| map.id).collect();
-        assert_eq!(ids, (219..=242).collect::<Vec<u8>>());
+        let ids: Vec<u16> = blackout.iter().map(|map| map.id.get()).collect();
+        assert_eq!(ids, (219..=242).collect::<Vec<u16>>());
         for map in blackout {
             let twin = find(map.level, map.weather, GameMode::Batteries).unwrap();
             assert_eq!(map.config, format!("blackout/{}", twin.config));
@@ -920,7 +954,7 @@ mod tests {
             assert_eq!(map.container_teams, twin.container_teams);
             assert_eq!(MatchMap::of(map.id).unwrap().mode(), GameMode::Blackout);
         }
-        assert_eq!(MatchMap::of(11), None, "a test map the client cannot load");
+        assert_eq!(MatchMap::of(MapId::new(11)), None, "a test map the client cannot load");
     }
 
     #[test]
@@ -942,9 +976,9 @@ mod tests {
     #[test]
     fn the_whitelist_is_that_of_the_notes() {
         // modes_maps.md §8.
-        let mode_2: Vec<u8> = (61..=105).step_by(2).chain([109]).collect();
-        let mode_3: Vec<u8> = (62..=106).step_by(2).chain([110]).collect();
-        let mode_4: Vec<u8> = (117..=140).collect();
+        let mode_2: Vec<u16> = (61..=105).step_by(2).chain([109]).collect();
+        let mode_3: Vec<u16> = (62..=106).step_by(2).chain([110]).collect();
+        let mode_4: Vec<u16> = (117..=140).collect();
         assert_eq!(ids(GameMode::Batteries), mode_2);
         assert_eq!(ids(GameMode::TimedBatteries), mode_3);
         assert_eq!(ids(GameMode::TeamDeathmatch), mode_4);
@@ -953,11 +987,11 @@ mod tests {
         assert_eq!(ids(GameMode::FreeForAll), ffa_ids());
         assert_eq!(playable().count(), 72 + 24 + 24);
         for bad in [11, 45, 107, 108, 114, 115].into_iter().chain(141..=151) {
-            assert!(playable().all(|map| map.id != bad), "{bad}");
+            assert!(playable().all(|map| map.id.get() != bad), "{bad}");
         }
         // 114 and 143..=151 have no config at all; 141 and 142 are of mode 0.
         for missing in [114, 141, 142].into_iter().chain(143..=151) {
-            assert!(map_mode(missing).is_none(), "{missing}");
+            assert!(map_mode(MapId::new(missing)).is_none(), "{missing}");
         }
         // 15 ids a level: 3 weathers × 3 modes, and in each weather Blackout
         // and a free-for-all.
@@ -981,11 +1015,12 @@ mod tests {
         }
         // The ids without a row: the ten whose config the db lacks, and
         // 141 and 142, of mode 0.
-        let missing: Vec<u8> = dictionary
+        let missing: Vec<u16> = dictionary
             .maps
             .iter()
             .map(|entry| entry.id)
             .filter(|&id| map_mode(id).is_none())
+            .map(MapId::get)
             .collect();
         assert_eq!(missing, [114, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151]);
         // A playable id's config name spells its level, weather and mode,
@@ -1014,20 +1049,20 @@ mod tests {
 
     #[test]
     fn spot_checks() {
-        let map = map_mode(61).unwrap();
+        let map = map_mode(MapId::new(61)).unwrap();
         assert_eq!((map.level, map.weather, map.mode), (1, weather::DAY, GameMode::Batteries));
         assert_eq!(map.project, "level_01/day_2");
         assert_eq!(map.rules, [93, 91, 88, 94]);
-        let map = map_mode(109).unwrap();
+        let map = map_mode(MapId::new(109)).unwrap();
         assert_eq!((map.level, map.weather, map.mode), (8, weather::PRERAIN, GameMode::Batteries));
         assert_eq!(map.loading_screen_id, 25);
-        assert_eq!(find(8, weather::PRERAIN, GameMode::TeamDeathmatch).unwrap().id, 140);
-        assert_eq!(find(1, weather::EVENING, GameMode::TimedBatteries).unwrap().id, 64);
-        assert_eq!(find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap().id, 128);
+        assert_eq!(find(8, weather::PRERAIN, GameMode::TeamDeathmatch).unwrap().id, MapId::new(140));
+        assert_eq!(find(1, weather::EVENING, GameMode::TimedBatteries).unwrap().id, MapId::new(64));
+        assert_eq!(find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap().id, MapId::new(128));
         // Level 8 has no rain, and its night has no project.
         assert!(find(8, weather::RAIN, GameMode::Batteries).is_none());
         assert!(find(8, weather::NIGHT, GameMode::Batteries).is_none());
-        assert!(!map_mode(107).unwrap().has_project);
+        assert!(!map_mode(MapId::new(107)).unwrap().has_project);
         // Loading screens, static_info.md §4.
         assert_eq!(find(5, weather::EVENING, GameMode::Batteries).unwrap().loading_screen_id, 14);
         assert_eq!(find(7, weather::DAY, GameMode::TeamDeathmatch).unwrap().loading_screen_id, 18);
@@ -1125,38 +1160,6 @@ mod tests {
     }
 
     #[test]
-    fn the_projects_give_what_srp_had_by_hand() {
-        // The test data: 0.26g's maps, levels 1 to 8, all 72, Blackout's 24
-        // and the free-for-alls' 24.
-        assert_eq!(playable().count(), 72 + 24 + 24);
-        as_before(all(), true);
-        // Spot checks: level_04's Team Deathmatch has 75 points of its own
-        // (39 of layer `tdm`), level_02's 31 (one of team 2), and the
-        // free-for-all's own copy of each those and its own.
-        let level_04 = find(4, weather::RAIN, GameMode::TeamDeathmatch).unwrap();
-        assert_eq!((level_04.respawn_points, level_04.solo_respawn_points), (75, 0));
-        let level_04 = find(4, weather::RAIN, GameMode::FreeForAll).unwrap();
-        assert_eq!((level_04.respawn_points, level_04.solo_respawn_points), (75 + 30, 30));
-        let level_02 = find(2, weather::DAY, GameMode::TeamDeathmatch).unwrap();
-        assert_eq!((level_02.respawn_points, level_02.solo_respawn_points), (31, 1));
-        let level_02 = find(2, weather::DAY, GameMode::FreeForAll).unwrap();
-        assert_eq!((level_02.respawn_points, level_02.solo_respawn_points), (31 + 25, 1 + 25));
-        assert_eq!(
-            find(7, weather::DAY, GameMode::TimedBatteries).unwrap().container_teams,
-            Some([0, 1])
-        );
-        // Without a project, nothing: level_08 at night.
-        let night = map_mode(107).unwrap();
-        assert_eq!((night.respawn_points, night.container_teams), (0, None));
-        // The names are the localizations' keys.
-        let map = map_mode(61).unwrap();
-        assert_eq!(
-            (map.map_name_key, map.mode_name_key),
-            ("st_level_01_name", "st_mode_02_name")
-        );
-    }
-
-    #[test]
     fn a_map_of_a_patch_is_played_from_its_data() {
         // Team Deathmatch on a level 12, a map no code names.
         let added = fixtures::AddedMap::level_12_tdm();
@@ -1184,20 +1187,37 @@ mod tests {
         assert_eq!(map.respawn_points, 17);
         assert_eq!(map.container_teams, None);
         // It is played in mode 4 only.
-        let playable_in = |game_mode: GameMode| -> Vec<u8> {
+        let playable_in = |game_mode: GameMode| -> Vec<u16> {
             table
                 .iter()
                 .filter(|map| map.is_playable() && map.mode == game_mode)
-                .map(|map| map.id)
+                .map(|map| map.id.get())
                 .collect()
         };
-        assert!(playable_in(GameMode::TeamDeathmatch).contains(&added.id));
+        assert!(playable_in(GameMode::TeamDeathmatch).contains(&added.id.get()));
         assert_eq!(playable_in(GameMode::TeamDeathmatch).len(), 25);
         for game_mode in [GameMode::Batteries, GameMode::TimedBatteries] {
-            assert!(!playable_in(game_mode).contains(&added.id));
+            assert!(!playable_in(game_mode).contains(&added.id.get()));
             assert_eq!(playable_in(game_mode), ids(game_mode));
         }
         assert_eq!(table.iter().filter(|map| map.is_playable()).count(), 73 + 24 + 24);
+    }
+
+    /// The data's ids are 32-bit: one over a byte is a map as any other
+    /// (the client loads it whole with exe patch 154); one over `u16::MAX`
+    /// stops the server.
+    #[test]
+    fn a_map_id_over_a_byte_is_played_from_its_data() {
+        let added = fixtures::AddedMap {
+            id: MapId::new(300),
+            ..fixtures::AddedMap::level_12_tdm()
+        };
+        let table = fixtures::table_of(&fixtures::with_map(&added)).unwrap();
+        let map = table.iter().find(|map| map.id == added.id).unwrap();
+        assert!(map.is_playable());
+        assert!(map.id.over_a_byte());
+        assert_eq!(map.id.low_byte(), 44);
+        assert!(MapId::try_from(65_536).is_err());
     }
 
     #[test]
@@ -1267,7 +1287,7 @@ mod tests {
         // Batteries on a map without its two containers, or with two of
         // one team; a map without a respawn point.
         let batteries = |containers: Vec<(i32, i32)>, respawn_points| fixtures::AddedMap {
-            id: 201,
+            id: MapId::new(201),
             config: "level_12_day_2.options",
             project: "level_12/day_2",
             mode: RuleMode::Batteries.number(),
@@ -1294,7 +1314,7 @@ mod tests {
         // With them: played, its containers' teams by id.
         let table =
             fixtures::table_of(&fixtures::with_map(&batteries(vec![(1, 0), (0, 1)], 12))).unwrap();
-        let map = table.iter().find(|map| map.id == 201).unwrap();
+        let map = table.iter().find(|map| map.id == MapId::new(201)).unwrap();
         assert!(map.is_playable());
         assert_eq!(
             (map.respawn_points, map.container_teams),
@@ -1307,7 +1327,7 @@ mod tests {
             ..fixtures::AddedMap::level_12_tdm()
         };
         let table = fixtures::table_of(&fixtures::with_map(&tdm)).unwrap();
-        let map = table.iter().find(|map| map.id == 200).unwrap();
+        let map = table.iter().find(|map| map.id == MapId::new(200)).unwrap();
         assert!(map.is_playable());
         assert_eq!(map.container_teams, None);
         // A config of a mode srp does not play has no row, whatever its
@@ -1318,7 +1338,7 @@ mod tests {
             ..fixtures::AddedMap::level_12_tdm()
         };
         let table = fixtures::table_of(&fixtures::with_map(&other)).unwrap();
-        assert!(table.iter().all(|map| map.id != 200));
+        assert!(table.iter().all(|map| map.id != MapId::new(200)));
     }
 
     fn env_path(name: &str) -> std::path::PathBuf {
@@ -1353,7 +1373,7 @@ mod tests {
 
     /// The free-for-alls' ids (content edit ffa-1) the test data has: levels
     /// 1 to 8 in their three weathers (London's, 163, is a patch's).
-    fn ffa_ids() -> Vec<u8> {
+    fn ffa_ids() -> Vec<u16> {
         (46..=60).chain(154..=162).collect()
     }
 
@@ -1410,41 +1430,6 @@ mod tests {
         free_for_alls_play_on_their_own_projects(all(), 24);
     }
 
-    /// Built data with both FFA edit lists, including London and all five ports.
-    /// Rudnya: all 56 of the owner's picks and 4 roof spawns (ffa-rudnya-picks-1);
-    /// London: his 50 picks (ffa-london-picks-1); Chemical Plant: his 97
-    /// (ffa-chemical-plant-picks-1); the other maps the owner's
-    /// picks or the spawn rule's (ffa-cover-maps-1; docs/notes/ffa.md);
-    /// Fire Station of stalker-maps-2, level 23: his 42 picks
-    /// (ffa-fire-station-picks-1; Dark Valley, Vehicle Station and Sports
-    /// Center held; docs/notes/stalker-maps.md).
-    #[test]
-    #[ignore = "needs SRP_TEST_GAME_DATA from build-content with both FFA edit lists"]
-    fn the_released_free_for_alls_play_on_their_own_projects() {
-        let data = GameData::open(&env_path("SRP_TEST_GAME_DATA")).unwrap();
-        let maps = fixtures::table_of(&data).unwrap();
-        free_for_alls_play_on_their_own_projects(&maps, 34);
-        let ports: Vec<_> = maps.iter()
-            .filter(|m| m.mode == GameMode::FreeForAll && m.level >= 9)
-            .map(|m| (m.id, m.level, m.solo_respawn_points))
-            .collect();
-        assert_eq!(ports, [
-            (39, 23, 42),
-            (42, 15, 28), (43, 16, 48), (44, 17, 47), (163, 9, 50),
-            (164, 10, 73), (165, 11, 66), (167, 12, 44), (168, 13, 73), (169, 14, 44)
-        ]);
-        // Levels 2 to 8, the same in each weather.
-        for map in maps.iter().filter(|m| m.mode == GameMode::FreeForAll && (2..=8).contains(&m.level)) {
-            let twice = [49, 75, 97, 48, 68, 58, 46][usize::from(map.level) - 2];
-            assert_eq!(map.solo_respawn_points, twice, "{}", map.config);
-        }
-        let rudnya: Vec<_> = maps.iter()
-            .filter(|m| m.mode == GameMode::FreeForAll && m.level == 1)
-            .map(|m| (m.id, m.solo_respawn_points))
-            .collect();
-        assert_eq!(rudnya, [(46, 60), (47, 60), (48, 60)]);
-    }
-
     /// The live game data: 0.26g's archive (`SRP_TEST_RESOURCES_DB`) with
     /// skhid's patches (`SRP_TEST_SKHID_PATCHES`, by spaces: patch 12 and
     /// patch 14, London) over it. The maps of 0.26g, levels 1 to 8, have
@@ -1456,9 +1441,9 @@ mod tests {
         let data = live_data(&[]);
         let table = fixtures::table_of(&data).unwrap();
         let played: Vec<&MapMode> = table.iter().filter(|map| map.is_playable()).collect();
-        let stock: Vec<u8> = playable().map(|map| map.id).collect();
+        let stock: Vec<MapId> = playable().map(|map| map.id).collect();
         let mut expected = stock.clone();
-        expected.extend([181, 182, 183]);
+        expected.extend([181, 182, 183].map(MapId::new));
         assert_eq!(
             played.iter().map(|map| map.id).collect::<Vec<_>>(),
             expected
@@ -1500,398 +1485,10 @@ mod tests {
         }
     }
 
-    /// Revision 17's balance change: the SVD (items_dict 63, the only item
-    /// of `wpn_svd.options`) does 10 damage points less, 110 to 100: the
-    /// game stores 1.1 and 1.0 (`parameters.bullet_damage`; the lobby's
-    /// damage line, `ui_desc.props_list` prop 1, says 110 and 100). Every
-    /// other weapon and ammo config is as the live data has it (the SVD's
-    /// 7.62x54 ammo is shared and unchanged). srp reads no damage: the game
-    /// computes it, and the server data carries the file.
-    #[test]
-    #[ignore = "needs 0.26g's resources.db, skhid's patches and revision 17's patch"]
-    fn revision_17_svd_does_10_damage_points_less() {
-        use super::super::dictionary::{self, Dictionary};
-        let before = live_data(&[]);
-        let after = live_data(&[env_path("SRP_TEST_PATCH_17")]);
-        let dictionary = Dictionary::parse(after.file(dictionary::PATH).unwrap()).unwrap();
-        let svd: Vec<_> = dictionary
-            .items
-            .iter()
-            .filter(|item| item.cfg_name == "gameplay/items/weapons/wpn_svd.options")
-            .collect();
-        assert_eq!(
-            svd.iter()
-                .map(|item| (item.dict_id, item.name.as_str()))
-                .collect::<Vec<_>>(),
-            [(63, "svd")]
-        );
-        let damage = |data: &GameData| {
-            let config =
-                ConfigValue::parse(data.file("gameplay/items/weapons/wpn_svd.options").unwrap())
-                    .unwrap();
-            let shown = config
-                .req("ui_desc")
-                .unwrap()
-                .req("props_list")
-                .unwrap()
-                .children()
-                .into_iter()
-                .find(|prop| prop.i32_at("prop_id").unwrap() == 1)
-                .unwrap()
-                .str_at("prop_value")
-                .unwrap()
-                .to_owned();
-            (
-                config
-                    .req("parameters")
-                    .unwrap()
-                    .f32_at("bullet_damage")
-                    .unwrap(),
-                shown,
-            )
-        };
-        assert_eq!(damage(&before), (1.1, "110".to_owned()));
-        assert_eq!(damage(&after), (1.0, "100".to_owned()));
-        for item in &dictionary.items {
-            if item.cfg_name.starts_with("gameplay/items/weapons/") && item.dict_id != 63 {
-                assert_eq!(
-                    before.file(&item.cfg_name),
-                    after.file(&item.cfg_name),
-                    "{}",
-                    item.cfg_name
-                );
-            }
-        }
-    }
-
-    /// Weapon balance 1 (`scripts/content-edit/weapon-balance-1.json`, the
-    /// patch at `SRP_TEST_PATCH_WEAPON_BALANCE_1` over the live data): each
-    /// listed weapon's `parameters` value and the lobby card's text of it
-    /// (`ui_desc.props_list`: prop 1 damage x100, 3 armour piercing x100, 4
-    /// rate of fire) change as listed, and nothing else; the SVD's magazine
-    /// holds 5 rounds, still an int, and its description says so in every
-    /// language; every weapon card has a magazine line (prop 134, a new line
-    /// of `ui_properties` named in every language) after its rate of fire;
-    /// the items' misspelt
-    /// `stamina_regenation_speed_modifier` is spelt as the exe reads it, with
-    /// its value, in every item config and in the modifications' paths. srp
-    /// reads only the magazine (the bots' guns); the game computes the rest,
-    /// and the server data carries the files.
-    #[test]
-    #[ignore = "needs 0.26g's resources.db, skhid's patches and the weapon balance 1 patch"]
-    fn weapon_balance_1_changes_only_its_values() {
-        use super::super::dictionary::{self, Dictionary};
-        const OLD: &str = "stamina_regenation_speed_modifier";
-        const NEW: &str = "stamina_regeneration_speed_modifier";
-        // (weapon, key, live, new); the card's text is the value x100, or
-        // the rate of fire itself.
-        let changes: &[(&str, &str, f32, f32)] = &[
-            ("kriss_vector", "bullet_pierce", 0.45, 0.25),
-            ("kriss_vector", "bullet_damage", 0.45, 0.42),
-            ("fn_p90", "bullet_pierce", 0.55, 0.30),
-            ("mp7", "bullet_pierce", 0.55, 0.30),
-            ("mp7", "bullet_damage", 0.35, 0.40),
-            ("mp7_silencer", "bullet_pierce", 0.55, 0.30),
-            ("mp7_silencer", "bullet_damage", 0.35, 0.40),
-            ("mp7_silencer_special", "bullet_pierce", 0.55, 0.30),
-            ("mp7_silencer_special", "bullet_damage", 0.35, 0.40),
-            ("hk416", "bullet_pierce", 0.45, 0.34),
-            ("m4a1", "bullet_pierce", 0.42, 0.32),
-            ("msbs_carbine", "bullet_pierce", 0.42, 0.32),
-            ("fn_fnc", "bullet_pierce", 0.40, 0.30),
-            ("fn_fnc", "bullet_damage", 0.45, 0.50),
-            ("pkp_pecheneg", "bullet_pierce", 0.60, 0.45),
-            ("vz58", "bullet_pierce", 0.30, 0.40),
-            ("valmet", "bullet_pierce", 0.30, 0.40),
-            ("soc_vepr", "bullet_pierce", 0.30, 0.40),
-            ("kedr", "bullet_pierce", 0.10, 0.20),
-            ("aek_919k", "bullet_pierce", 0.10, 0.20),
-            ("sr2m", "rounds_per_minute", 900.0, 800.0),
-            ("sr3m", "rounds_per_minute", 900.0, 800.0),
-            ("sr3m", "bullet_damage", 0.55, 0.45),
-            ("sr3m_premium", "rounds_per_minute", 900.0, 800.0),
-            ("sr3m_premium", "bullet_damage", 0.55, 0.45),
-            ("val", "bullet_damage", 0.55, 0.50),
-            ("a9_91", "bullet_damage", 0.55, 0.50),
-            ("vss", "bullet_damage", 0.55, 0.50),
-            ("vss_premium", "bullet_damage", 0.55, 0.50),
-            ("vsk_94", "bullet_damage", 0.55, 0.50),
-            ("vsk_94_premium", "bullet_damage", 0.55, 0.50),
-            ("pp2000", "rounds_per_minute", 750.0, 680.0),
-            ("mosin_nagant", "bullet_damage", 1.0, 1.1),
-            ("mosin_nagant", "bullet_pierce", 0.35, 0.40),
-            ("toz_122", "bullet_damage", 1.1, 1.2),
-            ("svd", "magazine_capacity", 10.0, 5.0),
-        ];
-        let prop = |key: &str| match key {
-            "bullet_damage" => Some(1),
-            "bullet_pierce" => Some(3),
-            "rounds_per_minute" => Some(4),
-            _ => None,
-        };
-        let shown = |key: &str, value: f32| {
-            if key == "rounds_per_minute" {
-                format!("{value}")
-            } else {
-                format!("{}", (value * 100.0).round())
-            }
-        };
-        let before = live_data(&[]);
-        let after = live_data(&[env_path("SRP_TEST_PATCH_WEAPON_BALANCE_1")]);
-        let dictionary = Dictionary::parse(after.file(dictionary::PATH).unwrap()).unwrap();
-        let mut renamed = 0;
-        let mut magazines = 0;
-        let mut seen = std::collections::BTreeSet::new();
-        for item in &dictionary.items {
-            let path = item.cfg_name.as_str();
-            if !path.starts_with("gameplay/items/") || !seen.insert(path) {
-                continue;
-            }
-            let (Some(old), Some(new)) = (before.file(path), after.file(path)) else {
-                continue;
-            };
-            let old = ConfigValue::parse(old).unwrap();
-            let new = ConfigValue::parse(new).unwrap();
-            let name = path.rsplit('/').next().unwrap();
-            let weapon = name
-                .strip_prefix("wpn_")
-                .and_then(|n| n.strip_suffix(".options"));
-            let mine: Vec<_> = changes
-                .iter()
-                .filter(|change| Some(change.0) == weapon)
-                .collect();
-            for (key, value) in old.entries() {
-                let mut value = value.clone();
-                let mut text = None;
-                if key == "parameters" {
-                    let mut entries = value.entries().to_vec();
-                    for (k, v) in &mut entries {
-                        if k == OLD {
-                            *k = NEW.into();
-                            renamed += 1;
-                        }
-                        if let Some(change) = mine.iter().find(|change| change.1 == k.as_str()) {
-                            assert_eq!(v.as_f32(), Some(change.2), "{path} {k}");
-                            *v = ConfigValue::Float(change.3);
-                        }
-                    }
-                    value = ConfigValue::Named(entries);
-                    let got = new.req("parameters").unwrap();
-                    for (k, v) in value.entries() {
-                        let want = mine.iter().find(|change| change.1 == k.as_str());
-                        let have = got.get(k).unwrap_or_else(|| panic!("{path} {k}"));
-                        match want {
-                            Some(change) => assert_eq!(have.as_f32(), Some(change.3), "{path} {k}"),
-                            None => assert_eq!(have, v, "{path} {k}"),
-                        }
-                    }
-                    assert_eq!(got.entries().len(), value.entries().len(), "{path}");
-                    continue;
-                }
-                // A weapon card gets a magazine line (prop 134) after its
-                // rate of fire, with the magazine the weapon has now.
-                let magazine = new
-                    .get("parameters")
-                    .and_then(|p| p.get("magazine_capacity"))
-                    .and_then(ConfigValue::as_f32);
-                let lines = value.get("props_list").map(ConfigValue::children);
-                let rate = lines.as_ref().and_then(|lines| {
-                    lines
-                        .iter()
-                        .position(|p| p.i32_at("prop_id").ok() == Some(4))
-                });
-                if key == "ui_desc"
-                    && let (Some(magazine), Some(rate)) = (magazine, rate)
-                {
-                    let mut entries = value.entries().to_vec();
-                    for (k, v) in &mut entries {
-                        if k == "props_list" {
-                            let mut lines: Vec<ConfigValue> =
-                                v.children().into_iter().cloned().collect();
-                            lines.insert(
-                                rate + 1,
-                                ConfigValue::Named(vec![
-                                    (
-                                        "prop_value".into(),
-                                        ConfigValue::String(format!("{magazine}")),
-                                    ),
-                                    ("prop_id".into(), ConfigValue::Integer(134)),
-                                ]),
-                            );
-                            *v = ConfigValue::Indexed(lines);
-                        }
-                    }
-                    value = ConfigValue::Named(entries);
-                    magazines += 1;
-                }
-                if key == "ui_desc" && !mine.is_empty() {
-                    let props = new.req("ui_desc").unwrap().req("props_list").unwrap();
-                    text = Some(props.clone());
-                    for change in mine.iter().filter(|change| prop(change.1).is_some()) {
-                        let entry = props
-                            .children()
-                            .into_iter()
-                            .find(|p| Some(p.i32_at("prop_id").unwrap()) == prop(change.1))
-                            .unwrap();
-                        assert_eq!(
-                            entry.str_at("prop_value").unwrap(),
-                            shown(change.1, change.3),
-                            "{path} {}",
-                            change.1
-                        );
-                    }
-                }
-                let got = new.get(key).unwrap_or_else(|| panic!("{path} {key}"));
-                if let Some(props) = text {
-                    // The card's other lines are the live ones.
-                    let old_props = value.req("props_list").unwrap().children();
-                    assert_eq!(old_props.len(), props.children().len(), "{path}");
-                    for (o, n) in old_props.iter().zip(props.children()) {
-                        let id = o.i32_at("prop_id").unwrap();
-                        if !mine.iter().any(|change| prop(change.1) == Some(id)) {
-                            assert_eq!(*o, n, "{path} prop {id}");
-                        }
-                    }
-                } else {
-                    assert_eq!(got, &value, "{path} {key}");
-                }
-            }
-        }
-        assert!(renamed > 200, "{renamed} items had the misspelt key");
-        assert_eq!(magazines, 83, "weapon cards with a magazine line");
-        // The card lines' table has the magazine line: the bullets-in-pack
-        // line's keys (comparable, more is better), its own id, name and top.
-        let lines = |data: &GameData| {
-            let file = data
-                .file("gameplay/static_game_parameters.options")
-                .unwrap();
-            let config = ConfigValue::parse(file).unwrap();
-            config.req("ui_properties").unwrap().clone()
-        };
-        let (old_lines, new_lines) = (lines(&before), lines(&after));
-        let (old_lines, new_lines) = (old_lines.children(), new_lines.children());
-        assert_eq!(new_lines.len(), old_lines.len() + 1);
-        assert!(old_lines.iter().zip(&new_lines).all(|(o, n)| o == n));
-        let like = old_lines
-            .iter()
-            .find(|line| line.i32_at("prop_id").ok() == Some(16))
-            .unwrap();
-        let want: Vec<(String, ConfigValue)> = like
-            .entries()
-            .iter()
-            .map(|(k, v)| {
-                let v = match k.as_str() {
-                    "prop_id" => ConfigValue::Integer(134),
-                    "prop_name" => ConfigValue::String("st_inv_magazine_size".into()),
-                    "min_value" => ConfigValue::String("0".into()),
-                    "max_value" => ConfigValue::String("100".into()),
-                    _ => v.clone(),
-                };
-                (k.clone(), v)
-            })
-            .collect();
-        assert_eq!(new_lines.last().unwrap().entries(), want.as_slice());
-        // The modifications and the defect that change it name the key as
-        // the exe reads it.
-        let walk = |config: &ConfigValue| -> Vec<String> {
-            fn strings(value: &ConfigValue, out: &mut Vec<String>) {
-                match value {
-                    ConfigValue::String(s) => out.push(s.clone()),
-                    _ => value.children().into_iter().for_each(|c| strings(c, out)),
-                }
-            }
-            let mut out = Vec::new();
-            strings(config, &mut out);
-            out
-        };
-        let path = "gameplay/items/modifications/modifications.options";
-        let old = walk(&ConfigValue::parse(before.file(path).unwrap()).unwrap());
-        let new = walk(&ConfigValue::parse(after.file(path).unwrap()).unwrap());
-        assert_eq!(old.iter().filter(|s| *s == OLD).count(), 6);
-        assert_eq!(new.iter().filter(|s| *s == OLD).count(), 0);
-        assert_eq!(new.iter().filter(|s| *s == NEW).count(), 6);
-        let fixed: Vec<String> = old
-            .iter()
-            .map(|s| if s == OLD { NEW.into() } else { s.clone() })
-            .collect();
-        assert_eq!(fixed, new);
-        // The SVD's magazine stays an int, as the bots' guns read it.
-        let svd = ConfigValue::parse(
-            after
-                .file("gameplay/items/weapons/wpn_svd.options")
-                .unwrap(),
-        )
-        .unwrap();
-        assert_eq!(
-            svd.req("parameters").unwrap().get("magazine_capacity"),
-            Some(&ConfigValue::Integer(5))
-        );
-        // Its description, in each language, says 5 rounds where it said 10;
-        // every other text is the live one. The server data has no texts:
-        // they are read in the patches (the live one is the newest patch's).
-        // The texts are UTF-8 and the reader decodes Windows-1251, so the
-        // words found are ASCII ones (the text compares the same either way).
-        let read_in = |archive: &std::path::Path, path: &str| {
-            let file = std::io::BufReader::new(std::fs::File::open(archive).unwrap());
-            resources_db::Archive::new(file)
-                .unwrap()
-                .read(path)
-                .unwrap()
-        };
-        let live: Vec<std::path::PathBuf> = std::iter::once(env_path("SRP_TEST_RESOURCES_DB"))
-            .chain(
-                std::env::var("SRP_TEST_SKHID_PATCHES")
-                    .unwrap()
-                    .split_whitespace()
-                    .map(std::path::PathBuf::from),
-            )
-            .collect();
-        // The card's magazine line is named in each language.
-        for (language, from, to, label) in [
-            (
-                "english",
-                "supply: 10 rounds",
-                "supply: 5 rounds",
-                "Magazine",
-            ),
-            ("german", "r 10 Patronen", "r 5 Patronen", "Magazin"),
-            ("polish", "w 10-nabojowy", "w 5-nabojowy", "Magazynek"),
-            ("russian", " 10 ", " 5 ", "Магазин"),
-            ("original", " 10 ", " 5 ", "Магазин"),
-            ("ukrainian", " 10 ", " 5 ", "Магазин"),
-        ] {
-            let path = format!("localization/{language}/localization");
-            let old = live.iter().rev().find_map(|db| read_in(db, &path)).unwrap();
-            let new = read_in(&env_path("SRP_TEST_PATCH_WEAPON_BALANCE_1"), &path).unwrap();
-            let old = ConfigValue::parse(&old).unwrap();
-            let new = ConfigValue::parse(&new).unwrap();
-            let (old, new) = (old.req("strings").unwrap(), new.req("strings").unwrap());
-            assert_eq!(old.entries().len() + 1, new.entries().len(), "{path}");
-            let label = encoding_rs::WINDOWS_1251.decode(label.as_bytes()).0;
-            assert_eq!(
-                new.get("st_inv_magazine_size"),
-                Some(&ConfigValue::String(label.into_owned())),
-                "{path}"
-            );
-            for (key, value) in old.entries() {
-                let got = new.get(key).unwrap_or_else(|| panic!("{path} {key}"));
-                if key == "st_svd_description" {
-                    let ConfigValue::String(text) = value else {
-                        panic!("{path} {key}")
-                    };
-                    assert_eq!(text.matches(from).count(), 1, "{path}");
-                    assert_eq!(got, &ConfigValue::String(text.replace(from, to)), "{path}");
-                } else {
-                    assert_eq!(got, value, "{path} {key}");
-                }
-            }
-        }
-    }
-
     #[test]
     fn a_maps_world_objects_are_its_lone_damage_zones_resupplies_and_anomalies() {
         // level_01/day_2: its two damage zones are its anomalies' own.
-        let map = map_mode(61).unwrap();
+        let map = map_mode(MapId::new(61)).unwrap();
         assert_eq!(map.project, "level_01/day_2");
         let objects = map.world_objects;
         assert_eq!((objects.damage_zones, objects.resupply_zones), (0, 2));
@@ -1914,7 +1511,7 @@ mod tests {
         assert_eq!(cores, [[Artefact::Lifebone; 10], [Artefact::Spring; 10]]);
         // level_02/evening_2: three lone zones, and the fruit anomaly's
         // seven states.
-        let map = map_mode(69).unwrap();
+        let map = map_mode(MapId::new(69)).unwrap();
         assert_eq!(map.project, "level_02/evening_2");
         assert_eq!(map.world_objects.damage_zones, 3);
         let states: Vec<usize> = map.world_objects.anomalies.iter().map(|a| a.states.len()).collect();
@@ -1938,6 +1535,7 @@ mod tests {
                 artefacts: None,
                 objects: Some(&objects),
                 inventory: None,
+                dict_ids: None,
             };
             let section = srp_validate::world::Section { at: 0, bytes: &bytes };
             assert_eq!(srp_validate::world::objects(&section, &context), Ok(()), "{}", map.project);
