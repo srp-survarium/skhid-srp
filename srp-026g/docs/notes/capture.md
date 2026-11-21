@@ -36,7 +36,9 @@ command does it with no server and no input:
    given folder's `resources.db*` linked, never written; `--content` patches linked over them),
    a Wine prefix of its own (a copy of `private/local-clients/prefix-template`, its `user.cfg`
    given the window size and the poses file's `user_cfg`), an Xorg display of its own (the dummy
-   driver at 60 Hz, openbox; never the desktop's, so no window on anyone's screen), the script,
+   driver at 60 Hz, openbox; never the desktop's, so no window on anyone's screen), silence
+   (always: Wine's audio drivers off, `ALSOFT_DRIVERS=null`, no PulseAudio or PipeWire server to
+   reach, `s_general_volume 0`; a run on 2026-11-21 opened no PipeWire stream), the script,
    the game, and everything stopped afterwards. It fails unless the game exited 0 with every
    picture made.
 

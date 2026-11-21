@@ -54,6 +54,9 @@ TEMPLATE = Path(os.environ.get('SKHID_CAPTURE_PREFIX_TEMPLATE', PRIVATE / 'local
 DLLS = ('bugtrap.dll', 'd3d11.dll', 'dxgi.dll', 'skhid_voice.dll')
 DEFAULTS = {'hfov': 90.0, 'near': 0.1, 'far': 1500.0, 'settle_ms': 4000, 'wait_ms': 15000, 'size': '1920x1080',
             'user_cfg': {}}
+# Never a sound on the desktop's speakers: no Wine audio driver, and no PulseAudio, PipeWire or
+# OpenAL server to reach (a capture with only the driver overrides still had a PipeWire stream).
+SILENT = {'ALSOFT_DRIVERS': 'null', 'PULSE_SERVER': '/nonexistent', 'PIPEWIRE_REMOTE': '/nonexistent'}
 NAME = re.compile(r'[A-Za-z0-9_-][A-Za-z0-9_.-]{0,47}')
 
 
@@ -158,7 +161,7 @@ class Run:
         if not prefix.exists():
             subprocess.run(['cp', '-a', '--reflink=auto', str(TEMPLATE), str(prefix)], check=True)
         managed = {'account_name', 'account_password', 'account_digest', 'store_user_password', 'r_fullscreen',
-                   'r_resolution', 'ui'} | set(user_cfg)
+                   'r_resolution', 's_general_volume', 'ui'} | set(user_cfg)
         for user in prefix.glob('drive_c/users/*'):
             if user.name in ('Public', 'All Users') or not user.is_dir():
                 continue
@@ -167,7 +170,8 @@ class Run:
             path = folder / 'user.cfg'
             lines = [x for x in (path.read_text().splitlines() if path.exists() else [])
                      if (x.split(maxsplit=1) or [''])[0] not in managed]
-            lines += ['r_fullscreen off', f'r_resolution {size}'] + [f'{k} {v}' for k, v in user_cfg.items()]
+            lines += ['r_fullscreen off', f'r_resolution {size}']
+            lines += [f'{k} {v}' for k, v in user_cfg.items() if k != 's_general_volume'] + ['s_general_volume 0']
             path.write_text('\n'.join(lines) + '\n')
         self.wineprefix = prefix
 
@@ -217,7 +221,8 @@ EndSection
 
     def client(self, sur, script):
         self.wine_env = dict(self.env, WINEPREFIX=str(self.wineprefix), WINEDEBUG='-all', DXVK_FRAME_RATE='60',
-                             WINEDLLOVERRIDES='mscoree,mshtml,qwave=;winemenubuilder.exe=d;d3d11,dxgi=n,b',
+                             WINEDLLOVERRIDES='mscoree,mshtml,qwave=;winemenubuilder.exe=d;d3d11,dxgi=n,b;'
+                                              'winepulse.drv,winealsa.drv,wineoss.drv=d', **SILENT,
                              SKHID_CAPTURE=windows(script))
         self.started = time.time()
         return self.spawn('client', [WINE, 'survarium_skhid.capture.exe', f'-match_replay={windows(sur)}',
