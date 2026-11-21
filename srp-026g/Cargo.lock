@@ -901,6 +901,7 @@ dependencies = [
  "srp-validate",
  "udp-transport",
  "weapon-kit",
+ "weapon-modules",
  "weapon-pickup",
 ]
 

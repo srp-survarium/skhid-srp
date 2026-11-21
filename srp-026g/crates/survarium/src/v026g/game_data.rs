@@ -878,6 +878,7 @@ fn init_with(data: GameData) -> Result<&'static GameData, GameDataError> {
     );
     // The scope pairs and why any variant was left out, in the log at start.
     super::scopes::ScopeFits::shared();
+    super::weapon_modules::Modules::shared();
     Ok(data)
 }
 

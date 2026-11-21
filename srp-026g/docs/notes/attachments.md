@@ -514,6 +514,71 @@ Not done:
   locators of the thirteen grips beside 0.26g's hand (the joints' distances), from the content
   side's models (the grips lane), and one grip seen in a game.
 
+## The contract between the core and the lanes
+
+Three lanes work on sub-branches of `feat/attachments` (`feat/attachments-scopes`,
+`feat/attachments-muzzles`, `feat/attachments-grips`); the lead merges them. This section is what
+they share. A lane that needs something here changed asks the lead; it does not edit a core-only
+file.
+
+**Ids and slots**
+
+| Thing | Value |
+|---|---|
+| Kit slot of a scope, a muzzle device, a grip | 3, 4, 5 (`weapon-kit`; `weapon_modules::slot_of`) |
+| Scope items | dict ids 2101-2120, the shop's own (ownership does not change) |
+| Muzzle devices and grips | dict ids 2601-2671 (`scripts/weapon-modules/ids.tsv`, append-only) |
+| A stock part's or a carrier's row in the table | 0.69d0's own dict id; never an item of ours |
+| A slot's id | `weapon_modules::SlotId`, 0.69d0's 94 names; its number is the table's byte |
+
+**What makes a weapon fitted** (all of it content; the client reads the weapon's config as its cook
+sees it, after the item's modifications)
+
+- A gun's config: `data/srp_gun` = its own dict id (the edit list `weapon-modules-1.json`), and
+  `object/model` its whole remodel body (`remodel-069-1.json`).
+- A fitted item's upgrade record holds the item's **own** dict id in its kind's slot (no variant
+  ids any more), and its modification sets, on the weapon:
+  - a scope: `data/srp_scope` = its dict id, and `addons/rifle_scope_dict_id` = its dict id (the
+    game's own scope object: zoom, the two models, hiding the gun);
+  - a muzzle device: `data/srp_muzzle` = its dict id; its shot effect `particles/shoot`; its stats;
+  - a grip: `data/srp_grip` = its dict id; its stats.
+- A scope item's config keeps `data/idle_model` and `data/aimed_model`: the optic's own two models
+  of the pack, their origin the optic's slot.
+- Nothing else is read: the table says the rest.
+
+**The servers' one fit check** (`survarium::v026g::weapon_modules`, core-only)
+
+```text
+Modules::shared()                         the game data's table, read once (none: nothing fits)
+  .check(weapon, Fitted { scope, muzzle, grip }) -> Result<(), Unfit>
+  .kind(weapon, module) -> Option<Kind>   the kind a module is fitted as on that weapon
+  .fits(weapon) -> Vec<(module, Kind)>    what the weapon takes, for a list
+slot_of(Kind) -> u8, kind_of_slot(u8) -> Option<Kind>
+Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlot, Taken, Unseated
+```
+
+- `check` runs the same `resolve` the game runs, over the whole of what the weapon would hold, so a
+  pair that does not go together (the P90's own-thread device with a grip) is refused whichever is
+  put on second.
+- Every fit check calls it: an attach, an account's load, a shop's list. No lane keeps a table or a
+  rule of its own.
+
+**Who owns which file**
+
+| Files | Owner |
+|---|---|
+| `crates/weapon-modules/**` (the format, `resolve`) | core |
+| `client-patches/rust/patches/src/attachments.rs`, `attachments.toml`, `vostok/attachments.rs`; the `attachments.*` rows of `sites_026g.tsv`, `fields_026g.tsv`, `engine_026g.tsv`; the generated files; `arena_026g.lock.json`; `check_attachments_026g.py` | core |
+| `crates/survarium/src/v026g/weapon_modules.rs` | core |
+| `crates/survarium/src/v026g/modifications.rs`, `crates/session/src/v026g/items_rules.rs` (where an upgrade's slot and an attach are decided) | core for slots 4 and 5; then the scopes lane alone, for the scope's branch |
+| `flash/lobby_menu/**` (the Attachments window) | core |
+| `scripts/weapon-modules/ids.tsv`, `make_pack.sh`, `edits.py`, `review.py`; `scripts/remodel-069/**`; the pack's rows of `release/content.tsv` | core (the content pipeline) |
+| this note | core; a lane keeps its own `docs/notes/attachments-<lane>.md` |
+| `crates/survarium/src/v026g/scopes.rs`, `scripts/scope-fits/**`, the migration of variant ids, the scope items' edit lists | scopes |
+| the device items (their configs, stats, texts, icons, prices), the shot effects, the `next` row of `simulation_changes.tsv` | muzzles |
+| the grip items (the same), the clip events of the six guns, the hand's checks | grips |
+| `client-patches/localization/*.tsv`, `release/content.tsv` (a lane's own new rows) | each lane adds its rows; the lead settles them at the merge |
+
 ## The three lanes (briefs, kept current)
 
 Not made by the content side's first pass, and so each lane's own: the device and grip items
