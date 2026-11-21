@@ -148,6 +148,29 @@ Open:
   Tag's rule does not count its rounds (a draw replays one without a score),
   so it cannot fill it yet.
 
+### 2026-11-21, after the merge of main and the alignment
+
+`tools/check` on the branch (51 checks selected): pass for freeze-native
+(every case above, the pause's hold and the post-match hold included; the
+ordinary match's input through patch 78's chained handler), the client
+crate's tests (465) and Clippy, cargo:srp-validate, survarium, session,
+match-server, lobby-server, web-server and the rest, the quick content
+build (`freeze-tag-1.json`: 2 files edited, the config new, the dictionary
+changed), localization, world-drift and every other exe check but those
+below. The failures are main's, the same on other branches the same day:
+
+- world-check: 48,148 of 49,508 worlds pass, 1,360 refused (object fields,
+  FFA respawn-point counts), the counts of main's; no world of mode 12 yet;
+- ffa-native: the world-roundtrip cases pass (fresh A, fresh B, resync), its
+  coverage audit names four unlisted codec sites (`252B48`, `2AC8A6`,
+  `310224`, `33A51B`; #2337);
+- cargo:srp: the Player vs Bots end-to-end test's status rows (17, not 25;
+  #2335);
+- vostok-layout (day 2's existing object; #2338), vostok-anomalies (the
+  Vostok modes edit; #2339), stalker-maps (cargo outside the dev shell;
+  #2336), v021d-weather (breakable-lamps-1 over a 0.21 evening project),
+  localization-harness (Calibri has no ∞).
+
 ### 2026-11-17
 
 The shared rule/codec tests, installed native hooks, generated engine ABI,
