@@ -102,6 +102,9 @@ Twelve effects come with the pack, `fx/weapons/attach/`: `gas_small` (the flash 
     that 0.26g's has not. The eleven fire materials lose it.
   - One material takes a switch from the live ones: `idle_muzzle_hi` is one-sided in 0.46c2, and
     every live material of its other switches is two-sided.
+  - A number 0.46c2 writes whole where every live material has a float (the four scroll directions
+    of six materials) is written as that float: the content build's value-type check refuses the
+    other.
 - **A texture** is 0.46c2's `.dds` as it is, its `.options` in 0.26g's records.
 
 ## The build
