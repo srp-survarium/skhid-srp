@@ -1,9 +1,12 @@
 # Rudnya (v0.69)
 
 0.69d's Rudnya (its `level_01`, day) as a map of its own beside 0.26g's Rudnya, in content
-pack `rudnya-069d@3`. The owner's asks: port it "with the same sharp look" (2026-10-29);
+pack `rudnya-069d@4`. The owner's asks: port it "with the same sharp look" (2026-10-29);
 "add batteries there", "and artefact spawners", "and research points and battery chargers",
-"we know positions from 0.26 version", "might need to be changed a bit" (2026-10-30).
+"we know positions from 0.26 version", "might need to be changed a bit" (2026-10-30); after he
+played it (2026-11-20): "our converter is pretty bad and I think we were patching the map screen by
+screen", "instead of doing that properly": every fix a conversion rule fed by 0.69d's own data, for
+the whole map (pack @4, below).
 
 | maps_dict id | level (`map_id`) | project | mode | loading id | HUD key |
 | ---: | ---: | --- | --- | ---: | --- |
@@ -23,12 +26,22 @@ pack `rudnya-069d@3`. The owner's asks: port it "with the same sharp look" (2026
   tiles left the blend overlays up to 2 m off: seams and holes in trenches); materials on
   0.26 templates, which have no metalness, parallax, detail maps or 0.69d's colour grading.
   35.6 MiB of geometry (team deathmatch), 40.9 MiB (charging stations); native maps 43-48.
-- The light is 0.69d's (resource-porter `lighting.rs`): its probes re-encoded for 0.26 with
-  their multipliers and full rotations, its fill lights as probe volumes, its darkening
-  lights as 0.26 ambient lights (at least x0.25, no cylinders), its sun, clouds and the
-  pond's mist; interiors raised to what 0.69d's exposure shows, the church, the tractor
-  station's annex and the bus stop per area (`area_gains`). 0.26's atmosphere and the
-  ambient sounds are native Rudnya's (the two maps share coordinates).
+- The light is 0.69d's, by rule (resource-porter `lighting.rs`, `tone.rs`, `surface.rs`; pack @4):
+  its probes re-encoded for 0.26 with their multipliers and full rotations; its 288 ambient
+  lights as 0.26g ambient lights (adding, brightening and darkening ones, their falloff and
+  facing fitted); its sun; its exposure range (EV 6 to 12.5), colour grading and tone curve,
+  as an exposure profile of the lighting pack (`three-maps-021-lighting@10`, marker 33001 in
+  the scene's `mie_fog_base_height`) and the scene's own colour grading texture; its clouds
+  and the pond's mist. Nothing is tuned by place: pack @3's per-area gains, raised interior
+  probes, exposure bias and sun desaturation are gone.
+- Materials by the two builds' shading: gloss from 0.69d's smoothness by the GGX alpha each
+  build draws, Fresnel 0.04, the 43 materials with a metalness map on diffuse and Fresnel maps
+  made from their albedo and metalness (pack @3 bound the metalness map as the Fresnel map and
+  metal mirrored the sky).
+- 0.69d's own sound emitters (22; one sound 0.26g lacks is imported) and its fly swarms; the
+  sky and the distance fog are still 0.26g's with native Rudnya's settings (0.69d's height fog
+  over the map and its sky are not converted yet: resource-porter's
+  `docs/survarium-069d-to-026.md` has what was read of them).
 - Spawns (team deathmatch): 0.69d's team-deathmatch points as they are, 405 (team 0: 313,
   team 1: 92); each point's own check radii; their invulnerability time 6 s as the rest of the
   map (maps.tsv; 0.69d's 3 s until then). The owner may revisit it: these are free spawns, up to
@@ -110,12 +123,18 @@ vostok-port build-survarium-069d-map --manifest ports/survarium-069d-rudnya-to-0
   --donor-db donor-069d.split --target-db <stock 0.26g resources.db> \
   --published-patch resources.db.patch_30 --output <bundle>
 vostok-port pack from-bundle --base-db <stock 0.26g resources.db> --bundle <bundle> \
-  --output <packs>/rudnya-069d-3 --id rudnya-069d --version 3
+  --output <packs>/rudnya-069d-4 --id rudnya-069d --version 4
 ```
+
+The build's notes print the scene's exposure profile ("tone: ... floor, ceiling, key"): the same
+numbers are the map's `exposure_profiles` row in resource-porter's
+`ports/three-maps-021-lighting.json`, and that pack's new version ships with the map's.
 
 The pack's folder goes in `$SKHID_PACKS_DIR` (`private/content-packs/rudnya-069d-3`), where
 `release/build-content` composes it from; `pack.json`'s sha256 is its row in
-`release/content.tsv`. The skill `map-port` has the whole procedure.
+`release/content.tsv`. A version whose scene has another number of client objects moves the four
+`expected_counts` of the map's projects in `scripts/content-edit/artefact-keeper-1.json` by the
+difference (pack @4: 4 more). The skill `map-port` has the whole procedure.
 
 ## Checked against 0.69d
 
