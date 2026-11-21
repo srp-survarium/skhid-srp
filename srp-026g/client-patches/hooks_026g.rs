@@ -1094,10 +1094,10 @@ pub extern "C" fn hook_attachments_on_scope_dict(frame: &mut Frame) -> u32 {
 #[repr(u32)]
 #[allow(dead_code)]
 pub enum AttachmentsOnScopeResultExit { Scoped }
-/// The entry `attachments_on_scope_result` (0x24ad0e, on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov esi,offset "addons" / mov [esp+30h],ecx; then mov [esp+24h],ebx and the two has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1) calls this with the saved machine.
+/// The entry `attachments_on_scope_result` (0x24ad13, on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov [esp+30h],ecx / mov [esp+24h],ebx, EBX 0: the two stores before the has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0; the mov esi,offset "addons" before them has a base relocation and stays the game's): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1) calls this with the saved machine.
 #[unsafe(no_mangle)]
 pub extern "C" fn hook_attachments_on_scope_result(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `attachments_on_scope_result` calls this, from the game's jump at 0x24ad0e,
+    // SAFETY: only the entry `attachments_on_scope_result` calls this, from the game's jump at 0x24ad13,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::attachments::on_scope_result(&mut ctx) {

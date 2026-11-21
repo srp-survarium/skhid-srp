@@ -6313,7 +6313,7 @@ buffer holds it. A table of 2048 ranges in the arena (96 KiB); the pools' sizes 
 Nothing a match computes. The memory profile (patch 127) tells both pools and the sharing in each
 snapshot. Checked with `check_geometry_share_026g.py` (Unicorn) and the patch crate's tests; run in
 the faces memory test (section 3.88).
-## A weapon's fitted modules: scope frame, eye, left hand, shells (patch 161, unreleased, not linked)
+## A weapon's fitted modules: scope frame, eye, left hand, shells (patch 161, unreleased)
 
 The client's side of the attachment system (`../docs/notes/attachments.md`, "Stage 2"): a weapon
 config names its gun and what is fitted to it (`data/srp_gun`, `srp_scope`, `srp_muzzle`,
@@ -6321,7 +6321,20 @@ config names its gun and what is fitted to it (`data/srp_gun`, `srp_scope`, `srp
 writes the game's own records after the game filled them: the scope's and the eye's locator records
 after `load_weapon` (0x24B0E1), the left hand's records after `weapon::activate` filled them
 (0x244649), its finger sets there and at each change of view (0x298664); the shell effect keeps the
-frame the scope had (0x2443EE). `rust/patches/src/attachments.rs` over `vostok::attachments`. The
-modules table is not loaded by anything yet, so the patch changes nothing; the arena's lock is not
-written with it and no Unicorn check exists yet (the note lists what remains). Nothing a match
-computes changes.
+frame the scope had (0x2443EE). `rust/patches/src/attachments.rs` over `vostok::attachments`.
+
+The table (`resources/gameplay/weapon_modules.srpm`) comes in with the items dictionary's configs
+(0x2C8963, 0x2C8AA0); the weapon cook asks for the bare body and each part's model (0x24AAB4,
+0x24AC30, 0x24ACF0) and `weapon::draw` puts the parts in the scene (0x245017; out at 0x245353,
+0x244017, 0x24B190). A weapon's scope item is the one `data/srp_scope` names, in place of
+`addons/rifle_scope_dict_id` (the cook 0x24AA15, its callback 0x24AD13). A gun that lies alone
+(a dropped one, a dead body's) gets its parts with its body. The site table and the reasons are
+in the note, "The client's runtime".
+
+With it, two numbers of `configs::create_binary_config_buffer` (0x358AA8, 0x358ABC;
+`ITEM_CONFIG_ARENAS`): the stack arena an upgraded item's config is rebuilt in is 64 KB, not 16.
+Its allocator has no bound, each fitted module adds an entry to the gun's config, and six guns'
+configs were within 5 entries of what 16 KB holds.
+
+Linked (`arena_026g.lock.json`); `check_attachments_026g.py` (`tools/check attachments`) runs
+every site in the build and the original. Nothing a match computes changes by the patch alone.

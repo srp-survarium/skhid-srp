@@ -1520,5 +1520,5 @@ survarium::weapon_cook_frame	requests_count	-0xC	u32	the requests it will push (
 survarium::weapon_cook_frame	cook	-0x1C	ptr<survarium::weapon_cook>	the cook itself (ECX kept at 0x24A926; its game read at 0x24AA4F)
 survarium::weapon_cook	game	0x24	ptr<survarium::game>	the game (on_weapon_config_loaded 0x24AA4F: [cook+24h]+53A4h the items dictionary the scope's dict id is looked up in)
 survarium::item_entry	cfg_path	0x118	ptr<u8>	its config's path, a C string (the weapon cook asks a scope item's config by it, class 4Dh: 0x24AA67)
-survarium::weapon_ready_body_frame	scope_taken	0x24	u32	on_weapon_subresources_ready's body by its ESP after its four pushes (0x24AD0E): the scope object the cook's setter 0x245BC0 fills (its out argument, lea esi,[esp+24h] at 0x24AD96), cleared at 0x24AD17
+survarium::weapon_ready_body_frame	scope_taken	0x24	u32	on_weapon_subresources_ready's body by its ESP after its four pushes (0x24AD13): the scope object the cook's setter 0x245BC0 fills (its out argument, lea esi,[esp+24h] at 0x24AD96), cleared at 0x24AD17
 survarium::weapon_ready_body_frame	cook	0x30	ptr<survarium::weapon_cook>	the cook, ECX kept there at 0x24AD13

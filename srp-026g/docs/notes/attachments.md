@@ -348,7 +348,7 @@ models of their own: asked for by the weapon cook's own query, and put in the sc
 | `attachments.dictionary_requests` 0x2C8963 | the items dictionary cook's query of its five configs | the query asks for a sixth resource, the modules table |
 | `attachments.dictionary_configs` 0x2C8AA0 | that query's callback, its entry | the table's bytes copied, parsed and kept |
 | `attachments.scope_dict` 0x24AA15 | the weapon cook, before it looks for `addons/rifle_scope_dict_id` | a config that names a scope by `data/srp_scope` asks for that scope item's config (class 4Dh, the first request), whatever `addons` says |
-| `attachments.scope_result` 0x24AD0E | the cook's callback, before it asks the config again whether there is a scope | the same config: the first result is the scope's |
+| `attachments.scope_result` 0x24AD13 | the cook's callback, before it asks the config again whether there is a scope | the same config: the first result is the scope's |
 | `attachments.request_room` 0x24AAB4 | the weapon cook sizes its requests | a place more for each part |
 | `attachments.asked` 0x24AC30 | the weapon made, its requests pushed, none read yet | the weapon's model request names the bare body; each part's model is asked for after the game's own; the weapon is remembered with where its parts' results will be |
 | `attachments.ready` 0x24ACF0 | the cook's callback, its entry | each part's model taken from the results (a reference of ours) and kept with its placement |
@@ -567,6 +567,8 @@ file.
 | Scope items | dict ids 2101-2120, the shop's own (ownership does not change) |
 | Muzzle devices and grips | dict ids 2601-2671 (`scripts/weapon-modules/ids.tsv`, append-only) |
 | Not items: 2652-2655 | the VSSK's four barrels, its suppressor in other shapes: out by the owner's rule (no silencers). Their ids stay taken (never reused) and no item is made for them, so nothing can hold one; their fits leave the table with the porter's suppressor rule at the next pack version |
+| Not items: 2667, 2669, 2670 | the OTs-14's, the SR-3M premium's and the SR-3M's own foregrips: the guns' own parts, always on (decided 2026-11-21); reserved, unused |
+| A fitted item's modification | id 994000 + the item's dict id, all three kinds |
 | The items' icons | `LobbyMenu_AmmoIcons`: columns 5, 6, 7 (rows 1-22) the muzzle lane's, column 8 the grips lane's |
 | A stock part's or a carrier's row in the table | 0.69d0's own dict id; never an item of ours |
 | A slot's id | `weapon_modules::SlotId`, 0.69d0's 94 names; its number is the table's byte |
@@ -588,6 +590,15 @@ sees it, after the item's modifications)
 - A scope item's config keeps `data/idle_model` and `data/aimed_model`: the optic's own two models
   of the pack, their origin the optic's slot.
 - Nothing else is read: the table says the rest.
+- **A gun's config has room for it.** The client rebuilds an upgraded item's config in a stack
+  arena its allocator never bounds (`create_binary_config_buffer` 0x358AA0: 24 bytes an entry, 12
+  more a table or list, one entry more for each type 3 add). It was 16 KB, which the largest gun
+  configs fill with a camouflage and decals (the server's check: 565 entries on the plain config,
+  `tables::MAX_CONFIG_ENTRIES`; the Remington 700 premium and the KS-23M are at 565 with `srp_gun`,
+  the SV-98 564, the Remington 700 563, the Neosteads 562 and 560, the Mosin 560). Patch 161 makes
+  it 64 KB (`ITEM_CONFIG_ARENAS`), so the check stays as it is and a kit's adds have 48 KB on top.
+  A game without that patch must not be given a fitted gun of those six (one supported client
+  version: the release ships both).
 
 **The servers' one fit check** (`survarium::v026g::weapon_modules`, core-only)
 
@@ -628,15 +639,27 @@ Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlo
   aim time").
 - The eight clamp fits stay refused: in 0.69d0 the clamp sits on a slot only a fitted suppressor
   brings. The 9A-91 takes no grip.
-- The SR-3M's and OTs-14's own foregrips (in the live mesh today, a module in 0.69d0): bare gun
-  and a bought item, or always on as today, is the owner's to say. The grips lane builds the items
-  meanwhile.
+- The SR-3M's, its premium's and the OTs-14's own foregrips stay the guns' own parts, always on,
+  as today (decided 2026-11-21): no item, no stat. The remodel bakes them into both the whole and
+  the bare body, and both keep the live hand locators (the next pack version).
+- The muzzle lane's item table stands as proposed, the two Zenit DTK-4 in as brakes, the duckbills'
+  spread -15 %; the grips lane's as proposed, 6,000 silver each.
 - 46 released (weapon, scope) pairs are not fits of 0.69d0's (19 Docter pairs, the 18 of
   `sr3m_premium`, 3 on `wpn_mp7_silencer_special`, 5 singles; the Mosin's PU 3.5x was only a
   missing id row and is a plain fit now): the scopes lane carries them as legacy per-gun rows in
   the porter (`modules.rs`, its own functions).
 - `sr3m_premium` has no muzzle fit in the table of pack 1 where `sr3m` has 13 (its `fits_like`):
-  looked at with pack 2.
+  the cause is the porter's: a premium takes its base gun's fits only when its own links give
+  none, and 0.69d0 links this one to its own camouflage foregrip. Fixed with the next pack version.
+- **The next pack version** (`weapon-modules@2`; the pack rebuilt over patch 68 with the same
+  porter is byte for byte pack 1, so the row stays `@1` until then) takes: `sr3m_premium`'s fits;
+  the VSSK barrels out of the fits; the PU 3.5x's row; the three own foregrips baked into both
+  bodies; the remodel bodies' camouflage masks (below); the scopes lane's legacy pairs; `plane_slot`
+  if its meaning is proven.
+- **The remodel bodies' camouflage masks** are made inside the attachments pack, by the mask maker
+  main has today over `scripts/remodel-069/camo.tsv`: every gun gets a remodel body, so without them
+  every owned camouflage would change with this PR. The one-rule masks of #2314 (parked) remake them
+  when that lands, as every other gun's. Open until the next pack version is built.
 
 **Who owns which file**
 
@@ -660,8 +683,7 @@ Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlo
 Not made by the content side's first pass, and so each lane's own: the device and grip items
 (dictionary rows, configs whose modification sets `srp_muzzle` / `srp_grip`, stats, texts, icons,
 prices); the shot effects' particles; the scope items on the new origin; the camouflage masks of
-the remodel bodies (by the camouflage work's rule: until then a camouflage on a remodel has no
-mask); `release/build-content --full` with the pack; clippy on the porter.
+the remodel bodies (the core's, with the next pack version: "What is settled" above); `release/build-content --full` with the pack; clippy on the porter.
 
 They start when the core and the content run on one gun (the AK-74M: a brake, a flash hider, a grip
 on a swapped forend, a scope; both views and the lobby), each a sub-branch of `feat/attachments`.

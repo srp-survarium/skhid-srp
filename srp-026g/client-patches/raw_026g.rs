@@ -28586,7 +28586,7 @@ impl WeaponReadyBodyFrame {
         self.0.as_ptr() as usize as u32
     }
 
-    /// +0x24 (u32): on_weapon_subresources_ready's body by its ESP after its four pushes (0x24AD0E): the scope object the cook's setter 0x245BC0 fills (its out argument, lea esi,[esp+24h] at 0x24AD96), cleared at 0x24AD17
+    /// +0x24 (u32): on_weapon_subresources_ready's body by its ESP after its four pushes (0x24AD13): the scope object the cook's setter 0x245BC0 fills (its out argument, lea esi,[esp+24h] at 0x24AD96), cleared at 0x24AD17
     ///
     /// # Safety
     /// `self` is alive (its fields are its kind's: the type says so).
@@ -34747,7 +34747,7 @@ pub mod site {
         }
     }
 
-    /// attachments.scope_result (0x24ad0e): on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov esi,offset "addons" / mov [esp+30h],ecx; then mov [esp+24h],ebx and the two has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1
+    /// attachments.scope_result (0x24ad13): on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov [esp+30h],ecx / mov [esp+24h],ebx, EBX 0: the two stores before the has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0; the mov esi,offset "addons" before them has a base relocation and stays the game's): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1
     pub mod attachments_scope_result {
         #[allow(unused_imports)]
         use super::*;
