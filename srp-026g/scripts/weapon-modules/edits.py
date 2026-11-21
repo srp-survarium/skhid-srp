@@ -5,7 +5,8 @@ usage: python3 -I edits.py <players' files>
 
 <players' files>  the players' gameplay/db_static_dictionaries and gameplay/items/weapons/*
 For each row of ../remodel-069/items.tsv (a live gun item, its config, its live model, its remodel):
-- remodel-069-1.json: the config's object/model becomes its remodel (the whole body);
+- remodel-069-1.json: the config's object/model becomes its remodel (the whole body), that key alone
+  (set_string: the skeleton keeps the live one, which half the guns name with the same path);
 - weapon-modules-1.json: data/srp_gun, the item's own dict id: the gun's record in the modules table
   (docs/notes/attachments.md, "What the core needs of the content", 5). A config without a data
   table gets one.
@@ -28,7 +29,7 @@ def main():
     for item, config, live_model, _, remodel in rows:
         cfg = cfgs.config(live / config)
         assert cfg['object']['model'] == live_model, (item, cfg['object']['model'])
-        models.append({'files': config, 'from': live_model, 'to': remodel})
+        models.append({'file': config, 'path': 'object/model', 'from': live_model, 'to': remodel})
         if 'data' in cfg:
             assert 'srp_gun' not in cfg['data'], item
             guns.append({'files': [config], 'table': 'data', 'key': 'srp_gun', 'value': ids[item]})
@@ -38,8 +39,10 @@ def main():
     (out / 'remodel-069-1.json').write_text(json.dumps({
         '_about': "Every live gun on 0.69d0's model (pack weapon-modules, docs/notes/remodel-069.md): each weapon "
                   "config's object/model set to its remodel's whole body, weapons/remodel_069/<0.69d0 item>/<0.69d0 "
-                  "item> (remodel-069/items.tsv; made by weapon-modules/edits.py). The configs keep everything else.",
-        'replace_string': models}, indent=1) + '\n')
+                  "item> (remodel-069/items.tsv; made by weapon-modules/edits.py). That key alone (set_string): the "
+                  "configs keep everything else, the skeleton too, which 52 guns name with the same path as their "
+                  "model and the remodel bodies keep bone for bone.",
+        'set_string': models}, indent=1) + '\n')
     (out / 'weapon-modules-1.json').write_text(json.dumps({
         '_about': "Each gun names its record of the modules table (gameplay/weapon_modules.srpm, pack "
                   "weapon-modules): data/srp_gun, the weapon item's own dict id (docs/notes/attachments.md; made by "
