@@ -41,6 +41,8 @@ package survarium.controls
       protected var _tweenLite:TweenLite;
 
       protected var _fullSize:int = 0;
+      
+      protected var _fitted:String = null;
 
       public function FixedText()
       {
@@ -173,6 +175,12 @@ package survarium.controls
       // own size, and scrolls only if it still does not fit.
       public function set fittedText(value:String) : void
       {
+         // the same name again (a card refreshed) keeps its size and its scroll
+         if(value == this._fitted && value == this._text)
+         {
+            return;
+         }
+         this._fitted = value;
          var color:uint = this.textField.textColor;
          var format:TextFormat = this.textField.defaultTextFormat;
          if(this._fullSize == 0)
