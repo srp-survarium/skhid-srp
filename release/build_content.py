@@ -529,7 +529,7 @@ PACK_JOBS = 3                                         # vostok-port runs at once
 NO_PATCH = 'the base already has every file as the packs make it: no patch'
 
 
-def pack_runs(specs):
+def pack_runs(specs, links=()):
     """The packs' operations in runs of vostok-port composed apart: [[(pack index, [operation
     index])]], each pack in its order. vostok-port makes each path of the operations on it alone
     (its conflicts are of one path, a table or a string of one file), so operations on a path in
@@ -539,11 +539,18 @@ def pack_runs(specs):
     adds or replaces are one group with those of the packs it requires. The groups of one pack are
     its run, those of the same several packs theirs, so a pack's change recomposes the runs of its
     operations only. A pack without operations is a group of its own. None: an operation not in
-    PACK_OPERATIONS (then the packs run whole, at once)."""
+    PACK_OPERATIONS (then the packs run whole, at once). `links`: pairs of pack ids whose files
+    refer to each other's without a `requires` (learnt from vostok-port's refusals: Composer), one
+    group as if one required the other."""
     nodes, touched = [], []
     ids = {spec.get('id'): i for i, spec in enumerate(specs)}
+    linked = {}
+    for a, b in links:
+        linked.setdefault(a, set()).add(b)
+        linked.setdefault(b, set()).add(a)
     for i, spec in enumerate(specs):
         operations = spec.get('operations', [])
+        related = set(spec.get('requires', [])) | linked.get(spec.get('id'), set())
         for k, operation in enumerate(operations):
             kind = operation.get('op') if isinstance(operation, dict) else None
             if kind not in PACK_OPERATIONS:
@@ -553,7 +560,7 @@ def pack_runs(specs):
             if not isinstance(path, str):
                 return None
             nodes.append((i, k))
-            touched.append([path] + ([('files', i)] + [('files', ids[r]) for r in spec.get('requires', []) if r in ids]
+            touched.append([path] + ([('files', i)] + [('files', ids[r]) for r in sorted(related) if r in ids]
                                      if kind in ('add_file', 'replace_file') else []))
         if not operations:
             nodes.append((i, None))
@@ -613,16 +620,34 @@ def compose_packs(rows, base, base_shas, vostok, packs_dir, work, world, cache):
     program = Path(vostok).resolve()
     composer = Composer(vostok, base, base_shas, files_digest(sorted(program.parent.glob(program.name + '*'))),
                         applied, folders, specs, work, world, cache)
-    runs = pack_runs(specs)
-    try:
+    # vostok-port checks what the files it adds refer to (a model's materials, a project's probes)
+    # across every file it makes: a run whose files refer to another pack's (no `requires` says so)
+    # is refused. The packs whose added paths its refusal names are linked to it (kept in the cache,
+    # by their ids) and run with it; a refusal that names none: the packs composed whole, at once.
+    links_key = Cache.key('the packs whose files refer to each other\'s')
+    links = {tuple(pair) for pair in (cache.get(links_key) or ({}, []))[1]}
+    adder = {operation['path']: spec.get('id') for spec in specs for operation in spec.get('operations', [])
+             if isinstance(operation, dict) and operation.get('op') in ('add_file', 'replace_file')}
+    while True:
+        runs = pack_runs(specs, links)
         if runs is None:
-            raise Problem('an operation build_content.py does not know (PACK_OPERATIONS)')
-        composed = composer.compose(runs)
-    except Problem as problem:
-        # A check of vostok-port's across the files of every pack (a probe a project names that
-        # another run's pack adds): the packs composed whole, at once.
-        print(f'    the packs in runs: {str(problem).splitlines()[-1].strip()}; composed at once')
-        composed = composer.compose(None)
+            print('    an operation build_content.py does not know (PACK_OPERATIONS): the packs composed at once')
+            composed = composer.compose(None)
+            break
+        try:
+            composed = composer.compose(runs)
+            break
+        except RunsRefused as refused:
+            found = {tuple(sorted((ident, adder[word])))
+                     for packs, said in refused.runs for word in re.findall(r'[^\s,;:()"\']+', said)
+                     if word in adder for ident in packs if adder[word] != ident}
+            if not found - links:
+                print(f'    the packs in runs: {refused}; composed at once')
+                composed = composer.compose(None)
+                break
+            print(f'    the packs in runs: their files refer to each other\'s: {sorted(found - links)}; run together')
+            links |= found
+            cache.put(links_key, {}, sorted(links))
     print(f'    {len(composed)} file(s), {composer.fresh} run(s) of vostok-port now'
           + ('' if composer.fresh else ': as an earlier build of the same packs over the same movies composed them: '
              'the cache'))
@@ -631,6 +656,15 @@ def compose_packs(rows, base, base_shas, vostok, packs_dir, work, world, cache):
             world.put_cached(path, digest, reason)
         else:
             world.put(path, data, reason, digest)
+
+
+class RunsRefused(Problem):
+    """vostok-port refused runs: [(the ids of a run's packs, what it said)]."""
+
+    def __init__(self, runs):
+        self.runs = runs
+        super().__init__('vostok-port pack patch failed:\n' + '\n'.join(
+            '    ' + line for _, said in runs[:1] for line in said.splitlines()[-25:]))
 
 
 class Composer:
@@ -704,11 +738,19 @@ class Composer:
             if made:
                 composed.update({path: (None, digest) for path, digest in made[0].items()})
             else:
-                todo.append(self.prepare(number, whole, run, manifests, edited) + (key, edited))
+                todo.append(self.prepare(number, whole, run, manifests, edited)
+                            + (key, edited, [self.specs[i].get('id') for i, _ in run]))
         self.fresh += len(todo)
+        refused = []
         with concurrent.futures.ThreadPoolExecutor(PACK_JOBS) as jobs:
-            for (runs_dir, label, command, key, edited), result in zip(todo, jobs.map(self.run, todo)):
-                composed.update(self.collect(runs_dir, result, key, edited))
+            for (runs_dir, label, command, key, edited, packs), result in zip(todo, jobs.map(self.run, todo)):
+                made = self.collect(runs_dir, result, key, edited)
+                if isinstance(made, str):
+                    refused.append((packs, made))
+                else:
+                    composed.update(made)
+        if refused:
+            raise RunsRefused(refused)
         return composed
 
     def prepare(self, number, whole, run, manifests, edited):
@@ -750,8 +792,7 @@ class Composer:
         out = runs_dir / 'out'
         if result.returncode and NO_PATCH not in result.stdout:
             shutil.rmtree(runs_dir, ignore_errors=True)
-            raise Problem('vostok-port pack patch failed:\n'
-                          + '\n'.join('    ' + line for line in result.stdout.splitlines()[-25:]))
+            return result.stdout
         files = {file.relative_to(out).as_posix(): file.read_bytes()
                  for file in sorted(p for p in out.rglob('*') if p.is_file())} if out.is_dir() else {}
         shutil.rmtree(runs_dir, ignore_errors=True)

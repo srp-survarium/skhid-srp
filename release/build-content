@@ -55,11 +55,13 @@
 #                       it; delete it any time). Each step's key:
 #                       a movie: its tree, its original's archive (sha256),
 #                         the build's programs and tools.json;
-#                       the packs, in chunks of packs that share no path
-#                         (build_content.py pack_chunks), each composed and
-#                         kept apart: the base archives' sha256s, each of its
-#                         pack folders' files (path, size, time), vostok-port
-#                         and the bytes of the movies its packs edit;
+#                       the packs: vostok-port runs apart (three at once) on
+#                         the operations that share a path, a pack's files
+#                         with those of the packs it requires or refers to
+#                         (build_content.py pack_runs), each kept by the base
+#                         archives' sha256s, its operations, the pack files
+#                         they read (path, size, time), vostok-port and the
+#                         bytes of the movies they edit;
 #                       an edit list: its bytes, content_edit.py and its
 #                         modules (not their tests; a localization list also
 #                         client-patches' localization modules and its folder)
