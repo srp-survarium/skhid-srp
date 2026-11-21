@@ -227,10 +227,12 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_pierce_walls_026g.py` | Patch 175: every wall costs a bullet something (`PIERCE_WALLS`, try_pierce's k in place, 0x32D99E): try_pierce against static geometry for nine walls by fourteen piercings, the original's k = 1 - (1 - clamp((P - A) / A, 0, 1))^2 and the build's 1 - (A / P)^2, damage and piercing x k, the same bullets stopped (needs Unicorn) |
 | `rust/patches/src/tick_parts.rs`, `src/tick_parts.toml`, `src/vostok/controller.rs` (`Step`, `IdleTest`, `SpeedMeasure`) | Patch 168: a part of a tick walks, and says a player's speed, as a whole tick does (`../docs/notes/fall_damage.md`, "A part of a tick: its least walk and the speed read from it"): two lohooks, can_skeep_player_step's least walk asked of a part at its tick's worth (`controller.idle_walk`, 0x7C823: a part's walk squared over (dt / 0.05) squared, so no part of a walking body is skipped) and assign_physics_transform's store of m_linear_horizontal_speed skipped unless the step ends a tick (`player.speed_measured`, 0x2D9541: a jump begun in a cut tick reads what an uncut one reads); whole ticks bit for bit; a simulation change (`../docs/notes/client_patch.md` section 3.93); checked by `check_step_parts_026g.py` |
 | `rust/patches/src/forward_effects.rs`, `src/forward_effects.toml`, `src/vostok/effect_compile.rs` (`CompileBegin`, `Switches0d`, `send_tile_uv`), `check_forward_effects_026g.py` | Patch 169: the forward effects draw as 0.44a5's (`../docs/notes/client_patch.md` section 3.91): three lohooks in two effect compiles, forward_default's and particle_lighting's pushes for compile_begin (`forward.compile_begin` 0x1D910D, `particle_lighting.compile_begin` 0x1DB34B: the shader configuration's byte 0Dh, CONFIG_USE_OLTA for a DXT1 transparency map, CONFIG_USE_DISPLACEMENT for tiled maps, CONFIG_USE_FUZZINESS for the distortion of the emissive map alone) and forward_default's solid_color_specular, before its constant_tile_uv block (`forward.tile_uv` 0x1D964D: a tiled material's four factors as a float4, which stands: a set_constant keeps a name's first value); stage_lights' constructor and particle pass (`stage_lights.constructed` 0x19015D, `stage_lights.particle_probe` 0x19834B: probe_diffuse_mult registered and set); rendering only; the programs come with content pack forward-effects; its check runs both compiles in both exes on made-up materials (needs Unicorn) |
+| `rust/patches/src/freeze_tag.rs`, `src/freeze_tag.toml`, `src/vostok/freeze.rs`, `../crates/srp-validate/src/world/freeze.rs`, `check_freeze_tag_026g.py` | Patch 160: Freeze Tag, mode 12 (`../docs/notes/freeze-tag.md`): a lethal hit freezes, a teammate thaws in 3 s within 2 m, first to five rounds; the rule saved after the respawn rule's; `respawn.tick` (order 0, Artifact Hunt's 1) and `carry.input` (order 0, patch 78's 1, exit `held`) shared, each handler acting in its own mode. Unicorn: `tools/check freeze-native`. Not run in a game. |
 | `rust/patches/src/artefact_carry.rs`, `check_artefact_carry_026g.py` | Patch 78: H (the game's unused action `artefact`, default H, a controls row) + an artefact quick key lowers the weapon and raises the artefact above the right palm in both views; switching lowers the old item before raising the new one. Use takes an offered or death-dropped artefact into a free container, with the existing collection UI. Deterministic input/snapshots, native inventory ownership, model callbacks and matching damage poses. See [controls, architecture and validation](../docs/notes/held_artefact_transfer.md). |
 | `rust/patches/src/bake_cache.rs`, `src/bake_cache.toml`, `src/vostok/baker.rs`, `src/vostok/files.rs`, `src/vostok/crc32.rs`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again: seven `lohook`s (`sites_026g.tsv` bake.* and crc32.step); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `rust/patches/src/bake_async.rs`, `src/bake_async.toml`, `src/vostok/bake_gpu.rs`, `check_bake_async_026g.py` | Patch 121: the camouflage/decal bake does not wait for the GPU: level 0 a GPU copy of the target, the compressed levels copied to stagings and flushed, at most 8 bakes on the GPU (with all 8 taken, the oldest completed on the spot for the next), polled each dispatch with the no-wait map, the DDS allocated only then, and process_compression's own tail run, on a 6 ms budget a frame; nothing is put off or asked again; the save owns the MT DDS (no copy), at most 64 saves and 128 MB not written yet; nine `lohook`s (`sites_026g.tsv` bake.issue, bake.resume, bake.save, bake.free, save.freed, compress_mip.readback, resources.dispatched, engine.tick, game.exit_start); its check runs them in Unicorn on a made-up D3D11 context |
 | `check_research_026g.py`, `../crates/research-rule/src/tests.rs` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules as Rust unit tests |
+| `check_artefact_hunt_026g.py`, `../crates/artefact-hunt-rule/src/tests.rs` | Checks of patch 171 (Artifact Hunt): the first runs the built exe's cook (the game's register_cook, rule constructor and config look-ups), the rule's slots through the game's own callers, the tick, the respawn rule's two sites, the input entry, can_sprint and apply_modifier, the artefact's query and scene, the glow, the icon's mark and the announcer on made-up games and worlds (needs Unicorn); the second the rules, the wire and the use key's reach as Rust unit tests |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -6465,6 +6467,51 @@ particle lighting programs under their wider keys, and 0.44a5's (byte for byte 0
 players lack. No material players have today sets any of the three fields, so their effects compile as
 before. Rendering only: nothing a match computes or a world holds changes. Checked with
 `check_forward_effects_026g.py` (Unicorn; `tools/check forward-effects`). Not run in a game.
+## Freeze Tag (patch 160, unreleased)
+
+Two teams, best of nine: first to five round wins. A lethal hit freezes the
+player in place, skipping normal death/ragdoll teardown. A living teammate
+within 2 metres and across a clear line of sight thaws them after 3 continuous
+seconds. A team wipe scores a round; after a five-second pause the native team
+spawn path resets the players. The pause and the restart play the match start's countdown
+(the warmup camera, patch 31's kits: a kit picked then is spawned at the restart), with Artifact
+Hunt's code (`round_countdown`). No artifact rescue in this first version.
+
+Mode 12, initially on Rudnya day (`freeze-tag-1.json`). The stock team score
+bars, collection progress widget and blocked-hit sound provide the feedback.
+A frozen player's name is drawn ice blue in the player icons movie (his own
+colour back on thaw; `tools/check freeze-names`), and each game draws the
+frozen glow `fx/artifacts/human_frozen` (pack freeze-tag-glow: the Spring
+activation glow in ice blue, fainter) on his body as scene particles from the
+world's state, never in the simulation, shrinking to 15 % of its size as a
+teammate thaws him (`game_world.after_move`, order 6, and `game_world.deactivate`, order 4).
+The shared world parser owns the versioned round state, including scores,
+frozen places and progress. See [the rules and native lifecycle](../docs/notes/freeze-tag.md).
+`tools/check freeze-native` exercises the installed hooks, HUD calls and
+rollback. Frozen players reuse the native pre-match orbit and wheel zoom;
+thaw restores their previous camera. Two sites are shared with Artifact Hunt and patch 78, chained by order:
+`respawn.tick` (0x316826: in play a frozen body's death respawn is cancelled,
+between rounds and after the match what falls due is held, the restart makes
+every place due at once) and `carry.input` (0x2D86E0: a held body's input leaves
+through the function's `ret 8` before patch 78 sees it). An actual local match
+remains pending.
+## Artifact Hunt, mode 13 (patch 171, unreleased)
+
+0.46c2's Artifact Hunt (two teams, one artefact, rounds, sudden death) as a rule of the game's own: the
+rules are `crates/artefact-hunt-rule`, the game's side the Rust module `rust/patches/src/artefact_hunt.rs`
+(`artefact_hunt.toml`, `src/vostok/artefact_hunt.rs`). A cook of class 481 registered after the game's
+own (`game.query_base_resources`), our copies of the client tdm cook's and tdm_rule_core's vtables, the
+rule's tick in the world's second list; the respawn rule's death delay (the waves) and its tick (a round's
+restart holds the places due, its end spawns everyone); patch 78's `carry.input` asks the hunt first (the
+frozen countdown applies no input, exit `held`; the use key's take and delivery; the Drop key); patch 109's
+getter sites add the carrier's two modifiers (lists 4 and 2); `hunt.can_sprint` refuses the carrier; his
+marker, minimap dot and icon mark (0x1F2D8B) for both teams, and his glow (`artefact_wood_shine`); the
+artefact's model and its idle, spawn and destroy particles in the world (a query of the patch's own, the
+scene reconciled each frame); the announcer's seven lines (sound collections in the game's language's voice);
+the hud's `root.artefact_hunt_update` (28 Numbers), its messages, the prompt and the welcome. The spec and design: `docs/notes/artefact_hunt.md`; the code: `client_patch.md`
+"Artifact Hunt (patch 171)". A simulation change for mode 13 only. Checked with
+`check_artefact_hunt_026g.py` (Unicorn; `tools/check artefact-hunt-native`) and `cargo test -p
+artefact-hunt-rule`. Not run in a game.
 ## The engine's log without the lines that tell nothing (patch 174, unreleased)
 
 The game's log, and the console that shows it (the console draws that file), no longer get the engine's

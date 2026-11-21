@@ -4,7 +4,7 @@ use crate::raw;
 use crate::world_check::{Match, Rule};
 use srp_validate::mode;
 
-pub(super) fn from_client(client: raw::NetworkClient) -> Option<Match> {
+pub(super) fn from_client(client: raw::NetworkClient, freeze_tag: bool) -> Option<Match> {
     // SAFETY: WorldLoad owns this synchronous load boundary. The match core
     // and its rule vector remain alive and unmodified until it returns.
     unsafe {
@@ -32,10 +32,13 @@ pub(super) fn from_client(client: raw::NetworkClient) -> Option<Match> {
                 // Research owns native rule type 5. Reading the base type
                 // avoids a fixed address for its relocated arena vtable.
                 _ if read(rule.rule_type()) == 5 => Rule::Mode { game_mode: mode::RESEARCH, batteries: 0 },
+                // Artifact Hunt (patch 171) makes its rule of native type 6.
+                _ if read(rule.rule_type()) == super::artefact_hunt::RULE_TYPE =>
+                    Rule::Mode { game_mode: mode::ARTEFACT_HUNT, batteries: 0 },
                 _ => Rule::Other,
             };
         }
-        Match::of(rules.into_iter().take(count))
+        Match::of(rules.into_iter().take(count).chain(freeze_tag.then_some(Rule::Mode { game_mode: mode::FREEZE_TAG, batteries: 0 })))
     }
 }
 

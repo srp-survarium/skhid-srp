@@ -17,6 +17,7 @@ fn context(places: usize, game_mode: u8, batteries: usize) -> Context<'static> {
         objects: None,
         inventory: None,
         dict_ids: None,
+        artefact_hunt: None,
     }
 }
 
@@ -136,6 +137,8 @@ fn current_tdm_rules_and_time_are_checked() {
         }),
         research: None,
         free_for_all: None,
+        freeze_tag: None,
+        artefact_hunt: None,
         kills_deaths: vec![
             native::KillsDeaths {
                 kills: 0,

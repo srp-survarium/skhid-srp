@@ -20,6 +20,8 @@ weapon-kit = { workspace = true }
 # (`v026g::weapon_modules`, patch 161).
 weapon-modules = { workspace = true }
 binary-config-parser = { workspace = true }
+# Artifact Hunt (mode 13): its maps' parameters and its rule in a world.
+artefact-hunt-rule = { workspace = true }
 # The game's localizations are UTF-8 read as Windows-1251 (`v026g::localization`).
 encoding_rs = { workspace = true }
 resources-db = { workspace = true }

@@ -482,7 +482,18 @@ impl Tail {
         })
     }
 
-    /// `m_team_points`: batteries, tickets or research points by mode.
+    /// A tail of these points and leader, for tests.
+    #[cfg(test)]
+    pub(crate) fn of(team_points: [u16; 2], winner_team: Winner) -> Self {
+        Self {
+            team_points,
+            team_victory_items: [0; 2],
+            winner_team,
+            active_in_match_players_mask: 0,
+        }
+    }
+
+    /// `m_team_points`: batteries, tickets, research points or artefacts by mode.
     pub fn team_points(&self) -> [u16; 2] {
         self.team_points
     }

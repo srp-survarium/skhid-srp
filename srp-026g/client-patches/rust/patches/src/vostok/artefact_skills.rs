@@ -299,7 +299,7 @@ impl<'t> Roster<'t> {
 /// The match's world core: the engine world's game's game world's match (a live or a replay
 /// match alike; never the network client's own field, which a replay client keeps elsewhere,
 /// ragdoll.md section 16), none in the lobby (the world's match 0) or before the engine runs.
-fn match_core() -> Option<raw::CoreWorld> {
+pub(in crate::vostok) fn match_core() -> Option<raw::CoreWorld> {
     // SAFETY: the image's engine world slot, the engine world, its game and the game's embedded
     // world are live while the game runs, the match while the world holds it; each pointer is 0
     // when absent.

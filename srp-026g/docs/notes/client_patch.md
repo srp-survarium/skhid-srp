@@ -4307,3 +4307,73 @@ working folder, both handles closed), no service, `ret 8` with the callee-saved 
 The setting's byte is 1 in the original, 0 in the built exe; switch_to_lobby and switch_to_login
 call start_seeding only while it is on, and the callback starts and stops it, in both. `cargo
 test` (the pipe's name). Not run in a game.
+
+### Artifact Hunt (patch 171, unreleased)
+
+The rules, the design and its evidence: `artefact_hunt.md` ("The exe", "Wire", "HUD calls"). What the
+code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/artefact_hunt.rs`):
+
+- **The cook** (`game.query_base_resources` 0x1EC170, a lohook at its start: the game's constructor's
+  one call, after Research's registration, which tail-jumps there): a static `survarium::hunt_cook`
+  {our copy of the client tdm cook's vtable 0x9FD8AC, class 481, -1, the thread, 8, the game} given to
+  `register_cook` 0x102D10, unless `cooks[481]` is another's. Its create (slot 9, the copy's) allocates
+  0x140 bytes under tdm_rule's name (0xACCC60), runs `game_match_rule_base` 0x313900 with type 6,
+  writes our copy of tdm_rule_core's vtable (0xA15DA4) and tdm's resolver (0xA06D10), reads the mode
+  config ("Data") into `Params` (a config it refuses stops the game, the key in the log) and seeds the
+  rule with `match_options.seed` (+577B0h of the query's options); slot 10 the size.
+- **The rule object** (`survarium::hunt_rule`): +118h the blackboard (tdm's slot 12, 0x267820, kept),
+  +120h its tick delegate, +138h the core, +13Ch the game; its state is the patch's, by the object's
+  address (one hunt at a time: the cook's last rule). Slots ours: 7 (event 0 the start from the time
+  rule's +12Ch, 1 a death with the ground under the victim), 8, 9, 11 (the core; the delegate at the
+  end of list 1, as 0x318050), 15 (`Rule::fields` through `w<u8>` / `w<u32>`, each named), 16
+  (`Rule::read` from the reader's cursor, which moves past exactly its bytes; a state it cannot read
+  stops the game: patch 87 refuses such a world first), 17 (hud +90h, +92h the scores, +4 the clock's
+  whole seconds), 18. The tick (a `callback` of the time rule's convention, 0x317F10) steps the rule and,
+  in play, sets the blackboard's two flags through `set<bool>` 0x316630 when they differ.
+- **The respawn rule**: `respawn.death_delay` 0x316B6B (EAX the delay: `Rule::respawn_at`'s wave less
+  the death's time; the native grid after it) and `respawn.tick` 0x316826 (shared with Freeze Tag, its
+  handler order 0, ours order 1: `Rule::spawning` holds, -1, the places due in a restart, and gives
+  every active place the step's time at the fade's end).
+- **The input**: `carry.input` 0x2D86E0 gains the exit `held@0x2D8A0C` (apply_new_input's own `ret 8`,
+  reached from its epilogue's `mov esp,ebp / pop ebp` with the entry's stack: proven under Unicorn, the
+  two arguments popped); `artefact_carry::on_input` asks `artefact_hunt::input` first with patch 78's
+  raw-mask edges of Use (bit 21) and Drop (bit 22): `Held` exits, `Used` (a take or a delivery)
+  consumes the press; the view's reach and clear line are the crate's `Params::takes` / `delivers`
+  over the eye (player+44Ch) and one level ray (24h / 2) along it.
+- **The carrier**: patch 109's `artefact.shared_modifier(s)` handlers call `shared_modifier(s)` (the
+  filter `HOOKED_LISTS`: the Springs' lists and 2): the carrier's kit container gets the item's -0.2
+  on list 4 and +0.05 on list 2; `hunt.can_sprint` 0x2DBF45 exits to can_sprint's refusal 0x2DC008;
+  `player_names.enemy_spotted` and `minimap.enemy_spotted` (order 2, after patch 135's) show him;
+  `player_icons.enemy_ids` tells the icons movie `root.srp_show_carriers(hunting)` at every match.
+- **The hud** (`player_icons.update_start`, order 5; `hud.initialize_match`; `game_world_ui.welcome`):
+  `root.artefact_hunt_update` with the 28 Numbers of "HUD calls" (a new `Movie::invoke_numbers`, GFx
+  type 5), the cues' messages through `set_parameterized_message`, the prompt `show_artefact_offer`.
+- **The world check**: patch 87 names the rule by its base type 6 (`world_context.rs`) and gives
+  `srp_validate::world::Context::artefact_hunt` the rule's own `Params`.
+- **The artefact in the world** (`game_world.after_move` order 5, `game_world.deactivate` order 3):
+  the item's model (class 15) and three particles (class 61) asked in one query of the patch's own
+  (`vostok::resources::query_assets`, a new `QueryTag::Assets`; kept for the process), the scene
+  reconciled with the rule each frame through the carry runtime's scene (`add/update/remove_model`,
+  and the new `play_particle_system` 0x22660 / `remove_particle_system` 0x229D0 rows of
+  `engine_026g.tsv`, the artefacts' clients' calls 0x25F335..0x25F387 and 0x25ECC6).
+- **The glow**: drawn by each game for itself in the after-move frame (`item.carrier_particle` on the
+  carrier's body, `item.carrier_particle_fp` at his own camera), moved by `update_particle_system`
+  0x22B30; never in the simulation (the second test's desync).
+- **The announcer**: the seven `mode.sound_notifications` lines as class-258 sound collections
+  (`query_collection`), the voice the text's language's folder (else english), played once by the new
+  `vostok::sound::play_once` (emit_hud_sound 0x65630 in the game world's scene +94h with the sound
+  world's logic user +B0h, the proxy's play in mode 0: 0x23F676..0x23F6F8), the one playing freed first.
+- **The icon's mark** (`player_icons.carrier_mark` 0x1F2D8B, 7 bytes, exit `carrier@0x1F2D98`): the
+  carrier's record gets EAX = place x 3 and CL = 1 (the `lea` and `setnz` skipped).
+- **After the second local test**: a round's Fade and Countdown are the match start's countdown (the
+  core's time state 4; `time_rule.camera_state` 0x267AE6 gives the client's camera test 2 then, in
+  the shared `vostok::round_countdown` / patch module `round_countdown`, which Freeze Tag's pause and
+  restart use too; a
+  kit picked in it is switched by `RespawnTick::switch_kit` with patch 31's two calls, counted in
+  `m_kit_switches` for the server's supplies); `SKHID_HUNT_LOG=on` logs the carrier's decisions.
+- **After the first local test** (2026-11-21; `artefact_hunt.md` "The implementation"): the tick takes
+  in the world's places whose player has a team the rule does not have him on (slot 8 comes before
+  the team: nobody was ever in the match, so no take); one log line a take, delivery, drop and entry;
+  the prompt gives the hud its key; a wiped team's end is reason 2 with its own texts.
+- Checked: `check_artefact_hunt_026g.py` (42 cases through the game's own callers), the crate's tests,
+  `cargo test` / clippy of the patches. Not run in a game.

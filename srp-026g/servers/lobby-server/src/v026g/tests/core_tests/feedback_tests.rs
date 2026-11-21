@@ -433,6 +433,7 @@ impl World {
             end: MatchEnd::ModeRule,
             winner: Some(0),
             team_points: [3, 1],
+            round_starts: 0,
             duration_ms: 700_000,
             played_ms: Some(600_000),
             trusted_snapshot_ms: Some(690_000),

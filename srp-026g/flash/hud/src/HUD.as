@@ -46,7 +46,11 @@ package
    import survarium.controls.PlayerProfileBase;
    import survarium.controls.PlayerRowMenu;
    import survarium.controls.ForcedView;
+   import survarium.modes.ArtefactHuntRow;
+   import survarium.modes.ArtefactHuntState;
    import survarium.modes.FfaProgress;
+   import survarium.constants.UiSound;
+   import survarium.modes.RoundFade;
    import survarium.modes.ModeNotice;
    import survarium.modes.ModeIntroText;
    import flash.utils.getTimer;
@@ -54,6 +58,7 @@ package
    import survarium.controls.QuickSlots;
    import survarium.controls.ResearchUnits;
    import survarium.controls.ResearchCountdownLayout;
+   import survarium.controls.TopRow;
    import survarium.controls.VoiceSpeakers;
    import survarium.core.Icon;
    import survarium.data.IconContainer;
@@ -144,17 +149,20 @@ package
       private function refresh_context() : void
       {
          if(!this.contextInfo) return;
-         var offer:Boolean = this._artefactOfferKey.length != 0;
-         this.contextInfo.visible = offer ? !this._chatTyping && !this._profilePanel.visible : this._nativeContext.visible;
+         var freeze:Boolean = this._gameType == 12 && this._freezeContext != null;
+         var context:Object = freeze ? this._freezeContext : this._nativeContext;
+         var offer:Boolean = !freeze && this._artefactOfferKey.length != 0;
+         this.contextInfo.visible = (offer || freeze) ? !this._chatTyping && !this._profilePanel.visible : context.visible;
          if(!this.contextInfo.visible) return;
-         var value:int = offer ? 0 : this._nativeContext.value;
+         var value:int = offer ? 0 : context.value;
          var frame:int = value == 0 ? 1 : 2;
          if(this.contextInfo.currentFrame != frame) this.contextInfo.gotoAndStop(frame);
          if(offer) this.contextInfo.contextText.text = LocalizationData.format(this._artefactOfferKey, this._artefactOfferValue);
-         else this.contextInfo.contextText.text = this._nativeContext.text;
+         else this.contextInfo.contextText.text = context.text;
          if(value != 0)
          {
-            this.contextInfo.progress_indicator.width = this.contextInfo.contextText.textWidth + 10;
+            // Freeze Tag's bar is as long as the native use's ("Progress: 100%"), not its sentence.
+            this.contextInfo.progress_indicator.width = freeze ? FREEZE_BAR_WIDTH : this.contextInfo.contextText.textWidth + 10;
             this.contextInfo.progress_indicator.set_progress(value);
          }
       }
@@ -176,6 +184,10 @@ package
       // The view fading over the respawn countdown (DeathEyes, docs/notes/death-eyes.md): on the
       // stage between the screen effects and the root, so the kits and the countdown are over it.
       protected const deathEyes:DeathEyes = new DeathEyes();
+
+      // Artifact Hunt's black between rounds (RoundFade): on the stage over the death screen's
+      // fading, under the root, so the round's countdown is over it.
+      public const roundFade:RoundFade = new RoundFade();
       
       protected const BLOOD_EFFECT:uint = 0;
       
@@ -240,6 +252,16 @@ package
       protected const GAME_MODE_FREE_FOR_ALL:uint = 8;
 
       private var _ffaProgress:FfaProgress = new FfaProgress();
+
+      // Artifact Hunt (mode 13, docs/notes/artefact_hunt.md "HUD calls"): the teams' points in Team
+      // Deathmatch's bars as Research's, the artefact under them (huntRow), the bases, the artefact and
+      // the carrier on the minimaps, his row in the Tab list, the round's fade (roundFade); all of it
+      // from the last root.artefact_hunt_update (_hunt) and the time since.
+      protected const GAME_MODE_ARTEFACT_HUNT:uint = 13;
+
+      public var huntRow:ArtefactHuntRow;
+
+      protected var _hunt:ArtefactHuntState = null;
       
       public var researchUnits:ResearchUnits;
 
@@ -248,7 +270,7 @@ package
       // Voice chat: the teammates talking now (srp_voice_talking).
       public var voiceSpeakers:VoiceSpeakers;
 
-      // The units' place in the indicator's own space (placeResearchUnits).
+      // The units' place in the indicator's own space (placeTopRow).
       protected var _researchX:Number = 0;
 
       protected var _researchY:Number = ResearchUnits.TOP;
@@ -264,13 +286,41 @@ package
       public function HUD()
       {
          super();
-         trace("initHUD",name,parent.name,stage.name,rotation,numChildren);
-         stage.visible = false;
+         // The game's root has its stage at once; a Ruffle harness's loaded movie is put on the
+         // stage after (scripts/artefact-hunt-hud).
+         if(stage)
+         {
+            this.start(true);
+         }
+         else
+         {
+            addEventListener(Event.ADDED_TO_STAGE,this.onAddedToStage);
+         }
+      }
+
+      private function onAddedToStage(e:Event) : void
+      {
+         removeEventListener(Event.ADDED_TO_STAGE,this.onAddedToStage);
+         this.start(false);
+      }
+
+      // The game's root hides the stage until its first render (Scaleform's stage has `visible`; a
+      // Flash stage, the harness's, has not).
+      private function start(game:Boolean) : void
+      {
+         trace("initHUD",name,rotation,numChildren);
+         if(game)
+         {
+            stage.visible = false;
+         }
          this.init();
          this.setlayout();
          this.placeMinimap();
          this.onResize(null);
-         addEventListener(Event.RENDER,this.onInitRender);
+         if(game)
+         {
+            addEventListener(Event.RENDER,this.onInitRender);
+         }
       }
       
       // The match's own tutorial: the exe hides it at each match's start (0x27AE59).
@@ -346,6 +396,7 @@ package
          this.effectContainer.mouseEnabled = this.effectContainer.mouseChildren = false;
          stage.addChildAt(this.effectContainer,stage.getChildIndex(this));
          stage.addChildAt(this.deathEyes,stage.getChildIndex(this));
+         stage.addChildAt(this.roundFade,stage.getChildIndex(this));
          _keptLayer = new KeptLayer(this,this.keepLaidOut);
          _forcedView = new ForcedView(this._keptLayer,this.keptWhenForced,this.keptOnTab,this.keptWhileTyping,
                                       this.holdChatHistory);
@@ -391,6 +442,8 @@ package
          researchUnits = new ResearchUnits();
          this.researchUnits.visible = false;
          addChild(this.researchUnits);
+         huntRow = new ArtefactHuntRow(new DefaultLabel3().textField,new SrvContextInfoPregame().contextText);
+         addChild(this.huntRow);
          voiceSpeakers = new VoiceSpeakers();
          addChild(this.voiceSpeakers);
          pregameInfo = new SrvContextInfoPregame();
@@ -597,6 +650,10 @@ package
 
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
+      private var _freezeContext:Object = null;
+
+      private static const FREEZE_BAR_WIDTH:Number = 120;
+      private var _freezeWasFrozen:Boolean = false;
       private var _pregameText:String = "";
 
       // Each frame the mode notice shows (its countdown, then its reading time): its end, and its place
@@ -1417,6 +1474,8 @@ package
       {
          this.player_list.players.addPlayersList(_players);
          this.tabMinimap.setPlayerNames(_players);
+         // the carrier's name and his row's mark
+         this.drawArtefactHunt();
       }
 
       // The Tab map's names over the player icons, shown while Alt is held (the exe's patch 82 tells
@@ -1662,6 +1721,7 @@ package
          this.show_pregame(false);
          this.set_match_time("");
          this.deathEyes.countdown("");
+         this.endArtefactHunt();
          if(this.progress_indicator.respawn_time)
          {
             this.set_respawn_time("");
@@ -1744,7 +1804,7 @@ package
       
       public function set_game_type(type:uint) : void
       {
-         if(this._gameType == this.GAME_MODE_RESEARCH && this.progress_indicator.layoutData)
+         if(this.topRow() != null && this.progress_indicator.layoutData)
          {
             this.progress_indicator.layoutData.alignH = "center";
          }
@@ -1754,8 +1814,15 @@ package
             this._researchCountdowns = null;
          }
          _gameType = type;
+         this._freezeContext = null;
+         this._freezeWasFrozen = false;
+         this.refresh_context();
          this.researchUnits.visible = type == this.GAME_MODE_RESEARCH;
          this.researchUnits.removeEventListener(Event.ENTER_FRAME,this.onResearchFrame);
+         if(type != this.GAME_MODE_ARTEFACT_HUNT)
+         {
+            this.endArtefactHunt();
+         }
          this.player_list.players.ranked = type == this.GAME_MODE_FREE_FOR_ALL;
          // a free for all has no team: its chat has no team tab (GameChat.teamChannel)
          this.chat.teamChannel = type != this.GAME_MODE_FREE_FOR_ALL;
@@ -1767,7 +1834,13 @@ package
             this._ffaProgress.show(this.progress_indicator);
             return;
          }
-         if(type == this.GAME_MODE_RESEARCH)
+         if(type == 12)
+         {
+            this.progress_indicator.gotoAndStop(this.GAME_MODE_TEAMDEATHMATCH + 1);
+            this.set_game_progress(0,0);
+            return;
+         }
+         if(this.topRow() != null)
          {
             this.researchUnits.addEventListener(Event.ENTER_FRAME,this.onResearchFrame);
             // Research centres the visible score bars on the actual viewport.
@@ -1783,14 +1856,44 @@ package
                this.progress_indicator.team1LastPlayers.visible = false;
                this.progress_indicator.team2LastPlayers.visible = false;
             }
+            this.drawArtefactHunt();
             return;
          }
          this.progress_indicator.gotoAndStop(this._gameType + 1);
       }
 
-      // Free for all (the exe, at each change and once after set_game_type): the kills of the game's
-      // own player, or of the one it watches; the most kills anyone has; the kills that win.
-      // Retained for native callback compatibility; FFA shows those kills in the player list.
+      // Freeze Tag uses the stock team score bars (full at the wins a match takes) and collection/thaw widget.
+      public function freeze_tag_score(own:uint, other:uint, wins:uint) : void
+      {
+         if(this._gameType != 12) this.set_game_type(12);
+         this.progress_indicator.team_1_score.maximum = wins;
+         this.progress_indicator.team_2_score.maximum = wins;
+         this.set_game_progress(own,other);
+      }
+
+      // Status: 0 playing; 1/2/3 match win/loss/draw; 4/5/6 round win/loss/draw.
+      public function freeze_tag_update(frozen:uint, progress:uint, status:uint, remaining:uint) : void
+      {
+         // The last freeze also ends a round; it still gets the freeze cue.
+         var isFrozen:Boolean = frozen != 0;
+         if(isFrozen && !this._freezeWasFrozen)
+            ExternalInterface.call("sound_play",UiSound.DAMAGE_NOT_PIERCED);
+         this._freezeWasFrozen = isFrozen;
+         var text:String;
+         if(status >= 1 && status <= 3)
+            text = LocalizationData.getName(status == 1 ? "st_srp_hud_freeze_win" : status == 2 ? "st_srp_hud_freeze_lose" : "st_srp_hud_freeze_draw");
+         else if(status >= 4)
+            text = LocalizationData.format(status == 4 ? "st_srp_hud_freeze_round_win" : status == 5 ? "st_srp_hud_freeze_round_lose" : "st_srp_hud_freeze_round_draw", String(Math.ceil(remaining / 1000)));
+         else if(isFrozen)
+            text = LocalizationData.getName("st_srp_hud_freeze_frozen");
+         else
+            text = LocalizationData.getName(progress > 0 ? "st_srp_hud_freeze_thawing" : "st_srp_hud_freeze_help");
+         // Let native pickup/use prompts own the widget during ordinary play.
+         this._freezeContext = isFrozen || progress > 0 || status != 0
+            ? {text:text,value:status == 0 ? Math.floor(progress / 30) : 0,visible:true} : null;
+         this.refresh_context();
+      }
+
       public function set_ffa_progress(own:int, top:int, target:int) : void
       {
          this._ffaProgress.tell(own,top,target);
@@ -1813,7 +1916,7 @@ package
       private function matchTime() : Object
       {
          if(this._gameType == this.GAME_MODE_TEAMDEATHMATCH || this._gameType == this.GAME_MODE_RESEARCH
-            || this._gameType == this.GAME_MODE_FREE_FOR_ALL)
+            || this._gameType == this.GAME_MODE_FREE_FOR_ALL || this._gameType == 12 || this._gameType == this.GAME_MODE_ARTEFACT_HUNT)
          {
             return this.progress_indicator.match_time_2_tdm;
          }
@@ -2032,7 +2135,7 @@ package
       public function set_game_progress(team1:uint, team2:uint) : void
       {
          trace("set_game_progress::",team1,team2);
-         if(this._gameType == this.GAME_MODE_RESEARCH && this.progress_indicator.team_1_score)
+         if((this._gameType == this.GAME_MODE_RESEARCH || this._gameType == 12) && this.progress_indicator.team_1_score)
          {
             this.progress_indicator.team1Progress.visible = this.progress_indicator.team_1_score.visible = true;
             this.progress_indicator.team2Progress.visible = this.progress_indicator.team_2_score.visible = true;
@@ -2058,6 +2161,11 @@ package
          {
             // Native progress refreshes must keep the team counters hidden.
             this._ffaProgress.draw();
+         }
+         else if(this._gameType == this.GAME_MODE_ARTEFACT_HUNT)
+         {
+            // the update's (own team first, sudden death's last players)
+            this.drawHuntBars();
          }
          else
          {
@@ -2115,20 +2223,115 @@ package
             this.progress_indicator.team_2_score.maximum = goal;
          }
          this.researchUnits.update(units,ownTeam);
-         this.placeResearchUnits();
+         this.placeTopRow();
          this.minimap.setResearchUnits(units,ownTeam);
          this.tabMinimap.setResearchUnits(units,ownTeam);
       }
       
-      // The units centred under Team Deathmatch's bars and the timer, measured
-      // in the indicator's own space (its origin is its centre). Research's
-      // respawn and pre-match countdowns get a separate row below the units.
-      private function placeResearchUnits() : void
+      // Artifact Hunt (mode 13), at a change and every 60 frames (the exe patch's artefact_hunt
+      // module; docs/notes/artefact_hunt.md "HUD calls"): 28 numbers, the whole state
+      // (ArtefactHuntState). A call outside the contract's domains is refused and changes nothing.
+      public function artefact_hunt_update(... values) : void
       {
+         var state:ArtefactHuntState = ArtefactHuntState.parse(values,getTimer());
+         if(state == null)
+         {
+            return;
+         }
+         if(this._gameType != this.GAME_MODE_ARTEFACT_HUNT)
+         {
+            this.set_game_type(this.GAME_MODE_ARTEFACT_HUNT);
+         }
+         this._hunt = state;
+         this.drawArtefactHunt();
+      }
+
+      // Everything of the mode from _hunt; nothing without one.
+      private function drawArtefactHunt() : void
+      {
+         var state:ArtefactHuntState = this._hunt;
+         if(state == null || this._gameType != this.GAME_MODE_ARTEFACT_HUNT)
+         {
+            return;
+         }
+         this.drawHuntBars();
+         this.huntRow.draw(state,this.player_list.players.nameOf(state.carrier),getTimer());
+         this.roundFade.update(state,getTimer());
+         this.minimap.setArtefactHunt(state);
+         this.tabMinimap.setArtefactHunt(state);
+         this.player_list.players.carrier = state.carrier;
+         this.placeTopRow();
+      }
+
+      // The mode's state forgotten and nothing of it shown (another mode, a new match).
+      private function endArtefactHunt() : void
+      {
+         if(this._hunt == null)
+         {
+            return;
+         }
+         this._hunt = null;
+         this.huntRow.clear();
+         this.roundFade.update(null,0);
+         this.minimap.setArtefactHunt(null);
+         this.tabMinimap.setArtefactHunt(null);
+         this.player_list.players.carrier = -1;
+      }
+
+      // The teams' points in Team Deathmatch's bars, the own team's first (blue); in sudden death,
+      // as Team Deathmatch's last tickets, the players still in (its heads) in their place.
+      private function drawHuntBars() : void
+      {
+         var bar:SrvMatchProgress = this.progress_indicator;
+         var state:ArtefactHuntState = this._hunt;
+         if(state == null || !bar.team_1_score)
+         {
+            return;
+         }
+         var sudden:Boolean = state.suddenDeath;
+         bar.team_1_score.maximum = bar.team_2_score.maximum = state.goal;
+         bar.team1Progress.visible = bar.team_1_score.visible = !sudden;
+         bar.team2Progress.visible = bar.team_2_score.visible = !sudden;
+         bar.team1LastPlayers.visible = bar.team2LastPlayers.visible = sudden;
+         bar.team_1_score.value = state.ownScore;
+         bar.team_2_score.value = state.enemyScore;
+         bar.team1Progress.text = String(state.ownScore);
+         bar.team2Progress.text = String(state.enemyScore);
+         if(sudden)
+         {
+            bar.team1LastPlayers.rendererStep = bar.team2LastPlayers.rendererStep = 20;
+            bar.team1LastPlayers.maximum = state.ownTotal;
+            bar.team1LastPlayers.value = state.ownAlive;
+            bar.team2LastPlayers.maximum = state.enemyTotal;
+            bar.team2LastPlayers.value = state.enemyAlive;
+         }
+      }
+
+      // The mode's row under the bars: Research's units, Artifact Hunt's artefact; null another mode.
+      private function topRow() : TopRow
+      {
+         if(this._gameType == this.GAME_MODE_RESEARCH)
+         {
+            return this.researchUnits;
+         }
+         return this._gameType == this.GAME_MODE_ARTEFACT_HUNT ? this.huntRow : null;
+      }
+
+      // The mode's row centred under Team Deathmatch's bars and the timer, measured
+      // in the indicator's own space (its origin is its centre). The mode's
+      // respawn and pre-match countdowns get a separate row below it.
+      private function placeTopRow() : void
+      {
+         var row:TopRow = this.topRow();
+         if(row == null)
+         {
+            return;
+         }
          var space:DisplayObject = this.progress_indicator;
          var bars:Rectangle = null;
          var part:DisplayObject;
-         var parts:Array = [this.progress_indicator.team_1_score,this.progress_indicator.team_2_score,this.progress_indicator.match_time_2_tdm];
+         var parts:Array = [this.progress_indicator.team_1_score,this.progress_indicator.team_2_score,this.progress_indicator.match_time_2_tdm,
+            this.progress_indicator.team1LastPlayers,this.progress_indicator.team2LastPlayers];
          var top:Number = 0;
          for each(part in parts)
          {
@@ -2142,7 +2345,7 @@ package
             top = bars.bottom;
          }
          _researchX = bars == null ? 0 : bars.x + bars.width / 2;
-         _researchY = top + ResearchUnits.TOP;
+         _researchY = top + (row == this.huntRow ? ArtefactHuntRow.TOP : ResearchUnits.TOP);
          this.followIndicator();
       }
 
@@ -2150,20 +2353,31 @@ package
       // resize. Layout owns the vertical position; the points follow the bars.
       private function followIndicator() : void
       {
-         this.researchUnits.followIndicator(this.progress_indicator,this._researchX,this._researchY);
+         var row:TopRow = this.topRow();
+         if(row != null)
+         {
+            row.followIndicator(this.progress_indicator,this._researchX,this._researchY);
+         }
       }
 
-      // Every frame of a Research match (set_game_type): the layout moves the indicator at
-      // many calls (scores, messages, resizes), the units follow it.
+      // Every frame of a Research or an Artifact Hunt match (set_game_type): the layout moves the
+      // indicator at many calls (scores, messages, resizes), the row follows it; Artifact Hunt's
+      // times run on between its updates.
       private function onResearchFrame(e:Event) : void
       {
+         if(this._hunt != null)
+         {
+            this.huntRow.tick(getTimer());
+            this.roundFade.update(this._hunt,getTimer());
+         }
          this.followIndicator();
          this.placeResearchCountdowns();
       }
 
       private function placeResearchCountdowns() : void
       {
-         if(this._gameType != this.GAME_MODE_RESEARCH || !this.progress_indicator.respawn_time ||
+         var row:TopRow = this.topRow();
+         if(row == null || !this.progress_indicator.respawn_time ||
             !this.progress_indicator.respawn_time.textField || !this.pregameInfo.layoutData)
          {
             return;
@@ -2172,7 +2386,7 @@ package
          {
             this._researchCountdowns = new ResearchCountdownLayout(this.progress_indicator.respawn_time,this.pregameInfo);
          }
-         this._researchCountdowns.place(this.researchUnits);
+         this._researchCountdowns.place(row);
       }
 
       public function set_artifacts_progress(team:uint, value:uint) : void
@@ -2347,6 +2561,7 @@ package
          this.placeEffects();
          this._keptLayer.place();
          this.deathEyes.place(stage.stageWidth,stage.stageHeight);
+         this.roundFade.place(stage.stageWidth,stage.stageHeight);
          // The middle of the centre pixel in screen pixels (the crosshair is
          // drawn at 1:1, below): at a scale of 2 the half pixel in HUD units
          // was a whole pixel off.
@@ -2363,10 +2578,7 @@ package
          this._profilePanel.x = int(this.stageWidth - 594) / 2;
          this._profilePanel.y = int(this.stageHeight - 120);
          this.layout.reflow();
-         if(this._gameType == this.GAME_MODE_RESEARCH)
-         {
-            this.placeResearchUnits();
-         }
+         this.placeTopRow();
       }
    }
 }

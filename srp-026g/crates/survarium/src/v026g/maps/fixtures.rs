@@ -60,6 +60,87 @@ impl AddedMap {
             ..Self::level_12_tdm()
         }
     }
+
+    /// Artifact Hunt on a level 12 in the day, as the Artifact Hunt pack
+    /// adds a map (`artefact_hunt.md`, "Data"): 16 respawn points, the rule's
+    /// config ([`artefact_hunt_mode`]), an id over a byte.
+    pub fn level_12_artefact_hunt() -> Self {
+        Self {
+            id: MapId::new(330),
+            config: "artefact_hunt/level_12_day_ah.options",
+            project: "level_12/day_ah",
+            mode: RuleMode::ArtefactHunt.number(),
+            respawn_points: 16,
+            ..Self::level_12_tdm()
+        }
+    }
+}
+
+/// The parts of an Artifact Hunt config the rule reads, 0.46c2's values:
+/// two spawners and the two bases 60 m apart.
+pub fn artefact_hunt_mode() -> Vec<(String, ConfigValue)> {
+    let int = |key: &str, value: i32| (key.to_owned(), ConfigValue::Integer(value));
+    let at = |position: [f32; 3]| ConfigValue::Named(vec![("position".into(), ConfigValue::Float3(position))]);
+    let base = |team: i32, position: [f32; 3]| {
+        let box_shape = ConfigValue::Named(vec![
+            ("type".into(), ConfigValue::Integer(1)),
+            ("position".into(), ConfigValue::Float3(position)),
+            ("axis_x".into(), ConfigValue::Float3([1.0, 0.0, 0.0])),
+            ("axis_y".into(), ConfigValue::Float3([0.0, 1.0, 0.0])),
+            ("axis_z".into(), ConfigValue::Float3([0.0, 0.0, 1.0])),
+            ("half".into(), ConfigValue::Float3([0.6, 0.6, 0.6])),
+        ]);
+        ConfigValue::Named(vec![
+            ("team".into(), ConfigValue::Integer(team)),
+            ("position".into(), ConfigValue::Float3(position)),
+            ("shapes".into(), ConfigValue::Indexed(vec![box_shape])),
+        ])
+    };
+    vec![
+        (
+            "parameters".into(),
+            ConfigValue::Named(vec![
+                int("match_time", 900),
+                int("wait_time", 5),
+                int("countdown_time", 20),
+                ("wait_player_percent".into(), ConfigValue::Float(0.6)),
+                int("respawn_time", 15),
+                int("time_needed_to_continue_match", 90),
+                int("draw_additional_time", 180),
+                int("time_before_new_round", 3),
+                int("round_countdown_time", 5),
+                int("time_needed_to_respawn", 7),
+                int("vi_spawn_time", 60),
+                int("vi_spawn_variation", 10),
+                int("vi_not_picked_ttl", 120),
+                int("vi_dropped_ttl", 60),
+                int("score", 5),
+            ]),
+        ),
+        (
+            "artefact_hunt".into(),
+            ConfigValue::Named(vec![
+                (
+                    "spawners".into(),
+                    ConfigValue::Indexed(vec![at([0.0, 1.0, 0.0]), at([5.0, 1.0, -5.0])]),
+                ),
+                (
+                    "bases".into(),
+                    ConfigValue::Indexed(vec![
+                        base(1, [30.0, 0.0, 0.0]),
+                        base(0, [-30.0, 0.0, 0.0]),
+                    ]),
+                ),
+                (
+                    "item".into(),
+                    ConfigValue::Named(vec![
+                        ("drop_lift".into(), ConfigValue::Float(0.13)),
+                        ("usable_radius".into(), ConfigValue::Float(0.3)),
+                    ]),
+                ),
+            ]),
+        ),
+    ]
 }
 
 /// `value`'s entry `key`, a named table's, made if it has none.
@@ -112,13 +193,16 @@ pub fn with_map(map: &AddedMap) -> GameData {
     let stock = game_data::shared();
 
     let mut config = stock_config(match RuleMode::of_config(map.mode) {
-        Some(RuleMode::Research) => RuleMode::TeamDeathmatch,
+        Some(RuleMode::Research | RuleMode::FreezeTag | RuleMode::ArtefactHunt) => RuleMode::TeamDeathmatch,
         Some(other) => other,
         None => RuleMode::Batteries,
     });
     let root = entry(&mut config, "mode");
     *entry(root, "name") = ConfigValue::String(map.config.trim_end_matches(".options").into());
     *entry(root, "mode") = ConfigValue::Integer(map.mode.into());
+    if map.mode == RuleMode::FreezeTag.number() {
+        *entry(root, "rules") = ConfigValue::Indexed([93, 91, 94].into_iter().map(ConfigValue::Integer).collect());
+    }
     if map.mode == RuleMode::Research.number() {
         *entry(root, "rules") = ConfigValue::Indexed(
             [93, 91, 480, 94]
@@ -129,6 +213,17 @@ pub fn with_map(map: &AddedMap) -> GameData {
         let parameters = entry(root, "parameters");
         *entry_or_new(parameters, "tickets_count") = ConfigValue::Integer(0);
         *entry_or_new(parameters, "resources_count") = ConfigValue::Integer(100);
+    }
+    if map.mode == RuleMode::ArtefactHunt.number() {
+        *entry(root, "rules") = ConfigValue::Indexed(
+            [93, 91, 481, 94]
+                .into_iter()
+                .map(ConfigValue::Integer)
+                .collect(),
+        );
+        for (key, value) in artefact_hunt_mode() {
+            *entry_or_new(root, &key) = value;
+        }
     }
     let making = entry(root, "match_making_params");
     *entry(making, "map_id") = ConfigValue::Integer(map.level.into());

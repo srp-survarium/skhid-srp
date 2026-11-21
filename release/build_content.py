@@ -79,12 +79,13 @@ TYPE_ALLOWLIST = {
        "(mapdata's f32_or); 0.26g's own zones have a whole 0 there"
        for mode in (2, 4)},
     # London's evening (pack london-weathers): 0.31a2's stratosphere turns at 0.62, a fraction where
-    # 0.26g's corpus has whole numbers; the reader takes either (stratosphere 0x34E84F).
+    # 0.26g's corpus has whole numbers; the reader takes either (stratosphere 0x34E84F). `ah`:
+    # Artifact Hunt's copy of evening_4 (artefact-hunt-1.json), the same value.
     **{(f'projects/level_09/evening_{mode}/client_project',
         '/client_objects[environment]/properties/stratosphere_rotation_speed'):
        "0.31a2's London evening 0.62; load_environment_properties_impl 0x34E1E0 reads float/int "
        "numerically (stratosphere 0x34E84F)"
-       for mode in (2, 3, 4)},
+       for mode in (2, 3, 4, 'ah')},
     # London (v0.32) (pack london-v032): 0.32a4's evening stratosphere turns at a fraction too, and its
     # evening's camera track (only the console command demo_play flies it, game_world::demo_play
     # 0x1F9800) has the editor's whole key values as ints and fractions as floats, as 0.26g's own lobby
