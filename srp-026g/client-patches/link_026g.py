@@ -480,11 +480,14 @@ def rustc_built(tools, args, what, out, identity, env_extra=None):
             os.utime(entry)
             return
     deps = out.with_name(out.name + ".d")
+    started = time.time()
     rustc(tools, [*args, f"--emit=link={out},dep-info={deps}"], what, env_extra)
     files, env = dep_info(deps.read_text())
     deps.unlink()
     if not files or None in files.values():
         raise LinkError(f"rustc {what}: its dep-info names no file, or one that is not there")
+    if any(unportable(name).stat().st_mtime > started - 2 for name in files):
+        return                                # a file written while rustc ran: which bytes it read is not known
     body = out.read_bytes()
     kept = {"what": what, "sha256": hashlib.sha256(body).hexdigest(), "files": files, "env": env}
     name = hashlib.sha256(json.dumps(kept, sort_keys=True).encode()).hexdigest()[:24]
