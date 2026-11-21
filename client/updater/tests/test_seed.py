@@ -114,7 +114,7 @@ class SeedTest(wine.WineTest):
                                           stdout=wine.subprocess.DEVNULL, stderr=wine.subprocess.DEVNULL)
 
     def seed_log(self):
-        return run_logs.read(self.path(f"{X86}/updater_skhid.seed-logs")).decode("utf-8", "replace")
+        return run_logs.read(self.path("game/logs/seed")).decode("utf-8", "replace")
 
     log = seed_log
 
@@ -161,8 +161,8 @@ class SeedTest(wine.WineTest):
         self.assertEqual(self.close_pipe(), 0, self.seed_log()[-3000:])
         log = self.seed_log()
         self.assertIn("seed: the game closed the pipe: done", log)
-        # Its own logs alone: none beside the launcher's updater's.
-        self.assertEqual(run_logs.paths(self.path(X86)), [])
+        # Its own folder of logs: none beside the launcher's updater's.
+        self.assertEqual(run_logs.paths(self.path("game/logs")), [])
 
     def test_the_stats_are_ticks_only_and_only_while_shown(self):
         self.installed()

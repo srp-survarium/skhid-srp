@@ -11,7 +11,9 @@
 //! - the other processes' windows that are always on top and over the
 //!   game's ([`windows_over`]): overlays; and the size and SHA-256 of each
 //!   such window's exe file outside the Windows folder ([`Files`]), read a
-//!   step a frame.
+//!   step a frame;
+//! - for patch 125's upload ([`super::executable`]), the code allocations
+//!   that are no module ([`Blocks`]) and their bytes ([`Block`]).
 //!
 //! Memory is read only with `ReadProcessMemory`, which fails instead of
 //! faulting on a page made unreadable or freed meanwhile. The kernel32
@@ -26,8 +28,9 @@ use core::ffi::{CStr, c_void};
 use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use srp_validate::modules::{
-    CodeScan, Entry, Exe, File, Home, Module, Moment, Name, Over, PeMarks, Place, Rect, Region, Report, Unseen, START,
+    CodeScan, Entry, Exe, File, Found, Home, Module, Moment, Name, Over, PeMarks, Place, Rect, Region, Report, Unseen, START,
 };
+use srp_validate::executable::MAX_CODE;
 
 /// kernel32's `MODULEENTRY32W` (32-bit: 1064 bytes).
 #[repr(C)]
@@ -220,17 +223,22 @@ impl Kernel32 {
     /// here.
     fn read<const N: usize>(&self, address: usize) -> Option<[u8; N]> {
         let mut bytes = [0; N];
+        self.read_into(address, &mut bytes).then_some(bytes)
+    }
+
+    /// As [`Kernel32::read`], into `bytes`: whether all of them were read.
+    fn read_into(&self, address: usize, bytes: &mut [u8]) -> bool {
         let mut read = 0;
         // SAFETY: GetCurrentProcess's pseudo-handle and ReadProcessMemory's
-        // own export: it copies into `bytes` (N bytes of room) or fails,
+        // own export: it copies into `bytes` (its length of room) or fails,
         // never faulting on the address.
         let done = unsafe {
             let process = raw::engine_get_current_process(self.current_process);
             raw::engine_read_process_memory(
-                self.read_memory, process, address as *const c_void, bytes.as_mut_ptr().cast(), N as u32, &mut read,
+                self.read_memory, process, address as *const c_void, bytes.as_mut_ptr().cast(), bytes.len() as u32, &mut read,
             )
         };
-        (done != 0 && read as usize == N).then_some(bytes)
+        done != 0 && read as usize == bytes.len()
     }
 
     /// The build marks of a PE image at `base`, if a 32-bit PE header is there.
@@ -256,8 +264,8 @@ impl Kernel32 {
 }
 
 /// The loader's modules outside the Windows folder, in Toolhelp's order (the
-/// exe first), into `report`; where every listed module starts.
-fn modules(kernel32: &Kernel32, report: &mut Report) -> Option<Bases> {
+/// exe first), each to `tell`; where every listed module starts.
+fn modules(kernel32: &Kernel32, mut tell: impl FnMut(Entry)) -> Option<Bases> {
     let (temp, windows) = (kernel32.temp(), kernel32.windows());
     // SAFETY: CreateToolhelp32Snapshot's own export for this process (0);
     // the handle is closed below on every path that made one.
@@ -284,7 +292,7 @@ fn modules(kernel32: &Kernel32, report: &mut Report) -> Option<Bases> {
         if let (Some(place), Some(name)) =
             (Place::of(path, game.as_units(), temp.as_units(), windows.as_units()), Name::of_path(path))
         {
-            report.add(Entry::Module(Module { name, place, image_size: entry.base_size, pe: kernel32.pe_marks(base) }));
+            tell(Entry::Module(Module { name, place, image_size: entry.base_size, pe: kernel32.pe_marks(base) }));
         }
         // SAFETY: as Module32FirstW.
         more = unsafe { raw::engine_module32_next_w(kernel32.next, snapshot, (&raw mut entry).cast()) } != 0;
@@ -294,15 +302,10 @@ fn modules(kernel32: &Kernel32, report: &mut Report) -> Option<Bases> {
     Some(bases)
 }
 
-/// The executable allocations that are no listed module, into `report`.
-fn code(kernel32: &Kernel32, bases: &Bases, report: &mut Report) {
+/// The executable allocations that are no listed module, each to `each`.
+fn code(kernel32: &Kernel32, bases: &Bases, mut each: impl FnMut(Found)) {
     let mut scan = CodeScan::default();
-    let mut tell = |found: Option<srp_validate::modules::Found>| {
-        if let Some(found) = found {
-            let start = kernel32.read::<START>(found.first_exec);
-            report.add(Entry::Code(found.code(start.as_ref(), kernel32.pe_marks(found.base))));
-        }
-    };
+    let mut tell = |found: Option<Found>| found.into_iter().for_each(&mut each);
     let mut address = 0usize;
     for _ in 0..MAX_REGIONS {
         let Some(info) = kernel32.query(address) else { break };
@@ -647,10 +650,69 @@ pub fn snapshot(thread: &Thread, moment: Moment, windows: Windows) -> Option<Rep
     let mut report = Report::new(moment);
     let kept = module_watch::kept(thread);
     windows.add_to(&mut report);
-    let bases = modules(&kernel32, &mut report)?;
+    let bases = modules(&kernel32, |entry| report.add(entry))?;
     kept.loads(|base| bases.listed(base)).for_each(|load| report.add(Entry::Load(load)));
-    code(&kernel32, &bases, &mut report);
+    code(&kernel32, &bases, |found| {
+        let start = kernel32.read::<START>(found.first_exec);
+        report.add(Entry::Code(found.code(start.as_ref(), kernel32.pe_marks(found.base))));
+    });
     Some(report)
+}
+
+/// Code allocations offered in one match connection at most, the first in
+/// address order.
+const MAX_BLOCKS: usize = 32;
+
+/// The code allocations that are no listed module and at most
+/// [`MAX_CODE`] bytes, as [`snapshot`]'s walks find them now; each
+/// [`Blocks::next`] is one to send.
+pub(super) struct Blocks { found: [(usize, u32); MAX_BLOCKS], len: usize, next: usize }
+impl Blocks {
+    pub(super) fn now() -> Blocks {
+        let mut blocks = Blocks { found: [(0, 0); MAX_BLOCKS], len: 0, next: 0 };
+        if let Some(kernel32) = Kernel32::get()
+            && let Some(bases) = modules(&kernel32, |_| {})
+        {
+            code(&kernel32, &bases, |found| {
+                if found.size <= MAX_CODE && let Some(slot) = blocks.found.get_mut(blocks.len) {
+                    *slot = (found.base, found.size);
+                    blocks.len += 1;
+                }
+            });
+        }
+        blocks
+    }
+    pub(super) fn next(&mut self) -> Option<Block> {
+        let &(base, size) = self.found.get(self.next..self.len)?.first()?;
+        self.next += 1;
+        Some(Block { kernel32: Kernel32::get()?, base, size, at: 0 })
+    }
+}
+
+/// A code allocation's bytes, read from this process with
+/// `ReadProcessMemory` a page at a time: a page that cannot be read (freed
+/// or made unreadable meanwhile) reads as zeros.
+pub(super) struct Block { kernel32: Kernel32, base: usize, size: u32, at: u32 }
+impl Source for Block {
+    fn size(&mut self) -> Option<u64> { Some(u64::from(self.size)) }
+    fn read(&mut self, into: &mut [u8]) -> Option<usize> {
+        const PAGE: usize = 0x1000;
+        let n = into.len().min(self.size.saturating_sub(self.at) as usize);
+        let mut done = 0;
+        while done < n {
+            let address = self.base.checked_add(self.at as usize + done)?;
+            let piece = into.get_mut(done..n.min(done + PAGE - address % PAGE))?;
+            if !self.kernel32.read_into(address, piece) { piece.fill(0); }
+            done += piece.len();
+        }
+        self.at += n as u32;
+        Some(n)
+    }
+    fn seek(&mut self, offset: u32) -> bool {
+        let ok = offset <= self.size;
+        if ok { self.at = offset; }
+        ok
+    }
 }
 
 #[cfg(test)]

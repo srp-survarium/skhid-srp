@@ -42,6 +42,13 @@ start of the game appends a `run` line, then its snapshots. A snapshot is taken:
 Each snapshot has:
 
 - the address space's free bytes and largest free region, and the engine's video budget;
+- the render's two geometry pools (`pool vertices`, `pool indices`; `client_patch.md` section
+  3.88): chunks, their bytes, the bytes taken, the buffers in them, the most buffers one chunk
+  holds (4096 stop the game) and the bytes of the buffers of that kind outside the pool (the
+  dynamic ones and those the pool had no room for); `absent` before the render makes them;
+  and patch 164's sharing (`pool shared`): the ranges it keeps, the buffers that hold a range
+  another holds too, the bytes those did not copy now and at most, the ranges not kept (its
+  table full);
 - each arena of the engine's list (0xA808FC): its name, place and size, and its use
   as patch 126's reader finds it (a doug_lea heap walked chunk by chunk: used and
   largest free; the managed and the multithreaded arenas' counts), and a heap's free

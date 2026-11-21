@@ -1,5 +1,5 @@
 {
-  "_about": "Local integration: apply the latest 20 m FFA exclusion-radius balance to the three STALKER maps after their solo points are added.",
+  "_about": "Local integration: apply the latest 20 m FFA exclusion-radius balance to the four STALKER maps played in Free for All after their solo points are added.",
   "set_entry": [
     {
       "file": "projects/v010b_cs_mp_bath/day_8/client_project",
@@ -1028,6 +1028,342 @@
       "list": "server_objects/respawn_points",
       "where": {
         "point_id": 25,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 0,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 1,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 2,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 3,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 4,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 5,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 6,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 7,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 8,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 9,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 10,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 11,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 12,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 13,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 14,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 15,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 16,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 17,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 18,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 19,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 20,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 21,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 22,
+        "team": 2
+      },
+      "from": {
+        "enemy_check_radius": 30.0
+      },
+      "to": {
+        "enemy_check_radius": 20.0
+      }
+    },
+    {
+      "file": "projects/v010b_cs_mp_rembasa/day_8/client_project",
+      "list": "server_objects/respawn_points",
+      "where": {
+        "point_id": 23,
         "team": 2
       },
       "from": {

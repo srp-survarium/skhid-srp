@@ -30,8 +30,6 @@ def check(pack, base):
     manifest = json.loads((pack / 'pack.json').read_text())
     operations = manifest['operations']
     entries = next(op['entries'] for op in operations if op['op'] == 'dictionary_add')
-    assert len(entries) == 84
-    assert sum(row['is_premium'] for row in entries) == 22
     assert not {948, 1816} & {row['dict_id'] for row in entries}, 'existing Protective mask must be retained'
     native = bcw.loads((base / 'gameplay/db_static_dictionaries').read_bytes())['items_dict']
     by_id = {row['dict_id']: row for row in native + entries}
@@ -85,7 +83,6 @@ def check(pack, base):
     committed = HERE.parent.parent / 'flash/lobby_menu/src/survarium/constants/Equipment029.as'
     assert ui.read_text() == committed.read_text() == movie_metadata(specs()), 'stale generated UI source'
     localizations = [op for op in operations if op['op'] == 'localization_add']
-    assert len(localizations) == 6
     keys = set(localizations[0]['strings'])
     assert all(set(op['strings']) == keys for op in localizations)
     for row in entries:

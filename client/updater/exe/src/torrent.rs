@@ -243,16 +243,19 @@ enum PutState {
 
 enum Discovery {
     /// `best`: the highest verified item of `floor` or higher, and when it
-    /// came.
+    /// came; `have`: the revision of the run's torrent.
     Asking {
         floor: u64,
+        have: u64,
         asked: u64,
         best: Option<(Newest, Item, u64)>,
     },
     /// Its torrent's info from the swarm.
     Fetching { newest: Newest, item: Item, id: TorrentId },
-    /// The signed torrent, rebuilt from the item and the info.
-    Found { revision: u64, bytes: Vec<u8> },
+    /// The newest revision the release signed, and its signed torrent when
+    /// it is newer than the run's and came from its swarm (rebuilt from the
+    /// item and the info).
+    Named { revision: u64, torrent: Option<Vec<u8>> },
 }
 
 /// `copies`: (file index, kept copy).
@@ -357,7 +360,7 @@ impl Engine {
         };
         log!("torrent: revision {}'s info came from its swarm", newest.revision);
         self.session.remove(id);
-        self.job = Job::Discovering(Discovery::Found { revision: u64::from(newest.revision), bytes });
+        self.job = Job::Discovering(Discovery::Named { revision: u64::from(newest.revision), torrent: Some(bytes) });
     }
 
     /// Kept when the release signed it, of the floor or higher, and the
@@ -553,7 +556,7 @@ impl Torrents {
         let old = core::mem::replace(&mut engine.job, job);
         let mut gone: Vec<TorrentId> = Vec::new();
         match old {
-            Job::Idle | Job::Discovering(Discovery::Asking { .. } | Discovery::Found { .. }) => {}
+            Job::Idle | Job::Discovering(Discovery::Asking { .. } | Discovery::Named { .. }) => {}
             Job::Fetching(added) | Job::Checking(added) => gone.push(added.id),
             Job::Discovering(Discovery::Fetching { id, .. }) => gone.push(id),
             Job::Sharing { swarm, bootstrap, .. } => gone.extend(swarm.iter().chain(&bootstrap).map(|added| added.id)),
@@ -926,9 +929,9 @@ impl Torrents {
         Sharing { sent, rate, peers }
     }
 
-    fn start_discovery(&mut self, floor: u64) {
+    fn start_discovery(&mut self, floor: u64, have: u64) {
         self.stop();
-        self.set_job(Job::Discovering(Discovery::Asking { floor, asked: 0, best: None }));
+        self.set_job(Job::Discovering(Discovery::Asking { floor, have, asked: 0, best: None }));
     }
 
     /// `true` while it goes on; `until`: the current step's deadline.
@@ -939,8 +942,14 @@ impl Torrents {
         let now = win::ticks();
         let Job::Discovering(discovery) = &mut engine.job else { return false };
         match discovery {
-            Discovery::Asking { best: Some((newest, item, at)), .. } if now.saturating_sub(*at) >= HIGHER_MS || now >= *until => {
+            Discovery::Asking { best: Some((newest, item, at)), have, .. } if now.saturating_sub(*at) >= HIGHER_MS || now >= *until => {
                 let (newest, item) = (*newest, item.clone());
+                let revision = u64::from(newest.revision);
+                if revision <= *have {
+                    log!("torrent: revision {revision}, the newest the DHT names, is the run's torrent");
+                    *discovery = Discovery::Named { revision, torrent: None };
+                    return false;
+                }
                 match engine.session.add_magnet(&newest.v2, &nowhere, &trackers()) {
                     Ok(id) => {
                         log!("torrent: revision {}'s info asked of its swarm", newest.revision);
@@ -950,6 +959,7 @@ impl Torrents {
                     }
                     Err(why) => {
                         log!("torrent: revision {}'s info cannot be asked for: {why}", newest.revision);
+                        *discovery = Discovery::Named { revision, torrent: None };
                         false
                     }
                 }
@@ -967,17 +977,18 @@ impl Torrents {
             }
             Discovery::Fetching { newest, .. } if now >= *until => {
                 log!("torrent: revision {}'s info did not come from its swarm in {} s", newest.revision, METADATA_MS / 1000);
+                *discovery = Discovery::Named { revision: u64::from(newest.revision), torrent: None };
                 false
             }
             Discovery::Fetching { .. } => true,
-            Discovery::Found { .. } => false,
+            Discovery::Named { .. } => false,
         }
     }
 
-    fn discovered(&mut self) -> Option<(u64, Vec<u8>)> {
+    fn discovered(&mut self) -> Option<(u64, Option<Vec<u8>>)> {
         let engine = self.engine()?;
-        let Job::Discovering(Discovery::Found { revision, bytes }) = &mut engine.job else { return None };
-        Some((*revision, core::mem::take(bytes)))
+        let Job::Discovering(Discovery::Named { revision, torrent }) = &mut engine.job else { return None };
+        Some((*revision, torrent.take()))
     }
 }
 
@@ -1255,29 +1266,32 @@ fn keep_copy(live: &str, copy: &str, kept: &str) -> Result<(), String> {
 /// In `game\torrent`: the bootstrap's kept files.
 const KEPT: &str = "bootstrap";
 
-/// For when the update server cannot be reached: a newer signed torrent
-/// from the DHT item (`updater_logic::newest`) and its swarm, kept as
-/// [`FOUND`] for [`trusted`].
-pub fn discover(session: &mut Session, layout: &Layout) {
+/// The update check's half beside the site's (`main.rs` `check`), asked
+/// while `go_on` (the site has not answered): the newest revision the
+/// release signed, from its DHT item (`updater_logic::newest`), never lower
+/// than what this folder has. Its torrent, when newer than the run's, comes
+/// from its swarm and is kept as [`FOUND`] for [`trusted`]. `None`: torrent
+/// off, or nothing named.
+pub fn discover(session: &mut Session, layout: &Layout, go_on: &mut dyn FnMut(&mut Session) -> bool) -> Option<u64> {
     if !session.torrents.allowed() || crate::signed::key().is_none() {
-        return;
+        return None;
     }
-    let signed = offered(session, layout);
-    let floor = match &signed {
-        Some(signed) => signed.revision + 1,
-        None => crate::signed::installed(layout).max(1),
-    };
+    let have = offered(session, layout).map_or(0, |signed| signed.revision);
+    let floor = crate::signed::installed(layout).max(1);
     log!("torrent: the DHT asked for a release of revision {floor} or newer");
-    session.torrents.start_discovery(floor);
+    session.torrents.start_discovery(floor, have);
     let mut until = win::ticks() + NEWEST_MS;
-    while session.pump() && session.torrents.discovering(&mut until) {
+    while session.pump() && go_on(session) && session.torrents.discovering(&mut until) {
         win::sleep(100);
     }
-    let found = session.torrents.discovered();
+    let named = session.torrents.discovered();
     session.torrents.stop();
-    let Some((revision, bytes)) = found else { return };
-    keep(layout, revision, &bytes);
-    session.torrents.forget();
+    let (revision, torrent) = named?;
+    if let Some(bytes) = torrent {
+        keep(layout, revision, &bytes);
+        session.torrents.forget();
+    }
+    Some(revision)
 }
 
 fn keep(layout: &Layout, revision: u64, bytes: &[u8]) {

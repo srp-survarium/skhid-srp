@@ -38,6 +38,7 @@ UPDATER = os.path.join(HERE, "..", "exe", RELEASE, "updater_skhid.exe")
 TORRENT_DLL = os.path.join(os.path.dirname(UPDATER), "skhid_torrent.dll")
 FAKE_EXE = os.path.join(HERE, "fake_exe", RELEASE, "fake-exe.exe")
 X86 = os.path.join("game", "binaries", "x86")
+LOGS = "game/logs"
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 kernel32.CreateMutexW.restype = ctypes.c_void_p
@@ -110,6 +111,7 @@ class Site:
         self.archive = b""
         self.manifest = None            # bytes to answer instead of the true manifest
         self.manifest_status = 200
+        self.manifest_delay = 0.0       # seconds before /api/client-files answers (a site that hangs)
         self.download_statuses = []     # statuses for the next downloads, then 200
         self.cut_downloads = 0          # the next N downloads end half way
         self.slow = 0.0                 # seconds between pieces of a download
@@ -148,8 +150,13 @@ class Site:
             def do_GET(self):
                 site.requests.append(self.path)
                 if self.path == "/api/client-files":
+                    time.sleep(site.manifest_delay)
                     body = site.manifest if site.manifest is not None else site.true_manifest()
                     self.answer(site.manifest_status, body if site.manifest_status == 200 else b"no\n")
+                elif self.path == "/api/stats":
+                    # The same server behind the same proxy: what the updater
+                    # asks to tell why the update check failed.
+                    self.answer(site.manifest_status, b"{}", "application/json")
                 elif self.path == "/download":
                     status = site.download_statuses.pop(0) if site.download_statuses else 200
                     if status != 200:
@@ -487,7 +494,7 @@ class UpdaterTest(unittest.TestCase):
         return launcher
 
     def log(self):
-        return run_logs.read(self.path(X86)).decode("utf-8", "replace")
+        return run_logs.read(self.path(LOGS)).decode("utf-8", "replace")
 
     # --- the normal runs -------------------------------------------------
 
@@ -636,29 +643,31 @@ class UpdaterTest(unittest.TestCase):
         launcher = self.launcher()
         # The server not reached is said in the updater's own box, in the
         # launcher's language (English here unless this PC's launcher keeps
-        # another): its title (blocked on this network when Windows' own
-        # test site answers, else no connection), what happened, what to
-        # run, the log. Retry runs it all again.
+        # another): its title (no relay here: no connection, or no internet
+        # when Windows says it is offline), what to do, the log
+        # (updater_logic::diagnosis). Retry runs it all again.
         launcher.box_answers = [IDRETRY]
         launcher.wait_for(lambda l: len(l.boxes) == 2 and ERROR in l.states(), 90, "the updater's boxes")
         self.assertEqual(launcher.states(), ([CHECKING, CHECK_FAILED] * 2 + [CHECKING, ERROR]) * 2)
         for box in launcher.boxes:
             lines = box.splitlines()
-            self.assertEqual(len(lines), 4, box)
+            self.assertEqual(len(lines), 3, box)
             self.assertRegex(lines[-1], r"updater_skhid\.[0-9_-]+\.log$", box)
-        if launcher.boxes[0].startswith(("Blocked", "No connection")):
+        if launcher.boxes[0].startswith(("No internet", "No connection")):
             title = launcher.boxes[0].splitlines()[0]
-            self.assertIn(title, ("Blocked on this network: 127.0.0.1 did not answer (connection refused)",
+            self.assertIn(title, ("No internet connection: 127.0.0.1 did not answer (connection refused)",
                                   "No connection: 127.0.0.1 did not answer (connection refused)"))
-            self.assertIn("VPN.txt" if title.startswith("Blocked") else "Skhid-network-setup.cmd",
-                          launcher.boxes[0])
+            self.assertNotIn("VPN", launcher.boxes[0])
+            if title.startswith("No connection"):
+                self.assertIn("Skhid-network-setup.cmd", launcher.boxes[0])
         # The box said it: the launcher is not told again.
         self.assertEqual(launcher.texts(), [])
         self.assertEqual(launcher.finish(), 1)
         log = self.log()
         self.assertIn("the player asks to try again", log)
         self.assertRegex(log, r"The game's patches could not be checked: 127\.0\.0\.1 refused the connection\. "
-                              r".*VPN\.txt\. PLAY stays off until this is done\.")
+                              r"It may be restarting or offline, or a firewall or this network may block it\. "
+                              r"PLAY stays off until this is done\.")
         self.site = Site()
 
     def test_no_server_but_whole_files_lets_the_game_be_played(self):

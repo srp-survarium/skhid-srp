@@ -185,6 +185,9 @@ extern engine_match_options
 ; struct player **engine_active_player(struct network_client *client, struct player **out, unsigned int place)
 ; virtual survarium::base_network_client+0x50 (2 vtables of vtables.tsv: 0x26d6a0, 0x27a9c0): client ECX, out ESP+4, place ESP+8; pops 8; EAX
 extern engine_active_player
+; struct player *engine_bullet_player(struct bullet_manager_engine *engine, unsigned int place)
+; virtual survarium::bullet_manager_engine+0x24 (1 vtables of vtables.tsv: 0x1f7660): engine ECX, place ESP+4; pops 4; EAX
+extern engine_bullet_player
 ; unsigned int engine_query_performance_counter(unsigned int *count)
 ; the IAT slot 0x870158 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
@@ -250,7 +253,7 @@ extern engine_collision_remove
 ; 0x2de7f0 survarium::game_effect_player::stop: effects EDI; pops 0
 extern engine_effects_stop
 ; void engine_effect_play(struct game_effect_player *player, struct game_effect_slot *effect, unsigned int second, unsigned int third, unsigned int fourth, struct game_effect_listener *listener)
-; 0x2de090 survarium::game_effect_player::play: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
+; 0x2de090 survarium::game_effect_player::add: player EDI, effect ESP+4, second ESP+8, third ESP+12, fourth ESP+16, listener ESP+20; pops 20
 extern engine_effect_play
 ; void engine_set_effect_presenter(struct player *player, struct effect_presenter_holder *holder)
 ; 0x1f3740 survarium::player::set_effect_presenter: player ESI, holder EDI; pops 0
@@ -283,6 +286,22 @@ extern engine_light_insert
 ; 0x2917d0 survarium::object_light::remove: light ECX; pops 0; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_light_remove
+; void engine_ambient_light_insert(struct object_ambient_light *light)
+; 0x290930 survarium::object_ambient_light::insert: light ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_ambient_light_insert
+; void engine_ambient_light_remove(struct object_ambient_light *light)
+; 0x290ae0 survarium::object_ambient_light::remove: light ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_ambient_light_remove
+; void engine_particle_insert(struct object_particle_visual *particle)
+; 0x292cc0 survarium::object_particle_visual::insert: particle ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_particle_insert
+; void engine_particle_remove(struct object_particle_visual *particle)
+; 0x292dc0 survarium::object_particle_visual::remove: particle ECX; pops 0; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_particle_remove
 ; void engine_inventory_remove(struct inventory *inventory, unsigned int slot)
 ; 0x2fc680 survarium::inventory::remove_item: inventory ESI, slot EAX; pops 0
 extern engine_inventory_remove
@@ -635,6 +654,10 @@ extern engine_ray_test_single
 ; 0x3b9c00 vostok::input::platform::keyboard::get_dik_name: keyboard ECX, key ESP+4, name ESP+8, size ESP+12; pops 12; AL; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
 extern engine_key_name
+; unsigned char engine_key_text(struct keyboard *keyboard, unsigned int key, unsigned short *text)
+; 0x3b92d0 vostok::input::platform::keyboard::translate_text: keyboard ECX, key ESP+4, text ESP+8; pops 8; AL; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_key_text
 ; unsigned int engine_activate_keyboard_layout(unsigned int layout, unsigned int flags)
 ; the IAT slot 0xaeff20 (an import, stdcall)
 ; `call [symbol]`: stdcall, it pops its arguments
@@ -834,3 +857,92 @@ extern engine_d3d_resource_release
 ; unsigned int engine_d3d_device_release(struct d3d_device *device)
 ; COM IUnknown+0x8 (stdcall through the interface's vtable): device ESP+4; pops 4; EAX
 extern engine_d3d_device_release
+; void engine_on_step(struct step_manager *manager, const float *position, const float *direction, unsigned int foot_material, unsigned int view)
+; 0x248ad0 survarium::step_manager::on_step: manager ECX, position EAX, direction ESP+4, foot_material ESP+8, view ESP+12; pops 12
+extern engine_on_step
+; struct step_manager *engine_step_manager(struct game_world *world)
+; virtual survarium::game_world+0x34 (1 vtables of vtables.tsv: 0x1f63e0): world ECX; pops 0; EAX
+extern engine_step_manager
+; unsigned short engine_triangle_material(struct hit_object *object, unsigned int triangle, unsigned int compound)
+; virtual vostok::physics::base_physics_object+0x10 (2 vtables of vtables.tsv: 0x3570a0): object ECX, triangle ESP+4, compound ESP+8; pops 8; AX
+extern engine_triangle_material
+; unsigned int engine_is_first_view(struct player *player)
+; 0x1f3bd0 survarium::player::is_first_view: player ECX; pops 0; AL
+extern engine_is_first_view
+; void engine_draw_lines(const void *vertex_end, struct system_renderer *renderer, const void *vertex_begin, const unsigned short *index_begin, const unsigned short *index_end, unsigned int technique)
+; 0x11cd10 vostok::render::system_renderer::draw_lines: vertex_end EAX, renderer ESP+4, vertex_begin ESP+8, index_begin ESP+12, index_end ESP+16, technique ESP+20; pops 20
+extern engine_draw_lines
+; void engine_process_all_triangles(struct bt_collision_shape *shape, struct triangle_callback *callback, const float *aabb_min, const float *aabb_max)
+; 0xa8660 btBvhTriangleMeshShape::processAllTriangles: shape ECX, callback ESP+4, aabb_min ESP+8, aabb_max ESP+12; pops 12
+extern engine_process_all_triangles
+; void engine_triangle_process(struct triangle_callback *callback, const float *triangle, unsigned int part, unsigned int index)
+; 0xc5600 btConvexTriangleCallback::processTriangle: callback ECX, triangle ESP+4, part ESP+8, index ESP+12; pops 12; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_triangle_process
+; void engine_scroll_view_set_follow(struct ui_scroll_view *view, unsigned int follow)
+; 0x349c60 vostok::ui::ui_scroll_view::set_follow_last_line: view ECX, follow ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_scroll_view_set_follow
+; void engine_scroll_set_position(struct scroll_source *source, float position)
+; 0x349ca0 vostok::ui::ui_scroll_v_source::set_position: source ECX, position ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_scroll_set_position
+; void engine_draw_triangles(struct system_renderer *renderer, const void *vertex_begin, const void *vertex_end, const unsigned short *index_begin, const unsigned short *index_end, unsigned int override_flag)
+; 0x11e370 vostok::render::system_renderer::draw_triangles: renderer ESP+4, vertex_begin ESP+8, vertex_end ESP+12, index_begin ESP+16, index_end ESP+20, override_flag ESP+24; pops 24
+extern engine_draw_triangles
+; void engine_text_edit_set_text(struct ui_text_edit_text *part, const char *text)
+; 0x3479d0 vostok::ui::ui_text_edit::set_text: part ECX, text ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_text_edit_set_text
+; void engine_text_edit_set_caret(struct ui_text_edit *edit, unsigned int position, unsigned int select)
+; 0x3488a0 vostok::ui::ui_text_edit::set_caret_position: edit ECX, position ESP+4, select ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_text_edit_set_caret
+; void engine_text_edit_delete_selection(struct ui_text_edit *edit)
+; 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
+extern engine_text_edit_delete_selection
+; unsigned int engine_open_clipboard(void *window)
+; the IAT slot 0xaefedc (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_open_clipboard
+; void *engine_get_clipboard_data(unsigned int format)
+; the IAT slot 0xaefed8 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_get_clipboard_data
+; unsigned int engine_close_clipboard(void)
+; the IAT slot 0xaefed4 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_close_clipboard
+; void *engine_global_lock(void *memory)
+; the IAT slot 0x870078 (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_global_lock
+; unsigned int engine_global_unlock(void *memory)
+; the IAT slot 0x87007c (an import, stdcall)
+; `call [symbol]`: stdcall, it pops its arguments
+extern engine_global_unlock
+; void engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag)
+; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_set_texture
+; void engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name)
+; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_set_constant_float4
+; struct shared_string *engine_shared_string_create(const char *text)
+; 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_shared_string_create
+; void engine_shared_string_destroy(struct shared_string *string)
+; 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_shared_string_destroy
+; void engine_shared_string_assign(struct shared_string **holder, struct shared_string *string)
+; 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0
+extern engine_shared_string_assign
+; struct constant_host *engine_register_constant_host(struct backend *backend, struct shared_string **name, unsigned int auxiliary)
+; 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX
+extern engine_register_constant_host
+; void engine_set_ps_constant(struct constant_host *host, struct backend *backend, const float *value)
+; 0x132a90 vostok::render::backend::set_ps_constant: host EAX, backend EDI, value ESP+4; pops 4
+extern engine_set_ps_constant

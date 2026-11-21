@@ -6,10 +6,14 @@
 //!   goes on only then); one armour stopped whole took none and stops
 //!   nothing. Whoever fired it: a teammate's too (0.26g deals team damage);
 //!   a player's own bullets never hit him (try_pierce 0x32D9DD).
-//! - Every drug in use that heals, in its use time (it never starts) or its
-//!   active time (it stops; what it healed stays). The unit stays used.
+//! - Every drug in use that heals the body (the medkits, the bandages), in
+//!   its use time (it never starts) or its active time (it stops; what it
+//!   healed stays). The unit stays used.
 //! - The painkiller heals nothing (its only effect is less pain from
 //!   bullets): it goes on.
+//! - The antitoxin goes on too (the owner, 2026-11-20: "antitoxin shouldn't
+//!   stop when you are hit"): its cure, its toxic protection and what the
+//!   medical tree gives while it is active last its whole time.
 
 #![forbid(unsafe_code)]
 

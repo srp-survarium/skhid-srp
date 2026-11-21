@@ -120,7 +120,9 @@ corrections from the owner go here.
   torrents in their own folder too): the ZIP's torrents and bootstrap copies, and what the updater
   keeps (the found torrent, the check record, the port, the revision taken, an empty `none\`).
   The DLL stays beside the updater. An earlier build's copies beside the updater go: the ZIP's
-  with the install (a file the new archive has not), the updater's own at its start.
+  with the install (a file the new archive has not), the updater's own at its start. The logs
+  have a folder of their own beside it, `game\logs\` (run-logs.md): no file of a torrent or of
+  the ZIP, never hashed or deleted as one.
 - It answers the launcher's torrent messages instead of ignoring them: "Allow torrent" (its 4th
   argument, then `1A`), port (its 13th argument, then `21`, answered port ok `15` or busy `14`;
   none named: the kept one, above),
@@ -130,8 +132,8 @@ corrections from the owner go here.
 - **A tick runs the update again** (the owner, 2026-11-16: "ticking should just restart the
   download"): `1A`, on or off, in any state (downloading, after a pass that failed, watching with
   PLAY on), stops the update's pass and runs it again from the start in the same window, as the
-  original updater's `switch_download_type` → `restart_downloading` did. On: the torrent, the DHT
-  when the site cannot be reached, HTTPS after; off: the engine stops at once (sharing ends),
+  original updater's `switch_download_type` → `restart_downloading` did. On: the site by HTTPS
+  when it answers, else the DHT and the torrent; off: the engine stops at once (sharing ends),
   HTTPS only. The launcher gets its usual states and progress, then PLAY or the error, then the
   watch. What was checked stays (the torrent's parts, the archive's bytes for HTTPS to go on
   from); a patch's HTTPS part goes, as on any stop. So a player whose site is blocked ticks it and
@@ -145,9 +147,14 @@ corrections from the owner go here.
 - No torrent (an older ZIP, one released without it), or none it takes: it downloads by HTTPS
   exactly as today, switch on or off. Torrent is only ever an extra source, never a
   requirement.
-- With torrent on, it gets what it would otherwise download from the torrent: the original
-  game's files (in place of the archive from the mirrors; the Skhid files come first then, as
-  they bring the torrent) and missing or damaged patches. The Skhid ZIP stays HTTPS.
+- **The site first when it answers** (the owner, 2026-11-17: "torrent might also be slow
+  sometimes ... when our server is still reachable, we should download from the server but
+  still share w/people the patches"): with torrent on, a run whose update check the site
+  answered downloads exactly as with torrent off (the ZIP, the original game from the mirrors,
+  the patches from their addresses) and shares the folder as ever. Only a run the site does not
+  answer ("The update check", below) gets from the torrent what it would otherwise download:
+  the Skhid files when the torrent is newer, the original game's files and missing or damaged
+  patches.
 - Every piece is checked by libtorrent against the torrent's hashes when it is added (what the
   folder has) or downloaded, before it counts or is written; a piece is not checked again before
   each upload. Each finished file is also checked against the pins the updater has (the original
@@ -165,8 +172,9 @@ corrections from the owner go here.
 - **The upload cap** (the owner, 2026-11-15): 1 MB/s (1 MiB a second) for all the sharing of an
   updater's run: the libtorrent session's upload limit, every peer's (those of the local
   network too). The launcher's `1E` may only lower it; the game's own limit is ignored.
-- If the torrent gives nothing (no peer in 20 s, no piece for 60 s), it downloads by HTTPS as
-  now. PLAY never waits on the torrent.
+- If the torrent gives nothing (no peer in 20 s, no piece for 60 s), it downloads by HTTPS from
+  what it has (the site's answer when it comes, the addresses built in). PLAY never waits on a
+  peer.
 - Peers from the updater's own trackers (the release's list, "Top level"; never a torrent's:
   they are outside the signature, and whoever hands a torrent over could name its own trackers
   and be the only one to give peers; its web seeds neither) and from the DHT (on). No LSD, PEX,
@@ -178,9 +186,10 @@ corrections from the owner go here.
 
 ## Sharing from the game
 
-The owner (2026-11-15): with "Allow torrent" on, the game shares too, but never in a match: on the
-login screen and in the lobby, where the original developers had it (the game's own
-`start_seeding`, which never worked: it asked a Windows service).
+The owner (2026-11-15): with "Allow torrent" on, the game shares too, from the login screen on,
+where the original developers had it (the game's own `start_seeding`, which never worked: it
+asked a Windows service). The owner (2026-11-18): in matches too (the original stopped there;
+until then so did we): the upload within the cap is not traffic to worry about.
 
 - "Allow torrent" is the game's own setting `enable_torrent_seeding`, a line of its `user.cfg`
   as the language is (the launcher's box writes it); off without the line (the game's default
@@ -192,14 +201,14 @@ login screen and in the lobby, where the original developers had it (the game's 
   so the updater shares only when the launcher's "Allow torrent" says so too (below).
 - Entering the login screen or the lobby with it on (or as it is turned on there), the game makes the pipe
   `\\.\pipe\skhid_seed-<its process id>` and starts `updater_skhid.exe seed <that pipe>` beside
-  itself, with no window. Entering a match closes the pipe (so do the game's end and the setting
-  turned off); a replay never shares.
+  itself, with no window. It stays through matches (the same updater, back in the lobby too);
+  the game's end closes the pipe, and so does the setting turned off; a replay never shares.
 - The updater (`seed`) first reads "Allow torrent" as the launcher's updater reads it (the
   line `on`, and the launcher's reset done: `launcher_skhid.torrent_reset` beside user.cfg); else it
   ends at once, sharing nothing. Then it shares the folder's revision torrent as the launcher's
   updater does while it watches (the same trust, the bootstrap, the DHT item; nothing fetched or installed),
   on the kept port (a free one, then kept, when none is), within the cap, until the pipe closes. A port another updater holds
-  is tried for 10 s, then it ends. No box, no lock; its own run logs (in `updater_skhid.seed-logs\` beside it).
+  is tried for 10 s, then it ends. No box, no lock; its own run logs (in `game\logs\seed\`, run-logs.md).
 - On the pipe the game sends its limit (`1E`, ignored) and its stats switch (`22`: the console's
   `lobby_torrent_stats`); while that is on, the updater sends a tick a second (`18`: `FF`, the
   bytes a second sent, the cap, the peers connected), and nothing else ever: the game reads
@@ -218,22 +227,45 @@ How an updater finds a newer release without our site: the release's signed item
 - Every updater that shares puts the same item again (its torrent's `skhid.dht`: no private key
   anywhere but the release's), at once and every 30 minutes: the DHT forgets an item in hours.
   A newer release's item replaces it (a higher sequence number); the nodes refuse an older one.
-- An updater that cannot reach the update server (a blocked network, our servers down, a bare
-  folder) asks the DHT for the item for 20 s. It takes the item only when its signature is the
-  release's and its revision is higher than the torrent it has (or, having none, not lower than
-  what the folder has: the installed game's, the highest taken, the updater's own). Then it
-  fetches that torrent's `info` from its swarm (BEP 9, `ut_metadata`; the swarm's peers from the
-  trackers and the DHT; 60 s at most), checks its SHA-256 is the item's info hash, and makes the
-  signed torrent again (`info` and `skhid`; no piece layers, libtorrent gets them from peers),
-  kept as `game\torrent\found.torrent`. It is trusted as any torrent is, by its
-  signature; the highest revision of it and the ZIP's is the torrent of the run.
-- No server of ours needed: when the update server cannot be asked and the run's torrent is
+- **The update check** (the owner, 2026-11-17: the updater must not wait on a site it cannot
+  reach): with torrent on, the updater asks the site (`/api/client-files`, its 3 tries) and the
+  DHT at the same time (`main.rs` `check`, the one owner of the decision, `gate::Seen`). The
+  site's answer wins whenever it comes before the DHT's: the run is then the site's, by HTTPS.
+  The DHT's answer is not held up by a site that does not answer (a blocked network, our servers
+  down, a bare folder); a site that fails is not waited for either: the DHT goes on for its 20 s.
+  Torrent off: the site alone, as before.
+- The DHT is asked for the item (again every 5 s; after one came, a higher one waited for 3 s).
+  It takes the item only when its signature is the release's and its revision is not lower than
+  what the folder has (the installed game's, the highest taken, the updater's own): no
+  rollback. A revision newer than the run's torrent: that torrent's `info` from its swarm
+  (BEP 9, `ut_metadata`; the swarm's peers from the trackers and the DHT; 60 s at most), its
+  SHA-256 checked to be the item's info hash, the signed torrent made again (`info` and
+  `skhid`; no piece layers, libtorrent gets them from peers) and kept as
+  `game\torrent\found.torrent`. It is trusted as any torrent is, by its signature; the highest
+  revision of it and the ZIP's is the torrent of the run.
+- The DHT named revision R first: the site is not waited for when
+  - the game exe says R (or later), the original game is there and the installed files are
+    whole: up to date, PLAY;
+  - the run's torrent is R: every file of it is installed from it (below), PLAY.
+  Else (R's torrent not found, a file to repair, peers that give nothing) the site's answer is
+  waited for after all, and the run is the site's; a site that fails too leaves the run without
+  it, with R known.
+- **PLAY without the site stands on signed data**: the newest revision the DHT named is the
+  least revision PLAY needs, as the site's `min-revision` is: a game exe that says an older one
+  keeps PLAY off ("Game revision R is out; ... could not be downloaded"), and the launcher's watch
+  starts it anew once the site answers with a revision newer than the game. Neither the site nor
+  the DHT answered: PLAY with what is installed and whole, as before.
+- No server of ours needed: when the update server is not asked and the run's torrent is
   newer than what is installed (or nothing is: `Skhid-get.bat`'s bare folder, whose
   `updater_skhid.exe check torrent`),
   the updater installs every file of it from it: the Skhid files (all or none, the torrent's info
   hash recorded as the installed archive), the original game, the patches. A patch known only
   from a verified torrent is kept in the patch list with no addresses (`"urls": []`, its SHA-256
-  from the checked file) and gets the `/patches` addresses when the site answers again.
+  from the checked file) and gets the `/patches` addresses when the site answers again. The
+  site's archive replaces the torrent's at a later start the site answers first.
+- Not settled: a DHT node that still holds an older item (the release's newer one not yet put
+  to it) can answer first; the updater then takes the older revision as the newest (never lower
+  than the folder's). The site answering in time, or at the watch, corrects it.
 
 ## Signed releases
 

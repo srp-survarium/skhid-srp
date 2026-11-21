@@ -250,7 +250,7 @@ impl From<sur::SurError> for ConvertError {
 /// The name of the recording's mode config under `gameplay/game_modes/`
 /// (`level_01_day_2.options`): the `maps_dict` row of its map id.
 pub fn config_name(records: &[Record]) -> Option<String> {
-    let id = u8::try_from(header(records)?.get("map_id")?.as_u64()?).ok()?;
+    let id = maps::MapId::new(u16::try_from(header(records)?.get("map_id")?.as_u64()?).ok()?);
     maps::map_mode(id).map(|row| row.config.to_string())
 }
 
@@ -1429,6 +1429,7 @@ mod tests {
             kits: vec![MatchKit::empty(1, "kit")],
             items: vec![MatchItem::default()],
             squad: 0,
+            face: survarium::v026g::faces::Face::DEFAULT,
         }
     }
 

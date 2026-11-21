@@ -1,8 +1,8 @@
 //! Medical hooks over generated typed native handles. A borrowed player lives
 //! for the paused hook; a core lookup owns one reference until its guard drops.
-use super::{Context, Reg, Thread, drug::DrugsInUse};
+use super::{Context, Reg, Thread, drug::{self, DrugsInUse, Effect}};
 use crate::{
-    medical_skills::{Painkiller, Regeneration, Skills, Stance},
+    medical_skills::{Antitoxin, Painkiller, Regeneration, Skills, Stance},
     raw,
 };
 use super::effect::OwnedEffect;
@@ -49,6 +49,14 @@ impl<'t> Player<'t> {
             DrugsInUse::of(self.thread, self.at).any(|drug| painkiller(drug.medkit()))
         };
         if active { Painkiller::Active } else { Painkiller::Inactive }
+    }
+    /// Any antitoxin of its inventory in use, by the same flag.
+    fn antitoxin(self) -> Antitoxin {
+        // SAFETY: as painkiller.
+        let active = unsafe {
+            DrugsInUse::of(self.thread, self.at).any(|drug| drug.effect() == Effect::Antitoxin)
+        };
+        if active { Antitoxin::Active } else { Antitoxin::Inactive }
     }
     /// The controller's effective crouch (+201h): it stays set under a low
     /// ceiling after the crouch key is released (0x337830).
@@ -284,24 +292,94 @@ pub fn stopping(ctx: &mut Context<'_>) {
         *frame.sum() = player.skills().stopping_power(*frame.sum(), player.painkiller());
     }
 }
-/// Concentration at breath_vibration_calculator::tick, after apply_modifier
-/// of breath_vibration (61): XMM0 the dispersion that drives the aim's sway,
-/// the tick's argument the dispersion before the modifier.
-pub fn sway(ctx: &mut Context<'_>) {
-    use raw::site::medical_sway as site;
-    // SAFETY: the aimed weapon's breath calculator and its holder are live for
-    // its tick; EBP is the tick's frame, its first argument unchanged.
+/// Modifier 13 `reload_speed`, which every reload state's clip speed takes.
+const RELOAD_SPEED: u32 = 13;
+
+/// Concentration at a reload state's get_weapon_lexeme, after apply_modifier
+/// of reload_speed (13): XMM0 the clip's speed, B x max(0, 1 + S13).
+///
+/// # Safety
+/// `state` is the site's reload state (EDI), live for the call.
+unsafe fn reload_at(ctx: &mut Context<'_>, state: Option<raw::ReloadState>) {
+    // SAFETY: the state's weapon and its user, the player whose kit the
+    // native just read ([[EDI+120h]+8]), are live for the reload.
     let value = unsafe {
-        let (Some(calculator), Some(frame)) = (site::calculator(ctx), site::frame(ctx)) else {
-            return;
-        };
-        let Some(at) = calculator.player() else {
+        let Some(at) = state.and_then(|state| state.weapon()).and_then(|weapon| weapon.user()) else {
             return;
         };
         let player = Player::new(ctx.thread(), at);
-        player.skills().sway(ctx.xmm_f32(0), *frame.dispersion(), player.painkiller())
+        let Some(modifiers) = player.modifiers() else {
+            return;
+        };
+        let factor = raw::engine_apply_modifier(Some(modifiers), RELOAD_SPEED, 1.0, 1.0);
+        player.skills().reload_speed(ctx.xmm_f32(0), factor, player.antitoxin())
     };
     ctx.set_xmm_f32(0, value);
+}
+pub fn reload(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { reload_at(ctx, raw::site::medical_reload::state(ctx)) }
+}
+pub fn reload_double(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { reload_at(ctx, raw::site::medical_reload_double::state(ctx)) }
+}
+pub fn reload_pistol(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { reload_at(ctx, raw::site::medical_reload_pistol::state(ctx)) }
+}
+pub fn reload_shotgun(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { reload_at(ctx, raw::site::medical_reload_shotgun::state(ctx)) }
+}
+/// Modifier 49 `aim_time`, which the sight's raising and lowering take.
+const AIM_TIME: u32 = 49;
+
+/// Sharp Eye at weapon_core::instant_aim_start / _end, after apply_modifier
+/// of aim_time (49): XMM0 the sight's time, +5F8h x max(0, 1 + S49).
+///
+/// # Safety
+/// `weapon` is the site's weapon (EDI), live for the call.
+unsafe fn aim_at(ctx: &mut Context<'_>, weapon: Option<raw::Weapon>) {
+    // SAFETY: the weapon's user, whose kit the native just read ([EDI+8]).
+    let value = unsafe {
+        let Some(at) = weapon.and_then(|weapon| weapon.user()) else {
+            return;
+        };
+        let player = Player::new(ctx.thread(), at);
+        let Some(modifiers) = player.modifiers() else {
+            return;
+        };
+        let factor = raw::engine_apply_modifier(Some(modifiers), AIM_TIME, 1.0, 1.0);
+        player.skills().aim_time(ctx.xmm_f32(0), factor, player.antitoxin())
+    };
+    ctx.set_xmm_f32(0, value);
+}
+pub fn aim_start(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { aim_at(ctx, raw::site::medical_aim_start::weapon(ctx)) }
+}
+pub fn aim_end(ctx: &mut Context<'_>) {
+    // SAFETY: the declared site's EDI.
+    unsafe { aim_at(ctx, raw::site::medical_aim_end::weapon(ctx)) }
+}
+/// Second Wind at medkit::tick's first tick of the active time (its use
+/// delay over, remove_affects just called): an antitoxin's holder gets its
+/// energy. Once a use: the native's test (remaining == the whole active time).
+pub fn drug_begin(ctx: &mut Context<'_>) {
+    use raw::site::medical_drug_begin as site;
+    // SAFETY: medkit::tick's drug (EDI) and its holder (EBP) are live for the
+    // tick; the stamina is embedded in the player.
+    unsafe {
+        let (Some(item), Some(at)) = (site::item(ctx), site::player(ctx)) else {
+            return;
+        };
+        if drug::effect(item) != Effect::Antitoxin {
+            return;
+        }
+        let stamina = at.stamina();
+        *stamina.current() = Player::new(ctx.thread(), at).skills().second_wind(*stamina.current(), *stamina.maximum());
+    }
 }
 pub fn initialize(ctx: &mut Context<'_>) {
     // SAFETY: constructor bound the complete model, before first reset/load.

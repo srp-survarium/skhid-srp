@@ -16,6 +16,7 @@ The rules follow the client's hit code as the reverse-engineering notes record i
 - `gen_calc_data.py`: builds `calc-data.json` from the JSON configs.
 - `engine.js`: the hit pipeline. Pure functions; also runs under node.
 - `rules.js`: modifications, Onyx and drugs.
+- `hud.js`, `hud.css`: the game-styled rows and cards (the lobby's bonus rows: icon, label with its card, a button per grade), shared with the wiki's simulators.
 - `ui.js`: the page logic.
 - `template.html`: the page shell.
 - `build_page.py`: inlines everything into one HTML file, or with `--site` writes the website's copy into `srp-026g/servers/web-server/damage/`.

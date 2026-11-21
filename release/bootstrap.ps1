@@ -224,5 +224,5 @@ AskToAllowGame
 if ([IO.File]::Exists($updater)) { Say "$updater is there already: the updater brings the rest." } else { Fetch }
 Say 'The updater installs the game now (about 10 GB; it can take a while)...'
 $run = Start-Process -FilePath $updater -ArgumentList 'check', 'torrent' -WorkingDirectory $bin -Wait -PassThru
-if ($run.ExitCode -ne 0) { throw "the updater stopped (exit $($run.ExitCode)): see the newest updater_skhid.*.log in $bin" }
+if ($run.ExitCode -ne 0) { throw "the updater stopped (exit $($run.ExitCode)): see the newest updater_skhid.*.log in $(Under $root 'game/logs')" }
 Start-Process -FilePath (Under $root 'Skhid.bat') -WorkingDirectory $root

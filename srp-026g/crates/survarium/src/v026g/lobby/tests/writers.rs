@@ -7,6 +7,7 @@ use super::{assert_bytes, bytes, h};
 use crate::v026g::lobby::client_model::{Client, Decoded};
 use crate::v026g::prices::PriceItem;
 use crate::v026g::skills::MODIFIERS;
+use crate::v026g::dictionary::MapId;
 
 /// The TT-33 (no stack) and its ammo (a stack): 0.26g dict ids 18 and 50.
 const PISTOL: u16 = 18;
@@ -309,6 +310,8 @@ fn the_own_account() {
         exp_total: 1000,
         exp_level_start: 500,
         exp_next_level: 1500,
+        face: crate::v026g::faces::Faces::of_count(5).unwrap().face(3).unwrap(),
+        faces: crate::v026g::faces::Faces::of_count(5).unwrap(),
     };
     let expected = format!(
         "87 {SAMPLE_BODY}
@@ -316,7 +319,8 @@ fn the_own_account() {
          01000000                    active kit id
          01                          autobuy: always on
          03                          level
-         E8030000 F4010000 DC050000  experience: total, level start, next level"
+         E8030000 F4010000 DC050000  experience: total, level start, next level
+         03 05                       srp: the face, the faces' count"
     );
     assert_bytes(&own_account(&account).unwrap(), &expected);
 }
@@ -341,32 +345,35 @@ fn an_account_with_no_kit_modifiers_has_an_empty_mask() {
         exp_total: 0,
         exp_level_start: 0,
         exp_next_level: 100,
+        face: crate::v026g::faces::Face::DEFAULT,
+        faces: crate::v026g::faces::Faces::shared(),
     };
     assert_bytes(
         &own_account(&account).unwrap(),
         "87 01 'Bob' 'SRP' 03000000 01 00
          02 05000000 'Sniper' 00000000
          0000000000000000 0000000000000000
-         01000000 05000000 01 00 00000000 00000000 64000000",
+         01000000 05000000 01 00 00000000 00000000 64000000 00 03",
     );
 }
 
 #[test]
-fn a_squad_mates_account_ends_with_its_revision() {
+fn a_squad_mates_account_ends_with_its_revision_and_face() {
     let body = body_with(vec![sample_kit()], vec![pistol(1), ammo(2, 50)]);
-    let expected = format!("88 {SAMPLE_BODY} 09000000");
-    assert_bytes(&squad_member_account(&body, 9).unwrap(), &expected);
+    let expected = format!("88 {SAMPLE_BODY} 09000000 02");
+    let face = crate::v026g::faces::Faces::of_count(3).unwrap().face(2).unwrap();
+    assert_bytes(&squad_member_account(&body, 9, face).unwrap(), &expected);
 }
 
 #[test]
 fn the_account_bodys_limits() {
     let ok = body_with(vec![sample_kit()], vec![pistol(1), ammo(2, 50)]);
-    assert!(squad_member_account(&ok, 0).is_ok());
+    assert!(squad_member_account(&ok, 0, crate::v026g::faces::Face::DEFAULT).is_ok());
 
     // A 4th kit would overwrite the item table.
     let four = body_with((1..=4).map(Kit::empty).collect(), Vec::new());
     assert_eq!(
-        squad_member_account(&four, 0),
+        squad_member_account(&four, 0, crate::v026g::faces::Face::DEFAULT),
         Err(WireError::TooMany {
             what: "kits",
             count: 4,
@@ -375,10 +382,10 @@ fn the_account_bodys_limits() {
     );
     // 69 items fit, 70 do not.
     let full = body_with(Vec::new(), (1..=69).map(pistol).collect());
-    assert!(squad_member_account(&full, 0).is_ok());
+    assert!(squad_member_account(&full, 0, crate::v026g::faces::Face::DEFAULT).is_ok());
     let over = body_with(Vec::new(), (1..=70).map(pistol).collect());
     assert!(matches!(
-        squad_member_account(&over, 0),
+        squad_member_account(&over, 0, crate::v026g::faces::Face::DEFAULT),
         Err(WireError::TooMany { most: 69, .. })
     ));
     // A slot's index is into the item table.
@@ -389,13 +396,13 @@ fn the_account_bodys_limits() {
     });
     let stale = body_with(vec![kit], vec![pistol(1)]);
     assert_eq!(
-        squad_member_account(&stale, 0),
+        squad_member_account(&stale, 0, crate::v026g::faces::Face::DEFAULT),
         Err(WireError::BadItemIndex { index: 1, items: 1 })
     );
     // A dict id the client lacks.
     let unknown = body_with(Vec::new(), vec![ItemDescr::plain(1, 9999, 1)]);
     assert_eq!(
-        squad_member_account(&unknown, 0),
+        squad_member_account(&unknown, 0, crate::v026g::faces::Face::DEFAULT),
         Err(WireError::UnknownItem(9999))
     );
     assert_eq!(
@@ -444,6 +451,8 @@ fn the_account_bodys_limits() {
         exp_total: 0,
         exp_level_start: 0,
         exp_next_level: 1,
+        face: crate::v026g::faces::Face::DEFAULT,
+        faces: crate::v026g::faces::Faces::shared(),
     };
     assert!(own_account(&account).is_err());
 }
@@ -460,7 +469,7 @@ fn names_are_cut_to_the_clients_buffers() {
         kits: vec![kit],
         items: Vec::new(),
     };
-    let message = squad_member_account(&body, 0).unwrap();
+    let message = squad_member_account(&body, 0, crate::v026g::faces::Face::DEFAULT).unwrap();
     let bytes = message.body();
     assert_eq!(bytes[1], 63);
     // The clan abbreviation's buffer ends where the kit count is kept.
@@ -610,13 +619,14 @@ fn player_vs_bots_rows_are_ranking_rows_at_their_starts() {
         assert!(RESERVED_START < PVB_STATUS_START);
         assert!(PVB_STATUS_START + PVB_MAP_ROWS as u32 + 1 < PVB_CHOOSE_BASE);
     }
-    assert_eq!(pvb_choice_start(8, 61), 2_051_008_061);
-    assert_eq!(pvb_choice(2_051_008_061), Some((8, 61)));
-    assert_eq!(pvb_choice(2_051_010_138), Some((10, 138)));
+    assert_eq!(pvb_choice_start(8, MapId::new(61)), Some(2_051_008_061));
+    assert_eq!(pvb_choice(2_051_008_061), Some((8, MapId::new(61))));
+    assert_eq!(pvb_choice(2_051_010_138), Some((10, MapId::new(138))));
     assert_eq!(pvb_choice(PVB_CHOOSE_BASE - 1), None);
     assert_eq!(pvb_choice(PVB_CHOOSE_LAST + 1), None);
     assert_eq!(pvb_choice(PVB_CHOOSE_BASE + 256_000), None);
-    assert_eq!(pvb_choice(PVB_CHOOSE_BASE + 1_256), None);
+    assert_eq!(pvb_choice(PVB_CHOOSE_BASE + 1_256), Some((1, MapId::new(256))));
+    assert_eq!(pvb_choice_start(8, MapId::new(1000)), None);
 
     let widest = PvbNumbers {
         gear: u8::MAX,
@@ -634,17 +644,17 @@ fn player_vs_bots_rows_are_ranking_rows_at_their_starts() {
         },
         sizes: vec![6, 8, 10],
         default_size: 8,
-        default_map: 61,
+        default_map: MapId::new(61),
     };
     let maps = [
         PvbMap {
-            map_id: 61,
+            map_id: MapId::new(61),
             level: 1,
             mode: 2,
             free: 4,
         },
         PvbMap {
-            map_id: 138,
+            map_id: MapId::new(138),
             level: 8,
             mode: 4,
             free: 0,
@@ -677,14 +687,14 @@ fn player_vs_bots_rows_are_ranking_rows_at_their_starts() {
         numbers: widest,
         code: PvbCode::UnknownChoice,
         default_size: u8::MAX,
-        default_map: u8::MAX,
+        default_map: MapId::new(u16::MAX),
         ..status.clone()
     };
     let header = &read(&mut client, pvb_status(&wide, &[], 1).unwrap())[0].0;
     assert!(header.len() <= limits::NAME, "{header}");
 
     assert_eq!(
-        read(&mut client, pvb_choose_ok(8, 61).unwrap()),
+        read(&mut client, pvb_choose_ok(8, MapId::new(61)).unwrap()),
         vec![("B2;ok;8;61".into(), 2_051_008_061, 0, 0)]
     );
     assert_eq!(
@@ -1531,7 +1541,9 @@ fn a_kit_may_fill_every_slot_and_modifier() {
     }
     kit.modifiers = [1.0; MODIFIERS];
     let body = body_with(vec![kit], (1..=23).map(pistol).collect());
-    let bytes = squad_member_account(&body, 0).unwrap().into_body();
+    let bytes = squad_member_account(&body, 0, crate::v026g::faces::Face::DEFAULT)
+        .unwrap()
+        .into_body();
     let kit_at = 1 + 6 + 1 + 4 + 2;
     // state, id, name, the mask of 23 slots, 23 slots.
     assert_eq!(&bytes[kit_at + 6..kit_at + 10], h("FFFF7F00"));
@@ -1542,7 +1554,8 @@ fn a_kit_may_fill_every_slot_and_modifier() {
         h("0F00000000000000 FFFFFFFFFFFFFFFF")
     );
     let items_at = mask_at + 16 + 68 * 4;
-    assert_eq!(bytes.len(), items_at + 23 * 20 + 4);
+    // The revision, then the face.
+    assert_eq!(bytes.len(), items_at + 23 * 20 + 4 + 1);
 }
 
 // ---- the two boxes of the kit window, the premium shop's records, the
@@ -1568,6 +1581,8 @@ fn the_account_says_autobuy_is_on() {
         exp_total: 0,
         exp_level_start: 0,
         exp_next_level: 500,
+        face: crate::v026g::faces::Face::DEFAULT,
+        faces: crate::v026g::faces::Faces::shared(),
     };
     let message = own_account(&account).unwrap();
     let body = message.body();
