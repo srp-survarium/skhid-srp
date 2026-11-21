@@ -43,6 +43,11 @@ The lock: the arena is built from source by every build (the self-test's,
 the release's), and the bytes must be the lock's: a change of a source is
 followed by `--write` (and the lock's diff shows what moved), and an
 unexpected change (another compiler, another NASM) stops the build.
+
+A local build takes what rustc made of a crate before from
+~/.cache/skhid-arena when nothing it was made from changed ("the cache of
+what rustc built" below); SRP_ARENA_CACHE=off, the release's and the
+self-test's, compiles everything.
 """
 import collections
 import hashlib
