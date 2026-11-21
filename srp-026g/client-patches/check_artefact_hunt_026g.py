@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 167 (Artifact Hunt, mode 13: artefact_hunt.rs over
+"""Run patch 169 (Artifact Hunt, mode 13: artefact_hunt.rs over
 crates/artefact-hunt-rule) in the default build on made-up games, worlds and
 players (docs/notes/artefact_hunt.md, "The exe").
 

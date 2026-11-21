@@ -4188,7 +4188,7 @@ The setting's byte is 1 in the original, 0 in the built exe; switch_to_lobby and
 call start_seeding only while it is on, and the callback starts and stops it, in both. `cargo
 test` (the pipe's name). Not run in a game.
 
-### Artifact Hunt (patch 167, unreleased)
+### Artifact Hunt (patch 169, unreleased)
 
 The rules, the design and its evidence: `artefact_hunt.md` ("The exe", "Wire", "HUD calls"). What the
 code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/artefact_hunt.rs`):

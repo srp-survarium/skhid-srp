@@ -184,7 +184,7 @@ impl Carry {
         if let Phase::Offering(token) = self.phase { Some(token) } else { None }
     }
     pub const fn use_pressed(self, raw: u32) -> bool { raw & USE != 0 && self.last_raw & USE == 0 }
-    /// Whether `bit` of the raw mask went down at this input (patch 167's Drop key).
+    /// Whether `bit` of the raw mask went down at this input (patch 169's Drop key).
     pub const fn pressed(self, raw: u32, bit: u32) -> bool { raw & bit != 0 && self.last_raw & bit == 0 }
     pub const fn filtered(self) -> u32 { self.last_passed }
 

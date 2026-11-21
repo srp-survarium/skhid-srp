@@ -208,7 +208,7 @@ pub(super) const GFX_MANAGED: u32 = 0x40;
 pub const MAX_STRINGS: usize = 64;
 /// Up to this many plain unsigned values in one Invoke.
 pub const MAX_UINTS: usize = 4;
-/// Up to this many Numbers in one Invoke (patch 167's hud update has 28).
+/// Up to this many Numbers in one Invoke (patch 169's hud update has 28).
 pub const MAX_NUMBERS: usize = 32;
 /// The longest text a GFx argument may be here.
 pub(super) const TEXT_LIMIT: usize = 0x200;

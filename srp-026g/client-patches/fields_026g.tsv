@@ -1503,7 +1503,7 @@ survarium::fire_user	player	-0x110	obj<survarium::player>	the player it is the +
 survarium::player_killed_frame	melee	0x3C	u8	15th: the kill is by the gun's own stock ([bullet+40h] == weapon+53Ch, 0x2DA2CD..0x2DA2D7)
 survarium::player_killed_frame	bullet	0x44	ptr<survarium::bullet>	17th: the killing bullet or 0 (push ebp 0x2DA416: generate_killed_event's 5th argument, hit_impl's [ebp-4])
 survarium::bullet	ricochets	0x88	u8	m_ricochet_count: the times it bounced, at most 2 (try_reflect 0x32DE40: cmp byte [ebx+88h],2 at 0x32DE4D, inc at 0x32E33A after its change_trajectory; the constructor's 0, 0x32BB21); +84h counts both changes of course (change_trajectory 0x32EE20, called by try_pierce 0x32DE2C and try_reflect 0x32E335 alone), so +84h less this is its pierces
-survarium::hunt_cook	vtable	0x0	u32	patch 167's rule cook (a static of ours, as the client cooks the game's constructor makes: tdm_rule_cook 0x2F41E0): its vtable, a copy of the client tdm cook's (0x9FD8AC) with create and size ours
+survarium::hunt_cook	vtable	0x0	u32	patch 169's rule cook (a static of ours, as the client cooks the game's constructor makes: tdm_rule_cook 0x2F41E0): its vtable, a copy of the client tdm cook's (0x9FD8AC) with create and size ours
 survarium::hunt_cook	class	0x8	u32	the resource class it cooks: 481 (1E1h), its slot in register_cook's table (0x102D10)
 survarium::hunt_cook	unused	0x10	u32	-1, as the game's cooks have it
 survarium::hunt_cook	thread	0x14	u32	the thread that made it (GetCurrentThreadId)
@@ -1512,13 +1512,13 @@ survarium::hunt_cook	game	0x20	ptr<survarium::game>	the client's game (tdm's cre
 survarium::hunt_cook	size	0x24	size	the cook object
 survarium::rule_query	options	0x0	ptr<survarium::match_options>	a rule cook's query: the match options
 survarium::rule_query	config	0xC	ptr<vostok::engine_cfg>	the mode config's root (tdm_rule_core's constructor 0x316027)
-survarium::hunt_rule	vtable	0x0	u32	patch 167's rule: game_match_rule_base (0x313900, type 6) and these; its vtable a copy of tdm_rule_core's (0xA15DA4) with its slots ours
+survarium::hunt_rule	vtable	0x0	u32	patch 169's rule: game_match_rule_base (0x313900, type 6) and these; its vtable a copy of tdm_rule_core's (0xA15DA4) with its slots ours
 survarium::hunt_rule	resolver	0x108	u32	the link resolver's vtable: tdm's (0xA06D10, its slot 0x316540 ret 1Ch), as tdm's create writes it (0x20642F)
 survarium::hunt_rule	blackboard	0x118	ptr<survarium::blackboard>	tdm's set_blackboard (slot 12, 0x267820, kept) writes it here
 survarium::hunt_rule	tick	0x120	obj<survarium::tick_delegate>	its tick in the world's second list, as the time rule's at +110h (0x318050)
 survarium::hunt_rule	core	0x138	ptr<survarium::core_world>	the world core its slot 11 got
 survarium::hunt_rule	game	0x13C	ptr<survarium::game>	the client's game, the cook's +20h
-survarium::hunt_rule	size	0x140	size	the rule object (its state is patch 167's, by the object's address)
+survarium::hunt_rule	size	0x140	size	the rule object (its state is patch 169's, by the object's address)
 survarium::tick_delegate	object	0x0	u32	the delegate's object (ECX of its function)
 survarium::tick_delegate	function	0x4	u32	its function: thiscall (dt, time, step), ret 0Ch (the time rule's 0x317F10)
 survarium::tick_delegate	previous	0x8	ptr<survarium::tick_delegate>	the list's previous

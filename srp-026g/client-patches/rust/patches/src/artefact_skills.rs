@@ -296,7 +296,7 @@ impl Room {
 /// other indices have nothing shared.
 pub const SPRING_LISTS: [u32; 6] = [4, 49, 3, 19, 42, 13];
 /// The lists the getter sites call their handlers for: the Springs', and
-/// Artifact Hunt's carrier's (patch 167: 2 health regeneration, 4 movement).
+/// Artifact Hunt's carrier's (patch 169: 2 health regeneration, 4 movement).
 pub const HOOKED_LISTS: [u32; 7] = [4, 49, 3, 19, 42, 13, 2];
 
 /// What an Onyx does to a hit it protects against (its protect 0x312BF0), read once from a

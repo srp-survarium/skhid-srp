@@ -71,7 +71,7 @@ impl Serial {
 pub enum QueryTag {
     Bus,
     Effect,
-    /// A model and its particles (patch 167's artefact).
+    /// A model and its particles (patch 169's artefact).
     Assets,
     Track(Serial),
 }
