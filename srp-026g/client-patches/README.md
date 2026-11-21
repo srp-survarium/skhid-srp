@@ -215,6 +215,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first second), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (eleven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks, the Tab menu's voice mute and the options' microphone test (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
+| `rust/patches/src/capture.rs`, `src/capture.toml`, `src/vostok/camera.rs` (`Director`), `../scripts/capture/capture.py`, `../servers/match-server/src/bin/srp-map-sur.rs` | Patch 175: a capture run with `SKHID_CAPTURE=<script>`: the camera at the script's poses (`camera.apply`), each pose's scene saved as a PNG, the game ended; started with `-match_replay=` of `srp-map-sur`'s replay of a map with nobody in it, straight into the map (`../docs/notes/capture.md`, "A capture run" below) |
 | `rust/patches/src/screenshot.rs`, `src/screenshot.toml`, `src/screenshot/png.rs`, `src/vostok/back_buffer.rs` | Patch 152: two keys save a screenshot as a PNG, F11 the screen and F12 the frame without the interface (`../docs/notes/screenshots.md`): three named lohooks (the keyboard's poll, `render.flash_ui`, the Present), the back buffer read back through Direct3D, the patch's own PNG encoder; `cargo test` in `rust/` checks the encoder (a decoder of its own in the tests) and the request's steps; the two actions' names, keys and Controls rows are patch 62's table (`hide_ui_026g.asm`, `check_hide_ui_026g.py`) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F9 since patch 152, F11 before; the game's `toggle_replay_ui`, named `hide_interface`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
@@ -6465,3 +6466,27 @@ falls as before. Penetration also decides which walls a bullet gets through, so 
 through what a near one does. A simulation change. The code: `../docs/notes/client_patch.md` section
 3.94. Checked with `check_pierce_distance_026g.py` (Unicorn; `tools/check pierce-distance`). Not run in
 a game.
+
+## A capture run (patch 175, unreleased)
+
+With `SKHID_CAPTURE=<script>` in the game's environment the game puts its camera at the script's
+poses, saves each pose's scene (before the interface, patch 152's PNG) as `<folder>\<name>.png`
+and exits; without the variable nothing happens (read once, at a world's first tick). Started with
+`-match_replay=` of a map's replay with nobody in it (`srp-map-sur`), the game goes from its start
+straight into the map with no server, sign-in, lobby or click; `../scripts/capture/capture.py`
+runs the whole thing headless in one command (`../docs/notes/capture.md`, the skill
+`skhid-local-game`). Three named lohooks: `game_world.after_move` (the run's clock; order 4),
+`camera.apply` (base_game_scene::apply_camera's start, 0x23DDD0: the camera_director's transform
++4h and projection +44h written from the pose, every frame, as resource-porter's camera hook DLL
+wrote them) and `render.flash_ui` (the picture; order 2, after patch 152's, now order 1). The
+script's lines are parsed once into typed poses (`capture.rs`, a bad line refuses the script: exit
+2); the run is one state machine (waiting, settling, asked, over); a picture not saved ends the
+game with 1. Nothing a match computes. `cargo test` checks the script, the run and the matrices;
+`../docs/notes/client_patch.md` section 3.96. Run in a game: Fire Station (map 39) from the
+command, the pictures made.
+
+Patch 97's connection (`vostok::packet_recovery::Connection`) no longer reads a replay's network
+client as a live one: `replay_network_client` is 0x5AB18 bytes and the live client's options
+holder is at +1F1C48h, so patches 97 and 125 read past it at every frame of a replay, and a replay's
+start crashed when the heap held anything there (2026-11-12, exe+0xA489291). A client of the
+replay's class (its vtable, `REPLAY_CLIENT_VTABLE`) has no connection.

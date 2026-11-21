@@ -1,0 +1,25 @@
+# Patch 175: a capture run, with SKHID_CAPTURE=<script> in the game's
+# environment (docs/notes/capture.md); nothing without it. The sites are
+# sites_026g.tsv's; the logic is capture.rs, the PNG patch 152's.
+name = "capture"
+patch = 175
+uses = ["screenshot"]
+
+# every tick of a world, after patch 140's and voice's (orders 2 and 3): the
+# run's clock, the script read at the first
+[[hook]]
+site = "game_world.after_move"
+handler = "on_tick"
+order = 4
+
+# base_game_scene::apply_camera's start: the pose's camera
+[[hook]]
+site = "camera.apply"
+handler = "on_camera"
+
+# the frame's scene before the interface, after patch 152's (order 1): the
+# pose's picture
+[[hook]]
+site = "render.flash_ui"
+handler = "on_scene"
+order = 2
