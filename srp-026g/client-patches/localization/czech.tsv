@@ -1230,7 +1230,6 @@ st_freeze_draw	Remíza
 st_freeze_frozen	Jsi zmrazen. Počkej na spoluhráče. Rozmrazování: %1$s%
 st_freeze_help	Zmraz všechny soupeře. Vyhrává první tým se 3 vítěznými koly. Stůj 3 sekundy do 3 m od zmrazeného spoluhráče, aby rozmrzl.
 st_freeze_lose	Porážka — soupeři vyhráli tři kola.
-st_freeze_marker	Zmrazený
 st_freeze_round_draw	Remíza. Nové kolo za %1$s s.
 st_freeze_round_lose	Prohrané kolo. Další za %1$s s.
 st_freeze_round_win	Vyhrané kolo. Další za %1$s s.

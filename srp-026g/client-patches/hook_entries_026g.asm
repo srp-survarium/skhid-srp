@@ -5415,6 +5415,9 @@ freeze_tag_on_player_tick_replay:
     db 0x51, 0x53, 0x55, 0x8b, 0xd9
     jmp 0x2daa65
 
+; 0x14730 the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query: callback -> freeze_tag_on_loaded (wraps engine_store_first_resource 0x14730)
+    RUST_CDECL freeze_tag_on_loaded, hook_freeze_tag_on_loaded, 2
+
 ; 0x59adf sound_world::tick's general pass, after the active scenes ticked (cmp byte [edi+48F0h],al; the je skips the pass when General is as last applied): the sound thread, EDI the world, EAX s_general_volume's value truncated (cvttss2si [0A7AF90h], 0 to 100); done 0x59B4B, past the pass (ESI 0 there as here: the scenes' walk ended): lohook -> game_volume_on_general
 global game_volume_on_general
 extern hook_game_volume_on_general

@@ -49,3 +49,19 @@ order = 1
 site = "player_icons.update_start"
 handler = "on_hud"
 order = 4
+
+# the frozen glow (pack freeze-tag-glow): its query's answer, the effect cook's instances (after
+# Forest Protection's 2 and Artifact Hunt's 3) and the default clock that ends it
+[[hook]]
+site = "resources.query_done"
+handler = "on_loaded"
+
+[[hook]]
+site = "medical.effect_capacity"
+handler = "on_effect_capacity"
+order = 4
+
+[[hook]]
+site = "medical.effect_clock"
+handler = "on_effect_clock"
+order = 4

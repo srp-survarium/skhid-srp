@@ -1230,7 +1230,6 @@ st_freeze_draw	Döntetlen
 st_freeze_frozen	Megfagytál. Várj egy csapattársra. Kiolvasztás: %1$s%
 st_freeze_help	Fagyaszd meg az összes ellenfelet. Az első 3 kört megnyerő csapat győz. Állj 3 másodpercig egy fagyott csapattárs 3 méteres körzetében a kiolvasztásához.
 st_freeze_lose	Vereség — az ellenfél három kört nyert.
-st_freeze_marker	Megfagyott
 st_freeze_round_draw	Döntetlen. Újrakezdés: %1$s mp.
 st_freeze_round_lose	Elvesztett kör. Következő: %1$s mp.
 st_freeze_round_win	Megnyert kör. Következő: %1$s mp.

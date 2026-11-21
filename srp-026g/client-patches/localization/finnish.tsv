@@ -1230,7 +1230,6 @@ st_freeze_draw	Tasapeli
 st_freeze_frozen	Olet jäässä. Odota joukkuetoveria. Sulatus: %1$s%
 st_freeze_help	Jäädytä kaikki vastustajat. Ensimmäinen 3 erää voittanut joukkue voittaa. Seiso 3 sekuntia enintään 3 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
 st_freeze_lose	Tappio — vastustajat voittivat kolme erää.
-st_freeze_marker	Jäässä
 st_freeze_round_draw	Tasapeli. Uusi erä %1$s s kuluttua.
 st_freeze_round_lose	Erä hävitty. Seuraava %1$s s kuluttua.
 st_freeze_round_win	Erä voitettu. Seuraava %1$s s kuluttua.

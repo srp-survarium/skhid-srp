@@ -139,7 +139,7 @@ fn player_at(core: raw::CoreWorld, place: Place) -> Option<raw::Player> {
 
 pub struct Player<'t> {
     native: raw::Player,
-    _thread: &'t Thread,
+    thread: &'t Thread,
 }
 impl<'t> Player<'t> {
     pub fn at_tick(ctx: &'t Context<'_>) -> Option<(Self, u32)> {
@@ -148,7 +148,7 @@ impl<'t> Player<'t> {
             Some((
                 Self {
                     native: raw::site::freeze_player_tick::player(ctx)?,
-                    _thread: ctx.thread(),
+                    thread: ctx.thread(),
                 },
                 read(raw::site::freeze_player_tick::frame(ctx)?.time()),
             ))
@@ -159,13 +159,22 @@ impl<'t> Player<'t> {
         unsafe {
             Some(Self {
                 native: raw::site::carry_input::player(ctx)?,
-                _thread: ctx.thread(),
+                thread: ctx.thread(),
             })
         }
     }
     pub fn place(&self) -> Place {
         // SAFETY: a live player.
         unsafe { place_of(self.native) }
+    }
+    /// The same player as its game effects see it (the frozen glow).
+    pub fn effects(&self) -> super::world::Player<'t> {
+        super::world::Player { this: self.native, thread: self.thread }
+    }
+    /// Whether `body`'s match is in play (the time rule's state 3): not before, not after its end.
+    pub fn in_play(body: &super::world::Player<'_>) -> bool {
+        // SAFETY: a live player's owning core, absent in a lobby.
+        unsafe { body.this.world_core().is_some_and(|core| read(core.time_state()) == 3) }
     }
     pub fn lethal(&self) -> bool {
         // SAFETY: a live player's deferred death flag.

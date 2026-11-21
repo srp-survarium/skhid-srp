@@ -3158,6 +3158,21 @@ pub extern "C" fn hook_forest_glow_on_capacity(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_effect_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_effect_capacity(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_effect_capacity` calls this, from the game's jump at 0x2ec81e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_effect_capacity(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- medical_skills (patch 94) ----
 
 /// The named exits of medical_skills::on_effect_clock (the order the shim's Flow code
@@ -3192,6 +3207,26 @@ pub extern "C" fn hook_forest_glow_on_clock(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::forest_glow::on_clock(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- freeze_tag (patch 160) ----
+
+/// The named exits of freeze_tag::on_effect_clock (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum FreezeTagOnEffectClockExit { Returned }
+/// The entry `freeze_tag_on_effect_clock` (0x2e5d80, default clock: only the static Medic calculator is handled; all native objects continue unchanged) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_effect_clock(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_effect_clock` calls this, from the game's jump at 0x2e5d80,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_effect_clock(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -3516,6 +3551,23 @@ pub extern "C" fn hook_freeze_tag_on_player_tick(frame: &mut Frame) -> u32 {
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
     }
+}
+
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_loaded` (a callback in engine_store_first_resource's convention, the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query)
+/// calls this with its 2 arguments, typed by the row (the `raw` layer's).
+///
+/// # Safety
+/// Called only by the entry `freeze_tag_on_loaded`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hook_freeze_tag_on_loaded(a0: Option<raw::QueriesResult>, a1: *mut c_void) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_loaded` calls this, when the game calls the callback
+    // a patch handed it, on the thread that asked; a0.. are the callback's arguments.
+    let thread = unsafe { Thread::new() };
+    let result = unsafe { QueryResults::from_raw(&thread, a0) };
+    let tag = QueryTag::from_raw(a1 as usize as u32);
+    { crate::freeze_tag::on_loaded(result, tag); 0 }
 }
 
 // ---- game_volume (patch 144) ----
@@ -7192,6 +7244,8 @@ pub extern "C" fn hook_medical_skills_on_effect_capacity_chain(frame: &mut Frame
     if flow != 0 { return flow; }
     let flow = hook_forest_glow_on_capacity(frame);
     if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_effect_capacity(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -7200,6 +7254,8 @@ pub extern "C" fn hook_medical_skills_on_effect_clock_chain(frame: &mut Frame) -
     let flow = hook_medical_skills_on_effect_clock(frame);
     if flow != 0 { return flow; }
     let flow = hook_forest_glow_on_clock(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_effect_clock(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -7416,6 +7472,15 @@ pub fn forest_glow_on_loaded_entry() -> super::hook::CallbackEntry<OrigStoreFirs
     // SAFETY: the generated entry lives for the executable's lifetime and takes the
     // arguments of engine_store_first_resource, whose `Original` names the entry's type.
     unsafe { super::hook::CallbackEntry::from_entry(forest_glow_on_loaded as *const () as *const c_void) }
+}
+
+unsafe extern "C" { fn freeze_tag_on_loaded(); }
+/// The entry `freeze_tag_on_loaded`, in engine_store_first_resource's convention (the cdecl f(queries_result&, value) a boost function made by 0x176D0 calls when a query ends, on the thread that asked (on_mounted_resources 0x1482A binds 0x14730 itself): its convention, for a callback the patch hands a query): a
+/// callback the patch hands the game (no site is rewritten).
+pub fn freeze_tag_on_loaded_entry() -> super::hook::CallbackEntry<OrigStoreFirstResource> {
+    // SAFETY: the generated entry lives for the executable's lifetime and takes the
+    // arguments of engine_store_first_resource, whose `Original` names the entry's type.
+    unsafe { super::hook::CallbackEntry::from_entry(freeze_tag_on_loaded as *const () as *const c_void) }
 }
 
 unsafe extern "C" { fn music_on_query_done(); }

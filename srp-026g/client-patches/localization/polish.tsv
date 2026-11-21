@@ -1230,7 +1230,6 @@ st_freeze_draw	Remis
 st_freeze_frozen	Zamrożono cię. Poczekaj na sojusznika. Odmrażanie: %1$s%
 st_freeze_help	Zamroź wszystkich przeciwników. Wygrywa drużyna, która wygra 3 rundy. Stój przez 3 sekundy w odległości do 3 m od zamrożonego sojusznika, aby go odmrozić.
 st_freeze_lose	Porażka — przeciwnicy wygrali trzy rundy.
-st_freeze_marker	Zamrożony
 st_freeze_round_draw	Remis. Powtórka za %1$s s.
 st_freeze_round_lose	Runda przegrana. Następna za %1$s s.
 st_freeze_round_win	Runda wygrana. Następna za %1$s s.

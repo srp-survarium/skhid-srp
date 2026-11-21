@@ -1,7 +1,10 @@
 //! Freeze Tag: snapshot-owned best-of-five rule and native player lifecycle.
 #![forbid(unsafe_code)]
 use crate::vostok::{self, Context, Flow, GameCell, NoExit, OptionsRead};
-use crate::vostok::{FreezeTagOnInputExit, FreezeTagOnPlayerTickExit};
+use crate::vostok::{FreezeTagOnEffectClockExit, FreezeTagOnInputExit, FreezeTagOnPlayerTickExit};
+use crate::vostok::effect::{self, KeptEffect};
+use crate::vostok::log::{self, Piece};
+use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag};
 use crate::vostok::parse::Reader;
 use srp_validate::Place;
 use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd, Schedule};
@@ -128,15 +131,106 @@ fn held(state: &FreezeTag, player: &vostok::freeze::Player<'_>) -> bool {
                 && matches!(state.player(player.place()), Player::Frozen { .. })))
 }
 pub fn on_player_tick(ctx: &mut Context<'_>) -> Flow<FreezeTagOnPlayerTickExit> {
-    if let Match::Freeze(state) = MATCH.get(ctx.thread())
-        && let Some((mut player, time)) = vostok::freeze::Player::at_tick(ctx)
-        && held(&state, &player)
-    {
+    let Match::Freeze(state) = MATCH.get(ctx.thread()) else {
+        return Flow::Continue;
+    };
+    let Some((mut player, time)) = vostok::freeze::Player::at_tick(ctx) else {
+        return Flow::Continue;
+    };
+    let held = held(&state, &player);
+    if held {
         player.hold(time, state.phase());
+    }
+    glow(ctx.thread(), &player, &state);
+    if held {
         return Flow::Exit(FreezeTagOnPlayerTickExit::Frozen);
     }
     Flow::Continue
 }
+
+// ---- the frozen glow -----------------------------------------------------
+
+/// The frozen glow's game effect (pack freeze-tag-glow: the Spring activation glow in ice blue,
+/// fainter; docs/notes/freeze-tag.md "The frozen glow").
+const GLOW_EFFECT: &core::ffi::CStr = c"freeze_tag_frozen";
+
+/// The glow's resource: asked at the first player tick of a Freeze Tag match, kept for the process.
+#[derive(Clone, Copy)]
+enum Load {
+    Unasked,
+    Asked,
+    Ready(KeptEffect),
+    /// The effect is not in the game's data: no glow this session.
+    Missing,
+}
+static GLOW: GameCell<Load> = GameCell::new(Load::Unasked);
+
+/// Whether a body shows the glow: frozen in the rule (until the round's restart spawns it) while
+/// the match is in play (not after its end).
+fn glows(state: &FreezeTag, place: Place, in_play: bool) -> bool {
+    in_play && is_frozen(state, place)
+}
+
+/// At a player's simulation tick (every game, so the effect is in the world and a rollback or a
+/// late join shows it): a frozen body that plays none of it is given the glow, with its own
+/// calculator, which ends it at the thaw, the restart or the match's end.
+fn glow(thread: &vostok::Thread, player: &vostok::freeze::Player<'_>, state: &FreezeTag) {
+    match GLOW.get(thread) {
+        Load::Unasked => {
+            resources::query_effects(thread, &[GLOW_EFFECT], crate::vostok::freeze_tag_on_loaded_entry());
+            GLOW.set(thread, Load::Asked);
+        }
+        Load::Ready(kept) => {
+            let body = player.effects();
+            if glows(state, player.place(), player.playing()) && !body.plays_effect(kept) {
+                body.hold_effect(kept);
+            }
+        }
+        Load::Asked | Load::Missing => {}
+    }
+}
+
+/// The glow's query came back (on the game's thread).
+pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
+    let thread = results.thread();
+    let Arrived::Effects(arrived) = results.arrived(tag) else { return };
+    match arrived.all::<1>() {
+        Some([kept]) => GLOW.set(thread, Load::Ready(kept)),
+        None => {
+            log::line(&[Piece::Text("freeze_tag: the frozen glow did not load; none this session")]);
+            GLOW.set(thread, Load::Missing);
+        }
+    }
+}
+
+/// The effect cook: an instance of the glow for each of the 20 places.
+pub fn on_effect_capacity(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    effect::effect_capacity(ctx, GLOW_EFFECT, 20);
+    Flow::Continue
+}
+
+/// The default clock: the glow ends when its body is frozen no more (thawed, the round restarted,
+/// another match).
+pub fn on_effect_clock(ctx: &mut Context<'_>) -> Flow<FreezeTagOnEffectClockExit> {
+    let Load::Ready(kept) = GLOW.get(ctx.thread()) else { return Flow::Continue };
+    let state = match MATCH.get(ctx.thread()) {
+        Match::Freeze(state) => Some(state),
+        Match::Other => None,
+    };
+    let shows = |_: usize, player: &vostok::world::Player<'_>| {
+        state.is_some_and(|state| {
+            Place::new(player.place()).is_some_and(|place| {
+                glows(&state, place, vostok::freeze::Player::in_play(player))
+            })
+        })
+    };
+    if effect::kept_clock(ctx, &[kept], shows) {
+        Flow::Exit(FreezeTagOnEffectClockExit::Returned)
+    } else {
+        Flow::Continue
+    }
+}
+
 pub fn on_input(ctx: &mut Context<'_>) -> Flow<FreezeTagOnInputExit> {
     if let Match::Freeze(state) = MATCH.get(ctx.thread())
         && let Some(player) = vostok::freeze::Player::at_input(ctx)
@@ -248,11 +342,6 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
         let mask = Place::all()
             .filter(|place| is_frozen(&state, *place))
             .fold(0, |mask, place| mask | (1 << place.index()));
-        let mut text = [0; 0x200];
-        movie.invoke_text(
-            c"root.freeze_tag_label",
-            ui.translate(c"st_freeze_marker", &mut text),
-        );
         if movie.invoke_uints(c"root.freeze_tag_markers", &[mask]) {
             MARKERS.set(ctx.thread(), Some(movie.id()));
         }

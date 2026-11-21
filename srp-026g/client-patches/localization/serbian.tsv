@@ -1230,7 +1230,6 @@ st_freeze_draw	Nerešeno
 st_freeze_frozen	Zamrznut si. Sačekaj saigrača. Odmrzavanje: %1$s%
 st_freeze_help	Zamrzni sve protivnike. Pobeđuje prvi tim koji dobije 3 runde. Stoj 3 sekunde na najviše 3 m od zamrznutog saigrača da ga odmrzneš.
 st_freeze_lose	Poraz — protivnici su dobili tri runde.
-st_freeze_marker	Zamrznut
 st_freeze_round_draw	Nerešeno. Nova runda za %1$s s.
 st_freeze_round_lose	Runda izgubljena. Sledeća za %1$s s.
 st_freeze_round_win	Runda dobijena. Sledeća za %1$s s.

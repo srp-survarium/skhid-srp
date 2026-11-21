@@ -1230,7 +1230,6 @@ st_freeze_draw	Draw
 st_freeze_frozen	Frozen. Wait for a teammate. Thaw: %1$s%
 st_freeze_help	Freeze every opponent. First team to win 3 rounds wins. Stand within 3 m of a frozen teammate for 3 seconds to thaw them.
 st_freeze_lose	Defeat — opponents won three rounds.
-st_freeze_marker	Frozen
 st_freeze_round_draw	Round drawn. Restarting in %1$s s.
 st_freeze_round_lose	Round lost. Next round in %1$s s.
 st_freeze_round_win	Round won. Next round in %1$s s.

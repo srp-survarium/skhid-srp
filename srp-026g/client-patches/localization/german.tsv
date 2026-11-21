@@ -1230,7 +1230,6 @@ st_freeze_draw	Unentschieden
 st_freeze_frozen	Eingefroren. Warte auf dein Team. Auftauen: %1$s%
 st_freeze_help	Friere alle Gegner ein. Das erste Team mit 3 Rundensiegen gewinnt. Bleibe 3 Sekunden innerhalb von 3 m eines eingefrorenen Teammitglieds, um es aufzutauen.
 st_freeze_lose	Niederlage — Gegner haben drei Runden gewonnen.
-st_freeze_marker	Eingefroren
 st_freeze_round_draw	Unentschieden. Neustart in %1$s s.
 st_freeze_round_lose	Runde verloren. Nächste Runde in %1$s s.
 st_freeze_round_win	Runde gewonnen. Nächste Runde in %1$s s.

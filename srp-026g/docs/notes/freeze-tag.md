@@ -25,8 +25,15 @@ round wins. No artifact rescue in this version (owner, 2026-11-17).
   spawn in a round; one that enters in the pause or after the match waits
   for the next round. Absent players are excluded when a new round starts.
 - The HUD reuses the stock TDM score bars (maximum 3), collection progress
-  widget and blocked-hit UI sound. Frozen players have a marker. A rescuer
-  sees progress only for a reachable frozen teammate. No new ice assets.
+  widget and blocked-hit UI sound. A frozen player's name over his head
+  keeps his name and is drawn ice blue (the owner, 2026-11-21: "his name
+  should be of 'frozen' color, not just read frozen"); it gets its own
+  colour back on thaw. A rescuer sees progress only for a reachable frozen
+  teammate.
+- A frozen body glows: the Spring artefact's activation glow in ice blue,
+  fainter (the owner, 2026-11-21: "effect can be anomalous artifact spring
+  activation but of slightly different hue and less intense"; "The frozen
+  glow" below).
 
 The first authored map is Rudnya day, using its existing TDM project and
 team spawns. `freeze-tag-1.json` makes its config and fills unused map-dictionary
@@ -100,6 +107,42 @@ are reused. It restores `switch_to_player_camera` (`1F8200`) on thaw or match
 end and clears pending input on both transitions. It owns no pregame,
 spectator or replay camera, and retains only an identity and previous mode;
 camera state does not enter the world format.
+
+## The frozen name and the frozen glow
+
+**The name.** The player icons movie (`flash/player_icons`, HUDMarker and
+HUDIconLayer) draws a frozen place's name (the marker's `textField`) in
+`HUDMarker.FROZEN_NAME_COLOR`, ice blue, while the place's bit is set in
+`root.freeze_tag_markers(mask)` (sent each frame by `freeze_tag::on_hud`, 0
+when another mode follows). The marker keeps the colour the movie and the game
+give the name (its own, the team's by `render_name`'s `rgb` or
+`set_player_color`) and puts it back exactly on thaw, the newest one if the game
+set another while frozen; a name set while frozen stays blue (names are plain
+text); a marker made while its place is frozen is blue from the start. The
+native label is the game's, never written over. `tools/check freeze-names`
+(`scripts/freeze-tag-hud`) checks it in Ruffle at 1920x1080 and 1280x720.
+
+**The frozen glow.** `gameplay/effects/effect_freeze_tag_frozen` (content
+pack `freeze-tag-glow`, `scripts/freeze-tag-glow/make_pack.py`): made as the
+artefact-glow pack makes an artefact's, a composite of the third-person
+`fx/artifacts/human_frozen` and its first-person twin `human_frozen_fp` (no
+head, face or neck, no point light or haze). `human_frozen` is the stock
+Spring glow `fx/artifacts/human_spring` with its three blue materials drawn
+with ice copies (`fx/artifacts/<name>_ice`, constant_emissive the variant's
+colour times its emissive), every emitter's rate and maximum scaled, and its
+point light the same colour at a lower intensity (or left out). Spring's own
+files are unchanged. The variants and the one shipped are in the script
+(`VARIANTS`, `SHIPPED`); previews in `private/renders/freeze-tag-glow/`.
+
+It is played as Forest Protection's glow is (`forest_glow.rs`): at each
+player's simulation tick (`freeze.player_tick`, every game, so the effect is
+in the world and a rollback or a late join shows it) a frozen body of a match
+in play that plays none of it gets one, with its own calculator
+(`medical.effect_clock`, order 4), which ends it when the body is frozen no
+more: the thaw, the round's restart (the spawn also stops every effect), the
+match's end (the time rule past play) and another match. The effect cook gives
+it 20 instances (`medical.effect_capacity`, order 4). Asked once, at the first
+tick of a Freeze Tag match; nothing plays until it arrives.
 
 ## With Artifact Hunt
 
