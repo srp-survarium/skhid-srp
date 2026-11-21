@@ -248,7 +248,7 @@ va	name	source	ret_cleanup	result
 0x00110e10	vostok::network::network_world::dispatch_callbacks	manual	0	
 0x001113a0	vostok::animation::skeleton::get_bone_index	manual	0	EAX = the bone's index (bones 1Ch each from skeleton+110h: +0 name, +4 parent bone*, +8/+0Ch children begin/end, +10h mask, +18h byte layer flags; the count [skeleton+108h] when no bone has the name); ECX, EDX clobbered, ESI kept
 0x001113f0	vostok::animation::find_bone_by_name	manual	0	EAX = the first bone (1Ch) in [begin, end) whose name (+0) equals the name, else end; caller pops 8
-0x00111860	vostok::logging::has_passed_filters	manual	0	AL = the line is written; the game asks it only while [0x1F1D60C] is set
+0x00111860	vostok::logging::has_passed_filters	manual	0	AL = the line is written (the channel's verbosity, its deepest filter node, at least the level; 0x1118F4); the game asks it only while [0x1F1D60C] is set
 0x00111ed0	vostok::logging::log_message	manual	0	one line of Survarium_<user>.log: "<channel> <level>\t[time]\t<text>" (level 4: info)
 0x00113580	vostok::debug::terminate	manual		never returns (0x1134E0, then int3)
 0x001166f0	vostok::render::renderer_cook::allocate_resource	manual	20	EAX: output pointer/size buffer address

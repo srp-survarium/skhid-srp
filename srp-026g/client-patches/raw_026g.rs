@@ -23170,6 +23170,57 @@ impl CLineFrame {
     }
 }
 
+/// A vostok::log_message_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LogMessageFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl LogMessageFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x24 (ptr<u8>): logging.message's format (by the site's ESP, the return address at +0): a C string, the exe's own at every caller
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn format(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x24).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x24 (ptr<u8>): logging.message's format (by the site's ESP, the return address at +0): a C string, the exe's own at every caller
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_format(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x24).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x28 (ptr<u8>): the format's first argument, a C string only for a format whose first conversion is %s ("cook of %s failed": the query's log_string)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn first(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x28).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x28 (ptr<u8>): the format's first argument, a C string only for a format whose first conversion is %s ("cook of %s failed": the query's log_string)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_first(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x28).cast::<*mut u8>().write_volatile(value) }
+    }
+}
+
 /// A vostok::memory::out_of_memory_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -30291,6 +30342,27 @@ pub mod image {
     /// 0x13bf5 (u8, vostok::memory::image): engine_world's constructor's return from allocate_region (call 0x13BF0, its one caller): the frame of memory.arenas_ready is the start's, while only the main thread runs
     pub const ALLOCATE_REGION_RETURN: u32 = 0x13bf5;
 
+    /// 0x9ffbd0 (u32, vostok::logging::image): "Unknown Client status received. type = %d" (game, error): lobby_menu::on_client_status_received's default (0x21D8D9), every 98 and 9B and their like (lobby.md, the client's own flaw)
+    pub const CLIENT_STATUS_FORMAT: u32 = 0x9ffbd0;
+
+    /// 0xa25794 (u32, vostok::logging::image): "  %dx%d" (render, info): each display mode of each monitor at the renderer's start (0x3BA6CD), some twenty a start
+    pub const DISPLAY_MODE_FORMAT: u32 = 0xa25794;
+
+    /// 0x9f4998 (u32, vostok::logging::image): "atmosphere recalculated ( scene_changed:%s, parameters_changed:%s, window_resized:%s )" (render_pc_dx11, info) (0x1A43D3): at every scene and weather change
+    pub const ATMOSPHERE_FORMAT: u32 = 0x9f4998;
+
+    /// 0xa2aac0 (u32, vostok::logging::image): "QOS_CONTROLLER ENABLED" (network_core, warning) (0x3F1E2E): at every connection
+    pub const QOS_CONTROLLER_FORMAT: u32 = 0xa2aac0;
+
+    /// 0xa06370 (u32, vostok::logging::image): "Console command [%s] not found for options_item [%d]" (game, warning): options_item_base::options_item_base (0x260E90, at 0x260F67), the stock options no variable backs (client_patch.md, patch 58's option), eight a start
+    pub const UNBOUND_OPTION_FORMAT: u32 = 0xa06370;
+
+    /// 0x9ee3e4 (u32, vostok::logging::image): "%s, new id = %u" (render_pc_dx11, error): check_loaded_baked_texture's good load (0x131B40, at 0x131E53), a cache hit (client_patch.md, patch 70)
+    pub const BAKED_TEXTURE_LOADED_FORMAT: u32 = 0x9ee3e4;
+
+    /// 0x9e7fa4 (u32, vostok::logging::image): "cook of %s failed" (resources, warning): query_result_for_cook::finish_query_impl (0xF0D00, at 0xF0DBD), its argument the query's log_string "'%s' [quid %d][class %d]" (0xF0620)
+    pub const COOK_FAILED_FORMAT: u32 = 0x9e7fa4;
+
     /// 0x9f7060 (u32, vostok::render::image): render_surface_texture_instance_proxy's vtable (RTTI .?AUrender_surface_texture_instance_proxy@render@vostok@@ at 0x9F705C): bound_sphere 0x1C8CD0, last_render_time 0x1C8B80, texel_factor 0x1C8B90, +14h 0x1C8CB0 (clears the surface's streaming_mark)
     pub const RENDER_SURFACE_PROXY_VTABLE: u32 = 0x9f7060;
 
@@ -30749,6 +30821,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn name(machine: &impl Machine) -> Option<BufferString> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(BufferString)
+        }
+    }
+
+    /// logging.message (0x111ed0): logging::log_message's start (push ebp / mov ebp,esp / sub esp,250h), the one writer of every engine log line, on any thread (cdecl, varargs; its callers ask has_passed_filters first and build the line's function on their stack, which they free after the call): the site's ESP+4 that function, +8 the context word, +0Ch the template, +10h the file, +14h the line, +18h the caller's name, +1Ch the channel, +20h the level, +24h the format, +28h its first argument; quiet is its `ret` (0x111F73), the stack as at the site: the line not written
+    pub mod logging_message {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a vostok::log_message_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<LogMessageFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(LogMessageFrame)
         }
     }
 

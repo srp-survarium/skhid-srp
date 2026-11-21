@@ -135,6 +135,8 @@ pub mod console_paste;
 pub mod head_clearance;
 // patch 172: the aimed view is aligned to the gun's idle pose
 pub mod aim_pose;
+// patch 174: the engine's log without the lines that tell nothing
+pub mod quiet_log;
 
 pub mod replay_file;
 pub mod free_for_all;

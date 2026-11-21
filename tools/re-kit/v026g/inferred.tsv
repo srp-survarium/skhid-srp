@@ -3641,3 +3641,5 @@ va	status	ref_021d	name
 0x002dec90	inferred-medium		survarium::weapon_core::select_recoil_animation [descriptive]
 0x0030e8a0	inferred-medium		survarium::weapon_core_fire_state::get_user_hands_lexeme [descriptive]
 0x0030e5c0	inferred-medium		survarium::weapon_core_fire_state::clip_time_scale [descriptive]
+0x000fddc0	inferred-high		vostok::console_commands::logging_rule registration [descriptive]
+0x000fde20	inferred-high		vostok::console_commands::logging_rule::execute [descriptive]
