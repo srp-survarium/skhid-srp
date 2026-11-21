@@ -6365,8 +6365,8 @@ still with their keys held, in every game alike. `STEP_PARTS` (0x7B76B, one bran
 dt / 0.05 of the tick's step and returns at once for one with nothing to do, so a part moves a body by
 its own share and nobody goes faster. A simulation change. The rule and the numbers:
 `docs/notes/fall_damage.md`, "A part of a tick moves a body at rest"; the code: `client_patch.md`
-section 3.89. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check step-parts`). Not run in
-a game.
+section 3.89. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check step-parts`), and in a
+game on revision 68 (a scripted walker, ticks cut and uncut: the figures are on PR #2325).
 
 ## No white hit marker through walls (patch 167, unreleased)
 
