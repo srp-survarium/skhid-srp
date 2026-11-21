@@ -15,9 +15,10 @@ takes the six TDM rows (210-215) out of `maps_dict`, so neither srp nor the game
 has them as maps: no room pool or create window, vote card, Play, clan match,
 Player vs Bots, room with bots or Maps tab can list them (each lists the
 dictionary's playable rows; a room saved with them is fitted without them).
-Repair Depot, Station and Depository have no FFA and are not played. Dark
-Valley, Vehicle Station, Fire Station and Sports Center (pack `stalker-maps-2`,
-below) are played in Free for All only too.
+Station has Free for All since 2026-11-21 (31, `stalker-ffa.md`); Repair Depot
+and Depository have no FFA and are not played. Dark Valley, Vehicle Station,
+Fire Station and Sports Center (pack `stalker-maps-2`, below) are played in
+Free for All only too.
 
 Everything else stays: the six TDM configs, the projects with both teams'
 spawns and stashes, their `modes.tsv`/`maps.tsv` rows, names, pictures and
@@ -72,7 +73,7 @@ which is fire station"): Dark Valley, Vehicle Station and Sports Center are
 held, in the porter (`maps.json` `hold`: not built into the pack) and here
 (no dictionary rows, project copies, Keeper pools, loading pictures, HUD
 minimaps or site maps; their FFA points stay in `ffa-spawns-2.tsv`, held by
-`make_ffa_edits.py`'s `HELD_2`, their names in the localization and their
+`make_ffa_edits.py`'s `SECOND.held`, their names in the localization and their
 ids theirs). To offer one: its rows back as Fire Station has them. The
 numbers below are the four maps' build. Built after the
 released `stalker-maps@6`, which they do not change: `release/build-content 60`
@@ -209,10 +210,10 @@ Fire Station's 48 are replaced by the owner's 42 picks (`ffa-fire-station-picks-
 
 ```sh
 stalker-ffa-points <layers> --project v010b_cs_mp_<map>/day_4 ... --plots P > planned.tsv
-make_ffa_edits.py --table planned.tsv <empty cover table>; make_ffa_edits.py --second --planned 24 ...
+make_ffa_edits.py --second --table planned.tsv <empty cover table>; make_ffa_edits.py --second --planned ...
 release/build-content 60   # the planner's points in day_8
 to_cover <layers> --times 2 --project v010b_cs_mp_<map>/day_8@<play area> ... > cover.tsv
-make_ffa_edits.py --table planned.tsv cover.tsv; make_ffa_edits.py --second --pack <stalker-maps-2-1> --dictionary <dict>
+make_ffa_edits.py --second --table planned.tsv cover.tsv; make_ffa_edits.py --second --pack <stalker-maps-2-1> --dictionary <dict>
 ```
 
 `--dictionary` is the live dictionary with the pack's four TDM rows
