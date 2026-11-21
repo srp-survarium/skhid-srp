@@ -1,0 +1,10 @@
+# The parts of remodel-069 textures that are painted, by a UV point on each (../weapon-camo/weapon_camo.py);
+# the others take its suggestion (every large part: these guns have no premium twin to compare). A texture
+# with no points stays plain (its mask paints nothing): the cartridges, and 0.69d0's default texture (the MP7's
+# glowing sight dots).
+weapons/ammo/12_cal_069	
+weapons/ammo/acp_45/acp_45_069	
+weapons/ammo/para_9x19/para_9x19_069	
+weapons/ammo/ps_762x39/ps_762x39	
+weapons/ammo/tt_762x25/tt_762x25	
+editor/default_069	

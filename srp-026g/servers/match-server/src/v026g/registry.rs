@@ -15,13 +15,14 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use session::matchmaking_policy::Closed;
+use session::v026g::replays::ReplayId;
 use survarium::v026g::keeper;
 use survarium::v026g::twist::{Armed, Played};
 use survarium::v026g::dictionary::Dictionary;
 use survarium::v026g::maps::{self, GameMode};
 use survarium::v026g::match_msgs::MAX_PLAYERS;
 use survarium::v026g::match_msgs::players::Supplies;
-use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing};
+use survarium::v026g::match_msgs::snapshot::{PlayerStatistics, Standing, WeaponCounts};
 use survarium::v026g::match_msgs::static_info::score_weights as static_info_weights;
 use survarium::v026g::match_msgs::static_info::{
     MatchOptions, MatchProfile, SCORE_EVENTS, StaticInfo, StaticInfoError,
@@ -201,6 +202,9 @@ pub(crate) struct Formed {
     pub score_weights: [f32; SCORE_EVENTS],
     pub info: StaticInfo,
     pub formed_at: Instant,
+    /// The match for good: its id with when it was made, its recording's
+    /// name and the history's key.
+    pub replay_id: ReplayId,
     /// Experimental dialect: fixed twenty-slot histories/statistics/masks.
     /// Every connecting client must advertise the matching capability.
     pub growing_roster: bool,
@@ -581,6 +585,7 @@ impl MatchRegistry {
                 score_weights,
                 info,
                 formed_at: now,
+                replay_id: ReplayId::new(match_id, std::time::SystemTime::now()),
                 growing_roster,
                 initial_players: options.players.len(),
                 vs_bots: setup.vs_bots,
@@ -1098,6 +1103,11 @@ pub struct PlayerResult {
     /// (`survarium::v026g::match_msgs::players`). `None`: no trusted
     /// snapshot, the player was not in it, or its block did not read.
     pub supplies: Option<Supplies>,
+    /// What it did with each weapon, as the games counted it in the last
+    /// trusted snapshot (exe patch 165; `snapshot::WeaponCounts`): an entry
+    /// a dict id, rising, `dict_id` 0 no weapon known. Empty: no snapshot
+    /// was trusted, or its games count none.
+    pub weapons: Vec<WeaponCounts>,
 }
 
 /// How a match ended, for the results screen and the rewards. Every match
@@ -1105,6 +1115,8 @@ pub struct PlayerResult {
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatchResult {
     pub match_id: u32,
+    /// [`Formed::replay_id`]: the same match.
+    pub replay_id: ReplayId,
     pub map_id: maps::MapId,
     /// [`Formed::played`]'s: Blackout's scores pay twice.
     pub mode: GameMode,

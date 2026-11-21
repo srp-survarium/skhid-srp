@@ -31,15 +31,17 @@
 //!   [srp, the owner's rule of 2026-10-17] A scope item is bought once and
 //!   worn like a cosmetic: by any number of weapons, each holding its own
 //!   record, in slot 3 (a weapon's camouflage goes into 2), one scope a weapon
-//!   (another replaces it). It goes only on a weapon the game data has a
-//!   variant of it for, and the record holds **that variant's dict id**,
-//!   not the scope item's: the client builds the weapon with the record's
-//!   modification (0x2F15A2), and a variant's sets the weapon's scope.
-//!   Taking it off brings a stock scope back (the plain config). The rest
-//!   is the cosmetics' rule: off one weapon with `46 02`, off every weapon
-//!   when it is sold ([`drop_gone_upgrades`]). After `83 46 01` the client's
-//!   own copy holds the scope item's dict id (0x275671) until the inventory
-//!   that follows every answer puts the variant's in its place.
+//!   (another replaces it). It goes only on a weapon the modules table
+//!   fits it to, with what the weapon holds already
+//!   ([`survarium::v026g::weapon_modules::Modules::check`], as a muzzle
+//!   device and a grip), and the record holds the scope item's own dict
+//!   id: the client builds the weapon with the record's modification
+//!   (0x2F15A2), which names the scope to it (`data/srp_scope`). Taking it
+//!   off brings the weapon's default optic back (the plain config). The
+//!   rest is the cosmetics' rule: off one weapon with `46 02`, off every
+//!   weapon when it is sold ([`drop_gone_upgrades`]). Up to release 68 a
+//!   record held a variant's dict id, one made for that weapon: an
+//!   account's load gives each its scope's own ([`scope_records_to_own_ids`]).
 //! - **A weapon's upgrades: the weapon kit** ([`survarium::v026g::weapon_kit`],
 //!   `docs/notes/weapon-kit.md`, client patch 68). [srp, the owner's ask of
 //!   2026-10-25] A weapon holds up to six, one a logical slot: decals in 0
@@ -120,8 +122,9 @@ use survarium::v026g::item_params::item_params;
 use survarium::v026g::lobby::requests::KEEP_OLD_MODIFICATION;
 use survarium::v026g::lobby::{Crafted, limits};
 use survarium::v026g::modifications::{self, Bonuses, MAX_RANK, Modifications};
-use survarium::v026g::scopes::ScopeFits;
+use survarium::v026g::scopes::{SCOPE_CATEGORY, SCOPE_SLOT};
 use survarium::v026g::weapon_kit;
+use survarium::v026g::weapon_modules::{self, Fitted, Kind, Modules};
 
 use super::account::{Account, Item, Upgrade};
 
@@ -130,6 +133,10 @@ use super::account::{Account, Item, Upgrade};
 pub enum ItemError {
     /// A cosmetic can not go on, come off or be placed; why, for the log.
     Upgrade(&'static str),
+    /// A muzzle device or a grip the weapon takes, but not with what it
+    /// holds (the P90's own-thread devices and its grips): its own text, so
+    /// the lobby says why.
+    Unfit,
     /// A modification can not be changed or chosen; why, for the log.
     Reroll(&'static str),
     NotEnoughMoney,
@@ -140,6 +147,7 @@ impl ItemError {
     pub fn text_key(&self) -> &'static str {
         match self {
             Self::Upgrade(_) => "st_cannot_upgrade_item",
+            Self::Unfit => "st_srp_attach_unfit",
             Self::Reroll(_) => "st_cannot_select_rerolled_modification",
             Self::NotEnoughMoney => "st_not_enougth_money",
         }
@@ -173,19 +181,12 @@ pub fn rank(item: &Item) -> usize {
         .count()
 }
 
-/// Takes off every upgrade whose cosmetic the inventory lacks
-/// (`Account::sync_kits` calls it after each change of the inventory), by
-/// the game data's scopes ([`drop_gone_upgrades_in`]). Returns the ids of
-/// the items that lost one.
+/// Takes off every upgrade whose cosmetic, scope, muzzle device or grip
+/// the inventory lacks (`Account::sync_kits` calls it after each change of
+/// the inventory): an upgrade comes off when its record names no item of
+/// the inventory, or does not hold that item's dict id (a record holds its
+/// upgrade item's own). Returns the ids of the items that lost one.
 pub fn drop_gone_upgrades(inventory: &mut [Item]) -> Vec<u32> {
-    drop_gone_upgrades_in(inventory, ScopeFits::shared())
-}
-
-/// [`drop_gone_upgrades`] with `scopes`: an upgrade comes off when its
-/// cosmetic or scope is no item of the inventory, or when its record is not
-/// the one that item makes on the host (a scope's: the variant made for
-/// that weapon; [`modifications::record_dict_in`]).
-pub fn drop_gone_upgrades_in(inventory: &mut [Item], scopes: &ScopeFits) -> Vec<u32> {
     let mut stripped = Vec::new();
     if inventory.iter().all(|item| item.upgrades.is_empty()) {
         return stripped;
@@ -196,20 +197,58 @@ pub fn drop_gone_upgrades_in(inventory: &mut [Item], scopes: &ScopeFits) -> Vec<
         .collect();
     for item in inventory.iter_mut() {
         let before = item.upgrades.len();
-        let (host, host_dict) = (item.item_id, item.dict_id);
+        let host = item.item_id;
         item.upgrades.retain(|upgrade| {
             upgrade.id != host
-                && owned.iter().any(|&(id, dict_id)| {
-                    id == upgrade.id
-                        && upgrade.a
-                            == u32::from(modifications::record_dict_in(scopes, host_dict, dict_id))
-                })
+                && owned
+                    .iter()
+                    .any(|&(id, dict_id)| id == upgrade.id && upgrade.a == u32::from(dict_id))
         });
         if item.upgrades.len() != before {
             stripped.push(host);
         }
     }
     stripped
+}
+
+/// Gives every scope's record its scope item's own dict id: the migration
+/// of accounts saved up to release 68, whose records held a variant's dict
+/// id (`{scope item id, variant dict id, 0, 3}`,
+/// `survarium::v026g::scopes::released`). A record names the owned scope
+/// item, so no table of the retired variants is needed. Run once at an
+/// account's load, before its repairs (`GameAccounts::with_repository`):
+/// they then keep the record where the modules table fits the scope to the
+/// weapon and take it off where it does not; the player owns the scope
+/// either way. Armour's slot 3 holds a camouflage (no scope item):
+/// untouched. Returns how many records it rewrote.
+pub fn scope_records_to_own_ids(account: &mut Account) -> usize {
+    let dictionary = Dictionary::shared();
+    let scopes: Vec<(u32, u16)> = account
+        .inventory
+        .iter()
+        .filter(|item| {
+            dictionary
+                .item(item.dict_id)
+                .is_some_and(|entry| entry.category == SCOPE_CATEGORY)
+        })
+        .map(|item| (item.item_id, item.dict_id))
+        .collect();
+    let mut rewritten = 0;
+    let records = account
+        .inventory
+        .iter_mut()
+        .flat_map(|item| item.upgrades.iter_mut())
+        .filter(|record| record.param == SCOPE_SLOT);
+    for record in records {
+        let own = scopes.iter().find(|&&(id, _)| id == record.id);
+        if let Some(&(_, dict_id)) = own
+            && record.a != u32::from(dict_id)
+        {
+            record.a = dict_id.into();
+            rewritten += 1;
+        }
+    }
+    rewritten
 }
 
 /// The upgrade records of `before` that `after` (the same account,
@@ -232,7 +271,7 @@ pub fn upgrades_taken_off(before: &Account, after: &Account) -> Vec<(u32, Upgrad
             } else if after.item(record.id).is_none() {
                 "its upgrade item is gone"
             } else {
-                "it does not fit the item (a withdrawn scope pair, or another slot)"
+                "it does not fit the item (a pair the modules table does not have, or another slot)"
             };
             gone.push((item.item_id, *record, why));
         }
@@ -243,15 +282,16 @@ pub fn upgrades_taken_off(before: &Account, after: &Account) -> Vec<(u32, Upgrad
 /// Makes a loaded item one the client can be sent: no modification or
 /// defect its tables lack (it reads the row it did not find), no more of
 /// its own than three, no offer of what it lacks, and upgrades that are in
-/// a slot of their kind, one a slot; by the game data's scopes
-/// ([`make_safe_in`]).
+/// a slot of their kind, one a slot; by the game data's modules table
+/// ([`make_safe_with`]).
 pub fn make_safe(item: &mut Item) {
-    make_safe_in(item, ScopeFits::shared());
+    make_safe_with(item, Modules::shared());
 }
 
-/// [`make_safe`] with `scopes`: a scope's record must hold a variant made
-/// for the item ([`modifications::record_slots_in`]).
-pub fn make_safe_in(item: &mut Item, scopes: &ScopeFits) {
+/// [`make_safe`] with `modules`: a scope's, a muzzle device's or a grip's
+/// record must be one the item takes, in its kind's slot
+/// ([`modifications::upgrade_slots_with`]).
+pub fn make_safe_with(item: &mut Item, modules: &Modules) {
     let table = Modifications::shared();
     item.modifications
         .retain(|&(id, state)| table.is_known(id, state));
@@ -281,11 +321,22 @@ pub fn make_safe_in(item: &mut Item, scopes: &ScopeFits) {
     let mut slots: Vec<u8> = Vec::new();
     item.upgrades.retain(|upgrade| {
         let dict_id = u16::try_from(upgrade.a).unwrap_or(0);
-        let fits = modifications::record_slots_in(scopes, host, dict_id).contains(&upgrade.param)
+        let fits = modifications::upgrade_slots_with(modules, host, dict_id)
+            .contains(&upgrade.param)
             && !slots.contains(&upgrade.param);
         slots.push(upgrade.param);
         fits
     });
+    // A muzzle device and a grip that each go on but not together (a table
+    // of another pack version): the grip comes off, then the device if the
+    // weapon still refuses it.
+    for kind in [Kind::Grip, Kind::Muzzle] {
+        if modules.check(host, fitted_modules(modules, host, &item.upgrades)).is_ok() {
+            break;
+        }
+        let slot = weapon_modules::slot_of(kind);
+        item.upgrades.retain(|upgrade| upgrade.param != slot);
+    }
 }
 
 /// An item of `dict_id` is a weapon (`wpn_*`): its upgrades are the
@@ -320,7 +371,7 @@ fn is_gear(item: &Item) -> bool {
         && modifications::item_mods(item.dict_id).is_some_and(|mods| mods.modifications != 0)
 }
 
-fn item_level(dict_id: u16) -> u8 {
+pub fn item_level(dict_id: u16) -> u8 {
     item_params(dict_id).map_or(0, |params| params.item_level)
 }
 
@@ -340,31 +391,52 @@ pub struct Attached {
 }
 
 /// `46 01 <kit> <host> <upgrade> <slot> <u64 0>`: put a camouflage, a
-/// decal or a scope on an item, by the game data's scopes
-/// ([`attach_upgrade_in`]).
+/// decal, a scope, a muzzle device or a grip on an item, by the game data's
+/// modules table ([`attach_upgrade_with`]).
 pub fn attach_upgrade(
     account: &mut Account,
     host_item_id: u32,
     upgrade_item_id: u32,
     slot: u8,
 ) -> Result<Attached, ItemError> {
-    attach_upgrade_in(
+    attach_upgrade_with(
         account,
-        ScopeFits::shared(),
+        Modules::shared(),
         host_item_id,
         upgrade_item_id,
         slot,
     )
 }
 
-/// [`attach_upgrade`] with `scopes`. What was in the slot comes off the
-/// item; the cosmetic stays on every other item wearing it. On the item
+/// What a weapon holds as its scope, its muzzle device and its grip, by
+/// its records: each one whose dict id the weapon takes as a module
+/// ([`Modules::kind`]), in that kind's slot.
+fn fitted_modules(modules: &Modules, host_dict_id: u16, upgrades: &[Upgrade]) -> Fitted {
+    let mut fitted = Fitted::default();
+    for held in upgrades {
+        let Ok(module) = u16::try_from(held.a) else {
+            continue;
+        };
+        if let Some(kind) = modules.kind(host_dict_id, module)
+            && weapon_modules::slot_of(kind) == held.param
+        {
+            fitted = fitted.with(kind, Some(module));
+        }
+    }
+    fitted
+}
+
+/// [`attach_upgrade`] with `modules`. What was in the slot comes off the
+/// item; the upgrade stays on every other item wearing it. On the item
 /// already in that slot it stays as it is (its value too); in another slot
-/// of it, it moves, its value (a decal's place) with it. A scope's record holds the variant made for the weapon
-/// ([`modifications::record_dict_in`]).
-pub fn attach_upgrade_in(
+/// of it, it moves, its value (a decal's place) with it. The record holds
+/// the upgrade item's own dict id. A scope, a muzzle device or a grip goes
+/// on only if the weapon may hold it with what it holds already
+/// ([`Modules::check`], the gun's own rules: the game would draw nothing of
+/// a refused fit).
+pub fn attach_upgrade_with(
     account: &mut Account,
-    scopes: &ScopeFits,
+    modules: &Modules,
     host_item_id: u32,
     upgrade_item_id: u32,
     slot: u8,
@@ -379,10 +451,18 @@ pub fn attach_upgrade_in(
         .item(upgrade_item_id)
         .ok_or(ItemError::Upgrade("no such cosmetic"))?;
     let upgrade_dict = upgrade.dict_id;
-    if !modifications::upgrade_slots_in(scopes, host.dict_id, upgrade_dict).contains(&slot) {
+    if !modifications::upgrade_slots_with(modules, host.dict_id, upgrade_dict).contains(&slot) {
         return Err(ItemError::Upgrade("it does not go into that slot"));
     }
-    let record_dict = modifications::record_dict_in(scopes, host.dict_id, upgrade_dict);
+    // A module of the weapon (the slot is its kind's, checked above): the
+    // whole of what the weapon would hold, by the gun's rules.
+    if let Some(kind) = modules.kind(host.dict_id, upgrade_dict) {
+        let fitted = fitted_modules(modules, host.dict_id, &host.upgrades)
+            .with(kind, Some(upgrade_dict));
+        if modules.check(host.dict_id, fitted).is_err() {
+            return Err(ItemError::Unfit);
+        }
+    }
     // What the host keeps: all but what is in the slot and the cosmetic
     // itself (moved from another slot).
     let kept = host
@@ -397,7 +477,7 @@ pub fn attach_upgrade_in(
         .item_mut(host_item_id)
         .expect("the host was found above");
     if let Some(held) = host.upgrades.iter().find(|held| {
-        held.id == upgrade_item_id && held.param == slot && held.a == u32::from(record_dict)
+        held.id == upgrade_item_id && held.param == slot && held.a == u32::from(upgrade_dict)
     }) {
         return Ok(Attached {
             host_item_id,
@@ -412,7 +492,7 @@ pub fn attach_upgrade_in(
     let value = host
         .upgrades
         .iter()
-        .find(|held| held.id == upgrade_item_id && held.a == u32::from(record_dict))
+        .find(|held| held.id == upgrade_item_id && held.a == u32::from(upgrade_dict))
         .map_or(0, |held| held.value);
     let before = host.upgrades.len();
     host.upgrades.retain(|held| held.id != upgrade_item_id);
@@ -420,7 +500,7 @@ pub fn attach_upgrade_in(
     host.upgrades.retain(|held| held.param != slot);
     host.upgrades.push(Upgrade {
         id: upgrade_item_id,
-        a: record_dict.into(),
+        a: upgrade_dict.into(),
         value,
         param: slot,
     });

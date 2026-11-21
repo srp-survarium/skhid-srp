@@ -1,0 +1,42 @@
+# Patch 165: a match's kills (headshots, through cover, by a ricochet),
+# deaths, shots, hits, damage, kill distances and time held counted per place
+# and weapon, beside the statistics and saved after them in the world
+# (docs/notes/kill_weapon.md). The sites are sites_026g.tsv's; the logic is
+# weapon_stats.rs.
+name = "weapon_stats"
+patch = 165
+
+[[hook]]
+site = "weapon_stats.killed"
+handler = "on_killed"
+
+[[hook]]
+site = "weapon_stats.hit"
+handler = "on_hit"
+
+[[hook]]
+site = "weapon_stats.fired"
+handler = "on_fired"
+
+[[hook]]
+site = "weapon_stats.save"
+handler = "on_save"
+
+[[hook]]
+site = "weapon_stats.load"
+handler = "on_load"
+
+[[hook]]
+site = "weapon_stats.reset"
+handler = "on_reset"
+
+[[hook]]
+site = "weapon_stats.made"
+handler = "on_made"
+
+# base_player::tick: the weapon a live player holds, a tick. After the other
+# patches of the site (92, 109, 111): Resonance's re-selection first.
+[[hook]]
+site = "battery.carrier_tick"
+handler = "on_tick"
+order = 5

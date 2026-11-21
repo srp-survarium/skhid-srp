@@ -1,0 +1,18 @@
+[package]
+name = "weapon-modules"
+version.workspace = true
+edition.workspace = true
+description = "A 0.26g weapon's scope, muzzle device and grip as 0.69d's modules in slots: the table's one definition and resolve; shared by the porter, srp's servers and the client's arena (no_std, no alloc)"
+
+[lints]
+workspace = true
+
+[features]
+# The table's writer (alloc), for the porter's `port-modules`. The game's
+# arena and srp's servers only read: link_026g.py builds this crate with
+# rustc alone, no feature.
+encode = []
+
+# No dependencies, and no path dev-dependency: link_026g.py builds every
+# crate this manifest names by path into the game's arena.
+[dependencies]

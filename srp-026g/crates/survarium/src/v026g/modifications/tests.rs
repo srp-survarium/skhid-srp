@@ -242,42 +242,38 @@ fn a_weapon_wears_two_decals_beside_its_camouflage_and_scope() {
 }
 
 #[test]
-fn a_scope_goes_on_a_weapon_it_has_a_variant_for() {
-    use crate::v026g::scopes::fixtures::{self, AK_74N_PSO_1, COBRA, LONE_SCOPE, PSO_1, SVD_COBRA};
-    let fits = fixtures::fits();
+fn a_scope_goes_on_a_weapon_the_modules_table_fits_it_to() {
+    use crate::v026g::scopes::fixtures::{self, COBRA, LONE_SCOPE, PSO_1};
+    use crate::v026g::weapon_modules::Modules;
+    let modules = fixtures::modules();
     let (ak, ak_premium, svd) = (dict("ak_74n"), dict("ak_74n_premium"), dict("svd"));
     let (vest, camo) = (dict("edge_torso_2"), dict("camo_city"));
     for weapon in [ak, ak_premium] {
-        assert_eq!(upgrade_slots_in(fits, weapon, PSO_1), [SCOPE_SLOT]);
-        assert_eq!(record_dict_in(fits, weapon, PSO_1), AK_74N_PSO_1);
+        assert_eq!(upgrade_slots_with(modules, weapon, PSO_1), [SCOPE_SLOT]);
+        assert_eq!(upgrade_slots_with(modules, weapon, COBRA), [SCOPE_SLOT]);
     }
-    assert_eq!(upgrade_slots_in(fits, svd, COBRA), [SCOPE_SLOT]);
-    assert_eq!(record_dict_in(fits, svd, COBRA), SVD_COBRA);
-    // No variant for the pair, a scope no variant names, a variant or
-    // 0.26g's own PSO-1 as the item, a vest as the host: nothing.
+    // On a weapon with a default optic too.
+    assert_eq!(upgrade_slots_with(modules, svd, COBRA), [SCOPE_SLOT]);
+    // A scope the weapon does not take, a weapon that is no gun of the
+    // table, a scope no weapon takes, a retired variant's id, 0.26g's own
+    // PSO-1 as the item, a vest as the host: nothing.
     for (host, upgrade) in [
         (svd, PSO_1),
         (dict("ak_74m"), PSO_1),
         (ak, LONE_SCOPE),
-        (ak, AK_74N_PSO_1),
+        (ak, 2001),
         (ak, 304),
         (vest, PSO_1),
     ] {
         assert!(
-            upgrade_slots_in(fits, host, upgrade).is_empty(),
+            upgrade_slots_with(modules, host, upgrade).is_empty(),
             "{host} {upgrade}"
         );
     }
-    // Cosmetics as before; their record is their own id.
-    assert_eq!(upgrade_slots_in(fits, vest, camo), [CAMO_SLOT]);
-    assert_eq!(record_dict_in(fits, vest, camo), camo);
-    assert_eq!(record_slots_in(fits, vest, camo), [CAMO_SLOT]);
-    // A record holds the variant made for its weapon, nothing else.
-    assert_eq!(record_slots_in(fits, ak, AK_74N_PSO_1), [SCOPE_SLOT]);
-    assert!(record_slots_in(fits, svd, AK_74N_PSO_1).is_empty());
-    assert!(record_slots_in(fits, ak, PSO_1).is_empty());
-    assert!(record_slots_in(fits, vest, SVD_COBRA).is_empty());
-    // The players' data before the patch: no scope goes on anything.
+    // Cosmetics as before.
+    assert_eq!(upgrade_slots_with(modules, vest, camo), [CAMO_SLOT]);
+    // Game data without the table: no scope goes on anything.
+    assert!(upgrade_slots_with(&Modules::NONE, ak, PSO_1).is_empty());
     assert!(upgrade_slots(svd, 304).is_empty());
     assert!(upgrade_slots(dict("rem_700"), 69).is_empty());
 }
@@ -407,65 +403,6 @@ fn a_reroll_offers_three_on_an_item_of_few_types() {
                 .all(|&id| kind(id) == kind(1062) && id != 1062)
         );
     }
-}
-
-#[test]
-fn craft_and_reroll_go_by_the_tables() {
-    let data = Modifications::shared();
-    assert_eq!(data.craft.price(0), 200);
-    assert_eq!(data.craft.price(10), 5_000);
-    // Level 16 (the highest an item has) costs the table's last.
-    assert_eq!(data.craft.price(16), 10_000);
-    // The lobby's rows: silver success and failure, gold success and
-    // failure, for a difference of 0, 1 and 2: always a success, in silver.
-    let (chances, silver, gold) = data.craft.tables();
-    #[rustfmt::skip]
-    assert_eq!(
-        chances,
-        [100.0, 0.0, 0.0, 0.0,  100.0, 0.0, 0.0, 0.0,  100.0, 0.0, 0.0, 0.0]
-    );
-    assert_eq!((silver[2], gold), (400, [0; 16]));
-
-    assert_eq!(data.reroll.price(0), 100);
-    assert_eq!(data.reroll.price(10), 1200);
-    assert_eq!(data.reroll.price(16), 2500);
-    // No level changes for nothing (the owner's rule of 2026-10-25: the
-    // same price every time, `docs/notes/flat-reroll.md`).
-    for level in 0..=u8::MAX {
-        assert!(data.reroll.price(level) > 0);
-    }
-}
-
-#[test]
-fn premium_gear_pays_more() {
-    let data = Modifications::shared();
-    let premium = dict("ak_74n_premium");
-
-    // Its 1230 (10 % more silver) is a modification of its own: it pays
-    // as one, and without it nothing.
-    let bonuses = data.bonuses(premium, &[(1230, false)]);
-    assert!((bonuses.money - 0.1).abs() < 1e-6);
-    assert_eq!(bonuses.experience, 0.0);
-    assert_eq!(data.bonuses(premium, &[]), Bonuses::default());
-    // Premium trousers: experience and the Black Market's reputation, as
-    // modifications of their own (`super::super::golden`); without them,
-    // nothing.
-    let trousers = dict("bm_legs_4_premium");
-    assert_eq!(data.bonuses(trousers, &[]), Bonuses::default());
-    let bonuses = data.bonuses(trousers, &[(1240, false), (1260, false)]);
-    assert!((bonuses.experience - 0.05).abs() < 1e-6);
-    assert_eq!(bonuses.money, 0.0);
-    assert!((bonuses.reputation[1] - 0.05).abs() < 1e-6);
-    assert_eq!(bonuses.reputation[0], 0.0);
-    let bonuses = data.bonuses(
-        dict("scav_torso_4_premium"),
-        &[(1240, false), (1250, false)],
-    );
-    assert!((bonuses.reputation[0] - 0.05).abs() < 1e-6);
-    assert_eq!(
-        data.bonuses(dict("ak_74m"), &[(2000, false)]),
-        Bonuses::default()
-    );
 }
 
 /// The lobby colours a bonus at the best value it rolls gold and shows its

@@ -5,6 +5,7 @@ pub mod armour;
 pub mod awards;
 pub mod cowboy;
 pub mod dictionary;
+pub mod faces;
 pub mod drops;
 pub mod game_data;
 pub mod golden;
@@ -26,6 +27,7 @@ pub mod twist;
 pub mod ui_properties;
 pub mod weapon;
 pub mod weapon_kit;
+pub mod weapon_modules;
 
 // Wire helpers.
 pub mod lzma2;

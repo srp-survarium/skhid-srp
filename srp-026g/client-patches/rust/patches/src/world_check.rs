@@ -56,7 +56,7 @@ impl Match {
             team_2_points: Some(self.team_2_points),
             // The native per-item bounds remain at their readers (patch 115).
             // Do not guess profile, swapped inventory or authored map objects.
-            profiles: None, artefacts: None, objects: None, inventory: None,
+            profiles: None, artefacts: None, objects: None, inventory: None, dict_ids: None,
         }
     }
 }
