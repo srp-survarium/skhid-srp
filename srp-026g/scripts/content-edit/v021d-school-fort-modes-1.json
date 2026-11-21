@@ -75,10 +75,10 @@
   {"files": "projects/v021d_level_05/day_8/client_project", "list": "server_objects/respawn_points", "after": {"point_id": 40}, "like": {"point_id": 0}, "values": {"name": "ffa_ported_21", "full_name": "logic/modes/ffa/respawn/ffa_ported_21", "point_id": 41, "team": 2, "priority": 1, "is_temporary": false, "position": [-17.875, 10.321541, -35.836], "rotation": [0.0, 5.8904862, 0.0], "invulnerability_time": 0, "enemy_check_radius": 20.0, "ally_check_radius": 1.0}}
  ],
  "append_entry": [
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 234, "unique_key": "id", "value": {"cfg_mode_name": "blackout/v021d_level_02_day_2.options", "id": 9}},
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 235, "unique_key": "id", "value": {"cfg_mode_name": "blackout/v021d_level_05_day_2.options", "id": 10}},
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 236, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_02_day_8.options", "id": 111}},
-  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 237, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_05_day_8.options", "id": 112}}
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 235, "unique_key": "id", "value": {"cfg_mode_name": "blackout/v021d_level_02_day_2.options", "id": 9}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 236, "unique_key": "id", "value": {"cfg_mode_name": "blackout/v021d_level_05_day_2.options", "id": 10}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 237, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_02_day_8.options", "id": 111}},
+  {"file": "gameplay/db_static_dictionaries", "list": "maps_dict", "expected_count": 238, "unique_key": "id", "value": {"cfg_mode_name": "ffa/v021d_level_05_day_8.options", "id": 112}}
  ],
  "add_value": [
   {"files": ["gameplay/game_modes/blackout/v021d_level_02_day_2.options"], "table": "mode", "key": "srp_variant", "value": "blackout"},
