@@ -497,8 +497,16 @@ Not done:
    before it is called done.
 5. The six guns whose left hand does not rest on the idle locator need their clip event before a
    grip moves the hand (stage 0).
-6. The Attachments window's muzzle and grip slots. An account's load checks each record's slot,
-   not yet the pair the weapon holds.
+6. **The Attachments window's muzzle and grip slots: written, compiled, not seen** (2026-11-21).
+   Two more slots of the scope slot's own symbol (`SrvModifierRendererSk`, made by the window),
+   stacked under the scope on the Attachments page in armour's three decal places, only the kinds
+   the weapon takes. What goes on a weapon is the items dictionary's `items_compatibility` pairs of
+   all three kinds (`UpgradeWindow.attachmentPairs`); a pair's kind is the shop's scope range or
+   `survarium.data.ModuleKinds`, the table `ids.py --movie` writes from `ids.tsv` (check
+   `module-kinds`). A muzzle device and a grip that do not go together are refused by the server
+   with their own text (`st_srp_attach_unfit`), and the slot shows what the weapon holds again at
+   the account's update. An account's load checks each record's slot, not yet the pair the weapon
+   holds.
 7. **`plane_slot`: table version 3, started.** In 0.69d0's `game.options` every collimator, every
    folding or rear iron sight and the dovetail, pistol and G3 rail mounts override the eye as
    `slots_to_override { id: aim, locator: aim, plane_slot: body_aim }` (34 keys on `aim`, 5 on
@@ -523,7 +531,9 @@ Not done:
      exe published TOGETHER with the first version 3 pack (a version 2 table is refused by a
      version 3 game and server).
 8. **The left hand on a turned grip** (the grips lane's finding, the coordinator's decision,
-   2026-11-21; not written): laid over each grip's mesh in all 24 orientations, the table's
+   2026-11-21; written in `Hand::new` the same day, the crate's
+   `a_turned_grip_keeps_the_hand_in_the_guns_axes`, the pinned loadouts and the Unicorn check
+   with it; exe `e17ace688`; not seen in a game): laid over each grip's mesh in all 24 orientations, the table's
    convention for the hand locators is the best on twelve of the thirteen grips (finger joints 12
    to 24 mm from the surface), which settles it by data. The thirteenth, the PKP's own grip (2668),
    is 139 mm off: its is the only grip fit of 318 whose frame is turned on the gun (a quarter turn:
@@ -665,8 +675,11 @@ Unfit::NoGun | Unfit::Refused(Refusal)    Refusal is resolve's own: NoFit, NoSlo
   aim time").
 - For the lobby's text: 66 muzzle x grip pairs are refused by `resolve` (the P90's two own-thread
   devices with its six grips; on the VSK-94 and its premium nine devices with three grips).
-- A machine fact for every lane: the porter's work folder does not work on the HDD (ImageMagick
-  does not find a file just written on ntfs-3g), so packs build on the SSD.
+- A machine fact for every lane (the scopes lane, 2026-11-21): the system's `magick`
+  (`/run/current-system/sw/bin/magick`) is a bubblewrap wrapper that binds only its working folder,
+  so the porter run from its checkout cannot open a texture it just wrote in a work folder
+  elsewhere, on the SSD or the HDD alike. Run the porter with its dev shell's ImageMagick on PATH
+  (`nix develop -c ...` in the porter's checkout); then the work folder may be on the HDD.
 - The eight clamp fits stay refused: in 0.69d0 the clamp sits on a slot only a fitted suppressor
   brings. The 9A-91 takes no grip.
 - The SR-3M's, its premium's and the OTs-14's own foregrips stay the guns' own parts, always on,

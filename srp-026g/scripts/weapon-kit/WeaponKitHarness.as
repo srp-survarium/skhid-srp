@@ -50,6 +50,16 @@ package
 
       private static const CAMO:int = 9030;
 
+      // a weapon that takes the scope, a muzzle device and a grip; one that takes the grip alone
+      private static const MODULE_RIFLE:int = 9003;
+
+      private static const GRIP_RIFLE:int = 9004;
+
+      // a muzzle device and a grip (ModuleKinds, of scripts/weapon-modules/ids.tsv)
+      private static const DEVICE:int = 2601;
+
+      private static const GRIP:int = 2659;
+
       private static const CAMO_OTHER:int = 9031;
 
       // item ids
@@ -66,6 +76,17 @@ package
       private static const DECAL_C_ID:int = 23;
 
       private static const SCOPE_ID:int = 31;
+
+      private static const DEVICE_ID:int = 32;
+
+      private static const GRIP_ID:int = 33;
+
+      private static const MODULE_RIFLE_ID:int = 14;
+
+      private static const GRIP_RIFLE_ID:int = 15;
+
+      // the scope slot's place on the Attachments page (the top one)
+      private var topPlace:Array;
 
       // two items of the camouflage's dict id: the kit's camouflage is the lowest, 40
       private static const CAMO_HIGH_ID:int = 50;
@@ -154,15 +175,19 @@ package
             }
             at = "the items";
             var descriptor:* = new (C("survarium.data.ItemDescriptor"))("weapon-kit-check");
-            descriptor.setItemsDictionary([item(RIFLE,Category.ASSAULT_RIFLES,"Rifle",2,1),item(STOCK_RIFLE,Category.ASSAULT_RIFLES,"Stock-scoped rifle",2,1),item(ARMOUR,Category.BODY_ARMOR,"Armour",2,1),item(DECAL_A,Category.DECALS,"Decal A",0,0),item(DECAL_B,Category.DECALS,"Decal B",0,0),item(DECAL_C,Category.DECALS,"Decal C",0,0),item(SCOPE,Category.SCOPES,"Scope",0,0),item(CAMO,Category.CAMOUFLAGES,"Camouflage",0,0),item(CAMO_OTHER,Category.CAMOUFLAGES,"Other camouflage",0,0)]);
+            descriptor.setItemsDictionary([item(RIFLE,Category.ASSAULT_RIFLES,"Rifle",2,1),item(STOCK_RIFLE,Category.ASSAULT_RIFLES,"Stock-scoped rifle",2,1),item(ARMOUR,Category.BODY_ARMOR,"Armour",2,1),item(DECAL_A,Category.DECALS,"Decal A",0,0),item(DECAL_B,Category.DECALS,"Decal B",0,0),item(DECAL_C,Category.DECALS,"Decal C",0,0),item(SCOPE,Category.SCOPES,"Scope",0,0),item(CAMO,Category.CAMOUFLAGES,"Camouflage",0,0),item(CAMO_OTHER,Category.CAMOUFLAGES,"Other camouflage",0,0),item(MODULE_RIFLE,Category.ASSAULT_RIFLES,"Module rifle",2,1),item(GRIP_RIFLE,Category.ASSAULT_RIFLES,"Grip rifle",2,1),item(DEVICE,Category.SCOPES,"Muzzle device",0,0),item(GRIP,Category.SCOPES,"Grip",0,0)]);
             // the scopes the rifles take (ItemFactory gives the movie its pairs so)
             Window.addCompatibility(RIFLE,SCOPE);
             Window.addCompatibility(STOCK_RIFLE,SCOPE);
             Window.addCompatibility(STOCK_RIFLE,domain.getDefinition("survarium.constants.ItemDictId").SCOPE_PSO_1);
+            Window.addCompatibility(MODULE_RIFLE,SCOPE);
+            Window.addCompatibility(MODULE_RIFLE,DEVICE);
+            Window.addCompatibility(MODULE_RIFLE,GRIP);
+            Window.addCompatibility(GRIP_RIFLE,GRIP);
             at = "the shop";
             var shop:* = new (C("survarium.controls.GangShop"))();
             shop.registerItemDescriptor(descriptor);
-            shop.setupShopItems([RIFLE,STOCK_RIFLE,ARMOUR,DECAL_A,DECAL_B,DECAL_C,SCOPE,CAMO,CAMO_OTHER].map(function(dictId:int, i:int, a:Array):Object
+            shop.setupShopItems([RIFLE,STOCK_RIFLE,ARMOUR,DECAL_A,DECAL_B,DECAL_C,SCOPE,CAMO,CAMO_OTHER,MODULE_RIFLE,GRIP_RIFLE,DEVICE,GRIP].map(function(dictId:int, i:int, a:Array):Object
             {
                return {dictId:dictId,faction_id:0,level:0,cost:100,condition_or_stack:10000};
             }));
@@ -259,7 +284,7 @@ package
                   });
                   inventory.setupShopItems(offers);
                   inventory.setupBundleData([]);
-                  inventory.setupInventoryData([owned(RIFLE_ID,RIFLE),owned(ARMOUR_ID,ARMOUR),owned(STOCK_RIFLE_ID,STOCK_RIFLE),owned(DECAL_A_ID,DECAL_A),owned(DECAL_B_ID,DECAL_B),owned(DECAL_C_ID,DECAL_C),owned(SCOPE_ID,SCOPE),owned(CAMO_HIGH_ID,CAMO),owned(CAMO_LOW_ID,CAMO),owned(CAMO_OTHER_ID,CAMO_OTHER)]);
+                  inventory.setupInventoryData([owned(RIFLE_ID,RIFLE),owned(ARMOUR_ID,ARMOUR),owned(STOCK_RIFLE_ID,STOCK_RIFLE),owned(DECAL_A_ID,DECAL_A),owned(DECAL_B_ID,DECAL_B),owned(DECAL_C_ID,DECAL_C),owned(SCOPE_ID,SCOPE),owned(CAMO_HIGH_ID,CAMO),owned(CAMO_LOW_ID,CAMO),owned(CAMO_OTHER_ID,CAMO_OTHER),owned(MODULE_RIFLE_ID,MODULE_RIFLE),owned(GRIP_RIFLE_ID,GRIP_RIFLE),owned(DEVICE_ID,DEVICE),owned(GRIP_ID,GRIP)]);
                   require(inventory.getInventoryItemOf(CAMO).itemId == CAMO_LOW_ID,"getInventoryItemOf gives the lowest item of a dict id (" + inventory.getInventoryItemOf(CAMO).itemId + ")");
                   require(inventory.getInventoryItemOf(4242) == null,"getInventoryItemOf gives null for a dict id not owned");
                   // armour first, before any weapon: the movie's window
@@ -362,6 +387,41 @@ package
                   doubleClick(DECAL_A_ID,false);
                   break;
                case 14:
+                  // a weapon that takes a muzzle device and a grip, its kit naming both
+                  open(MODULE_RIFLE_ID,[{id:SCOPE_ID,param:3,kit_own:3,kit_camo:0,kit_muzzle:DEVICE,kit_grip:GRIP}]);
+                  break;
+               case 15:
+                  require(window.container.textField.text == WeaponKitText.DATA.english.scope_window_title,"a weapon with modules opens on Attachments");
+                  require(window.camoSlot.visible && window.muzzleSlot.visible && window.gripSlot.visible,"Attachments shows the scope, muzzle device and grip slots");
+                  require(!window.decalSlot.visible && !window.decalSlot1.visible && !window.decalSlot2.visible,"Attachments shows no decal or camouflage slot");
+                  expectAttachments("the kit naming a device and a grip",[SCOPE_ID,DEVICE_ID,GRIP_ID]);
+                  checkAttachmentLayout();
+                  topPlace = [window.camoSlot.x,window.camoSlot.y];
+                  open(MODULE_RIFLE_ID,[]);
+                  break;
+               case 16:
+                  doubleClick(DEVICE_ID,true);
+                  doubleClick(GRIP_ID,true);
+                  doubleClick(SCOPE_ID,true);
+                  expectAttachments("a device, a grip and a scope double-clicked: each its own slot",[SCOPE_ID,DEVICE_ID,GRIP_ID]);
+                  var Drag:Class = C("scaleform.clik.events.DragEvent");
+                  window.onDrag(new Drag("dragStart",inventory.getInventoryItem(GRIP_ID),null,null,null));
+                  require(window.gripSlot.highlighted && !window.muzzleSlot.highlighted && !window.camoSlot.highlighted,"a grip's drag lights up the grip's slot alone");
+                  window.onDrag(new Drag("dragEnd",inventory.getInventoryItem(GRIP_ID),null,null,null));
+                  // the server refused the grip (a pair the weapon cannot hold): the account's update
+                  // holds the device alone
+                  var data:* = inventory.getInventoryItem(MODULE_RIFLE_ID);
+                  data.upgrades = [{id:SCOPE_ID,param:3,kit_own:3,kit_camo:0,kit_muzzle:DEVICE,kit_grip:0}];
+                  window.setData(data,false);
+                  expectAttachments("the account's update without the grip",[SCOPE_ID,DEVICE_ID,0]);
+                  open(GRIP_RIFLE_ID,[]);
+                  break;
+               case 17:
+                  require(window.gripSlot.visible && !window.muzzleSlot.visible && !window.camoSlot.visible,"a weapon that takes grips alone: the grip slot alone");
+                  require(window.gripSlot.x == topPlace[0] && window.gripSlot.y == topPlace[1],"its grip slot at the top place (" + window.gripSlot.x + "," + window.gripSlot.y + ", not " + topPlace.join(",") + ")");
+                  require(Window.greyed(inventory.getInventoryItem(DEVICE_ID)) && !Window.greyed(inventory.getInventoryItem(GRIP_ID)),"the inventory greys the device, not the grip");
+                  break;
+               case 18:
                   // every language: each window's texts in their fields
                   texts(WeaponKitText.LANGUAGES[language]);
                   if(++language < WeaponKitText.LANGUAGES.length)
@@ -388,12 +448,12 @@ package
       {
          var ListEvent:Class = C("scaleform.clik.events.ListEvent");
          var item:* = inventory.getInventoryItem(itemId);
-         var before:String = slots().map(function(s:*, i:int, a:Array):String
+         var before:String = slots().concat(attachmentSlots()).map(function(s:*, i:int, a:Array):String
          {
             return s.data ? String(s.data.itemId) : "0";
          }).join(",");
          inventory.itemsTileList.dispatchEvent(new ListEvent(ListEvent.ITEM_DOUBLE_CLICK,false,true,-1,-1,-1,null,item));
-         var after:String = slots().map(function(s:*, i:int, a:Array):String
+         var after:String = slots().concat(attachmentSlots()).map(function(s:*, i:int, a:Array):String
          {
             return s.data ? String(s.data.itemId) : "0";
          }).join(",");
@@ -411,6 +471,44 @@ package
       private function slots() : Array
       {
          return [window.decalSlot,window.decalSlot1,window.decalSlot2,window.camoSlot];
+      }
+
+      private function attachmentSlots() : Array
+      {
+         return [window.camoSlot,window.muzzleSlot,window.gripSlot];
+      }
+
+      // The item ids of the Attachments page's slots (scope, muzzle device, grip), 0 empty.
+      private function expectAttachments(what:String, ids:Array) : void
+      {
+         var shown:Array = attachmentSlots().map(function(s:*, i:int, a:Array):int
+         {
+            return s.data ? int(s.data.itemId) : 0;
+         });
+         trace("WEAPONKIT " + what + ": scope, muzzle, grip hold " + shown.join(", "));
+         require(shown.join(",") == ids.join(","),what + ": " + shown.join(",") + ", not " + ids.join(","));
+      }
+
+      // The Attachments page with all three: the scope's, the device's and the grip's slots one
+      // under the other in that order, inside the window, none over another.
+      private function checkAttachmentLayout() : void
+      {
+         var bounds:Rectangle = frame();
+         var shown:Array = attachmentSlots();
+         trace("WEAPONKIT the window's frame " + bounds + "; Attachments: " + shown.map(function(s:*, i:int, a:Array):String
+         {
+            return s.name + " at " + s.x + "," + s.y + " square " + square(s);
+         }).join("; "));
+         for(var i:int = 0; i < shown.length; i++)
+         {
+            var a:Rectangle = square(shown[i]);
+            require(bounds != null && bounds.containsRect(a),"Attachments slot " + i + " " + a + " inside the window " + bounds);
+            if(i > 0)
+            {
+               var above:Rectangle = square(shown[i - 1]);
+               require(a.top >= above.bottom && shown[i].x == shown[i - 1].x,"Attachments slot " + i + " " + a + " under slot " + (i - 1) + " " + above);
+            }
+         }
       }
 
       // The window opened on an owned item with these upgrade records (the account's), as
@@ -559,6 +657,8 @@ package
          measure(name,"Appearance");
          open(STOCK_RIFLE_ID,[]);
          measure(name,"stock scope");
+         open(MODULE_RIFLE_ID,[]);
+         measure(name,"Attachments with a muzzle device and a grip");
          open(ARMOUR_ID,[]);
          measure(name,"armour");
          trace("WEAPONKIT " + name + ": " + measured + " texts, widest " + widest.what + " \"" + widest.text + "\" " + widest.used + " of " + widest.room + " px");
@@ -567,7 +667,8 @@ package
       private function measure(language:String, page:String) : void
       {
          var c:* = window.container;
-         for each(var s:* in slots())
+         var all:Array = slots().concat([window.muzzleSlot,window.gripSlot]);
+         for each(var s:* in all)
          {
             s.validateNow();
          }
@@ -595,7 +696,7 @@ package
          }
          require(title.numLines == 1,language + " " + page + ": the title \"" + title.text + "\" on one line");
          note(language,page + " title (" + title.defaultTextFormat.size + " pt)",title,used,room);
-         for each(s in slots())
+         for each(s in all)
          {
             if(s.visible && !s.data)
             {
