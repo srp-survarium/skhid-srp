@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Patch 165: the aimed view aligned to the gun's idle pose; the drawing alone.
+# Patch 172: the aimed view aligned to the gun's idle pose; the drawing alone.
 set -euo pipefail
 main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
 exe=${SKHID_ORIGINAL_EXE:-$main/private/function-map/inputs/026g/survarium.exe}

@@ -561,6 +561,15 @@ Patches:
   min(player_step's dt, 0.05), not x 0.05 at every step, so a tick the
   world steps in parts (each precise input) adds one tick of speed in all;
   whole ticks bit for bit as before. A simulation change;
+- a part of a tick moves a body as a whole tick does (patch 166, with the
+  late join; docs/notes/fall_damage.md "A part of a tick moves a body at
+  rest"): bullet_character_controller::updateAction (0x7B730) ran
+  player_step for a step shorter than a tick only when the body had moved
+  in its step before, so a body at rest took no walk, strafe, jump or
+  crouch of its player in a tick the world steps in parts; STEP_PARTS
+  (0x7B76B, one branch) runs player_step for every step, and its own test
+  (can_skeep_player_step 0x7C7E0) leaves a body with nothing to do where it
+  is. A simulation change;
 - a thrown grenade stays above the ground (patch 105, with the late join;
   docs/notes/grenade_ccd.md): grenade_core::load's continuous collision
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
@@ -655,6 +664,15 @@ Patches:
   of a material with srp_grass_v021d its 0.21 vertex shader family
   (0x1CD1B6), the forward water of one with srp_water_v021d 0.21's wave
   normals (0x1E603C). Nothing a match computes;
+- every player drawn with srp's face of the account (patch 123, faces;
+  docs/notes/client_patch.md section 3.87): the faces srp gives, the
+  account's and its squad's by name (0x87's and 0x88's byte), a match's or
+  replay's by place (the options' entry 5) until its scene is left
+  (0x1F9520); profile_skin_visual_cook's
+  head (0x205662) made from body_parts.heads[face], its mask or helmet
+  variant by the kit's models, its hair, `f<face>_` in the skin's name;
+  a worn helmet's or mask's entry its config's data_head_<face> when it
+  has one (0x204B36). Nothing a match computes;
 - the baked camouflage and decal textures are kept from game to game, and
   a texture asked for again while its bake or load is under way is made
   once (patch 70, with the late join; docs/notes/baked-textures.md). The
@@ -872,7 +890,7 @@ WORLD_UNPACK = (
 # its "Release revision <n>" commit), never a feature change: a release
 # builds with --revision=<n>, the live exe's + 1, which changes the revision
 # byte alone, and records <n> here once it went out.
-REVISION = 67
+REVISION = 68
 # The first revision whose default build takes the lobby's replay link
 # (REPLAY_LINK): the server's replay rule asks for it
 # (session::v026g::replays::MIN_REVISION).
@@ -1673,6 +1691,25 @@ FALL_GRAVITY = (
      bytes.fromhex("f30f10586c" "f30f5cd9" "f30f104870" "f30f5cca" "f30f114870" "f30f104874" "f30f5cc8"
                    "f30f11586c" "f30f114874" "eb10" "8b4d00" "f30f105908" "f30f5d18" "eb9c" "cccc")),
 )
+
+# A part of a tick moves a body at rest (patch 166, ../docs/notes/fall_damage.md
+# "A part of a tick moves a body at rest"). updateAction 0x7B730 calls
+# player_step 0x7BDA0 when the step's dt is the tick (+2C704h, 0x7B760:
+# `jnp 0x7B7A9`), and for any other dt only when the body's position (+0B0h)
+# is not m_last_pos (+50h, which player_step sets to the position at its
+# start, 0x7BE7C: the body moved in its step before); else it goes to
+# 0x7B7BA, which zeroes the movement asked for this step (+20h..+3Ch, the
+# desired walk and air control vectors) as after every step. So in a tick the
+# world steps in parts (each precise input, tick_events 0x2D21E0) a body at
+# rest was not stepped at all: its player's keys did nothing until a tick
+# that was whole. player_step itself moves a body by dt / 0.05 of the tick's
+# step (0x7C13B, 0x7C603, 0x7C734) and returns at once for one with nothing
+# to do (can_skeep_player_step 0x7C7E0 at 0x7C1AE: no walk vector, no
+# velocity, no slide, not jumping, no push). STEP_PARTS makes the branch a
+# `jmp`: every step runs player_step. The compare of the position against
+# m_last_pos (0x7B76D..0x7B7A7) is no longer reached. No base relocation
+# under the site; the branch's target is the original's.
+STEP_PARTS = (0x7B76B, bytes.fromhex("7b3c"), bytes.fromhex("eb3c"))
 
 # A thrown grenade stays above the ground (patch 105, ../docs/notes/grenade_ccd.md).
 # grenade_core::load 0x303890 gives the grenade (RGD-5 and RDG-M) a capsule of
@@ -3896,6 +3933,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         for site in FALL_GRAVITY:
             patch(data, *site)
             sites.append((site[0], site[0] + len(site[1])))
+        patch(data, *STEP_PARTS)
+        sites.append((STEP_PARTS[0], STEP_PARTS[0] + len(STEP_PARTS[1])))
         # An address of .rdata for another: its relocation stays.
         patch(data, *GRENADE_CCD)
         for site in MOUSE_BUTTONS:

@@ -1441,7 +1441,7 @@ st_login_menu_accept	Прийняти
 st_login_menu_cancel	Скасувати
 st_login_menu_status_access_level_restriction	Недостатній рівень доступу для входу.
 st_login_menu_status_connecting	Авторизація...
-st_login_menu_status_error_connection	Немає зв'язку з сервером Skhid. Дозвольте гру в брандмауері (Skhid-network-setup.cmd). У Росії увімкніть VPN і додайте до нього .exe-файли гри (VPN.txt).
+st_login_menu_status_error_connection	Немає зв'язку з сервером Skhid. Запустіть гру через лаунчер: він покаже причину.
 st_login_menu_status_invalid_user_or_password	Неправильний нікнейм або пароль
 st_login_menu_status_invalid_version	Ви використовуєте застарілу версію гри.
 st_login_menu_status_sign_in_already_online	Користувач вже в грі
@@ -2261,6 +2261,8 @@ st_srp_artefact_532_description	Немає шкоди від падіння, п�
 st_srp_artefact_532_name	Онікс II
 st_srp_artefact_533_description	Активація Живокосту повністю відновлює витривалість.
 st_srp_artefact_533_name	Живокіст II
+st_srp_artefact_534_description	Після смерті артефакти комплекту переходять у комплект, у якому ви відроджуєтеся, скільки вміститься в його контейнери.
+st_srp_artefact_534_name	Кур’єр
 st_srp_artefact_541_description	Пасивні ефекти ваших артефактів діють і на живих союзників у радіусі 9 м.
 st_srp_artefact_541_name	Резонанс
 st_srp_artefact_542_description	Активовані артефакти діють і на живих союзників у радіусі 6 м. "Вони сяють, а ти виблискуєш"
@@ -2538,6 +2540,8 @@ st_srp_equipment069_snow_20_legs_7_desc	Опис поки недоступний
 st_srp_equipment069_snow_20_legs_7_name	Штани "Сніг-20"
 st_srp_equipment069_snow_20_torso_7_desc	Опис поки недоступний.
 st_srp_equipment069_snow_20_torso_7_name	Бронежилет "Сніг-20"
+st_srp_face	Обличчя
+st_srp_face_card	Обличчя %1$s
 st_srp_hide_quests_option	Приховати завдання
 st_srp_hide_scores_option	Приховати очки гравців
 st_srp_hit_markers_all	Усі хітмаркери

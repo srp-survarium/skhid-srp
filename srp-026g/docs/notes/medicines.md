@@ -34,7 +34,7 @@ starts empty with its native maximum of 1.0.
 | Blue Military Medkit | 2 + 1 s | 50% | 50% |
 | Green Black Market Medkit | 2 + 2 s | 100% | 100% (clamped) |
 | Bandages | 1 + 1 s | 35% | 35% |
-| Antitoxin | 1 + 10 s | None | None (50% infection healing) |
+| Antitoxin | 1 + 10 s (15 s since 2026-11-20) | None | None (50% infection healing) |
 | Painkiller | 1 + 10 s | None | None (protection only) |
 
 This confirms under-healing, **not** a yellow-specific zero-healing result.
@@ -123,7 +123,10 @@ reads them too); `scripts/medicines/medicines.tsv` holds each one's ids, keys, i
   radiation sickness sits on `infection` is LIKELY (not seen in a game): an in-game test in a
   radiation zone checks it.
 - The antitoxin keeps its own place: the light cure (0.1 kg) that also halves toxic damage for
-  10 s.
+  its active time: 15 s (the owner, 2026-11-20: "it should last 15 seconds"; 10 s before), its
+  50 % of the infection pool spread over them (the total is the config's, the rate follows the
+  time). The one antitoxin of the data: `gameplay/items/drugs/antitoxin.options` (item 82), 0.26g's
+  own; no pack adds another. A bullet does not stop it (drug-interrupt.md).
 
 ## The coloured medkits
 

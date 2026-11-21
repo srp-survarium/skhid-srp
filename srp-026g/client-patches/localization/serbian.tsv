@@ -1441,7 +1441,7 @@ st_login_menu_accept	Prihvati
 st_login_menu_cancel	Otkaži
 st_login_menu_status_access_level_restriction	Nemate dovoljan nivo pristupa za prijavu.
 st_login_menu_status_connecting	Prijavljivanje…
-st_login_menu_status_error_connection	Nije moguće povezivanje sa Skhid serverom. Dozvolite igru u zaštitnom zidu (Skhid-network-setup.cmd). U Rusiji koristite VPN i dodajte .exe datoteke igre u njega (VPN.txt).
+st_login_menu_status_error_connection	Nije moguće povezivanje sa Skhid serverom. Pokrenite igru iz launchera: pokazaće razlog.
 st_login_menu_status_invalid_user_or_password	Pogrešan nadimak ili lozinka.
 st_login_menu_status_invalid_version	Koristite zastarelu verziju igre.
 st_login_menu_status_sign_in_already_online	Korisnik je već u igri.
@@ -2261,6 +2261,8 @@ st_srp_artefact_532_description	Nema štete od pada dok je Oniks aktivan.
 st_srp_artefact_532_name	Oniks II
 st_srp_artefact_533_description	Aktiviranje Živokosti vraća svu izdržljivost.
 st_srp_artefact_533_name	Živokost II
+st_srp_artefact_534_description	Posle smrti artefakti opreme prelaze u opremu sa kojom se ponovo pojavljuješ, koliko stane u njene kontejnere.
+st_srp_artefact_534_name	Kurir
 st_srp_artefact_541_description	Pasivni efekti tvojih artefakata deluju i na žive saigrače u krugu od 9 m.
 st_srp_artefact_541_name	Rezonanca
 st_srp_artefact_542_description	Aktivirani artefakti deluju i na žive saigrače u krugu od 6 m. "Oni sijaju, ti blistaš"
@@ -2538,6 +2540,8 @@ st_srp_equipment069_snow_20_legs_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_legs_7_name	Pantalone Sneg-20
 st_srp_equipment069_snow_20_torso_7_desc	Opis još nije dostupan.
 st_srp_equipment069_snow_20_torso_7_name	Pancir Sneg-20
+st_srp_face	Lice
+st_srp_face_card	Lice %1$s
 st_srp_hide_quests_option	Sakrij zadatke
 st_srp_hide_scores_option	Sakrij poene igrača
 st_srp_hit_markers_all	Sve oznake pogodaka

@@ -1,7 +1,7 @@
-# The aimed view is aligned to the gun's idle pose (patch 165)
+# The aimed view is aligned to the gun's idle pose (patch 172)
 
 The owner, 2026-11-18 and 2026-11-20: guns should behave on a shot in sights and scopes as build
-0.45a6 shows it. Both exes were read; the proof is `client_patch.md` section 3.87. The clips' half
+0.45a6 shows it. Both exes were read; the proof is `client_patch.md` section 3.92. The clips' half
 is `shot-kick-045.md`.
 
 ## What the two builds do

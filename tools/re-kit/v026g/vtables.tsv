@@ -190,3 +190,9 @@ vtable	slot	va	class	base	basis
 0x009f3440	0x8	0x001ce100	vostok::render::effect_wet_surface	vostok::render::effect_descriptor	observed: compile; written into the static descriptor 0x2261118 at 0x17CCAC
 0x009f5108	0x4	0x00054e10	vostok::render::effect_rain	vostok::render::effect_descriptor	observed: should_recompile_when_global_changes, the base's (returns false)
 0x009f5108	0x8	0x001d3b90	vostok::render::effect_rain	vostok::render::effect_descriptor	observed: compile; written into the static descriptor 0x2260F8C at 0x1AE12C
+0x00a0755c	0x00	0x0026da00	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: on_player_killed; called through core+18FA8h by generate_killed_event alone (0x2DA46C)
+0x00a0755c	0x04	0x0026da50	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: on_player_damaged; called by generate_hit_event alone (0x2DA164)
+0x00a0755c	0x08	0x0026da80	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: on_player_weapon_firing; called by base_player::on_fire alone (0x2D78A5)
+0x00a0755c	0x18	0x0026daf0	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: the damage record's add (0x2F58E0); called by generate_hit_event alone (0x2DA10A)
+0x00a0755c	0x30	0x0026db40	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: serialize (shared_statistics::serialize 0x2F5AC0 of +8); called by game_world_core::serialize alone (0x2D265F)
+0x00a0755c	0x34	0x0026db60	survarium::base_game_statistics_handler	survarium::base_game_statistics_handler	observed: deserialize (0x2F5BE0 of +8, then the scores 0x26DC30); called by the world's apply alone (0x2D2B18), its reader the statistics section's bytes (0x2D2AEE..0x2D2B09)

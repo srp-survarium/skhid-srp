@@ -1429,6 +1429,7 @@ mod tests {
             kits: vec![MatchKit::empty(1, "kit")],
             items: vec![MatchItem::default()],
             squad: 0,
+            face: survarium::v026g::faces::Face::DEFAULT,
         }
     }
 

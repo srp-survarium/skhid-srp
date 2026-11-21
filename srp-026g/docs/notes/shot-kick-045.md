@@ -1,7 +1,7 @@
 # The gun's kick on a shot, as 0.45a6 has it
 
 The owner (2026-11-18): how guns behave on a shot, as build 0.45a6 shows it. Pack `shot-kick-045`
-(`scripts/shot-kick-045/make_pack.sh`, `gen.py`); the exe half is patch 165 (`aim-pose.md`).
+(`scripts/shot-kick-045/make_pack.sh`, `gen.py`); the exe half is patch 172 (`aim-pose.md`).
 
 - **What.** A gun's item fire clip (`<gun>/item/stand/3rd_view/shoot`, `states/fire/animations[0]`)
   moves its body bone `offset`: the kick, and what a scope shows of it. 16 stock guns' clips take

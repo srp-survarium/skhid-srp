@@ -53,7 +53,7 @@ SECTION_NAME = b".skhid\0\0"
 SECTION_RVA = 0x48A000
 SECTION_VA = IMAGE_BASE + SECTION_RVA           # 0x49A000, the CAVE of the .bin
 SECTION_CHARACTERISTICS = 0x60000020            # code, execute, read (as .text)
-SECTION_PAGES = 2                               # its pages at most (the code and the site's addresses)
+SECTION_PAGES = 4                               # its pages at most (the code and the site's addresses)
 
 # launcher_values_026g.bin: the code, three zero-filled ASCII slots, then the
 # entries (ENTRIES_AT on), the language code with the generated language
@@ -108,7 +108,31 @@ TORRENT_HOOKS = [
     (0x1BD03, "837c240400", "jmp", "YouTube's click is the box's: Allow torrent toggled, saved, told"),
     (0x1AEA3, "e8a076ffff", "call", "launcher_form: Twitter's control, over the box's text, is opaque"),
 ]
-ENTRY_HOOKS = LANGUAGE_HOOKS + TORRENT_HOOKS
+# 16. "Relay: auto / on / off" is a row under "Allow torrent": VK's control
+# (gone since 8) with the settings gear's pictures, and a text beside it;
+# what it shows is said by the updater (message 0A, the dispatch table's
+# entry below), its click opens a menu of the three and the pick is sent to
+# the updater (22, 23, 24) (launcher_values_026g.asm, "Relay"). The status line's text of the
+# launcher's states 6 and 7 goes through `restart_text`: "Server
+# maintenance..." counts the updater's seconds to its next try (message 13h)
+# while a server restarts. Their entries follow the torrent's; no relocation
+# is under any.
+RELAY_HOOKS = [
+    (0x1AEE5, "e85e76ffff", "call", "launcher_form: VK's control is the relay button, shown as the updater said"),
+    (0x1BD3C, "837c240400", "jmp", "VK's click is the relay button's: the menu, its pick to the updater"),
+    (0x1687C, "e827cfffff", "call", "refresh_status: \"Server maintenance...\" counts the updater's seconds to its next try"),
+]
+ENTRY_HOOKS = LANGUAGE_HOOKS + TORRENT_HOOKS + RELAY_HOOKS
+# on_updater_message's dispatch table (0x1609E, `jmp [0x1609E + (id-1)*4]`):
+# message 0A's entry (it pointed at the handlers' common end, as 0B..0D
+# still do) becomes the entry after the hooks' (`route_message`). A
+# relocated dword, and it stays one.
+ROUTE_TABLE = (0x160C2, 0x16093, "on_updater_message: message 0A is what the relay box shows")
+ROUTE_ENTRY = len(ENTRY_HOOKS)
+# The relay row's state (launcher_values_026g.asm RELAY_STATE, 0x4A800..
+# 0x4A810) is in .data past its last variable: its VirtualSize grows into
+# the page that was already there, zero and unused.
+DATA_SECTION = (2, b".data\0\0\0", 0x67FC, 0x6810)
 
 # (VA, original bytes, new bytes, what): code and read-only data, in place.
 PATCHES = [
@@ -157,7 +181,6 @@ PATCHES = [
     (0x1BC45, "55", "c3", "CREATE ACCOUNT click: ret"),
     (0x1BD16, "83", "c3", "Facebook click: ret"),
     (0x1BD29, "837c", "ebd8", "Twitter click (the box's text, 15): jmp 0x1BD03, the box's"),
-    (0x1BD3C, "83", "c3", "VK click: ret"),
     # 15. The box is YouTube's control: the settings window's pictures of
     # its box in the place of YouTube's (unticked, under the pointer,
     # pressed) and of Facebook's first (ticked), and its 20 by 20 pixels.
@@ -170,7 +193,15 @@ PATCHES = [
     # Twitter's control lies over the box's text, its rect all static (the
     # widest text, Russian, is 134 pixels; its initializer adds at most 127).
     (0x3A746, "a1", "c3", "Twitter's rect: its initializer returns at once"),
-    (0x458CC, "0000000000000000", "bb00000034000000", "Twitter's rect: right 187, bottom 52"),
+    (0x458CC, "0000000000000000", "bb00000028000000", "Twitter's rect: right 187, bottom 40"),
+    # 16. The relay button is VK's control: the settings gear's pictures (the
+    # launcher's own: PNG 308, under the pointer 309, pressed 310) in VK's
+    # place, and its 20 by 20 pixels.
+    (0x1ABA7, "6851010000", "6834010000", "launcher_form: VK's picture is PNG 308, the gear"),
+    (0x1ABBA, "6852010000", "6835010000", "launcher_form: VK's under the pointer is PNG 309"),
+    (0x1ABCD, "6853010000", "6836010000", "launcher_form: VK's pressed is PNG 310"),
+    (0x3A766, "83c01b", "83c014", "VK's rect: add eax,20 (the relay button's width)"),
+    (0x3A773, "83c01b", "83c014", "VK's rect: add eax,20 (the relay button's height)"),
 ]
 
 # start_updater, when no version could be read (the game exe PLAY starts is
@@ -241,13 +272,14 @@ RECTS = [
     (0x45844, 750, 47, GONE, 47, "SHOP: silver and gold are exchanged in the lobby"),
     (0x45854, 614, 47, GONE, 47, "CREATE ACCOUNT: an account is made by the first sign-in"),
     (0x45864, 478, 47, 750, 47, "PROJECT WEBSITE: moved to SHOP's place, at the right"),
-    # The bottom panel's left part, where the social buttons were: the box
-    # in line with the page's left column, centred on the status line and
-    # PLAY; its text (25 pixels right) ends before the status line (x 200).
-    (0x458A4, 32, 28, 28, 32, "YouTube's: the Allow torrent box (15)"),
+    # The bottom panel's left part, where the social buttons were: the two
+    # boxes in line with the page's left column, the pair centred on the
+    # status line and PLAY; their text (25 pixels right) ends before the
+    # status line (x 200).
+    (0x458A4, 32, 28, 28, 20, "YouTube's: the Allow torrent box (15)"),
     (0x458B4, 68, 28, GONE, 28, "Facebook"),
-    (0x458C4, 104, 28, 53, 32, "Twitter's: over the Allow torrent text, clickable (15)"),
-    (0x458D4, 140, 28, GONE, 28, "VK"),
+    (0x458C4, 104, 28, 53, 20, "Twitter's: over the Allow torrent text, clickable (15)"),
+    (0x458D4, 140, 28, 28, 46, "VK's: the relay button (16), hidden until the updater says"),
 ]
 
 
@@ -413,9 +445,15 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
     # The language's sites, and the box's, call or jump to their entries.
     if len(code) < ENTRIES_AT + 8 * len(ENTRY_HOOKS):
         sys.exit(f"launcher_values_026g.bin is {len(code)} bytes: no entries")
-    for va, expected, _, what in TORRENT_HOOKS:
+    for va, expected, _, what in TORRENT_HOOKS + RELAY_HOOKS:
         if any(va <= at + 3 and at < va + len(bytes.fromhex(expected)) for at in relocations):
             sys.exit(f"{va:#x} ({what}): a relocation overlaps the hook")
+    if len(code) < ENTRIES_AT + 8 * (ROUTE_ENTRY + 1) or code[ENTRIES_AT + 8 * ROUTE_ENTRY] != 0xE9:
+        sys.exit("launcher_values_026g.bin: no entry for message 0A after the hooks'")
+    va, old, what = ROUTE_TABLE
+    if va not in relocations:
+        sys.exit(f"{va:#x} ({what}): the table's entry is not relocated")
+    image.patch(va, struct.pack("<I", old), struct.pack("<I", SECTION_VA + ENTRIES_AT + 8 * ROUTE_ENTRY), what)
     for number, (va, expected, kind, what) in enumerate(ENTRY_HOOKS):
         entry = ENTRIES_AT + 8 * number
         if code[entry] != 0xE9:
@@ -476,6 +514,15 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
         sys.exit("launcher_values_026g.bin does not come back to the message loop "
                  f"(was it assembled with -DCAVE={SECTION_VA:#x}?)")
 
+    number, name, old_size, new_size = DATA_SECTION
+    headers = P.Headers(image.data)
+    entry = headers.table + 40 * number
+    if bytes(image.data[entry:entry + 8]) != name or struct.unpack_from("<I", image.data, entry + 8)[0] != old_size:
+        sys.exit(".data is not where it was, or not of its size")
+    if (old_size + 0xFFF) // 0x1000 != (new_size + 0xFFF) // 0x1000:
+        sys.exit(".data would grow into another page")
+    struct.pack_into("<I", image.data, entry + 8, new_size)
+
     data = add_section(image.data, bytes(section))
     headers = P.Headers(data)
     struct.pack_into("<I", data, headers.checksum_at, P.pe_checksum(data, headers.checksum_at))
@@ -484,6 +531,7 @@ def build(original, code, site=DEFAULT_SITE, game_exe=DEFAULT_GAME_EXE, argument
                   f"site {site}, PLAY (or Enter) starts {game_exe} {arguments}, updater {UPDATER_NAME}, "
                   f"the language in user.cfg ({len(LANGUAGE_HOOKS)} sites), "
                   f"Allow torrent on the main window ({len(TORRENT_HOOKS)} sites), "
+                  f"Relay: auto/on/off under it ({len(RELAY_HOOKS)} sites and message 0A), "
                   f"local pages in {PAGES_DIR}, {sum(1 for r in RECTS if r[3] == GONE)} buttons removed, "
                   "signature removed")
 

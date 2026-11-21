@@ -452,7 +452,7 @@ package {
    military_medkit:[[19,"2.0"],[18,"1.0"],[135,"100"],[136,"60"],[137,"50"],[15,"0.3"]],
    blackmarket_medkit:[[19,"2.0"],[18,"1.0"],[135,"0"],[136,"100"],[137,"100"],[15,"0.3"]],
    science_medkit:[[19,"2.0"],[18,"3.0"],[135,"100"],[136,"100"],[137,"50"],[13,"100"],[15,"0.3"]],
-   antitoxin:[[13,"50"],[19,"1.0"],[18,"10.0"],[15,"0.1"]],
+   antitoxin:[[13,"50"],[19,"1.0"],[18,"15.0"],[15,"0.1"]],
    painkiller:[[17,"10"],[19,"1.0"],[18,"10.0"],[15,"0.1"]]
   };
   private static const MEDICINE_LABELS:Object={13:"Intoxication",17:"Pain protection",18:"Duration",19:"Activation",135:"Healing: arms / legs",136:"Healing: body / head",137:"Pain relief",15:"Weight"};

@@ -139,6 +139,7 @@ impl GameData {
         with_pocket_units(&mut data.files);
         with_blackout_maps(&mut data.files);
         with_free_for_all_maps(&mut data.files, &mut data.projects);
+        with_faces(&mut data.files);
         data
     }
 
@@ -594,6 +595,35 @@ fn with_free_for_all_maps(
         };
     }
 }
+
+/// The faces the test data has: [`TEST_FACES`] entries of `body_parts.heads`,
+/// each today's `body_parts.head` (until the faces pack ships, its form:
+/// `face-choice.md`), so tests choose and send faces other than 0.
+fn with_faces(files: &mut BTreeMap<String, Vec<u8>>) {
+    let path = super::faces::PATH;
+    let mut config = ConfigValue::parse(&files[path]).expect("the body parts parse");
+    let ConfigValue::Named(sections) = &mut config else {
+        panic!("{path} is a named table")
+    };
+    let Some((_, ConfigValue::Named(parts))) =
+        sections.iter_mut().find(|(name, _)| name == "body_parts")
+    else {
+        panic!("{path} has body_parts")
+    };
+    let head = parts
+        .iter()
+        .find(|(name, _)| name == "head")
+        .map(|(_, head)| head.clone())
+        .expect("today's head");
+    parts.push((
+        "heads".into(),
+        ConfigValue::Indexed(vec![head; TEST_FACES]),
+    ));
+    files.insert(path.to_owned(), config.to_bytes().expect("a config"));
+}
+
+/// How many faces [`with_faces`] gives the test data.
+pub const TEST_FACES: usize = 3;
 
 /// `files` with `parameters.pocket_units` where [`THROWABLES_TABLE`] has
 /// one: a float in the config of the row's name (`<name>.options` under

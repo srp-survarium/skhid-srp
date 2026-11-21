@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run patch 165's aim alignment (the Rust patch `aim_pose`) in the default
+"""Run patch 172's aim alignment (the Rust patch `aim_pose`) in the default
 build beside the original, on a made-up weapon.
 
     python check_aim_pose_026g.py <original survarium.exe>

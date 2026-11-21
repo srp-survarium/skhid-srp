@@ -1,4 +1,4 @@
-//! Patch 165: the aimed view is aligned to the gun's idle pose
+//! Patch 172: the aimed view is aligned to the gun's idle pose
 //! (docs/notes/aim-pose.md).
 //!
 //! At full aim the game makes the gun's `aim` locator the camera, each frame,
