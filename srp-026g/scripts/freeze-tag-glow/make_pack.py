@@ -187,11 +187,11 @@ def main():
         for variant in VARIANTS:
             trees |= frozen_files(stock, variant, f'gameplay/effects/effect_freeze_tag_frozen_{variant}.options',
                                   f'{SYSTEM}_{variant}', f'_{variant}')
-        version, description = f'{VERSION}-preview', 'previews of the frozen glow, never a manifest row'
+        pack_id, version, description = f'{PACK_ID}-preview', VERSION, 'previews of the frozen glow, never a manifest row'
     else:
         trees = frozen_files(stock, SHIPPED, EFFECT, SYSTEM, '')
         params = VARIANTS[SHIPPED]
-        version = VERSION
+        pack_id, version = PACK_ID, VERSION
         description = (
             "Freeze Tag's frozen glow (exe patch 160): effect_freeze_tag_frozen, a composite of "
             'fx/artifacts/human_frozen (third person) and its first-person twin human_frozen_fp (no head, '
@@ -210,7 +210,7 @@ def main():
         assert sort_key(parse(serialize(parse(stock[path])))) == sort_key(parse(stock[path])), path
     pack = {
         'format_version': 1,
-        'id': PACK_ID,
+        'id': pack_id,
         'version': version,
         'target_build': '0.26g',
         'description': description,

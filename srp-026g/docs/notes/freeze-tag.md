@@ -133,6 +133,10 @@ colour times its emissive), every emitter's rate and maximum scaled, and its
 point light the same colour at a lower intensity (or left out). Spring's own
 files are unchanged. The variants and the one shipped are in the script
 (`VARIANTS`, `SHIPPED`); previews in `private/renders/freeze-tag-glow/`.
+Shipped for now: variant a (colour 0.62, 0.88, 1.0 at emissive 0.6, rate 0.6,
+light 0.5), until the owner picks from the previews (not rendered yet: the
+render build and its content are ready in
+`private/freeze-tag-glow-render/`; the capture needs a headless game client).
 
 It is played as Forest Protection's glow is (`forest_glow.rs`): at each
 player's simulation tick (`freeze.player_tick`, every game, so the effect is
