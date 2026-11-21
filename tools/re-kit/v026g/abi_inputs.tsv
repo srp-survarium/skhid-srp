@@ -6555,5 +6555,4 @@ va	name	location	role	basis
 0x00111700	vostok::logging::filter_tree::push_filter	EAX	the filter tree ([0x1F1D60C])	observed
 0x00111700	vostok::logging::filter_tree::push_filter	entry ESP+4	the channel ("" (0x9DB708) or 0: every channel)	observed
 0x00111700	vostok::logging::filter_tree::push_filter	entry ESP+8	the verbosity: 1 silent, 2 error, 3 warning, 4 info, 5 debug, 6 trace (string_to_verbosity 0x111910, names 0xA7A924); logging_initialize pushes ("", 4) or -log_verbosity's (0xE2FBE)	observed
-0x00111860	vostok::logging::has_passed_filters	AL	the result: the channel's verbosity (its deepest node, the channel and ":" a path) >= the level (0x1118F4)	observed
 0x000fde20	vostok::console_commands::logging_rule::execute [descriptive]	entry ESP+4	the arguments: "<channel> <verbosity>", or the verbosity alone for every channel -> filter_tree::push_filter ([this+40h]); the command (logging_rule, kind 2, vtable 0x9E8F98, registered by 0xFDDC0) saves the tree to user.cfg (save_to 0xFDF50)	observed
