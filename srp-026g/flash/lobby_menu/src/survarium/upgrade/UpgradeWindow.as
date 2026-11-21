@@ -614,6 +614,19 @@ package survarium.upgrade
          }
       }
 
+      // The inventory's update while the window is open (LobbyMenu.setup_inventory_data and
+      // update_inventory_item: the account's push after an attach, taken or refused): a weapon's window
+      // shows what the weapon holds now. Nothing else of the window changes (a decal's edit stays).
+      public function itemUpdated(item:ItemData) : void
+      {
+         if(!visible || hostDictId < 0 || !this._data || !item || item.itemId != this._data.itemId)
+         {
+            return;
+         }
+         this._data = item;
+         this.keepHeldAttachments();
+      }
+
       // The account's update of the weapon the window shows: each attachment slot shows what the weapon
       // holds there. What a slot showed at once on a drop (put) and the server refused (a muzzle device
       // and a grip that do not go together) leaves it again; the refusal says why.

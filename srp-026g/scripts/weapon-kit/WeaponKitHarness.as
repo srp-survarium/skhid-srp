@@ -409,10 +409,11 @@ package
                   require(window.gripSlot.highlighted && !window.muzzleSlot.highlighted && !window.camoSlot.highlighted,"a grip's drag lights up the grip's slot alone");
                   window.onDrag(new Drag("dragEnd",inventory.getInventoryItem(GRIP_ID),null,null,null));
                   // the server refused the grip (a pair the weapon cannot hold): the account's update
-                  // holds the device alone
+                  // holds the device alone, and reaches the open window as the game hands it the
+                  // inventory (LobbyMenu.update_inventory_item: UpgradeWindow.itemUpdated)
                   var data:* = inventory.getInventoryItem(MODULE_RIFLE_ID);
                   data.upgrades = [{id:SCOPE_ID,param:3,kit_own:3,kit_camo:0,kit_muzzle:DEVICE,kit_grip:0}];
-                  window.setData(data,false);
+                  window.itemUpdated(data);
                   expectAttachments("the account's update without the grip",[SCOPE_ID,DEVICE_ID,0]);
                   open(GRIP_RIFLE_ID,[]);
                   break;

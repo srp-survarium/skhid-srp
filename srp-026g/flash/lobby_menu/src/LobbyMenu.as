@@ -3375,6 +3375,7 @@ package
       {
          trace("setup_inventory_data::",value.length);
          this.inventory_list.setupInventoryData(value);
+         this.updateModifierWindowItem();
          if(this.victory_screen.visible)
          {
             this.victory_screen.updateVoucherCount();
@@ -3412,6 +3413,17 @@ package
       public function update_inventory_item(value:Object) : void
       {
          this.inventory_list.updateInventoryItem(value);
+         this.updateModifierWindowItem();
+      }
+
+      // An open upgrade window shows the item as the inventory now has it (UpgradeWindow.itemUpdated).
+      private function updateModifierWindowItem() : void
+      {
+         var itemId:uint = Boolean(this.modifierWindow) ? this.modifierWindow.getItemId() : 0;
+         if(itemId != 0)
+         {
+            this.modifierWindow.itemUpdated(this.inventory_list.getInventoryItem(itemId));
+         }
       }
       
       public function fill_victory_screen_player(value:Object) : void
