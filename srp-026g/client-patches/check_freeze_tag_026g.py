@@ -194,12 +194,14 @@ def main():
     assert r.freeze_hud(2) == [("root.freeze_tag_score", (1, 0, 5)),
                                ("root.freeze_tag_update", (0, 0, 4, 5000))]
     assert r.player_tick(2, 3150) and r.input(2)  # Winners also wait.
-    # Between rounds whatever falls due waits for the restart (a late
-    # arrival enters with the next round); a later time is left alone.
+    # Between rounds no place keeps a time (a death's respawn, a late
+    # arrival's entry): the restart spawns everyone; the core's time state
+    # is the round's countdown (4).
     r.word(ffa.RULE + 0x138 + 4, 8050)
     r.word(ffa.RULE + 0x138 + 8, 9000)
     r.tick(8050, 4950)
-    assert [r.read(ffa.RULE + 0x138 + 4*i) for i in (1, 2)] == [0xFFFFFFFF, 9000]
+    assert [r.read(ffa.RULE + 0x138 + 4*i) for i in (1, 2)] == [0xFFFFFFFF, 0xFFFFFFFF]
+    assert r.read(ffa.CORE + 0x18FE4) == 4
     before_restart = r.serialize()
     assert struct.unpack_from("<H", r.state(), 4)[0] == 50
     r.tick(8100)
@@ -239,7 +241,9 @@ def main():
     r.word(ffa.RULE + 0x138 + 8, 18050)
     r.tick(18050)
     assert r.read(ffa.RULE + 0x138 + 8) == 0xFFFFFFFF  # No spawn after the match.
-    print("ok best of nine: pause holds what falls due, the restart makes everyone due, rollback and first to five")
+    assert r.read(ffa.CORE + 0x18FE4) == 3  # No countdown after the match.
+    print("ok best of nine: no time stands in the pause (its countdown state 4), the restart makes everyone due, "
+          "rollback, first to five, then no countdown and no spawn")
 
     r.start()
     for place in range(3):
@@ -271,7 +275,7 @@ def main():
     assert r.camera() == 0 and len(r.camera_calls) == 2
     r.deserialize(saved)
     assert r.camera() == 3 and len(r.camera_calls) == 3
-    r.word(ffa.CORE + 0x18FE4, 4)  # Native match end relinquishes the orbit.
+    r.word(ffa.CORE + 0x18FE4, 1)  # Out of play: the orbit relinquished.
     assert r.camera() == 0 and len(r.camera_calls) == 4
     r.start()
     r.word(CAMERA_INPUT + 0x358, 3)  # An existing pregame camera is not ours.
@@ -286,17 +290,26 @@ def main():
     r.tick(100)
     snapshot = r.serialize()
     assert r.camera() == 3 and r.serialize() == snapshot
-    r.word(ffa.CORE + 0x18FE4, 4)
+    r.word(ffa.CORE + 0x18FE4, 1)
     assert r.camera() == 2
     r.start()
     r.word(CAMERA_INPUT + 0x358, 3)
     r.lethal(0)
     r.tick(100)
     assert r.camera() == 3  # Joining with an already-active warmup camera.
-    r.word(ffa.CORE + 0x18FE4, 4)
+    r.word(ffa.CORE + 0x18FE4, 1)
     assert r.camera() == 0
+    r.start()
+    r.word(CAMERA_INPUT + 0x358, 2)
+    r.lethal(0)
+    r.tick(100)
+    assert r.camera() == 3
+    calls = len(r.camera_calls)
+    r.word(ffa.CORE + 0x18FE4, 4)  # A round's countdown is the native camera's: ours leaves it.
+    assert r.camera() == 3 and len(r.camera_calls) == calls
     assert kits.check_limits(bytes(patched), True) == 7
-    print("ok frozen camera reuses native warmup orbit/zoom and limits; thaw, rollback and match end restore ownership")
+    print("ok frozen camera reuses native warmup orbit/zoom and limits; thaw, rollback and leaving play restore "
+          "ownership; a round's countdown leaves it to the native camera")
 
 
 if __name__ == "__main__":

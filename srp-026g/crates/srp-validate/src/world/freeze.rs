@@ -84,10 +84,12 @@ pub enum Schedule {
     /// the death); every other place keeps its native time, so a late
     /// arrival's first spawn runs.
     CancelFrozen(Places),
-    /// Between rounds and after the match: a place that falls due waits, as
-    /// Artifact Hunt holds its round's end: a late arrival enters with the
-    /// next round, never into the pause.
-    HoldDue,
+    /// Between rounds and after the match: no place has a native time (a
+    /// death's respawn, the round's last freeze too, or a late arrival's
+    /// entry): the restart spawns everyone, the end nobody, and the hud
+    /// shows no respawn countdown (the owner, 2026-11-22: it showed the last
+    /// frozen body's death respawn, "respawn in 8 seconds").
+    CancelAll,
     /// The round's restart: every present place is due at this step
     /// ([`Actions::Restart`]), and a place without a free point retries
     /// natively 50 ms later.
@@ -146,7 +148,7 @@ impl FreezeTag {
                     .filter(|(_, player)| matches!(player, Player::Frozen { .. }))
                     .fold(Places::EMPTY, |frozen, (place, _)| frozen.with(place)),
             ),
-            Phase::Between { .. } | Phase::Finished(_) => Schedule::HoldDue,
+            Phase::Between { .. } | Phase::Finished(_) => Schedule::CancelAll,
             Phase::Restarting => Schedule::Native,
         }
     }
@@ -599,7 +601,7 @@ mod tests {
     }
 
     #[test]
-    fn the_schedule_cancels_frozen_in_play_holds_between_and_runs_the_restart() {
+    fn the_schedule_cancels_frozen_in_play_cancels_all_between_and_runs_the_restart() {
         let mut bodies = match_bodies();
         let mut s = FreezeTag::EMPTY;
         assert_eq!(s.schedule(), Schedule::CancelFrozen(Places::EMPTY));
@@ -607,7 +609,7 @@ mod tests {
         assert_eq!(s.schedule(), Schedule::CancelFrozen(Places::EMPTY.with(place(0))));
         bodies[1] = body(Team::First, 3.0, Condition::Lethal);
         s.step(&bodies, &VISIBLE, 50);
-        assert_eq!(s.schedule(), Schedule::HoldDue);
+        assert_eq!(s.schedule(), Schedule::CancelAll);
         assert_eq!(s.step(&bodies, &VISIBLE, INTERMISSION.get()), Actions::Restart);
         assert_eq!(s.schedule(), Schedule::Native);
         for b in bodies.iter_mut().take(3) {

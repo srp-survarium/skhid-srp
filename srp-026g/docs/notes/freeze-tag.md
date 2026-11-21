@@ -111,8 +111,11 @@ The three native hooks are declared in `sites_026g.tsv`:
   `FreezeTag::schedule` says with the places' native times. In play
   (`CancelFrozen`) a frozen body's death respawn is cancelled and every other
   place keeps its native time, so a late arrival's first spawn (its entry
-  time) runs. Between rounds and after the match (`HoldDue`) a place whose
-  time is the step's is held. The step that ends the pause makes every place
+  time) runs. Between rounds and after the match (`CancelAll`) no place keeps
+  a time: not the round's last frozen body's death respawn (which the hud
+  showed as "respawn in 8 seconds", its `respawn_time`, counting while the 5 s
+  pause ran: the owner, 2026-11-22), not a late arrival's entry; the restart
+  spawns everyone, the match's end nobody. The step that ends the pause makes every place
   with a current player due at this step (`Actions::Restart`); then
   (`Native`) the tick's own `31697F..3169BE` takes each out and spawns it,
   and a place without a free point retries 50 ms later (`3169D8`). No
@@ -219,7 +222,9 @@ Taken from Artifact Hunt, and why:
   spawned into it, was held there, and was taken out and spawned again five
   seconds later; one who entered after the match spawned into a finished
   match. Holding every place that falls due between rounds and after the
-  match (Artifact Hunt's `Held`) spawns each once, with the round. The
+  match (Artifact Hunt's `Held`) spawns each once, with the round; since
+  2026-11-22 Freeze Tag cancels every time there instead (`CancelAll`), so
+  no respawn countdown shows in the pause or after the match. The
   restart itself was already the same as Artifact Hunt's `Everyone`: every
   present place made due at the step, the native tick removing and spawning
   them.
