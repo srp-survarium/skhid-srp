@@ -244,7 +244,7 @@ stood still with their keys held, through bursts of fire. Read from the
 ## A part of a tick: its least walk and the speed read from it (patch 168)
 
 Patch 166 runs every part of a tick. Two things a part still did otherwise than a whole tick, read
-from the 0.26g exe and measured in a game (`client_patch.md` section 3.91 has the addresses):
+from the 0.26g exe and measured in a game (`client_patch.md` section 3.93 has the addresses):
 
 - **The least walk (PROVEN):** `can_skeep_player_step` (0x7C7E0) skips a step whose walk asked is under
   3.16 mm (its square under 1e-5, 0x9CBA48). A part is asked its share of the tick's walk, so a part

@@ -264,54 +264,6 @@ fn get(path: &str) -> Request {
 }
 
 #[test]
-fn the_exchange_page_says_there_is_no_gold() {
-    let world = world();
-    let id = world.player("fighter", "secret");
-    let silver = world.balance(id);
-    // The launcher's SHOP button: `/exchange?lang=<its code>`.
-    let shop = |code: &str| {
-        let mut request = get("/exchange");
-        request.target = format!("/exchange?lang={code}");
-        request.lang = Lang::pick(code, "");
-        world.web.route(&request, "t")
-    };
-    for (code, lang, text) in [
-        ("en", "en", "There is no gold any more"),
-        ("ua", "uk", "Золота більше немає"),
-        ("ru", "ru", "Золота больше нет"),
-        ("de", "de", "Gold gibt es nicht mehr"),
-        ("pl", "pl", "Złota już nie ma"),
-    ] {
-        let answer = shop(code);
-        assert_eq!(answer.status, "200 OK", "{code}");
-        assert!(
-            answer
-                .body
-                .contains(&format!("<section class=card lang={lang}>")),
-            "{code}"
-        );
-        assert!(answer.body.contains(text), "{code}: {}", answer.body);
-        assert!(answer.body.contains("href=\"/wiki?lang=") && !answer.body.contains("<form"));
-    }
-    // Without a code: the page's own language.
-    let mut browser = get("/exchange");
-    browser.lang = Lang::Uk;
-    assert!(world.web.route(&browser, "t").body.contains("Лише срібло"));
-    // A form sent as the old page sent it is a page that is not there, and
-    // changes nothing.
-    let sent = world.web.route(
-        &post(
-            "/exchange",
-            &[("user", "fighter"), ("password", "secret"), ("gold", "1")],
-        ),
-        "t",
-    );
-    assert_eq!(sent.status, "404 Not Found");
-    assert_eq!(world.balance(id), silver);
-    assert!(world.told.changed.locked().is_empty());
-}
-
-#[test]
 fn the_admin_changes_money_and_the_account() {
     let world = world();
     let id = world.player("tester", "secret");

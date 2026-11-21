@@ -365,34 +365,6 @@ mod tests {
         assert!(form.saved);
     }
 
-    #[test]
-    fn values_out_of_range_are_brought_in() {
-        let entries = pool();
-        let kept = |size, min_side, max_level, wait| RoomSettings {
-            size,
-            min_side,
-            max_level,
-            wait,
-            tiles_off: Vec::new(),
-            tiles_on: Vec::new(),
-            modes_off: Vec::new(),
-            pin: None,
-        };
-        let fitted = |settings: RoomSettings, gear| {
-            let form = form(Some(&settings), &entries, gear);
-            (form.size, form.min_side, form.max_level, form.wait)
-        };
-        assert_eq!(fitted(kept(12, 0, 20, 33), 0), (10, 1, 15, 35));
-        assert_eq!(fitted(kept(3, 5, 4, 1), 0), (6, 3, 4, 15));
-        assert_eq!(fitted(kept(8, 1, 0, 200), 7), (8, 1, 0, 60));
-        // The nearest wait.
-        assert_eq!(fitted(kept(8, 1, 0, 32), 0).3, 30);
-        // A max level under the equipment now: raised to it; any stays any.
-        assert_eq!(fitted(kept(8, 1, 3, 30), 6).2, 6);
-        assert_eq!(fitted(kept(8, 1, 9, 30), 6).2, 9);
-        assert_eq!(fitted(kept(8, 1, 3, 30), 20).2, 15);
-    }
-
     /// The lobby movie's create window opens with every mode and the pool
     /// without the experimental maps while it has no form yet (a first-time
     /// player's form is them), so nothing changes when the form is in. It

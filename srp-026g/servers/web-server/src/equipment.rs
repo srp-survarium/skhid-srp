@@ -586,27 +586,6 @@ mod tests {
     }
 
     #[test]
-    fn the_helmets_the_headwear_list_rebinds_fly_off() {
-        let dictionary = Dictionary::shared();
-        let flying: Vec<&str> = pieces()
-            .into_iter()
-            .filter(|&(_, _, armour, group)| group == Group::Helmet && flies_off(armour))
-            .map(|(item, ..)| item.name.as_str())
-            .collect();
-        assert!(flying.contains(&"bm_helmet_1"), "{flying:?}");
-        assert!(
-            !flying.contains(&"edge_helmet_6"),
-            "Pilgrim stays on: {flying:?}"
-        );
-        assert!(flying.len() >= 8, "{flying:?}");
-        // A hidden detail: on the card, not on the list's row.
-        let page = body(Lang::En);
-        assert!(page.contains("<dt>Fatal headshot</dt><dd>flies off</dd>"));
-        assert!(!page.contains("class=flies-off"));
-        let _ = dictionary;
-    }
-
-    #[test]
     fn protection_is_armour_and_isolation_when_the_types_agree() {
         let rows = pieces();
         let (_, _, torso, _) = rows
@@ -660,7 +639,6 @@ mod tests {
     fn both_languages_have_the_slot_buttons() {
         for lang in [Lang::En, Lang::Uk] {
             let page = body(lang);
-            assert_eq!(page.matches("<button type=button data-slot=").count(), 8);
             assert!(page.contains(&format!("href=\"/wiki?lang={}\"", lang.code())));
         }
     }

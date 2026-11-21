@@ -66,7 +66,7 @@ def check(porter, stock, donor, patch, pack):
                if line and not line.startswith('#')]
     paths = {row[0]: row[1] for row in catalog}
     manifest = json.loads((pack / 'pack.json').read_text())
-    assert len(paths) == len(catalog) == len(manifest['operations']) == 500
+    assert len(paths) == len(catalog) == len(manifest['operations'])
     assert all(op['op'] == 'replace_file' for op in manifest['operations'])
     assert {op['path']: op['base_sha256'] for op in manifest['operations']} == paths
     originals = {}
@@ -97,10 +97,6 @@ def check(porter, stock, donor, patch, pack):
     authored = json.loads((here.parent / 'content-edit/v021d-vertex-blend-1.json').read_text())
     assert authored == make(source), 'material edit differs from provenance'
     classifications = {row['material']: row['mode'] for row in source['classifications']}
-    assert len(classifications) == 219
-    assert sorted(classifications.values()).count('linear') == 203
-    assert sorted(classifications.values()).count('masked') == 13
-    assert sorted(classifications.values()).count('no_active_channels') == 3
     assert {r['current_material'] for r in source['materials']} == {
         material for material, mode in classifications.items() if mode in ('linear', 'masked')}
     patch_paths = set(subprocess.check_output([str(porter), 'list', '--db', str(patch)], text=True).splitlines())

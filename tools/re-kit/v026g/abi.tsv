@@ -1,4 +1,5 @@
 va	name	source	ret_cleanup	result
+0x00011170	vostok::intrusive_ptr<shared_string>::assign	manual	0	
 0x00011540	vostok::intrusive_ptr<render_model_instance>::release	manual	0	
 0x000127c0	vostok::buffer_string::assign	manual	0	
 0x00014650	vostok::render::one_way_render_channel::owner_initialize	manual	0	
@@ -185,6 +186,8 @@ va	name	source	ret_cleanup	result
 0x0007a390	vostok::physics::create_primitive_shape	manual	0	EAX: the bt_collision_shape (118h bytes, vtable 0x9E31EC; +108h the btCollisionShape, +110h the u16 material, +0D0h reference count), from the physics allocator [0x1F1D384]
 0x0007ab30	vostok::network_core::mutable_buffer::resize	manual	4	
 0x0007ab70	vostok::network_core::mutable_buffer::reallocate	manual	0	
+0x000e0ae0	vostok::shared_string::destroy	manual	4	
+0x000e0b50	vostok::shared_string::create	manual	4	EAX: the shared string of the text (its count at +0)
 0x000eb590	vostok::memory::mt_allocator::call_realloc	manual	24	EAX: the block, or 0
 0x000eb5b0	vostok::memory::mt_allocator::call_free	manual	16	
 0x0007ac10	vostok::network_core::buffer_writer::w	manual	8	
@@ -375,6 +378,7 @@ va	name	source	ret_cleanup	result
 0x0012e510	vostok::render::camouflage_decal_texture_type_baker_cook::on_textures_loaded	manual	24	
 0x0012ec40	vostok::render::camouflage_decal_texture_type_baker_cook::process_compression	manual	40	
 0x00131590	vostok::render::camouflage_decal_texture_type_baker_cook::render_bake	manual	24	
+0x00132a90	vostok::render::backend::set_ps_constant	manual	4	
 0x00134020	vostok::render::camouflage_decal_baker_cook::translate_query	manual	4	class 6Ch; asks 4 class-6Bh (107) camouflage_decal_texture_type_baker_cook queries per P, one per type d, n, f, s (names 0x9EE7A4..0x9EE7B0, the class at 0x1342E8): a log's "cook of '' [quid n][class 107] failed" is one of them (once per baked surface, before its d, n, s lines: LIKELY f, fresnel)
 0x00135900	vostok::render::material_effects_instance_cook::on_material_ready	manual	8	
 0x00135af0	vostok::render::material_effects_instance_cook::translate_query	manual	4	
@@ -1653,7 +1657,7 @@ va	name	source	ret_cleanup	result
 0x003c8800	vostok::render::backend::clear_render_targets	manual	12	
 0x003c8880	vostok::render::backend::clear_render_targets	manual	8	
 0x003c8950	vostok::render::backend::clear_render_targets	manual	16	
-0x003c8bc0	vostok::render::backend::register_constant_host	manual	8	
+0x003c8bc0	vostok::render::backend::register_constant_host	manual	8	EAX: the constant host of the name, made or found (0x3C9630 looks the name up first)
 0x003c8cb0	vostok::render::backend::flush	manual	0	
 0x003c9230	vostok::render::backend::set_declaration	manual	0	
 0x003c9260	vostok::render::backend::render_indexed_instanced	manual	4	

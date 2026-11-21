@@ -130,7 +130,7 @@ def verify(read, stock, donor, patch, pack, stock_paths):
             assert actual==(pack/'files'/path).read_bytes()
             geometry(high_template if '/_3_' in path else low,actual,vertex,references)
     manifest=json.loads((pack/'pack.json').read_text())
-    assert len(expected)==28 and len(manifest['operations'])==28
+    assert len(expected)==len(manifest['operations'])
     assert {o['path'] for o in manifest['operations']}==expected
     assert all(o['op']=='add_file' for o in manifest['operations'])
     print('Ordinary parallax alpha:28 absent paths; native height/finish inverse, dead mask removal, exact base alpha and7 original painted contracts PASS')

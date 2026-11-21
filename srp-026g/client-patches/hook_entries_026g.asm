@@ -4932,6 +4932,201 @@ medical_skills_on_effect_clock_replay:
     db 0x8b, 0x54, 0x24, 0x10, 0x2b, 0x54, 0x24, 0x0c
     jmp 0x2e5d88
 
+; 0x1d910d effect_fstage_default_materials::compile (0x1D8F40, forward_default) among the pushes for its compile_begin (0x1CD0B0, called at 0x1D9126): setne cl / push edi / shl cl,6 (no address under them; the pushes of the two family names have base relocations); the options, the config tree and the configuration pushed (ESP+0 the configuration, the compile's [esp+50h]; +4 the material's config tree, EBX), the configuration's bytes but 7 final (byte 7 read at 0x1D9109, written at 0x1D9122); compile_begin writes the configuration's bytes 3 and 6 only (0x1CD0CD, 0x1CD12E), then copies it for begin_pass (0x1CD19A): lohook -> forward_effects_on_forward_begin
+global forward_effects_on_forward_begin
+extern hook_forward_effects_on_forward_begin
+forward_effects_on_forward_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_forward_begin
+    mov edx, forward_effects_on_forward_begin_replay
+    cmp eax, 0
+    je forward_effects_on_forward_begin_go
+    mov edx, 0x1d9114
+    cmp eax, 1
+    je forward_effects_on_forward_begin_go
+    ud2
+forward_effects_on_forward_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_forward_begin_replay:
+    db 0x0f, 0x95, 0xc1, 0x57, 0xc0, 0xe1, 0x06
+    jmp 0x1d9114
+
+; 0x1db34b effect_offscreen_particle_lighting_materials::compile (0x1DB170, particle_lighting) among the pushes for its compile_begin (0x1CD0B0, called at 0x1DB35B): lea eax,[esp+48h] / push eax / push ebx (the pushes of the family names after them have base relocations); the options and the config tree pushed (ESP+0 the tree, ESI), the configuration (the compile's [esp+40h], ESP+48h here) final, its last write 0x1DB347: lohook -> forward_effects_on_particle_lighting_begin
+global forward_effects_on_particle_lighting_begin
+extern hook_forward_effects_on_particle_lighting_begin
+forward_effects_on_particle_lighting_begin:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_particle_lighting_begin
+    mov edx, forward_effects_on_particle_lighting_begin_replay
+    cmp eax, 0
+    je forward_effects_on_particle_lighting_begin_go
+    mov edx, 0x1db351
+    cmp eax, 1
+    je forward_effects_on_particle_lighting_begin_go
+    ud2
+forward_effects_on_particle_lighting_begin_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_particle_lighting_begin_replay:
+    db 0x8d, 0x44, 0x24, 0x48, 0x50, 0x53
+    jmp 0x1db351
+
+; 0x1d964d effect_fstage_default_materials::compile at solid_color_specular's set_constant<float4> (push edi / lea ecx,[esp+68h], the call 0x1A8900 at 0x1D9652), before the block that sends constant_tile_uv (0x1D9657: set_constant<float2> 0x1D9740 at 0x1D96EE or 0x1D9716): EBX the material's config tree, EDI the compiler. A set_constant keeps a name's first value (0x1D97C0..0x1D97CB, 0x1A8988..0x1A8993: the binding vector is searched by the interned name, 0x3C3DD0 comparing +8, and a binding added only when none has it), so a constant set here stands and the block's later set of the name adds nothing: lohook -> forward_effects_on_tile_uv
+global forward_effects_on_tile_uv
+extern hook_forward_effects_on_tile_uv
+forward_effects_on_tile_uv:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_tile_uv
+    mov edx, forward_effects_on_tile_uv_replay
+    cmp eax, 0
+    je forward_effects_on_tile_uv_go
+    mov edx, 0x1d9652
+    cmp eax, 1
+    je forward_effects_on_tile_uv_go
+    ud2
+forward_effects_on_tile_uv_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_tile_uv_replay:
+    db 0x57, 0x8d, 0x4c, 0x24, 0x68
+    jmp 0x1d9652
+
+; 0x19015d stage_lights::stage_lights (0x18EE40) after its last constant host's registration (m_shadow3's, whose name holder it lets go by 0x190158): mov eax,10h, the one byte both of the release's branches (0x19014A, 0x190155) land on; EBX the stage. Its registrations: probe_parameters0..3 +0DCh..+0E8h, world_to_outer_probe +0ECh, probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h, m_shadow0..3 +100h..+10Ch (shared_string::create 0xE0B50, the holder's assign 0x11170, register_constant_host 0x3C8BC0 with the backend [2260490h], which returns the host already made for a name): lohook -> forward_effects_on_stage_lights_constructed
+global forward_effects_on_stage_lights_constructed
+extern hook_forward_effects_on_stage_lights_constructed
+forward_effects_on_stage_lights_constructed:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_stage_lights_constructed
+    mov edx, forward_effects_on_stage_lights_constructed_replay
+    cmp eax, 0
+    je forward_effects_on_stage_lights_constructed_go
+    mov edx, 0x190162
+    cmp eax, 1
+    je forward_effects_on_stage_lights_constructed_go
+    ud2
+forward_effects_on_stage_lights_constructed_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_stage_lights_constructed_replay:
+    db 0xb8, 0x10, 0x00, 0x00, 0x00
+    jmp 0x190162
+
+; 0x19834b stage_lights::accumulate_particle_lighting (0x1961B0) where its two ways meet after the probe's constants (probe_geometry_type +0F0h, ambient_light_particle_multiplier +0F4h, particle_screen_divider +0F8h): mov ecx,[esi+4] / mov eax,[ecx+4170h] (the way that sets them with the vertex setter 0x14AE60 jumps here from 0x197C8C, the pixel one, set_ps_constant 0x132A90, falls through from 0x198346); ESI the stage, EBX the backend, [EBP-24h] the batch's probe or 0, the pass's program bound (0x19838E sets constants after it): lohook -> forward_effects_on_particle_probe
+global forward_effects_on_particle_probe
+extern hook_forward_effects_on_particle_probe
+forward_effects_on_particle_probe:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_forward_effects_on_particle_probe
+    mov edx, forward_effects_on_particle_probe_replay
+    cmp eax, 0
+    je forward_effects_on_particle_probe_go
+    mov edx, 0x198354
+    cmp eax, 1
+    je forward_effects_on_particle_probe_go
+    ud2
+forward_effects_on_particle_probe_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+forward_effects_on_particle_probe_replay:
+    db 0x8b, 0x4e, 0x04, 0x8b, 0x81, 0x70, 0x41, 0x00, 0x00
+    jmp 0x198354
+
 ; 0x3237e0 kd_stats_rule::on_event entry; cmp dword [esp+4],1; done is the original ret 0Ch, before any pushes: lohook -> free_for_all_on_kill_event
 global free_for_all_on_kill_event
 extern hook_free_for_all_on_kill_event
