@@ -358,7 +358,7 @@ package survarium.controls
             nameColor = Colors.GOLD;
          }
          this.itemName.textField.textColor = nameColor;
-         this.itemName.text = item.name;
+         this.itemName.fittedText = item.name;
          this.sellerIcon = Boolean(item.sellerIcon) ? (item.sellerIcon as Icon).clone() : null;
          this.orangeOverlay.visible = false;
          this.itemName.x = this.itemAmmoName.x = Boolean(item.sellerIcon) ? 30 : 10;
