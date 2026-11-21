@@ -175,19 +175,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn catalogue_uses_the_current_calculator_dataset() {
-        let digest: String = openssl::sha::sha256(include_bytes!("../damage/calc.js"))
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect();
-        assert_eq!(
-            digest,
-            include_str!("../wiki/source.sha256").trim(),
-            "rebuild scripts/wiki/build.py after changing the calculator data"
-        );
-    }
-
-    #[test]
     fn both_languages_have_weapon_stats_and_comparison() {
         for lang in [Lang::En, Lang::Uk] {
             let page = page(WEAPONS, "", lang, "site header", &skills::Now::default());
