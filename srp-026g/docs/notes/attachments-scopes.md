@@ -163,6 +163,13 @@ that makes less (`release/content.tsv`'s header); nothing is taken from a player
   pairs are 1,248 (they were 1,224 with the 24 missing). `srp-check-scope-fits` on its game data:
   1,205 released pairs preserved, 43 added, none refused. The load of the release-68 database on
   it: as above.
+- **Seen in a game on it** (headless, exe and server 98843a3ef; `private/renders/
+  attachments-scopes/retire-2-window-aimed.png`): the L85A2 with the ACOG TA01 (a released pair on
+  a gun that lost its `addons` placeholder), the event MP7 with the Cobra (a new pair), the AK-74M
+  with the Aimpoint ("CompM4 collimator, x2"), the APS with the DeltaPoint: each in the weapon's
+  Attachments window (the scope in its slot and on the gun) and aimed, the reticle within 0.2 px of
+  the screen's centre; no record taken off, no complaint in the patch log. The L85A2's window on
+  the full content before the retirement is the same picture (mean difference 1.1 of 255).
 
 ## The reticle's centre
 
