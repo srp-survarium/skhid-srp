@@ -8,8 +8,9 @@
 # (target/release/srp-game-data) and, after the folder, the players' archives as `srp-game-data
 # files` takes them (the stock db and every patch of release/patches.tsv).
 #   d069/  0.69d0's gameplay/game.options (the devices' groups, modifications and shot effects)
-#   d046/  0.46c2's weapon shot effects: particles/fx/weapons/attach/, their materials and
-#          textures (material_instances/fx/weapons/, textures/fx/weapons/), as they are
+#   d046/  0.46c2's weapon shot effects: particles/fx/weapons/ (the devices' in attach/, and the guns'
+#          own stock flashes, which the scale is measured against), their materials and textures
+#          (material_instances/fx/weapons/, textures/fx/weapons/), as they are
 #   live/  the players' dictionary, modifications, weapon configs and lobby movie (the stock icons), every particle
 #          and every effect material (what a ported particle and material is checked against),
 #          and paths.txt (every path they have)
@@ -21,7 +22,7 @@ shift 6
 [[ ! -e $out ]] || { echo "$out: already there" >&2; exit 1; }
 mkdir -p "$out/d069/gameplay"
 "$port069" extract --db "$split069" --path gameplay/game.options --output "$out/d069/gameplay/game.options" >/dev/null
-"$port" extract-bundle --db "$split046" --prefix particles/fx/weapons/attach/ --prefix material_instances/fx/weapons/ \
+"$port" extract-bundle --db "$split046" --prefix particles/fx/weapons/ --prefix material_instances/fx/weapons/ \
     --prefix textures/fx/weapons/ --output "$out/d046.bundle" >/dev/null
 mv "$out/d046.bundle/overlay" "$out/d046"
 rm -r "$out/d046.bundle"

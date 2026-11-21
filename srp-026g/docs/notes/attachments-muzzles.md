@@ -101,9 +101,9 @@ Twelve effects come with the pack, `fx/weapons/attach/`: `gas_small` (the flash 
 `duckbill`, with 17 materials and 15 textures.
 
 - **The donor is 0.46c2**, for the particles and their materials alike. It has the same effects under
-  the same names, its materials are in 0.26g's own parameter vocabulary (0.69d0's are renamed, with
-  no known mapping), and its lights are on 0.26g's scale (0.69d0's two peaks of 3.0 against 0.18 and
-  0.16; the stock AK effect peaks at 0.86). Which device names which effect is 0.69d0's.
+  the same names and its materials are in 0.26g's own parameter vocabulary (0.69d0's are renamed,
+  with no known mapping). Which device names which effect is 0.69d0's. Its brightness is not on
+  0.26g's scale: "The scale" below.
 - **A particle** is 0.46c2's tree written in 0.26g's 24-byte records. One action is taken out: the
   target-colour action of `dtk1_2`, a type 0.26g's loader has no case for (`construct_action`
   0x364F10), which 0.46c2 itself has disabled. An enabled one would stop the build. Every node has
@@ -121,6 +121,52 @@ Twelve effects come with the pack, `fx/weapons/attach/`: `gas_small` (the flash 
     other.
 - **A texture** is 0.46c2's `.dds` as it is, its `.options` in 0.26g's records.
 
+### The scale
+
+0.46c2's own stock flashes are dimmer than 0.26g's, so a device effect copied as it is would be
+dimmer against the gun's stock flash than 0.46c2 made it. The pack keeps the donor's device-to-stock
+ratio (the coordinator, 2026-11-21): `make_pack.py` puts every effect on 0.26g's scale, by rule,
+from the two builds' own stock flashes. PROVEN in the files; the result is `effect_scale.tsv`,
+checked in and refused by the build when stale.
+
+| Stock flash (family) | Light's peak, 0.26g | 0.46c2 | Ratio | Fire materials both builds have, brightness 0.26g / 0.46c2 |
+|---|---|---|---|---|
+| `ak_74` | 0.856 | 0.377 | 2.27 | `ak_front` 4 / 1, `ak_side` 4 / 1 |
+| `sks` | 0.856 | 0.339 | 2.52 | `rifles_front` 4 / 1, `sks_side` 4 / 1 |
+| `fort_17` | 0.521 | 0.091 | 5.70 | `fort_muzle_flash` 4 / 1, `tt_33_front_muzzle_flash` 4 / 1 |
+| `shotguns` | 0.856 | 0.101 | 8.50 | none (smoke) |
+
+(The other stock flashes, which no effect has as its family: `rifles` 2.26, `vityaz` 2.20, `ppsh`
+2.17, `toz_66` 2.40, `magnum` 3.06, `uzi` 3.61, `tt_33` 5.85; their fire materials 4 / 1 too, but
+`rifles_side` 5 / 1.)
+
+- **An effect's family** is the stock flash most of its fits replace (the modules table's fits and
+  each gun's own `particles/shoot`); as many fits on two stock flashes stops the build. One effect
+  is one file for every gun its devices fit, so it has one family: `dtk1_2`, `dtk4_6`, `dtk5`,
+  `pp_suppr` and `gas_small` `ak_74`; `dtk3_7` and `dtk9` `sks`; `pp_arrest1` `fort_17`; `dtk8`,
+  `dtk11`, `dtk12` and `duckbill` `shotguns`.
+- **The cast light**: every enabled light's intensity curve is multiplied by the family's ratio,
+  the light's peak in 0.26g over 0.46c2's. The families' ratios do not agree (2.27 to 8.50), so it
+  is the family's own. `dtk1_2` 0.181 becomes 0.41 against the stock AK's 0.856, the 0.48 it had
+  against 0.377 in 0.46c2.
+- **The fire**: a fire material (base `weapon_fire`) has `constant_emissive_multiplier`. Every
+  fire material of the families' stock flashes that both builds have is 4 here and 1 in 0.46c2,
+  so the eleven fire materials the pack brings are multiplied by that one factor, 1 to 4. A second
+  value stops the build: the pack's materials are shared between families. `idle_muzle_color` (the
+  glow that stays at the muzzle, 1 in both) is no measure: the effects name it too and take the
+  players' own.
+- **What gets none**: an effect without a light, a material that is no fire material. `gas_small`
+  (the flash hiders') is smoke alone in every build and stays so; `dtk8` and `dtk12` have a light
+  and no fire; the duckbill's fan is a `default_particle` material.
+- The shotgun family's ratio is large because 0.46c2 cut its stock shotgun light to 0.101: the four
+  shotgun effects' lights become 0.79 to 1.56, over 0.26g's stock 0.856, as they were over the
+  stock shotgun's in 0.46c2 (0.093 to 0.184 against 0.101).
+- 0.69d0's own files, for comparison (not used): the fire billboards are the same sizes as
+  0.46c2's; its stock lights are 2.5 to 90, and of the devices' only `dtk1_2`, `dtk11` (and
+  `dtk10`, the arrestors) were raised to 2 or 3, the others still 0.09 to 0.18.
+- The fire's size is the donor's and is not scaled: `dtk1_2`'s billboards are 0.13 to 0.26 m, the
+  stock AK's 0.33 and 0.66 m. A brake's flash is smaller than the bare muzzle's in every build.
+
 ## The build
 
 ```sh
@@ -136,9 +182,10 @@ python3 -I scripts/muzzle-devices/make_pack.py --inputs <inputs> --modules <weap
 
 - `make_pack.py` checks the donor files against `inputs.sha256`, every dict id, name, config path
   and modification id against the players' dictionary, each device's model against the modules
-  pack, and with `--record` that every device has a gun that takes it, that every muzzle fit of the
+  pack, and by the record that every device has a gun that takes it, that every muzzle fit of the
   table has its item (the four left out aside), and that every key a device's modification touches
-  is in the config of every gun that takes it (553 fits).
+  is in the config of every gun that takes it (553 fits). It makes the scale again and refuses a
+  stale `effect_scale.tsv` (`--write-scale` writes it), and reads each scaled light back.
 - The icons are drawn from the devices' own models by the weapons' icon renderer
   (`scripts/weapon-icons/renderer.py`), into `LobbyMenu_AmmoIcons` columns 5 to 7, 22 a column, in
   the table's order. Column 8 is the grips'. That renderer has no shadows, so `render_icons.py` adds
