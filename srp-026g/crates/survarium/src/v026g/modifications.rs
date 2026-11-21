@@ -586,12 +586,22 @@ pub fn record_slots_in(
     host_dict_id: u16,
     record_dict_id: u16,
 ) -> &'static [u8] {
+    record_slots_with(scopes, Modules::shared(), host_dict_id, record_dict_id)
+}
+
+/// [`record_slots_in`] with `modules` ([`upgrade_slots_with`]).
+pub fn record_slots_with(
+    scopes: &ScopeFits,
+    modules: &Modules,
+    host_dict_id: u16,
+    record_dict_id: u16,
+) -> &'static [u8] {
     if scopes.fits(host_dict_id, record_dict_id) {
         &[SCOPE_SLOT]
     } else if scopes.is_variant(record_dict_id) || scopes.is_scope(record_dict_id) {
         &[]
     } else {
-        upgrade_slots_in(scopes, host_dict_id, record_dict_id)
+        upgrade_slots_with(scopes, modules, host_dict_id, record_dict_id)
     }
 }
 
