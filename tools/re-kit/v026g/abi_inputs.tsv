@@ -5119,7 +5119,6 @@ va	name	location	role	basis
 0x00241200	survarium::player_input_handler::alt_is_held	EAX	player input handler; +334h world, +9Ch engine, vtable+38h input world, vtable+24h keyboard, vtable+0 key-down for DIK_RMENU B8h then DIK_LMENU 38h	verified
 0x00243fa0	survarium::weapon::on_hide	ECX	weapon; live even after its player changes held item	observed
 0x00243fa0	survarium::weapon::on_hide	entry ESP+4	was_visible; false skips all model removals	observed
-0x002fc620	survarium::inventory::set_item	ESI	inventory	observed
 0x002fc620	survarium::inventory::set_item	stack+4	item_resource_reference	observed
 0x002fc620	survarium::inventory::set_item	EDI	slot	observed
 0x002fc680	survarium::inventory::remove_item	ESI	inventory	observed
@@ -5862,8 +5861,8 @@ va	name	location	role	basis
 0x002ee930	survarium::artefact_core_cook::create_resource	entry ESP+0Ch	the artefact_cook_data second word: a pointer to a refcounted resource pointer, which artefact_base::artefact_base (0x312FD0, its second argument) keeps at +290h and the activation effect (0x313350) plays through; a null resource there skips the effect; set by the anomaly cook from its game_object_cook_data (0x22FD70), itself from the project cook data (0x22F8C0) and the level cook data (0x2CC920, set at 0x27AFE0 by the match load)	observed
 0x00316da0	survarium::player_respawn_rule_base::spawn_player	ECX	the respawn rule (+134h its core world: places +18458h, 30h a place, its kit players by the place's +0Ch current kit)	observed
 0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+4	the place (low byte); the new kit is the place's pending +0Dh made current (0x316DE3); a kit change runs vfn +60h first	observed
-0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+8	the spawn time: the player's vfn +1Ch(time, point + 8, its rotation, 0) initialises it, vfn +20h(1) puts it into the world (0x316EA9); ret 0Ch	observed
-0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+0Ch	the respawn point (+8 position, +14h rotation, +20h its protection added to the time at player +32Ch)	observed
+0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+8	the respawn point (+8 position, +14h rotation, +20h its protection); corrected 2026-11-21: the respawn tick pushes it second of three (0x3169AD..0x3169B8), as patch 31 does	observed
+0x00316da0	survarium::player_respawn_rule_base::spawn_player	entry ESP+0Ch	the spawn time (read into EBP at 0x316DC8): the player's vfn +1Ch initialises it at that time, vfn +20h(1) puts it into the world (0x316EA9); ret 0Ch	observed
 0x0031b6c0	survarium::generic_anomaly_core::spawn_artefact	ECX	the anomaly: draws (+1B8h LCG) the chance +134h, then a free container of +140h..+144h (none: returns, +13Ch the earliest next) and a dormant pool artefact (+1B0h, +1B4h of them, state +280h 0); ret 4	observed
 0x0031b5b0	survarium::generic_anomaly_core::tick	ECX	the anomaly: selects a state (0x31BA90) and executes it with no null check (0x31BCB0 reads state +1Ch), spawns when +124h artefacts_enabled, +138h and the time +13Ch come, then ticks every pool artefact (vfn +74h)	observed
 0x002e9c70	survarium::generic_anomaly_core_cook::translate_query	entry ESP+4	the query (its +108h the anomaly's config): cooks the artefacts pool (query_for_artefacts 0x2E9D40, each artefacts entry {dict_id, count} count times) only when artefacts_enabled is set; else the anomaly is made with none	observed
@@ -6523,6 +6522,50 @@ va	name	location	role	basis
 0x0007b730	vostok::physics::bullet_character_controller::updateAction	entry ESP+8	dt (float32, s): the step's ms x 0.001	observed
 0x0007c7e0	vostok::physics::bullet_character_controller::can_skeep_player_step	EDX	the controller	observed
 0x002d9060	survarium::base_player::set_physics_controller_walk_vector	entry ESP+8	the step's ms (u32; [ebp+0Ch])	observed
+0x00316630	survarium::blackboard::set<bool> [descriptive]	EAX	the entry's index: 0 team_1_respawn (team 0), 1 team_2_respawn (any other team)	observed
+0x00316630	survarium::blackboard::set<bool> [descriptive]	entry ESP+4	the blackboard (the rule's +110h / tdm's +118h: core+188B0h)	observed
+0x00316630	survarium::blackboard::set<bool> [descriptive]	entry ESP+8	pointer to the bool	observed
+0x00317700	survarium::blackboard::get<bool> [descriptive]	ESI	the entry (blackboard + 30h x index); callers: the respawn rule's death handler 0x316AFA and the blackboard's serialize 0x323D6F, 0x323D97 only	observed
+0x00317700	survarium::blackboard::get<bool> [descriptive]	entry ESP+4	out pointer to the bool	observed
+0x00316aa0	survarium::player_respawn_rule_base::on_event	ECX	the respawn rule: +110h the blackboard, +114h respawn_time ms (an int of the config x 1000), +118h a factor (1.0), +134h the core, +138h the places' respawn times	observed
+0x00316aa0	survarium::player_respawn_rule_base::on_event	entry ESP+4	the event's type; only 1 (a death) is handled	observed
+0x00316aa0	survarium::player_respawn_rule_base::on_event	entry ESP+8	{u8 killer, u8 victim}	observed
+0x00316aa0	survarium::player_respawn_rule_base::on_event	entry ESP+12	the event's time ([core+18FC0h]: the last finished step's)	observed
+0x00316aa0	survarium::player_respawn_rule_base::on_event	at 0x316AFA..0x316B04	the victim's team's blackboard entry (index: team != 0) read through get<bool>; false: no time is set (exit 0x316BAA)	observed
+0x00316aa0	survarium::player_respawn_rule_base::on_event	at 0x316B6B	EAX the delay ms = floor(apply_modifier(kit, index 60, respawn_time ms, 1.0) x [rule+118h] + 0.5); EDI the rule, EBX the victim's player, [ESP+20h] the event's time, [ESP+1Ch] the data; then time + delay is put on the grid ([core+18FBCh] + 50 k, at or after it) and stored at +138h + 4 x victim (0x316BA3)	observed
+0x00316820	survarium::player_respawn_rule_base::tick	at 0x3168BA	a place is due when its respawn time equals the step's time exactly (cmp [edx],ecx / jnz); else a player in the world (+33Fh) joins the living list	observed
+0x002dbf40	survarium::base_player::can_sprint	at 0x2DBF45	EBX the player (pushed at entry); every refusal jumps to 0x2DC008 (xor eax,eax / pop ebx / ret 4); no carried-item test	observed
+0x002d8bb0	survarium::base_player::process_quick_slots	at 0x2D8E73..0x2D8EC8	the drop: ESI the player; only with a carried battery ([[player+10Ch]+178h], else 0x2D8ECA) the current mask's bit 400000h (the drop action), or bit 20h set now and clear before, lets it go ([inventory+174h] vtable +4); the site's ESP+94h the previous input, +98h the current, +9Ch the time	observed
+0x002d36b0	survarium::game_world_core::fill_match_hud_state	at 0x2D36D0..0x2D36E0	each rule's slot +44h (hud state, the game's time) in the rules vector's order (core+18824h..18828h: the config's rules order), then [core+18F54h] vtable +1Ch with the same two	observed
+0x00318100	survarium::timelimit_rule_core::logic_tick	at 0x31813C..0x318178	the countdown's end: state 3 (+148h and core+18FE4h), the start +12Ch := start + countdown, then rules_on_event(0, null): a rule's on_event(0) reads the match's start at the time rule's +12Ch	observed
+0x001f64c0	survarium::player_input_handler::input_changed [descriptive]	ESI	the local player's input handler (player+F470h); its one caller 0x1F7872 sends the input only on 1, and +340h/+344h := +338h/+33Ch after it (0x1F793E..0x1F7944), also when the player is dead (+33Ch 0, 0x1F7883) and nothing is sent	observed
+0x002dac00	survarium::base_player::initialize	at 0x2DAC8D..0x2DAC99	the spawn zeroes the applied input: +32Ch the rotation (two halves of 0.0), +330h the actions mask 0; before it m_is_alive +33Ch 1, pending death +33Dh 0, +33Eh 0 (0x2DAC24..0x2DAC36)	observed
+0x002d86e0	survarium::base_player::apply_new_input	at 0x2D8A06..0x2D8A0C	the common epilogue: pop edi/esi/ebx, mov esp,ebp, pop ebp, ret 8; 0x2D8A0C (ret 8) is reached with the entry's stack; a dead player (0x2D86F5) and an input equal to the applied one (0x2D8741) leave here before any write	observed
+0x00316820	survarium::player_respawn_rule_base::tick	at 0x316826	after its prologue (push ebp / mov ebp,esp / sub esp,34h, patch 31's jmp site): ECX the rule, [EBP+0Ch] the step's time; next push ebx / push esi / mov ebx,ecx / push edi (5 bytes)	observed
+0x00316820	survarium::player_respawn_rule_base::tick	at 0x31689C..0x316917	places 0..19 by active_player_ptr 0x2D0AB0; a place with a player whose time (+138h + 4 x place) is the step's goes to its team's list ([EBP-10h] + 0Ch x team, the profile's +45ECh)	observed
+0x00316820	survarium::player_respawn_rule_base::tick	at 0x31697F..0x3169D8	per team: select_respawn_points (vtable +54h); each chosen place's player, when in the world (+33Fh), removed (vtable +24h with 1) then spawned (vtable +5Ch: place, point, time); a due place beyond the chosen points waits 50 ms more (add [rule+138h + 4 x place], 32h)	observed
+0x00317fd0	survarium::timelimit_rule_core::deserialize	at 0x31802B..0x31803E	rules_on_event(0, null) only when the loaded state is 3 and another than the one before; the start (+12Ch) is written before it (0x31801F)	observed
+0x00241250	survarium::player_input_handler::process_first_person_mode	at 0x2420F1..0x242118	action 35h (use) sets bit 200000h, action 36h (drop, default V, st_drop_action) bit 400000h of the actions mask +33Ch	observed
+0x002063f0	survarium::tdm_rule_cook::create_resource	ECX	the cook: +20h the client's game (0x206419)	observed
+0x002063f0	survarium::tdm_rule_cook::create_resource	entry ESP+4	the query: [query] the match options, [query+0Ch] the mode config's root (tdm_rule_core's constructor 0x316027)	observed
+0x002063e0	survarium::tdm_rule_cook::resource_size	ECX	the cook (not read)	observed
+0x00316090	survarium::tdm_rule_core::on_event	ECX	the rule	observed
+0x00316590	survarium::tdm_rule_core::on_player_entered_match	ECX	the rule	observed
+0x00316590	survarium::tdm_rule_core::on_player_entered_match	entry ESP+8	the time	observed
+0x003165d0	survarium::tdm_rule_core::on_player_left_match	ECX	the rule	observed
+0x003165d0	survarium::tdm_rule_core::on_player_left_match	entry ESP+4	u8 roster place (0x3165D3)	observed
+0x003165d0	survarium::tdm_rule_core::on_player_left_match	entry ESP+8	the time	observed
+0x00267810	survarium::tdm_rule::set_game_world_core [descriptive]	ECX	the rule	observed
+0x00267810	survarium::tdm_rule::set_game_world_core [descriptive]	entry ESP+4	the world core	observed
+0x00267820	survarium::tdm_rule::set_blackboard [descriptive]	ECX	the rule	observed
+0x00267820	survarium::tdm_rule::set_blackboard [descriptive]	entry ESP+4	the blackboard (core+188B0h, 0x2D58F0)	observed
+0x00316340	survarium::tdm_rule_core::serialize	ECX	the rule	observed
+0x003163d0	survarium::tdm_rule_core::deserialize	ECX	the rule	observed
+0x00316430	survarium::tdm_rule_core::fill_match_hud_state	ECX	the rule	observed
+0x00316430	survarium::tdm_rule_core::fill_match_hud_state	entry ESP+8	the game's time (0x2D36D7 pushes it)	observed
+0x00316520	survarium::tdm_rule_core::rule_completed	ECX	the rule: +12Ch its end	observed
+0x00316520	survarium::tdm_rule_core::rule_completed	entry ESP+4	the time	observed
+0x00317f10	survarium::timelimit_rule_core::tick	entry ESP+12	the step flag (not read: on the grid)	observed
 0x001f3c70	survarium::player::generate_hit_event	ECX	the victim player (base_player::generate_hit_event's ECX; the vtable slot +40h hit_impl calls, 0x2D9ED1)	observed
 0x001f3c70	survarium::player::generate_hit_event	entry ESP+4	the hit's time (hit_info +3Ch): the collector's +4 (0x1F3D50)	observed
 0x001f3c70	survarium::player::generate_hit_event	entry ESP+8	the attacker's place (hit_info +44h, a byte widened): the world's get_player (game +53ACh, vtable +4Ch, 0x1F3CC7) gives the player whose collector it writes	observed
@@ -6556,3 +6599,4 @@ va	name	location	role	basis
 0x002364c0	survarium::game_world_ui::set_game_progress	stack+8	team 0 points (u16), loaded to BP at 2364CE	observed
 0x002364c0	survarium::game_world_ui::set_game_progress	stack+12	team 1 points (u16), loaded to DX at 2364C0	observed
 0x002364c0	survarium::game_world_ui::set_game_progress	stack+16	viewed team, loaded to EBX at 2364C9; 236523..23656D swaps points so the own team is first in root.set_game_progress	observed
+0x001f2870	survarium::player::remove	ECX	the player (the world player's vtable 0x9FB35C +24h; the respawn tick and patch 31 call it with 1 before a spawn)	observed

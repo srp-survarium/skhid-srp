@@ -26,6 +26,7 @@ package survarium.rooms
             "6": "st_srp_mode_blackout",
             "8": "st_srp_mode_free_for_all",
             "12": "st_srp_mode_freeze_tag",
+            "13": "st_srp_mode_artefact_hunt",
             // A free-for-all's twist (docs/notes/ffa.md, "Twists"): no maps of its own, a card's mode.
             "9": "st_srp_mode_racket",
             "10": "st_srp_mode_cowboy",

@@ -265,6 +265,16 @@ st_artcontainer_time_corr_perc_name	Час пошуку
 st_artefact_activated_message	Артэфакт актываваны
 st_artefact_booster_description	Другая версія прылады, вынайдзенай умельцамі для здабывання артэфактаў. Дзякуючы ўбудаванаму гасільніку анамальнай актыўнасці артэфакта дазваляе паскорыць працэс экстракцыі.
 st_artefact_booster_name	Артэфакт-майстар
+st_artefact_hunt_draw	Нічыя. Час выйшаў
+st_artefact_hunt_enemy_delivered	Каманда праціўніка даставіла артэфакт
+st_artefact_hunt_lost_collected	Паражэнне. Усе артэфакты сабраныя
+st_artefact_hunt_lost_time_out	Паражэнне. Час выйшаў
+st_artefact_hunt_lost_wiped	Паражэнне. Ваша каманда выбыла
+st_artefact_hunt_team_delivered	Ваша каманда даставіла артэфакт
+st_artefact_hunt_won_collected	Перамога! Усе артэфакты сабраныя
+st_artefact_hunt_won_time_out	Перамога! Час выйшаў
+st_artefact_hunt_won_wiped	Перамога! Каманда праціўніка выбыла
+st_artefact_hunt_you_picked	Вы падабралі артэфакт
 st_artefact_no_free_slots	Няма вольных слотаў, каб узяць артэфакт!
 st_artefact_search_failed	Артэфакт не знойдзены
 st_artefact_search_success	Вы дасталі артэфакт!
@@ -1457,6 +1467,9 @@ st_magnum_description	Шасцізарадны рэвальвер калібра
 st_magnum_name	Кольт Пітон
 st_maintenance	Пачалося тэхнічнае абслугоўванне сервераў. Праграма будзе закрыта.
 st_map	Карта
+st_map_hint_13_1	Знайдзіце артэфакт "Ззянне Лесу"
+st_map_hint_13_2	Прынясіце "Ззянне Лесу" на базу
+st_map_hint_13_3	Збярыце 5 артэфактаў, каб перамагчы
 st_match_items_found	Знойдзена
 st_match_making_level	Узровень матча
 st_match_rewards	Узнагарода за бой
@@ -1537,6 +1550,8 @@ st_mode_08_description	Кожны сам за сябе. Матч заканчв�
 st_mode_08_name	Усе супраць усіх
 st_mode_12_description	Замарозьце ўсіх супернікаў. Перамагае каманда, якая выйграе 5 раундаў. Стойце ў межах 2 м ад замарожанага саюзніка 3 секунды, каб размарозіць яго.
 st_mode_12_name	Замарозка
+st_mode_13_description	Знайдзіце артэфакт "Ззянне Лесу" і прынясіце яго на базу. Збярыце 5 артэфактаў, каб перамагчы.
+st_mode_13_name	Паляванне на артэфакт
 st_modification_screen_edit_decal_hint	Каб змяніць памер і становішча нашыўкі, націсніце на яе слот
 st_modification_screen_hint	Перацягніце камуфляж або нашыўку з вашага інвентару ў адпаведны слот мадыфікацыі прадмета
 st_modified	Мадыфікавана
@@ -1617,7 +1632,9 @@ st_novice_026_helmet_desc	Вязаная шапка сталкера-навіч�
 st_novice_026_helmet_name	Вязаная шапка навічка
 st_of	з
 st_ok	ОК
+st_on_destroyed_victory_artefact	Артэфакт знішчаны
 st_on_enemy_theft_item	Праціўнік скраў батарэю з вашай базы, спыніце яго!
+st_on_spawn_victory_artefact	Артэфакт з'явіўся
 st_on_spawn_victory_item	Батарэя зараджана! Прынясіце яе на базу.
 st_one_handed	Дапаможная
 st_online_store	Купіць золата
@@ -1999,6 +2016,7 @@ st_rgd5_name	Граната РГД-5
 st_rgo_descr	Апісанне пакуль недаступнае.
 st_rgo_name	РГО
 st_right_strafe_action	Крок управа
+st_round_restart_in	Да рэстарту раўнда засталося
 st_rpd_description	Апісанне пакуль недаступнае.
 st_rpd_name	РПД
 st_rpk_description	Апісанне пакуль недаступнае.
@@ -2550,6 +2568,8 @@ st_srp_hit_markers_all	Усе хітмаркеры
 st_srp_hit_markers_hidden	Схаваныя хітмаркеры
 st_srp_hit_markers_kill	Толькі пры забойстве
 st_srp_hud_add_friend	Дадаць у сябры
+st_srp_hud_artefact_hunt_carrying	Вы несяце артэфакт
+st_srp_hud_artefact_hunt_sudden_death	Раптоўная смерць
 st_srp_hud_blackout_intro	Блэкаўт: нясіце батарэі да прылады сваёй каманды. Інтэрфейс і маркеры траплянняў схаваныя для паглыблення ў гульню. Утрымлівайце Tab: боезапас, здароўе, чат; пасля смерці — выбар камплекта.
 st_srp_hud_blackout_start	Блэкаўт\nНясіце батарэі да прылады сваёй каманды.\nІнтэрфейс і маркеры траплянняў схаваныя. Утрымлівайце Tab, каб убачыць боезапас і здароўе.
 st_srp_hud_freeze_draw	Нічыя
@@ -2717,6 +2737,7 @@ st_srp_mic_test_playing	Прайграванне %1$s
 st_srp_mic_test_recording	Запіс %1$s
 st_srp_microphone	Мікрафон
 st_srp_microphone_default	Па змаўчанні
+st_srp_mode_artefact_hunt	Паляванне на артэфакт
 st_srp_mode_blackout	Ахоўная прылада: блэкаўт
 st_srp_mode_chargers	Ахоўная прылада: зараднікі
 st_srp_mode_cowboy	FFA: Салун
@@ -2988,6 +3009,7 @@ st_stamina_spending_speed_description	Спажыванне энергіі:
 st_stamina_spending_speed_name	Вынослівасць
 st_start_chat_action	Чат
 st_start_match_welcome_message	Знайдзіце батарэі і дастаўце іх на базу!
+st_start_match_welcome_message_13	Паляванне на артэфакт. Даставіце артэфакт на базу сваёй каманды
 st_start_match_welcome_message_2	Знайдзіце і абараніце месцы зарадкі батарэй!
 st_start_match_welcome_message_3	Знішчыце як мага больш праціўнікаў!
 st_start_match_welcome_message_5	Знайдзіце і захапіце даследчыя ўстаноўкі!

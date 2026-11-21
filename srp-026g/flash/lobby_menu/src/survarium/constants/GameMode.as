@@ -24,6 +24,9 @@ package survarium.constants
       public static const FREE_FOR_ALL:int = 8;
       public static const FREEZE_TAG:int = 12;
       
+      // Artifact Hunt: bring the one artefact to your base, first to 5 (docs/notes/artefact_hunt.md)
+      public static const ARTEFACT_HUNT:int = 13;
+      
       public function GameMode()
       {
          super();

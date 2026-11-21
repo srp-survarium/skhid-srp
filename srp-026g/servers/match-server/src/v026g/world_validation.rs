@@ -178,6 +178,8 @@ pub fn check(body: &[u8], time: u32, places: usize, roster: Roster) -> Result<()
             objects: Some(&objects),
             inventory: inventory.as_ref(),
             dict_ids: Some(dict_ids()),
+            // The mode config's, as the game's rule reads them.
+            artefact_hunt: map.artefact_hunt,
         };
         match world::validate(body, &context) {
             Ok(()) => return Ok(()),

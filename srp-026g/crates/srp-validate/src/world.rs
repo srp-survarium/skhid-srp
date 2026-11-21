@@ -109,6 +109,11 @@ pub struct Context<'a> {
     /// counted in the statistics (exe patch 165) is one of. A game counts
     /// under its own items' ids and reads them nowhere: it leaves it `None`.
     pub dict_ids: Option<&'a [u16]>,
+    /// Mode 13: the map's Artifact Hunt parameters, which its rule's bytes
+    /// are read with (the game: its rule's own; the server: the mode
+    /// config's, `Params::parse`). A world of mode 13 without them is
+    /// refused: its rule cannot be read.
+    pub artefact_hunt: Option<&'a artefact_hunt_rule::Params>,
 }
 
 /// What a world's player block is checked against.
@@ -205,8 +210,27 @@ pub fn validate_frame(frame: &Frame<'_>, context: &Context<'_>) -> Result<(), Re
     statistics(&frame.statistics(), context)?;
     objects(&frame.objects(), context)?;
     rules(&frame.rules(), context)?;
+    artefact_hunt(frame, context)?;
     physics(&frame.physics())?;
     effects(&frame.effects())
+}
+
+/// Mode 13: the statistics' standing is the rule's
+/// ([`rules::artefact_hunt_standing`]). The two sections are each read
+/// again (the checks before took them whole); nothing in other modes.
+pub fn artefact_hunt(frame: &Frame<'_>, context: &Context<'_>) -> Result<(), Refusal> {
+    if context.game_mode != mode::ARTEFACT_HUNT {
+        return Ok(());
+    }
+    let section = frame.statistics();
+    let tail = statistics::Statistics::read(&section, context.places, battery_records(context))?.tail();
+    let read = Rules::read(&frame.rules(), context)?;
+    match read.mode_rule() {
+        ModeRule::ArtefactHunt(rule) if !rules::artefact_hunt_standing(rule, &tail) => Err(
+            Refusal::new(Part::Statistics, section.at, Reason::ArtefactHuntStanding),
+        ),
+        _ => Ok(()),
+    }
 }
 
 /// Parse a body and validate its supported semantic sections.

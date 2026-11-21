@@ -33,6 +33,9 @@ impl ScoreEvent {
     /// A death, and a suicide (counted for the place's kit at the time).
     pub const DEATH: ScoreEvent = ScoreEvent(2);
     pub const SUICIDE: ScoreEvent = ScoreEvent(3);
+    /// A battery (or, patch 171, the hunt's artefact) put into its
+    /// team's container: one byte on the wire, by ones.
+    pub const PUT_VICTORY_ITEM_IN_CONTAINER: ScoreEvent = ScoreEvent(20);
 }
 
 /// The deaths and suicides the match's statistics count for `place`, in every kit; 0 for a place

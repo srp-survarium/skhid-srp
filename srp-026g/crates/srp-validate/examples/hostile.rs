@@ -8,7 +8,7 @@ fn main() {
     let context = Context {
         time: 4500, places: 20, game_mode: 4, batteries: 0,
         respawn_points: Some(3), team_2_points: None, profiles: None, artefacts: None,
-        objects: None, inventory: None, dict_ids: None,
+        objects: None, inventory: None, dict_ids: None, artefact_hunt: None,
     };
     let mut timings = Vec::new();
     let mut refused = 0;

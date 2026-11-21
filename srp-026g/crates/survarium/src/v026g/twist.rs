@@ -127,7 +127,7 @@ pub enum LobbyMode {
 
 impl LobbyMode {
     /// Every one.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Plain(GameMode::Batteries),
         Self::Plain(GameMode::TimedBatteries),
         Self::Plain(GameMode::TeamDeathmatch),
@@ -135,6 +135,7 @@ impl LobbyMode {
         Self::Plain(GameMode::FreeForAll),
         Self::Plain(GameMode::Blackout),
         Self::Plain(GameMode::FreezeTag),
+        Self::Plain(GameMode::ArtefactHunt),
         Self::Racket,
         Self::Cowboy(Variation::Colt),
         Self::Cowboy(Variation::WinchesterAndColt),
@@ -185,6 +186,7 @@ impl LobbyMode {
             Self::Plain(GameMode::Blackout) => "st_srp_mode_blackout",
             Self::Plain(GameMode::FreeForAll) => "st_srp_mode_free_for_all",
             Self::Plain(GameMode::FreezeTag) => "st_srp_mode_freeze_tag",
+            Self::Plain(GameMode::ArtefactHunt) => "st_srp_mode_artefact_hunt",
             Self::Racket => "st_srp_mode_racket",
             Self::Cowboy(Variation::Colt) => "st_srp_mode_cowboy",
             Self::Cowboy(Variation::WinchesterAndColt) => "st_srp_mode_cowboy_winchester",

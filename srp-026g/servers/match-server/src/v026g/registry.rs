@@ -482,8 +482,10 @@ impl MatchRegistry {
         }
         let played = setup.played;
         let map = played.map();
-        // The server's bots play modes 2 to 4 (`bots`): none in Research.
-        if map.mode.rules() == maps::RuleMode::Research && setup.players.iter().any(|player| player.driven) {
+        // The server's bots play modes 2 to 4 (`bots`): none in Research or
+        // Artifact Hunt.
+        let unplayed = matches!(map.mode.rules(), maps::RuleMode::Research | maps::RuleMode::ArtefactHunt);
+        if unplayed && setup.players.iter().any(|player| player.driven) {
             return Err(CreateError::Map(map.id));
         }
         let mut setup = setup;

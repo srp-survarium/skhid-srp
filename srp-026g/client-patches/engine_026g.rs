@@ -345,6 +345,12 @@ unsafe extern "C" {
     pub fn engine_switch_to_warmup_camera(world: *mut c_void);
     /// 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
     pub fn engine_switch_to_player_camera(world: *mut c_void, first_person: u8);
+    /// 0x316630 survarium::blackboard::set<bool> [descriptive]: index EAX, blackboard ESP+4, value ESP+8; pops 8
+    pub fn engine_blackboard_set_bool(index: u32, blackboard: *mut c_void, value: *const u8);
+    /// 0x102d10 vostok::resources::register_cook: cook EDI; pops 0
+    pub fn engine_register_hunt_cook(cook: *mut c_void);
+    /// 0x313900 survarium::game_match_rule_base::game_match_rule_base: rule EAX, type ESP+4; pops 4; EAX
+    pub fn engine_hunt_rule_base(rule: *mut c_void, r#type: u32) -> *mut c_void;
 }
 
 #[allow(dead_code)]
@@ -487,6 +493,32 @@ unsafe extern "thiscall" {
     pub fn engine_text_edit_set_caret(edit: *mut c_void, position: u32, select: u32);
     /// 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
     pub fn engine_set_constant_float4(value: *const f32, compiler: *mut c_void, name: *const u8);
+    /// 0x2063f0 survarium::tdm_rule_cook::create_resource: cook ECX, query ESP+4; pops 4; EAX; thiscall, called directly
+    pub fn engine_tdm_cook_create(cook: *mut c_void, query: *mut c_void) -> u32;
+    /// 0x2063e0 survarium::tdm_rule_cook::resource_size: cook ECX; pops 0; EAX; thiscall, called directly
+    pub fn engine_tdm_cook_size(cook: *mut c_void) -> u32;
+    /// 0x316090 survarium::tdm_rule_core::on_event: rule ECX, type ESP+4, data ESP+8, time ESP+12; pops 12; thiscall, called directly
+    pub fn engine_tdm_rule_on_event(rule: *mut c_void, r#type: u32, data: *const c_void, time: u32);
+    /// 0x316590 survarium::tdm_rule_core::on_player_entered_match: rule ECX, place ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_tdm_rule_entered(rule: *mut c_void, place: u32, time: u32);
+    /// 0x3165d0 survarium::tdm_rule_core::on_player_left_match: rule ECX, place ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_tdm_rule_left(rule: *mut c_void, place: u32, time: u32);
+    /// 0x267810 survarium::tdm_rule::set_game_world_core [descriptive]: rule ECX, core ESP+4; pops 4; thiscall, called directly
+    pub fn engine_tdm_rule_set_core(rule: *mut c_void, core: *mut c_void);
+    /// 0x316340 survarium::tdm_rule_core::serialize: rule ECX, writer ESP+4; pops 4; thiscall, called directly
+    pub fn engine_tdm_rule_serialize(rule: *mut c_void, writer: *mut c_void);
+    /// 0x3163d0 survarium::tdm_rule_core::deserialize: rule ECX, reader ESP+4, unused ESP+8; pops 8; thiscall, called directly
+    pub fn engine_tdm_rule_deserialize(rule: *mut c_void, reader: *mut c_void, unused: u32);
+    /// 0x316430 survarium::tdm_rule_core::fill_match_hud_state: rule ECX, hud ESP+4, time ESP+8; pops 8; thiscall, called directly
+    pub fn engine_tdm_rule_fill_hud(rule: *mut c_void, hud: *mut c_void, time: u32);
+    /// 0x316520 survarium::tdm_rule_core::rule_completed: rule ECX, time ESP+4; pops 4; AL; thiscall, called directly
+    pub fn engine_tdm_rule_completed(rule: *mut c_void, time: u32) -> u8;
+    /// 0x317f10 survarium::timelimit_rule_core::tick: rule ECX, dt ESP+4, time ESP+8, step ESP+12; pops 12; thiscall, called directly
+    pub fn engine_timelimit_tick(rule: *mut c_void, dt: u32, time: u32, step: u32);
+    /// 0x1f2870 survarium::player::remove: player ECX, flag ESP+4; pops 4; thiscall, called directly
+    pub fn engine_player_remove(player: *mut c_void, flag: u32);
+    /// 0x316da0 survarium::player_respawn_rule_base::spawn_player: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; thiscall, called directly
+    pub fn engine_spawn_player(rule: *mut c_void, place: u32, point: *const u32, time: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

@@ -265,6 +265,16 @@ st_artcontainer_time_corr_perc_name	Collection time
 st_artefact_activated_message	Artifact activated
 st_artefact_booster_description	The second version of the device invented by craftsmen to retrieve artifacts. The built-in suppressor of the abnormal activity from the artifact allows you to accelerate the extraction process.
 st_artefact_booster_name	Artifact-master
+st_artefact_hunt_draw	Draw. Time is out
+st_artefact_hunt_enemy_delivered	The opponent team delivered the artifact
+st_artefact_hunt_lost_collected	Defeat. All artifacts collected
+st_artefact_hunt_lost_time_out	Defeat. Time is out
+st_artefact_hunt_lost_wiped	Defeat. Your team is out
+st_artefact_hunt_team_delivered	Your team have delivered the artifact
+st_artefact_hunt_won_collected	Victory! All artifacts collected
+st_artefact_hunt_won_time_out	Victory! Time is out
+st_artefact_hunt_won_wiped	Victory! The opposing team is out
+st_artefact_hunt_you_picked	You picked the artifact
 st_artefact_no_free_slots	No empty slots to pick up the artifact!
 st_artefact_search_failed	Artifact not found
 st_artefact_search_success	You got an artifact! 
@@ -1457,6 +1467,9 @@ st_magnum_description	A six-round revolver of .357 Magnum caliber. It was introd
 st_magnum_name	Colt Python
 st_maintenance	Servers technical maintenance is in progress. The application will close.
 st_map	Map
+st_map_hint_13_1	Find the Glow of the Forest artifact
+st_map_hint_13_2	Deliver "Glow of the Forest" to your base
+st_map_hint_13_3	Collect 5 artifacts to win
 st_match_items_found	Found
 st_match_making_level	Match level
 st_match_rewards	Mission reward
@@ -1537,6 +1550,8 @@ st_mode_08_description	Every soldier fights for himself. The match ends when som
 st_mode_08_name	Free for all
 st_mode_12_description	Freeze every opponent. First team to win 5 rounds wins. Stand within 2 m of a frozen teammate for 3 seconds to thaw them.
 st_mode_12_name	Freeze Tag
+st_mode_13_description	Find the "Glow of the Forest" artifact and deliver it to your base. Collect 5 artifacts to win.
+st_mode_13_name	Artifact Hunt
 st_modification_screen_edit_decal_hint	To change the size and position of a decal, click on its slot
 st_modification_screen_hint	Drag camouflage or decal from your inventory into the item modification slot
 st_modified	Modified
@@ -1617,7 +1632,9 @@ st_novice_026_helmet_desc	A novice stalker's knit cap from the cancelled S.T.A.L
 st_novice_026_helmet_name	Novice's knit cap
 st_of	of
 st_ok	Ok
+st_on_destroyed_victory_artefact	Artifact destroyed
 st_on_enemy_theft_item	The enemy has stolen a battery from your base, stop him!
+st_on_spawn_victory_artefact	Artifact has spawned
 st_on_spawn_victory_item	The battery is charged! Deliver it to your base.
 st_one_handed	Secondary
 st_online_store	Buy gold
@@ -1999,6 +2016,7 @@ st_rgd5_name	RGD-5 grenade
 st_rgo_descr	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rgo_name	RGO
 st_right_strafe_action	Strafe right
+st_round_restart_in	Round restarts in
 st_rpd_description	ОПИСАНИЕ НЕ ГОТОВО!!!
 st_rpd_name	RPD
 st_rpk_description	ОПИСАНИЕ НЕ ГОТОВО!!!
@@ -2550,6 +2568,8 @@ st_srp_hit_markers_all	All hit markers
 st_srp_hit_markers_hidden	Hidden hit markers
 st_srp_hit_markers_kill	Kill marker only
 st_srp_hud_add_friend	Add to friends
+st_srp_hud_artefact_hunt_carrying	You carry the artifact
+st_srp_hud_artefact_hunt_sudden_death	Sudden death
 st_srp_hud_blackout_intro	Blackout: bring batteries to your team’s device. HUD and hitmarkers are hidden for immersion. Hold Tab for ammo, health, chat and kit selection when dead.
 st_srp_hud_blackout_start	Blackout\nBring batteries to your team’s device.\nHUD and hit markers are hidden. Hold Tab to check ammo and health.
 st_srp_hud_freeze_draw	Draw
@@ -2717,6 +2737,7 @@ st_srp_mic_test_playing	Playing %1$s
 st_srp_mic_test_recording	Recording %1$s
 st_srp_microphone	Microphone
 st_srp_microphone_default	Default
+st_srp_mode_artefact_hunt	Artifact Hunt
 st_srp_mode_blackout	Protective device: blackout
 st_srp_mode_chargers	Protective device: chargers
 st_srp_mode_cowboy	FFA: Saloon
@@ -2988,6 +3009,7 @@ st_stamina_spending_speed_description	Energy consumption:
 st_stamina_spending_speed_name	Endurance
 st_start_chat_action	Chat
 st_start_match_welcome_message	Find batteries and deliver them to your base!
+st_start_match_welcome_message_13	Artifact Hunt. Bring the artifact to your team's base
 st_start_match_welcome_message_2	Locate and protect battery charging stations!
 st_start_match_welcome_message_3	Eliminate as many enemies as possible!
 st_start_match_welcome_message_5	Find and capture research units!

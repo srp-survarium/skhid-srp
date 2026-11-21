@@ -227,6 +227,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/bake_cache.rs`, `src/bake_cache.toml`, `src/vostok/baker.rs`, `src/vostok/files.rs`, `src/vostok/crc32.rs`, `check_bake_cache_026g.py` | Patch 70: the baked camouflage and decal textures kept from game to game (the folder deleted only for another revision, its files back in the baker's list) and baked or loaded once while asked for again: seven `lohook`s (`sites_026g.tsv` bake.* and crc32.step); its check runs game::game's delete, the game's own check_loaded, translate_query's look-up, the texture made by a bake and a load, and finish_query on a made-up baker, folder and queries (needs Unicorn) |
 | `rust/patches/src/bake_async.rs`, `src/bake_async.toml`, `src/vostok/bake_gpu.rs`, `check_bake_async_026g.py` | Patch 121: the camouflage/decal bake does not wait for the GPU: level 0 a GPU copy of the target, the compressed levels copied to stagings and flushed, at most 8 bakes on the GPU (with all 8 taken, the oldest completed on the spot for the next), polled each dispatch with the no-wait map, the DDS allocated only then, and process_compression's own tail run, on a 6 ms budget a frame; nothing is put off or asked again; the save owns the MT DDS (no copy), at most 64 saves and 128 MB not written yet; nine `lohook`s (`sites_026g.tsv` bake.issue, bake.resume, bake.save, bake.free, save.freed, compress_mip.readback, resources.dispatched, engine.tick, game.exit_start); its check runs them in Unicorn on a made-up D3D11 context |
 | `check_research_026g.py`, `../crates/research-rule/src/tests.rs` | Checks of patch 53: the first runs the built exe's hooks, the cook (with the game's own register_cook, rule constructor and config look-ups) and the rule's slots on made-up games, worlds and huds (needs Unicorn); the second the rules as Rust unit tests |
+| `check_artefact_hunt_026g.py`, `../crates/artefact-hunt-rule/src/tests.rs` | Checks of patch 171 (Artifact Hunt): the first runs the built exe's cook (the game's register_cook, rule constructor and config look-ups), the rule's slots through the game's own callers, the tick, the respawn rule's two sites, the input entry, can_sprint and apply_modifier, the artefact's query and scene, the glow, the icon's mark and the announcer on made-up games and worlds (needs Unicorn); the second the rules, the wire and the use key's reach as Rust unit tests |
 | `check_weapon_camo_026g.py` | Runs the original's and patch 44's 0x24B0D2 of weapon_cook::on_weapon_subresources_ready on made-up weapon configs and models, with the game's parameters constructor, string assign, release and boost invoker, and each bake's callback (needs Unicorn) |
 | `check_kit_change_026g.py` | Runs the original and patch 31's respawn rule tick, with the places' tick and the game's own spawn, the view of a kit change, the hud's update of the local player, mouse moves and the mouse's buttons through the game world's input handler and the warmup mode's step on made-up objects (needs Unicorn) |
 | `check_death_camera_026g.py` | Runs the original's and patch 46's mouse moves through the game world's input handler (the death screen, a live player, spectators, a death before the start) and update_camera's call of the view's update on a made-up eye transform (needs Unicorn) |
@@ -6461,3 +6462,20 @@ between rounds and after the match what falls due is held, the restart makes
 every place due at once) and `carry.input` (0x2D86E0: a held body's input leaves
 through the function's `ret 8` before patch 78 sees it). An actual local match
 remains pending.
+## Artifact Hunt, mode 13 (patch 171, unreleased)
+
+0.46c2's Artifact Hunt (two teams, one artefact, rounds, sudden death) as a rule of the game's own: the
+rules are `crates/artefact-hunt-rule`, the game's side the Rust module `rust/patches/src/artefact_hunt.rs`
+(`artefact_hunt.toml`, `src/vostok/artefact_hunt.rs`). A cook of class 481 registered after the game's
+own (`game.query_base_resources`), our copies of the client tdm cook's and tdm_rule_core's vtables, the
+rule's tick in the world's second list; the respawn rule's death delay (the waves) and its tick (a round's
+restart holds the places due, its end spawns everyone); patch 78's `carry.input` asks the hunt first (the
+frozen countdown applies no input, exit `held`; the use key's take and delivery; the Drop key); patch 109's
+getter sites add the carrier's two modifiers (lists 4 and 2); `hunt.can_sprint` refuses the carrier; his
+marker, minimap dot and icon mark (0x1F2D8B) for both teams, and his glow (`artefact_wood_shine`); the
+artefact's model and its idle, spawn and destroy particles in the world (a query of the patch's own, the
+scene reconciled each frame); the announcer's seven lines (sound collections in the game's language's voice);
+the hud's `root.artefact_hunt_update` (28 Numbers), its messages, the prompt and the welcome. The spec and design: `docs/notes/artefact_hunt.md`; the code: `client_patch.md`
+"Artifact Hunt (patch 171)". A simulation change for mode 13 only. Checked with
+`check_artefact_hunt_026g.py` (Unicorn; `tools/check artefact-hunt-native`) and `cargo test -p
+artefact-hunt-rule`. Not run in a game.

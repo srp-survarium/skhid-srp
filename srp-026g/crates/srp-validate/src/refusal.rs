@@ -234,6 +234,29 @@ pub enum Reason {
     ResearchMaskPast {
         places: usize,
     },
+    /// A world of mode 13 checked without the map's Artifact Hunt
+    /// parameters: its rule cannot be read.
+    NoArtefactHuntParams,
+    /// Artifact Hunt's rule bytes are no state of the map's rule (the
+    /// crate's refusal).
+    ArtefactHuntRule {
+        error: artefact_hunt_rule::WireError,
+    },
+    /// Its sides name a place past the match's.
+    ArtefactHuntSidesPast {
+        places: usize,
+    },
+    /// Its stage against the timelimit's: idle exactly while the timelimit
+    /// is not in play, and in play from the timelimit's start.
+    ArtefactHuntStage,
+    /// The blackboard's two flags against the rule: both
+    /// `Rule::respawns()` in play, both true before it, equal once over.
+    ArtefactHuntFlags {
+        flags: [bool; 2],
+    },
+    /// The statistics' `m_team_points` or `m_winner_team` are not the
+    /// rule's scores and leader.
+    ArtefactHuntStanding,
     Batteries {
         found: usize,
         map: usize,
@@ -659,6 +682,25 @@ impl fmt::Display for Reason {
             Reason::ResearchMaskPast { places } => {
                 write!(f, "a research mask names a place past the {places} places")
             }
+            Reason::NoArtefactHuntParams => {
+                f.write_str("an artifact hunt world checked without its map's parameters")
+            }
+            Reason::ArtefactHuntRule { error } => {
+                write!(f, "the artifact hunt rule does not read: {error:?}")
+            }
+            Reason::ArtefactHuntSidesPast { places } => {
+                write!(f, "the artifact hunt sides name a place past the {places} places")
+            }
+            Reason::ArtefactHuntStage => {
+                f.write_str("the artifact hunt rule's stage is not the timelimit's")
+            }
+            Reason::ArtefactHuntFlags { flags } => write!(
+                f,
+                "the blackboard's respawn flags {flags:?} are not the artifact hunt rule's"
+            ),
+            Reason::ArtefactHuntStanding => f.write_str(
+                "the statistics' team points or winner are not the artifact hunt rule's",
+            ),
             Reason::Batteries { found, map } => write!(f, "{found} batteries, the map has {map}"),
             Reason::BatteryNotNumber { battery } => {
                 write!(f, "battery {battery}'s position is no number")
