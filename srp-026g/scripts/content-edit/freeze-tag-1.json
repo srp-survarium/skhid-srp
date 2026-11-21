@@ -16,7 +16,7 @@
     },
     {
       "file": "gameplay/game_modes/freeze/level_01_day_4.options",
-      "path": "ui/icon",
+      "path": "mode/ui/icon",
       "from": 2,
       "to": 4
     }
