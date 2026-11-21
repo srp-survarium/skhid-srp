@@ -966,6 +966,84 @@ artefact_carry_on_key_replay:
     db 0x8b, 0x75, 0x10, 0x83, 0xfe, 0x01
     jmp 0x23fe48
 
+; 0x316dda the respawn rule's spawn 0x316DA0 before it makes the chosen kit current (mov dl,[eax+0Dh] / mov cl,[ecx+115h], then mov [eax+0Ch],dl at 0x316DE3): BL the place, EAX its entry of the core's places, +0Ch still the kit it was in, +0Dh the kit it spawns in: lohook -> artefact_courier_on_spawn_kits
+global artefact_courier_on_spawn_kits
+extern hook_artefact_courier_on_spawn_kits
+artefact_courier_on_spawn_kits:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_courier_on_spawn_kits
+    mov edx, artefact_courier_on_spawn_kits_replay
+    cmp eax, 0
+    je artefact_courier_on_spawn_kits_go
+    mov edx, 0x316de3
+    cmp eax, 1
+    je artefact_courier_on_spawn_kits_go
+    ud2
+artefact_courier_on_spawn_kits_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_courier_on_spawn_kits_replay:
+    db 0x8a, 0x50, 0x0d, 0x8a, 0x89, 0x15, 0x01, 0x00, 0x00
+    jmp 0x316de3
+
+; 0x316eab the respawn rule's spawn 0x316DA0 at its end (the five pops before ret 0Ch), after the new kit's player was initialised (vtable+1Ch: its inventory set up from the profile, its containers' range set) and put into the world (vtable+20h): BL the place, ESI its new current kit's player: lohook -> artefact_courier_on_spawned
+global artefact_courier_on_spawned
+extern hook_artefact_courier_on_spawned
+artefact_courier_on_spawned:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_artefact_courier_on_spawned
+    mov edx, artefact_courier_on_spawned_replay
+    cmp eax, 0
+    je artefact_courier_on_spawned_go
+    mov edx, 0x316eb0
+    cmp eax, 1
+    je artefact_courier_on_spawned_go
+    ud2
+artefact_courier_on_spawned_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+artefact_courier_on_spawned_replay:
+    db 0x5f, 0x5e, 0x5d, 0x5b, 0x59
+    jmp 0x316eb0
+
 ; 0x31b8e0 generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty): lohook -> artefact_keeper_on_register
 global artefact_keeper_on_register
 extern hook_artefact_keeper_on_register
@@ -5456,6 +5534,126 @@ ragdoll_on_eye_go:
 ragdoll_on_eye_replay:
     db 0x8b, 0x8b, 0x70, 0xf4, 0x00, 0x00
     jmp 0x1f3649
+
+; 0x32d88a check_collision once try_pierce (0x32D881) let the bullet through (mov ebp,2; AL 0 jumps past it to 0x32D891): EDI the bullet, its +4Ch the struck triangle's material (0x32D87B), ESI the hit receiver the ray met (a player's body, a trap, a lamp) or 0: the level's collision (a static surface, a prop with no receiver), whose back faces never come here (0x32D72F): lohook -> hit_marker_walls_on_pierced
+global hit_marker_walls_on_pierced
+extern hook_hit_marker_walls_on_pierced
+hit_marker_walls_on_pierced:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hit_marker_walls_on_pierced
+    mov edx, hit_marker_walls_on_pierced_replay
+    cmp eax, 0
+    je hit_marker_walls_on_pierced_go
+    mov edx, 0x32d88f
+    cmp eax, 1
+    je hit_marker_walls_on_pierced_go
+    ud2
+hit_marker_walls_on_pierced_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hit_marker_walls_on_pierced_replay:
+    db 0xbd, 0x02, 0x00, 0x00, 0x00
+    jmp 0x32d88f
+
+; 0x1f3d76 player::generate_hit_event (0x1F3C70, the slot hit_impl calls at 0x2D9ED1) at a bullet hit's last store into the shooter's inflicted_damage_collector (movss [esi+8],xmm0, the fraction clamped to 0..1; both of the clamp's ways come here, 0x1F3D71): ESI the collector, its victim (+0, 0x1F3D62) and time (+4, 0x1F3D5F) this hit's; EBP the bullet, never 0 here (0x1F3CAA leaves without one); the site's ESP the frame (the shooter's place): lohook -> hit_marker_walls_on_hit
+global hit_marker_walls_on_hit
+extern hook_hit_marker_walls_on_hit
+hit_marker_walls_on_hit:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hit_marker_walls_on_hit
+    mov edx, hit_marker_walls_on_hit_replay
+    cmp eax, 0
+    je hit_marker_walls_on_hit_go
+    mov edx, 0x1f3d7b
+    cmp eax, 1
+    je hit_marker_walls_on_hit_go
+    ud2
+hit_marker_walls_on_hit_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hit_marker_walls_on_hit_replay:
+    db 0xf3, 0x0f, 0x11, 0x46, 0x08
+    jmp 0x1f3d7b
+
+; 0x238272 game_world_ui::draw_damage_collector (0x238230; its one caller player::st_draw, 0x247467, gives it the drawn player's collector) once it found the collector's victim or fraction changed and took them into its copy (+34Ch, +354h; 0x23825D..0x23826C), before the fraction's 0 test (movss xmm0,[esi+8]): ESI the collector, EDI the ui; quiet is its epilogue (0x2383A4), where a 0 fraction goes, past root.crosshair_enemy_hit(fraction, 200, false) (0x23838C): lohook -> hit_marker_walls_on_draw
+global hit_marker_walls_on_draw
+extern hook_hit_marker_walls_on_draw
+hit_marker_walls_on_draw:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_hit_marker_walls_on_draw
+    mov edx, hit_marker_walls_on_draw_replay
+    cmp eax, 0
+    je hit_marker_walls_on_draw_go
+    mov edx, 0x238277
+    cmp eax, 1
+    je hit_marker_walls_on_draw_go
+    mov edx, 0x2383a4
+    cmp eax, 2
+    je hit_marker_walls_on_draw_go
+    ud2
+hit_marker_walls_on_draw_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+hit_marker_walls_on_draw_replay:
+    db 0xf3, 0x0f, 0x10, 0x46, 0x08
+    jmp 0x238277
 
 ; 0x23a992 show_cursor's show (mov eax,[edi+18h] / lea esi,[edi+0Ch], then the call of base_game_scene::show_movie 0x23DC00 at 0x23A998): kept skips the movie, the flag (+2DCh) still written at 0x23A9A1: lohook -> hud_cursor_on_cursor_shown
 global hud_cursor_on_cursor_shown

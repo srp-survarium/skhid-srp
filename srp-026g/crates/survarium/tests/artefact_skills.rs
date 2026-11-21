@@ -4,11 +4,11 @@ use survarium::v026g::skills::{SkillError, SkillsTree, modifier_index};
 
 /// `(id, ranks, branch_points, column, row)`.
 #[rustfmt::skip]
-const TREE: [(u16, u8, u32, u8, u8); 12] = [
+const TREE: [(u16, u8, u32, u8, u8); 13] = [
     (501, 3, 0, 2, 1), (502, 5, 0, 3, 1),
     (512, 5, 5, 3, 2), (513, 1, 5, 4, 2),
     (521, 1, 10, 2, 3), (522, 1, 10, 3, 3), (523, 4, 10, 1, 3),
-    (531, 1, 15, 1, 4), (532, 1, 15, 2, 4), (533, 1, 15, 3, 4),
+    (531, 1, 15, 1, 4), (532, 1, 15, 2, 4), (533, 1, 15, 3, 4), (534, 1, 15, 4, 4),
     (541, 1, 17, 2, 5), (542, 1, 17, 3, 5),
 ];
 
@@ -54,8 +54,12 @@ fn exclusive(tree: &SkillsTree, skills: &[(u16, u8)]) -> bool {
 fn artefact_tree_progression_and_modifiers() {
     let path = std::env::var("SRP_MEDICAL_SKILLS_CONFIG").expect("built skills_tree.options");
     let tree = SkillsTree::parse(&std::fs::read(path).unwrap()).unwrap();
-    let ids: Vec<u16> = tree.skills.iter().filter(|s| s.branch() == 5).map(|s| s.id).collect();
-    assert_eq!(ids, TREE.map(|row| row.0));
+    // Courier (534) is the edit list's last entry: compared by id.
+    let mut ids: Vec<u16> = tree.skills.iter().filter(|s| s.branch() == 5).map(|s| s.id).collect();
+    ids.sort_unstable();
+    let mut want = TREE.map(|row| row.0);
+    want.sort_unstable();
+    assert_eq!(ids, want);
     let mut places = std::collections::HashSet::new();
     for &(id, ranks, branch_points, column, row) in &TREE {
         let skill = tree.skill(id).unwrap();
@@ -74,17 +78,17 @@ fn artefact_tree_progression_and_modifiers() {
     let mut both = build(5, RESONANCE);
     both.push((CASCADE, 1));
     assert!(exclusive(&tree, &both), "Resonance and Cascade");
-    // The rows 0/5/10/15/17: row I holds 8, rows I-III 20, rows I-IV 23 (a full build
-    // is 24).
+    // The rows 0/5/10/15/17: row I holds 8, rows I-III 20, rows I-IV 24 (a full build
+    // is 25).
     assert_eq!(points(&build(1, RESONANCE)), 8);
     assert_eq!(points(&build(3, RESONANCE)), 20);
-    assert_eq!(points(&build(4, RESONANCE)), 23);
+    assert_eq!(points(&build(4, RESONANCE)), 24);
     for row5 in [RESONANCE, CASCADE] {
         let all = build(5, row5);
-        assert_eq!(points(&all), 24, "{row5}");
+        assert_eq!(points(&all), 25, "{row5}");
         tree.validate(100, &all).unwrap();
-        tree.validate(24, &all).unwrap();
-        assert!(matches!(tree.validate(23, &all), Err(SkillError::OverLevel { .. })));
+        tree.validate(25, &all).unwrap();
+        assert!(matches!(tree.validate(24, &all), Err(SkillError::OverLevel { .. })));
     }
     // Each row opens at its threshold: exactly that many points in the rows above it (the spare
     // ones taken from the nearest row first), and a point less locks it.
@@ -113,13 +117,13 @@ fn artefact_tree_progression_and_modifiers() {
     // Artifact Container: an artefact slot for a pocket.
     assert_eq!((at("artefact_slots"), at("pocket_slots")), (1.0, -1.0));
     assert!((at("artefact_duration") - 0.25).abs() < 1e-6);
-    // Resistance 5, then bits 3..7 (Keeper, Resonance, Spring II, Onyx II, Larkspur II) and 12
-    // (Artifact Sight); with Cascade, bit 8 instead of bit 4.
+    // Resistance 5, then bits 3..7 (Keeper, Resonance, Spring II, Onyx II, Larkspur II), 12
+    // (Artifact Sight) and 14 (Courier); with Cascade, bit 8 instead of bit 4.
     let power = modifier_index("artefact_power").unwrap();
-    assert_eq!(at("artefact_power"), 4349.0);
-    assert_eq!(tree.modifiers(&build(5, CASCADE))[power], 4589.0);
+    assert_eq!(at("artefact_power"), 4349.0 + 16384.0);
+    assert_eq!(tree.modifiers(&build(5, CASCADE))[power], 4589.0 + 16384.0);
     #[rustfmt::skip]
-    let bits = [(502, 1.0), (KEEPER, 8.0), (RESONANCE, 16.0), (531, 32.0), (532, 64.0), (533, 128.0), (CASCADE, 256.0), (513, 4096.0)];
+    let bits = [(502, 1.0), (KEEPER, 8.0), (RESONANCE, 16.0), (531, 32.0), (532, 64.0), (533, 128.0), (CASCADE, 256.0), (513, 4096.0), (534, 16384.0)];
     for (id, bits) in bits {
         assert_eq!(tree.modifiers(&[(id, 1)])[power], bits, "{id}");
     }
