@@ -14,7 +14,8 @@ usage: python3 -I make_pack.py --inputs <folder> --modules <folder> [--record <f
 --out      the pack's folder (a new one).
 
 What the pack holds, for each device of devices.tsv (devices.py makes it again and refuses a stale one):
-- its item: a dictionary row (category 22, as the scopes; its price as base_cost) and a config whose
+- its item: a dictionary row (category 22, as the scopes; its price as base_cost) and a config of a
+  shop scope item's shape (its `data` names the device's model; `ui_desc/props_list` empty) whose
   modification, on the weapon it is fitted to, adds data/srp_muzzle = the item's own dict id (what
   client patch 161 draws by, docs/notes/attachments.md), sets particles/shoot to its shot effect when
   0.69d0 gives it one, and scales the weapon's own values by its stats (type 2);
@@ -274,7 +275,11 @@ def item_config(device, cell):
         'parameters': {'weight': 0.0, 'modification': modification},
         'modifications': [{'id': modification, 'modifiers': mods}],
         'ui_desc': {'text_descriptions': {'name': f'st_{stem}_name', 'description': f'st_{stem}_description'},
-                    'icon': list(cell)},
+                    'icon': list(cell), 'props_list': {}},
+        # a shop scope item's shape, as the grips' items (without `data` and `props_list` the game crashed
+        # at its start in binary_config_value::operator[]: docs/notes/attachments-muzzles.md)
+        'data': {'idle_model': device['model'], 'aimed_model': device['model'], 'type': 5, 'fov_factor': 1.0,
+                 'near_plane_factor': 0.5, 'change_scope_factor': 1.0, 'hide_weapon_on_aim': False},
     }
 
 

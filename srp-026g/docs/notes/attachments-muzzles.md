@@ -29,6 +29,13 @@ LIKELY, OPEN.
 scopes, configs `gameplay/items/muzzle_devices/<item>.options`. In the modules table as built
 (`weapon-modules@1`): 544 gun and device fits on 88 of the 102 guns.
 
+- **A config has a shop scope item's shape**, as the grips' items: `data` (the device's model as
+  `idle_model` and `aimed_model`, type 5, the factors 1 / 0.5 / 1, `hide_weapon_on_aim` false) and
+  an empty `ui_desc/props_list` beside the modification. SEEN, 2026-11-21: without the two, the
+  game crashed at its start, on the sign-in screen, with nothing fitted (an access violation, the
+  last frame of ours in `binary_config_value::operator[]` 0xF6B10), twice; the grips' items,
+  which had them, did not. Which key it reads is not proven.
+
 | Family | Devices | 0.69d0 at its bought grade (7) | Here |
 |---|---|---|---|
 | Muzzle brakes and compensators | 17 | recoil -4 %, aim time +3 % | the same |
@@ -60,8 +67,8 @@ scopes, configs `gameplay/items/muzzle_devices/<item>.options`. In the modules t
   every device alike. The items table (`content-edit/items.tsv`, a row for every dictionary entry)
   has the devices' rows from `items.py`.
 - **The card** shows the name and the description; the description says the numbers in the
-  dictionary's own words for each stat. No `props_list`: how the lobby draws a modification's
-  property on an item's card was not tried.
+  dictionary's own words for each stat. `props_list` is empty: how the lobby draws a
+  modification's property on an item's card was not tried.
 
 **Left out, by a rule the build checks** (`left_out.tsv`): the four VSSK barrels (ids 2652-2655).
 Each is a barrel (group `*_barrel`) of a gun whose own part in that slot is a silencer: the VSSK's
@@ -161,7 +168,6 @@ until a game shows it:
 
 - that an item's modification reaches the weapon's config as the cook sees it (`data/srp_muzzle`
   by a type 3 modifier, as a camouflage adds `data/camouflage`);
-- that a category-22 item without a `data` table (a scope item has one) is taken by the lobby;
 - that the re-encoded particles load and look right with their rebuilt materials (brightness, the
   fire materials without 0.46c2's angle attenuation, the small mips of the flash textures);
 - that the flash plays at the device's fire point;
