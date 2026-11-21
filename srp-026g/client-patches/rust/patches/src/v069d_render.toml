@@ -1,5 +1,5 @@
 # Patch 170: the passes a ported 0.69d map's programs need bind what they read
-# (docs/notes/client_patch.md section 3.91). Only the decisions: the sites and
+# (docs/notes/client_patch.md section 3.92). Only the decisions: the sites and
 # the handlers. The sites are sites_026g.tsv's; the logic is v069d_render.rs.
 name = "v069d_render"
 patch = 170

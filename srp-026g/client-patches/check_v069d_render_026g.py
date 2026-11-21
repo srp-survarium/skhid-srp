@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Patch 170 (v069d_render): the passes a ported 0.69d map's programs need bind what they read
-(../docs/notes/client_patch.md section 3.91).
+(../docs/notes/client_patch.md section 3.92).
 
     python check_v069d_render_026g.py <original survarium.exe>
 

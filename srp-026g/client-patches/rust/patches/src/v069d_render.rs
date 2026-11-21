@@ -1,5 +1,5 @@
 //! Patch 170: the passes a ported 0.69d map's own programs need bind what
-//! they read (docs/notes/client_patch.md section 3.91). The programs are the
+//! they read (docs/notes/client_patch.md section 3.92). The programs are the
 //! lighting pack's (resource-porter `three-maps-021-lighting`): each takes
 //! 0.69d's arithmetic only behind its scene's marker and the native
 //! instructions everywhere else, so the bindings are made on every map and a

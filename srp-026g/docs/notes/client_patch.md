@@ -2284,7 +2284,7 @@ The owner, 2026-11-21: "white hit crosses are not seen when shot through walls (
 - **Checked:** `check_hit_marker_walls_026g.py` (Unicorn; `tools/check hit-marker-walls`): the pierce from 0x32D886, the hit from 0x1F3D50 to its `ret 1Ch`, the draw from 0x24745B with the game's own draw_damage_collector and a stand-in invoke, in both exes: the marker for a clear hit, leaves, a body, a gun-stock, one clear pellet of a step in either order, a clear hit not drawn before a walled one, a clear hit on a victim after a hidden one on another; none for a round through a wall (the default material too) or only walled pellets; another shooter's collector its own; the registers kept the original's; 0x23CF20's and the draw's bytes but the hook's the original's. The hud's harness (`scripts/hud-options/check.sh`, HudHarness): with All, a kill after a hit's white bars draws what Kill marker only draws. The marks are not rolled back with the world (`hit-marker-walls.md`, limits).
 
 
-### 3.91 The passes a ported 0.69d map's programs need bind what they read (written 2026-11-21, README patch 170, the next release's revision) — PROVEN in the code (Unicorn: check_v069d_render_026g.py), not run in a game
+### 3.92 The passes a ported 0.69d map's programs need bind what they read (written 2026-11-21, README patch 170, the next release's revision) — PROVEN in the code (Unicorn: check_v069d_render_026g.py), not run in a game
 
 Rudnya (v0.69)'s fog, sky and metering are drawn by the lighting pack's programs (resource-porter
 `three-maps-021-lighting`), each 0.69d's arithmetic behind its scene's marker and the native
