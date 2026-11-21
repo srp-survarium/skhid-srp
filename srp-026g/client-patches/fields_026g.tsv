@@ -1543,3 +1543,8 @@ vostok::animation::n_ary_tree	animation_count	0x20	u32	their count (0x39F774)
 vostok::animation::animation_state	node	0xA8	ptr<vostok::animation::animation_node>	its animation's node in the tree (bone_matrices_computer 0x3B1956, 0x3B20C0)
 vostok::animation::animation_state	size	0xB0	size	a record: B0h bytes (0x3B1920, 0x3B1A83)
 vostok::animation::animation_node	animated_object	0x30	u32	whose bones it poses: the object's address as a key (a weapon's own for its item clips, weapon_core_base_state::animation_lexeme 0x31EDA5; the computer compares it at 0x3B1959, 0x3B20C6)
+survarium::weapon	breath	0x288	obj<survarium::breath_vibration_calculator>	its breath_vibration_calculator (weapon_core::tick 0x2E0A23 ticks it only while aimed, +5E8h; serialized only then, 0x31DA30)
+survarium::breath_vibration_calculator	state	0x10	ptr<survarium::breath_state>	m_logic's current state (the vostok::ai::fsm at +0: fsm::tick 0x38CA20 ticks it and sets it at 0x38CAC9); one of the three states initialize_logic 0x31D450 makes
+survarium::breath_vibration_calculator	breath_holding_reserve	0x50	f32	m_breath_holding_reserve, seconds of hold left: the holding state's tick takes dt off it (0x31D213, at least 0), insufficient_breath 0x31D430 ends the hold in short breathing at 0 or less, holding's finalize 0x31D1D0 refills it
+survarium::breath_state	vtable	0x0	u32	its vtable: normal 0xA16F64, holding 0xA16FAC, short breathing 0xA16F88 (initialize_logic 0x31D48B, 0x31D4CF, 0x31D51C)
+survarium::image	breath_holding_vtable	0xA16FAC	u32	breath_state_holding's vtable (initialize_logic 0x31D4CF): +4h initialize 0x31D140, +0Ch finalize 0x31D190, +1Ch tick 0x31D200

@@ -7853,6 +7853,15 @@ impl Weapon {
     pub unsafe fn set_state(self, value: Option<WeaponState>) {
         unsafe { self.0.byte_add(0x330).cast::<Option<WeaponState>>().write_volatile(value) }
     }
+
+    /// +0x288 (obj<survarium::breath_vibration_calculator>): its breath_vibration_calculator (weapon_core::tick 0x2E0A23 ticks it only while aimed, +5E8h; serialized only then, 0x31DA30)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn breath(self) -> BreathVibrationCalculator {
+        BreathVibrationCalculator(unsafe { self.0.byte_add(0x288) })
+    }
 }
 
 /// A survarium::weapon_hide_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -28794,6 +28803,72 @@ impl AnimationNode {
     }
 }
 
+/// A survarium::breath_vibration_calculator (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BreathVibrationCalculator(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BreathVibrationCalculator {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x10 (ptr<survarium::breath_state>): m_logic's current state (the vostok::ai::fsm at +0: fsm::tick 0x38CA20 ticks it and sets it at 0x38CAC9); one of the three states initialize_logic 0x31D450 makes
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn state(self) -> Option<BreathState> {
+        unsafe { self.0.byte_add(0x10).cast::<Option<BreathState>>().read_volatile() }
+    }
+
+    /// +0x10 (ptr<survarium::breath_state>): m_logic's current state (the vostok::ai::fsm at +0: fsm::tick 0x38CA20 ticks it and sets it at 0x38CAC9); one of the three states initialize_logic 0x31D450 makes
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_state(self, value: Option<BreathState>) {
+        unsafe { self.0.byte_add(0x10).cast::<Option<BreathState>>().write_volatile(value) }
+    }
+
+    /// +0x50 (f32): m_breath_holding_reserve, seconds of hold left: the holding state's tick takes dt off it (0x31D213, at least 0), insufficient_breath 0x31D430 ends the hold in short breathing at 0 or less, holding's finalize 0x31D1D0 refills it
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn breath_holding_reserve(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x50).cast::<f32>().as_ptr() }
+    }
+}
+
+/// A survarium::breath_state (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BreathState(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl BreathState {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (u32): its vtable: normal 0xA16F64, holding 0xA16FAC, short breathing 0xA16F88 (initialize_logic 0x31D48B, 0x31D4CF, 0x31D51C)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
 /// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -29618,6 +29693,9 @@ pub mod image {
 
     /// 0x23fc31 (u8, survarium::image): the landing step's (0x23FBE0) return from on_step (call 0x23FC2C)
     pub const LANDING_STEP_RETURN: u32 = 0x23fc31;
+
+    /// 0xa16fac (u32, survarium::image): breath_state_holding's vtable (initialize_logic 0x31D4CF): +4h initialize 0x31D140, +0Ch finalize 0x31D190, +1Ch tick 0x31D200
+    pub const BREATH_HOLDING_VTABLE: u32 = 0xa16fac;
 }
 
 /// A general-purpose register at a hook's site.
