@@ -168,8 +168,63 @@ not loaded or with fewer bones; a drawn grip means its record survived the accou
   record became `9100:2660:0:5` (the MIKI in kit slot 5) and the PTK went back to the inventory;
   the window's gun and the lobby's character show the MIKI under the forend. The window shows the
   Optics slot and the grip slot; no muzzle device slot was shown on that gun.
-- **Not looked at**: the third view in a match, sprint and crouch with a grip, a second viewer, the
-  belt-fed guns' reload (the PKP's and the Fort-401's did not start in these sessions).
+
+## Seen in a game, the integrated tree (2026-11-21, later)
+
+Server and exe 98843a3ef, the integration's full content (`build-content 69 --full`: the pack
+`weapon-modules@3`, `weapon-grips@1`, the 872 compatibility rows), the same rig with more bots
+(every bot's gun wearing the grip), a second game client as a viewer, and a lobby session. Pictures:
+`private/renders/attachments-grips/third/`, `closeups/`, `moving/`.
+
+- **A teammate's fitted gun, the third view** (a 2v2 of the player and three bots, each with an
+  AK-74M and the PTK in kit slot 5): from his right at a step and a half, from behind and from his
+  left, the Midwest forend stands in place of the stock one and his left hand is closed round the
+  grip under it (the PTK is a stub inside the fist). No finger through the forend, nothing
+  floating (`third/keep/t-ak74m-ptk-side-on.png`).
+- **The FSG2 and the AFG-1**, which the first view hides, in the Attachments window (the gun
+  alone, side on): the FAMAS and the vz. 58 with the FSG2, the FN FNC and the AK-74M with the
+  AFG-1, each under its carrier (the FAMAS's grip rail, the FAB quad rail, the rail bracket, the
+  Midwest forend), the angled face to the front (`closeups/*-window-gun-x2-brightened.png`). The
+  window has its three slots on these guns: Optics, Muzzle device, Grip.
+- **Crouched, the first view**: the hand is where it is standing, on the grip (the 22 sessions'
+  crouch pictures; the SKS, the UMP45 and the Mauser beside the plain gun).
+- **The sprint**: in the first view the gun is out of the picture, plain or with a grip, at
+  `uro_fov` 65 and 100. In another player's view (the AK-74M with the PTK running up to the viewer,
+  `third/keep/p2-ak74m-ptk-sprint-seen-by-the-viewer-frames-009-013.jpg`) the gun is carried muzzle
+  down across the body with its railed forend drawn and the left hand at the forend; whether the
+  fingers are round the grip is not told at that size (the gun is 60 px in tall grass). Nothing
+  floats or stretches.
+- **The Mauser M.712's own grip, aimed: decided, it stays as 0.69d0 holds it** (2026-11-21, the
+  port's rule). Plain against with the grip on the same spawn point, the same view and the same
+  moves (`moving/mauser-aimed-plain-vs-own-crop.png`, the sheets beside it): plain, the left hand
+  cups the right and its forearm comes up steeply from the bottom edge; with the grip the hand
+  holds the handle at the pistol's front and the forearm lies flatter across the lower left. The
+  two pictures differ in one wedge to the lower left of the gun, 3.3 % of the picture; the sights
+  and the centre are the same, walking, strafing, turning and crouching too. PROVEN in 0.69d0's
+  data: the grip's module has only the `_idle` hand locators, one hand place aimed or not. No
+  picture of 0.69d0's own game with this grip is kept.
+- **A second player's view of the player's own gun** (two game clients on one side of a 2v2; the
+  viewer two to five metres off, the player turning his sides to it): the AK-74M with the PTK
+  walking past, the fingers round the grip under the Midwest forend
+  (`third/keep/p-ak74m-ptk-run1-second-viewer-walk-006.jpg`); the Mauser with its own grip from
+  the left, the left hand out at the handle under the muzzle, where the plain Mauser's cups the
+  right hand (`third/keep/mauser-third-view-left-side-plain-above-own-below-x2.jpg`); crouched, the
+  hand stays.
+- **The belt-fed guns' reload** had not started because the rig gave 60 rounds and the PKP's box
+  took them all (59 / 000): not a fault of the grip. With 300 rounds, the PKP's reload with its
+  own grip in another player's view (`third/keep/p-pkp-own-reload-left-side-strip.jpg`): the hand
+  leaves the handle, the cover goes up, the belt is laid, the cover comes down and the hand is
+  back on the handle; the grip stays on the gun throughout.
+- **The weapon's card with a grip**: on 98843a3ef a gun's card listed a fitted grip under the
+  scopes' heading ("Optics / collimators: FSG2 foregrip"); on c8df2f38d it has its own line: the
+  VSK-94 with the RK-2 reads "Optics / collimators: Stock scope" and "Grip: Zenit RK-2 tactical
+  grip" (`refusal/01-card-headings-x4.png`).
+- **The refused pair's text, the VSK-94** (c8df2f38d, both ways; `refusal/`): the gun holding the
+  RK-2 on its clamp, the DTK-3 dragged onto the muzzle slot; and a VSK-94 holding the DTK-3, the
+  RIS dragged onto the grip slot. Each is refused at the drop with the dialog "It does not go with
+  the weapon's muzzle device or grip." (the server's `st_srp_attach_unfit`); after OK the slot it
+  was dropped on is empty, the fitted item stays, the refused one is back in the inventory. The
+  P90's half was seen by the integration.
 
 ## State (2026-11-21)
 
@@ -186,9 +241,8 @@ Done, and checked without a game:
 
 Not done:
 
-1. The lobby's words for a refused pair (the P90's and the VSK-94's 66 pairs): not tried in a game.
-2. The compatibility rows' manifest row (`weapon-modules-fits-1.json`, the lead's) goes in when the
-   lanes merge; the shop above used a local copy cut to the grips.
-3. `release/build-content --full` with the grips' pack (the branch's one full build is the
-   integration's).
-4. The stats' later readers (aimed and hip recoil, the first three shots, aimed movement speed).
+1. Not seen: the Fort-401's reload with its own grip (its session did not get its two game
+   clients' video memory before the owner's game started); a teammate's reload from close by with
+   the grip in view (the bot's was recorded from his shadowed side); the sprint's hand from close.
+2. A refused pair's dialog does not say which fitted item is in the way.
+3. The stats' later readers (aimed and hip recoil, the first three shots, aimed movement speed).
