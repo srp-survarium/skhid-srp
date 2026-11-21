@@ -75,7 +75,7 @@ research = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(research)
 
 PACK_ID = 'artefact-hunt'
-VERSION = '4'
+VERSION = '5'
 EDITS = 'artefact-hunt-1.json'
 # `mode.mode`, the lobby's number of the mode too (maps::GameMode::lobby_number is the rules'
 # number): 2 to 5 and 8 are modes, 6 Blackout, 7 Scarcity's (#1083), 9 to 11 the lobby's numbers of
@@ -86,9 +86,9 @@ MODE = 13
 # Research's 0x1E0: the next class free in register_cook's table) and the kd rule 94.
 RULE_CLASS = 0x1E1
 RULES = [93, 91, RULE_CLASS, 94]
-# The lobby's mode icon (ui.icon: SrvGameModeIcons frame icon + 1). 0.26g's movie has three
-# frames and none of an artefact (0.46c2's 5): 0, the protective device of the battery modes.
-ICON = 0
+# The lobby's mode icon (ui.icon: SrvGameModeIcons frame icon + 1): 3, Artifact Hunt's own frame
+# of the lobby movie (srp-026g/flash/lobby_menu; 0 to 2 are 0.26g's battery, mast and skull).
+ICON = 3
 # maps_dict ids: 300 + 3 x (level - 1) + (day 0, evening 1, rain 2). Above every id taken (281)
 # and clear of the ports' block from 256; over a byte, so srp's block carries them (patch 154).
 FIRST_MAP_ID = 300
