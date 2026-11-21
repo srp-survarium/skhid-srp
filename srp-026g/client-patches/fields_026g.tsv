@@ -1557,8 +1557,8 @@ vostok::resources::cook_entry	size	0x4	size	a place
 survarium::player_respawn_rule_base	core	0x134	ptr<survarium::core_world>	respawn tick 31689F reads the owning world
 survarium::player_respawn_rule_base	times	0x138	u32	twenty scheduled respawn times; u32::MAX means unscheduled; tick 3168B4 compares against its time
 survarium::player_respawn_rule_base	respawn_time	0x114	u32	the config's respawn_time x 1000 (constructor 0x316783)
-survarium::freeze_rule_frame	elapsed	0x8	u32	player_respawn_rule_base::tick first argument, delta milliseconds
-survarium::freeze_rule_frame	time	0xC	u32	player_respawn_rule_base::tick second argument, simulation milliseconds (0x3169A2)
+survarium::respawn_tick_frame	elapsed	0x8	u32	player_respawn_rule_base::tick's first argument, the step's milliseconds
+survarium::respawn_tick_frame	time	0xC	u32	its second argument, the step's simulation time (0x3168B4 compares each place's time with it; 0x3169A2 passes it to the spawn)
 survarium::death_delay_frame	data	0x1C	ptr<survarium::kill_event>	the death handler's data at 0x316B6B (its argument: ESP+1Ch there)
 survarium::death_delay_frame	time	0x20	u32	the death's time at 0x316B6B (ESP+20h; read at 0x316B71)
 survarium::base_game_statistics_handler	team_zero_points	0x31D4	u16	team score, tdm rule writes at 316257; Research uses the same field

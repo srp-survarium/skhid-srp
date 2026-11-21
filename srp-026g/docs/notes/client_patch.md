@@ -4226,9 +4226,9 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
   whole seconds), 18. The tick (a `callback` of the time rule's convention, 0x317F10) steps the rule and,
   in play, sets the blackboard's two flags through `set<bool>` 0x316630 when they differ.
 - **The respawn rule**: `respawn.death_delay` 0x316B6B (EAX the delay: `Rule::respawn_at`'s wave less
-  the death's time; the native grid after it) and `freeze.rule_tick` 0x316826 (Freeze Tag's site, order
-  1: `Rule::spawning` holds, -1, the places due in a restart, and gives every active place the step's
-  time at the fade's end).
+  the death's time; the native grid after it) and `respawn.tick` 0x316826 (shared with Freeze Tag, its
+  handler order 0, ours order 1: `Rule::spawning` holds, -1, the places due in a restart, and gives
+  every active place the step's time at the fade's end).
 - **The input**: `carry.input` 0x2D86E0 gains the exit `held@0x2D8A0C` (apply_new_input's own `ret 8`,
   reached from its epilogue's `mov esp,ebp / pop ebp` with the entry's stack: proven under Unicorn, the
   two arguments popped); `artefact_carry::on_input` asks `artefact_hunt::input` first with patch 78's

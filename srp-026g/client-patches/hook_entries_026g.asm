@@ -1158,7 +1158,7 @@ artefact_hunt_on_death_delay_replay:
     db 0x8b, 0x8f, 0x34, 0x01, 0x00, 0x00
     jmp 0x316b71
 
-; 0x316826 respawn tick after kit-change trampoline/prologue; before vectors (push ebx; push esi; mov ebx,ecx; push edi): lohook -> artefact_hunt_on_respawn_tick
+; 0x316826 player_respawn_rule_base::tick after patch 31's kit-change jump at 0x316820 and its prologue (push ebp / mov ebp,esp / sub esp,34h), before it reads a place's time (push ebx / push esi / mov ebx,ecx / push edi): ECX the rule, EBP its frame; the modes that hold the places' times or make them due (Freeze Tag, Artifact Hunt) chain here by order: lohook -> artefact_hunt_on_respawn_tick
 global artefact_hunt_on_respawn_tick
 extern hook_artefact_hunt_on_respawn_tick
 artefact_hunt_on_respawn_tick:

@@ -648,7 +648,7 @@ pub struct RespawnTick<'t> {
 
 impl<'t> RespawnTick<'t> {
     pub fn at(ctx: &'t Context<'_>) -> Option<Self> {
-        use raw::site::freeze_rule_tick as site;
+        use raw::site::respawn_tick as site;
         // SAFETY: the tick's ECX and EBP frame at the site.
         let (rule, time) = unsafe { (site::rule(ctx)?, read(site::frame(ctx)?.time())) };
         Some(Self { rule, time, thread: ctx.thread() })

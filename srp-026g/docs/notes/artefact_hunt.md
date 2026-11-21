@@ -296,8 +296,8 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
     step's time, so this very tick takes out and spawns them all, alive or dead, at their team's
     points; one without a free point the next step (the native +50 ms), inside the countdown;
   - `Native` otherwise.
-  It is the site Freeze Tag's worktree adds as `freeze.rule_tick` (same VA and span, uncommitted):
-  whichever lands first adds the row, the other's handler chains by order.
+  The site is `respawn.tick` (`survarium::respawn_tick_frame`), one row shared with Freeze Tag:
+  its handler is order 0, this one order 1, both before the native compare of the places' times.
 - **What a round start resets** is what a respawn after a death resets, for everyone, and nothing
   else (PROVEN, `base_player::initialize` 0x2DAC00, the spawn's): alive, no pending death, the
   input zero (+32Ch, +330h, 0x2DAC8D..0x2DAC99), the damage model (`damage_model::reset` 0x2E5290:
@@ -345,8 +345,8 @@ The native respawn rule (91) keeps its points and its spawn; four things are ask
   `carry.input` (0x2D86E0, the entry, before its early returns), whose handler already asks this
   patch first (below, the use key): it gains the exit `held@0x2D8A0C`, the function's own `ret 8`
   (0x2D8A09 `mov esp,ebp / pop ebp` gives back the entry's stack, so the entry's stack is what that
-  `ret 8` expects). Freeze Tag's worktree drops a frozen body's input at 0x2D86EE, after the
-  prologue, to 0x2D8A06; that is after patch 78's handler, which would still see the presses.
+  `ret 8` expects). Freeze Tag holds a frozen body's input at the same entry with the same exit
+  (its handler order 0, patch 78's order 1), so a frozen player's Use takes no artefact.
 - **Why the player stands still:** the round start's spawn zeroes the stored input (0x2DAC8D,
   0x2DAC99), and none is applied until the countdown ends: no move, no turn, no fire, no use, no
   drop. Gravity, the animations and the player's own tick go on (his tick is not stopped, unlike

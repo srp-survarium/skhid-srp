@@ -86,7 +86,7 @@ site = "respawn.death_delay"
 handler = "on_death_delay"
 
 [[hook]]
-site = "freeze.rule_tick"
+site = "respawn.tick"
 handler = "on_respawn_tick"
 order = 1
 
