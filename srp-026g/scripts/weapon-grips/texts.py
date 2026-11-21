@@ -2,13 +2,13 @@
 """texts.py: the grips' names and descriptions in the eleven localization tables
 (../../client-patches/localization/<language>.tsv), under 0.69d0's own keys.
 
-usage: python3 -I texts.py <donor folder> [--write]
+usage: python3 -I texts.py <donor folder> [--write | --check]
 
 A name is 0.69d0's own in the languages it ships (the donor folder's names/), names.tsv's in the
 others. A description is the grip's stats (grips.py), a line of DESCRIPTION's words: the numbers
 are never typed. Each table gets the keys in its key order (check_localization_026g.py wants the
 keys sorted); rows this made before are replaced, so it can be run again after a retune or a
-merge. Without --write it only says what would change.
+merge. Without --write it only says what would change; with --check that is a failure.
 """
 from pathlib import Path
 import sys
@@ -81,6 +81,8 @@ def main():
             if write:
                 path.write_text('\n'.join([head] + [f'{k}\t{rows[k]}' for k in sorted(rows)]) + '\n', encoding='utf-8')
     print(f'{changed} tables {"written" if write else "would change"}' if changed else 'nothing to change')
+    if changed and '--check' in sys.argv[2:]:
+        sys.exit(1)
 
 
 if __name__ == '__main__':

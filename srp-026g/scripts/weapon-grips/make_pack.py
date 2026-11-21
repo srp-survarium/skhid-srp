@@ -3,6 +3,7 @@
 to a weapon's kit slot 5 (docs/notes/attachments-grips.md, attachments.md).
 
 usage: python3 -I make_pack.py --donor <folder> --modules <pack folder> --out <packs folder>/weapon-grips-<version>
+                               [--check]
        (needs numpy and Pillow: nix-shell -p 'python3.withPackages(p: [p.numpy p.pillow])')
 
 --donor    donor.sh's folder (0.69d0's game.options rows, its names and its pictures of the grips).
@@ -19,7 +20,9 @@ What the pack holds, a grip of ../weapon-modules/ids.tsv each (grips.py reads th
   parameters/aim_time, as the stock recoil and aim-time rolls (weapon-rolls.md);
 - its dictionary row (the price) and its icon, 0.69d0's own picture in the stock icons' frame.
 The texts are the localization tables' (texts.py). Also writes grips.tsv here: what each grip is
-in 0.69d0 and here.
+in 0.69d0 and here. With --check it writes the pack and nothing else, and fails unless grips.tsv,
+the pack's row of release/content.tsv and the grips' rows of ../content-edit/items.tsv are what it
+makes (tools/check weapon-grips).
 """
 import argparse
 import hashlib
@@ -103,6 +106,7 @@ def main():
     parser.add_argument('--donor', type=Path, required=True)
     parser.add_argument('--modules', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
     if args.out.exists():
         sys.exit(f'{args.out}: already there; the pack goes in a new folder')
@@ -142,13 +146,25 @@ def main():
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
     (args.out / 'pack.json').write_text(json.dumps(pack, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    (HERE / 'grips.tsv').write_text(table(grips), encoding='utf-8')
     digest = hashlib.sha256((args.out / 'pack.json').read_bytes()).hexdigest()
     print(f'{args.out}: {len(grips)} items, pack.json sha256 {digest}')
-    print(f'manifest row: pack\t{PACK_ID}@{VERSION}\t{digest}\t{pack["description"]}')
+    row = f'pack\t{PACK_ID}@{VERSION}\t{digest}\t'
+    items = [f'{grip.dict_id}\t{grip.item}\t{lib.PRICE}\tfalse\t\t' for grip in grips]
+    if args.check:
+        repo = HERE.parents[2]
+        stale = [what for what, ok in (
+            ('grips.tsv', (HERE / 'grips.tsv').read_text(encoding='utf-8') == table(grips)),
+            (f'release/content.tsv ({row.strip()})', any(
+                line.startswith(row) for line in (repo / 'release/content.tsv').read_text(encoding='utf-8').splitlines())),
+            ('content-edit/items.tsv', set(items) <= set(
+                (HERE.parent / 'content-edit/items.tsv').read_text(encoding='utf-8').splitlines()))) if not ok]
+        if stale:
+            sys.exit('not what make_pack.py makes: ' + '; '.join(stale))
+        return
+    (HERE / 'grips.tsv').write_text(table(grips), encoding='utf-8')
+    print(f'manifest row: {row}{pack["description"]}')
     print('items.tsv rows:')
-    for grip in grips:
-        print(f'{grip.dict_id}\t{grip.item}\t{lib.PRICE}\tfalse\t\t')
+    print('\n'.join(items))
 
 
 if __name__ == '__main__':
