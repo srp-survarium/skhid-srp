@@ -2,22 +2,23 @@
 
 The owner, 2026-11-21: "white hit crosses are not seen when shot through walls (except for
 leaves)", "red ones are still shown when killed"; then "Through a wall, kill shows exactly what
-'Kill marker only' shows". Exe patch 167 (`client-patches/rust/patches/src/hit_marker_walls.rs`,
+'Kill marker only' shows"; then "should show through glass, foliage and cloth". Exe patch 167 (`client-patches/rust/patches/src/hit_marker_walls.rs`,
 `src/vostok/hit_marker.rs`).
 
 ## The rules
 
 - **The marker:** the white bars around the crosshair on a hit on an enemy
   (`root.crosshair_enemy_hit`, `Crosshair.setDamage`; `hide-hit-markers-scores.md`).
-- **Through a wall:** a hit that does not kill, by a bullet that went through any surface other
-  than leaves before the body, shows no marker: as "Kill marker only" treats a hit.
+- **Through a wall:** a hit that does not kill, by a bullet that went through a wall before the
+  body, shows no marker: as "Kill marker only" treats a hit.
 - **A kill through a wall** shows exactly what "Kill marker only" shows: the whole kill marker,
   white at the centre and the red ends, none of the hit's own white bars.
-- **A surface:** the level's collision and a prop's: walls, floors, glass, wood, metal, cars,
-  trees' trunks, water. Leaves are not one (foliage_coniferous, foliage_deciduous, foliage_dry:
-  bushes, branches; as patch 158's eye goes through them).
+- **A wall:** the level's collision and a prop's, of a material whose `armor` (game.materials) is
+  above 0: walls, floors, wood, metal, cars, trees' trunks, glass_hard (0.10). A material of armor 0
+  is not one: in the live data glass, glass_car, foliage, cloth, plastic, paper. It is the
+  piercing's own rule: try_pierce lets a bullet through armor 0 for nothing (k = 1, patch 175).
 - **Not a surface:** another player's body, a trap, a lamp (what a bullet hits as an object).
-- **Unchanged:** a hit with no surface in between or only leaves; a ricochet off a wall straight
+- **Unchanged:** a hit with no surface in between or only surfaces of armor 0; a ricochet off a wall straight
   into the body; a gun-stock hit; grenades (the game gives them no white marker).
 - **Shotgun:** the pellets of one shot that hit the same player count together: one that reached
   him clear shows the marker, with all the shot's damage. So does a clear hit not shown yet when
@@ -45,12 +46,13 @@ leaves)", "red ones are still shown when killed"; then "Through a wall, kill sho
   The kill marker is another call, `crosshair_enemy_hit(1.0, 200, true)` (0x23CF20, the kill
   event's), which the movie draws the same with All and with Kill marker only (#2022).
 - **A bullet's surfaces:** check_collision (0x32D4E0) gives try_pierce the triangle's material
-  (bullet +4Ch) and the hit receiver the ray met (0 for the level); a leaf has armor 0, so every
-  bullet goes through it, as through glass. The bullet keeps only counts (+84h, +88h), so the
+  (bullet +4Ch) and the hit receiver the ray met (0 for the level); try_pierce reads the
+  material's armor at its +4Ch (0x32D980). The bullet keeps only counts (+84h, +88h), so the
   patch notes what it went through.
 - **The patch** (three lohooks, `sites_026g.tsv`):
   - `bullet.pierced` (0x32D88A, check_collision once try_pierce let the bullet through): a round
-    (ranged ammo) through a surface not of the leaves' materials (24, 44, 49) is noted by its key
+    (ranged ammo) through a surface whose material's armor (its +4Ch, read from the game as
+    try_pierce reads it) is not 0 is noted by its key
     (its id and fire time, +4 and +5Ch, which a reloaded world gives it again), the last 128;
   - `damage_collector.hit` (0x1F3D76, generate_hit_event's store into the collector): the
     shooter's mark, by place: a clear hit pending its draw, or walled (the collector, the victim
