@@ -1584,6 +1584,114 @@ st_multiplicative_stamina_spending_modifier	Potrošnja energije
 st_munition	Municija
 st_music_volume_option	Muzika
 st_must_be_in_clan_team	Morate biti u timu klana.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	Usna kočnica AEK-919K, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	Samo izgled.
+st_muzzle_akmsu_m24x15_muzzlebrake_name	Skrivač plamena AKMSU, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	Samo izgled.
+st_muzzle_aks74u_m24x15_muzzlebrake_name	Skrivač plamena AKS-74U, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Usna kočnica Rapira, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Skrivač plamena ROFH, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Skrivač plamena ROFH, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Rasipanje -20 %. Vreme nišanjenja +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Čok Custom 01, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_01_duckbill_name	Pačji kljun Custom 01, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Usna kočnica Custom 01, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Rasipanje -20 %. Vreme nišanjenja +3 %.
+st_muzzle_custom_01_m22x075_choke_name	Čok Custom 01, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Usna kočnica Custom 01, M30x1
+st_muzzle_custom_02_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_02_duckbill_name	Pačji kljun Custom 02, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_custom_02_m14x1l_firearrestor_name	Skrivač plamena Custom 02, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_custom_02_m24x15_firearrestor_name	Skrivač plamena Custom 02, M24x1.5
+st_muzzle_custom_03_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_03_duckbill_name	Pačji kljun Custom 03, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Skrivač plamena Custom 03, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Skrivač plamena Custom 04, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Skrivač plamena Custom 04, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Skrivač plamena Custom 04, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Pačji kljun Custom 01, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Pačji kljun Custom 02, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Rasipanje -15 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Pačji kljun Custom 01, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Usna kočnica T-Brake, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Usna kočnica T-Brake, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Usna kočnica Defcon 1, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Usna kočnica Defcon 1, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Usna kočnica Defcon 1, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Rasipanje -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Usna kočnica Guns.ru, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Rasipanje -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Usna kočnica Kochevnik, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	Usna kočnica KKM, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Usna kočnica Dragon, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Usna kočnica Dragon, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Usna kočnica Dragon, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Skrivač plamena NightBrake, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Skrivač plamena NightBrake, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Skrivač plamena NightBrake, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Skrivač plamena NightBrake, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Rasipanje -20 %. Vreme nišanjenja +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Čok Polychoke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Rasipanje -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Usna kočnica Ilgynag K01, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Skrivač plamena Krymsk-2, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Usna kočnica Shturm, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Usna kočnica Shturm, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Rasipanje -20 %. Vreme nišanjenja +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Čok Remington, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Rasipanje -20 %. Vreme nišanjenja +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Čok Remington, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Rasipanje -20 %. Vreme nišanjenja +3 %.
+st_muzzle_remington_m22x075_choke_name	Čok Remington, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Skrivač plamena Dynacomp, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Rasipanje -20 %. Vreme nišanjenja +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Čok Sure-Hit, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Skrivač plamena TT-419, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Skrivač plamena Antidote, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Usna kočnica Zenit DTK-2, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Usna kočnica Zenit DTK-3, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Usna kočnica Zenit DTK-4, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Trzaj oružja -4 %. Vreme nišanjenja +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Usna kočnica Zenit DTK-4, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Skriva bljesak pucnja. Samo izgled.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Skrivač plamena Zenit DTK-4, M30x1
 st_my_place	Moj rang
 st_neostead_description	Južnoafrička sačmarica kalibra 12, koju je Toni Neofitu razvio devedesetih. Bulpap konstrukcija sa dva cevasta magacina iznad cevi; repetira se guranjem potkundaka napred. Prima 12 patrona. Samo pojedinačna paljba.
 st_neostead_name	NeoStead 2000

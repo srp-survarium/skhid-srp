@@ -1584,6 +1584,114 @@ st_multiplicative_stamina_spending_modifier	Koszty energii
 st_munition	Sprzęt
 st_music_volume_option	Muzyka
 st_must_be_in_clan_team	Musisz należeć do drużyny klanu.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	Hamulec wylotowy AEK-919K, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	Tylko wygląd.
+st_muzzle_akmsu_m24x15_muzzlebrake_name	Tłumik płomieni AKMSU, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	Tylko wygląd.
+st_muzzle_aks74u_m24x15_muzzlebrake_name	Tłumik płomieni AKS-74U, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Hamulec wylotowy Rapira, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Tłumik płomieni ROFH, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Tłumik płomieni ROFH, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Czok Custom 01, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_01_duckbill_name	Kaczy dziób Custom 01, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Hamulec wylotowy Custom 01, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_custom_01_m22x075_choke_name	Czok Custom 01, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Hamulec wylotowy Custom 01, M30x1
+st_muzzle_custom_02_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_02_duckbill_name	Kaczy dziób Custom 02, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_02_m14x1l_firearrestor_name	Tłumik płomieni Custom 02, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_02_m24x15_firearrestor_name	Tłumik płomieni Custom 02, M24x1.5
+st_muzzle_custom_03_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_03_duckbill_name	Kaczy dziób Custom 03, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Tłumik płomieni Custom 03, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Tłumik płomieni Custom 04, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Tłumik płomieni Custom 04, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Tłumik płomieni Custom 04, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Kaczy dziób Custom 01, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Kaczy dziób Custom 02, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Rozrzut -15 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Kaczy dziób Custom 01, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Hamulec wylotowy T-Brake, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Hamulec wylotowy T-Brake, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Hamulec wylotowy Defcon 1, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Hamulec wylotowy Defcon 1, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Hamulec wylotowy Defcon 1, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Rozrzut -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Hamulec wylotowy Guns.ru, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Rozrzut -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Hamulec wylotowy Kochevnik, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	Hamulec wylotowy KKM, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Hamulec wylotowy Dragon, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Hamulec wylotowy Dragon, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Hamulec wylotowy Dragon, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Tłumik płomieni NightBrake, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Tłumik płomieni NightBrake, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Tłumik płomieni NightBrake, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Tłumik płomieni NightBrake, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Czok Polychoke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Rozrzut -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Hamulec wylotowy Ilgynag K01, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Tłumik płomieni Krymsk-2, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Hamulec wylotowy Shturm, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Hamulec wylotowy Shturm, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Czok Remington, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Czok Remington, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_remington_m22x075_choke_name	Czok Remington, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Tłumik płomieni Dynacomp, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Czok Sure-Hit, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Tłumik płomieni TT-419, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Tłumik płomieni Antidote, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Hamulec wylotowy Zenit DTK-2, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Hamulec wylotowy Zenit DTK-3, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Hamulec wylotowy Zenit DTK-4, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Hamulec wylotowy Zenit DTK-4, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Ukrywa błysk wystrzału. Tylko wygląd.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Tłumik płomieni Zenit DTK-4, M30x1
 st_my_place	Mój ranking
 st_neostead_description	Południowoafrykańska strzelba powtarzalna typu pump-action kalibru 12. Zaprojektowana w latach 90. przez Tony'ego Neophytou w układzie bullpup; ma dwa magazynki rurowe nad lufą, a do przeładowania czółenko przesuwa się do przodu. Mieści 12 nabojów. Tylko ogień pojedynczy.
 st_neostead_name	NeoStead 2000
