@@ -69,6 +69,8 @@ pub mod forward_effects;
 pub mod run_logs;
 pub mod tab_cursor;
 pub mod scaleform_capture;
+// patch 176: SKHID_CAPTURE's run, poses to pictures
+pub mod capture;
 pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;
@@ -149,3 +151,5 @@ pub mod console_scroll;
 pub mod v021d_render;
 pub mod faces;
 pub mod geometry_share;
+// patch 161: a weapon's scope, eye, left hand and shells where its fitted modules put them
+pub mod attachments;

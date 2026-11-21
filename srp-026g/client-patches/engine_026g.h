@@ -44,6 +44,7 @@ struct drawable_image_context;
 struct effect_compiler;
 struct effect_presenter_holder;
 struct engine_cfg;
+struct fingers_corrector;
 struct fsm_predicate;
 struct game_allocator;
 struct game_effect;
@@ -78,6 +79,7 @@ struct lobby_client;
 struct lobby_menu;
 struct log_function;
 struct log_helper;
+struct managed_resource;
 struct match_options;
 struct match_options_holder;
 struct match_packet;
@@ -95,6 +97,7 @@ struct object_light;
 struct object_particle_visual;
 struct panning_lut;
 struct particle_slot;
+struct pinned_resource;
 struct player;
 struct player_input_handler;
 struct player_params_modifiers_container;
@@ -966,6 +969,15 @@ extern unsigned int (__attribute__((stdcall)) *const engine_global_unlock)(void 
 
 /* 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly */
 void __attribute__((stdcall)) engine_set_texture(struct effect_compiler *compiler, const char *slot, const char *texture, unsigned int option, unsigned int request, unsigned int lower, float lower_float, unsigned int flag);
+
+/* 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly */
+void __attribute__((stdcall)) engine_fingers_set_weapon_model(struct fingers_corrector *corrector, unsigned int instance, unsigned int first_view);
+
+/* 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4 */
+void engine_pin_resource(struct pinned_resource *pinned, struct managed_resource *resource);
+
+/* 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0 */
+void engine_unpin_resource(struct pinned_resource *pinned);
 
 /* 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly */
 void __attribute__((thiscall)) engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name);

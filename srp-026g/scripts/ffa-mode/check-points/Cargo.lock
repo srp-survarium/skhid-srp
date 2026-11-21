@@ -426,6 +426,7 @@ dependencies = [
  "srp-validate",
  "udp-transport",
  "weapon-kit",
+ "weapon-modules",
  "weapon-pickup",
 ]
 
@@ -474,6 +475,10 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "weapon-kit"
+version = "0.1.0"
+
+[[package]]
+name = "weapon-modules"
 version = "0.1.0"
 
 [[package]]

@@ -215,12 +215,13 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_engine_026g.py` | The library's ABI check: every thunk against the rows and the original exe, and wrong rows it must reject (needs Unicorn; the self-test runs it) |
 | `match_keys_026g.asm`, `check_match_keys_026g.py` | Patch 58: the keys 1, 2 and 3 pick a kit while the kits are shown (none for a key pressed before they came or in their first second), and the match chat option (the arena's blocks `match_keys.code` and `match_keys.state`); its check runs the four entries from the game's sites and the game's own input tick, the game's own cc_value<bool> constructor, command lookup and execute on made-up objects (needs Unicorn) |
 | `rust/patches/src/voice.rs`, `voice.toml` | Patch 66: safe Rust voice hooks (eleven named lohooks) over Vostok, through the versioned `voice-abi` interface to Rust `skhid_voice.dll` (`../client-voice`): options, push-to-talk, mutes, radio distances, the hud's list of who talks, the Tab menu's voice mute and the options' microphone test (the shared `patches.*` blocks); `cargo test` in `rust/` checks its logic |
+| `rust/patches/src/capture.rs`, `src/capture.toml`, `src/vostok/camera.rs` (`Director`), `../scripts/capture/capture.py`, `../servers/match-server/src/bin/srp-map-sur.rs` | Patch 176: a capture run with `SKHID_CAPTURE=<script>`: the camera at the script's poses (`camera.apply`), each pose's scene saved as a PNG, the game ended; started with `-match_replay=` of `srp-map-sur`'s replay of a map with nobody in it, straight into the map (`../docs/notes/capture.md`, "A capture run" below) |
 | `rust/patches/src/screenshot.rs`, `src/screenshot.toml`, `src/screenshot/png.rs`, `src/vostok/back_buffer.rs` | Patch 152: two keys save a screenshot as a PNG, F11 the screen and F12 the frame without the interface (`../docs/notes/screenshots.md`): three named lohooks (the keyboard's poll, `render.flash_ui`, the Present), the back buffer read back through Direct3D, the patch's own PNG encoder; `cargo test` in `rust/` checks the encoder (a decoder of its own in the tests) and the request's steps; the two actions' names, keys and Controls rows are patch 62's table (`hide_ui_026g.asm`, `check_hide_ui_026g.py`) |
 | `hide_ui_026g.asm`, `check_hide_ui_026g.py` | Patch 62: one key (F9 since patch 152, F11 before; the game's `toggle_replay_ui`, named `hide_interface`) hides the whole interface and shows it again, in a match and in the lobby (the arena's blocks `hide_ui.code` and `hide_ui.state`); and the options' 41st controls row (`hide_ui.data`); its check runs the three entries from the game's sites with the game's own show_ui and get_binded_action, and the options' key list, a key set, the accept and the binder's bind and save, on made-up objects (needs Unicorn) |
 | `kill_feed_026g.asm`, `check_kill_feed_026g.py` | Patch 67: the kill feed's wall, ricochet and pain flags (the arena's block `kill_feed.code`): the kill event's byte +5 from the bullet's pierces and the victim's pools, passed to the hud movie as `penetration_icon`, `ricochet_icon` and `pain_icon`; its check runs the event, the hud's handler and the row from the game's sites on made-up victims, bullets and descriptions, with the game's own part lookup (needs Unicorn) |
 | `check_fall_gravity_026g.py` | Patch 72: free fall takes gravity for the step's dt (`FALL_GRAVITY`, two sites rewritten in place in step_down, 0x7E6E6 and 0x7E720): a tick the world steps in parts (each precise input) no longer gives a falling player a whole tick of speed at every part; its check runs step_down's free fall on a made-up controller: whole ticks bit for bit the original's, a tick in 2, 5 or 2 uneven parts one tick of gravity in all (needs Unicorn) |
 | `check_step_parts_026g.py` | Patches 166 and 168: patch 166, a part of a tick moves a body at rest (`STEP_PARTS`, one branch of updateAction, 0x7B76B): updateAction and player_step under Unicorn on open ground, whole ticks and moving bodies bit for bit the original's, a body from rest at the sum of its parts' displacements under one cut, a burst's cuts, 50 cuts a second and 1 ms parts, never ahead of whole ticks; a body asked nothing untouched. Patch 168: every part of a walking body made however short, a body from rest at whole ticks' place under every cut, a body creeping under 63 mm/s at rest in parts as in ticks; the speed store kept in a part and written by the step that ends a tick, the registers, stack and x87 stack as the original's. See "A part of a tick moves a body at rest (patch 166)" and "A part of a tick: its least walk and the speed read from it (patch 168)". |
-| `rust/patches/src/hit_marker_walls.rs`, `src/hit_marker_walls.toml`, `src/vostok/hit_marker.rs`, `check_hit_marker_walls_026g.py` | Patch 167: no white hit marker for a hit through a wall (`../docs/notes/hit-marker-walls.md`): three lohooks, check_collision once try_pierce let a bullet through (`bullet.pierced`, 0x32D88A: a round through a surface not of the leaves' materials is noted by its id and fire time), player::generate_hit_event's store of the shooter's collector (`damage_collector.hit`, 0x1F3D76: the shooter's mark, walled or clear) and draw_damage_collector once it took its copy (`damage_collector.draw`, 0x238272: no invoke while the collector shows a walled hit); the kill's marker is another call, left as it is; its check runs the three sites in both exes on made-up bullets, players and a hud (needs Unicorn) |
+| `rust/patches/src/hit_marker_walls.rs`, `src/hit_marker_walls.toml`, `src/vostok/hit_marker.rs`, `check_hit_marker_walls_026g.py` | Patch 167: no white hit marker for a hit through a wall (`../docs/notes/hit-marker-walls.md`): three lohooks, check_collision once try_pierce let a bullet through (`bullet.pierced`, 0x32D88A: a round through a surface whose material's armor is not 0 is noted by its id and fire time; glass, foliage, cloth and paper have 0), player::generate_hit_event's store of the shooter's collector (`damage_collector.hit`, 0x1F3D76: the shooter's mark, walled or clear) and draw_damage_collector once it took its copy (`damage_collector.draw`, 0x238272: no invoke while the collector shows a walled hit); the kill's marker is another call, left as it is; its check runs the three sites in both exes on made-up bullets, players and a hud (needs Unicorn) |
 | `check_pierce_distance_026g.py` | Patch 173: a bullet's armour penetration does not fall with distance (`PIERCE_DISTANCE`, update_bullet_position's store of the piercing, 0x32F174): update_bullet_position in a level's bounds for five weapon/round floors, damage bit for bit the original's, piercing kept where the original lowers it (needs Unicorn) |
 | `check_pierce_walls_026g.py` | Patch 175: every wall costs a bullet something (`PIERCE_WALLS`, try_pierce's k in place, 0x32D99E): try_pierce against static geometry for nine walls by fourteen piercings, the original's k = 1 - (1 - clamp((P - A) / A, 0, 1))^2 and the build's 1 - (A / P)^2, damage and piercing x k, the same bullets stopped (needs Unicorn) |
 | `rust/patches/src/tick_parts.rs`, `src/tick_parts.toml`, `src/vostok/controller.rs` (`Step`, `IdleTest`, `SpeedMeasure`) | Patch 168: a part of a tick walks, and says a player's speed, as a whole tick does (`../docs/notes/fall_damage.md`, "A part of a tick: its least walk and the speed read from it"): two lohooks, can_skeep_player_step's least walk asked of a part at its tick's worth (`controller.idle_walk`, 0x7C823: a part's walk squared over (dt / 0.05) squared, so no part of a walking body is skipped) and assign_physics_transform's store of m_linear_horizontal_speed skipped unless the step ends a tick (`player.speed_measured`, 0x2D9541: a jump begun in a cut tick reads what an uncut one reads); whole ticks bit for bit; a simulation change (`../docs/notes/client_patch.md` section 3.93); checked by `check_step_parts_026g.py` |
@@ -6380,9 +6381,32 @@ buffer holds it. A table of 2048 ranges in the arena (96 KiB); the pools' sizes 
 Nothing a match computes. The memory profile (patch 127) tells both pools and the sharing in each
 snapshot. Checked with `check_geometry_share_026g.py` (Unicorn) and the patch crate's tests; run in
 the faces memory test (section 3.88).
+## A weapon's fitted modules: scope frame, eye, left hand, shells (patch 161, unreleased)
 
+The client's side of the attachment system (`../docs/notes/attachments.md`, "Stage 2"): a weapon
+config names its gun and what is fitted to it (`data/srp_gun`, `srp_scope`, `srp_muzzle`,
+`srp_grip`), the `weapon-modules` crate's `resolve` says where everything stands, and the patch
+writes the game's own records after the game filled them: the scope's and the eye's locator records
+after `load_weapon` (0x24B0E1), the left hand's records after `weapon::activate` filled them
+(0x244649), its finger sets there and at each change of view (0x298664); the shell effect keeps the
+frame the scope had (0x2443EE). `rust/patches/src/attachments.rs` over `vostok::attachments`.
+
+The table (`resources/gameplay/weapon_modules.srpm`) comes in with the items dictionary's configs
+(0x2C8963, 0x2C8AA0); the weapon cook asks for the bare body and each part's model (0x24AAB4,
+0x24AC30, 0x24ACF0) and `weapon::draw` puts the parts in the scene (0x245017; out at 0x245353,
+0x244017, 0x24B190). A weapon's scope item is the one `data/srp_scope` names, in place of
+`addons/rifle_scope_dict_id` (the cook 0x24AA15, its callback 0x24AD13). A gun that lies alone
+(a dropped one, a dead body's) gets its parts with its body. The site table and the reasons are
+in the note, "The client's runtime".
+
+With it, two numbers of `configs::create_binary_config_buffer` (0x358AA8, 0x358ABC;
+`ITEM_CONFIG_ARENAS`): the stack arena an upgraded item's config is rebuilt in is 64 KB, not 16.
+Its allocator has no bound, each fitted module adds an entry to the gun's config, and six guns'
+configs were within 5 entries of what 16 KB holds.
+
+Linked (`arena_026g.lock.json`); `check_attachments_026g.py` (`tools/check attachments`) runs
+every site in the build and the original. Nothing a match computes changes by the patch alone.
 ## A part of a tick moves a body at rest (patch 166, unreleased)
-
 The world steps to the time of each precise input inside a tick, and the character controller ran its
 step for a part of a tick only when the body had moved in its step before: a body at rest took none of
 its player's keys until a whole tick. In a fight, or through a burst of precise inputs, players stood
@@ -6391,15 +6415,19 @@ still with their keys held, in every game alike. `STEP_PARTS` (0x7B76B, one bran
 dt / 0.05 of the tick's step and returns at once for one with nothing to do, so a part moves a body by
 its own share and nobody goes faster. A simulation change. The rule and the numbers:
 `docs/notes/fall_damage.md`, "A part of a tick moves a body at rest"; the code: `client_patch.md`
+section 3.89. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check step-parts`). Not run in
+a game.
 section 3.89. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check step-parts`), and in a
 game on revision 68 (a scripted walker, ticks cut and uncut: the figures are on PR #2325).
 
 ## No white hit marker through walls (patch 167, unreleased)
 
-A hit through a wall gives the shooter no white hit marker; leaves do not count, and a kill through a
+A hit through a wall gives the shooter no white hit marker; glass, foliage, cloth and paper (armor 0)
+do not count, and a kill through a
 wall shows exactly what "Kill marker only" shows (the owner, 2026-11-21; the rules:
 `../docs/notes/hit-marker-walls.md`, the code: `../docs/notes/client_patch.md` section 3.90). A round
-that goes through a level's surface other than leaves is noted when try_pierce lets it through; its hit
+that goes through a level's surface of armor above 0 (the material's +4Ch, try_pierce's A) is noted
+when try_pierce lets it through; its hit
 on a player marks the shooter's collector walled, unless a clear hit of his is still to be drawn;
 draw_damage_collector takes its copy and skips its invoke while the collector shows a walled hit. The
 kill marker is the kill event's own call, unchanged. The hud alone: nothing a match computes or a world
@@ -6420,7 +6448,6 @@ Whole ticks are the original's bit for bit. A simulation change. The rule and th
 `client_patch.md` section 3.93. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check
 step-parts`) and in a game (revision 68 with patches 166 and 168, a scripted walker, cut against uncut).
 ## The forward effects of 0.44a5 (patch 169, unreleased)
-
 The transparent effects of the ported Londons (0.32a4's and 0.44a5's: blowing sand, fires, the sky's
 clouds) draw as their donors draw them, not as blank quads (the owner, 2026-11-21: "we do proper
 conversion completely"). 0.44a5's forward_default and particle_lighting compiles read three switches
@@ -6479,3 +6506,30 @@ Brick at P 0.3 / 0.46 / 0.84 keeps 56 / 81 / 94 % (before 75 / 100 / 100 %), con
 (before 52 / 100 / 100 %). A simulation change. The damage calculator and the weapon card's Pierces
 percent follow it. The code: `../docs/notes/client_patch.md` section 3.96. Checked with
 `check_pierce_walls_026g.py` (Unicorn; `tools/check pierce-walls`). Not run in a game.
+
+## A capture run (patch 176, unreleased)
+
+With `SKHID_CAPTURE=<script>` in the game's environment the game puts its camera at the script's
+poses, saves each pose's scene (before the interface, patch 152's PNG) as `<folder>\<name>.png`
+and exits; without the variable nothing happens (read once, at a world's first tick). Started with
+`-match_replay=` of a map's replay with nobody in it (`srp-map-sur`), the game goes from its start
+straight into the map with no server, sign-in, lobby or click; `../scripts/capture/capture.py`
+runs the whole thing headless in one command (`../docs/notes/capture.md`, the skill
+`skhid-local-game`). Three named lohooks: `game_world.after_move` (the run's clock; order 4),
+`camera.apply` (base_game_scene::apply_camera's start, 0x23DDD0: the camera_director's transform
++4h and projection +44h written from the pose, every frame, as resource-porter's camera hook DLL
+wrote them) and `render.flash_ui` (the picture; order 2, after patch 152's, now order 1). The
+script's lines are parsed once into typed poses (`capture.rs`, a bad line refuses the script: exit
+2); the run is one state machine (waiting, settling, asked, over); a picture not saved ends the
+game with 1. Nothing a match computes. `cargo test` checks the script, the run and the matrices;
+`../docs/notes/client_patch.md` section 3.97. Run in a game: Fire Station (map 39) from the
+command, the pictures made.
+
+Patch 97's connection (`vostok::packet_recovery::Connection`) no longer reads a replay's network
+client as a live one: `replay_network_client` is 0x5AB18 bytes and the live client's options
+holder is at +1F1C48h, so patches 97 and 125 read past it at every frame of a replay, and a replay's
+start crashed when the heap held anything there (2026-11-12, exe+0xA489291). A client of the
+replay's class (its vtable, `REPLAY_CLIENT_VTABLE`, told once by `vostok::world::playback_of`) has
+no connection. The two other readers of that holder, the local player's place (voice, the world
+check's breadcrumb) and a place's name (the lobby), read the options through the client's own
+virtual (`engine_match_options`, a live and a replay client alike) instead.

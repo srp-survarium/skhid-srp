@@ -17,6 +17,8 @@
 
 mod png;
 
+pub use png::Refusal;
+
 use crate::vostok::back_buffer::{Call, Channels, Output, Picture, ReadError};
 use crate::vostok::clock::{self, FileTime};
 use crate::vostok::files::{self, File, Path};
@@ -191,6 +193,12 @@ impl Name {
     }
 }
 
+/// Writes `picture` into `file` as a PNG (the capture's pictures too,
+/// `capture.rs`).
+pub fn write_png(thread: &Thread, picture: &Picture<'_>, file: &mut File) -> Result<(), Refusal> {
+    WORK.with(thread, |work| png::write(&Frame(picture), work, file))
+}
+
 fn save(thread: &Thread, output: &Output<'_>) {
     let started = clock::milliseconds(thread);
     let picture = match output.read() {
@@ -206,7 +214,7 @@ fn save(thread: &Thread, output: &Output<'_>) {
     let Some((name, mut file)) = Name::create(stamp) else {
         return log::line(&[Piece::Text("screenshot: not saved, no file could be made in screenshots")]);
     };
-    let written = WORK.with(thread, |work| png::write(&Frame(&picture), work, &mut file));
+    let written = write_png(thread, &picture, &mut file);
     drop(file);
     match written {
         Ok(()) => log::line(&[
@@ -226,10 +234,7 @@ fn save(thread: &Thread, output: &Output<'_>) {
             }
             log::line(&[
                 Piece::Text("screenshot: not saved, the picture is "),
-                Piece::Text(match refusal {
-                    png::Refusal::Empty => "empty",
-                    png::Refusal::TooWide => "wider than 8192",
-                }),
+                Piece::Text(refusal.text()),
             ]);
         }
     }
