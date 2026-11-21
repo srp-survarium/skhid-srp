@@ -17,16 +17,17 @@ For each optic of the record, in its shop item's config:
   reads to fit it (the table's row, the scope object); and it sets the weapon's
   parameters/aim_offset to 0 (the eye is the table's alone).
 Everything else of the item stays (its zoom, its price, its texts).
-And in the dictionary: an items_compatibility row (`compatibility_<scope><weapon>`, as the released
-ones) for each pair of the record that no release had (released-pairs.tsv): the lobby's movie greys
-a scope by these rows.
+And in the dictionary: an items_compatibility row (`compatibility_<scope><weapon>`) for each pair of
+the record: the lobby's movie greys a scope by these rows. The 169 pairs whose variant a base patch
+made have theirs in that patch's dictionary (released-pairs.tsv less retired-variants.tsv: the rows
+of the three retired packs' pairs were their edit lists', which are gone); every other pair's is here.
 
 --out writes the list elsewhere (a quick pack's, for a local test: only the optics of its record).
 --check says whether the list in the tree is the record's (the record of the weapon-modules version
 release/content.tsv lists, beside its pack, when none is named): each optic's two models, and exactly
-the pairs of the record no release had. A new pack version changes the table's pairs (2026-11-21: the
-event MP7 and the VSSK's camouflaged copy became guns of the table and 24 pairs had no row), so the
-list is made again with it.
+the record's pairs that have no row in a base patch. A new pack version changes the table's pairs
+(2026-11-21: the event MP7 and the VSSK's camouflaged copy became guns of the table and 24 pairs had
+no row), so the list is made again with it.
 """
 import json
 import re
@@ -53,10 +54,13 @@ def scope_ids():
 
 
 def new_pairs(record, ids):
-    """[(weapon dict id, scope dict id)] of the record's scope pairs no release had, in the rows' order."""
-    released = {(w, int(s)) for w, _, _, s, _, _ in (
+    """[(weapon dict id, scope dict id)] of the record's scope pairs without a row in a base patch's
+    dictionary, in the rows' order. A base patch has the rows of the pairs its own variants showed."""
+    retired = {int(line.split('\t')[0]) for line in (HERE / 'retired-variants.tsv').read_text().splitlines()
+               if line and not line.startswith('#')}
+    released = {(w, int(s)) for w, _, _, s, variant, _ in (
         line.split('\t') for line in (HERE / 'released-pairs.tsv').read_text().splitlines()
-        if line and not line.startswith('#'))}
+        if line and not line.startswith('#')) if int(variant) not in retired}
     pairs = set()
     for gun_item, (_, donor) in record['items'].items():
         pairs |= {(gun_item, ids[f['module']][0]) for f in record['guns'][donor]['plan']['fits'] if f['kind'] == 'scope'}
@@ -95,16 +99,16 @@ def check(record_path):
     for row in want:
         if row not in have:
             problems.append(f"no row for weapon {row['value']['first_item']} / scope {row['value']['second_item']}, "
-                            'a pair of the table no release had')
+                            'a pair of the table without a row in a base patch')
     for row in have:
         if row not in want:
-            problems.append(f"{row['key']}: no pair of the table that no release had")
+            problems.append(f"{row['key']}: no pair of the table, or a base patch has its row")
     for problem in problems:
         print(f'scope-modules: {problem}')
     if problems:
         raise SystemExit(f'{NAME} is not what {record_path} gives ({len(problems)}): make it again '
                          "(modules_edit.py <players' files> <that record>)")
-    print(f'{NAME}: the record\'s ({len(models)} optics, {len(have)} new pairs; {record_path.name})')
+    print(f"{NAME}: the record's ({len(models)} optics, {len(have)} pairs' rows; {record_path.name})")
 
 
 def main():
@@ -142,20 +146,24 @@ def main():
         modifications.append({'file': path, 'list': 'modifications', 'where': {'id': row['id']}, 'from': frm,
                               'to': {'id': FIRST_ID + dict_id, 'modifiers': fitted}})
         numbers.append({'file': path, 'path': 'parameters/modification', 'from': row['id'], 'to': FIRST_ID + dict_id})
-    # The pairs no release had: the lobby's rows for them.
+    # The lobby's rows of the pairs: those a base patch's dictionary lacks.
     for item, (dict_id, _) in record['items'].items():
         assert items[dict_id]['name'] == item, (item, dict_id, items[dict_id]['name'])
     compatible = compatibility(new_pairs(record, ids))
+    # The players' dictionary of release 68 has every released pair's row: the base patches' (kept) and the
+    # retired lists' (made here now). A row made here is either one of the retired lists' or new.
     rows = cfgs.config(live / 'gameplay/db_static_dictionaries')['items_compatibility']
-    assert not {c['key'] for c in compatible} & set(rows), 'a compatibility row is there already'
+    retired_rows = {c['key'] for c in compatible} & set(rows)
+    assert len(rows) - len(retired_rows) + len(compatible) == len(set(rows) | {c['key'] for c in compatible})
     about = ("Scopes on the modules table (pack weapon-modules, docs/notes/attachments-scopes.md): each shop "
              "scope item's data/idle_model and data/aimed_model are the optic's own two models of the pack, and "
              "its modification adds data/srp_scope = its own dict id to the weapon wearing it (it changed nothing "
              "before: the variants did) and sets its parameters/aim_offset to 0; an items_compatibility row for each "
-             "pair the table has and no release had. Made by scope-fits/modules_edit.py from the pack's record.")
+             "pair of the table but the 169 a base patch's dictionary has. Made by scope-fits/modules_edit.py "
+             "from the pack's record.")
     out.write_text(json.dumps({'_about': about, 'replace_string': models, 'set': numbers, 'set_entry': modifications,
                                'add_value': compatible}, indent=1) + '\n')
-    print(f'{len(modifications)} scope items, {len(compatible)} new pairs')
+    print(f'{len(modifications)} scope items, {len(compatible)} pairs\' rows ({len(retired_rows)} the retired lists\' before)')
 
 
 if __name__ == '__main__':
