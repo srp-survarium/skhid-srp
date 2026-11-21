@@ -40,12 +40,12 @@ makes is a problem, unless an earlier version of a pack row added it (<packs>/<i
 the row's version, adds the path with the live bytes): printed as left from it, not packed.
 """
 import argparse
+import ast
 import bisect
 import concurrent.futures
 import fnmatch
 import functools
 import hashlib
-import inspect
 import json
 import os
 from pathlib import Path
@@ -176,10 +176,20 @@ def game_data_id(binary, source):
                              + [tree_digest(c / 'src') + files_digest([c / 'Cargo.toml']) for c in crates]).encode())
 
 
+SOURCE = Path(__file__).read_text(encoding='utf-8')    # as loaded: an edit during a build is not this code
+
+
+@functools.cache
+def function_sources():
+    return {node.name: ast.get_source_segment(SOURCE, node)
+            for node in ast.parse(SOURCE).body if isinstance(node, ast.FunctionDef)}
+
+
 def code_digest(*parts):
-    """The sha256 of the source of these functions (and of any other values given): what a check
-    of this file computes with, so that an edit elsewhere in it leaves its cached results valid."""
-    return sha256(json.dumps([inspect.getsource(p) if callable(p) else p for p in parts], default=str).encode())
+    """The sha256 of the source of these functions of this file (and of any other values given):
+    what a check computes with, so that an edit elsewhere in the file leaves its cached results valid."""
+    return sha256(json.dumps([function_sources()[p.__name__] if callable(p) else p for p in parts],
+                             default=str).encode())
 
 
 class Cache:
