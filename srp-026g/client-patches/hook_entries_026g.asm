@@ -3818,6 +3818,45 @@ blackout_on_name_visibility_replay:
     db 0x0f, 0xb6, 0x8e, 0x14, 0x01, 0x00, 0x00
     jmp 0x1f2f17
 
+; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
+global drug_interrupt_on_hit_applied
+extern hook_drug_interrupt_on_hit_applied_chain
+drug_interrupt_on_hit_applied:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_drug_interrupt_on_hit_applied_chain
+    mov edx, drug_interrupt_on_hit_applied_replay
+    cmp eax, 0
+    je drug_interrupt_on_hit_applied_go
+    mov edx, 0x2d9cb7
+    cmp eax, 1
+    je drug_interrupt_on_hit_applied_go
+    ud2
+drug_interrupt_on_hit_applied_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+drug_interrupt_on_hit_applied_replay:
+    db 0x8b, 0xfe, 0x83, 0x7f, 0x40, 0x00
+    jmp 0x2d9cb7
+
 ; 0x2840f2 lobby_camera::tick (0x283EF0) with the frame's yaw and pitch final (fld dword [ebx+0B4h], the yaw's load for rotY 0x15AE50): EBX the camera's +4 (the tick's this), the site's ESP+10h the frame's time (s, at most 0.1); after it the side angle's and the distance's steps (their speeds +E0h, +E8h), the collision ray (0x284309), the last clamp (0x28430E) and the eye (point - distance * forward): lohook -> weapon_flight_on_view
 global weapon_flight_on_view
 extern hook_weapon_flight_on_view_chain
@@ -6253,45 +6292,6 @@ deserialize_guards_on_grenade_attach_go:
 deserialize_guards_on_grenade_attach_replay:
     db 0x8b, 0x84, 0x88, 0x0c, 0x01, 0x00, 0x00
     jmp 0x33a7fc
-
-; 0x2d9cb1 base_player::hit_impl once damage_model::hit_body_part (0x2E5080, at 0x2D9CA4) said 1: the hit took health past armour and protectors (more than 0.0 left, 0x2E5128); before the slow, the listeners and the death (mov edi,esi / cmp dword [edi+40h],0; the je at 0x2D9CB7 reads its flags): EBX the victim, ESI the hit; every hit of every player, in every game's simulation: lohook -> drug_interrupt_on_hit_applied
-global drug_interrupt_on_hit_applied
-extern hook_drug_interrupt_on_hit_applied
-drug_interrupt_on_hit_applied:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_drug_interrupt_on_hit_applied
-    mov edx, drug_interrupt_on_hit_applied_replay
-    cmp eax, 0
-    je drug_interrupt_on_hit_applied_go
-    mov edx, 0x2d9cb7
-    cmp eax, 1
-    je drug_interrupt_on_hit_applied_go
-    ud2
-drug_interrupt_on_hit_applied_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-drug_interrupt_on_hit_applied_replay:
-    db 0x8b, 0xfe, 0x83, 0x7f, 0x40, 0x00
-    jmp 0x2d9cb7
 
 ; 0x2aa1cd sound_game_effect_presenter::on_event 0x2A9EF0, a stop (event kind 1) after its search, where the search's end and an empty list meet (mov eax,[ebx] / lea edx,[edi+edi*4]; the erase 0x2AB420 follows): EDI the index of the entry playing the effect, -1 when none (then the erase starts at begin - 14h: the presenter's own seed (+10h) taken for an entry's effect reference and freed); ignore is its return (pop edi / pop esi / pop ebx; ret 0Ch): lohook -> effect_presenters_on_sound_stop
 global effect_presenters_on_sound_stop

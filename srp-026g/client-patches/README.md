@@ -202,6 +202,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `check_world_roundtrip_026g.py`, `worlds_026g/` | A resync always converges: a late joiner and a resynced game load each recorded world (`worlds_026g/`, 8 dumps of rev41's match 0x1c0ebd31; or any `SRP_SNAPSHOT_DIR` dumps) and save it at once, through every patch hook inside the world's load and save (the 0xE8 preparation, patch 85's record, patch 78's carry); each must write back the bytes it read. Every patch site in a `::serialize` or `::deserialize` function is run there or named with its own check (`../docs/notes/client_patch.md`, "World round trip"; needs Unicorn) |
 | `rust/patches/src/animation_id_log.rs`, `src/animation_id_log.toml`, `src/vostok/animation_id.rs`, `check_animation_id_log_026g.py` | Patch 95: a diagnostic (`../docs/notes/animation-ids.md`): an animation pair the registry has no id for (the lookup 0x2D6590 returns 0FFFFh, the rev47 crashes at 0x1F18C8) is logged to srp_patches.log once, with the clips' names, the registry's size and who asked; one lohook (`sites_026g.tsv` `animations.id_missing`); its check runs the lookup in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/drug_interrupt.rs`, `src/drug_interrupt.toml`, `src/vostok/drug.rs`, `check_drug_interrupt_026g.py` | Patch 84: a bullet that hits a player stops the healing drug he is using (`../docs/notes/drug-interrupt.md`): one lohook (`sites_026g.tsv` `player.hit_applied`), the game's own `medkit::set_active(0)` through the engine library; its check runs the hook in the patched exe and the game's set_active(0) in the original (needs Unicorn) |
+| `rust/patches/src/breath_hit.rs`, `src/breath_hit.toml`, `src/vostok/breath.rs`, `check_breath_hit_026g.py` | Patch 177: a hit that takes health breaks the victim's breath hold (`../docs/notes/breath-hit.md`): one lohook sharing `sites_026g.tsv` `player.hit_applied` with patch 84 (order 1), which spends the held gun's breath reserve while the gun is holding; the game's own machine goes to short breathing at the gun's next tick. Its check runs the hook and that machine in the patched exe (needs Unicorn) |
 | `rust/patches/src/hand_kill.rs`, `src/hand_kill.toml`, `src/vostok/melee.rs`, `check_hand_kill_026g.py` | Patch 108: a gun-stock hit kills, wherever it lands (`../docs/notes/hand-kill.md`): one lohook on patch 94's `medical.hit` site (ours first in the chain); its check runs the chain in the patched exe (needs Unicorn) |
 | `rust/patches/src/trap_stock_hit.rs`, `src/trap_stock_hit.toml`, `src/vostok/trap.rs`, `check_trap_stock_hit_026g.py` | Patch 151: a gun-stock hit disarms a trap (`../docs/notes/trap-stock-hit.md`): one lohook at `booby_trap_core::hit`'s entry (`trap.hit`); its check runs the hit in the original and the patched exe (needs Unicorn) |
 | `rust/patches/src/text_input.rs`, `check_text_input_026g.py` | Patch 52: ignore a character event whose Scaleform text field has lost its AS3 receiver; reproduces the PIN-entry crash and checks native register/stack behavior (needs Unicorn) |
@@ -6533,3 +6534,13 @@ replay's class (its vtable, `REPLAY_CLIENT_VTABLE`, told once by `vostok::world:
 no connection. The two other readers of that holder, the local player's place (voice, the world
 check's breadcrumb) and a place's name (the lobby), read the options through the client's own
 virtual (`engine_match_options`, a live and a replay client alike) instead.
+
+## A hit breaks the breath hold (patch 177, unreleased)
+
+A hit that takes health, of any type and by anyone, ends the victim's breath hold (the owner,
+2026-11-21: "when player gets hit they lose their breath holding"; `../docs/notes/breath-hit.md`). The
+Rust `breath_hit` hook shares patch 84's site in `base_player::hit_impl` (`player.hit_applied`,
+0x2D9CB1, after patch 84). When the victim's held gun's breath machine is holding, the hook spends its
+reserve. The gun's next tick then goes to short breathing through the game's own transition, as running
+out of breath does, except that the stamina is kept. A simulation change. Checked with
+`check_breath_hit_026g.py` (Unicorn; `tools/check breath-hit`). Not run in a game.
