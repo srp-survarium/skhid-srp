@@ -92,7 +92,7 @@ TYPE_ALLOWLIST = {
         f'/client_objects[track]/path/channels/{channel}/keys[]/value'):
        "0.44a5's London evening track: whole key values as ints, fractions as floats, as the editor writes "
        "them and as 0.26g's lobby track (projects/lobby_scene/day) mixes them"
-       for mode in (3, 4) for channel in ('translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ')},
+       for mode in (2, 3, 4) for channel in ('translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ')},
     # Its rain and evening: 0.44a5's stratosphere turns at a fraction, as London's evening above.
     **{(f'projects/v044a_level_09/{weather}_{mode}/client_project',
         '/client_objects[environment]/properties/stratosphere_rotation_speed'):

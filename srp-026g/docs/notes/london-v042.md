@@ -19,8 +19,11 @@ made by resource-porter's `build-survarium-near-map` from 0.44a5's own projects
   Ids 290 and up, level 32 and loading pictures 41 to 43 were free on main, in every published
   patch and in every pack of `private/content-packs` on 2026-11-20.
 - The lobby shows London's own pictures for it (loading pictures 41 to 43 are `Level9_day`,
-  `Level9_evn`, `Level9_rain`; its tiles are London's by weather), and the HUD London's minimap:
-  the map's bounds did not change with the rework.
+  `Level9_evn`, `Level9_rain`; its tiles are London's by weather). The HUD has a row of its own
+  for `v044a_level_09`: 0.44a5's own minimap of the reworked map (its `map_09_minimap.png`, the
+  cut outskirts hatched; `flash/hud/bitmaps/minimap_v044a_level_09.png` at the movie's 512 px) in
+  London's frame, which 0.44a5's HUD has too (size 140, centre 0, -5). The wiki's top-down render
+  is in the same frame (`scripts/damage-calc/assets/maps`).
 - 0.44a5 has no mode 2 (the game dropped it in 0.42). Each weather's `_2` is its mode 3 project
   without the four charging stations and what they own (their props, lights, sounds, cables and
   boxes); the 24 battery places they owned are mode 2's.
@@ -39,23 +42,38 @@ One pass over the donor's projects, by rule (the pack's `report.json` has every 
   with their shapes, with the fields 0.26g's own fire zone has.
 - **Kinds 0.26g has no object of:** `portal_system` (1), `primitive_geometry` (26),
   `sound_environment` (6), `winner_point` (16).
-- **Files:** of the models the three projects place, 48 are players' own, 247 are imported under
+- **Files:** of the models the nine projects place, 47 are players' own, 248 are imported under
   `ported/v044a` (players have another form of the name: other materials, another mesh or
-  collision), 44 are new. Of the textures 514 are players' own (some the same image in another
-  encoding), 111 are another image than players' file of the name and go in under
-  `ported/v044a`, 48 are new. 0.44a5's surfaces carry statistics chunks (110 to 113) that 0.26g's
+  collision), 44 are new. Of the textures 514 are players' own (402 of them the same image in
+  another encoding), 111 are another image than players' file of the name and go in under
+  `ported/v044a`, 49 are new. 0.44a5's surfaces carry statistics chunks (110 to 113) that 0.26g's
   do not have: they are not carried. A model's `hq_collision` is not carried either: 0.26g's
   executable has no reader for it.
-- **Materials:** 119 are players' own, 139 imported, 10 new. 30 took a smaller switch set, because
-  no material players have uses theirs and 0.26g cannot compile a shader program (it stops with
-  "cannot find shader"): the vertex-blend, parallax and translucency variants of London's own
-  surfaces. The donor's own programs for them are the next step (`near-builds.md`, "Materials and
-  shader programs").
+- **The level's own files** are 0.44a5's: its three vegetation layers (`projects/v044a_level_09/
+  vegetation/*.veg`, the grass and camelthorn the vegetation object draws), also where players have
+  a file of the name (the old London's layers; the first pack took those for players' and drew
+  no grass).
+- **Materials:** 116 are players' own, 142 imported, 10 new. 1 038 of 0.44a5's own g-buffer and
+  vertex programs that players lack and 0.26g can feed are in the pack; 31 materials whose switch
+  set needs a program 0.44a5's archives do not hold for 0.26g took the nearest set players have
+  (the vertex-blend, parallax and translucency variants of London's own surfaces; `report.json`,
+  `degraded`).
+- **Forward effects** (fires, blowing sand, the cloud sheets): drawn as 0.44a5 draws them, by client
+  patch 169 (`client_patch.md` section 3.91: DXT1 transparency, uv tiling, the distortion of the
+  emissive map alone, the particles' probe light) and the shared pack `forward-effects@1` (its
+  programs), which this pack requires. The materials keep the donor's forward switches and fields
+  (resource-porter's client fields), so nothing of a forward effect is dropped; the forward fields
+  still left out (`uv_distortion_method`, its amplitude and frequencies, the emissive sequence) are
+  editor fields 0.44a5's executable has no string for.
 - **The environment:** 104 settings from 0.44a5's first key frame. Its height fog (`fog_density`,
   `fog_color`, `fog_base_height`, `fog_falloff_height`), its sky fog and the settings of its later
   sun and cloud model have no 0.26g setting and are listed, not imitated.
-- **Forward effects** (fires, blowing sand, cloth): players' own particles and materials where
-  they have one of the name; `london-forward-effects.md` is the proposal for drawing the donor's
-  exactly.
+- **The evening's camera track** (`track`) is carried: only the console command `demo_play` flies
+  it (`game_world::demo_play` 0x1F9800, in 0.26g as in 0.44a5); its key values keep the editor's
+  ints and floats (`release/build_content.py`'s allowlist, as 0.26g's lobby track mixes them).
+- **Walker collisions:** 0.44a5 ends a walker collision's id in `/walker`; each takes its
+  collision's name (`walker_<name>`). Before, the mode-3 projects crashed at load: 0.26g's battery
+  rule looks `walker_<name>` up and uses it unchecked (0x3156EC); the content build checks it since
+  #2334.
 
 ## Checked
