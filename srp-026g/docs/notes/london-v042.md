@@ -75,12 +75,16 @@ One pass over the donor's projects, by rule (the pack's `report.json` has every 
   collision's name (`walker_<name>`). Before, the mode-3 projects crashed at load: 0.26g's battery
   rule looks `walker_<name>` up and uses it unchecked (0x3156EC); the content build checks it since
   #2334.
+- **Battery places** write every list 0.26g's editor writes, empty or not: the same rule reads each
+  station's `attached_objects/collision_geometries` unchecked (0x3155FB), and three of 0.44a5's four
+  stations link no static, so the mode-3 projects crashed at load after the walker fix too (the
+  minidump: `binary_config_value::operator[]` on the missing key). #2334 checks it too.
 
 ## Checked
 
 - Loaded headless on patch 169's exe (#2340) with `forward-effects@1` and this pack, no sound device
-  (`work-london-032-042/rig/load.sh`): `day_4`, `rain_4` and `evening_4` exit 0, 28 views each, no
-  "cannot find shader" assert. The other six projects: see the PR.
+  (`work-london-032-042/rig/load.sh`): all nine projects exit 0 with no "cannot find shader" assert;
+  `day_4`, `rain_4` and `evening_4` at 28 views each, the six mode-2 and mode-3 projects at one.
 - Compared with 0.44a5 itself at the same 28 views in each weather (`private/renders/london-v042/`,
   `rain/`, `evening/`): the owner's ten FFA picks, his London points of 2026-11-19, and the map's own
   fires, sand vortices and sky (eyes found on the port's collision). Day: 1.0 to 4.5/255 at most views;
