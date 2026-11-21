@@ -3312,6 +3312,15 @@ impl GameMaterial {
     pub unsafe fn id(self) -> *mut u16 {
         unsafe { self.0.byte_add(0x64).cast::<u16>().as_ptr() }
     }
+
+    /// +0x4c (f32): its physic armor (game.materials): try_pierce's A (0x32D980); 0 lets every bullet through for nothing (k = 1, 0x32D99E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn armor(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4c).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::material_pair (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,

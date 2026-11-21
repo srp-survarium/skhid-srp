@@ -20,10 +20,11 @@ run to run as a game keeps it:
   a stand-in that keeps what it is given; one hud for both shooters.
 
 What a game shows, for a shooter at place 2 on the victim at place 7:
-- a bullet that hit clear, through leaves (24, 44, 49), through a body (a
-  receiver), a gun-stock (blunt) through a wall: the marker, as the original;
-- a round through a wall (a level's surface of any other material, the
-  default's 11 too): none, and none on the next frames; the original shows it;
+- a bullet that hit clear, through a surface of armour 0 (glass, foliage,
+  cloth, paper; -0 too), through a body (a receiver), a gun-stock (blunt)
+  through a wall: the marker, as the original;
+- a round through a wall (a level's surface of armour above 0, glass_hard's
+  0.10 too): none, and none on the next frames; the original shows it;
 - the next clear hit: the marker again, with the collected fraction; one on
   the first victim again after a hidden one on another, the same damage as
   its first (the draw took the hidden one's copy);
@@ -64,6 +65,7 @@ BULLETS, AMMO, MATERIALS = HEAP + 0x30000, HEAP + 0x40000, HEAP + 0x50000
 RETURN = STUBS + 0xF00
 COLLECTOR, PLACE, UI_OF = 0xF534, 0x114, 0xF480
 RANGED, BLUNT = 0, 1
+CONCRETE, GLASS_HARD = 0.23, 0.10    # game.materials' armor
 VICTIM = 7
 KEPT = (UC_X86_REG_EBX, UC_X86_REG_ESI, UC_X86_REG_EDI, UC_X86_REG_EBP, UC_X86_REG_ESP)
 
@@ -137,10 +139,11 @@ class Game:
         self.u32(ammo + 0x4C, kind)
         return bullet
 
-    def pierce(self, bullet, material, receiver=0, pierced=True):
-        """check_collision after try_pierce: the bullet struck `material`."""
-        at = MATERIALS + 0x100 * material
-        self.emu.mem_write(at + 0x64, struct.pack("<H", material))
+    def pierce(self, bullet, armor, receiver=0, pierced=True):
+        """check_collision after try_pierce: the bullet struck a material of
+        this armour (its +4Ch, try_pierce's A)."""
+        at = MATERIALS + 0x100 * self.bullets
+        self.emu.mem_write(at + 0x4C, struct.pack("<f", armor))
         self.u32(bullet + 0x4C, at)
         sp = STACK + 0x8000
         stop, kept = self.run(PIERCE_FROM, {PIERCE_ON, PIERCE_STOPPED},
@@ -221,7 +224,7 @@ def main():
         return run
 
     for game in (stock, ours):
-        game_kept = [game.pierce(game.bullet(), 17, pierced=pierced) for pierced in (True, False)]
+        game_kept = [game.pierce(game.bullet(), CONCRETE, pierced=pierced) for pierced in (True, False)]
         if game is stock:
             pierce_regs = game_kept
     check([(s, e) for s, e, _ in pierce_regs] == [(PIERCE_ON, 2), (PIERCE_STOPPED, 0x0BADF00D)]
@@ -229,36 +232,37 @@ def main():
           "the registers the original's")
 
     both("a clear hit", clear(100, 0.2), [0.2], [0.2])
-    both("a round through a wall (metall_thin 17)", through(17, 150, 0.4), [0.4], [])
+    both("a round through a wall (concrete, armour 0.23)", through(CONCRETE, 150, 0.4), [0.4], [])
     both("the next frame", lambda game: None, [], [])
     both("the next clear hit", clear(200, 0.6), [0.6], [0.6])
     both("a clear hit on another victim (8)", clear(205, 0.2, victim=8), [0.2], [0.2])
-    both("through a wall on the first (7)", through(17, 210, 0.5), [0.5], [])
+    both("through a wall on the first (7)", through(CONCRETE, 210, 0.5), [0.5], [])
     both("a clear hit on 8 again, the damage of its first", clear(215, 0.2, victim=8), [0.2], [0.2])
     both("a clear hit not drawn, then a walled one a step later",
-         then(clear(217, 0.3), through(17, 218, 0.35)), [0.35], [0.35])
-    both("a round through the default material (11)", through(11, 220, 0.65), [0.65], [])
-    for n, leaves in enumerate((24, 44, 49)):
-        both(f"a round through leaves ({leaves})", through(leaves, 250 + n, 0.7 + n / 100), [0.7 + n / 100], [0.7 + n / 100])
-    both("a round through a body (a hit receiver)", through(10, 300, 0.75, receiver=0x5A5A0000), [0.75], [0.75])
-    both("a gun-stock (blunt) through a wall", through(17, 320, 0.8, kind=BLUNT), [0.8], [0.8])
-    both("a walled pellet, then a clear one, one step", then(through(17, 350, 0.82), clear(350, 0.84)), [0.84], [0.84])
-    both("a clear pellet, then a walled one, one step", then(clear(400, 0.86), through(17, 400, 0.88)), [0.88], [0.88])
-    both("two walled pellets, one step", then(through(17, 450, 0.9), through(17, 450, 0.92)), [0.92], [])
+         then(clear(217, 0.3), through(CONCRETE, 218, 0.35)), [0.35], [0.35])
+    both("a round through glass_hard (armour 0.10)", through(GLASS_HARD, 220, 0.65), [0.65], [])
+    for n, open_ in enumerate((0.0, -0.0)):
+        both(f"a round through glass, foliage, cloth, paper (armour {open_})", through(open_, 250 + n, 0.7 + n / 100),
+             [0.7 + n / 100], [0.7 + n / 100])
+    both("a round through a body (a hit receiver)", through(CONCRETE, 300, 0.75, receiver=0x5A5A0000), [0.75], [0.75])
+    both("a gun-stock (blunt) through a wall", through(CONCRETE, 320, 0.8, kind=BLUNT), [0.8], [0.8])
+    both("a walled pellet, then a clear one, one step", then(through(CONCRETE, 350, 0.82), clear(350, 0.84)), [0.84], [0.84])
+    both("a clear pellet, then a walled one, one step", then(clear(400, 0.86), through(CONCRETE, 400, 0.88)), [0.88], [0.88])
+    both("two walled pellets, one step", then(through(CONCRETE, 450, 0.9), through(CONCRETE, 450, 0.92)), [0.92], [])
     both("a clear hit after them", clear(500, 1.0), [1.0], [1.0])
 
     def stopped(game):
         bullet = game.bullet()
-        stop, _, _ = game.pierce(bullet, 17, pierced=False)
+        stop, _, _ = game.pierce(bullet, CONCRETE, pierced=False)
         assert stop == PIERCE_STOPPED
         return game.hit(2, bullet, 550, 0.3)
     both("a bullet try_pierce stopped, then its hit", stopped, [0.3], [0.3])
 
     both("place 5's clear hit", clear(600, 0.4, shooter=5), [0.4], [0.4], shooter=5)
     both("place 2 through a wall, the same victim and step as place 5's next clear hit",
-         then(through(17, 650, 0.5), clear(650, 0.45, shooter=5)), [0.5], [])
+         then(through(CONCRETE, 650, 0.5), clear(650, 0.45, shooter=5)), [0.5], [])
     both("place 5's collector drawn", lambda game: None, [0.45], [0.45], shooter=5)
-    both("place 5 through a wall", through(17, 700, 0.55, shooter=5), [0.55], [], shooter=5)
+    both("place 5 through a wall", through(CONCRETE, 700, 0.55, shooter=5), [0.55], [], shooter=5)
     both("place 2's clear hit", clear(700, 0.6), [0.6], [0.6])
 
     if failed:
