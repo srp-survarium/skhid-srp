@@ -419,6 +419,60 @@ fn records(account: &Account, host: u32) -> Vec<Upgrade> {
     account.item(host).unwrap().upgrades.clone()
 }
 
+/// The `weapon-modules` crate's sample table (its guns and modules carry
+/// 0.69d0's dict ids): the AK-74M 3 takes the DTK-3 1415 as a muzzle device
+/// and the MIKI grip 1438; the P90 1220 takes the flash hider 1395 on its
+/// barrel's own thread and the grip through a forend that takes that thread.
+fn modules_table() -> Modules {
+    Modules::parse(
+        include_bytes!("../../../../weapon-modules/tests/sample-v2.srpm").to_vec(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn a_muzzle_device_and_a_grip_go_on_by_the_modules_table() {
+    const DTK3: u16 = 1415;
+    const MIKI: u16 = 1438;
+    const P90: u16 = 1220;
+    const P90_HIDER: u16 = 1395;
+    let (scopes, modules) = (ScopeFits::default(), modules_table());
+    let mut account = rich();
+    let ak = give(&mut account, "ak_74m", &[]);
+    assert_eq!(account.item(ak).unwrap().dict_id, 3);
+    let svd = give(&mut account, "svd", &[]);
+    let p90 = account.add_item(P90, FULL_CONDITION);
+    let brake = account.add_item(DTK3, FULL_CONDITION);
+    let grip = account.add_item(MIKI, FULL_CONDITION);
+    let hider = account.add_item(P90_HIDER, FULL_CONDITION);
+    let attach = |account: &mut Account, host, upgrade, slot| {
+        attach_upgrade_with(account, &scopes, &modules, host, upgrade, slot).map(|done| done.slot)
+    };
+
+    // each in the slot of its kind, holding its own dict id
+    assert_eq!(attach(&mut account, ak, brake, 4), Ok(4));
+    assert_eq!(attach(&mut account, ak, grip, 5), Ok(5));
+    let held: Vec<(u32, u8)> = records(&account, ak).iter().map(|held| (held.a, held.param)).collect();
+    assert_eq!(held, [(DTK3.into(), 4), (MIKI.into(), 5)]);
+    // not in another kind's slot, not on a gun that does not take it
+    assert!(attach(&mut account, ak, grip, 4).is_err());
+    assert!(attach(&mut account, ak, brake, 3).is_err());
+    assert!(attach(&mut account, svd, brake, 4).is_err());
+    // the P90: the device of its own thread, then the grip whose forend
+    // takes that thread: the second is refused, whichever it is
+    assert_eq!(attach(&mut account, p90, hider, 4), Ok(4));
+    assert_eq!(
+        attach(&mut account, p90, grip, 5),
+        Err(ItemError::Upgrade("it does not go with what the weapon holds"))
+    );
+    assert_eq!(records(&account, p90).len(), 1);
+    // and a game data without the table takes neither
+    let mut bare = rich();
+    let ak = give(&mut bare, "ak_74m", &[]);
+    let brake = bare.add_item(DTK3, FULL_CONDITION);
+    assert!(attach_upgrade_with(&mut bare, &scopes, &Modules::NONE, ak, brake, 4).is_err());
+}
+
 #[test]
 fn a_scope_is_bought_once_and_put_on_many_weapons() {
     let table = scope_table();

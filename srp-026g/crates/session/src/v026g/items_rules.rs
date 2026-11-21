@@ -122,6 +122,7 @@ use survarium::v026g::lobby::{Crafted, limits};
 use survarium::v026g::modifications::{self, Bonuses, MAX_RANK, Modifications};
 use survarium::v026g::scopes::ScopeFits;
 use survarium::v026g::weapon_kit;
+use survarium::v026g::weapon_modules::{self, Fitted, Kind, Modules};
 
 use super::account::{Account, Item, Upgrade};
 
@@ -369,6 +370,44 @@ pub fn attach_upgrade_in(
     upgrade_item_id: u32,
     slot: u8,
 ) -> Result<Attached, ItemError> {
+    attach_upgrade_with(
+        account,
+        scopes,
+        Modules::shared(),
+        host_item_id,
+        upgrade_item_id,
+        slot,
+    )
+}
+
+/// What a weapon holds as its muzzle device and its grip, by its records
+/// (slots 4 and 5), for the fit check. A scope's record holds a variant's
+/// id until the scopes move onto the modules table, so it is not in it yet.
+fn fitted_modules(upgrades: &[Upgrade]) -> Fitted {
+    let mut fitted = Fitted::default();
+    for held in upgrades {
+        match weapon_modules::kind_of_slot(held.param) {
+            Some(kind @ (Kind::Muzzle | Kind::Grip)) => {
+                fitted = fitted.with(kind, u16::try_from(held.a).ok());
+            }
+            Some(Kind::Scope) | None => {}
+        }
+    }
+    fitted
+}
+
+/// [`attach_upgrade_in`] with `modules`: a muzzle device or a grip goes on
+/// only if the weapon may hold it with what it holds already
+/// ([`Modules::check`], the gun's own rules: the game would draw nothing of
+/// a refused fit).
+pub fn attach_upgrade_with(
+    account: &mut Account,
+    scopes: &ScopeFits,
+    modules: &Modules,
+    host_item_id: u32,
+    upgrade_item_id: u32,
+    slot: u8,
+) -> Result<Attached, ItemError> {
     if host_item_id == upgrade_item_id {
         return Err(ItemError::Upgrade("an item on itself"));
     }
@@ -379,8 +418,18 @@ pub fn attach_upgrade_in(
         .item(upgrade_item_id)
         .ok_or(ItemError::Upgrade("no such cosmetic"))?;
     let upgrade_dict = upgrade.dict_id;
-    if !modifications::upgrade_slots_in(scopes, host.dict_id, upgrade_dict).contains(&slot) {
+    if !modifications::upgrade_slots_with(scopes, modules, host.dict_id, upgrade_dict)
+        .contains(&slot)
+    {
         return Err(ItemError::Upgrade("it does not go into that slot"));
+    }
+    if let Some(kind @ (Kind::Muzzle | Kind::Grip)) = weapon_modules::kind_of_slot(slot) {
+        let fitted = fitted_modules(&host.upgrades).with(kind, Some(upgrade_dict));
+        if modules.check(host.dict_id, fitted).is_err() {
+            return Err(ItemError::Upgrade(
+                "it does not go with what the weapon holds",
+            ));
+        }
     }
     let record_dict = modifications::record_dict_in(scopes, host.dict_id, upgrade_dict);
     // What the host keeps: all but what is in the slot and the cosmetic
