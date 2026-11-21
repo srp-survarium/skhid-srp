@@ -136,3 +136,47 @@ python3 -I scripts/muzzle-devices/make_pack.py --inputs <inputs> --modules <weap
 
 A device with numbers changes what a match computes: the `next` row of `simulation_changes.tsv`.
 A flash hider, and a device on a weapon in the lobby, change nothing a match computes.
+
+## State (2026-11-21)
+
+**Made and checked without a game:** the pack `muzzle-devices@2` (113 files: 54 item configs, 12
+particles, 17 materials, 15 textures with their options; 54 dictionary rows; 54 icons), the texts,
+the items table's rows, the `next` row.
+
+- `vostok-port pack check` passes it against the players' files (the stock db and the listed
+  patches): no dict id, name, path or icon cell is taken.
+- `tools/check muzzle-devices` (the rules on a made-up `game.options`, the table against the ids,
+  the texts, the items table's rows) and `tools/check localization` pass.
+- `release/build-content` with the full `weapon-modules@1` and this pack went through the packs'
+  composition, every edit list and the value-type check (the run that found the materials' floats),
+  and no further: the build with that fixed was queued and stopped unrun.
+- The content side's record has every device's model and fire point on every gun that takes it
+  within 0.5 mm of 0.69d0's (544 fits, 1,394 comparisons, the worst 0 mm). Computed there, not here.
+
+**Not seen in a game: anything.** No device item has been in a lobby or a match. So LIKELY, each
+until a game shows it:
+
+- that an item's modification reaches the weapon's config as the cook sees it (`data/srp_muzzle`
+  by a type 3 modifier, as a camouflage adds `data/camouflage`);
+- that a category-22 item without a `data` table (a scope item has one) is taken by the lobby;
+- that the re-encoded particles load and look right with their rebuilt materials (brightness, the
+  fire materials without 0.46c2's angle attenuation, the small mips of the flash textures);
+- that the flash plays at the device's fire point;
+- that the lobby's card shows the name and description as written.
+
+**Not done:**
+
+1. The first shot: the AK-74M with the Zenit DTK-3 (2635) through its kit's slot 4, the flash at the
+   device. Then the other effects on a sample of guns (`pp_arrest1` on a pistol-thread gun, `dtk9`
+   and `dtk4_6` on an M14x1 one, `dtk8`, `dtk11`, `dtk12` and `duckbill` on a shotgun), and a device
+   without an effect (a choke).
+2. A view from the side. The first view looks along the barrel from behind, where a flash 5 cm
+   short of the device's end looks the same as one at it. The test bot fires on its own with
+   `--drive`; a second bot on the player's team, or a second game, would give the side view.
+3. `release/build-content --full` with the pack, and `tools/check build-content`.
+4. A match's recording with a device fitted through the world check (the kit's record with a dict id
+   in slot 4 is patch 68's format; nothing new is written).
+5. Four icons show a pale wedge inside the device's cone (2629, 2630, 2636, 2637): the renderer's
+   highlight on a surface that faces the camera from inside. Not looked into.
+6. The M30x1 devices fit the three guns that were at the old 16 KB config bound: fit them only with
+   an exe that has patch 161's 64 KB arena (`attachments.md`).
