@@ -5863,6 +5863,36 @@ pub extern "C" fn hook_texture_streaming_on_texture_memory(frame: &mut Frame) ->
     }
 }
 
+// ---- tick_parts (patch 168) ----
+
+/// The entry `tick_parts_on_idle_walk` (0x7c823, bullet_character_controller::can_skeep_player_step (0x7C7E0) after it stored the walk asked, squared, at [esp+0Ch] (mov eax,[esp+0Ch] / and eax,7FFFFFFFh, then the compare with 1e-5 at 0x7C830): EDX the controller, EBP its frame) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_tick_parts_on_idle_walk(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `tick_parts_on_idle_walk` calls this, from the game's jump at 0x7c823,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::tick_parts::on_idle_walk(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- tick_parts (patch 168) ----
+
+/// The entry `tick_parts_on_speed_measured` (0x2d9541, base_player::assign_physics_transform (0x2D93A0) storing m_linear_horizontal_speed, the step's horizontal move over its ms (fld dword [esp+0Ch] / fstp dword [ebx+334h]): skipped, the value stays as it was) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_tick_parts_on_speed_measured(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `tick_parts_on_speed_measured` calls this, from the game's jump at 0x2d9541,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::tick_parts::on_speed_measured(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- trap_stock_hit (patch 151) ----
 
 /// The named exits of trap_stock_hit::on_hit (the order the shim's Flow code

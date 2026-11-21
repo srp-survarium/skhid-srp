@@ -749,6 +749,11 @@ vostok::physics::bullet_character_controller	jump_flag	0x203	u8	set: on_ground 0
 vostok::physics::bullet_character_controller	support_normal	0x2C710	f32	the supporting surface normal, a float3 (on_ground 0x7EF90: its y at least cos 50 deg [0x21E51D8]; need_slide_on_supporting_surface 0x7BC20)
 vostok::physics::bullet_character_controller	velocity	0x2C770	f32	its velocity, a float3 (on_ground 0x7EF90: |y| under 4.0 [0xA7AB10])
 vostok::physics::bullet_character_controller	sweeper	0x210	obj<vostok::physics::step_down_sweeper>	its step-down sweep helper (step_down_sweep_test_impl 0x7EAC1: lea edi,[esi+210h], the sweep 0x84FE0's ESI)
+vostok::physics::bullet_character_controller	tick	0x2C704	f32	the physics tick in seconds, 0.05: updateAction 0x7B760 compares a step's dt with it, player_step gives a part its share dt over it (0x7C140)
+vostok::physics::can_skeep_locals	walk_squared	0xC	f32	can_skeep_player_step's local [esp+0Ch] (stored 0x7C81D): the walk asked for the step, squared; under 1e-5 [0x9CBA48] the body has nothing to walk (0x7C830)
+vostok::physics::can_skeep_frame	caller	0x0	ptr<vostok::physics::player_step_frame>	can_skeep_player_step's saved EBP: the frame of player_step, its only caller (0x7C1AE)
+vostok::physics::player_step_frame	dt	0x8	f32	player_step's argument: the step's length in seconds (0x7BF3E, 0x7C13B)
+survarium::assign_physics_transform_frame	ends_tick	0x10	u8	base_player::assign_physics_transform's third argument (a tick delegate's: ms, time, this byte; tick_delegates 0x2D1DF8): 1 when the step ends on a 50 ms boundary (atomic_tick's sete, 0x2D1E32); only the low byte is set
 vostok::physics::step_down_sweeper	controller_offset	0x0	u32	the step-down sweep helper, the controller's +210h (its first dword; the step contact keys a controller by the helper's address)
 vostok::physics::step_down_sweep_frame	callback	0x80	obj<vostok::physics::step_down_sweep_callback>	the sweep 0x84FE0's callback, a local (lea ecx,[esp+90h] before its two pushes at 0x85141; at step_down.result ESP+80h)
 vostok::physics::step_down_sweep_callback	fraction	0x4	f32	character_step_down_sweep_test_callback (vtable 0x9E3F34, ctor 0x842E0): m_closestHitFraction, 1.0 until a hit is taken (0x846A8)

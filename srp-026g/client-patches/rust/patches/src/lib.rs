@@ -110,6 +110,7 @@ pub mod voice;
 pub mod ban_time;
 pub mod sign_in_cipher;
 pub mod controller_position;
+pub mod tick_parts;
 pub mod use_scan;
 pub mod unplayed_match;
 pub mod texture_streaming;
