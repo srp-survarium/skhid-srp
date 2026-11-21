@@ -74,7 +74,7 @@ research = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(research)
 
 PACK_ID = 'artefact-hunt'
-VERSION = '2'
+VERSION = '3'
 EDITS = 'artefact-hunt-1.json'
 # `mode.mode`, the lobby's number of the mode too (maps::GameMode::lobby_number is the rules'
 # number): 2 to 5 and 8 are modes, 6 Blackout, 7 Scarcity's (#1083), 9 to 11 the lobby's numbers of
@@ -101,6 +101,9 @@ FOLDER = 'artefact_hunt'
 BOX = 'item/storage_device/box_atlant8c'
 # Its bounding box (render/export_properties): half its width in x and z, its height over its foot.
 BOX_HALF, BOX_HEIGHT = (0.606, 0.616), 1.152
+# How far a box's foot may be off the floor under it (m): the owner saw 0.14 m (level_04's boxes,
+# 2026-11-21: "its bottom edge does not touch the floor and its shadow is offset").
+BOX_SNAP = 0.02
 # The mode's texts a config names (texts.tsv has them in the 11 languages).
 NAME_KEY, DESCRIPTION_KEY = f'st_mode_{MODE:02}_name', f'st_mode_{MODE:02}_description'
 HINT_KEYS = [f'st_map_hint_{MODE}_{n}' for n in (1, 2, 3)]
@@ -439,6 +442,20 @@ def moved(data, level, moves, said):
     return data
 
 
+def take_proposals(rows):
+    """Every place the fit report proposes into moves.tsv (a point's row replaced), as the owner takes
+    them (2026-11-21: "Apply all proposals"); the next run makes the pack of them."""
+    lines = (HERE / 'moves.tsv').read_text().rstrip('\n').split('\n')
+    head = [line for line in lines if line.startswith('#') or line.startswith('level\t')]
+    kept = {tuple(line.split('\t')[:3]): line for line in lines if line not in head}
+    for (level, kind, index), (place, why) in sorted(rows.items()):
+        kept[(level, kind, str(index))] = '\t'.join([level, kind, str(index)] + [f'{v:.3f}' for v in place]
+                                                    + [f'the fit report: {why}'])
+        print(f'moves.tsv: level_{level} {kind} {index} to {spot(place)}: {why}')
+    order = sorted(kept, key=lambda k: (k[0], k[1], int(k[2])))
+    (HERE / 'moves.tsv').write_text('\n'.join(head + [kept[k] for k in order]) + '\n')
+
+
 def read_moves():
     moves = {}
     for line in (HERE / 'moves.tsv').read_text().splitlines():
@@ -589,7 +606,7 @@ def check_project(built, live, data, where):
 # ---- the fit report ------------------------------------------------------------------------
 
 def spot(point):
-    return f'({point[0]:.2f}, {point[1]:.2f}, {point[2]:.2f})'
+    return f'({point[0]:.3f}, {point[1]:.3f}, {point[2]:.3f})'
 
 
 def beside(world, point, reach, drop):
@@ -660,11 +677,32 @@ def footprint(world, box, rotation):
     return f'; ground within 0.3 m under {held} of 25 points of its foot'
 
 
+def foot_floor(world, box, rotation):
+    """The highest walker ground under a box's foot (a 5 x 5 grid over its square, turned as it is),
+    from 1 m under its foot to 0.5 m over it: where its foot rests (the model's origin is its foot:
+    every surface's lowest vertex is at y 0), or None."""
+    axes = research.rotation(rotation)
+    top = None
+    for i in range(5):
+        for j in range(5):
+            u, w = BOX_HALF[0] * (i / 2 - 1), BOX_HALF[1] * (j / 2 - 1)
+            x, z = box[0] + u * axes[0][0] + w * axes[2][0], box[2] + u * axes[0][2] + w * axes[2][2]
+            for h, ground, walker in world.column(x, z):
+                if ground and walker and box[1] - 1.0 <= h <= box[1] + 0.5 and (top is None or h > top):
+                    top = h
+    return top
+
+
 def box_fit(world, box, rotation):
-    """What is wrong with a base's box standing at `box` (1.2 m square, 1.15 m tall), or None."""
+    """What is wrong with a base's box standing at `box` (1.2 m square, 1.15 m tall), or None: a prop
+    the eye judges, so a foot more than BOX_SNAP off the floor under it is named."""
     at = world.stand(box)
     if at['below'] is None and at['above'] is None:
         return 'OFF THE MAP: no floor in its column'
+    top = foot_floor(world, box, rotation)
+    if top is not None and abs(box[1] - top) > BOX_SNAP:
+        side = 'over' if box[1] > top else 'under'
+        return f'OFF THE FLOOR: its foot is {abs(box[1] - top):.3f} m {side} the highest floor under its foot'
     if at['below'] is None or (at['drop'] > 0.3 and at['above'] is not None and at['rise'] < min(at['drop'], 1.2)):
         return f"UNDER THE FLOOR: the floor is {at['rise']:.2f} m over its foot"
     if at['drop'] > 0.3:
@@ -691,21 +729,26 @@ def in_box(point, bases, reach, low, high):
     return None
 
 
-def proposal(world, kind, point):
-    """A row of moves.tsv's place columns for a point that does not fit, or why there is none."""
+def proposal(world, kind, point, rotation=None):
+    """(text, place) of moves.tsv's place columns for a point that does not fit: a box's foot onto
+    the floor under it, else the nearest fitting place; place None when there is none."""
     if kind == 'base':
+        top = foot_floor(world, point, rotation)
+        if top is not None:
+            place = (point[0], top, point[2])
+            return f'its foot on the floor at {spot(place)}, {top - point[1]:+.3f} m', place
         near = world.place(point, reach=10.0, clear=0.7, low=0.75, high=1.0, flat=0.6)
     else:
         near = world.place(point, reach=10.0)
     if near is None:
-        return 'no fitting place within 10 m'
+        return 'no fitting place within 10 m', None
     place = near[1] if kind != 'spawner' else (near[1][0], near[1][1] + 0.12, near[1][2])
-    return f'nearest fitting place {spot(place)}, {near[0]:.2f} m away'
+    return f'nearest fitting place {spot(place)}, {near[0]:.2f} m away', place
 
 
 def fit_report(folder, projects):
     """Prints each point of each map against the map's floors; returns the lines."""
-    lines, cache = [], {}
+    lines, cache, rows = [], {}, {}
     by_level = {}
     for level, source, data, live in projects:
         path = folder / (source.replace('/', '_') + '.mapdata')
@@ -735,10 +778,13 @@ def fit_report(folder, projects):
                               spawn['position'], wrong))
             own = [body_fit(world, s[0]) for s in mapdata['spawns'] if s[2] in (0, 1)]
             text = []
+            rotations = {base['team']: base['box']['rotation'] for base in data['bases']}
             for kind, index, what, point, wrong in found:
                 if wrong:
-                    text.append(f'  {what} at {spot(point)}: {wrong}; {proposal(world, kind, point)}'
-                                f'  [moves.tsv: {level[-2:]} {kind} {index}]')
+                    said, place = proposal(world, kind, point, rotations.get(index) if kind == 'base' else None)
+                    text.append(f'  {what} at {spot(point)}: {wrong}; {said}  [moves.tsv: {level[-2:]} {kind} {index}]')
+                    if place is not None:
+                        rows[(level[-2:], kind, index)] = (place, f'{wrong.split(";")[0]} (was {spot(point)})')
             counts = {kind: (sum(1 for f in found if f[0] == kind), sum(1 for f in found if f[0] == kind and f[4]))
                       for kind in ('base', 'spawner', 'spawn')}
             frame = [(live['levelmap_min'][i], live['levelmap_max'][i]) for i in (0, 2)] if 'levelmap_min' in live else []
@@ -764,7 +810,7 @@ def fit_report(folder, projects):
                          f'{counts["spawn"][0]} ({counts["spawn"][1]} named); by the same test, of the project\'s '
                          f'own {own[0]} Team Deathmatch respawn points {own[1]} would be named')
             lines += text
-    return lines
+    return lines, rows
 
 
 # ---- texts ---------------------------------------------------------------------------------
@@ -818,6 +864,7 @@ def main():
     parser.add_argument('--built', type=Path)
     parser.add_argument('--catalog', type=Path)
     parser.add_argument('--write', action='store_true')
+    parser.add_argument('--take-proposals', action='store_true')
     args = parser.parse_args()
     if args.catalog:
         return catalog(args.catalog, args.write)
@@ -943,7 +990,10 @@ def main():
               'surface, with a place for a body within 2 m;\n- a base\'s box fits with its foot within 0.3 m of a '
               'floor, no face within 0.35 m of its middle and a place for a body within 2.5 m.\nA point named below '
               'is in the pack as 0.46c2 has it, unless moves.tsv says where it goes.')
-        print('\n'.join(fit_report(args.mapdata, projects)))
+        lines, rows = fit_report(args.mapdata, projects)
+        print('\n'.join(lines))
+        if args.take_proposals:
+            take_proposals(rows)
     else:
         print('\nno fit report: --mapdata was not given')
 
