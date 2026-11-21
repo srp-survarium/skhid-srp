@@ -2043,7 +2043,7 @@ pub extern "C" fn hook_voice_on_frame(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- capture (patch 175) ----
+// ---- capture (patch 176) ----
 
 /// The entry `capture_on_tick` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2058,7 +2058,7 @@ pub extern "C" fn hook_capture_on_tick(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- capture (patch 175) ----
+// ---- capture (patch 176) ----
 
 /// The entry `capture_on_camera` (0x23ddd0, base_game_scene::apply_camera's start (sub esp,40h / push ebx / mov ebx,[esp+48h]; ret 4, the scene its stack argument): EDX the camera_director whose view (+4h) and projection (+44h) it copies into the scene (+0Ch, +4Ch) for the frame's draw; its one caller camera_director::apply (0x2434F6), every frame of every scene with a camera) calls this with the saved machine.
 #[unsafe(no_mangle)]
@@ -2088,7 +2088,7 @@ pub extern "C" fn hook_screenshot_on_interface(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- capture (patch 175) ----
+// ---- capture (patch 176) ----
 
 /// The entry `capture_on_scene` (0x13ced0, renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window) calls this with the saved machine.
 #[unsafe(no_mangle)]

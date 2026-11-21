@@ -11,7 +11,7 @@ command does it with no server and no input:
 ```sh
 ~/.cache/skhid-heavy/run --gpu nix shell nixpkgs#python3 -c python3 srp-026g/scripts/capture/capture.py \
   --map 39 --poses srp-026g/scripts/capture/fire-station.json --out <dir> \
-  --game "$HOME/games/Survarium-0.26g-srp-files(2)/game" --exe <exe with patch 175> \
+  --game "$HOME/games/Survarium-0.26g-srp-files(2)/game" --exe <exe with patch 176> \
   [--content <build>/resources.db.patch_<n>] [--game-data <server-game-data.db>]
 ```
 
@@ -26,7 +26,7 @@ command does it with no server and no input:
    (0x1F0749), so nothing else is read.
 2. **The game started with `-match_replay=` of it** goes from its start into the map: no server,
    no sign-in, no lobby (Fire Station, two poses: 38 s from the start to the exit on this machine).
-3. **Exe patch 175 (`SKHID_CAPTURE=<script>`)** does the rest in the game, and nothing without
+3. **Exe patch 176 (`SKHID_CAPTURE=<script>`)** does the rest in the game, and nothing without
    the variable (read once, at the world's first tick): the camera at the first pose from the
    world's first tick (so it streams in), `wait` ms, then each pose held its settle time and the
    next frame's scene saved as `<folder>\<name>.png` before the interface is drawn over it (F12's
@@ -46,7 +46,7 @@ command does it with no server and no input:
 
 base_game_scene::apply_camera (0x23DDD0, `camera.apply`) copies its camera_director's transform
 (+4h, rows right, up, forward, place) and projection (+44h) into the scene for the frame's draw.
-Patch 175 writes both at its start, every frame of every scene: the transform from the pose's
+Patch 176 writes both at its start, every frame of every scene: the transform from the pose's
 place and direction (no roll), the projection D3D's left-handed one with the pose's vertical field
 of view, depth range and the game's own aspect (its projection's [1][1] / [0][0]), no jitter. The
 same place and matrices as resource-porter's camera hook (`tools/render-compare/camera_hook.c`),

@@ -1,4 +1,4 @@
-//! Patch 175: a capture run (`docs/notes/capture.md`). With
+//! Patch 176: a capture run (`docs/notes/capture.md`). With
 //! `SKHID_CAPTURE=<script>` in the game's environment the game puts its
 //! camera at the script's poses and saves each one's picture, then ends;
 //! without it nothing happens. Started with `-match_replay=` of a map's

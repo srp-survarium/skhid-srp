@@ -1,8 +1,8 @@
-# Patch 175: a capture run, with SKHID_CAPTURE=<script> in the game's
+# Patch 176: a capture run, with SKHID_CAPTURE=<script> in the game's
 # environment (docs/notes/capture.md); nothing without it. The sites are
 # sites_026g.tsv's; the logic is capture.rs, the PNG patch 152's.
 name = "capture"
-patch = 175
+patch = 176
 uses = ["screenshot"]
 
 # every tick of a world, after patch 140's and voice's (orders 2 and 3): the

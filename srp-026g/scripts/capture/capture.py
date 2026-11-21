@@ -2,13 +2,13 @@
 """Pictures of a map from given camera poses, headless, in one command.
 
     capture.py --map <maps_dict id> --poses poses.json --out <dir>
-               --game <game folder> --exe <exe with patch 175>
+               --game <game folder> --exe <exe with patch 176>
                [--content <resources.db.patch_N> ...] [--game-data <server-game-data.db>]
 
 The game goes from its start straight into the map: no server, sign-in,
 lobby or click. `srp-map-sur` (this tree's match server) writes a replay of
 the map with nobody in it; the game is started with `-match_replay=` of it and
-`SKHID_CAPTURE=<script>` (exe patch 175, docs/notes/capture.md), which puts
+`SKHID_CAPTURE=<script>` (exe patch 176, docs/notes/capture.md), which puts
 the camera at each pose, saves the scene before the interface as
 `<out>/<name>.png` and ends the game. Everything runs on a display of its own
 (Xorg's dummy driver at 60 Hz, openbox; never the desktop's), in a Wine prefix
@@ -29,7 +29,7 @@ the first pose), "size" ("1920x1080", the game's window) and "user_cfg"
 written), e.g. the owner's install's `game`; --content adds a built patch
 (release/build-content's `resources.db.patch_<n>`) over them, and its folder's
 server-game-data.db is the map's game data unless --game-data names one.
---exe is an exe built with patch_026g.py from a tree that has patch 175.
+--exe is an exe built with patch_026g.py from a tree that has patch 176.
 """
 import argparse
 import json
@@ -263,7 +263,7 @@ def main():
     ap.add_argument('--poses', type=Path, required=True)
     ap.add_argument('--out', type=Path, required=True)
     ap.add_argument('--game', type=Path, required=True, help='a game folder: its resources.db* are linked')
-    ap.add_argument('--exe', type=Path, required=True, help='an exe with patch 175')
+    ap.add_argument('--exe', type=Path, required=True, help='an exe with patch 176')
     ap.add_argument('--content', type=Path, action='append', default=[], help='a resources.db.patch_<n> over them')
     ap.add_argument('--game-data', type=Path, help="server-game-data.db (default: --content's folder's, or SRP_GAME_DATA)")
     ap.add_argument('--runtime', type=Path, default=Path.home() / '.cache/skhid-capture/runtime',
