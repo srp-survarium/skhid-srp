@@ -3,6 +3,7 @@
 weapon-modules-fits-1.json.
 
 usage: python3 -I edits.py <players' files> [<modules-069d.json>]
+       python3 -I edits.py --check [<modules-069d.json>]
 
 <players' files>     the players' gameplay/db_static_dictionaries and gameplay/items/weapons/*
 <modules-069d.json>  the record of the full weapon-modules build (in the pack's folder): every gun's
@@ -22,12 +23,12 @@ For each row of ../remodel-069/items.tsv (a live gun item, its config, its live 
   foregrips 2667, 2669, 2670). Made again whenever the table's fits change (a pack version).
 """
 import json
+import re
+import subprocess
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / 'sight-alignment'))
-import model as cfgs  # noqa: E402
 
 
 def compatible(record, items, ids, taken):
@@ -53,7 +54,38 @@ def compatible(record, items, ids, taken):
     return rows, unused
 
 
+def listed_record():
+    """The record beside the weapon-modules pack release/content.tsv lists (the main checkout's
+    private/content-packs), as scope-fits/modules_edit.py finds it."""
+    root = HERE.parents[2]
+    (version,) = re.findall(r'^pack	weapon-modules@([^	]+)	', (root / 'release/content.tsv').read_text(), re.M)
+    common = subprocess.run(['git', '-C', str(root), 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+                            check=True, capture_output=True, text=True).stdout.strip()
+    return Path(common).parent / 'private/content-packs' / f'weapon-modules-{version}.modules-069d.json'
+
+
+def check(record_path):
+    """weapon-modules-fits-1.json is the record's fits: its rows, weapon by the record's own dict ids."""
+    record = json.loads(record_path.read_text())
+    items = [line.split('	')[0] for line in (HERE.parent / 'remodel-069/items.tsv').read_text().splitlines()
+             if line and not line.startswith('#')]
+    ids = {item: dict_id for item, (dict_id, _) in record['items'].items()}
+    want, _ = compatible(record, items, ids, set())
+    have = json.loads((HERE.parent / 'content-edit/weapon-modules-fits-1.json').read_text())['add_value']
+    if have != want:
+        extra = {r['key'] for r in have} - {r['key'] for r in want}
+        missing = {r['key'] for r in want} - {r['key'] for r in have}
+        sys.exit(f'weapon-modules-fits-1.json is not the rows of the record {record_path.name}: {len(missing)} '
+                 f'missing, {len(extra)} more (python3 -I edits.py <the players files> {record_path})')
+    print(f'weapon-modules-fits-1.json: the {len(want)} rows of {record_path.name}')
+
+
 def main():
+    if '--check' in sys.argv:
+        rest = [a for a in sys.argv[1:] if a != '--check']
+        return check(Path(rest[0]) if rest else listed_record())
+    sys.path.insert(0, str(HERE.parent / 'sight-alignment'))
+    import model as cfgs  # the players' files (NumPy)
     live = Path(sys.argv[1])
     record = json.loads(Path(sys.argv[2]).read_text()) if len(sys.argv) > 2 else None
     dictionary = cfgs.config(live / 'gameplay/db_static_dictionaries')
