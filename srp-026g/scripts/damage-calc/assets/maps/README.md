@@ -30,6 +30,7 @@ elevation grid for every map.
 | v010b_cs_training_camp | Training Camp | 0.1038 | 44 (STALKER port, patch 57; Free for All) |
 | v010b_cs_mp_firestation | Fire Station | 0.0952 | 39 (STALKER port, pack stalker-maps-2@2; Free for All) |
 | v010b_soc_ug_station | Station | 0.1811 | 31 (STALKER port, pack stalker-maps@7; Free for All since 2026-11-21) |
+| v032a_level_09 | London (v0.32) | 0.1823 | 181-183, 276-281 (0.32a4 port, pack london-v032@1, in place of level_09) |
 | v044a_level_09 | London (v0.42) | 0.1823 | 290-298 (0.44a5 port, pack london-v042@1) |
 
 All weathers and modes of a level share one image. The mode projects differ only
@@ -184,6 +185,8 @@ Always use `python3 -I`.
     # Fire Station (pack stalker-maps-2) the same way, their patch (not yet listed) after $ALL; their bitmaps are FFDec's names in that hud.swf
     # Station the same way (a quick build of its branch as the patch after $ALL); make_json.py --only
     # and play_area.py on it alone, merged into maps.json (its other maps' bitmaps have other FFDec ids in that hud.swf)
+    # London (v0.32) (pack london-v032@1): its pack's files over every listed patch; London's bitmap and frame
+    python3 -I extract_level.py $DBGRAB $DB v032a_level_09/day_2 $W/lv/v032a_level_09 <packs>/london-v032-1/files $ALL
     # London (v0.42) (pack london-v042@1): its pack's files over every listed patch; its bitmap is the hud
     # movie's source bitmaps/minimap_v044a_level_09.png (0.44a5's own) in London's frame
     python3 -I extract_level.py $DBGRAB $DB v044a_level_09/day_2 $W/lv/v044a_level_09 <packs>/london-v042-1/files $ALL
