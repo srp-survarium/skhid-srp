@@ -534,11 +534,14 @@ def pack_runs(specs):
     index])]], each pack in its order. vostok-port makes each path of the operations on it alone
     (its conflicts are of one path, a table or a string of one file), so operations on a path in
     common (a localization_add on every dictionary, a dictionary_add on the dictionaries' file, an
-    atlas on its movie, a layered replace) are one group. The groups of one pack are its run, those
-    of the same several packs theirs, so a pack's change recomposes the runs of its operations only.
-    A pack without operations is a group of its own. None: an operation not in PACK_OPERATIONS
-    (then the packs run whole, at once)."""
+    atlas on its movie, an edit of a file a pack adds, a layered replace) are one group; and since
+    it checks what the files it adds refer to (a model's materials) across them, the files a pack
+    adds or replaces are one group with those of the packs it requires. The groups of one pack are
+    its run, those of the same several packs theirs, so a pack's change recomposes the runs of its
+    operations only. A pack without operations is a group of its own. None: an operation not in
+    PACK_OPERATIONS (then the packs run whole, at once)."""
     nodes, touched = [], []
+    ids = {spec.get('id'): i for i, spec in enumerate(specs)}
     for i, spec in enumerate(specs):
         operations = spec.get('operations', [])
         for k, operation in enumerate(operations):
@@ -550,10 +553,11 @@ def pack_runs(specs):
             if not isinstance(path, str):
                 return None
             nodes.append((i, k))
-            touched.append(path)
+            touched.append([path] + ([('files', i)] + [('files', ids[r]) for r in spec.get('requires', []) if r in ids]
+                                     if kind in ('add_file', 'replace_file') else []))
         if not operations:
             nodes.append((i, None))
-            touched.append(('pack', i))
+            touched.append([('pack', i)])
     first = {}                                        # what a path's group is known by: its first node
     parent = list(range(len(nodes)))
 
@@ -563,9 +567,10 @@ def pack_runs(specs):
             n = parent[n]
         return n
 
-    for n, path in enumerate(touched):
-        a, b = root(n), root(first.setdefault(path, n))
-        parent[max(a, b)] = min(a, b)
+    for n, paths in enumerate(touched):
+        for path in paths:
+            a, b = root(n), root(first.setdefault(path, n))
+            parent[max(a, b)] = min(a, b)
     packs_of = {}
     for n, (i, _) in enumerate(nodes):
         packs_of.setdefault(root(n), set()).add(i)
