@@ -376,39 +376,35 @@ fn a_cosmetic_put_on_another_item_stays_on_the_first() {
     }
 }
 
-/// The scope pairs of these tests. The test data has no variant (the
-/// players' data before the release patch: no pair at all), so the table
-/// is made up over items the dictionary has, which the wire needs for an
-/// owned item: 0.26g's own Leupold (69) and PSO-1 (304) stand for two
-/// shop scopes. The variants' stand-ins are other ids the dictionary has
-/// (the 1P69 and two rifles): the wire sends only a record whose dict id is
-/// an item of the game data (`wire::item_descr`).
+/// The scopes of these tests. The test data has no modules table (nothing
+/// fits anything), so the table is made up over items the dictionary has,
+/// which the wire needs for an owned item and a record's dict id
+/// (`wire::item_descr`): 0.26g's own Leupold (69) and PSO-1 (304) stand for
+/// two shop scopes. The AK-74N and its premium copy take both, the SVD the
+/// first; the AK-74M is no gun of the table.
 const SCOPE: u16 = 69;
 const OTHER_SCOPE: u16 = 304;
-const AK_VARIANT: u16 = 362;
-const AK_OTHER_VARIANT: u16 = 363;
-const SVD_VARIANT: u16 = 364;
+/// A scope variant's dict id, as a record saved up to release 68 held one
+/// (0.26g's 1P69 stands for it: an item of the dictionary nobody fits).
+const VARIANT: u16 = 362;
 
-fn scope_table() -> ScopeFits {
-    use survarium::v026g::scopes::Fit;
-    let fit = |weapon: &str, scope, variant| Fit {
-        weapon: dict(weapon),
-        scope,
-        variant,
-    };
-    ScopeFits::new(vec![
-        fit("ak_74n", SCOPE, AK_VARIANT),
-        fit("ak_74n_premium", SCOPE, AK_VARIANT),
-        fit("svd", SCOPE, SVD_VARIANT),
-        fit("ak_74n", OTHER_SCOPE, AK_OTHER_VARIANT),
+fn scope_table() -> Modules {
+    use survarium::v026g::weapon_modules::Kind::Scope;
+    weapon_modules::fixtures::modules(&[
+        (dict("ak_74n"), SCOPE, Scope),
+        (dict("ak_74n"), OTHER_SCOPE, Scope),
+        (dict("ak_74n_premium"), SCOPE, Scope),
+        (dict("ak_74n_premium"), OTHER_SCOPE, Scope),
+        (dict("svd"), SCOPE, Scope),
     ])
-    .0
 }
 
-fn scope_record(scope_item_id: u32, variant: u16) -> Upgrade {
+/// The record of the scope item `scope_item_id` holding `dict_id`: the
+/// scope's own, or (saved up to release 68) a variant's.
+fn scope_record(scope_item_id: u32, dict_id: u16) -> Upgrade {
     Upgrade {
         id: scope_item_id,
-        a: variant.into(),
+        a: dict_id.into(),
         value: 0,
         param: 3,
     }
@@ -420,9 +416,10 @@ fn records(account: &Account, host: u32) -> Vec<Upgrade> {
 }
 
 /// The `weapon-modules` crate's sample table (its guns and modules carry
-/// 0.69d0's dict ids): the AK-74M 3 takes the DTK-3 1415 as a muzzle device
-/// and the MIKI grip 1438; the P90 1220 takes the flash hider 1395 on its
-/// barrel's own thread and the grip through a forend that takes that thread.
+/// 0.69d0's dict ids): the AK-74M 3 takes the PSO-1 1755 as a scope, the
+/// DTK-3 1415 as a muzzle device and the MIKI grip 1438; the P90 1220 takes
+/// the flash hider 1395 on its barrel's own thread and the grip through a
+/// forend that takes that thread.
 fn modules_table() -> Modules {
     Modules::parse(
         include_bytes!("../../../../weapon-modules/tests/sample-v2.srpm").to_vec(),
@@ -436,7 +433,7 @@ fn a_muzzle_device_and_a_grip_go_on_by_the_modules_table() {
     const MIKI: u16 = 1438;
     const P90: u16 = 1220;
     const P90_HIDER: u16 = 1395;
-    let (scopes, modules) = (ScopeFits::default(), modules_table());
+    let modules = modules_table();
     let mut account = rich();
     let ak = give(&mut account, "ak_74m", &[]);
     assert_eq!(account.item(ak).unwrap().dict_id, 3);
@@ -446,7 +443,7 @@ fn a_muzzle_device_and_a_grip_go_on_by_the_modules_table() {
     let grip = account.add_item(MIKI, FULL_CONDITION);
     let hider = account.add_item(P90_HIDER, FULL_CONDITION);
     let attach = |account: &mut Account, host, upgrade, slot| {
-        attach_upgrade_with(account, &scopes, &modules, host, upgrade, slot).map(|done| done.slot)
+        attach_upgrade_with(account, &modules, host, upgrade, slot).map(|done| done.slot)
     };
 
     // each in the slot of its kind, holding its own dict id
@@ -470,7 +467,36 @@ fn a_muzzle_device_and_a_grip_go_on_by_the_modules_table() {
     let mut bare = rich();
     let ak = give(&mut bare, "ak_74m", &[]);
     let brake = bare.add_item(DTK3, FULL_CONDITION);
-    assert!(attach_upgrade_with(&mut bare, &scopes, &Modules::NONE, ak, brake, 4).is_err());
+    assert!(attach_upgrade_with(&mut bare, &Modules::NONE, ak, brake, 4).is_err());
+}
+
+/// The three kinds on one gun, each in its own slot with its own dict id,
+/// whichever goes on first; the load keeps all three.
+#[test]
+fn a_scope_goes_on_together_with_a_device_and_a_grip() {
+    const PSO1: u16 = 1755;
+    const DTK3: u16 = 1415;
+    const MIKI: u16 = 1438;
+    let modules = modules_table();
+    for order in [[PSO1, DTK3, MIKI], [MIKI, DTK3, PSO1]] {
+        let mut account = rich();
+        let ak = give(&mut account, "ak_74m", &[]);
+        for dict_id in order {
+            let module = account.add_item(dict_id, FULL_CONDITION);
+            let slot = modifications::upgrade_slots_with(&modules, 3, dict_id)[0];
+            assert_eq!(
+                attach_upgrade_with(&mut account, &modules, ak, module, slot).map(|done| done.slot),
+                Ok(slot)
+            );
+        }
+        let mut held: Vec<(u32, u8)> = records(&account, ak).iter().map(|held| (held.a, held.param)).collect();
+        held.sort_unstable_by_key(|&(_, slot)| slot);
+        assert_eq!(held, [(PSO1.into(), 3), (DTK3.into(), 4), (MIKI.into(), 5)]);
+        let mut item = account.item(ak).unwrap().clone();
+        make_safe_with(&mut item, &modules);
+        assert_eq!(item.upgrades, records(&account, ak));
+        assert!(drop_gone_upgrades(&mut account.inventory).is_empty());
+    }
 }
 
 #[test]
@@ -487,14 +513,10 @@ fn a_scope_is_bought_once_and_put_on_many_weapons() {
     let mut client = client_of(&account);
     let items = account.inventory.len();
 
-    // On three weapons, each holding the variant made for it; the scope
+    // On three weapons, each holding the scope's own dict id; the scope
     // stays one item of the inventory.
-    for (host, variant) in [
-        (ak, AK_VARIANT),
-        (ak_premium, AK_VARIANT),
-        (svd, SVD_VARIANT),
-    ] {
-        let attached = attach_upgrade_in(&mut account, &table, host, scope, 3).unwrap();
+    for host in [ak, ak_premium, svd] {
+        let attached = attach_upgrade_with(&mut account, &table, host, scope, 3).unwrap();
         assert_eq!(
             attached,
             Attached {
@@ -505,10 +527,11 @@ fn a_scope_is_bought_once_and_put_on_many_weapons() {
                 detach_first: false
             }
         );
-        assert_eq!(records(&account, host), [scope_record(scope, variant)]);
+        assert_eq!(records(&account, host), [scope_record(scope, SCOPE)]);
         // The client's own copy after `83 46 01` holds the scope item's
-        // dict id (0x275671); the inventory that follows every answer
-        // (`after_change`) puts the variant's in its place.
+        // dict id (0x275671), which is what the account's record holds:
+        // the inventory that follows every answer (`after_change`) says
+        // the same.
         client
             .receive(&lobby::permitted_upgrade_attached(host, scope, 3, 0, false))
             .unwrap();
@@ -520,17 +543,17 @@ fn a_scope_is_bought_once_and_put_on_many_weapons() {
         client
             .receive_all(&wire::after_change(&account).unwrap())
             .unwrap();
-        assert_eq!(held(&client), u32::from(variant));
+        assert_eq!(held(&client), u32::from(SCOPE));
     }
     assert_eq!(account.inventory.len(), items);
     assert!(account.item(scope).unwrap().upgrades.is_empty());
     // Again on the same weapon: nothing changes.
-    let again = attach_upgrade_in(&mut account, &table, ak, scope, 3).unwrap();
+    let again = attach_upgrade_with(&mut account, &table, ak, scope, 3).unwrap();
     assert!(!again.detach_first);
-    assert_eq!(records(&account, ak), [scope_record(scope, AK_VARIANT)]);
+    assert_eq!(records(&account, ak), [scope_record(scope, SCOPE)]);
 
-    // No variant for the pair, another slot, a vest, the scope on itself:
-    // refused, nothing changes.
+    // A weapon that is no gun of the table, a scope the gun does not take,
+    // another slot, a vest, the scope on itself: refused, nothing changes.
     let before = account.clone();
     for (host, upgrade, slot) in [
         (rifle, scope, 3),
@@ -538,36 +561,31 @@ fn a_scope_is_bought_once_and_put_on_many_weapons() {
         (vest, scope, 3),
         (ak, scope, 0),
         (ak, scope, 1),
+        (ak, scope, 4),
         (scope, scope, 3),
     ] {
         assert!(
-            attach_upgrade_in(&mut account, &table, host, upgrade, slot).is_err(),
+            attach_upgrade_with(&mut account, &table, host, upgrade, slot).is_err(),
             "{host} {upgrade} {slot}"
         );
     }
     assert_eq!(account, before);
+    // And on nothing at all while the game data has no table.
+    assert!(attach_upgrade(&mut account, ak, scope, 3).is_err());
+    assert_eq!(account, before);
 
     // A second scope on a weapon replaces the first there, only there.
-    let replaced = attach_upgrade_in(&mut account, &table, ak, other, 3).unwrap();
+    let replaced = attach_upgrade_with(&mut account, &table, ak, other, 3).unwrap();
     assert!(!replaced.detach_first);
-    assert_eq!(
-        records(&account, ak),
-        [scope_record(other, AK_OTHER_VARIANT)]
-    );
-    assert_eq!(
-        records(&account, ak_premium),
-        [scope_record(scope, AK_VARIANT)]
-    );
-    assert_eq!(records(&account, svd), [scope_record(scope, SVD_VARIANT)]);
+    assert_eq!(records(&account, ak), [scope_record(other, OTHER_SCOPE)]);
+    assert_eq!(records(&account, ak_premium), [scope_record(scope, SCOPE)]);
+    assert_eq!(records(&account, svd), [scope_record(scope, SCOPE)]);
 
-    // Off one weapon: the others keep it (on that one a stock scope comes
-    // back: the client builds it from its plain config).
+    // Off one weapon: the others keep it (on that one the default optic
+    // comes back: the client builds it from its plain config).
     assert_eq!(detach_upgrade(&mut account, svd, scope), Ok(Detached::Off));
     assert!(records(&account, svd).is_empty());
-    assert_eq!(
-        records(&account, ak_premium),
-        [scope_record(scope, AK_VARIANT)]
-    );
+    assert_eq!(records(&account, ak_premium), [scope_record(scope, SCOPE)]);
     client
         .receive(&lobby::permitted_upgrade_detached(scope, svd))
         .unwrap();
@@ -578,18 +596,15 @@ fn a_scope_is_bought_once_and_put_on_many_weapons() {
     );
 
     // The scope gone (sold): off every weapon; the other scope stays.
-    attach_upgrade_in(&mut account, &table, svd, scope, 3).unwrap();
+    attach_upgrade_with(&mut account, &table, svd, scope, 3).unwrap();
     account.inventory.retain(|item| item.item_id != scope);
-    let mut stripped = drop_gone_upgrades_in(&mut account.inventory, &table);
+    let mut stripped = drop_gone_upgrades(&mut account.inventory);
     stripped.sort_unstable();
     assert_eq!(stripped, [ak_premium, svd]);
     assert!(records(&account, ak_premium).is_empty());
     assert!(records(&account, svd).is_empty());
-    assert_eq!(
-        records(&account, ak),
-        [scope_record(other, AK_OTHER_VARIANT)]
-    );
-    assert!(drop_gone_upgrades_in(&mut account.inventory, &table).is_empty());
+    assert_eq!(records(&account, ak), [scope_record(other, OTHER_SCOPE)]);
+    assert!(drop_gone_upgrades(&mut account.inventory).is_empty());
 }
 
 /// A client without patch 30 (every released revision, and the owner's test
@@ -597,7 +612,7 @@ fn a_scope_is_bought_once_and_put_on_many_weapons() {
 /// with `46 02 <kit> <upgrade>`, no weapon: the server takes it off the
 /// first item of the inventory holding it, as the client does on the
 /// answer. On the SVD that is the bought scope coming off: its record goes,
-/// and the weapon is built from its plain config, with the stock PSO-1.
+/// and the weapon is built from its plain config, with its default PSO-1.
 #[test]
 fn a_client_without_patch_30_takes_a_scope_off_its_first_holder() {
     let table = scope_table();
@@ -607,7 +622,7 @@ fn a_client_without_patch_30_takes_a_scope_off_its_first_holder() {
     let scope = account.add_item(SCOPE, FULL_CONDITION);
     let mut client = client_of(&account);
     for host in [svd, ak] {
-        attach_upgrade_in(&mut account, &table, host, scope, 3).unwrap();
+        attach_upgrade_with(&mut account, &table, host, scope, 3).unwrap();
     }
     client
         .receive_all(&wire::after_change(&account).unwrap())
@@ -616,7 +631,7 @@ fn a_client_without_patch_30_takes_a_scope_off_its_first_holder() {
     // The SVD comes first in the inventory: it loses the scope.
     assert_eq!(detach_upgrade(&mut account, 0, scope), Ok(Detached::Off));
     assert!(records(&account, svd).is_empty());
-    assert_eq!(records(&account, ak), [scope_record(scope, AK_VARIANT)]);
+    assert_eq!(records(&account, ak), [scope_record(scope, SCOPE)]);
     // The stock client's own answer handling agrees, before the inventory
     // that follows.
     takes(
@@ -642,48 +657,170 @@ fn a_wrong_scope_record_is_taken_off() {
     let rifle = give(&mut account, "ak_74m", &[]);
     let scope = account.add_item(SCOPE, FULL_CONDITION);
     let other = account.add_item(OTHER_SCOPE, FULL_CONDITION);
-    let good = scope_record(scope, AK_VARIANT);
+    let good = scope_record(scope, SCOPE);
 
-    // The load (`make_safe`): a variant made for another weapon, the scope
-    // item's own id, a scope out of its slot, two in the slot, any on a
-    // weapon with no pair.
+    // The load (`make_safe`): a scope the weapon does not take, a retired
+    // variant's id, a scope out of its slot, two in the slot, any on a
+    // weapon that is no gun of the table.
     let check = |host: u32, held: Vec<Upgrade>, kept: &[Upgrade]| {
         let mut item = account.item(host).unwrap().clone();
         item.upgrades = held;
-        make_safe_in(&mut item, &table);
+        make_safe_with(&mut item, &table);
         assert_eq!(item.upgrades, kept, "{host}");
     };
     check(ak, vec![good], &[good]);
-    check(svd, vec![scope_record(scope, AK_VARIANT)], &[]);
-    check(ak, vec![scope_record(scope, SCOPE)], &[]);
+    check(svd, vec![good], &[good]);
+    check(svd, vec![scope_record(other, OTHER_SCOPE)], &[]);
+    check(ak, vec![scope_record(scope, VARIANT)], &[]);
     check(ak, vec![Upgrade { param: 0, ..good }], &[]);
-    check(
-        ak,
-        vec![good, scope_record(other, AK_OTHER_VARIANT)],
-        &[good],
-    );
-    check(rifle, vec![scope_record(scope, AK_VARIANT)], &[]);
-    // The players' data before the patch has no pair: every scope record
-    // goes (none can be made there in the first place).
+    check(ak, vec![good, scope_record(other, OTHER_SCOPE)], &[good]);
+    check(rifle, vec![good], &[]);
+    // Game data without the modules table: every scope record goes (none
+    // can be made there in the first place).
     let mut item = account.item(ak).unwrap().clone();
     item.upgrades = vec![good];
     make_safe(&mut item);
     assert!(item.upgrades.is_empty());
 
     // After a change of the inventory (`drop_gone_upgrades`): a record
-    // that is not what its scope makes on the weapon (the first scope's
-    // variant under the other scope's id) goes; a right one stays.
-    account.item_mut(ak).unwrap().upgrades = vec![scope_record(other, AK_VARIANT)];
-    account.item_mut(svd).unwrap().upgrades = vec![scope_record(scope, SVD_VARIANT)];
-    assert_eq!(drop_gone_upgrades_in(&mut account.inventory, &table), [ak]);
+    // that does not hold its own item's dict id (the first scope's under
+    // the other scope's item) goes; a right one stays.
+    account.item_mut(ak).unwrap().upgrades = vec![scope_record(other, SCOPE)];
+    account.item_mut(svd).unwrap().upgrades = vec![good];
+    assert_eq!(drop_gone_upgrades(&mut account.inventory), [ak]);
     assert!(records(&account, ak).is_empty());
-    assert_eq!(records(&account, svd), [scope_record(scope, SVD_VARIANT)]);
+    assert_eq!(records(&account, svd), [good]);
     // Cosmetics keep their own rule.
     let vest = give(&mut account, "edge_torso_2", &[]);
     let camo = account.add_item(dict("camo_city"), FULL_CONDITION);
-    attach_upgrade_in(&mut account, &table, vest, camo, 3).unwrap();
-    assert!(drop_gone_upgrades_in(&mut account.inventory, &table).is_empty());
+    attach_upgrade_with(&mut account, &table, vest, camo, 3).unwrap();
+    assert!(drop_gone_upgrades(&mut account.inventory).is_empty());
     assert_eq!(records(&account, vest).len(), 1);
+}
+
+/// An account saved up to release 68: a scope's record held a variant's
+/// dict id. The load gives it the scope's own, and the repairs then keep
+/// it where the modules table has the pair.
+#[test]
+fn a_released_variant_record_becomes_the_scopes_own_id_at_load_and_stays_on() {
+    let table = scope_table();
+    let mut account = rich();
+    let ak = give(&mut account, "ak_74n", &[]);
+    let svd = give(&mut account, "svd", &[]);
+    let scope = account.add_item(SCOPE, FULL_CONDITION);
+    // one scope item on two weapons, each record its weapon's variant
+    account.item_mut(ak).unwrap().upgrades = vec![scope_record(scope, VARIANT)];
+    account.item_mut(svd).unwrap().upgrades = vec![scope_record(scope, VARIANT + 1)];
+    assert_eq!(scope_records_to_own_ids(&mut account), 2);
+    for host in [ak, svd] {
+        assert_eq!(records(&account, host), [scope_record(scope, SCOPE)]);
+        let mut item = account.item(host).unwrap().clone();
+        make_safe_with(&mut item, &table);
+        assert_eq!(item.upgrades, [scope_record(scope, SCOPE)]);
+    }
+    assert!(drop_gone_upgrades(&mut account.inventory).is_empty());
+    // a second load has nothing to rewrite
+    let loaded = account.clone();
+    assert_eq!(scope_records_to_own_ids(&mut account), 0);
+    assert_eq!(account, loaded);
+}
+
+/// A released pair the modules table does not have: the record, rewritten
+/// to the scope's own id, is taken off by the load's repair; the player
+/// still owns the scope item and may put it on a weapon that takes it.
+#[test]
+fn a_released_record_whose_pair_the_table_lacks_comes_off_and_the_scope_stays_owned() {
+    let table = scope_table();
+    let mut account = rich();
+    // the SVD does not take the other scope; the AK-74M is no gun of the table
+    let svd = give(&mut account, "svd", &[]);
+    let rifle = give(&mut account, "ak_74m", &[]);
+    let ak = give(&mut account, "ak_74n", &[]);
+    let other = account.add_item(OTHER_SCOPE, FULL_CONDITION);
+    let scope = account.add_item(SCOPE, FULL_CONDITION);
+    account.item_mut(svd).unwrap().upgrades = vec![scope_record(other, VARIANT)];
+    account.item_mut(rifle).unwrap().upgrades = vec![scope_record(scope, VARIANT)];
+    let saved = account.clone();
+    assert_eq!(scope_records_to_own_ids(&mut account), 2);
+    for item in &mut account.inventory {
+        make_safe_with(item, &table);
+    }
+    assert!(records(&account, svd).is_empty() && records(&account, rifle).is_empty());
+    assert!(account.item(other).is_some() && account.item(scope).is_some());
+    // the log's lines name each record as it was saved
+    let gone = upgrades_taken_off(&saved, &account);
+    assert_eq!(gone.len(), 2);
+    assert!(gone.iter().all(|&(_, record, _)| record.a == u32::from(VARIANT)));
+    assert_eq!(
+        attach_upgrade_with(&mut account, &table, ak, other, 3).map(|done| done.slot),
+        Ok(3)
+    );
+}
+
+/// The migration is the scopes' alone: armour's slot 3 holds a camouflage
+/// (its item is no scope), and a weapon's records in other slots are as
+/// they were, whatever they hold.
+#[test]
+fn an_armours_slot_3_camouflage_record_is_untouched_by_the_scopes_migration() {
+    let mut account = rich();
+    let vest = give(&mut account, "edge_torso_2", &[]);
+    let ak = give(&mut account, "ak_74n", &[]);
+    let camo = account.add_item(dict("camo_city"), FULL_CONDITION);
+    let scope = account.add_item(SCOPE, FULL_CONDITION);
+    attach_upgrade(&mut account, vest, camo, 3).unwrap();
+    // a weapon's camouflage (slot 2) and a record in the scope's slot whose
+    // item is gone or is no scope
+    account.item_mut(ak).unwrap().upgrades = vec![
+        Upgrade { id: camo, a: dict("camo_city").into(), value: 0, param: 2 },
+        Upgrade { id: 9_999, a: VARIANT.into(), value: 0, param: 3 },
+    ];
+    account.item_mut(scope).unwrap().upgrades = vec![Upgrade { id: camo, a: VARIANT.into(), value: 0, param: 3 }];
+    let before = account.clone();
+    assert_eq!(scope_records_to_own_ids(&mut account), 0);
+    assert_eq!(account, before);
+    assert_eq!(
+        records(&account, vest),
+        [Upgrade { id: camo, a: dict("camo_city").into(), value: 0, param: 3 }]
+    );
+}
+
+/// Only what the gun takes goes on, and only by the gun's own rules: a
+/// scope of another gun, a scope on a weapon with no record in the table,
+/// and anything while the data has no table are refused with the client's
+/// text, and nothing changes.
+#[test]
+fn an_attach_of_a_scope_the_gun_does_not_take_is_refused() {
+    let table = scope_table();
+    let mut account = rich();
+    let svd = give(&mut account, "svd", &[]);
+    let rifle = give(&mut account, "ak_74m", &[]);
+    let other = account.add_item(OTHER_SCOPE, FULL_CONDITION);
+    let before = account.clone();
+    let why = ItemError::Upgrade("it does not go into that slot");
+    assert_eq!(attach_upgrade_with(&mut account, &table, svd, other, 3), Err(why));
+    assert_eq!(attach_upgrade_with(&mut account, &table, rifle, other, 3), Err(why));
+    assert_eq!(attach_upgrade_with(&mut account, &Modules::NONE, svd, other, 3), Err(why));
+    assert_eq!(why.text_key(), "st_cannot_upgrade_item");
+    assert_eq!(account, before);
+}
+
+/// One scope a weapon: a second replaces the first in the slot, and the
+/// first stays an item of the inventory, free for another weapon.
+#[test]
+fn a_second_scope_replaces_the_first() {
+    let table = scope_table();
+    let mut account = rich();
+    let ak = give(&mut account, "ak_74n", &[]);
+    let first = account.add_item(SCOPE, FULL_CONDITION);
+    let second = account.add_item(OTHER_SCOPE, FULL_CONDITION);
+    attach_upgrade_with(&mut account, &table, ak, first, 3).unwrap();
+    let replaced = attach_upgrade_with(&mut account, &table, ak, second, 3).unwrap();
+    assert!(!replaced.detach_first);
+    assert_eq!(records(&account, ak), [scope_record(second, OTHER_SCOPE)]);
+    assert!(account.item(first).is_some());
+    // and back
+    attach_upgrade_with(&mut account, &table, ak, first, 3).unwrap();
+    assert_eq!(records(&account, ak), [scope_record(first, SCOPE)]);
 }
 
 #[test]

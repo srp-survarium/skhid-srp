@@ -19,7 +19,7 @@ use super::modifications::{self, Modifications};
 use super::new_account::{self, NewAccount};
 use super::prices::{SHOP_PATH, ShopRules};
 use super::quests::{self, Quests};
-use super::scopes::{SCOPE_CATEGORY, ScopeFits};
+use super::scopes::{self, SCOPE_CATEGORY};
 use super::skills::{self, SkillsTree};
 use super::ui_properties::{self, UiProperties};
 
@@ -159,10 +159,8 @@ pub fn check(data: &GameData) -> Result<(), GameDataError> {
     }
     modifications::derive_item_mods(data, &dictionary)?;
     armour::derive(data, &dictionary)?;
-    // A variant left out is logged when the table is first used
-    // ([`ScopeFits::shared`]); only a scope config that does not read stops
-    // srp.
-    ScopeFits::derive(data, &dictionary)?;
+    // The modules table parses, and what it fits as a scope is a scope item.
+    scopes::check(data, &dictionary)?;
     maps::derive(data, &dictionary)?;
     for language in localization::Language::ALL {
         localization::of(data, language)?;
