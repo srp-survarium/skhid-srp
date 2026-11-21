@@ -80,7 +80,7 @@ took() {
 }
 BUILD_SITE=${SKHID_TEST_BUILD_SITE:-$here/build-site}
 
-revision='' out='' tree=$ROOT site=0 manifest='' cached=1 full=0
+revision='' out='' tree=$ROOT site=0 manifest='' cached=1 full=0 delta_from=''
 while (($#)); do
     case $1 in
     -h | --help) usage ;;
@@ -90,6 +90,7 @@ while (($#)); do
     --manifest) (($# >= 2)) || usage 1; manifest=$2; shift 2 ;;
     --no-cache) cached=0; shift ;;
     --full) full=1; shift ;;
+    --delta-from) (($# >= 2)) || usage 1; delta_from=$2; shift 2 ;;
     -*) die "unknown option $1 (--help)" ;;
     *) [[ -z $revision ]] || usage 1; revision=$1; shift ;;
     esac
@@ -112,6 +113,27 @@ use_patches live
     die "SKHID_STOCK_DB: $SKHID_STOCK_DB is not the stock 0.26g resources.db (sha256 $STOCK_SHA)"
 read_patch_list
 ((revision > LIST_TOP)) || die "$name: the list has patches up to $LIST_TOP; the next is above them"
+# --delta-from: the earlier builds' patches the game mounts under this one (each folder's delta-of
+# names the one before it), ascending; each above the list's and below this one.
+chain=()
+if [[ -n $delta_from ]]; then
+    ((!full)) || die "--delta-from is for a local test; a release builds the whole patch (--full)"
+    from=$delta_from
+    while [[ -n $from ]]; do
+        [[ -f $from/files.tsv ]] || die "--delta-from: $from is no build-content folder (no files.tsv)"
+        from=$(cd "$from" && pwd)
+        for patch in "$from"/resources.db.patch_*; do
+            [[ -f $patch ]] || continue
+            n=${patch##*_}
+            ((n > LIST_TOP)) || die "--delta-from: $patch is not above the list's patches (up to $LIST_TOP): build it whole"
+            ((${#chain[@]} == 0 || n < ${chain[0]##*_})) || die "--delta-from: $patch is not below the build after it"
+            chain=("$patch" "${chain[@]}")
+        done
+        from=$(cat "$from/delta-of" 2>/dev/null || true)
+    done
+    ((${#chain[@]} == 0 || revision > ${chain[-1]##*_})) ||
+        die "$name: the earlier build has ${chain[-1]##*/}; a delta over it is above it"
+fi
 cache_patches
 took "the offered patches"
 bin=$(game_data_bin)
@@ -125,6 +147,10 @@ out=$(cd "$out" && pwd)
 # A quick build's folder says so before anything is in it (release.sh refuses a patch beside it).
 ((full)) || printf '%s\n' "release/build-content without --full: players' files with the patch not checked, no item tables;" \
     "for a local test only (release.sh refuses it); a release builds with --full" >"$out/$QUICK_MARK"
+if [[ -n $delta_from ]]; then
+    printf '%s\n' "a delta over $(cd "$delta_from" && pwd): mounted over its patches only, never alone" >>"$out/$QUICK_MARK"
+    (cd "$delta_from" && pwd) >"$out/delta-of"
+fi
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
@@ -136,15 +162,17 @@ args+=(--stock-sha256 "$STOCK_SHA")
 [[ -n ${SRP_GAME_DATA_BIN:-} ]] || args+=(--bin-source "$ROOT/srp-026g")
 ((!cached)) || args+=(--cache "${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/build-content")
 ((full)) || args+=(--quick)
+[[ -z $delta_from ]] || args+=(--delta-over "${chain[@]}")
 [[ -z ${SKHID_VOSTOK_PORT:-} ]] || args+=(--vostok-port "$SKHID_VOSTOK_PORT")
 [[ -z ${SKHID_PACKS_DIR:-} ]] || args+=(--packs "$SKHID_PACKS_DIR")
 say "building $(basename "$manifest") of $tree ($(git -C "$tree" rev-parse --short HEAD 2>/dev/null || echo 'no git'))"
 if ! python -I "$here/build_content.py" "${args[@]}"; then
-    rm -f "$out/$QUICK_MARK"
+    rm -f "$out/$QUICK_MARK" "$out/delta-of"
     rmdir "$out" 2>/dev/null || true
     die "no patch made"
 fi
 cp "$work/build/files.tsv" "$out/files.tsv"
+[[ -z $delta_from ]] || cp "$work/build/delta.tsv" "$out/delta.tsv"
 took "the manifest (build_content.py)"
 
 # 5. The site's pages of the list's patches and <with> (if any), in --tree:
@@ -176,18 +204,53 @@ took "the patch (build-patch)"
 say
 patches=()
 layers=(--db "$SKHID_STOCK_DB")
+# The server game data's cache key: srp-game-data (build_content.py's name of it) and every archive
+# it is built of, by its sha256, with its URLs.
+data_key="$(cat "$work/build/game-data-id") $STOCK_SHA"
 while read -r row sha size urls; do
     [[ -n $row ]] || continue
     patches+=(--patch "$PATCH_CACHE/$row=$urls")
     layers+=(--patch "$PATCH_CACHE/$row")
+    data_key+=" $row $sha $urls"
 done <<<"$LIST"
-url="$PATCHES_URL/$name"
-"$bin" build --db "$SKHID_STOCK_DB" "${patches[@]}" --patch "$out/$name=$url" --out "$out/$DATA_NAME" |
-    sed -n '/^resources\.db\.patch_[0-9]*: /p;/server-game-data\.db: /p'
+extra=''
+for patch in "${chain[@]}" "$out/$name"; do
+    url="$PATCHES_URL/${patch##*/}"
+    patches+=(--patch "$patch=$url")
+    extra+=${extra:+$'\n'}"${patch##*/} $(sha256_of "$patch") $(size_of "$patch") $url"
+    data_key+=" ${patch##*/} $(sha256_of "$patch") $url"
+done
+data_key=$(sha256sum <<<"$data_key" | cut -c1-64)
+data_cache=${XDG_CACHE_HOME:-$HOME/.cache}/skhid-release/build-content/server-data
+# A delta's server game data only when a file the server reads changed (resources_db::server::is_read:
+# gameplay/, a project's client_project, a localization dictionary); else the earlier build's serves.
+if [[ -n $delta_from ]] && ! cut -f1 "$out/delta.tsv" | grep -qE '^(gameplay/|projects/.*/client_project$|localization/[^/]*/localization$)'; then
+    for patch in "${chain[@]}"; do
+        [[ ! -f ${patch%/*}/$DATA_NAME ]] || earlier_data=${patch%/*}/$DATA_NAME
+    done
+    say "$out/$name: $(size_of "$out/$name") bytes, sha256 $(sha256_of "$out/$name"): a delta over ${chain[*]##*/}"
+    say "the server game data: not made, no file the server reads changed: ${earlier_data:-the earlier build} serves it"
+    say "a local test build: mount $name over ${chain[*]##*/}; release.sh refuses it ($QUICK_MARK)"
+    exit 0
+fi
+if ((cached)) && [[ -f $data_cache/$data_key && $(sha256_of "$data_cache/$data_key") == $(cat "$data_cache/$data_key.sha256" 2>/dev/null) ]]; then
+    cp "$data_cache/$data_key" "$out/$DATA_NAME"
+    say "$out/$DATA_NAME: as an earlier build of the same archives made it (the cache)"
+else
+    "$bin" build --db "$SKHID_STOCK_DB" "${patches[@]}" --out "$out/$DATA_NAME" |
+        sed -n '/^resources\.db\.patch_[0-9]*: /p;/server-game-data\.db: /p'
+    if ((cached)); then
+        # The last few kept (each tens of MB).
+        mkdir -p "$data_cache"
+        cp "$out/$DATA_NAME" "$data_cache/.$data_key.$$" && mv "$data_cache/.$data_key.$$" "$data_cache/$data_key" &&
+            sha256_of "$data_cache/$data_key" >"$data_cache/$data_key.sha256"
+        find "$data_cache" -maxdepth 1 -name "*.sha256" -printf "%T@ %p\n" | sort -rn | tail -n +9 | while read -r _ old; do rm -f "$old" "${old%.sha256}"; done
+    fi
+fi
 took "the server game data"
 info=$("$bin" info "$out/$DATA_NAME")
-[[ $(offered_in "$info") == "$(offered_of_list "$name $(sha256_of "$out/$name") $(size_of "$out/$name") $url")" ]] ||
-    die "$out/$DATA_NAME does not offer exactly the list's patches and $name"
+[[ $(offered_in "$info") == "$(offered_of_list "$extra")" ]] ||
+    die "$out/$DATA_NAME does not offer exactly the list's patches${chain[*]:+, the earlier builds} and $name"
 # Players' files with the new patch over them: every file made, as made (--full only).
 if ((!full)); then
     say "with $name over players' files: not checked (a quick build; --full checks it)"
