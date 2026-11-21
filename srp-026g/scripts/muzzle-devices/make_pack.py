@@ -65,7 +65,7 @@ def sha256(data):
 
 
 class Donor:
-    """The donor files of prepare.sh's folder, each checked against inputs.sha256."""
+    """The donor files of prepare.sh's folder (its d069 and d046), each checked against inputs.sha256."""
 
     def __init__(self, root, write):
         self.root, self.write, self.read_sums = Path(root), write, {}
@@ -76,9 +76,6 @@ class Donor:
                 if line and not line.startswith('#'):
                     sha, name = line.split(None, 1)
                     self.sums[name.strip()] = sha
-
-    def has(self, name):
-        return (self.root / name).is_file()
 
     def read(self, name):
         file = self.root / name
@@ -267,9 +264,8 @@ def main():
     have = set((live / 'paths.txt').read_text().split('\n'))
     files, log = {}, []
 
-    game = Donor(args.inputs / 'd069', args.write_sums)
-    donor = Donor(args.inputs / 'd046', args.write_sums)
-    found = dev.devices(dev.Game(game.read('gameplay/game.options')))
+    donor = Donor(args.inputs, args.write_sums)
+    found = dev.devices(dev.Game(donor.read('d069/gameplay/game.options')))
     table = HERE / 'devices.tsv'
     if not table.exists() or table.read_text(encoding='utf-8') != dev.table(found):
         sys.exit('devices.tsv is not what 0.69d0\'s data and the rules give (devices.py --write)')
@@ -286,7 +282,7 @@ def main():
             continue
         if not effect.startswith(DONOR_EFFECTS):
             sys.exit(f'{effect}: neither the players\' nor one of 0.46c2\'s {DONOR_EFFECTS}')
-        files[path], named = convert_particle(effect, donor.read(path), common, log)
+        files[path], named = convert_particle(effect, donor.read(f'd046/{path}'), common, log)
         log.append(f'particle {effect}: 0.46c2\'s, in 0.26g\'s layout')
         for material in named:
             materials.setdefault(material, []).append(effect)
@@ -295,14 +291,14 @@ def main():
         path = f'material_instances/{material}.material'
         if path in have:
             continue
-        files[path], named = convert_material(material, donor.read(path), shapes, log)
+        files[path], named = convert_material(material, donor.read(f'd046/{path}'), shapes, log)
         for texture in named:
             textures.setdefault(texture, []).append(material)
     for texture, users in sorted(textures.items()):
         if f'textures/{texture}.dds' in have:
             continue
-        files[f'textures/{texture}.dds'] = donor.read(f'textures/{texture}.dds')
-        files[f'textures/{texture}.options'] = bcw.write(bcw.read(donor.read(f'textures/{texture}.options')))
+        files[f'textures/{texture}.dds'] = donor.read(f'd046/textures/{texture}.dds')
+        files[f'textures/{texture}.options'] = bcw.write(bcw.read(donor.read(f'd046/textures/{texture}.options')))
         log.append(f'texture {texture} (of {", ".join(users)}): 0.46c2\'s')
 
     # the items
@@ -366,9 +362,7 @@ def main():
                    f'{len({gun for d in found for gun in fits[d["module"]]})} guns in the modules table; '
                    f'left out, in the table without an item: {", ".join(sorted(left_out & set(fits))) or "none"}')
     if args.write_sums:
-        game.read_sums = {f'd069/{k}': v for k, v in game.read_sums.items()}
-        game.read_sums.update({f'd046/{k}': v for k, v in donor.read_sums.items()})
-        game.save()
+        donor.save()
 
     operations = [{'op': 'add_file', 'path': path} for path in sorted(files)]
     operations.append({'op': 'dictionary_add', 'table': 'items_dict', 'entries': entries})

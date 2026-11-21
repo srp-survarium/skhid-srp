@@ -10,8 +10,9 @@
 #   d069/  0.69d0's gameplay/game.options (the devices' groups, modifications and shot effects)
 #   d046/  0.46c2's weapon shot effects: particles/fx/weapons/attach/, their materials and
 #          textures (material_instances/fx/weapons/, textures/fx/weapons/), as they are
-#   live/  the players' dictionary, modifications, every particle and every effect material (what a
-#          ported particle and material is checked against), and paths.txt (every path they have)
+#   live/  the players' dictionary, modifications and lobby movie (the stock icons), every particle
+#          and every effect material (what a ported particle and material is checked against),
+#          and paths.txt (every path they have)
 # make_pack.py checks d069 and d046 against inputs.sha256.
 set -euo pipefail
 (($# >= 8)) || { sed -n '2,/^set/p' "$0" | sed '$d'; exit 2; }
@@ -27,7 +28,7 @@ rm -r "$out/d046.bundle"
 list=$(mktemp)
 trap 'rm -f "$list" "$list.all"' EXIT
 "$tool" files "$@" > "$list.all"
-cut -f1 "$list.all" | grep -E '^(gameplay/db_static_dictionaries$|gameplay/items/modifications/modifications\.options$|particles/|material_instances/fx/)' > "$list"
+cut -f1 "$list.all" | grep -E '^(gameplay/db_static_dictionaries$|gameplay/items/modifications/modifications\.options$|particles/|material_instances/fx/|flash_movies/lobby_menu\.swf$)' > "$list"
 "$tool" get "$@" --out "$out/live" --paths "$list" >/dev/null
 cut -f1 "$list.all" > "$out/live/paths.txt"
 echo "$out: $(find "$out" -type f | wc -l) files"
