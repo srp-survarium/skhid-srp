@@ -32,10 +32,23 @@ package survarium.controls
       protected var _visibleTarget:Boolean = false;
       
       protected var _labelRenderer:Label;
+
+      // Freeze Tag (patch 160, docs/notes/freeze-tag.md): a frozen player's name is drawn in
+      // ice blue. Every colour the movie or the game gives the name is kept as its own and comes
+      // back on thaw; a name set while frozen stays blue (the names are plain text: .text).
+      public static const FROZEN_NAME_COLOR:uint = 0x66C2FF;
+
+      protected var _nameColor:uint;
+
+      protected var _frozen:Boolean = false;
       
       public function HUDMarker()
       {
          super();
+         if(this.textField)
+         {
+            this._nameColor = this.textField.textColor;
+         }
          if(this.icon_box)
          {
             this.icon_box.visible = false;
@@ -78,6 +91,39 @@ package survarium.controls
          }
       }
       
+      // The name's own colour (the team's, as the game sends it).
+      public function set nameColor(value:uint) : void
+      {
+         this._nameColor = value;
+         this.applyNameColor();
+      }
+
+      public function setName(value:String) : void
+      {
+         if(this.textField.text != value)
+         {
+            this.textField.text = value;
+         }
+         if(this._frozen)
+         {
+            this.applyNameColor();
+         }
+      }
+
+      public function set frozen(value:Boolean) : void
+      {
+         this._frozen = value;
+         this.applyNameColor();
+      }
+
+      protected function applyNameColor() : void
+      {
+         if(this.textField)
+         {
+            this.textField.textColor = this._frozen ? FROZEN_NAME_COLOR : this._nameColor;
+         }
+      }
+
       public function set glow(value:Boolean) : void
       {
          trace("set_glow::",value);

@@ -25,20 +25,19 @@ package survarium.controls
       protected var _objectsHidden:Boolean = false;
       
       protected var _markers:Dictionary = new Dictionary();
-      public var freezeLabel:String = "";
+      // Freeze Tag (patch 160): the places frozen, a bit each; their names are drawn ice blue
+      // (HUDMarker.frozen), a marker made later included.
       private var _freezeMask:uint = 0;
-      private var _nativeLabels:Dictionary = new Dictionary();
+
       public function freezeMarkers(mask:uint) : void
       {
          var changed:uint = _freezeMask ^ mask;
-         if(mask == 0 && changed == 0) return;
          _freezeMask = mask;
          for(var place:uint = 0; place < 20; place++)
          {
-            if(this._markers[place] && ((mask | changed) & (1 << place)))
+            if(this._markers[place] && (changed & (1 << place)))
             {
-               var frozen:Boolean = (mask & (1 << place)) != 0;
-               this._markers[place].label = frozen ? freezeLabel : (_nativeLabels[place] || "");
+               this._markers[place].frozen = (mask & (1 << place)) != 0;
             }
          }
       }
@@ -201,6 +200,7 @@ package survarium.controls
             renderer.textField.visible = false;
          }
          renderer.kind = kind;
+         renderer.frozen = id < 20 && (_freezeMask & (1 << id)) != 0;
          this._markers[id] = renderer;
          renderer.visible = false;
          addChild(renderer);
@@ -224,7 +224,7 @@ package survarium.controls
       
       public function set_player_icon_name(id:uint, str:String) : void
       {
-         this._markers[id].textField.text = str;
+         this._markers[id].setName(str);
       }
       
       public function set_player_icon_type(id:uint, type:uint) : void
@@ -244,8 +244,7 @@ package survarium.controls
       
       public function set_player_icon_label(id:uint, label:String) : void
       {
-         this._nativeLabels[id] = label;
-         this._markers[id].label = id < 20 && (_freezeMask & (1 << id)) != 0 ? freezeLabel : label;
+         this._markers[id].label = label;
       }
       
       public function set_player_icon_glow(id:uint, bool:Boolean) : void
@@ -345,10 +344,7 @@ package survarium.controls
                if(props.name != undefined)
                {
                   newName = props.name;
-                  if(textField.text != newName)
-                  {
-                     textField.text = newName;
-                  }
+                  renderer.setName(newName);
                }
                if(props.name_visible != undefined)
                {
@@ -373,7 +369,7 @@ package survarium.controls
                }
                if(textField)
                {
-                  textField.textColor = color;
+                  renderer.nameColor = color;
                   if(textField.filters)
                   {
                      filter = textField.filters[0];
@@ -432,7 +428,7 @@ package survarium.controls
          }
          if(renderer.textField)
          {
-            renderer.textField.textColor = color;
+            renderer.nameColor = color;
          }
          if(renderer.textField && ((renderer.textField as TextField).filters))
          {
