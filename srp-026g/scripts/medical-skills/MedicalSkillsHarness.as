@@ -253,9 +253,9 @@ package {
    check(shown[331].data.newValue==0,"Supply Pocket taken back");
    check(take(322,2)==1,"Additional Medicine at 17, one rank");
    check(take(331,1)==0,"Supply Pocket refused beside Additional Medicine");
-   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 25 ranks in all; one
-   // either/or pair, Resonance or Cascade in row V (Keeper and Forest Protection go together in
-   // row III): a full build is 24; without Forest Protection rows I-IV hold 19, one short of row V.
+   // The artefact tab (artefact-skills.md): 0/5/10/15/20 (the stock rows), 26 ranks in all with
+   // Courier (534, row IV); one either/or pair, Resonance or Cascade in row V (Keeper and Forest
+   // Protection go together in row III).
    stage_="artefact tab";win.skillsTabPage.selectedIndex=4;shown=renderers(win,Renderer);
    var tree5:Object={501:[2,1,3,0],502:[3,1,5,0],512:[3,2,5,5],513:[4,2,1,5],521:[2,3,1,10],
     522:[3,3,1,10],523:[1,3,4,10],531:[1,4,1,15],532:[2,4,1,15],533:[3,4,1,15],534:[4,4,1,15],541:[2,5,1,20],542:[3,5,1,20]};

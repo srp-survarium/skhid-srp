@@ -374,8 +374,9 @@ preferred-image VAs; `apply_modifier` is the kit-modifier getter 0x2D5AE0.
     container artefacts in state 5 go, in container order, into the new kit's empty containers.
 - The move (`Inventory::take_from_dead_kit`): the old slot emptied as remove_item (0x2FC680) does
   but without on_removed (vtable+34h, 0x313490): the death already unlinked the passive
-  (artefact_base::tick 0x3132E5: vtable+84h, then state 5; a non-stack item's count is 1,
-  0x2FFDD0, so every artefact goes there), and a second unlink is not harmless (Spring's
+  (artefact_base::tick 0x3132E5: vtable+84h, then state 5, for an amount above 0, 0x2FFDD0; an
+  artefact whose amount reaches 0 is removed from its container by end_active 0x31359B..0x3135A9,
+  so every artefact a container holds goes there), and a second unlink is not harmless (Spring's
   vostok::intrusive_list::unlink 0x2D5D00 on a node no longer linked empties its list's head).
   So: owner 0, slot 23, state 0 (as on_removed leaves it), the slot and its reference released,
   the old kit's weight to recalculate; then the game's own take_artefact (as a pickup: set_item,
