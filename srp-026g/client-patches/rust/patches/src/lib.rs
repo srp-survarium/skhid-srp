@@ -151,3 +151,5 @@ pub mod console_scroll;
 pub mod v021d_render;
 pub mod faces;
 pub mod geometry_share;
+// patch 161: a weapon's scope, eye, left hand and shells where its fitted modules put them
+pub mod attachments;

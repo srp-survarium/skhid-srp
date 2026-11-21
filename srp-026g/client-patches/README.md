@@ -6381,9 +6381,32 @@ buffer holds it. A table of 2048 ranges in the arena (96 KiB); the pools' sizes 
 Nothing a match computes. The memory profile (patch 127) tells both pools and the sharing in each
 snapshot. Checked with `check_geometry_share_026g.py` (Unicorn) and the patch crate's tests; run in
 the faces memory test (section 3.88).
+## A weapon's fitted modules: scope frame, eye, left hand, shells (patch 161, unreleased)
 
+The client's side of the attachment system (`../docs/notes/attachments.md`, "Stage 2"): a weapon
+config names its gun and what is fitted to it (`data/srp_gun`, `srp_scope`, `srp_muzzle`,
+`srp_grip`), the `weapon-modules` crate's `resolve` says where everything stands, and the patch
+writes the game's own records after the game filled them: the scope's and the eye's locator records
+after `load_weapon` (0x24B0E1), the left hand's records after `weapon::activate` filled them
+(0x244649), its finger sets there and at each change of view (0x298664); the shell effect keeps the
+frame the scope had (0x2443EE). `rust/patches/src/attachments.rs` over `vostok::attachments`.
+
+The table (`resources/gameplay/weapon_modules.srpm`) comes in with the items dictionary's configs
+(0x2C8963, 0x2C8AA0); the weapon cook asks for the bare body and each part's model (0x24AAB4,
+0x24AC30, 0x24ACF0) and `weapon::draw` puts the parts in the scene (0x245017; out at 0x245353,
+0x244017, 0x24B190). A weapon's scope item is the one `data/srp_scope` names, in place of
+`addons/rifle_scope_dict_id` (the cook 0x24AA15, its callback 0x24AD13). A gun that lies alone
+(a dropped one, a dead body's) gets its parts with its body. The site table and the reasons are
+in the note, "The client's runtime".
+
+With it, two numbers of `configs::create_binary_config_buffer` (0x358AA8, 0x358ABC;
+`ITEM_CONFIG_ARENAS`): the stack arena an upgraded item's config is rebuilt in is 64 KB, not 16.
+Its allocator has no bound, each fitted module adds an entry to the gun's config, and six guns'
+configs were within 5 entries of what 16 KB holds.
+
+Linked (`arena_026g.lock.json`); `check_attachments_026g.py` (`tools/check attachments`) runs
+every site in the build and the original. Nothing a match computes changes by the patch alone.
 ## A part of a tick moves a body at rest (patch 166, unreleased)
-
 The world steps to the time of each precise input inside a tick, and the character controller ran its
 step for a part of a tick only when the body had moved in its step before: a body at rest took none of
 its player's keys until a whole tick. In a fight, or through a burst of precise inputs, players stood
@@ -6392,6 +6415,8 @@ still with their keys held, in every game alike. `STEP_PARTS` (0x7B76B, one bran
 dt / 0.05 of the tick's step and returns at once for one with nothing to do, so a part moves a body by
 its own share and nobody goes faster. A simulation change. The rule and the numbers:
 `docs/notes/fall_damage.md`, "A part of a tick moves a body at rest"; the code: `client_patch.md`
+section 3.89. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check step-parts`). Not run in
+a game.
 section 3.89. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check step-parts`), and in a
 game on revision 68 (a scripted walker, ticks cut and uncut: the figures are on PR #2325).
 
@@ -6423,7 +6448,6 @@ Whole ticks are the original's bit for bit. A simulation change. The rule and th
 `client_patch.md` section 3.93. Checked with `check_step_parts_026g.py` (Unicorn; `tools/check
 step-parts`) and in a game (revision 68 with patches 166 and 168, a scripted walker, cut against uncut).
 ## The forward effects of 0.44a5 (patch 169, unreleased)
-
 The transparent effects of the ported Londons (0.32a4's and 0.44a5's: blowing sand, fires, the sky's
 clouds) draw as their donors draw them, not as blank quads (the owner, 2026-11-21: "we do proper
 conversion completely"). 0.44a5's forward_default and particle_lighting compiles read three switches

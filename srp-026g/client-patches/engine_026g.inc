@@ -925,6 +925,16 @@ extern engine_global_unlock
 ; 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_set_texture
+; void engine_fingers_set_weapon_model(struct fingers_corrector *corrector, unsigned int instance, unsigned int first_view)
+; 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_fingers_set_weapon_model
+; void engine_pin_resource(struct pinned_resource *pinned, struct managed_resource *resource)
+; 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4
+extern engine_pin_resource
+; void engine_unpin_resource(struct pinned_resource *pinned)
+; 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0
+extern engine_unpin_resource
 ; void engine_set_constant_float4(const float *value, struct effect_compiler *compiler, const char *name)
 ; 0x1a8900 vostok::render::effect_compiler::set_constant_float4: value ECX, compiler ESP+4, name ESP+8; pops 8; thiscall, called directly
 ; thiscall: push (and ECX for thiscall) as that convention says
