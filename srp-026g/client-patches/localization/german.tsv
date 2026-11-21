@@ -1584,6 +1584,114 @@ st_multiplicative_stamina_spending_modifier	Energiekosten
 st_munition	Ausrüstung
 st_music_volume_option	Musik
 st_must_be_in_clan_team	Sie muessen in dem Klan Team sein
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	AEK-919K Mündungsbremse, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	Nur Optik.
+st_muzzle_akmsu_m24x15_muzzlebrake_name	AKMSU Mündungsfeuerdämpfer, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	Nur Optik.
+st_muzzle_aks74u_m24x15_muzzlebrake_name	AKS-74U Mündungsfeuerdämpfer, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Rapira Mündungsbremse, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	ROFH Mündungsfeuerdämpfer, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	ROFH Mündungsfeuerdämpfer, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Custom 01 Choke, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_01_duckbill_name	Custom 01 Duckbill, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 Mündungsbremse, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_custom_01_m22x075_choke_name	Custom 01 Choke, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Anhaltende Kraft +27 %. Zielzeit +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 Mündungsbremse, M30x1
+st_muzzle_custom_02_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_02_duckbill_name	Custom 02 Duckbill, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_02_m14x1l_firearrestor_name	Custom 02 Mündungsfeuerdämpfer, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_02_m24x15_firearrestor_name	Custom 02 Mündungsfeuerdämpfer, M24x1.5
+st_muzzle_custom_03_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_03_duckbill_name	Custom 03 Duckbill, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Custom 03 Mündungsfeuerdämpfer, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Custom 04 Mündungsfeuerdämpfer, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Custom 04 Mündungsfeuerdämpfer, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Custom 04 Mündungsfeuerdämpfer, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Custom 01 Duckbill, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Custom 02 Duckbill, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Custom 01 Duckbill, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	T-Brake Mündungsbremse, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	T-Brake Mündungsbremse, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Defcon 1 Mündungsbremse, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 Mündungsbremse, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Anhaltende Kraft +27 %. Zielzeit +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 Mündungsbremse, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru Mündungsbremse, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Kochevnik Mündungsbremse, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	KKM Mündungsbremse, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Dragon Mündungsbremse, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Dragon Mündungsbremse, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Dragon Mündungsbremse, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	NightBrake Mündungsfeuerdämpfer, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	NightBrake Mündungsfeuerdämpfer, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	NightBrake Mündungsfeuerdämpfer, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	NightBrake Mündungsfeuerdämpfer, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Polychoke Choke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Ilgynag K01 Mündungsbremse, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Krymsk-2 Mündungsfeuerdämpfer, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Shturm Mündungsbremse, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Shturm Mündungsbremse, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Remington Choke, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Remington Choke, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_remington_m22x075_choke_name	Remington Choke, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Dynacomp Mündungsfeuerdämpfer, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Dispersion -20 %. Zielzeit +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Sure-Hit Choke, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	TT-419 Mündungsfeuerdämpfer, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Antidote Mündungsfeuerdämpfer, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Zenit DTK-2 Mündungsbremse, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Zenit DTK-3 Mündungsbremse, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Zenit DTK-4 Mündungsbremse, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Waffenrückstoß -4 %. Zielzeit +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Zenit DTK-4 Mündungsbremse, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Verbirgt das Mündungsfeuer. Nur Optik.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Zenit DTK-4 Mündungsfeuerdämpfer, M30x1
 st_my_place	Mein Rating
 st_neostead_description	Südafrikanische Vorderschaftrepetierflinte, Kaliber 12. In den 1990er Jahren von Tony Neophytou in Bullpup-Bauweise konstruiert; sie hat zwei Röhrenmagazine über dem Lauf, und zum Repetieren wird der Vorderschaft nach vorn geschoben. Fasst 12 Patronen. Nur Einzelfeuer.
 st_neostead_name	NeoStead 2000

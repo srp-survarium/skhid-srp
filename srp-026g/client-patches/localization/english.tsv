@@ -1584,6 +1584,114 @@ st_multiplicative_stamina_spending_modifier	Energy costs
 st_munition	Munition
 st_music_volume_option	Music
 st_must_be_in_clan_team	You must be in a clan team.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	AEK-919K muzzle brake, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	Looks only.
+st_muzzle_akmsu_m24x15_muzzlebrake_name	AKMSU flash hider, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	Looks only.
+st_muzzle_aks74u_m24x15_muzzlebrake_name	AKS-74U flash hider, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Rapira muzzle brake, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	ROFH flash hider, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	ROFH flash hider, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Custom 01 choke, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_01_duckbill_name	Custom 01 duckbill, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 muzzle brake, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_custom_01_m22x075_choke_name	Custom 01 choke, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Stopping power +27 %. Aim time +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 muzzle brake, M30x1
+st_muzzle_custom_02_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_02_duckbill_name	Custom 02 duckbill, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_02_m14x1l_firearrestor_name	Custom 02 flash hider, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_02_m24x15_firearrestor_name	Custom 02 flash hider, M24x1.5
+st_muzzle_custom_03_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_03_duckbill_name	Custom 03 duckbill, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Custom 03 flash hider, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Custom 04 flash hider, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Custom 04 flash hider, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Custom 04 flash hider, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Custom 01 duckbill, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Custom 02 duckbill, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Dispersion -15 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Custom 01 duckbill, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	T-Brake muzzle brake, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	T-Brake muzzle brake, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Defcon 1 muzzle brake, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 muzzle brake, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Stopping power +27 %. Aim time +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 muzzle brake, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru muzzle brake, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Kochevnik muzzle brake, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	KKM muzzle brake, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Dragon muzzle brake, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Dragon muzzle brake, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Dragon muzzle brake, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	NightBrake flash hider, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	NightBrake flash hider, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	NightBrake flash hider, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	NightBrake flash hider, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Polychoke choke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Dispersion -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Ilgynag K01 muzzle brake, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Krymsk-2 flash hider, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Shturm muzzle brake, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Shturm muzzle brake, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Remington choke, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Remington choke, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_remington_m22x075_choke_name	Remington choke, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Dynacomp flash hider, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Sure-Hit choke, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	TT-419 flash hider, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Antidote flash hider, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Zenit DTK-2 muzzle brake, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Zenit DTK-3 muzzle brake, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Zenit DTK-4 muzzle brake, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Zenit DTK-4 muzzle brake, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Hides the shot's flash. Looks only.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Zenit DTK-4 flash hider, M30x1
 st_my_place	My rank
 st_neostead_description	South African pump-action shotgun, 12 gauge. Designed in the 1990s by Tony Neophytou in the bullpup layout; it has two tube magazines above the barrel, and the slide is pushed forward to work the action. Holds 12 rounds. Single shots only.
 st_neostead_name	NeoStead 2000

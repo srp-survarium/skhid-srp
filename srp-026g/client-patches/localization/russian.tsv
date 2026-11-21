@@ -1584,6 +1584,114 @@ st_multiplicative_stamina_spending_modifier	Затраты энергии
 st_munition	Снаряжение
 st_music_volume_option	Музыка
 st_must_be_in_clan_team	Вы должны быть активным членом клановой команды.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	Дульный тормоз AEK-919K, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	Только внешний вид.
+st_muzzle_akmsu_m24x15_muzzlebrake_name	Пламегаситель AKMSU, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	Только внешний вид.
+st_muzzle_aks74u_m24x15_muzzlebrake_name	Пламегаситель AKS-74U, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Дульный тормоз Rapira, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Пламегаситель ROFH, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Пламегаситель ROFH, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Чок Custom 01, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_01_duckbill_name	Утиный клюв Custom 01, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Дульный тормоз Custom 01, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_custom_01_m22x075_choke_name	Чок Custom 01, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Останавливающая сила +27 %. Время прицеливания +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Дульный тормоз Custom 01, M30x1
+st_muzzle_custom_02_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_02_duckbill_name	Утиный клюв Custom 02, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_02_m14x1l_firearrestor_name	Пламегаситель Custom 02, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_02_m24x15_firearrestor_name	Пламегаситель Custom 02, M24x1.5
+st_muzzle_custom_03_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_03_duckbill_name	Утиный клюв Custom 03, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Пламегаситель Custom 03, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Пламегаситель Custom 04, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Пламегаситель Custom 04, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Пламегаситель Custom 04, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Утиный клюв Custom 01, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Утиный клюв Custom 02, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Дисперсия -15 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Утиный клюв Custom 01, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	Дульный тормоз T-Brake, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	Дульный тормоз T-Brake, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Останавливающая сила +27 %. Время прицеливания +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Дульный тормоз Defcon 1, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Дисперсия -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Дульный тормоз Guns.ru, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Дисперсия -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Дульный тормоз Kochevnik, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	Дульный тормоз KKM, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Дульный тормоз Dragon, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Дульный тормоз Dragon, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Дульный тормоз Dragon, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Пламегаситель NightBrake, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Пламегаситель NightBrake, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Пламегаситель NightBrake, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Пламегаситель NightBrake, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Чок Polychoke, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Дисперсия -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Дульный тормоз Ilgynag K01, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Пламегаситель Krymsk-2, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Дульный тормоз Shturm, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Дульный тормоз Shturm, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Чок Remington, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Чок Remington, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_remington_m22x075_choke_name	Чок Remington, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Пламегаситель Dynacomp, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Дисперсия -20 %. Время прицеливания +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Чок Sure-Hit, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Пламегаситель TT-419, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Пламегаситель Antidote, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-2, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-3, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Дульный тормоз Zenit DTK-4, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Отдача оружия -4 %. Время прицеливания +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Дульный тормоз Zenit DTK-4, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Скрывает вспышку выстрела. Только внешний вид.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Пламегаситель Zenit DTK-4, M30x1
 st_my_place	Мой рейтинг
 st_neostead_description	Южноафриканское помповое ружье 12 калибра. Создано в 90-х Тони Неофиту по схеме «буллпап»; два трубчатых магазина над стволом, для перезарядки цевье подается вперед. 12 патронов. Только одиночный огонь.
 st_neostead_name	NeoStead 2000

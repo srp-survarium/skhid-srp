@@ -1584,6 +1584,114 @@ st_multiplicative_stamina_spending_modifier	Energiankulutus
 st_munition	Varustus
 st_music_volume_option	Musiikki
 st_must_be_in_clan_team	Sinun on kuuluttava klaanijoukkueeseen.
+st_muzzle_aek919k_m12x1l_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_aek919k_m12x1l_muzzlebrake_name	AEK-919K suujarru, M12x1L
+st_muzzle_akmsu_m24x15_muzzlebrake_description	Vain ulkonäkö.
+st_muzzle_akmsu_m24x15_muzzlebrake_name	AKMSU liekinvaimennin, M24x1.5
+st_muzzle_aks74u_m24x15_muzzlebrake_description	Vain ulkonäkö.
+st_muzzle_aks74u_m24x15_muzzlebrake_name	AKS-74U liekinvaimennin, M24x1.5
+st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Rapira suujarru, M24x1.5
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	ROFH liekinvaimennin, M14x1L
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	ROFH liekinvaimennin, M16x1L
+st_muzzle_custom_01_doublevert_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_custom_01_doublevert_m22x075_choke_name	Custom 01 supistaja, M22x0.75 O/U
+st_muzzle_custom_01_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_01_duckbill_name	Custom 01 ankannokka, M22x0.75
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 suujarru, M14x1L
+st_muzzle_custom_01_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_custom_01_m22x075_choke_name	Custom 01 supistaja, M22x0.75
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Pysäytysvoima +27 %. Tähtäysaika +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 suujarru, M30x1
+st_muzzle_custom_02_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_02_duckbill_name	Custom 02 ankannokka, M22x0.75
+st_muzzle_custom_02_m14x1l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_02_m14x1l_firearrestor_name	Custom 02 liekinvaimennin, M14x1L
+st_muzzle_custom_02_m24x15_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_02_m24x15_firearrestor_name	Custom 02 liekinvaimennin, M24x1.5
+st_muzzle_custom_03_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_03_duckbill_name	Custom 03 ankannokka, M22x0.75
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Custom 03 liekinvaimennin, M14x1L
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Custom 04 liekinvaimennin, 1/2"x28
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Custom 04 liekinvaimennin, 5/8"x24
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Custom 04 liekinvaimennin, M14x1L
+st_muzzle_custom_doublevert_01_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_doublevert_01_duckbill_name	Custom 01 ankannokka, M22x0.75 O/U
+st_muzzle_custom_doublevert_02_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_doublevert_02_duckbill_name	Custom 02 ankannokka, M22x0.75 O/U
+st_muzzle_custom_doublhor_01_duckbill_description	Hajonta -15 %.
+st_muzzle_custom_doublhor_01_duckbill_name	Custom 01 ankannokka, M22x0.75 SxS
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_diamondhead_tbrake_i05x28_muzzlebrake_name	T-Brake suujarru, 1/2"x28
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_diamondhead_tbrake_m14x1l_muzzlebrake_name	T-Brake suujarru, M14x1L
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Defcon 1 suujarru, 1/2"x28
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 suujarru, M16x1L
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Pysäytysvoima +27 %. Tähtäysaika +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 suujarru, M30x1
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Hajonta -16 %.
+st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru suujarru, M22x0.75
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_description	Hajonta -16 %.
+st_muzzle_hartman_kochevnik_m22x075_muzzlebrake_name	Kochevnik suujarru, M22x0.75
+st_muzzle_kkm_i05x28_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_kkm_i05x28_muzzlebrake_name	KKM suujarru, 1/2"x28
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_lantac_dragon_i05x28_muzzlebrake_name	Dragon suujarru, 1/2"x28
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Dragon suujarru, 5/8"x24
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Dragon suujarru, M14x1L
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	NightBrake liekinvaimennin, 1/2"x28
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	NightBrake liekinvaimennin, 5/8"x24
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	NightBrake liekinvaimennin, M12x1L
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	NightBrake liekinvaimennin, M14x1L
+st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Polychoke supistaja, M22x0.75
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Hajonta -16 %.
+st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Ilgynag K01 suujarru, M22x0.75
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Krymsk-2 liekinvaimennin, M24x1.5
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Shturm suujarru, M14x1L
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_redheat_shturm_m24x15_muzzlebrake_name	Shturm suujarru, M24x1.5
+st_muzzle_remington_doublehor_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_remington_doublehor_m22x075_choke_name	Remington supistaja, M22x0.75 SxS
+st_muzzle_remington_doublevert_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_remington_doublevert_m22x075_choke_name	Remington supistaja, M22x0.75 O/U
+st_muzzle_remington_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_remington_m22x075_choke_name	Remington supistaja, M22x0.75
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Dynacomp liekinvaimennin, M24x1.5
+st_muzzle_stone_shurhit_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
+st_muzzle_stone_shurhit_m22x075_choke_name	Sure-Hit supistaja, M22x0.75
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	TT-419 liekinvaimennin, M22x0.75
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Antidote liekinvaimennin, M14x1L
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Zenit DTK-2 suujarru, M24x1.5
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_zenit_dtk3_m24x15_muzzlebrake_name	Zenit DTK-3 suujarru, M24x1.5
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Zenit DTK-4 suujarru, M24x1.5 clamp
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
+st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Zenit DTK-4 suujarru, M24x1.5
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Piilottaa suuliekin. Vain ulkonäkö.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Zenit DTK-4 liekinvaimennin, M30x1
 st_my_place	Oma sijoitus
 st_neostead_description	Eteläafrikkalainen 12 kaliiperin pumppuhaulikko. Tony Neophytoun 1990-luvun bullpup-malli. Kaksi putkilipasta piipun päällä, lataus työntämällä etutukkia eteenpäin. 12 patruunaa. Vain kertatuli.
 st_neostead_name	NeoStead 2000

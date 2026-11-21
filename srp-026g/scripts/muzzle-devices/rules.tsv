@@ -1,0 +1,22 @@
+# The muzzle devices' stats (docs/notes/attachments-muzzles.md): what each key of 0.69d0's two drop
+# modifications of a device (at its bought grade, 7) becomes on a 0.26g weapon. devices.py applies it.
+#   same   the same value on our key (a share of the gun's own value: modifier type 2)
+#   share  0.69d0 adds its value to the gun's own: the share it is of that (every gun the device fits
+#          has one value there in 0.69d0, else the build stops)
+#   axes   the two pellet axes are one spread in 0.26g: the mean of the two (an axis the device does
+#          not change counts 0)
+#   look   the device's main effect has no 0.26g key: it changes the look alone, and its other
+#          modification is dropped too (the owner, 2026-11-21: flash hiders change the look only)
+#   none   no 0.26g key without new exe code: dropped
+# `recoil` is the six kick bounds recoil/min_ and max_top, _left, _right_recoil, as the stock recoil
+# rolls 2080.. scale them (docs/notes/weapon-rolls.md).
+# 0.69d0 key	how	ours
+parameters/recoil_modifier	same	recoil
+parameters/aim_time_modifier	same	parameters/aim_time
+parameters/movement_speed_damage	share	parameters/stopping_power
+parameters/dispersion_buck_shot_x_scale	axes	dispersion/base_dispersion
+parameters/dispersion_buck_shot_y_scale	axes	dispersion/base_dispersion
+parameters/unmasking_radius	look	-
+parameters/recoil_hip_modifier	none	-
+parameters/recoil_shot_first_three_modifier	none	-
+parameters/aimed_movement_speed_factor	none	-
