@@ -10177,6 +10177,84 @@ texture_streaming_on_texture_memory_replay:
     db 0x53, 0x56, 0x8b, 0xb0, 0xa4, 0x80, 0x08, 0x00
     jmp 0x3be288
 
+; 0x7c823 bullet_character_controller::can_skeep_player_step (0x7C7E0) after it stored the walk asked, squared, at [esp+0Ch] (mov eax,[esp+0Ch] / and eax,7FFFFFFFh, then the compare with 1e-5 at 0x7C830): EDX the controller, EBP its frame: lohook -> tick_parts_on_idle_walk
+global tick_parts_on_idle_walk
+extern hook_tick_parts_on_idle_walk
+tick_parts_on_idle_walk:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tick_parts_on_idle_walk
+    mov edx, tick_parts_on_idle_walk_replay
+    cmp eax, 0
+    je tick_parts_on_idle_walk_go
+    mov edx, 0x7c82c
+    cmp eax, 1
+    je tick_parts_on_idle_walk_go
+    ud2
+tick_parts_on_idle_walk_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tick_parts_on_idle_walk_replay:
+    db 0x8b, 0x44, 0x24, 0x0c, 0x25, 0xff, 0xff, 0xff, 0x7f
+    jmp 0x7c82c
+
+; 0x2d9541 base_player::assign_physics_transform (0x2D93A0) storing m_linear_horizontal_speed, the step's horizontal move over its ms (fld dword [esp+0Ch] / fstp dword [ebx+334h]): skipped, the value stays as it was: lohook -> tick_parts_on_speed_measured
+global tick_parts_on_speed_measured
+extern hook_tick_parts_on_speed_measured
+tick_parts_on_speed_measured:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_tick_parts_on_speed_measured
+    mov edx, tick_parts_on_speed_measured_replay
+    cmp eax, 0
+    je tick_parts_on_speed_measured_go
+    mov edx, 0x2d954b
+    cmp eax, 1
+    je tick_parts_on_speed_measured_go
+    ud2
+tick_parts_on_speed_measured_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+tick_parts_on_speed_measured_replay:
+    db 0xd9, 0x44, 0x24, 0x0c, 0xd9, 0x9b, 0x34, 0x03, 0x00, 0x00
+    jmp 0x2d954b
+
 ; 0x305540 booby_trap_core::hit with a hit type, its entry (mov eax,[ecx+194h]; then the set defuse_by_hit against the hit type, 0x30554C): ECX the trap, ESP the return address and the ten arguments; defuse is where a hit of the trap own type goes on (cmp byte [ecx+220h],0: ECX alone is read): lohook -> trap_stock_hit_on_hit
 global trap_stock_hit_on_hit
 extern hook_trap_stock_hit_on_hit

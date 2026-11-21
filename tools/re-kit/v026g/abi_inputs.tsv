@@ -6532,3 +6532,12 @@ va	name	location	role	basis
 0x00238230	survarium::game_world_ui::draw_damage_collector	EDI	the game_world_ui (the player's +0F480h, 0x24745B)	observed
 0x00246f10	survarium::player::tick	ECX	the player	observed
 0x00246f10	survarium::player::tick	entry ESP+4	the time (ms)	observed
+0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+4	the step's length in ms (u32; fild [ebp+8] 0x2D9528: m_linear_horizontal_speed +334h := the step's horizontal move x 1000 / it, stored at 0x2D9545)	observed
+0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+12	the ends-tick byte: 1 when the step ends on a 50 ms boundary (atomic_tick's sete 0x2D1E32, passed on by tick_delegates); only its low byte is set	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+4	the delegate list (one of the world's seven at +18840h..+188B0h, 16 bytes each)	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+8	the step's length in ms	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+12	the step's end time in ms	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+16	the ends-tick byte (low byte; the rest is garbage)	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	EDI	the step's end time in ms (tick_events 0x2D22B9); a multiple of 50 ends a tick (sete 0x2D1E32: the world's base time +18FBCh is always 50, 0x2D00CD, 0x2D076A)	observed
+0x00337280	survarium::player_logic_stand_jump_state::initialize_weight_for_on_site_animation	EDX	the jump state (its player at +1Ch)	observed
+0x002d95b0	survarium::base_player::notify_actions_subscribers	entry ESP+4	the player (its m_linear_horizontal_speed +334h read at 0x2D95CF for the "is moving" notice)	observed
