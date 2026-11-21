@@ -1604,7 +1604,7 @@ st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Visszarúgás -4 %. Cé
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 csőszájfék, M14x1L
 st_muzzle_custom_01_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
 st_muzzle_custom_01_m22x075_choke_name	Custom 01 szűkítő, M22x0.75
-st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Megállítóerő +27 %. Célzási idő +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 csőszájfék, M30x1
 st_muzzle_custom_02_duckbill_description	Szórás -15 %.
 st_muzzle_custom_02_duckbill_name	Custom 02 kacsacsőr, M22x0.75
@@ -1636,7 +1636,7 @@ st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Visszarú
 st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Defcon 1 csőszájfék, 1/2"x28
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 csőszájfék, M16x1L
-st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Megállítóerő +27 %. Célzási idő +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 csőszájfék, M30x1
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Szórás -16 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru csőszájfék, M22x0.75

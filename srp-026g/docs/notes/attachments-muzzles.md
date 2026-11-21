@@ -32,7 +32,7 @@ scopes, configs `gameplay/items/muzzle_devices/<item>.options`. In the modules t
 | Family | Devices | 0.69d0 at its bought grade (7) | Here |
 |---|---|---|---|
 | Muzzle brakes and compensators | 17 | recoil -4 %, aim time +3 % | the same |
-| M30x1 compensators (Remington 700, SV-98) | 2 | slowdown on a hit +0.08 on the gun's 0.3, aim time +3 % | stopping power +27 %, aim time +3 % |
+| M30x1 compensators (Remington 700, SV-98) | 2 | slowdown on a hit +0.08 on the gun's 0.3, aim time +3 % | recoil -4 %, aim time +3 % (a brake's) |
 | Shotgun compensators | 3 | pellet spread -16 % on both axes, aimed movement -0.3 % | dispersion -16 % |
 | Chokes | 7 | pellet spread -20 % on both axes, aim time +3 % | dispersion -20 %, aim time +3 % |
 | Duckbills | 6 | pellets +40 % across, -70 % up and down | dispersion -15 % (the two axes' mean) |
@@ -44,9 +44,15 @@ scopes, configs `gameplay/items/muzzle_devices/<item>.options`. In the modules t
   a brake here. Chokes and duckbills by their group.
 - **The keys** (`rules.tsv`). Each is a share of the weapon's own value (modifier type 2, as the
   stock rolls): recoil on the six kick bounds (`weapon-rolls.md`), `parameters/aim_time`,
-  `parameters/stopping_power` (0.69d0 adds 0.08 to a value that is 0.3 on both guns it fits: the
-  share 0.2667), `dispersion/base_dispersion`. The last is the only weapon key that reaches pellet
-  spread (`attachments.md`, "Stat keys"), and it scales a slug's spread by the same share.
+  `dispersion/base_dispersion`. The last is the only weapon key that reaches pellet spread
+  (`attachments.md`, "Stat keys"), and it scales a slug's spread by the same share.
+- **The M30x1 compensators' slowdown is dead here**, so they take a brake's recoil (the
+  coordinator, 2026-11-21). 0.69d0's slowdown on a hit is 0.26g's `parameters/stopping_power`, and
+  the slow from a hit is -min(the last 0.5 s' stopping power, 0.5) (the stagger 0x2DBCD0,
+  `client_patch.md` 3.51). The three guns these two devices fit (Remington 700, its premium, SV-98)
+  have 0.6 already: more of it slows nobody more. PROVEN in the data and the exe note, not tried in
+  a game. The rule (`rules.tsv`, `as`) takes what 0.69d0 rolls first on its plain brakes, and the
+  pack's build checks the reason against every gun that takes the device.
 - **Dropped**, no 0.26g key without new exe code: the reveal radius, hip and first-three-shots
   recoil, aimed movement speed, the duckbill's two axes.
 - **Prices** (`families.tsv`; silver, seller 0 at no rank by the servers' rule for a module some gun
@@ -113,8 +119,9 @@ python3 -I scripts/muzzle-devices/make_pack.py --inputs <inputs> --modules <weap
 
 - `make_pack.py` checks the donor files against `inputs.sha256`, every dict id, name, config path
   and modification id against the players' dictionary, each device's model against the modules
-  pack, and with `--record` that every device has a gun that takes it and every muzzle fit of the
-  table has its item (the four left out aside).
+  pack, and with `--record` that every device has a gun that takes it, that every muzzle fit of the
+  table has its item (the four left out aside), and that every key a device's modification touches
+  is in the config of every gun that takes it (544 fits).
 - The icons are drawn from the devices' own models by the weapons' icon renderer
   (`scripts/weapon-icons/renderer.py`), into `LobbyMenu_AmmoIcons` columns 5 to 7, 22 a column, in
   the table's order. Column 8 is the grips'.

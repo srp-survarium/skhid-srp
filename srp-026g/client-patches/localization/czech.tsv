@@ -1604,7 +1604,7 @@ st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Zpětný ráz -4 %. Dob
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Úsťová brzda Custom 01, M14x1L
 st_muzzle_custom_01_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
 st_muzzle_custom_01_m22x075_choke_name	Zahrdlení Custom 01, M22x0.75
-st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Zastavovací účinek +27 %. Doba míření +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Úsťová brzda Custom 01, M30x1
 st_muzzle_custom_02_duckbill_description	Rozptyl -15 %.
 st_muzzle_custom_02_duckbill_name	Kachní zobák Custom 02, M22x0.75
@@ -1636,7 +1636,7 @@ st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Zpětný 
 st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Úsťová brzda Defcon 1, 1/2"x28
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Úsťová brzda Defcon 1, M16x1L
-st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Zastavovací účinek +27 %. Doba míření +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Úsťová brzda Defcon 1, M30x1
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Rozptyl -16 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Úsťová brzda Guns.ru, M22x0.75

@@ -7,7 +7,8 @@ usage: python3 -I make_pack.py --inputs <folder> --modules <folder> [--record <f
 --inputs   prepare.sh's folder: 0.69d0's game.options, 0.46c2's weapon shot effects, the players' files.
 --modules  the weapon-modules pack's folder (its devices' models and the modules table).
 --record   port-modules' record of that pack (modules-069d.json): every device has a gun that takes
-           it, and every muzzle fit of the table has its item.
+           it, and every muzzle fit of the table has its item; every key a device's modification
+           touches is in the config of every gun that takes it.
 --icons    render_icons.py's folder, <item>.png for every device. Without it the pack draws none
            (a local test: its id is muzzle-devices-noicons).
 --out      the pack's folder (a new one).
@@ -57,6 +58,10 @@ SET, SHARE, ADD_KEY = 0, 2, 3
 # construct_action 0x364F10 has no case for these type indexes: the action is left out silently
 NO_CASE = {14, 16, 19, 20, 21, 22}
 DONOR_EFFECTS = 'fx/weapons/attach/'
+# Why rules.tsv's `as` rows are right: 0.69d0's key, 0.26g's key for it and the value from which more
+# of it changes nothing. The slow from a hit is -min(the last 0.5 s' stopping power, 0.5) (the
+# stagger 0x2DBCD0, docs/notes/client_patch.md 3.51).
+DEAD = {'parameters/movement_speed_damage': ('parameters/stopping_power', 0.5)}
 # A shader switch 0.46c2 has on that no live material of the base has at all: 0.26g's fire effect has
 # no angle attenuation (0.46c2 added it to weapon_fire). Any other such switch that is on stops the build.
 LATER_SWITCHES = {('weapon_fire', 'use_angle_depended_attenuation')}
@@ -236,6 +241,13 @@ def convert_material(name, data, shapes, log):
     return bcw.dump(material), textures
 
 
+def at(config, key):
+    """The value at a key path of a config, or None."""
+    for part in key.split('/'):
+        config = config.get(part) if isinstance(config, dict) else None
+    return config
+
+
 def item_config(device, cell):
     mods = [{'path': ['data'], 'value': ['srp_muzzle', device['dict_id']], 'type': ADD_KEY}]
     if device['shoot']:
@@ -306,6 +318,7 @@ def main():
     # the items
     dictionary = bcw.loads((live / 'gameplay/db_static_dictionaries').read_bytes())
     taken = {key: {row[key] for row in dictionary['items_dict']} for key in ('dict_id', 'name', 'cfg_name')}
+    configs = {row['dict_id']: row['cfg_name'] for row in dictionary['items_dict']}
     stock = bcw.loads((live / 'gameplay/items/modifications/modifications.options').read_bytes())
     modification_ids = {entry['id'] for entry in stock['modifications'] + stock.get('defects', [])}
     if len(found) > len(ICON_COLUMNS) * ICON_ROWS:
@@ -354,9 +367,22 @@ def main():
                 if fit['kind'] == 'muzzle':
                     fits.setdefault(fit['module'], []).append(gun)
         left_out = {module for module, _ in dev.rows('left_out.tsv')}
+        weapons = {}
+        for item, (dict_id, gun) in record['items'].items():
+            weapons[gun] = (item, bcw.loads((live / configs[dict_id]).read_bytes()))
         for device in found:
             if device['module'] not in fits:
                 sys.exit(f'{device["item"]}: no gun of the modules table takes it')
+            touched = [key for key, _ in dev.modifiers(device['stats'])] + (['particles/shoot'] if device['shoot'] else [])
+            for item, config in (weapons[gun] for gun in fits[device['module']]):
+                for key in touched + ['data']:
+                    if at(config, key) is None:
+                        sys.exit(f'{device["item"]} on {item}: the weapon has no {key}')
+                for key in device['instead']:
+                    ours, cap = DEAD[key]
+                    if at(config, ours) < cap:
+                        sys.exit(f'{device["item"]} on {item}: {ours} {at(config, ours):g} is under {cap:g}: '
+                                 f'{key} is not dead there (rules.tsv)')
         stray = sorted(set(fits) - {d['module'] for d in found} - left_out)
         if stray:
             sys.exit(f'the modules table fits muzzle devices without an item: {stray}')

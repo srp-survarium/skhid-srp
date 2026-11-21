@@ -1604,7 +1604,7 @@ st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäys
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 suujarru, M14x1L
 st_muzzle_custom_01_m22x075_choke_description	Hajonta -20 %. Tähtäysaika +3 %.
 st_muzzle_custom_01_m22x075_choke_name	Custom 01 supistaja, M22x0.75
-st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Pysäytysvoima +27 %. Tähtäysaika +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 suujarru, M30x1
 st_muzzle_custom_02_duckbill_description	Hajonta -15 %.
 st_muzzle_custom_02_duckbill_name	Custom 02 ankannokka, M22x0.75
@@ -1636,7 +1636,7 @@ st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Rekyyli -
 st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Defcon 1 suujarru, 1/2"x28
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 suujarru, M16x1L
-st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Pysäytysvoima +27 %. Tähtäysaika +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Rekyyli -4 %. Tähtäysaika +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 suujarru, M30x1
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Hajonta -16 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru suujarru, M22x0.75

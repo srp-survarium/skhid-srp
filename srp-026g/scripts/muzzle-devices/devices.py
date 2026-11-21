@@ -71,6 +71,14 @@ class Game:
         return [('/'.join(m['path']), float(m['value']), number(m['type']))
                 for m in self.grades[(group, GRADE)]]
 
+    def main_group(self, key, modules):
+        """The modification 0.69d0 rolls first on those of `modules` whose one key is `key`."""
+        found = sorted({group for group in (self.drop_groups(module)[0] for module in modules)
+                        if [k for k, _, _ in self.modification(group)] == [key]})
+        if len(found) != 1:
+            sys.exit(f'the devices have {len(found)} main modifications of {key} alone ({found})')
+        return found[0]
+
     def drop_groups(self, module):
         info = self.drops.get(number(self.modules[module]['parameters']['dict_id']))
         if info is None:
@@ -112,14 +120,15 @@ def check_left_out(game, module, reason):
             sys.exit(f'left_out.tsv: {module}: {gun}\'s own part in its slot is no silencer ({own})')
 
 
-def stats_of(game, module, rules):
-    """(family key, [(our key, value)]) of a device: its two modifications through rules.tsv."""
+def stats_of(game, module, rules, modules):
+    """(family key, [(our key, value)], 0.69d0's as a text, the keys taken as another) of a device:
+    its two modifications through rules.tsv. `modules`: every device (what an `as` rule looks among)."""
     groups = game.drop_groups(module)
     theirs = [(group, game.modification(group)) for group in groups]
     main_key = theirs[0][1][0][0]
     if main_key not in MAIN_KEYS:
         sys.exit(f'{module}: main modification {main_key}, which no family is told by')
-    ours, axes, look = {}, {}, False
+    ours, axes, look, instead = {}, {}, False, []
     for _, modifiers in theirs:
         for key, value, kind in modifiers:
             if key not in rules:
@@ -129,13 +138,12 @@ def stats_of(game, module, rules):
                 look = True
             elif how == 'same':
                 ours[to] = ours.get(to, 0.0) + value
-            elif how == 'share':
-                if kind != 1:
-                    sys.exit(f'{module}: {key} is not added (type {kind})')
-                own = {float(game.weapons[gun]['parameters'][key.split('/')[1]]) for gun in game.links[module]}
-                if len(own) != 1:
-                    sys.exit(f'{module}: its guns have different {key} ({own}): no one share')
-                ours[to] = ours.get(to, 0.0) + value / own.pop()
+            elif how == 'as':
+                instead.append(key)
+                for other, value, _ in game.modification(game.main_group(to, modules)):
+                    if rules[other][0] != 'same':
+                        sys.exit(f'rules.tsv: {key}: {other} is not taken as it is')
+                    ours[rules[other][1]] = ours.get(rules[other][1], 0.0) + value
             elif how == 'axes':
                 axes.setdefault(to, []).append(value)
             elif how != 'none':
@@ -148,7 +156,7 @@ def stats_of(game, module, rules):
         ours = {}
     said = ' | '.join(f'{group}: ' + ', '.join(f'{key} {value:+.4g}' for key, value, _ in modifiers)
                       for group, modifiers in theirs)
-    return main_key, [(key, round(value, 4)) for key, value in sorted(ours.items())], said
+    return main_key, [(key, round(value, 4)) for key, value in sorted(ours.items())], said, instead
 
 
 def devices(game):
@@ -156,12 +164,13 @@ def devices(game):
     prices = {family: int(price) for family, price, _ in rows('families.tsv')}
     left_out = dict(rows('left_out.tsv'))
     out = []
+    modules = [module for module, _, _ in muzzle_ids() if module not in left_out]
     for module, dict_id, item in muzzle_ids():
         if module in left_out:
             check_left_out(game, module, left_out.pop(module))
             continue
         entry = game.modules[module]
-        main_key, stats, said = stats_of(game, module, rules)
+        main_key, stats, said, instead = stats_of(game, module, rules, modules)
         family = GROUP_FAMILIES.get(entry['group'], MAIN_KEYS[main_key])
         model = entry['model']
         if not model.startswith('weapons/modules/'):
@@ -169,7 +178,7 @@ def devices(game):
         out.append({'dict_id': dict_id, 'item': item, 'module': module, 'family': family, 'price': prices[family],
                     'shoot': game.shot_effect(module), 'stats': stats, 'theirs': said,
                     'model': 'weapons/modules_069/' + model[len('weapons/modules/'):],
-                    'slots': [slot for slot, _ in game.attaches(module)]})
+                    'slots': [slot for slot, _ in game.attaches(module)], 'instead': instead})
     if left_out:
         sys.exit(f'left_out.tsv: no muzzle row of ids.tsv for {sorted(left_out)}')
     return out

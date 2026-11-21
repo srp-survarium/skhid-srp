@@ -47,7 +47,16 @@ RULES = {key: (how, to) for key, how, to in dev.rows('rules.tsv')}
 class Rules(unittest.TestCase):
     def stats(self, first, second, **more):
         g = game({'m': module(1, 'x', ['thread'])}, {1: (first, second)}, links=[('m', 'gun')], **more)
-        return dev.stats_of(g, 'm', RULES)[:2]
+        return dev.stats_of(g, 'm', RULES, ['m'])[:2]
+
+    def test_a_slowdown_that_is_dead_here_is_a_brakes_recoil(self):
+        modules = {'m': module(1, 'x', ['thread']), 'brake': module(2, 'x', ['thread'])}
+        g = game(modules, {1: (314, 403), 2: (300, 403)}, links=[('m', 'gun')])
+        self.assertEqual(dev.stats_of(g, 'm', RULES, ['m', 'brake'])[1:], ([('parameters/aim_time', 0.03), ('recoil', -0.04)],
+                         '314: parameters/movement_speed_damage +0.08 | 403: parameters/aim_time_modifier +0.03',
+                         ['parameters/movement_speed_damage']))
+        with self.assertRaises(SystemExit):      # no device rolls recoil first: nothing to take
+            dev.stats_of(g, 'm', RULES, ['m'])
 
     def test_a_brake_keeps_its_two_numbers_at_the_bought_grade(self):
         self.assertEqual(self.stats(300, 403), ('parameters/recoil_modifier', [('parameters/aim_time', 0.03), ('recoil', -0.04)]))
@@ -57,13 +66,6 @@ class Rules(unittest.TestCase):
     def test_a_flash_hider_takes_no_number_not_even_its_penalty(self):
         self.assertEqual(self.stats(315, 403), ('parameters/unmasking_radius', []))
         self.assertEqual(self.stats(315, 402), ('parameters/unmasking_radius', []))
-
-    def test_the_slowdown_is_its_share_of_the_guns_own(self):
-        self.assertEqual(self.stats(314, 403)[1], [('parameters/aim_time', 0.03), ('parameters/stopping_power', 0.2667)])
-        two = {'gun': {'parameters': {'movement_speed_damage': 0.3}}, 'other': {'parameters': {'movement_speed_damage': 0.2}}}
-        g = game({'m': module(1, 'x', ['thread'])}, {1: (314, 403)}, weapons=two, links=[('m', 'gun'), ('m', 'other')])
-        with self.assertRaises(SystemExit):
-            dev.stats_of(g, 'm', RULES)
 
     def test_the_pellet_axes_are_one_spread(self):
         self.assertEqual(self.stats(307, 403)[1], [('dispersion/base_dispersion', -0.2), ('parameters/aim_time', 0.03)])

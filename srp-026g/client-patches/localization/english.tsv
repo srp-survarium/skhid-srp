@@ -1604,7 +1604,7 @@ st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Custom 01 muzzle brake, M14x1L
 st_muzzle_custom_01_m22x075_choke_description	Dispersion -20 %. Aim time +3 %.
 st_muzzle_custom_01_m22x075_choke_name	Custom 01 choke, M22x0.75
-st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Stopping power +27 %. Aim time +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 muzzle brake, M30x1
 st_muzzle_custom_02_duckbill_description	Dispersion -15 %.
 st_muzzle_custom_02_duckbill_name	Custom 02 duckbill, M22x0.75
@@ -1636,7 +1636,7 @@ st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Weapon re
 st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Defcon 1 muzzle brake, 1/2"x28
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Defcon 1 muzzle brake, M16x1L
-st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Stopping power +27 %. Aim time +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Weapon recoil -4 %. Aim time +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Defcon 1 muzzle brake, M30x1
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Dispersion -16 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Guns.ru muzzle brake, M22x0.75

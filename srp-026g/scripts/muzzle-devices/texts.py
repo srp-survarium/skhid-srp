@@ -49,8 +49,8 @@ KIND = {
         'serbian': ('Pačji kljun', True), 'croatian': ('Pačji kljun', True)},
 }
 # a stat's word: the dictionary's own key for it, in the order a description says them
-STATS = (('recoil', 'st_multiplicative_recoil_modifier'), ('parameters/stopping_power', 'st_inv_stopingpower'),
-         ('dispersion/base_dispersion', 'st_inv_dispersion'), ('parameters/aim_time', 'st_srp_medicine_aim_time'))
+STATS = (('recoil', 'st_multiplicative_recoil_modifier'), ('dispersion/base_dispersion', 'st_inv_dispersion'),
+         ('parameters/aim_time', 'st_srp_medicine_aim_time'))
 # a flash hider whose shot effect is the small puff
 HIDES_EFFECT = 'fx/weapons/attach/gas_small'
 HIDES = {'english': "Hides the shot's flash.", 'german': 'Verbirgt das Mündungsfeuer.',

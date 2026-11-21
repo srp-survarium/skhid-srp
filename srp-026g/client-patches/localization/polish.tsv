@@ -1604,7 +1604,7 @@ st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas
 st_muzzle_custom_01_m14x1l_clamp_muzzlebrake_name	Hamulec wylotowy Custom 01, M14x1L
 st_muzzle_custom_01_m22x075_choke_description	Rozrzut -20 %. Czas celowania +3 %.
 st_muzzle_custom_01_m22x075_choke_name	Czok Custom 01, M22x0.75
-st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Siła hamująca +27 %. Czas celowania +3 %.
+st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Hamulec wylotowy Custom 01, M30x1
 st_muzzle_custom_02_duckbill_description	Rozrzut -15 %.
 st_muzzle_custom_02_duckbill_name	Kaczy dziób Custom 02, M22x0.75
@@ -1636,7 +1636,7 @@ st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_description	Odrzut br
 st_muzzle_grizzlygunworks_defcon1_i05x28_clamp_muzzlebrake_name	Hamulec wylotowy Defcon 1, 1/2"x28
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
 st_muzzle_grizzlygunworks_defcon1_m16x1l_clamp_muzzlebrake_name	Hamulec wylotowy Defcon 1, M16x1L
-st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Siła hamująca +27 %. Czas celowania +3 %.
+st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_description	Odrzut broni -4 %. Czas celowania +3 %.
 st_muzzle_grizzlygunworks_defcon1_m30x1_clamp_muzzlebrake_name	Hamulec wylotowy Defcon 1, M30x1
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_description	Rozrzut -16 %.
 st_muzzle_gunsru_custom_m22x075_muzzlebrake_name	Hamulec wylotowy Guns.ru, M22x0.75
