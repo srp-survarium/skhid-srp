@@ -1602,15 +1602,15 @@ st_music_volume_option	Hudba
 st_must_be_in_clan_team	Musíš být v klanovém týmu.
 st_muzzle_aek919k_m12x1l_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
 st_muzzle_aek919k_m12x1l_muzzlebrake_name	Úsťová brzda AEK-919K, M12x1L
-st_muzzle_akmsu_m24x15_muzzlebrake_description	Jen vzhled.
+st_muzzle_akmsu_m24x15_muzzlebrake_description	
 st_muzzle_akmsu_m24x15_muzzlebrake_name	Tlumič plamene AKMSU, M24x1.5
-st_muzzle_aks74u_m24x15_muzzlebrake_description	Jen vzhled.
+st_muzzle_aks74u_m24x15_muzzlebrake_description	
 st_muzzle_aks74u_m24x15_muzzlebrake_name	Tlumič plamene AKS-74U, M24x1.5
 st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
 st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Úsťová brzda Rapira, M24x1.5
-st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	Tlumič plamene ROFH, M14x1L
-st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	Tlumič plamene ROFH, M16x1L
 st_muzzle_custom_01_doublevert_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
 st_muzzle_custom_01_doublevert_m22x075_choke_name	Zahrdlení Custom 01, M22x0.75 O/U
@@ -1624,19 +1624,19 @@ st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Zpětný ráz -4 %. Doba
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Úsťová brzda Custom 01, M30x1
 st_muzzle_custom_02_duckbill_description	Rozptyl -15 %.
 st_muzzle_custom_02_duckbill_name	Kachní zobák Custom 02, M22x0.75
-st_muzzle_custom_02_m14x1l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_02_m14x1l_firearrestor_description	
 st_muzzle_custom_02_m14x1l_firearrestor_name	Tlumič plamene Custom 02, M14x1L
-st_muzzle_custom_02_m24x15_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_02_m24x15_firearrestor_description	
 st_muzzle_custom_02_m24x15_firearrestor_name	Tlumič plamene Custom 02, M24x1.5
 st_muzzle_custom_03_duckbill_description	Rozptyl -15 %.
 st_muzzle_custom_03_duckbill_name	Kachní zobák Custom 03, M22x0.75
-st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Tlumič plamene Custom 03, M14x1L
-st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	
 st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Tlumič plamene Custom 04, 1/2"x28
-st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	
 st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Tlumič plamene Custom 04, 5/8"x24
-st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Tlumič plamene Custom 04, M14x1L
 st_muzzle_custom_doublevert_01_duckbill_description	Rozptyl -15 %.
 st_muzzle_custom_doublevert_01_duckbill_name	Kachní zobák Custom 01, M22x0.75 O/U
@@ -1666,19 +1666,19 @@ st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Zpětný ráz -4 %. Doba 
 st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Úsťová brzda Dragon, 5/8"x24
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Úsťová brzda Dragon, M14x1L
-st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	Tlumič plamene NightBrake, 1/2"x28
-st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	Tlumič plamene NightBrake, 5/8"x24
-st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	Tlumič plamene NightBrake, M12x1L
-st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	Tlumič plamene NightBrake, M14x1L
 st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
 st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Zahrdlení Polychoke, M22x0.75
 st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Rozptyl -16 %.
 st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Úsťová brzda Ilgynag K01, M22x0.75
-st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
 st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Tlumič plamene Krymsk-2, M24x1.5
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Úsťová brzda Shturm, M14x1L
@@ -1690,13 +1690,13 @@ st_muzzle_remington_doublevert_m22x075_choke_description	Rozptyl -20 %. Doba mí
 st_muzzle_remington_doublevert_m22x075_choke_name	Zahrdlení Remington, M22x0.75 O/U
 st_muzzle_remington_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
 st_muzzle_remington_m22x075_choke_name	Zahrdlení Remington, M22x0.75
-st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
 st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Tlumič plamene Dynacomp, M24x1.5
 st_muzzle_stone_shurhit_m22x075_choke_description	Rozptyl -20 %. Doba míření +3 %.
 st_muzzle_stone_shurhit_m22x075_choke_name	Zahrdlení Sure-Hit, M22x0.75
-st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
 st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	Tlumič plamene TT-419, M22x0.75
-st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	
 st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Tlumič plamene Antidote, M14x1L
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Úsťová brzda Zenit DTK-2, M24x1.5
@@ -1706,7 +1706,7 @@ st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Zpětný ráz -4 %. Do
 st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Úsťová brzda Zenit DTK-4, M24x1.5 clamp
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Zpětný ráz -4 %. Doba míření +3 %.
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Úsťová brzda Zenit DTK-4, M24x1.5
-st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Skrývá záblesk výstřelu. Jen vzhled.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	
 st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Tlumič plamene Zenit DTK-4, M30x1
 st_my_place	Moje umístění
 st_neostead_description	Jihoafrická opakovací brokovnice ráže 12. Tony Neophytou ji v 90. letech navrhl jako bullpup. Dva trubicové zásobníky nad hlavní, přebíjení posunutím předpažbí dopředu. Kapacita 12 nábojů. Pouze jednotlivé rány.
@@ -2845,6 +2845,7 @@ st_srp_mode_team_deathmatch	Týmový deathmatch
 st_srp_mouse_lock_option	Zamknout svislou citlivost
 st_srp_mouse_vertical_option	Svislá citlivost
 st_srp_muzzle_slot	Úsťové zařízení
+st_srp_no_muzzle_flash	Bez záblesku
 st_srp_optics	Optika
 st_srp_options_hud	HUD:
 st_srp_pierce_brick	Cihla, ocel

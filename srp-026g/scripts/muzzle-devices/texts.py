@@ -6,7 +6,9 @@ rule, check_localization_026g.py), for each device of devices.tsv:
 - st_muzzle_<module>_name: the model's name (names.tsv), the kind's word and what follows the comma:
   "Zenit DTK-3 muzzle brake, M24x1.5". Short, to fit the inventory's tile;
 - st_muzzle_<module>_description: what it changes, each stat in the dictionary's own word for it
-  ("Weapon recoil -4 %. Aim time +3 %."); a flash hider: that it changes the look alone.
+  ("Weapon recoil -4 %. Aim time +3 %."); a device that changes no stat: none (a flash hider's card
+  has its bonus line, st_srp_no_muzzle_flash: ../weapon-modules/ids.py, AttachmentStats);
+- st_srp_no_muzzle_flash: that line, short as the stock bonus lines.
 --check: writes nothing and fails when a dictionary is not what this gives.
 """
 import sys
@@ -52,17 +54,10 @@ KIND = {
 STATS = (('recoil', 'st_multiplicative_recoil_modifier'), ('dispersion/base_dispersion', 'st_inv_dispersion'),
          ('parameters/aim_time', 'st_srp_medicine_aim_time'))
 # a flash hider whose shot effect is the small puff
-HIDES_EFFECT = 'fx/weapons/attach/gas_small'
-HIDES = {'english': "Hides the shot's flash.", 'german': 'Verbirgt das Mündungsfeuer.',
-         'polish': 'Ukrywa błysk wystrzału.', 'russian': 'Скрывает вспышку выстрела.',
-         'ukrainian': 'Приховує спалах пострілу.', 'belarusian': 'Хавае ўспышку стрэлу.',
-         'czech': 'Skrývá záblesk výstřelu.', 'finnish': 'Piilottaa suuliekin.',
-         'hungarian': 'Elrejti a torkolattüzet.', 'serbian': 'Skriva bljesak pucnja.',
-         'croatian': 'Skriva bljesak pucnja.'}
-LOOKS = {'english': 'Looks only.', 'german': 'Nur Optik.', 'polish': 'Tylko wygląd.',
-         'russian': 'Только внешний вид.', 'ukrainian': 'Лише зовнішній вигляд.',
-         'belarusian': 'Толькі знешні выгляд.', 'czech': 'Jen vzhled.', 'finnish': 'Vain ulkonäkö.',
-         'hungarian': 'Csak megjelenés.', 'serbian': 'Samo izgled.', 'croatian': 'Samo izgled.'}
+NO_FLASH = {'english': 'No muzzle flash', 'german': 'Kein Mündungsfeuer', 'polish': 'Brak błysku',
+            'russian': 'Без вспышки', 'ukrainian': 'Без спалаху', 'belarusian': 'Без успышкі',
+            'czech': 'Bez záblesku', 'finnish': 'Ei suuliekkiä', 'hungarian': 'Nincs torkolattűz',
+            'serbian': 'Bez bljeska', 'croatian': 'Bez bljeska'}
 
 
 def percent(value):
@@ -77,7 +72,7 @@ def read(path):
 
 
 def texts(found, names, language, words):
-    out = {}
+    out = {'st_srp_no_muzzle_flash': NO_FLASH[language]}
     for device in found:
         name, tag = names[device['module']]
         word, first = KIND[device['family']][language]
@@ -90,7 +85,7 @@ def texts(found, names, language, words):
             if stats:
                 sys.exit(f'{device["module"]}: no word for {sorted(stats)}')
         else:
-            said = ([HIDES[language]] if device['shoot'] == HIDES_EFFECT else []) + [LOOKS[language]]
+            said = []
         out[f'st_{stem}_description'] = ' '.join(said)
     return out
 
@@ -112,8 +107,8 @@ def main():
     if set(names) != {d['module'] for d in found}:
         sys.exit(f'names.tsv: no such device: {sorted(set(names) - {d["module"] for d in found})}')
     tables = sorted(TABLES.glob('*.tsv'))
-    if {path.stem for path in tables} != set(HIDES):
-        sys.exit(f'the dictionaries are {[p.stem for p in tables]}, the texts here {sorted(HIDES)}')
+    if {path.stem for path in tables} != set(NO_FLASH):
+        sys.exit(f'the dictionaries are {[p.stem for p in tables]}, the texts here {sorted(NO_FLASH)}')
     stale = []
     for path in tables:
         table = read(path)

@@ -1602,15 +1602,15 @@ st_music_volume_option	Zene
 st_must_be_in_clan_team	Kláncsapatban kell lenned.
 st_muzzle_aek919k_m12x1l_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_aek919k_m12x1l_muzzlebrake_name	AEK-919K csőszájfék, M12x1L
-st_muzzle_akmsu_m24x15_muzzlebrake_description	Csak megjelenés.
+st_muzzle_akmsu_m24x15_muzzlebrake_description	
 st_muzzle_akmsu_m24x15_muzzlebrake_name	AKMSU lángrejtő, M24x1.5
-st_muzzle_aks74u_m24x15_muzzlebrake_description	Csak megjelenés.
+st_muzzle_aks74u_m24x15_muzzlebrake_description	
 st_muzzle_aks74u_m24x15_muzzlebrake_name	AKS-74U lángrejtő, M24x1.5
 st_muzzle_aws_rapira_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_aws_rapira_m24x15_muzzlebrake_name	Rapira csőszájfék, M24x1.5
-st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m14x1l_firearrestor_name	ROFH lángrejtő, M14x1L
-st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_description	
 st_muzzle_cncwarrior_rofh_m16x1l_firearrestor_name	ROFH lángrejtő, M16x1L
 st_muzzle_custom_01_doublevert_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
 st_muzzle_custom_01_doublevert_m22x075_choke_name	Custom 01 szűkítő, M22x0.75 O/U
@@ -1624,19 +1624,19 @@ st_muzzle_custom_01_m30x1_clamp_muzzlebrake_description	Visszarúgás -4 %. Cél
 st_muzzle_custom_01_m30x1_clamp_muzzlebrake_name	Custom 01 csőszájfék, M30x1
 st_muzzle_custom_02_duckbill_description	Szórás -15 %.
 st_muzzle_custom_02_duckbill_name	Custom 02 kacsacsőr, M22x0.75
-st_muzzle_custom_02_m14x1l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_02_m14x1l_firearrestor_description	
 st_muzzle_custom_02_m14x1l_firearrestor_name	Custom 02 lángrejtő, M14x1L
-st_muzzle_custom_02_m24x15_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_02_m24x15_firearrestor_description	
 st_muzzle_custom_02_m24x15_firearrestor_name	Custom 02 lángrejtő, M24x1.5
 st_muzzle_custom_03_duckbill_description	Szórás -15 %.
 st_muzzle_custom_03_duckbill_name	Custom 03 kacsacsőr, M22x0.75
-st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_03_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_03_m14x1l_clamp_firearrestor_name	Custom 03 lángrejtő, M14x1L
-st_muzzle_custom_04_i05x28_clamp_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_04_i05x28_clamp_firearrestor_description	
 st_muzzle_custom_04_i05x28_clamp_firearrestor_name	Custom 04 lángrejtő, 1/2"x28
-st_muzzle_custom_04_i06x24_clamp_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_04_i06x24_clamp_firearrestor_description	
 st_muzzle_custom_04_i06x24_clamp_firearrestor_name	Custom 04 lángrejtő, 5/8"x24
-st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_custom_04_m14x1l_clamp_firearrestor_description	
 st_muzzle_custom_04_m14x1l_clamp_firearrestor_name	Custom 04 lángrejtő, M14x1L
 st_muzzle_custom_doublevert_01_duckbill_description	Szórás -15 %.
 st_muzzle_custom_doublevert_01_duckbill_name	Custom 01 kacsacsőr, M22x0.75 O/U
@@ -1666,19 +1666,19 @@ st_muzzle_lantac_dragon_i06x24_muzzlebrake_description	Visszarúgás -4 %. Célz
 st_muzzle_lantac_dragon_i06x24_muzzlebrake_name	Dragon csőszájfék, 5/8"x24
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_lantac_drakon_m14x1l_muzzlebrake_name	Dragon csőszájfék, M14x1L
-st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i05x28_firearrestor_name	NightBrake lángrejtő, 1/2"x28
-st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_i06x24_firearrestor_name	NightBrake lángrejtő, 5/8"x24
-st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m12x1l_firearrestor_name	NightBrake lángrejtő, M12x1L
-st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_manticorearms_nightbrake_m141l_firearrestor_description	
 st_muzzle_manticorearms_nightbrake_m141l_firearrestor_name	NightBrake lángrejtő, M14x1L
 st_muzzle_polychoke_ventedcollar_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
 st_muzzle_polychoke_ventedcollar_m22x075_choke_name	Polychoke szűkítő, M22x0.75
 st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_description	Szórás -16 %.
 st_muzzle_redheat_ilgynagk01_m22x075_muzzlebrake_name	Ilgynag K01 csőszájfék, M22x0.75
-st_muzzle_redheat_krymske2_m24x15_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_redheat_krymske2_m24x15_firearrestor_description	
 st_muzzle_redheat_krymske2_m24x15_firearrestor_name	Krymsk-2 lángrejtő, M24x1.5
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_redheat_shturm_m14x1l_muzzlebrake_name	Shturm csőszájfék, M14x1L
@@ -1690,13 +1690,13 @@ st_muzzle_remington_doublevert_m22x075_choke_description	Szórás -20 %. Célzá
 st_muzzle_remington_doublevert_m22x075_choke_name	Remington szűkítő, M22x0.75 O/U
 st_muzzle_remington_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
 st_muzzle_remington_m22x075_choke_name	Remington szűkítő, M22x0.75
-st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_description	
 st_muzzle_spikestactical_dynacomp_m24x15_firearrestor_name	Dynacomp lángrejtő, M24x1.5
 st_muzzle_stone_shurhit_m22x075_choke_description	Szórás -20 %. Célzási idő +3 %.
 st_muzzle_stone_shurhit_m22x075_choke_name	Sure-Hit szűkítő, M22x0.75
-st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_taktikatula_saiga419_m22x075_firearrestor_description	
 st_muzzle_taktikatula_saiga419_m22x075_firearrestor_name	TT-419 lángrejtő, M22x0.75
-st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_venometactical_antidote_m14x1l_firearrestor_description	
 st_muzzle_venometactical_antidote_m14x1l_firearrestor_name	Antidote lángrejtő, M14x1L
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_zenit_dtk2_m24x15_muzzlebrake_name	Zenit DTK-2 csőszájfék, M24x1.5
@@ -1706,7 +1706,7 @@ st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_description	Visszarúgás -4 %. C�
 st_muzzle_zenit_dtk4_m24x15_clamp_muzzlebrake_name	Zenit DTK-4 csőszájfék, M24x1.5 clamp
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_description	Visszarúgás -4 %. Célzási idő +3 %.
 st_muzzle_zenit_dtk4_m24x15_muzzlebrake_name	Zenit DTK-4 csőszájfék, M24x1.5
-st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	Elrejti a torkolattüzet. Csak megjelenés.
+st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_description	
 st_muzzle_zenit_dtk4_m30x1_clamp_firearrestor_name	Zenit DTK-4 lángrejtő, M30x1
 st_my_place	Saját helyezés
 st_neostead_description	Dél-afrikai pumpás sörétes puska, 12-es kaliberrel. Tony Neophytou tervezte az 1990-es években, bullpup elrendezéssel. Két csőtár a cső felett, az előagy előretolásával tölthető újra. 12 lőszer, csak egyes lövés.
@@ -2845,6 +2845,7 @@ st_srp_mode_team_deathmatch	Csapatos deathmatch
 st_srp_mouse_lock_option	Függőleges érzékenység rögzítése
 st_srp_mouse_vertical_option	Függőleges érzékenység
 st_srp_muzzle_slot	Csőszájeszköz
+st_srp_no_muzzle_flash	Nincs torkolattűz
 st_srp_optics	Távcsövek
 st_srp_options_hud	HUD:
 st_srp_pierce_brick	Tégla, acél

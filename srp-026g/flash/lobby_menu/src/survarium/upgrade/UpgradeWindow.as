@@ -446,7 +446,10 @@ package survarium.upgrade
             }
             for each(row in attachmentStats(int(module.dictId)))
             {
-               all.push({props:[{prop_id:row.prop,prop_value:row.share}]});
+               if(row.prop > 0)
+               {
+                  all.push({props:[{prop_id:row.prop,prop_value:row.share}]});
+               }
             }
          }
          return all;

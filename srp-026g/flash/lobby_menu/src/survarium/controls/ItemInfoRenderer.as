@@ -213,6 +213,12 @@ package survarium.controls
             var properties:PropertiesDescriptor = PropertiesDescriptor.getPropertiesDescriptor("properties");
             for each(var stat:Object in UpgradeWindow.attachmentStats(int(_data.dictId)))
             {
+               if(Boolean(stat.label))
+               {
+                  // a line with no stat (a flash hider's): its icon and its words
+                  defaultModifiers.push({icon:icons.getIcon(stat.icon),label:LocalizationData.getName(stat.label)});
+                  continue;
+               }
                var description:Object = properties.getPropertyDescription(stat.prop);
                var share:Number = Number(stat.share);
                if(!description)
