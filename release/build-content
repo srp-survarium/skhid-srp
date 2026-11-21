@@ -175,13 +175,16 @@ if [[ -n $delta_from ]]; then
             [[ -f $patch ]] || continue
             n=${patch##*_}
             ((n > LIST_TOP)) || die "--delta-from: $patch is not above the list's patches (up to $LIST_TOP): build it whole"
-            ((${#chain[@]} == 0 || n < ${chain[0]##*_})) || die "--delta-from: $patch is not below the build after it"
+            if ((${#chain[@]})) && ((n >= ${chain[0]##*_})); then
+                die "--delta-from: $patch is not below the build after it"
+            fi
             chain=("$patch" "${chain[@]}")
         done
         from=$(cat "$from/delta-of" 2>/dev/null || true)
     done
-    ((${#chain[@]} == 0 || revision > ${chain[-1]##*_})) ||
+    if ((${#chain[@]})) && ((revision <= ${chain[-1]##*_})); then
         die "$name: the earlier build has ${chain[-1]##*/}; a delta over it is above it"
+    fi
 fi
 cache_patches
 took "the offered patches"
