@@ -1,8 +1,8 @@
 //! Patch 167: no white hit marker for a hit through a wall (the owner,
 //! 2026-11-21; docs/notes/hit-marker-walls.md).
 //!
-//! - A bullet that went through a surface other than leaves is noted (by its
-//!   key) when it does.
+//! - A bullet that went through a wall, a surface of armour above 0 (not
+//!   glass, foliage, cloth, paper), is noted (by its key) when it does.
 //! - Each bullet hit the game writes into its shooter's collector leaves the
 //!   shooter's mark: a clear hit not drawn yet, or walled when the bullet
 //!   was noted.
@@ -79,7 +79,7 @@ static WALLED: GameCell<Walled> = GameCell::new(Walled::NONE);
 static MARKS: GameCell<[Option<Mark>; Place::COUNT]> = GameCell::new([None; Place::COUNT]);
 
 fn through_wall(pierce: Pierce) -> bool {
-    pierce.kind == Some(HitType::Ranged) && matches!(pierce.through, Through::Surface(material) if !material.is_leaves())
+    pierce.kind == Some(HitType::Ranged) && pierce.through == Through::Wall
 }
 
 /// check_collision once try_pierce let a bullet through (`bullet.pierced`).
@@ -127,7 +127,6 @@ pub fn on_draw(ctx: &mut Context<'_>) -> Flow<HitMarkerWallsOnDrawExit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::vostok::step::GroundMaterial;
 
     const MINE: u32 = 0x3000_F534;
 
@@ -158,16 +157,16 @@ mod tests {
     }
 
     #[test]
-    fn walls_are_every_surface_but_leaves_for_a_round() {
+    fn walls_are_surfaces_of_armour_for_a_round() {
         let pierce = |kind, through| Pierce { bullet: BulletKey::for_test(1, 2), kind, through };
-        let surface = |id| Through::Surface(GroundMaterial::of(id));
-        assert!(through_wall(pierce(Some(HitType::Ranged), surface(17))));
-        assert!(through_wall(pierce(Some(HitType::Ranged), surface(11))));
-        for leaves in [24, 44, 49] {
-            assert!(!through_wall(pierce(Some(HitType::Ranged), surface(leaves))));
+        for wall in [0.10, 0.23, 20.0, f32::NAN] {
+            assert!(through_wall(pierce(Some(HitType::Ranged), Through::surface(wall))));
+        }
+        for open in [0.0, -0.0] {
+            assert!(!through_wall(pierce(Some(HitType::Ranged), Through::surface(open))));
         }
         assert!(!through_wall(pierce(Some(HitType::Ranged), Through::Receiver)));
-        assert!(!through_wall(pierce(Some(HitType::Blunt), surface(17))));
+        assert!(!through_wall(pierce(Some(HitType::Blunt), Through::surface(0.23))));
     }
 
     #[test]

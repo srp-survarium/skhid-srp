@@ -1618,3 +1618,6 @@ survarium::player_input_handler	wheel	0x348	f32	the mouse wheel's distance chang
 survarium::match_rule	timelimit_core	0x128	ptr<survarium::core_world>	the client time rule's core (its node 0x267ACC reads [rule+128h]+18FC4h, the newest tick played)
 survarium::medical_damage	invulnerable_until	0x32C	u32	m_invulnerability_time_in_ms: the time until the player is invulnerable, -1 none (get_invulnerability 0x2E5550; the spawn writes time + its point's +20h, 0x316E78)
 survarium::player	yaw	0x490	f32	m_rotation_y: the yaw a spawn stores (0x2DAB70) and patch 31's switch keeps (kit_change_026g.asm YAW)
+survarium::game_material	armor	0x4C	f32	its physic armor (game.materials): try_pierce's A (0x32D980); 0 lets every bullet through for nothing (k = 1, 0x32D99E)
+survarium::camera_director	view	0x4	f32	the camera's transform, a row-vector 4x4 (16 f32: right, up, forward, place) that base_game_scene::apply_camera copies to the scene's +0Ch (0x23DDE0)
+survarium::camera_director	projection	0x44	f32	the projection, D3D's left-handed with a vertical field of view (16 f32; [2][0] and [2][1] the jitter, [2][2] and [3][2] the depth range) that apply_camera copies to the scene's +4Ch (0x23DDED)

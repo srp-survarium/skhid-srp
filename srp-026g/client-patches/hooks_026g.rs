@@ -2897,6 +2897,126 @@ pub extern "C" fn hook_lobby_scene_on_tick(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- ragdoll (patch 76) ----
+
+/// The entry `ragdoll_on_step` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_step(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `ragdoll_on_step` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::ragdoll::on_step(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- lamps (patch 81) ----
+
+/// The entry `lamps_on_present` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_lamps_on_present(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `lamps_on_present` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::lamps::on_present(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- replay_keys (patch 140) ----
+
+/// The entry `replay_keys_on_move` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_replay_keys_on_move(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `replay_keys_on_move` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::replay_keys::on_move(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- voice (patch 66) ----
+
+/// The entry `voice_on_frame` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_voice_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `voice_on_frame` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::voice::on_frame(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- capture (patch 176) ----
+
+/// The entry `capture_on_tick` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_capture_on_tick(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `capture_on_tick` calls this, from the game's jump at 0x1f7c3c,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::capture::on_tick(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- capture (patch 176) ----
+
+/// The entry `capture_on_camera` (0x23ddd0, base_game_scene::apply_camera's start (sub esp,40h / push ebx / mov ebx,[esp+48h]; ret 4, the scene its stack argument): EDX the camera_director whose view (+4h) and projection (+44h) it copies into the scene (+0Ch, +4Ch) for the frame's draw; its one caller camera_director::apply (0x2434F6), every frame of every scene with a camera) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_capture_on_camera(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `capture_on_camera` calls this, from the game's jump at 0x23ddd0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::capture::on_camera(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- screenshot (patch 152) ----
+
+/// The entry `screenshot_on_interface` (0x13ced0, renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_interface(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `screenshot_on_interface` calls this, from the game's jump at 0x13ced0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::screenshot::on_interface(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- capture (patch 176) ----
+
+/// The entry `capture_on_scene` (0x13ced0, renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_capture_on_scene(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `capture_on_scene` calls this, from the game's jump at 0x13ced0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::capture::on_scene(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- language (patch 79) ----
 
 /// The entry `language_on_configs_start` (0x1ea210, game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301)) calls this with the saved machine.
@@ -6506,21 +6626,6 @@ pub extern "C" fn hook_scaleform_capture_on_queue_destroy(frame: &mut Frame) -> 
     }
 }
 
-// ---- screenshot (patch 152) ----
-
-/// The entry `screenshot_on_interface` (0x13ced0, renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_screenshot_on_interface(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `screenshot_on_interface` calls this, from the game's jump at 0x13ced0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::screenshot::on_interface(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
 // ---- sign_in_cipher (patch 139) ----
 
 /// The entry `sign_in_cipher_on_begin` (0x380504, on_user_name_answer_received (0x380340) for the answer 0Bh, the user name taken (mov ecx,[ebp+8] / sub esp,30h, past the jne at 0x380502): before it starts the stream's handshake (0x38B840), once a sign-in) calls this with the saved machine.
@@ -7972,6 +8077,30 @@ pub extern "C" fn hook_weapon_flight_on_view_chain(frame: &mut Frame) -> u32 {
     let flow = hook_camera_sweep_on_view(frame);
     if flow != 0 { return flow; }
     let flow = hook_lobby_scene_on_tick(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_ragdoll_on_step(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_lamps_on_present(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_replay_keys_on_move(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_voice_on_frame(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_capture_on_tick(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_screenshot_on_interface_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_screenshot_on_interface(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_capture_on_scene(frame);
     if flow != 0 { return flow; }
     0
 }

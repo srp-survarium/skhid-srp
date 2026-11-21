@@ -3419,6 +3419,15 @@ impl GameMaterial {
     pub unsafe fn id(self) -> *mut u16 {
         unsafe { self.0.byte_add(0x64).cast::<u16>().as_ptr() }
     }
+
+    /// +0x4c (f32): its physic armor (game.materials): try_pierce's A (0x32D980); 0 lets every bullet through for nothing (k = 1, 0x32D99E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn armor(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4c).cast::<f32>().as_ptr() }
+    }
 }
 
 /// A survarium::material_pair (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -30116,6 +30125,39 @@ impl FreezeTickFrame {
     }
 }
 
+/// A survarium::camera_director (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CameraDirector(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CameraDirector {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (f32): the camera's transform, a row-vector 4x4 (16 f32: right, up, forward, place) that base_game_scene::apply_camera copies to the scene's +0Ch (0x23DDE0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x44 (f32): the projection, D3D's left-handed with a vertical field of view (16 f32; [2][0] and [2][1] the jitter, [2][2] and [3][2] the depth range) that apply_camera copies to the scene's +4Ch (0x23DDED)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn projection(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x44).cast::<f32>().as_ptr() }
+    }
+}
+
 /// A survarium::bullet_manager_engine (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -36678,6 +36720,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn rule(machine: &impl Machine) -> Option<MatchRule> {
             NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(MatchRule)
+        }
+    }
+
+    /// camera.apply (0x23ddd0): base_game_scene::apply_camera's start (sub esp,40h / push ebx / mov ebx,[esp+48h]; ret 4, the scene its stack argument): EDX the camera_director whose view (+4h) and projection (+44h) it copies into the scene (+0Ch, +4Ch) for the frame's draw; its one caller camera_director::apply (0x2434F6), every frame of every scene with a camera
+    pub mod camera_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDX: a survarium::camera_director (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn director(machine: &impl Machine) -> Option<CameraDirector> {
+            NonNull::new(machine.register(Register::Edx) as usize as *mut c_void).map(CameraDirector)
         }
     }
 }

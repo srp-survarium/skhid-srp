@@ -71,6 +71,8 @@ pub mod forward_effects;
 pub mod run_logs;
 pub mod tab_cursor;
 pub mod scaleform_capture;
+// patch 176: SKHID_CAPTURE's run, poses to pictures
+pub mod capture;
 pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;

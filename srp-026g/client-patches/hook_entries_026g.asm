@@ -3819,6 +3819,123 @@ weapon_flight_on_view_replay:
     db 0xd9, 0x83, 0xb4, 0x00, 0x00, 0x00
     jmp 0x2840f8
 
+; 0x1f7c3c game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world): lohook -> ragdoll_on_step
+global ragdoll_on_step
+extern hook_ragdoll_on_step_chain
+ragdoll_on_step:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_ragdoll_on_step_chain
+    mov edx, ragdoll_on_step_replay
+    cmp eax, 0
+    je ragdoll_on_step_go
+    mov edx, 0x1f7c41
+    cmp eax, 1
+    je ragdoll_on_step_go
+    ud2
+ragdoll_on_step_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+ragdoll_on_step_replay:
+    db 0x80, 0x7c, 0x24, 0x0f, 0x00
+    jmp 0x1f7c41
+
+; 0x23ddd0 base_game_scene::apply_camera's start (sub esp,40h / push ebx / mov ebx,[esp+48h]; ret 4, the scene its stack argument): EDX the camera_director whose view (+4h) and projection (+44h) it copies into the scene (+0Ch, +4Ch) for the frame's draw; its one caller camera_director::apply (0x2434F6), every frame of every scene with a camera: lohook -> capture_on_camera
+global capture_on_camera
+extern hook_capture_on_camera
+capture_on_camera:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_capture_on_camera
+    mov edx, capture_on_camera_replay
+    cmp eax, 0
+    je capture_on_camera_go
+    mov edx, 0x23ddd8
+    cmp eax, 1
+    je capture_on_camera_go
+    ud2
+capture_on_camera_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+capture_on_camera_replay:
+    db 0x83, 0xec, 0x40, 0x53, 0x8b, 0x5c, 0x24, 0x48
+    jmp 0x23ddd8
+
+; 0x13ced0 renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window: lohook -> screenshot_on_interface
+global screenshot_on_interface
+extern hook_screenshot_on_interface_chain
+screenshot_on_interface:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_screenshot_on_interface_chain
+    mov edx, screenshot_on_interface_replay
+    cmp eax, 0
+    je screenshot_on_interface_go
+    mov edx, 0x13ced6
+    cmp eax, 1
+    je screenshot_on_interface_go
+    ud2
+screenshot_on_interface_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+screenshot_on_interface_replay:
+    db 0x55, 0x8b, 0xec, 0x83, 0xec, 0x0c
+    jmp 0x13ced6
+
 ; 0x1ea210 game::on_configs_loaded's start (push ebp / mov ebp,esp / and esp,-8), before it runs startup.cfg and user.cfg (load_cc_script 0x1EA2C2, 0x1EA301): lohook -> language_on_configs_start
 global language_on_configs_start
 extern hook_language_on_configs_start_chain
@@ -9928,45 +10045,6 @@ scaleform_capture_on_queue_destroy_go:
 scaleform_capture_on_queue_destroy_replay:
     db 0x56, 0x8b, 0xf1, 0x8b, 0x4e, 0x34
     jmp 0x5ed1e6
-
-; 0x13ced0 renderer::render_flash_ui's start (push ebp / mov ebp,esp / sub esp,0Ch), once a frame from the frame's draw (0x13DB3D), after the present stage wrote the scene to the back buffer (0x13DB36) and before the interface's movies are drawn over it (flash_renderer::present 0x2AF0F0 at 0x13CFF3) and the swap chain's Present (0x13DD46): ESP the return address, the renderer and the output window: lohook -> screenshot_on_interface
-global screenshot_on_interface
-extern hook_screenshot_on_interface
-screenshot_on_interface:
-    lea esp, [esp - 4]
-    pushfd
-    pushad
-    cld
-    mov ebp, esp
-    sub esp, 512
-    and esp, -16
-    fxsave [esp]
-    mov edi, esp
-    sub esp, 8
-    and esp, -16
-    mov [esp], ebp
-    mov [esp+4], edi
-    mov eax, esp
-    sub esp, 12
-    push eax
-    call hook_screenshot_on_interface
-    mov edx, screenshot_on_interface_replay
-    cmp eax, 0
-    je screenshot_on_interface_go
-    mov edx, 0x13ced6
-    cmp eax, 1
-    je screenshot_on_interface_go
-    ud2
-screenshot_on_interface_go:
-    mov [ebp + 36], edx
-    fxrstor [edi]
-    mov esp, ebp
-    popad
-    popfd
-    ret
-screenshot_on_interface_replay:
-    db 0x55, 0x8b, 0xec, 0x83, 0xec, 0x0c
-    jmp 0x13ced6
 
 ; 0x380504 on_user_name_answer_received (0x380340) for the answer 0Bh, the user name taken (mov ecx,[ebp+8] / sub esp,30h, past the jne at 0x380502): before it starts the stream's handshake (0x38B840), once a sign-in: lohook -> sign_in_cipher_on_begin
 global sign_in_cipher_on_begin

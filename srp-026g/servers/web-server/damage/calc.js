@@ -41,14 +41,13 @@ function bulletAt(w, a, distance, wall = null) {
   const v = speedAt(v0, drag, distance);
   const u = vFull === vLow ? (distance <= r0 ? 1 : 0) : clamp((v - vLow) / (vFull - vLow), 0, 1);
   let D = Dmin + (Dmax - Dmin) * u, P = Pmax;
-  // A wall (try_pierce 0x32D960): k = 1 − (1 − t)², t = clamp((P − A) / A, 0, 1),
-  // 1 when A = 0; k = 0 stops the bullet. Damage, penetration and speed × k;
+  // A wall (try_pierce 0x32D960, exe patch 175): k = 1 − (A / P)², 1 when A = 0;
+  // k ≤ 0 (P ≤ A) stops the bullet. Damage, penetration and speed × k;
   // at the target the slower bullet's damage falls off again, never back up
   // (update_bullet_position 0x32EE90: D = min(D, its value at that speed)).
   let through = null;
   if (wall != null) {
-    const t = wall > 0 ? clamp((P - wall) / wall, 0, 1) : 1;
-    const k = 1 - (1 - t) ** 2, vk = k * v;
+    const k = wall > 0 ? 1 - (wall / P) ** 2 : 1, vk = k * v;
     const uk = vFull === vLow ? (k < 1 ? 0 : u) : clamp((vk - vLow) / (vFull - vLow), 0, 1);
     through = { A: wall, k, v: vk, u: uk, D, P };
     D = k > 0 ? Math.min(k * D, Dmin + (Dmax - Dmin) * uk) : 0;
@@ -1262,8 +1261,8 @@ function drawExplain(target, b, sim) {
   const steps = [
     [T("Bullet", "Куля"), T("D, P = weapon × ammo, D falling with distance", "D, P = зброя × набій, D спадає з дистанцією"),
       { in: `${state.dist} ${M}` + (b.pellets > 1 ? T(` · ${b.pellets} pellets`, ` · ${b.pellets} дробин`) : ""), ...DP(fired.D, fired.P) }],
-    [T("Wall", "Стіна"), T("P ≤ A: the bullet stays in the wall · else D, P × (1 − (1 − (P − A) / A)²)",
-      "P ≤ A: куля застрягає в стіні · інакше D, P × (1 − (1 − (P − A) / A)²)"),
+    [T("Wall", "Стіна"), T("P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)",
+      "P ≤ A: куля застрягає в стіні · інакше D, P × (1 − (A / P)²)"),
       !b.wall ? { in: none, none: true, ...DP(b.D, b.P) } : stopped ? { in: T("stays in the wall", "застрягає в стіні") }
         : { in: `${nm(wallOf()).toLowerCase()}, A ${hp(b.wall.A)}: × ${fx(b.wall.k, 2)}`, ...DP(b.D, b.P) }],
     onyx && [nm(onyx),
