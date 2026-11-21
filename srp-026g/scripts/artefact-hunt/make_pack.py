@@ -209,11 +209,14 @@ def mesh(raw, path):
     return bytes(out)
 
 
-def material(value, path, stock, have, log):
+def material(value, path, stock, have, log, blind):
     """A 0.46c2 material as 0.26g draws it: each stage's keys and its effect's keys those 0.26g's own
     materials of the stage have; a map whose texture nobody has off; then, of the combinations of
     switches 0.26g's own materials draw, the largest within the material's (equipment-029's rule:
-    a combination no shipped material draws has no compiled shader)."""
+    a combination no shipped material draws has no compiled shader). A material whose transparency
+    texture no build has (0.46c2 names fx/artifacts/shain_smoke, which none of its 36 archives
+    holds) goes into `blind`: without its alpha it draws each particle as a solid sheet (the owner's
+    first test, 2026-11-21), so particle() leaves its emitters out."""
     off = []
     for stage, body in value['material'].items():
         effect = body.get('effect') if isinstance(body, dict) else None
@@ -235,6 +238,8 @@ def material(value, path, stock, have, log):
                 effect[switch]['value'] = False
                 on.discard(switch)
                 off.append(f'{stage}.{switch} (no texture {texture} in either build)')
+                if switch == 'use_ttransparency':
+                    blind.add(path[len('material_instances/'):-len('.material')])
         drawn = [set(c.split()) for c in stock['combination', stage]]
         if on not in drawn:
             kept = max((c for c in drawn if c <= on), key=lambda c: (len(c), sorted(c)), default=None)
@@ -248,7 +253,7 @@ def material(value, path, stock, have, log):
     return value
 
 
-def particle(value, path, stock, have, log):
+def particle(value, path, stock, have, log, blind):
     """A 0.46c2 particle with the properties 0.26g's own nodes of each type have. A node type no
     stock particle uses is kept as it is and said: 0.26g's exe has the classes of the two the
     artefact's particles use (particle_action_external_screen_alignment, particle_action_simple_orbit)."""
@@ -271,6 +276,14 @@ def particle(value, path, stock, have, log):
             for child in node.values():
                 walk(child)
     walk(value)
+    lod = value['LOD 0']
+    out = sorted(guid for guid, node in lod['children'].items()
+                 if (node.get('properties') or {}).get('Material') in blind)
+    for guid in out:
+        log.append(f"{path}: emitter {lod['children'][guid]['properties'].get('Name')} left out: its material "
+                   f"{lod['children'][guid]['properties']['Material']} draws without its transparency texture")
+        del lod['children'][guid]
+    lod['children_order'] = [guid for guid in lod['children_order'] if guid not in out]
     for name in sorted(materials):
         if f'material_instances/{name}.material' not in have:
             sys.exit(f'{path}: its material {name} is in neither build')
@@ -336,7 +349,7 @@ def item_values(item):
             'usable_radius': float(usable['scale'][0]), 'drop_lift': float(lying['position'][1])}
 
 
-def asset(path, raw, stock, have, log):
+def asset(path, raw, stock, have, log, blind):
     """A donor file as the pack ships it: 0.26g's formats and forms."""
     if path.endswith('/converted_model'):
         return mesh(raw, path)
@@ -352,9 +365,9 @@ def asset(path, raw, stock, have, log):
             if f"material_instances/{settings['material_name']}.material" not in have:
                 sys.exit(f"{path}: {surface}'s material {settings['material_name']} is in neither build")
     elif path.endswith('.material'):
-        value = material(value, path, stock, have, log)
+        value = material(value, path, stock, have, log, blind)
     elif path.endswith('.particle'):
-        value = particle(value, path, stock, have, log)
+        value = particle(value, path, stock, have, log, blind)
     elif path.startswith('textures/'):
         value['options'] = {key: v for key, v in value['options'].items() if key in TEXTURE_OPTIONS}
     elif path.endswith('.sound_collection'):
@@ -879,11 +892,11 @@ def main():
     inputs, stock, moves = Inputs(args.inputs), forms(), read_moves()
     files, log, said = {}, [], set()
 
-    names = inputs.assets()
+    names, blind = inputs.assets(), set()
     have = inputs.listing | {name for name in names if name != ITEM}
     for name in names:
         if name != ITEM:
-            files[name] = asset(name, inputs.read('donor/' + name), stock, have, log)
+            files[name] = asset(name, inputs.read('donor/' + name), stock, have, log, blind)
     item = item_values(bcw.loads(inputs.read('donor/' + ITEM)))
     effect_path = f"gameplay/effects/effect_{item['effect']}.options"
     for kind, name in (('model', f"models/{item['model']}.model/settings"), ('effect', effect_path),
