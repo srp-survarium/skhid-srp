@@ -46,7 +46,10 @@ went on a weapon by a variant: [weapon_scopes.md](weapon_scopes.md), kept as the
 `scripts/scope-fits/released-pairs.tsv` is the record of release 68: 1,205 (weapon, scope) pairs of
 20 scopes on 102 weapons, each with the variant that showed it, made once by
 `scripts/scope-fits/released.py` from release 68's files (the same pairs and variants as the
-server's own parser gave, compared row by row). Everything below is checked against it.
+server's own parser gave, compared row by row). Everything below is checked against it: the
+server's `srp-check-scope-fits <released-pairs.tsv> <candidate game data>` asks the candidate's
+`Modules::check` for every pair (`tools/checks/scope_preservation.sh`), so the check needs no game
+data of release 68 and outlives the variants.
 
 - **In 0.69d0's own data: 1,159 pairs** (computed from the pack's record of 2026-11-20).
 - **The other 46 are legacy rows** of the table, made by the porter from the same list
@@ -54,6 +57,9 @@ server's own parser gave, compared row by row). Everything below is checked agai
   1. *as its base gun*: a premium item with links of its own but no optic among them takes the optic
      as its base gun does, where 0.69d0's rules place it on the item's own parts (the SR-3M
      premium's eighteen);
+  1b. *on a slot of the gun's own*: an optic that names a slot the gun has free takes it, by
+     0.69d0's rules for that slot (the PSO-1 on the Saiga-12's and its premium's dovetail, which
+     0.69d0 links only to collimators through a rail);
   2. *where its variant put it*: the optic's 0.69d0 mesh is found in the variant's idle model
      (vertex for vertex, else by its box), which gives one translation in the frame of the gun's
      `scope_point`; the gun's record gets a slot of the optic's own there (the first slot its

@@ -70,7 +70,7 @@ def main():
         group = optic['group']
         zoom[module] = float(group[len('scope_'):-1]) if group.startswith('scope_') and group.endswith('x') else 1.0
     seen = {(c['gun'], c['fit']): c for c in record['centres']}
-    worst = (0.0, None)
+    worst = (0.0, '')
     rows = []
     for gun, optics in sorted(fits.items()):
         for module in sorted(optics):

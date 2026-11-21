@@ -63,8 +63,9 @@ def main():
         assert (old['path'], old['value'], old['type']) == (['srp_scope_noop'], 0, 0), (module, old)
         # The eye is the table's alone: the gun's aim_offset (the eye relief of its iron sights or
         # of its default optic, which the game adds to whatever the eye is) is taken out. A gun
-        # without the key has none: the modifier finds nothing and is skipped.
-        fitted = [{'path': ['data'], 'value': ['srp_scope', dict_id], 'type': 3},
+        # without the key has none: the modifier finds nothing and is skipped. The released modifier
+        # stays first, as it is (a set of a key no weapon has: skipped), so no key changes its type.
+        fitted = [old, {'path': ['data'], 'value': ['srp_scope', dict_id], 'type': 3},
                   {'path': ['parameters', 'aim_offset'], 'value': 0.0, 'type': 0}]
         modifications.append({'file': path, 'list': 'modifications', 'where': {'id': row['id']}, 'from': frm,
                               'to': {'id': FIRST_ID + dict_id, 'modifiers': fitted}})
