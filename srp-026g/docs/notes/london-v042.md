@@ -94,4 +94,7 @@ One pass over the donor's projects, by rule (the pack's `report.json` has every 
   a direct translucency term of the environment (`direct_translucency_color`, `_intensity`,
   `sun_dir_vs_normal_factor`; London's day 0.57 / 0.56 / 0.40 at 1.2), which 0.26g's executable has
   no setting for. Drawing it so needs a client patch, as the forward effects did.
-- Not yet: breakable lamps (the lamp generator does not know `ported/v044a` fixtures), a game window.
+- Breakable lamps: `breakable-lamps-v042-1.json` (the lamp rule over the pack's projects, `ported/v044a`
+  fixtures among its prefixes): 6 tube lamps and 8-9 kerosene lamps a project; build-content's lamp
+  check passes.
+- Not yet: a game window.
