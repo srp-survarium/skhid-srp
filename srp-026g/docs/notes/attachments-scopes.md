@@ -84,6 +84,19 @@ record whose pair the table does not have is taken off and logged with its reaso
 the scope item either way. A kept results screen loses a record that still names a variant (it is a
 picture of a past match).
 
+What that does to the owners of each released pair (computed from the full record of the lane's
+porter, not run on real accounts):
+
+| Released pairs | At the load |
+|---|---|
+| 1,159 that 0.69d0 gives, and the Mosin's PU 3.5x (a plain fit since its ids row) | record rewritten to the scope's own id, kept; the optic on 0.69d0's mount |
+| 20 legacy rows as their base gun (18 of `sr3m_premium`, ACOG TA31 and Leupold Mk4 on `vssk_camo`) | rewritten, kept; the base gun's mount |
+| 2 on a slot of the gun's own (PSO-1 on `saiga_12` and `saiga_12_premium`) | rewritten, kept; on the dovetail by 0.69d0's rules for it |
+| 20 where their variant put them (18 Docter pairs, the XPS2 on the Kedr and the AEK-919K) | rewritten, kept; the optic where the variant had it, within 0.5 mm, its rail with it |
+| 3 of `wpn_mp7_silencer_special` (EOTech 552, CompM4, Docter) | rewritten, then taken off as not fitting (the gun is no gun of the table until it has its row in `scripts/remodel-069/items.tsv`, the core's); the player keeps the scope items and the gun shows its plain config |
+
+None is lost once `wpn_mp7_silencer_special` has its row; until then those three are.
+
 ## The reticle's centre
 
 *The rule.* Aimed and at rest, the reticle's middle is on the eye's line: the game moves the gun
@@ -96,7 +109,16 @@ the optic's bone against the bone the gun's own `aim` hangs on.
 between the eye's line and the reticle's middle through the game's own two formulas
 (`calculate_locator`, `calculate_aim_alignment`) on the records the client writes, at the start,
 the middle and the end of the gun's aimed idle clip. One pixel at 1280x720 is 1.57 mrad at x1
-(uro_fov 65) and 0.39 mrad at x4.
+(uro_fov 65) and 0.39 mrad at x4. The point taken is a collimator's dot (its box's middle) and a
+magnified scope's first-person lens (`scope_lense_1p_s`, whose middle is the optical axis; the
+reticle's own box is not on the axis: the PSO-1's chevron and range scale gave 71 mrad).
+
+Computed, 2026-11-21, the full record of the lane's porter (all 102 guns, resource-porter 1e5587e,
+`private/local-clients-attachments-scopes/modules-069d-full-3.json`, `check_record.py`): 1,221 scope
+fits on 101 guns, every one within 0.0003 mrad of the eye's line at rest and through the aimed idle
+clip, but the Elcan Specter DR (60 guns): 1.89 mrad, 3.6 px at x4, the same on every gun, so a
+property of its model (its lens off the line of its `aim`), not of a mount. Seen in a game: see
+"State".
 
 ## The eye's plane (`plane_slot`)
 
@@ -126,22 +148,37 @@ Not in the table yet: the crate's change (a flag on an attach's eye, table versi
 - Not established: what 0.69d0's `Item` bone holds (LIKELY the camera's frame, as in 0.26g); which
   module wins when two override one slot.
 
-## State, 2026-11-21
 
-Written and not yet run, unless said: nothing of this lane has been seen in a game, and no pack has
-been built with the porter's scope changes.
+## State, 2026-11-21 (06:00)
 
 | Part | Where | State |
 |---|---|---|
 | The released pairs' record | `scripts/scope-fits/released.py`, `released-pairs.tsv` | made from release 68's files; the same 1,205 pairs and variants as the server's parser gave |
-| The scope items' edit list | `scripts/scope-fits/modules_edit.py` | written; `scripts/content-edit/scope-modules-1.json` is not made yet (it needs a full pack's record with the porter's `optics`), so it has no row in `release/content.tsv` |
-| A build's scopes checked from its record | `scripts/scope-fits/check_record.py` | written, not run; no row in `tools/checks.tsv` yet (the record must be kept beside the pack first) |
-| The collimators' reticle, the legacy rows, the centre numbers | resource-porter `feat/attachments-069d-scopes` (`donor_069d/modules.rs`, `modules/legacy.rs`) | type-checked, not run |
-| The servers on the modules table, the load's rewrite, the preservation checker | `crates/survarium/src/v026g/scopes.rs`, `modifications.rs`, `crates/session/src/v026g/items_rules.rs`, `bin/srp-check-scope-fits.rs` | see the commits' own messages for what compiles and which tests pass |
-| `plane_slot` | above; `tools/re-kit/v069d/functions.tsv` | read and run in Unicorn; the crate's version 3 is the core's |
+| The scope items' edit list | `scripts/scope-fits/modules_edit.py`, `scripts/content-edit/scope-modules-1.json` | made from the full record of the lane's porter (1e5587e); it names that porter's models, so it goes with the first pack built with it; row at the end of `release/content.tsv` |
+| A build's scopes checked from its record | `scripts/scope-fits/check_record.py` | run on the full record: every released pair a fit but `wpn_mp7_silencer_special`'s three; no row in `tools/checks.tsv` yet (the record must be kept beside the pack first) |
+| The collimators' reticle, the legacy rows, the centre numbers | resource-porter `feat/attachments-069d-scopes` | run over all 102 guns: 6,999 checks against 0.69d0, none over 0.5 mm; 42 legacy rows, none lost |
+| The servers on the modules table, the load's rewrite, the preservation checker | `crates/survarium/src/v026g/scopes.rs`, `modifications.rs`, `crates/session/src/v026g/items_rules.rs`, `bin/srp-check-scope-fits.rs` (reads `released-pairs.tsv`) | crate tests pass but three that fail on the branch's base too (two of them on main: the badges' price, the comments' migration); clippy clean; run in the local games below |
+| `plane_slot` | above; `tools/re-kit/v069d/functions.tsv` | read and run in Unicorn; table version 3 is the core's |
 
-Not done: the AK-74M with its eighteen scopes in a game; a default-optic gun with a fitted scope
-(the first proof of the cook's `data/srp_scope` site); the legacy rows built and looked at; the
-centre numbers for every fit and pictures across mounts; the shot's kick under a scope with #2294;
-the `wpn_mp7_silencer_special` gun's row (the core's `items.tsv`); retiring the variant packs and
-their edit lists (last, after the branch is merged, on the coordinator's word).
+Seen in local games (exe e17ace688, table version 2, quick packs of the lane's porter; pictures in
+`private/renders/attachments-scopes/`):
+
+- **The AK-74M with its eighteen scopes**: each drawn in the lobby and aimed; at rest every dot,
+  ring and crosshair within 0.5 px of the screen's centre (the Elcan within 1.1 px), the chevrons'
+  tips on it. With version 2 a collimator is aimed from inside its housing (its eye is its own
+  `aim` point): the housing is not seen, the EOTechs' hood floor fills the lower third. Version 3
+  (`plane_slot`) is the fix.
+- **A gun with a default optic** (the cook's `data/srp_scope` site): the SVD shows its own PSO-1 with
+  nothing fitted, 0.69d0's PSO-1 or the Aimpoint (no PSO-1) with one fitted; the HK416 the Aimpoint
+  in place of its EOTech, and its EOTech again when the load took off a record of a pair the table
+  does not have.
+- **`aim_offset` = 0 takes**: the PSO-1's eyepiece is the same size on the SVD (aim_offset -0.11) as
+  on the AK-74M (none), 929 against 926 px wide; the SVD's own PSO-1 at its -0.11 is 558 px.
+- **Legacy rows**: Kiparis and TOZ-122 with the Docter, Saiga-12 with the PSO-1, Kedr with the XPS2,
+  SR-3M premium with the PSO-1, and the Mosin's PU 3.5x: kept at the load, reticles centred.
+
+Not done: the same on table version 3; the shot's kick under a scope with #2294 (needs an exe with
+both patches: the core builds exes); the `wpn_mp7_silencer_special` gun's row (the core's
+`items.tsv`); the "before" pictures of the legacy pairs (the released variants on main's exe);
+retiring the variant packs and their edit lists (last, after the branch is merged, on the
+coordinator's word).
