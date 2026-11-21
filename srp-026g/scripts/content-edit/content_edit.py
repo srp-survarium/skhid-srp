@@ -779,11 +779,13 @@ def single(v):
 
 def pierce_kept(pierce, armor):
     """What a wall of material `armor` leaves of a bullet of piercing `pierce` (its damage, speed and
-    piercing are all multiplied by it; 0 stops it), as survarium::bullet::try_pierce 0x32D960 computes
-    it in single precision: t = clamp((P - A) / A, 0, 1), 1 when A is 0; 1 - (1 - t)^2. No thickness
-    and no angle: every wall of the material alike."""
-    t = 1.0 if armor == 0 else min(1.0, max(0.0, single(single(pierce - armor) / armor)))
-    return single(1 - single(single(1 - t) * single(1 - t)))
+    piercing are all multiplied by it; 0 or less stops it), as survarium::bullet::try_pierce 0x32D960
+    computes it with exe patch 175, in single precision: 1 - (A / P)^2, 1 when A is 0. No thickness
+    and no angle: every wall of the material alike. Asked only of a bullet the wall lets through."""
+    if armor == 0:
+        return 1.0
+    q = single(armor / pierce)
+    return single(1 - single(q * q))
 
 
 def pierce_lines(read, paths, spec):

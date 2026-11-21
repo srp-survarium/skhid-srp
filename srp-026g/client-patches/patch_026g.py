@@ -582,6 +582,11 @@ Patches:
   falloff by speed (0x32EE90) no longer writes the bullet's piercing
   (PIERCE_DISTANCE, 0x32F174); its damage falls as before. Walls and
   ricochets lower it as before. A simulation change;
+- every wall costs a bullet something (patch 175, docs/notes/client_patch.md
+  section 3.96): try_pierce's k is 1 - (A / P)^2 (PIERCE_WALLS, 0x32D99E),
+  not 1 - (1 - clamp((P - A) / A, 0, 1))^2, which was 1 from P = 2A on.
+  A = 0 still lets a bullet through whole, P <= A still stops it. A
+  simulation change;
 - a thrown grenade stays above the ground (patch 105, with the late join;
   docs/notes/grenade_ccd.md): grenade_core::load's continuous collision
   sweeps a sphere of 0.04 m (GRENADE_CCD, 0x303A13), not 0.01 m, inside the
@@ -1760,6 +1765,24 @@ STEP_PARTS = (0x7B76B, bytes.fromhex("7b3c"), bytes.fromhex("eb3c"))
 # keeps what the muzzle, walls and ricochets left it. Nothing branches into
 # the site; no base relocation under it.
 PIERCE_DISTANCE = (0x32F174, bytes.fromhex("f30f114f74"), bytes.fromhex("0f1f440000"))
+
+# Every wall costs a bullet something (patch 175, ../docs/notes/client_patch.md
+# section 3.96). try_pierce 0x32D960 gives a wall's k = 1 - (1 - t)^2, t =
+# clamp((P - A) / A, 0, 1): 1 once P >= 2A, so with patch 173 a strong round
+# went through brick and concrete for nothing at any range. PIERCE_WALLS makes
+# it k = 1 - (A / P)^2 in place (0x32D99E..0x32D9CE): xmm0 is 1.0, xmm1 P,
+# xmm2 A, xmm3 0 and AH the flags of A against 0. A = 0 still jumps to the
+# store with k = 1 (also for P = 0, which would be 0 / 0); P <= A gives k <= 0
+# and the bullet stops as before. Only the site's own branches land in it; no
+# base relocation under it; xmm1 and xmm2 are dead after it.
+PIERCE_WALLS = (0x32D99E,
+                bytes.fromhex("f6c4447b17f30f5ccaf30f5eca0f2fd972050f28cbeb080f2fc173030f28c8"
+                              "0f28d0f30f5cd10f28caf30f59caf30f5cc1"),
+                bytes.fromhex("f6c4447b2c"              # test ah,44h / jnp 0x32D9CF (A = 0: k = 1)
+                              "f30f5ed1"                # divss xmm2,xmm1: A / P
+                              "f30f59d2"                # mulss xmm2,xmm2
+                              "f30f5cc2"                # subss xmm0,xmm2: k = 1 - (A / P)^2
+                              + "0f1f840000000000" * 4))
 
 # A thrown grenade stays above the ground (patch 105, ../docs/notes/grenade_ccd.md).
 # grenade_core::load 0x303890 gives the grenade (RGD-5 and RDG-M) a capsule of
@@ -4063,6 +4086,8 @@ def build_image(original, mode, code=None, server=None, late_join=None, revision
         sites.append((STEP_PARTS[0], STEP_PARTS[0] + len(STEP_PARTS[1])))
         patch(data, *PIERCE_DISTANCE)
         sites.append((PIERCE_DISTANCE[0], PIERCE_DISTANCE[0] + len(PIERCE_DISTANCE[1])))
+        patch(data, *PIERCE_WALLS)
+        sites.append((PIERCE_WALLS[0], PIERCE_WALLS[0] + len(PIERCE_WALLS[1])))
         # An address of .rdata for another: its relocation stays.
         patch(data, *GRENADE_CCD)
         for site in MOUSE_BUTTONS:
