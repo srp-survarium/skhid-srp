@@ -6617,5 +6617,12 @@ va	name	location	role	basis
 0x0032de40	survarium::bullet::try_reflect	entry ESP+4	the bullet (EBX; +88h its reflections, +70h/+74h its damage and piercing, +40h its ammo data, +0Ch its weapon item)	observed
 0x0032ee90	survarium::bullet::update_bullet_position	EAX+74h at 0x32F174	the only store of the piercing that depends on distance (every other: the constructor 0x32BB7B, a record 0x32BCDE, try_pierce 0x32DAA1, try_reflect 0x32E3C6); exe patch 173 makes it a nop (client_patch.md 3.94)	observed
 0x0032d960	survarium::bullet::try_pierce	XMM0-XMM3, AH at 0x32D99E	the wall k's inputs: XMM0 1.0 ([0xA70884], read only), XMM1 P (bullet +74h), XMM2 A (material +4Ch), XMM3 0, AH the flags of ucomiss A,0 (lahf 0x32D988; test ah,44h / jnp takes A = 0); k stored to [esp+78h] at 0x32D9CF, XMM1 and XMM2 dead after it; exe patch 175 rewrites 0x32D99E..0x32D9CE as k = 1 - (A / P)^2 (client_patch.md 3.96)	observed
+0x0031d040	survarium::breath_state_normal::tick	entry ESP+8	dt, seconds (f32): what breath_vibration_calculator::tick passes its state at 0x31D75D (the ms x 0.001)	observed
+0x0031d190	survarium::breath_state_holding::finalize	ECX	the holding state: +1Ch the holder (weapon_core::set_user 0x2E2A09 sets every state's), +24h &reserve, +28h the sound's function, +4Ch &delay (initialize_logic 0x31D4C9..0x31D4E1)	observed
+0x0031d200	survarium::breath_state_holding::tick	ECX	the holding state (as finalize's; +48h &speed factor)	observed
+0x0031d200	survarium::breath_state_holding::tick	entry ESP+4	the dispersion after modifier 61 (f32, 0x31D722)	observed
+0x0031d200	survarium::breath_state_holding::tick	entry ESP+8	dt, seconds (f32)	observed
+0x0031d400	survarium::breath_vibration_calculator::not_holding_breath	ECX	the calculator (a bound member predicate, its transition from initialize_logic 0x31D5CE)	observed
+0x0031d430	survarium::breath_vibration_calculator::insufficient_breath	ECX	the calculator (initialize_logic 0x31D618)	observed
 0x0023ddd0	survarium::base_game_scene::apply_camera	EDX	the camera_director: +4h its transform (16 f32, copied to the scene's +0Ch at 0x23DDE0), +44h its projection (copied to +4Ch at 0x23DDED); the name and these offsets as v0.10b's PDB and source have them (resource-porter tools/render-compare camera_hook.c)	observed
 0x0023ddd0	survarium::base_game_scene::apply_camera	entry ESP+4	the base_game_scene ([esp+48h] after sub esp,40h / push ebx; [+9Ch] its game)	observed
