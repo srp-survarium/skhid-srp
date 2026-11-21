@@ -214,6 +214,7 @@ The format's versions (a table of another version is refused whole):
 |---|---|
 | 1 | the first layout (`feat/attachments-core`); never built into a pack |
 | 2 | a gun record ends with a text, its bare body's model (34 bytes, was 28) |
+| 3 | a gun record has its own eye (`body_aim`: bone, offset; 84 bytes); a point of kind 2 is an eye at the gun's own eye plane (0.69d0's `plane_slot: body_aim`, `AttachEye::InGunPlane`). Pack `weapon-modules@2` on |
 
 Every locator of the table is written for one rule: a model drawn at a frame F has its locator L at
 half turn x L x F, the engine's own rule for a gun's locators (`calculate_locator`). The porter
@@ -515,7 +516,7 @@ Not done:
    with their own text (`st_srp_attach_unfit`), and the slot shows what the weapon holds again at
    the account's update. An account's load checks each record's slot, not yet the pair the weapon
    holds.
-7. **`plane_slot`: table version 3, started.** In 0.69d0's `game.options` every collimator, every
+7. **`plane_slot`: table version 3, LANDED on feat/attachments 2026-11-21** (c8b28fb43, with the pack `weapon-modules@2`, server-bin/c8b28fb43 and exe/c8b28fb43; the porter writes `body_aim` = the live model's `aim`, the eye the game uses, and `InGunPlane` for every `aim` override with `plane_slot: body_aim`; its check against 0.69d0 compares such an eye's line of sight, 0 mm on the nine AK-74M collimators). Why it matters, SEEN by the scopes lane at version 2: every collimator was aimed from inside its own housing. The history: In 0.69d0's `game.options` every collimator, every
    folding or rear iron sight and the dovetail, pistol and G3 rail mounts override the eye as
    `slots_to_override { id: aim, locator: aim, plane_slot: body_aim }` (34 keys on `aim`, 5 on
    piggyback sights that are out of scope); no magnified scope does. The scopes lane read the rule
