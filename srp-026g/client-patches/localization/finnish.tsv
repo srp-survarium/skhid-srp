@@ -2573,7 +2573,7 @@ st_srp_hud_artefact_hunt_sudden_death	Äkkikuolema
 st_srp_hud_blackout_intro	Blackout: tuo akkuja joukkueesi laitteelle. Käyttöliittymä ja osumamerkit on piilotettu eläytymisen vuoksi. Pidä Tab pohjassa: ammukset, terveys, chat; kuolleena varustesarjan valinta.
 st_srp_hud_blackout_start	Blackout\nTuo akkuja joukkueesi laitteelle.\nKäyttöliittymä ja osumamerkit on piilotettu. Pidä Tab pohjassa nähdäksesi ammukset ja terveyden.
 st_srp_hud_freeze_draw	Tasapeli
-st_srp_hud_freeze_frozen	Olet jäässä. Odota joukkuetoveria. Sulatus: %1$s%
+st_srp_hud_freeze_frozen	Jäässä
 st_srp_hud_freeze_help	Jäädytä kaikki vastustajat. Ensimmäinen 5 erää voittanut joukkue voittaa. Seiso 3 sekuntia enintään 2 metrin päässä jäätyneestä joukkuetoverista sulattaaksesi hänet.
 st_srp_hud_freeze_lose	Tappio — vastustajat voittivat viisi erää.
 st_srp_hud_freeze_round_draw	Tasapeli. Uusi erä %1$s s kuluttua.

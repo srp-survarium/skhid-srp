@@ -161,7 +161,8 @@ package
          else this.contextInfo.contextText.text = context.text;
          if(value != 0)
          {
-            this.contextInfo.progress_indicator.width = this.contextInfo.contextText.textWidth + 10;
+            // Freeze Tag's bar is as long as the native use's ("Progress: 100%"), not its sentence.
+            this.contextInfo.progress_indicator.width = freeze ? FREEZE_BAR_WIDTH : this.contextInfo.contextText.textWidth + 10;
             this.contextInfo.progress_indicator.set_progress(value);
          }
       }
@@ -650,6 +651,8 @@ package
       private var _forcedView:ForcedView;
       private var _modeNotice:ModeNotice;
       private var _freezeContext:Object = null;
+
+      private static const FREEZE_BAR_WIDTH:Number = 120;
       private var _freezeWasFrozen:Boolean = false;
       private var _pregameText:String = "";
 
@@ -1882,7 +1885,7 @@ package
          else if(status >= 4)
             text = LocalizationData.format(status == 4 ? "st_srp_hud_freeze_round_win" : status == 5 ? "st_srp_hud_freeze_round_lose" : "st_srp_hud_freeze_round_draw", String(Math.ceil(remaining / 1000)));
          else if(isFrozen)
-            text = LocalizationData.format("st_srp_hud_freeze_frozen", String(Math.floor(progress / 30)));
+            text = LocalizationData.getName("st_srp_hud_freeze_frozen");
          else
             text = LocalizationData.getName(progress > 0 ? "st_srp_hud_freeze_thawing" : "st_srp_hud_freeze_help");
          // Let native pickup/use prompts own the widget during ordinary play.

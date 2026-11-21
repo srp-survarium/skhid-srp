@@ -50,7 +50,12 @@ three). No artifact rescue in this version (owner, 2026-11-17).
   keeps his name and is drawn ice blue (the owner, 2026-11-21: "his name
   should be of 'frozen' color, not just read frozen"); it gets its own
   colour back on thaw. A rescuer sees progress only for a reachable frozen
-  teammate.
+  teammate. The frozen player's prompt is the one word "Frozen", with the
+  thaw's bar under it while a teammate thaws him, no percentage (the owner,
+  2026-11-21: "just frozen text is fine"); the rescuer's sentence and bar as
+  before. Freeze Tag's bar is 120 px long (`HUD.FREEZE_BAR_WIDTH`, about the
+  native use's "Progress: 100%"), not its text's width: the native prompts
+  keep theirs (the owner: "unthawing progress line is a bit too long").
 - A frozen body glows: the Spring artefact's activation glow in ice blue,
   fainter (the owner, 2026-11-21: "effect can be anomalous artifact spring
   activation but of slightly different hue and less intense"), shrinking as a
