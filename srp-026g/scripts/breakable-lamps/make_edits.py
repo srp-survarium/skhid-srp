@@ -18,6 +18,12 @@ spec = importlib.util.spec_from_file_location('content_edit', EDIT)
 c = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(c)
 
+# The prefixes a fixture model has: stock, and the ports' own copies of the models (a port imports a
+# model under its namespace where its materials or settings differ from players'; the London ports'
+# lamps are such copies, the same meshes).
+PORT_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/', 'ported/v032a/', 'ported/v044a/')
+# The London ports' fixtures, beside the stock ones the older ports never had.
+LONDON_PREFIXES = ('ported/v032a/', 'ported/v044a/')
 BASE_REPLACEMENTS = {
     'props/light/lamp_on': 'props/light/srp_lamp_broken',
     'props/light/plafon_lamp_on': 'props/light/srp_plafon_lamp_broken',
@@ -32,7 +38,7 @@ BASE_REPLACEMENTS = {
 }
 REPLACEMENTS = {
     prefix + intact: broken if '/srp_' in broken else prefix + broken
-    for prefix in ('', 'ported/v011e/', 'ported/v021d/')
+    for prefix in PORT_PREFIXES
     for intact, broken in BASE_REPLACEMENTS.items()
 } | {
     # Fluorescent fixtures with their tubes in the model, stock only (v0.11's
@@ -45,7 +51,7 @@ REPLACEMENTS = {
 # Lit tubes that are models of their own (Vector, level_09: fx/lamp2 and its
 # two flicker variants, three tubes in a tubeless lamp_midle_04 housing).
 # A broken fixture hides them; nothing replaces them.
-TUBE_GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
+TUBE_GLASS = {prefix + 'fx/' + tube for prefix in ('',) + LONDON_PREFIXES for tube in ('lamp2', 'lamp2_bad', 'lamp2_good')}
 # Kerosene lamps (London, Tarakanovsky Fort, level_04, and the 0.21 ports'
 # copies of the models: Fort and Chemical Plant v0.21): a frame that stays,
 # standing, hung on a rope or nailed to a wall; its lit glass, a model of its
@@ -55,7 +61,7 @@ TUBE_GLASS = {'fx/lamp2', 'fx/lamp2_bad', 'fx/lamp2_good'}
 # The chain lamp (ceiling_group_chain_lamp) has its glass in its own mesh,
 # the oil lamp (stand_group_oil_lamp) is never lit, a torch has no glass:
 # scenery all three.
-LANTERN_PREFIXES = ('', 'ported/v011e/', 'ported/v021d/')
+LANTERN_PREFIXES = PORT_PREFIXES
 LANTERN_GLASS = {prefix + 'props/light/' + model + '_glass_emit' for prefix in LANTERN_PREFIXES
                  for model in ('stand_group_batlamp', 'wall_group_nailed_batlamp')}
 FLAME, FLAME_REACH = 'fx/lights/oil_lamp', 0.4
@@ -63,7 +69,7 @@ GLASS = TUBE_GLASS | LANTERN_GLASS
 # Housings that stay when their glass breaks. A housing belongs to a fixture
 # (its bounds, so a shot into the housing breaks the glass) only together
 # with glass; on its own it is scenery.
-HOUSINGS = {'props/light/lamp_midle_04'} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
+HOUSINGS = {prefix + 'props/light/lamp_midle_04' for prefix in ('',) + LONDON_PREFIXES} | {glass.removesuffix('_glass_emit') for glass in LANTERN_GLASS}
 PARTS = REPLACEMENTS.keys() | GLASS | HOUSINGS
 # Fluorescent glass: a model's tubes are its glass, not its housing or frame.
 # The local height of the tubes' axis in the models that hold them (the
@@ -82,7 +88,7 @@ TUBES = TUBE_Y.keys() | {'lamp2', 'lamp2_bad', 'lamp2_good'}
 # beside it (Vector's 0.6 m from the lamp, level_05's up to 2.4 m, two at one
 # lamp), among the rooms' grey and coloured fills. A red one that near is the
 # lamp's, and goes out with it.
-LIT_ALARMS = {prefix + 'props/light/alarm_red_light' for prefix in ('', 'ported/v011e/', 'ported/v021d/')}
+LIT_ALARMS = {prefix + 'props/light/alarm_red_light' for prefix in PORT_PREFIXES}
 ALARM_GLOW_REACH = 2.5
 LEGACY_CONE = 'ported/v011e/editor/cone'
 CONE_APEX = (0.0, -0.009467163123190403, 0.0)
