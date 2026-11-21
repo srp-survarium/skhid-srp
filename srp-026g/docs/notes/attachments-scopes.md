@@ -33,13 +33,17 @@ went on a weapon by a variant: [weapon_scopes.md](weapon_scopes.md), kept as the
   item's modification sets it to 0, so a fitted optic's eye is the table's alone; a gun without the
   key has none, and the modifier is skipped there. It stays the knob, now per optic: a value in a
   scope item's modification moves that optic's eye along its line on every gun.
-- **A collimator's reticle.** 0.69d0 draws it as a model of its own at the optic's eye
-  (`possible_reticles`, the first until a player picks another); 0.26g draws a scope's aimed model
-  alone. The pack puts the players' own emitter (patch 19's `collimator_glowing_dot_s`: the dot, the
-  EOTech's ring for the two EOTechs, whose first reticle is `eotech_552_o_reticle`) into each
-  collimator's aimed model, its middle on the line of the optic's eye, 0.6 m before it, and leaves
-  the aimed model's first-person lens out, as every released collimator has it. A magnified scope's
-  reticle is its aimed model's own (`scope_aimgrid_s`, `scope_reddot_s`).
+- **A collimator's reticle.** 0.69d0 draws it as a model of its own in the optic's `reticle` slot,
+  which is the optic's `aim` locator (`slots_to_add { id: reticle, locator: aim }`): a quad whose
+  texture's alpha (the atlas `collimator_reticles`) draws the shape, an ordinary forward material, not
+  at infinity (`possible_reticles`, the first until a player picks another). 0.26g draws a scope's
+  aimed model alone, so the pack puts the players' own emitter (patch 19's `collimator_glowing_dot_s`:
+  the dot, the EOTech's ring for the two EOTechs, whose first reticle is `eotech_552_o_reticle`) into
+  each collimator's aimed model at that same place, scaled to 0.69d0's lit size (the dot's half-lit
+  width 0.63 mm, `ncstar_4_dot_04`; the EOTech ring 6.4 mm along its line), so it subtends 0.69d0's
+  angle from any eye; and leaves the aimed model's first-person lens out, as every released
+  collimator has it. A magnified scope's reticle is its aimed model's own (`scope_aimgrid_s`,
+  `scope_reddot_s`).
 
 ## No released pair is lost
 
@@ -177,8 +181,22 @@ Seen in local games (exe e17ace688, table version 2, quick packs of the lane's p
 - **Legacy rows**: Kiparis and TOZ-122 with the Docter, Saiga-12 with the PSO-1, Kedr with the XPS2,
   SR-3M premium with the PSO-1, and the Mosin's PU 3.5x: kept at the load, reticles centred.
 
-Not done: the same on table version 3; the shot's kick under a scope with #2294 (needs an exe with
-both patches: the core builds exes); the `wpn_mp7_silencer_special` gun's row (the core's
-`items.tsv`); the "before" pictures of the legacy pairs (the released variants on main's exe);
-retiring the variant packs and their edit lists (last, after the branch is merged, on the
+Seen on table version 3 (server and exe of feat/attachments c8b28fb43; pictures in
+`private/renders/attachments-scopes/ak74m-v3/`, `c23/`, `full-v2/`):
+
+- **The eighteen again**: every collimator's housing is seen from behind at the gun's own eye plane
+  (`plane_slot`), the EOTechs' hood floor gone; every reticle within 0.5 px of the centre.
+- **The dot at 0.69d0's size**: the Cobra's dot as small as before (about 2 px, 0.69d0's 2.4 mrad), the
+  EOTech's ring 1.8 times larger than before (0.69d0's).
+- **Every class of default optic** (the lead's full build): with nothing fitted the gun's own (Kriss and
+  P90 the Walther, Rem 700 its Leupold, MSBS its EOTech, VSS its PSO-1, SV-98 its 1P69); a fitted scope
+  in its place, nothing of the default left. With only a muzzle device or only a grip (the HK416, 2613 or
+  2660) the default EOTech stays; the part itself was not in these pictures.
+- **`wpn_mp7_silencer_special`** with the EOTech 552: a fit now, drawn, centred.
+- **The scoped shot with #2294** (its patch 165 and its 0.45a6 fire clips, against patch 161 alone; 60
+  frames a second, `rig/out/kick165-c23`, `no165-c23`): the SVU-A (aim on the kicked bone) shows the kick
+  in the scope only with 165 (the eyepiece moves 18-20 px, 3-5 without); the SVD (aim on the root) shows
+  it either way (30-34 px), as the crate's table says. The L85A2 is not judged (the ring was not found).
+
+Not done: retiring the variant packs and their edit lists (last, after the branch is merged, on the
 coordinator's word).
