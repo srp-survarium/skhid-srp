@@ -186,6 +186,7 @@ release's. The "Result" row is the build of the revision named in it.
 | `rust/patches/src/console_paste.rs`, `src/console_paste.toml`, `src/vostok/text_edit.rs`, `src/vostok/clipboard.rs`, `check_console_paste_026g.py` | Patch 157: Ctrl+V (and Shift+Insert) pastes the clipboard's first line at the caret of the console's line (`../docs/notes/console-paste.md`): a lohook at the engine's stub `ui_text_edit::paste_from_clipboard` (0x3482C0); printable ASCII only, cut to the line's max length; its check makes a text edit with the game's own code and takes every key through its bindings in both exes (needs Unicorn) |
 | `rust/patches/src/head_clearance.rs`, `src/head_clearance.toml`, `src/vostok/camera.rs` (`given_eye`), `check_head_clearance_026g.py` | Patch 158: the first-person eye stays out of the level's surfaces (`../docs/notes/head-clearance.md`): a lohook at update_camera's eye (`camera.eye`, 0x1F3643, after the ragdoll's), for a living player's own eye in modes 0 and 4: one ray from 0.4 m under the eye over the body's axis to 0.12 m past the eye against the level's shot collision; a hit puts the view's eye 0.12 m short of it at once, eased back at 6/s; the view alone, nothing a match computes; its check runs update_camera in both exes (needs Unicorn) |
 | `rust/patches/src/aim_pose.rs`, `src/aim_pose.toml`, `src/vostok/aim.rs`, `check_aim_pose_026g.py` | Patch 172: the aimed view is aligned to the gun's idle pose, as 0.45a6's (`../docs/notes/aim-pose.md`): a lohook in process_hands_ik before its calculate_aim_alignment (`hands_ik.aim_alignment`, 0x295AA5) moves the weapon's aim locator from its bone into the model at the idle pose, the first aimed frame the idle clip alone poses the gun; a fire clip's kick of that bone is then seen in sights and scopes; drawing only, nothing a match computes |
+| `rust/patches/src/quiet_log.rs`, `src/quiet_log.toml`, `src/vostok/game_log.rs` | Patch 173: the engine's log (and the console, which shows it) without the engine's lines that tell nothing: a lohook at logging::log_message's start returns at once for seven known formats (README, "The engine's log without the lines that tell nothing") |
 | `audio_device_026g.c`, `audio_device_026g.h`, `audio_device_engine_026g.c`, `test_audio_device_026g.c` | Patch 100: the sound follows the audio output device (XAudio2's engine and voices proxied, made again on the default device after a lost device or a new default); the test runs the core on i686 under the sanitizers against a made-up XAudio2 that keeps its rules (no Unicorn) |
 | `rust/patches/src/sound_voices.rs`, `src/sound_voices.toml`, `src/vostok/voices.rs`, `check_sound_voices_026g.py` | Patch 96: shots no longer go silent under heavy fire (`../docs/notes/sound_voices.md`): the game world's sound scene has 1024 sound instances and propagators (`SOUND_POOLS`, game_world::load 0x1F8DB6/0x1F8DBD), and a sound refused a voice takes the voice of the quietest one playing when that one is less than half as loud (a lohook after create_sound_voice, 0x5CAB0), and the source voice walk is bounded to one pass (`sound_voices_026g.asm`, 0x5E5E7, 0x631D9, 0x59F8E); the check runs the voice loop from that site on made-up scenes with a model of the world's voice pool, and the self-test's `test_sound_pools` (needs Unicorn) |
 | `check_stage_focus_026g.py` | Runs the original's and patch 52's Stage focus getter (Scaleform's `stage.focus`, 0x771FA0) on a made-up movie: focused objects of each kind, none, one without its ActionScript object (the lobby's crash of 2026-10-22) (needs Unicorn) |
@@ -6434,3 +6435,20 @@ particle lighting programs under their wider keys, and 0.44a5's (byte for byte 0
 players lack. No material players have today sets any of the three fields, so their effects compile as
 before. Rendering only: nothing a match computes or a world holds changes. Checked with
 `check_forward_effects_026g.py` (Unicorn; `tools/check forward-effects`). Not run in a game.
+## The engine's log without the lines that tell nothing (patch 173, unreleased)
+
+The game's log, and the console that shows it (the console draws that file), no longer get the engine's
+lines that tell a player or a bug report nothing (the owner, 2026-11-21: "what about console having
+million garbage lines?", "and logs I think too?"). A lohook at logging::log_message's start
+(`logging.message`, 0x111ED0: the one writer of every engine line, on any thread) knows a line by its
+format, the exe's own string at every caller, and returns at once (its `ret`, 0x111F73) for these:
+"Unknown Client status received" (every 98 and 9B: the lobby menu's default for messages it has no work
+for, `../docs/notes/lobby.md`), the renderer's list of every display mode ("  %dx%d", some twenty a
+start), "atmosphere recalculated (...)" (each scene and weather change), "QOS_CONTROLLER ENABLED"
+(each connection), "Console command [..] not found for options_item" (the stock options no variable
+backs, eight a start), "<file>, new id = N" (an error for a baked texture loaded from its folder: patch
+70's cache hit) and "cook of '' [quid N][class 107] failed" (the camouflage baker's query of a type it
+bakes nothing for, with no name, one or two a baked surface; any other failed cook is written). Every
+other line is written as before; nothing a match computes changes. The engine's own filter
+(`logging_rule <channel> <verbosity>`, user.cfg) takes a whole channel at a level, and these share
+theirs with lines that matter. `../docs/notes/client_patch.md` section 3.94. Not run in a game.

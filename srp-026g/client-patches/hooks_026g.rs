@@ -5379,6 +5379,26 @@ pub extern "C" fn hook_particle_room_on_start(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- quiet_log (patch 173) ----
+
+/// The named exits of quiet_log::on_message (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum QuietLogOnMessageExit { Quiet }
+/// The entry `quiet_log_on_message` (0x111ed0, logging::log_message's start (push ebp / mov ebp,esp / sub esp,250h), the one writer of every engine log line, on any thread (cdecl, varargs; its callers ask has_passed_filters first and build the line's function on their stack, which they free after the call): the site's ESP+4 that function, +8 the context word, +0Ch the template, +10h the file, +14h the line, +18h the caller's name, +1Ch the channel, +20h the level, +24h the format, +28h its first argument; quiet is its `ret` (0x111F73), the stack as at the site: the line not written) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_quiet_log_on_message(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `quiet_log_on_message` calls this, from the game's jump at 0x111ed0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::quiet_log::on_message(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
 // ---- ragdoll (patch 76) ----
 
 /// The named exits of ragdoll::on_cull (the order the shim's Flow code

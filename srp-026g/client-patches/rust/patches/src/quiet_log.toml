@@ -1,0 +1,10 @@
+# Patch 173: the engine's log, and the console that shows it, without the
+# engine's lines that tell a player or a bug report nothing (quiet_log.rs;
+# client-patches/README.md). Only the decisions: the site and the handler.
+name = "quiet_log"
+patch = 173
+
+# logging::log_message's start, the one writer of every engine line
+[[hook]]
+site = "logging.message"
+handler = "on_message"

@@ -1187,6 +1187,15 @@ vostok::memory::profile_frame	call	0x4	ptr<vostok::memory::game_call>	memory_pro
 vostok::memory::profile_frame	memory	0x8	u32	their second: the memory mspace_malloc or mspace_realloc gave (0 for none), or the memory given back to mspace_free or mspace_realloc
 vostok::c_line_frame	text	0x4	ptr<u8>	log.c_line's first argument (by the site's ESP, the return address at +0): the line's text, a C string of the caller's (ASCII)
 vostok::c_line_frame	value	0x8	u32	its second: the value the line ends with (in hex)
+vostok::log_message_frame	format	0x24	ptr<u8>	logging.message's format (by the site's ESP, the return address at +0): a C string, the exe's own at every caller
+vostok::log_message_frame	first	0x28	ptr<u8>	the format's first argument, a C string only for a format whose first conversion is %s ("cook of %s failed": the query's log_string)
+vostok::logging::image	client_status_format	0x9FFBD0	u32	"Unknown Client status received. type = %d" (game, error): lobby_menu::on_client_status_received's default (0x21D8D9), every 98 and 9B and their like (lobby.md, the client's own flaw)
+vostok::logging::image	display_mode_format	0xA25794	u32	"  %dx%d" (render, info): each display mode of each monitor at the renderer's start (0x3BA6CD), some twenty a start
+vostok::logging::image	atmosphere_format	0x9F4998	u32	"atmosphere recalculated ( scene_changed:%s, parameters_changed:%s, window_resized:%s )" (render_pc_dx11, info) (0x1A43D3): at every scene and weather change
+vostok::logging::image	qos_controller_format	0xA2AAC0	u32	"QOS_CONTROLLER ENABLED" (network_core, warning) (0x3F1E2E): at every connection
+vostok::logging::image	unbound_option_format	0xA06370	u32	"Console command [%s] not found for options_item [%d]" (game, warning): options_item_base::options_item_base (0x260E90, at 0x260F67), the stock options no variable backs (client_patch.md, patch 58's option), eight a start
+vostok::logging::image	baked_texture_loaded_format	0x9EE3E4	u32	"%s, new id = %u" (render_pc_dx11, error): check_loaded_baked_texture's good load (0x131B40, at 0x131E53), a cache hit (client_patch.md, patch 70)
+vostok::logging::image	cook_failed_format	0x9E7FA4	u32	"cook of %s failed" (resources, warning): query_result_for_cook::finish_query_impl (0xF0D00, at 0xF0DBD), its argument the query's log_string "'%s' [quid %d][class %d]" (0xF0620)
 vostok::memory::out_of_memory_frame	return_address	0x0	u32	memory.out_of_memory's ESP: the callback's return (heap_out_of_memory_return from mspace_malloc)
 vostok::memory::out_of_memory_frame	space	0x4	u32	its first argument: the arena's mspace (create_mspace_with_base made it at the arena's start)
 vostok::memory::out_of_memory_frame	allocator	0x8	ptr<vostok::memory::base_allocator>	its second: the doug_lea_allocator the mspace was made with (initialize_impl 0xE4F60: push esi)
