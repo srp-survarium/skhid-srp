@@ -1433,6 +1433,61 @@ pub extern "C" fn hook_artefact_hunt_on_deactivate(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- artefact_hunt (patch 171) ----
+
+/// The named exits of artefact_hunt::on_mark (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactHuntOnMarkExit { Carrier }
+/// The entry `artefact_hunt_on_mark` (0x1f2d8b, the icon record's carry test (cmp dword [edx+178h],0, the inventory's carried item; then lea eax,[eax+eax*2] / setnz cl and the record's +388h, modifier_visible): ESI the player, EAX its place; carrier: EAX place x 3, CL 1 (the setnz's), at the compare of the record's byte) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_hunt_on_mark(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_hunt_on_mark` calls this, from the game's jump at 0x1f2d8b,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_hunt::on_mark(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_hunt (patch 171) ----
+
+/// The named exits of artefact_hunt::on_camera_state (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ArtefactHuntOnCameraStateExit { State }
+/// The entry `artefact_hunt_on_camera_state` (0x267ae6, the client time rule node's camera test (0x267AA0, for a tick first played): mov edi,[edi+148h] (its own state) before the compare with the network client's +1F1C60h and the camera switch 0x27B1A0; state: EDI given, on at the compare) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_hunt_on_camera_state(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_hunt_on_camera_state` calls this, from the game's jump at 0x267ae6,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_hunt::on_camera_state(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- artefact_keeper (patch 109) ----
+
+/// The entry `artefact_keeper_on_register` (0x31b8e0, generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty)) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_artefact_keeper_on_register(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `artefact_keeper_on_register` calls this, from the game's jump at 0x31b8e0,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::artefact_keeper::on_register(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- battery_progress (patch 92) ----
 
 /// The entry `battery_progress_on_carrier_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
@@ -1502,161 +1557,6 @@ pub extern "C" fn hook_weapon_stats_on_tick(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::weapon_stats::on_tick(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- artefact_hunt (patch 171) ----
-
-/// The entry `artefact_hunt_on_carrier_tick` (0x2daad3, base_player::tick after the held object's tick (call [vtbl+28h] at 0x2DAAD1, or the je at 0x2DAAC9 with nothing held), before the movement (mov ecx,[esp+10h] / push edi): EBX the player, every simulation tick) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_artefact_hunt_on_carrier_tick(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_hunt_on_carrier_tick` calls this, from the game's jump at 0x2daad3,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::artefact_hunt::on_carrier_tick(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- medical_skills (patch 94) ----
-
-/// The entry `medical_skills_on_effect_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_effect_capacity(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_effect_capacity` calls this, from the game's jump at 0x2ec81e,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_effect_capacity(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- forest_glow (patch 111) ----
-
-/// The entry `forest_glow_on_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_forest_glow_on_capacity(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `forest_glow_on_capacity` calls this, from the game's jump at 0x2ec81e,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::forest_glow::on_capacity(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- artefact_hunt (patch 171) ----
-
-/// The entry `artefact_hunt_on_effect_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_artefact_hunt_on_effect_capacity(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_hunt_on_effect_capacity` calls this, from the game's jump at 0x2ec81e,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::artefact_hunt::on_effect_capacity(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
-// ---- medical_skills (patch 94) ----
-
-/// The named exits of medical_skills::on_effect_clock (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum MedicalSkillsOnEffectClockExit { Returned }
-/// The entry `medical_skills_on_effect_clock` (0x2e5d80, default clock: only the static Medic calculator is handled; all native objects continue unchanged) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_effect_clock(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `medical_skills_on_effect_clock` calls this, from the game's jump at 0x2e5d80,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::medical_skills::on_effect_clock(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- forest_glow (patch 111) ----
-
-/// The named exits of forest_glow::on_clock (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum ForestGlowOnClockExit { Returned }
-/// The entry `forest_glow_on_clock` (0x2e5d80, default clock: only the static Medic calculator is handled; all native objects continue unchanged) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_forest_glow_on_clock(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `forest_glow_on_clock` calls this, from the game's jump at 0x2e5d80,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::forest_glow::on_clock(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- artefact_hunt (patch 171) ----
-
-/// The named exits of artefact_hunt::on_effect_clock (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum ArtefactHuntOnEffectClockExit { Returned }
-/// The entry `artefact_hunt_on_effect_clock` (0x2e5d80, default clock: only the static Medic calculator is handled; all native objects continue unchanged) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_artefact_hunt_on_effect_clock(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_hunt_on_effect_clock` calls this, from the game's jump at 0x2e5d80,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::artefact_hunt::on_effect_clock(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- artefact_hunt (patch 171) ----
-
-/// The named exits of artefact_hunt::on_mark (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum ArtefactHuntOnMarkExit { Carrier }
-/// The entry `artefact_hunt_on_mark` (0x1f2d8b, the icon record's carry test (cmp dword [edx+178h],0, the inventory's carried item; then lea eax,[eax+eax*2] / setnz cl and the record's +388h, modifier_visible): ESI the player, EAX its place; carrier: EAX place x 3, CL 1 (the setnz's), at the compare of the record's byte) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_artefact_hunt_on_mark(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_hunt_on_mark` calls this, from the game's jump at 0x1f2d8b,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::artefact_hunt::on_mark(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- artefact_keeper (patch 109) ----
-
-/// The entry `artefact_keeper_on_register` (0x31b8e0, generic_anomaly_core::register_artefacts at its entry (push ecx / mov eax,[esp+8]): the anomaly's pool is about to be registered from the core world's artefact vector length on, in pool order (each resolve links rebuilds the vector from empty)) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_artefact_keeper_on_register(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `artefact_keeper_on_register` calls this, from the game's jump at 0x31b8e0,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::artefact_keeper::on_register(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -3946,6 +3846,76 @@ pub unsafe extern "C" fn hook_forest_glow_on_loaded(a0: Option<raw::QueriesResul
     let result = unsafe { QueryResults::from_raw(&thread, a0) };
     let tag = QueryTag::from_raw(a1 as usize as u32);
     { crate::forest_glow::on_loaded(result, tag); 0 }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The entry `medical_skills_on_effect_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_effect_capacity(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_effect_capacity` calls this, from the game's jump at 0x2ec81e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_effect_capacity(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- forest_glow (patch 111) ----
+
+/// The entry `forest_glow_on_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forest_glow_on_capacity(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forest_glow_on_capacity` calls this, from the game's jump at 0x2ec81e,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forest_glow::on_capacity(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- medical_skills (patch 94) ----
+
+/// The named exits of medical_skills::on_effect_clock (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum MedicalSkillsOnEffectClockExit { Returned }
+/// The entry `medical_skills_on_effect_clock` (0x2e5d80, default clock: only the static Medic calculator is handled; all native objects continue unchanged) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_effect_clock(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `medical_skills_on_effect_clock` calls this, from the game's jump at 0x2e5d80,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::medical_skills::on_effect_clock(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
+}
+
+// ---- forest_glow (patch 111) ----
+
+/// The named exits of forest_glow::on_clock (the order the shim's Flow code
+/// follows, 2 upward).
+#[repr(u32)]
+#[allow(dead_code)]
+pub enum ForestGlowOnClockExit { Returned }
+/// The entry `forest_glow_on_clock` (0x2e5d80, default clock: only the static Medic calculator is handled; all native objects continue unchanged) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_forest_glow_on_clock(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `forest_glow_on_clock` calls this, from the game's jump at 0x2e5d80,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::forest_glow::on_clock(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => 2 + e as u32,
+    }
 }
 
 // ---- free_for_all (patch 142) ----
@@ -7576,30 +7546,6 @@ pub extern "C" fn hook_battery_progress_on_carrier_tick_chain(frame: &mut Frame)
     if flow != 0 { return flow; }
     let flow = hook_weapon_stats_on_tick(frame);
     if flow != 0 { return flow; }
-    let flow = hook_artefact_hunt_on_carrier_tick(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_effect_capacity_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_medical_skills_on_effect_capacity(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_forest_glow_on_capacity(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_artefact_hunt_on_effect_capacity(frame);
-    if flow != 0 { return flow; }
-    0
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_medical_skills_on_effect_clock_chain(frame: &mut Frame) -> u32 {
-    let flow = hook_medical_skills_on_effect_clock(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_forest_glow_on_clock(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_artefact_hunt_on_effect_clock(frame);
-    if flow != 0 { return flow; }
     0
 }
 
@@ -7754,6 +7700,24 @@ pub extern "C" fn hook_message_check_on_message_chain(frame: &mut Frame) -> u32 
     let flow = hook_message_check_on_message(frame);
     if flow != 0 { return flow; }
     let flow = hook_faces_on_match_message(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_effect_capacity_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_medical_skills_on_effect_capacity(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_forest_glow_on_capacity(frame);
+    if flow != 0 { return flow; }
+    0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_medical_skills_on_effect_clock_chain(frame: &mut Frame) -> u32 {
+    let flow = hook_medical_skills_on_effect_clock(frame);
+    if flow != 0 { return flow; }
+    let flow = hook_forest_glow_on_clock(frame);
     if flow != 0 { return flow; }
     0
 }

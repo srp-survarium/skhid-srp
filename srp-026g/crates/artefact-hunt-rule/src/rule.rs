@@ -20,7 +20,7 @@
 
 use crate::geometry::Position;
 use crate::params::{FADE, Params};
-use crate::roster::{Place, Roster, Sides, Team};
+use crate::roster::{PLAYERS, Place, Roster, Sides, Team};
 use crate::time::{Ms, Time};
 use crate::way::Way;
 
@@ -253,6 +253,9 @@ pub struct Rule {
     /// The rounds started after the first: each a respawn of everyone (a
     /// fade's end).
     pub(crate) round_starts: u16,
+    /// By place: the kit switches in a round's countdown (each a life for
+    /// supplies, as a round start is).
+    pub(crate) kit_switches: [u16; PLAYERS],
     pub(crate) sides: Sides,
     pub(crate) stage: Stage,
 }
@@ -296,6 +299,10 @@ pub enum Event {
         now: Time,
         ground: Position,
     },
+    /// The game switches `place` into its chosen kit where it stands at the
+    /// next step, in a round's countdown (patch 31's switch): a life for
+    /// supplies, counted.
+    KitSwitched { place: Place },
 }
 
 /// What the game does for a transition: a score event for the statistics.
@@ -418,6 +425,7 @@ impl Rule {
             rng: Rng::seeded(seed),
             score: [0; 2],
             round_starts: 0,
+            kit_switches: [0; PLAYERS],
             sides: Sides::EMPTY,
             stage: Stage::Idle,
         }
@@ -538,6 +546,18 @@ impl Rule {
     /// flag 4 of state 8, 0x7B0BA0).
     pub fn frozen(&self) -> bool {
         matches!(self.round(), Some(Round::Countdown { .. }))
+    }
+
+    /// Whether a round is about to start: its fade and its countdown, which
+    /// the game plays as the match start's own countdown (the warmup camera,
+    /// patch 31's kit choice).
+    pub fn round_countdown(&self) -> bool {
+        matches!(self.round(), Some(Round::Fade { .. } | Round::Countdown { .. }))
+    }
+
+    /// `place`'s kit switches in a round's countdown.
+    pub fn kit_switches(&self, place: Place) -> u16 {
+        self.kit_switches.get(place.index()).copied().unwrap_or(0)
     }
 
     /// What the respawn rule does at `now`, a step whose rule tick is still
@@ -757,6 +777,13 @@ impl Rule {
             Event::Drop { place, now, ground } => self.release(params, place, now, Some(ground)),
             Event::Deliver { place, now, ground } => {
                 self.deliver(params, place, now, ground, actions)
+            }
+            Event::KitSwitched { place } => {
+                if self.round_countdown()
+                    && let Some(count) = self.kit_switches.get_mut(place.index())
+                {
+                    *count = count.saturating_add(1);
+                }
             }
         }
         self

@@ -109,8 +109,8 @@ pub enum Arrived {
     Assets(ArrivedAssets),
 }
 
-/// The particle systems one assets query asks for.
-pub const PARTICLES: usize = 3;
+/// The most particle systems one assets query asks for.
+pub const PARTICLES: usize = 5;
 
 /// A model of a query of ours, one reference kept for the process.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -270,13 +270,14 @@ pub fn query_collection(_: &Thread, path: &CStr, serial: Serial, callback: Query
 
 /// Asks for a model and its particle systems in one query (class 15, then 61
 /// each, as the artefact cooks ask theirs: 0x25E91A); they arrive together.
-pub fn query_assets(_: &Thread, model: &CStr, particles: [&CStr; PARTICLES], callback: QueryCallback) {
+pub fn query_assets(_: &Thread, model: &CStr, particles: &[&CStr], callback: QueryCallback) {
+    let particles = &particles[..particles.len().min(PARTICLES)];
     let mut requests = [const { raw::ResourceRequestStorage::zeroed() }; 1 + PARTICLES];
     let mut function = raw::QueryFunctionStorage::zeroed();
     // SAFETY: contiguous requests {path, class} and no user data, as
     // query_effects asks, copied by query_resources before it returns.
     unsafe {
-        for (index, request) in requests.iter_mut().enumerate() {
+        for (index, request) in requests.iter_mut().enumerate().take(1 + particles.len()) {
             let r = request.handle();
             let (path, class) = if index == 0 { (model, MODEL_CLASS) } else { (particles[index - 1], PARTICLE_CLASS) };
             r.set_path(path.as_ptr().cast_mut().cast());
@@ -285,7 +286,7 @@ pub fn query_assets(_: &Thread, model: &CStr, particles: [&CStr; PARTICLES], cal
         let f = function.handle();
         raw::engine_bind_query_callback(Some(f), callback.entry(), QueryTag::Assets.word());
         let allocator = raw::image::game_allocator().allocator();
-        raw::engine_query_one(Some(requests[0].handle()), (1 + PARTICLES) as u32, Some(f), allocator, None, null(),
+        raw::engine_query_one(Some(requests[0].handle()), (1 + particles.len()) as u32, Some(f), allocator, None, null(),
                               ASYNCHRONOUS);
     }
 }

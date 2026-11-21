@@ -291,6 +291,9 @@ global engine_register_hunt_cook
 global engine_hunt_rule_base
 global engine_play_particle_system
 global engine_remove_particle_system
+global engine_update_particle_system
+global engine_player_remove
+global engine_spawn_player
 engine_action_present equ 0x242460   ; 0x242460 survarium::player_input_handler::action_present: handler ESP+4, action ESP+8, state ESP+12; pops 12; AL; stdcall, called directly
 engine_create_file_a equ 0x870048   ; the IAT slot 0x870048 (an import, stdcall)
 engine_write_file equ 0x870108   ; the IAT slot 0x870108 (an import, stdcall)
@@ -414,6 +417,9 @@ engine_tdm_rule_completed equ 0x316520   ; 0x316520 survarium::tdm_rule_core::ru
 engine_timelimit_tick equ 0x317f10   ; 0x317f10 survarium::timelimit_rule_core::tick: rule ECX, dt ESP+4, time ESP+8, step ESP+12; pops 12; thiscall, called directly
 engine_play_particle_system equ 0x22660   ; 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
 engine_remove_particle_system equ 0x229d0   ; 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
+engine_update_particle_system equ 0x22b30   ; 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
+engine_player_remove equ 0x1f2870   ; 0x1f2870 survarium::player::remove: player ECX, flag ESP+4; pops 4; thiscall, called directly
+engine_spawn_player equ 0x316da0   ; 0x316da0 survarium::player_respawn_rule_base::spawn_player: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; thiscall, called directly
 
 engine_options_int:
     ; 0x261100 survarium::options_item_int::options_item_int: parent ECX, id EAX, receiver ESP+4, command ESP+8, values ESP+12, count ESP+16; pops 16; EAX

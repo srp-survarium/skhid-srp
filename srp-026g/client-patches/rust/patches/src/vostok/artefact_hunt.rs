@@ -412,6 +412,10 @@ pub struct Body {
 }
 
 impl<'t> HuntWorld<'t> {
+    pub fn thread(&self) -> &'t Thread {
+        self.thread
+    }
+
     pub fn key(&self) -> WorldKey {
         WorldKey::of(self.core)
     }
@@ -429,10 +433,42 @@ impl<'t> HuntWorld<'t> {
         Some(HuntWorld { core, thread: player.thread })
     }
 
-    /// Whether the time rule is in process (core+18FE4h 3).
-    pub fn in_play(&self) -> bool {
-        // SAFETY: the live core's copy of the time rule's state.
-        unsafe { read(self.core.time_state()) == 3 }
+    /// The core's copy of the time state as a round of a rule with rounds
+    /// makes it: [`ROUND_COUNTDOWN`] while a round is about to start (the
+    /// game then plays the match start's countdown: patch 31's kit change,
+    /// the client's warmup camera and kits through
+    /// [`camera_state`]), the time rule's in-process 3 otherwise. Written
+    /// only over a 3 or a 4 (never before play or past it), in every game at
+    /// the same tick and after every load (the rule's tick and deserialize,
+    /// after the time rule's own).
+    pub fn set_round_countdown(&self, on: bool) {
+        // SAFETY: the live core's copy of the time rule's state; its readers
+        // in a match of this mode: patch 31's kit change, the keeper's gift
+        // (a 4 is "not started" there: the gift waits), the batteries (none
+        // in this mode).
+        unsafe {
+            let state = self.core.time_state();
+            let now = read(state);
+            if now == IN_PROCESS || now == ROUND_COUNTDOWN {
+                state.write_volatile(if on { ROUND_COUNTDOWN } else { IN_PROCESS });
+            }
+        }
+    }
+
+    /// Whether patch 31's kit change switches `place` at the next step, by
+    /// its own test (kit_change_026g.asm `try_place`, less the clean record
+    /// a round countdown does without): another next kit (under 3, with a
+    /// player), the player in use alive and in the world.
+    pub fn kit_switch_due(&self, place: u8) -> bool {
+        let Some(player) = self.player(place) else { return false };
+        // SAFETY: as player: the place's entry, bounded; the player's flags.
+        unsafe {
+            let Some(first) = self.core.places() else { return false };
+            let entry = first.at(usize::from(place));
+            let (kit, next) = (read(entry.kit()), read(entry.next_kit()));
+            next != kit && next < 3 && entry.kits().at(usize::from(next)).player().is_some()
+                && read(player.this.alive()) != 0 && read(player.this.inserted()) != 0
+        }
     }
 
     /// The player of `place` in the match (in the world's active places, the
@@ -660,6 +696,44 @@ impl<'t> RespawnTick<'t> {
     pub fn time(&self) -> u32 {
         self.time
     }
+    /// Patch 31's switch for a round's countdown: `place` played in its chosen
+    /// kit where it stands, as `kit_change_026g.asm`'s `try_place` does before
+    /// the start (whose state test leaves the round's 4 to this tick, at the
+    /// same place of the step: the respawn rule's tick after its prologue,
+    /// before any place's time is read), less the clean record, which only
+    /// the first start asks for: the player out of the world (player::remove
+    /// 0x1F2870, the world player's vtable +24h, with 1), then the spawn
+    /// (0x316DA0, the respawn rules' vtable +5Ch) with a point of its feet,
+    /// its yaw and what is left of its protection (none left: -1 less now,
+    /// which the spawn adds to now). Whether it switched.
+    pub fn switch_kit(&self, place: u8) -> bool {
+        let Some(world) = self.world() else { return false };
+        if !world.kit_switch_due(place) {
+            return false;
+        }
+        let Some(player) = world.player(place) else { return false };
+        // SAFETY: the live player of the place, its feet, yaw and damage
+        // model; the rule and the time the tick's; the point ours, read by
+        // the spawn before it returns.
+        unsafe {
+            let until = match player.this.damage_model() {
+                Some(model) => read(model.invulnerable_until()),
+                None => u32::MAX,
+            };
+            let protection = match until.checked_sub(self.time) {
+                Some(left) if until != u32::MAX && left > 0 => left,
+                _ => !self.time,
+            };
+            let feet: [f32; 3] = floats(player.this.feet());
+            let yaw: f32 = read(player.this.yaw());
+            let point = [protection, protection, feet[0].to_bits(), feet[1].to_bits(), feet[2].to_bits(), yaw.to_bits(),
+                         protection, protection, protection];
+            raw::engine_player_remove(Some(player.this), 1);
+            raw::engine_spawn_player(Some(self.rule), u32::from(place), point.as_ptr(), self.time);
+        }
+        true
+    }
+
     /// Every place due now is due no more.
     pub fn hold_due(&self) {
         for place in 0..usize::from(PLACES) {
@@ -786,6 +860,16 @@ impl<'t> ArtefactScene<'t> {
         let scene = unsafe { super::carry_runtime::Scene::of_world(world.this) }?;
         Some(Self { scene, _thread: thread })
     }
+    /// `particle` moved to `matrix` (a row-major 4x4).
+    pub fn move_to(&self, particle: super::resources::KeptParticle, matrix: &[f32; 16]) {
+        // SAFETY: a particle system kept for the process; the live scene.
+        unsafe { self.scene.move_particle(particle.0, matrix) }
+    }
+    /// `particle` played at `matrix`.
+    pub fn play_at(&self, particle: super::resources::KeptParticle, matrix: &[f32; 16]) {
+        // SAFETY: as play.
+        unsafe { self.scene.play_particle(particle.0, matrix) }
+    }
     /// The model at `at`, added or moved there.
     pub fn show(&self, model: super::resources::KeptModel, at: [f32; 3]) {
         // SAFETY: a model kept for the process; the scene the live world's.
@@ -827,6 +911,37 @@ pub fn marked<'t>(ctx: &'t Context<'_>) -> Option<Player<'t>> {
 
 /// The carrier's mark: the record's flag set (CL 1, the setnz's) and EAX
 /// the place x 3 (the lea the exit skips).
+/// A player's simulated transform (+40Ch) and camera (+44Ch), row-major.
+pub fn transforms(player: &Player<'_>) -> ([f32; 16], [f32; 16]) {
+    // SAFETY: the live player's two 4x4 matrices of f32.
+    unsafe { (floats(player.this.transform()), floats(player.this.eye())) }
+}
+
+/// The core's time state while a round of a rule with rounds is about to
+/// start ([`HuntWorld::set_round_countdown`]).
+pub const ROUND_COUNTDOWN: u32 = 4;
+const IN_PROCESS: u32 = 3;
+const COUNTDOWN: u32 = 2;
+
+/// The client time rule's camera test (0x267AE6, its node's state against the
+/// network client's +1F1C60h): EDI its own state, or the countdown's 2 while
+/// the core says a round is about to start, so the native camera switch
+/// (0x27B1A0: the warmup camera; patch 31's kits by +1F1C60h) plays the match
+/// start's countdown for a round.
+pub fn camera_state(ctx: &mut Context<'_>) {
+    // SAFETY: the site's EDI, the live client time rule; its core (+128h,
+    // 0x267ACC) and its own state (+148h, the instruction replaced).
+    let state = unsafe {
+        let Some(rule) = raw::site::time_rule_camera_state::rule(ctx) else { return };
+        let own = read(rule.time_state());
+        match rule.timelimit_core() {
+            Some(core) if read(core.time_state()) == ROUND_COUNTDOWN => COUNTDOWN,
+            _ => own,
+        }
+    };
+    ctx.set_reg(Reg::Edi, state);
+}
+
 pub fn mark_carrier(ctx: &mut Context<'_>) {
     let place = ctx.reg(Reg::Eax);
     ctx.set_reg(Reg::Eax, place.wrapping_mul(3));

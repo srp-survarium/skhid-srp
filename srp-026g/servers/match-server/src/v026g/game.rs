@@ -5420,7 +5420,7 @@ impl Game {
                     kills: record.map_or(counted(event::KILL), |record| record.kills),
                     deaths: record.map_or(counted(event::DEATH), |record| record.deaths),
                     longest_killstreak: self.best_streaks[index],
-                    kit_changes: self.kit_changes[index],
+                    kit_changes: self.kit_changes[index].saturating_add(self.round_kit_switches(index)),
                     supplies: state.and_then(|state| state.supplies.get(index).cloned().flatten()),
                     weapons: statistics
                         .and_then(|statistics| statistics.weapons.as_ref()?.get(index))
@@ -5463,6 +5463,23 @@ impl Game {
             .as_ref()
             .and_then(|state| state.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params))
             .map_or(0, |rule| rule.round_starts())
+    }
+
+    /// Artifact Hunt's kit switches of the player at `index` in its rounds'
+    /// countdowns (patch 31's switch, a life for supplies each, as a kit
+    /// choice before play is), as its rule counts them in the last trusted
+    /// snapshot; 0 in the modes without rounds.
+    fn round_kit_switches(&self, index: usize) -> u16 {
+        let Some(params) = self.formed.played.map().artefact_hunt else {
+            return 0;
+        };
+        let Some(place) = u8::try_from(index).ok().and_then(artefact_hunt_rule::Place::new) else {
+            return 0;
+        };
+        self.state
+            .as_ref()
+            .and_then(|state| state.rules.as_ref()?.artefact_hunt.as_ref()?.rule(params))
+            .map_or(0, |rule| rule.kit_switches(place))
     }
 
     /// End the match: the result is kept for the lobby, and every client

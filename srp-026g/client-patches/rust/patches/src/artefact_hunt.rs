@@ -35,14 +35,13 @@ use crate::vostok::artefact_hunt::{
 };
 use crate::vostok::artefact_hunt::ArtefactScene;
 use crate::vostok::config::{ConfigError, ConfigTable};
-use crate::vostok::effect::{self, KeptEffect};
 use crate::vostok::resources::{self, Arrived, ArrivedAssets, QueryResults, QueryTag, Serial};
 use crate::vostok::sound::{Emitter, Voice};
 use crate::vostok::log::{self, Piece};
 use crate::vostok::statistics::ScoreEvent;
 use crate::vostok::world::{GameWorld, Player, WorldKey};
 use crate::vostok::{
-    ArtefactHuntOnCanSprintExit, ArtefactHuntOnEffectClockExit, ArtefactHuntOnEnemyExit, ArtefactHuntOnMarkExit,
+    ArtefactHuntOnCameraStateExit, ArtefactHuntOnCanSprintExit, ArtefactHuntOnEnemyExit, ArtefactHuntOnMarkExit,
     ArtefactHuntOnNameExit, Context, Flow, GameCell, GameWorldUi,
     Lock, NoExit, OrigTdmCookCreate, OrigTdmCookSize, OrigTdmRuleCompleted, OrigTdmRuleDeserialize, OrigTdmRuleEntered,
     OrigTdmRuleFillHud, OrigTdmRuleLeft, OrigTdmRuleOnEvent, OrigTdmRuleSerialize, OrigTdmRuleSetCore,
@@ -95,8 +94,11 @@ struct Item {
     /// The model (class 15) and its idle, spawn and destroy particles (61).
     model: Text,
     particles: [Text; 3],
-    /// The carrier's glow, a game effect's name.
-    effect: Text,
+    /// The carrier's glow: its particle systems (class 61), for the
+    /// carrier seen by others and for his own first-person view, drawn by
+    /// each game for itself and never in the simulation; none when the
+    /// config names none (`item.carrier_particle`, `item.carrier_particle_fp`).
+    glow: Option<[Text; 2]>,
     lines: Lines,
     /// apply_modifier's index 4 term (-0.2: 20 % slower).
     movement: f32,
@@ -159,6 +161,23 @@ fn table<'t>(table: &ConfigTable<'t>, key: &'static CStr) -> Result<ConfigTable<
     table.required(key).and_then(|value| value.table()).map_err(|_| key)
 }
 
+/// The carrier's glow's two particle systems (`item.carrier_particle`, on
+/// his body; `item.carrier_particle_fp`, his first-person view): both or
+/// neither.
+fn glow(item: &ConfigTable<'_>) -> Result<Option<[Text; 2]>, &'static str> {
+    const WHAT: &str = "artefact_hunt.item.carrier_particle and carrier_particle_fp (both texts, or neither)";
+    let one = |name: &CStr| match item.get(name) {
+        Ok(None) => Ok(None),
+        Ok(Some(value)) => value.text().ok().and_then(Text::of).map(Some).ok_or(WHAT),
+        Err(_) => Err(WHAT),
+    };
+    match (one(c"carrier_particle")?, one(c"carrier_particle_fp")?) {
+        (Some(body), Some(first_person)) => Ok(Some([body, first_person])),
+        (None, None) => Ok(None),
+        _ => Err(WHAT),
+    }
+}
+
 /// The mode config's values ("Data"), as `Params::parse` takes them.
 fn read_config(root: &ConfigTable<'_>) -> Result<(Params, Item), &'static str> {
     let key = |key: &'static CStr| key.to_str().unwrap_or("?");
@@ -201,7 +220,7 @@ fn read_config(root: &ConfigTable<'_>) -> Result<(Params, Item), &'static str> {
     let carrier = Item {
         model: text(&item, c"model")?,
         particles: [text(&item, c"particle_idle")?, text(&item, c"particle_spawn")?, text(&item, c"particle_destroy")?],
-        effect: text(&item, c"effect")?,
+        glow: glow(&item)?,
         lines: Lines { base: text(&notifications, c"base_path")?, names },
         movement: number(&item, c"movement_speed_modifier").map_err(key)?,
         regeneration: number(&item, c"health_regeneration_speed_modifier").map_err(key)?,
@@ -414,7 +433,46 @@ pub fn on_tick(rule: &TickRule<'_>, _dt: u32, time: u32, _step: u32) {
         if matches!(hunt.state.stage(), artefact_hunt_rule::Stage::Play(_)) {
             world.set_respawns(hunt.state.respawns());
         }
+        round_countdown(&world, hunt);
     });
+}
+
+/// A round about to start is the match start's countdown in the game (the
+/// core's time state [`ROUND_COUNTDOWN`] for the next step: patch 31's kit
+/// change, the client's warmup camera and kits); each kit switch patch 31
+/// makes at the next step counted (a life for supplies). In the tick, after
+/// the time rule's (list 1) and the places' (list 0: the step's kit choices
+/// made the next kits): the respawn rule's tick of the next step switches
+/// exactly these places.
+fn round_countdown(world: &HuntWorld<'_>, hunt: &Hunt) {
+    world.set_round_countdown(hunt.state.round_countdown());
+}
+
+/// `SKHID_HUNT_LOG=on`: one line for each decision about the carrier (off
+/// by default; read once).
+fn hunt_log(thread: &Thread) -> bool {
+    use core::sync::atomic::{AtomicU8, Ordering};
+    static ON: AtomicU8 = AtomicU8::new(0);
+    match ON.load(Ordering::Relaxed) {
+        1 => false,
+        2 => true,
+        _ => {
+            let mut room = [0u8; 8];
+            let len = crate::vostok::renderer::get_environment(thread, c"SKHID_HUNT_LOG", &mut room);
+            let on = room[..len] == *b"on";
+            ON.store(if on { 2 } else { 1 }, Ordering::Relaxed);
+            on
+        }
+    }
+}
+
+/// The carrier decision's line (`SKHID_HUNT_LOG=on`).
+fn carrier_line(world: &HuntWorld<'_>, carrier: Place, what: &str) {
+    if hunt_log(world.thread()) {
+        log::line(&[Piece::Text("artefact_hunt: tick "), Piece::Dec(world.now()), Piece::Text(" game "),
+                    Piece::Dec(crate::vostok::gun_cook::process_id()), Piece::Text(": carrier "),
+                    Piece::Dec(u32::from(carrier.get())), Piece::Text(" "), Piece::Text(what)]);
+    }
 }
 
 /// Slot 15: the state field by field (`Rule::fields`).
@@ -439,10 +497,12 @@ pub fn on_deserialize(_: &OrigTdmRuleDeserialize, rule: &mut HuntRule<'_>, reade
             panic!("artefact_hunt: a world's rule state the rule cannot read");
         };
         hunt.state = state;
-        // The time rule's deserialize sent event 0 first: the tail is the
-        // loaded state's from here.
+        // The time rule's deserialize sent event 0 first and wrote its
+        // state: the tail and the round's countdown are the loaded state's
+        // from here.
         if let Some(world) = world {
             publish(&world, &hunt.state);
+            world.set_round_countdown(hunt.state.round_countdown());
         }
     });
 }
@@ -483,6 +543,25 @@ pub fn on_respawn_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let Some(tick) = RespawnTick::at(ctx) else { return Flow::Continue };
     let Some(world) = tick.world().map(|world| world.key()) else { return Flow::Continue };
     let Some(hunt) = hunt_in(ctx.thread(), world) else { return Flow::Continue };
+    // A round about to start: patch 31's kit switch (its state test leaves a
+    // round's countdown to this tick), each a life for supplies, counted.
+    if hunt.state.round_countdown() {
+        let world_now = tick.world();
+        for place in (0..PLAYERS as u8).filter_map(Place::new) {
+            if tick.switch_kit(place.get()) {
+                HUNT.with(ctx.thread(), |hunt| {
+                    if let (Some(hunt), Some(world)) = (hunt.as_mut(), world_now.as_ref()) {
+                        step(world, hunt, Event::KitSwitched { place });
+                    }
+                });
+                if hunt_log(ctx.thread()) {
+                    log::line(&[Piece::Text("artefact_hunt: tick "), Piece::Dec(tick.time()), Piece::Text(" game "),
+                                Piece::Dec(crate::vostok::gun_cook::process_id()), Piece::Text(": place "),
+                                Piece::Dec(u32::from(place.get())), Piece::Text(" switches kit in the round countdown")]);
+                }
+            }
+        }
+    }
     match hunt.state.spawning(Time::from_ms(tick.time())) {
         Spawning::Native => {}
         Spawning::Held => tick.hold_due(),
@@ -496,8 +575,6 @@ pub fn on_respawn_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
 /// What an input is to the hunt (asked by patch 78's `carry.input` first).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Input {
-    /// The round's countdown: the input is not applied.
-    Held,
     /// A take or a delivery: the use key's press is the hunt's.
     Used,
     /// The game's (and patch 78's, 85's).
@@ -518,9 +595,6 @@ pub fn input(player: &Player<'_>, now: u32, use_pressed: bool, drop_pressed: boo
     let key = world.key();
     let decided = HUNT.with(thread, |hunt| {
         let hunt = hunt.as_mut().filter(|hunt| hunt.world == Some(key))?;
-        if hunt.state.frozen() {
-            return Some(Input::Held);
-        }
         let place = Place::new(player.hunt_place())?;
         if !player.alive() || !player.inserted() {
             return Some(Input::Game);
@@ -573,11 +647,15 @@ fn carrier_term(term: &ModifierTerm<'_, '_>) -> Option<f32> {
     if world.modifiers(carrier.get())? != term.modifiers() {
         return None;
     }
-    match term.index() {
+    let term = match term.index() {
         MOVEMENT_LIST => Some(hunt.item.movement),
         REGENERATION_LIST => Some(hunt.item.regeneration),
         _ => None,
+    };
+    if term.is_some() {
+        carrier_line(&world, carrier, if term == Some(hunt.item.movement) { "movement term" } else { "regeneration term" });
     }
+    term
 }
 
 /// apply_modifier's own float (patch 109's `artefact.shared_modifier`): the
@@ -610,7 +688,12 @@ fn carries(player: &Player<'_>) -> bool {
 /// base_player::can_sprint: never the carrier.
 pub fn on_can_sprint(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnCanSprintExit> {
     match native::sprinter(ctx) {
-        Some(player) if carries(&player) => Flow::Exit(ArtefactHuntOnCanSprintExit::Refused),
+        Some(player) if carries(&player) => {
+            if let (Some(world), Some(place)) = (HuntWorld::of_player(&player), Place::new(player.hunt_place())) {
+                carrier_line(&world, place, "may not sprint");
+            }
+            Flow::Exit(ArtefactHuntOnCanSprintExit::Refused)
+        }
         _ => Flow::Continue,
     }
 }
@@ -880,7 +963,31 @@ enum Load<T> {
 }
 
 static ASSETS: GameCell<Load<ArrivedAssets>> = GameCell::new(Load::Unasked);
-static GLOW: GameCell<Load<KeptEffect>> = GameCell::new(Load::Unasked);
+/// The carrier's glow as this game draws it: whose, and which of the two.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Glow {
+    Off,
+    On { place: Place, view: GlowView },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GlowView {
+    /// On his body: everyone else's view of him.
+    Body,
+    /// At the camera: his own first-person view.
+    FirstPerson,
+}
+
+impl GlowView {
+    const fn particle(self) -> usize {
+        match self {
+            GlowView::Body => GLOW,
+            GlowView::FirstPerson => GLOW_FP,
+        }
+    }
+}
+
+static GLOWING: GameCell<Glow> = GameCell::new(Glow::Off);
 
 /// The announcer's lines as they arrived (by Line), and the one playing.
 struct Announcer {
@@ -917,31 +1024,26 @@ static VIEW: GameCell<WorldView> = GameCell::new(WorldView::NEW);
 const IDLE: usize = 0;
 const SPAWN: usize = 1;
 const DESTROY: usize = 2;
+const GLOW: usize = 3;
+const GLOW_FP: usize = 4;
 
 /// The patch's queries came back (on the game's thread).
 pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     let thread = results.thread();
     match results.arrived(tag) {
         Arrived::Assets(assets) => {
-            let whole = assets.model.is_some() && assets.particles.iter().all(Option::is_some);
+            let whole = assets.model.is_some() && assets.particles[..GLOW].iter().all(Option::is_some);
             if !whole {
                 log::line(&[Piece::Text("artefact_hunt: the artefact's model or a particle did not load")]);
             }
             ASSETS.set(thread, if assets.model.is_some() { Load::Ready(assets) } else { Load::Missing });
         }
-        Arrived::Effects(effects) => match effects.all::<1>() {
-            Some([effect]) => GLOW.set(thread, Load::Ready(effect)),
-            None => {
-                log::line(&[Piece::Text("artefact_hunt: the carrier's glow did not load")]);
-                GLOW.set(thread, Load::Missing);
-            }
-        },
         Arrived::Track(serial, emitter) => ANNOUNCER.with(thread, |announcer| {
             if let Some(index) = (0..LINES).find(|&index| line_serial(index) == serial) {
                 announcer.lines[index] = emitter;
             }
         }),
-        Arrived::Bus(_) => {}
+        Arrived::Bus(_) | Arrived::Effects(_) => {}
     }
 }
 
@@ -955,7 +1057,17 @@ pub fn on_after_move(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let assets = match ASSETS.get(thread) {
         Load::Unasked => {
             let item = &hunt.item;
-            resources::query_assets(thread, item.model.get(), [item.particles[0].get(), item.particles[1].get(), item.particles[2].get()],
+            let [idle, spawn, destroy] = item.particles;
+            let mut paths = [idle.get(), spawn.get(), destroy.get(), c"", c""];
+            let count = match &item.glow {
+                Some([body, first_person]) => {
+                    paths[GLOW] = body.get();
+                    paths[GLOW_FP] = first_person.get();
+                    5
+                }
+                None => 3,
+            };
+            resources::query_assets(thread, item.model.get(), &paths[..count],
                                     crate::vostok::artefact_hunt_on_loaded_entry());
             ASSETS.set(thread, Load::Asked);
             return Flow::Continue;
@@ -967,8 +1079,10 @@ pub fn on_after_move(ctx: &mut Context<'_>) -> Flow<NoExit> {
     let mut view = VIEW.get(thread);
     if view.rule != Some(hunt.rule) {
         clear(&scene, &assets, view);
+        stop_glow(&scene, &assets, thread);
         view = WorldView { rule: Some(hunt.rule), ..WorldView::NEW };
     }
+    draw_glow(&scene, &assets, &hunt, &world, &game_world, thread);
     let lying = match hunt.state.artefact(&hunt.params) {
         ArtefactView::Lying { spot, at } => Some((matches!(spot, artefact_hunt_rule::Spot::Spawner(_)), at.metres())),
         _ => None,
@@ -1013,6 +1127,49 @@ pub fn on_after_move(ctx: &mut Context<'_>) -> Flow<NoExit> {
     Flow::Continue
 }
 
+/// The carrier's glow, drawn by this game for itself each frame (never in the
+/// simulation: the 2026-11-21 test's carrier's game parted from the others'
+/// while the glow went into his effect list at a tick that hung on when each
+/// game had loaded it): on his body for the others, at the camera for him.
+fn draw_glow(scene: &ArtefactScene<'_>, assets: &ArrivedAssets, hunt: &Hunt, world: &HuntWorld<'_>,
+             game_world: &GameWorld<'_>, thread: &Thread) {
+    let local = game_world.network_client().and_then(|client| client.local_place());
+    let target = hunt.state.carrier()
+        .filter(|place| world.body(place.get()).is_some_and(|body| body.alive))
+        .map_or(Glow::Off, |place| Glow::On {
+            place,
+            view: if local == Some(place.get()) { GlowView::FirstPerson } else { GlowView::Body },
+        });
+    let shown = GLOWING.get(thread);
+    let matrix = |place: Place, view: GlowView| {
+        let player = world.player(place.get())?;
+        let (body, eye) = native::transforms(&player);
+        Some(if view == GlowView::Body { body } else { eye })
+    };
+    if shown != target {
+        stop_glow(scene, assets, thread);
+        if let Glow::On { place, view } = target
+            && let (Some(particle), Some(at)) = (assets.particles[view.particle()], matrix(place, view))
+        {
+            scene.play_at(particle, &at);
+        }
+        GLOWING.set(thread, target);
+    } else if let Glow::On { place, view } = target
+        && let (Some(particle), Some(at)) = (assets.particles[view.particle()], matrix(place, view))
+    {
+        scene.move_to(particle, &at);
+    }
+}
+
+fn stop_glow(scene: &ArtefactScene<'_>, assets: &ArrivedAssets, thread: &Thread) {
+    if let Glow::On { view, .. } = GLOWING.get(thread)
+        && let Some(particle) = assets.particles[view.particle()]
+    {
+        scene.stop(particle);
+    }
+    GLOWING.set(thread, Glow::Off);
+}
+
 /// Everything of the view out of the scene.
 fn clear(scene: &ArtefactScene<'_>, assets: &ArrivedAssets, view: WorldView) {
     if view.lying.is_some() {
@@ -1040,53 +1197,12 @@ pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
         && let Some(scene) = ArtefactScene::of(&world, thread)
     {
         clear(&scene, &assets, view);
+        stop_glow(&scene, &assets, thread);
     }
     VIEW.set(thread, WorldView::NEW);
+    GLOWING.set(thread, Glow::Off);
     ANNOUNCER.with(thread, |announcer| announcer.playing = None);
     Flow::Continue
-}
-
-/// The carrier's glow, as Forest Protection's: at a player's tick a living
-/// carrier who plays none gets it (the client stream: kept in the local
-/// history, not uploaded); the clock ends it when he carries no more.
-pub fn on_carrier_tick(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let thread = ctx.thread();
-    let Some(player) = Player::at_tick(ctx) else { return Flow::Continue };
-    let Some(world) = HuntWorld::of_player(&player) else { return Flow::Continue };
-    let Some(hunt) = hunt_in(thread, world.key()) else { return Flow::Continue };
-    match GLOW.get(thread) {
-        Load::Unasked => {
-            resources::query_effects(thread, &[hunt.item.effect.get()], crate::vostok::artefact_hunt_on_loaded_entry());
-            GLOW.set(thread, Load::Asked);
-        }
-        Load::Ready(effect) => {
-            if player.alive() && carries(&player) && !player.plays_effect(effect) {
-                player.hold_effect(effect);
-            }
-        }
-        Load::Asked | Load::Missing => {}
-    }
-    Flow::Continue
-}
-
-/// The effect cook's concurrent instances of the glow: one a place.
-pub fn on_effect_capacity(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    let thread = ctx.thread();
-    let name = HuntWorld::of_match(thread).and_then(|world| hunt_in(thread, world.key())).map(|hunt| hunt.item.effect);
-    if let Some(name) = name {
-        effect::effect_capacity(ctx, name.get(), 20);
-    }
-    Flow::Continue
-}
-
-/// The glow's clock: it ends when its player carries no more.
-pub fn on_effect_clock(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnEffectClockExit> {
-    let Load::Ready(effect) = GLOW.get(ctx.thread()) else { return Flow::Continue };
-    if effect::kept_clock(ctx, &[effect], |_, player| player.alive() && carries(player)) {
-        Flow::Exit(ArtefactHuntOnEffectClockExit::Returned)
-    } else {
-        Flow::Continue
-    }
 }
 
 /// The announcer's folder for the game's language: 0.46c2's seven voices,
@@ -1136,6 +1252,13 @@ fn say(thread: &Thread, world: &GameWorld<'_>, line: Line) {
             announcer.playing = native::announce(world, thread, emitter);
         }
     });
+}
+
+/// The client time rule's camera test: the countdown's state while the core
+/// says a round is about to start (any mode whose rule makes it so).
+pub fn on_camera_state(ctx: &mut Context<'_>) -> Flow<ArtefactHuntOnCameraStateExit> {
+    native::camera_state(ctx);
+    Flow::Exit(ArtefactHuntOnCameraStateExit::State)
 }
 
 /// The icon record's carry test: the carrier's icon is marked, of either team.

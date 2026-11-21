@@ -1476,11 +1476,11 @@ fn the_wire_is_parsed_and_never_trusted() {
         let len = rule.write(&mut bytes).unwrap();
         bytes[..len].to_vec()
     };
-    assert_eq!(bytes_of(&Rule::new(5)).len(), 19 + 1);
+    assert_eq!(bytes_of(&Rule::new(5)).len(), 19 + 80 + 1);
     // Play, waiting: the head, the start, the round, the clock, its time.
     let waiting = bytes_of(&game.rule);
-    assert_eq!(waiting.len(), 19 + 4 + 1 + 1 + 4 + 1);
-    assert_eq!(waiting[29], 29, "the size of what is before it");
+    assert_eq!(waiting.len(), 19 + 4 + 1 + 1 + 4 + 80 + 1);
+    assert_eq!(waiting[109], 109, "the size of what is before it");
     assert_eq!(waiting[..4], game.rule.rng().state().to_le_bytes());
     assert_eq!(waiting[10..18], [0x0F, 0, 0, 0, 0, 0x3C, 0, 0], "the sides");
     assert_eq!((waiting[18], waiting[23], waiting[24]), (1, 2, 0));
@@ -1520,7 +1520,8 @@ fn the_wire_is_parsed_and_never_trusted() {
         Err(WireError::Time),
         "a time past the horizon"
     );
-    assert_eq!(broken(29, 28), Err(WireError::Size));
+    assert_eq!(broken(109, 108), Err(WireError::Size));
+    assert_eq!(broken(29 + 2, 1), Err(WireError::KitSwitches), "a count past 65535");
     // In a longer buffer the rule's bytes are counted; before the kd stats
     // it is found from its end.
     let mut longer = waiting.clone();
@@ -1538,7 +1539,7 @@ fn the_wire_is_parsed_and_never_trusted() {
     // Lying at a spawner: its index is one of the map's.
     game.spawned();
     let mut lying = bytes_of(&game.rule);
-    assert_eq!(lying.len(), 30 + 1 + 88);
+    assert_eq!(lying.len(), 30 + 1 + 88 + 80);
     assert_eq!((lying[23], lying[24]), (3, 0));
     lying[25] = 4;
     assert_eq!(
@@ -1550,7 +1551,7 @@ fn the_wire_is_parsed_and_never_trusted() {
     let mut carried = bytes_of(&game.rule);
     assert_eq!(
         (carried.len(), carried[23], carried[25]),
-        (26 + 88 + 1, 4, 2)
+        (26 + 88 + 80 + 1, 4, 2)
     );
     carried[25] = 9;
     assert_eq!(
@@ -1566,7 +1567,7 @@ fn the_wire_is_parsed_and_never_trusted() {
     // Dropped: a point of a map.
     game.drop_at(2, 12.5);
     let mut dropped = bytes_of(&game.rule);
-    assert_eq!((dropped.len(), dropped[23]), (25 + 12 + 4 + 88 + 1, 5));
+    assert_eq!((dropped.len(), dropped[23]), (25 + 12 + 4 + 88 + 80 + 1, 5));
     assert_eq!(
         dropped[25..37],
         [0xD4, 0x30, 0, 0, 130, 0, 0, 0, 0, 0, 0, 0]
@@ -1581,7 +1582,7 @@ fn the_wire_is_parsed_and_never_trusted() {
     game.take(2);
     game.deliver(2);
     let brought = bytes_of(&game.rule);
-    assert_eq!((brought.len(), brought[23]), (19 + 4 + 1 + 4 + 1, 6));
+    assert_eq!((brought.len(), brought[23]), (19 + 4 + 1 + 4 + 80 + 1, 6));
     assert_eq!(brought[24..28], (game.now + 3000).to_le_bytes());
     // The goal is a state of these 3 s only, of one team.
     let mut goal = brought.clone();
@@ -1598,7 +1599,7 @@ fn the_wire_is_parsed_and_never_trusted() {
         game.step();
     }
     let fade = bytes_of(&game.rule);
-    assert_eq!((fade.len(), fade[23], fade[24]), (30, 7, 0));
+    assert_eq!((fade.len(), fade[23], fade[24]), (110, 7, 0));
     assert_eq!(
         (game.rule.round_starts(), fade[6]),
         (0, 0),
@@ -1608,7 +1609,7 @@ fn the_wire_is_parsed_and_never_trusted() {
         game.step();
     }
     let countdown = bytes_of(&game.rule);
-    assert_eq!((countdown.len(), countdown[23], countdown[24]), (30, 8, 0));
+    assert_eq!((countdown.len(), countdown[23], countdown[24]), (110, 8, 0));
     assert_eq!(
         (game.rule.round_starts(), countdown[6]),
         (1, 1),
@@ -1662,14 +1663,14 @@ fn the_wire_is_parsed_and_never_trusted() {
     let fade = bytes_of(&game.rule);
     assert_eq!(
         (fade.len(), fade[23], fade[24]),
-        (19 + 4 + 1 + 5 + 4 + 1, 7, 1)
+        (19 + 4 + 1 + 5 + 4 + 80 + 1, 7, 1)
     );
 
     // Over.
     let mut game = Match::at_time(1, 899_950, [1, 0]);
     game.step();
     let over = bytes_of(&game.rule);
-    assert_eq!((over.len(), over[18], over[23]), (25, 2, 1));
+    assert_eq!((over.len(), over[18], over[23]), (105, 2, 1));
     let mut bad = over.clone();
     bad[23] = 3;
     assert_eq!(
@@ -1715,7 +1716,7 @@ fn the_fields_are_the_bytes_in_order() {
             "m_dropped.x",
         ]
     );
-    assert_eq!(names[names.len() - 2..], ["m_way.carried[19]", "m_size"]);
+    assert_eq!(names[names.len() - 2..], ["m_kit_switches[19]", "m_size"]);
     assert_eq!(game.rule.write(&mut bytes[..len - 1]), None);
 }
 

@@ -22,6 +22,7 @@
 //! | u32 | `m_until` | not for 4: a time |
 //! | u32 x2 | `m_way.left[team]` | only for 3, 4, 5: 0..=65536 |
 //! | u32 x20 | `m_way.carried[place]` | only for 3, 4, 5: 0..=128 x 65536 |
+//! | u32 x20 | `m_kit_switches[place]` | each place's kit switches in a round's countdown: 0..=65535 |
 //! | u8 | `m_size` | the bytes before it |
 //!
 //! A time is the match's start up to its horizon ([`Params`]': the match,
@@ -37,7 +38,7 @@
 //! delivery, sudden death's delivery, with a wiped point in its step at most).
 //! The last byte, `m_size`, counts the bytes before it: the rules after this
 //! one are read from the section's end, and it says where this one starts
-//! ([`Rule::read_back`]). With it 20 bytes idle, 25 over, 29 to 138 in play.
+//! ([`Rule::read_back`]). With it 100 bytes idle, 105 over, 109 to 218 in play.
 
 use core::ffi::CStr;
 
@@ -49,7 +50,7 @@ use crate::time::Time;
 use crate::way::Way;
 
 /// The most bytes a state takes: an artefact dropped in sudden death.
-pub const MAX_BYTES: usize = 15 + 4 + 4 + 1 + 9 + 12 + 4 + 8 + 4 * PLAYERS + 1;
+pub const MAX_BYTES: usize = 15 + 4 + 4 + 1 + 9 + 12 + 4 + 8 + 4 * PLAYERS + 4 * PLAYERS + 1;
 
 /// A field's value as the game's writers take it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -73,6 +74,8 @@ pub enum WireError {
     Score,
     /// The round starts are not what the scores and the stage give.
     RoundStarts,
+    /// A place's kit switches past what a count keeps (65535).
+    KitSwitches,
     Sides,
     Stage,
     Reason,
@@ -91,6 +94,29 @@ pub enum WireError {
     /// The last byte is not the count of the bytes before it.
     Size,
 }
+
+const SWITCHES: [&CStr; PLAYERS] = [
+    c"m_kit_switches[0]",
+    c"m_kit_switches[1]",
+    c"m_kit_switches[2]",
+    c"m_kit_switches[3]",
+    c"m_kit_switches[4]",
+    c"m_kit_switches[5]",
+    c"m_kit_switches[6]",
+    c"m_kit_switches[7]",
+    c"m_kit_switches[8]",
+    c"m_kit_switches[9]",
+    c"m_kit_switches[10]",
+    c"m_kit_switches[11]",
+    c"m_kit_switches[12]",
+    c"m_kit_switches[13]",
+    c"m_kit_switches[14]",
+    c"m_kit_switches[15]",
+    c"m_kit_switches[16]",
+    c"m_kit_switches[17]",
+    c"m_kit_switches[18]",
+    c"m_kit_switches[19]",
+];
 
 const CARRIED: [&CStr; PLAYERS] = [
     c"m_way.carried[0]",
@@ -202,14 +228,22 @@ impl Rule {
     /// layout ([`Rule::write`] and the game's serialize both walk it).
     pub fn fields(&self, put: &mut dyn FnMut(Field)) {
         let mut size = 0u8;
-        self.body(&mut |field| {
+        self.all(&mut |field| {
             size += match field.value {
                 Value::U8(_) => 1,
                 Value::U32(_) => 4,
             };
         });
-        self.body(put);
+        self.all(put);
         u8(put, c"m_size", size);
+    }
+
+    /// The body, then each place's kit switches in a round's countdown.
+    fn all(&self, put: &mut dyn FnMut(Field)) {
+        self.body(put);
+        for (name, &count) in SWITCHES.iter().zip(&self.kit_switches) {
+            u32(put, name, u32::from(count));
+        }
     }
 
     fn body(&self, put: &mut dyn FnMut(Field)) {
@@ -342,10 +376,15 @@ impl Rule {
         if !round_starts_fit(round_starts, score, &stage) {
             return Err(WireError::RoundStarts);
         }
+        let mut kit_switches = [0u16; PLAYERS];
+        for count in &mut kit_switches {
+            *count = u16::try_from(input.u32()?).map_err(|_| WireError::KitSwitches)?;
+        }
         let rule = Rule {
             rng,
             score,
             round_starts: round_starts as u16,
+            kit_switches,
             sides,
             stage,
         };

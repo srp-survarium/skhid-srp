@@ -365,6 +365,8 @@ unsafe extern "stdcall" {
     pub fn engine_play_particle_system(renderer: *mut c_void, scene: *mut c_void, particle: *mut c_void, first_matrix: *const f32, second_matrix: *const f32, first_attachment: *const u32, second_attachment: *const u32);
     /// 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
     pub fn engine_remove_particle_system(renderer: *mut c_void, scene: *mut c_void, particle: *const *mut c_void);
+    /// 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
+    pub fn engine_update_particle_system(renderer: *mut c_void, scene: *mut c_void, particle: *const *mut c_void, first_matrix: *const f32, second_matrix: *const f32);
 }
 
 #[allow(dead_code)]
@@ -495,6 +497,10 @@ unsafe extern "thiscall" {
     pub fn engine_tdm_rule_completed(rule: *mut c_void, time: u32) -> u8;
     /// 0x317f10 survarium::timelimit_rule_core::tick: rule ECX, dt ESP+4, time ESP+8, step ESP+12; pops 12; thiscall, called directly
     pub fn engine_timelimit_tick(rule: *mut c_void, dt: u32, time: u32, step: u32);
+    /// 0x1f2870 survarium::player::remove: player ECX, flag ESP+4; pops 4; thiscall, called directly
+    pub fn engine_player_remove(player: *mut c_void, flag: u32);
+    /// 0x316da0 survarium::player_respawn_rule_base::spawn_player: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; thiscall, called directly
+    pub fn engine_spawn_player(rule: *mut c_void, place: u32, point: *const u32, time: u32);
 }
 
 #[allow(dead_code, non_upper_case_globals)]

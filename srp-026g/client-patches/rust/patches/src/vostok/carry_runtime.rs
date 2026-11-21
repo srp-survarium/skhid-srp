@@ -285,6 +285,17 @@ impl Scene {
         // SAFETY: as play_particle; the slot ours, read by the call.
         unsafe { raw::engine_remove_particle_system(Some(self.renderer), Some(self.reference), &mut slot) }
     }
+    /// Moves the scene's instance of `particle` to `matrix`, as the
+    /// effects' presenters move theirs each frame (0x2AC353: the particle
+    /// system's slot, the matrix twice).
+    pub(super) unsafe fn move_particle(&self, particle: raw::ParticleSystem, matrix: &[f32; 16]) {
+        let mut slot = Some(particle);
+        // SAFETY: as play_particle; the slot and the matrix ours, read by the call.
+        unsafe {
+            raw::engine_update_particle_system(Some(self.renderer), Some(self.reference), &mut slot, matrix.as_ptr(),
+                                               matrix.as_ptr())
+        }
+    }
     pub(super) unsafe fn remove(&self, model: raw::SceneModel) -> bool {
         // SAFETY: as present; guard native remove with its own in-scene bit.
         unsafe {

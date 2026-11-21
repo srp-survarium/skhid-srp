@@ -986,3 +986,15 @@ extern engine_play_particle_system
 ; 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
 ; stdcall: push (and ECX for thiscall) as that convention says
 extern engine_remove_particle_system
+; void engine_update_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *const *particle, const float *first_matrix, const float *second_matrix)
+; 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_update_particle_system
+; void engine_player_remove(struct player *player, unsigned int flag)
+; 0x1f2870 survarium::player::remove: player ECX, flag ESP+4; pops 4; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_player_remove
+; void engine_spawn_player(struct player_respawn_rule_base *rule, unsigned int place, const unsigned int *point, unsigned int time)
+; 0x316da0 survarium::player_respawn_rule_base::spawn_player: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; thiscall, called directly
+; thiscall: push (and ECX for thiscall) as that convention says
+extern engine_spawn_player

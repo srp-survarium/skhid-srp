@@ -611,6 +611,30 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
     after the server found 8 of player 1's inputs too late to relay (a 1 s stall); the first followed
     the server's move of player 2's input (147,150 -> 147,700 ms), and the rule's bytes were the same
     in both games' worlds around it (it made no decision in the match: nobody was in it).
+- **After the second local test (2026-11-21, match 0x3df684fa):**
+  - both resyncs were the carrier's game: at 148,300 ms its world differed from the majority's only
+    in his player block (look pitch and turn, 1.5 cm of position, a weapon's condition: one shot more
+    and other moves in his game). The glow went into his simulated effect list at a tick that hung
+    on when each game had loaded the effect: it is now drawn by each game for itself (above). The
+    sprint refusal's callers (the animation selector 0x2FBC90 / 0x2FC1F0, the jump state 0x337040)
+    read the rule's state of the step they run in. `SKHID_HUNT_LOG=on` logs one line for each
+    decision about the carrier (sprint refused, a modifier term, a countdown's kit switch) with its
+    tick and the game's process id;
+  - a round's restart is the match start's countdown, its own code (the owner: "the same code
+    should run there"): for the Fade and the Countdown the rule makes the core's time state 4
+    (`HuntWorld::set_round_countdown`, in its tick and its deserialize, after the time rule's);
+    `time_rule.camera_state` (0x267AE6) gives the client time rule's camera test the countdown's 2
+    while it is 4, so the native 0x27B1A0 switches to the warmup camera and back, and patch 31's
+    kits show by +1F1C60h as before the start. The time rule's own state, start and end are
+    untouched (its countdown would restart the match clock). The `held` input exit is gone: the
+    warmup's input holds, as before the start;
+  - a kit chosen in a round's countdown is played where the player stands by patch 31's two calls
+    (player::remove 0x1F2870 with 1, spawn 0x316DA0 with a point of his feet, yaw and protection),
+    at the same place of the step as its `kit_change` (the respawn rule's tick after its prologue):
+    its legacy block has no byte to spare (0 free of its 0xE1), so the round's switch is this tick's
+    (`RespawnTick::switch_kit`), without the clean-record test, which only the first start asks for;
+  - each such switch is a life for supplies: the rule counts them by place (`m_kit_switches`, wire
+    above) and the server adds them to `PlayerResult::kit_changes` from the last trusted snapshot.
 - **Built after** (the same patch): the artefact in the world, the carrier's glow, the announcer and
   the icon's carrier mark.
   - The artefact: the item's model (class 15) and its idle, spawn and destroy particles (class 61)
@@ -623,10 +647,10 @@ The code is `client_patch.md` "Artifact Hunt (patch 171)"; checked by `check_art
     0x22660, 7 stdcall arguments, the particle by value with a reference added: Lifebone's
     0x25F335..0x25F387) and stop by `remove_particle_system` 0x229D0 (0x25ECC6). `game_world.
     deactivate` (order 3) takes all of it out of the scene.
-  - The glow: Forest Protection's pattern (patch 111): `artefact_wood_shine` (the item's `effect`)
-    asked once at a player's tick, held from a living carrier's tick (`battery.carrier_tick` order
-    6), one a place (`medical.effect_capacity` order 3), ended by its clock when he carries no more
-    (`medical.effect_clock` order 3). The client stream only: not uploaded.
+  - The glow: drawn by each game for itself, never in the simulation (second test, below): the
+    config's `item.carrier_particle` (on the carrier's body, +40Ch, for the others) and
+    `item.carrier_particle_fp` (at his camera, +44Ch, in his own game), both or neither, asked in the
+    assets' query and moved each frame (`update_particle_system_instance` 0x22B30).
   - The announcer (above): the line for the viewer's team (own or enemy), none without a team or
     for a removal; a running line freed first.
   - The mark: `player_icons.carrier_mark` at 0x1F2D8B (the record's `cmp [edx+178h],0`, 7 bytes):
@@ -698,11 +722,12 @@ number 8"): 13 goes every "else" way: no `set_tickets_required`, no native minim
   | u32 | `m_until` | not for 4: start..=start + horizon |
   | u32 x2 | `m_way.left[team]` | only for 3, 4, 5: 0..=65536 |
   | u32 x20 | `m_way.carried[place]` | only for 3, 4, 5: 0..=128 x 65536 |
+  | u32 x20 | `m_kit_switches[place]`: each place's kit switches in a round's countdown (patch 31's switch, a life for supplies) | 0..=65535 |
   | u8 | `m_size` | the bytes before it |
 
   Across the fields: a regular clock outside 6 has both scores below `score`; 6 has at most one
   team at it; sudden death has the scores at most 1 apart and, with them equal, both teams standing
-  (`sides` less `fallen` not empty: the point is given at once). 20 bytes idle, 25 over, 29 to 138
+  (`sides` less `fallen` not empty: the point is given at once). 100 bytes idle, 105 over, 109 to 218
   in play (the section holds 0x800). `m_round_starts` (`Rule::round_starts()`, what the server charges
   lives by) is exact for the state: idle 0; in play the points, less one in 6 and 7 (that delivery's
   round has not started) and one more for sudden death's wiped team's point (unequal scores in

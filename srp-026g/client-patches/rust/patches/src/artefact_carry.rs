@@ -64,13 +64,9 @@ pub fn on_input(ctx: &mut Context<'_>) -> Flow<ArtefactCarryOnInputExit> {
     let Some(player) = native::player(ctx, native::PlayerSite::Input) else { return Flow::Continue };
     let Some((now, actions)) = native::incoming(ctx) else { return Flow::Continue };
     let before = machine(&player, ctx);
-    // Artifact Hunt (patch 171) first: its frozen countdown applies no
-    // input; its take or delivery has the use key's press.
+    // Artifact Hunt (patch 171) first: its take or delivery has the use key's press.
     let hunt = crate::artefact_hunt::input(&player, now.0, before.use_pressed(actions),
                                            before.pressed(actions, DROP));
-    if hunt == crate::artefact_hunt::Input::Held {
-        return Flow::Exit(ArtefactCarryOnInputExit::Held);
-    }
     let allowed = player.carry_allowed();
     if !allowed {
         event(&player, ctx, Event::Gone);

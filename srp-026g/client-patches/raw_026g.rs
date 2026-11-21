@@ -371,6 +371,8 @@ unsafe extern "stdcall" {
     pub fn engine_play_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: Option<ParticleSystem>, first_matrix: *const f32, second_matrix: *const f32, first_attachment: *const u32, second_attachment: *const u32);
     /// 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
     pub fn engine_remove_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: *mut Option<ParticleSystem>);
+    /// 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
+    pub fn engine_update_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: *mut Option<ParticleSystem>, first_matrix: *const f32, second_matrix: *const f32);
 }
 
 #[allow(dead_code)]
@@ -501,6 +503,10 @@ unsafe extern "thiscall" {
     pub fn engine_tdm_rule_completed(rule: Option<HuntRule>, time: u32) -> u8;
     /// 0x317f10 survarium::timelimit_rule_core::tick: rule ECX, dt ESP+4, time ESP+8, step ESP+12; pops 12; thiscall, called directly
     pub fn engine_timelimit_tick(rule: Option<HuntRule>, dt: u32, time: u32, step: u32);
+    /// 0x1f2870 survarium::player::remove: player ECX, flag ESP+4; pops 4; thiscall, called directly
+    pub fn engine_player_remove(player: Option<Player>, flag: u32);
+    /// 0x316da0 survarium::player_respawn_rule_base::spawn_player: rule ECX, place ESP+4, point ESP+8, time ESP+12; pops 12; thiscall, called directly
+    pub fn engine_spawn_player(rule: Option<PlayerRespawnRuleBase>, place: u32, point: *const u32, time: u32);
 }
 
 /// a function at the address GetProcAddress gives (stdcall): unsigned int engine_vk_create_instance(const void *info, const void *allocator, void **instance)
@@ -2091,6 +2097,15 @@ impl Player {
     #[inline(always)]
     pub unsafe fn pending_death(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x33d).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x490 (f32): m_rotation_y: the yaw a spawn stores (0x2DAB70) and patch 31's switch keeps (kit_change_026g.asm YAW)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn yaw(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x490).cast::<f32>().as_ptr() }
     }
 }
 
@@ -14270,6 +14285,15 @@ impl MedicalDamage {
     pub unsafe fn pools(self) -> MedicalPools {
         MedicalPools(unsafe { self.0.byte_add(0x108) })
     }
+
+    /// +0x32c (u32): m_invulnerability_time_in_ms: the time until the player is invulnerable, -1 none (get_invulnerability 0x2E5550; the spawn writes time + its point's +20h, 0x316E78)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn invulnerable_until(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x32c).cast::<u32>().as_ptr() }
+    }
 }
 
 /// A survarium::medical_pools (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
@@ -19554,6 +19578,24 @@ impl MatchRule {
     #[inline(always)]
     pub unsafe fn time_state(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x148).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x128 (ptr<survarium::core_world>): the client time rule's core (its node 0x267ACC reads [rule+128h]+18FC4h, the newest tick played)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn timelimit_core(self) -> Option<CoreWorld> {
+        unsafe { self.0.byte_add(0x128).cast::<Option<CoreWorld>>().read_volatile() }
+    }
+
+    /// +0x128 (ptr<survarium::core_world>): the client time rule's core (its node 0x267ACC reads [rule+128h]+18FC4h, the newest tick played)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_timelimit_core(self, value: Option<CoreWorld>) {
+        unsafe { self.0.byte_add(0x128).cast::<Option<CoreWorld>>().write_volatile(value) }
     }
 }
 
@@ -35642,6 +35684,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn collector(machine: &impl Machine) -> Option<DamageCollector> {
             NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(DamageCollector)
+        }
+    }
+
+    /// time_rule.camera_state (0x267ae6): the client time rule node's camera test (0x267AA0, for a tick first played): mov edi,[edi+148h] (its own state) before the compare with the network client's +1F1C60h and the camera switch 0x27B1A0; state: EDI given, on at the compare
+    pub mod time_rule_camera_state {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::match_rule (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn rule(machine: &impl Machine) -> Option<MatchRule> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(MatchRule)
         }
     }
 }

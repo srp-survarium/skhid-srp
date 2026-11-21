@@ -145,23 +145,14 @@ site = "game_world.deactivate"
 handler = "on_deactivate"
 order = 3
 
-# the carrier's glow, as Forest Protection's (patch 111)
-[[hook]]
-site = "battery.carrier_tick"
-handler = "on_carrier_tick"
-order = 6
-
-[[hook]]
-site = "medical.effect_capacity"
-handler = "on_effect_capacity"
-order = 3
-
-[[hook]]
-site = "medical.effect_clock"
-handler = "on_effect_clock"
-order = 3
-
 # the icon's native carrier mark (its modifier_visible), of either team
 [[hook]]
 site = "player_icons.carrier_mark"
 handler = "on_mark"
+
+# a round about to start plays the match start's countdown: the client's
+# camera test sees the countdown's state while the core says a round is about
+# to start (the warmup camera, patch 31's kits)
+[[hook]]
+site = "time_rule.camera_state"
+handler = "on_camera_state"

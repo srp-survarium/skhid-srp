@@ -4251,14 +4251,19 @@ code is (`rust/patches/src/artefact_hunt.rs`, `artefact_hunt.toml`, `src/vostok/
   reconciled with the rule each frame through the carry runtime's scene (`add/update/remove_model`,
   and the new `play_particle_system` 0x22660 / `remove_particle_system` 0x229D0 rows of
   `engine_026g.tsv`, the artefacts' clients' calls 0x25F335..0x25F387 and 0x25ECC6).
-- **The glow**: `battery.carrier_tick` order 6, `medical.effect_capacity` / `medical.effect_clock`
-  order 3, Forest Protection's pattern with the item's `effect`.
+- **The glow**: drawn by each game for itself in the after-move frame (`item.carrier_particle` on the
+  carrier's body, `item.carrier_particle_fp` at his own camera), moved by `update_particle_system`
+  0x22B30; never in the simulation (the second test's desync).
 - **The announcer**: the seven `mode.sound_notifications` lines as class-258 sound collections
   (`query_collection`), the voice the text's language's folder (else english), played once by the new
   `vostok::sound::play_once` (emit_hud_sound 0x65630 in the game world's scene +94h with the sound
   world's logic user +B0h, the proxy's play in mode 0: 0x23F676..0x23F6F8), the one playing freed first.
 - **The icon's mark** (`player_icons.carrier_mark` 0x1F2D8B, 7 bytes, exit `carrier@0x1F2D98`): the
   carrier's record gets EAX = place x 3 and CL = 1 (the `lea` and `setnz` skipped).
+- **After the second local test**: a round's Fade and Countdown are the match start's countdown (the
+  core's time state 4; `time_rule.camera_state` 0x267AE6 gives the client's camera test 2 then; a
+  kit picked in it is switched by `RespawnTick::switch_kit` with patch 31's two calls, counted in
+  `m_kit_switches` for the server's supplies); `SKHID_HUNT_LOG=on` logs the carrier's decisions.
 - **After the first local test** (2026-11-21; `artefact_hunt.md` "The implementation"): the tick takes
   in the world's places whose player has a team the rule does not have him on (slot 8 comes before
   the team: nobody was ever in the match, so no take); one log line a take, delivery, drop and entry;
