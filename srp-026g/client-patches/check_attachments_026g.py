@@ -9,8 +9,8 @@ and the original.
 Requires Python `unicorn`. The exe's sections are loaded as they are, the
 arena with them; the game's own code runs between the sites, on made-up
 objects. The modules table is the weapon-modules crate's checked-in sample
-(../crates/weapon-modules/tests/sample-v2.srpm), and what must stand where is
-that crate's own `resolve`, pinned beside it (sample-v2.loadouts.tsv, kept
+(../crates/weapon-modules/tests/sample-v3.srpm), and what must stand where is
+that crate's own `resolve`, pinned beside it (sample-v3.loadouts.tsv, kept
 by the crate's test): nothing here works a loadout out again.
 
 - the table's way in: the items dictionary cook's query at its site
@@ -134,12 +134,12 @@ def close(a, b, eps=1e-5):
 
 
 def loadouts():
-    """sample-v2.loadouts.tsv: {(gun, scope, muzzle, grip): a case}. A case
+    """sample-v3.loadouts.tsv: {(gun, scope, muzzle, grip): a case}. A case
     is "whole", ("refused", why) or a dict: body, bones, parts [(model, bone,
     matrix)], optic, eye (by anchor), fire, wrist (each (bone, matrix)),
     fingers (fifteen matrices, or None), effect."""
     cases, case = {}, None
-    for line in (SAMPLE / "sample-v2.loadouts.tsv").read_text().splitlines():
+    for line in (SAMPLE / "sample-v3.loadouts.tsv").read_text().splitlines():
         head, *rest = line.split("\t")
         placed = lambda cells: (int(cells[0]), matrix([float(v) for v in cells[1:13]]))
         if head == "case":
@@ -533,7 +533,7 @@ def main():
     late_join = open(base.late_join_bin(), "rb").read()
     built, _ = base.build(original, "section", open(base.default_bin("section"), "rb").read(), None, late_join)
     built = bytes(built)
-    table = (SAMPLE / "sample-v2.srpm").read_bytes()
+    table = (SAMPLE / "sample-v3.srpm").read_bytes()
     cases = loadouts()
     failed = 0
 

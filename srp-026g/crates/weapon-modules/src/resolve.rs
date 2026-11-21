@@ -26,10 +26,15 @@
 use core::ffi::CStr;
 
 use crate::math::Affine;
+use crate::math::dot;
 use crate::pose::{Eye, Hand, Placement};
 use crate::slot::SlotId;
 use crate::table::{Attach, Gun, MAX_CHAIN, MAX_STOCK, Module};
-use crate::{DictId, Kind, Role};
+use crate::{AttachEye, DictId, Kind, Role};
+
+/// How far behind an eye, along its line, the gun's own eye plane may be for
+/// the eye to move to it (metres; 0.69d's own bound).
+const PLANE_BEHIND: f32 = -2.0;
 
 /// The parts of one gun at most: its own, a chain of carriers a kind, the
 /// fitted modules.
@@ -293,6 +298,27 @@ impl<'t> Build<'t> {
         self.gun.pose(at.bone).ok_or(Refusal::Broken)
     }
 
+    /// `eye` moved along its own line of sight to the plane of the gun's own
+    /// eye, in the gun's aimed idle pose. 0.69d's rule for a slot with a
+    /// `plane_slot` (`get_slot_transform` 0x2006CF320 of its exe, read by the
+    /// scopes lane: `docs/notes/attachments-scopes.md`): with M the slot's
+    /// frame and P the plane slot's, `s = (P.c - M.c)·P.k / M.k·P.k` and
+    /// `M.c += s·M.k`; the axes stay. A line along the plane, or a plane
+    /// more than 2 m behind the eye, leaves the eye where it is.
+    fn in_gun_plane(&self, eye: Placement) -> Result<Placement, Refusal> {
+        let frame = |at: &Placement, bone: &Affine| Affine::HALF_TURN.then(&at.offset).then(bone);
+        let (bone, own) = (self.bone(&eye)?, self.gun.body_aim());
+        let (line, plane) = (frame(&eye, &bone), frame(&own, &self.bone(&own)?));
+        let gap = [plane.t[0] - line.t[0], plane.t[1] - line.t[1], plane.t[2] - line.t[2]];
+        let along = dot(gap, plane.z) / dot(line.z, plane.z);
+        if !(along.is_finite() && along >= PLANE_BEHIND) {
+            return Ok(eye);
+        }
+        let slide = Affine::translation(along * line.z[0], along * line.z[1], along * line.z[2]);
+        let offset = eye.offset.then(&bone).then(&slide).then(&bone.inverse().ok_or(Refusal::Broken)?);
+        Ok(Placement { bone: eye.bone, offset })
+    }
+
     fn loadout(&self) -> Result<Bare<'t>, Refusal> {
         let mut bare = Bare { parts: [None; MAX_PARTS], optic: None, eye: None, fire_point: None, left_hand: None, shot_effect: None };
         let mut drawn = bare.parts.iter_mut();
@@ -307,7 +333,11 @@ impl<'t> Build<'t> {
                 bare.left_hand = Some(Hand::new(&part.at, &locators).ok_or(Refusal::Broken)?);
             }
         }
-        if let Some(eye) = self.last(|part| Some(part.at.child(&part.attach.eye()?))) {
+        if let Some((at, eye)) = self.last(|part| Some((part.at, part.attach.eye()?))) {
+            let eye = match eye {
+                AttachEye::Own(locator) => at.child(&locator),
+                AttachEye::InGunPlane(locator) => self.in_gun_plane(at.child(&locator))?,
+            };
             let aim = self.gun.aim_bone();
             let aim_pose = self.gun.pose(aim).ok_or(Refusal::Broken)?;
             bare.eye = Some(Eye::new(eye, &self.bone(&eye)?, (aim, &aim_pose)).ok_or(Refusal::Broken)?);

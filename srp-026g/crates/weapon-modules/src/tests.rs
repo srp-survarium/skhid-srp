@@ -45,6 +45,9 @@ const FN_P90: u16 = 1220;
 const OFFSET_BONE: u16 = 1;
 
 /// A made-up locator: a quarter turn about y and a place of its own.
+/// Every sample gun's own eye, on the offset bone.
+const BODY_AIM: Affine = Affine::translation(0.0, 0.06, -0.12);
+
 fn locator(n: u8) -> Affine {
     let n = f32::from(n);
     Affine { x: [0.0, 0.0, -1.0], y: [0.0, 1.0, 0.0], z: [1.0, 0.0, 0.0], t: [0.01 * n, 0.002 * n, 0.1 + 0.03 * n] }
@@ -85,7 +88,7 @@ fn muzzle(slot: SlotId, n: u8, effect: &str) -> AttachSource {
 }
 
 fn optic(slot: SlotId, n: u8) -> AttachSource {
-    AttachSource { eye: Some(locator(n)), alters: SIGHTS.to_vec(), closes: SCOPE_SLOTS.to_vec(), ..AttachSource::new(slot) }
+    AttachSource { eye: Some(AttachEye::Own(locator(n))), alters: SIGHTS.to_vec(), closes: SCOPE_SLOTS.to_vec(), ..AttachSource::new(slot) }
 }
 
 fn modules() -> Vec<ModuleSource> {
@@ -151,7 +154,7 @@ fn modules() -> Vec<ModuleSource> {
                 1678,
                 Role::Stock,
                 "weapons/modules/ironsights/hk416_a5_rear_ironsight_on",
-                vec![AttachSource { eye: Some(locator(14)), ..AttachSource::new(S::PicatinnyIronsightRear) }],
+                vec![AttachSource { eye: Some(AttachEye::InGunPlane(locator(14))), ..AttachSource::new(S::PicatinnyIronsightRear) }],
             )
         },
         ModuleSource {
@@ -189,6 +192,7 @@ fn gun(dict: u16, slots: &[(SlotId, u8)]) -> GunSource {
         bones: 4,
         aim_bone: 0,
         bare: std::format!("weapons/gun_{dict}/bare"),
+        body_aim: (OFFSET_BONE, BODY_AIM),
         slots: slots.iter().map(|(slot, n)| (*slot, OFFSET_BONE, locator(*n))).collect(),
         pose: pose(),
         ..GunSource::default()
@@ -340,7 +344,18 @@ fn a_scope_folds_the_sights() {
     // with a grip alone the sights stand, and the eye is the rear sight's
     with(&table, HK416, Wanted { grip: dict(MIKI), ..Wanted::default() }, |bare| {
         assert_eq!(&models(&bare)[..2], ["hk416_a5_rear_ironsight_on", "hk416_a5_front_ironsight_on"]);
-        assert_eq!(bare.eye.unwrap().placed(EyeAnchor::Optic), on_offset(locator(39)).child(&locator(14)));
+        // an open sight: its own axes and its line of sight, at the plane of
+        // the gun's own eye (0.69d's plane_slot)
+        let (own, eye) = (on_offset(locator(39)).child(&locator(14)), bare.eye.unwrap().placed(EyeAnchor::Optic));
+        assert_eq!((eye.bone, eye.offset.x, eye.offset.y, eye.offset.z), (own.bone, own.offset.x, own.offset.y, own.offset.z));
+        let frame = |at: &Placement| locator_frame(&Affine::IDENTITY, at, &pose()[1].1, &Affine::IDENTITY);
+        let gun_eye = Placement { bone: BoneIndex(OFFSET_BONE), offset: BODY_AIM };
+        let (line, moved, plane) = (frame(&own), frame(&eye), frame(&gun_eye));
+        let off = |a: [f32; 3], b: [f32; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+        let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        assert!(dot(off(moved.t, plane.t), plane.z).abs() < 1e-5);
+        let (step, along) = (off(moved.t, line.t), dot(off(moved.t, line.t), line.z));
+        assert!(along.abs() > 0.1 && (0..3).all(|k| (step[k] - along * line.z[k]).abs() < 1e-5));
         assert!(bare.optic.is_none());
     });
 }
@@ -621,7 +636,7 @@ fn the_slot_ids_are_their_numbers() {
 }
 
 fn sample() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v2.srpm")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v3.srpm")
 }
 
 /// The format, pinned: the checked-in table is what these cases encode to,
@@ -634,7 +649,7 @@ fn the_checked_in_table_is_the_format() {
         std::fs::write(sample(), &bytes).unwrap();
     }
     let kept = std::fs::read(sample()).unwrap();
-    assert!(kept == bytes, "tests/sample-v2.srpm is not what the cases encode to");
+    assert!(kept == bytes, "tests/sample-v3.srpm is not what the cases encode to");
     let table = Table::parse(&kept).unwrap();
     let ak = table.gun(DictId::new(AK_74M).unwrap()).unwrap();
     assert_eq!((ak.bones(), ak.aim_bone(), ak.slots().count(), ak.stock().count(), ak.fits().count()), (4, BoneIndex(0), 3, 2, 4));
@@ -667,8 +682,8 @@ fn no_bytes_panic_the_parse() {
         }
     }
     let mut other = bytes.clone();
-    other[4] = 3;
-    assert_eq!(Table::parse(&other).err(), Some(Malformed::Version(3)));
+    other[4] = 4;
+    assert_eq!(Table::parse(&other).err(), Some(Malformed::Version(4)));
     assert_eq!(Table::parse(b"SRPX").err(), Some(Malformed::Magic));
 }
 
@@ -690,7 +705,7 @@ fn placed(out: &mut String, head: &str, at: &Placement) {
 
 /// What `resolve` says of the sample table's guns, pinned in a checked-in
 /// file: the client's Unicorn check (`check_attachments_026g.py`) runs the
-/// game's code over `tests/sample-v2.srpm` and compares what the patch
+/// game's code over `tests/sample-v3.srpm` and compares what the patch
 /// wrote with these rows, so it needs no second `resolve`.
 /// `SRP_WRITE_SAMPLE=1 cargo test -p weapon-modules` writes it.
 ///
@@ -758,11 +773,11 @@ fn the_samples_loadouts_are_pinned() {
             writeln!(out, "effect\t{}", effect.to_str().unwrap()).unwrap();
         }
     }
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v2.loadouts.tsv");
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/sample-v3.loadouts.tsv");
     if std::env::var_os("SRP_WRITE_SAMPLE").is_some() {
         std::fs::write(&path, &out).unwrap();
     }
-    assert!(std::fs::read_to_string(&path).unwrap() == out, "tests/sample-v2.loadouts.tsv is not what resolve gives");
+    assert!(std::fs::read_to_string(&path).unwrap() == out, "tests/sample-v3.loadouts.tsv is not what resolve gives");
 }
 
 fn refused(change: impl FnOnce(&mut Source)) -> Malformed {
