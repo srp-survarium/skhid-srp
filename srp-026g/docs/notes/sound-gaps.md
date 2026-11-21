@@ -32,6 +32,7 @@ ways a step goes silent) is in `footsteps.md` ("Silent ground") and is not repea
 | # | What a player hears | Where | Cause | Fix, size | In flight |
 |---|---|---|---|---|---|
 | R | Steps on rails and walkways are not heard (the owner, from play) | the Chemical Plant's loading station walkway (50 of 53 silent steps), thin floors anywhere | PROVEN by the walk: the foot's vertical ray passes beside a 32 cm walker strip and its 8 cm beam the capsule stands on (1.2) | exe: patch 153's contact, looks around the body's root (walk 2: 5 of 127 silent, all in the air) | **fix/step-contact** (PR) |
+| G | One's own steps on mud are silent (the owner: "bluish goo which doesn't have sounds"); others LIKELY hear them | every map's mud: the Chemical Plant's goo (`moss3`/`moss4`), Rudnya's terrain, Cologne's `back_wood`, both Vostoks' `terrain_all`: 7,858 m² walkable | PROVEN: own mud steps are the only own-step sound with **mono** samples; a mono sample on a hud (first-person) sound gets a low-pass at frequency 0 (1.9) | data, as 0.69d: its own mud step set (stereo recordings + gear layer) | no |
 | 1 | Other players' steps die out within a few metres: at 5 m a step is a quarter of its 1 m loudness, at 8 m a tenth, gone at 17 m. 0.69d: three quarters at 5 m, heard to 30 m | everywhere | the `steps` distance preset (`sounds/spl/steps.spl`) and, on top, the third-person samples 5 to 10 dB quieter than 0.69d's (4.1, 4.2) | **data**: 0.69d's `steps` curve, as `steps.spl` (also breathing and bones) or a new preset named by the 618 step samples (an edit list); optionally their `volume_k`. The owner decides: it changes how far enemies are heard | no |
 | 2 | A walker-only floor steps silently: hopper-wagon tops, loading stations, wall tops, School's first part | Chemical Plant, Fort, School, Radar, Cologne, both v0.11e/0.21d ports | on_step's ray sees only bullet collision (`footsteps.md`, path 4) | exe, patch 153 | **fix/silent-steps** |
 | 3 | No step at all on dry leaves, gratings, car glass; own sprint/landing silent on mud and bushes; others' walking silent on trunks | Mamayev (its ground), Vector's lab, Cologne's ICE cars, gratings everywhere, mud everywhere | 45 empty foot pairs (`footsteps.md`, path 5) | data, `step-sounds-1` | **fix/silent-steps**, but see #4 |
@@ -265,6 +266,68 @@ be patch 153's site choosing another face (exe).
 `railroad_01..03` alone, and their rail faces (`coll_metal_thick_s`) are `metall_tank` there
 (0.26g: `metall_thick_walkable`). So 0.69d's tracks step as one material, and the duplicate bed is
 0.26g's alone.
+
+### 1.9 The goo: one's own steps on mud are silent (PROVEN, the original exe)
+
+The owner, 2026-11-16, of the Chemical Plant's bluish anomaly goo (the `anomaly_liquid*` /
+`anomaly_moss_base_sg` faces of `level/04/moss`, `moss3`, `moss4`: mud 23, the same in 0.69d's
+settings but `moss4`, which 0.69d made grass): no step sound. Walks 1 and 4 logged every goo
+step as played (`private/local-clients-step-diag/step-walk-4.log` lines 1308..1336: own foot,
+first person, foot 56 or 42, `game met 23 ... ground 23 (game): plays`, x 40.8..43.0 m, z
+14.5..16.0 m). So the step reaches the sound system; this is what happens there.
+
+1. **The emit** (`step_manager::on_step`): own first person makes a **hud** instance
+   (0x248BD7 `cmp [ebp+10h],0` / `sete`: first view -> hud; `emit_and_play_once` 0x657C0 ->
+   `new_hud_sound_instance_proxy` 0x65100 -> the hud instance's constructor 0x5A840, which sets the
+   instance kind +80h = 3 at 0x5A977). The sound is the pair's +20h: for (42, mud) and (56, mud)
+   `material/mud/step/mud_steps` (a collection of `material/step/mud/mud_01..05`), for (57, mud)
+   `crouch/material/mud/step/mud_steps`. vk 0.1 (crouch 0.04), preset `default`, displaceable; the
+   voice is made (LIKELY: a hud instance's distance gain is 1; walk 4 logs `plays`).
+2. **The mix** (`notify_listener2` 0x5C280, per voice each frame):
+   - 0x5C35D..0x5C383: a sound is 3D-panned (`calculate_3d_pan` 0x57D70) only when the options'
+     byte +10h is set (always 1: `single_sound_cook` initialises it at 0x6129A and no key sets it;
+     `pan_3d` is not read) **and the instance is not a hud one** (+80h != 3). A hud instance goes
+     to 0x5C616 with the pan factor [esp+5Ch] = 0;
+   - 0x5C61F: a **stereo** source (the voice's channel byte, 2) gets the identity matrix and no
+     filter (0x5C624..0x5C647);
+   - a **mono** source gets both outputs 1 and then (0x5C666..0x5C6AE) the low-pass frequency
+     `clamp(1 - 1.5 x (1 - pan), 0, 1)` (1.5 at 0xA7AFA4): with pan 0 that is -0.5, clamped to
+     **0**, handed to 0x63360, which stores it as the voice's filter (+18h type 0, low-pass;
+     +1Ch frequency) and calls `IXAudio2Voice::SetFilterParameters` (vtable +20h, 0x633D9). For a
+     3D mono sound the pan factor comes from `calculate_3d_pan` and the filter opens; the formula
+     is the 3D sound's, applied to a hud sound where its input is 0.
+   - Mono voices are created with the filter (`voice_factory`'s mono pool: channels 1, filter 1 at
+     0x5E38D/0x5E392; `CreateSourceVoice` flags 8, `XAUDIO2_VOICE_USEFILTER`, at 0x5DAB5..0x5DABB;
+     stereo voices without it).
+   - An XAudio2 (and FAudio, under Wine) low-pass with frequency 0 passes nothing: the
+     state-variable filter's low-pass output never leaves 0. **A mono sample played as a hud
+     sound is silent**, at any volume.
+3. **The data:** of the 68 sounds the own foot materials (42, 56, 57) play, **mud's two collections
+   are the only ones with mono samples** (`mud_01..05` are mono and the same recordings as the
+   third-person `mud_01_m..05_m`); every other own-step layer is stereo. So one's own walk, sprint,
+   crouch and both landings on mud play nothing, on every map; the third-person copies are point
+   sounds, 3D-panned, their filter set by the pan: others LIKELY hear them (not checked in game). Walkable mud (revision 62's census,
+   `sound-silent-surfaces.md`): mud 6,169 m² + mud_walkable 1,689 m², the goo's `moss3`/`moss4`
+   1,060 m² of it.
+4. **Ruled out by the same reading:** `spl_value` (no audible reader, `sound-silent-surfaces.md`
+   4.1), the distance gain, the voice limit (the voice is made and then
+   filtered), the double call (both copies are filtered the same), an anomaly ducking other sounds
+   (nothing in the mix path reads a zone; the cause holds on mud with no anomaly near: Rudnya's
+   field, Cologne's woods), the onset (mud_01..05: 0.65 to 1.58 s, peak 0 dBFS).
+5. **0.69d:** its own mud steps are new data. (42, mud) -> `step/run/mud`: `material/mud/step/mud_steps`
+   (29 **stereo** recordings `material/step/mud/mud_01..29`, vk 0.33, spl 20, preset `steps`) +
+   `material/run_wear` (stereo, vk 0.15); (56, mud) -> `step/sprint/mud_sprint`: `steps_walk_sprint`
+   (stereo, vk 0.4) + `mud_steps_sprint` (mono, vk 0.2); (57, mud) -> `step/mud_crouch`:
+   `crouch_wear` (stereo, vk 0.43) + `mud_crouch` (stereo, vk 0.45). No room layer in these three.
+   Whether 0.69d's mixer has the same mono hud filter was not read (NOT VERIFIED); if it does,
+   only its sprint's mud layer is silent and the gear layer plays.
+6. **The fix, as 0.69d:** a content pack of those three composites, their collections and the
+   stereo samples at new paths (0.69d reuses 0.26g's paths `material/step/mud/mud_01..05` for other
+   recordings), and an edit list pointing the pairs (42, 23), (56, 23), (57, 23) at them
+   (mud_walkable 61 follows mud). Presentation only (no simulation row). The open room-acoustics PR
+   (#2127) wraps (42, 23) in a composite with 0.69d's room layers but keeps the mono mud layer, so
+   the mud itself would stay silent there. An exe alternative (a hud mono sound's filter left open)
+   is not 0.69d's and would also unmute any other mono hud sound.
 
 ## 2. Surfaces: geometry with no pair or no material
 

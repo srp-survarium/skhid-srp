@@ -293,12 +293,10 @@ surface-independent in both.
 | foliage_coniferous / deciduous | single layers, vk 0.2 / 0.1 | 150 / 9,022 m² (STALKER maps' bushes) | the same rows (0.69d did not change them; own sprint empty there) |
 
   These are the 0.26g own-step pairs with no gear layer (`material/steps_walk`,
-  `steps_walk_sprint`, `sprint_clothes`), the shape of the goo. **But the goo's mud is not quiet by
-  the data**: its own walk is -20.4 dBFS peak x vk, louder than own walking on ground (-30.7), and
-  its `spl_value` 15 has no audible effect (above). Why the owner hears nothing on the goo is not
-  explained by the data or the mixer's code: NOT VERIFIED (candidates: the voice limit under the
-  anomaly's own loops, or that a step without the gear layer does not read as a step).
-  0.69d's change there is the gear layer and louder ground samples, not the material.
+  `steps_walk_sprint`, `sprint_clothes`). **The goo (mud) is silent for another reason, PROVEN
+  later** (`sound-gaps.md` 1.9): mud's own-step samples are the only mono ones, and a mono sample
+  on a hud (first-person) sound gets a low-pass at frequency 0 (`notify_listener2`
+  0x5C666..0x5C6AE). So own steps on mud are silent on every map; the others in this table play.
 - **Not displaceable** (they never lose a voice): 0.26g's walk and crouch layers of default,
   concrete, stone, grass, gravel, foliage_coniferous, water, body, cloth, glass_hard; the metal,
   mud, rubber and squeaky-wood impacts (`sound_voices.md`).
@@ -362,8 +360,8 @@ without a `.raw_options` (they play with the defaults: vk 1, spl 60, displaceabl
   steps and bullets. 0.69d made it grass. Not in the survey.
 - **Steps (survey #2, #3):** closed by revision 62; no step pair is empty but `actor` and
   `restrictor`, and the census finds no reachable walker-only floor without a ground.
-- **The goo's cause:** the survey's follow-up put it on `spl_value` 15 and displacement. `spl_value`
-  is not read on an audible path, and the own mud step is not quiet by the data (4.1).
+- **The goo's cause:** not `spl_value` 15 and displacement (the survey's follow-up): a mono sample
+  on a hud sound is low-passed to silence (`sound-gaps.md` 1.9).
 - Confirmed: the five empty bullet rows and that 0.69d has them too (3.3 of the survey); the 23
   empty grenade rows and 0.69d's five; the 26 empty melee rows; no body or drop pair.
 
