@@ -1,4 +1,4 @@
-# Rooms' surfaces as 0.69d names them (edit list map-materials-069d-1)
+# Surfaces as 0.69d names them (edit list map-materials-069d-1)
 
 The owner, 2026-11-16, of the wrong map surfaces found in the sound survey (the Chemical Plant's
 tracks; concrete rooms that count as dirt): "let's not change things unless 0.69 does so". So a
@@ -22,6 +22,36 @@ face changes only where 0.69d's own data differs from 0.26g's.
   - Vector's `centre_lab_dome`: its one face name, `default` (17,153 faces), has no entry in 0.26g;
     0.69d's entry is the material default (11).
   The names stay as they are ("not assigned or deleted"): the cook reads the id.
+- **Four faces 0.69d gives another material** (the owner, 2026-11-21, yes to these four of the
+  silent-surface census, `sound-silent-surfaces.md` on research/sound-gaps; each checked against
+  both builds' settings, same face name, nothing else of these models taken: 0.69d's new
+  `walker_col_walk` entry of ground_3 is not):
+
+  | map, model | face | 0.26g | 0.69d, here | area |
+  |---|---|---|---|---:|
+  | School, `level/02/anomaly_fruit` (cgroup 10/20h) | `FUIT_s` | grass_soft (51) | grass (25) | 33 m² |
+  | Mamayev, `level/06_v1/ground_3` | `grass` | glass (29) | grass (25) | 1,480 m² (1,000 walkable) |
+  | Chemical Plant, `level/04/moss4` | `anomaly_moss_base_sg` | mud (23) | grass (25) | 710 m² |
+  | London, `level/09/building_03` | `coll_wood` | wood_tree (43) | wood_thin (35) | 576 m² |
+
+  The ported copies (`ported/v021d/.../ground_3`, `ported/v011e/.../moss4`) are models of their
+  own and stay. The names follow the ids (each the file's only string of that value).
+  - **Bullets** (game.materials, pairs after step-sounds-1): the fruit's hit plays grass's
+    `grass_hit` (grass_soft has none), armor 20 both, width 0.1 -> 1; ground_3 was glass (armor 0,
+    no ricochet, no reflection: a bullet went through as through glass) and is grass (armor 20,
+    ricochet 1, reflection 0.9) with the grass hit instead of the glass hit; moss4: mud and grass
+    the same armor, ricochet and width, the grass hit instead of the mud hit; building_03's wood:
+    wood_tree (armor 0.2, reflection 0.8, ricochet chance 1, the foliage hit) -> wood_thin (armor
+    0.1, no ricochet, no reflection, no pierce dispersion, the wood squeak hit).
+  - **Steps:** the fruit plays grass instead of soft grass; ground_3 grass instead of glass (others'
+    `glass_steps_m`, own `default`); moss4 grass instead of mud; building_03's wood the thin-wood
+    steps instead of the trunk's.
+  - **Grenades and gun stocks:** the grenade bounce plays the ground bounce on the fruit, ground_3
+    and moss4 (none on grass_soft, glass, mud) and the wood bounce on building_03 (none on
+    wood_tree); a gun-stock hit plays nothing on the fruit, ground_3 and moss4 (grass has no melee
+    sound; mud's is lost on moss4) and the wood hit instead of the trunk's on building_03.
+  - **The walker:** the fruit's collision is 10/20h, which the walker meets: its faces' walker bits
+    go from grass_soft's 1 to grass's 0. The other three are 8/16 meshes the walker does not meet.
 - **Left as they are, the same in 0.69d:** Radar's `arsenal_in` (no collision of its own), Mamayev's
   `monument` (no material in 0.69d either) and `statue_ground` (0.69d's is another mesh, without a
   material), the Fort's `out_wall_base_a_2` (none in 0.69d), London's `building_07_3` (not in 0.69d)

@@ -1,5 +1,5 @@
 {
- "_about": "The rooms' surfaces as 0.69d names them (the owner, 2026-11-16: \"let's not change things unless 0.69 does so\"; of the Chemical Plant's tracks: \"I don't like this, original is fine\", so they stay). A triangle's material is its face name's game_material_settings/<name>/game_material_id in its model's settings, read when the collision is cooked (collision_shape_cook 0x82590); the material is the step's and the bullet's (its armor, ricochet, pierce), so this changes what a match computes (simulation_changes.tsv). Faces with no material that 0.69d's settings name: Radar's garage_inside (metall_thick, concrete, gravel, metall_thin, wood_silent) and the Fort's center_part_01_floor (gravel, ground; its walker face ground); Vector's centre_lab_dome (its one face name, 'default', has no entry in 0.26g's settings: 3FFFh) gets 0.69d's entry, the material default (11). The names stay as they are (\"not assigned or deleted\"): the cook reads the id. Mamayev's monument and statue_ground, the Fort's out_wall_base_a_2, London's building_07_3 and building_06_1_indoor_01's stucco have no material in 0.69d either and stay as they are.",
+ "_about": "The rooms' surfaces as 0.69d names them (the owner, 2026-11-16: \"let's not change things unless 0.69 does so\"; of the Chemical Plant's tracks: \"I don't like this, original is fine\", so they stay). A triangle's material is its face name's game_material_settings/<name>/game_material_id in its model's settings, read when the collision is cooked (collision_shape_cook 0x82590); the material is the step's and the bullet's (its armor, ricochet, pierce), so this changes what a match computes (simulation_changes.tsv). Faces with no material that 0.69d's settings name: Radar's garage_inside (metall_thick, concrete, gravel, metall_thin, wood_silent) and the Fort's center_part_01_floor (gravel, ground; its walker face ground); Vector's centre_lab_dome (its one face name, 'default', has no entry in 0.26g's settings: 3FFFh) gets 0.69d's entry, the material default (11). The names stay as they are (\"not assigned or deleted\"): the cook reads the id. Four faces 0.69d gives another material (the owner, 2026-11-21: yes to the silent-surface census's four): School's anomaly_fruit FUIT_s grass_soft -> grass, Mamayev's level/06_v1 ground_3 'grass' glass -> grass, the Chemical Plant's moss4 anomaly_moss_base_sg mud -> grass, London's building_03 coll_wood wood_tree -> wood_thin; their names follow (each the file's only string of that value); 0.69d's other renamed faces are not taken (ground_3's new walker_col_walk entry among them). Mamayev's monument and statue_ground, the Fort's out_wall_base_a_2, London's building_07_3 and building_06_1_indoor_01's stucco have no material in 0.69d either and stay as they are.",
  "set": [
   {
    "file": "models/level/03/garage_inside.model/settings",
@@ -48,6 +48,52 @@
    "path": "game_material_settings/walker_coll_s/game_material_id",
    "from": 65535,
    "to": 9
+  },
+  {
+   "file": "models/level/02/anomaly_fruit.model/settings",
+   "path": "game_material_settings/FUIT_s/game_material_id",
+   "from": 51,
+   "to": 25
+  },
+  {
+   "file": "models/level/06_v1/ground_3.model/settings",
+   "path": "game_material_settings/grass/game_material_id",
+   "from": 29,
+   "to": 25
+  },
+  {
+   "file": "models/level/04/moss4.model/settings",
+   "path": "game_material_settings/anomaly_moss_base_sg/game_material_id",
+   "from": 23,
+   "to": 25
+  },
+  {
+   "file": "models/level/09/building_03.model/settings",
+   "path": "game_material_settings/coll_wood/game_material_id",
+   "from": 43,
+   "to": 35
+  }
+ ],
+ "replace_string": [
+  {
+   "files": "models/level/02/anomaly_fruit.model/settings",
+   "from": "grass_soft",
+   "to": "grass"
+  },
+  {
+   "files": "models/level/06_v1/ground_3.model/settings",
+   "from": "glass",
+   "to": "grass"
+  },
+  {
+   "files": "models/level/04/moss4.model/settings",
+   "from": "mud",
+   "to": "grass"
+  },
+  {
+   "files": "models/level/09/building_03.model/settings",
+   "from": "wood_tree",
+   "to": "wood_thin"
   }
  ],
  "add_value": [
