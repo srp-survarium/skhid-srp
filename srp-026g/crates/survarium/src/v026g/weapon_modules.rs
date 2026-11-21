@@ -154,6 +154,16 @@ impl Modules {
             .map(|(_, kind)| kind)
     }
 
+    /// Whether some gun takes `module` (as any kind): an item of the
+    /// modules, which the shop sells as one ([`super::prices`]).
+    pub fn is_module(&self, module: u16) -> bool {
+        self.table.as_ref().is_some_and(|table| {
+            table
+                .guns()
+                .any(|gun| gun.fits().any(|fit| fit.dict().get() == module))
+        })
+    }
+
     /// Every module `weapon` takes, each with the kind it is fitted as, in
     /// the table's order; empty for a weapon that is no gun of it.
     pub fn fits(&self, weapon: u16) -> Vec<(u16, Kind)> {
@@ -195,6 +205,64 @@ impl Modules {
             }
         }
         resolve(gun, wanted).map(|_| ()).map_err(Unfit::Refused)
+    }
+}
+
+/// Tables made up for tests, this crate's and the crates' that use it.
+#[cfg(any(test, feature = "fixtures"))]
+pub mod fixtures {
+    use weapon_modules::encode::{AttachSource, GunSource, ModuleSource, Source, encode};
+    use weapon_modules::{Affine, HAND_LOCATORS, Role, SlotId};
+
+    use super::{Kind, Modules};
+
+    /// A table in which each `(weapon, module, kind)` is a fit: every gun
+    /// has one slot a kind and nothing of its own, every module goes in its
+    /// kind's slot. No pair is refused in it.
+    pub fn modules(fits: &[(u16, u16, Kind)]) -> Modules {
+        let slot = |kind| match kind {
+            Kind::Scope => SlotId::ScopeDovetail,
+            Kind::Muzzle => SlotId::M24x15Muzzle,
+            Kind::Grip => SlotId::PicatinnyGrip,
+        };
+        let mut source = Source::default();
+        for &(weapon, module, kind) in fits {
+            let at = match source.modules.iter().position(|made| made.dict == module) {
+                Some(at) => at,
+                None => {
+                    source.modules.push(ModuleSource {
+                        dict: module,
+                        role: Role::Fitted(kind),
+                        model: format!("weapons/test/module_{module}"),
+                        alt: None,
+                        aimed: None,
+                        attaches: vec![AttachSource {
+                            eye: (kind == Kind::Scope).then_some(Affine::IDENTITY),
+                            ..AttachSource::new(slot(kind))
+                        }],
+                        hand: (kind == Kind::Grip).then_some([Affine::IDENTITY; HAND_LOCATORS]),
+                    });
+                    source.modules.len() - 1
+                }
+            };
+            let gun = match source.guns.iter().position(|made| made.dict == weapon) {
+                Some(gun) => gun,
+                None => {
+                    source.guns.push(GunSource {
+                        dict: weapon,
+                        bones: 1,
+                        aim_bone: 0,
+                        bare: format!("weapons/test/gun_{weapon}_bare"),
+                        slots: Kind::ALL.into_iter().map(|kind| (slot(kind), 0, Affine::IDENTITY)).collect(),
+                        pose: vec![(0, Affine::IDENTITY)],
+                        ..GunSource::default()
+                    });
+                    source.guns.len() - 1
+                }
+            };
+            source.guns[gun].fits.push(at);
+        }
+        Modules::parse(encode(&source).expect("the made-up table is one")).expect("and parses")
     }
 }
 
@@ -260,6 +328,15 @@ mod tests {
             Err(Unfit::Refused(Refusal::Taken(_)))
         ));
         assert_eq!(modules.check(AK, Fitted::default().with(Kind::Scope, Some(0))), Err(Unfit::Refused(Refusal::NoFit(Kind::Scope))));
+    }
+
+    #[test]
+    fn a_made_up_table_fits_what_it_is_told() {
+        let modules = fixtures::modules(&[(63, 2601, Kind::Muzzle), (63, 2660, Kind::Grip), (3, 2101, Kind::Scope)]);
+        assert_eq!(modules.kind(63, 2601), Some(Kind::Muzzle));
+        assert_eq!(modules.check(63, Fitted { scope: None, muzzle: Some(2601), grip: Some(2660) }), Ok(()));
+        assert_eq!(modules.kind(3, 2601), None);
+        assert!(modules.is_module(2101) && modules.is_module(2660) && !modules.is_module(63));
     }
 
     #[test]
