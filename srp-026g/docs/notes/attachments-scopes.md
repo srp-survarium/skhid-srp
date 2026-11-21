@@ -93,18 +93,76 @@ record whose pair the table does not have is taken off and logged with its reaso
 the scope item either way. A kept results screen loses a record that still names a variant (it is a
 picture of a past match).
 
-What that does to the owners of each released pair (computed from the full record of the lane's
-porter, not run on real accounts):
+What that does to the owners of each released pair. Run, 2026-11-21: a database made by release
+68's own server code (its session crate at tag `026g-rev68` on release 68's game data: 102 accounts
+registered through the sign-in, each pair's weapon and scope bought through the lobby's buy or
+added as the admin's give does where the shop refuses the account, the scope attached by release
+68's `attach_upgrade`, each record checked to hold the variant `released-pairs.tsv` names; 9,448
+items, 102 weapons worn in a kit), then loaded by this branch's `srp` on the full content's game
+data, saved, and compared row by row; and the same on the game data of the content with the
+variants retired:
 
-| Released pairs | At the load |
+| Released pairs (the record of pack 3) | At the load, both runs |
 |---|---|
-| 1,159 that 0.69d0 gives, and the Mosin's PU 3.5x (a plain fit since its ids row) | record rewritten to the scope's own id, kept; the optic on 0.69d0's mount |
-| 20 legacy rows as their base gun (18 of `sr3m_premium`, ACOG TA31 and Leupold Mk4 on `vssk_camo`) | rewritten, kept; the base gun's mount |
-| 2 on a slot of the gun's own (PSO-1 on `saiga_12` and `saiga_12_premium`) | rewritten, kept; on the dovetail by 0.69d0's rules for it |
-| 20 where their variant put them (18 Docter pairs, the XPS2 on the Kedr and the AEK-919K) | rewritten, kept; the optic where the variant had it, within 0.5 mm, its rail with it |
-| 3 of `wpn_mp7_silencer_special` (EOTech 552, CompM4, Docter) | rewritten, then taken off as not fitting (the gun is no gun of the table until it has its row in `scripts/remodel-069/items.tsv`, the core's); the player keeps the scope items and the gun shows its plain config |
+| 906 that are 0.69d0's own fits of the gun | record rewritten to the scope's own id, kept on its weapon |
+| 273 on the premium and camouflaged copies that take their base gun's fits (22 guns; the premium SR-3M's 18 and `vssk_camo`'s 2 among them) | rewritten, kept |
+| 2 on the event MP7, as the MP7 with a silencer; the Mosin's PU 3.5x | rewritten, kept |
+| 2 on a slot of the gun's own (PSO-1 on `saiga_12` and `saiga_12_premium`) | rewritten, kept |
+| 21 where their variant put them (19 Docter pairs, the XPS2 on the Kedr and the AEK-919K) | rewritten, kept |
 
-None is lost once `wpn_mp7_silencer_special` has its row; until then those three are.
+1,205 records in 102 accounts rewritten, none taken off, no warning in the server's log; no other
+item, kit slot or column changed. Not in that database: a kept results screen that names a
+variant, clans, whatever only real accounts have (the release's dry run loads the live database).
+
+## The variants retired
+
+Prepared on `feat/attachments-scopes-retire` (`scripts/scope-fits/retire.py`): the three packs that
+were the variants, and their edit lists. A patch only adds files, so a pack is retired by a version
+that makes less (`release/content.tsv`'s header); nothing is taken from a player's disk.
+
+- **Out of the dictionary: 1,036 variants** (`retired-variants.tsv`, with their rows of
+  `content-edit/items.tsv`): the 184 of `rifle-scopes`, the 212 of `scope-fits`, the 640 of
+  `scope-coverage`. Their dict ids are never used again.
+- **The packs' last versions** (`rifle-scopes@19`, `scope-fits@14`, `scope-coverage@3`) are the
+  earlier ones less those entries and less every model (30,464 files of 7,639 models: the
+  per-pair optics and the gun bodies with a moved eye). They keep the eight shop scope items 2113-2120 (configs,
+  dictionary entries, texts, icons) and the textures and materials. 732 variant configs are left in
+  players' archives as they are; **304 stay in the packs**, with `scope-centering-1.json`, which
+  changes them after their pack: `release/build-content` takes a file as left by an earlier pack
+  version only when players have that version's bytes, and it cannot take an edit off a file (a
+  file no row makes is never packed again: the first build without the list stopped on the 151
+  variant configs of the base patches that the list changes). They are in no dictionary and
+  nothing names them.
+- **The edit lists**: `scope-fits-1.json` and `scope-coverage-1.json` are gone.
+  `scope-centering-1.json` stays as it is (455 retired variants' configs, as players have them)
+  and `rifle-scopes-1.json` keeps the Aimpoint CompM4's x2, on its shop item and on 25 retired
+  variants, for the same reason: an edit of a file is never taken back. The lobby's
+  `items_compatibility` rows they made (1,036) are `scope-modules-1.json`'s, with the 43 new
+  pairs': every pair of the table that no base patch's dictionary has. The `addons { mount: 1 }`
+  placeholders of 32 guns are gone: a variant's type-3 modifier needed a table with a child; a
+  scope item's adds to `data`, and patch 161's two sites stand before the game's own look at
+  `addons` (`attachments.scope_dict`, `attachments.scope_result`).
+- **Not retired: the base patches' own variants**, 166 (99 `fit_`, 67 `fitn_`) and five `loc_`
+  entries. A base row is a published patch taken as it is; taking an entry out of the dictionary
+  needs an edit operation `content_edit.py` does not have (an entry of an indexed table). They are
+  entries nothing uses: not sold (no gun takes them as a module), never dropped (category 22), no
+  record names them after an account's first load.
+- **The server** needs nothing more: a variant's dict id is only in the scopes' records of accounts
+  saved up to release 68, which the load rewrites before anything reads them. An account that
+  *owns* a retired variant as an item (no path gives one but an admin's give by dict id) stops
+  `srp`'s start, which names it (`known::Lacking`) and changes nothing: the release's dry run on
+  the live database shows it before players do.
+- The variants' generators (`scripts/rifle-scopes`, `scripts/scope-coverage`, `scope-fits`'s
+  `make_pack.py`) are left as they are: other packs' scripts read from them (`weapon-grips`,
+  `weapon-modules/ids.py`). Their three asset checks are gone with the packs they checked.
+- **Built** (`release/build-content 69`, a quick build of this tree with the pack
+  `weapon-modules@3`, 2026-11-21): it passes. Left from the retired versions, live and no longer
+  made: 21,444 files of `scope-coverage@2`, 5,555 of `scope-fits@13`, 4,197 of `rifle-scopes@18`
+  (30,464 model files and 732 variant configs). The dictionary has 919 entries where it had
+  1,955: exactly the 1,036 of `retired-variants.tsv` are gone. The lobby's rows of the scopes'
+  pairs are 1,248 (they were 1,224 with the 24 missing). `srp-check-scope-fits` on its game data:
+  1,205 released pairs preserved, 43 added, none refused. The load of the release-68 database on
+  it: as above.
 
 ## The reticle's centre
 
@@ -203,5 +261,4 @@ Seen on table version 3 (server and exe of feat/attachments c8b28fb43; pictures 
   in the scope only with 165 (the eyepiece moves 18-20 px, 3-5 without); the SVD (aim on the root) shows
   it either way (30-34 px), as the crate's table says. The L85A2 is not judged (the ring was not found).
 
-Not done: retiring the variant packs and their edit lists (last, after the branch is merged, on the
-coordinator's word).
+
