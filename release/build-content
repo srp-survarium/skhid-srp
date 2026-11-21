@@ -83,8 +83,9 @@
 #                         edit elsewhere in build_content.py keeps them);
 #                       the server game data: srp-game-data and every
 #                         archive's sha256 and URLs (the last 8 kept).
-#                       A base or players' file's bytes are known by their
-#                       sha256, read once per archive (sha256) and srp-game-data
+#                       A base or players' file is known by its bytes'
+#                       sha256, read once per archive (by its sha256) and
+#                       srp-game-data.
 #   --full              the release's build: every check and the item tables.
 #                       Without it, a quick build for a local test: the same
 #                       patch, server game data and files.tsv, without the
