@@ -27,7 +27,7 @@ LIKELY, OPEN.
 
 54 items, dict ids 2601-2651 and 2656-2658 (`scripts/weapon-modules/ids.tsv`), category 22 as the
 scopes, configs `gameplay/items/muzzle_devices/<item>.options`. In the modules table as built
-(`weapon-modules@1`): 544 gun and device fits on 88 of the 102 guns.
+(`weapon-modules@2`, table version 3): 553 gun and device fits on 89 of the 102 guns.
 
 - **A config has a shop scope item's shape**, as the grips' items: `data` (the device's model as
   `idle_model` and `aimed_model`, type 5, the factors 1 / 0.5 / 1, `hide_weapon_on_aim` false) and
@@ -131,7 +131,7 @@ python3 -I scripts/muzzle-devices/make_pack.py --inputs <inputs> --modules <weap
   and modification id against the players' dictionary, each device's model against the modules
   pack, and with `--record` that every device has a gun that takes it, that every muzzle fit of the
   table has its item (the four left out aside), and that every key a device's modification touches
-  is in the config of every gun that takes it (544 fits).
+  is in the config of every gun that takes it (553 fits).
 - The icons are drawn from the devices' own models by the weapons' icon renderer
   (`scripts/weapon-icons/renderer.py`), into `LobbyMenu_AmmoIcons` columns 5 to 7, 22 a column, in
   the table's order. Column 8 is the grips'. That renderer has no shadows, so `render_icons.py` adds
