@@ -1595,6 +1595,8 @@ va	status	ref_021d	name
 0x00265980	inferred-medium		survarium::lobby_character::update_decal_preview
 0x00265c20	inferred-medium		survarium::lobby_character::on_decal_click
 0x00265cb0	inferred-medium		survarium::lobby_character::on_decal_wheel
+0x00265de0	inferred-medium		survarium::lobby_character::enter_decal_edit
+0x00265f10	inferred-medium		survarium::lobby_character::leave_decal_edit
 0x00265f80	inferred-medium		survarium::lobby_character::place_decal_markers
 0x00266470	inferred-medium	0x000e4424	vostok::detail::concrete_type_helper<vostok::render::render_texture_cook_parameters>::copy_helper
 0x002678e0	inferred-medium		survarium::client_player_respawn_rule::on_kit_changed
