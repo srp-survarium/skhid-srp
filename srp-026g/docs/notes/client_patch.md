@@ -2283,6 +2283,34 @@ The owner, 2026-11-21: "white hit crosses are not seen when shot through walls (
 - **What changes:** the white marker of a hit through a wall. The marks are this game's alone; the collector, the bullets and every world are as they were: nothing a match computes changes (no `simulation_changes.tsv` row, no world format change).
 - **Checked:** `check_hit_marker_walls_026g.py` (Unicorn; `tools/check hit-marker-walls`): the pierce from 0x32D886, the hit from 0x1F3D50 to its `ret 1Ch`, the draw from 0x24745B with the game's own draw_damage_collector and a stand-in invoke, in both exes: the marker for a clear hit, leaves, a body, a gun-stock, one clear pellet of a step in either order, a clear hit not drawn before a walled one, a clear hit on a victim after a hidden one on another; none for a round through a wall (the default material too) or only walled pellets; another shooter's collector its own; the registers kept the original's; 0x23CF20's and the draw's bytes but the hook's the original's. The hud's harness (`scripts/hud-options/check.sh`, HudHarness): with All, a kill after a hit's white bars draws what Kill marker only draws. The marks are not rolled back with the world (`hit-marker-walls.md`, limits).
 
+
+### 3.91 The passes a ported 0.69d map's programs need bind what they read (written 2026-11-21, README patch 170, the next release's revision) — PROVEN in the code (Unicorn: check_v069d_render_026g.py), not run in a game
+
+Rudnya (v0.69)'s fog, sky and metering are drawn by the lighting pack's programs (resource-porter
+`three-maps-021-lighting`), each 0.69d's arithmetic behind its scene's marker and the native
+instructions everywhere else. Three of them read what their pass does not bind; patch 170 binds it,
+on every map, with the game's own effect_compiler::set_texture (0x3D98B0, `engine_set_texture`) and
+the arguments of the pass's own calls. A program that does not declare a slot does not bind it, so the
+native programs and every other map are drawn as before.
+
+| Site | Where | Binds |
+| --- | --- | --- |
+| `atmosphere.sky_textures` 0x1D233D | effect_atmospheric_scattering::compile (0x1D21F0), the `atmosphere` pass (the sky), after its t_rayleigh_scattering (0x1D2338) | `t_scattering_v069d` = `ported/v069d/engine/atmosphere_scattering` |
+| `atmosphere.geometry_textures` 0x1D29B1 | the same compile, the `atmospheric_scattering_on_geometry_temporary` pass (the geometry fog), after its t_rayleigh_scattering (0x1D29AC) | `t_sun_shadow_and_scattering` = `$user$sun_shadow_and_scattering`; `t_scattering_v069d` |
+| `luminance.log_pass` 0x1D4D08 | effect_gather_luminance::compile (0x1D4C90), after the begin_pass of `gather_log_luminance` (0x1D4D03; ESI the compiler) | `t_frame_luminance` = `$user$frame_luminance` |
+
+- The sun's shadow: render target 8 (R8G8, x the shadow), made before composition (which binds it the
+  same way, 0x1A94D1) and intact when the atmosphere stage draws. 0.69d scales its fog's in-scatter by
+  it out to `fog_shadow_distance` (sun_lighting.ps); without it a shadowed room would take sunlit haze.
+- The table: 0.69d's precomputed scattering (its sky's and its fog's horizon), a texture of the
+  lighting pack.
+- The adapted mean: render target 60 (`rt_index_to_name` 0x162550 case 60), the eye adaptation's
+  output (0x1B1590) and what the tone pass reads (0x1B538A..0x1B5395). When the luminance chain
+  begins (stage_postprocess::measure_per_pixel_luminance, 0x1B1210) it holds the previous frame's:
+  0.69d's metering floor is 0.01 of the frame as exposed, which needs it.
+
+No site of patch 28 (0x1D90DC, 0x1D94CB) or patch 169 (0x1D911D, 0x1DB356, 0x1D9657..0x1D971B) is
+touched. Render only: nothing a match computes or a world holds changes.
 ## 4. Mode 3 batteries: not needed in 0.26g
 
 - 0.26g splits the rule: `match_time_vi_spawn_rule` (vtable 0xA06C04) wraps `match_time_vi_spawn_rule_core` (vtable 0xA15CAC). The battery tick is no longer a vtable slot: the core's ctor 0x3147A0 stores a delegate `{this, 0x3148A0}` at +0x1C4 / +0x1C8 (0x3147F1). [V]

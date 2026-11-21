@@ -1,0 +1,20 @@
+# Patch 170: the passes a ported 0.69d map's programs need bind what they read
+# (docs/notes/client_patch.md section 3.91). Only the decisions: the sites and
+# the handlers. The sites are sites_026g.tsv's; the logic is v069d_render.rs.
+name = "v069d_render"
+patch = 170
+
+# The sky pass: 0.69d's scattering table.
+[[hook]]
+site = "atmosphere.sky_textures"
+handler = "on_sky_textures"
+
+# The geometry fog: the sun's screen-space shadow and the table.
+[[hook]]
+site = "atmosphere.geometry_textures"
+handler = "on_geometry_textures"
+
+# The luminance chain's first program: the adapted mean.
+[[hook]]
+site = "luminance.log_pass"
+handler = "on_log_luminance_pass"

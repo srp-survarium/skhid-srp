@@ -37,6 +37,12 @@ pub enum CompileSite {
     RainDropTexture,
     /// `water.normal_texture`: the forward water's t_normal_map.
     WaterTexture,
+    /// `atmosphere.sky_textures`: the sky pass's textures bound.
+    AtmosphereSky,
+    /// `atmosphere.geometry_textures`: the geometry fog pass's textures bound.
+    AtmosphereGeometry,
+    /// `luminance.log_pass`: gather_log_luminance's pass begun.
+    LuminanceLog,
 }
 
 fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
@@ -50,6 +56,9 @@ fn compiler(ctx: &Context<'_>, site: CompileSite) -> raw::EffectCompiler {
             CompileSite::RainEnd => raw::site::rain_compiled::compiler(ctx),
             CompileSite::RainDropTexture => raw::site::rain_drop_texture::compiler(ctx),
             CompileSite::WaterTexture => raw::site::water_normal_texture::compiler(ctx),
+            CompileSite::AtmosphereSky => raw::site::atmosphere_sky_textures::compiler(ctx),
+            CompileSite::AtmosphereGeometry => raw::site::atmosphere_geometry_textures::compiler(ctx),
+            CompileSite::LuminanceLog => raw::site::luminance_log_pass::compiler(ctx),
         }
     }
     .expect("the compile's compiler")
@@ -121,6 +130,37 @@ pub fn bind_texture(ctx: &Context<'_>, site: TextureSite, texture: &'static CStr
     unsafe {
         raw::engine_set_texture(Some(compiler), slot.as_ptr().cast(), texture.as_ptr().cast(), esi, u32::MAX, esi, 1.0, 1)
     }
+}
+
+/// The passes a patch binds one more texture in, beside their own.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExtraTextureSite {
+    /// `atmosphere.sky_textures`: the sky dome's pass.
+    Sky,
+    /// `atmosphere.geometry_textures`: the geometry fog's pass.
+    GeometryFog,
+    /// `luminance.log_pass`: the first program of the luminance chain.
+    LuminanceLog,
+}
+
+/// Binds `texture` (a resource path, or a `$user$` render target) to `slot`
+/// in the pass at `site`, as the pass's own set_texture calls bind theirs
+/// (0x1D2312..0x1D2338: their 0 arguments, the selector -1, the bound 1.0).
+/// A program of the pass that does not declare `slot` does not bind it.
+pub fn add_texture(ctx: &Context<'_>, site: ExtraTextureSite, slot: &'static CStr, texture: &'static CStr) {
+    let compiler = compiler(
+        ctx,
+        match site {
+            ExtraTextureSite::Sky => CompileSite::AtmosphereSky,
+            ExtraTextureSite::GeometryFog => CompileSite::AtmosphereGeometry,
+            ExtraTextureSite::LuminanceLog => CompileSite::LuminanceLog,
+        },
+    );
+    // SAFETY: set_texture (stdcall, its eight arguments on the stack), on the
+    // compile's own thread and compiler, between two of the pass's own calls
+    // (or after its begin_pass); it reads the two names (ours, static) and
+    // keeps them by name.
+    unsafe { raw::engine_set_texture(Some(compiler), slot.as_ptr().cast(), texture.as_ptr().cast(), 0, u32::MAX, 0, 1.0, 0) }
 }
 
 /// The forward water's material config tree (`water.normal_texture`).

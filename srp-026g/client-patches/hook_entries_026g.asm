@@ -10723,6 +10723,123 @@ v021d_render_on_god_rays_replay:
     db 0x83, 0xec, 0x14, 0x53, 0x8b, 0x5c, 0x24, 0x1c
     jmp 0x1a5528
 
+; 0x1d233d effect_atmospheric_scattering::compile, the atmosphere pass (the sky dome) once its set_texture of t_rayleigh_scattering (0x1D2338) returns (cmp byte [ebx+61F4Ch],0, the compiler's caching byte; ESI the block's 0); EBX the compiler: lohook -> v069d_render_on_sky_textures
+global v069d_render_on_sky_textures
+extern hook_v069d_render_on_sky_textures
+v069d_render_on_sky_textures:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v069d_render_on_sky_textures
+    mov edx, v069d_render_on_sky_textures_replay
+    cmp eax, 0
+    je v069d_render_on_sky_textures_go
+    mov edx, 0x1d2344
+    cmp eax, 1
+    je v069d_render_on_sky_textures_go
+    ud2
+v069d_render_on_sky_textures_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v069d_render_on_sky_textures_replay:
+    db 0x80, 0xbb, 0x4c, 0x1f, 0x06, 0x00, 0x00
+    jmp 0x1d2344
+
+; 0x1d29b1 effect_atmospheric_scattering::compile, the atmospheric_scattering_on_geometry_temporary pass (the geometry fog) once its set_texture of t_rayleigh_scattering (0x1D29AC) returns (cmp byte [ebx+61F4Ch],0; ESI the block's 0); EBX the compiler: lohook -> v069d_render_on_geometry_textures
+global v069d_render_on_geometry_textures
+extern hook_v069d_render_on_geometry_textures
+v069d_render_on_geometry_textures:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v069d_render_on_geometry_textures
+    mov edx, v069d_render_on_geometry_textures_replay
+    cmp eax, 0
+    je v069d_render_on_geometry_textures_go
+    mov edx, 0x1d29b8
+    cmp eax, 1
+    je v069d_render_on_geometry_textures_go
+    ud2
+v069d_render_on_geometry_textures_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v069d_render_on_geometry_textures_replay:
+    db 0x80, 0xbb, 0x4c, 0x1f, 0x06, 0x00, 0x00
+    jmp 0x1d29b8
+
+; 0x1d4d08 effect_gather_luminance::compile once the begin_pass of gather_log_luminance (0x1D4D03) returns (cmp [esi+61F4Ch],bl; EBX 0); ESI the compiler: lohook -> v069d_render_on_log_luminance_pass
+global v069d_render_on_log_luminance_pass
+extern hook_v069d_render_on_log_luminance_pass
+v069d_render_on_log_luminance_pass:
+    lea esp, [esp - 4]
+    pushfd
+    pushad
+    cld
+    mov ebp, esp
+    sub esp, 512
+    and esp, -16
+    fxsave [esp]
+    mov edi, esp
+    sub esp, 8
+    and esp, -16
+    mov [esp], ebp
+    mov [esp+4], edi
+    mov eax, esp
+    sub esp, 12
+    push eax
+    call hook_v069d_render_on_log_luminance_pass
+    mov edx, v069d_render_on_log_luminance_pass_replay
+    cmp eax, 0
+    je v069d_render_on_log_luminance_pass_go
+    mov edx, 0x1d4d0e
+    cmp eax, 1
+    je v069d_render_on_log_luminance_pass_go
+    ud2
+v069d_render_on_log_luminance_pass_go:
+    mov [ebp + 36], edx
+    fxrstor [edi]
+    mov esp, ebp
+    popad
+    popfd
+    ret
+v069d_render_on_log_luminance_pass_replay:
+    db 0x38, 0x9e, 0x4c, 0x1f, 0x06, 0x00
+    jmp 0x1d4d0e
+
 ; 0x27a1b0 match_client::connect's start (push ebx / push ebp / push esi / mov esi,ecx): ECX the match client, the site's ESP+4 the host, +8 the port, +0Ch the session (a replay's connect is another function, 0x122350): lohook -> voice_on_connect
 global voice_on_connect
 extern hook_voice_on_connect

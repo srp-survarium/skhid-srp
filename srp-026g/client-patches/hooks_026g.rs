@@ -6273,6 +6273,51 @@ pub extern "C" fn hook_v021d_render_on_god_rays(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- v069d_render (patch 170) ----
+
+/// The entry `v069d_render_on_sky_textures` (0x1d233d, effect_atmospheric_scattering::compile, the atmosphere pass (the sky dome) once its set_texture of t_rayleigh_scattering (0x1D2338) returns (cmp byte [ebx+61F4Ch],0, the compiler's caching byte; ESI the block's 0); EBX the compiler) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v069d_render_on_sky_textures(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v069d_render_on_sky_textures` calls this, from the game's jump at 0x1d233d,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v069d_render::on_sky_textures(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v069d_render (patch 170) ----
+
+/// The entry `v069d_render_on_geometry_textures` (0x1d29b1, effect_atmospheric_scattering::compile, the atmospheric_scattering_on_geometry_temporary pass (the geometry fog) once its set_texture of t_rayleigh_scattering (0x1D29AC) returns (cmp byte [ebx+61F4Ch],0; ESI the block's 0); EBX the compiler) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v069d_render_on_geometry_textures(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v069d_render_on_geometry_textures` calls this, from the game's jump at 0x1d29b1,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v069d_render::on_geometry_textures(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
+// ---- v069d_render (patch 170) ----
+
+/// The entry `v069d_render_on_log_luminance_pass` (0x1d4d08, effect_gather_luminance::compile once the begin_pass of gather_log_luminance (0x1D4D03) returns (cmp [esi+61F4Ch],bl; EBX 0); ESI the compiler) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_v069d_render_on_log_luminance_pass(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `v069d_render_on_log_luminance_pass` calls this, from the game's jump at 0x1d4d08,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::v069d_render::on_log_luminance_pass(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- voice (patch 66) ----
 
 /// The entry `voice_on_connect` (0x27a1b0, match_client::connect's start (push ebx / push ebp / push esi / mov esi,ecx): ECX the match client, the site's ESP+4 the host, +8 the port, +0Ch the session (a replay's connect is another function, 0x122350)) calls this with the saved machine.
