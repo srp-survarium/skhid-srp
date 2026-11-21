@@ -28,6 +28,7 @@ weapons/assault/enfield_l85a2/enfield_l85a2_mag_069		weapons/remodel_069/l85a2/l
 weapons/assault/enfield_l85a2/enfield_l85a2_muzzle_brake_069		weapons/remodel_069/l85a2/l85a2:enfieldl85a2_i05x28_muzzlebrake_enfield_l85a2_muzzle_brake_s
 weapons/assault/enfield_l85a2/enfield_l85a2_part1_069		weapons/remodel_069/l85a2/l85a2:enfield_l85a2_part1_s
 weapons/assault/enfield_l85a2/enfield_l85a2_part2_069		weapons/remodel_069/l85a2/l85a2:enfield_l85a2_part2_s
+weapons/assault/famas/famas_muzzlebrake		weapons/remodel_069/famas/famas:famas_muzzlebrake_famas_muzzle_brake_s
 weapons/assault/fn_fnc/fn_fnc_grip		weapons/remodel_069/fn_fnc/fn_fnc:fn_fnc_grip_s
 weapons/assault/fn_fnc/fn_fnc_handguard		weapons/remodel_069/fn_fnc/fn_fnc:fn_fnc_handguard_s,weapons/remodel_069/fn_fnc/fn_fnc:fnfnc_i05x28_muzzlebrake_fn_fnc_handguard_s
 weapons/assault/fn_fnc/fn_fnc_mag		weapons/remodel_069/fn_fnc/fn_fnc:fn_fnc_default_mag_fn_fnc_mag_s
@@ -45,7 +46,7 @@ weapons/assault/msbs_carbine/msbs_carbine_body		weapons/remodel_069/msbs_carbine
 weapons/assault/msbs_carbine/msbs_carbine_grip		weapons/remodel_069/msbs_carbine/msbs_carbine:msbs_carbine_grip_s
 weapons/assault/msbs_carbine/msbs_carbine_mag		weapons/remodel_069/msbs_carbine/msbs_carbine:msbsradon_mag_msbs_carbine_mag_s
 weapons/assault/msbs_carbine/msbs_carbine_receiver		weapons/remodel_069/msbs_carbine/msbs_carbine:msbs_carbine_receiver_s,weapons/remodel_069/msbs_carbine/msbs_carbine:msbsradon_i05x28_muzzlebrake_msbs_carbine_receiver_s
-weapons/assault/ots144a_groza/ots144a_groza_grip		weapons/remodel_069/ots14/ots14:ots144a_groza_grip_s
+weapons/assault/ots144a_groza/ots144a_groza_grip		weapons/remodel_069/ots14/ots14:ots144a_foregrip_ots144a_groza_grip_s,weapons/remodel_069/ots14/ots14:ots144a_groza_grip_s
 weapons/assault/ots144a_groza/ots144a_groza_mag		weapons/remodel_069/ots14/ots14:ots144a_groza_mag_s
 weapons/assault/ots144a_groza/ots144a_groza_reciever		weapons/remodel_069/ots14/ots14:ots144a_groza_reciever_s,weapons/remodel_069/ots14/ots14:ots144a_handguard_ots144a_groza_reciever_s
 weapons/assault/scar_h/scar_h_grip		weapons/remodel_069/scar_h/scar_h:scar_h_grip_s
@@ -54,8 +55,8 @@ weapons/assault/scar_h/scar_h_mag		weapons/remodel_069/scar_h/scar_h:scar_h_mag_
 weapons/assault/scar_h/scar_h_receiver		weapons/remodel_069/scar_h/scar_h:scar_h_receiver_s,weapons/remodel_069/scar_h/scar_h:scarh_i05x28_muzzlebrake_scar_h_receiver_s
 weapons/assault/scar_h/scar_h_sight		weapons/remodel_069/scar_h/scar_h:scar_h_sight_s,weapons/remodel_069/scar_h/scar_h:scarh_front_ironsight_on_scar_h_sight_s,weapons/remodel_069/scar_h/scar_h:scarh_rear_ironsight_on_scar_h_sight_s
 weapons/assault/scar_h/scar_h_stock		weapons/remodel_069/scar_h/scar_h:scar_h_stock_s
-weapons/assault/sr3m/sr3m		weapons/remodel_069/sr3m/sr3m:sr3m_muzzlebrake_sr3m_s,weapons/remodel_069/sr3m/sr3m:sr3m_s
-weapons/assault/sr3m/sr3m_camo		weapons/remodel_069/sr3m_premium/sr3m_premium:sr3m_camo_muzzlebrake_sr3m_s,weapons/remodel_069/sr3m_premium/sr3m_premium:sr3m_s
+weapons/assault/sr3m/sr3m		weapons/remodel_069/sr3m/sr3m:sr3m_default_foregrip_sr3m_handguard_s,weapons/remodel_069/sr3m/sr3m:sr3m_muzzlebrake_sr3m_s,weapons/remodel_069/sr3m/sr3m:sr3m_s
+weapons/assault/sr3m/sr3m_camo		weapons/remodel_069/sr3m_premium/sr3m_premium:sr3m_camo_default_foregrip_sr3m_handguard_s,weapons/remodel_069/sr3m_premium/sr3m_premium:sr3m_camo_muzzlebrake_sr3m_s,weapons/remodel_069/sr3m_premium/sr3m_premium:sr3m_s
 weapons/assault/sr3m/sr3m_mag		weapons/remodel_069/sr3m/sr3m:sr3m_mag_s,weapons/remodel_069/val/val:sr3m_mag_s,weapons/remodel_069/vss/vss:sr3_mag_s
 weapons/assault/sr3m/sr3m_mag_camo		weapons/remodel_069/sr3m_premium/sr3m_premium:sr3m_mag_s,weapons/remodel_069/vss_premium/vss_premium:sr3_mag_s
 weapons/assault/sr3m/sr3m_stock_camo		weapons/remodel_069/sr3m_premium/sr3m_premium:val_stock_s
@@ -70,10 +71,10 @@ weapons/assault/vepr/vepr_sec_camo		weapons/remodel_069/vepr_premium/vepr_premiu
 weapons/assault/vhs_2/vhs_2_body1		weapons/remodel_069/vhs_2/vhs_2:vhs2_i05x28_muzzlebrake_vhs_2_body1_s,weapons/remodel_069/vhs_2/vhs_2:vhs_2_body1_s
 weapons/assault/vhs_2/vhs_2_body2		weapons/remodel_069/vhs_2/vhs_2:vhs_2_body2_s
 weapons/assault/vhs_2/vhs_2_mag		weapons/remodel_069/vhs_2/vhs_2:vhs_2_mag_s
-weapons/assault/vsk_94_a9_91/vsk_94_9a91		weapons/remodel_069/a9_91/a9_91:vsk_94_a9_91_s,weapons/remodel_069/vsk_94/vsk_94:vsk_94_a9_91_s
+weapons/assault/vsk_94_a9_91/vsk_94_9a91		weapons/remodel_069/a9_91/a9_91:vsk_94_a9_91_s,weapons/remodel_069/vsk_94/vsk_94:vsk_94_a9_91_s,weapons/remodel_069/vsk_94/vsk_94:vsk_94_suppressor_vsk_94_a9_91_s
 weapons/assault/vsk_94_a9_91/vsk_94_9a91_buttstock		weapons/remodel_069/a9_91/a9_91:vsk_94_a9_91_buttstock_s,weapons/remodel_069/vsk_94/vsk_94:vsk_94_a9_91_buttstock_s
 weapons/assault/vsk_94_a9_91/vsk_94_9a91_buttstock_camo		weapons/remodel_069/vsk_94_premium/vsk_94_premium:vsk_94_a9_91_buttstock_s
-weapons/assault/vsk_94_a9_91/vsk_94_9a91_camo		weapons/remodel_069/vsk_94_premium/vsk_94_premium:vsk_94_a9_91_s
+weapons/assault/vsk_94_a9_91/vsk_94_9a91_camo		weapons/remodel_069/vsk_94_premium/vsk_94_premium:vsk_94_a9_91_s,weapons/remodel_069/vsk_94_premium/vsk_94_premium:vsk_94_camo_suppressor_vsk_94_a9_91_s
 weapons/assault/vz58/vz58_grip		weapons/remodel_069/vz58/vz58:vz58_grip_s
 weapons/assault/vz58/vz58_handguard		weapons/remodel_069/vz58/vz58:vz58_forend_vz58_handguard_s,weapons/remodel_069/vz58/vz58:vz58_handguard_s
 weapons/assault/vz58/vz58_mag		weapons/remodel_069/vz58/vz58:vz58_mag_s
@@ -110,6 +111,7 @@ weapons/modules/mags/ak_762x39_30_round_sb7_mag/ak_762x39_30_round_sb7_st_camo_m
 weapons/modules/mags/colt_python_speedloader/colt_python_speedloader		weapons/remodel_069/magnum/magnum:colt_python_speedloader_s
 weapons/modules/muzzlebrakes/aks74u_m24x15_muzzlebrake/aks74u_camo_muzzlebrake		weapons/remodel_069/ak_74u_premium/ak_74u_premium:aks74u_m24x15_camo_muzzlebrake_aks74u_muzzlebrake_s
 weapons/modules/muzzlebrakes/aks74u_m24x15_muzzlebrake/aks74u_muzzlebrake		weapons/remodel_069/ak_74u/ak_74u:aks74u_m24x15_muzzlebrake_aks74u_muzzlebrake_s
+weapons/modules/muzzlebrakes/g3a3_muzzlebrake/g3a3_muzzlebrake		weapons/remodel_069/g3a3/g3a3:g3a3_muzzlebrake_g3a3_muzzlebrake_s
 weapons/modules/pistolgrips/akm_bakelite_pistolgrip/akm_bakelite_ak74n_camo_pistolgrip		weapons/remodel_069/ak_74n_premium/ak_74n_premium:akm_bakelite_ak74n_camo_pistolgrip_akm_bakelite_pistolgrip_s,weapons/remodel_069/vepr_premium/vepr_premium:akm_bakelite_ak74n_camo_pistolgrip_akm_bakelite_pistolgrip_s
 weapons/modules/pistolgrips/akm_bakelite_pistolgrip/akm_bakelite_camo_pistolgrip		weapons/remodel_069/ak_74u_premium/ak_74u_premium:akm_bakelite_camo_pistolgrip_akm_bakelite_pistolgrip_s
 weapons/modules/pistolgrips/akm_bakelite_pistolgrip/akm_bakelite_pistolgrip		weapons/remodel_069/ak_74m/ak_74m:akm_bakelite_pistolgrip_akm_bakelite_pistolgrip_s,weapons/remodel_069/ak_74n/ak_74n:akm_bakelite_pistolgrip_akm_bakelite_pistolgrip_s,weapons/remodel_069/ak_74u/ak_74u:akm_bakelite_pistolgrip_akm_bakelite_pistolgrip_s,weapons/remodel_069/rpk/rpk:akm_bakelite_pistolgrip_akm_bakelite_pistolgrip_s,weapons/remodel_069/vepr/vepr:akm_bakelite_pistolgrip_akm_bakelite_pistolgrip_s
