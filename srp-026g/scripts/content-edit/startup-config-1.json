@@ -1,0 +1,21 @@
+{
+ "_about": "The stock startup.cfg without its fourteen lines that name a console command 0.26g has none of (the owner, 2026-11-21: the console and the logs without lines that tell nothing). game::on_configs_loaded runs it at every start (load_cc_script 0x1EC380, mask 1), and console_commands::execute logged 'unknown command [<name>]' for each (0xEBC37); no exe patch registers any of them before it runs, so none had an effect.",
+ "remove_lines": [
+  {"file": "startup.cfg", "lines": [
+   "breath_vibration on",
+   "camera_far_plane 1000.0",
+   "camera_near_plane 0.20",
+   "cc_idle_max_slope_range 10.0",
+   "cc_max_slope_angle 55.0",
+   "finger_corrector on",
+   "hide_crosshair_on_aim on",
+   "max_bullets 32",
+   "sound_hdr_frame_release_speed 100.0",
+   "sound_hdr_frame_size 96.0",
+   "sound_hdr_frame_top 30.0",
+   "spot_max_distance 100.0",
+   "spotted_time_in_ms 10000",
+   "time_between_spot_tries_in_ms 3000"
+  ]}
+ ]
+}

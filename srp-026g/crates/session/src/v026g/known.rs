@@ -13,13 +13,17 @@
 //! and nothing of the accounts is changed. [`Account::repair`] never deletes
 //! anything for an unknown definition.
 //!
-//! Not checked here: the dict id an upgrade record holds. A scope's record
-//! holds a variant (`survarium::v026g::scopes`), an entry of the game data
-//! that is no item anyone owns; a release may withdraw a pair or a variant.
-//! Such a record is repaired, not refused: the load takes it off the item
-//! and says so ([`super::items_rules::upgrades_taken_off`]), a kept results
-//! screen loses it when restored ([`super::rewards::Results::restored`]),
-//! and the wire never sends one whose dict id the data lacks
+//! Not checked here: the dict id an upgrade record holds. A record saved up
+//! to release 68 holds a scope variant (`survarium::v026g::scopes`), an
+//! entry of the game data that is no item anyone owns and that a release
+//! may withdraw; and a release may withdraw a pair of the modules table.
+//! Such a record is repaired, not refused: the load gives a scope's record
+//! its scope's own dict id
+//! ([`super::items_rules::scope_records_to_own_ids`]), takes off the item
+//! what no longer fits it and says so
+//! ([`super::items_rules::upgrades_taken_off`]), a kept results screen
+//! loses it when restored ([`super::rewards::Results::restored`]), and the
+//! wire never sends one whose dict id the data lacks
 //! ([`super::wire::item_descr`]). The scope item a player owns is an
 //! item like any other and stays checked.
 

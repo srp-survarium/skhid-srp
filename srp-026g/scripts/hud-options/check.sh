@@ -11,7 +11,8 @@
 #   moved, every dictionary's label in the column, Apply, Cancel) and its Vulkan options... button under it: disabled
 #   while the list shows DirectX 11, its panel over the column (the five options, every dictionary's texts
 #   inside it), closed by a press outside it or Esc, each option pending until Apply, Cancel, the note;
-# - HudHarness.as: the crosshair's hit marker: all, a kill's mark only, none; the Tab list off as today,
+# - HudHarness.as: the crosshair's hit marker: all, a kill's mark only, none (a kill through a wall,
+#   exe patch 167, as a kill's mark only); the Tab list off as today,
 #   on names only, each team by clan tag then name (clanless next, bots last; case-insensitive);
 #   the Tab map's names with Alt, and "Names on map" reversing Alt.
 # - SettingsHarness.as also: the controls tab's "Lock vertical sensitivity" and its slider (exe

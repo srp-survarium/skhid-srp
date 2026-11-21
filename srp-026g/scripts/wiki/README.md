@@ -92,8 +92,8 @@ shows the highest damage and the highest penetration of all the weapon's
 rounds, often from two different rounds, so the page names that difference.
 
 `damage-calc/build_site.py` builds this catalogue immediately after the calculator,
-including during `release/build-site`. A web-server test checks the SHA-256 of
-the calculator against `wiki/source.sha256`, preventing stale weapon data.
+including during `release/build-site`, so every release's catalogue is made from
+its own calculator.
 
 After changing the wiki template or JavaScript:
 

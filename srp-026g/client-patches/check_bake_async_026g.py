@@ -59,7 +59,8 @@ record, bake.free, finish).
   waiting for the GPU where it has not done them (logged); before the first
   frame, any thread's dispatch does the same;
 - the saves not written yet: with 64 descriptors never destroyed, the 65th
-  bake's texture made and used, no save, its DDS freed at once (logged);
+  bake's texture made and used, no save, its DDS freed at once (logged),
+  and no record of it listed (as a bake with no memory for its descriptor);
   the game's ~save_descriptor (0x10A050) on one frees its DDS and a place;
 - the budget: done bakes complete while the frame's 6 ms last (one at
   least), the rest in the next frames (engine_world::tick's start), oldest
@@ -668,6 +669,9 @@ def main():
            and any("not saved" in line for line in game.log),
            "no memory for the save's descriptor: the texture made and in its slot, the query finished with success "
            "and no save (+0E0h 0, make_save_descriptor not called), the DDS freed, logged")
+    report(game.records() == [] and game.read(cache.BYTES) == 0,
+           "and not listed (no record, the list's bytes 0): its file will never be there, so the next query of "
+           "its path bakes it")
 
     print("a compressor that does not fit, no texture for level 0")
     game = fresh(built)
@@ -824,6 +828,10 @@ def main():
            and any("used, not saved: 64 saves not written yet" in line for line in game.log),
            "64 bakes' saves not written yet (their descriptors never destroyed): the 65th's texture made and "
            "used, its query finished, no save (+0E0h 0), its DDS freed at once, logged: " + "; ".join(game.log))
+    listed = [r[0] for r in game.records()]
+    report(listed == [cache.PREFIX + b.name + ".dds" for b in bakes[:64]]
+           and game.read(cache.BYTES) == sum(b.dds_size for b in bakes[:64]),
+           "the 64 saved bakes listed, the 65th not (no file of it will be written); the list's bytes the 64's")
     data = game.read(held[0])
     ok, calls = destroy(game, held[0])
     report(ok and ("mt free", data) in names(calls, "mt free"),

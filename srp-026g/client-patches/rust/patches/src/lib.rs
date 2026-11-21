@@ -58,12 +58,19 @@ pub mod camera_sweep;
 pub mod lamps;
 pub mod artefact_score;
 pub mod battery_progress;
+pub mod weapon_stats;
 
 pub mod hud_options;
+// patch 167: no white hit marker through walls
+pub mod hit_marker_walls;
+// patch 169: the forward effects draw as 0.44a5's
+pub mod forward_effects;
 // patch 147: every run's logs in files of their own
 pub mod run_logs;
 pub mod tab_cursor;
 pub mod scaleform_capture;
+// patch 176: SKHID_CAPTURE's run, poses to pictures
+pub mod capture;
 pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;
@@ -81,6 +88,7 @@ pub mod weapon_pickup;
 pub mod medical_skills;
 pub mod artefact_skills;
 pub mod artefact_keeper;
+pub mod artefact_courier;
 
 pub mod hand_kill;
 pub mod trap_stock_hit;
@@ -109,6 +117,7 @@ pub mod voice;
 pub mod ban_time;
 pub mod sign_in_cipher;
 pub mod controller_position;
+pub mod tick_parts;
 pub mod use_scan;
 pub mod unplayed_match;
 pub mod texture_streaming;
@@ -126,6 +135,10 @@ pub mod collision_view;
 pub mod console_paste;
 // patch 158: the first-person eye stays out of the level's surfaces
 pub mod head_clearance;
+// patch 172: the aimed view is aligned to the gun's idle pose
+pub mod aim_pose;
+// patch 174: the engine's log without the lines that tell nothing
+pub mod quiet_log;
 
 pub mod replay_file;
 pub mod free_for_all;
@@ -136,3 +149,7 @@ pub mod lobby_seeding;
 // patch 159: the console's output scrolls
 pub mod console_scroll;
 pub mod v021d_render;
+pub mod faces;
+pub mod geometry_share;
+// patch 161: a weapon's scope, eye, left hand and shells where its fitted modules put them
+pub mod attachments;

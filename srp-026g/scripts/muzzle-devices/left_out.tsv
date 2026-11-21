@@ -1,0 +1,9 @@
+# Muzzle rows of ../weapon-modules/ids.tsv that get no item, each with the reason devices.py checks
+# again in 0.69d0's data.
+#   suppressor_barrel  a barrel (group *_barrel) of a gun whose own part in that slot is a silencer:
+#                      the gun's suppressor in another shape (the owner: no silencers)
+# module	reason
+vssk_camo_red_heavy_barrel	suppressor_barrel
+vssk_camo_red_long_barrel	suppressor_barrel
+vssk_heavy_barrel	suppressor_barrel
+vssk_long_barrel	suppressor_barrel

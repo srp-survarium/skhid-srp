@@ -352,6 +352,9 @@ pub fn weapon_visibility(ctx: &Context<'_>, hide: bool, hidden: &mut HiddenWeapo
             for (n, model) in models.into_iter().enumerate() {
                 if model.is_some_and(|model| scene.remove(model)) { *removed |= 1 << n; }
             }
+            // its fitted parts with it (patch 161): the gun's own draw, which
+            // is skipped from here, is what keeps them in the scene
+            super::attachments::out_of_scene(ctx.thread(), weapon, &scene);
             return true;
         }
         let Some(record) = hidden.find(weapon.address()) else { return false };

@@ -183,26 +183,41 @@ def rows_of(va, abi=None, inputs=None):
     abi = read_tsv(REKIT / "abi.tsv") if abi is None else abi
     inputs = read_tsv(REKIT / "abi_inputs.tsv") if inputs is None else inputs
     out = {"locations": set(), "cleanups": set(), "results": set(), "names": set(), "roles": {}}
-    for row in abi:
-        if int(row["va"], 16) == va:
-            out["names"].add(row["name"])
-            for cleanup in re.split(r"[ ,;/]+", row["ret_cleanup"].strip()):
-                if cleanup and not cleanup.isdigit():
-                    raise Refused(f"{va:#x}: ret_cleanup {row['ret_cleanup']!r} is no number of bytes")
-                if cleanup:
-                    out["cleanups"].add(int(cleanup))
-            if result_of(row["result"]):
-                out["results"].add(result_of(row["result"]))
-    for row in inputs:
-        if int(row["va"], 16) == va:
-            out["names"].add(row["name"])
-            if " at 0x" in row["location"]:
-                continue                     # a register inside the function (a site's), no input
+    for row in by_va(abi).get(va, ()):
+        out["names"].add(row["name"])
+        for cleanup in re.split(r"[ ,;/]+", row["ret_cleanup"].strip()):
+            if cleanup and not cleanup.isdigit():
+                raise Refused(f"{va:#x}: ret_cleanup {row['ret_cleanup']!r} is no number of bytes")
+            if cleanup:
+                out["cleanups"].add(int(cleanup))
+        if result_of(row["result"]):
+            out["results"].add(result_of(row["result"]))
+    for row in by_va(inputs).get(va, ()):
+        out["names"].add(row["name"])
+        if " at 0x" in row["location"]:
+            continue                     # a register inside the function (a site's), no input
 
-            out["locations"].add(location(row["location"]))
-            out["roles"].setdefault(location(row["location"]), []).append(row["role"])
+        out["locations"].add(location(row["location"]))
+        out["roles"].setdefault(location(row["location"]), []).append(row["role"])
     out["names"].discard("")
     return out
+
+
+_BY_VA = []                              # [(a table's rows, {VA: its rows in order})], the last few tables
+
+
+def by_va(rows):
+    """{VA: [row]} of a re-kit table's rows (the list itself, read once: a
+    build asks for 800 functions' rows of 9,000)."""
+    for known, index in _BY_VA:
+        if known is rows and sum(map(len, index.values())) == len(rows):
+            return index
+    index = {}
+    for row in rows:
+        index.setdefault(int(row["va"], 16), []).append(row)
+    _BY_VA.append((rows, index))
+    del _BY_VA[:-4]
+    return index
 
 
 def parse_prototype(text):

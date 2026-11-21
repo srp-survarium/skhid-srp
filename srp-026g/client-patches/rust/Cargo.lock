@@ -21,6 +21,7 @@ dependencies = [
  "srp-validate",
  "voice-abi",
  "weapon-kit",
+ "weapon-modules",
  "weapon-pickup",
  "world-frame",
 ]
@@ -48,6 +49,10 @@ version = "0.1.0"
 
 [[package]]
 name = "weapon-kit"
+version = "0.1.0"
+
+[[package]]
+name = "weapon-modules"
 version = "0.1.0"
 
 [[package]]

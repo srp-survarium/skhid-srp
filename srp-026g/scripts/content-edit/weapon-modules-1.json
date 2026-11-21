@@ -1,0 +1,829 @@
+{
+ "_about": "Each gun names its record of the modules table (gameplay/weapon_modules.srpm, pack weapon-modules): data/srp_gun, the weapon item's own dict id (docs/notes/attachments.md; made by weapon-modules/edits.py; after the weapon-camo lists, which make data).",
+ "add_value": [
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_a9_91.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 303
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_a545.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 220
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_aek_919k.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2212
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_12.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 363
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_12_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2245
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74m.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 3
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74n.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 306
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74n_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 338
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74u.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 13
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ak_74u_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2243
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 80
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2241
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmn_premium_2.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2242
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_akmsu.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2290
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_aps.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 126
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ash_12.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 364
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_benelli_m4.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 125
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_beretta93r.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2282
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_colt_m1911.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2284
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_cz_75.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2280
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_famas.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2291
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_fn_fnc.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2216
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_fn_minimi.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2264
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_fn_p90.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2224
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_fort_17.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 64
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_fort_401.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2273
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_g3sg1.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2292
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_glock_17.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2283
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_hk416.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2218
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_izh_27_lancaster.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 108
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_izh_27_lancaster_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 337
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_izh_27_lancaster_premium_2.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2251
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_jackhammer.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2274
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_kedr.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2211
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_kiparis.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 88
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_kiparis_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 332
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_kriss_vector.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2223
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ks_23m.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2294
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_l85a2.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2272
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_m4a1.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2217
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_magnum.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 56
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mauser_m712.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2293
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mosin_nagant.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 107
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp443.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2281
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp5a1.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2270
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp7.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2220
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp7_silencer.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2221
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp_153.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 110
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_msbs_carbine.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2219
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_neostead.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2231
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_neostead_2.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2230
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ots14.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2261
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_pkp_pecheneg.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2229
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_pm.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 89
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_pp2000.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 367
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ppsh.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 106
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ppsh_drum.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2295
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_rem_700.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 14
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_rem_700_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2249
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_rem_870.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 15
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_rpd.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 77
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_rpk.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 222
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_saiga_12.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2227
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_saiga_12_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2228
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_scar_h.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2262
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sks.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 109
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sks_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2246
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sks_premium_2.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2247
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_soc_vepr.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2215
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_socom16.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 366
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_spas_12.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 124
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sr2m.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 321
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sr3m.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 309
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sr3m_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 336
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_sv_98.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 149
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_svd.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 63
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_svu_a.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2271
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_toz_122.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 12
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_toz_34.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 16
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_toz_66.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 17
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_tt_33.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 18
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_ump45.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 324
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_uzi.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 55
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_uzi_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 333
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_uzi_premium_2.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2252
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_val.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 307
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_valmet.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2214
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vepr.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 216
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vepr_12.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2225
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vepr_12_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2226
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vepr_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2244
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vhs_2.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2263
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vityaz.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 19
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vityaz_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 334
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vsk_94.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 305
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vsk_94_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2248
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vss.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 308
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vss_premium.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 335
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vssk.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 365
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vssk_camo.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2250
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_vz58.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2213
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_winchester_1894.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 90
+  },
+  {
+   "files": [
+    "gameplay/items/weapons/wpn_mp7_silencer_special.options"
+   ],
+   "table": "data",
+   "key": "srp_gun",
+   "value": 2222
+  }
+ ]
+}

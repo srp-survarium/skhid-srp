@@ -2471,3 +2471,7 @@ va	status	ref_021d	name
 0x001ae500	reviewed	0x00123a52	vostok::render::effect_manager::create_effect<vostok::render::effect_apply_distortion>
 0x001ae5f0	reviewed	0x00123ad4	vostok::render::effect_manager::create_effect<vostok::render::effect_olta>
 0x001bd6a0	reviewed	0x0012fc3d	vostok::render::stage::is_enabled
+0x001f3c70	reviewed	0x00157ab8	survarium::player::generate_hit_event
+0x00238230	reviewed	0x0018257b	survarium::game_world_ui::draw_damage_collector
+0x00246f10	observed		survarium::player::tick
+0x0023ddd0	observed		survarium::base_game_scene::apply_camera

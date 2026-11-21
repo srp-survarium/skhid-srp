@@ -91,16 +91,9 @@ impl Armed {
         }
     }
 
-    /// Its number in the lobby: the rooms' cards, rows and banners, the matches' list. After every
-    /// mode's ([`GameMode::lobby_number`]: 7 is Scarcity's, 8 Free for All's); Saloon's by its
-    /// variation (the owner, 2026-11-15: "make it visible in names", "so people know what they get
-    /// and can vote based on this").
+    /// Its number in the lobby ([`LobbyMode::number`]).
     pub const fn lobby_number(self) -> u8 {
-        match self {
-            Self::Racket(_) => 9,
-            Self::Cowboy(Variation::Colt) => 10,
-            Self::Cowboy(Variation::WinchesterAndColt) => 11,
-        }
+        LobbyMode::of(GameMode::FreeForAll, Some(self)).number()
     }
 
     /// The ammo it gives, which its match never charges (`session::v026g::autobuy`): nobody's,
@@ -119,6 +112,80 @@ impl Armed {
             Self::Cowboy(variation) => {
                 super::cowboy::arm(profile, &super::cowboy::Guns::shared(), variation)
             }
+        }
+    }
+}
+
+/// What the lobby calls the mode of a match: a mode's own, or a free-for-all's twist as it arms
+/// (the rooms' cards, rows and banners, the matches' list, the history).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum LobbyMode {
+    Plain(GameMode),
+    Racket,
+    Cowboy(Variation),
+}
+
+impl LobbyMode {
+    /// Every one.
+    pub const ALL: [Self; 9] = [
+        Self::Plain(GameMode::Batteries),
+        Self::Plain(GameMode::TimedBatteries),
+        Self::Plain(GameMode::TeamDeathmatch),
+        Self::Plain(GameMode::Research),
+        Self::Plain(GameMode::FreeForAll),
+        Self::Plain(GameMode::Blackout),
+        Self::Racket,
+        Self::Cowboy(Variation::Colt),
+        Self::Cowboy(Variation::WinchesterAndColt),
+    ];
+
+    /// A match of `mode` with `twist`.
+    pub const fn of(mode: GameMode, twist: Option<Armed>) -> Self {
+        match twist {
+            None => Self::Plain(mode),
+            Some(Armed::Racket(_)) => Self::Racket,
+            Some(Armed::Cowboy(variation)) => Self::Cowboy(variation),
+        }
+    }
+
+    /// Its number in the lobby. A twist's is after every mode's ([`GameMode::lobby_number`]: 7 is
+    /// Scarcity's, 8 Free for All's); Saloon's by its variation (the owner, 2026-11-15: "make it
+    /// visible in names", "so people know what they get and can vote based on this").
+    pub const fn number(self) -> u8 {
+        match self {
+            Self::Plain(mode) => mode.lobby_number(),
+            Self::Racket => 9,
+            Self::Cowboy(Variation::Colt) => 10,
+            Self::Cowboy(Variation::WinchesterAndColt) => 11,
+        }
+    }
+
+    /// The one of a lobby number.
+    pub fn of_number(number: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|mode| mode.number() == number)
+    }
+
+    /// The mode whose map and rules it plays: a twist's is the free-for-all.
+    pub const fn mode(self) -> GameMode {
+        match self {
+            Self::Plain(mode) => mode,
+            Self::Racket | Self::Cowboy(_) => GameMode::FreeForAll,
+        }
+    }
+
+    /// The key of its name in the game's texts: the one the rooms name it by
+    /// (`RoomsText.as`, `MODES`; a test holds the two together).
+    pub const fn name_key(self) -> &'static str {
+        match self {
+            Self::Plain(GameMode::Batteries) => "st_srp_mode_protective_device",
+            Self::Plain(GameMode::TimedBatteries) => "st_srp_mode_chargers",
+            Self::Plain(GameMode::TeamDeathmatch) => "st_srp_mode_team_deathmatch",
+            Self::Plain(GameMode::Research) => "st_srp_mode_research",
+            Self::Plain(GameMode::Blackout) => "st_srp_mode_blackout",
+            Self::Plain(GameMode::FreeForAll) => "st_srp_mode_free_for_all",
+            Self::Racket => "st_srp_mode_racket",
+            Self::Cowboy(Variation::Colt) => "st_srp_mode_cowboy",
+            Self::Cowboy(Variation::WinchesterAndColt) => "st_srp_mode_cowboy_winchester",
         }
     }
 }
@@ -187,6 +254,34 @@ impl Played {
 mod tests {
     use super::super::maps::{self, playable_in};
     use super::*;
+
+    /// The rooms name each mode by the same key (`RoomsText.as`, `MODES`): the site's names and
+    /// the game's cannot part.
+    #[test]
+    fn the_lobby_modes_are_named_as_the_rooms_name_them() {
+        let rooms = include_str!("../../../../flash/lobby_menu/src/survarium/rooms/RoomsText.as");
+        let modes = rooms.split_once("MODES:Object = {").unwrap().1;
+        let modes = modes.split_once("};").unwrap().0;
+        let mut named: Vec<(u8, &str)> = modes
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix('"'))
+            .map(|line| {
+                let (number, key) = line.split_once("\": \"").unwrap();
+                (number.parse().unwrap(), key.trim_end_matches(',').trim_end_matches('"'))
+            })
+            .collect();
+        named.sort_unstable();
+        let mut own: Vec<(u8, &str)> = LobbyMode::ALL
+            .iter()
+            .map(|mode| (mode.number(), mode.name_key()))
+            .collect();
+        own.sort_unstable();
+        assert_eq!(own, named);
+        for mode in LobbyMode::ALL {
+            assert_eq!(LobbyMode::of_number(mode.number()), Some(mode));
+        }
+        assert_eq!(LobbyMode::of_number(7), None);
+    }
 
     #[test]
     fn a_twist_is_a_free_for_alls_alone() {

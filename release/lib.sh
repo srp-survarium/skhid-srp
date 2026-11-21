@@ -401,10 +401,12 @@ python() {
 # in that checkout's dev shell: its python3, and the gcc, GNU ld and NASM
 # 2.16 the exe's arena is linked with (link_026g.py; the bytes must be
 # arena_026g.lock.json's). Nothing of this machine's PATH is needed but nix.
+# A release builds the arena's Rust from source (SRP_ARENA_CACHE=off): what
+# local builds keep of it (link_026g.py's cache) is not what players get.
 client_patches_python() {
     local src=$1
     shift
-    (cd "$src/srp-026g/client-patches" && nix develop "$src/srp-026g" -c python3 "$@")
+    (cd "$src/srp-026g/client-patches" && SRP_ARENA_CACHE=off nix develop "$src/srp-026g" -c python3 "$@")
 }
 
 # The exe patches' self-test (srp-026g/client-patches/selftest_026g.py) of

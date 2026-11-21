@@ -1,4 +1,5 @@
 va	status	ref_021d	name
+0x00011170	inferred-high		vostok::intrusive_ptr<shared_string>::assign
 0x00011540	inferred-high		vostok::intrusive_ptr<render_model_instance>::release
 0x00011b80	inferred-medium	0x00011ba9	raii_buffer::~raii_buffer
 0x000127c0	inferred-high		vostok::buffer_string::assign
@@ -1020,6 +1021,7 @@ va	status	ref_021d	name
 0x001d3b10	inferred-medium	0x0013fe8f	vostok::render::particle_rain_drops_geometry::draw
 0x001d4300	inferred-medium	0x0014040f	vostok::render::fog_box_geometry::fog_box_geometry
 0x001d82d0	inferred-medium	0x001432ad	vostok::render::box_geometry::box_geometry
+0x001d9740	inferred-high		vostok::render::effect_compiler::set_constant_float2
 0x001d99c0	inferred-medium	0x001442e8	vostok::render::effect_lighting_stage_default_materials::should_recompile_when_global_changes
 0x001e7c20	inferred-medium	0x00150338	vostok::buffer_vector<vostok::render::culling::sector_double_query_preventer::frustum_image>::push_back
 0x001e7ca0	inferred-medium	0x001503af	vostok::buffer_vector<vostok::math::frustum>::push_back
@@ -1259,6 +1261,7 @@ va	status	ref_021d	name
 0x00222330	inferred-medium	0x001745c0	survarium::lobby_menu::on_profile_changed
 0x00223190	inferred-medium	0x00174d56	survarium::lobby_menu::on_price_items_arrived
 0x00223460	inferred-medium	0x00174e9e	survarium::lobby_menu::fill_reputation_levels
+0x00223840	inferred-medium		survarium::lobby_menu::set_account_name [descriptive]
 0x00223a70	inferred-medium		survarium::lobby_menu::fill_skills_properties
 0x00224420	inferred-medium	0x00175809	survarium::lobby_menu::fill_character_data
 0x00224ed0	inferred-medium	0x00175d90	survarium::lobby_menu::fill_service_prices
@@ -1594,6 +1597,8 @@ va	status	ref_021d	name
 0x00265980	inferred-medium		survarium::lobby_character::update_decal_preview
 0x00265c20	inferred-medium		survarium::lobby_character::on_decal_click
 0x00265cb0	inferred-medium		survarium::lobby_character::on_decal_wheel
+0x00265de0	inferred-medium		survarium::lobby_character::enter_decal_edit
+0x00265f10	inferred-medium		survarium::lobby_character::leave_decal_edit
 0x00265f80	inferred-medium		survarium::lobby_character::place_decal_markers
 0x00266470	inferred-medium	0x000e4424	vostok::detail::concrete_type_helper<vostok::render::render_texture_cook_parameters>::copy_helper
 0x002678e0	inferred-medium		survarium::client_player_respawn_rule::on_kit_changed
@@ -2113,7 +2118,9 @@ va	status	ref_021d	name
 0x003114e0	inferred-medium	0x001f3b8c	survarium::damage_zone_core_cook::create_resource
 0x00311840	inferred-medium		survarium::artefact_spring_core::artefact_spring_core
 0x00311890	inferred-medium	0x001f3e14	survarium::artefact_spring_core::tick_impl
+0x003118c0	inferred-high		survarium::artefact_spring_core::enable_passive_effects
 0x003118d0	inferred-medium		survarium::artefact_spring_core::enable_active_effects
+0x00311960	inferred-high		survarium::artefact_spring_core::disable_passive_effects
 0x00311970	inferred-medium		survarium::artefact_spring_core::disable_active_effects
 0x00311990	inferred-medium	0x001f3e73	survarium::artefact_spring_core::active_effect_ended
 0x00311ad0	inferred-medium		survarium::artefact_spring_core::add_passive_modifiers
@@ -3524,6 +3531,12 @@ va	status	ref_021d	name
 0x00132a90	inferred-medium		vostok::render::backend::set_ps_constant
 0x0014e800	inferred-medium		vostok::math::normalize_safe
 0x00133f50	inferred-medium		vostok::render::stage_rain::rain_rotation_basis
+0x00129bb0	inferred-medium		vostok::buffer_string::assign_config_text
+0x00204500	inferred-medium		survarium::profile_skin_visual_cook::model_folder
+0x0011aa10	inferred-medium		vostok::render::resource_pools::allocate_geometry_pool [descriptive]
+0x003d40d0	inferred-medium		vostok::render::hw_buffer_pool::hw_buffer_pool [descriptive]
+0x003d3c70	inferred-medium		vostok::render::hw_buffer_pool_chunk::hw_buffer_pool_chunk [descriptive]
+0x003d43a0	inferred-medium		vostok::render::hw_buffer_pool::used_memory [descriptive]
 0x0030f5a0	inferred-medium		survarium::double_barreled_weapon_core_reload_state::get_weapon_lexeme
 0x00311070	inferred-medium		survarium::weapon_core_shotgun_reload_base_substate::get_weapon_lexeme
 0x003cfaf0	inferred-medium		vostok::render::res_render_output::fullscreen_output
@@ -3582,3 +3595,51 @@ va	status	ref_021d	name
 0x002ee7c0	inferred-medium	0x001dc2e0	survarium::artefact_core_cook::on_effect_loaded
 0x002e58b0	inferred-medium	0x001d7fdb	survarium::damage_model::find_body_part
 0x002e5040	inferred-medium		survarium::damage_model::tick
+0x00244120	inferred-medium		survarium::weapon::play_weapon_shoot_pfx [descriptive]
+0x002959d0	inferred-medium		survarium::portable_interactive_object::align_aim_and_solve_hands [descriptive]
+0x000ed420	inferred-medium		vostok::math::float4x4::invert_affine_with_determinant [descriptive]
+0x000ef780	inferred-medium		vostok::math::float4x4::interpolate [descriptive]
+0x003928b0	inferred-high		vostok::animation::hand_to_weapon_ik_solver::set_user_skeleton [descriptive]
+0x00392910	inferred-high		vostok::animation::hand_to_weapon_ik_solver::set_weapon_skeleton [descriptive]
+0x00392ae0	inferred-high		vostok::animation::hand_to_weapon_ik_solver::set_weapon_locators [descriptive]
+0x00392ce0	inferred-high		vostok::animation::hand_to_weapon_ik_solver::set_target [descriptive]
+0x00392d90	inferred-high		vostok::animation::hand_to_weapon_ik_solver::on_ik_event [descriptive]
+0x00392e30	inferred-high		vostok::animation::hand_to_weapon_ik_solver::target_transform [descriptive]
+0x003930b0	inferred-high		vostok::animation::hand_to_weapon_ik_solver::solve [descriptive]
+0x003931a0	inferred-medium		vostok::animation::hand_to_weapon_ik_solver::solve_hand [descriptive]
+0x00390470	inferred-high		vostok::animation::fingers_to_weapon_corrector::set_user_skeleton [descriptive]
+0x00390620	inferred-high		vostok::animation::fingers_to_weapon_corrector::set_weapon_model [descriptive]
+0x00390900	inferred-high		vostok::animation::fingers_to_weapon_corrector::tick [descriptive]
+0x00390ac0	inferred-high		vostok::animation::fingers_to_weapon_corrector::on_event [descriptive]
+0x00390b50	inferred-high		vostok::animation::fingers_to_weapon_corrector::set_target [descriptive]
+0x00298630	inferred-high		survarium::portable_interactive_object_with_finger_correction::correct_fingers [descriptive]
+0x00298680	inferred-high		survarium::portable_interactive_object_with_finger_correction::release_left_hand [descriptive]
+0x002fc020	inferred-high		survarium::weapon_user_animations_selector::set_sprint_jump_callbacks [descriptive]
+0x003dd990	inferred-high		vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]
+0x003dd9e0	inferred-high		vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const body [descriptive]
+0x003c1020	inferred-high		vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]
+0x00011450	inferred-high		vostok::resources::managed_resource_ptr::~managed_resource_ptr [descriptive]
+0x002f4b40	inferred-high		survarium::shared_statistics::shared_statistics
+0x002f4c20	inferred-high		survarium::shared_statistics::clear
+0x001a29b0	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,0>::compile
+0x001a2b40	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,1>::compile
+0x001a2ce0	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,2>::compile
+0x001a2e80	inferred-medium		vostok::render::effect_sun_shadows_apply<no_sky,3>::compile
+0x001a3020	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,0>::compile
+0x001a31b0	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,1>::compile
+0x001a3350	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,2>::compile
+0x001a34f0	inferred-medium		vostok::render::effect_sun_shadows_apply<sky,3>::compile
+0x002a6b20	inferred-medium		vostok::render::environment_properties::lerp
+0x002a9460	inferred-medium		vostok::render::environment_keyframes::properties_at
+0x002959d0	inferred-high	0x001aa6f7	survarium::portable_interactive_object::process_hands_ik
+0x002956e0	inferred-high	0x001aa526	survarium::portable_interactive_object::compute_bones_matrices
+0x00295800	inferred-medium	0x001aa4aa	survarium::portable_interactive_object::subscribe_on_client_animation_events
+0x002959a0	inferred-medium	0x001aa6d6	survarium::portable_interactive_object::on_hand_ik_event
+0x003930b0	inferred-medium	0x0024af3a	vostok::animation::hand_to_weapon_ik_solver::process
+0x000ef780	inferred-medium		vostok::math::interpolate (float4x4, float4x4, t) [descriptive]
+0x000ed420	inferred-medium		vostok::math::float4x4::invert_4x3 [descriptive]
+0x002dec90	inferred-medium		survarium::weapon_core::select_recoil_animation [descriptive]
+0x0030e8a0	inferred-medium		survarium::weapon_core_fire_state::get_user_hands_lexeme [descriptive]
+0x0030e5c0	inferred-medium		survarium::weapon_core_fire_state::clip_time_scale [descriptive]
+0x000fddc0	inferred-high		vostok::console_commands::logging_rule registration [descriptive]
+0x000fde20	inferred-high		vostok::console_commands::logging_rule::execute [descriptive]

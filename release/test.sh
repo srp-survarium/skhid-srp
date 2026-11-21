@@ -2901,8 +2901,8 @@ manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "
 expect_refused "build-content: a pack needs vostok-port" "SKHID_VOSTOK_PORT must name" "$bc" 42 --out "$T/work/c42c"
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42d" 2>&1) || fail "build-content with a pack: $out"
 check "build-content: a pack's new file, and why" has "$out" "NEW       gameplay/items/hat.txt: pack hat@1; not in players' files"
-check "build-content: ... over the base patches, the built movie in place of the base's" \
-    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-args && grep -q -- '--replace flash_movies/m.swf=' $T/vostok-args"
+check "build-content: ... over the base patches, a movie no operation edits not given" \
+    bash -c "grep -q -- '--base-patch $T/cache/skhid-release/patches/resources.db.patch_40' $T/vostok-args && ! grep -q -- '--replace' $T/vostok-args"
 printf '{"id": "hat", "version": "2"}\n' >"$T/packs/hat-1/pack.json"
 expect_refused "build-content: a pack whose pack.json is not the row's" "not $hat_sha" \
     env SKHID_VOSTOK_PORT="$T/vostok-port" SKHID_PACKS_DIR="$T/packs" "$bc" 42 --out "$T/work/c42e"
@@ -2926,6 +2926,7 @@ manifest "base|resources.db.patch_40|$sha40" "movie|m|-" "pack|hat@1|$hat_sha" "
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i1" 2>&1) || fail "build-content, a pack editing the movie: $out"
 check "build-content: a pack that edits a movie: over the built one, and why" bash -c \
     "grep -q 'flash_movies/m.swf: movie m (srp-026g/flash/m), then pack hat@1, icons@1' <<<\"\$1\"" _ "$out"
+check "build-content: ... the built movie given to the pack that edits it" grep -q -- '--replace flash_movies/m.swf=' "$T/vostok-args"
 echo 1 >"$C/srp-026g/flash/m/src/version"
 out=$(SKHID_VOSTOK_PORT=$T/vostok-port SKHID_PACKS_DIR=$T/packs "$bc" 42 --out "$T/work/c42i2" 2>&1) || fail "build-content, the edited movie changed: $out"
 check "build-content: ... that movie changed: the packs composed again" bash -c "! grep -q 'composed them: the cache' <<<\"\$1\"" _ "$out"
