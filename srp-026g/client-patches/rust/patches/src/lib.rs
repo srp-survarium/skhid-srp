@@ -69,6 +69,8 @@ pub mod forward_effects;
 pub mod run_logs;
 pub mod tab_cursor;
 pub mod scaleform_capture;
+// patch 176: SKHID_CAPTURE's run, poses to pictures
+pub mod capture;
 pub mod map_names;
 pub mod world_check;
 pub mod weapon_kit;
@@ -77,7 +79,7 @@ pub mod music;
 pub mod game_volume;
 pub mod sound_voices;
 pub mod drug_interrupt;
-// patch 176: a hit breaks the victim's breath hold
+// patch 177: a hit breaks the victim's breath hold
 pub mod breath_hit;
 pub mod footsteps;
 // patch 153: a step on a walker-only floor finds its ground
@@ -151,3 +153,5 @@ pub mod console_scroll;
 pub mod v021d_render;
 pub mod faces;
 pub mod geometry_share;
+// patch 161: a weapon's scope, eye, left hand and shells where its fitted modules put them
+pub mod attachments;

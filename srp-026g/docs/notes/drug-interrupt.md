@@ -56,7 +56,7 @@ healing stops." Exe patch 84 (`client-patches/rust/patches/src/drug_interrupt.rs
 - Site `player.hit_applied` (0x2D9CB1, a lohook of 6 bytes): `base_player::hit_impl` (0x2D9B90)
   after `damage_model::hit_body_part` (0x2E5080) said 1, which it says when the damage left by
   armour and protectors is above 0.0. EBX the victim, ESI the `hit_info` (+1Ch the hit type,
-  +3Ch the time). Patch 176 (`breath-hit.md`) shares the site, after this one.
+  +3Ch the time). Patch 177 (`breath-hit.md`) shares the site, after this one.
 - Hit type 0 (`ranged`, `survarium::hit_type` 0x304370: ranged, blunt, slash, explosive, toxic,
   radiation, fire, shock) only.
 - Each of the victim's 23 inventory slots holding a drug (vtable 0xA1C79C) in use (+2B0h) with

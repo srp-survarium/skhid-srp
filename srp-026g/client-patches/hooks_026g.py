@@ -173,6 +173,13 @@ TYPES["BatteryState"] = {
     "orig_type": "&mut BatteryState", "orig_raw": "Some({n}.raw())",
     "pass": "&mut {n}", "null": "{a}",
 }
+# Patch 161's refill of a weapon's finger corrector (vostok::attachments).
+TYPES["FingerCorrector"] = {
+    "raw": "Option<FingersCorrector>", "fallible": True,
+    "build": "FingerCorrector::from_raw(&thread, {a})",
+    "orig_type": "&mut FingerCorrector", "orig_raw": "Some({n}.raw())",
+    "pass": "&mut {n}", "null": "{a}",
+}
 TYPES["PredicateBuffer"] = {
     "raw": "Option<PredicateBuffer>",
     "binding": "let {n} = unsafe {{ PredicateBuffer::from_raw(&thread, {a}) }};",

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Patch 176 (breath_hit): a hit that takes health breaks the victim's breath
+"""Patch 177 (breath_hit): a hit that takes health breaks the victim's breath
 hold (docs/notes/breath-hit.md).
 
     python check_breath_hit_026g.py <original survarium.exe>

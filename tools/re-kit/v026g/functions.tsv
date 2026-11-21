@@ -2484,3 +2484,4 @@ va	status	ref_021d	name
 0x0031d400	reviewed	0x001f8023	survarium::breath_vibration_calculator::not_holding_breath
 0x0031d430	reviewed	0x001f8046	survarium::breath_vibration_calculator::insufficient_breath
 0x0031d450	reviewed	0x001f8053	survarium::breath_vibration_calculator::initialize_logic
+0x0023ddd0	observed		survarium::base_game_scene::apply_camera

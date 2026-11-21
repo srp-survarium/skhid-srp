@@ -27,6 +27,7 @@ pub mod twist;
 pub mod ui_properties;
 pub mod weapon;
 pub mod weapon_kit;
+pub mod weapon_modules;
 
 // Wire helpers.
 pub mod lzma2;

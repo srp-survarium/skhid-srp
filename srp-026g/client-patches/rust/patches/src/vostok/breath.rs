@@ -1,4 +1,4 @@
-//! A hit victim's breath hold (patch 176, docs/notes/breath-hit.md). A gun's
+//! A hit victim's breath hold (patch 177, docs/notes/breath-hit.md). A gun's
 //! breath_vibration_calculator (+288h) runs a machine of three states made
 //! by initialize_logic (0x31D450): normal, holding and short breathing. It
 //! ticks only while the gun is aimed (weapon_core::tick 0x2E0A23). Holding

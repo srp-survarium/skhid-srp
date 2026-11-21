@@ -1,7 +1,7 @@
 # A hit breaks the breath hold
 
 The owner (2026-11-21): "can we make it so when player gets hit they lose their breath holding".
-Exe patch 176 (`client-patches/rust/patches/src/breath_hit.rs`).
+Exe patch 177 (`client-patches/rust/patches/src/breath_hit.rs`).
 
 - **A hit:** any hit that took health. This is the same rule as patch 84 (`drug-interrupt.md`), but
   for every hit type: bullets, melee, grenades, the trap, falls and anomalies. A hit that armour
@@ -19,7 +19,7 @@ Exe patch 176 (`client-patches/rust/patches/src/breath_hit.rs`).
   (`simulation_changes.tsv` `next`). The world format does not change: the patch writes a field
   the world already holds, with a value it already takes.
 
-## How (exe patch 176)
+## How (exe patch 177)
 
 - The site is `player.hit_applied` (0x2D9CB1, `base_player::hit_impl` once the hit took health,
   with EBX the victim). Patch 84 shares it, as order 0, and this patch is order 1.

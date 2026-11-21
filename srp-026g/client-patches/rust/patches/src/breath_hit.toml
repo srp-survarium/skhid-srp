@@ -1,8 +1,8 @@
-# Patch 176: a hit that takes health breaks the victim's breath hold
+# Patch 177: a hit that takes health breaks the victim's breath hold
 # (docs/notes/breath-hit.md). The site is sites_026g.tsv's, after patch 84's
 # handler there; the logic is breath_hit.rs.
 name = "breath_hit"
-patch = 176
+patch = 177
 
 [[hook]]
 site = "player.hit_applied"

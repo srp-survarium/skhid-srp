@@ -339,6 +339,10 @@ unsafe extern "C" {
     pub fn engine_draw_triangles(renderer: Option<SystemRenderer>, vertex_begin: *const c_void, vertex_end: *const c_void, index_begin: *const u16, index_end: *const u16, override_flag: u32);
     /// 0x3486a0 vostok::ui::ui_text_edit's delete of the selection: edit ESI; pops 0
     pub fn engine_text_edit_delete_selection(edit: Option<UiTextEdit>);
+    /// 0x3dd990 vostok::resources::pinned_ptr_const<unsigned char>::pinned_ptr_const [descriptive]: pinned EAX, resource ESP+4; pops 4
+    pub fn engine_pin_resource(pinned: Option<PinnedResource>, resource: Option<ManagedResource>);
+    /// 0x3c1020 vostok::resources::pinned_ptr_const<unsigned char>::~pinned_ptr_const [descriptive]: pinned ECX; pops 0
+    pub fn engine_unpin_resource(pinned: Option<PinnedResource>);
     /// 0x11170 vostok::intrusive_ptr<shared_string>::assign: holder EDI, string EAX; pops 0
     pub fn engine_shared_string_assign(holder: *mut Option<SharedString>, string: Option<SharedString>);
     /// 0x3c8bc0 vostok::render::backend::register_constant_host: backend EAX, name ESP+4, auxiliary ESP+8; pops 8; EAX
@@ -367,6 +371,8 @@ unsafe extern "stdcall" {
     pub fn engine_fsm_append_transition(source: Option<BatteryState>, destination: Option<BatteryState>, predicate: Option<FsmPredicate>);
     /// 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
     pub fn engine_set_texture(compiler: Option<EffectCompiler>, slot: *const u8, texture: *const u8, option: u32, request: u32, lower: u32, lower_float: f32, flag: u32);
+    /// 0x390620 vostok::animation::fingers_to_weapon_corrector::set_weapon_model: corrector ESP+4, instance ESP+8, first_view ESP+12; pops 12; stdcall, called directly
+    pub fn engine_fingers_set_weapon_model(corrector: Option<FingersCorrector>, instance: u32, first_view: u32);
     /// 0xe0b50 vostok::shared_string::create: text ESP+4; pops 4; EAX; stdcall, called directly
     pub fn engine_shared_string_create(text: *const u8) -> Option<SharedString>;
     /// 0xe0ae0 vostok::shared_string::destroy: string ESP+4; pops 4; stdcall, called directly
@@ -2907,6 +2913,24 @@ impl ItemEntry {
         unsafe { self.0.byte_add(0x0).cast::<u16>().as_ptr() }
     }
 
+    /// +0x118 (ptr<u8>): its config's path, a C string (the weapon cook asks a scope item's config by it, class 4Dh: 0x24AA67)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cfg_path(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x118).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x118 (ptr<u8>): its config's path, a C string (the weapon cook asks a scope item's config by it, class 4Dh: 0x24AA67)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cfg_path(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x118).cast::<*mut u8>().write_volatile(value) }
+    }
+
     /// 0x3a0 bytes: an entry of the items dictionary (item_by_id 0x1F00B1: imul eax,eax,3A0h)
     pub const SIZE: usize = 0x3a0;
 
@@ -3311,6 +3335,15 @@ impl GameMaterial {
     #[inline(always)]
     pub unsafe fn id(self) -> *mut u16 {
         unsafe { self.0.byte_add(0x64).cast::<u16>().as_ptr() }
+    }
+
+    /// +0x4c (f32): its physic armor (game.materials): try_pierce's A (0x32D980); 0 lets every bullet through for nothing (k = 1, 0x32D99E)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn armor(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4c).cast::<f32>().as_ptr() }
     }
 }
 
@@ -3895,6 +3928,15 @@ impl SkeletonInstance {
     #[inline(always)]
     pub unsafe fn first_update(self) -> *mut u8 {
         unsafe { self.0.byte_add(0x62d8).cast::<u8>().as_ptr() }
+    }
+
+    /// +0x0 (u32): its vtable: survarium::image::skeleton_instance_vtable for a skeleton_render_model_instance
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn vtable(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
     }
 }
 
@@ -7836,6 +7878,33 @@ impl Weapon {
         WeaponLocator(unsafe { self.0.byte_add(0x7a8) })
     }
 
+    /// +0x1a20 (obj<survarium::weapon_locator>): hand_to_weapon_ik_solver's records of the left hand, eight of 64h (the object at weapon+1820h, built in place by allocate_weapon 0x24A7DF; its solver +200h, hand 0): 0..3 the idle, reload, reload pivot and lobby locators for the first view, 4..7 for the third (set_weapon_locators 0x392AE0; record = target + 4 * (not first view), 0x392E91; no check of a record's bone, 0x392EA3)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn left_hand_locators(self) -> WeaponLocator {
+        WeaponLocator(unsafe { self.0.byte_add(0x1a20) })
+    }
+
+    /// +0x20f0 (obj<vostok::animation::finger_set>): fingers_to_weapon_corrector's sets of the left hand, four of 3C0h (the object's corrector +8D0h, hand 0): idle, reload, reload pivot, lobby (set_weapon_model 0x390620)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn left_fingers(self) -> FingerSet {
+        FingerSet(unsafe { self.0.byte_add(0x20f0) })
+    }
+
+    /// +0x6e0 (obj<survarium::weapon_locator>): the fire point's locator, the model's `barrel_point` (load_weapon 0x243A30): weapon::draw evaluates it into +620h each frame (calculate_locator, 0x244E68), where the shot effects play (0x24413E) and update_pfx_transform reads (0x2445BA); nothing a match computes
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn barrel_locator(self) -> WeaponLocator {
+        WeaponLocator(unsafe { self.0.byte_add(0x6e0) })
+    }
+
     /// +0x330 (ptr<survarium::weapon_state>): the state it is in (selected_animations 0x2E10CD calls its vtable +20h for the item's and the hands' expression)
     ///
     /// # Safety
@@ -7918,6 +7987,49 @@ impl WeaponLocator {
     #[inline(always)]
     pub unsafe fn offset(self) -> *mut f32 {
         unsafe { self.0.byte_add(0x20).cast::<f32>().as_ptr() }
+    }
+
+    /// 0x64 bytes: a locator record (render_model::get_locator 0x1585B0 copies 19h dwords): the weapon's three, the hand IK's sixteen
+    pub const SIZE: usize = 0x64;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::weapon_locators (0x64 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct WeaponLocatorStorage([u8; 0x64]);
+
+#[allow(dead_code)]
+impl WeaponLocatorStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x64])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> WeaponLocator {
+        WeaponLocator(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<WeaponLocator> {
+        (!rooms.is_empty()).then(|| WeaponLocator(NonNull::from(rooms).cast()))
     }
 }
 
@@ -12714,6 +12826,24 @@ impl QueryResult {
         unsafe { self.0.byte_add(0x0).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
     }
 
+    /// +0x0 (ptr<survarium::scene_model>): the result's resource for a class 15 request, a static model's holder (the weapon cook reads the scope's so, 0x24ADD4); 0 for a model that did not load
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn model(self) -> Option<SceneModel> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<SceneModel>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::scene_model>): the result's resource for a class 15 request, a static model's holder (the weapon cook reads the scope's so, 0x24ADD4); 0 for a model that did not load
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_model(self, value: Option<SceneModel>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<SceneModel>>().write_volatile(value) }
+    }
+
     /// 0x2e0 bytes: 2E0h bytes a result
     pub const SIZE: usize = 0x2e0;
 
@@ -15349,6 +15479,15 @@ impl ManagedResource {
     #[inline(always)]
     pub unsafe fn set_name_entry(self, value: Option<NameRegistryEntry>) {
         unsafe { self.0.byte_add(0xb0).cast::<Option<NameRegistryEntry>>().write_volatile(value) }
+    }
+
+    /// +0xdc (u32): its reference count (lock xadd at 0x1EA2BC, 0x3DD9C3; the pointer's release 0x11450)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xdc).cast::<u32>().as_ptr() }
     }
 }
 
@@ -26626,6 +26765,24 @@ impl LoadedResource {
         unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
     }
 
+    /// +0x0 (ptr<vostok::resources::managed_resource>): a result's managed resource, what a raw data request (class 3) gives: game::on_configs_loaded takes startup.cfg's and user.cfg's so (queries_result +128h, +408h: 0x1EA296, 0x1EA2D4); 0 for a request that failed
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn managed(self) -> Option<ManagedResource> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedResource>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::resources::managed_resource>): a result's managed resource, what a raw data request (class 3) gives: game::on_configs_loaded takes startup.cfg's and user.cfg's so (queries_result +128h, +408h: 0x1EA296, 0x1EA2D4); 0 for a request that failed
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_managed(self, value: Option<ManagedResource>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedResource>>().write_volatile(value) }
+    }
+
     /// 0x2e0 bytes: a result's bytes
     pub const SIZE: usize = 0x2e0;
 
@@ -28316,6 +28473,690 @@ impl SkeletonCombinedPartStorage {
     }
 }
 
+/// A survarium::weapon_ready_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponReadyFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponReadyFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<vostok::binary_config>): weapon_cook::on_weapon_subresources_ready 0x24ACF0's second argument at its entry (attachments.ready, by ESP): the weapon config's resource (its root at +108h, the cook's EBX)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn config(self) -> Option<BinaryConfig> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<BinaryConfig>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<vostok::binary_config>): weapon_cook::on_weapon_subresources_ready 0x24ACF0's second argument at its entry (attachments.ready, by ESP): the weapon config's resource (its root at +108h, the cook's EBX)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_config(self, value: Option<BinaryConfig>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<BinaryConfig>>().write_volatile(value) }
+    }
+
+    /// +0xc (ptr<survarium::weapon>): its third: the weapon weapon_cook made (the callback's EDI from 0x24AF4D; [esp+40h] until the shots' loop takes the slot, 0x24AFA4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn weapon(self) -> Option<Weapon> {
+        unsafe { self.0.byte_add(0xc).cast::<Option<Weapon>>().read_volatile() }
+    }
+
+    /// +0xc (ptr<survarium::weapon>): its third: the weapon weapon_cook made (the callback's EDI from 0x24AF4D; [esp+40h] until the shots' loop takes the slot, 0x24AFA4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_weapon(self, value: Option<Weapon>) {
+        unsafe { self.0.byte_add(0xc).cast::<Option<Weapon>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<vostok::resources::queries_result>): weapon_cook::on_weapon_subresources_ready 0x24ACF0's first argument at its entry (attachments.ready, by ESP): the queries' results, one a request in its order (the callback indexes them so, 0x24ADC8); [esp+38h] of the body until the shots' loop takes the slot, 0x24B063
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn results(self) -> Option<QueriesResult> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<QueriesResult>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::resources::queries_result>): weapon_cook::on_weapon_subresources_ready 0x24ACF0's first argument at its entry (attachments.ready, by ESP): the queries' results, one a request in its order (the callback indexes them so, 0x24ADC8); [esp+38h] of the body until the shots' loop takes the slot, 0x24B063
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_results(self, value: Option<QueriesResult>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<QueriesResult>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::weapon_delete_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponDeleteFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponDeleteFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<survarium::weapon_resource>): weapon_cook::delete_resource 0x24B190's argument (by ESP at its entry): the weapon's +10h, or 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resource(self) -> Option<WeaponResource> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<WeaponResource>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::weapon_resource>): weapon_cook::delete_resource 0x24B190's argument (by ESP at its entry): the weapon's +10h, or 0
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_resource(self, value: Option<WeaponResource>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<WeaponResource>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::weapon_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponResource(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponResource {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x10 (obj<survarium::weapon>): the weapon the resource base is in (delete_resource's `add edi,-10h`, 0x24B19B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn weapon(self) -> Weapon {
+        Weapon(unsafe { self.0.byte_sub(0x10) })
+    }
+}
+
+/// A vostok::animation::finger_set (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FingerSet(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FingerSet {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (f32): fifteen row-vector 4x4: thumb 1..3, index, middle, ring, pinky, each finger locator's offset times the inverse of its parent locator's (parents 0xA6FC08); tick 0x390900 copies them whole into the user's finger bones
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn matrices(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x0).cast::<f32>().as_ptr() }
+    }
+
+    /// 0x3c0 bytes: a set's stride (set_weapon_model 0x390620)
+    pub const SIZE: usize = 0x3c0;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::animation::finger_sets (0x3c0 bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct FingerSetStorage([u8; 0x3c0]);
+
+#[allow(dead_code)]
+impl FingerSetStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0x3c0])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> FingerSet {
+        FingerSet(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<FingerSet> {
+        (!rooms.is_empty()).then(|| FingerSet(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A vostok::animation::fingers_corrector (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FingersCorrector(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl FingersCorrector {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x20f0 (obj<survarium::weapon>): the weapon the corrector is in: weapon_cook::allocate_weapon builds the object in place at weapon+1820h (0x24A7DF), the corrector at its +8D0h (correct_fingers 0x29863F); only a weapon's object has one (vtable 0xA04C34)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn weapon(self) -> Weapon {
+        Weapon(unsafe { self.0.byte_sub(0x20f0) })
+    }
+}
+
+/// A vostok::resources::pinned_resource (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PinnedResource(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl PinnedResource {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<vostok::resources::managed_resource>): a pinned_ptr_const<u8> (0x3DD990 fills it, 0x3C1020 lets it go): the managed resource it holds a reference of
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn resource(self) -> Option<ManagedResource> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedResource>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::resources::managed_resource>): a pinned_ptr_const<u8> (0x3DD990 fills it, 0x3C1020 lets it go): the managed resource it holds a reference of
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_resource(self, value: Option<ManagedResource>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ManagedResource>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<u8>): the resource's bytes, its node [resource+0D4h] + 34h: they stay where they are while the node's pin count (+2Ch) is not 0 (0x3DDA1E..0x3DDA30)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bytes(self) -> *mut u8 {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<u8>): the resource's bytes, its node [resource+0D4h] + 34h: they stay where they are while the node's pin count (+2Ch) is not 0 (0x3DDA1E..0x3DDA30)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_bytes(self, value: *mut u8) {
+        unsafe { self.0.byte_add(0x4).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// +0x8 (u32): their count, [resource+5Ch] (0x3DDA4B)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn count(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x8).cast::<u32>().as_ptr() }
+    }
+
+    /// 0xc bytes: the three words
+    pub const SIZE: usize = 0xc;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for vostok::resources::pinned_resources (0xc bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct PinnedResourceStorage([u8; 0xc]);
+
+#[allow(dead_code)]
+impl PinnedResourceStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xc])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> PinnedResource {
+        PinnedResource(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<PinnedResource> {
+        (!rooms.is_empty()).then(|| PinnedResource(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::dictionary_query_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DictionaryQueryFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DictionaryQueryFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x3c (obj<survarium::resource_request>): items_dictionary_cook::translate_query's five requests by ESP at 0x2C8963 (the address its lea eax,[esp+3Ch] takes for query_resources): five binary configs, class 1Fh
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn requests(self) -> ResourceRequest {
+        ResourceRequest(unsafe { self.0.byte_add(0x3c) })
+    }
+}
+
+/// A survarium::dictionary_configs_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DictionaryConfigsFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl DictionaryConfigsFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (ptr<vostok::resources::queries_result>): items_dictionary_cook::on_configs_loaded 0x2C8AA0's argument at its entry (by ESP): the queries_result of translate_query's query
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn results(self) -> Option<QueriesResult> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<QueriesResult>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<vostok::resources::queries_result>): items_dictionary_cook::on_configs_loaded 0x2C8AA0's argument at its entry (by ESP): the queries_result of translate_query's query
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_results(self, value: Option<QueriesResult>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<QueriesResult>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::weapon_cook_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponCookFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponCookFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// -0x40 (obj<survarium::resource_requests>): weapon_cook::on_weapon_config_loaded 0x24A920's sub-resource requests (by EBP: ebp-40h begin, -3Ch end, -38h capacity end), pushed by 0x5FCB0 into the alloca 0x24AABD sizes from the count at 0x24AAB4, queried at 0x24AC95 ((end - begin) / 8 of them, 0x24AC84..0x24AC92)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn requests(self) -> ResourceRequests {
+        ResourceRequests(unsafe { self.0.byte_sub(0x40) })
+    }
+
+    /// -0x14 (ptr<u8>): on_weapon_config_loaded's scope: the config path of the scope item the weapon names, 0 for none (cleared at 0x24AA15; the game's own from addons/rifle_scope_dict_id's dictionary entry +118h, 0x24AA67..0x24AA75; pushed first, class 4Dh, when not 0: 0x24AACC..0x24AAE7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scope_path(self) -> *mut u8 {
+        unsafe { self.0.byte_sub(0x14).cast::<*mut u8>().read_volatile() }
+    }
+
+    /// -0x14 (ptr<u8>): on_weapon_config_loaded's scope: the config path of the scope item the weapon names, 0 for none (cleared at 0x24AA15; the game's own from addons/rifle_scope_dict_id's dictionary entry +118h, 0x24AA67..0x24AA75; pushed first, class 4Dh, when not 0: 0x24AACC..0x24AAE7)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_scope_path(self, value: *mut u8) {
+        unsafe { self.0.byte_sub(0x14).cast::<*mut u8>().write_volatile(value) }
+    }
+
+    /// -0xc (u32): the requests it will push (the shells, the shot effects and one; one more with a scope, 0x24AA72): what the alloca is sized by at 0x24AAB4
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn requests_count(self) -> *mut u32 {
+        unsafe { self.0.byte_sub(0xc).cast::<u32>().as_ptr() }
+    }
+
+    /// -0x1c (ptr<survarium::weapon_cook>): the cook itself (ECX kept at 0x24A926; its game read at 0x24AA4F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cook(self) -> Option<WeaponCook> {
+        unsafe { self.0.byte_sub(0x1c).cast::<Option<WeaponCook>>().read_volatile() }
+    }
+
+    /// -0x1c (ptr<survarium::weapon_cook>): the cook itself (ECX kept at 0x24A926; its game read at 0x24AA4F)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cook(self, value: Option<WeaponCook>) {
+        unsafe { self.0.byte_sub(0x1c).cast::<Option<WeaponCook>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::resource_requests (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResourceRequests(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ResourceRequests {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x0 (ptr<survarium::resource_request>): a buffer_vector of {path, class} requests: the first
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn begin(self) -> Option<ResourceRequest> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ResourceRequest>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<survarium::resource_request>): a buffer_vector of {path, class} requests: the first
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_begin(self, value: Option<ResourceRequest>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ResourceRequest>>().write_volatile(value) }
+    }
+
+    /// +0x4 (ptr<survarium::resource_request>): past the last
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn end(self) -> Option<ResourceRequest> {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ResourceRequest>>().read_volatile() }
+    }
+
+    /// +0x4 (ptr<survarium::resource_request>): past the last
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_end(self, value: Option<ResourceRequest>) {
+        unsafe { self.0.byte_add(0x4).cast::<Option<ResourceRequest>>().write_volatile(value) }
+    }
+
+    /// +0x8 (ptr<survarium::resource_request>): past the room (the cook's alloca, exactly the count at 0x24AAB4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn capacity(self) -> Option<ResourceRequest> {
+        unsafe { self.0.byte_add(0x8).cast::<Option<ResourceRequest>>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<survarium::resource_request>): past the room (the cook's alloca, exactly the count at 0x24AAB4)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_capacity(self, value: Option<ResourceRequest>) {
+        unsafe { self.0.byte_add(0x8).cast::<Option<ResourceRequest>>().write_volatile(value) }
+    }
+
+    /// 0xc bytes: a buffer_vector's three pointers
+    pub const SIZE: usize = 0xc;
+
+    /// The `index`th of an array of them that starts at this one.
+    ///
+    /// # Safety
+    /// The array has more than `index`.
+    #[inline(always)]
+    pub unsafe fn at(self, index: usize) -> Self {
+        Self(unsafe { self.0.byte_add(index * Self::SIZE) })
+    }
+
+    /// Which of an array that starts at `first` this one is (None before `first`, or between two).
+    #[inline(always)]
+    pub fn index_from(self, first: Self) -> Option<usize> {
+        let offset = (self.0.as_ptr() as usize).checked_sub(first.0.as_ptr() as usize)?;
+        (offset % Self::SIZE == 0).then_some(offset / Self::SIZE)
+    }
+}
+
+/// Room of ours for survarium::resource_requestss (0xc bytes, aligned to 4), zeroed: a local the game fills,
+/// or one we fill for it.
+#[repr(C, align(4))]
+pub struct ResourceRequestsStorage([u8; 0xc]);
+
+#[allow(dead_code)]
+impl ResourceRequestsStorage {
+    pub const fn zeroed() -> Self {
+        Self([0; 0xc])
+    }
+
+    /// The one this room holds (alive while the room is).
+    #[inline(always)]
+    pub fn handle(&mut self) -> ResourceRequests {
+        ResourceRequests(NonNull::from(self).cast())
+    }
+
+    /// The first of these rooms, an array of them (None when there is none).
+    #[inline(always)]
+    pub fn first(rooms: &mut [Self]) -> Option<ResourceRequests> {
+        (!rooms.is_empty()).then(|| ResourceRequests(NonNull::from(rooms).cast()))
+    }
+}
+
+/// A survarium::weapon_draw_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponDrawFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponDrawFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x8 (ptr<f32>): weapon::draw 0x244E10's [ebp+8]: the weapon's world matrix (calculate_locator's second argument at 0x244E51)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn world(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x8).cast::<*mut f32>().read_volatile() }
+    }
+
+    /// +0x8 (ptr<f32>): weapon::draw 0x244E10's [ebp+8]: the weapon's world matrix (calculate_locator's second argument at 0x244E51)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_world(self, value: *mut f32) {
+        unsafe { self.0.byte_add(0x8).cast::<*mut f32>().write_volatile(value) }
+    }
+
+    /// +0xc (ptr<f32>): its [ebp+0Ch]: the model-space bone matrices (calculate_locator's third, 0x244E4D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn bones(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0xc).cast::<*mut f32>().read_volatile() }
+    }
+
+    /// +0xc (ptr<f32>): its [ebp+0Ch]: the model-space bone matrices (calculate_locator's third, 0x244E4D)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_bones(self, value: *mut f32) {
+        unsafe { self.0.byte_add(0xc).cast::<*mut f32>().write_volatile(value) }
+    }
+}
+
+/// A survarium::weapon_cook (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponCook(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponCook {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x24 (ptr<survarium::game>): the game (on_weapon_config_loaded 0x24AA4F: [cook+24h]+53A4h the items dictionary the scope's dict id is looked up in)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn game(self) -> Option<Game> {
+        unsafe { self.0.byte_add(0x24).cast::<Option<Game>>().read_volatile() }
+    }
+
+    /// +0x24 (ptr<survarium::game>): the game (on_weapon_config_loaded 0x24AA4F: [cook+24h]+53A4h the items dictionary the scope's dict id is looked up in)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_game(self, value: Option<Game>) {
+        unsafe { self.0.byte_add(0x24).cast::<Option<Game>>().write_volatile(value) }
+    }
+}
+
+/// A survarium::weapon_ready_body_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WeaponReadyBodyFrame(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl WeaponReadyBodyFrame {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x24 (u32): on_weapon_subresources_ready's body by its ESP after its four pushes (0x24AD13): the scope object the cook's setter 0x245BC0 fills (its out argument, lea esi,[esp+24h] at 0x24AD96), cleared at 0x24AD17
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn scope_taken(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0x24).cast::<u32>().as_ptr() }
+    }
+
+    /// +0x30 (ptr<survarium::weapon_cook>): the cook, ECX kept there at 0x24AD13
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn cook(self) -> Option<WeaponCook> {
+        unsafe { self.0.byte_add(0x30).cast::<Option<WeaponCook>>().read_volatile() }
+    }
+
+    /// +0x30 (ptr<survarium::weapon_cook>): the cook, ECX kept there at 0x24AD13
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_cook(self, value: Option<WeaponCook>) {
+        unsafe { self.0.byte_add(0x30).cast::<Option<WeaponCook>>().write_volatile(value) }
+    }
+}
+
 /// A survarium::player_killed_frame (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
 /// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
 #[repr(transparent)]
@@ -28866,6 +29707,39 @@ impl BreathState {
     #[inline(always)]
     pub unsafe fn vtable(self) -> *mut u32 {
         unsafe { self.0.byte_add(0x0).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A survarium::camera_director (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CameraDirector(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl CameraDirector {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0x4 (f32): the camera's transform, a row-vector 4x4 (16 f32: right, up, forward, place) that base_game_scene::apply_camera copies to the scene's +0Ch (0x23DDE0)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn view(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x4).cast::<f32>().as_ptr() }
+    }
+
+    /// +0x44 (f32): the projection, D3D's left-handed with a vertical field of view (16 f32; [2][0] and [2][1] the jitter, [2][2] and [3][2] the depth range) that apply_camera copies to the scene's +4Ch (0x23DDED)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn projection(self) -> *mut f32 {
+        unsafe { self.0.byte_add(0x44).cast::<f32>().as_ptr() }
     }
 }
 
@@ -29693,6 +30567,9 @@ pub mod image {
 
     /// 0x23fc31 (u8, survarium::image): the landing step's (0x23FBE0) return from on_step (call 0x23FC2C)
     pub const LANDING_STEP_RETURN: u32 = 0x23fc31;
+
+    /// 0x9f0f24 (u32, survarium::image): skeleton_render_model_instance's vtable (written at 0x15A111, 0x15A220): +24h get_locator 0x15A9C0, a tail jump through the original model (+62B4h)'s vtable +28h
+    pub const SKELETON_INSTANCE_VTABLE: u32 = 0x9f0f24;
 
     /// 0xa16fac (u32, survarium::image): breath_state_holding's vtable (initialize_logic 0x31D4CF): +4h initialize 0x31D140, +0Ch finalize 0x31D190, +1Ch tick 0x31D200
     pub const BREATH_HOLDING_VTABLE: u32 = 0xa16fac;
@@ -34996,6 +35873,279 @@ pub mod site {
         }
     }
 
+    /// attachments.ready (0x24acf0): weapon_cook::on_weapon_subresources_ready's entry (sub esp,24h / push ebx / push ebp): [esp+8] the weapon config's resource, [esp+0Ch] the weapon weapon_cook made, as the cook's functor binds them (0x24AC39..); by load_weapon both slots are the shots' loop's temporaries (0x24B063, 0x24AFA4, 0x24B044)
+    pub mod attachments_ready {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::weapon_ready_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponReadyFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(WeaponReadyFrame)
+        }
+    }
+
+    /// attachments.loaded (0x24b0e1): on_weapon_subresources_ready (0x24ACF0) after load_weapon 0x243A30 returned (mov ecx,[esp+48h] / mov edx,[esp+44h]): EDI the weapon, its barrel, scope and aim locator records (+6E0h, +744h, +7A8h) and its finger corrector's sets (set_weapon_model at 0x243BB6) just filled from its model
+    pub mod attachments_loaded {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDI: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Edi) as usize as *mut c_void).map(Weapon)
+        }
+    }
+
+    /// attachments.hands (0x244649): weapon::activate (0x244610) after hand_to_weapon_ik_solver::set_weapon_locators (0x392AE0, called at 0x244644) filled the solver's sixteen records from the weapon's model (mov al,[esi+5E9h], the double_handed test): ESI the weapon
+    pub mod attachments_hands {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Weapon)
+        }
+    }
+
+    /// attachments.shells (0x2443ee): play_weapon_shell_pfx (0x2443D0) at its read of the scope's frame (lea eax,[esi+660h], pushed twice from 0x2443F4): ESI the weapon, EAX the matrix the shell effect plays at
+    pub mod attachments_shells {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Weapon)
+        }
+    }
+
+    /// attachments.release (0x24b190): weapon_cook::delete_resource's entry (push ebx / push esi / push edi / mov edi,[esp+10h]): [esp+4] the weapon's +10h, 0 for none
+    pub mod attachments_release {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::weapon_delete_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponDeleteFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(WeaponDeleteFrame)
+        }
+    }
+
+    /// attachments.dictionary_requests (0x2c8963): items_dictionary_cook::translate_query (0x2C88D0) before its query_resources (0x2C896C), the other arguments pushed: mov ecx,5 (the requests' count) / lea eax,[esp+3Ch] (the requests); query_resources copies the requests before it returns
+    pub mod attachments_dictionary_requests {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::dictionary_query_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<DictionaryQueryFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(DictionaryQueryFrame)
+        }
+    }
+
+    /// attachments.dictionary_configs (0x2c8aa0): items_dictionary_cook::on_configs_loaded's entry (push ebp / mov ebp,esp / sub esp,0E8h): [esp+4] the queries_result of translate_query's query; the dictionary is made of its first five results after this (0x2C8AF5..), each read by its place
+    pub mod attachments_dictionary_configs {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// the site's ESP: a survarium::dictionary_configs_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<DictionaryConfigsFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(DictionaryConfigsFrame)
+        }
+    }
+
+    /// attachments.request_room (0x24aab4): weapon_cook::on_weapon_config_loaded (0x24A920) before it sizes the requests' alloca (lea esi,[eax*8+0]; 0x424CA0 at 0x24AABD): EAX the requests it will push, EBX the weapon config's root
+    pub mod attachments_request_room {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn root(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+
+        /// EAX: a u32 value.
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn count(machine: &impl Machine) -> u32 {
+            machine.register(Register::Eax)
+        }
+    }
+
+    /// attachments.asked (0x24ac30): on_weapon_config_loaded after weapon_cook::allocate_weapon (0x24A780, called at 0x24AC2B; it keeps EBX) returned the weapon in EAX, every request of the game's pushed (the last at 0x24ABEE) and none read yet (query_resources at 0x24AC95): mov bl,[ebp+10h] / sub esp,20h; EBX the weapon config's root, [ebp-40h] the requests
+    pub mod attachments_asked {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(Weapon)
+        }
+
+        /// EBX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn root(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+
+        /// EBP: a survarium::weapon_cook_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponCookFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(WeaponCookFrame)
+        }
+    }
+
+    /// attachments.draw (0x245017): weapon::draw (0x244E10) after the weapon model's update and the aimed scope's add or remove (every path joins here; mov esi,[ebp+14h] / test esi,esi): EBX the weapon, [ebp+8] its world matrix, [ebp+0Ch] its bones
+    pub mod attachments_draw {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Weapon)
+        }
+
+        /// EBP: a survarium::weapon_draw_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponDrawFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(WeaponDrawFrame)
+        }
+    }
+
+    /// attachments.culled (0x245353): weapon::on_culled_player_draw (0x245250) after the weapon model's update at the player's root (mov ebx,[ebx+1808h]; EBX the weapon until it)
+    pub mod attachments_culled {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(Weapon)
+        }
+    }
+
+    /// attachments.hidden (0x244017): weapon::on_hide (0x243FA0) after the weapon model's removal (0x244012, or the aimed scope's 181Dh skipping it; mov edi,[esi+1808h]): ESI the weapon
+    pub mod attachments_hidden {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// ESI: a survarium::weapon (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn weapon(machine: &impl Machine) -> Option<Weapon> {
+            NonNull::new(machine.register(Register::Esi) as usize as *mut c_void).map(Weapon)
+        }
+    }
+
+    /// attachments.scope_dict (0x24aa15): on_weapon_config_loaded (0x24A920) at its scope: mov dword [ebp-14h],0 (no scope yet), before the game looks for addons/rifle_scope_dict_id (the two has-checks 0x24AA1C, 0x24AA33, each a jz to 0x24AA78) and takes that dict id's dictionary entry's config path into [ebp-14h] with one more request ([ebp-0Ch], 0x24AA72); scoped is the block's end 0x24AA78, the path and the count already set
+    pub mod attachments_scope_dict {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EBX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn root(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Ebx) as usize as *mut c_void).map(EngineCfg)
+        }
+
+        /// EBP: a survarium::weapon_cook_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponCookFrame> {
+            NonNull::new(machine.register(Register::Ebp) as usize as *mut c_void).map(WeaponCookFrame)
+        }
+    }
+
+    /// attachments.scope_result (0x24ad13): on_weapon_subresources_ready (0x24ACF0) before it asks the config again whether the weapon has a scope (mov [esp+30h],ecx / mov [esp+24h],ebx, EBX 0: the two stores before the has-checks 0x24AD1B, 0x24AD3A, each a jz to 0x24ADC8 = no scope, the results from 0; the mov esi,offset "addons" before them has a base relocation and stays the game's): EAX the config's root, ECX the cook; scoped is 0x24AD47, where the first result is taken as the scope and the others follow from 1
+    pub mod attachments_scope_result {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EAX: a vostok::engine_cfg (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn root(machine: &impl Machine) -> Option<EngineCfg> {
+            NonNull::new(machine.register(Register::Eax) as usize as *mut c_void).map(EngineCfg)
+        }
+
+        /// ECX: a survarium::weapon_cook (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn cook(machine: &impl Machine) -> Option<WeaponCook> {
+            NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(WeaponCook)
+        }
+
+        /// the site's ESP: a survarium::weapon_ready_body_frame (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn frame(machine: &impl Machine) -> Option<WeaponReadyBodyFrame> {
+            NonNull::new(machine.site_esp() as usize as *mut c_void).map(WeaponReadyBodyFrame)
+        }
+    }
+
     /// weapon_stats.killed (0x26da00): base_game_statistics_handler::on_player_killed's start (push esi / mov esi,ecx / mov eax,[esi+3238h]; vtable 0xA0755C slot +0, called only by generate_killed_event 0x2DA46C): ECX the handler, the site's ESP its 17 arguments, before shared_statistics::on_player_killed 0x2F4EB0 counts the kill
     pub mod weapon_stats_killed {
         #[allow(unused_imports)]
@@ -35266,6 +36416,21 @@ pub mod site {
         #[inline(always)]
         pub unsafe fn bones(machine: &impl Machine) -> Option<Float4x4> {
             NonNull::new(machine.register(Register::Ecx) as usize as *mut c_void).map(Float4x4)
+        }
+    }
+
+    /// camera.apply (0x23ddd0): base_game_scene::apply_camera's start (sub esp,40h / push ebx / mov ebx,[esp+48h]; ret 4, the scene its stack argument): EDX the camera_director whose view (+4h) and projection (+44h) it copies into the scene (+0Ch, +4Ch) for the frame's draw; its one caller camera_director::apply (0x2434F6), every frame of every scene with a camera
+    pub mod camera_apply {
+        #[allow(unused_imports)]
+        use super::*;
+
+        /// EDX: a survarium::camera_director (None for 0).
+        ///
+        /// # Safety
+        /// `machine` is at this site.
+        #[inline(always)]
+        pub unsafe fn director(machine: &impl Machine) -> Option<CameraDirector> {
+            NonNull::new(machine.register(Register::Edx) as usize as *mut c_void).map(CameraDirector)
         }
     }
 }

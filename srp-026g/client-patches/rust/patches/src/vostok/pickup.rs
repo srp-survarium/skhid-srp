@@ -1648,8 +1648,8 @@ fn affine_inverse(m: &[f32; 16]) -> Option<[f32; 16]> {
 /// # Safety
 /// `inventory` is a live cooked inventory of ours, its gun the game's in no
 /// way (not registered, not in hands).
-pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: WeaponSlot, transform: &[f32; 16],
-                                            ours: Models) -> Models {
+pub(in crate::vostok) unsafe fn place_lying(thread: Option<&Thread>, inventory: raw::Inventory, slot: WeaponSlot,
+                                            transform: &[f32; 16], ours: Models) -> Models {
     use super::carry_runtime::Scene;
     unsafe {
         let Some((_, gun)) = cooked_gun(inventory, slot) else { return ours };
@@ -1666,6 +1666,10 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
         if ours.has(Models::BODY) && scope.is_none() {
             Scene::as_world(model);
             scene.present(model, transform);
+            // its fitted parts (patch 161) move with it
+            if let Some(thread) = thread {
+                super::attachments::lie(thread, weapon, &scene, transform, None);
+            }
             return ours;
         }
         // The bind pose: each bone the inverse of its inverse bind (the
@@ -1688,6 +1692,10 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
             scene.skin(model, bones);
             now |= Models::BODY;
         }
+        // its fitted parts (patch 161), each where it stands in that pose
+        if let Some(thread) = thread {
+            super::attachments::lie(thread, weapon, &scene, transform, Some(bones));
+        }
         if let Some(scope) = scope {
             let mut at = [0.0f32; 16];
             raw::engine_weapon_locator(at.as_mut_ptr(), Some(weapon.scope_locator()), transform.as_ptr(),
@@ -1707,12 +1715,20 @@ pub(in crate::vostok) unsafe fn place_lying(inventory: raw::Inventory, slot: Wea
 ///
 /// # Safety
 /// As [`place_lying`]'s.
-pub(in crate::vostok) unsafe fn remove_lying(inventory: raw::Inventory, slot: WeaponSlot, ours: Models) {
+pub(in crate::vostok) unsafe fn remove_lying(thread: Option<&Thread>, inventory: raw::Inventory, slot: WeaponSlot,
+                                             ours: Models) {
     use super::carry_runtime::Scene;
     unsafe {
         let Some((_, gun)) = cooked_gun(inventory, slot) else { return };
         let weapon = gun.weapon();
         let Some(scene) = weapon.world().and_then(|world| Scene::of_world(world)) else { return };
+        // its fitted parts (patch 161) with the body; without a thread (the
+        // inventory's own end) the weapon's release takes them out
+        if let Some(thread) = thread
+            && ours.has(Models::BODY)
+        {
+            super::attachments::out_of_scene(thread, weapon, &scene);
+        }
         if ours.has(Models::BODY) && let Some(model) = weapon.model() {
             scene.remove(model);
         }

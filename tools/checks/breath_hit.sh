@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Patch 176: a hit that takes health breaks the victim's breath hold.
+# Patch 177: a hit that takes health breaks the victim's breath hold.
 set -euo pipefail
 main=$(git worktree list --porcelain | sed -n '1s/^worktree //p')
 exe=${SKHID_ORIGINAL_EXE:-$main/private/function-map/inputs/026g/survarium.exe}

@@ -1,4 +1,4 @@
-//! Patch 176: a hit that takes health breaks the victim's breath hold (the
+//! Patch 177: a hit that takes health breaks the victim's breath hold (the
 //! owner, 2026-11-21: "when player gets hit they lose their breath holding";
 //! docs/notes/breath-hit.md).
 //!
