@@ -672,8 +672,8 @@ function drawExplain(target, b, sim) {
   const steps = [
     [T("Bullet", "Куля"), T("D, P = weapon × ammo, D falling with distance", "D, P = зброя × набій, D спадає з дистанцією"),
       { in: `${state.dist} ${M}` + (b.pellets > 1 ? T(` · ${b.pellets} pellets`, ` · ${b.pellets} дробин`) : ""), ...DP(fired.D, fired.P) }],
-    [T("Wall", "Стіна"), T("P ≤ A: the bullet stays in the wall · else D, P × (1 − (1 − (P − A) / A)²)",
-      "P ≤ A: куля застрягає в стіні · інакше D, P × (1 − (1 − (P − A) / A)²)"),
+    [T("Wall", "Стіна"), T("P ≤ A: the bullet stays in the wall · else D, P × (1 − (A / P)²)",
+      "P ≤ A: куля застрягає в стіні · інакше D, P × (1 − (A / P)²)"),
       !b.wall ? { in: none, none: true, ...DP(b.D, b.P) } : stopped ? { in: T("stays in the wall", "застрягає в стіні") }
         : { in: `${nm(wallOf()).toLowerCase()}, A ${hp(b.wall.A)}: × ${fx(b.wall.k, 2)}`, ...DP(b.D, b.P) }],
     onyx && [nm(onyx),
