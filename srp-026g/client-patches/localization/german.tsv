@@ -1443,6 +1443,7 @@ st_level_25_name	Schule (v0.21)
 st_level_26_name	Tarakanowski Fort (v0.21)
 st_level_29_name	Rudnya (v0.21)
 st_level_31_name	Chemiebetrieb (v0.21)
+st_level_32_name	London (v0.42)
 st_lifebone_activation_hint	Lebensknochen ist aktiviert! Alle kritische Verlätzungen sind geheilt! Gesundheit wiederhergestellt!
 st_lifebone_pickup_hint	Artefakt Lebknochen. Erhöht die Regeneration.
 st_lightning_quality_option	Beleuchtung Qualität
@@ -2751,6 +2752,7 @@ st_srp_map_cs_mp_rembasa	Reparaturdepot
 st_srp_map_cs_mp_sport_center	Sportzentrum
 st_srp_map_cs_training_camp	Trainingslager
 st_srp_map_london	London (v0.32)
+st_srp_map_london_v042	London (v0.42)
 st_srp_map_mamayev_kurgan	Mamaew kurgan
 st_srp_map_mamayev_kurgan_v021	Mamaew kurgan (v0.21)
 st_srp_map_names_option	Namen auf Karte

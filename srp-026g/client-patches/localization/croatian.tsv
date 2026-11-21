@@ -1443,6 +1443,7 @@ st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovska utvrda (v0.21)
 st_level_29_name	Rudnja (v0.21)
 st_level_31_name	Kemijska tvornica (v0.21)
+st_level_32_name	London (v0.42)
 st_lifebone_activation_hint	Kokotić je aktiviran! Sve su kritične rane izliječene! Zdravlje je obnovljeno!
 st_lifebone_pickup_hint	Artefakt Kokotić. Povećava obnovu zdravlja. 
 st_lightning_quality_option	Kvaliteta osvjetljenja
@@ -2751,6 +2752,7 @@ st_srp_map_cs_mp_rembasa	Servisno skladište
 st_srp_map_cs_mp_sport_center	Sportski centar
 st_srp_map_cs_training_camp	Kamp za obuku
 st_srp_map_london	London (v0.32)
+st_srp_map_london_v042	London (v0.42)
 st_srp_map_mamayev_kurgan	Mamajev kurgan
 st_srp_map_mamayev_kurgan_v021	Mamajev kurgan (v0.21)
 st_srp_map_names_option	Imena na karti

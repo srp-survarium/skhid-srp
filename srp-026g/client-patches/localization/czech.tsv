@@ -1443,6 +1443,7 @@ st_level_25_name	Škola (v0.21)
 st_level_26_name	Tarakanovská pevnost (v0.21)
 st_level_29_name	Rudňa (v0.21)
 st_level_31_name	Chemička (v0.21)
+st_level_32_name	Londýn (v0.42)
 st_lifebone_activation_hint	Ostrožka aktivována! Všechna těžká zranění vyléčena! Zdraví obnoveno!
 st_lifebone_pickup_hint	Artefakt Ostrožka. Zrychluje obnovu zdraví. 
 st_lightning_quality_option	Kvalita osvětlení
@@ -2751,6 +2752,7 @@ st_srp_map_cs_mp_rembasa	Repair Depot
 st_srp_map_cs_mp_sport_center	Sports Center
 st_srp_map_cs_training_camp	Training Camp
 st_srp_map_london	Londýn (v0.32)
+st_srp_map_london_v042	Londýn (v0.42)
 st_srp_map_mamayev_kurgan	Mamajova mohyla
 st_srp_map_mamayev_kurgan_v021	Mamajova mohyla (v0.21)
 st_srp_map_names_option	Jména na mapě
