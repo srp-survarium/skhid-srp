@@ -11,6 +11,12 @@ pub struct Affine {
     pub t: [f32; 3],
 }
 
+impl Default for Affine {
+    fn default() -> Affine {
+        Affine::IDENTITY
+    }
+}
+
 impl Affine {
     pub const IDENTITY: Affine =
         Affine { x: [1.0, 0.0, 0.0], y: [0.0, 1.0, 0.0], z: [0.0, 0.0, 1.0], t: [0.0, 0.0, 0.0] };
@@ -94,7 +100,7 @@ fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     [a1 * b2 - a2 * b1, a2 * b0 - a0 * b2, a0 * b1 - a1 * b0]
 }
 
-fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
+pub(crate) fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
     let ([a0, a1, a2], [b0, b1, b2]) = (a, b);
     a0 * b0 + a1 * b1 + a2 * b2
 }

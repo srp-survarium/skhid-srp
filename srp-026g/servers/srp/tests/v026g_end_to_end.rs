@@ -1279,11 +1279,11 @@ struct BotRun {
 
 impl BotRun {
     fn start(stack: &Stack, name: &str, once: bool) -> Self {
-        Self::start_with(stack, name, once, false)
+        Self::start_with(stack, name, once, None)
     }
 
     /// With `drive`: the bot sends the inputs of its script (`srp::drive`).
-    fn start_with(stack: &Stack, name: &str, once: bool, drive: bool) -> Self {
+    fn start_with(stack: &Stack, name: &str, once: bool, drive: Option<srp::drive::Script>) -> Self {
         let lines = Arc::new(Mutex::new(Vec::new()));
         let stop = Arc::new(AtomicBool::new(false));
         let config = srp::bot::Config {
@@ -1546,7 +1546,7 @@ fn a_driving_bot_s_inputs_reach_the_player_s_game_in_time() {
     use srp::drive::key;
     let dir = temp_dir("bot-drive");
     let stack = start_with_bots(&dir, &["bot-1"]);
-    let bot = BotRun::start_with(&stack, "bot-1", true, true);
+    let bot = BotRun::start_with(&stack, "bot-1", true, Some(srp::drive::Script::Stage0));
     let (mut solo, _match_id, places, _teams) = solo_and_bot_into_a_match(&stack, &bot);
     let bot_place = places[1];
     assert!(bot.said("drives: the script starts").is_some());

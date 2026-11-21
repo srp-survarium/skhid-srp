@@ -89,7 +89,7 @@
 //!   is named after) or else by seller 0 at no rank (the rank badges), for
 //!   `base_cost` [the owner's choice, 2026-11-07: vanity, so dear];
 //! - not listed: anything else with `base_cost` 0 (their ammo is listed at
-//!   no cost, see [`sellers_of_in`]; artefacts, money, the New Year 2015 camouflage), premium
+//!   no cost, see [`sellers_of_with`]; artefacts, money, the New Year 2015 camouflage), premium
 //!   items (they belong to the premium shop, 0x95, or are sold one by one
 //!   by seller 0, `shop_offers`), artefacts (as 0.21d), vouchers,
 //!   the other decals and the drop camouflages;
@@ -109,7 +109,7 @@ use binary_config_parser::tree::ConfigValue;
 
 use super::dictionary::{Dictionary, Item};
 use super::item_params::ItemParams;
-use super::scopes::{SCOPE_CATEGORY, ScopeFits};
+use super::scopes::SCOPE_CATEGORY;
 use super::weapon_modules::Modules;
 
 /// Silver for one gold: the game's exchange rate (0.21d's web page sold gold
@@ -344,31 +344,20 @@ fn top_level(dictionary: &Dictionary, faction_id: u8) -> u8 {
 
 /// Who sells `item` and at which reputation level: `(seller, level)`, by
 /// seller. A shop camouflage by its folder's faction at level 0
-/// ([`is_shop_camo`]); scopes by the game data's ([`sellers_of_in`]); else
+/// ([`is_shop_camo`]); scopes, muzzle devices and grips by the game data's
+/// modules table ([`sellers_of_with`]); else
 /// [`ShopRules`] first, else the module's rule; ammo at level 0
 /// ([`AMMO_NEEDS_RANK`]).
 pub fn sellers_of(dictionary: &Dictionary, item: &Item, params: &ItemParams) -> Vec<(u8, u8)> {
-    sellers_of_in(dictionary, ScopeFits::shared(), item, params)
+    sellers_of_with(dictionary, Modules::shared(), item, params)
 }
 
-/// [`sellers_of`] with `scopes`, and the game data's modules table
-/// ([`sellers_of_with`]).
-pub fn sellers_of_in(
-    dictionary: &Dictionary,
-    scopes: &ScopeFits,
-    item: &Item,
-    params: &ItemParams,
-) -> Vec<(u8, u8)> {
-    sellers_of_with(dictionary, scopes, Modules::shared(), item, params)
-}
-
-/// [`sellers_of`] with `scopes` and `modules`: a category-22 item with a
-/// price is sold by seller 0 at level 0 when it is a scope item of a pair,
-/// or an item some gun takes as a module (a muzzle device, a grip:
-/// [`Modules::is_module`]); no other category-22 item is.
+/// [`sellers_of`] with `modules`: a category-22 item with a price is sold
+/// by seller 0 at level 0 when some gun takes it as a module (a scope, a
+/// muzzle device, a grip: [`Modules::is_module`]); no other category-22
+/// item is (0.26g's own three scopes, a retired scope variant).
 pub fn sellers_of_with(
     dictionary: &Dictionary,
-    scopes: &ScopeFits,
     modules: &Modules,
     item: &Item,
     params: &ItemParams,
@@ -380,8 +369,7 @@ pub fn sellers_of_with(
         return camo_shop(&item.cfg_name).map_or_else(Vec::new, |faction| vec![(faction, 0)]);
     }
     if item.category == SCOPE_CATEGORY {
-        let fitted = scopes.is_scope(item.dict_id) || modules.is_module(item.dict_id);
-        return if item.base_cost != 0 && fitted {
+        return if item.base_cost != 0 && modules.is_module(item.dict_id) {
             vec![(0, 0)]
         } else {
             Vec::new()
@@ -1250,20 +1238,21 @@ mod tests {
     }
 
     #[test]
-    fn scope_items_with_variants_are_sold_to_everyone_at_their_cost() {
+    fn items_a_gun_takes_as_a_module_are_sold_to_everyone_at_their_cost() {
         use super::super::game_data;
         use super::super::scopes::fixtures::{
-            self, AK_74N_PSO_1, BROKEN, COBRA, COBRA_COST, LONE_SCOPE, PSO_1, PSO_1_COST,
+            self, COBRA, COBRA_COST, LONE_SCOPE, PSO_1, PSO_1_COST,
         };
+        use super::super::weapon_modules::{Kind, fixtures::modules};
         let data = fixtures::with_scopes();
         let dictionary = fixtures::dictionary_of(&data);
-        let fits = fixtures::fits();
-        let sellers = |dict_id: u16| {
+        let sellers_with = |table: &Modules, dict_id: u16| {
             let item = dictionary.item(dict_id).unwrap();
             let config = game_data::config(&data, &item.cfg_name).unwrap().unwrap();
             let params = ItemParams::from_config(dict_id, &config).unwrap();
-            sellers_of_in(&dictionary, fits, item, &params)
+            sellers_of_with(&dictionary, table, item, &params)
         };
+        let sellers = |dict_id: u16| sellers_with(fixtures::modules(), dict_id);
         // Seller 0, no rank: every player may buy; the dictionary's price.
         for (dict_id, cost) in [(PSO_1, PSO_1_COST), (COBRA, COBRA_COST)] {
             assert_eq!(sellers(dict_id), [(0, 0)]);
@@ -1274,24 +1263,19 @@ mod tests {
                 u64::from(cost / 4)
             );
         }
-        // An item some gun takes as a module is sold the same way; without
-        // the table it is not.
-        let item = dictionary.item(LONE_SCOPE).unwrap();
-        let config = game_data::config(&data, &item.cfg_name).unwrap().unwrap();
-        let params = ItemParams::from_config(LONE_SCOPE, &config).unwrap();
-        let table = super::super::weapon_modules::fixtures::modules(&[(63, LONE_SCOPE, super::super::weapon_modules::Kind::Muzzle)]);
-        assert_eq!(sellers_of_with(&dictionary, fits, &table, item, &params), [(0, 0)]);
-        assert!(sellers_of_with(&dictionary, fits, &Modules::NONE, item, &params).is_empty());
-        // Not a scope item no variant names, not a variant, not 0.26g's
-        // own scopes (which have a base_cost: Leupold 25,000, PSO-1
-        // 20,000).
-        let mut unsold = vec![LONE_SCOPE, AK_74N_PSO_1, 69, 304, 362];
-        unsold.extend(BROKEN);
-        for dict_id in unsold {
+        // Not a scope item no gun takes, not 0.26g's own scopes (which
+        // have a base_cost: Leupold 25,000, PSO-1 20,000).
+        for dict_id in [LONE_SCOPE, 69, 304, 362] {
             assert!(sellers(dict_id).is_empty(), "{dict_id}");
         }
-        // The players' data before the patch has no variant: no scope in
-        // the list.
+        // An item a gun takes as a muzzle device or a grip is sold the same
+        // way; without the table nothing of the category is.
+        let device = modules(&[(63, LONE_SCOPE, Kind::Muzzle)]);
+        assert_eq!(sellers_with(&device, LONE_SCOPE), [(0, 0)]);
+        for dict_id in [PSO_1, COBRA, LONE_SCOPE] {
+            assert!(sellers_with(&Modules::NONE, dict_id).is_empty(), "{dict_id}");
+        }
+        // Game data without the modules table: no scope in the list.
         assert!(price_list().iter().all(|record| {
             Dictionary::shared().item(record.dict_id).unwrap().category != SCOPE_CATEGORY
         }));

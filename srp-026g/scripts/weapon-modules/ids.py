@@ -30,6 +30,8 @@ HERE = Path(__file__).resolve().parent
 
 FIRST = 2601
 HEAD = ('# The fitted modules\' dict ids (ids.py; append-only): 0.69d0 module, our dict id, its kind, our item.\n'
+        '# No item is made for an id no gun takes in the built table; the id stays taken: 2652-2655 (the VSSK\'s\n'
+        '# barrels, its suppressor in other shapes), 2667, 2669, 2670 (the OTs-14\'s and the SR-3M\'s own foregrips).\n'
         '# module\tdict id\tkind\titem\n')
 
 
