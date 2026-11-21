@@ -437,15 +437,15 @@ before they can ship on top of this list.
 
 | change | why |
 |---|---|
-| `data/fov_factor` 0.8 -> 0.5 in the Aimpoint CompM4's item (its name with x2 is in `../../client-patches/localization/*.tsv`) | the owner (2026-10-26): the CompM4 at x2, as 0.46c2 and 0.69d0 have it (the coordinator's pick: the item itself, so its owners get x2) |
+| `data/fov_factor` 0.8 -> 0.5 in the Aimpoint CompM4's item and its 25 variants (its name with x2 is in `../../client-patches/localization/*.tsv`) | the owner (2026-10-26): the CompM4 at x2, as 0.46c2 and 0.69d0 have it (the coordinator's pick: the item itself, so its owners get x2) |
 
-Its 184 `items_compatibility` rows are `scope-modules-1.json`'s now, and the 25 variants it set the
-same zoom on are retired with every scope variant (`../../docs/notes/attachments-scopes.md`,
-"The variants retired"). `scope-fits-1.json`, `scope-coverage-1.json` and `scope-centering-1.json`
-are gone with them: their compatibility rows are `scope-modules-1.json`'s, their
+Its 184 `items_compatibility` rows are `scope-modules-1.json`'s now. The 25 variants are retired
+with every scope variant (`../../docs/notes/attachments-scopes.md`, "The variants retired"); their
+rows stay here, and `scope-centering-1.json` stays whole, because `release/build-content` cannot
+take an edit off a file: a file no row makes is never packed again. `scope-fits-1.json` and
+`scope-coverage-1.json` are gone: their compatibility rows are `scope-modules-1.json`'s, and their
 `addons { mount: 1 }` placeholders (a variant's type-3 modifier needed a table with a child) are
-not needed by a scope item's modification, which adds to `data`, and the cameras they gave the
-variants are the modules table's eyes.
+not needed by a scope item's modification, which adds to `data`.
 
 ## weapon-camo-031-1.json (2026-11-01)
 

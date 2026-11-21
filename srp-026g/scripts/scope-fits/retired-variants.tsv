@@ -1,7 +1,7 @@
 # The scope variants retired with the modules table (retire.py; docs/notes/attachments-scopes.md): entries of the
 # items dictionary no release has any more. A dict id here is never given to another item: accounts saved up to
 # release 68 hold them in their scopes' records until their first load. left: the config stays in the players'
-# archives, made by nothing; kept: its pack still makes it, as an edit list left it.
+# archives, made by nothing; kept: its pack still makes it, for the edit list that changes it.
 # dict id	name	its pack	its config
 2701	fitn_ncstar_4_a_545	rifle-scopes@18	kept
 2702	fitn_ncstar_4_aek_919k	rifle-scopes@18	kept

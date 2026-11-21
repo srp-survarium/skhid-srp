@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """The last versions of the three scope-variant packs: rifle-scopes, scope-fits, scope-coverage.
 
-usage: python3 -I retire.py <players' files> <packs dir> [--check]
+usage: python3 -I retire.py <packs dir> [--check]
 
-<players' files>  release 68's gameplay/items/scopes/* at their game paths (what the players' game mounts)
 <packs dir>       the packs' folders (<id>-<version>): the versions release 68 has are read, the new ones
                   written beside them (a folder that is there is compared, never written over)
 
@@ -17,10 +16,11 @@ is, named by nothing. Each new version is its earlier one less, by rule:
   rows for them;
 - every model (models/**): the variants' assemblies, the gun bodies with a moved eye, and the shop
   items' own first models, which scope-modules-1.json replaces with the modules pack's;
-- a variant's config, unless an edit list changed it after the pack (scope-centering-1.json, 304 of
-  them): release/build-content takes a file as left by an earlier version only when the players have
-  that version's bytes, so such a config stays in the pack, with the players' bytes, and its edit
-  list goes. It is in no dictionary.
+- a variant's config, unless an edit list changes it after the pack (../content-edit/
+  scope-centering-1.json, 304 of them): release/build-content takes a file as left by an earlier
+  version only when the players have that version's bytes, and an edit cannot be taken off a file
+  (a file no row makes is not packed again), so such a config stays in the pack and in its list. It
+  is in no dictionary.
 
 What stays is the shop scope items (their configs, dictionary entries, texts and icons) and the
 textures and materials. ./retired-variants.tsv lists every retired entry: its dict id is never used
@@ -43,11 +43,17 @@ ITEMS = HERE.parent / 'content-edit' / 'items.tsv'
 HEAD = ('# The scope variants retired with the modules table (retire.py; docs/notes/attachments-scopes.md): entries of the\n'
         '# items dictionary no release has any more. A dict id here is never given to another item: accounts saved up to\n'
         '# release 68 hold them in their scopes\' records until their first load. left: the config stays in the players\'\n'
-        '# archives, made by nothing; kept: its pack still makes it, as an edit list left it.\n'
+        '# archives, made by nothing; kept: its pack still makes it, for the edit list that changes it.\n'
         '# dict id\tname\tits pack\tits config\n')
 
 
-def retire(ident, old, new, players, packs):
+def edited():
+    """The game paths ../content-edit/scope-centering-1.json changes."""
+    spec = json.loads((HERE.parent / 'content-edit' / 'scope-centering-1.json').read_text())
+    return {edit.get('file') or edit['files'] for key, edits in spec.items() if isinstance(edits, list) for edit in edits}
+
+
+def retire(ident, old, new, packs):
     """(the new pack.json's text, {path: bytes} of its files, its icons folder, its retired rows)."""
     source = packs / f'{ident}-{old}'
     spec = json.loads((source / 'pack.json').read_text(encoding='utf-8'))
@@ -65,18 +71,17 @@ def retire(ident, old, new, players, packs):
             if kept:
                 operations.append(dict(op, entries=kept))
     shop = {e['dict_id'] for op in operations if op['op'] == 'dictionary_add' for e in op['entries']}
-    added = []
+    added, changed = [], edited()
     for op in spec['operations']:
         if op['op'] == 'add_file':
             path = op['path']
             was = (source / 'files' / path).read_bytes()
             if path in configs:
-                now = (players / path).read_bytes()
-                state = 'left' if now == was else 'kept'
+                state = 'kept' if path in changed else 'left'
                 entry = configs[path]
                 rows.append((entry['dict_id'], entry['name'], f'{ident}@{old}', state))
                 if state == 'kept':
-                    files[path] = now
+                    files[path] = was
                     added.append(op)
             elif not path.startswith('models/'):
                 files[path] = was
@@ -92,10 +97,10 @@ def retire(ident, old, new, players, packs):
         + (f'the shop scope items {", ".join(str(i) for i in sorted(shop))} stay, with their texts and icons' if shop
            else 'no item')
         + ', and the textures and materials'
-        + (f'; {kept} variant configs an edit list changed stay as the players have them, in no dictionary' if kept else ''))
+        + (f'; {kept} variant configs scope-centering-1.json changes stay, in no dictionary' if kept else ''))
     spec['operations'] = added + operations
     spec['server'] = {'items': [item for item in spec['server']['items'] if item['dict_id'] in shop]}
-    spec['notes'] = [f'made by srp-026g/scripts/scope-fits/retire.py from {ident}-{old} and release 68\'s scope configs']
+    spec['notes'] = [f'made by srp-026g/scripts/scope-fits/retire.py from {ident}-{old} and scope-centering-1.json']
     icons = source / 'icons' if any(op['op'] == 'atlas_icons_add' for op in operations) else None
     return json.dumps(spec, indent=2, ensure_ascii=False) + '\n', files, icons, rows
 
@@ -114,10 +119,10 @@ def same_folder(folder, text, files, icons):
 def main():
     args = [a for a in sys.argv[1:] if a != '--check']
     check = '--check' in sys.argv
-    players, packs = Path(args[0]), Path(args[1])
+    packs = Path(args[0])
     retired, problems = [], []
     for ident, old, new in PACKS:
-        text, files, icons, rows = retire(ident, old, new, players, packs)
+        text, files, icons, rows = retire(ident, old, new, packs)
         retired += rows
         folder = packs / f'{ident}-{new}'
         if folder.exists():

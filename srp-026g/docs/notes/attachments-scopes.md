@@ -119,12 +119,16 @@ that makes less (`release/content.tsv`'s header); nothing is taken from a player
   earlier ones less those entries and less every model (30,464 files of 7,639 models: the
   per-pair optics and the gun bodies with a moved eye). They keep the eight shop scope items 2113-2120 (configs,
   dictionary entries, texts, icons) and the textures and materials. 732 variant configs are left in
-  players' archives as they are; **304 stay in the packs**, byte for byte what players have:
-  `scope-centering-1.json` had changed them after their pack, and `release/build-content` takes a
-  file as left by an earlier pack version only when players have that version's bytes. They are in
-  no dictionary and nothing names them.
-- **The edit lists**: `scope-fits-1.json`, `scope-coverage-1.json` and `scope-centering-1.json` are
-  gone; `rifle-scopes-1.json` keeps the Aimpoint CompM4's x2 on its shop item. The lobby's
+  players' archives as they are; **304 stay in the packs**, with `scope-centering-1.json`, which
+  changes them after their pack: `release/build-content` takes a file as left by an earlier pack
+  version only when players have that version's bytes, and it cannot take an edit off a file (a
+  file no row makes is never packed again: the first build without the list stopped on the 151
+  variant configs of the base patches that the list changes). They are in no dictionary and
+  nothing names them.
+- **The edit lists**: `scope-fits-1.json` and `scope-coverage-1.json` are gone.
+  `scope-centering-1.json` stays as it is (455 retired variants' configs, as players have them)
+  and `rifle-scopes-1.json` keeps the Aimpoint CompM4's x2, on its shop item and on 25 retired
+  variants, for the same reason: an edit of a file is never taken back. The lobby's
   `items_compatibility` rows they made (1,036) are `scope-modules-1.json`'s, with the 43 new
   pairs': every pair of the table that no base patch's dictionary has. The `addons { mount: 1 }`
   placeholders of 32 guns are gone: a variant's type-3 modifier needed a table with a child; a
@@ -134,8 +138,7 @@ that makes less (`release/content.tsv`'s header); nothing is taken from a player
   entries. A base row is a published patch taken as it is; taking an entry out of the dictionary
   needs an edit operation `content_edit.py` does not have (an entry of an indexed table). They are
   entries nothing uses: not sold (no gun takes them as a module), never dropped (category 22), no
-  record names them after an account's first load. The 176 of their configs the retired lists
-  had changed are the base's bytes again.
+  record names them after an account's first load.
 - **The server** needs nothing more: a variant's dict id is only in the scopes' records of accounts
   saved up to release 68, which the load rewrites before anything reads them. An account that
   *owns* a retired variant as an item (no path gives one but an admin's give by dict id) stops
