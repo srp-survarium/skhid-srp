@@ -41,6 +41,7 @@ PACK = Path('/mnt/hdd/Projects/release-20/packs/maps-021d-7/files')
 PACK_RUDNYA = Path('/home/sheep/Projects/survarium/work-rudnya-v021/probe-modes-build/maps-021d-rudnya-4/files')
 PACK_SCHOOL_FORT = Path('/home/sheep/Projects/survarium/v021d-rig-data/school-fort-work/probe-modes-build/maps-021d-school-fort-4/files')
 PACK_CHEMICAL = Path('/home/sheep/Projects/survarium/skhid-srp/private/content-packs/maps-021d-chemical-1/files')
+PACK_LONDON_V032 = Path('/home/sheep/Projects/survarium/work-london-032-042/packs/london-v032-1/files')
 PORTED = {
     'v021d_level_03': dict(size=100, posX=14, posY=-42.196, bitmap=None, name='Vostok Radar Station (v0.21)',
                            name_key='st_level_10_name', project_name='level_03', map_ids={166: 2, 152: 4}),
@@ -67,6 +68,12 @@ PORTED = {
     'v021d_level_04': dict(size=115, posX=15, posY=43, bitmap=None, name='Chemical Plant (v0.21)',
                            name_key='st_level_31_name', project_name='level_04', map_ids={266: 2, 267: 4},
                            pack=PACK_CHEMICAL, pack_name='maps-021d-chemical@1'),
+    # London (v0.32) (pack london-v032@1, 0.32a4's London in place of patch 14's: London's map ids): project_name
+    # v032a_level_09, its HUD row London's minimap and frame (0.32a4's map_09.png is the same picture).
+    'v032a_level_09': dict(size=140, posX=0, posY=-5, bitmap='971_Map_09_Map_09.png', area='alpha:0.4',
+                           name='London (v0.32)', name_key='st_level_09_name', project_name='v032a_level_09',
+                           map_ids={181: 2, 182: 3, 183: 4, 276: 2, 277: 3, 278: 4, 279: 2, 280: 3, 281: 4},
+                           pack=PACK_LONDON_V032, pack_name='london-v032@1'),
 }
 
 
