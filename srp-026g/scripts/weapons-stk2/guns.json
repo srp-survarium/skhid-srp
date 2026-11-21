@@ -1,0 +1,113 @@
+{
+  "_about": "The two STK2 (2012) AK-74s as 0.26g guns on the live AK-74M's rig (donor.py; docs/notes/weapons-stk2.md). STK2's meshes are in the AK-74M's frame already (origin, scale and axes: the receivers, magazines and grips coincide), so each part keeps its place and goes on the AK-74M's bone that moves it. Points are metres in the mesh frame (muzzle +z).",
+  "template": {
+    "config": "gameplay/items/weapons/wpn_ak_74m.options",
+    "model": "weapons/ak74m/ak74m",
+    "surface": "ak74lpsg4",
+    "materials": {
+      "metal": "material_instances/weapons/ak_74m.material",
+      "plastic": "material_instances/weapons/ak_74m_stock.material"
+    },
+    "textures": {
+      "diffuse": "textures/weapons/ak74m/ak74m",
+      "normal": "textures/weapons/ak74m/ak74_stock_plastic_nmap",
+      "fresnel": "textures/weapons/ak74m/ak74m_fmap",
+      "roughness": "textures/weapons/ak74m/ak74m_smap"
+    }
+  },
+  "textures": {
+    "folder": "weapons/ak74_tactical",
+    "_sets": "each STK2 texture set (its diffuse, _nmap, _spec) and the AK-74M material it is drawn as: the receiver, barrel and mount metal, the grip, handguard and stock polymer",
+    "sets": {
+      "ak74_01": "metal",
+      "ak74_02": "plastic",
+      "ak74_03": "metal",
+      "ak74_04": "metal",
+      "ak74_06": "plastic"
+    }
+  },
+  "_bones": "a mesh island (connected triangles) wholly inside a box goes on that bone, any other on offset (the gun's body). The magazine with its rounds (and the carbine's coupled second magazine), the bolt carrier with its charging handle, the trigger, the magazine catch: where the AK-74M has the same parts on the same bones. STK2's fire selector is a small lever at the rear the AK-74M's clips never move (its safety bone): it stays on the body.",
+  "bones": [
+    {
+      "bone": "magazin",
+      "box": [[-0.015, -0.19, 0.095], [0.045, 0.035, 0.235]]
+    },
+    {
+      "bone": "zatvor",
+      "box": [[0.005, 0.049, 0.03], [0.045, 0.075, 0.2]]
+    },
+    {
+      "bone": "nab",
+      "box": [[-0.003, -0.017, 0.034], [0.003, 0.012, 0.056]]
+    },
+    {
+      "bone": "safety_catch",
+      "box": [[-0.006, -0.029, 0.086], [0.006, -0.006, 0.099]]
+    }
+  ],
+  "rail": {
+    "_about": "the top rail's teeth (the optic's seat): the AK-74M's adapter's top is 0.1002, centred on x 0.0003",
+    "top": 0.096,
+    "x": -0.0005
+  },
+  "_under_optic": "Under every optic (scope_fits.py) the iron sights go, as 0.69 folds or takes off its guns' sights: the rear sight's leaf and slider (its block stays), the long gun's flip-up front sight (its clamp stays), the carbine's front post and its ears (the block's top made flat). The top rail is STK2's side mount (its surface ak74_04_s, the receiver's part of it): under the two PSO-1s, which clamp to the AK's own dovetail as on the AK-74M, it comes off.",
+  "guns": {
+    "ak74_tactical": {
+      "stk2": "ak74_4tir2",
+      "model": "weapons/ak74_tactical/ak74_tactical",
+      "_sights": "the rear sight's notch bottom (its leaf, 2.7 mm wide) and the front post's top",
+      "notch": [0.0, 0.099, 0.183],
+      "post": [0.0, 0.097, 0.566],
+      "muzzle": [0.0, 0.0425, 0.71],
+      "under_optic": {
+        "cut": [
+          {
+            "surface": "ak74_01_s",
+            "box": [[-0.02, 0.088, 0.179], [0.02, 0.102, 0.248]]
+          },
+          {
+            "surface": "ak74_03_s",
+            "box": [[-0.01, 0.052, 0.559], [0.01, 0.107, 0.573]]
+          }
+        ],
+        "flatten": [],
+        "mount": {
+          "surface": "ak74_04_s",
+          "below_z": 0.2
+        }
+      }
+    },
+    "ak74_tactical_carbine": {
+      "stk2": "ak74_4tir1",
+      "model": "weapons/ak74_tactical/ak74_tactical_carbine",
+      "_leave_out": "the red dot built into the mesh (its own surface, with its mount)",
+      "leave_out": ["ak74_05_s"],
+      "notch": [0.0, 0.099, 0.183],
+      "post": [0.0, 0.093, 0.454],
+      "muzzle": [0.0, 0.0405, 0.59],
+      "under_optic": {
+        "cut": [
+          {
+            "surface": "ak74_01_s",
+            "box": [[-0.02, 0.088, 0.179], [0.02, 0.102, 0.248]]
+          },
+          {
+            "surface": "ak74_03_s",
+            "box": [[-0.003, 0.084, 0.452], [0.001, 0.094, 0.456]]
+          }
+        ],
+        "flatten": [
+          {
+            "surface": "ak74_03_s",
+            "box": [[-0.009, 0.048, 0.429], [0.007, 0.097, 0.461]],
+            "y": 0.0672
+          }
+        ],
+        "mount": {
+          "surface": "ak74_04_s",
+          "below_z": 0.2
+        }
+      }
+    }
+  }
+}

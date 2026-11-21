@@ -2952,6 +2952,10 @@ st_srp_weapon_sway_horizontal	Разгойдванне ў бакі
 st_srp_weapon_sway_vertical	Разгойдванне ўверх-уніз
 st_srp_weapon_with_kit	З камплектам
 st_srp_weapon_with_kit_skills	З камплектам і навыкамі
+st_srp_weaponstk2_ak74_tactical_carbine_desc	Укарочаны мадэрнізаваны АК-74 з планкамі і бакавым складным рамачным прыкладам, пад патрон 5.45×39. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
+st_srp_weaponstk2_ak74_tactical_carbine_name	АК-74 Тактычны карабін
+st_srp_weaponstk2_ak74_tactical_desc	Мадэрнізаваны АК-74 з планкамі, тэлескапічным прыкладам і доўгім ствалом, пад патрон 5.45×39. Падтрымлівае адзіночны і аўтаматычны рэжымы стральбы.
+st_srp_weaponstk2_ak74_tactical_name	АК-74 Тактычны
 st_srp_weather_before_rain	перад дажджом
 st_srp_weather_day	дзень
 st_srp_weather_evening	вечар

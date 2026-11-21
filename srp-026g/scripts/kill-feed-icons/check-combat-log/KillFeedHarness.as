@@ -146,7 +146,7 @@ package
       }
 
       // A kill row for every weapon icon a config may name (ui_desc/combat_log_icon: 0.26g's 0 to 52, the
-      // ported weapons' from 53 on) up to 99: icon i shows frame i + 1 of object_icon, or past the clip's
+      // ported weapons' from 53 on) up to 101: icon i shows frame i + 1 of object_icon, or past the clip's
       // frames the bitmap CombatLogWeapon<i> in its place (the clip hidden) when the movie has that
       // class, else the clip's last frame; the weapon right after the killer, within the row, the victim
       // after it. And the battery strike's icon (exe patch 143): 200, the bitmap CombatLogBatteryIcon.
@@ -155,7 +155,7 @@ package
          var bitmaps:int = 0;
          var domain:ApplicationDomain = loader.contentLoaderInfo.applicationDomain;
          var icons:Array = [];
-         for(var n:int = 0; n <= 99; n++)
+         for(var n:int = 0; n <= 101; n++)
          {
             icons.push(n);
          }
@@ -204,7 +204,7 @@ package
                trace("KF icon " + icon + ": " + shown);
             }
          }
-         trace("KF icons 0 to 99 and " + BATTERY_ICON + ": " + bitmaps + " bitmaps");
+         trace("KF icons 0 to 101 and " + BATTERY_ICON + ": " + bitmaps + " bitmaps");
       }
 
       private function finish(result:String) : void
