@@ -2,6 +2,7 @@
 """The scope items' edit list: ../content-edit/scope-modules-1.json.
 
 usage: python3 -I modules_edit.py <players' files> <modules-069d.json> [--out <list>]
+       python3 -I modules_edit.py --check [<modules-069d.json>]
 
 <players' files>     the players' gameplay/db_static_dictionaries and gameplay/items/scopes/shop_scope_*
 <modules-069d.json>  the record of the weapon-modules pack's build (resource-porter's port-modules):
@@ -21,30 +22,101 @@ ones) for each pair of the record that no release had (released-pairs.tsv): the 
 a scope by these rows.
 
 --out writes the list elsewhere (a quick pack's, for a local test: only the optics of its record).
+--check says whether the list in the tree is the record's (the record of the weapon-modules version
+release/content.tsv lists, beside its pack, when none is named): each optic's two models, and exactly
+the pairs of the record no release had. A new pack version changes the table's pairs (2026-11-21: the
+event MP7 and the VSSK's camouflaged copy became guns of the table and 24 pairs had no row), so the
+list is made again with it.
 """
 import json
+import re
+import subprocess
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent / 'sight-alignment'))
-import model as cfgs  # noqa: E402
 
 NAME = 'scope-modules-1.json'
 # A fitted item's modification is 994000 + its dict id (docs/notes/attachments.md, the contract).
 FIRST_ID = 994000
 
 
-def main():
-    live, record = Path(sys.argv[1]), json.loads(Path(sys.argv[2]).read_text())
-    out = Path(sys.argv[sys.argv.index('--out') + 1]) if '--out' in sys.argv else HERE.parent / 'content-edit' / NAME
-    items = {r['dict_id']: r for r in cfgs.config(live / 'gameplay/db_static_dictionaries')['items_dict']}
+def scope_ids():
+    """{0.69d0 module: (its shop item's dict id, the item's name)} of ../weapon-modules/ids.tsv's scopes."""
     ids = {}
     for line in (HERE.parent / 'weapon-modules/ids.tsv').read_text().splitlines():
         if line and not line.startswith('#'):
             module, dict_id, kind, item = line.split('\t')
             if kind == 'scope':
                 ids[module] = (int(dict_id), item)
+    return ids
+
+
+def new_pairs(record, ids):
+    """[(weapon dict id, scope dict id)] of the record's scope pairs no release had, in the rows' order."""
+    released = {(w, int(s)) for w, _, _, s, _, _ in (
+        line.split('\t') for line in (HERE / 'released-pairs.tsv').read_text().splitlines()
+        if line and not line.startswith('#'))}
+    pairs = set()
+    for gun_item, (_, donor) in record['items'].items():
+        pairs |= {(gun_item, ids[f['module']][0]) for f in record['guns'][donor]['plan']['fits'] if f['kind'] == 'scope'}
+    pairs |= {(row['gun'], ids[row['module']][0]) for row in record['legacy']}
+    by_name = {item: dict_id for item, (dict_id, _) in record['items'].items()}
+    return sorted((by_name[weapon], scope) for weapon, scope in pairs - released)
+
+
+def compatibility(pairs):
+    return [{'files': ['gameplay/db_static_dictionaries'], 'table': 'items_compatibility',
+             'key': f'compatibility_{scope}{weapon:05d}', 'value': {'first_item': weapon, 'second_item': scope}}
+            for weapon, scope in pairs]
+
+
+def listed_record():
+    """The record beside the weapon-modules pack release/content.tsv lists (the main checkout's private/content-packs)."""
+    root = HERE.parents[2]
+    (version,) = re.findall(r'^pack\tweapon-modules@([^\t]+)\t', (root / 'release/content.tsv').read_text(), re.M)
+    common = subprocess.run(['git', '-C', str(root), 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+                            check=True, capture_output=True, text=True).stdout.strip()
+    return Path(common).parent / 'private/content-packs' / f'weapon-modules-{version}.modules-069d.json'
+
+
+def check(record_path):
+    """Whether ../content-edit/scope-modules-1.json is what `record_path` gives; needs no players' files."""
+    record, ids = json.loads(record_path.read_text()), scope_ids()
+    listed = json.loads((HERE.parent / 'content-edit' / NAME).read_text())
+    problems = []
+    to = {}
+    for edit in listed['replace_string']:
+        to.setdefault(edit['files'], set()).add(edit['to'])
+    models = {frozenset((optic['idle_model'], optic['aimed_model'])) for optic in record['optics'].values()}
+    if {frozenset(v) for v in to.values()} != models:
+        problems.append("the scope items' models are not the record's optics' (every optic's idle and aimed model)")
+    want, have = compatibility(new_pairs(record, ids)), listed['add_value']
+    for row in want:
+        if row not in have:
+            problems.append(f"no row for weapon {row['value']['first_item']} / scope {row['value']['second_item']}, "
+                            'a pair of the table no release had')
+    for row in have:
+        if row not in want:
+            problems.append(f"{row['key']}: no pair of the table that no release had")
+    for problem in problems:
+        print(f'scope-modules: {problem}')
+    if problems:
+        raise SystemExit(f'{NAME} is not what {record_path} gives ({len(problems)}): make it again '
+                         "(modules_edit.py <players' files> <that record>)")
+    print(f'{NAME}: the record\'s ({len(models)} optics, {len(have)} new pairs; {record_path.name})')
+
+
+def main():
+    if '--check' in sys.argv:
+        rest = [a for a in sys.argv[1:] if a != '--check']
+        return check(Path(rest[0]) if rest else listed_record())
+    sys.path.insert(0, str(HERE.parent / 'sight-alignment'))
+    import model as cfgs
+    live, record = Path(sys.argv[1]), json.loads(Path(sys.argv[2]).read_text())
+    out = Path(sys.argv[sys.argv.index('--out') + 1]) if '--out' in sys.argv else HERE.parent / 'content-edit' / NAME
+    items = {r['dict_id']: r for r in cfgs.config(live / 'gameplay/db_static_dictionaries')['items_dict']}
+    ids = scope_ids()
     models, modifications, numbers = [], [], []
     for module, optic in sorted(record['optics'].items(), key=lambda kv: kv[1]['dict']):
         dict_id, name = ids[module]
@@ -71,19 +143,10 @@ def main():
                               'to': {'id': FIRST_ID + dict_id, 'modifiers': fitted}})
         numbers.append({'file': path, 'path': 'parameters/modification', 'from': row['id'], 'to': FIRST_ID + dict_id})
     # The pairs no release had: the lobby's rows for them.
-    released = {(w, int(s)) for w, _, _, s, _, _ in (
-        line.split('\t') for line in (HERE / 'released-pairs.tsv').read_text().splitlines()
-        if line and not line.startswith('#'))}
-    by_name = {r['name']: r['dict_id'] for r in items.values()}
-    pairs = set()
-    for gun_item, (_, donor) in record['items'].items():
-        pairs |= {(gun_item, ids[f['module']][0]) for f in record['guns'][donor]['plan']['fits'] if f['kind'] == 'scope'}
-    pairs |= {(row['gun'], ids[row['module']][0]) for row in record['legacy']}
+    for item, (dict_id, _) in record['items'].items():
+        assert items[dict_id]['name'] == item, (item, dict_id, items[dict_id]['name'])
+    compatible = compatibility(new_pairs(record, ids))
     rows = cfgs.config(live / 'gameplay/db_static_dictionaries')['items_compatibility']
-    compatible = [{'files': ['gameplay/db_static_dictionaries'], 'table': 'items_compatibility',
-                   'key': f'compatibility_{scope}{by_name[weapon]:05d}',
-                   'value': {'first_item': by_name[weapon], 'second_item': scope}}
-                  for weapon, scope in sorted(pairs - released, key=lambda p: (by_name[p[0]], p[1]))]
     assert not {c['key'] for c in compatible} & set(rows), 'a compatibility row is there already'
     about = ("Scopes on the modules table (pack weapon-modules, docs/notes/attachments-scopes.md): each shop "
              "scope item's data/idle_model and data/aimed_model are the optic's own two models of the pack, and "

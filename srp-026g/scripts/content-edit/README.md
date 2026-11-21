@@ -527,7 +527,9 @@ only: no simulation change.
 ## scope-modules-1.json (2026-11-21)
 
 Made by `../scope-fits/modules_edit.py` from the record of the weapon-modules pack's build
-(resource-porter's `port-modules`, its `modules-069d.json`); make it again, not this file. It names
+(resource-porter's `port-modules`, its `modules-069d.json`); make it again with every version of the
+pack, not this file (`modules_edit.py --check`, `tools/check scope-modules`, says when it is not the
+listed pack's). It names
 the pack's models, so it comes after the pack, and after the scope lists above
 (`../../docs/notes/attachments-scopes.md`).
 

@@ -74,10 +74,15 @@ data of release 68 and outlives the variants.
   build, with its reason.
 - **The Mosin's PU 3.5x** (2103) is a 0.69d0 module (`pu_35x22_scope`, slot `mosin_scope`): a plain
   fit once it has its row in `scripts/weapon-modules/ids.tsv`.
-- **`wpn_mp7_silencer_special`** (three released pairs) is no gun of the table yet: it needs its row
-  in `scripts/remodel-069/items.tsv` (the core's), as the MP7 with a silencer whose model it has.
-- **19 pairs are new** (0.69d0 gives them and no variant did): eleven on the MP7 with a silencer,
-  eight on the two Neosteads.
+- **`wpn_mp7_silencer_special`** (three released pairs) is a gun of the table since the pack's
+  version 2 (its row in `scripts/remodel-069/items.tsv`): the MP7 with a silencer, whose model it has.
+- **43 pairs are new** (the table has them and no release did; pack version 3): eleven on the MP7
+  with a silencer and eleven on the event MP7, eight on the two Neosteads, thirteen on the VSSK's
+  camouflaged copy (it takes the VSSK's fits; two of its fifteen were released). Each has its
+  `items_compatibility` row in `scope-modules-1.json`; `modules_edit.py --check` (`tools/check
+  scope-modules`) refuses a list that is not the listed pack's record's: the pairs change with a
+  pack version (the list of 19 made before version 2 left 24 pairs without a row, which
+  `scope-preservation` refused).
 
 ## The account's load
 

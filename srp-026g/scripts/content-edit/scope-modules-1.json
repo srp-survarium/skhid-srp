@@ -1313,6 +1313,127 @@
     "gameplay/db_static_dictionaries"
    ],
    "table": "items_compatibility",
+   "key": "compatibility_210602222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2106
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_210702222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2107
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_210802222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2108
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211202222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2112
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211302222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2113
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211402222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2114
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211502222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2115
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211602222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2116
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211702222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2117
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211802222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2118
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_212002222",
+   "value": {
+    "first_item": 2222,
+    "second_item": 2120
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
    "key": "compatibility_211002230",
    "value": {
     "first_item": 2230,
@@ -1394,6 +1515,149 @@
    "value": {
     "first_item": 2231,
     "second_item": 2112
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_210402250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2104
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_210702250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2107
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_210802250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2108
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_210902250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2109
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211002250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2110
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211202250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2112
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211302250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2113
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211402250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2114
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211502250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2115
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211602250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2116
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211702250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2117
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_211802250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2118
+   }
+  },
+  {
+   "files": [
+    "gameplay/db_static_dictionaries"
+   ],
+   "table": "items_compatibility",
+   "key": "compatibility_212002250",
+   "value": {
+    "first_item": 2250,
+    "second_item": 2120
    }
   }
  ]
