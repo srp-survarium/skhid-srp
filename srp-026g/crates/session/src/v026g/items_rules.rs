@@ -124,7 +124,7 @@ use survarium::v026g::lobby::{Crafted, limits};
 use survarium::v026g::modifications::{self, Bonuses, MAX_RANK, Modifications};
 use survarium::v026g::scopes::{SCOPE_CATEGORY, SCOPE_SLOT};
 use survarium::v026g::weapon_kit;
-use survarium::v026g::weapon_modules::{self, Fitted, Modules};
+use survarium::v026g::weapon_modules::{self, Fitted, Kind, Modules};
 
 use super::account::{Account, Item, Upgrade};
 
@@ -133,6 +133,10 @@ use super::account::{Account, Item, Upgrade};
 pub enum ItemError {
     /// A cosmetic can not go on, come off or be placed; why, for the log.
     Upgrade(&'static str),
+    /// A muzzle device or a grip the weapon takes, but not with what it
+    /// holds (the P90's own-thread devices and its grips): its own text, so
+    /// the lobby says why.
+    Unfit,
     /// A modification can not be changed or chosen; why, for the log.
     Reroll(&'static str),
     NotEnoughMoney,
@@ -143,6 +147,7 @@ impl ItemError {
     pub fn text_key(&self) -> &'static str {
         match self {
             Self::Upgrade(_) => "st_cannot_upgrade_item",
+            Self::Unfit => "st_srp_attach_unfit",
             Self::Reroll(_) => "st_cannot_select_rerolled_modification",
             Self::NotEnoughMoney => "st_not_enougth_money",
         }
@@ -322,6 +327,16 @@ pub fn make_safe_with(item: &mut Item, modules: &Modules) {
         slots.push(upgrade.param);
         fits
     });
+    // A muzzle device and a grip that each go on but not together (a table
+    // of another pack version): the grip comes off, then the device if the
+    // weapon still refuses it.
+    for kind in [Kind::Grip, Kind::Muzzle] {
+        if modules.check(host, fitted_modules(modules, host, &item.upgrades)).is_ok() {
+            break;
+        }
+        let slot = weapon_modules::slot_of(kind);
+        item.upgrades.retain(|upgrade| upgrade.param != slot);
+    }
 }
 
 /// An item of `dict_id` is a weapon (`wpn_*`): its upgrades are the
@@ -445,9 +460,7 @@ pub fn attach_upgrade_with(
         let fitted = fitted_modules(modules, host.dict_id, &host.upgrades)
             .with(kind, Some(upgrade_dict));
         if modules.check(host.dict_id, fitted).is_err() {
-            return Err(ItemError::Upgrade(
-                "it does not go with what the weapon holds",
-            ));
+            return Err(ItemError::Unfit);
         }
     }
     // What the host keeps: all but what is in the slot and the cosmetic

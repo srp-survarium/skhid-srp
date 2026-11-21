@@ -460,9 +460,20 @@ fn a_muzzle_device_and_a_grip_go_on_by_the_modules_table() {
     assert_eq!(attach(&mut account, p90, hider, 4), Ok(4));
     assert_eq!(
         attach(&mut account, p90, grip, 5),
-        Err(ItemError::Upgrade("it does not go with what the weapon holds"))
+        Err(ItemError::Unfit)
     );
     assert_eq!(records(&account, p90).len(), 1);
+    // the load: the pair the P90 cannot hold loses its grip; the AK-74M's
+    // two stay; a device in the grip's slot comes off
+    let load = |host: u32, held: &[(u32, u16, u8)]| {
+        let mut item = account.item(host).unwrap().clone();
+        item.upgrades = held.iter().map(|&(id, dict, param)| Upgrade { id, a: dict.into(), value: 0, param }).collect();
+        make_safe_with(&mut item, &modules);
+        item.upgrades.iter().map(|held| held.param).collect::<Vec<u8>>()
+    };
+    assert_eq!(load(p90, &[(hider, P90_HIDER, 4), (grip, MIKI, 5)]), [4]);
+    assert_eq!(load(ak, &[(brake, DTK3, 4), (grip, MIKI, 5)]), [4, 5]);
+    assert_eq!(load(ak, &[(brake, DTK3, 5)]), [] as [u8; 0]);
     // and a game data without the table takes neither
     let mut bare = rich();
     let ak = give(&mut bare, "ak_74m", &[]);
