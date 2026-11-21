@@ -186,13 +186,33 @@ def matched(values, reference):
     return out
 
 
-def write_dds(magick, image, out, compression):
+def write_dds(magick, image, out, compression, srgb):
+    """A texture as 0.26g's cooked ones are: its mips down to 4x4, the header's PITCH and
+    LINEARSIZE flags with the size of all that follows the header, and the trailing sRGB byte the loader takes
+    off the end (read_srgb_flag). ImageMagick's own DDS (mips to 1x1, the top level's size, no
+    sRGB byte) shows as garbage colours in the game's lower mips."""
     out.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / 'in.png'
         image.save(src)
-        subprocess.run([magick, str(src), '-define', f'dds:compression={compression}',
-                        '-define', 'dds:mipmaps=11', str(out)], check=True)
+        subprocess.run([magick, str(src), '-define', f'dds:compression={compression}', str(out)], check=True)
+    data = bytearray(out.read_bytes())
+    height, width = struct.unpack_from('<2I', data, 12)
+    block = 8 if compression == 'dxt1' else 16
+    levels, payload = 0, 0
+    while True:
+        payload += max(1, width >> levels >> 2) * max(1, height >> levels >> 2) * block
+        levels += 1
+        if (width >> (levels - 1)) <= 4 or (height >> (levels - 1)) <= 4:
+            break
+    if len(data) < 128 + payload or struct.unpack_from('<I', data, 28)[0] < levels:
+        sys.exit(f'{out}: {len(data)} bytes, not {levels} mips')
+    data = data[:128 + payload]
+    struct.pack_into('<I', data, 8, 0xA100F)
+    struct.pack_into('<I', data, 20, payload + 1)  # with the sRGB byte, as the stock files
+    struct.pack_into('<I', data, 28, levels)
+    data[32:76] = bytes(44)
+    out.write_bytes(bytes(data) + bytes([srgb]))
 
 
 def textures(args, stock, out):
@@ -207,14 +227,14 @@ def textures(args, stock, out):
         nmap = np.asarray(Image.open(src / f'{name}_nmap.tga').convert('RGB'))
         spec = np.asarray(Image.open(src / f'{name}_spec.tga').convert('L'), np.float64).ravel()
         base = f'textures/{folder}/{name.replace("ak74", "ak74_tactical")}'
-        write_dds(args.magick, diffuse, out / f'{base}.dds', 'dxt1')
+        write_dds(args.magick, diffuse, out / f'{base}.dds', 'dxt1', 1)
         dxt5nm = np.zeros(nmap.shape[:2] + (4,), np.uint8)
         dxt5nm[..., 1], dxt5nm[..., 3] = nmap[..., 1], nmap[..., 0]
-        write_dds(args.magick, Image.fromarray(dxt5nm, 'RGBA'), out / f'{base}_nmap.dds', 'dxt5')
+        write_dds(args.magick, Image.fromarray(dxt5nm, 'RGBA'), out / f'{base}_nmap.dds', 'dxt5', 0)
         for kind, suffix in (('fresnel', '_fmap'), ('roughness', '_smap')):
             level = matched(spec, ref[kind].mean(2).ravel()).reshape(nmap.shape[:2])
             grey = np.repeat(np.clip(np.round(level), 0, 255).astype(np.uint8)[..., None], 3, 2)
-            write_dds(args.magick, Image.fromarray(grey, 'RGB'), out / f'{base}{suffix}.dds', 'dxt1')
+            write_dds(args.magick, Image.fromarray(grey, 'RGB'), out / f'{base}{suffix}.dds', 'dxt1', 0)
         for suffix, kind in (('', 'diffuse'), ('_nmap', 'normal'), ('_fmap', 'fresnel'), ('_smap', 'roughness')):
             shutil.copyfile(stock.get(t[kind] + '.options'), out / f'{base}{suffix}.options')
         written[name] = base.removeprefix('textures/')

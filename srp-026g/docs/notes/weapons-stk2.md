@@ -1,4 +1,4 @@
-# The STK2 AK-74s (packs weapons-stk2, weapons-stk2-camo, weapons-stk2-scopes)
+# The STK2 AK-74s (packs weapons-stk2@2, weapons-stk2-camo@1, weapons-stk2-scopes@1)
 
 STK2 (the cancelled 2012 S.T.A.L.K.E.R. 2, `/mnt/toshiba/surv-builds/STK2.7z`, `xr2-prog`) has one
 weapon, a modernised tactical AK-74, as three assembled, textured static models. Two of them are
@@ -55,6 +55,13 @@ core (`port-weapons`, donor build `stk2`, `ports/weapons-stk2.json`).
 - Materials: the AK-74M's metal and polymer ones, their textures STK2's: diffuse, the RGB tangent
   normal map as 0.26g's DXT5nm, and STK2's one specular map as both the fresnel and the roughness
   map, each matched to the AK-74M's own map's distribution.
+- The textures in the stock cooked layout (@2): mips down to 4x4, the header's PITCH and
+  LINEARSIZE flags with the size of all after the header, and the trailing sRGB byte (1 on the
+  diffuse) the loader takes off the end. @1 had ImageMagick's DDS (mips on to 1x1, the top level's
+  size, no sRGB byte): ordinary readers draw it right, but the game read its small mips 15 bytes off
+  their blocks, and the gun showed lime, pink, blue and purple blotches in the lobby (the owner's
+  screenshot, 2026-11-21; `mip_preview.py` draws both readings). Only the 20 textures differ from
+  @1; the camouflage masks and the scope fits are unchanged.
 - The item config: the stock AK-74M's with the live AK-74M's two-clip reload (pack
   tactical-clips-029's), so the guns play the AK-74M's clips, sounds and reload timing
   (`reload-timings-1` retimes them for each gun from `weapon-stats.tsv` as for the AK-74M).
