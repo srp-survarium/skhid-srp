@@ -4471,6 +4471,11 @@ impl Game {
                         standing.points
                     ));
                 }
+            } else if self.game_mode() == RuleMode::FreezeTag {
+                let wins = srp_validate::world::freeze::WINS;
+                if standing.points.iter().any(|team| *team > u16::from(wins)) {
+                    return Err(format!("round wins {:?} of {wins}", standing.points));
+                }
             } else {
                 let batteries = self.batteries() as u32;
                 let home = u32::from(standing.points[0]) + u32::from(standing.points[1]);
