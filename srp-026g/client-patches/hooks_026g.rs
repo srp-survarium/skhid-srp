@@ -5379,7 +5379,7 @@ pub extern "C" fn hook_particle_room_on_start(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- quiet_log (patch 173) ----
+// ---- quiet_log (patch 174) ----
 
 /// The named exits of quiet_log::on_message (the order the shim's Flow code
 /// follows, 2 upward).

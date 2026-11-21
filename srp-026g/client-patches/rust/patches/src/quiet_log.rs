@@ -1,4 +1,4 @@
-//! Patch 173: the engine's log, and so the console (it shows that file),
+//! Patch 174: the engine's log, and so the console (it shows that file),
 //! without the engine's lines that tell a player or a bug report nothing
 //! (the owner, 2026-11-21: "what about console having million garbage
 //! lines?"). At log_message's start (`logging.message`) a line of a format
