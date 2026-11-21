@@ -61,6 +61,8 @@ pub mod battery_progress;
 pub mod weapon_stats;
 
 pub mod hud_options;
+// patch 167: no white hit marker through walls
+pub mod hit_marker_walls;
 // patch 147: every run's logs in files of their own
 pub mod run_logs;
 pub mod tab_cursor;
