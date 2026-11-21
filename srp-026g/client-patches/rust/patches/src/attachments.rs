@@ -6,6 +6,11 @@
 //! - `on_dictionary_requests`, `on_dictionary_configs` (the items
 //!   dictionary cook's query and its callback): the modules table is asked
 //!   for with the dictionary's configs and kept, before any weapon is made;
+//! - `on_scope_dict`, `on_scope_result` (the weapon cook and its callback,
+//!   where each asks the config for the weapon's scope): the scope item is
+//!   the one `data/srp_scope` names, so a scope's modification is one add to
+//!   `data` like a device's and a grip's, and `addons/rifle_scope_dict_id`
+//!   stays the gun's own default optic;
 //! - `on_request_room`, `on_asked` (the weapon cook, as it asks for the
 //!   weapon's own resources): the bare body in place of the weapon's model,
 //!   and each part's model;
@@ -32,10 +37,12 @@
 
 #![forbid(unsafe_code)]
 
-use weapon_modules::{Bare, EyeAnchor, FingerJoints, Gun, Hand, Loadout, Placement, resolve};
+use weapon_modules::{Bare, EyeAnchor, Gun, Hand, Loadout, Placement, resolve};
 
 use crate::vostok::attachments::{self, Cook, FingerCorrector, HandSet, Leaving, Named, Records};
-use crate::vostok::{Context, Flow, NoExit, OrigFingersSetWeaponModel, Thread};
+use crate::vostok::{
+    AttachmentsOnScopeDictExit, AttachmentsOnScopeResultExit, Context, Flow, NoExit, OrigFingersSetWeaponModel, Thread,
+};
 
 /// What the eye is fixed to while aiming through an optic: the gun's aimed
 /// idle pose, so the reticle is centred at rest and the shot's kick of the
@@ -44,11 +51,6 @@ use crate::vostok::{Context, Flow, NoExit, OrigFingersSetWeaponModel, Thread};
 /// (weapon-modules' test of the two beside its rule; attachments.md, "The
 /// two switches").
 pub const EYE: EyeAnchor = EyeAnchor::GunIdle;
-
-/// Whose finger joints the left hand keeps on a grip: the gun's own (the
-/// 0.26g hand's, the grip turning each finger), or the grip's whole (0.69d's
-/// hand).
-pub const FINGER_JOINTS: FingerJoints = FingerJoints::Gun;
 
 const HAND_SETS: [HandSet; 2] = [HandSet::Idle, HandSet::Lobby];
 
@@ -71,8 +73,7 @@ pub fn shells(was: &Placement, now: &Placement) -> Option<weapon_modules::Affine
 
 fn fingers(weapon: &mut Records<'_>, hand: &Hand) {
     for set in HAND_SETS {
-        let own = weapon.left_fingers(set);
-        weapon.set_left_fingers(set, &hand.fingers(FINGER_JOINTS, &own));
+        weapon.set_left_fingers(set, &hand.fingers());
     }
 }
 
@@ -87,6 +88,17 @@ pub fn on_dictionary_configs(ctx: &mut Context<'_>) -> Flow<NoExit> {
         attachments::refused(why);
     }
     Flow::Continue
+}
+
+/// on_weapon_config_loaded at its scope (0x24AA15).
+pub fn on_scope_dict(ctx: &mut Context<'_>) -> Flow<AttachmentsOnScopeDictExit> {
+    if attachments::scope_request(ctx) { Flow::Exit(AttachmentsOnScopeDictExit::Scoped) } else { Flow::Continue }
+}
+
+/// on_weapon_subresources_ready before it asks whether the weapon has a
+/// scope (0x24AD0E).
+pub fn on_scope_result(ctx: &mut Context<'_>) -> Flow<AttachmentsOnScopeResultExit> {
+    if attachments::scope_result(ctx) { Flow::Exit(AttachmentsOnScopeResultExit::Scoped) } else { Flow::Continue }
 }
 
 /// on_weapon_config_loaded before it sizes its requests (0x24AAB4).

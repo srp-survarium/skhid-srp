@@ -19,6 +19,12 @@ by the crate's test): nothing here works a loadout out again.
   pinned pointer (0x3DD990, 0x3C1020), which is left unpinned with its
   reference given back; a query of five, a missing file, another version's
   table: no table, the last with a line;
+- the scope's dict id: a config that names a scope by data/srp_scope asks
+  for that item's config first, class 4Dh, without any
+  addons/rifle_scope_dict_id (the cook's site 0x24AA15), and the callback
+  takes its first result as the scope (0x24AD0E to 0x24AD47, the cook's slot
+  and the scope's out slot set as the skipped instructions set them); a
+  scope the dictionary lacks, or none: the game's own checks;
 - the cook (on_weapon_config_loaded 0x24A920 from its entry to its call of
   weapon_cook 0x24A780, then from the call's return, 0x24AC30): a config
   that names a gun with something fitted asks for the bare body in place of
@@ -59,6 +65,7 @@ DICT_QUERY, DICT_QUERY_END = 0x2C8963, 0x2C896C     # translate_query: the site,
 DICT_CONFIGS, DICT_CONFIGS_END = 0x2C8AA0, 0x2C8AA9
 COOK, COOK_ROOM, COOK_WEAPON, ASKED, ASKED_END = 0x24A920, 0x24AAB4, 0x24AC2B, 0x24AC30, 0x24AC36
 READY, READY_END = 0x24ACF0, 0x24ACF5
+SCOPE_RESULT, SCOPE_RESULT_END, SCOPE_RESULT_SCOPED = 0x24AD0E, 0x24AD17, 0x24AD47
 LOADED, LOADED_END = 0x24B0E1, 0x24B0E9
 DRAW, DRAW_END = 0x245017, 0x24501C
 CULLED, CULLED_END = 0x245353, 0x245359
@@ -75,7 +82,10 @@ T_INT, T_TABLE, T_STRING = 1, 3, 5
 BARREL, SCOPE, AIM, FRAME, HAND_RECORDS, FINGER_SETS = 0x6E0, 0x744, 0x7A8, 0x660, 0x1A20, 0x20F0
 
 ENDS = (DICT_QUERY_END, DICT_CONFIGS_END, COOK_WEAPON, ASKED_END, READY_END, LOADED_END, DRAW_END, CULLED_END,
-        HIDDEN_END, HANDS_END, FINGERS_VIEW_END, SHELLS_END, RELEASE_END)
+        HIDDEN_END, HANDS_END, FINGERS_VIEW_END, SHELLS_END, RELEASE_END, SCOPE_RESULT_END, SCOPE_RESULT_SCOPED)
+
+# The scope items of the made-up dictionary: the sample's PSO-1 and EOTech.
+SCOPE_ITEMS = {1755: "gameplay/items/scopes/pso1", 1771: "gameplay/items/scopes/eotech"}
 
 STACK, STOP, HEAP = 0x21000000, 0x21100000, 0x30000000
 RENDERER = 0x31000000
@@ -127,7 +137,7 @@ def loadouts():
     """sample-v2.loadouts.tsv: {(gun, scope, muzzle, grip): a case}. A case
     is "whole", ("refused", why) or a dict: body, bones, parts [(model, bone,
     matrix)], optic, eye (by anchor), fire, wrist (each (bone, matrix)),
-    fingers (by joints: fifteen matrices), effect."""
+    fingers (fifteen matrices, or None), effect."""
     cases, case = {}, None
     for line in (SAMPLE / "sample-v2.loadouts.tsv").read_text().splitlines():
         head, *rest = line.split("\t")
@@ -139,7 +149,7 @@ def loadouts():
         elif head == "refused":
             cases[key] = ("refused", rest[0])
         elif head == "bare":
-            case = cases[key] = {"body": rest[0], "bones": int(rest[1]), "parts": [], "eye": {}, "fingers": {}}
+            case = cases[key] = {"body": rest[0], "bones": int(rest[1]), "parts": [], "eye": {}, "fingers": None}
         elif head == "part":
             case["parts"].append((rest[0], *placed(rest[1:])))
         elif head in ("optic", "fire", "wrist"):
@@ -147,8 +157,8 @@ def loadouts():
         elif head == "eye":
             case["eye"][rest[0]] = placed(rest[1:])
         elif head == "fingers":
-            floats = [float(v) for v in rest[1:]]
-            case["fingers"][rest[0]] = [matrix(floats[12 * n:12 * n + 12]) for n in range(15)]
+            floats = [float(v) for v in rest]
+            case["fingers"] = [matrix(floats[12 * n:12 * n + 12]) for n in range(15)]
         elif head == "effect":
             case["effect"] = rest[0]
         else:
@@ -371,12 +381,35 @@ class Run:
         self.u32(resource + 0xD0, 1)
         return resource, root
 
+    def weapon_cook(self):
+        """The weapon cook: its game's items dictionary holds SCOPE_ITEMS,
+        each entry its dict id and its config's path (+118h)."""
+        cook, game, dictionary = self.block(0x40), self.block(0x5400), self.block(0x140)
+        entries = self.block(0x3A0 * len(SCOPE_ITEMS))
+        for n, (dict_id, path) in enumerate(sorted(SCOPE_ITEMS.items())):
+            self.emu.mem_write(entries + 0x3A0 * n, struct.pack("<H", dict_id))
+            self.u32(entries + 0x3A0 * n + 0x118, self.string(path))
+        self.u32(dictionary + 0x130, entries)
+        self.u32(dictionary + 0x134, len(SCOPE_ITEMS))
+        self.u32(game + 0x53A4, dictionary)
+        self.u32(cook + 0x24, game)
+        return cook
+
+    def scope_result(self, root):
+        """The callback at its question whether the weapon has a scope: where
+        it goes on (the game's own checks, or the scope's taking), and the
+        two slots the skipped instructions set."""
+        cook, sp = self.weapon_cook(), STACK - 0x7000
+        self.emu.mem_write(sp, b"\xEE" * 0x40)
+        stopped = self.run(SCOPE_RESULT, (SCOPE_RESULT_END, SCOPE_RESULT_SCOPED), sp, eax=root, ecx=cook, ebx=0)
+        return stopped, self.u32(sp + 0x30) == cook, self.u32(sp + 0x24)
+
     def cook(self, resource, weapon):
         """on_weapon_config_loaded to its weapon_cook call, then from the
         call's return with `weapon` its result to the end of the site's
         bytes: the requests [(path, class)], whether they fit their alloca,
         and the alloca's bytes."""
-        cook = self.block(0x40)
+        cook = self.weapon_cook()
         # its argument (the config's query) holds the config's resource at
         # +12Ch (0x24A92F; retained into [ebp+8]), its parent query at +20h
         query = self.block(0x140)
@@ -568,11 +601,26 @@ def main():
             ok = got is not None and native is not None and got == native
             report(ok, f"{name}: the original's requests and alloca")
             continue
-        want = [(case["body"], 0x10)] + NATIVE[1:] + [(model, 15) for model, _, _ in case["parts"]]
+        scope = [(SCOPE_ITEMS[key[1]], 0x4D)] if key[1] in SCOPE_ITEMS else []
+        want = scope + [(case["body"], 0x10)] + NATIVE[1:] + [(model, 15) for model, _, _ in case["parts"]]
         ok = got is not None and native is not None and got[0] == want and got[1] \
-            and got[2] == native[2] + 8 * len(case["parts"])
-        report(ok, f"{name}: the bare body for the model, then {len(case['parts'])} part(s), class 15, inside "
-                   f"the alloca ({[path.rsplit('/', 1)[-1] for path, _ in (got[0][len(NATIVE):] if got else [])]})")
+            and got[2] == native[2] + 8 * (len(case["parts"]) + len(scope))
+        report(ok, f"{name}: {'the scope item' + chr(39) + 's config first, class 4Dh; ' if scope else ''}the bare body "
+                   f"for the model, then {len(case['parts'])} part(s), class 15, inside the alloca "
+                   f"({[path.rsplit('/', 1)[-1] for path, _ in (got[0][len(scope) + len(NATIVE):] if got else [])]})")
+
+    print("the scope's dict id (the callback's question 0x24AD0E; the cook's is in the requests above)")
+    for name, data, scoped in (
+            ("a scope named by data/srp_scope, no addons", named(AK, scope=PSO1), True),
+            ("no scope named", named(AK, muzzle=DTK3), False),
+            ("a scope the dictionary lacks", named(AK, scope=999), False),
+            ("no data table", None, False)):
+        for build, exe in (("the build", built), ("the original", original)):
+            run = Run(exe)
+            stopped, cook_kept, taken = run.scope_result(run.config(data)[1])
+            want = SCOPE_RESULT_SCOPED if scoped and exe is built else SCOPE_RESULT_END
+            ok = stopped == want and cook_kept and (taken == 0 if stopped == SCOPE_RESULT_SCOPED else True)
+            report(ok, f"{name}, {build}: {'the first result is the scope' + chr(39) + 's (0x24AD47), the cook kept, the out slot 0' if want == SCOPE_RESULT_SCOPED else 'the game' + chr(39) + 's own checks'}")
 
     WORLD = multiply(rotation_y(0.4), translate(10.0, 1.5, -4.0))
     BONES = [IDENTITY, multiply(rotation_y(-0.2), translate(0.0, 0.01, -0.03)), translate(0.3, 0.2, 0.1),
@@ -589,7 +637,8 @@ def main():
         if run.cook(resource, weapon) is None:
             return None
         parts = [run.part() for _ in case["parts"]]
-        stopped = run.callback(weapon, resource, [run.block(0x120) for _ in NATIVE] + [h for h, _ in parts])
+        scope = [run.block(0x120)] if key[1] in SCOPE_ITEMS else []
+        stopped = run.callback(weapon, resource, scope + [run.block(0x120) for _ in NATIVE] + [h for h, _ in parts])
         return (run, weapon, instance, parts, case) if stopped == LOADED_END else None
 
     print("the callback (0x24ACF0, 0x24B0E1): the parts' models, the three records, the fingers")
@@ -607,12 +656,12 @@ def main():
         placed = all(records[at][0] == want[at][0] and close(records[at][1], want[at][1]) for at in want)
         sets = [run.floats(weapon + FINGER_SETS + 0x3C0 * n, 240) for n in range(4)]
         own = [v for m in own_fingers() for v in m]
-        grip = [v for m in case["fingers"]["gun"] for v in m] if case["fingers"] else own
+        grip = [v for m in case["fingers"] for v in m] if case["fingers"] else own
         fingers = close(sets[0], grip) and close(sets[3], grip) and close(sets[1], own) and close(sets[2], own)
         report(held and placed and fingers,
                f"{name}: {len(parts)} model(s) retained once; the barrel, scope and aim records "
                f"{'the loadout' + chr(39) + 's' if placed else records}; the idle and lobby finger sets "
-               f"{'the grip' + chr(39) + 's turn on the gun' + chr(39) + 's joints' if case['fingers'] else 'the game' + chr(39) + 's'}"
+               f"{'the grip' + chr(39) + 's own' if case['fingers'] else 'the game' + chr(39) + 's'}"
                f", reload's two the game's")
     made = fitted((AK, PSO1, DTK3, MIKI), bones=3)
     if made is None:
@@ -681,7 +730,7 @@ def main():
         stopped = run.run(FINGERS_VIEW, (FINGERS_VIEW_END,), sp)
         sets = [run.floats(corrector + 0x3C0 * n, 240) for n in range(4)]
         own = [v for m in own_fingers() for v in m]
-        grip = [v for m in case["fingers"]["gun"] for v in m]
+        grip = [v for m in case["fingers"] for v in m]
         report(stopped == FINGERS_VIEW_END and run.fingers_filled == 1 and close(sets[0], grip)
                and close(sets[3], grip) and close(sets[1], own) and close(sets[2], own)
                and run.emu.reg_read(UC_X86_REG_ESP) == sp + 12,

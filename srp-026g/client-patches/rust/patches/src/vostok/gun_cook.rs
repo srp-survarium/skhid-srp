@@ -198,17 +198,17 @@ impl Drawn {
     /// The one transition: drawn lying at `want` (its slot and transform,
     /// placed or moved there) or not, from what is drawn now; idempotent, a
     /// second hide does nothing.
-    fn to(self, inventory: raw::Inventory, want: Option<(WeaponSlot, &[f32; 16])>) -> Drawn {
+    fn to(self, thread: Option<&Thread>, inventory: raw::Inventory, want: Option<(WeaponSlot, &[f32; 16])>) -> Drawn {
         // SAFETY (each call): our live cooked inventory (the caller's ticket);
         // only the models we placed are removed.
         let (slot, models) = match (self, want) {
             (Drawn::Hidden, None) => return Drawn::Hidden,
-            (Drawn::Lying { slot, models }, Some((s, t))) if slot == s => (s, unsafe { place_lying(inventory, s, t, models) }),
+            (Drawn::Lying { slot, models }, Some((s, t))) if slot == s => (s, unsafe { place_lying(thread, inventory, s, t, models) }),
             (Drawn::Lying { slot, models }, want) => {
-                unsafe { remove_lying(inventory, slot, models) };
-                return Drawn::Hidden.to(inventory, want);
+                unsafe { remove_lying(thread, inventory, slot, models) };
+                return Drawn::Hidden.to(thread, inventory, want);
             }
-            (Drawn::Hidden, Some((s, t))) => (s, unsafe { place_lying(inventory, s, t, Models::NONE) }),
+            (Drawn::Hidden, Some((s, t))) => (s, unsafe { place_lying(thread, inventory, s, t, Models::NONE) }),
         };
         if models == Models::NONE { Drawn::Hidden } else { Drawn::Lying { slot, models } }
     }
@@ -228,7 +228,7 @@ fn release(inventory: raw::Inventory) {
 
 impl Drop for CookedInventory {
     fn drop(&mut self) {
-        self.drawn = self.drawn.to(self.inventory, None);
+        self.drawn = self.drawn.to(None, self.inventory, None);
         release(self.inventory);
     }
 }
@@ -377,7 +377,7 @@ pub fn is_made_gun(thread: &Thread, gun: ItemId) -> bool {
 pub fn show(thread: &Thread, id: CookId, slot: WeaponSlot, transform: &[f32; 16]) -> bool {
     TABLE.with(thread, |table| match &mut table.tickets[usize::from(id.index)] {
         Ticket::Made { generation, cooked, .. } if *generation == id.generation => {
-            cooked.drawn = cooked.drawn.to(cooked.inventory, Some((slot, transform)));
+            cooked.drawn = cooked.drawn.to(Some(thread), cooked.inventory, Some((slot, transform)));
             matches!(cooked.drawn, Drawn::Lying { .. })
         }
         _ => false,
@@ -390,7 +390,7 @@ pub fn hide(thread: &Thread, id: CookId) {
     TABLE.with(thread, |table| {
         if let Ticket::Made { generation, cooked, .. } = &mut table.tickets[usize::from(id.index)]
             && *generation == id.generation {
-            cooked.drawn = cooked.drawn.to(cooked.inventory, None);
+            cooked.drawn = cooked.drawn.to(Some(thread), cooked.inventory, None);
         }
     });
 }

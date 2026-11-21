@@ -80,6 +80,8 @@ use super::game_data::{GameData, GameDataError};
 use super::item_params::item_params;
 use super::prices::GOLD_IN_SILVER;
 use super::scopes::{SCOPE_SLOT, ScopeFits};
+use super::weapon_kit::{GRIP_SLOT, MUZZLE_SLOT};
+use super::weapon_modules::{Kind, Modules};
 
 /// The paths of the three files in the archive.
 pub const MODIFICATIONS_PATH: &str = "gameplay/items/modifications/modifications.options";
@@ -509,8 +511,26 @@ pub fn upgrade_slots_in(
     host_dict_id: u16,
     upgrade_dict_id: u16,
 ) -> &'static [u8] {
+    upgrade_slots_with(scopes, Modules::shared(), host_dict_id, upgrade_dict_id)
+}
+
+/// [`upgrade_slots_in`] with `modules`: a muzzle device or a grip the
+/// weapon takes by the modules table ([`Modules::kind`]) goes into
+/// [`MUZZLE_SLOT`] or [`GRIP_SLOT`]. A scope's slot is still the pairs'
+/// (`scopes`) until the scopes move onto the table.
+pub fn upgrade_slots_with(
+    scopes: &ScopeFits,
+    modules: &Modules,
+    host_dict_id: u16,
+    upgrade_dict_id: u16,
+) -> &'static [u8] {
     if scopes.variant(host_dict_id, upgrade_dict_id).is_some() {
         return &[SCOPE_SLOT];
+    }
+    match modules.kind(host_dict_id, upgrade_dict_id) {
+        Some(Kind::Muzzle) => return &[MUZZLE_SLOT],
+        Some(Kind::Grip) => return &[GRIP_SLOT],
+        Some(Kind::Scope) | None => {}
     }
     let (Some(host), Some(upgrade)) = (item_mods(host_dict_id), item_params(upgrade_dict_id))
     else {

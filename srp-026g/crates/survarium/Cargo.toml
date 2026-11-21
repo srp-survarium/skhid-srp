@@ -41,5 +41,9 @@ udp-transport = { workspace = true }
 [features]
 # Game data made up for tests (`v026g::maps::fixtures`), for the tests of
 # the crates that use this one.
-fixtures = []
+fixtures = ["weapon-modules/encode"]
+
+[dev-dependencies]
+# `v026g::weapon_modules::fixtures` writes its made-up tables.
+weapon-modules = { workspace = true, features = ["encode"] }
 
