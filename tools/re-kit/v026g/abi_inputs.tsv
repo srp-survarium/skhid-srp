@@ -6516,3 +6516,12 @@ va	name	location	role	basis
 0x0007b730	vostok::physics::bullet_character_controller::updateAction	entry ESP+8	dt (float32, s): the step's ms x 0.001	observed
 0x0007c7e0	vostok::physics::bullet_character_controller::can_skeep_player_step	EDX	the controller	observed
 0x002d9060	survarium::base_player::set_physics_controller_walk_vector	entry ESP+8	the step's ms (u32; [ebp+0Ch])	observed
+0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+4	the step's length in ms (u32; fild [ebp+8] 0x2D9528: m_linear_horizontal_speed +334h := the step's horizontal move x 1000 / it, stored at 0x2D9545)	observed
+0x002d93a0	survarium::base_player::assign_physics_transform	entry ESP+12	the ends-tick byte: 1 when the step ends on a 50 ms boundary (atomic_tick's sete 0x2D1E32, passed on by tick_delegates); only its low byte is set	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+4	the delegate list (one of the world's seven at +18840h..+188B0h, 16 bytes each)	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+8	the step's length in ms	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+12	the step's end time in ms	observed
+0x002d1d20	survarium::game_world_core::tick_delegates	entry ESP+16	the ends-tick byte (low byte; the rest is garbage)	observed
+0x002d1e20	survarium::game_world_core::atomic_tick	EDI	the step's end time in ms (tick_events 0x2D22B9); a multiple of 50 ends a tick (sete 0x2D1E32: the world's base time +18FBCh is always 50, 0x2D00CD, 0x2D076A)	observed
+0x00337280	survarium::player_logic_stand_jump_state::initialize_weight_for_on_site_animation	EDX	the jump state (its player at +1Ch)	observed
+0x002d95b0	survarium::base_player::notify_actions_subscribers	entry ESP+4	the player (its m_linear_horizontal_speed +334h read at 0x2D95CF for the "is moving" notice)	observed
