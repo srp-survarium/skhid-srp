@@ -63,6 +63,17 @@ its row of `release/content.tsv`. The list must stay the last that edits
   in an untrusted patch archive). Station and Depository are community SoC 1.0006
   maps (`.xdb0`, xrLC 14, DM/TDM/AH); neither the archives nor the level files
   name an author or credit.
+- Station's loading picture and room tile: a frame of the game (2026-11-21, when
+  it got Free for All; before, it showed its minimap's render; Depository's still
+  does), headless at 2560 x 1440, highest settings, hfov 100, cut by
+  `ui_images.py`: Station `platform-low2` (209.8, -10.6, -64) yaw 0.4 pitch 0.9,
+  eye level on the tracks south of the station between the wagons and the
+  platform (Depository's, for when it is offered: `se-high` (70, 30, -40) -45 /
+  -12.2, the train, the vaulted warehouses and the middle buildings from the
+  south-east). The shots, the harness
+  and the poses are in `/mnt/hdd/Projects/stalker-ffa-previews/` (`plan.py`
+  sketches a pose over the site render's height map before the game is run);
+  the before/after pairs in `private/renders/stalker-ffa-previews/`.
 
 ## Four more maps: stalker-maps-2 (the owner, 2026-11-14)
 
