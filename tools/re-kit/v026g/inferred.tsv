@@ -3526,3 +3526,6 @@ va	status	ref_021d	name
 0x002a62d0	inferred-medium		survarium::player_equipment_sound_effect::set_user [descriptive]
 0x0084d780	inferred-medium		vostok::physics::bullet_character_controller::init_walkable_slope_cos [descriptive]
 0x0084d800	inferred-medium		vostok::physics::bullet_character_controller::init_slide_slope_cos [descriptive]
+0x00063360	inferred-medium		vostok::sound::voice_bridge::set_filter_frequency [descriptive]
+0x0005a840	inferred-medium		vostok::sound::hud_sound_instance_proxy_internal::hud_sound_instance_proxy_internal [descriptive]
+0x0005d9d0	inferred-medium		vostok::sound::voice_bridge::voice_bridge [descriptive]
