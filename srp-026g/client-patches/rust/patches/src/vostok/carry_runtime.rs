@@ -263,6 +263,39 @@ impl Scene {
                                         bones.as_ptr().cast(), count)
         }
     }
+    /// Plays `particle` at `matrix` in the scene, as the artefacts' clients
+    /// play their idle (0x25F335..0x25F387): the particle by value (the play
+    /// takes the reference added here), the matrix twice, two empty
+    /// attachments.
+    pub(super) unsafe fn play_particle(&self, particle: raw::ParticleSystem, matrix: &[f32; 16]) {
+        let none = [0u32; 2];
+        // SAFETY: a particle system the caller keeps; its count atomic; the
+        // renderer and scene retained by the live caller; our locals copied.
+        unsafe {
+            core::sync::atomic::AtomicU32::from_ptr(particle.references())
+                .fetch_add(1, core::sync::atomic::Ordering::AcqRel);
+            raw::engine_play_particle_system(Some(self.renderer), Some(self.reference), Some(particle),
+                                             matrix.as_ptr(), matrix.as_ptr(), &none[0], &none[1]);
+        }
+    }
+    /// Removes the scene's instance of `particle`, as the artefacts' clients
+    /// do (0x25ECC6..0x25ECCF: the particle system's slot).
+    pub(super) unsafe fn stop_particle(&self, particle: raw::ParticleSystem) {
+        let mut slot = Some(particle);
+        // SAFETY: as play_particle; the slot ours, read by the call.
+        unsafe { raw::engine_remove_particle_system(Some(self.renderer), Some(self.reference), &mut slot) }
+    }
+    /// Moves the scene's instance of `particle` to `matrix`, as the
+    /// effects' presenters move theirs each frame (0x2AC353: the particle
+    /// system's slot, the matrix twice).
+    pub(super) unsafe fn move_particle(&self, particle: raw::ParticleSystem, matrix: &[f32; 16]) {
+        let mut slot = Some(particle);
+        // SAFETY: as play_particle; the slot and the matrix ours, read by the call.
+        unsafe {
+            raw::engine_update_particle_system(Some(self.renderer), Some(self.reference), &mut slot, matrix.as_ptr(),
+                                               matrix.as_ptr())
+        }
+    }
     pub(super) unsafe fn remove(&self, model: raw::SceneModel) -> bool {
         // SAFETY: as present; guard native remove with its own in-scene bit.
         unsafe {

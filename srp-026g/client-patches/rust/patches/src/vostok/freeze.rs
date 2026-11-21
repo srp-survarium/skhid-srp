@@ -139,7 +139,7 @@ fn player_at(core: raw::CoreWorld, place: Place) -> Option<raw::Player> {
 
 pub struct Player<'t> {
     native: raw::Player,
-    thread: &'t Thread,
+    _thread: &'t Thread,
 }
 impl<'t> Player<'t> {
     pub fn at_tick(ctx: &'t Context<'_>) -> Option<(Self, u32)> {
@@ -148,7 +148,7 @@ impl<'t> Player<'t> {
             Some((
                 Self {
                     native: raw::site::freeze_player_tick::player(ctx)?,
-                    thread: ctx.thread(),
+                    _thread: ctx.thread(),
                 },
                 read(raw::site::freeze_player_tick::frame(ctx)?.time()),
             ))
@@ -159,22 +159,13 @@ impl<'t> Player<'t> {
         unsafe {
             Some(Self {
                 native: raw::site::carry_input::player(ctx)?,
-                thread: ctx.thread(),
+                _thread: ctx.thread(),
             })
         }
     }
     pub fn place(&self) -> Place {
         // SAFETY: a live player.
         unsafe { place_of(self.native) }
-    }
-    /// The same player as its game effects see it (the frozen glow).
-    pub fn effects(&self) -> super::world::Player<'t> {
-        super::world::Player { this: self.native, thread: self.thread }
-    }
-    /// Whether `body`'s match is in play (the time rule's state 3): not before, not after its end.
-    pub fn in_play(body: &super::world::Player<'_>) -> bool {
-        // SAFETY: a live player's owning core, absent in a lobby.
-        unsafe { body.this.world_core().is_some_and(|core| read(core.time_state()) == 3) }
     }
     pub fn lethal(&self) -> bool {
         // SAFETY: a live player's deferred death flag.
@@ -352,5 +343,53 @@ pub(super) fn clear(core: raw::CoreWorld, from: Place, to: Place) -> bool {
             0,
         );
         hit.object().is_none()
+    }
+}
+
+/// The frozen glow as this game draws it (never in the simulation: the load moment of its
+/// resources differs per game, so an effect added from it would enter each game's world at
+/// another tick): the game world's scene, and the frozen bodies' matrices from the world.
+pub struct GlowScene<'t> {
+    scene: super::carry_runtime::Scene,
+    core: raw::CoreWorld,
+    _thread: &'t Thread,
+}
+impl<'t> GlowScene<'t> {
+    /// At the game world's frame (after its move) or as it is left; None outside a match.
+    pub fn of(world: &super::world::GameWorld<'t>, thread: &'t Thread) -> Option<Self> {
+        // SAFETY: the live game world of the hook, its renderer, scene and match core.
+        unsafe {
+            let scene = super::carry_runtime::Scene::of_world(world.this)?;
+            let core = world.this.pvp_match()?.core();
+            Some(Self { scene, core, _thread: thread })
+        }
+    }
+    /// Whether the match is in play (the time rule's state 3): the glow shows only then.
+    pub fn in_play(&self) -> bool {
+        // SAFETY: the live core of the hook's world.
+        unsafe { read(self.core.time_state()) == 3 }
+    }
+    /// The body at `place`, inserted and alive: its simulated transform (row-major 4x4).
+    pub fn body(&self, place: Place) -> Option<[f32; 16]> {
+        let player = player_at(self.core, place)?;
+        // SAFETY: the roster's current player of the place, live for the hook.
+        unsafe {
+            if read(player.inserted()) == 0 || read(player.alive()) == 0 {
+                return None;
+            }
+            Some(floats::<16>(player.transform()))
+        }
+    }
+    pub fn play(&self, particle: super::resources::KeptParticle, at: &[f32; 16]) {
+        // SAFETY: a particle system kept for the process; the live scene.
+        unsafe { self.scene.play_particle(particle.0, at) }
+    }
+    pub fn move_to(&self, particle: super::resources::KeptParticle, at: &[f32; 16]) {
+        // SAFETY: as play.
+        unsafe { self.scene.move_particle(particle.0, at) }
+    }
+    pub fn stop(&self, particle: super::resources::KeptParticle) {
+        // SAFETY: as play.
+        unsafe { self.scene.stop_particle(particle.0) }
     }
 }

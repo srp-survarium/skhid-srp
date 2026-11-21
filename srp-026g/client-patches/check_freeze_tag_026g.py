@@ -18,15 +18,9 @@ LENGTH = 69
 STATS = ffa.DATA + 0x60000
 CAMERA_INPUT = ffa.DATA + 0x96000
 CAMERA_STACK = 0x36000000
-# The frozen glow (pack freeze-tag-glow): the game's query_resources stubbed (recorded), its
-# callback through the game's invoker, game_effect_resource::emit native (its emitter stubbed), the
-# effect player's add 0x2DE090 stubbed (recorded), the default clock native.
+# The frozen glow's particle query (a frame's draw asks it): the game's query_resources stubbed and
+# recorded, never answered, so nothing of the glow is drawn here (it is presentation only).
 QUERY = 0xE5B60
-INVOKER = 0x3AAA20
-FUNCTION_VTABLE = 0x9DB9E0
-DEFAULT_CLOCK_VT = 0xA11398
-ADD_EFFECT = 0x2DE090
-GLOW = ffa.DATA + 0xC0000
 
 
 class Run(ffa.Run):
@@ -41,20 +35,8 @@ class Run(ffa.Run):
         self.emu.hook_add(UC_HOOK_CODE, self.ray, begin=0x75E20, end=0x75E20)
         self.emu.hook_add(UC_HOOK_CODE, self.reset_health, begin=0x2E5290, end=0x2E5290)
         self.emu.hook_add(UC_HOOK_CODE, self.camera_director, begin=0x243510, end=0x243510)
-        self.queries, self.played, self.emitted = [], [], []
-        self.next = GLOW + 0x100
-        self.emu.mem_write(GLOW, b"\xc2\x0c\x00")        # the emitter's emit: ret 0Ch
-        self.emu.mem_write(GLOW + 0x20, b"\xc2\x04\x00")  # its other slot: ret 4
+        self.queries = []
         self.emu.hook_add(UC_HOOK_CODE, self.on_query, begin=QUERY, end=QUERY)
-        self.emu.hook_add(UC_HOOK_CODE, self.on_emit, begin=GLOW, end=GLOW)
-        self.emu.hook_add(UC_HOOK_CODE, self.on_add, begin=ADD_EFFECT, end=ADD_EFFECT)
-
-    def block(self, size):
-        at = self.next
-        self.next += (size + 15) & ~15
-        assert self.next < ffa.DATA + ffa.SIZE
-        self.emu.mem_write(at, bytes(size))
-        return at
 
     def on_query(self, emu, *_):
         sp = emu.reg_read(UC_X86_REG_ESP)
@@ -62,65 +44,6 @@ class Run(ffa.Run):
         paths = [(self.text(self.read(requests + 8 * i)).decode(), self.read(requests + 8 * i + 4)) for i in range(count)]
         self.queries.append((paths, bytes(emu.mem_read(self.read(sp + 4), 0x20)), self.read(sp + 12)))
         self.leave(emu, 0)
-
-    def on_emit(self, emu, *_):
-        sp = emu.reg_read(UC_X86_REG_ESP)
-        effect = self.block(0x60)
-        self.word(effect + 0x1C, 1)
-        self.word(self.read(sp + 4), effect)
-        self.emitted.append(effect)
-
-    def on_add(self, emu, *_):
-        sp = emu.reg_read(UC_X86_REG_ESP)
-        self.played.append((emu.reg_read(UC_X86_REG_EDI) - 0x358, self.read(self.read(sp + 4)), self.read(sp + 8),
-                            self.read(sp + 20)))
-        effect = self.read(self.read(sp + 4))
-        self.word(effect + 0x1C, self.read(effect + 0x1C) + 1)   # the native add takes its own reference
-        self.leave(emu, 20)
-
-    def call_native(self, va, args, regs=()):
-        sp = hide.STACK + 0x8000
-        self.emu.mem_write(sp, struct.pack("<%dI" % (len(args) + 1), ffa.RETURN, *args))
-        self.run(va, (ffa.RETURN,), sp, dict(regs))
-        assert self.stopped == ffa.RETURN, hex(va)
-
-    def deliver(self):
-        """The glow's query answered through the game's invoker with an effect resource (its
-        emitter stubbed): the patch keeps one reference of its own. The resource."""
-        paths, function, user = self.queries[0]
-        vtable, _entry, word = struct.unpack_from("<I4xII", function)
-        assert paths == [("freeze_tag_frozen", 109)] and user == 0 and (vtable, word) == (FUNCTION_VTABLE | 1, 1), self.queries
-        resource, emitter, table = self.block(0x120), self.block(4), self.block(0x30)
-        self.word(emitter, table)
-        self.word(table + 0x20, GLOW)
-        self.word(table + 0x28, GLOW + 0x20)
-        self.word(resource + 0x108, emitter)
-        self.word(resource + 0x114, struct.unpack("<I", struct.pack("<f", 1.0))[0])
-        self.word(resource + 0xD0, 1)
-        results = self.block(0x12C + 0x2E0)
-        self.word(results + 0x38, 1)
-        self.word(results + 0x12C, resource)
-        at = self.block(0x20)
-        self.emu.mem_write(at, function)
-        self.call_native(INVOKER, (at + 8, results))
-        assert self.read(resource + 0xD0) == 2, "kept: one reference of its own"
-        return resource
-
-    def playing(self, place, effect):
-        """The body's effect list: one node playing `effect`, or none."""
-        node = 0
-        if effect is not None:
-            node = self.block(0x50)
-            self.word(node, effect)
-        self.word(ffa.player(place) + 0x358 + 0x2C, node)
-
-    def effect_clock(self, place, effect, start=100, now=5000):
-        """The body's own calculator on a node of `effect`: whether it says the effect ended."""
-        node, out = self.block(0x50), self.block(12)
-        self.word(node, effect)
-        self.word(node + 0x18, start)
-        self.call_native(self.read(DEFAULT_CLOCK_VT), (out, node, start, now), {UC_X86_REG_ECX: ffa.player(place) + 0x394})
-        return self.emu.mem_read(out + 8, 1)[0]
 
     def camera_director(self, emu, *_):
         # Execute both real game_world camera switches; only their external
@@ -165,7 +88,6 @@ class Run(ffa.Run):
             self.word(p + 0x350, ffa.DATA + 0x1000)
             self.word(p + 0x2E0, ffa.DATA + 0xC000 + 0x100 * i)
             self.emu.mem_write(p + 0x33C, b"\x01\x00\x00\x01")
-            self.word(p + 0x394, DEFAULT_CLOCK_VT)             # the body's own calculator
         self.thaws.clear()
 
     def lethal(self, place):
@@ -329,46 +251,6 @@ def main():
     r.start(PLAIN)
     assert len(r.serialize()) == len(plain)
     print("ok simultaneous wipes draw and the replay counts a round start; a subsequent ordinary match has no Freeze Tag bytes")
-
-    # The frozen glow: asked once, at the first tick of a Freeze Tag match; nothing plays until it
-    # arrives. Then a frozen body's tick plays it once, from the body's time with its own
-    # calculator, which ends it at the thaw, at the round's restart and at the match's end.
-    assert len(r.queries) == 1, r.queries
-    resource = r.deliver()
-    r.start()
-    r.played.clear()
-    assert not r.player_tick(1, 100) and r.played == [], "a fighting body: none"
-    r.lethal(0)
-    r.tick(100)
-    assert r.player_tick(0, 150)
-    assert len(r.played) == 1, r.played
-    body, effect, time, calculator = r.played[0]
-    assert (body, time, calculator) == (ffa.player(0), 150, ffa.player(0) + 0x394), r.played
-    assert r.read(effect + 0x10) == resource, "emitted from the kept resource"
-    r.playing(0, effect)
-    r.played.clear()
-    assert r.player_tick(0, 200) and r.played == [], "a body playing it gets no other"
-    assert r.effect_clock(0, effect) == 0, "frozen: it goes on"
-    for time in range(150, 3200, 50):
-        r.tick(time)
-    assert r.thaws and r.effect_clock(0, effect) == 1, "thawed: it ends"
-    r.lethal(0)
-    r.lethal(1)
-    r.tick(3250)
-    assert r.state()[1] == 1 and r.effect_clock(0, effect) == 0, "frozen between rounds: it goes on"
-    r.tick(8250, 5000)
-    for i in range(3):
-        r.emu.mem_write(ffa.player(i) + 0x33D, b"\0")
-    r.tick(8300)
-    assert r.state()[1] == 0 and r.effect_clock(0, effect) == 1, "the round restarted: it ends"
-    r.lethal(0)
-    r.tick(8350)
-    assert r.effect_clock(0, effect) == 0
-    r.word(ffa.CORE + 0x18FE4, 4)
-    assert r.effect_clock(0, effect) == 1, "the match ended: it ends"
-    r.start(PLAIN)
-    assert r.effect_clock(0, effect) == 1, "another match: it ends"
-    print("ok frozen glow asked once, played on a frozen body from its time with its own calculator, ended at the thaw, the restart and the match's end")
 
     r.start()
     r.word(CAMERA_INPUT + 0x358, 0)

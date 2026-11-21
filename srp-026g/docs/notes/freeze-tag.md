@@ -32,8 +32,8 @@ round wins. No artifact rescue in this version (owner, 2026-11-17).
   teammate.
 - A frozen body glows: the Spring artefact's activation glow in ice blue,
   fainter (the owner, 2026-11-21: "effect can be anomalous artifact spring
-  activation but of slightly different hue and less intense"; "The frozen
-  glow" below).
+  activation but of slightly different hue and less intense"), fading in four
+  clear steps as a teammate thaws him ("The frozen glow" below).
 
 The first authored map is Rudnya day, using its existing TDM project and
 team spawns. `freeze-tag-1.json` makes its config and fills unused map-dictionary
@@ -122,31 +122,40 @@ text); a marker made while its place is frozen is blue from the start. The
 native label is the game's, never written over. `tools/check freeze-names`
 (`scripts/freeze-tag-hud`) checks it in Ruffle at 1920x1080 and 1280x720.
 
-**The frozen glow.** `gameplay/effects/effect_freeze_tag_frozen` (content
-pack `freeze-tag-glow`, `scripts/freeze-tag-glow/make_pack.py`): made as the
-artefact-glow pack makes an artefact's, a composite of the third-person
-`fx/artifacts/human_frozen` and its first-person twin `human_frozen_fp` (no
-head, face or neck, no point light or haze). `human_frozen` is the stock
-Spring glow `fx/artifacts/human_spring` with its three blue materials drawn
-with ice copies (`fx/artifacts/<name>_ice`, constant_emissive the variant's
-colour times its emissive), every emitter's rate and maximum scaled, and its
-point light the same colour at a lower intensity (or left out). Spring's own
-files are unchanged. The variants and the one shipped are in the script
-(`VARIANTS`, `SHIPPED`); previews in `private/renders/freeze-tag-glow/`.
-Shipped for now: variant a (colour 0.62, 0.88, 1.0 at emissive 0.6, rate 0.6,
-light 0.5), until the owner picks from the previews (not rendered yet: the
-render build and its content are ready in
-`private/freeze-tag-glow-render/`; the capture needs a headless game client).
+**The frozen glow.** `fx/artifacts/human_frozen` (content pack
+`freeze-tag-glow`, `scripts/freeze-tag-glow/make_pack.py`): the stock Spring
+glow `fx/artifacts/human_spring` with its three blue materials drawn with ice
+copies (`fx/artifacts/<name>_ice`, constant_emissive (0.62, 0.88, 1.0) x
+0.6), every emitter's rate and maximum x0.6 and its point light ice blue at
+half its intensity: the owner's pick of the previews' variants ("a is good",
+2026-11-21). Spring's own files are unchanged.
 
-It is played as Forest Protection's glow is (`forest_glow.rs`): at each
-player's simulation tick (`freeze.player_tick`, every game, so the effect is
-in the world and a rollback or a late join shows it) a frozen body of a match
-in play that plays none of it gets one, with its own calculator
-(`medical.effect_clock`, order 4), which ends it when the body is frozen no
-more: the thaw, the round's restart (the spawn also stops every effect), the
-match's end (the time rule past play) and another match. The effect cook gives
-it 20 instances (`medical.effect_capacity`, order 4). Asked once, at the first
-tick of a Freeze Tag match; nothing plays until it arrives.
+The thaw fades it (the owner: "would be nice if the glow was reducing as the
+player was unfrozen", "so others could deem the freeze state by look"): full
+for the first quarter of the 3 s thaw, then 70 %, 40 % and 15 % for the next
+quarters (emissive, rate and light times the strength), and full again if the
+progress resets. A particle instance takes no colour or emission scale once
+the scene plays it (scene_renderer has play, stop, remove and the transform's
+update only), so each strength is a system of its own in the pack
+(`human_frozen`, `_70`, `_40`, `_15`, each with its materials), swapped as the
+progress crosses a quarter. The steps are far apart so they read at fighting
+distance; 15 % is plainly "almost thawed".
+
+Each game draws it for itself, never in the simulation: an effect added to a
+body's simulated effect list at the first tick after a game loaded it enters
+each game's world at another tick (Artifact Hunt's carrier glow desynced so,
+2026-11-21). After the simulation's move (`game_world.after_move`, the
+frame hook, order 4) the game plays, moves (`update_particle_system_instance`
+0x22B30, on the body's simulated transform) and stops one instance a place in
+the world's scene, from the world's rule state: every frozen body of a match in
+play, at its progress's strength, so every game, a rollback and a late join
+show the same. It stops at the thaw, the round's restart, the match's end and
+another match, and everything of it leaves the scene with the world
+(`game_world.deactivate`, order 4). Each strength has an instance for each of
+the 20 places (a scene plays an instance once): 80 systems in one query at the
+first frame of a Freeze Tag match. The frozen player's camera is the orbit
+around his own body, so he sees the same particles; there is no first-person
+twin.
 
 ## With Artifact Hunt
 

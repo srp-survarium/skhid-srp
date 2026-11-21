@@ -1,13 +1,12 @@
 //! Freeze Tag: snapshot-owned best-of-five rule and native player lifecycle.
 #![forbid(unsafe_code)]
 use crate::vostok::{self, Context, Flow, GameCell, NoExit, OptionsRead};
-use crate::vostok::{FreezeTagOnEffectClockExit, FreezeTagOnInputExit, FreezeTagOnPlayerTickExit};
-use crate::vostok::effect::{self, KeptEffect};
+use crate::vostok::{FreezeTagOnInputExit, FreezeTagOnPlayerTickExit};
 use crate::vostok::log::{self, Piece};
-use crate::vostok::resources::{self, Arrived, QueryResults, QueryTag};
+use crate::vostok::resources::{self, Arrived, KeptParticle, QueryResults, QueryTag};
 use crate::vostok::parse::Reader;
 use srp_validate::Place;
-use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd, Schedule};
+use srp_validate::world::freeze::{Actions, Body, Condition, FreezeTag, PLAYERS, Phase, Player, RoundEnd, Schedule, THAW_MS};
 
 #[derive(Clone, Copy)]
 enum Match {
@@ -106,7 +105,11 @@ pub fn active(thread: &vostok::Thread) -> bool {
     matches!(MATCH.get(thread), Match::Freeze(_))
 }
 
-pub fn on_camera(ctx: &mut Context<'_>) -> Flow<NoExit> {
+/// game_world::tick after the simulation's move: the frozen glow drawn, the frozen camera kept.
+pub fn on_frame(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    if let Some(world) = vostok::world::GameWorld::at_after_move(ctx) {
+        draw_glow(ctx.thread(), &world);
+    }
     let rule = match MATCH.get(ctx.thread()) {
         Match::Freeze(state) => Some(state),
         Match::Other => None,
@@ -137,12 +140,8 @@ pub fn on_player_tick(ctx: &mut Context<'_>) -> Flow<FreezeTagOnPlayerTickExit> 
     let Some((mut player, time)) = vostok::freeze::Player::at_tick(ctx) else {
         return Flow::Continue;
     };
-    let held = held(&state, &player);
-    if held {
+    if held(&state, &player) {
         player.hold(time, state.phase());
-    }
-    glow(ctx.thread(), &player, &state);
-    if held {
         return Flow::Exit(FreezeTagOnPlayerTickExit::Frozen);
     }
     Flow::Continue
@@ -150,52 +149,128 @@ pub fn on_player_tick(ctx: &mut Context<'_>) -> Flow<FreezeTagOnPlayerTickExit> 
 
 // ---- the frozen glow -----------------------------------------------------
 
-/// The frozen glow's game effect (pack freeze-tag-glow: the Spring activation glow in ice blue,
-/// fainter; docs/notes/freeze-tag.md "The frozen glow").
-const GLOW_EFFECT: &core::ffi::CStr = c"freeze_tag_frozen";
+/// The frozen glow's particle systems (pack freeze-tag-glow: the Spring activation glow in ice blue,
+/// fainter; docs/notes/freeze-tag.md "The frozen glow"), at each of its strengths.
+const GLOW_PARTICLES: [&core::ffi::CStr; STRENGTHS] = [
+    c"fx/artifacts/human_frozen",
+    c"fx/artifacts/human_frozen_70",
+    c"fx/artifacts/human_frozen_40",
+    c"fx/artifacts/human_frozen_15",
+];
+const STRENGTHS: usize = 4;
 
-/// The glow's resource: asked at the first player tick of a Freeze Tag match, kept for the process.
+/// How strong a frozen body's glow is: the thaw fades it, a step a quarter of the 3 s (the owner,
+/// 2026-11-21: "so others could deem the freeze state by look"). The instances the engine plays take
+/// no colour or emission scale once playing (scene_renderer: play, stop, remove and the transform's
+/// update only), so each strength is a system of its own, 100, 70, 40 and 15 % of the glow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Strength {
+    Full,
+    Seventy,
+    Forty,
+    Fifteen,
+}
+
+impl Strength {
+    /// A frozen body's glow for its thaw progress: full until a quarter of THAW_MS, then a step
+    /// down a quarter; a reset progress is full again.
+    fn of(progress: u16) -> Strength {
+        match u32::from(progress) * 4 / u32::from(THAW_MS) {
+            0 => Strength::Full,
+            1 => Strength::Seventy,
+            2 => Strength::Forty,
+            _ => Strength::Fifteen,
+        }
+    }
+    const fn index(self) -> usize {
+        match self {
+            Strength::Full => 0,
+            Strength::Seventy => 1,
+            Strength::Forty => 2,
+            Strength::Fifteen => 3,
+        }
+    }
+}
+
+/// Each strength's instance for each place: a scene plays an instance once.
+type Particles = [[KeptParticle; PLAYERS]; STRENGTHS];
+
+/// The glow's particle systems: asked at the first frame of a Freeze Tag match, kept for the process.
 #[derive(Clone, Copy)]
 enum Load {
     Unasked,
     Asked,
-    Ready(KeptEffect),
-    /// The effect is not in the game's data: no glow this session.
+    Ready(Particles),
+    /// The pack is missing: no glow this session.
     Missing,
 }
 static GLOW: GameCell<Load> = GameCell::new(Load::Unasked);
+/// The glow this game has in the scene for each place, and its strength.
+static GLOWING: GameCell<[Option<Strength>; PLAYERS]> = GameCell::new([None; PLAYERS]);
 
-/// Whether a body shows the glow: frozen in the rule (until the round's restart spawns it) while
-/// the match is in play (not after its end).
-fn glows(state: &FreezeTag, place: Place, in_play: bool) -> bool {
-    in_play && is_frozen(state, place)
-}
-
-/// At a player's simulation tick (every game, so the effect is in the world and a rollback or a
-/// late join shows it): a frozen body that plays none of it is given the glow, with its own
-/// calculator, which ends it at the thaw, the restart or the match's end.
-fn glow(thread: &vostok::Thread, player: &vostok::freeze::Player<'_>, state: &FreezeTag) {
-    match GLOW.get(thread) {
+/// Each frame after the simulation's move, this game draws the glow itself on every frozen body of
+/// a match in play, at the strength its thaw progress gives, from the world's rule state (so every
+/// game, a rollback and a late join show it as the world has it), and stops it at the thaw, the
+/// round's restart, the match's end and another match. Nothing of it enters the simulation: an
+/// effect added there at the first tick after this game loaded it would enter each game's world at
+/// another tick (Artifact Hunt's carrier glow desynced so, 2026-11-21). The frozen player's camera
+/// is the orbit around his body, so he sees the same particles; no first-person twin.
+fn draw_glow(thread: &vostok::Thread, world: &vostok::world::GameWorld<'_>) {
+    let state = match MATCH.get(thread) {
+        Match::Freeze(state) => Some(state),
+        Match::Other => None,
+    };
+    let shown = GLOWING.get(thread);
+    if state.is_none() && shown.iter().all(Option::is_none) {
+        return;
+    }
+    let particles = match GLOW.get(thread) {
         Load::Unasked => {
-            resources::query_effects(thread, &[GLOW_EFFECT], crate::vostok::freeze_tag_on_loaded_entry());
+            let paths: [&core::ffi::CStr; STRENGTHS * PLAYERS] = core::array::from_fn(|i| GLOW_PARTICLES[i / PLAYERS]);
+            resources::query_particles(thread, &paths, crate::vostok::freeze_tag_on_loaded_entry());
             GLOW.set(thread, Load::Asked);
+            return;
         }
-        Load::Ready(kept) => {
-            let body = player.effects();
-            if glows(state, player.place(), player.playing()) && !body.plays_effect(kept) {
-                body.hold_effect(kept);
+        Load::Ready(particles) => particles,
+        Load::Asked | Load::Missing => return,
+    };
+    let Some(scene) = vostok::freeze::GlowScene::of(world, thread) else { return };
+    let in_play = scene.in_play();
+    let mut now = [None; PLAYERS];
+    for (place, (was, next)) in Place::all().zip(shown.into_iter().zip(now.iter_mut())) {
+        let target = state
+            .filter(|_| in_play)
+            .and_then(|state| match state.player(place) {
+                Player::Frozen { progress, .. } => Some(Strength::of(progress.millis())),
+                Player::Waiting | Player::Fighting(_) => None,
+            })
+            .zip(scene.body(place));
+        let particle = |strength: Strength| particles[strength.index()][place.index()];
+        match (was, target) {
+            (Some(was), Some((strength, at))) if was == strength => scene.move_to(particle(strength), &at),
+            (was, target) => {
+                if let Some(was) = was {
+                    scene.stop(particle(was));
+                }
+                if let Some((strength, at)) = target {
+                    scene.play(particle(strength), &at);
+                }
             }
         }
-        Load::Asked | Load::Missing => {}
+        *next = target.map(|(strength, _)| strength);
     }
+    GLOWING.set(thread, now);
 }
 
 /// The glow's query came back (on the game's thread).
 pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     let thread = results.thread();
-    let Arrived::Effects(arrived) = results.arrived(tag) else { return };
-    match arrived.all::<1>() {
-        Some([kept]) => GLOW.set(thread, Load::Ready(kept)),
+    let Arrived::Particles(arrived) = results.arrived(tag) else { return };
+    match arrived.all::<{ STRENGTHS * PLAYERS }>() {
+        Some(all) => {
+            let particles: Particles = core::array::from_fn(|s| core::array::from_fn(|p| all[s * PLAYERS + p]));
+            GLOW.set(thread, Load::Ready(particles));
+        }
         None => {
             log::line(&[Piece::Text("freeze_tag: the frozen glow did not load; none this session")]);
             GLOW.set(thread, Load::Missing);
@@ -203,32 +278,22 @@ pub fn on_loaded(results: QueryResults<'_>, tag: QueryTag) {
     }
 }
 
-/// The effect cook: an instance of the glow for each of the 20 places.
-pub fn on_effect_capacity(ctx: &mut Context<'_>) -> Flow<NoExit> {
-    effect::effect_capacity(ctx, GLOW_EFFECT, 20);
-    Flow::Continue
-}
-
-/// The default clock: the glow ends when its body is frozen no more (thawed, the round restarted,
-/// another match).
-pub fn on_effect_clock(ctx: &mut Context<'_>) -> Flow<FreezeTagOnEffectClockExit> {
-    let Load::Ready(kept) = GLOW.get(ctx.thread()) else { return Flow::Continue };
-    let state = match MATCH.get(ctx.thread()) {
-        Match::Freeze(state) => Some(state),
-        Match::Other => None,
-    };
-    let shows = |_: usize, player: &vostok::world::Player<'_>| {
-        state.is_some_and(|state| {
-            Place::new(player.place()).is_some_and(|place| {
-                glows(&state, place, vostok::freeze::Player::in_play(player))
-            })
-        })
-    };
-    if effect::kept_clock(ctx, &[kept], shows) {
-        Flow::Exit(FreezeTagOnEffectClockExit::Returned)
-    } else {
-        Flow::Continue
+/// game_world::on_deactivate: the match's scene is left; no glow of ours in it.
+pub fn on_deactivate(ctx: &mut Context<'_>) -> Flow<NoExit> {
+    let thread = ctx.thread();
+    let shown = GLOWING.get(thread);
+    if let Load::Ready(particles) = GLOW.get(thread)
+        && let Some(world) = vostok::world::GameWorld::at_deactivate(ctx)
+        && let Some(scene) = vostok::freeze::GlowScene::of(&world, thread)
+    {
+        for (place, strength) in Place::all().zip(shown) {
+            if let Some(strength) = strength {
+                scene.stop(particles[strength.index()][place.index()]);
+            }
+        }
     }
+    GLOWING.set(thread, [None; PLAYERS]);
+    Flow::Continue
 }
 
 pub fn on_input(ctx: &mut Context<'_>) -> Flow<FreezeTagOnInputExit> {
@@ -352,6 +417,14 @@ pub fn on_hud(ctx: &mut Context<'_>) -> Flow<NoExit> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_glow_steps_down_a_quarter_of_the_thaw_at_a_time() {
+        let at = |progress| Strength::of(progress);
+        assert_eq!([at(0), at(749), at(750), at(1499), at(1500), at(2249), at(2250), at(THAW_MS - 1)],
+                   [Strength::Full, Strength::Full, Strength::Seventy, Strength::Seventy, Strength::Forty,
+                    Strength::Forty, Strength::Fifteen, Strength::Fifteen]);
+    }
 
     #[test]
     fn the_mode_entry_among_the_others() {

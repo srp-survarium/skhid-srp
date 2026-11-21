@@ -367,6 +367,12 @@ unsafe extern "stdcall" {
     pub fn engine_fsm_append_transition(source: Option<BatteryState>, destination: Option<BatteryState>, predicate: Option<FsmPredicate>);
     /// 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
     pub fn engine_set_texture(compiler: Option<EffectCompiler>, slot: *const u8, texture: *const u8, option: u32, request: u32, lower: u32, lower_float: f32, flag: u32);
+    /// 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
+    pub fn engine_play_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: Option<ParticleSystem>, first_matrix: *const f32, second_matrix: *const f32, first_attachment: *const u32, second_attachment: *const u32);
+    /// 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
+    pub fn engine_remove_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: *mut Option<ParticleSystem>);
+    /// 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
+    pub fn engine_update_particle_system(renderer: Option<SceneRenderer>, scene: Option<SceneReference>, particle: *mut Option<ParticleSystem>, first_matrix: *const f32, second_matrix: *const f32);
 }
 
 #[allow(dead_code)]
@@ -12733,6 +12739,24 @@ impl QueryResult {
     #[inline(always)]
     pub unsafe fn set_effect(self, value: Option<MedicalEffectResource>) {
         unsafe { self.0.byte_add(0x0).cast::<Option<MedicalEffectResource>>().write_volatile(value) }
+    }
+
+    /// +0x0 (ptr<vostok::render::particle_system>): a class-61 request's result: a particle system (the artefact cooks' second, 0x25E862; Lifebone keeps it at item+4B0h, 0x26037F, and its client passes that word by value to play_particle_system, ebx+18h = item+4B0h, 0x25F34E..0x25F387)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn particle(self) -> Option<ParticleSystem> {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ParticleSystem>>().read_volatile() }
+    }
+
+    /// +0x0 (ptr<vostok::render::particle_system>): a class-61 request's result: a particle system (the artefact cooks' second, 0x25E862; Lifebone keeps it at item+4B0h, 0x26037F, and its client passes that word by value to play_particle_system, ebx+18h = item+4B0h, 0x25F34E..0x25F387)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn set_particle(self, value: Option<ParticleSystem>) {
+        unsafe { self.0.byte_add(0x0).cast::<Option<ParticleSystem>>().write_volatile(value) }
     }
 
     /// 0x2e0 bytes: 2E0h bytes a result
@@ -28292,6 +28316,30 @@ impl RespawnTickFrame {
     #[inline(always)]
     pub unsafe fn time(self) -> *mut u32 {
         unsafe { self.0.byte_add(0xc).cast::<u32>().as_ptr() }
+    }
+}
+
+/// A vostok::render::particle_system (fields_026g.tsv): a pointer to one, never 0. Made only here: by a typed field,
+/// a function's typed result or a site's typed register (sites_026g.tsv `holds`).
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ParticleSystem(NonNull<c_void>);
+
+#[allow(dead_code)]
+impl ParticleSystem {
+    /// Its address as a value (an id, a compare): never read through.
+    #[inline(always)]
+    pub fn address(self) -> u32 {
+        self.0.as_ptr() as usize as u32
+    }
+
+    /// +0xd0 (u32): its reference count (the play's by-value copy adds one, 0x25F369)
+    ///
+    /// # Safety
+    /// `self` is alive (its fields are its kind's: the type says so).
+    #[inline(always)]
+    pub unsafe fn references(self) -> *mut u32 {
+        unsafe { self.0.byte_add(0xd0).cast::<u32>().as_ptr() }
     }
 }
 

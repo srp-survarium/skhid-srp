@@ -934,3 +934,15 @@ extern engine_switch_to_warmup_camera
 ; void engine_switch_to_player_camera(struct game_world *world, unsigned char first_person)
 ; 0x1f8200 survarium::game_world::switch_to_player_camera: world EAX, first_person ESP+4; pops 4
 extern engine_switch_to_player_camera
+; void engine_play_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *particle, const float *first_matrix, const float *second_matrix, const unsigned int *first_attachment, const unsigned int *second_attachment)
+; 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_play_particle_system
+; void engine_remove_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *const *particle)
+; 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_remove_particle_system
+; void engine_update_particle_system(struct scene_renderer *renderer, struct scene_reference *scene, struct particle_system *const *particle, const float *first_matrix, const float *second_matrix)
+; 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
+; stdcall: push (and ECX for thiscall) as that convention says
+extern engine_update_particle_system

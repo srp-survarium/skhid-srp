@@ -361,6 +361,12 @@ unsafe extern "stdcall" {
     pub fn engine_fsm_append_transition(source: *mut c_void, destination: *mut c_void, predicate: *const c_void);
     /// 0x3d98b0 vostok::render::effect_compiler::set_texture: compiler ESP+4, slot ESP+8, texture ESP+12, option ESP+16, request ESP+20, lower ESP+24, lower_float ESP+28, flag ESP+32; pops 32; stdcall, called directly
     pub fn engine_set_texture(compiler: *mut c_void, slot: *const u8, texture: *const u8, option: u32, request: u32, lower: u32, lower_float: f32, flag: u32);
+    /// 0x22660 vostok::render::scene_renderer::play_particle_system: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20, first_attachment ESP+24, second_attachment ESP+28; pops 28; stdcall, called directly
+    pub fn engine_play_particle_system(renderer: *mut c_void, scene: *mut c_void, particle: *mut c_void, first_matrix: *const f32, second_matrix: *const f32, first_attachment: *const u32, second_attachment: *const u32);
+    /// 0x229d0 vostok::render::scene_renderer::remove_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12; pops 12; stdcall, called directly
+    pub fn engine_remove_particle_system(renderer: *mut c_void, scene: *mut c_void, particle: *const *mut c_void);
+    /// 0x22b30 vostok::render::scene_renderer::update_particle_system_instance: renderer ESP+4, scene ESP+8, particle ESP+12, first_matrix ESP+16, second_matrix ESP+20; pops 20; stdcall, called directly
+    pub fn engine_update_particle_system(renderer: *mut c_void, scene: *mut c_void, particle: *const *mut c_void, first_matrix: *const f32, second_matrix: *const f32);
 }
 
 #[allow(dead_code)]

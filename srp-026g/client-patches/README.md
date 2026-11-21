@@ -6390,10 +6390,11 @@ spawn path resets the players. No artifact rescue in this first version.
 Mode 12, initially on Rudnya day (`freeze-tag-1.json`). The stock team score
 bars, collection progress widget and blocked-hit sound provide the feedback.
 A frozen player's name is drawn ice blue in the player icons movie (his own
-colour back on thaw; `tools/check freeze-names`), and his body plays the frozen
-glow `effect_freeze_tag_frozen` (pack freeze-tag-glow: the Spring activation
-glow in ice blue, fainter) from his tick while frozen, ended by its own
-calculator (`medical.effect_clock` and `medical.effect_capacity`, order 4).
+colour back on thaw; `tools/check freeze-names`), and each game draws the
+frozen glow `fx/artifacts/human_frozen` (pack freeze-tag-glow: the Spring
+activation glow in ice blue, fainter) on his body as scene particles from the
+world's state, never in the simulation, stepping down to 70, 40 and 15 % as a
+teammate thaws him (`game_world.after_move` and `game_world.deactivate`, order 4).
 The shared world parser owns the versioned round state, including scores,
 frozen places and progress. See [the rules and native lifecycle](../docs/notes/freeze-tag.md).
 `tools/check freeze-native` exercises the installed hooks, HUD calls and

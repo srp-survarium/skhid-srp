@@ -3032,6 +3032,21 @@ pub extern "C" fn hook_faces_on_world_left(frame: &mut Frame) -> u32 {
     }
 }
 
+// ---- freeze_tag (patch 160) ----
+
+/// The entry `freeze_tag_on_deactivate` (0x1f9520, game_world::on_deactivate's start (push ebx / push esi / push edi / mov edi,ecx): the match scene left) calls this with the saved machine.
+#[unsafe(no_mangle)]
+pub extern "C" fn hook_freeze_tag_on_deactivate(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_deactivate` calls this, from the game's jump at 0x1f9520,
+    // on the game's thread; `frame` is its saved registers and fxsave area.
+    let mut ctx = unsafe { Context::new(frame) };
+    match crate::freeze_tag::on_deactivate(&mut ctx) {
+        Flow::Continue => 0,
+        Flow::Skip => 1,
+        Flow::Exit(e) => match e {},
+    }
+}
+
 // ---- message_check (patch 114) ----
 
 /// The named exits of message_check::on_message (the order the shim's Flow code
@@ -3158,21 +3173,6 @@ pub extern "C" fn hook_forest_glow_on_capacity(frame: &mut Frame) -> u32 {
     }
 }
 
-// ---- freeze_tag (patch 160) ----
-
-/// The entry `freeze_tag_on_effect_capacity` (0x2ec81e, game effect resource cook: ESI concurrent instances, EBX named query; after count read, before callback copies it) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_freeze_tag_on_effect_capacity(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `freeze_tag_on_effect_capacity` calls this, from the game's jump at 0x2ec81e,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::freeze_tag::on_effect_capacity(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => match e {},
-    }
-}
-
 // ---- medical_skills (patch 94) ----
 
 /// The named exits of medical_skills::on_effect_clock (the order the shim's Flow code
@@ -3207,26 +3207,6 @@ pub extern "C" fn hook_forest_glow_on_clock(frame: &mut Frame) -> u32 {
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
     match crate::forest_glow::on_clock(&mut ctx) {
-        Flow::Continue => 0,
-        Flow::Skip => 1,
-        Flow::Exit(e) => 2 + e as u32,
-    }
-}
-
-// ---- freeze_tag (patch 160) ----
-
-/// The named exits of freeze_tag::on_effect_clock (the order the shim's Flow code
-/// follows, 2 upward).
-#[repr(u32)]
-#[allow(dead_code)]
-pub enum FreezeTagOnEffectClockExit { Returned }
-/// The entry `freeze_tag_on_effect_clock` (0x2e5d80, default clock: only the static Medic calculator is handled; all native objects continue unchanged) calls this with the saved machine.
-#[unsafe(no_mangle)]
-pub extern "C" fn hook_freeze_tag_on_effect_clock(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `freeze_tag_on_effect_clock` calls this, from the game's jump at 0x2e5d80,
-    // on the game's thread; `frame` is its saved registers and fxsave area.
-    let mut ctx = unsafe { Context::new(frame) };
-    match crate::freeze_tag::on_effect_clock(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => 2 + e as u32,
@@ -3505,13 +3485,13 @@ pub extern "C" fn hook_voice_on_frame(frame: &mut Frame) -> u32 {
 
 // ---- freeze_tag (patch 160) ----
 
-/// The entry `freeze_tag_on_camera` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
+/// The entry `freeze_tag_on_frame` (0x1f7c3c, game_world::tick's join after the simulation's move (cmp byte [esp+0Fh],0; EBX the game world)) calls this with the saved machine.
 #[unsafe(no_mangle)]
-pub extern "C" fn hook_freeze_tag_on_camera(frame: &mut Frame) -> u32 {
-    // SAFETY: only the entry `freeze_tag_on_camera` calls this, from the game's jump at 0x1f7c3c,
+pub extern "C" fn hook_freeze_tag_on_frame(frame: &mut Frame) -> u32 {
+    // SAFETY: only the entry `freeze_tag_on_frame` calls this, from the game's jump at 0x1f7c3c,
     // on the game's thread; `frame` is its saved registers and fxsave area.
     let mut ctx = unsafe { Context::new(frame) };
-    match crate::freeze_tag::on_camera(&mut ctx) {
+    match crate::freeze_tag::on_frame(&mut ctx) {
         Flow::Continue => 0,
         Flow::Skip => 1,
         Flow::Exit(e) => match e {},
@@ -7226,6 +7206,8 @@ pub extern "C" fn hook_voice_on_deactivate_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_faces_on_world_left(frame);
     if flow != 0 { return flow; }
+    let flow = hook_freeze_tag_on_deactivate(frame);
+    if flow != 0 { return flow; }
     0
 }
 
@@ -7244,8 +7226,6 @@ pub extern "C" fn hook_medical_skills_on_effect_capacity_chain(frame: &mut Frame
     if flow != 0 { return flow; }
     let flow = hook_forest_glow_on_capacity(frame);
     if flow != 0 { return flow; }
-    let flow = hook_freeze_tag_on_effect_capacity(frame);
-    if flow != 0 { return flow; }
     0
 }
 
@@ -7254,8 +7234,6 @@ pub extern "C" fn hook_medical_skills_on_effect_clock_chain(frame: &mut Frame) -
     let flow = hook_medical_skills_on_effect_clock(frame);
     if flow != 0 { return flow; }
     let flow = hook_forest_glow_on_clock(frame);
-    if flow != 0 { return flow; }
-    let flow = hook_freeze_tag_on_effect_clock(frame);
     if flow != 0 { return flow; }
     0
 }
@@ -7306,7 +7284,7 @@ pub extern "C" fn hook_ragdoll_on_step_chain(frame: &mut Frame) -> u32 {
     if flow != 0 { return flow; }
     let flow = hook_voice_on_frame(frame);
     if flow != 0 { return flow; }
-    let flow = hook_freeze_tag_on_camera(frame);
+    let flow = hook_freeze_tag_on_frame(frame);
     if flow != 0 { return flow; }
     0
 }
